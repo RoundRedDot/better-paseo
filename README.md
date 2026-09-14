@@ -1,212 +1,244 @@
-# OMP Chat Enhancer
+# Beautiful Chat
 
-A Paseo plugin that presents real Oh My Pi (OMP) reasoning, tool calls, approvals, and tasks in the assistant chat stream.
+A Paseo plugin that redraws the Oh My Pi (OMP) chat stream: tool calls, reasoning, prompts, approvals,
+and checklists. It replaces the host rendering of OMP timeline items with typed, syntax-aware cards
+that follow the active Paseo theme.
+
+Every screenshot below is a capture of the real component, rendered by the harness in `.showcase/`.
+
+## Install
+
+```bash
+paseo plugin install /absolute/path/to/beautiful-chat
+```
+
+The manifest requires Paseo `>=0.8.0-beta.1`. Open **Settings → Plugins → Beautiful Chat** for the
+accent, fonts, frosted glass, and prompt bubble options.
 
 ---
 
-## Design Inspirations
+## Tool calls
 
-1. **Chain-of-Thought Reasoning Trace**  
-   Inspired by [Prompt-kit Chain of Thought](https://www.prompt-kit.com/docs/chain-of-thought):
-   - Collapsible trigger bar with duration (`Thought for 4.8s`), step count, token meter, and model chip.
-   - Stepper timeline with connected vertical guide dots and status badges (Completed, Active, Pending).
-   - Inlined syntax-highlighted code snippets and AST inspection snapshots.
+### Shell and Git
 
-2. **Action Approval Card**  
-   Inspired by [aicss.dev Approval Card](https://www.aicss.dev/components/approval-card):
-   - Prominent risk classification badge (`HIGH RISK` / `MEDIUM RISK` / `LOW RISK`).
-   - Monospace command box with prompt (`$`), arguments, and copy button.
-   - Target path diff view with added/removed line markers.
-   - Context metadata (working directory, timeout).
-   - Action buttons with keyboard shortcut cues (`[⏎ Enter]` for Approve, `[Esc]` for Deny, and `Allow for Session`).
+Terminal frame, Bash syntax, exit code, duration, and the Git brand mark. A command that prints
+nothing says so rather than showing an empty panel.
 
-3. **Multi-Step Task Progress List**  
-   Inspired by [aicss.dev Task List](https://www.aicss.dev/components/task-list) & OMP `todo` tool:
-   - Header with phase label, completed/total counter (`3/5 completed`), and visual progress bar (`60%`).
-   - Distinct row states: completed (green check, strikethrough), in-progress (pulsing indicator, elevated card), pending (empty ring), and blocked (amber warning with expandable reason).
+![Shell and Git tool calls](docs/images/tool-bash.png)
 
-4. **Callout-Style Outputs for Built-in OMP Tools**  
-   Tailored presentations for each tool kind:
-   - `hub`: Agent coordination callout covering:
-     - **Peer messaging**: Routing pill (`Main → SecurityReviewer`), delivery receipt (`✓ delivered in 14ms`), and synchronous reply thread.
-     - **Process supervisor**: Managed daemon process status, TCP port readiness (`● :6767 ready`), regex log matcher, and process controls (Stop / Restart).
-     - **Background jobs**: Snapshot matrix of active background tasks with elapsed timers and cancel triggers.
-   - `thinking`: Reasoning callout with model badge, token metrics, and multi-step breakdown.
-   - `shell`: Interactive PTY terminal window with working directory badge, exit code, elapsed time, and stdout/stderr streams.
-   - `mcp`: Model Context Protocol callout with server namespace badge (`devnav`, `linkml`), transport badge, formatted JSON input arguments, and structured result payload.
-   - `bash`: Terminal window box with colored dots, command syntax, exit code pill (`code 0`), duration, and collapsible output stream.
-   - `read`: Code viewer callout with language tag, file path link (`src/server/agent/hub.ts:45-92`), line numbers, and syntax highlighting.
-   - `edit`: Unified diff callout with line additions (`+`) in emerald green and removals (`-`) in rose red.
-   - `eval`: Persistent REPL sandbox cell with runtime badge (`Bun / TS` or `Python`) and execution result card.
-   - `ask`: Multiple-choice decision cards with "Recommended" pill and click-to-select interaction.
-   - `task`: Subagent delegation pill with agent avatar (`scout`), model badge, and live progress state.
+### Read
 
-5. **Branded File Type Badges (`FileTypeLogo`)**  
-   Crisp branded file type badges integrated across code snippets, file peek cards, and diff viewers:
-   - **TypeScript** (`TS`, official `#3178C6` blue)
-   - **Python** (`PY`, `#3776AB` blue with `#FFD438` gold)
-   - **JavaScript** (`JS`, `#F7DF1E` yellow)
-   - **Rust** (`RS`, `#CE412B` rust red)
-   - **Shell / Bash** (`>_`, `#24292E` slate with `#00E676` prompt)
-   - **JSON** (`{}`, `#5E5E5E` slate with `#FFD54F` gold)
-   - **Markdown** (`M↓`, `#083FA1` markdown blue)
-   - **HTML / CSS / SQL / Diff**
+The file's own language logo, a wrapped path, line numbers, and a copy button. The path is a link:
+pressing it shows the file in the machine's file manager.
 
-6. **Paseo Theme and Inline Stream**
-   - Inherits `theme.colors` directly, so every component follows the active Paseo theme.
-   - Adds no assistant-turn container. Reasoning, tools, and tasks remain inline with the native stream.
-   - Uses crisp vector Lucide icons instead of emoji characters.
+![Read tool call](docs/images/tool-read.png)
 
----
+### Edit
 
-## Project Structure
+Diff rendering where adjacent removed and added rows join into one rounded block, and only the
+marker column carries the red or green.
 
-omp-chat-enhancer/
-paseo-plugin.json # Manifest (requires Paseo >=0.8.0-beta.1)
-index.client.tsx # Registers the chat renderers and Settings page
-index.server.ts # Server entry point
-package.json # Dependencies and typecheck script
-tsconfig.json # TypeScript configuration
-shared/
-contracts.ts # Shared types for reasoning, tasks, and tools
-client/
-live-renderers.tsx # Maps live OMP timeline events to presentation data
-settings-page.tsx # Plugin settings, including glass and syntax choices
-components/
-theme-tokens.ts # Theme tokens derived from the host theme
-reasoning-trace.tsx # Collapsible reasoning trace
-approval-card.tsx # Permission request presentation
-task-list.tsx # Todo presentation
-tool-callouts.tsx # Dedicated OMP tool callouts
-hub-callout.tsx # Agent coordination and process callouts
+![Edit tool call](docs/images/tool-edit.png)
+
+### Reasoning tool
+
+Live thinking text, a token badge, and numbered steps.
+
+![Thinking tool call](docs/images/tool-thinking.png)
+
+### MCP
+
+Server badge, transport, input parameters, and the response payload, each syntax-highlighted.
+
+![MCP tool call](docs/images/tool-mcp.png)
+
+### Eval
+
+One card per kernel cell: the source that ran, then the text it printed.
+
+![Eval tool call](docs/images/tool-eval.png)
+
+### Ask
+
+Option cards with the recommended badge, the chosen answer marked, and a typed reply labelled as
+typed rather than shown as a selection.
+
+![Ask tool call](docs/images/tool-ask.png)
+
+### Task
+
+Subagent name, type, model, and the delegated instructions.
+
+![Task tool call](docs/images/tool-task.png)
+
+### Hub
+
+Peer messages and supervised processes, including port, readiness pattern, and recent output.
+
+![Hub tool calls](docs/images/hub.png)
+
+### Paseo tools
+
+Agent creation, activity, providers, and models, with the provider's own brand mark.
+
+![Paseo tool call](docs/images/paseo.png)
 
 ---
 
-## Component API & Props
+## Stream components
 
-### 1. `ReasoningTrace`
+### Reasoning trace
 
-```tsx
-import { ReasoningTrace } from "./components/reasoning-trace.client";
+A collapsible trace with a connected step rail, per-step duration, and a token total.
 
-<ReasoningTrace
-  data={{
-    id: "rt-1",
-    agentModel: "google/gemini-3.8-flash",
-    durationMs: 4800,
-    totalTokens: 1480,
-    status: "completed",
-    steps: [
-      {
-        id: "step-1",
-        number: 1,
-        title: "Orient codebase & inspect session schema",
-        durationMs: 1200,
-        status: "completed",
-        content: "Queried codedb symbol index for TokenStore...",
-        codeSnippet: { language: "typescript", code: "..." },
-      },
-    ],
-  }}
-  tokens={tokens}
-  defaultExpanded={true}
-/>;
-```
+![Reasoning trace](docs/images/reasoning.png)
 
-### 2. `ApprovalCard`
+### Checklist
 
-```tsx
-import { ApprovalCard } from "./components/approval-card.client";
+Phase name, per-task status, durations, and a blocked task with its reason.
 
-<ApprovalCard
-  request={{
-    id: "appr-1",
-    toolName: "bash",
-    title: "Execute Database Migration",
-    riskLevel: "high",
-    rationale: "Apply database schema changes before starting daemon.",
-    command: "pnpm run db:migrate",
-    cwd: "C:/Users/.../happy-bell",
-    timeoutSeconds: 60,
-    status: "pending",
-    timestamp: "15:10:22",
-  }}
-  tokens={tokens}
-  onApprove={(id, scope) => console.log("Approved:", id, scope)}
-  onDeny={(id) => console.log("Denied:", id)}
-/>;
-```
+![Checklist](docs/images/tasks.png)
 
-### 3. `TaskList`
+### Approval card
 
-```tsx
-import { TaskList } from "./components/task-list.client";
+Risk classification, the exact command, target path, working directory, and the approve or deny
+actions the host owns.
 
-<TaskList
-  data={{
-    id: "tl-1",
-    phaseName: "Token Rotation & Verification",
-    tasks: [
-      {
-        id: "t-1",
-        title: "Audit token-rotation schema",
-        phase: "Auth",
-        status: "completed",
-        duration: "1.2s",
-      },
-      { id: "t-2", title: "Execute automated test suite", phase: "Auth", status: "in_progress" },
-      {
-        id: "t-3",
-        title: "Verify backward compatibility",
-        phase: "Auth",
-        status: "blocked",
-        blockerReason: "Waiting for user decision",
-      },
-    ],
-  }}
-  tokens={tokens}
-  onToggleTask={(taskId, status) => console.log("Task toggled:", taskId, status)}
-/>;
-```
+![Approval card](docs/images/approval.png)
 
-### 4. `ToolCallout`
+### Prompt bubble
 
-```tsx
-import { ToolCallout } from "./components/tool-callouts.client";
+The authored turn on a raised theme surface with a square tail, a copy button, and the turn's token
+usage.
 
-<ToolCallout
-  data={{
-    id: "tc-bash",
-    tool: "bash",
-    title: "Running test suite",
-    status: "completed",
-    durationMs: 340,
-    exitCode: 0,
-    command: "pnpm test",
-    output: "PASS 3 tests completed in 2.1s",
-  }}
-  tokens={tokens}
-  defaultExpanded={true}
-/>;
-```
+![Prompt bubble](docs/images/user.png)
+
+### Syntax block
+
+Shared by every card that shows code: language detection from the path, line numbers, diff tints,
+Devicon brand marks, and the file-manager link.
+
+![Syntax block](docs/images/syntax.png)
 
 ---
 
-## Runtime behavior
+## Settings
 
-The plugin intercepts only OMP timeline items. It replaces their default rendering with enhanced presentations:
+![Settings screen](docs/images/settings.png)
 
-1. **Reasoning (`thought`)** renders the collapsible trace.
-2. **Permissions** render the approval card and retain the host approval actions.
-3. **Todo lists** render the interactive checklist.
-4. **Tool calls** render tool-aware output, including terminal, source, diff, question, and coordination layouts.
-5. **Prompts** render the enhanced bubble with token usage.
+| Setting | Effect |
+| --- | --- |
+| Accent colour | Follow the Paseo theme, or pick Jade, Violet, Amber, or Rose. |
+| Interface font | Embedded Inter, or the system interface face. |
+| Code glyphs | Iosevka with ligatures, or literal glyphs. |
+| Frosted glass | Blur card surfaces, or paint them solid. |
+| Enhanced prompt bubble | Off hands prompts back to Paseo, whose bubble shows pasted images. |
 
-A file name in a source, diff, or read block is a link. Pressing it asks the daemon side to show
-that file in the machine's own file manager: Explorer selects it on Windows, Finder selects it on
-macOS, and every other platform opens the containing directory. Paseo exposes no file navigation to
-plugins, so the link cannot open Paseo's own editor.
+---
 
-Open **Settings → Plugins → OMP Chat Enhancer** to select the accent, interface and code fonts, and
-frosted-glass effect. The same page turns the enhanced prompt bubble off. Paseo removes pasted
-images while it maps a message for plugins, so only the host's own bubble can show them.
+## Opening files
+
+A file name in a read, write, edit, or code block is a link. Pressing it calls the plugin's own
+daemon-side RPC (`file.reveal`), which resolves the path against the agent's working directory and
+asks the platform shell to show it:
+
+| Platform | Behaviour |
+| --- | --- |
+| Windows | `explorer.exe /select,<file>` selects the file. |
+| macOS | `open -R <file>` selects the file in Finder. |
+| Other | `xdg-open <directory>` opens the containing directory. |
+
+A directory path opens that directory. A path the daemon cannot stat does nothing.
+
+The link cannot open Paseo's own file editor: see the first limitation below.
+
+---
+
+## Plugin SDK limitations found while building this
+
+Measured against `@getpaseo/plugin` 0.8.0 and the Paseo 0.8.0 desktop build. Each entry names the
+evidence and the workaround this plugin uses.
+
+1. **No file navigation.** Timeline renderer props are exactly `{agentId, theme, host, layout,
+   timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurface`,
+   `openWorkspacePanel`, `openAgentPanel`, `openAgent`, and `openWorkspace`. The host's own file tab
+   target (`{kind:"file", path}`, reachable in-app through `?open=file:<path>`) is not exposed, and
+   the `paseo://` scheme only carries agent deep links. Workaround: a daemon-side RPC that reveals
+   the path in the operating system's file manager.
+2. **Transformers see a stripped item.** The app maps its stream item to the plugin item before any
+   transformer runs, and a user message keeps only `text`, `messageId`, and `clientMessageId`. Pasted
+   images never reach plugin code, and the daemon timeline row stores the same item, so a server RPC
+   cannot recover them either. Workaround: the **Enhanced prompt bubble** setting returns prompts to
+   the host.
+3. **Interception is all or nothing.** A transformer replaces the host item completely. There is no
+   way to decorate an item or keep host affordances that the plugin does not reimplement. Returning
+   `undefined` is the only opt-out.
+4. **Transform results are cached per item.** Changing a preference does not re-run transformers for
+   items already on screen. New items follow the change; existing ones need a reload.
+5. **Renderers get no workspace.** Props carry `agentId` only, so `cwd` and `workspaceId` need a
+   second lookup through `useAgent`.
+6. **Token usage is live-only.** Usage is not persisted on timeline items, so a turn this client did
+   not observe live shows no figures.
+7. **RPC names are validated late.** The host requires `^[a-z][a-z0-9._-]*$`. A camelCase name such
+   as `revealPath` typechecks, then fails the whole plugin at install or reload with
+   `Invalid plugin RPC method`.
+8. **The React Native runtime module is a stub in the package.** `@getpaseo/plugin/client/react-native`
+   ships as `export {}`; the host injects the implementations. Bundling or testing plugin UI outside
+   Paseo needs a shim, which is what `.showcase/shims` provides.
+9. **The theme carries six colours.** `PluginTheme` exposes `surface0`–`surface2`, `border`,
+   `foreground`, `foregroundMuted`, `accent`, `accentForeground`, and three status colours. Every
+   other surface, including code backgrounds and diff tints, must be derived with alpha; that is what
+   `client/components/theme-tokens.ts` exists for.
+10. **No CSS escape hatch.** React Native styles drop unknown keys, so `backdrop-filter` is
+    impossible through the style API. Frosted glass is a hand-injected `<style>` rule matched by a
+    data attribute.
+11. **No font registration.** Faces are embedded as data URIs in an injected `@font-face` rule, and
+    every surface needs a wrapper that escapes the host's own font cascade.
+12. **No SVG renderer.** The plugin sandbox has no SVG component, so brand marks and icons are
+    inlined as data-URI images.
+13. **Settings are host-scoped only.** `defineSettings` rejects any scope other than `host`, so
+    per-workspace or per-agent presentation settings are impossible. This plugin keeps presentation
+    preferences in client storage instead.
+
+---
+
+## Project structure
+
+```text
+beautiful-chat/
+  paseo-plugin.json          # Manifest: id and Paseo requirement
+  index.client.tsx           # Timeline transformers, renderers, settings screen
+  index.server.ts            # Daemon-side RPCs (file.reveal)
+  shared/
+    contracts.ts             # Data contracts shared by client and server
+    file-rpc.ts              # file.reveal contract
+  client/
+    live-renderers.tsx       # Timeline item to component mapping
+    settings-page.tsx        # Settings screen
+    preferences.ts           # Client-side presentation preferences
+    components/              # Cards, syntax block, glyphs, motion, theme tokens
+  .showcase/                 # Offline harness used to capture the screenshots
+  docs/images/               # Screenshots in this README
+```
+
+## Development
+
+```bash
+npm install
+npm run typecheck
+paseo plugin reload beautiful-chat
+```
+
+Rebuild the screenshots after a visual change:
+
+```bash
+esbuild .showcase/showcase.tsx --bundle --outfile=.showcase/showcase.js --jsx=automatic \
+  --alias:react-native=react-native-web \
+  --alias:@getpaseo/plugin/client/react-native=./.showcase/shims/plugin-react-native.tsx
+```
+
+Then serve `.showcase/` and capture each `#shot-*` element.
+
+## License
+
+MIT

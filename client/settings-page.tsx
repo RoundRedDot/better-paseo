@@ -93,7 +93,7 @@ function ChoiceRow<T extends string>({
 }
 
 /** Settings content mounted by Paseo under the selected host's Plugin settings. */
-export function OmpChatEnhancerSettingsPage({ theme }: PluginSurfaceProps) {
+export function BeautifulChatSettingsPage({ theme }: PluginSurfaceProps) {
   const preferences = useEnhancerPreferences();
   const tokens = useMemo(
     () => buildThemeTokens(theme.colors, preferences),
