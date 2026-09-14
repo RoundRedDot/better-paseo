@@ -169,6 +169,7 @@ export function ToolCallout({
           color: statusColor,
         },
         chevron: {
+          fontFamily: tokens.fontUi,
           fontSize: 11,
           color: tokens.foregroundMuted,
           marginLeft: 2,
@@ -295,6 +296,7 @@ export function ToolCallout({
           color: tokens.foreground,
         },
         recommendedBadge: {
+          fontFamily: tokens.fontUi,
           fontSize: 10,
           fontWeight: "600",
           color: tokens.success,
@@ -379,6 +381,7 @@ export function ToolCallout({
           justifyContent: "space-between",
         },
         mcpServerBadge: {
+          fontFamily: tokens.fontUi,
           fontSize: 11,
           fontWeight: "700",
           color: tokens.accent,
@@ -419,6 +422,7 @@ export function ToolCallout({
           ...tokens.boxShadow,
         },
         mcpErrorText: {
+          fontFamily: tokens.fontUi,
           fontSize: 11,
           color: tokens.danger,
         },

@@ -575,6 +575,7 @@ export function SyntaxHighlightBlock({
           ...unselectable,
         },
         langBadge: {
+          fontFamily: tokens.fontUi,
           fontSize: 11,
           fontWeight: "500",
           textTransform: "uppercase",
@@ -596,6 +597,7 @@ export function SyntaxHighlightBlock({
           flexShrink: 0,
         },
         copyText: {
+          fontFamily: tokens.fontUi,
           fontSize: 11,
           color: copied ? tokens.success : tokens.foregroundMuted,
           fontWeight: "500",

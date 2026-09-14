@@ -85,18 +85,22 @@ function sameRows<T>(left: T[], right: T[], equal: (a: T, b: T) => boolean): boo
  * look more live than the evidence behind it.
  */
 /**
- * Only the newest hub result may speak.
+ * The newest moment this agent's state is known to have moved past.
  *
- * Every `hub` card in the timeline republishes its snapshot whenever it
- * renders, and an old card scrolling back into view would otherwise overwrite
- * the current state with history. `at` is the source item's own timestamp, so
- * an older snapshot is dropped rather than applied.
+ * Deleting a snapshot is not enough: every `hub` card in the timeline
+ * republishes its own snapshot whenever it renders, so a card scrolling back
+ * into view — or a new turn re-rendering the list — resurrects work that
+ * finished long ago. The mark outlives the entry, so history cannot speak
+ * again once the present has moved past it.
  */
+const highWater = new Map<string, number>();
+
 export function publishHubSnapshot(agentId: string, snapshot: HubActivity): void {
+  if (snapshot.at <= (highWater.get(agentId) ?? -1)) return;
   const previous = snapshots.get(agentId);
-  if (previous !== undefined && snapshot.at < previous.at) return;
 
   if (snapshot.running.length === 0 && snapshot.agents.length === 0) {
+    highWater.set(agentId, snapshot.at);
     if (previous === undefined) return;
     snapshots.delete(agentId);
     publish();
@@ -112,6 +116,19 @@ export function publishHubSnapshot(agentId: string, snapshot: HubActivity): void
   }
 
   snapshots.set(agentId, snapshot);
+  highWater.set(agentId, snapshot.at);
+  publish();
+}
+
+/**
+ * Retires everything known at or before `at`. The timeline has produced proof
+ * that the snapshot is spent — a reply landing after a wait — so the entry
+ * goes and no older card may refill it.
+ */
+export function retireHubActivity(agentId: string, at: number): void {
+  if (at > (highWater.get(agentId) ?? -1)) highWater.set(agentId, at);
+  if (!snapshots.has(agentId)) return;
+  snapshots.delete(agentId);
   publish();
 }
 

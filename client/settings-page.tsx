@@ -111,8 +111,15 @@ function ToggleRow({
   return (
     <View style={[styles.row, styles.toggleRow, { borderTopColor: tokens.borderSubtle }]}>
       <View style={styles.toggleText}>
-        <Text style={[styles.rowTitle, { color: tokens.foreground }]}>{title}</Text>
-        <Text style={[styles.rowDescription, { color: tokens.foregroundMuted }]}>
+        <Text style={[styles.rowTitle, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+          {title}
+        </Text>
+        <Text
+          style={[
+            styles.rowDescription,
+            { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
+          ]}
+        >
           {description}
         </Text>
       </View>
@@ -146,7 +153,10 @@ function OptionButton({
       ]}
     >
       <Text
-        style={[styles.optionLabel, { color: selected ? tokens.accent : tokens.foregroundMuted }]}
+        style={[
+          styles.optionLabel,
+          { color: selected ? tokens.accent : tokens.foregroundMuted, fontFamily: tokens.fontUi },
+        ]}
       >
         {label}
       </Text>
@@ -171,8 +181,17 @@ function ChoiceRow<T extends string>({
 }) {
   return (
     <View style={[styles.row, { borderTopColor: tokens.borderSubtle }]}>
-      <Text style={[styles.rowTitle, { color: tokens.foreground }]}>{title}</Text>
-      <Text style={[styles.rowDescription, { color: tokens.foregroundMuted }]}>{description}</Text>
+      <Text style={[styles.rowTitle, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+        {title}
+      </Text>
+      <Text
+        style={[
+          styles.rowDescription,
+          { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
+        ]}
+      >
+        {description}
+      </Text>
       <View style={styles.options}>
         {options.map((option) => (
           <OptionButton
@@ -204,8 +223,12 @@ export function BeautifulChatSettingsPage({ theme }: PluginSurfaceProps) {
           { borderColor: tokens.borderSubtle, backgroundColor: tokens.surface1 },
         ]}
       >
-        <Text style={[styles.title, { color: tokens.foreground }]}>Chat presentation</Text>
-        <Text style={[styles.description, { color: tokens.foregroundMuted }]}>
+        <Text style={[styles.title, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+          Chat presentation
+        </Text>
+        <Text
+          style={[styles.description, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}
+        >
           Changes apply to every enhanced tool call, reasoning trace, checklist, and prompt in this
           client.
         </Text>
@@ -218,8 +241,15 @@ export function BeautifulChatSettingsPage({ theme }: PluginSurfaceProps) {
         ]}
       >
         <View style={styles.row}>
-          <Text style={[styles.rowTitle, { color: tokens.foreground }]}>Accent colour</Text>
-          <Text style={[styles.rowDescription, { color: tokens.foregroundMuted }]}>
+          <Text style={[styles.rowTitle, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+            Accent colour
+          </Text>
+          <Text
+            style={[
+              styles.rowDescription,
+              { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
+            ]}
+          >
             Use the current Paseo theme, or choose a presentation accent.
           </Text>
           <View style={styles.accentOptions}>
@@ -245,7 +275,10 @@ export function BeautifulChatSettingsPage({ theme }: PluginSurfaceProps) {
                   <Text
                     style={[
                       styles.accentLabel,
-                      { color: selected ? tokens.accent : tokens.foregroundMuted },
+                      {
+                        color: selected ? tokens.accent : tokens.foregroundMuted,
+                        fontFamily: tokens.fontUi,
+                      },
                     ]}
                   >
                     {option.label}
@@ -331,7 +364,11 @@ export function BeautifulChatSettingsPage({ theme }: PluginSurfaceProps) {
         onPress={resetEnhancerPreferences}
         style={[styles.reset, { borderColor: tokens.borderSubtle }]}
       >
-        <Text style={[styles.resetText, { color: tokens.foregroundMuted }]}>Reset defaults</Text>
+        <Text
+          style={[styles.resetText, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}
+        >
+          Reset defaults
+        </Text>
       </Pressable>
     </View>
   );
