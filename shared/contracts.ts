@@ -86,23 +86,27 @@ export type ToolCallKind =
 
 export interface HubMessageData {
   op: "send" | "wait" | "inbox" | "list";
-  from: string;
-  to: string;
-  message: string;
+  /** Absent on a live call: the tool reports the recipient, not the sender. */
+  from?: string;
+  to?: string;
+  message?: string;
   delivered: boolean;
   replyTo?: string;
   awaitReply?: boolean;
   response?: string;
+  /** Whatever the operation printed, for ops that answer with a listing. */
+  output?: string;
 }
 
 export interface HubProcessData {
-  op: "start" | "ps" | "logs" | "stop" | "restart";
+  op: "start" | "ps" | "logs" | "stop" | "restart" | "describe" | "wait";
   name: string;
-  application: string;
-  args: string[];
+  /** Absent for ops that address a process the daemon already launched. */
+  application?: string;
+  args?: string[];
   port?: number;
   readyLogPattern?: string;
-  status: "starting" | "ready" | "running" | "stopped" | "failed";
+  status: "starting" | "ready" | "running" | "stopped" | "failed" | "unknown";
   recentLogs?: string[];
   cursor?: number;
 }
@@ -115,6 +119,8 @@ export interface HubJobData {
     status: "running" | "completed" | "failed";
     elapsed: string;
   }>;
+  /** The raw report, shown when the rows cannot be parsed. */
+  output?: string;
 }
 
 export type HubData =

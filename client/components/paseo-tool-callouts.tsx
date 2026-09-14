@@ -93,7 +93,7 @@ export function PaseoToolCallout({ data, tokens, defaultExpanded = true }: Paseo
     <View {...frosted} style={styles.container}>
       <Pressable onPress={() => setExpanded((p) => !p)} style={styles.header}>
         <View style={styles.headerLeft}>
-          <Glyph name="Wrench" size={13} color={tokens.accent} />
+          <Glyph name="Paseo" size={13} color={tokens.accent} />
           <Text style={styles.toolPill}>{data.tool}</Text>
           {data.createAgent && <ProviderLogo provider={data.createAgent.provider} size={14} />}
           {data.models && <ProviderLogo provider={data.models.provider} size={14} />}
