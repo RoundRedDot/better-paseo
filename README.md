@@ -202,8 +202,16 @@ timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurfac
     data attribute.
 11. **No font registration.** Faces are embedded as data URIs in an injected `@font-face` rule, and
     every surface needs a wrapper that escapes the host's own font cascade.
-12. **No SVG renderer.** The plugin sandbox has no SVG component, so brand marks and icons are
-    inlined as data-URI images.
+12. **A closed module allowlist, and no SVG renderer.** Plugin client code may import only
+    `react`, `react/jsx-runtime`, `react-native`, `@tanstack/react-query`, `zod`,
+    `@getpaseo/plugin`, `@getpaseo/plugin/client`, `@getpaseo/plugin/client/react-native`, and
+    `@getpaseo/plugin/client/ui`. Anything else throws
+    `Module "x" is not available in plugin client code` when the bundle loads, so
+    `react-native-svg` and `lucide-react-native` are out of reach. Lucide icons still work,
+    because the host renders them: `Icon` from `@getpaseo/plugin/client/react-native` takes any
+    Lucide name. Brand marks are not in Lucide, and React Native's `<Image>` decodes PNG, JPEG,
+    GIF, and WebP but never SVG, so a data-URI SVG renders on web and stays blank on iOS and
+    Android. Those marks ship as PNG rasters in `client/components/mark-bitmaps.ts`.
 13. **Settings are host-scoped only.** `defineSettings` rejects any scope other than `host`, so
     per-workspace or per-agent presentation settings are impossible. This plugin keeps presentation
     preferences in client storage instead.
@@ -225,6 +233,9 @@ beautiful-chat/
     settings-page.tsx        # Settings screen
     preferences.ts           # Client-side presentation preferences
     components/              # Cards, syntax block, glyphs, motion, theme tokens
+      mark-bitmaps.ts        # GENERATED PNG rasters of every brand mark
+      devicon-data.ts        # Vendor SVG sources, read only by the generator
+      lobe-marks.ts          # Vendor SVG sources, read only by the generator
   .showcase/                 # Offline harness used to capture the screenshots
   docs/images/               # Screenshots in this README
 ```
