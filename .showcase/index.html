@@ -17,7 +17,15 @@
   </head>
   <body>
     <div id="root"></div>
-    <script>window.__err=[];window.addEventListener("error",e=>window.__err.push(String(e.error && e.error.stack ? e.error.stack : e.message)));window.addEventListener("unhandledrejection",e=>window.__err.push("rejection "+String(e.reason)));</script>
+    <script>
+      window.__err = [];
+      window.addEventListener("error", (e) =>
+        window.__err.push(String(e.error && e.error.stack ? e.error.stack : e.message)),
+      );
+      window.addEventListener("unhandledrejection", (e) =>
+        window.__err.push("rejection " + String(e.reason)),
+      );
+    </script>
     <script src="./showcase.js"></script>
   </body>
 </html>

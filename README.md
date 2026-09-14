@@ -12,7 +12,7 @@ Every screenshot below is a capture of the real component, rendered by the harne
 paseo plugin install /absolute/path/to/beautiful-chat
 ```
 
-The manifest requires Paseo `>=0.8.0-beta.1`. Open **Settings → Plugins → Beautiful Chat** for the
+The manifest requires Paseo `>=0.8.0`. Open **Settings → Plugins → Beautiful Chat** for the
 accent, fonts, frosted glass, and prompt bubble options.
 
 ---
@@ -73,13 +73,16 @@ Subagent name, type, model, and the delegated instructions.
 
 ### Hub
 
-Peer messages and supervised processes, including port, readiness pattern, and recent output.
+Every `hub` op is mapped: `start`, `stop`, `restart`, `ps`, `logs`, and `describe` render the
+process card with its launch line, readiness, and recent output; `send`, `wait`, `inbox`, and
+`list` render the message card; `jobs` and `cancel` render the job snapshot. The cards report;
+they carry no buttons, because a plugin cannot restart or cancel anything.
 
 ![Hub tool calls](docs/images/hub.png)
 
 ### Paseo tools
 
-Agent creation, activity, providers, and models, with the provider's own brand mark.
+Paseo's own mark leads the card, and the created agent's provider carries its brand mark.
 
 ![Paseo tool call](docs/images/paseo.png)
 
@@ -126,12 +129,12 @@ Devicon brand marks, and the file-manager link.
 
 ![Settings screen](docs/images/settings.png)
 
-| Setting | Effect |
-| --- | --- |
-| Accent colour | Follow the Paseo theme, or pick Jade, Violet, Amber, or Rose. |
-| Interface font | Embedded Inter, or the system interface face. |
-| Code glyphs | Iosevka with ligatures, or literal glyphs. |
-| Frosted glass | Blur card surfaces, or paint them solid. |
+| Setting                | Effect                                                             |
+| ---------------------- | ------------------------------------------------------------------ |
+| Accent colour          | Follow the Paseo theme, or pick Jade, Violet, Amber, or Rose.      |
+| Interface font         | Embedded Inter, or the system interface face.                      |
+| Code glyphs            | Iosevka with ligatures, or literal glyphs.                         |
+| Frosted glass          | Blur card surfaces, or paint them solid.                           |
 | Enhanced prompt bubble | Off hands prompts back to Paseo, whose bubble shows pasted images. |
 
 ---
@@ -142,13 +145,18 @@ A file name in a read, write, edit, or code block is a link. Pressing it calls t
 daemon-side RPC (`file.reveal`), which resolves the path against the agent's working directory and
 asks the platform shell to show it:
 
-| Platform | Behaviour |
-| --- | --- |
-| Windows | `explorer.exe /select,<file>` selects the file. |
-| macOS | `open -R <file>` selects the file in Finder. |
-| Other | `xdg-open <directory>` opens the containing directory. |
+| Platform | Behaviour                                              |
+| -------- | ------------------------------------------------------ |
+| Windows  | `explorer.exe /select,<file>` selects the file.        |
+| macOS    | `open -R <file>` selects the file in Finder.           |
+| Other    | `xdg-open <directory>` opens the containing directory. |
 
 A directory path opens that directory. A path the daemon cannot stat does nothing.
+
+## Unmapped output
+
+A tool the plugin has no typed card for still shows its output in the terminal frame, and a call
+that printed nothing says so. No card renders an empty panel.
 
 The link cannot open Paseo's own file editor: see the first limitation below.
 
@@ -160,7 +168,7 @@ Measured against `@getpaseo/plugin` 0.8.0 and the Paseo 0.8.0 desktop build. Eac
 evidence and the workaround this plugin uses.
 
 1. **No file navigation.** Timeline renderer props are exactly `{agentId, theme, host, layout,
-   timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurface`,
+timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurface`,
    `openWorkspacePanel`, `openAgentPanel`, `openAgent`, and `openWorkspace`. The host's own file tab
    target (`{kind:"file", path}`, reachable in-app through `?open=file:<path>`) is not exposed, and
    the `paseo://` scheme only carries agent deep links. Workaround: a daemon-side RPC that reveals

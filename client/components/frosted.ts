@@ -22,17 +22,17 @@ const FROSTED_RULE = `[data-ompfrost] {
  * mount reuses the existing element.
  */
 export function installFrostedGlass(): () => void {
- if (typeof document === "undefined") return () => { };
- if (document.getElementById(STYLE_ELEMENT_ID)) return () => { };
+  if (typeof document === "undefined") return () => {};
+  if (document.getElementById(STYLE_ELEMENT_ID)) return () => {};
 
- const style = document.createElement("style");
- style.id = STYLE_ELEMENT_ID;
- style.textContent = FROSTED_RULE;
- document.head.appendChild(style);
+  const style = document.createElement("style");
+  style.id = STYLE_ELEMENT_ID;
+  style.textContent = FROSTED_RULE;
+  document.head.appendChild(style);
 
- return () => {
-  style.remove();
- };
+  return () => {
+    style.remove();
+  };
 }
 
 /**
@@ -45,5 +45,5 @@ export function installFrostedGlass(): () => void {
  * the plugin sandbox does not expose.
  */
 export const frosted = {
- dataSet: { ompfrost: true },
+  dataSet: { ompfrost: true },
 } as unknown as ViewProps;

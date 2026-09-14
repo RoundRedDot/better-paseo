@@ -15,6 +15,7 @@ import type { ToolCalloutData } from "../../shared/contracts";
 
 function getToolIconName(tool: string): string {
   if (tool === "git") return "Git";
+  if (tool === "paseo") return "Paseo";
   if (tool === "github") return "GitHub";
   if (tool === "bash" || tool === "shell") return "Terminal";
   if (tool === "read") return "Book";
@@ -46,6 +47,25 @@ export function ToolCallout({
 
   // A tool without a path, or a host that cannot reveal one, leaves the file
   // name as a plain label rather than a link that does nothing.
+  // Every branch below needs a payload. A tool that carries none — a hub op
+  // with no parsed record, an unmapped kind — would otherwise draw an empty
+  // panel, so the raw output takes over.
+  const hasTypedBody =
+    data.tool === "bash" ||
+    data.tool === "shell" ||
+    data.tool === "git" ||
+    data.tool === "github" ||
+    data.tool === "thinking" ||
+    data.tool === "read" ||
+    data.tool === "write" ||
+    data.tool === "edit" ||
+    data.tool === "eval" ||
+    (data.tool === "mcp" && Boolean(data.mcp)) ||
+    (data.tool === "ask" && Boolean(data.askOptions)) ||
+    (data.tool === "task" && Boolean(data.subagent)) ||
+    (data.tool === "hub" && Boolean(data.hub)) ||
+    (data.tool === "paseo" && Boolean(data.paseo));
+
   const filePath = data.filePath;
   const revealFile = useMemo(
     () => (onRevealPath && filePath ? () => onRevealPath(filePath) : undefined),
@@ -781,6 +801,20 @@ export function ToolCallout({
           {data.tool === "hub" && data.hub && <HubCallout data={data.hub} tokens={tokens} />}
           {data.tool === "paseo" && data.paseo && (
             <PaseoToolCallout data={data.paseo} tokens={tokens} />
+          )}
+
+          {!hasTypedBody && (
+            <View style={styles.terminalWindow}>
+              {data.output ? (
+                <Text style={styles.terminalOutput}>
+                  {renderTerminalOutput(data.output, tokens)}
+                </Text>
+              ) : (
+                <Text style={styles.silentCommandText}>
+                  {isRunning ? "Waiting for output…" : "The call returned no output."}
+                </Text>
+              )}
+            </View>
           )}
         </View>
       )}

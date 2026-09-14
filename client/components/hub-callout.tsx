@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import React, { useMemo } from "react";
+import { View, Text, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
 import { radius } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
@@ -140,38 +140,48 @@ function HubMessageView({ data, tokens }: { data: HubMessageData; tokens: Extend
       <View style={styles.header}>
         <View style={styles.routingRow}>
           <Glyph name="Radio" size={13} color={tokens.accent} />
-          <Text style={styles.channelBadge}>hub peer</Text>
-          <Text style={styles.agentSender}>{data.from}</Text>
-          <Text style={styles.arrow}>➔</Text>
-          <Text style={styles.agentRecipient}>{data.to}</Text>
+          <Text style={styles.channelBadge}>hub {data.op}</Text>
+          {data.from ? <Text style={styles.agentSender}>{data.from}</Text> : null}
+          {data.to ? <Text style={styles.arrow}>➔</Text> : null}
+          {data.to ? <Text style={styles.agentRecipient}>{data.to}</Text> : null}
         </View>
 
-        <View style={styles.deliveryPill}>
-          <Glyph name="CheckCircle" size={11} color={tokens.success} />
-          <Text style={styles.deliveryText}>{data.delivered ? "Delivered" : "Queued"}</Text>
-        </View>
+        {data.op === "send" ? (
+          <View style={styles.deliveryPill}>
+            <Glyph name="CheckCircle" size={11} color={tokens.success} />
+            <Text style={styles.deliveryText}>{data.delivered ? "Delivered" : "Queued"}</Text>
+          </View>
+        ) : null}
       </View>
 
-      <View style={styles.messageBox}>
-        <Text style={styles.messageText}>{data.message}</Text>
-      </View>
+      {data.message ? (
+        <View style={styles.messageBox}>
+          <Text style={styles.messageText}>{data.message}</Text>
+        </View>
+      ) : null}
 
       {data.response && (
         <View style={styles.replyBox}>
           <View style={styles.replyHeader}>
-            <Text style={styles.replyAgent}>Response from {data.to}:</Text>
+            <Text style={styles.replyAgent}>Response{data.to ? ` from ${data.to}` : ""}:</Text>
             <Text style={styles.replyBadge}>Synchronous Reply</Text>
           </View>
           <Text style={styles.replyText}>{data.response}</Text>
         </View>
       )}
+
+      {data.output ? (
+        <View style={styles.messageBox}>
+          <Text style={styles.messageText}>{data.output}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 function HubProcessView({ data, tokens }: { data: HubProcessData; tokens: ExtendedThemeTokens }) {
-  const [processStatus, setProcessStatus] = useState(data.status);
-  const isReady = processStatus === "ready" || processStatus === "running";
+  const isReady = data.status === "ready" || data.status === "running";
+  const launch = [data.application, ...(data.args ?? [])].filter(Boolean).join(" ");
 
   const styles = useMemo(
     () =>
@@ -301,23 +311,25 @@ function HubProcessView({ data, tokens }: { data: HubProcessData; tokens: Extend
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Glyph name="Server" size={14} color={tokens.accent} />
-          <Text style={styles.processPill}>process [{data.name}]</Text>
-          <Text style={styles.commandText}>
-            {data.application} {data.args.join(" ")}
+          <Text style={styles.processPill}>
+            {data.op} [{data.name}]
           </Text>
+          {launch ? <Text style={styles.commandText}>{launch}</Text> : null}
         </View>
 
         <View style={styles.statusRow}>
-          {data.port && isReady && (
+          {data.port && isReady ? (
             <View style={styles.portPill}>
               <View style={styles.portDot} />
               <Text style={styles.portText}>:{data.port} ready</Text>
             </View>
-          )}
+          ) : data.status !== "unknown" ? (
+            <Text style={styles.readyLogPill}>{data.status}</Text>
+          ) : null}
 
-          {data.readyLogPattern && (
+          {data.readyLogPattern ? (
             <Text style={styles.readyLogPill}>match: {data.readyLogPattern}</Text>
-          )}
+          ) : null}
         </View>
       </View>
 
@@ -330,31 +342,14 @@ function HubProcessView({ data, tokens }: { data: HubProcessData; tokens: Extend
           ))}
         </View>
       )}
-
-      <View style={styles.controlsRow}>
-        <Pressable onPress={() => setProcessStatus("running")} style={styles.actionBtn}>
-          <Text style={styles.actionText}>Restart</Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => setProcessStatus(isReady ? "stopped" : "ready")}
-          style={isReady ? styles.stopBtn : styles.actionBtn}
-        >
-          <Text style={isReady ? styles.stopText : styles.actionText}>
-            {isReady ? "Stop Process" : "Start Process"}
-          </Text>
-        </Pressable>
-      </View>
     </View>
   );
 }
 
 function HubJobsView({ data, tokens }: { data: HubJobData; tokens: ExtendedThemeTokens }) {
-  const [jobs, setJobs] = useState(data.activeJobs);
-
-  const cancelJob = (id: string) => {
-    setJobs((prev) => prev.filter((j) => j.id !== id));
-  };
+  // The card reports what the call returned. It offers no controls, because a
+  // plugin cannot cancel a job and a button that only edits this view lies.
+  const jobs = data.activeJobs;
 
   const styles = useMemo(
     () =>
@@ -428,17 +423,10 @@ function HubJobsView({ data, tokens }: { data: HubJobData; tokens: ExtendedTheme
           fontFamily: tokens.fontUi,
           color: tokens.foregroundSubtle,
         },
-        cancelBtn: {
-          paddingHorizontal: 6,
-          paddingVertical: 2,
-          borderRadius: radius.block,
-          backgroundColor: tokens.surface2,
-        },
-        cancelText: {
-          fontFamily: tokens.fontUi,
-          fontSize: 10,
-          fontWeight: "600",
-          color: tokens.danger,
+        titleRow: {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
         },
       }),
     [tokens],
@@ -447,11 +435,11 @@ function HubJobsView({ data, tokens }: { data: HubJobData; tokens: ExtendedTheme
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <View style={styles.titleRow}>
           <Glyph name="Layers" size={14} color={tokens.accent} />
-          <Text style={styles.headerTitle}>Hub Background Jobs Snapshot</Text>
+          <Text style={styles.headerTitle}>Hub {data.op}</Text>
         </View>
-        <Text style={styles.jobCountBadge}>{jobs.length} Active</Text>
+        <Text style={styles.jobCountBadge}>{jobs.length} active</Text>
       </View>
 
       {jobs.map((job) => (
@@ -465,13 +453,13 @@ function HubJobsView({ data, tokens }: { data: HubJobData; tokens: ExtendedTheme
 
           <View style={styles.jobRight}>
             <Text style={styles.jobTimer}>{job.elapsed}</Text>
-            <Pressable onPress={() => cancelJob(job.id)} style={styles.cancelBtn}>
-              <Text style={styles.cancelText}>Cancel</Text>
-              <Glyph name="X" size={10} color={tokens.danger} />
-            </Pressable>
           </View>
         </View>
       ))}
+
+      {jobs.length === 0 && data.output ? (
+        <Text style={styles.jobTarget}>{data.output}</Text>
+      ) : null}
     </View>
   );
 }

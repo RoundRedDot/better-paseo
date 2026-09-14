@@ -19,6 +19,9 @@ import type {
   TaskListData,
   TaskItemData,
   EvalCell,
+  HubData,
+  McpToolData,
+  PaseoToolData,
 } from "../shared/contracts";
 import { revealPathRpc } from "../shared/file-rpc";
 
@@ -145,6 +148,135 @@ export function extractEvalDuration(output: unknown): number | undefined {
   if (!details || typeof details !== "object") return undefined;
   const value = (details as Record<string, unknown>).durationMs;
   return typeof value === "number" ? value : undefined;
+}
+
+const HUB_PROCESS_OPS = new Set(["start", "ps", "logs", "stop", "restart", "describe"]);
+const HUB_JOB_OPS = new Set(["jobs", "cancel"]);
+
+function asString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/**
+ * Shapes one hub call for the callout.
+ *
+ * Every op answers with prose rather than a record, so the card carries the
+ * arguments it was called with plus that text. Without this the body renders
+ * nothing at all, which is what a bare `hub start` used to look like.
+ */
+export function buildHubData(
+  input: Record<string, unknown>,
+  outputText: string | undefined,
+): HubData | undefined {
+  const op = (asString(input.op) ?? "").toLowerCase();
+  if (!op) return undefined;
+  const name = asString(input.name);
+
+  // `wait` addresses a process when it names one, and peers otherwise.
+  if (HUB_PROCESS_OPS.has(op) || (op === "wait" && name)) {
+    const logs = outputText
+      ? outputText
+          .split("\n")
+          .filter((line) => line.trim().length > 0)
+          .slice(-12)
+      : undefined;
+    return {
+      kind: "process",
+      data: {
+        op: op as "start" | "ps" | "logs" | "stop" | "restart" | "describe" | "wait",
+        name: name ?? "process",
+        application: asString(input.application),
+        args: Array.isArray(input.args) ? input.args.map((entry) => String(entry)) : undefined,
+        port:
+          typeof input.ready === "object" && input.ready
+            ? typeof (input.ready as Record<string, unknown>).port === "number"
+              ? ((input.ready as Record<string, unknown>).port as number)
+              : undefined
+            : undefined,
+        readyLogPattern:
+          typeof input.ready === "object" && input.ready
+            ? asString((input.ready as Record<string, unknown>).log)
+            : asString(input.pattern),
+        status: /\bready\b/i.test(outputText ?? "")
+          ? "ready"
+          : /\bstopped\b|\bexited\b/i.test(outputText ?? "")
+            ? "stopped"
+            : /\bfailed\b/i.test(outputText ?? "")
+              ? "failed"
+              : op === "start"
+                ? "starting"
+                : "unknown",
+        recentLogs: logs,
+      },
+    };
+  }
+
+  if (HUB_JOB_OPS.has(op)) {
+    return {
+      kind: "jobs",
+      data: { op: op as "jobs" | "cancel", activeJobs: [], output: outputText },
+    };
+  }
+
+  return {
+    kind: "message",
+    data: {
+      op: (op === "send" || op === "wait" || op === "inbox" || op === "list" ? op : "list") as
+        | "send"
+        | "wait"
+        | "inbox"
+        | "list",
+      to: asString(input.to),
+      message: asString(input.message),
+      delivered: /delivered/i.test(outputText ?? ""),
+      replyTo: asString(input.replyTo),
+      awaitReply: input.await === true,
+      response: op === "send" && input.await === true ? outputText : undefined,
+      output: op === "send" ? undefined : outputText,
+    },
+  };
+}
+
+/** Splits `mcp__server__tool` and keeps the call's own arguments and result. */
+export function buildMcpData(
+  rawName: string,
+  input: Record<string, unknown>,
+  output: unknown,
+  durationMs: number | undefined,
+): McpToolData {
+  const parts = rawName.replace(/^mcp__/, "").split("__");
+  return {
+    server: parts.length > 1 ? (parts[0] ?? "mcp") : "mcp",
+    tool: parts.length > 1 ? parts.slice(1).join(" / ") : (parts[0] ?? rawName),
+    arguments: input,
+    result: output === "" ? undefined : output,
+    durationMs,
+  };
+}
+
+/** Paseo's own agent tools. Only `create_agent` carries a record worth a card. */
+export function buildPaseoData(
+  rawName: string,
+  input: Record<string, unknown>,
+  outputText: string | undefined,
+  durationMs: number | undefined,
+): PaseoToolData | undefined {
+  if (rawName !== "create_agent") return undefined;
+  const provider = asString(input.provider) ?? "agent";
+  const [providerId, model] = provider.split("/");
+  return {
+    id: `paseo-${rawName}`,
+    tool: "create_agent",
+    durationMs,
+    createAgent: {
+      title: asString(input.title) ?? "New agent",
+      provider: providerId ?? provider,
+      model: model ?? asString(input.model),
+      initialPrompt: asString(input.initialPrompt) ?? "",
+      agentId: outputText?.match(/[0-9a-f]{8}-[0-9a-f-]{27}/i)?.[0],
+      status: "created",
+    },
+  };
 }
 
 interface AskOption {
@@ -344,7 +476,12 @@ export function LiveToolCallRenderer({
         : extractStringProp(output, "stdout") ||
           extractStringProp(output, "text") ||
           (typeof output === "object" && output ? JSON.stringify(output) : undefined);
+    const durationMs =
+      typeof detail.durationMs === "number" ? detail.durationMs : extractEvalDuration(output);
     let toolKind: ToolCallKind = "bash";
+    let hub: HubData | undefined;
+    let mcp: McpToolData | undefined;
+    let paseo: PaseoToolData | undefined;
     let evalCells: EvalCell[] = [];
     let askOptions: AskOption[] = [];
     let askAnswer: string[] = [];
@@ -389,9 +526,11 @@ export function LiveToolCallRenderer({
     ) {
       toolKind = "paseo";
       title = `Paseo: ${rawName}`;
+      paseo = buildPaseoData(rawName, input, outputText, durationMs);
     } else if (rawName.startsWith("mcp__") || rawName === "mcp") {
       toolKind = "mcp";
       title = rawName.replace(/^mcp__/, "").replace(/__/g, " / ");
+      mcp = buildMcpData(rawName, input, output, durationMs);
     } else if (rawName === "ask") {
       toolKind = "ask";
       const asked = extractAskQuestion(input);
@@ -401,6 +540,7 @@ export function LiveToolCallRenderer({
     } else if (rawName === "hub") {
       toolKind = "hub";
       title = `Hub: ${String(input.op || "operation")}`;
+      hub = buildHubData(input, outputText);
     } else if (rawName === "eval") {
       toolKind = "eval";
       evalCells = extractEvalCells(detail, input, output);
@@ -434,8 +574,10 @@ export function LiveToolCallRenderer({
       askOptions: askOptions.length > 0 ? askOptions : undefined,
       askAnswer: askAnswer.length > 0 ? askAnswer : undefined,
       exitCode: exitCodeCandidate,
-      durationMs:
-        typeof detail.durationMs === "number" ? detail.durationMs : extractEvalDuration(output),
+      durationMs,
+      hub,
+      mcp,
+      paseo,
     };
   }, [data]);
 

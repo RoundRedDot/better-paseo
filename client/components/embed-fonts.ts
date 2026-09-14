@@ -9,9 +9,9 @@ const STYLE_ELEMENT_ID = "beautiful-chat-fonts";
  * family list is not a valid React Native style value.
  */
 const LOCAL_FALLBACKS: Record<string, readonly string[]> = {
- "OMP Iosevka": ["Iosevka", "Cascadia Code", "Consolas", "Menlo"],
- "OMP Iosevka Code": ["Iosevka", "Cascadia Code", "Fira Code", "Consolas"],
- "OMP Inter": ["Inter", "Segoe UI", "Roboto", "Helvetica Neue"],
+  "OMP Iosevka": ["Iosevka", "Cascadia Code", "Consolas", "Menlo"],
+  "OMP Iosevka Code": ["Iosevka", "Cascadia Code", "Fira Code", "Consolas"],
+  "OMP Inter": ["Inter", "Segoe UI", "Roboto", "Helvetica Neue"],
 };
 /**
  * Installs the bundled Inter and Iosevka faces.
@@ -26,31 +26,31 @@ const LOCAL_FALLBACKS: Record<string, readonly string[]> = {
  * element rather than parsing 75 KB of font data again.
  */
 export function embedFonts(): () => void {
- if (typeof document === "undefined") return () => { };
- if (document.getElementById(STYLE_ELEMENT_ID)) return () => { };
+  if (typeof document === "undefined") return () => {};
+  if (document.getElementById(STYLE_ELEMENT_ID)) return () => {};
 
- const rules = EMBEDDED_FONTS.map(({ family, weight, woff2Base64 }) => {
-  const sources = [
-   `url(data:font/woff2;base64,${woff2Base64}) format("woff2")`,
-   ...(LOCAL_FALLBACKS[family] ?? []).map((name) => `local("${name}")`),
-  ].join(",\n    ");
-  return `@font-face {
+  const rules = EMBEDDED_FONTS.map(({ family, weight, woff2Base64 }) => {
+    const sources = [
+      `url(data:font/woff2;base64,${woff2Base64}) format("woff2")`,
+      ...(LOCAL_FALLBACKS[family] ?? []).map((name) => `local("${name}")`),
+    ].join(",\n    ");
+    return `@font-face {
   font-family: "${family}";
   font-style: normal;
   font-weight: ${weight};
   font-display: block;
   src: ${sources};
 }`;
- }).join("\n");
+  }).join("\n");
 
- const style = document.createElement("style");
- style.id = STYLE_ELEMENT_ID;
- style.textContent = rules;
- document.head.appendChild(style);
+  const style = document.createElement("style");
+  style.id = STYLE_ELEMENT_ID;
+  style.textContent = rules;
+  document.head.appendChild(style);
 
- return () => {
-  style.remove();
- };
+  return () => {
+    style.remove();
+  };
 }
 
 /**
@@ -59,14 +59,14 @@ export function embedFonts(): () => void {
  * load state, so it answers false for any face nothing has painted yet.
  */
 function advanceWidths(family: string): number[] | null {
- try {
-  const context = document.createElement("canvas").getContext("2d");
-  if (!context) return null;
-  context.font = `14px "${family}"`;
-  return [..."iWM1l.@#"].map((character) => context.measureText(character).width);
- } catch {
-  return null;
- }
+  try {
+    const context = document.createElement("canvas").getContext("2d");
+    if (!context) return null;
+    context.font = `14px "${family}"`;
+    return [..."iWM1l.@#"].map((character) => context.measureText(character).width);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -76,37 +76,37 @@ function advanceWidths(family: string): number[] | null {
  * rejected `data:` URL, or a face that loads but is never applied.
  */
 export async function probeFonts(): Promise<string> {
- if (typeof document === "undefined") return "Fonts: native, system default";
- if (!document.getElementById(STYLE_ELEMENT_ID)) {
-  return "Fonts: style element missing — embedFonts did not run";
- }
-
- const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
- if (!fonts) return "Fonts: FontFaceSet unavailable on this host";
-
- const parts: string[] = [];
- for (const family of [fontUi, fontMono]) {
-  try {
-   const faces = await fonts.load(`400 14px "${family}"`);
-   parts.push(`${family}: ${faces.length > 0 ? "loaded" : "no match"}`);
-  } catch (error) {
-   const message = error instanceof Error ? error.message : String(error);
-   parts.push(`${family}: ${message.slice(0, 48)}`);
+  if (typeof document === "undefined") return "Fonts: native, system default";
+  if (!document.getElementById(STYLE_ELEMENT_ID)) {
+    return "Fonts: style element missing — embedFonts did not run";
   }
- }
 
- const widths = advanceWidths(fontMono);
- if (widths) {
-  const uniform = new Set(widths.map((w) => w.toFixed(2))).size === 1;
-  const firstWidth = widths[0] ?? 0;
-  parts.push(`mono ${uniform ? "uniform" : "proportional"} @${firstWidth.toFixed(2)}px`);
- }
+  const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+  if (!fonts) return "Fonts: FontFaceSet unavailable on this host";
 
- // The host forces its own font over every plugin class, so report whether
- // that rule is live. Without the data-pmono escape it wins regardless of
- // what loaded.
- const hostRule = document.getElementById("paseo-ui-font") !== null;
- parts.push(`host rule ${hostRule ? "present" : "absent"}`);
+  const parts: string[] = [];
+  for (const family of [fontUi, fontMono]) {
+    try {
+      const faces = await fonts.load(`400 14px "${family}"`);
+      parts.push(`${family}: ${faces.length > 0 ? "loaded" : "no match"}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      parts.push(`${family}: ${message.slice(0, 48)}`);
+    }
+  }
 
- return `Fonts: ${parts.join(" · ")}`;
+  const widths = advanceWidths(fontMono);
+  if (widths) {
+    const uniform = new Set(widths.map((w) => w.toFixed(2))).size === 1;
+    const firstWidth = widths[0] ?? 0;
+    parts.push(`mono ${uniform ? "uniform" : "proportional"} @${firstWidth.toFixed(2)}px`);
+  }
+
+  // The host forces its own font over every plugin class, so report whether
+  // that rule is live. Without the data-pmono escape it wins regardless of
+  // what loaded.
+  const hostRule = document.getElementById("paseo-ui-font") !== null;
+  parts.push(`host rule ${hostRule ? "present" : "absent"}`);
+
+  return `Fonts: ${parts.join(" · ")}`;
 }
