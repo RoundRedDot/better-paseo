@@ -20,6 +20,7 @@ import type {
   TaskItemData,
   EvalCell,
   HubData,
+  HubDaemonRow,
   McpToolData,
   PaseoToolData,
 } from "../shared/contracts";
@@ -164,9 +165,39 @@ function asString(value: unknown): string | undefined {
  * arguments it was called with plus that text. Without this the body renders
  * nothing at all, which is what a bare `hub start` used to look like.
  */
+/** `hub ps` answers with a typed roster beside its prose. */
+function extractDaemons(output: unknown): HubDaemonRow[] | undefined {
+  if (!output || typeof output !== "object") return undefined;
+  const details = (output as Record<string, unknown>).details;
+  if (!details || typeof details !== "object") return undefined;
+  const rows = (details as Record<string, unknown>).daemons;
+  if (!Array.isArray(rows) || rows.length === 0) return undefined;
+
+  const parsed = rows.flatMap((entry): HubDaemonRow[] => {
+    if (!entry || typeof entry !== "object") return [];
+    const row = entry as Record<string, unknown>;
+    const name = asString(row.name);
+    if (!name) return [];
+    return [
+      {
+        name,
+        state: asString(row.state) ?? "unknown",
+        pid: typeof row.pid === "number" ? row.pid : undefined,
+        restarts: typeof row.restartCount === "number" ? row.restartCount : undefined,
+        readyMatch: asString(row.readyMatch),
+        exitCode: typeof row.exitCode === "number" ? row.exitCode : undefined,
+        startedAt: typeof row.startedAt === "number" ? row.startedAt : undefined,
+        exitedAt: typeof row.exitedAt === "number" ? row.exitedAt : undefined,
+      },
+    ];
+  });
+  return parsed.length > 0 ? parsed : undefined;
+}
+
 export function buildHubData(
   input: Record<string, unknown>,
   outputText: string | undefined,
+  output?: unknown,
 ): HubData | undefined {
   const op = (asString(input.op) ?? "").toLowerCase();
   if (!op) return undefined;
@@ -174,12 +205,15 @@ export function buildHubData(
 
   // `wait` addresses a process when it names one, and peers otherwise.
   if (HUB_PROCESS_OPS.has(op) || (op === "wait" && name)) {
-    const logs = outputText
-      ? outputText
-          .split("\n")
-          .filter((line) => line.trim().length > 0)
-          .slice(-12)
-      : undefined;
+    const daemons = extractDaemons(output);
+    const logs = daemons
+      ? undefined
+      : outputText
+        ? outputText
+            .split("\n")
+            .filter((line) => line.trim().length > 0)
+            .slice(-12)
+        : undefined;
     return {
       kind: "process",
       data: {
@@ -207,6 +241,7 @@ export function buildHubData(
                 ? "starting"
                 : "unknown",
         recentLogs: logs,
+        daemons,
       },
     };
   }
@@ -470,11 +505,17 @@ export function LiveToolCallRenderer({
       (typeof detail.diff === "string" ? detail.diff : undefined) ||
       extractStringProp(output, "diff");
 
+    // A tool that answers with content blocks carries its prose in
+    // `content[0].text`. Stringifying the envelope instead put raw JSON on
+    // screen, which is what every hub card used to show.
     const outputText: string | undefined =
       typeof output === "string"
         ? output
         : extractStringProp(output, "stdout") ||
           extractStringProp(output, "text") ||
+          (output && typeof output === "object"
+            ? extractContentText(output as Record<string, unknown>)
+            : undefined) ||
           (typeof output === "object" && output ? JSON.stringify(output) : undefined);
     const durationMs =
       typeof detail.durationMs === "number" ? detail.durationMs : extractEvalDuration(output);
@@ -540,7 +581,7 @@ export function LiveToolCallRenderer({
     } else if (rawName === "hub") {
       toolKind = "hub";
       title = `Hub: ${String(input.op || "operation")}`;
-      hub = buildHubData(input, outputText);
+      hub = buildHubData(input, outputText, output);
     } else if (rawName === "eval") {
       toolKind = "eval";
       evalCells = extractEvalCells(detail, input, output);

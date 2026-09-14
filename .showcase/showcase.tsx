@@ -218,6 +218,18 @@ const hubStop = buildHubData(
   "Stopped shots-server: exited exit=1 uptime=8m20s restarts=0",
 )!;
 
+const hubPs = buildHubData({ op: "ps" }, undefined, {
+  content: [{ type: "text", text: "- omp.lsp.mux: ready pid=72044 uptime=19h22m restarts=0" }],
+  details: {
+    op: "list",
+    daemons: [
+      { name: "omp.lsp.mux", state: "ready", pid: 72044, restartCount: 0 },
+      { name: "omp.browser.headless", state: "ready", pid: 53972, restartCount: 0 },
+      { name: "shots-server", state: "exited", pid: 33368, exitCode: 1, restartCount: 0 },
+    ],
+  },
+})!;
+
 const hubMessage = buildHubData(
   { op: "send", to: "ShotBuilder", message: "Capture the dark theme first. Light theme after." },
   "delivered to ShotBuilder",
@@ -374,7 +386,7 @@ function Showcase() {
       </Shot>
       <Shot id="shot-hub">
         <HubCallout data={hubStart} tokens={tokens} />
-        <HubCallout data={hubStop} tokens={tokens} />
+        <HubCallout data={hubPs} tokens={tokens} />
         <HubCallout data={hubMessage} tokens={tokens} />
       </Shot>
       <Shot id="shot-paseo">

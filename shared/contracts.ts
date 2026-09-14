@@ -98,6 +98,18 @@ export interface HubMessageData {
   output?: string;
 }
 
+/** One supervised process, as the daemon reports it in a roster. */
+export interface HubDaemonRow {
+  name: string;
+  state: string;
+  pid?: number;
+  restarts?: number;
+  readyMatch?: string;
+  exitCode?: number;
+  startedAt?: number;
+  exitedAt?: number;
+}
+
 export interface HubProcessData {
   op: "start" | "ps" | "logs" | "stop" | "restart" | "describe" | "wait";
   name: string;
@@ -108,6 +120,8 @@ export interface HubProcessData {
   readyLogPattern?: string;
   status: "starting" | "ready" | "running" | "stopped" | "failed" | "unknown";
   recentLogs?: string[];
+  /** The roster a `ps` call returns, one row per supervised process. */
+  daemons?: HubDaemonRow[];
   cursor?: number;
 }
 
