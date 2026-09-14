@@ -9,7 +9,7 @@ Every screenshot below is a capture of the real component, rendered by the harne
 ## Install
 
 ```bash
-paseo plugin install /absolute/path/to/beautiful-chat
+paseo plugin install ABorakati/beautiful-chat
 ```
 
 The manifest requires Paseo `>=0.8.0`. Open **Settings → Plugins → Beautiful Chat** for the
