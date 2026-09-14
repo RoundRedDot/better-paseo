@@ -1,6 +1,6 @@
 import React from "react";
 import { Image } from "react-native";
-import { DEVICON_URIS } from "./devicon-data";
+import { MARK_BITMAPS } from "./mark-bitmaps";
 
 export type SupportedFileType =
   | "typescript"
@@ -108,27 +108,6 @@ const DIMENSIONS = {
   lg: { box: 21 },
 } as const;
 
-const GENERIC_FILE_PATH =
-  "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2zM14 2v5a1 1 0 0 0 1 1h5";
-const FOLDER_PATH =
-  "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z";
-const genericUriCache = new Map<string, string>();
-
-function genericUri(isDirectory: boolean): string {
-  const key = isDirectory ? "folder" : "file";
-  const cached = genericUriCache.get(key);
-  if (cached) return cached;
-  const color = isDirectory ? "#EAB308" : "#94A3B8";
-  const path = isDirectory ? FOLDER_PATH : GENERIC_FILE_PATH;
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" ` +
-    `fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" ` +
-    `stroke-linejoin="round"><path d="${path}"/></svg>`;
-  const uri = `data:image/svg+xml,${encodeURIComponent(svg)}`;
-  genericUriCache.set(key, uri);
-  return uri;
-}
-
 function isDirectoryPath(filename?: string): boolean {
   const path = filename?.trim();
   return (
@@ -137,8 +116,9 @@ function isDirectoryPath(filename?: string): boolean {
 }
 
 /**
- * The file's own brand mark. Unknown types use Lucide's document mark.
- * Explicit directory paths use Lucide's folder mark.
+ * The file's own brand mark. Unknown types use a document mark, and an explicit
+ * directory path uses a folder mark. Every mark is a PNG: React Native cannot
+ * decode an SVG data URI, so an inlined SVG renders on web only.
  */
 export function FileTypeLogo({
   filename,
@@ -148,17 +128,17 @@ export function FileTypeLogo({
 }: FileTypeLogoProps) {
   const type = detectFileType(filename, language);
   const { box } = DIMENSIONS[size];
-  const uri = DEVICON_URIS[type];
+  const brand = MARK_BITMAPS[`devicon:${type}`];
 
-  if (uri) {
+  if (brand) {
     return (
       <Image
-        source={{ uri }}
-        style={{
-          width: box,
-          height: box,
-          ...(type === "markdown" && foregroundColor ? { tintColor: foregroundColor } : {}),
-        }}
+        source={{ uri: brand }}
+        style={
+          type === "markdown" && foregroundColor
+            ? { width: box, height: box, tintColor: foregroundColor }
+            : { width: box, height: box }
+        }
         resizeMode="contain"
         accessibilityLabel={`${type} file`}
       />
@@ -166,10 +146,15 @@ export function FileTypeLogo({
   }
 
   const isDirectory = isDirectoryPath(filename);
+  const uri = MARK_BITMAPS[isDirectory ? "mark:folder" : "mark:file"];
   return (
     <Image
-      source={{ uri: genericUri(isDirectory) }}
-      style={{ width: box, height: box }}
+      source={{ uri }}
+      style={{
+        width: box,
+        height: box,
+        tintColor: isDirectory ? "#EAB308" : "#94A3B8",
+      }}
       resizeMode="contain"
       accessibilityLabel={isDirectory ? "Folder" : "File"}
     />

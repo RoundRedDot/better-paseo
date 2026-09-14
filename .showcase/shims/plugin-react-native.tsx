@@ -11,8 +11,17 @@ import {
   TextInput as RnTextInput,
 } from "react-native";
 
+// The host renders Lucide icons through lucide-react-native. That package pulls
+// in react-native-svg, which does not bundle for this web-only harness, so the
+// capture resolves the identical icon set from lucide-react instead.
+import * as lucide from "lucide-react";
+
 export function Icon({ name, size = 16, color }: { name: string; size?: number; color?: string }) {
-  return <Text style={{ fontSize: size, color }}>{name.slice(0, 1)}</Text>;
+  const Resolved = (lucide as Record<string, unknown>)[name] as
+    | React.ComponentType<{ size?: number; color?: string }>
+    | undefined;
+  if (!Resolved) return <Text style={{ fontSize: size, color }}>{name.slice(0, 1)}</Text>;
+  return <Resolved size={size} color={color} />;
 }
 
 export const Modal = Object.assign(
