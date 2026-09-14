@@ -11,6 +11,7 @@ export const ACCENT_PRESETS = {
 export type AccentPreset = keyof typeof ACCENT_PRESETS;
 export type UiFontPreference = "inter" | "system";
 export type CodeFontPreference = "code" | "plain";
+export type MarkdownVariantPreference = "document" | "compact" | "terminal";
 
 export interface EnhancerPreferences {
   accent: AccentPreset;
@@ -24,6 +25,21 @@ export interface EnhancerPreferences {
    * hands prompts back to the host, whose own bubble still shows them.
    */
   enhancedUserBubble: boolean;
+  /**
+   * The Copy / Add to chat bar that follows a highlight. Web and desktop only:
+   * iOS and Android route selection through the platform's own menu, which the
+   * plugin cannot extend, so the toggle has no effect there.
+   */
+  selectionActions: boolean;
+  /**
+   * The plugin's own markdown rendering for assistant replies. Off hands the
+   * turn back to Paseo's renderer, which is the safety valve: the plugin
+   * cannot import the host markdown pipeline, so its version is a reasonable
+   * subset rather than a superset.
+   */
+  assistantMarkdown: boolean;
+  /** Which look the markdown renderer uses. */
+  markdownVariant: MarkdownVariantPreference;
 }
 
 const STORAGE_KEY = "paseo/beautiful-chat/preferences/v1";
@@ -34,6 +50,9 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   codeFont: "code",
   frostedGlass: true,
   enhancedUserBubble: true,
+  selectionActions: true,
+  assistantMarkdown: true,
+  markdownVariant: "document",
 };
 
 const listeners = new Set<() => void>();
@@ -64,6 +83,18 @@ function loadPreferences(): EnhancerPreferences {
         typeof candidate.enhancedUserBubble === "boolean"
           ? candidate.enhancedUserBubble
           : DEFAULT_PREFERENCES.enhancedUserBubble,
+      selectionActions:
+        typeof candidate.selectionActions === "boolean"
+          ? candidate.selectionActions
+          : DEFAULT_PREFERENCES.selectionActions,
+      assistantMarkdown:
+        typeof candidate.assistantMarkdown === "boolean"
+          ? candidate.assistantMarkdown
+          : DEFAULT_PREFERENCES.assistantMarkdown,
+      markdownVariant:
+        candidate.markdownVariant === "compact" || candidate.markdownVariant === "terminal"
+          ? candidate.markdownVariant
+          : DEFAULT_PREFERENCES.markdownVariant,
     };
   } catch {
     return { ...DEFAULT_PREFERENCES };

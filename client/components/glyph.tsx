@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image } from "react-native";
 import { Icon as HostIcon } from "@getpaseo/plugin/client/react-native";
 import { fontMono } from "./theme-tokens";
 import { MARK_BITMAPS, MONO_MARKS } from "./mark-bitmaps";
+import { unselectable } from "./selection";
 
 export interface IconProps {
   name: string;
@@ -116,11 +117,19 @@ function renderGlyph(name: string, size: number, color: string): ReactElement {
 
     case "Check":
       return (
-        <Text style={[styles.symbol, { fontSize: size + 1, color, fontWeight: "700" }]}>✓</Text>
+        <Text
+          style={[styles.symbol, { fontSize: size + 1, color, fontWeight: "700" }, unselectable]}
+        >
+          ✓
+        </Text>
       );
 
     case "X":
-      return <Text style={[styles.symbol, { fontSize: size, color, fontWeight: "600" }]}>✕</Text>;
+      return (
+        <Text style={[styles.symbol, { fontSize: size, color, fontWeight: "600" }, unselectable]}>
+          ✕
+        </Text>
+      );
 
     case "Dot":
       return (
@@ -172,10 +181,18 @@ function renderGlyph(name: string, size: number, color: string): ReactElement {
       );
 
     case "Play":
-      return <Text style={[styles.arrow, { fontSize: size - 2, color, marginLeft: 1 }]}>▶</Text>;
+      return (
+        <Text style={[styles.arrow, { fontSize: size - 2, color, marginLeft: 1 }, unselectable]}>
+          ▶
+        </Text>
+      );
 
     case "Terminal":
-      return <Text style={[styles.mono, { fontSize: Math.max(8.5, size - 2), color }]}>&gt;_</Text>;
+      return (
+        <Text style={[styles.mono, { fontSize: Math.max(8.5, size - 2), color }, unselectable]}>
+          &gt;_
+        </Text>
+      );
 
     // A completion marker: filled disc in the status colour with a white
     // tick on top. The tick is two borders on a rotated box, so it stays
@@ -224,21 +241,25 @@ function renderGlyph(name: string, size: number, color: string): ReactElement {
     case "Paseo":
       return <BrandMark id="brand:paseo" size={size} color={color} />;
     case "Sparkles":
-      return <Text style={[styles.symbol, { fontSize: size - 1, color }]}>✦</Text>;
+      return <Text style={[styles.symbol, { fontSize: size - 1, color }, unselectable]}>✦</Text>;
 
     case "Shield":
     case "ShieldAlert":
-      return <Text style={[styles.symbol, { fontSize: size - 1, color }]}>⛨</Text>;
+      return <Text style={[styles.symbol, { fontSize: size - 1, color }, unselectable]}>⛨</Text>;
 
     case "ListChecks":
     case "ListTodo":
       return (
-        <Text style={[styles.symbol, { fontSize: size - 1, color, fontWeight: "700" }]}>≡</Text>
+        <Text
+          style={[styles.symbol, { fontSize: size - 1, color, fontWeight: "700" }, unselectable]}
+        >
+          ≡
+        </Text>
       );
 
     case "AlertTriangle":
     case "AlertCircle":
-      return <Text style={[styles.bold, { fontSize: size, color }]}>!</Text>;
+      return <Text style={[styles.bold, { fontSize: size, color }, unselectable]}>!</Text>;
 
     case "HelpCircle":
       return (
@@ -254,12 +275,15 @@ function renderGlyph(name: string, size: number, color: string): ReactElement {
           }}
         >
           <Text
-            style={{
-              fontSize: size * 0.65,
-              fontWeight: "700",
-              color,
-              lineHeight: size * 0.7,
-            }}
+            style={[
+              {
+                fontSize: size * 0.65,
+                fontWeight: "700",
+                color,
+                lineHeight: size * 0.7,
+              },
+              unselectable,
+            ]}
           >
             ?
           </Text>
@@ -270,12 +294,14 @@ function renderGlyph(name: string, size: number, color: string): ReactElement {
       return <HostIcon name="Copy" size={size} color={color} />;
     case "Bot":
       return (
-        <Text style={[styles.mono, { fontSize: size - 2, color, fontWeight: "700" }]}>[•]</Text>
+        <Text style={[styles.mono, { fontSize: size - 2, color, fontWeight: "700" }, unselectable]}>
+          [•]
+        </Text>
       );
 
     case "Server":
     case "Layers":
-      return <Text style={[styles.symbol, { fontSize: size - 1, color }]}>☵</Text>;
+      return <Text style={[styles.symbol, { fontSize: size - 1, color }, unselectable]}>☵</Text>;
 
     case "Radio":
       return (
@@ -365,6 +391,7 @@ function renderGlyph(name: string, size: number, color: string): ReactElement {
               fontWeight: "600",
               lineHeight: size + 2,
             },
+            unselectable,
           ]}
         >
           ✎
@@ -376,19 +403,23 @@ function renderGlyph(name: string, size: number, color: string): ReactElement {
       return <HostIcon name="BookOpen" size={size} color={color} />;
     case "FileCode":
       return (
-        <Text style={[styles.mono, { fontSize: size - 3, color, fontWeight: "700" }]}>
+        <Text style={[styles.mono, { fontSize: size - 3, color, fontWeight: "700" }, unselectable]}>
           &lt;/&gt;
         </Text>
       );
 
     case "FileDiff":
-      return <Text style={[styles.mono, { fontSize: size - 1, color, fontWeight: "700" }]}>±</Text>;
+      return (
+        <Text style={[styles.mono, { fontSize: size - 1, color, fontWeight: "700" }, unselectable]}>
+          ±
+        </Text>
+      );
 
     case "Wrench":
-      return <Text style={[styles.symbol, { fontSize: size - 1, color }]}>⚙</Text>;
+      return <Text style={[styles.symbol, { fontSize: size - 1, color }, unselectable]}>⚙</Text>;
 
     case "MessageSquare":
-      return <Text style={[styles.symbol, { fontSize: size - 1, color }]}>💬</Text>;
+      return <Text style={[styles.symbol, { fontSize: size - 1, color }, unselectable]}>💬</Text>;
 
     default:
       // Anything this file does not draw comes from the host's Lucide set.

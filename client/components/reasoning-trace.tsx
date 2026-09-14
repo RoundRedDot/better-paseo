@@ -6,6 +6,8 @@ import { Glow, Rotate } from "./motion";
 import { PulseDot } from "./pulse-dot";
 import { Breathe } from "./breathe";
 import { radius } from "./theme-tokens";
+import { selectableSurface } from "./selection";
+import { selectionSurface } from "./selection-actions";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import type { ReasoningTraceData, ReasoningStep } from "../../shared/contracts";
 import { SyntaxHighlightBlock } from "./syntax-highlight";
@@ -73,6 +75,7 @@ export function ReasoningTrace({ data, tokens, defaultExpanded = false }: Reason
           borderColor: isThinking ? tokens.borderSubtle : tokens.borderSubtle,
           overflow: "hidden",
           ...tokens.boxShadow,
+          ...selectableSurface,
         },
         header: {
           flexDirection: "row",
@@ -228,7 +231,7 @@ export function ReasoningTrace({ data, tokens, defaultExpanded = false }: Reason
   );
 
   return (
-    <View {...frosted} style={styles.wrapper}>
+    <View {...frosted} {...selectionSurface} style={styles.wrapper}>
       <Pressable onPress={() => setIsExpanded((prev) => !prev)} style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.iconBubble}>
@@ -242,7 +245,7 @@ export function ReasoningTrace({ data, tokens, defaultExpanded = false }: Reason
           </View>
           <View style={styles.titleContainer}>
             <View style={styles.titleRow}>
-              <Text style={styles.titleText}>
+              <Text selectable style={styles.titleText}>
                 {isThinking
                   ? "Thinking in progress…"
                   : data.durationMs > 0
@@ -252,13 +255,19 @@ export function ReasoningTrace({ data, tokens, defaultExpanded = false }: Reason
             </View>
             <View style={styles.badgeRow}>
               {data.agentModel && data.agentModel !== "Reasoning Trace" ? (
-                <Text style={styles.modelBadge}>{data.agentModel}</Text>
+                <Text selectable style={styles.modelBadge}>
+                  {data.agentModel}
+                </Text>
               ) : null}
               {data.steps.length > 0 ? (
-                <Text style={styles.badge}>{data.steps.length} steps</Text>
+                <Text selectable style={styles.badge}>
+                  {data.steps.length} steps
+                </Text>
               ) : null}
               {data.totalTokens > 0 ? (
-                <Text style={styles.badge}>{data.totalTokens.toLocaleString()} tokens</Text>
+                <Text selectable style={styles.badge}>
+                  {data.totalTokens.toLocaleString()} tokens
+                </Text>
               ) : null}
             </View>
           </View>
@@ -266,12 +275,14 @@ export function ReasoningTrace({ data, tokens, defaultExpanded = false }: Reason
 
         <View style={styles.headerRight}>
           {/* A badge is for an active or failed state. A finished trace already
-					    says so through its duration and token count, so a green
-					    "Completed" pill only adds colour. */}
+              says so through its duration and token count, so a green
+              "Completed" pill only adds colour. */}
           {isThinking ? (
             <View style={styles.statusRow}>
               <PulseDot color={tokens.accent} size={6} />
-              <Text style={styles.statusText}>Reasoning</Text>
+              <Text selectable style={styles.statusText}>
+                Reasoning
+              </Text>
             </View>
           ) : null}
           <Rotate active={isExpanded}>
@@ -298,8 +309,8 @@ export function ReasoningTrace({ data, tokens, defaultExpanded = false }: Reason
                 >
                   <View style={styles.stepDot}>
                     {/* Done gets the filled disc and tick. A step that has not
-										    finished is an empty gray circle, and the rail growing up
-										    to it already says which one is current. */}
+                        finished is an empty gray circle, and the rail growing up
+                        to it already says which one is current. */}
                     {isStepDone ? (
                       <Glyph name="CheckCircle" size={13} color={tokens.success} />
                     ) : (
@@ -318,18 +329,20 @@ export function ReasoningTrace({ data, tokens, defaultExpanded = false }: Reason
                     style={styles.stepHeader}
                   >
                     <View style={styles.stepTitleRow}>
-                      <Text style={styles.stepTitle}>
+                      <Text selectable style={styles.stepTitle}>
                         {step.title ? `${step.number}. ${step.title}` : `Step ${step.number}`}
                       </Text>
                     </View>
                     {step.durationMs ? (
-                      <Text style={styles.stepDuration}>
+                      <Text selectable style={styles.stepDuration}>
                         {(step.durationMs / 1000).toFixed(1)}s
                       </Text>
                     ) : null}
                   </Pressable>
 
-                  <Text style={styles.stepContent}>{step.content}</Text>
+                  <Text selectable style={styles.stepContent}>
+                    {step.content}
+                  </Text>
 
                   {step.codeSnippet && isDetailOpen && (
                     <SyntaxHighlightBlock
@@ -346,7 +359,9 @@ export function ReasoningTrace({ data, tokens, defaultExpanded = false }: Reason
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Total Tokens: {data.totalTokens}</Text>
+            <Text selectable style={styles.footerText}>
+              Total Tokens: {data.totalTokens}
+            </Text>
           </View>
         </View>
       )}

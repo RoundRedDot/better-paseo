@@ -10,8 +10,14 @@ import { ReasoningTrace } from "./components/reasoning-trace";
 import { TaskList } from "./components/task-list";
 import { UserMessage } from "./components/user-message";
 import { hostFontEscape } from "./components/host-font-escape";
+import { useSelectionActions } from "./components/selection-actions";
 import type { TurnUsage } from "./components/user-message";
+import { NoticeCallout } from "./components/notice-callout";
 import { useEnhancerPreferences } from "./preferences";
+import { buildHubData } from "./hub-details";
+import { publishHubSnapshot } from "./hub-activity";
+import { MarkdownView } from "./components/markdown/markdown-view";
+import { TimelineTailHub } from "./components/hub-live";
 import type {
   ToolCalloutData,
   ToolCallKind,
@@ -20,8 +26,8 @@ import type {
   TaskItemData,
   EvalCell,
   HubData,
-  HubDaemonRow,
   McpToolData,
+  NoticeCalloutData,
   PaseoToolData,
 } from "../shared/contracts";
 import { revealPathRpc } from "../shared/file-rpc";
@@ -49,6 +55,12 @@ export interface LiveReasoningPayload {
 export interface LiveTodoPayload {
   items: Array<Record<string, unknown>>;
   phase?: string;
+}
+
+export interface LiveNoticePayload {
+  level: string;
+  message: string;
+  fatal?: boolean;
 }
 
 function extractStringProp(obj: unknown, key: string): string | undefined {
@@ -151,125 +163,34 @@ export function extractEvalDuration(output: unknown): number | undefined {
   return typeof value === "number" ? value : undefined;
 }
 
-const HUB_PROCESS_OPS = new Set(["start", "ps", "logs", "stop", "restart", "describe"]);
-const HUB_JOB_OPS = new Set(["jobs", "cancel"]);
-
 function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 /**
- * Shapes one hub call for the callout.
- *
- * Every op answers with prose rather than a record, so the card carries the
- * arguments it was called with plus that text. Without this the body renders
- * nothing at all, which is what a bare `hub start` used to look like.
+ * One `task` call spawns a batch, so the card reads the call's own arguments:
+ * the shared `context` and the `tasks` array. The result text only confirms
+ * the ids, and it is absent while the call is still running, which is exactly
+ * when the reader most wants to see what was sent.
  */
-/** `hub ps` answers with a typed roster beside its prose. */
-function extractDaemons(output: unknown): HubDaemonRow[] | undefined {
-  if (!output || typeof output !== "object") return undefined;
-  const details = (output as Record<string, unknown>).details;
-  if (!details || typeof details !== "object") return undefined;
-  const rows = (details as Record<string, unknown>).daemons;
-  if (!Array.isArray(rows) || rows.length === 0) return undefined;
-
-  const parsed = rows.flatMap((entry): HubDaemonRow[] => {
+export function buildSubagentBatch(input: Record<string, unknown>): ToolCalloutData["subagent"] {
+  const entries = Array.isArray(input.tasks) ? input.tasks : [];
+  const agents = entries.flatMap((entry, index) => {
     if (!entry || typeof entry !== "object") return [];
     const row = entry as Record<string, unknown>;
-    const name = asString(row.name);
-    if (!name) return [];
+    const brief = asString(row.task);
+    if (!brief) return [];
     return [
       {
-        name,
-        state: asString(row.state) ?? "unknown",
-        pid: typeof row.pid === "number" ? row.pid : undefined,
-        restarts: typeof row.restartCount === "number" ? row.restartCount : undefined,
-        readyMatch: asString(row.readyMatch),
-        exitCode: typeof row.exitCode === "number" ? row.exitCode : undefined,
-        startedAt: typeof row.startedAt === "number" ? row.startedAt : undefined,
-        exitedAt: typeof row.exitedAt === "number" ? row.exitedAt : undefined,
+        name: asString(row.name) ?? `agent ${index + 1}`,
+        agentType: asString(row.agent) ?? "task",
+        task: brief,
       },
     ];
   });
-  return parsed.length > 0 ? parsed : undefined;
-}
-
-export function buildHubData(
-  input: Record<string, unknown>,
-  outputText: string | undefined,
-  output?: unknown,
-): HubData | undefined {
-  const op = (asString(input.op) ?? "").toLowerCase();
-  if (!op) return undefined;
-  const name = asString(input.name);
-
-  // `wait` addresses a process when it names one, and peers otherwise.
-  if (HUB_PROCESS_OPS.has(op) || (op === "wait" && name)) {
-    const daemons = extractDaemons(output);
-    const logs = daemons
-      ? undefined
-      : outputText
-        ? outputText
-            .split("\n")
-            .filter((line) => line.trim().length > 0)
-            .slice(-12)
-        : undefined;
-    return {
-      kind: "process",
-      data: {
-        op: op as "start" | "ps" | "logs" | "stop" | "restart" | "describe" | "wait",
-        name: name ?? "process",
-        application: asString(input.application),
-        args: Array.isArray(input.args) ? input.args.map((entry) => String(entry)) : undefined,
-        port:
-          typeof input.ready === "object" && input.ready
-            ? typeof (input.ready as Record<string, unknown>).port === "number"
-              ? ((input.ready as Record<string, unknown>).port as number)
-              : undefined
-            : undefined,
-        readyLogPattern:
-          typeof input.ready === "object" && input.ready
-            ? asString((input.ready as Record<string, unknown>).log)
-            : asString(input.pattern),
-        status: /\bready\b/i.test(outputText ?? "")
-          ? "ready"
-          : /\bstopped\b|\bexited\b/i.test(outputText ?? "")
-            ? "stopped"
-            : /\bfailed\b/i.test(outputText ?? "")
-              ? "failed"
-              : op === "start"
-                ? "starting"
-                : "unknown",
-        recentLogs: logs,
-        daemons,
-      },
-    };
-  }
-
-  if (HUB_JOB_OPS.has(op)) {
-    return {
-      kind: "jobs",
-      data: { op: op as "jobs" | "cancel", activeJobs: [], output: outputText },
-    };
-  }
-
-  return {
-    kind: "message",
-    data: {
-      op: (op === "send" || op === "wait" || op === "inbox" || op === "list" ? op : "list") as
-        | "send"
-        | "wait"
-        | "inbox"
-        | "list",
-      to: asString(input.to),
-      message: asString(input.message),
-      delivered: /delivered/i.test(outputText ?? ""),
-      replyTo: asString(input.replyTo),
-      awaitReply: input.await === true,
-      response: op === "send" && input.await === true ? outputText : undefined,
-      output: op === "send" ? undefined : outputText,
-    },
-  };
+  if (agents.length === 0) return undefined;
+  const context = asString(input.context);
+  return context ? { context, agents } : { agents };
 }
 
 /** Splits `mcp__server__tool` and keeps the call's own arguments and result. */
@@ -284,7 +205,13 @@ export function buildMcpData(
     server: parts.length > 1 ? (parts[0] ?? "mcp") : "mcp",
     tool: parts.length > 1 ? parts.slice(1).join(" / ") : (parts[0] ?? rawName),
     arguments: input,
-    result: output === "" ? undefined : output,
+    // An MCP server answers with content blocks. Keeping the envelope here put
+    // `{"content":[{"type":"text",…}]}` in the response panel, so the prose is
+    // unwrapped first and only a genuinely structured payload stays an object.
+    result:
+      (output && typeof output === "object"
+        ? extractContentText(output as Record<string, unknown>)
+        : undefined) ?? (output === "" ? undefined : output),
     durationMs,
   };
 }
@@ -452,6 +379,7 @@ export function LiveToolCallRenderer({
   item,
   theme,
   layout,
+  timestamp,
 }: PluginTimelineItemProps<LiveToolCallPayload>) {
   const revealPath = useRpc(revealPathRpc);
   const cwd = useAgent(agentId, (agent) => agent.cwd);
@@ -460,6 +388,7 @@ export function LiveToolCallRenderer({
     () => buildThemeTokens(theme.colors, preferences),
     [theme.colors, preferences],
   );
+  useSelectionActions(tokens, preferences.selectionActions);
   const data = item.data;
 
   const calloutData = useMemo((): ToolCalloutData => {
@@ -506,8 +435,10 @@ export function LiveToolCallRenderer({
       extractStringProp(output, "diff");
 
     // A tool that answers with content blocks carries its prose in
-    // `content[0].text`. Stringifying the envelope instead put raw JSON on
-    // screen, which is what every hub card used to show.
+    // `content[0].text`. That text is allowed to be empty — a `hub wait` job
+    // snapshot puts everything in `details` and nothing in the text — so there
+    // is deliberately no stringify fallback here: a card renders from its typed
+    // record instead. Stringifying the envelope is what printed raw JSON.
     const outputText: string | undefined =
       typeof output === "string"
         ? output
@@ -515,13 +446,13 @@ export function LiveToolCallRenderer({
           extractStringProp(output, "text") ||
           (output && typeof output === "object"
             ? extractContentText(output as Record<string, unknown>)
-            : undefined) ||
-          (typeof output === "object" && output ? JSON.stringify(output) : undefined);
+            : undefined);
     const durationMs =
       typeof detail.durationMs === "number" ? detail.durationMs : extractEvalDuration(output);
     let toolKind: ToolCallKind = "bash";
     let hub: HubData | undefined;
     let mcp: McpToolData | undefined;
+    let subagent: ToolCalloutData["subagent"];
     let paseo: PaseoToolData | undefined;
     let evalCells: EvalCell[] = [];
     let askOptions: AskOption[] = [];
@@ -587,6 +518,12 @@ export function LiveToolCallRenderer({
       evalCells = extractEvalCells(detail, input, output);
       const cellTitle = evalCells.find((cell) => cell.title)?.title;
       title = cellTitle ? `Eval: ${cellTitle}` : "Eval Kernel";
+    } else if (rawName === "task") {
+      toolKind = "task";
+      subagent = buildSubagentBatch(input);
+      const count = subagent?.agents.length ?? 0;
+      title =
+        count === 1 ? (subagent?.agents[0]?.name ?? "Subagent") : `${count || "No"} subagents`;
     }
 
     const exitCodeCandidate =
@@ -617,10 +554,24 @@ export function LiveToolCallRenderer({
       exitCode: exitCodeCandidate,
       durationMs,
       hub,
+      subagent,
       mcp,
       paseo,
     };
   }, [data]);
+
+  // The dock has no access to the job manager, so the timeline is its only
+  // source: every job snapshot that passes through a card is republished, and
+  // the store drops the agent's entry once a snapshot reports nothing running.
+  const hubData = calloutData.hub;
+  useEffect(() => {
+    if (!hubData || hubData.kind !== "jobs") return;
+    publishHubSnapshot(agentId, {
+      at: timestamp.getTime(),
+      running: hubData.data.jobs.filter((job) => job.status === "running"),
+      agents: hubData.data.agents ?? [],
+    });
+  }, [hubData, agentId]);
 
   // Collapse completed tools by default; expand active or failed tools
   const isExpanded = data.status === "running" || data.status === "failed";
@@ -642,6 +593,13 @@ export function LiveToolCallRenderer({
         defaultExpanded={isExpanded}
         onRevealPath={handleRevealPath}
       />
+      <TimelineTailHub
+        agentId={agentId}
+        tokens={tokens}
+        itemKey={`tool:${data.callId ?? calloutData.title}:${timestamp.getTime()}`}
+        at={timestamp.getTime()}
+        kind="tool"
+      />
     </View>
   );
 }
@@ -655,6 +613,7 @@ export function LiveReasoningRenderer({
     () => buildThemeTokens(theme.colors, preferences),
     [theme.colors, preferences],
   );
+  useSelectionActions(tokens, preferences.selectionActions);
   const data = item.data;
   // The host owns the reveal cadence, so streamed reasoning animates the same
   // way it does in the native timeline instead of appearing in whole blocks.
@@ -719,6 +678,7 @@ export function LiveTodoRenderer({ item, theme }: PluginTimelineItemProps<LiveTo
     () => buildThemeTokens(theme.colors, preferences),
     [theme.colors, preferences],
   );
+  useSelectionActions(tokens, preferences.selectionActions);
   const data = item.data;
 
   const taskListData: TaskListData = useMemo(() => {
@@ -748,6 +708,76 @@ export function LiveTodoRenderer({ item, theme }: PluginTimelineItemProps<LiveTo
   );
 }
 
+export interface LiveAssistantPayload {
+  text: string;
+}
+
+/**
+ * The assistant's own reply, drawn with the plugin's markdown renderer.
+ *
+ * The host's renderer carries a pipeline this plugin cannot import — mermaid,
+ * images, its own file-path links — so `assistantMarkdown` exists to hand the
+ * turn back when a reply needs any of that.
+ */
+export function LiveAssistantRenderer({
+  agentId,
+  item,
+  theme,
+  timestamp,
+}: PluginTimelineItemProps<LiveAssistantPayload>) {
+  const preferences = useEnhancerPreferences();
+  const tokens = useMemo(
+    () => buildThemeTokens(theme.colors, preferences),
+    [theme.colors, preferences],
+  );
+  useSelectionActions(tokens, preferences.selectionActions);
+
+  return (
+    <View {...hostFontEscape}>
+      <MarkdownView text={item.data.text} tokens={tokens} variant={preferences.markdownVariant} />
+      <TimelineTailHub
+        agentId={agentId}
+        tokens={tokens}
+        itemKey={`assistant:${timestamp.getTime()}`}
+        at={timestamp.getTime()}
+        kind="reply"
+      />
+    </View>
+  );
+}
+
+/**
+ * The host draws a `notification` or `error` item as bare text with an icon,
+ * which reads as a different product beside the plugin's callouts. Both carry
+ * only a level and a message, so the card is a badge plus that message.
+ */
+export function LiveNoticeRenderer({ item, theme }: PluginTimelineItemProps<LiveNoticePayload>) {
+  const preferences = useEnhancerPreferences();
+  const tokens = useMemo(
+    () => buildThemeTokens(theme.colors, preferences),
+    [theme.colors, preferences],
+  );
+  useSelectionActions(tokens, preferences.selectionActions);
+  const data = item.data;
+  const level = data.level === "warning" || data.level === "error" ? data.level : "info";
+
+  const noticeData: NoticeCalloutData = useMemo(
+    () => ({
+      id: `notice-${data.message.length}-${level}`,
+      level,
+      message: data.message,
+      ...(data.fatal ? { fatal: true } : {}),
+    }),
+    [data.message, data.fatal, level],
+  );
+
+  return (
+    <View {...hostFontEscape}>
+      <NoticeCallout data={noticeData} tokens={tokens} />
+    </View>
+  );
+}
+
 export interface LiveUserMessagePayload {
   text: string;
   images?: string[];
@@ -772,6 +802,7 @@ export function LiveUserMessageRenderer({
     () => buildThemeTokens(theme.colors, preferences),
     [theme.colors, preferences],
   );
+  useSelectionActions(tokens, preferences.selectionActions);
   const paseo = usePaseo();
   const handle = useMemo(() => paseo.agents.ref(agentId), [paseo, agentId]);
 

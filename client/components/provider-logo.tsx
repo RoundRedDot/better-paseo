@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { View, Text, StyleSheet, Image } from "react-native";
 import { fontUi, radius } from "./theme-tokens";
 import { MARK_BITMAPS, MONO_MARKS } from "./mark-bitmaps";
+import { unselectable } from "./selection";
 
 export type KnownProvider =
   | "paseo"
@@ -91,13 +92,21 @@ export function ProviderLogo({ provider, size = 14, showLabel = false }: Provide
         <View
           style={[styles.fallback, { width: size, height: size, borderColor: config.brandColor }]}
         >
-          <Text style={[styles.fallbackLabel, { fontSize: size * 0.6, color: config.brandColor }]}>
+          <Text
+            style={[
+              styles.fallbackLabel,
+              { fontSize: size * 0.6, color: config.brandColor },
+              unselectable,
+            ]}
+          >
             {config.displayName.slice(0, 1)}
           </Text>
         </View>
       )}
       {showLabel ? (
-        <Text style={[styles.label, { color: config.brandColor }]}>{config.displayName}</Text>
+        <Text style={[styles.label, { color: config.brandColor }, unselectable]}>
+          {config.displayName}
+        </Text>
       ) : null}
     </View>
   );

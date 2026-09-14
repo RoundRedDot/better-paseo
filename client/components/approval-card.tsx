@@ -6,6 +6,8 @@ import { radius } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import type { ApprovalRequest } from "../../shared/contracts";
 import { SyntaxHighlightBlock } from "./syntax-highlight";
+import { selectableSurface, unselectable } from "./selection";
+import { selectionSurface } from "./selection-actions";
 
 interface ApprovalCardProps {
   request: ApprovalRequest;
@@ -43,6 +45,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
           borderWidth: 1,
           borderColor: isHighRisk ? tokens.dangerBorder : tokens.borderSubtle,
           overflow: "hidden",
+          ...selectableSurface,
           ...tokens.boxShadow,
         },
         header: {
@@ -188,6 +191,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
           fontSize: 12,
           fontWeight: "600",
           color: tokens.danger,
+          ...unselectable,
         },
         alwaysButton: {
           paddingHorizontal: 10,
@@ -200,6 +204,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
           fontSize: 12,
           fontWeight: "500",
           color: tokens.foregroundMuted,
+          ...unselectable,
         },
         approveButton: {
           flexDirection: "row",
@@ -215,6 +220,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
           fontSize: 12,
           fontWeight: "600",
           color: tokens.accentForeground,
+          ...unselectable,
         },
         shortcutBadge: {
           fontSize: 10,
@@ -224,6 +230,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
           borderRadius: radius.chip,
           backgroundColor: "rgba(0,0,0,0.18)",
           color: tokens.accentForeground,
+          ...unselectable,
         },
         denyShortcutBadge: {
           fontSize: 10,
@@ -233,6 +240,13 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
           borderRadius: radius.chip,
           backgroundColor: tokens.dangerBg,
           color: tokens.danger,
+          ...unselectable,
+        },
+        undoText: {
+          fontSize: 11,
+          color: tokens.foregroundMuted,
+          textDecorationLine: "underline",
+          ...unselectable,
         },
       }),
     [tokens, isHighRisk, isMediumRisk, riskBadgeBg, riskBadgeColor, status],
@@ -250,20 +264,28 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
   };
 
   return (
-    <View {...frosted} style={styles.card}>
+    <View {...frosted} {...selectionSurface} style={styles.card}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Glyph name="ShieldAlert" size={15} color={riskBadgeColor} />
-          <Text style={styles.headerTitle}>{request.title}</Text>
-          <Text style={styles.toolChip}>{request.toolName}</Text>
+          <Text selectable style={styles.headerTitle}>
+            {request.title}
+          </Text>
+          <Text selectable style={styles.toolChip}>
+            {request.toolName}
+          </Text>
         </View>
         <View style={styles.riskPill}>
-          <Text style={styles.riskText}>{request.riskLevel} Risk</Text>
+          <Text selectable style={styles.riskText}>
+            {request.riskLevel} Risk
+          </Text>
         </View>
       </View>
 
       <View style={styles.body}>
-        <Text style={styles.rationaleText}>{request.rationale}</Text>
+        <Text selectable style={styles.rationaleText}>
+          {request.rationale}
+        </Text>
 
         {request.command && (
           <SyntaxHighlightBlock
@@ -288,14 +310,22 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
         <View style={styles.metaRow}>
           {request.cwd ? (
             <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Directory:</Text>
-              <Text style={styles.metaValue}>{request.cwd}</Text>
+              <Text selectable style={styles.metaLabel}>
+                Directory:
+              </Text>
+              <Text selectable style={styles.metaValue}>
+                {request.cwd}
+              </Text>
             </View>
           ) : null}
           {request.timeoutSeconds ? (
             <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Timeout:</Text>
-              <Text style={styles.metaValue}>{request.timeoutSeconds}s</Text>
+              <Text selectable style={styles.metaLabel}>
+                Timeout:
+              </Text>
+              <Text selectable style={styles.metaValue}>
+                {request.timeoutSeconds}s
+              </Text>
             </View>
           ) : null}
         </View>
@@ -303,7 +333,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
         {isHighRisk && (
           <View style={styles.warningBox}>
             <Glyph name="AlertTriangle" size={14} color={tokens.warning} />
-            <Text style={styles.warningText}>
+            <Text selectable style={styles.warningText}>
               Destructive action: Verify command parameters and targets carefully before allowing
               execution.
             </Text>
@@ -319,22 +349,14 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
               size={13}
               color={status === "approved" ? tokens.success : tokens.danger}
             />
-            <Text style={styles.resolvedText}>
+            <Text selectable style={styles.resolvedText}>
               {status === "approved"
                 ? `Permission Granted (${allowScope === "always" ? "Session" : "Once"})`
                 : "Permission Denied by User"}
             </Text>
           </View>
           <Pressable onPress={() => setStatus("pending")}>
-            <Text
-              style={{
-                fontSize: 11,
-                color: tokens.foregroundMuted,
-                textDecorationLine: "underline",
-              }}
-            >
-              Undo Decision
-            </Text>
+            <Text style={styles.undoText}>Undo Decision</Text>
           </Pressable>
         </View>
       ) : (

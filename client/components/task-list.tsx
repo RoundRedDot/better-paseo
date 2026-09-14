@@ -6,6 +6,8 @@ import { Glow } from "./motion";
 import { Breathe } from "./breathe";
 import { PulseDot } from "./pulse-dot";
 import { radius } from "./theme-tokens";
+import { selectableSurface, unselectable } from "./selection";
+import { selectionSurface } from "./selection-actions";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import type { TaskListData, TaskItemData, TaskStatus } from "../../shared/contracts";
 
@@ -88,6 +90,7 @@ export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
           borderColor: tokens.borderSubtle,
           overflow: "hidden",
           ...tokens.boxShadow,
+          ...selectableSurface,
         },
         header: {
           paddingHorizontal: 16,
@@ -282,7 +285,7 @@ export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
   };
 
   return (
-    <View {...frosted} style={styles.container}>
+    <View {...frosted} {...selectionSurface} style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View style={styles.headerLeft}>
@@ -293,8 +296,12 @@ export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
             </View>
             <View style={styles.titleContainer}>
               <View style={styles.titleGroup}>
-                <Text style={styles.headerTitle}>{data.phaseName}</Text>
-                <Text style={styles.phaseBadge}>OMP todo</Text>
+                <Text selectable style={styles.headerTitle}>
+                  {data.phaseName}
+                </Text>
+                <Text selectable style={styles.phaseBadge}>
+                  OMP todo
+                </Text>
               </View>
             </View>
           </View>
@@ -302,10 +309,12 @@ export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
             {isWorking ? (
               <View style={styles.statusRow}>
                 <PulseDot color={tokens.accent} size={6} />
-                <Text style={styles.statusText}>Tasks</Text>
+                <Text selectable style={styles.statusText}>
+                  Tasks
+                </Text>
               </View>
             ) : null}
-            <Text style={styles.progressRatio}>
+            <Text selectable style={styles.progressRatio}>
               {completedCount}/{totalCount} ({progressPercent}%)
             </Text>
           </View>
@@ -354,6 +363,7 @@ export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
                 <View style={styles.taskContent}>
                   <Pressable onPress={() => toggleStatus(task)}>
                     <Text
+                      selectable
                       style={[
                         styles.taskTitle,
                         isDone && styles.taskTitleCompleted,
@@ -366,30 +376,36 @@ export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
 
                   <View style={styles.taskFooterRow}>
                     {isActive && (
-                      <Text style={[styles.statusLabel, { color: tokens.accent }]}>
+                      <Text selectable style={[styles.statusLabel, { color: tokens.accent }]}>
                         In Progress
                       </Text>
                     )}
                     {isDone && (
-                      <Text style={[styles.statusLabel, { color: tokens.success }]}>Done</Text>
+                      <Text selectable style={[styles.statusLabel, { color: tokens.success }]}>
+                        Done
+                      </Text>
                     )}
                     {isBlocked && (
                       <Pressable
                         onPress={() => setExpandedBlockedId(isBlockedOpen ? null : task.id)}
                       >
-                        <Text style={[styles.statusLabel, { color: tokens.warning }]}>
+                        <Text style={[styles.statusLabel, { color: tokens.warning }, unselectable]}>
                           Blocked ▾
                         </Text>
                       </Pressable>
                     )}
                     {task.duration ? (
-                      <Text style={styles.durationBadge}>{task.duration}</Text>
+                      <Text selectable style={styles.durationBadge}>
+                        {task.duration}
+                      </Text>
                     ) : null}
                   </View>
 
                   {isBlocked && isBlockedOpen && task.blockerReason && (
                     <View style={styles.blockedReasonBox}>
-                      <Text style={styles.blockedReasonText}>Reason: {task.blockerReason}</Text>
+                      <Text selectable style={styles.blockedReasonText}>
+                        Reason: {task.blockerReason}
+                      </Text>
                     </View>
                   )}
                 </View>
