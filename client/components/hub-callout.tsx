@@ -274,33 +274,34 @@ function HubProcessView({ data, tokens }: { data: HubProcessData; tokens: Extend
           lineHeight: 16,
           color: tokens.foregroundMuted,
         },
-        controlsRow: {
+        rosterRow: {
           flexDirection: "row",
           alignItems: "center",
-          justifyContent: "flex-end",
-          gap: 8,
+          gap: 10,
+          paddingVertical: 5,
+          borderTopWidth: 1,
+          borderTopColor: tokens.borderSubtle,
         },
-        actionBtn: {
-          paddingHorizontal: 10,
-          paddingVertical: 4,
-          borderRadius: radius.block,
-          backgroundColor: tokens.surface2,
+        rosterName: {
+          fontFamily: tokens.fontMono,
+          fontSize: 12,
+          color: tokens.foreground,
+          flex: 1,
         },
-        actionText: {
+        rosterFigure: {
+          fontFamily: tokens.fontUi,
           fontSize: 11,
-          fontWeight: "600",
-          color: tokens.foregroundMuted,
+          color: tokens.foregroundSubtle,
         },
-        stopBtn: {
-          paddingHorizontal: 10,
-          paddingVertical: 4,
-          borderRadius: radius.block,
-          backgroundColor: tokens.dangerBg,
-        },
-        stopText: {
-          fontSize: 11,
-          fontWeight: "600",
-          color: tokens.danger,
+        rosterState: {
+          fontFamily: tokens.fontUi,
+          fontSize: 10,
+          fontWeight: "700",
+          textTransform: "uppercase",
+          letterSpacing: 0.4,
+          paddingHorizontal: 6,
+          paddingVertical: 2,
+          borderRadius: radius.chip,
         },
       }),
     [tokens],
@@ -311,10 +312,17 @@ function HubProcessView({ data, tokens }: { data: HubProcessData; tokens: Extend
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Glyph name="Server" size={14} color={tokens.accent} />
+          {/* A roster addresses every process, so it carries a count, not a name. */}
           <Text style={styles.processPill}>
-            {data.op} [{data.name}]
+            {data.daemons ? data.op : `${data.op} [${data.name}]`}
           </Text>
-          {launch ? <Text style={styles.commandText}>{launch}</Text> : null}
+          {data.daemons ? (
+            <Text style={styles.commandText}>
+              {data.daemons.length} {data.daemons.length === 1 ? "process" : "processes"}
+            </Text>
+          ) : launch ? (
+            <Text style={styles.commandText}>{launch}</Text>
+          ) : null}
         </View>
 
         <View style={styles.statusRow}>
@@ -340,6 +348,41 @@ function HubProcessView({ data, tokens }: { data: HubProcessData; tokens: Extend
               {log}
             </Text>
           ))}
+        </View>
+      )}
+
+      {data.daemons && data.daemons.length > 0 && (
+        <View>
+          {data.daemons.map((row) => {
+            const live = row.state === "ready" || row.state === "running";
+            return (
+              <View key={row.name} style={styles.rosterRow}>
+                <Text
+                  style={[
+                    styles.rosterState,
+                    {
+                      color: live ? tokens.success : tokens.foregroundMuted,
+                      backgroundColor: live ? tokens.successBg : tokens.surface2,
+                    },
+                  ]}
+                >
+                  {row.state}
+                </Text>
+                <Text style={styles.rosterName} numberOfLines={1}>
+                  {row.name}
+                </Text>
+                {typeof row.pid === "number" ? (
+                  <Text style={styles.rosterFigure}>pid {row.pid}</Text>
+                ) : null}
+                {typeof row.exitCode === "number" ? (
+                  <Text style={styles.rosterFigure}>exit {row.exitCode}</Text>
+                ) : null}
+                {row.restarts ? (
+                  <Text style={styles.rosterFigure}>{row.restarts} restarts</Text>
+                ) : null}
+              </View>
+            );
+          })}
         </View>
       )}
     </View>
