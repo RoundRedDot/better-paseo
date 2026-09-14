@@ -2,7 +2,7 @@ import React, { useEffect, useMemo } from "react";
 import { View, StyleSheet } from "react-native";
 import { HubCallout } from "./hub-callout";
 import type { ExtendedThemeTokens } from "./theme-tokens";
-import { useHubActivity } from "../hub-activity";
+import { retireHubActivity, useHubActivity } from "../hub-activity";
 import { noteTimelineItem, useIsTimelineTail } from "../timeline-tail";
 import type { HubData } from "../../shared/contracts";
 
@@ -59,10 +59,15 @@ export function TimelineTailHub({ agentId, tokens, itemKey, at, kind }: Timeline
     };
   }, [activity]);
 
-  // A reply published after the snapshot supersedes it.
-  const superseded = kind === "reply" && activity !== null && at > activity.at;
+  // A reply published after the snapshot proves the wait is over. Retiring it
+  // rather than hiding it stops an older card republishing the same work when
+  // the next turn re-renders the list.
+  const spent = kind === "reply" && activity !== null && at > activity.at;
+  useEffect(() => {
+    if (spent) retireHubActivity(agentId, at);
+  }, [spent, agentId, at]);
 
-  if (!isTail || superseded || !data) return null;
+  if (!isTail || spent || !data) return null;
 
   return (
     <View style={styles.container}>

@@ -131,6 +131,7 @@ export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
           gap: 8,
         },
         icon: {
+          fontFamily: tokens.fontUi,
           fontSize: 16,
         },
         phaseBadge: {

@@ -64,6 +64,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
           gap: 8,
         },
         iconShield: {
+          fontFamily: tokens.fontUi,
           fontSize: 16,
         },
         headerTitle: {
@@ -120,6 +121,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
           gap: 4,
         },
         metaLabel: {
+          fontFamily: tokens.fontUi,
           fontSize: 11,
           color: tokens.foregroundSubtle,
         },
@@ -139,6 +141,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
           borderColor: tokens.warningBorder,
         },
         warningIcon: {
+          fontFamily: tokens.fontUi,
           fontSize: 14,
           marginTop: 1,
         },
@@ -243,6 +246,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
           ...unselectable,
         },
         undoText: {
+          fontFamily: tokens.fontUi,
           fontSize: 11,
           color: tokens.foregroundMuted,
           textDecorationLine: "underline",
