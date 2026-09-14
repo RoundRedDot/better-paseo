@@ -5,6 +5,10 @@ import { frosted } from "./frosted";
 import { Pop } from "./motion";
 import { radius, type ExtendedThemeTokens } from "./theme-tokens";
 import { FileTypeLogo, detectFileType } from "./file-type-logo";
+import { selectableSurface, unselectable } from "./selection";
+import { selectionCodeSurface, selectionSurface } from "./selection-actions";
+import { useHighlightedLines } from "../highlight";
+import type { HighlightLine } from "../../shared/highlight-rpc";
 
 interface SyntaxHighlightProps {
   code: string;
@@ -90,13 +94,12 @@ const CODE_TOKEN_RE =
   /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`|\b\d+\b|[a-zA-Z_$][a-zA-Z0-9_$]*|[^\s\w]+)/g;
 
 /**
- * The dialect used to colour code tokens. A `diff` block carries no dialect of
- * its own, so it borrows the one belonging to the file being patched.
+ * The dialect used to colour code tokens. A diff carries no dialect of its own,
+ * so it borrows the one belonging to the file being patched.
  */
-function dialectFor(language: string, filename?: string): string {
-  if (language !== "diff") return language;
-  const base = (filename || "").toLowerCase().split(/[/\\]/).pop() || "";
-  const ext = base.includes(".") ? base.split(".").pop() : "";
+function dialectFor(isDiff: boolean, language: string, filename?: string): string {
+  if (!isDiff) return language;
+  const ext = fileExtension(filename);
   if (ext === "py") return "python";
   if (ext === "html" || ext === "htm") return "html";
   if (ext === "css" || ext === "scss" || ext === "sass") return "css";
@@ -108,11 +111,119 @@ function dialectFor(language: string, filename?: string): string {
  * every non-diff block. Reading it for the neighbouring rows is what lets a
  * run of changes render as one shape instead of a stack of them.
  */
-function diffTint(line: string | undefined, language: string): "add" | "remove" | null {
-  if (language !== "diff" || line === undefined) return null;
+function diffTint(line: string | undefined, isDiff: boolean): "add" | "remove" | null {
+  if (!isDiff || line === undefined) return null;
   if (line.startsWith("+")) return "add";
   if (line.startsWith("-")) return "remove";
   return null;
+}
+
+/** The lower-case extension of a path's last segment, or "" when it has none. */
+function fileExtension(filename?: string): string {
+  const base = (filename || "").toLowerCase().split(/[/\\]/).pop() || "";
+  const dot = base.lastIndexOf(".");
+  return dot > 0 ? base.slice(dot + 1) : "";
+}
+
+/**
+ * Extensions the daemon has a grammar for, minus the diff grammars themselves.
+ *
+ * The daemon resolves the grammar; this set only decides whether asking it is
+ * worth a round trip. So an extension missing here costs one uncoloured diff,
+ * never a wrong one.
+ */
+const CODE_FILE_EXTENSIONS: Record<string, true> = {
+  ts: true,
+  mts: true,
+  cts: true,
+  tsx: true,
+  js: true,
+  mjs: true,
+  cjs: true,
+  jsx: true,
+  json: true,
+  jsonc: true,
+  sh: true,
+  bash: true,
+  zsh: true,
+  py: true,
+  pyi: true,
+  yaml: true,
+  yml: true,
+  md: true,
+  markdown: true,
+  rs: true,
+  go: true,
+  html: true,
+  htm: true,
+  css: true,
+  sql: true,
+  toml: true,
+  dockerfile: true,
+  ps1: true,
+  psm1: true,
+};
+
+/** Whether the patched file names a language the daemon can tokenise. */
+function patchedFileIsCode(filename?: string): boolean {
+  const base = (filename || "").toLowerCase().split(/[/\\]/).pop() || "";
+  if (base === "dockerfile" || base.startsWith("dockerfile.")) return true;
+  const ext = fileExtension(filename);
+  return ext !== "" && CODE_FILE_EXTENSIONS[ext] === true;
+}
+
+/** A unified hunk header, which no source file opens a line with. */
+const HUNK_HEADER_RE = /^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/;
+/** How far into a block a diff must announce itself before it reads as code. */
+const DIFF_SCAN_LINES = 8;
+
+/**
+ * Whether a block is a unified diff whatever its label says. A tool labels a
+ * patch with the file it patches often enough that the label cannot be trusted,
+ * and the markers only make sense once the block is read as a diff.
+ */
+function looksLikeUnifiedDiff(lines: string[]): boolean {
+  const limit = Math.min(lines.length, DIFF_SCAN_LINES);
+  for (let idx = 0; idx < limit; idx += 1) {
+    const line = lines[idx] ?? "";
+    if (HUNK_HEADER_RE.test(line)) return true;
+    if (line.startsWith("diff --git ")) return true;
+    if (line.startsWith("--- ") && (lines[idx + 1] ?? "").startsWith("+++ ")) return true;
+  }
+  return false;
+}
+
+/** The two file headers open with a marker, so they are matched by shape. */
+const DIFF_FILE_HEADER_RE = /^(?:---|\+\+\+)(?:\s|$)/;
+
+/**
+ * Whether the diff format owns this line rather than the patched file.
+ *
+ * Every body line of a unified diff opens with `+`, `-` or a space, so anything
+ * else is chrome by construction: `@@`, `diff --git`, `index`, the mode lines
+ * and `\ No newline at end of file`. The file headers are the exception, and
+ * they are the reason this is not a bare first-character test.
+ */
+function isDiffChrome(line: string): boolean {
+  if (line === "") return false;
+  const head = line[0];
+  if (head !== "+" && head !== "-" && head !== " ") return true;
+  return DIFF_FILE_HEADER_RE.test(line);
+}
+
+/**
+ * The diff's content with the markers taken off, for the file's own grammar.
+ *
+ * One line out per line in, so a token row still belongs to the row it is drawn
+ * on: a chrome line contributes an empty line instead of disappearing, which
+ * keeps every later line on its own number.
+ */
+function strippedDiffCode(lines: string[]): string {
+  const stripped: string[] = [];
+  for (const line of lines) {
+    stripped.push(isDiffChrome(line) ? "" : line.slice(1));
+  }
+  return stripped.join("\n");
 }
 
 /** A tag opening or closing marks the text as markup. */
@@ -182,7 +293,11 @@ function renderWithInterpolation(
 
   // Each literal run is wrapped so its own token array keeps a stable key.
   const pushLiteral = (text: string, index: number) => {
-    parts.push(<Text key={`l${index}`}>{renderPart(text)}</Text>);
+    parts.push(
+      <Text key={`l${index}`} selectable>
+        {renderPart(text)}
+      </Text>,
+    );
   };
 
   while ((match = INTERPOLATION_RE.exec(line)) !== null) {
@@ -190,7 +305,7 @@ function renderWithInterpolation(
       pushLiteral(line.slice(lastIndex, match.index), lastIndex);
     }
     parts.push(
-      <Text key={`i${match.index}`} style={{ color: tokens.accent }}>
+      <Text key={`i${match.index}`} selectable style={{ color: tokens.accent }}>
         {match[0]}
       </Text>,
     );
@@ -223,32 +338,32 @@ function renderHtmlTokens(
 
     if (token.startsWith("<!--")) {
       parts.push(
-        <Text key={key} style={{ color: tokens.syntax.comment }}>
+        <Text key={key} selectable style={{ color: tokens.syntax.comment }}>
           {token}
         </Text>,
       );
     } else if (token.startsWith("<") || token === ">" || token === "/>") {
       parts.push(
-        <Text key={key} style={{ color: tokens.syntax.keyword, fontWeight: "600" }}>
+        <Text key={key} selectable style={{ color: tokens.syntax.keyword, fontWeight: "600" }}>
           {token}
         </Text>,
       );
     } else if (token.startsWith('"') || token.startsWith("'")) {
       parts.push(
-        <Text key={key} style={{ color: tokens.syntax.string }}>
+        <Text key={key} selectable style={{ color: tokens.syntax.string }}>
           {token}
         </Text>,
       );
     } else if (token === "=") {
       parts.push(
-        <Text key={key} style={{ color: tokens.foregroundMuted }}>
+        <Text key={key} selectable style={{ color: tokens.foregroundMuted }}>
           {token}
         </Text>,
       );
     } else {
       // An attribute name, matched by its lookahead to `=`.
       parts.push(
-        <Text key={key} style={{ color: tokens.syntax.property }}>
+        <Text key={key} selectable style={{ color: tokens.syntax.property }}>
           {token}
         </Text>,
       );
@@ -283,57 +398,57 @@ function renderCssTokens(
 
     if (token.startsWith("/*")) {
       parts.push(
-        <Text key={key} style={{ color: tokens.syntax.comment }}>
+        <Text key={key} selectable style={{ color: tokens.syntax.comment }}>
           {token}
         </Text>,
       );
     } else if (token === ":") {
       inValue = true;
       parts.push(
-        <Text key={key} style={{ color: tokens.foregroundMuted }}>
+        <Text key={key} selectable style={{ color: tokens.foregroundMuted }}>
           {token}
         </Text>,
       );
     } else if (token === ";" || token === "{" || token === "}") {
       inValue = false;
       parts.push(
-        <Text key={key} style={{ color: tokens.foregroundMuted }}>
+        <Text key={key} selectable style={{ color: tokens.foregroundMuted }}>
           {token}
         </Text>,
       );
     } else if (token.startsWith("#") && /^#[0-9a-fA-F]{3,8}$/.test(token)) {
       parts.push(
-        <Text key={key} style={{ color: tokens.syntax.number }}>
+        <Text key={key} selectable style={{ color: tokens.syntax.number }}>
           {token}
         </Text>,
       );
     } else if (/^-?\d/.test(token)) {
       parts.push(
-        <Text key={key} style={{ color: tokens.syntax.number }}>
+        <Text key={key} selectable style={{ color: tokens.syntax.number }}>
           {token}
         </Text>,
       );
     } else if (token.startsWith('"') || token.startsWith("'")) {
       parts.push(
-        <Text key={key} style={{ color: tokens.syntax.string }}>
+        <Text key={key} selectable style={{ color: tokens.syntax.string }}>
           {token}
         </Text>,
       );
     } else if (inValue) {
       parts.push(
-        <Text key={key} style={{ color: tokens.syntax.string }}>
+        <Text key={key} selectable style={{ color: tokens.syntax.string }}>
           {token}
         </Text>,
       );
     } else if (token.startsWith("@") || token.startsWith(".") || token.startsWith("#")) {
       parts.push(
-        <Text key={key} style={{ color: tokens.syntax.keyword, fontWeight: "600" }}>
+        <Text key={key} selectable style={{ color: tokens.syntax.keyword, fontWeight: "600" }}>
           {token}
         </Text>,
       );
     } else {
       parts.push(
-        <Text key={key} style={{ color: tokens.syntax.property }}>
+        <Text key={key} selectable style={{ color: tokens.syntax.property }}>
           {token}
         </Text>,
       );
@@ -366,7 +481,16 @@ export function SyntaxHighlightBlock({
   }, [code]);
 
   const lines = useMemo(() => code.trimEnd().split("\n"), [code]);
-  const codeLanguage = useMemo(() => dialectFor(language, filename), [language, filename]);
+  // A diff is a diff whatever the label says, and everything below reads this
+  // flag rather than the label.
+  const isDiff = useMemo(
+    () => language === "diff" || looksLikeUnifiedDiff(lines),
+    [language, lines],
+  );
+  const codeLanguage = useMemo(
+    () => dialectFor(isDiff, language, filename),
+    [isDiff, language, filename],
+  );
   // The devicon already names the language. The text badge only earns its
   // place when no brand mark exists for the file.
   const showLanguageBadge = useMemo(
@@ -374,11 +498,36 @@ export function SyntaxHighlightBlock({
     [filename, language],
   );
   const lineDialects = useMemo(() => classifyLines(lines, codeLanguage), [lines, codeLanguage]);
+  // Grammar-accurate colours arrive from the daemon one round trip late, and
+  // never for a language it has no grammar for. Until then, and after a failed
+  // call, the rows below fall back to the tokeniser in this file.
+  const shikiLines = useHighlightedLines({
+    code,
+    language,
+    filename,
+    dark: tokens.isDark,
+  });
+  // The diff grammar colours a row by its marker and leaves the code inside it
+  // plain, so the body is sent a second time as the patched file's own text.
+  // Empty code parks the hook without a round trip, which is how the second
+  // call stays confined to a diff of a file with a grammar.
+  const diffBodyCode = useMemo(
+    () => (isDiff && patchedFileIsCode(filename) ? strippedDiffCode(lines) : ""),
+    [isDiff, filename, lines],
+  );
+  // No language hint: the daemon resolves the grammar from the file name, which
+  // is the whole point of asking again.
+  const diffBodyLines = useHighlightedLines({
+    code: diffBodyCode,
+    filename,
+    dark: tokens.isDark,
+  });
 
   const styles = useMemo(
     () =>
       StyleSheet.create({
         container: {
+          ...selectableSurface,
           backgroundColor: tokens.surfaceCodeGlass,
           borderRadius: radius.card,
           borderWidth: 1,
@@ -423,6 +572,7 @@ export function SyntaxHighlightBlock({
         filenameLink: {
           color: tokens.accent,
           textDecorationLine: "underline",
+          ...unselectable,
         },
         langBadge: {
           fontSize: 11,
@@ -449,6 +599,7 @@ export function SyntaxHighlightBlock({
           fontSize: 11,
           color: copied ? tokens.success : tokens.foregroundMuted,
           fontWeight: "500",
+          ...unselectable,
         },
         codeArea: {
           padding: compact ? 8 : 12,
@@ -464,7 +615,7 @@ export function SyntaxHighlightBlock({
           color: tokens.foregroundSubtle,
           textAlign: "right",
           paddingRight: 10,
-          userSelect: "none" as const,
+          ...unselectable,
         },
         lineContent: {
           flex: 1,
@@ -478,7 +629,7 @@ export function SyntaxHighlightBlock({
   );
 
   return (
-    <View {...frosted} style={styles.container}>
+    <View {...frosted} {...selectionSurface} style={styles.container}>
       {(filename || language) && (
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -499,10 +650,16 @@ export function SyntaxHighlightBlock({
                   <Text style={[styles.filename, styles.filenameLink]}>{filename}</Text>
                 </Pressable>
               ) : (
-                <Text style={styles.filename}>{filename}</Text>
+                <Text selectable style={styles.filename}>
+                  {filename}
+                </Text>
               )
             ) : null}
-            {showLanguageBadge ? <Text style={styles.langBadge}>{language}</Text> : null}
+            {showLanguageBadge ? (
+              <Text selectable style={styles.langBadge}>
+                {language}
+              </Text>
+            ) : null}
           </View>
           <Pressable onPress={handleCopy} style={styles.copyButton}>
             <Pop trigger={copied}>
@@ -517,9 +674,13 @@ export function SyntaxHighlightBlock({
         </View>
       )}
 
-      <View style={styles.codeArea}>
+      <View {...selectionCodeSurface} style={styles.codeArea}>
         {lines.map((line, idx) => {
-          const kind = diffTint(lines[idx], language);
+          const shikiLine = shikiLines?.[idx];
+          // The patched file's tokens, and only for a line the file owns. A
+          // chrome line keeps the diff rendering it has today.
+          const bodyLine = isDiff && !isDiffChrome(line) ? diffBodyLines?.[idx] : undefined;
+          const kind = diffTint(lines[idx], isDiff);
           const lineBg =
             kind === "add"
               ? tokens.syntax.diffAddBg
@@ -529,8 +690,8 @@ export function SyntaxHighlightBlock({
 
           // Adjacent added and removed rows form one hunk. Only the hunk's
           // outer edges round, so a delete-to-add transition stays flush.
-          const previousKind = diffTint(lines[idx - 1], language);
-          const nextKind = diffTint(lines[idx + 1], language);
+          const previousKind = diffTint(lines[idx - 1], isDiff);
+          const nextKind = diffTint(lines[idx + 1], isDiff);
           const opensRun = kind !== null && previousKind === null;
           const closesRun = kind !== null && nextKind === null;
           const corner = radius.chip;
@@ -550,8 +711,18 @@ export function SyntaxHighlightBlock({
               ]}
             >
               {showLineNumbers && <Text style={styles.lineNumber}>{idx + 1}</Text>}
-              <Text style={styles.lineContent}>
-                {renderSyntaxLine(line, language, lineDialects[idx] ?? codeLanguage, tokens)}
+              <Text selectable style={styles.lineContent}>
+                {bodyLine
+                  ? renderDiffBodyLine(line, bodyLine, tokens)
+                  : shikiLine
+                    ? renderShikiLine(shikiLine, tokens)
+                    : renderSyntaxLine(
+                        line,
+                        isDiff,
+                        language,
+                        lineDialects[idx] ?? codeLanguage,
+                        tokens,
+                      )}
               </Text>
             </View>
           );
@@ -561,16 +732,81 @@ export function SyntaxHighlightBlock({
   );
 }
 
+/**
+ * One line as the daemon tokenised it. A token the theme gives no colour takes
+ * the body colour, which is what shiki's own renderer does.
+ */
+function renderShikiLine(line: HighlightLine, tokens: ExtendedThemeTokens): React.ReactNode {
+  return line.map((token, idx) => (
+    <Text
+      key={idx}
+      selectable
+      style={{
+        color: token.color ?? tokens.foreground,
+        fontWeight: token.bold ? "600" : "400",
+        fontStyle: token.italic ? "italic" : "normal",
+      }}
+    >
+      {token.text}
+    </Text>
+  ));
+}
+
+/**
+ * The marker column of a diff row. Rendering it the same way on both paths is
+ * what keeps the arriving tokens from shifting the code sideways. A marker that
+ * is neither add nor remove is the context row's own space: it is text, not
+ * chrome, so it keeps its width and takes the body colour.
+ */
+function renderDiffMarker(marker: string, tokens: ExtendedThemeTokens): React.ReactNode {
+  if (marker !== "+" && marker !== "-") return marker;
+  return (
+    <Text
+      selectable
+      style={{
+        color: marker === "+" ? tokens.syntax.diffAddMarker : tokens.syntax.diffRemoveMarker,
+        fontWeight: "600",
+      }}
+    >
+      {marker}
+    </Text>
+  );
+}
+
+/**
+ * One diff body row: its marker in the diff's colours, then the code as the
+ * patched file's own grammar tokenised it. The diff grammar cannot do this —
+ * it paints a row one colour from its marker — so the body was tokenised
+ * separately, without the markers in the way.
+ */
+function renderDiffBodyLine(
+  line: string,
+  body: HighlightLine,
+  tokens: ExtendedThemeTokens,
+): React.ReactNode {
+  return (
+    <>
+      {renderDiffMarker(line.slice(0, 1), tokens)}
+      {renderShikiLine(body, tokens)}
+    </>
+  );
+}
+
 function renderSyntaxLine(
   line: string,
+  isDiff: boolean,
   language: string,
   lineDialect: string,
   tokens: ExtendedThemeTokens,
 ): React.ReactNode {
-  if (language === "diff") {
+  if (isDiff) {
     // Hunk headers are metadata, not code.
     if (line.startsWith("@@")) {
-      return <Text style={{ color: tokens.syntax.comment }}>{line}</Text>;
+      return (
+        <Text selectable style={{ color: tokens.syntax.comment }}>
+          {line}
+        </Text>
+      );
     }
 
     // The body of a diff line is real code, so it gets the same tokens as
@@ -581,16 +817,7 @@ function renderSyntaxLine(
 
     return (
       <>
-        {marker ? (
-          <Text
-            style={{
-              color: marker === "+" ? tokens.syntax.diffAddMarker : tokens.syntax.diffRemoveMarker,
-              fontWeight: "600",
-            }}
-          >
-            {marker}
-          </Text>
-        ) : null}
+        {marker ? renderDiffMarker(marker, tokens) : null}
         {renderDialectLine(body, lineDialect, tokens)}
       </>
     );
@@ -622,7 +849,9 @@ function renderDialectLine(
     return (
       <>
         {renderCodeTokens(line.slice(0, commentIndex), dialect, tokens)}
-        <Text style={{ color: tokens.syntax.comment }}>{line.slice(commentIndex)}</Text>
+        <Text selectable style={{ color: tokens.syntax.comment }}>
+          {line.slice(commentIndex)}
+        </Text>
       </>
     );
   }
@@ -651,19 +880,23 @@ function renderCodeTokens(
     const token = match[0];
     if (token.startsWith('"') || token.startsWith("'") || token.startsWith("`")) {
       parts.push(
-        <Text key={match.index} style={{ color: tokens.syntax.string }}>
+        <Text key={match.index} selectable style={{ color: tokens.syntax.string }}>
           {token}
         </Text>,
       );
     } else if (keywords[token]) {
       parts.push(
-        <Text key={match.index} style={{ color: tokens.syntax.keyword, fontWeight: "600" }}>
+        <Text
+          key={match.index}
+          selectable
+          style={{ color: tokens.syntax.keyword, fontWeight: "600" }}
+        >
           {token}
         </Text>,
       );
     } else if (/^\d+$/.test(token)) {
       parts.push(
-        <Text key={match.index} style={{ color: tokens.syntax.number }}>
+        <Text key={match.index} selectable style={{ color: tokens.syntax.number }}>
           {token}
         </Text>,
       );
@@ -740,7 +973,11 @@ const BASH_SUBCOMMANDS: Record<string, true> = {
 
 function renderBashTokens(line: string, tokens: ExtendedThemeTokens): React.ReactNode {
   if (line.startsWith("#")) {
-    return <Text style={{ color: tokens.syntax.comment }}>{line}</Text>;
+    return (
+      <Text selectable style={{ color: tokens.syntax.comment }}>
+        {line}
+      </Text>
+    );
   }
 
   let promptPrefix = "";
@@ -775,44 +1012,48 @@ function renderBashTokens(line: string, tokens: ExtendedThemeTokens): React.Reac
     ) {
       isFirstWord = true;
       parts.push(
-        <Text key={match.index} style={{ color: tokens.syntax.keyword, fontWeight: "600" }}>
+        <Text
+          key={match.index}
+          selectable
+          style={{ color: tokens.syntax.keyword, fontWeight: "600" }}
+        >
           {token}
         </Text>,
       );
     } else if (token.startsWith("-")) {
       parts.push(
-        <Text key={match.index} style={{ color: tokens.syntax.property }}>
+        <Text key={match.index} selectable style={{ color: tokens.syntax.property }}>
           {token}
         </Text>,
       );
     } else if (token.startsWith('"') || token.startsWith("'")) {
       parts.push(
-        <Text key={match.index} style={{ color: tokens.syntax.string }}>
+        <Text key={match.index} selectable style={{ color: tokens.syntax.string }}>
           {token}
         </Text>,
       );
     } else if (/^\d+$/.test(token)) {
       parts.push(
-        <Text key={match.index} style={{ color: tokens.syntax.number }}>
+        <Text key={match.index} selectable style={{ color: tokens.syntax.number }}>
           {token}
         </Text>,
       );
     } else if (isFirstWord || BASH_COMMANDS[token]) {
       isFirstWord = false;
       parts.push(
-        <Text key={match.index} style={{ color: tokens.accent, fontWeight: "600" }}>
+        <Text key={match.index} selectable style={{ color: tokens.accent, fontWeight: "600" }}>
           {token}
         </Text>,
       );
     } else if (BASH_SUBCOMMANDS[token]) {
       parts.push(
-        <Text key={match.index} style={{ color: tokens.syntax.function }}>
+        <Text key={match.index} selectable style={{ color: tokens.syntax.function }}>
           {token}
         </Text>,
       );
     } else {
       parts.push(
-        <Text key={match.index} style={{ color: tokens.foreground }}>
+        <Text key={match.index} selectable style={{ color: tokens.foreground }}>
           {token}
         </Text>,
       );
@@ -828,7 +1069,9 @@ function renderBashTokens(line: string, tokens: ExtendedThemeTokens): React.Reac
   return (
     <>
       {promptPrefix ? (
-        <Text style={{ color: tokens.foregroundSubtle, fontWeight: "600" }}>{promptPrefix}</Text>
+        <Text selectable style={{ color: tokens.foregroundSubtle, fontWeight: "600" }}>
+          {promptPrefix}
+        </Text>
       ) : null}
       {parts}
     </>
@@ -872,7 +1115,7 @@ export function renderTerminalOutput(text: string, tokens: ExtendedThemeTokens):
             ? tokens.danger
             : tokens.warning;
       return (
-        <Text key={key} style={{ color: tone }}>
+        <Text key={key} selectable style={{ color: tone }}>
           {line}
           {lineIdx < lines.length - 1 ? "\n" : ""}
         </Text>
@@ -881,7 +1124,7 @@ export function renderTerminalOutput(text: string, tokens: ExtendedThemeTokens):
 
     if (line.startsWith("+")) {
       return (
-        <Text key={key} style={{ color: tokens.syntax.diffAddMarker }}>
+        <Text key={key} selectable style={{ color: tokens.syntax.diffAddMarker }}>
           {line}
           {lineIdx < lines.length - 1 ? "\n" : ""}
         </Text>
@@ -889,7 +1132,7 @@ export function renderTerminalOutput(text: string, tokens: ExtendedThemeTokens):
     }
     if (line.startsWith("-") && !line.startsWith("--")) {
       return (
-        <Text key={key} style={{ color: tokens.syntax.diffRemoveMarker }}>
+        <Text key={key} selectable style={{ color: tokens.syntax.diffRemoveMarker }}>
           {line}
           {lineIdx < lines.length - 1 ? "\n" : ""}
         </Text>
@@ -926,7 +1169,7 @@ export function renderTerminalOutput(text: string, tokens: ExtendedThemeTokens):
       }
 
       parts.push(
-        <Text key={spanKey} style={{ color }}>
+        <Text key={spanKey} selectable style={{ color }}>
           {token}
         </Text>,
       );
@@ -938,7 +1181,7 @@ export function renderTerminalOutput(text: string, tokens: ExtendedThemeTokens):
     }
 
     return (
-      <Text key={key} style={{ color: tokens.foregroundMuted }}>
+      <Text key={key} selectable style={{ color: tokens.foregroundMuted }}>
         {parts}
         {lineIdx < lines.length - 1 ? "\n" : ""}
       </Text>

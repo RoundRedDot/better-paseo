@@ -5,6 +5,8 @@ import { Glyph } from "./glyph";
 import { Pop } from "./motion";
 import { radius } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
+import { selectableSurface } from "./selection";
+import { selectionSurface } from "./selection-actions";
 
 export interface TurnUsage {
   inputTokens?: number;
@@ -60,8 +62,12 @@ function UsageFigure({
   if (typeof value !== "number") return null;
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-      <Text style={styles.usageKey}>{label}</Text>
-      <Text style={styles.usageValue}>{formatTokens(value)}</Text>
+      <Text selectable style={styles.usageKey}>
+        {label}
+      </Text>
+      <Text selectable style={styles.usageValue}>
+        {formatTokens(value)}
+      </Text>
     </View>
   );
 }
@@ -111,6 +117,7 @@ export function UserMessage({
           borderWidth: 1,
           borderColor: tokens.userBorder,
           ...tokens.boxShadow,
+          ...selectableSurface,
         },
         body: { flex: 1, gap: 3 },
         metaRow: {
@@ -181,11 +188,17 @@ export function UserMessage({
   );
 
   return (
-    <View style={styles.container}>
+    <View {...selectionSurface} style={styles.container}>
       <View style={styles.body}>
         <View style={styles.metaRow}>
-          <Text style={styles.label}>You</Text>
-          {timestamp ? <Text style={styles.clock}>{formatClock(timestamp)}</Text> : null}
+          <Text selectable style={styles.label}>
+            You
+          </Text>
+          {timestamp ? (
+            <Text selectable style={styles.clock}>
+              {formatClock(timestamp)}
+            </Text>
+          ) : null}
           <Pressable
             onPress={handleCopy}
             accessibilityRole="button"
@@ -201,7 +214,9 @@ export function UserMessage({
             </Pop>
           </Pressable>
         </View>
-        <Text style={styles.text}>{text}</Text>
+        <Text selectable style={styles.text}>
+          {text}
+        </Text>
         {images?.length ? (
           <View style={styles.imageRow}>
             {images.map((uri) => (
@@ -220,7 +235,11 @@ export function UserMessage({
             <UsageFigure label="in" value={usage.inputTokens} styles={styles} />
             <UsageFigure label="cached" value={usage.cachedInputTokens} styles={styles} />
             <UsageFigure label="out" value={usage.outputTokens} styles={styles} />
-            {pending ? <Text style={styles.usageKey}>counting…</Text> : null}
+            {pending ? (
+              <Text selectable style={styles.usageKey}>
+                counting…
+              </Text>
+            ) : null}
           </View>
         ) : null}
       </View>

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { BeautifulChatSettingsPage } from "./client/settings-page";
 import { embedFonts } from "./client/components/embed-fonts";
 import { installFrostedGlass } from "./client/components/frosted";
+import { installShimmer } from "./client/components/shimmer";
 import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
 import {
@@ -10,6 +11,8 @@ import {
   LiveReasoningRenderer,
   LiveTodoRenderer,
   LiveUserMessageRenderer,
+  LiveNoticeRenderer,
+  LiveAssistantRenderer,
 } from "./client/live-renderers";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -22,6 +25,7 @@ export default function contribute(client: PluginClientContext) {
   // Install the bundled faces before any surface paints.
   const removeFonts = embedFonts();
   const removeFrost = installFrostedGlass();
+  const removeShimmer = installShimmer();
 
   // Configuration lives in the host Settings area. The plugin has no showcase
   // surface, panels, or Command Center item.
@@ -174,9 +178,77 @@ export default function contribute(client: PluginClientContext) {
     Component: LiveUserMessageRenderer,
   });
 
+  // The assistant's reply. The preference is read inside `transform` so a
+  // change takes effect on the next message without a plugin reload, and a
+  // reply the plugin should not own is left to the host.
+  const removeAssistantTransformer = client.addTimelineTransformer({
+    id: "omp-enhanced-assistant",
+    query: { itemType: "assistant_message" },
+    transform({ item }) {
+      if (item.type !== "assistant_message") return undefined;
+      if (!getEnhancerPreferences().assistantMarkdown) return undefined;
+      if (!item.text.trim()) return undefined;
+      return {
+        items: [
+          {
+            type: "plugin" as const,
+            kind: "omp-assistant",
+            version: 1,
+            data: { text: item.text },
+          },
+        ],
+      };
+    },
+  });
+
+  const removeAssistantRenderer = client.addTimelineRenderer({
+    kind: "omp-assistant",
+    version: 1,
+    schema: z.object({ text: z.string() }),
+    Component: LiveAssistantRenderer,
+  });
+
+  // Only `error` is intercepted here. Paseo 0.8 accepts transformers for
+  // user_message, assistant_message, reasoning, tool_call, todo, error, and
+  // compaction; `notification` — the ⓘ row a finished background job produces —
+  // is not on that list, and registering it throws. Every contribution in this
+  // function shares one call frame, so that throw drops every renderer the
+  // plugin installs and the whole chat falls back to native styling. Add the
+  // notification transformer the day the host accepts the type, not before.
+
+  const removeErrorTransformer = client.addTimelineTransformer({
+    id: "omp-enhanced-error",
+    query: { itemType: "error" },
+    transform({ item }) {
+      if (item.type !== "error") return undefined;
+      return {
+        items: [
+          {
+            type: "plugin" as const,
+            kind: "omp-notice",
+            version: 1,
+            data: { level: "error", message: item.message, fatal: true },
+          },
+        ],
+      };
+    },
+  });
+
+  const removeNoticeRenderer = client.addTimelineRenderer({
+    kind: "omp-notice",
+    version: 1,
+    schema: z.object({
+      level: z.string(),
+      message: z.string(),
+      fatal: z.boolean().optional(),
+    }),
+    Component: LiveNoticeRenderer,
+  });
+
   return () => {
     removeFonts();
     removeFrost();
+    removeShimmer();
     removeToolTransformer();
     removeToolRenderer();
     removeReasoningTransformer();
@@ -185,5 +257,9 @@ export default function contribute(client: PluginClientContext) {
     removeTodoRenderer();
     removeUserTransformer();
     removeUserRenderer();
+    removeAssistantTransformer();
+    removeAssistantRenderer();
+    removeErrorTransformer();
+    removeNoticeRenderer();
   };
 }

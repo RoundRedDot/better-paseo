@@ -1,5 +1,5 @@
-import React, { useMemo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useRef } from "react";
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { hostFontEscape } from "./components/host-font-escape";
 import { radius, buildThemeTokens, type ExtendedThemeTokens } from "./components/theme-tokens";
@@ -24,6 +24,102 @@ const ACCENT_OPTIONS: ReadonlyArray<{
   { id: "amber", label: "Amber", color: ACCENT_PRESETS.amber },
   { id: "rose", label: "Rose", color: ACCENT_PRESETS.rose },
 ];
+
+const TRACK_WIDTH = 38;
+const TRACK_HEIGHT = 22;
+const KNOB = 16;
+
+/**
+ * An on/off control that reads as one. A pair of buttons states the value
+ * twice — the label and the selection — and a reader has to compare them to
+ * learn which way it is set.
+ */
+function Toggle({
+  value,
+  onChange,
+  label,
+  tokens,
+}: {
+  value: boolean;
+  onChange(next: boolean): void;
+  label: string;
+  tokens: ExtendedThemeTokens;
+}) {
+  const position = useRef(new Animated.Value(value ? 1 : 0)).current;
+
+  useEffect(() => {
+    const animation = Animated.timing(position, {
+      toValue: value ? 1 : 0,
+      duration: 140,
+      useNativeDriver: Platform.OS !== "web",
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [value, position]);
+
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      // React Native Web does not map `accessibilityState.checked` onto a
+      // Pressable, so the ARIA attribute is set directly as well.
+      aria-checked={value}
+      accessibilityState={{ checked: value }}
+      accessibilityLabel={label}
+      onPress={() => onChange(!value)}
+      style={[
+        styles.track,
+        {
+          backgroundColor: value ? tokens.accent : tokens.surface2,
+          borderColor: value ? tokens.accent : tokens.border,
+        },
+      ]}
+    >
+      <Animated.View
+        style={[
+          styles.knob,
+          {
+            backgroundColor: value ? tokens.accentForeground : tokens.foregroundMuted,
+            transform: [
+              {
+                translateX: position.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, TRACK_WIDTH - KNOB - 6],
+                }),
+              },
+            ],
+          },
+        ]}
+      />
+    </Pressable>
+  );
+}
+
+/** A row whose control is a toggle: text on the left, switch on the right. */
+function ToggleRow({
+  title,
+  description,
+  value,
+  onChange,
+  tokens,
+}: {
+  title: string;
+  description: string;
+  value: boolean;
+  onChange(next: boolean): void;
+  tokens: ExtendedThemeTokens;
+}) {
+  return (
+    <View style={[styles.row, styles.toggleRow, { borderTopColor: tokens.borderSubtle }]}>
+      <View style={styles.toggleText}>
+        <Text style={[styles.rowTitle, { color: tokens.foreground }]}>{title}</Text>
+        <Text style={[styles.rowDescription, { color: tokens.foregroundMuted }]}>
+          {description}
+        </Text>
+      </View>
+      <Toggle value={value} onChange={onChange} label={title} tokens={tokens} />
+    </View>
+  );
+}
 
 function OptionButton({
   label,
@@ -184,43 +280,50 @@ export function BeautifulChatSettingsPage({ theme }: PluginSurfaceProps) {
           tokens={tokens}
         />
 
-        <View style={[styles.row, { borderTopColor: tokens.borderSubtle }]}>
-          <Text style={[styles.rowTitle, { color: tokens.foreground }]}>Frosted glass</Text>
-          <Text style={[styles.rowDescription, { color: tokens.foregroundMuted }]}>
-            Blur surfaces where the host supports it, or use solid surfaces instead.
-          </Text>
-          <OptionButton
-            label={preferences.frostedGlass ? "On" : "Off"}
-            selected={preferences.frostedGlass}
-            onPress={() =>
-              updateEnhancerPreferences({
-                frostedGlass: !preferences.frostedGlass,
-              })
-            }
-            tokens={tokens}
-          />
-        </View>
+        <ToggleRow
+          title="Frosted glass"
+          description="Blur surfaces where the host supports it, or use solid surfaces instead."
+          value={preferences.frostedGlass}
+          onChange={(frostedGlass) => updateEnhancerPreferences({ frostedGlass })}
+          tokens={tokens}
+        />
 
-        <View style={[styles.row, { borderTopColor: tokens.borderSubtle }]}>
-          <Text style={[styles.rowTitle, { color: tokens.foreground }]}>
-            Enhanced prompt bubble
-          </Text>
-          <Text style={[styles.rowDescription, { color: tokens.foregroundMuted }]}>
-            Paseo removes pasted images before a plugin sees the message, so the enhanced bubble
-            cannot show them. Turn this off for Paseo's own bubble with image previews. New prompts
-            follow the change.
-          </Text>
-          <OptionButton
-            label={preferences.enhancedUserBubble ? "On" : "Off"}
-            selected={preferences.enhancedUserBubble}
-            onPress={() =>
-              updateEnhancerPreferences({
-                enhancedUserBubble: !preferences.enhancedUserBubble,
-              })
-            }
-            tokens={tokens}
-          />
-        </View>
+        <ToggleRow
+          title="Enhanced prompt bubble"
+          description="Paseo removes pasted images before a plugin sees the message, so the enhanced bubble cannot show them. Turn this off for Paseo's own bubble with image previews. New prompts follow the change."
+          value={preferences.enhancedUserBubble}
+          onChange={(enhancedUserBubble) => updateEnhancerPreferences({ enhancedUserBubble })}
+          tokens={tokens}
+        />
+
+        <ToggleRow
+          title="Selection actions"
+          description="Highlighting text in a callout raises a small bar with Copy and Add to chat. Add to chat drops the highlight into the composer as a quote, or a fenced block when it came from code. Desktop and web only: iOS and Android use the platform's own selection menu."
+          value={preferences.selectionActions}
+          onChange={(selectionActions) => updateEnhancerPreferences({ selectionActions })}
+          tokens={tokens}
+        />
+
+        <ToggleRow
+          title="Assistant markdown"
+          description="Draws the reply with the plugin's own headings, lists and syntax-highlighted code blocks. The plugin cannot reach Paseo's markdown pipeline, so its version is a subset: turn this off for mermaid diagrams, images, and the host's file-path links."
+          value={preferences.assistantMarkdown}
+          onChange={(assistantMarkdown) => updateEnhancerPreferences({ assistantMarkdown })}
+          tokens={tokens}
+        />
+
+        <ChoiceRow
+          title="Markdown style"
+          description="Document is airy and built for long answers. Compact tightens the spacing for short replies. Terminal sets the body in the code face."
+          value={preferences.markdownVariant}
+          options={[
+            { value: "document", label: "Document" },
+            { value: "compact", label: "Compact" },
+            { value: "terminal", label: "Terminal" },
+          ]}
+          onChange={(markdownVariant) => updateEnhancerPreferences({ markdownVariant })}
+          tokens={tokens}
+        />
       </View>
 
       <Pressable
@@ -235,7 +338,24 @@ export function BeautifulChatSettingsPage({ theme }: PluginSurfaceProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, gap: 12 },
+  // No `flex: 1` here. The host mounts a settings screen inside a plain
+  // column `View` (app `plugins/settings/index.tsx:107`), and React Native Web
+  // compiles `flex: 1` to `flex: 1 1 0%` — a zero basis in a container that
+  // sizes to its content, so the whole page collapses to nothing.
+  container: { alignSelf: "stretch", padding: 16, gap: 12 },
+  toggleRow: { flexDirection: "row", alignItems: "center", gap: 16 },
+  // The text column takes the slack so a long description wraps instead of
+  // pushing the switch off the card.
+  toggleText: { flex: 1, minWidth: 0, gap: 8 },
+  track: {
+    width: TRACK_WIDTH,
+    height: TRACK_HEIGHT,
+    borderRadius: TRACK_HEIGHT / 2,
+    borderWidth: 1,
+    padding: 2,
+    justifyContent: "center",
+  },
+  knob: { width: KNOB, height: KNOB, borderRadius: KNOB / 2 },
   intro: { padding: 14, borderWidth: 1, borderRadius: radius.card, gap: 4 },
   title: { fontSize: 16, fontWeight: "700" },
   description: { fontSize: 13, lineHeight: 18 },

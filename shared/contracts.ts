@@ -84,63 +84,178 @@ export type ToolCallKind =
   | "ast_grep"
   | "lsp";
 
-export interface HubMessageData {
-  op: "send" | "wait" | "inbox" | "list";
-  /** Absent on a live call: the tool reports the recipient, not the sender. */
-  from?: string;
+/**
+ * The hub tool answers with a text block plus a typed `details` record, and the
+ * shapes below mirror that record op by op, as of omp's current hub tool:
+ * coordination ops return `{ op, from?, to?, receipts?, waited?, inbox?, peers?,
+ * counts?, jobs?, cancelled?, agents? }` and process ops return
+ * `{ op, daemon?, daemons?, text?, cursor?, timedOut?, matched?, state?, spec? }`.
+ * Rendering from `details` rather than from the prose is what keeps a raw JSON
+ * envelope off the screen when an op answers with an empty text block, which is
+ * what a job-snapshot `wait` does.
+ */
+
+/** One peer message, as the bus stores it. */
+export interface HubMessage {
+  id?: string;
+  from: string;
   to?: string;
-  message?: string;
-  delivered: boolean;
+  body: string;
   replyTo?: string;
-  awaitReply?: boolean;
-  response?: string;
-  /** Whatever the operation printed, for ops that answer with a listing. */
-  output?: string;
+  ts?: number;
 }
 
-/** One supervised process, as the daemon reports it in a roster. */
+/** Per-recipient delivery outcome from `send`. */
+export interface HubReceipt {
+  to: string;
+  /** `injected`, `woken`, `revived`, `queued`, or `failed`; open for new outcomes. */
+  outcome: string;
+  error?: string;
+}
+
+/** One row of the `list` roster. */
+export interface HubPeer {
+  id: string;
+  displayName?: string;
+  kind?: string;
+  status: string;
+  parentId?: string;
+  unread?: number;
+  lastActivity?: number;
+  activity?: string;
+}
+
+export interface HubPeerCounts {
+  running: number;
+  idle: number;
+  parked: number;
+  shown?: number;
+  truncated?: number;
+}
+
+/** One background job in a `wait`, `jobs`, or `cancel` snapshot. */
+export interface HubJobRow {
+  id: string;
+  type: string;
+  /** `running`, `completed`, `failed`, or `cancelled`; open for new states. */
+  status: string;
+  label?: string;
+  durationMs?: number;
+  resolvedModel?: string;
+  advisor?: boolean;
+  resultText?: string;
+  errorText?: string;
+  schema?: { status: string; error?: string; hasData?: boolean; agentUrl?: string };
+}
+
+/** A running subagent with no job entry, which `wait` reports beside the jobs. */
+export interface HubAgentRow {
+  id: string;
+  parentId?: string;
+  activity?: string;
+  ageMs?: number;
+  live?: boolean;
+}
+
+export interface HubCancelRow {
+  id: string;
+  status: string;
+  message?: string;
+}
+
+/** One supervised process, as the launch broker reports it. */
 export interface HubDaemonRow {
   name: string;
+  id?: string;
   state: string;
   pid?: number;
   restarts?: number;
   readyMatch?: string;
   exitCode?: number;
+  exitReason?: string;
   startedAt?: number;
+  readyAt?: number;
   exitedAt?: number;
+  outputBytes?: number;
+  persist?: boolean;
+  detached?: boolean;
+}
+
+export interface HubProcessSpec {
+  application?: string;
+  args?: string[];
+  cwd?: string;
+  pty?: boolean;
+  restart?: string;
+  readyLog?: string;
+  readyPort?: number;
 }
 
 export interface HubProcessData {
-  op: "start" | "ps" | "logs" | "stop" | "restart" | "describe" | "wait";
-  name: string;
-  /** Absent for ops that address a process the daemon already launched. */
-  application?: string;
-  args?: string[];
-  port?: number;
-  readyLogPattern?: string;
-  status: "starting" | "ready" | "running" | "stopped" | "failed" | "unknown";
-  recentLogs?: string[];
+  op: "start" | "ps" | "logs" | "stop" | "restart" | "describe" | "wait" | "send";
+  name?: string;
+  spec?: HubProcessSpec;
+  daemon?: HubDaemonRow;
   /** The roster a `ps` call returns, one row per supervised process. */
   daemons?: HubDaemonRow[];
+  logs?: string[];
   cursor?: number;
+  timedOut?: boolean;
+  /** The output a `wait` with a pattern matched. */
+  matched?: string;
+  state?: string;
+  /** Stdin text, keys, or signal sent to the process. */
+  input?: string;
 }
 
-export interface HubJobData {
-  op: "jobs" | "cancel";
-  activeJobs: Array<{
-    id: string;
-    target: string;
-    status: "running" | "completed" | "failed";
-    elapsed: string;
-  }>;
-  /** The raw report, shown when the rows cannot be parsed. */
-  output?: string;
+export interface HubSendData {
+  from?: string;
+  to?: string;
+  message?: string;
+  replyTo?: string;
+  awaitReply: boolean;
+  receipts: HubReceipt[];
+  /** The awaited answer: a message, or null when the wait ended without one. */
+  reply?: HubMessage | null;
 }
 
+export interface HubWaitedData {
+  from?: string;
+  message: HubMessage | null;
+  timeoutMs?: number;
+}
+
+export interface HubInboxData {
+  peek: boolean;
+  messages: HubMessage[];
+}
+
+export interface HubPeersData {
+  peers: HubPeer[];
+  counts?: HubPeerCounts;
+  statusFilter?: string;
+}
+
+export interface HubJobsData {
+  op: "wait" | "jobs" | "cancel";
+  jobs: HubJobRow[];
+  cancelled?: HubCancelRow[];
+  agents?: HubAgentRow[];
+}
+
+/**
+ * Every variant keeps the op's prose in `text`. A view shows it when the record
+ * is empty — an older omp build, or an op this plugin has not typed yet — so a
+ * hub card always has something to draw and never falls back to a JSON dump.
+ */
 export type HubData =
-  | { kind: "message"; data: HubMessageData }
-  | { kind: "process"; data: HubProcessData }
-  | { kind: "jobs"; data: HubJobData };
+  | { kind: "send"; text?: string; data: HubSendData }
+  | { kind: "waited"; text?: string; data: HubWaitedData }
+  | { kind: "inbox"; text?: string; data: HubInboxData }
+  | { kind: "peers"; text?: string; data: HubPeersData }
+  | { kind: "jobs"; text?: string; data: HubJobsData }
+  | { kind: "process"; text?: string; data: HubProcessData }
+  | { kind: "note"; text?: string; data: { op: string } };
 
 export interface McpToolData {
   server: string;
@@ -265,18 +380,39 @@ export interface ToolCalloutData {
   }>;
   /** Selected option labels, or the typed reply. Empty until answered. */
   askAnswer?: string[];
+  /**
+   * One `task` call spawns a batch: the tool takes a shared `context` plus a
+   * list of briefs, so the card carries the list. `model` is absent here on
+   * purpose — the call names an agent type, and which model that resolves to
+   * is the spawned agent's business, reported later by `hub`.
+   */
   subagent?: {
-    name: string;
-    agentType: string;
-    model: string;
-    task: string;
-    status: string;
+    context?: string;
+    agents: Array<{
+      name: string;
+      agentType: string;
+      task: string;
+      status?: string;
+    }>;
   };
   hub?: HubData;
   mcp?: McpToolData;
   shell?: ShellToolData;
   thinking?: ThinkingToolData;
   paseo?: PaseoToolData;
+}
+
+/**
+ * A host `notification` or `error` timeline item. Both carry a level and one
+ * message string and nothing else — no title, no duration — so the callout
+ * that draws them stays a single row wherever the message allows it.
+ */
+export interface NoticeCalloutData {
+  id: string;
+  level: "info" | "warning" | "error";
+  message: string;
+  /** Present when the item came from the host's `error` type rather than `notification`. */
+  fatal?: boolean;
 }
 
 export interface MockChatMessage {

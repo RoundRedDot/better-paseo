@@ -21,7 +21,8 @@ import { HubCallout } from "../client/components/hub-callout";
 import { PaseoToolCallout } from "../client/components/paseo-tool-callouts";
 import { SyntaxHighlightBlock } from "../client/components/syntax-highlight";
 import { BeautifulChatSettingsPage } from "../client/settings-page";
-import { buildHubData } from "../client/live-renderers";
+import { buildHubData } from "../client/hub-details";
+import { NoticeCallout } from "../client/components/notice-callout";
 import type { ToolCalloutData } from "../shared/contracts";
 
 const DARK = {
@@ -211,12 +212,24 @@ const hubStart = buildHubData(
     ready: { log: "shots ready", port: 4173 },
   },
   "Started shots-server: ready pid=33368 uptime=172ms restarts=0\nReady log matched: shots ready",
-)!;
-
-const hubStop = buildHubData(
-  { op: "stop", name: "shots-server" },
-  "Stopped shots-server: exited exit=1 uptime=8m20s restarts=0",
-)!;
+  {
+    content: [{ type: "text", text: "Started shots-server: ready pid=33368" }],
+    details: {
+      op: "start",
+      timedOut: false,
+      daemon: {
+        name: "shots-server",
+        id: "d-1",
+        state: "ready",
+        pid: 33368,
+        restartCount: 0,
+        readyMatch: "shots ready",
+        persist: false,
+        detached: false,
+      },
+    },
+  },
+);
 
 const hubPs = buildHubData({ op: "ps" }, undefined, {
   content: [{ type: "text", text: "- omp.lsp.mux: ready pid=72044 uptime=19h22m restarts=0" }],
@@ -228,12 +241,81 @@ const hubPs = buildHubData({ op: "ps" }, undefined, {
       { name: "shots-server", state: "exited", pid: 33368, exitCode: 1, restartCount: 0 },
     ],
   },
-})!;
+});
 
 const hubMessage = buildHubData(
   { op: "send", to: "ShotBuilder", message: "Capture the dark theme first. Light theme after." },
-  "delivered to ShotBuilder",
-)!;
+  "Delivered to 1 peer(s):\n- ShotBuilder: injected",
+  {
+    content: [{ type: "text", text: "Delivered to 1 peer(s):\n- ShotBuilder: injected" }],
+    details: {
+      op: "send",
+      from: "Main",
+      to: "ShotBuilder",
+      receipts: [{ to: "ShotBuilder", outcome: "injected" }],
+    },
+  },
+);
+
+// The case that used to print the raw envelope: a job snapshot answers with an
+// empty text block and puts everything in `details`.
+const hubWait = buildHubData({ op: "wait" }, "", {
+  content: [{ type: "text", text: "" }],
+  details: {
+    op: "wait",
+    jobs: [
+      {
+        id: "NoticeCallout",
+        type: "task",
+        status: "running",
+        label: "NoticeCallout",
+        durationMs: 466244,
+        resolvedModel: "anthropic/claude-opus-5:high",
+      },
+      {
+        id: "bash_a1b2c3",
+        type: "bash",
+        status: "completed",
+        label: "npm run typecheck",
+        durationMs: 4253,
+        resultText: "Checked 34 files in 4.2s",
+      },
+    ],
+    agents: [
+      { id: "ShotBuilder", parentId: "Main", activity: "capturing", ageMs: 92000, live: true },
+    ],
+  },
+});
+
+const hubPeers = buildHubData({ op: "list" }, undefined, {
+  content: [
+    { type: "text", text: "2 peer(s) (running 1, idle 1, parked 0; shown 2, truncated 0):" },
+  ],
+  details: {
+    op: "list",
+    from: "Main",
+    peers: [
+      {
+        id: "ShotBuilder",
+        displayName: "ShotBuilder",
+        kind: "sub",
+        status: "running",
+        unread: 0,
+        lastActivity: Date.now() - 12000,
+        activity: "capturing the syntax block",
+      },
+      {
+        id: "NoticeCallout",
+        displayName: "NoticeCallout",
+        kind: "sub",
+        status: "idle",
+        unread: 2,
+        lastActivity: Date.now() - 65000,
+      },
+    ],
+    counts: { running: 1, idle: 1, parked: 0, shown: 2, truncated: 0 },
+  },
+});
 
 const paseoTool = {
   id: "paseo",
@@ -388,6 +470,31 @@ function Showcase() {
         <HubCallout data={hubStart} tokens={tokens} />
         <HubCallout data={hubPs} tokens={tokens} />
         <HubCallout data={hubMessage} tokens={tokens} />
+        <HubCallout data={hubWait} tokens={tokens} />
+        <HubCallout data={hubPeers} tokens={tokens} />
+      </Shot>
+      <Shot id="shot-notice">
+        <NoticeCallout
+          data={{ id: "n1", level: "info", message: "Background task ShotBuilder completed." }}
+          tokens={tokens}
+        />
+        <NoticeCallout
+          data={{
+            id: "n2",
+            level: "info",
+            message:
+              "xd://: mounted mcp__better_icons_get_icon, mcp__better_icons_search_icons, mcp__devnav_codedb_search, mcp__devnav_codedb_symbol, mcp__devnav_webclaw_read, mcp__linkml_mcp_execute",
+          }}
+          tokens={tokens}
+        />
+        <NoticeCallout
+          data={{ id: "n3", level: "warning", message: "The daemon restarted twice in 30s." }}
+          tokens={tokens}
+        />
+        <NoticeCallout
+          data={{ id: "n4", level: "error", message: "Provider quota exhausted.", fatal: true }}
+          tokens={tokens}
+        />
       </Shot>
       <Shot id="shot-paseo">
         <PaseoToolCallout data={paseoTool} tokens={tokens} />
