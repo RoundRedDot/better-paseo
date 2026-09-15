@@ -6,6 +6,7 @@ import { radius, withAlpha, type ExtendedThemeTokens } from "../theme-tokens";
 import { selectableSurface, unselectable } from "../selection";
 import { selectionSurface } from "../selection-actions";
 import { SyntaxHighlightBlock } from "../syntax-highlight";
+import { openLink } from "../open-link";
 import { parseMarkdown, type MdAlign, type MdBlock, type MdInline, type MdListItem } from "./parse";
 
 /**
@@ -441,8 +442,20 @@ function renderInline(
           </Text>
         );
       case "link":
+        // `onPress` on a Text, not a Pressable wrapper: a link sits mid
+        // sentence, and a View there would break the line box and drop the
+        // text out of the paragraph's selection range.
         return (
-          <Text key={key} selectable accessibilityRole="link" style={styles.link}>
+          <Text
+            key={key}
+            selectable
+            accessibilityRole="link"
+            // No `href`: React Native Web would render a real anchor and the
+            // click would navigate the app window itself. The press handler
+            // routes through the host's opener instead.
+            onPress={() => openLink(span.href)}
+            style={styles.link}
+          >
             {renderInline(span.spans, styles, key)}
           </Text>
         );
