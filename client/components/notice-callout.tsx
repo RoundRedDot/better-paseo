@@ -2,6 +2,8 @@ import React, { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
 import { frosted } from "./frosted";
+import { surfaceProps } from "./view-props";
+import { glowing } from "./glow";
 import { radius } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { renderTerminalOutput } from "./syntax-highlight";
@@ -148,7 +150,10 @@ export function NoticeCallout({ data, tokens }: NoticeCalloutProps): React.React
   );
 
   return (
-    <View {...frosted} {...selectionSurface} style={styles.container}>
+    <View
+      {...surfaceProps(frosted, glowing(tokens.isDark), selectionSurface)}
+      style={styles.container}
+    >
       <View style={styles.row}>
         <View style={styles.badge}>
           <Glyph name={look.glyph} size={11} color={look.accent} />

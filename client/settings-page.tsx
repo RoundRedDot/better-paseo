@@ -322,6 +322,14 @@ export function BeautifulChatSettingsPage({ theme }: PluginSurfaceProps) {
         />
 
         <ToggleRow
+          title="Pointer glow"
+          description="A soft light follows the pointer across each card. Desktop and web only: touch platforms have no hover, and the light is skipped when the system asks for reduced motion."
+          value={preferences.pointerGlow}
+          onChange={(pointerGlow) => updateEnhancerPreferences({ pointerGlow })}
+          tokens={tokens}
+        />
+
+        <ToggleRow
           title="Enhanced prompt bubble"
           description="Paseo removes pasted images before a plugin sees the message, so the enhanced bubble cannot show them. Turn this off for Paseo's own bubble with image previews. New prompts follow the change."
           value={preferences.enhancedUserBubble}

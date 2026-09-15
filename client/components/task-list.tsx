@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import { View, Text, Pressable, StyleSheet, Animated } from "react-native";
 import { Glyph } from "./glyph";
 import { frosted } from "./frosted";
+import { surfaceProps } from "./view-props";
+import { glowing } from "./glow";
 import { Glow } from "./motion";
 import { Breathe } from "./breathe";
 import { PulseDot } from "./pulse-dot";
@@ -286,7 +288,10 @@ export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
   };
 
   return (
-    <View {...frosted} {...selectionSurface} style={styles.container}>
+    <View
+      {...surfaceProps(frosted, glowing(tokens.isDark), selectionSurface)}
+      style={styles.container}
+    >
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View style={styles.headerLeft}>

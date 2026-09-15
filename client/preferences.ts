@@ -19,6 +19,11 @@ export interface EnhancerPreferences {
   codeFont: CodeFontPreference;
   frostedGlass: boolean;
   /**
+   * A light that follows the pointer across a card. Web and desktop only:
+   * touch platforms have no hover, so the attribute is inert there.
+   */
+  pointerGlow: boolean;
+  /**
    * Paseo maps a stream item to the plugin timeline item before any transformer
    * runs, and that mapping carries only the text. Pasted images therefore never
    * reach plugin code, so the enhanced bubble cannot draw them. Turning this off
@@ -49,6 +54,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   uiFont: "inter",
   codeFont: "code",
   frostedGlass: true,
+  pointerGlow: true,
   enhancedUserBubble: true,
   selectionActions: true,
   assistantMarkdown: true,
@@ -79,6 +85,10 @@ function loadPreferences(): EnhancerPreferences {
         typeof candidate.frostedGlass === "boolean"
           ? candidate.frostedGlass
           : DEFAULT_PREFERENCES.frostedGlass,
+      pointerGlow:
+        typeof candidate.pointerGlow === "boolean"
+          ? candidate.pointerGlow
+          : DEFAULT_PREFERENCES.pointerGlow,
       enhancedUserBubble:
         typeof candidate.enhancedUserBubble === "boolean"
           ? candidate.enhancedUserBubble

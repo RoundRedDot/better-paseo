@@ -2,6 +2,8 @@ import React, { useState, useCallback, useMemo } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
 import { frosted } from "./frosted";
+import { surfaceProps } from "./view-props";
+import { glowing } from "./glow";
 import { Pop } from "./motion";
 import { radius, type ExtendedThemeTokens } from "./theme-tokens";
 import { FileTypeLogo, detectFileType } from "./file-type-logo";
@@ -631,7 +633,9 @@ export function SyntaxHighlightBlock({
   );
 
   return (
-    <View {...frosted} {...selectionSurface} style={styles.container}>
+    // No pointer glow here: a code block is an inner surface, and lighting it
+    // separately from the card that holds it reads as two hovers at once.
+    <View {...surfaceProps(frosted, selectionSurface)} style={styles.container}>
       {(filename || language) && (
         <View style={styles.header}>
           <View style={styles.headerLeft}>

@@ -4,6 +4,7 @@ import { BeautifulChatSettingsPage } from "./client/settings-page";
 import { embedFonts } from "./client/components/embed-fonts";
 import { installFrostedGlass } from "./client/components/frosted";
 import { installShimmer } from "./client/components/shimmer";
+import { installPointerGlow } from "./client/components/glow";
 import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
 import {
@@ -26,6 +27,7 @@ export default function contribute(client: PluginClientContext) {
   const removeFonts = embedFonts();
   const removeFrost = installFrostedGlass();
   const removeShimmer = installShimmer();
+  const removeGlow = installPointerGlow();
 
   // Configuration lives in the host Settings area. The plugin has no showcase
   // surface, panels, or Command Center item.
@@ -249,6 +251,7 @@ export default function contribute(client: PluginClientContext) {
     removeFonts();
     removeFrost();
     removeShimmer();
+    removeGlow();
     removeToolTransformer();
     removeToolRenderer();
     removeReasoningTransformer();
