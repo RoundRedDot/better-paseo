@@ -36,6 +36,7 @@ import type {
   PaseoToolData,
 } from "../shared/contracts";
 import { revealPathRpc } from "../shared/file-rpc";
+import { describeGitHubRequest } from "./github-request";
 import { useImageFile } from "./image-file";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -476,7 +477,9 @@ export function LiveToolCallRenderer({
 
     if (isGitHubTool) {
       toolKind = "github";
-      title = "GitHub";
+      // The call is a device write: its `content` is the request, and the op
+      // inside it is the only thing that says what this card did.
+      title = describeGitHubRequest(code) ?? "GitHub";
     } else if (isGitCommand) {
       toolKind = "git";
       title = command ? `$ ${command.trim().slice(0, 55)}` : "Git command";
@@ -550,8 +553,9 @@ export function LiveToolCallRenderer({
       language:
         toolKind === "bash" || toolKind === "shell" || toolKind === "git"
           ? "bash"
-          : languageFromPath(filePath),
-      command,
+          : toolKind === "github"
+            ? "json"
+            : languageFromPath(filePath),
       code,
       diff,
       output: evalCells.length > 0 ? undefined : outputText,

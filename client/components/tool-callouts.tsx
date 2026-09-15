@@ -559,6 +559,28 @@ export function ToolCallout({
             </View>
           )}
 
+          {data.tool === "github" && (
+            // A device call is a request and a reply, not a command and its
+            // terminal: the request is JSON worth reading, so it keeps its own
+            // block above the answer.
+            <View style={{ gap: 6 }}>
+              {data.code ? (
+                <SyntaxHighlightBlock code={data.code} language="json" tokens={tokens} compact />
+              ) : null}
+              {data.output ? (
+                <View style={styles.terminalWindow}>
+                  <Text selectable {...selectionCodeText} style={styles.terminalOutput}>
+                    {renderTerminalOutput(data.output, tokens)}
+                  </Text>
+                </View>
+              ) : (
+                <Text selectable style={styles.silentCommandText}>
+                  {isRunning ? "Waiting for GitHub…" : "The call returned no output."}
+                </Text>
+              )}
+            </View>
+          )}
+
           {data.tool === "thinking" && (
             <View style={styles.thinkingContainer}>
               <View style={styles.thinkingHeader}>

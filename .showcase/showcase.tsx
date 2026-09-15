@@ -128,6 +128,19 @@ const sampleImage = {
   error: "No daemon in the offline showcase",
 };
 
+const github: ToolCalloutData = {
+  id: "github",
+  tool: "github",
+  title: "file_read ABorakati/beautiful-chat paseo-plugin.json",
+  status: "completed",
+  durationMs: 412,
+  filePath: "xd://github",
+  language: "json",
+  code: '{"op":"file_read","repo":"ABorakati/beautiful-chat","path":"paseo-plugin.json"}',
+  output:
+    '{\n  "id": "beautiful-chat",\n  "requirements": {\n    "paseo": ">=0.8.0"\n  },\n  "build": [["npm", "ci", "--include=dev"]]\n}',
+};
+
 const edit: ToolCalloutData = {
   id: "edit",
   tool: "edit",
@@ -625,6 +638,9 @@ function Showcase() {
           onRevealPath={() => {}}
           imageFile={sampleImage}
         />
+      </Shot>
+      <Shot id="shot-tool-github">
+        <ToolCallout data={github} tokens={tokens} />
       </Shot>
       <Shot id="shot-tool-edit">
         <ToolCallout data={edit} tokens={tokens} onRevealPath={() => {}} />
