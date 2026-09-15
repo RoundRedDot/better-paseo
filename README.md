@@ -4,7 +4,11 @@ A Paseo plugin that redraws the Oh My Pi (OMP) chat stream: tool calls, reasonin
 and checklists. It replaces the host rendering of OMP timeline items with typed, syntax-aware cards
 that follow the active Paseo theme.
 
-Every screenshot below is a capture of the real component, rendered by the harness in `.showcase/`.
+![A prompt, a tool call, a finished background job, and the reply that closes the turn](images/hero.png)
+
+Every screenshot here is a capture of the real component, rendered by the harness in `.showcase/`.
+[One whole turn, top to bottom](images/thread.png) shows the cards in the order the timeline draws
+them.
 
 ## Install
 

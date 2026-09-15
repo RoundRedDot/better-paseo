@@ -535,9 +535,53 @@ function Thread() {
   );
 }
 
+const HERO_REPLY = [
+  "## What shipped",
+  "",
+  "Links route through the host's own opener — [pull/125](https://github.com/paseo-cafe/paseo-cafe/pull/125)",
+  "or the bare form https://paseo.sh/docs.",
+  "",
+  "| Area | Result |",
+  "| --- | --- |",
+  "| Selection | Copy and Add to chat |",
+  "| Highlighting | shiki on the daemon |",
+  "",
+  "```ts",
+  'const ALLOWED = new Set(["http:", "https:", "mailto:"]);',
+  "```",
+].join("\n");
+
+/**
+ * One screenful for the top of the README: a prompt, a tool call with a
+ * highlighted file, a finished background job, and the reply that closes the
+ * turn. Short enough to read at a glance, and every card is the real one.
+ */
+function Hero() {
+  const envelope = parseSystemEnvelope(JOB_NOTICE);
+  return (
+    <View style={{ gap: 12 }}>
+      <UserMessage
+        text="I can't click on URLs in the assistant responses."
+        timestamp={new Date("2026-09-15T22:41:00Z")}
+        tokens={tokens}
+        usage={{ inputTokens: 270, cachedInputTokens: 36211627, outputTokens: 62024 }}
+      />
+      <ToolCallout data={read} tokens={tokens} onRevealPath={() => {}} />
+      {envelope ? <SystemCard envelope={envelope} tokens={tokens} /> : null}
+      <View>
+        <MarkdownView text={HERO_REPLY} tokens={tokens} variant="document" />
+        <AssistantFooter text={HERO_REPLY} at={new Date("2026-09-15T22:47:12Z")} tokens={tokens} />
+      </View>
+    </View>
+  );
+}
+
 function Showcase() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, backgroundColor: "#000" }}>
+      <Shot id="shot-hero">
+        <Hero />
+      </Shot>
       <Shot id="shot-thread">
         <Thread />
       </Shot>
