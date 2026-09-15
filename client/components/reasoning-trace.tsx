@@ -2,6 +2,8 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { View, Text, Pressable, StyleSheet, Animated } from "react-native";
 import { Glyph } from "./glyph";
 import { frosted } from "./frosted";
+import { surfaceProps } from "./view-props";
+import { glowing } from "./glow";
 import { Glow, Rotate } from "./motion";
 import { PulseDot } from "./pulse-dot";
 import { Breathe } from "./breathe";
@@ -231,7 +233,10 @@ export function ReasoningTrace({ data, tokens, defaultExpanded = false }: Reason
   );
 
   return (
-    <View {...frosted} {...selectionSurface} style={styles.wrapper}>
+    <View
+      {...surfaceProps(frosted, glowing(tokens.isDark), selectionSurface)}
+      style={styles.wrapper}
+    >
       <Pressable onPress={() => setIsExpanded((prev) => !prev)} style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.iconBubble}>

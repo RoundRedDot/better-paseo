@@ -3,6 +3,8 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { Glyph } from "./glyph";
 import { frosted } from "./frosted";
+import { surfaceProps } from "./view-props";
+import { glowing } from "./glow";
 import { Rotate } from "./motion";
 import { Breathe } from "./breathe";
 import { PulseDot } from "./pulse-dot";
@@ -431,7 +433,10 @@ export function ToolCallout({
   );
 
   return (
-    <View {...frosted} {...selectionSurface} style={styles.container}>
+    <View
+      {...surfaceProps(frosted, glowing(tokens.isDark), selectionSurface)}
+      style={styles.container}
+    >
       <Pressable onPress={() => setExpanded((p) => !p)} style={styles.header}>
         <View style={styles.headerLeft}>
           <Breathe depth={1.08} durationMs={1800}>

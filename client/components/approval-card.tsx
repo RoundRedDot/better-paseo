@@ -2,6 +2,8 @@ import React, { useState, useMemo } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
 import { frosted } from "./frosted";
+import { surfaceProps } from "./view-props";
+import { glowing } from "./glow";
 import { radius } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import type { ApprovalRequest } from "../../shared/contracts";
@@ -268,7 +270,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
   };
 
   return (
-    <View {...frosted} {...selectionSurface} style={styles.card}>
+    <View {...surfaceProps(frosted, glowing(tokens.isDark), selectionSurface)} style={styles.card}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Glyph name="ShieldAlert" size={15} color={riskBadgeColor} />

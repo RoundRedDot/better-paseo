@@ -11,6 +11,7 @@ import { TaskList } from "./components/task-list";
 import { UserMessage } from "./components/user-message";
 import { hostFontEscape } from "./components/host-font-escape";
 import { useSelectionActions } from "./components/selection-actions";
+import { usePointerGlow } from "./components/glow";
 import type { TurnUsage } from "./components/user-message";
 import { NoticeCallout } from "./components/notice-callout";
 import { useEnhancerPreferences } from "./preferences";
@@ -18,6 +19,10 @@ import { buildHubData } from "./hub-details";
 import { publishHubSnapshot } from "./hub-activity";
 import { MarkdownView } from "./components/markdown/markdown-view";
 import { TimelineTailHub } from "./components/hub-live";
+import { AssistantFooter } from "./components/turn-footer";
+import { SystemCard } from "./components/system-card";
+import { parseSystemEnvelope } from "./system-envelope";
+import { useIsTimelineTail } from "./timeline-tail";
 import type {
   ToolCalloutData,
   ToolCallKind,
@@ -389,6 +394,7 @@ export function LiveToolCallRenderer({
     [theme.colors, preferences],
   );
   useSelectionActions(tokens, preferences.selectionActions);
+  usePointerGlow(preferences.pointerGlow);
   const data = item.data;
 
   const calloutData = useMemo((): ToolCalloutData => {
@@ -614,6 +620,7 @@ export function LiveReasoningRenderer({
     [theme.colors, preferences],
   );
   useSelectionActions(tokens, preferences.selectionActions);
+  usePointerGlow(preferences.pointerGlow);
   const data = item.data;
   // The host owns the reveal cadence, so streamed reasoning animates the same
   // way it does in the native timeline instead of appearing in whole blocks.
@@ -679,6 +686,7 @@ export function LiveTodoRenderer({ item, theme }: PluginTimelineItemProps<LiveTo
     [theme.colors, preferences],
   );
   useSelectionActions(tokens, preferences.selectionActions);
+  usePointerGlow(preferences.pointerGlow);
   const data = item.data;
 
   const taskListData: TaskListData = useMemo(() => {
@@ -731,14 +739,33 @@ export function LiveAssistantRenderer({
     [theme.colors, preferences],
   );
   useSelectionActions(tokens, preferences.selectionActions);
+  usePointerGlow(preferences.pointerGlow);
+
+  // Replacing the reply costs the host's footer, which the stream layout hangs
+  // off an `assistant_message` item that no longer exists. Rebuild it where the
+  // host puts it: under the newest message, once, not under every reply.
+  const itemKey = `assistant:${timestamp.getTime()}`;
+  const isTail = useIsTimelineTail(itemKey);
+
+  // Job results, IRC relays and reminders arrive as replies because the host
+  // files any unclaimed `custom` message under this item kind. They are not
+  // the model's words, so they are drawn as a card, not as prose.
+  const envelope = useMemo(() => parseSystemEnvelope(item.data.text), [item.data.text]);
 
   return (
     <View {...hostFontEscape}>
-      <MarkdownView text={item.data.text} tokens={tokens} variant={preferences.markdownVariant} />
+      {envelope ? (
+        <SystemCard envelope={envelope} tokens={tokens} />
+      ) : (
+        <MarkdownView text={item.data.text} tokens={tokens} variant={preferences.markdownVariant} />
+      )}
+      {isTail && !envelope ? (
+        <AssistantFooter text={item.data.text} at={timestamp} tokens={tokens} />
+      ) : null}
       <TimelineTailHub
         agentId={agentId}
         tokens={tokens}
-        itemKey={`assistant:${timestamp.getTime()}`}
+        itemKey={itemKey}
         at={timestamp.getTime()}
         kind="reply"
       />
@@ -758,6 +785,7 @@ export function LiveNoticeRenderer({ item, theme }: PluginTimelineItemProps<Live
     [theme.colors, preferences],
   );
   useSelectionActions(tokens, preferences.selectionActions);
+  usePointerGlow(preferences.pointerGlow);
   const data = item.data;
   const level = data.level === "warning" || data.level === "error" ? data.level : "info";
 
@@ -803,6 +831,7 @@ export function LiveUserMessageRenderer({
     [theme.colors, preferences],
   );
   useSelectionActions(tokens, preferences.selectionActions);
+  usePointerGlow(preferences.pointerGlow);
   const paseo = usePaseo();
   const handle = useMemo(() => paseo.agents.ref(agentId), [paseo, agentId]);
 
@@ -839,16 +868,25 @@ export function LiveUserMessageRenderer({
     };
   }, [handle, observedLive, frozen, running, snapshot?.updatedAt]);
 
+  // The same envelopes reach this item kind on some hosts and on history
+  // replay. A job result is not something the user said, so it never takes the
+  // user bubble.
+  const envelope = useMemo(() => parseSystemEnvelope(item.data.text), [item.data.text]);
+
   return (
     <View {...hostFontEscape}>
-      <UserMessage
-        text={item.data.text}
-        images={item.data.images}
-        timestamp={timestamp}
-        tokens={tokens}
-        usage={observedLive ? usage : null}
-        pending={running && !frozen}
-      />
+      {envelope ? (
+        <SystemCard envelope={envelope} tokens={tokens} />
+      ) : (
+        <UserMessage
+          text={item.data.text}
+          images={item.data.images}
+          timestamp={timestamp}
+          tokens={tokens}
+          usage={observedLive ? usage : null}
+          pending={running && !frozen}
+        />
+      )}
     </View>
   );
 }
