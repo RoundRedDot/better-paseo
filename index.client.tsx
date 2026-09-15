@@ -153,17 +153,20 @@ export default function contribute(client: PluginClientContext) {
       // Replacing the item drops whatever this renderer does not carry, so a
       // message with an attachment it cannot show is left to the host.
       if (images.hasUnrenderable) return undefined;
+      // `messageId` rides along so the renderer can carry the host's own
+      // `data-history-row-id`, which is the id the chat outline scrolls to.
+      // Replacing the item leaves the outline nothing to find otherwise.
       return {
         items: [
           {
             type: "plugin" as const,
             kind: "omp-user-message",
             version: 1,
-            data: toJsonValue(
-              images.uris.length > 0
-                ? { text: item.text, images: images.uris }
-                : { text: item.text },
-            ),
+            data: toJsonValue({
+              text: item.text,
+              ...(images.uris.length > 0 ? { images: images.uris } : {}),
+              ...(item.messageId ? { messageId: item.messageId } : {}),
+            }),
           },
         ],
       };
@@ -176,6 +179,7 @@ export default function contribute(client: PluginClientContext) {
     schema: z.object({
       text: z.string(),
       images: z.array(z.string()).optional(),
+      messageId: z.string().optional(),
     }),
     Component: LiveUserMessageRenderer,
   });
