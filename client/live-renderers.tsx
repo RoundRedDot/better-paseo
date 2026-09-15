@@ -34,9 +34,10 @@ import type {
   McpToolData,
   NoticeCalloutData,
   PaseoToolData,
+  GitHubToolData,
 } from "../shared/contracts";
 import { revealPathRpc } from "../shared/file-rpc";
-import { describeGitHubRequest } from "./github-request";
+import { buildGitHubData } from "./github-request";
 import { useImageFile } from "./image-file";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -462,6 +463,7 @@ export function LiveToolCallRenderer({
     let mcp: McpToolData | undefined;
     let subagent: ToolCalloutData["subagent"];
     let paseo: PaseoToolData | undefined;
+    let github: GitHubToolData | undefined;
     let evalCells: EvalCell[] = [];
     let askOptions: AskOption[] = [];
     let askAnswer: string[] = [];
@@ -477,9 +479,16 @@ export function LiveToolCallRenderer({
 
     if (isGitHubTool) {
       toolKind = "github";
-      // The call is a device write: its `content` is the request, and the op
-      // inside it is the only thing that says what this card did.
-      title = describeGitHubRequest(code) ?? "GitHub";
+      // A device call is a write: `content` is the request, and the tool's own
+      // result text is the reply. They are read separately here because the
+      // generic `code` extraction prefers whichever it finds first, which drew
+      // the request twice and the answer never.
+      const request = asString(input.content) ?? asString(detail.content);
+      const reply = outputText && outputText !== request ? outputText : undefined;
+      github = buildGitHubData(request, reply);
+      title = github
+        ? [github.op, github.repo, github.subject].filter(Boolean).join(" ")
+        : "GitHub";
     } else if (isGitCommand) {
       toolKind = "git";
       title = command ? `$ ${command.trim().slice(0, 55)}` : "Git command";
@@ -553,12 +562,12 @@ export function LiveToolCallRenderer({
       language:
         toolKind === "bash" || toolKind === "shell" || toolKind === "git"
           ? "bash"
-          : toolKind === "github"
-            ? "json"
-            : languageFromPath(filePath),
-      code,
+          : languageFromPath(filePath),
+      // A github card reads its typed record; leaving `code` and `output` set
+      // would draw the request and the reply a second time.
+      code: toolKind === "github" ? undefined : code,
       diff,
-      output: evalCells.length > 0 ? undefined : outputText,
+      output: toolKind === "github" || evalCells.length > 0 ? undefined : outputText,
       cells: evalCells.length > 0 ? evalCells : undefined,
       askOptions: askOptions.length > 0 ? askOptions : undefined,
       askAnswer: askAnswer.length > 0 ? askAnswer : undefined,
@@ -568,6 +577,7 @@ export function LiveToolCallRenderer({
       subagent,
       mcp,
       paseo,
+      github,
     };
   }, [data]);
 

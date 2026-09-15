@@ -15,6 +15,7 @@ import { PaseoToolCallout } from "./paseo-tool-callouts";
 import { SyntaxHighlightBlock, renderTerminalOutput } from "./syntax-highlight";
 import { FileTypeLogo } from "./file-type-logo";
 import { ImagePreview } from "./image-preview";
+import { GitHubBody } from "./github-body";
 import { isImagePath } from "../image-file";
 import type { ImageFile } from "../image-file";
 import { selectableSurface, unselectable } from "./selection";
@@ -560,25 +561,7 @@ export function ToolCallout({
           )}
 
           {data.tool === "github" && (
-            // A device call is a request and a reply, not a command and its
-            // terminal: the request is JSON worth reading, so it keeps its own
-            // block above the answer.
-            <View style={{ gap: 6 }}>
-              {data.code ? (
-                <SyntaxHighlightBlock code={data.code} language="json" tokens={tokens} compact />
-              ) : null}
-              {data.output ? (
-                <View style={styles.terminalWindow}>
-                  <Text selectable {...selectionCodeText} style={styles.terminalOutput}>
-                    {renderTerminalOutput(data.output, tokens)}
-                  </Text>
-                </View>
-              ) : (
-                <Text selectable style={styles.silentCommandText}>
-                  {isRunning ? "Waiting for GitHub…" : "The call returned no output."}
-                </Text>
-              )}
-            </View>
+            <GitHubBody data={data.github} tokens={tokens} running={isRunning} />
           )}
 
           {data.tool === "thinking" && (
