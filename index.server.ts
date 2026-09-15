@@ -1,9 +1,88 @@
 import { spawn } from "node:child_process";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { revealPathRpc } from "./shared/file-rpc";
 import { type HighlightLine, type HighlightToken, highlightRpc } from "./shared/highlight-rpc";
+import { imageRpc } from "./shared/image-rpc";
+
+/**
+ * Image types worth inlining, and the mime each one needs in its data URI.
+ *
+ * The list is an allowlist rather than a sniff: the client hands this path
+ * straight to an `<img>`, so a file that is not one of these must not become a
+ * data URI at all.
+ */
+const IMAGE_MIMES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  avif: "image/avif",
+  bmp: "image/bmp",
+  ico: "image/x-icon",
+  svg: "image/svg+xml",
+};
+
+/**
+ * A data URI travels through the RPC as base64 in a JSON string, so the wire
+ * cost is about a third above the file itself. Past this the thumbnail is not
+ * worth the message, and the card reports the size instead of drawing it.
+ */
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+
+/** The pixel size, read out of the file's own header. Null when unreadable. */
+function readImageSize(bytes: Buffer, kind: string): { width: number; height: number } | null {
+  if (kind === "png" && bytes.length >= 24 && bytes.readUInt32BE(12) === 0x49484452) {
+    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+  }
+
+  if (kind === "gif" && bytes.length >= 10) {
+    return { width: bytes.readUInt16LE(6), height: bytes.readUInt16LE(8) };
+  }
+
+  if (kind === "bmp" && bytes.length >= 26) {
+    return { width: bytes.readInt32LE(18), height: Math.abs(bytes.readInt32LE(22)) };
+  }
+
+  if ((kind === "jpg" || kind === "jpeg") && bytes.length > 4) {
+    // Walk the marker chain to the first frame header: the dimensions live
+    // there, not in the file header, and the chain length varies with how much
+    // metadata the encoder wrote.
+    let at = 2;
+    while (at + 9 < bytes.length) {
+      if (bytes[at] !== 0xff) {
+        at += 1;
+        continue;
+      }
+      const marker = bytes[at + 1] ?? 0;
+      const isFrame = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8;
+      if (isFrame) {
+        return { width: bytes.readUInt16BE(at + 7), height: bytes.readUInt16BE(at + 5) };
+      }
+      at += 2 + bytes.readUInt16BE(at + 2);
+    }
+    return null;
+  }
+
+  if (kind === "webp" && bytes.length >= 30 && bytes.toString("latin1", 12, 16) === "VP8X") {
+    // The extended header stores each dimension minus one, in 24 bits.
+    const width = 1 + (bytes.readUIntLE(24, 3) & 0xffffff);
+    const height = 1 + (bytes.readUIntLE(27, 3) & 0xffffff);
+    return { width, height };
+  }
+
+  if (kind === "svg") {
+    const head = bytes.toString("utf8", 0, Math.min(bytes.length, 2048));
+    const box = head.match(/viewBox\s*=\s*"[\d.\-\s]*?([\d.]+)[\s,]+([\d.]+)\s*"/);
+    if (box) {
+      return { width: Math.round(Number(box[1])), height: Math.round(Number(box[2])) };
+    }
+  }
+
+  return null;
+}
 
 /** Strips the selector a tool appends to a path, such as `main.ts:55-85`. */
 function stripSelector(path: string): string {
@@ -339,6 +418,38 @@ export default function contribute(server: PluginServerContext) {
         revealed: null,
         error: error instanceof Error ? error.message : String(error),
       };
+    }
+  });
+
+  server.handle(imageRpc, async (input) => {
+    const empty = { dataUri: null, mime: null, width: null, height: null, bytes: null };
+    const requested = stripSelector(input.path);
+    if (!requested) return { ...empty, error: "No path" };
+
+    const kind = requested.slice(requested.lastIndexOf(".") + 1).toLowerCase();
+    const mime = IMAGE_MIMES[kind];
+    if (!mime) return { ...empty, error: `Not an image: .${kind}` };
+
+    const target = isAbsolute(requested) ? requested : resolve(input.cwd, requested);
+    try {
+      const entry = await stat(target);
+      if (!entry.isFile()) return { ...empty, error: "Not a file" };
+      if (entry.size > MAX_IMAGE_BYTES) {
+        return { ...empty, bytes: entry.size, error: "Too large to preview" };
+      }
+
+      const bytes = await readFile(target);
+      const size = readImageSize(bytes, kind);
+      return {
+        dataUri: `data:${mime};base64,${bytes.toString("base64")}`,
+        mime,
+        width: size?.width ?? null,
+        height: size?.height ?? null,
+        bytes: bytes.length,
+        error: null,
+      };
+    } catch (error) {
+      return { ...empty, error: error instanceof Error ? error.message : String(error) };
     }
   });
 

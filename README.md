@@ -37,6 +37,17 @@ pressing it shows the file in the machine's file manager.
 
 ![Read tool call](docs/images/tool-read.png)
 
+### Images
+
+A read of a `.png` carries no bytes through the timeline, so the host draws it as an empty code
+block with a language badge. This card draws the file instead: a picture mark, the path as a link,
+the pixel size and file size read from the header, and an eye control that hides the thumbnail. The
+bytes come from the plugin's own daemon-side RPC (`file.image`), which is the only side that can
+reach the file; PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG are recognised, and anything past
+3 MB reports its size rather than inlining a data URI.
+
+![Image read](docs/images/tool-image.png)
+
 ### Edit
 
 Diff rendering where adjacent removed and added rows join into one rounded block, and only the
