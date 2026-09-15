@@ -5,6 +5,7 @@ import { embedFonts } from "./client/components/embed-fonts";
 import { installFrostedGlass } from "./client/components/frosted";
 import { installShimmer } from "./client/components/shimmer";
 import { installPointerGlow } from "./client/components/glow";
+import { installHostNoticeStyle } from "./client/components/host-notice";
 import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
 import {
@@ -28,6 +29,8 @@ export default function contribute(client: PluginClientContext) {
   const removeFrost = installFrostedGlass();
   const removeShimmer = installShimmer();
   const removeGlow = installPointerGlow();
+  // The host draws  rows itself; this only re-chromes them.
+  const removeNoticeStyle = installHostNoticeStyle();
 
   // Configuration lives in the host Settings area. The plugin has no showcase
   // surface, panels, or Command Center item.
@@ -256,6 +259,7 @@ export default function contribute(client: PluginClientContext) {
     removeFrost();
     removeShimmer();
     removeGlow();
+    removeNoticeStyle();
     removeToolTransformer();
     removeToolRenderer();
     removeReasoningTransformer();
