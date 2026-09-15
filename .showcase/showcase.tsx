@@ -102,6 +102,32 @@ const read: ToolCalloutData = {
 }`,
 };
 
+const readImage: ToolCalloutData = {
+  id: "read-image",
+  tool: "read",
+  title: "Read hero.png",
+  status: "completed",
+  durationMs: 28,
+  filePath: "images/hero.png",
+  code: "// [Image file: 1175x1150]",
+};
+
+/**
+ * The bytes for the image card.
+ *
+ * In the app these arrive from the plugin's daemon-side RPC, which a capture
+ * cannot reach. The capture script therefore sets `__bcImageUri` before the
+ * bundle evaluates; without it the panel still renders, reporting that the
+ * file could not be read, which is the honest offline state.
+ */
+const sampleImage = {
+  dataUri: (globalThis as { __bcImageUri?: string }).__bcImageUri ?? null,
+  width: 1175,
+  height: 1150,
+  bytes: 122632,
+  error: "No daemon in the offline showcase",
+};
+
 const edit: ToolCalloutData = {
   id: "edit",
   tool: "edit",
@@ -591,6 +617,14 @@ function Showcase() {
       </Shot>
       <Shot id="shot-tool-read">
         <ToolCallout data={read} tokens={tokens} onRevealPath={() => {}} />
+      </Shot>
+      <Shot id="shot-tool-image">
+        <ToolCallout
+          data={readImage}
+          tokens={tokens}
+          onRevealPath={() => {}}
+          imageFile={sampleImage}
+        />
       </Shot>
       <Shot id="shot-tool-edit">
         <ToolCallout data={edit} tokens={tokens} onRevealPath={() => {}} />

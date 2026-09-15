@@ -36,6 +36,7 @@ import type {
   PaseoToolData,
 } from "../shared/contracts";
 import { revealPathRpc } from "../shared/file-rpc";
+import { useImageFile } from "./image-file";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -591,6 +592,13 @@ export function LiveToolCallRenderer({
     [cwd, revealPath],
   );
 
+  // Only a read or write of an image asks the daemon for bytes; the hook
+  // itself refuses every other path, so a code read costs no RPC.
+  const imageFile = useImageFile(
+    calloutData.tool === "read" || calloutData.tool === "write" ? calloutData.filePath : undefined,
+    cwd,
+  );
+
   return (
     <View {...hostFontEscape}>
       <ToolCallout
@@ -598,6 +606,7 @@ export function LiveToolCallRenderer({
         tokens={tokens}
         defaultExpanded={isExpanded}
         onRevealPath={handleRevealPath}
+        imageFile={imageFile}
       />
       <TimelineTailHub
         agentId={agentId}

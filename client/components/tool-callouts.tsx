@@ -14,6 +14,9 @@ import { HubCallout } from "./hub-callout";
 import { PaseoToolCallout } from "./paseo-tool-callouts";
 import { SyntaxHighlightBlock, renderTerminalOutput } from "./syntax-highlight";
 import { FileTypeLogo } from "./file-type-logo";
+import { ImagePreview } from "./image-preview";
+import { isImagePath } from "../image-file";
+import type { ImageFile } from "../image-file";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeText, selectionSurface } from "./selection-actions";
 import type { ToolCalloutData } from "../../shared/contracts";
@@ -40,6 +43,12 @@ interface ToolCalloutProps {
   defaultExpanded?: boolean;
   /** Shows a path in the machine's own file manager. */
   onRevealPath?: (path: string) => void;
+  /**
+   * The image this call read, when it read one. `undefined` keeps the code
+   * block, so a harness with no daemon still renders the card; `null` means
+   * the read is in flight.
+   */
+  imageFile?: ImageFile | null;
 }
 
 export function ToolCallout({
@@ -47,11 +56,10 @@ export function ToolCallout({
   tokens,
   defaultExpanded = true,
   onRevealPath,
+  imageFile,
 }: ToolCalloutProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
-  // A tool without a path, or a host that cannot reveal one, leaves the file
-  // name as a plain label rather than a link that does nothing.
   // Every branch below needs a payload. A tool that carries none — a hub op
   // with no parsed record, an unmapped kind — would otherwise draw an empty
   // panel, so the raw output takes over.
@@ -72,6 +80,8 @@ export function ToolCallout({
     (data.tool === "paseo" && Boolean(data.paseo));
 
   const filePath = data.filePath;
+  // A tool without a path, or a host that cannot reveal one, leaves the file
+  // name as a plain label rather than a link that does nothing.
   const revealFile = useMemo(
     () => (onRevealPath && filePath ? () => onRevealPath(filePath) : undefined),
     [onRevealPath, filePath],
@@ -447,12 +457,18 @@ export function ToolCallout({
           </Text>
           {data.filePath ? (
             <Breathe depth={1.08} durationMs={1800}>
-              <FileTypeLogo
-                filename={data.filePath}
-                language={data.language}
-                size="sm"
-                foregroundColor={tokens.foreground}
-              />
+              {isImagePath(data.filePath) ? (
+                // An image has no language logo to show, and the generic page
+                // mark says less than the picture mark does.
+                <Glyph name="Image" size={13} color={tokens.foreground} />
+              ) : (
+                <FileTypeLogo
+                  filename={data.filePath}
+                  language={data.language}
+                  size="sm"
+                  foregroundColor={tokens.foreground}
+                />
+              )}
             </Breathe>
           ) : null}
           <Text selectable style={styles.titleText} numberOfLines={1}>
@@ -677,17 +693,25 @@ export function ToolCallout({
             </View>
           )}
 
-          {(data.tool === "read" || data.tool === "write") && (
-            <SyntaxHighlightBlock
-              code={data.code || "// [Empty content or pending stream]"}
-              language={data.language ?? "text"}
-              filename={data.filePath ? `${data.filePath} ${data.lineRange || ""}` : undefined}
-              tokens={tokens}
-              showLineNumbers={Boolean(data.code)}
-              onRevealFile={revealFile}
-              compact
-            />
-          )}
+          {(data.tool === "read" || data.tool === "write") &&
+            (imageFile !== undefined && isImagePath(data.filePath) ? (
+              <ImagePreview
+                path={data.filePath ?? ""}
+                file={imageFile}
+                tokens={tokens}
+                onReveal={revealFile}
+              />
+            ) : (
+              <SyntaxHighlightBlock
+                code={data.code || "// [Empty content or pending stream]"}
+                language={data.language ?? "text"}
+                filename={data.filePath ? `${data.filePath} ${data.lineRange || ""}` : undefined}
+                tokens={tokens}
+                showLineNumbers={Boolean(data.code)}
+                onRevealFile={revealFile}
+                compact
+              />
+            ))}
 
           {data.tool === "edit" && (
             <SyntaxHighlightBlock
