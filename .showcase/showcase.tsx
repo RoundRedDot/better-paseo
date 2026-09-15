@@ -128,18 +128,89 @@ const sampleImage = {
   error: "No daemon in the offline showcase",
 };
 
-const github: ToolCalloutData = {
-  id: "github",
-  tool: "github",
-  title: "file_read ABorakati/beautiful-chat paseo-plugin.json",
-  status: "completed",
-  durationMs: 412,
-  filePath: "xd://github",
-  language: "json",
-  code: '{"op":"file_read","repo":"ABorakati/beautiful-chat","path":"paseo-plugin.json"}',
-  output:
-    '{\n  "id": "beautiful-chat",\n  "requirements": {\n    "paseo": ">=0.8.0"\n  },\n  "build": [["npm", "ci", "--include=dev"]]\n}',
-};
+const githubCalls: ToolCalloutData[] = [
+  {
+    id: "gh-file",
+    tool: "github",
+    title: "file_read omercnet/paseo-plugins paseo-shared-browser/paseo-plugin.json",
+    status: "completed",
+    durationMs: 412,
+    github: {
+      op: "file_read",
+      repo: "omercnet/paseo-plugins",
+      subject: "paseo-shared-browser/paseo-plugin.json",
+      request:
+        '{"op":"file_read","repo":"omercnet/paseo-plugins","path":"paseo-shared-browser/paseo-plugin.json"}',
+      file: {
+        name: "paseo-shared-browser/paseo-plugin.json",
+        language: "json",
+        code: `{
+  "id": "shared-browser",
+  "requirements": { "paseo": "^0.8.0" },
+  "build": [
+    ["npm", "ci", "--include=dev"],
+    ["npm", "run", "prepare:runtime"]
+  ]
+}`,
+      },
+    },
+  },
+  {
+    id: "gh-pr",
+    tool: "github",
+    title: "pr_create paseo-cafe/paseo-cafe Add beautiful-chat",
+    status: "completed",
+    durationMs: 2430,
+    github: {
+      op: "pr_create",
+      repo: "paseo-cafe/paseo-cafe",
+      subject: "Add beautiful-chat",
+      request:
+        '{"op":"pr_create","repo":"paseo-cafe/paseo-cafe","base":"main","head":"ABorakati:add-beautiful-chat","title":"Add beautiful-chat"}',
+      rows: [
+        { label: "pull request", value: "#125 Add beautiful-chat" },
+        { label: "base", value: "main ← ABorakati:add-beautiful-chat" },
+      ],
+      link: "https://github.com/paseo-cafe/paseo-cafe/pull/125",
+    },
+  },
+  {
+    id: "gh-run",
+    tool: "github",
+    title: "run_watch paseo-cafe/paseo-cafe 34955871731",
+    status: "completed",
+    durationMs: 61200,
+    github: {
+      op: "run_watch",
+      repo: "paseo-cafe/paseo-cafe",
+      subject: "34955871731",
+      request: '{"op":"run_watch","repo":"paseo-cafe/paseo-cafe","run":"34955871731"}',
+      rows: [
+        { label: "Registry admission", value: "pass 15s", tone: "ok" as const },
+        { label: "App", value: "pass 36s", tone: "ok" as const },
+        { label: "Plugin (matrix.os)", value: "skipping" },
+        { label: "CodeRabbit", value: "pass", tone: "ok" as const },
+      ],
+    },
+  },
+  {
+    id: "gh-search",
+    tool: "github",
+    title: "search_code omercnet/paseo-plugins defineRpc",
+    status: "completed",
+    durationMs: 986,
+    github: {
+      op: "search_code",
+      repo: "omercnet/paseo-plugins",
+      subject: "defineRpc",
+      request: '{"op":"search_code","repo":"omercnet/paseo-plugins","query":"defineRpc"}',
+      rows: [
+        { label: "paseo-shared-browser/shared/rpc.ts", value: "2" },
+        { label: "paseo-omp/shared/bridge.ts", value: "1" },
+      ],
+    },
+  },
+];
 
 const edit: ToolCalloutData = {
   id: "edit",
@@ -640,7 +711,9 @@ function Showcase() {
         />
       </Shot>
       <Shot id="shot-tool-github">
-        <ToolCallout data={github} tokens={tokens} />
+        {githubCalls.map((call) => (
+          <ToolCallout key={call.id} data={call} tokens={tokens} />
+        ))}
       </Shot>
       <Shot id="shot-tool-edit">
         <ToolCallout data={edit} tokens={tokens} onRevealPath={() => {}} />

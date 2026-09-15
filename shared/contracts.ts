@@ -357,6 +357,35 @@ export interface EvalCell {
   output?: string;
 }
 
+/**
+ * A `github` device call: one op, the arguments it was given, and whatever the
+ * op answered with.
+ *
+ * The card reads this instead of printing the request JSON twice. `rows` are
+ * the typed facts an op reports — a pull request number, a check result, a
+ * file and its match count — so each op draws as a list rather than as prose.
+ * `file` is set only by an op that answers with file content, and `text` holds
+ * the reply for an op this plugin has no typed shape for yet.
+ */
+export interface GitHubToolData {
+  op: string;
+  repo?: string;
+  /** The path, query, pull request or run the op names. */
+  subject?: string;
+  /** The request as sent, kept verbatim for the disclosure. */
+  request?: string;
+  rows?: Array<{
+    label: string;
+    value: string;
+    /** Colours the value: a passing check reads green, a failure red. */
+    tone?: "ok" | "bad";
+  }>;
+  file?: { name: string; language?: string; code: string };
+  /** The first http(s) URL in the reply, when the op answered with one. */
+  link?: string;
+  text?: string;
+}
+
 export interface ToolCalloutData {
   id: string;
   tool: ToolCallKind;
@@ -400,6 +429,7 @@ export interface ToolCalloutData {
   shell?: ShellToolData;
   thinking?: ThinkingToolData;
   paseo?: PaseoToolData;
+  github?: GitHubToolData;
 }
 
 /**
