@@ -23,6 +23,11 @@ import { SyntaxHighlightBlock } from "../client/components/syntax-highlight";
 import { BeautifulChatSettingsPage } from "../client/settings-page";
 import { buildHubData } from "../client/hub-details";
 import { NoticeCallout } from "../client/components/notice-callout";
+import { SystemCard } from "../client/components/system-card";
+import { AssistantFooter } from "../client/components/turn-footer";
+import { MarkdownView } from "../client/components/markdown/markdown-view";
+import { parseSystemEnvelope } from "../client/system-envelope";
+import { installPointerGlow } from "../client/components/glow";
 import type { ToolCalloutData } from "../shared/contracts";
 
 const DARK = {
@@ -190,14 +195,30 @@ const ask: ToolCalloutData = {
 const task: ToolCalloutData = {
   id: "task",
   tool: "task",
-  title: "Subagent: ShotBuilder",
+  title: "3 subagents",
   status: "running",
   subagent: {
-    name: "ShotBuilder",
-    agentType: "task",
-    model: "claude-opus-5",
-    task: "Build the offline showcase page and capture one screenshot per component.",
-    status: "running",
+    context: "Goal: capture one screenshot per component against real mock data.",
+    agents: [
+      {
+        name: "ShotBuilder",
+        agentType: "task",
+        task: "Build the offline showcase page and capture one screenshot per component.",
+        status: "running",
+      },
+      {
+        name: "MarkdownFixes",
+        agentType: "task",
+        task: "Size the ordered marker column from the whole marker, and measure table cells in the mono face.",
+        status: "completed",
+      },
+      {
+        name: "SurfaceMarkers",
+        agentType: "sonic",
+        task: "Add the selection surface spread to every card root.",
+        status: "completed",
+      },
+    ],
   },
 };
 
@@ -438,9 +459,88 @@ function Shot({
   );
 }
 
+/**
+ * One conversation, in the order the timeline draws it: the prompt, the
+ * model's thinking, its tool calls, the checklist, a background job landing,
+ * and the reply that closes the turn. Every card here is the real component.
+ */
+const JOB_NOTICE = `<system-notice>
+Background job MarkdownFixes has completed. Resume your work using the result below.
+<task-result id="MarkdownFixes" agent="task" status="completed" duration="6m12s">
+<meta lines="44" size="2.1KB" />
+<preview full-output="agent://MarkdownFixes">
+{
+  "files": { "edited": "client/components/markdown/parse.ts" },
+  "defects": ["ordered marker column sized from digits", "table cells under-measured"],
+  "verification": [{ "check": "typecheck", "result": "pass" }]
+}
+</preview>
+</task-result>
+</system-notice>`;
+
+const REPLY = [
+  "## What shipped",
+  "",
+  "Links in a reply are clickable now, and they route through the host's own opener —",
+  "see [pull/125](https://github.com/paseo-cafe/paseo-cafe/pull/125) or the bare form",
+  "https://paseo.sh/docs.",
+  "",
+  "| Area | Result |",
+  "| --- | --- |",
+  "| Selection | Copy and Add to chat |",
+  "| Highlighting | shiki on the daemon |",
+  "| System text | drawn as cards |",
+  "",
+  "1. Parse the envelope, never guess.",
+  "2. Draw the card from typed fields.",
+  "   - job output on the code surface",
+  "   - a relayed message as prose",
+  "",
+  "> A refused scheme stays inert: `javascript:` never reaches a sink.",
+  "",
+  "```ts",
+  'const ALLOWED = new Set(["http:", "https:", "mailto:"]);',
+  "if (!ALLOWED.has(new URL(url).protocol)) return;",
+  "```",
+].join("\n");
+
+function Thread() {
+  const envelope = parseSystemEnvelope(JOB_NOTICE);
+  return (
+    <View style={{ gap: 12 }}>
+      <UserMessage
+        text="I can't click on URLs in the assistant responses."
+        timestamp={new Date("2026-09-15T22:41:00Z")}
+        tokens={tokens}
+        usage={{ inputTokens: 270, cachedInputTokens: 36211627, outputTokens: 62024 }}
+      />
+      <ReasoningTrace data={reasoning} tokens={tokens} defaultExpanded />
+      <ToolCallout data={bash} tokens={tokens} />
+      <ToolCallout data={read} tokens={tokens} onRevealPath={() => {}} />
+      <ToolCallout data={edit} tokens={tokens} onRevealPath={() => {}} />
+      <ToolCallout data={task} tokens={tokens} />
+      <TaskList data={tasks} tokens={tokens} />
+      <HubCallout data={hubWait} tokens={tokens} />
+      {envelope ? <SystemCard envelope={envelope} tokens={tokens} /> : null}
+      <NoticeCallout
+        data={{ id: "n1", level: "warning", message: "The daemon restarted twice in 30s." }}
+        tokens={tokens}
+      />
+      <ApprovalCard request={approval} tokens={tokens} />
+      <View>
+        <MarkdownView text={REPLY} tokens={tokens} variant="document" />
+        <AssistantFooter text={REPLY} at={new Date("2026-09-15T22:47:12Z")} tokens={tokens} />
+      </View>
+    </View>
+  );
+}
+
 function Showcase() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, backgroundColor: "#000" }}>
+      <Shot id="shot-thread">
+        <Thread />
+      </Shot>
       <Shot id="shot-tool-bash">
         <ToolCallout data={bash} tokens={tokens} />
         <ToolCallout data={git} tokens={tokens} />
@@ -541,6 +641,7 @@ function Showcase() {
 
 embedFonts();
 installFrostedGlass();
+installPointerGlow();
 
 console.log("showcase: bundle evaluated");
 const mount = document.getElementById("root");
