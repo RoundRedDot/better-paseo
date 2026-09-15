@@ -10,6 +10,8 @@ import { ReasoningTrace } from "./components/reasoning-trace";
 import { TaskList } from "./components/task-list";
 import { UserMessage } from "./components/user-message";
 import { hostFontEscape } from "./components/host-font-escape";
+import { promptRowAnchor } from "./components/prompt-anchor";
+import { surfaceProps } from "./components/view-props";
 import { useSelectionActions } from "./components/selection-actions";
 import { usePointerGlow } from "./components/glow";
 import type { TurnUsage } from "./components/user-message";
@@ -832,6 +834,8 @@ export function LiveNoticeRenderer({ item, theme }: PluginTimelineItemProps<Live
 export interface LiveUserMessagePayload {
   text: string;
   images?: string[];
+  /** The host's own id for this message, when the provider gave one. */
+  messageId?: string;
 }
 
 /**
@@ -897,7 +901,7 @@ export function LiveUserMessageRenderer({
   const envelope = useMemo(() => parseSystemEnvelope(item.data.text), [item.data.text]);
 
   return (
-    <View {...hostFontEscape}>
+    <View {...surfaceProps(hostFontEscape, promptRowAnchor(item.data.messageId))}>
       {envelope ? (
         <SystemCard envelope={envelope} tokens={tokens} />
       ) : (
