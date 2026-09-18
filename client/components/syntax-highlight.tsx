@@ -10,7 +10,7 @@ import { FileTypeLogo, detectFileType } from "./file-type-logo";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeSurface, selectionSurface } from "./selection-actions";
 import { useHighlightedLines } from "../highlight";
-import type { HighlightLine } from "../../shared/highlight-rpc";
+import type { HighlightLine, HighlightToken } from "../../shared/highlight-rpc";
 
 interface SyntaxHighlightProps {
   code: string;
@@ -500,30 +500,22 @@ export function SyntaxHighlightBlock({
     [filename, language],
   );
   const lineDialects = useMemo(() => classifyLines(lines, codeLanguage), [lines, codeLanguage]);
+  const diffBodyCode = useMemo(
+    () => (isDiff && patchedFileIsCode(filename) ? strippedDiffCode(lines) : undefined),
+    [isDiff, filename, lines],
+  );
   // Grammar-accurate colours arrive from the daemon one round trip late, and
   // never for a language it has no grammar for. Until then, and after a failed
   // call, the rows below fall back to the tokeniser in this file.
-  const shikiLines = useHighlightedLines({
+  const highlightResult = useHighlightedLines({
     code,
     language,
     filename,
     dark: tokens.isDark,
+    diffBodyCode,
   });
-  // The diff grammar colours a row by its marker and leaves the code inside it
-  // plain, so the body is sent a second time as the patched file's own text.
-  // Empty code parks the hook without a round trip, which is how the second
-  // call stays confined to a diff of a file with a grammar.
-  const diffBodyCode = useMemo(
-    () => (isDiff && patchedFileIsCode(filename) ? strippedDiffCode(lines) : ""),
-    [isDiff, filename, lines],
-  );
-  // No language hint: the daemon resolves the grammar from the file name, which
-  // is the whole point of asking again.
-  const diffBodyLines = useHighlightedLines({
-    code: diffBodyCode,
-    filename,
-    dark: tokens.isDark,
-  });
+  const shikiLines = highlightResult?.lines;
+  const diffBodyLines = highlightResult?.diffLines;
 
   const styles = useMemo(
     () =>
@@ -742,8 +734,29 @@ export function SyntaxHighlightBlock({
  * One line as the daemon tokenised it. A token the theme gives no colour takes
  * the body colour, which is what shiki's own renderer does.
  */
+function consolidateTokens(tokens: HighlightToken[]): HighlightToken[] {
+  if (tokens.length <= 1) return tokens;
+  const result: HighlightToken[] = [];
+  let current = { ...tokens[0]! };
+  for (let i = 1; i < tokens.length; i++) {
+    const next = tokens[i]!;
+    if (
+      next.color === current.color &&
+      Boolean(next.bold) === Boolean(current.bold) &&
+      Boolean(next.italic) === Boolean(current.italic)
+    ) {
+      current.text += next.text;
+    } else {
+      result.push(current);
+      current = { ...next };
+    }
+  }
+  result.push(current);
+  return result;
+}
+
 function renderShikiLine(line: HighlightLine, tokens: ExtendedThemeTokens): React.ReactNode {
-  return line.map((token, idx) => (
+  return consolidateTokens(line).map((token, idx) => (
     <Text
       key={idx}
       selectable
@@ -878,9 +891,19 @@ function renderCodeTokens(
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
+  const pushPlain = (plain: string) => {
+    if (!plain) return;
+    const last = parts[parts.length - 1];
+    if (typeof last === "string") {
+      parts[parts.length - 1] = last + plain;
+    } else {
+      parts.push(plain);
+    }
+  };
+
   while ((match = tokenRegex.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+      pushPlain(text.slice(lastIndex, match.index));
     }
 
     const token = match[0];
@@ -907,14 +930,14 @@ function renderCodeTokens(
         </Text>,
       );
     } else {
-      parts.push(token);
+      pushPlain(token);
     }
 
     lastIndex = match.index + token.length;
   }
 
   if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
+    pushPlain(text.slice(lastIndex));
   }
 
   return parts;
@@ -1001,9 +1024,19 @@ function renderBashTokens(line: string, tokens: ExtendedThemeTokens): React.Reac
   let match: RegExpExecArray | null;
   let isFirstWord = true;
 
+  const pushPlain = (plain: string) => {
+    if (!plain) return;
+    const last = parts[parts.length - 1];
+    if (typeof last === "string") {
+      parts[parts.length - 1] = last + plain;
+    } else {
+      parts.push(plain);
+    }
+  };
+
   while ((match = tokenRegex.exec(commandStr)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(commandStr.slice(lastIndex, match.index));
+      pushPlain(commandStr.slice(lastIndex, match.index));
     }
 
     const token = match[0];
@@ -1058,20 +1091,15 @@ function renderBashTokens(line: string, tokens: ExtendedThemeTokens): React.Reac
         </Text>,
       );
     } else {
-      parts.push(
-        <Text key={match.index} selectable style={{ color: tokens.foreground }}>
-          {token}
-        </Text>,
-      );
+      pushPlain(token);
     }
 
     lastIndex = match.index + token.length;
   }
 
   if (lastIndex < commandStr.length) {
-    parts.push(commandStr.slice(lastIndex));
+    pushPlain(commandStr.slice(lastIndex));
   }
-
   return (
     <>
       {promptPrefix ? (
