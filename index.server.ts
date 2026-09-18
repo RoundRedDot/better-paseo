@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { readFile, stat } from "node:fs/promises";
+import { open, stat, type FileHandle } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { revealPathRpc } from "./shared/file-rpc";
@@ -403,6 +403,49 @@ function cachePut(key: string, lines: HighlightLine[]): void {
   cache.set(key, lines);
 }
 
+/**
+ * Fast 32-bit FNV-1a string hashing for compact cache keys.
+ */
+function fnv1a(str: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+function tokenize(
+  highlighter: Highlighter,
+  code: string,
+  lang: string | null,
+  dark: boolean,
+  theme: string,
+): HighlightLine[] {
+  if (lang === null) return plainLines(code);
+
+  const size = measure(code);
+  if (
+    Buffer.byteLength(code, "utf8") > MAX_CODE_BYTES ||
+    size.lines > MAX_CODE_LINES ||
+    size.longest > MAX_LINE_CHARS
+  ) {
+    return plainLines(code);
+  }
+
+  const key = `${dark ? "d" : "l"}:${lang}:${fnv1a(code)}`;
+  const cached = cache.get(key);
+  if (cached !== undefined) return cached;
+
+  try {
+    const lines = toLines(highlighter.codeToTokens(code, { lang, theme }).tokens);
+    cachePut(key, lines);
+    return lines;
+  } catch {
+    return plainLines(code);
+  }
+}
+
 export default function contribute(server: PluginServerContext) {
   server.handle(revealPathRpc, async (input) => {
     const requested = stripSelector(input.path);
@@ -431,15 +474,28 @@ export default function contribute(server: PluginServerContext) {
     if (!mime) return { ...empty, error: `Not an image: .${kind}` };
 
     const target = isAbsolute(requested) ? requested : resolve(input.cwd, requested);
+    let handle: FileHandle | null = null;
     try {
       const entry = await stat(target);
       if (!entry.isFile()) return { ...empty, error: "Not a file" };
+
+      handle = await open(target, "r");
+      const headerBuffer = Buffer.alloc(Math.min(4096, entry.size));
+      const { bytesRead } = await handle.read(headerBuffer, 0, headerBuffer.length, 0);
+      const headerBytes = headerBuffer.subarray(0, bytesRead);
+      const size = readImageSize(headerBytes, kind);
+
       if (entry.size > MAX_IMAGE_BYTES) {
-        return { ...empty, bytes: entry.size, error: "Too large to preview" };
+        return {
+          ...empty,
+          width: size?.width ?? null,
+          height: size?.height ?? null,
+          bytes: entry.size,
+          error: "Too large to preview",
+        };
       }
 
-      const bytes = await readFile(target);
-      const size = readImageSize(bytes, kind);
+      const bytes = await handle.readFile();
       return {
         dataUri: `data:${mime};base64,${bytes.toString("base64")}`,
         mime,
@@ -450,36 +506,39 @@ export default function contribute(server: PluginServerContext) {
       };
     } catch (error) {
       return { ...empty, error: error instanceof Error ? error.message : String(error) };
+    } finally {
+      await handle?.close();
     }
   });
 
   server.handle(highlightRpc, async (input) => {
     const theme = input.dark ? DARK_THEME : LIGHT_THEME;
     try {
-      const size = measure(input.code);
-      if (
-        Buffer.byteLength(input.code, "utf8") > MAX_CODE_BYTES ||
-        size.lines > MAX_CODE_LINES ||
-        size.longest > MAX_LINE_CHARS
-      ) {
-        return { lines: plainLines(input.code), language: null, theme };
-      }
-
       const { highlighter, loaded } = await getEngine();
       const language = resolveLanguage(loaded, input.language, input.filename);
-      if (language === null) return { lines: plainLines(input.code), language: null, theme };
+      const lines = tokenize(highlighter, input.code, language, input.dark, theme);
 
-      const key = `${input.dark ? "d" : "l"}\u0000${language}\u0000${input.code}`;
-      const cached = cache.get(key);
-      if (cached !== undefined) return { lines: cached, language, theme };
+      let diffLines: HighlightLine[] | undefined;
+      if (input.diffBodyCode !== undefined) {
+        const diffLanguage = input.filename ? resolveLanguage(loaded, undefined, input.filename) : null;
+        diffLines = tokenize(highlighter, input.diffBodyCode, diffLanguage, input.dark, theme);
+      }
 
-      const lines = toLines(highlighter.codeToTokens(input.code, { lang: language, theme }).tokens);
-      cachePut(key, lines);
-      return { lines, language, theme };
+      return {
+        lines,
+        ...(diffLines !== undefined ? { diffLines } : {}),
+        language,
+        theme,
+      };
     } catch {
       // A grammar fault must not kill the daemon, and the client still needs
       // its text, so any failure degrades to the unhighlighted rendering.
-      return { lines: plainLines(input.code), language: null, theme };
+      return {
+        lines: plainLines(input.code),
+        ...(input.diffBodyCode !== undefined ? { diffLines: plainLines(input.diffBodyCode) } : {}),
+        language: null,
+        theme,
+      };
     }
   });
 

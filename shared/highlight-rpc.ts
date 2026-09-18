@@ -34,10 +34,12 @@ export const highlightRpc = defineRpc({
     language: z.string().optional(),
     filename: z.string().optional(),
     dark: z.boolean(),
+    diffBodyCode: z.string().optional(),
   }),
   output: z.object({
     /** One entry per code line, in order; each line is its tokens in order. */
     lines: z.array(highlightLine),
+    diffLines: z.array(highlightLine).optional(),
     /** The resolved shiki language id, or null when nothing matched and the text came back unhighlighted. */
     language: z.string().nullable(),
     theme: z.string(),
