@@ -6,6 +6,7 @@ import { installFrostedGlass } from "./client/components/frosted";
 import { installShimmer } from "./client/components/shimmer";
 import { installPointerGlow } from "./client/components/glow";
 import { installHostNoticeStyle } from "./client/components/host-notice";
+import { installChatFind } from "./client/components/chat-find";
 import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
 import {
@@ -31,6 +32,8 @@ export default function contribute(client: PluginClientContext) {
   const removeGlow = installPointerGlow();
   // The host draws  rows itself; this only re-chromes them.
   const removeNoticeStyle = installHostNoticeStyle();
+  // Paseo's Ctrl+F cannot reveal rows this plugin draws; this bar can.
+  const removeChatFind = installChatFind();
 
   // Configuration lives in the host Settings area. The plugin has no showcase
   // surface, panels, or Command Center item.
@@ -260,6 +263,7 @@ export default function contribute(client: PluginClientContext) {
     removeShimmer();
     removeGlow();
     removeNoticeStyle();
+    removeChatFind();
     removeToolTransformer();
     removeToolRenderer();
     removeReasoningTransformer();

@@ -151,8 +151,26 @@ Devicon brand marks, and the file-manager link.
 | Code glyphs            | Iosevka with ligatures, or literal glyphs.                         |
 | Frosted glass          | Blur card surfaces, or paint them solid.                           |
 | Enhanced prompt bubble | Off hands prompts back to Paseo, whose bubble shows pasted images. |
+| Assistant markdown     | Off hands replies back to Paseo's own markdown renderer.           |
 
 ---
+
+## Finding text
+
+Paseo's own chat find (Ctrl/Cmd+F) cannot reach a prompt or reply this plugin draws (see
+[limitation 14](#plugin-sdk-limitations-found-while-building-this)). The plugin therefore takes
+Ctrl/Cmd+F on desktop and web and opens its own find bar over the chat. The bar searches
+everything the chat has rendered, including tool cards. Enter moves to the next match, Shift+Enter
+to the previous one, and Escape closes the bar.
+
+The bar searches only messages the chat has loaded. Scroll up first to include older history.
+
+To keep Paseo's native search, which also searches unloaded history, turn off **Assistant
+markdown** and **Enhanced prompt bubble** in **Settings -> Plugins -> Beautiful Chat**. Paseo then
+draws replies and prompts itself, and Ctrl/Cmd+F opens Paseo's find instead of the plugin's bar.
+New messages follow the change.
+Tool, reasoning, and checklist cards keep the plugin's styling, so Paseo's find still cannot reveal a
+match inside one of them.
 
 ## Opening files
 
@@ -230,6 +248,10 @@ timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurfac
 13. **Settings are host-scoped only.** `defineSettings` rejects any scope other than `host`, so
     per-workspace or per-agent presentation settings are impossible. This plugin keeps presentation
     preferences in client storage instead.
+14. **Paseo's chat find cannot reach replaced rows.** Paseo 0.9.1 finds a match by its original
+    message id, then waits for a row carrying that id. A transformed row always carries
+    `<pluginId>/<itemId>` instead, so Ctrl+F on a styled prompt or reply never reveals the match.
+    Workaround: the plugin's own find bar, described in [Finding text](#finding-text).
 
 ---
 
