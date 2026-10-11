@@ -28,7 +28,7 @@ import { TimelineTailHub } from "./components/hub-live";
 import { AssistantFooter } from "./components/turn-footer";
 import { SystemCard } from "./components/system-card";
 import { parseSystemEnvelope } from "./system-envelope";
-import { useIsTimelineTail } from "./timeline-tail";
+import { useIsTimelineTail, useTextItemTailKey } from "./timeline-tail";
 import type { TaskListData, TaskItemData, NoticeCalloutData } from "../shared/contracts";
 import { revealPathRpc } from "../shared/file-rpc";
 import { useImageFile } from "./image-file";
@@ -308,7 +308,9 @@ function LiveAssistantRendererBody({
   // Replacing the reply costs the host's footer, which the stream layout hangs
   // off an `assistant_message` item that no longer exists. Rebuild it where the
   // host puts it: under the newest message, once, not under every reply.
-  const itemKey = `assistant:${timestamp.getTime()}`;
+  // The timestamp alone is shared by replies that arrive in the same
+  // millisecond; the key adds the reply's opening (see `textItemTailKey`).
+  const itemKey = useTextItemTailKey("assistant", timestamp.getTime(), item.data.text);
   const isTail = useIsTimelineTail(itemKey);
 
   // Job results, IRC relays and reminders arrive as replies because the host
@@ -342,7 +344,7 @@ function LiveAssistantRendererBody({
           variant={preferences.markdownVariant}
           streaming={streaming}
           onRevealPath={handleRevealPath}
-          probeId={itemKey}
+          probeId={`assistant:${timestamp.getTime()}`}
         />
       )}
       {isTail && !envelope ? (
