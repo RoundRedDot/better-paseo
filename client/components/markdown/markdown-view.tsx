@@ -69,9 +69,13 @@ export function MarkdownView({
     probeMarkdown(probeId, text, (source) => {
       result = split(source, cache, streaming);
       const last = result.blocks.length - 1;
-      return result.blocks.map((raw, index) => ({
+      const kinds = result.blocks.map((raw, index) => ({
         kind: blockKind(lexBlock(index === last ? result.tail : raw)),
       }));
+      // A tail the repair held back entirely (a lone `#` or `-`) draws
+      // nothing; its first real kind is an appearance, not a flip.
+      while (kinds.length > 0 && kinds[kinds.length - 1]?.kind === "empty") kinds.pop();
+      return kinds;
     });
     return result;
   }, [text, cache, streaming, probeId]);
