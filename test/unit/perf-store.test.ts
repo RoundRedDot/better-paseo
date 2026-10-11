@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PerfStore, Series, percentile } from "../../client/debug/store";
+import { createPerfStore, createSeries, percentile } from "../../client/debug/store";
 
 describe("percentile", () => {
   it("uses nearest rank over an ascending array", () => {
@@ -12,19 +12,19 @@ describe("percentile", () => {
 
 describe("Series", () => {
   it("summarises count, total, mean, percentiles and max", () => {
-    const series = new Series();
+    const series = createSeries();
     for (const value of [4, 1, 3, 2]) series.add(value);
     expect(series.summary()).toEqual({ count: 4, total: 10, mean: 2.5, p50: 2, p95: 4, max: 4 });
   });
 
   it("reports zeros when empty", () => {
-    expect(new Series().summary().count).toBe(0);
+    expect(createSeries().summary().count).toBe(0);
   });
 });
 
 describe("PerfStore", () => {
   it("counts renders per kind and per item, and commit time per kind", () => {
-    const store = new PerfStore();
+    const store = createPerfStore();
     store.render("tool_call", "a");
     store.render("tool_call", "a");
     store.render("tool_call", "b");
@@ -38,7 +38,7 @@ describe("PerfStore", () => {
   });
 
   it("counts a flip when the block kind at the same index changes", () => {
-    const store = new PerfStore();
+    const store = createPerfStore();
     store.markdownBlocks("m", ["paragraph", "plain"]);
     store.markdownBlocks("m", ["paragraph", "code"]);
     store.markdownBlocks("m", ["paragraph", "code", "paragraph"]);
@@ -49,7 +49,7 @@ describe("PerfStore", () => {
   });
 
   it("records a height decrease only when a card gets shorter", () => {
-    const store = new PerfStore();
+    const store = createPerfStore();
     store.height("c", 100, true);
     store.height("c", 140, true);
     store.height("c", 90, true);
@@ -63,7 +63,7 @@ describe("PerfStore", () => {
   });
 
   it("counts highlight RPCs by language", () => {
-    const store = new PerfStore();
+    const store = createPerfStore();
     store.highlightRpc("ts");
     store.highlightRpc("ts");
     store.highlightRpc(undefined);
@@ -71,7 +71,7 @@ describe("PerfStore", () => {
   });
 
   it("tracks mounted animations with a peak", () => {
-    const store = new PerfStore();
+    const store = createPerfStore();
     store.animationMount("PulseDot");
     store.animationMount("Glow");
     store.animationUnmount("PulseDot");
@@ -80,7 +80,7 @@ describe("PerfStore", () => {
   });
 
   it("derives dropped frames from the frame interval", () => {
-    const store = new PerfStore();
+    const store = createPerfStore();
     const frame = 1000 / 60;
     store.frame(frame, frame);
     store.frame(frame, frame);
@@ -95,7 +95,7 @@ describe("PerfStore", () => {
   });
 
   it("reset clears counters but keeps mounted animations", () => {
-    const store = new PerfStore();
+    const store = createPerfStore();
     store.render("x", "1");
     store.animationMount("Glow");
     store.reset();

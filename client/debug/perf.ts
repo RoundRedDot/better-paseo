@@ -18,12 +18,12 @@
 import { createElement, useLayoutEffect, type ReactElement } from "react";
 import type { LayoutChangeEvent } from "react-native";
 import { getEnhancerPreferences, updateEnhancerPreferences } from "../preferences";
-import { PerfStore, type PerfSnapshot } from "./store";
+import { createPerfStore, type PerfSnapshot } from "./store";
 
 const EXPECTED_FRAME_MS = 1000 / 60;
 
 let on = false;
-const store = new PerfStore();
+const store = createPerfStore();
 
 const now: () => number =
   typeof performance !== "undefined" && typeof performance.now === "function"

@@ -9,7 +9,6 @@ import { installHostNoticeStyle } from "./client/components/host-notice";
 import { installChatFind } from "./client/components/chat-find";
 import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
-import { runBundleProbe } from "./client/debug/bundle-probe";
 import { perfSlashCommand } from "./client/debug/perf-command";
 import {
   LiveToolCallRenderer,
@@ -27,15 +26,6 @@ function toJsonValue(value: unknown): JsonValue {
 }
 
 export default function contribute(client: PluginClientContext) {
-  // Debug builds only: proves the host bundled `marked` and `remend`.
-  if (getEnhancerPreferences().debugPerf) {
-    try {
-      console.info("[beautiful-chat] bundle probe", runBundleProbe());
-    } catch (error) {
-      console.error("[beautiful-chat] bundle probe failed", error);
-    }
-  }
-
   // Install the bundled faces before any surface paints.
   const removeFonts = embedFonts();
   const removeFrost = installFrostedGlass();
