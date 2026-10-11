@@ -5,6 +5,7 @@ import { useAgent, useWorkspace } from "@getpaseo/plugin/client";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
 import { codeSurface } from "../components/host-font-escape";
+import { frosted } from "../components/frosted";
 import { unselectable } from "../components/selection";
 import { useEnhancerPreferences } from "../preferences";
 import {
@@ -239,9 +240,14 @@ export function PathText({
       {tooltip ? (
         <View
           pointerEvents="none"
+          // A floating layer, so the optional frosted glass applies here.
+          {...(tokens.frost ? frosted : null)}
           style={[
             styles.tooltip,
-            { backgroundColor: tokens.v2.surface2, borderColor: tokens.v2.border },
+            {
+              backgroundColor: tokens.frost ? tokens.surfaceGlass : tokens.v2.surface2,
+              borderColor: tokens.v2.border,
+            },
           ]}
         >
           <Text

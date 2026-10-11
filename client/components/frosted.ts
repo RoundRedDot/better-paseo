@@ -12,10 +12,37 @@ const STYLE_ELEMENT_ID = "beautiful-chat-frosted";
  * `saturate` is included because blurring alone washes colour out of whatever
  * sits behind the surface; pushing saturation back up keeps syntax highlighting
  * under a nested block from turning grey.
+ *
+ * Since plan §3.6 only floating surfaces carry the mark (the selection bar,
+ * the full-path tooltip); inline blocks are flat. The blur is dropped when
+ * the system asks for reduced motion: a backdrop that smears as content
+ * scrolls under it is motion too.
  */
 const FROSTED_RULE = `[data-ompfrost] {
   -webkit-backdrop-filter: blur(14px) saturate(150%);
   backdrop-filter: blur(14px) saturate(150%);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-ompfrost] {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}`;
+
+/**
+ * The same blur for a surface inside a shadow root (the selection bar), which
+ * the document rule cannot reach; keyed on `data-bcfrost` on the shadow host so
+ * the document rule does not also blur the host's square box.
+ */
+export const FROSTED_SHADOW_CSS = `:host([data-bcfrost]) .bar {
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+}
+@media (prefers-reduced-motion: reduce) {
+  :host([data-bcfrost]) .bar {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }`;
 
 /**
@@ -47,7 +74,7 @@ export function installFrostedGlass(): () => void {
 }
 
 /**
- * Marks a surface for blurring. Spread onto a `View` whose background is one of
+ * Marks an overlay for blurring. Spread onto a `View` whose background is one of
  * the translucent `glass` tokens — an opaque background has nothing to show
  * through and the blur would be invisible.
  *

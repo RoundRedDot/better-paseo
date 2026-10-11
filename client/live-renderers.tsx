@@ -17,7 +17,6 @@ import { hostFontEscape } from "./components/host-font-escape";
 import { promptRowAnchor } from "./components/prompt-anchor";
 import { surfaceProps } from "./components/view-props";
 import { useSelectionActions } from "./components/selection-actions";
-import { usePointerGlow } from "./components/glow";
 import type { TurnUsage } from "./components/user-message";
 import { NoticeCallout } from "./components/notice-callout";
 import { useEnhancerPreferences } from "./preferences";
@@ -93,7 +92,6 @@ function LiveToolCallRendererBody({
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
-  usePointerGlow(preferences.pointerGlow);
   const data = item.data;
 
   const view = useMemo(() => classifyTool(data), [data]);
@@ -179,7 +177,6 @@ function LiveReasoningRendererBody({
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
-  usePointerGlow(preferences.pointerGlow);
   const text = item.data.text || "";
   const streaming = item.data.phase === "streaming";
 
@@ -231,7 +228,6 @@ function LiveTodoRendererBody({
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
-  usePointerGlow(preferences.pointerGlow);
   const data = item.data;
 
   const taskListData: TaskListData = useMemo(() => {
@@ -299,7 +295,6 @@ function LiveAssistantRendererBody({
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
-  usePointerGlow(preferences.pointerGlow);
 
   // Replacing the reply costs the host's footer, which the stream layout hangs
   // off an `assistant_message` item that no longer exists. Rebuild it where the
@@ -371,7 +366,6 @@ function LiveNoticeRendererBody({
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
-  usePointerGlow(preferences.pointerGlow);
   const data = item.data;
   const level = data.level === "warning" || data.level === "error" ? data.level : "info";
 
@@ -419,7 +413,6 @@ function LiveUserMessageRendererBody({
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
-  usePointerGlow(preferences.pointerGlow);
   const paseo = usePaseo();
   const handle = useMemo(() => paseo.agents.ref(agentId), [paseo, agentId]);
 
