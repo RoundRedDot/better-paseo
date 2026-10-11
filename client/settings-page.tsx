@@ -19,7 +19,7 @@ import {
   type ToolDetailPreference,
   type UiFontPreference,
 } from "./preferences";
-import { NATIVE_MONO_CHOICES, UI_SCALE, readHostTypography } from "./ui/tokens/typography";
+import { NATIVE_MONO_CHOICES, TYPE, readHostTypography } from "./ui/tokens/typography";
 import { usePreferenceSettings } from "./state/preference-sync-slot";
 import type { SyncStatus } from "./state/preference-sync";
 
@@ -41,33 +41,47 @@ const ACCENT_OPTIONS: ReadonlyArray<{
   label: string;
   color: string | undefined;
 }> = [
-  { id: "host", label: "Host theme", color: undefined },
+  { id: "host", label: "Host", color: undefined },
   { id: "jade", label: "Jade", color: ACCENT_PRESETS.jade },
   { id: "violet", label: "Violet", color: ACCENT_PRESETS.violet },
   { id: "amber", label: "Amber", color: ACCENT_PRESETS.amber },
   { id: "rose", label: "Rose", color: ACCENT_PRESETS.rose },
 ];
 
-const TRACK_WIDTH = 38;
-const TRACK_HEIGHT = 22;
-const KNOB = 16;
+/** Switch geometry (S7 §3.9): a 40x24 track and an 18pt knob. */
+const TRACK_WIDTH = 40;
+const TRACK_HEIGHT = 24;
+const KNOB = 18;
+const KNOB_INSET = (TRACK_HEIGHT - KNOB) / 2;
+/** Accent swatches: 22pt, each in a 44pt target. */
+const SWATCH = 22;
+const SWATCH_SLOP = (44 - SWATCH) / 2;
+/** The desktop label column. */
+const LABEL_COLUMN = 300;
+const PAGE_MAX = 820;
+
+/** Layout of the page: a grouped list on touch layouts, two columns on desktop. */
+interface PageLook {
+  compact: boolean;
+  tokens: ExtendedThemeTokens;
+}
 
 /**
- * An on/off control that reads as one. A pair of buttons states the value
- * twice — the label and the selection — and a reader has to compare them to
- * learn which way it is set.
+ * An on/off control that reads as one: on is the accent track with the
+ * accent's foreground knob, off a surface2 track with a surface0 knob.
  */
 function Toggle({
   value,
   onChange,
   label,
-  tokens,
+  look,
 }: {
   value: boolean;
   onChange(next: boolean): void;
   label: string;
-  tokens: ExtendedThemeTokens;
+  look: PageLook;
 }) {
+  const { tokens } = look;
   const position = useRef(new Animated.Value(value ? 1 : 0)).current;
 
   useEffect(() => {
@@ -88,6 +102,7 @@ function Toggle({
       aria-checked={value}
       accessibilityState={{ checked: value }}
       accessibilityLabel={label}
+      hitSlop={10}
       onPress={() => onChange(!value)}
       style={[
         styles.track,
@@ -101,12 +116,13 @@ function Toggle({
         style={[
           styles.knob,
           {
-            backgroundColor: value ? tokens.accentForeground : tokens.foregroundMuted,
+            backgroundColor: value ? tokens.accentForeground : tokens.v2.surface0,
+            borderColor: value ? tokens.accentForeground : tokens.v2.border,
             transform: [
               {
                 translateX: position.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [0, TRACK_WIDTH - KNOB - 6],
+                  outputRange: [0, TRACK_WIDTH - KNOB - KNOB_INSET * 2 - 2],
                 }),
               },
             ],
@@ -117,153 +133,207 @@ function Toggle({
   );
 }
 
-function RowText({
-  title,
-  description,
-  tokens,
-}: {
-  title: string;
-  description?: string;
-  tokens: ExtendedThemeTokens;
-}) {
-  return (
-    <>
-      <Text style={[styles.rowTitle, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
-        {title}
-      </Text>
-      {description ? (
-        <Text
-          style={[styles.rowDescription, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}
-        >
-          {description}
-        </Text>
-      ) : null}
-    </>
-  );
-}
-
-/** Rows divide with a hairline; the first row of a card has none. */
-function rowBorder(tokens: ExtendedThemeTokens, first: boolean) {
-  return { borderTopColor: first ? "transparent" : tokens.v2.borderSubtle };
-}
-
-/** A row whose control is a toggle: text on the left, switch on the right. */
-function ToggleRow({
-  title,
-  description,
+/**
+ * One choice of several, as a segmented control: a surface2 track, the
+ * selected segment raised on surface0 with a hairline. Equal widths on touch
+ * layouts, content widths on desktop.
+ */
+function Segmented<T extends string>({
   value,
+  options,
   onChange,
-  tokens,
-  first = false,
+  look,
+  label,
 }: {
-  title: string;
-  description: string;
-  value: boolean;
-  onChange(next: boolean): void;
-  tokens: ExtendedThemeTokens;
-  first?: boolean;
+  value: T | null;
+  options: ReadonlyArray<{ value: T; label: string }>;
+  onChange(value: T): void;
+  look: PageLook;
+  label: string;
 }) {
+  const { tokens, compact } = look;
   return (
-    <View style={[styles.row, styles.toggleRow, rowBorder(tokens, first)]}>
-      <View style={styles.toggleText}>
-        <RowText title={title} description={description} tokens={tokens} />
-      </View>
-      <Toggle value={value} onChange={onChange} label={title} tokens={tokens} />
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel={label}
+      style={[
+        styles.segmented,
+        compact ? styles.segmentedFill : null,
+        { backgroundColor: tokens.v2.surface2, height: compact ? 32 : 28 },
+      ]}
+    >
+      {options.map((option) => {
+        const selected = value === option.value;
+        return (
+          <Pressable
+            key={option.value}
+            accessibilityRole="radio"
+            accessibilityState={{ selected, checked: selected }}
+            aria-checked={selected}
+            hitSlop={compact ? { top: 6, bottom: 6 } : undefined}
+            onPress={() => onChange(option.value)}
+            style={[
+              styles.segment,
+              compact ? styles.segmentFill : null,
+              selected
+                ? { backgroundColor: tokens.v2.surface0, borderColor: tokens.v2.border }
+                : styles.segmentIdle,
+            ]}
+          >
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.segmentLabel,
+                {
+                  color: selected ? tokens.foreground : tokens.foregroundMuted,
+                  fontWeight: selected ? "500" : "400",
+                  fontFamily: tokens.fontUi,
+                },
+              ]}
+            >
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
 
-function OptionButton({
+/** A plain bordered button (Reset, Follow Paseo, the stepper's − and +). */
+function PlainButton({
   label,
-  selected,
   onPress,
-  tokens,
+  look,
   accessibilityLabel,
   disabled = false,
+  square = false,
 }: {
   label: string;
-  selected: boolean;
   onPress(): void;
-  tokens: ExtendedThemeTokens;
+  look: PageLook;
   accessibilityLabel?: string;
   disabled?: boolean;
+  square?: boolean;
 }) {
+  const { tokens } = look;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ selected, disabled }}
-      aria-pressed={selected}
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={{ disabled }}
       disabled={disabled}
+      hitSlop={look.compact ? 6 : 0}
       onPress={onPress}
       style={({ pressed }) => [
-        styles.option,
+        styles.plainButton,
+        square ? styles.squareButton : null,
         {
-          backgroundColor: selected ? tokens.accentBg : pressed ? tokens.v2.surface2 : tokens.v2.surface1,
-          borderColor: selected ? tokens.accent : tokens.v2.borderSubtle,
+          borderColor: tokens.v2.border,
+          backgroundColor: pressed ? tokens.v2.surface2 : "transparent",
           opacity: disabled ? 0.4 : 1,
         },
       ]}
     >
-      <Text
-        style={[
-          styles.optionLabel,
-          { color: selected ? tokens.accent : tokens.foregroundMuted, fontFamily: tokens.fontUi },
-        ]}
-      >
+      <Text style={[styles.plainLabel, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
         {label}
       </Text>
     </Pressable>
   );
 }
 
-function ChoiceRow<T extends string>({
-  title,
-  description,
-  value,
-  options,
-  onChange,
-  tokens,
-  first = false,
-  children,
-}: {
-  title: string;
-  description?: string;
-  value: T;
-  options: ReadonlyArray<{ value: T; label: string }>;
-  onChange(value: T): void;
-  tokens: ExtendedThemeTokens;
-  first?: boolean;
-  /** Extra controls under the options (a custom value). */
-  children?: React.ReactNode;
-}) {
+/** A section: a sentence-case label over a grouped list (touch) or bare rows (desktop). */
+function Section({ title, look, children }: { title: string; look: PageLook; children: React.ReactNode }) {
+  const { tokens, compact } = look;
   return (
-    <View style={[styles.row, rowBorder(tokens, first)]}>
-      <RowText title={title} description={description} tokens={tokens} />
-      <View style={styles.options}>
-        {options.map((option) => (
-          <OptionButton
-            key={option.value}
-            label={option.label}
-            selected={value === option.value}
-            onPress={() => onChange(option.value)}
-            tokens={tokens}
-          />
-        ))}
+    <View style={styles.section}>
+      <Text
+        accessibilityRole="header"
+        style={[
+          styles.sectionTitle,
+          compact ? styles.sectionTitleInset : null,
+          { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
+        ]}
+      >
+        {title}
+      </Text>
+      <View style={compact ? [styles.group, { backgroundColor: tokens.v2.surface1 }] : null}>
+        {children}
       </View>
-      {children}
     </View>
   );
 }
 
-function GroupTitle({ title, tokens }: { title: string; tokens: ExtendedThemeTokens }) {
+/**
+ * One setting. Touch: a list row — the label and its note, the control beside
+ * them (a switch) or under them (`stacked`, a segmented control). Desktop: the
+ * label column, then the control column. Rows after the first take a 1pt rule.
+ */
+function SettingRow({
+  title,
+  description,
+  control,
+  look,
+  first = false,
+  stacked = false,
+  below,
+}: {
+  title: string;
+  description?: string;
+  control?: React.ReactNode;
+  look: PageLook;
+  first?: boolean;
+  stacked?: boolean;
+  /** Extra content under the row (the font preview, a custom family). */
+  below?: React.ReactNode;
+}) {
+  const { tokens, compact } = look;
+  const rule = first ? null : { borderTopWidth: 1, borderTopColor: tokens.v2.border };
+  const text = (
+    <View style={compact ? styles.rowText : styles.labelColumn}>
+      <Text
+        style={[
+          compact ? styles.rowTitleCompact : styles.rowTitleDesktop,
+          { color: tokens.foreground, fontFamily: tokens.fontUi },
+        ]}
+      >
+        {title}
+      </Text>
+      {description ? (
+        <Text style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+          {description}
+        </Text>
+      ) : null}
+    </View>
+  );
+  if (compact) {
+    return (
+      <View style={styles.rowInset}>
+        <View style={[styles.rowCompact, rule, stacked ? styles.rowStacked : null]}>
+          {stacked ? (
+            <>
+              {text}
+              {control}
+            </>
+          ) : (
+            <View style={styles.rowLine}>
+              {text}
+              {control}
+            </View>
+          )}
+          {below}
+        </View>
+      </View>
+    );
+  }
   return (
-    <Text
-      accessibilityRole="header"
-      style={[styles.groupTitle, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}
-    >
-      {title}
-    </Text>
+    <View style={[styles.rowDesktop, rule]}>
+      {text}
+      <View style={styles.controlColumn}>
+        {control}
+        {below}
+      </View>
+    </View>
   );
 }
 
@@ -272,7 +342,8 @@ function GroupTitle({ title, tokens }: { title: string; tokens: ExtendedThemeTok
  * submitted rather than per keystroke, since every change restyles the whole
  * timeline. A family the browser lacks falls back through the stack.
  */
-function CustomMonoInput({ value, tokens }: { value: string; tokens: ExtendedThemeTokens }) {
+function CustomMonoInput({ value, look }: { value: string; look: PageLook }) {
+  const { tokens } = look;
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   const commit = () => {
@@ -295,7 +366,7 @@ function CustomMonoInput({ value, tokens }: { value: string; tokens: ExtendedThe
         {
           color: tokens.foreground,
           borderColor: tokens.v2.border,
-          backgroundColor: tokens.v2.surface1,
+          backgroundColor: tokens.v2.surface0,
           fontFamily: tokens.fontMono,
         },
       ]}
@@ -308,7 +379,8 @@ function CustomMonoInput({ value, tokens }: { value: string; tokens: ExtendedThe
  * settings resolve to, so a change is judged before reading a reply. Drawn
  * with plain text in the token colours: no highlight request is needed.
  */
-function MonoPreview({ tokens }: { tokens: ExtendedThemeTokens }) {
+function MonoPreview({ look }: { look: PageLook }) {
+  const { tokens } = look;
   const mono = tokens.typography.mono;
   const line = { fontSize: mono.size, lineHeight: mono.lineHeight };
   const syntax = tokens.syntax;
@@ -316,7 +388,7 @@ function MonoPreview({ tokens }: { tokens: ExtendedThemeTokens }) {
     <View
       {...codeSurface}
       accessibilityLabel="Font preview"
-      style={[styles.preview, { backgroundColor: tokens.v2.surfaceCode }]}
+      style={[styles.preview, { backgroundColor: look.compact ? tokens.v2.surface0 : tokens.v2.surfaceCode }]}
     >
       <Text style={[line, { fontFamily: tokens.fontCode, color: tokens.foreground }]}>
         <Text style={{ color: syntax.keyword }}>const</Text>
@@ -338,71 +410,102 @@ function MonoPreview({ tokens }: { tokens: ExtendedThemeTokens }) {
       <Text style={[line, { fontFamily: tokens.fontMono, color: tokens.foregroundMuted }]}>
         {"中文与 English 混排 · src/界面/设置.tsx:42"}
       </Text>
-      <Text style={[styles.previewMeta, { color: tokens.foregroundSubtle, fontFamily: tokens.fontUi }]}>
-        {`${mono.size}px / ${mono.lineHeight}px`}
+      <Text style={[styles.previewMeta, { color: tokens.foregroundMuted, fontFamily: tokens.fontMono }]}>
+        {`${mono.size} / ${mono.lineHeight}`}
       </Text>
     </View>
   );
 }
 
-/** Follow Paseo, or a size from 10 to 22 with a stepper and a reset, over a live preview. */
-function CodeSizeRow({ value, tokens }: { value: number | null; tokens: ExtendedThemeTokens }) {
+/** Follow Paseo, or a size from 10 to 22 with a stepper, over a live preview. */
+function CodeSizeControl({ value, look }: { value: number | null; look: PageLook }) {
+  const { tokens } = look;
   const effective = tokens.typography.mono.size;
   const set = (next: number) =>
     updateEnhancerPreferences({
       codeFontSize: Math.min(CODE_FONT_SIZE_MAX, Math.max(CODE_FONT_SIZE_MIN, next)),
     });
   return (
-    <View style={[styles.row, rowBorder(tokens, false)]}>
-      <RowText
-        title="Code font size"
-        description={`Follow Paseo, or choose ${CODE_FONT_SIZE_MIN}–${CODE_FONT_SIZE_MAX}px for code, diffs, terminals and paths. Line height is 1.5×.`}
-        tokens={tokens}
+    <View style={styles.controlLine}>
+      <Segmented<"host" | "custom">
+        label="Code font size source"
+        value={value === null ? "host" : "custom"}
+        options={[
+          { value: "host", label: "Follow Paseo" },
+          { value: "custom", label: "Custom" },
+        ]}
+        onChange={(choice) =>
+          updateEnhancerPreferences({ codeFontSize: choice === "host" ? null : effective })
+        }
+        look={{ ...look, compact: false }}
       />
-      <View style={styles.options}>
-        <OptionButton
-          label="Follow Paseo"
-          selected={value === null}
-          onPress={() => updateEnhancerPreferences({ codeFontSize: null })}
-          tokens={tokens}
+      <View style={styles.stepper}>
+        <PlainButton
+          label="−"
+          accessibilityLabel="Smaller code font"
+          disabled={effective <= CODE_FONT_SIZE_MIN}
+          onPress={() => set(effective - 1)}
+          look={look}
+          square
         />
-        <View style={styles.stepper}>
-          <OptionButton
-            label="−"
-            accessibilityLabel="Smaller code font"
-            selected={false}
-            disabled={effective <= CODE_FONT_SIZE_MIN}
-            onPress={() => set(effective - 1)}
-            tokens={tokens}
-          />
-          <Text
-            accessibilityLabel={`Code font size ${effective} pixels`}
-            style={[
-              styles.stepperValue,
-              { color: value === null ? tokens.foregroundMuted : tokens.foreground, fontFamily: tokens.fontUi },
+        <Text
+          accessibilityLabel={`Code font size ${effective} pixels`}
+          style={[
+            styles.stepperValue,
+            { color: value === null ? tokens.foregroundMuted : tokens.foreground, fontFamily: tokens.fontMono },
+          ]}
+        >
+          {`${effective}px`}
+        </Text>
+        <PlainButton
+          label="+"
+          accessibilityLabel="Larger code font"
+          disabled={effective >= CODE_FONT_SIZE_MAX}
+          onPress={() => set(effective + 1)}
+          look={look}
+          square
+        />
+      </View>
+    </View>
+  );
+}
+
+/** "Host" and the four presets: round swatches, the selected one ringed. */
+function AccentControl({ value, hostAccent, look }: { value: AccentPreset; hostAccent: string; look: PageLook }) {
+  const { tokens } = look;
+  return (
+    <View accessibilityRole="radiogroup" accessibilityLabel="Accent colour" style={styles.swatches}>
+      {ACCENT_OPTIONS.map((option) => {
+        const selected = value === option.id;
+        const color = option.color ?? hostAccent;
+        return (
+          <Pressable
+            key={option.id}
+            accessibilityRole="radio"
+            accessibilityLabel={`Accent: ${option.label}`}
+            accessibilityState={{ selected, checked: selected }}
+            aria-checked={selected}
+            hitSlop={SWATCH_SLOP}
+            onPress={() => updateEnhancerPreferences({ accent: option.id })}
+            style={option.id === "host" ? [
+              styles.hostChip,
+              {
+                borderColor: selected ? tokens.foreground : tokens.v2.border,
+                backgroundColor: selected ? tokens.v2.surface0 : "transparent",
+              },
+            ] : [
+              styles.swatch,
+              { backgroundColor: color, borderColor: selected ? tokens.foreground : "transparent" },
             ]}
           >
-            {`${effective}px`}
-          </Text>
-          <OptionButton
-            label="+"
-            accessibilityLabel="Larger code font"
-            selected={false}
-            disabled={effective >= CODE_FONT_SIZE_MAX}
-            onPress={() => set(effective + 1)}
-            tokens={tokens}
-          />
-        </View>
-        {value !== null ? (
-          <OptionButton
-            label="Reset"
-            selected={false}
-            onPress={() => updateEnhancerPreferences({ codeFontSize: null })}
-            tokens={tokens}
-          />
-        ) : null}
-      </View>
-      <MonoPreview tokens={tokens} />
+            {option.id === "host" ? (
+              <Text style={[styles.hostChipLabel, { color: selected ? tokens.foreground : tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+                Host
+              </Text>
+            ) : null}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -417,10 +520,12 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
   const platform =
     layout?.platform ?? (Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : "web");
   const native = platform !== "web";
+  const compact = layout?.compact ?? native;
   const tokens = useMemo(
     () => buildThemeTokens(theme.colors, preferences, { platform, theme }),
     [preferences, theme, platform],
   );
+  const look = useMemo<PageLook>(() => ({ tokens, compact }), [tokens, compact]);
   const hostTypography = useMemo(() => readHostTypography(theme) !== null, [theme]);
 
   const monoOptions: ReadonlyArray<{ value: MonoChoice; label: string }> = native
@@ -443,15 +548,13 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
   return (
     <View
       {...itemRootFont(preferences.uiFont)}
-      style={[styles.container, { backgroundColor: tokens.v2.surface0 }]}
+      style={[styles.container, compact ? null : styles.containerDesktop, { backgroundColor: tokens.v2.surface0 }]}
     >
-      <View style={styles.intro}>
+      <View style={compact ? styles.introInset : null}>
         <Text style={[styles.title, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
           Chat presentation
         </Text>
-        <Text
-          style={[styles.description, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}
-        >
+        <Text style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
           Saved on this Paseo host and shared by every client connected to it (desktop, web, iOS,
           Android). Options a platform cannot draw fall back there.
         </Text>
@@ -459,11 +562,11 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
           <Text
             accessibilityRole="alert"
             style={[
-              styles.hint,
+              styles.rowNote,
               styles.storageHint,
               {
                 color: sync.status === "loading" ? tokens.foregroundMuted : tokens.warning,
-                borderColor: tokens.v2.borderSubtle,
+                borderColor: tokens.v2.border,
                 fontFamily: tokens.fontUi,
               },
             ]}
@@ -473,213 +576,210 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
         ) : null}
       </View>
 
-      <GroupTitle title="Appearance" tokens={tokens} />
-      <View style={[styles.card, { borderColor: tokens.v2.border }]}>
-        <View style={[styles.row, rowBorder(tokens, true)]}>
-          <RowText
-            title="Accent colour"
-            description="Use the current Paseo theme, or choose a presentation accent."
-            tokens={tokens}
-          />
-          <View style={styles.options}>
-            {ACCENT_OPTIONS.map((option) => {
-              const selected = preferences.accent === option.id;
-              const swatch = option.color ?? theme.colors.accent;
-              return (
-                <Pressable
-                  key={option.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Accent: ${option.label}`}
-                  accessibilityState={{ selected }}
-                  aria-pressed={selected}
-                  onPress={() => updateEnhancerPreferences({ accent: option.id })}
-                  style={[
-                    styles.option,
-                    styles.accentOption,
-                    {
-                      borderColor: selected ? tokens.accent : tokens.v2.borderSubtle,
-                      backgroundColor: selected ? tokens.accentBg : tokens.v2.surface1,
-                    },
-                  ]}
-                >
-                  <View style={[styles.swatch, { backgroundColor: swatch }]} />
-                  <Text
-                    style={[
-                      styles.optionLabel,
-                      {
-                        color: selected ? tokens.accent : tokens.foregroundMuted,
-                        fontFamily: tokens.fontUi,
-                      },
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
+      <Section title="Appearance" look={look}>
+        <SettingRow
+          title="Accent colour"
+          description="Follow the Paseo theme, or pick a presentation accent. Only the accent changes; every other colour comes from the theme."
+          control={<AccentControl value={preferences.accent} hostAccent={theme.colors.accent} look={look} />}
+          look={look}
+          first
+          stacked
+        />
+      </Section>
 
-      </View>
-
-      <GroupTitle title="Fonts" tokens={tokens} />
-      <View style={[styles.card, { borderColor: tokens.v2.border }]}>
+      <Section title="Fonts" look={look}>
         {hostTypography ? null : (
-          <View style={[styles.row, rowBorder(tokens, true)]}>
-            <Text style={[styles.hint, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-              {`This Paseo version does not share its font settings with plugins, so Follow Paseo uses the defaults: ${
-                native ? "the system monospace face" : "the embedded Iosevka"
-              } at 12px.`}
-            </Text>
-          </View>
+          <SettingRow
+            title="Paseo's font settings"
+            description={`This Paseo version does not share its font settings with plugins, so Follow Paseo uses the defaults: ${
+              native ? "the system monospace face" : "the embedded Iosevka"
+            } at 12px.`}
+            look={look}
+            first
+          />
         )}
-
-        <ChoiceRow<MonoChoice>
+        <SettingRow
           title="Monospace font"
           description={
             native
               ? "For code, diffs, terminals and paths. Custom offers only faces this device is known to have, since a missing face would turn code proportional."
               : "For code, diffs, terminals and paths. Iosevka Code adds programming ligatures inside code blocks; diffs and terminals stay literal."
           }
-          value={shownMono}
-          options={monoOptions}
-          onChange={(choice) => updateEnhancerPreferences(monoChoiceUpdate(choice))}
-          tokens={tokens}
+          control={
+            <Segmented<MonoChoice>
+              label="Monospace font"
+              value={shownMono}
+              options={monoOptions}
+              onChange={(choice) => updateEnhancerPreferences(monoChoiceUpdate(choice))}
+              look={look}
+            />
+          }
+          below={
+            shownMono === "custom" ? (
+              native ? (
+                <Segmented<string>
+                  label="Custom monospace family"
+                  value={preferences.customMonoFont}
+                  options={nativeChoices}
+                  onChange={(customMonoFont) => updateEnhancerPreferences({ customMonoFont })}
+                  look={look}
+                />
+              ) : (
+                <CustomMonoInput value={preferences.customMonoFont} look={look} />
+              )
+            ) : null
+          }
+          look={look}
           first={hostTypography}
-        >
-          {shownMono === "custom" ? (
-            native ? (
-              <View style={styles.options}>
-                {nativeChoices.map((choice) => (
-                  <OptionButton
-                    key={choice.value}
-                    label={choice.label}
-                    selected={preferences.customMonoFont === choice.value}
-                    onPress={() => updateEnhancerPreferences({ customMonoFont: choice.value })}
-                    tokens={tokens}
-                  />
-                ))}
-              </View>
-            ) : (
-              <CustomMonoInput value={preferences.customMonoFont} tokens={tokens} />
-            )
-          ) : null}
-        </ChoiceRow>
-
-        <CodeSizeRow value={preferences.codeFontSize} tokens={tokens} />
-
-        <ChoiceRow<UiFontPreference>
+          stacked
+        />
+        <SettingRow
+          title="Code font size"
+          description={`Follow Paseo, or choose ${CODE_FONT_SIZE_MIN}–${CODE_FONT_SIZE_MAX}px for code, diffs, terminals and paths. Line height is 1.5×.`}
+          control={<CodeSizeControl value={preferences.codeFontSize} look={look} />}
+          below={<MonoPreview look={look} />}
+          look={look}
+          stacked
+        />
+        <SettingRow
           title="Interface font"
           description={
             native
               ? "Follow Paseo's interface font, or use the system face."
               : "Follow Paseo's interface font, or choose the embedded Inter face or the system face."
           }
-          value={native && preferences.uiFont === "inter" ? "host" : preferences.uiFont}
-          options={
-            native
-              ? [
-                  { value: "host", label: "Follow Paseo" },
-                  { value: "system", label: "System" },
-                ]
-              : [
-                  { value: "host", label: "Follow Paseo" },
-                  { value: "inter", label: "Inter" },
-                  { value: "system", label: "System" },
-                ]
+          control={
+            <Segmented<UiFontPreference>
+              label="Interface font"
+              value={native && preferences.uiFont === "inter" ? "host" : preferences.uiFont}
+              options={
+                native
+                  ? [
+                      { value: "host", label: "Follow Paseo" },
+                      { value: "system", label: "System" },
+                    ]
+                  : [
+                      { value: "host", label: "Follow Paseo" },
+                      { value: "inter", label: "Inter" },
+                      { value: "system", label: "System" },
+                    ]
+              }
+              onChange={(uiFont) => updateEnhancerPreferences({ uiFont })}
+              look={look}
+            />
           }
-          onChange={(uiFont) => updateEnhancerPreferences({ uiFont })}
-          tokens={tokens}
+          look={look}
+          stacked
         />
-      </View>
+      </Section>
 
-      <GroupTitle title="Tools and paths" tokens={tokens} />
-      <View style={[styles.card, { borderColor: tokens.v2.border }]}>
-        <ChoiceRow<ToolDetailPreference>
+      <Section title="Tools and paths" look={look}>
+        <SettingRow
           title="Tool details"
           description="Tool calls start as one line. Choose whether a failed call opens on its own."
-          value={preferences.toolDetail}
-          options={[
-            { value: "collapsed", label: "Always collapsed" },
-            { value: "expand-failed", label: "Open failed calls" },
-          ]}
-          onChange={(toolDetail) => updateEnhancerPreferences({ toolDetail })}
-          tokens={tokens}
+          control={
+            <Segmented<ToolDetailPreference>
+              label="Tool details"
+              value={preferences.toolDetail}
+              options={[
+                { value: "collapsed", label: "Always collapsed" },
+                { value: "expand-failed", label: "Open failed calls" },
+              ]}
+              onChange={(toolDetail) => updateEnhancerPreferences({ toolDetail })}
+              look={look}
+            />
+          }
+          look={look}
           first
+          stacked
         />
-
-        <ChoiceRow<PathDisplayPreference>
+        <SettingRow
           title="File paths"
           description="Relative to the workspace (a worktree's main repository is prefixed with its name), or in full. Copying always gives the absolute path."
-          value={preferences.pathDisplay}
-          options={[
-            { value: "relative", label: "Relative" },
-            { value: "absolute", label: "Absolute" },
-          ]}
-          onChange={(pathDisplay) => updateEnhancerPreferences({ pathDisplay })}
-          tokens={tokens}
+          control={
+            <Segmented<PathDisplayPreference>
+              label="File paths"
+              value={preferences.pathDisplay}
+              options={[
+                { value: "relative", label: "Relative" },
+                { value: "absolute", label: "Absolute" },
+              ]}
+              onChange={(pathDisplay) => updateEnhancerPreferences({ pathDisplay })}
+              look={look}
+            />
+          }
+          look={look}
+          stacked
         />
-      </View>
+      </Section>
 
-      <GroupTitle title="Messages" tokens={tokens} />
-      <View style={[styles.card, { borderColor: tokens.v2.border }]}>
-        <ToggleRow
+      <Section title="Messages" look={look}>
+        <SettingRow
           title="Enhanced prompt bubble"
           description="Paseo removes pasted images before a plugin sees the message, so the enhanced bubble cannot show them. Turn this off for Paseo's own bubble with image previews. New prompts follow the change."
-          value={preferences.enhancedUserBubble}
-          onChange={(enhancedUserBubble) => updateEnhancerPreferences({ enhancedUserBubble })}
-          tokens={tokens}
+          control={
+            <Toggle
+              value={preferences.enhancedUserBubble}
+              onChange={(enhancedUserBubble) => updateEnhancerPreferences({ enhancedUserBubble })}
+              label="Enhanced prompt bubble"
+              look={look}
+            />
+          }
+          look={look}
           first
         />
-
         {native ? null : (
-          <ToggleRow
+          <SettingRow
             title="Selection actions"
             description="Highlighting text in a callout raises a small bar with Copy and Add to chat. Add to chat drops the highlight into the composer as a quote, or a fenced block when it came from code."
-            value={preferences.selectionActions}
-            onChange={(selectionActions) => updateEnhancerPreferences({ selectionActions })}
-            tokens={tokens}
+            control={
+              <Toggle
+                value={preferences.selectionActions}
+                onChange={(selectionActions) => updateEnhancerPreferences({ selectionActions })}
+                label="Selection actions"
+                look={look}
+              />
+            }
+            look={look}
           />
         )}
-
-        <ToggleRow
+        <SettingRow
           title="Assistant markdown"
           description="Draws the reply with the plugin's own headings, lists and syntax-highlighted code blocks. The plugin cannot reach Paseo's markdown pipeline, so its version is a subset: turn this off for mermaid diagrams, images, and the host's file-path links."
-          value={preferences.assistantMarkdown}
-          onChange={(assistantMarkdown) => updateEnhancerPreferences({ assistantMarkdown })}
-          tokens={tokens}
+          control={
+            <Toggle
+              value={preferences.assistantMarkdown}
+              onChange={(assistantMarkdown) => updateEnhancerPreferences({ assistantMarkdown })}
+              label="Assistant markdown"
+              look={look}
+            />
+          }
+          look={look}
         />
-
-        <ChoiceRow
+        <SettingRow
           title="Markdown style"
           description="Document is airy and built for long answers. Compact tightens the spacing for short replies. Terminal sets the body in the code face."
-          value={preferences.markdownVariant}
-          options={[
-            { value: "document", label: "Document" },
-            { value: "compact", label: "Compact" },
-            { value: "terminal", label: "Terminal" },
-          ]}
-          onChange={(markdownVariant) => updateEnhancerPreferences({ markdownVariant })}
-          tokens={tokens}
+          control={
+            <Segmented
+              label="Markdown style"
+              value={preferences.markdownVariant}
+              options={[
+                { value: "document", label: "Document" },
+                { value: "compact", label: "Compact" },
+                { value: "terminal", label: "Terminal" },
+              ]}
+              onChange={(markdownVariant) => updateEnhancerPreferences({ markdownVariant })}
+              look={look}
+            />
+          }
+          look={look}
+          stacked
         />
-      </View>
+      </Section>
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={resetEnhancerPreferences}
-        style={({ pressed }) => [
-          styles.option,
-          styles.reset,
-          {
-            borderColor: tokens.v2.borderSubtle,
-            backgroundColor: pressed ? tokens.v2.surface2 : "transparent",
-          },
-        ]}
-      >
-        <Text style={[styles.optionLabel, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-          Reset defaults
-        </Text>
-      </Pressable>
+      <View style={compact ? styles.introInset : null}>
+        <PlainButton label="Reset defaults" onPress={resetEnhancerPreferences} look={look} />
+      </View>
     </View>
   );
 }
@@ -689,62 +789,111 @@ const styles = StyleSheet.create({
   // column `View` (app `plugins/settings/index.tsx:107`), and React Native Web
   // compiles `flex: 1` to `flex: 1 1 0%` — a zero basis in a container that
   // sizes to its content, so the whole page collapses to nothing.
-  container: { alignSelf: "stretch", padding: space.lg, gap: space.sm },
-  toggleRow: { flexDirection: "row", alignItems: "center", gap: space.lg },
-  // The text column takes the slack so a long description wraps instead of
-  // pushing the switch off the card.
-  toggleText: { flex: 1, minWidth: 0, gap: space.xs },
+  container: { alignSelf: "stretch", paddingVertical: space.lg, gap: space.xl },
+  containerDesktop: { paddingHorizontal: space.xl, maxWidth: PAGE_MAX },
+  introInset: { paddingHorizontal: space.lg },
+  title: {
+    fontSize: TYPE.title.size,
+    lineHeight: TYPE.title.lineHeight,
+    fontWeight: "600",
+    marginBottom: space.xs,
+  },
+  storageHint: { marginTop: space.sm, padding: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
+  section: { gap: space.sm },
+  sectionTitle: {
+    fontSize: TYPE.settingNote.size,
+    lineHeight: TYPE.settingNote.lineHeight,
+    fontWeight: "500",
+  },
+  sectionTitleInset: { paddingHorizontal: space.lg },
+  group: { borderRadius: radiusV2.card, overflow: "hidden" },
+  // Touch: the rule runs from the inset, like a native grouped list.
+  rowInset: { paddingLeft: space.lg },
+  rowCompact: { minHeight: 44, paddingVertical: 11, paddingRight: space.lg, gap: space.sm },
+  rowStacked: { gap: space.md },
+  rowLine: { flexDirection: "row", alignItems: "center", gap: space.lg },
+  rowText: { flex: 1, minWidth: 0, gap: 2 },
+  rowTitleCompact: {
+    fontSize: TYPE.setting.compact.size,
+    lineHeight: TYPE.setting.compact.lineHeight,
+  },
+  rowTitleDesktop: {
+    fontSize: TYPE.setting.desktop.size,
+    lineHeight: TYPE.setting.desktop.lineHeight,
+    fontWeight: "500",
+  },
+  rowNote: {
+    fontSize: TYPE.settingNote.size,
+    lineHeight: TYPE.settingNote.lineHeight,
+  },
+  // Desktop: a label column and a control column, rows divided by a rule.
+  rowDesktop: { flexDirection: "row", alignItems: "flex-start", gap: space.xl, paddingVertical: 14 },
+  labelColumn: { width: LABEL_COLUMN, flexShrink: 0, gap: 2 },
+  controlColumn: { flex: 1, minWidth: 0, alignItems: "flex-start", gap: space.md },
+  controlLine: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.md },
   track: {
     width: TRACK_WIDTH,
     height: TRACK_HEIGHT,
     borderRadius: TRACK_HEIGHT / 2,
     borderWidth: 1,
+    paddingHorizontal: KNOB_INSET,
+    justifyContent: "center",
+  },
+  knob: { width: KNOB, height: KNOB, borderRadius: KNOB / 2, borderWidth: 1 },
+  segmented: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    alignSelf: "flex-start",
     padding: 2,
-    justifyContent: "center",
+    borderRadius: radiusV2.block,
   },
-  knob: { width: KNOB, height: KNOB, borderRadius: KNOB / 2 },
-  intro: { gap: space.xs, paddingBottom: space.xs },
-  title: { fontSize: UI_SCALE.xl, fontWeight: "600" },
-  description: { fontSize: UI_SCALE.md, lineHeight: 18 },
-  groupTitle: {
-    fontSize: UI_SCALE.base,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: space.sm,
-  },
-  card: { borderWidth: 1, borderRadius: radiusV2.card, overflow: "hidden" },
-  row: { padding: space.md, gap: space.sm, borderTopWidth: 1 },
-  rowTitle: { fontSize: UI_SCALE.lg, fontWeight: "500" },
-  rowDescription: { fontSize: UI_SCALE.base, lineHeight: 17 },
-  hint: { fontSize: UI_SCALE.base, lineHeight: 17 },
-  storageHint: { marginTop: space.xs, padding: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
-  options: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.sm },
-  option: {
-    minHeight: 28,
+  segmentedFill: { alignSelf: "stretch" },
+  segment: {
     justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: space.md,
+    borderRadius: radiusV2.chip,
+    borderWidth: 1,
+  },
+  segmentFill: { flex: 1, paddingHorizontal: space.xs },
+  segmentIdle: { borderColor: "transparent" },
+  segmentLabel: { fontSize: TYPE.button.size, lineHeight: TYPE.button.lineHeight },
+  plainButton: {
+    minHeight: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "flex-start",
     borderWidth: 1,
     borderRadius: radiusV2.block,
-    paddingHorizontal: 10,
+    paddingHorizontal: space.md,
   },
-  optionLabel: { fontSize: UI_SCALE.base, fontWeight: "500" },
-  accentOption: { flexDirection: "row", alignItems: "center", gap: 6 },
-  swatch: { width: 12, height: 12, borderRadius: radiusV2.chip },
+  squareButton: { width: 32, paddingHorizontal: 0 },
+  plainLabel: { fontSize: TYPE.button.size, lineHeight: TYPE.button.lineHeight, fontWeight: "500" },
   stepper: { flexDirection: "row", alignItems: "center", gap: space.xs },
   stepperValue: {
-    minWidth: 40,
+    width: 48,
     textAlign: "center",
-    fontSize: UI_SCALE.md,
+    fontSize: TYPE.button.size,
     fontVariant: ["tabular-nums"],
   },
+  swatches: { flexDirection: "row", alignItems: "center", gap: space.md },
+  hostChip: {
+    height: SWATCH + 6,
+    paddingHorizontal: space.sm,
+    borderRadius: radiusV2.chip,
+    borderWidth: 1,
+    justifyContent: "center",
+  },
+  hostChipLabel: { fontSize: TYPE.button.size, lineHeight: TYPE.button.lineHeight, fontWeight: "500" },
+  swatch: { width: SWATCH, height: SWATCH, borderRadius: SWATCH / 2, borderWidth: 2 },
   input: {
+    alignSelf: "stretch",
     minHeight: 32,
     borderWidth: 1,
     borderRadius: radiusV2.block,
     paddingHorizontal: space.sm,
-    fontSize: UI_SCALE.md,
+    fontSize: TYPE.button.size,
   },
-  preview: { borderRadius: radiusV2.block, padding: space.md, gap: 2 },
-  previewMeta: { fontSize: UI_SCALE.base, marginTop: space.xs },
-  reset: { alignSelf: "flex-start", marginTop: space.sm },
+  preview: { alignSelf: "stretch", borderRadius: radiusV2.block, padding: space.md, gap: 2 },
+  previewMeta: { fontSize: TYPE.caption.size, marginTop: space.xs },
 });
