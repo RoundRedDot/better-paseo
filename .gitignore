@@ -4,3 +4,5 @@ dist/
 .showcase/showcase.js
 .showcase/tools/collect.cjs
 .worktrees/
+.showcase/replay.js
+.showcase/out/
