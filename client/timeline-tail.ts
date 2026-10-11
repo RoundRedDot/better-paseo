@@ -1,4 +1,5 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import { hashText } from "./state/disclosure-store";
 
 /**
  * Which plugin timeline item is currently last.
@@ -27,6 +28,48 @@ export function noteTimelineItem(key: string, at: number): void {
   if (tail && tail.key === key && tail.at === at) return;
   tail = { key, at };
   publish();
+}
+
+/**
+ * Moves the tail from `from` to `to` when `from` holds it: the same item under
+ * a key that grew (see `useTextItemTailKey`). Any other tail is left alone.
+ */
+export function renameTimelineItem(from: string, to: string): void {
+  if (from === to || tail?.key !== from) return;
+  tail = { key: to, at: tail.at };
+  publish();
+}
+
+/** Characters of a text item's opening that name it, as for reasoning keys. */
+export const TEXT_ITEM_KEY_PREFIX = 80;
+
+/**
+ * A text item's identity: its arrival time plus a hash of its opening. The
+ * time alone is not unique — at max speed several replies arrive in the same
+ * millisecond — and the host passes no item id. Text only grows, so once the
+ * opening is 80 characters long the key is fixed, and the mount that replaces
+ * a streamed row (live head to history) computes the same key.
+ */
+export function textItemTailKey(kind: string, at: number, text: string): string {
+  return `${kind}:${at}:${hashText(text.slice(0, TEXT_ITEM_KEY_PREFIX))}`;
+}
+
+/**
+ * `textItemTailKey`, carried across its growth within one mounted row: while
+ * the opening is shorter than 80 characters the key changes with each chunk,
+ * and the tail follows it instead of staying with the earlier key. The rename
+ * runs after the row's children noted the new key, so the incumbent is the
+ * old key at that point.
+ */
+export function useTextItemTailKey(kind: string, at: number, text: string): string {
+  const key = textItemTailKey(kind, at, text);
+  const previous = useRef<string | null>(null);
+  useEffect(() => {
+    const from = previous.current;
+    previous.current = key;
+    if (from !== null) renameTimelineItem(from, key);
+  }, [key]);
+  return key;
 }
 
 export function getTimelineTail(): string | null {
