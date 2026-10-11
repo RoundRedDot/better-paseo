@@ -35,6 +35,9 @@ export interface MarkdownViewProps {
 // Off the render path, once the plugin has loaded: see `warmLexer`.
 if (typeof setTimeout === "function") setTimeout(warmLexer, 0);
 
+/** Distinguishes mounted views for the flip probe. */
+let mountSerial = 0;
+
 interface Split {
   blocks: string[];
   /** The tail as drawn; equals the last block unless the reply streams. */
@@ -67,11 +70,21 @@ export function MarkdownView({
   const cacheRef = useRef<BlockCache | null>(null);
   if (cacheRef.current === null) cacheRef.current = createBlockCache();
   const cache = cacheRef.current;
+  // The flip probe compares a view with its own previous parse. `probeId`
+  // names the message by timestamp, and several replies can share a
+  // millisecond (seen on web history-100: 41 "flips" between unrelated
+  // replies), so each mounted view counts under its own serial.
+  const instanceRef = useRef<{ probeId: string; instance: string } | null>(null);
+  if (probeId !== undefined && instanceRef.current?.probeId !== probeId) {
+    mountSerial += 1;
+    instanceRef.current = { probeId, instance: `${probeId}#${mountSerial}` };
+  }
+  const instance = probeId === undefined ? undefined : instanceRef.current?.instance;
 
   const { blocks, tail } = useMemo(() => {
     if (!perfOn()) return split(text, cache, streaming);
     let result: Split = { blocks: [], tail: "" };
-    probeMarkdown(probeId, text, (source) => {
+    probeMarkdown(instance, text, (source) => {
       result = split(source, cache, streaming);
       const last = result.blocks.length - 1;
       const kinds = result.blocks.map((raw, index) => ({
@@ -83,7 +96,7 @@ export function MarkdownView({
       return kinds;
     });
     return result;
-  }, [text, cache, streaming, probeId]);
+  }, [text, cache, streaming, instance]);
 
   const styles = useMemo(() => buildStyles(tokens, variant), [tokens, variant]);
   const context = useMemo<RenderContext>(
