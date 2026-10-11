@@ -292,7 +292,7 @@ function MetaPath({
       compact={compact}
       copyOnHover={false}
       budget={compact ? 20 : 32}
-      style={{ fontSize: 12, color: tokens.foregroundMuted }}
+      style={{ fontSize: UI_SCALE.base, color: tokens.foregroundMuted }}
     />
   );
 }
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     ...selectableSurface,
   },
   errorLine: {
-    fontSize: 12,
+    fontSize: UI_SCALE.base,
     lineHeight: 16,
     // Under the verb: header padding + icon slot + gap.
     paddingLeft: space.sm + 16 + 6,
@@ -650,7 +650,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
             <View>
               {data.search.files.slice(0, MAX_FILE_ROWS).map((file, index) => (
                 <View key={`${index}:${file}`} style={styles.fileRow}>
-                  <PathText path={file} tokens={tokens} compact={compact} style={{ fontSize: 12 }} fit />
+                  <PathText path={file} tokens={tokens} compact={compact} style={{ fontSize: UI_SCALE.base }} fit />
                 </View>
               ))}
               {data.search.files.length > MAX_FILE_ROWS ? (
@@ -889,27 +889,27 @@ function useBodyStyles(tokens: ExtendedThemeTokens): BodyStyles {
         },
         silentText: {
           fontFamily: tokens.fontUi,
-          fontSize: 12,
+          fontSize: UI_SCALE.base,
           color: tokens.foregroundMuted,
           fontStyle: "italic",
           ...unselectable,
         },
         sectionTitle: {
           fontFamily: tokens.fontUi,
-          fontSize: 11,
+          fontSize: UI_SCALE.sm,
           fontWeight: "500",
           color: tokens.foregroundMuted,
           ...unselectable,
         },
         plainText: {
           fontFamily: tokens.fontUi,
-          fontSize: 13,
+          fontSize: UI_SCALE.md,
           lineHeight: 19,
           color: tokens.foreground,
         },
         mutedText: {
           fontFamily: tokens.fontUi,
-          fontSize: 12,
+          fontSize: UI_SCALE.base,
           lineHeight: 17,
           color: tokens.foregroundMuted,
         },
@@ -921,14 +921,14 @@ function useBodyStyles(tokens: ExtendedThemeTokens): BodyStyles {
         mutedColor: { color: tokens.foregroundMuted },
         metaText: {
           fontFamily: tokens.fontUi,
-          fontSize: 11,
+          fontSize: UI_SCALE.sm,
           color: tokens.foregroundMuted,
           fontVariant: ["tabular-nums"],
           ...unselectable,
         },
         askOptionLabel: {
           fontFamily: tokens.fontUi,
-          fontSize: 13,
+          fontSize: UI_SCALE.md,
           color: tokens.foreground,
         },
         strong: { fontWeight: "600" },
@@ -1078,14 +1078,14 @@ function useSubagentStyles(tokens: ExtendedThemeTokens): SubagentStyles {
         head: { flexDirection: "row", alignItems: "center", gap: 6 },
         headline: {
           fontFamily: tokens.fontUi,
-          fontSize: 13,
+          fontSize: UI_SCALE.md,
           fontWeight: "600",
           color: tokens.foreground,
           flexShrink: 1,
         },
         chip: {
           fontFamily: tokens.fontUi,
-          fontSize: 11,
+          fontSize: UI_SCALE.sm,
           color: tokens.foregroundMuted,
         },
         contextBox: {
@@ -1097,14 +1097,14 @@ function useSubagentStyles(tokens: ExtendedThemeTokens): SubagentStyles {
         contextToggle: { flexDirection: "row", alignItems: "center", gap: 6 },
         contextLabel: {
           fontFamily: tokens.fontUi,
-          fontSize: 11,
+          fontSize: UI_SCALE.sm,
           fontWeight: "500",
           color: tokens.foregroundMuted,
           ...unselectable,
         },
         contextBody: {
           fontFamily: tokens.fontUi,
-          fontSize: 12,
+          fontSize: UI_SCALE.base,
           lineHeight: 17,
           color: tokens.foregroundMuted,
         },
@@ -1112,21 +1112,21 @@ function useSubagentStyles(tokens: ExtendedThemeTokens): SubagentStyles {
         rowHead: { flexDirection: "row", alignItems: "center", gap: 6 },
         name: {
           fontFamily: tokens.fontUi,
-          fontSize: 12.5,
+          fontSize: UI_SCALE.md,
           fontWeight: "600",
           color: tokens.foreground,
           flexShrink: 1,
         },
         brief: {
           fontFamily: tokens.fontUi,
-          fontSize: 12,
+          fontSize: UI_SCALE.base,
           lineHeight: 16,
           color: tokens.foregroundMuted,
         },
         pending: { flexDirection: "row", alignItems: "center", gap: 6 },
         pendingText: {
           fontFamily: tokens.fontUi,
-          fontSize: 11,
+          fontSize: UI_SCALE.sm,
           fontWeight: "500",
           color: tokens.accent,
           ...unselectable,

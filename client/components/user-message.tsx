@@ -118,7 +118,7 @@ export function UserMessage({
         },
         label: {
           fontFamily: tokens.fontUi,
-          fontSize: 10,
+          fontSize: UI_SCALE.xs,
           fontWeight: "600",
           letterSpacing: 0.4,
           textTransform: "uppercase",
@@ -130,12 +130,12 @@ export function UserMessage({
         },
         clock: {
           fontFamily: tokens.fontUi,
-          fontSize: 10,
+          fontSize: UI_SCALE.xs,
           color: tokens.userTextMuted,
         },
         text: {
           fontFamily: tokens.fontUi,
-          fontSize: 13.5,
+          fontSize: UI_SCALE.lg,
           lineHeight: 20,
           color: tokens.userText,
         },
@@ -164,12 +164,12 @@ export function UserMessage({
         },
         usageKey: {
           fontFamily: tokens.fontUi,
-          fontSize: 10,
+          fontSize: UI_SCALE.xs,
           color: tokens.userTextMuted,
         },
         usageValue: {
           fontFamily: tokens.fontUi,
-          fontSize: 11,
+          fontSize: UI_SCALE.sm,
           fontWeight: "600",
           color: tokens.userText,
         },
