@@ -7,8 +7,8 @@ import type { ExtendedThemeTokens } from "./theme-tokens";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface, selectionCodeText } from "./selection-actions";
 import { renderTerminalOutput } from "./syntax-highlight";
-import { Breathe } from "./breathe";
-import { shimmering } from "./shimmer";
+import { RunningDot } from "../ui/running-dot";
+import { runningDot } from "../ui/tokens/motion";
 import { normalizeProvider } from "./provider-logo";
 import { MARK_BITMAPS } from "./mark-bitmaps";
 import type {
@@ -703,26 +703,22 @@ function JobsView({ data, text, tokens, styles }: HubViewProps<HubJobsData>) {
 
 function RunningJobHead({
   running,
+  tokens,
   styles,
   children,
 }: {
   running: boolean;
+  tokens: ExtendedThemeTokens;
   styles: HubStyles;
   children: React.ReactNode;
 }) {
-  // The sweep is a CSS gradient (see `./shimmer`): an Animated band is a
-  // hard-edged rectangle, which reads as a grey box parked on the text.
-  const sweep = running ? shimmering : undefined;
-
+  // The slot keeps its width when the job ends, so the row does not shift;
+  // the dot inside is mounted only while the job runs (plan §3.7).
   return (
-    <View {...sweep} style={styles.jobHead}>
+    <View style={styles.jobHead}>
       <View style={styles.rowHead}>
         <View style={styles.jobRailSlot} pointerEvents="none" accessible={false}>
-          {running ? (
-            <Breathe active={running} depth={1.06} durationMs={3200}>
-              <View style={styles.jobRail} />
-            </Breathe>
-          ) : null}
+          {running ? <RunningDot color={tokens.accent} /> : null}
         </View>
         {children}
       </View>
@@ -801,7 +797,7 @@ function JobRow({
 
   return (
     <View style={styles.stackRow}>
-      <RunningJobHead running={running} styles={styles}>
+      <RunningJobHead running={running} tokens={tokens} styles={styles}>
         <Chip label={job.status} tone={jobTone(job.status, tokens)} styles={styles} />
         <Text selectable style={styles.rowLabel} numberOfLines={1}>
           {job.id}
@@ -1107,7 +1103,6 @@ interface HubStyles {
   stackRow: ViewStyle;
   jobHead: ViewStyle;
   jobRailSlot: ViewStyle;
-  jobRail: ViewStyle;
   jobModel: ViewStyle;
   messageBox: ViewStyle;
   replyBox: ViewStyle;
@@ -1199,21 +1194,12 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
         },
         jobHead: {
           position: "relative",
-          overflow: "hidden",
         },
         jobRailSlot: {
-          width: 2,
+          width: runningDot.size,
           height: 14,
           alignItems: "center",
           justifyContent: "center",
-          ...unselectable,
-        },
-        jobRail: {
-          width: 2,
-          height: 12,
-          borderRadius: 1,
-          backgroundColor: tokens.accent,
-          opacity: 0.45,
           ...unselectable,
         },
         jobModel: {
