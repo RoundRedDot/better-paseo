@@ -269,12 +269,16 @@ export interface LiveAssistantPayload {
 }
 
 /**
- * Streamed replies reveal at the host's own cadence (`useRevealedText`, plan
- * §3.1 item 8), so only the tail block re-renders, once per frame. Set false
- * to draw each chunk as it arrives instead, if per-frame renders measure too
- * expensive on a device.
+ * Whether a streamed reply reveals at the host's own cadence
+ * (`useRevealedText`, plan §3.1 item 8) or draws each chunk as it arrives.
+ * Decided by an A/B (F1, 3+ alternating runs, markdown-long and
+ * table-streaming): on the iOS simulator the reveal changed total assistant
+ * commit time by +3% / -5% and dropped frames by +4% / +17%, so it stays; on
+ * the web production build it tripled the work (commit time +222% / +319%,
+ * parse time +262% / +321%) for no frame gain, so web draws per chunk.
+ * Android follows native (not measured).
  */
-const ASSISTANT_REVEAL = true;
+const ASSISTANT_REVEAL = { web: false, native: true } as const;
 
 /**
  * The assistant's own reply, drawn with the plugin's markdown renderer.
@@ -310,10 +314,8 @@ function LiveAssistantRendererBody({
   // files any unclaimed `custom` message under this item kind. They are not
   // the model's words, so they are drawn as a card, not as prose.
   const envelope = useMemo(() => parseSystemEnvelope(item.data.text), [item.data.text]);
-  const revealed = useRevealedText(
-    item.data.text,
-    ASSISTANT_REVEAL && streaming ? "streaming" : "complete",
-  );
+  const reveal = ASSISTANT_REVEAL[layout.platform === "web" ? "web" : "native"];
+  const revealed = useRevealedText(item.data.text, reveal && streaming ? "streaming" : "complete");
 
   // A path in the prose reveals like a path in a tool card: one daemon RPC,
   // relative to the agent's directory.
