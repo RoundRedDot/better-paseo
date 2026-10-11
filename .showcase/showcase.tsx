@@ -1153,13 +1153,18 @@ function Showcase() {
         <MarkdownView text={REPLY} tokens={v2Dark} variant="compact" collapseCode />
       </Shot>
       <Shot id="shot-settings" width={760}>
-        <View style={{ height: 880 }}>
-          <BeautifulChatSettingsPage
-            theme={{ colors: BASE }}
-            host={{ id: "local", label: "Local" }}
-            layout={{ compact: false, platform: "web" }}
-          />
-        </View>
+        <BeautifulChatSettingsPage
+          theme={{ colors: BASE }}
+          host={{ id: "local", label: "Local" }}
+          layout={{ compact: false, platform: "web" }}
+        />
+      </Shot>
+      <Shot id="shot-settings-native" width={420}>
+        <BeautifulChatSettingsPage
+          theme={{ colors: BASE }}
+          host={{ id: "local", label: "Local" }}
+          layout={{ compact: true, platform: "ios" }}
+        />
       </Shot>
     </div>
   );

@@ -4,6 +4,8 @@ import {
   LEGACY_STORAGE_KEY,
   STORAGE_KEY,
   migrateV1Preferences,
+  monoChoice,
+  monoChoiceUpdate,
   parsePreferences,
   readStoredPreferences,
 } from "../../client/preferences";
@@ -109,5 +111,25 @@ describe("parsePreferences", () => {
     expect(parsePreferences({ codeFontSize: 3 }).codeFontSize).toBe(10);
     expect(parsePreferences({ codeFontSize: null }).codeFontSize).toBeNull();
     expect(parsePreferences({ codeFontSize: Number.NaN }).codeFontSize).toBeNull();
+  });
+});
+
+describe("monospace choice (settings page)", () => {
+  it("tells Iosevka and Iosevka Code apart by the ligature setting", () => {
+    expect(monoChoice({ monoFont: "iosevka", codeFont: "plain" })).toBe("iosevka");
+    expect(monoChoice({ monoFont: "iosevka", codeFont: "code" })).toBe("iosevka-code");
+    expect(monoChoice({ monoFont: "host", codeFont: "plain" })).toBe("host");
+    expect(monoChoice({ monoFont: "custom", codeFont: "code" })).toBe("custom");
+  });
+
+  it("round-trips every choice through the stored preferences", () => {
+    for (const choice of ["host", "iosevka", "iosevka-code", "custom"] as const) {
+      const stored = parsePreferences({ ...DEFAULT_PREFERENCES, ...monoChoiceUpdate(choice) });
+      expect(monoChoice(stored)).toBe(choice);
+    }
+  });
+
+  it("brings ligatures back when returning to Follow Paseo (plan D2)", () => {
+    expect(monoChoiceUpdate("host")).toEqual({ monoFont: "host", codeFont: "code" });
   });
 });

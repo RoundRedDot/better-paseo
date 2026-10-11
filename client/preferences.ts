@@ -81,6 +81,28 @@ export interface EnhancerPreferences {
   debugPerf: boolean;
 }
 
+/**
+ * The monospace choice as the reader sees it. Iosevka and Iosevka Code are
+ * one stored family (`monoFont: "iosevka"`) told apart by the ligature
+ * setting (`codeFont`), which only the Code cut draws.
+ */
+export type MonoChoice = "host" | "iosevka" | "iosevka-code" | "custom";
+
+export function monoChoice(preferences: Pick<EnhancerPreferences, "monoFont" | "codeFont">): MonoChoice {
+  if (preferences.monoFont === "iosevka") return preferences.codeFont === "code" ? "iosevka-code" : "iosevka";
+  return preferences.monoFont;
+}
+
+/** The preference update a monospace choice stands for. */
+export function monoChoiceUpdate(choice: MonoChoice): Partial<EnhancerPreferences> {
+  if (choice === "iosevka") return { monoFont: "iosevka", codeFont: "plain" };
+  if (choice === "iosevka-code") return { monoFont: "iosevka", codeFont: "code" };
+  // Follow Paseo keeps today's look on a host without typography (D2): the
+  // embedded Iosevka with its ligature cut in code blocks.
+  if (choice === "host") return { monoFont: "host", codeFont: "code" };
+  return { monoFont: "custom" };
+}
+
 export const STORAGE_KEY = "paseo/beautiful-chat/preferences/v2";
 /** Read once, to migrate; never written again. */
 export const LEGACY_STORAGE_KEY = "paseo/beautiful-chat/preferences/v1";
