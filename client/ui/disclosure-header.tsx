@@ -6,26 +6,39 @@ import { radiusV2, space } from "../components/theme-tokens";
 import { unselectable } from "../components/selection";
 import { codeSurface } from "../components/host-font-escape";
 import { truncateMiddle } from "../paths/truncate-middle";
+import { TYPE } from "./tokens/typography";
 import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
 
-/** Header geometry (plan §3.6 item 4). Fixed until host typography (H1) lands. */
+/**
+ * Row geometry (S7 design spec §2.5, F0 "Row heights and hit areas").
+ *
+ * A row is outdented by `bleed` on both sides and padded back by the same
+ * amount, so its 22pt status slot starts on the prose edge and every row's
+ * verb, a failed row's error line and an opened body share one text column
+ * at `textColumn`. Desktop rows are the host's native 30; touch rows are 32
+ * tall and reach 44 through `hitSlop`.
+ */
 export const DISCLOSURE_HEADER = {
-  height: { desktop: 30, compact: 28 },
+  height: { desktop: 30, compact: 32 },
+  hit: 44,
   paddingX: space.sm,
-  gap: 6,
-  iconSlot: 16,
-  icon: 14,
-  verb: 14,
-  target: 13,
-  meta: 12,
+  bleed: space.sm,
+  gap: space.sm,
+  iconSlot: 22,
+  icon: 16,
+  verb: TYPE.label.size,
+  target: TYPE.target,
+  meta: TYPE.meta.size,
   chevron: 14,
+  /** Slot + gap: where the verb, an error line and an opened body start. */
+  textColumn: 22 + space.sm,
   /** Middle-truncation budget for a string target, in characters. */
   targetBudget: { desktop: 72, compact: 40 },
 } as const;
 
-/** A 28/30 header grows to a 32px touch target through hitSlop. */
-const TOUCH_TARGET = 32;
+/** The hover actions' backing, laid over the end of the target. */
+const ACTION_GAP = space.xs;
 
 export interface DisclosureHeaderProps {
   expanded: boolean;
@@ -33,46 +46,55 @@ export interface DisclosureHeaderProps {
   tokens: ExtendedThemeTokens;
   /** `layout.compact`. */
   compact?: boolean;
-  /** The 16px status slot: a muted tool icon, a `RunningDot`, a failure mark. */
+  /** The 22pt status slot: a muted tool icon, a `RunningDot`, a failure mark. */
   icon?: ReactNode;
   /** What happened: "Read", "Bash", "Thought". */
   verb: string;
-  /** What it happened to. A string is drawn monospace and middle-truncated; pass a `PathText` for paths. */
-  target?: ReactNode;
-  /** Right-aligned facts: "L10–80", "exit 0", "1.2s". Muted, tabular digits. */
-  meta?: ReadonlyArray<string | ReactNode>;
-  /** `danger` draws the verb and meta in the danger colour (a failure). */
-  tone?: "default" | "danger";
   /**
-   * Buttons for the block (copy, `⋯`). On a hover device they appear while
-   * the header is hovered, laid over the meta so nothing moves; on touch they
-   * sit beside the header while the block is expanded and are absent when it
-   * is collapsed, where `onLongPress` is the entry instead.
+   * What it happened to. A string is drawn monospace and middle-truncated. A
+   * node (a `PathText` with `grow`, a preview `Text`) must take the free width
+   * itself (`flex: 1`, `minWidth: 0`).
+   */
+  target?: ReactNode;
+  /**
+   * Right-aligned facts: "L10–80", "exit 0", "1.2s". All of them are spans of
+   * one monospace Text, so a nested `Text` may colour one (`+4` in success).
+   */
+  meta?: ReadonlyArray<string | ReactNode>;
+  /** A view before the meta Text that cannot be a span (a pressable path). */
+  metaLead?: ReactNode;
+  /**
+   * Buttons for the block (copy, `⋯`). On a hover device they appear while the
+   * row is hovered, over the end of the target, so the meta never moves; on
+   * touch they sit at the end of the row while the block is expanded and are
+   * absent when it is collapsed, where `onLongPress` is the entry instead.
    */
   actions?: ReactNode;
   /** Show `actions` regardless of hover and expansion. */
   actionsAlwaysVisible?: boolean;
-  /**
-   * Keep hover actions shown without the pointer, e.g. while the `⋯` menu
-   * they opened is open. Laid over the meta as on hover; nothing moves.
-   */
+  /** Keep hover actions shown without the pointer, e.g. while their `⋯` menu is open. */
   actionsActive?: boolean;
-  /** Touch entry for the primary action (plan §3.8): long-press the header. */
+  /** Touch entry for the primary action (plan §3.8): long-press the row. */
   onLongPress?(): void;
   accessibilityLabel?: string;
 }
 
+const IS_WEB = Platform.OS === "web";
+
 /**
- * The single-line header every collapsible block uses (plan §3.6 item 4):
+ * The single row every collapsible block uses (S7 design spec §3.1):
  *
- *   [status] Verb  target……………………  meta  ›
+ *   [slot] Verb  target……………………  meta
  *
- * It draws no frame and no fill of its own: collapsed it is a bare row, and
- * the expanded block around it supplies the border. Hover paints `surface1`
- * and press `surface2` (the host's colours). The chevron is static — right
- * when collapsed, down when expanded — with no rotation to animate.
+ * No frame and no fill of its own. Hover paints `surface1`, a press or a held
+ * long-press `surface2`. There is no chevron at rest: the whole row is the
+ * control. Where the pointer can hover, the slot shows a chevron while the row
+ * is hovered, in place of the icon, so nothing moves.
  *
- * All text is non-selectable: the header is a press target, and a long press
+ * Six views for a row with a string target: the row, the slot, its icon, the
+ * verb, the target and the meta. Hover adds the actions only while hovered.
+ *
+ * All text is non-selectable: the row is a press target, and a long press
  * must never compete with text selection.
  */
 export function DisclosureHeader({
@@ -84,7 +106,7 @@ export function DisclosureHeader({
   verb,
   target,
   meta,
-  tone = "default",
+  metaLead,
   actions,
   actionsAlwaysVisible = false,
   actionsActive = false,
@@ -94,17 +116,15 @@ export function DisclosureHeader({
   const capabilities = useInputCapabilities(compact);
   const { hovered, hoverProps } = useHover();
   const height = compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop;
-  const slop = Math.max(0, (TOUCH_TARGET - height) / 2);
-  const danger = tone === "danger";
+  const slop = capabilities.touch ? Math.max(0, (DISCLOSURE_HEADER.hit - height) / 2) : 0;
+  const targetType = compact ? DISCLOSURE_HEADER.target.compact : DISCLOSURE_HEADER.target.desktop;
 
-  // Persistent actions (touch, expanded; or pinned) sit in the row beside the
-  // button. Hover actions are laid over the meta, which is hidden meanwhile,
-  // so revealing them moves nothing.
   const persistentActions =
     actions !== undefined &&
     (actionsAlwaysVisible || (capabilities.touch && !capabilities.hover && expanded));
   const hoverActions =
     actions !== undefined && !persistentActions && capabilities.hover && (hovered || actionsActive);
+  const showChevron = capabilities.hover && hovered;
 
   const label =
     accessibilityLabel ?? (typeof target === "string" && target ? `${verb} ${target}` : verb);
@@ -112,194 +132,167 @@ export function DisclosureHeader({
     ? DISCLOSURE_HEADER.targetBudget.compact
     : DISCLOSURE_HEADER.targetBudget.desktop;
 
-  const wrapStyle = [styles.wrap, persistentActions && styles.wrapRow];
-  const content = (
-    <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        accessibilityState={{ expanded }}
-        // React Native Web reads the ARIA prop, not `accessibilityState`.
-        aria-expanded={expanded}
-        onPress={onToggle}
-        onLongPress={onLongPress}
-        hitSlop={{ top: slop, bottom: slop }}
-        style={({ pressed }) => [
-          styles.header,
-          { height },
-          persistentActions && styles.headerInRow,
-          hovered && { backgroundColor: tokens.v2.surface1 },
-          pressed && { backgroundColor: tokens.v2.surface2 },
+  const targetNode =
+    typeof target === "string" ? (
+      <Text
+        {...(codeSurface as object)}
+        selectable={false}
+        numberOfLines={1}
+        style={[
+          styles.targetText,
+          unselectable,
+          {
+            color: tokens.foreground,
+            fontFamily: tokens.fontMono,
+            fontSize: targetType.size,
+            lineHeight: targetType.lineHeight,
+          },
         ]}
       >
-        <View style={styles.iconSlot}>{icon}</View>
-        <Text
-          selectable={false}
-          numberOfLines={1}
-          style={[
-            styles.verb,
-            unselectable,
-            { color: danger ? tokens.danger : tokens.foreground, fontFamily: tokens.fontUi },
-          ]}
-        >
-          {verb}
-        </Text>
-        <View style={styles.target}>
-          {typeof target === "string" ? (
-            <Text
-              {...(codeSurface as object)}
-              selectable={false}
-              numberOfLines={1}
-              style={[
-                styles.targetText,
-                unselectable,
-                { color: tokens.foreground, fontFamily: tokens.fontMono },
-              ]}
-            >
-              {truncateMiddle(target, budget)}
-            </Text>
-          ) : (
-            target
-          )}
-        </View>
-        {meta && meta.length > 0 ? (
-          <View style={[styles.meta, hoverActions && styles.hidden]}>
-            {meta.map((entry, index) =>
-              typeof entry === "string" ? (
-                <Text
-                  // Meta entries are positional and never reorder.
-                  key={index}
-                  selectable={false}
-                  numberOfLines={1}
-                  style={[
-                    styles.metaText,
-                    unselectable,
-                    {
-                      color: danger ? tokens.danger : tokens.foregroundMuted,
-                      fontFamily: tokens.fontUi,
-                    },
-                  ]}
-                >
-                  {entry}
-                </Text>
-              ) : (
-                <React.Fragment key={index}>{entry}</React.Fragment>
-              ),
-            )}
-          </View>
-        ) : null}
-        <View style={styles.chevron}>
+        {truncateMiddle(target, budget)}
+      </Text>
+    ) : (
+      target
+    );
+
+  const metaEntries = meta?.filter((entry) => entry !== null && entry !== undefined && entry !== "") ?? [];
+  const metaText =
+    metaEntries.length > 0 ? (
+      <Text
+        selectable={false}
+        numberOfLines={1}
+        style={[
+          styles.metaText,
+          unselectable,
+          { color: tokens.foregroundMuted, fontFamily: tokens.fontMono },
+          target === undefined && metaLead === undefined ? styles.pushRight : null,
+        ]}
+      >
+        {metaEntries.map((entry, index) => (
+          // Meta entries are positional and never reorder.
+          <React.Fragment key={index}>
+            {index > 0 ? "  " : null}
+            {entry}
+          </React.Fragment>
+        ))}
+      </Text>
+    ) : null;
+
+  // Web tracks the pointer with DOM mouseenter/leave, which do not end when the
+  // pointer moves onto the actions inside the row; React Native Web's hover
+  // does. Native pointers (iPad) arrive only through the Pressable's hover.
+  const pointerProps = IS_WEB
+    ? { onMouseEnter: hoverProps.onHoverIn, onMouseLeave: hoverProps.onHoverOut }
+    : hoverProps;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ expanded }}
+      // React Native Web reads the ARIA prop, not `accessibilityState`.
+      aria-expanded={expanded}
+      onPress={onToggle}
+      onLongPress={onLongPress}
+      hitSlop={slop > 0 ? { top: slop, bottom: slop } : undefined}
+      {...(pointerProps as object)}
+      style={({ pressed }) => [
+        styles.row,
+        { height },
+        hovered && { backgroundColor: tokens.v2.surface1 },
+        pressed && { backgroundColor: tokens.v2.surface2 },
+      ]}
+    >
+      <View style={styles.slot}>
+        {showChevron ? (
           <Icon
             name={expanded ? "ChevronDown" : "ChevronRight"}
             size={DISCLOSURE_HEADER.chevron}
             color={tokens.foregroundMuted}
           />
-        </View>
-      </Pressable>
-      {persistentActions ? <View style={styles.inlineActions}>{actions}</View> : null}
-      {hoverActions ? (
-        <View style={[styles.overlayActions, { backgroundColor: tokens.v2.surface1 }]}>
-          {actions}
-        </View>
-      ) : null}
-    </>
-  );
-
-  // The wrapper only tracks hover, so moving onto the actions laid over the
-  // header does not count as leaving it; the inner Pressable is the button.
-  //
-  // On web this is DOM mouseenter/leave on a plain View. A Pressable cannot
-  // do it there: React Native Web contains hover, so the header button
-  // inside ends the outer Pressable's hover the moment the pointer enters it
-  // — and the button fills the row, so the row never read as hovered.
-  // Native has no such containment, and its pointer hover (iPad) arrives
-  // only through Pressable.
-  if (IS_WEB) {
-    const mouseProps = { onMouseEnter: hoverProps.onHoverIn, onMouseLeave: hoverProps.onHoverOut };
-    return (
-      <View {...(mouseProps as object)} style={wrapStyle}>
-        {content}
+        ) : (
+          icon
+        )}
       </View>
-    );
-  }
-  return (
-    <Pressable accessible={false} focusable={false} {...hoverProps} style={wrapStyle}>
-      {content}
+      <Text
+        selectable={false}
+        numberOfLines={1}
+        style={[styles.verb, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}
+      >
+        {verb}
+      </Text>
+      {hoverActions ? (
+        <View style={styles.targetBox}>
+          {targetNode ?? <View style={styles.fill} />}
+          <View style={[styles.overlay, { backgroundColor: tokens.v2.surface1 }]}>{actions}</View>
+        </View>
+      ) : (
+        targetNode
+      )}
+      {metaLead}
+      {metaText}
+      {persistentActions ? <View style={styles.inlineActions}>{actions}</View> : null}
     </Pressable>
   );
 }
 
-const IS_WEB = Platform.OS === "web";
-
 const styles = StyleSheet.create({
-  wrap: {
-    position: "relative",
-  },
-  wrapRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.xs,
-  },
-  headerInRow: {
-    flex: 1,
-    minWidth: 0,
-  },
-  hidden: {
-    opacity: 0,
-  },
-  header: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
     gap: DISCLOSURE_HEADER.gap,
     paddingHorizontal: DISCLOSURE_HEADER.paddingX,
+    marginHorizontal: -DISCLOSURE_HEADER.bleed,
     borderRadius: radiusV2.block,
   },
-  iconSlot: {
+  slot: {
     width: DISCLOSURE_HEADER.iconSlot,
     alignItems: "center",
     justifyContent: "center",
   },
   verb: {
-    fontSize: DISCLOSURE_HEADER.verb,
+    fontSize: TYPE.label.size,
+    lineHeight: TYPE.label.lineHeight,
     fontWeight: "500",
     flexShrink: 0,
   },
-  target: {
+  targetText: {
     flex: 1,
     minWidth: 0,
   },
-  targetText: {
-    fontSize: DISCLOSURE_HEADER.target,
-  },
-  meta: {
+  targetBox: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: DISCLOSURE_HEADER.gap,
-    flexShrink: 0,
+    alignSelf: "stretch",
+  },
+  fill: {
+    flex: 1,
+  },
+  overlay: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: ACTION_GAP,
+    paddingLeft: ACTION_GAP,
   },
   metaText: {
-    fontSize: DISCLOSURE_HEADER.meta,
+    flexShrink: 0,
+    maxWidth: "45%",
+    fontSize: TYPE.meta.size,
+    lineHeight: TYPE.meta.lineHeight,
     fontVariant: ["tabular-nums"],
   },
-  chevron: {
-    width: DISCLOSURE_HEADER.chevron,
-    alignItems: "center",
+  pushRight: {
+    marginLeft: "auto",
   },
   inlineActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: space.xs,
-    paddingRight: space.xs,
-  },
-  overlayActions: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    // Clear of the chevron, which stays visible.
-    right: DISCLOSURE_HEADER.paddingX + DISCLOSURE_HEADER.chevron + DISCLOSURE_HEADER.gap,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.xs,
-    paddingLeft: space.xs,
+    gap: ACTION_GAP,
   },
 });

@@ -145,7 +145,6 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
           verb={look.label}
           target={title}
           meta={meta}
-          tone={failed ? "danger" : "default"}
           accessibilityLabel={`${look.label} ${envelope.title}`}
         />
       ) : (

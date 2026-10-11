@@ -104,6 +104,11 @@ export interface PathTextProps {
    * target, a list row.
    */
   fit?: boolean;
+  /**
+   * With `fit`, in a row: the slot takes the row's free width (`flex: 1`), so
+   * no wrapper view is needed around it.
+   */
+  grow?: boolean;
   /** Show the hover copy icon. Off when the surrounding row has its own. */
   copyOnHover?: boolean;
   /** Text style overrides (size, colour). */
@@ -133,6 +138,7 @@ export function PathText({
   copyOnHover = true,
   style,
   fit = false,
+  grow = false,
 }: PathTextProps) {
   const context = useContext(PathContext);
   const capabilities = useInputCapabilities(compact);
@@ -262,7 +268,7 @@ export function PathText({
   // the button inside keeps to the text, so a press beside the path still
   // reaches whatever row holds it.
   return (
-    <View style={styles.fitSlot} onLayout={onSlotLayout}>
+    <View style={grow ? styles.fitSlotGrow : styles.fitSlot} onLayout={onSlotLayout}>
       {pressable}
     </View>
   );
@@ -277,6 +283,13 @@ const styles = StyleSheet.create({
   fitSlot: {
     alignSelf: "stretch",
     alignItems: "flex-start",
+    minWidth: 0,
+  },
+  fitSlotGrow: {
+    flex: 1,
+    alignSelf: "stretch",
+    alignItems: "flex-start",
+    justifyContent: "center",
     minWidth: 0,
   },
   row: {
