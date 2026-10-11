@@ -18,31 +18,45 @@ export interface SeriesSummary {
   max: number;
 }
 
-export class Series {
-  private samples: number[] = [];
-  count = 0;
-  total = 0;
-  max = 0;
+export interface Series {
+  count: number;
+  total: number;
+  max: number;
+  add(value: number): void;
+  summary(): SeriesSummary;
+}
 
-  add(value: number): void {
-    this.count += 1;
-    this.total += value;
-    if (value > this.max) this.max = value;
-    if (this.samples.length < SAMPLE_CAP) this.samples.push(value);
-  }
-
-  summary(): SeriesSummary {
-    if (this.count === 0) return { count: 0, total: 0, mean: 0, p50: 0, p95: 0, max: 0 };
-    const sorted = [...this.samples].sort((a, b) => a - b);
-    return {
-      count: this.count,
-      total: round(this.total),
-      mean: round(this.total / this.count),
-      p50: round(percentile(sorted, 0.5)),
-      p95: round(percentile(sorted, 0.95)),
-      max: round(this.max),
-    };
-  }
+/**
+ * A closure, not a class: the plugin client runs under Hermes, where class
+ * syntax in a runtime-evaluated bundle has failed to load (see
+ * docs/bench/baseline-host.md).
+ */
+export function createSeries(): Series {
+  const samples: number[] = [];
+  const series: Series = {
+    count: 0,
+    total: 0,
+    max: 0,
+    add(value) {
+      series.count += 1;
+      series.total += value;
+      if (value > series.max) series.max = value;
+      if (samples.length < SAMPLE_CAP) samples.push(value);
+    },
+    summary() {
+      if (series.count === 0) return { count: 0, total: 0, mean: 0, p50: 0, p95: 0, max: 0 };
+      const sorted = [...samples].sort((x, y) => x - y);
+      return {
+        count: series.count,
+        total: round(series.total),
+        mean: round(series.total / series.count),
+        p50: round(percentile(sorted, 0.5)),
+        p95: round(percentile(sorted, 0.95)),
+        max: round(series.max),
+      };
+    },
+  };
+  return series;
 }
 
 /** Nearest-rank percentile over an ascending array. */
@@ -82,188 +96,212 @@ const DROP_THRESHOLD = 1.5;
 /** A gap this long is a hidden tab or a suspended page, not a dropped frame. */
 const SUSPEND_GAP_MS = 1000;
 
-export class PerfStore {
-  private renderByKind = new Map<string, number>();
-  private renderByItem = new Map<string, number>();
-  private commitByKind = new Map<string, Series>();
-
-  private parseMs = new Series();
-  private parseChars = new Series();
-  private blockKinds = new Map<string, string[]>();
-  private flipByIndex = new Map<string, number>();
-  private flips = 0;
-
-  private heights = new Map<string, number>();
-  private heightDecreases = 0;
-  private heightDecreasesStreaming = 0;
-  private heightDecreasePx = 0;
-  private heightEvents: HeightEvent[] = [];
-
-  private highlightByLanguage = new Map<string, number>();
-  private highlightCalls = 0;
-
-  private animMounted = new Map<string, number>();
-  private animMountsTotal = 0;
-  private animPeak = 0;
-
-  private frameIntervals = new Series();
-  private frames = 0;
-  private droppedFrames = 0;
-  private longestFrame = 0;
-  private suspendedGaps = 0;
-
-  private longTasks = new Series();
-  private layoutShifts = new Series();
-
-  render(kind: string, itemId: string | undefined): void {
-    bump(this.renderByKind, kind);
-    if (itemId !== undefined) bump(this.renderByItem, `${kind}:${itemId}`);
-  }
-
-  commit(kind: string, ms: number): void {
-    let series = this.commitByKind.get(kind);
-    if (!series) {
-      series = new Series();
-      this.commitByKind.set(kind, series);
-    }
-    series.add(ms);
-  }
-
-  markdownParse(ms: number, chars: number): void {
-    this.parseMs.add(ms);
-    this.parseChars.add(chars);
-  }
-
+export interface PerfStore {
+  render(kind: string, itemId: string | undefined): void;
+  commit(kind: string, ms: number): void;
+  markdownParse(ms: number, chars: number): void;
   /**
    * Compares this parse's block kinds with the previous parse of the same
    * message. A block that was a paragraph and is now a list is a flip: the
    * reader saw it change shape while it streamed.
    */
-  markdownBlocks(instance: string, kinds: readonly string[]): void {
-    const previous = this.blockKinds.get(instance);
-    if (previous) {
-      const shared = Math.min(previous.length, kinds.length);
-      for (let index = 0; index < shared; index++) {
-        if (previous[index] !== kinds[index]) {
-          this.flips += 1;
-          bump(this.flipByIndex, String(index));
-        }
-      }
-    }
-    this.blockKinds.set(instance, [...kinds]);
-  }
-
+  markdownBlocks(instance: string, kinds: readonly string[]): void;
   /** @param streaming null when the caller cannot tell. */
-  height(key: string, height: number, streaming: boolean | null): void {
-    const previous = this.heights.get(key);
-    this.heights.set(key, height);
-    if (previous === undefined || height >= previous) return;
-    this.heightDecreases += 1;
-    if (streaming === true) this.heightDecreasesStreaming += 1;
-    this.heightDecreasePx += previous - height;
-    if (this.heightEvents.length < EVENT_CAP) {
-      this.heightEvents.push({ key, from: previous, to: height, streaming });
-    }
-  }
-
-  highlightRpc(language: string | undefined): void {
-    this.highlightCalls += 1;
-    bump(this.highlightByLanguage, language || "(none)");
-  }
-
-  animationMount(name: string): void {
-    bump(this.animMounted, name);
-    this.animMountsTotal += 1;
-    const live = this.animationsMounted();
-    if (live > this.animPeak) this.animPeak = live;
-  }
-
-  animationUnmount(name: string): void {
-    const next = (this.animMounted.get(name) ?? 0) - 1;
-    if (next <= 0) this.animMounted.delete(name);
-    else this.animMounted.set(name, next);
-  }
-
-  animationsMounted(): number {
-    let sum = 0;
-    for (const count of this.animMounted.values()) sum += count;
-    return sum;
-  }
-
+  height(key: string, height: number, streaming: boolean | null): void;
+  highlightRpc(language: string | undefined): void;
+  animationMount(name: string): void;
+  animationUnmount(name: string): void;
+  animationsMounted(): number;
   /** @param expectedMs the display's frame interval, 1000/60 unless measured. */
-  frame(intervalMs: number, expectedMs: number): void {
-    if (intervalMs > SUSPEND_GAP_MS) {
-      this.suspendedGaps += 1;
-      return;
-    }
-    this.frames += 1;
-    this.frameIntervals.add(intervalMs);
-    if (intervalMs > this.longestFrame) this.longestFrame = intervalMs;
-    if (intervalMs > expectedMs * DROP_THRESHOLD) {
-      this.droppedFrames += Math.max(1, Math.round(intervalMs / expectedMs) - 1);
-    }
-  }
-
-  longTask(durationMs: number): void {
-    this.longTasks.add(durationMs);
-  }
-
-  layoutShift(value: number): void {
-    this.layoutShifts.add(value);
-  }
-
-  snapshot(): PerfSnapshot {
-    const total = this.frames + this.droppedFrames;
-    return {
-      renders: {
-        byKind: toRecord(this.renderByKind),
-        byItem: toRecord(this.renderByItem),
-      },
-      commitMs: seriesRecord(this.commitByKind),
-      markdown: {
-        parses: this.parseMs.count,
-        parseMs: this.parseMs.summary(),
-        parseChars: this.parseChars.summary(),
-        formatFlips: this.flips,
-        flipsByBlockIndex: toRecord(this.flipByIndex),
-      },
-      heightDecreases: {
-        count: this.heightDecreases,
-        whileStreaming: this.heightDecreasesStreaming,
-        totalPx: round(this.heightDecreasePx),
-        events: [...this.heightEvents],
-      },
-      highlightRpc: { count: this.highlightCalls, byLanguage: toRecord(this.highlightByLanguage) },
-      animations: {
-        mounted: this.animationsMounted(),
-        peak: this.animPeak,
-        mountsTotal: this.animMountsTotal,
-        byName: toRecord(this.animMounted),
-      },
-      frames: {
-        count: this.frames,
-        dropped: this.droppedFrames,
-        droppedRatio: total === 0 ? 0 : round(this.droppedFrames / total),
-        longestMs: round(this.longestFrame),
-        intervalMs: this.frameIntervals.summary(),
-        suspendedGaps: this.suspendedGaps,
-      },
-      longTasks: this.longTasks.summary(),
-      layoutShifts: this.layoutShifts.summary(),
-    };
-  }
-
+  frame(intervalMs: number, expectedMs: number): void;
+  longTask(durationMs: number): void;
+  layoutShift(value: number): void;
+  snapshot(): PerfSnapshot;
   /**
    * Clears everything counted so far. Animations still mounted stay mounted:
    * resetting must not make a running loop look like it never started.
    */
-  reset(): void {
-    const mounted = new Map(this.animMounted);
-    const fresh = new PerfStore();
-    Object.assign(this, fresh);
-    this.animMounted = mounted;
-    this.animPeak = this.animationsMounted();
+  reset(): void;
+}
+
+function createCounters() {
+  return {
+    renderByKind: new Map<string, number>(),
+    renderByItem: new Map<string, number>(),
+    commitByKind: new Map<string, Series>(),
+    parseMs: createSeries(),
+    parseChars: createSeries(),
+    blockKinds: new Map<string, string[]>(),
+    flipByIndex: new Map<string, number>(),
+    flips: 0,
+    heights: new Map<string, number>(),
+    heightDecreases: 0,
+    heightDecreasesStreaming: 0,
+    heightDecreasePx: 0,
+    heightEvents: [] as HeightEvent[],
+    highlightByLanguage: new Map<string, number>(),
+    highlightCalls: 0,
+    animMounted: new Map<string, number>(),
+    animMountsTotal: 0,
+    animPeak: 0,
+    frameIntervals: createSeries(),
+    frames: 0,
+    droppedFrames: 0,
+    longestFrame: 0,
+    suspendedGaps: 0,
+    longTasks: createSeries(),
+    layoutShifts: createSeries(),
+  };
+}
+
+/** A closure, not a class: see `createSeries`. */
+export function createPerfStore(): PerfStore {
+  let c = createCounters();
+
+  function animationsMounted(): number {
+    let sum = 0;
+    for (const count of c.animMounted.values()) sum += count;
+    return sum;
   }
+
+  return {
+    render(kind, itemId) {
+      bump(c.renderByKind, kind);
+      if (itemId !== undefined) bump(c.renderByItem, `${kind}:${itemId}`);
+    },
+
+    commit(kind, ms) {
+      let series = c.commitByKind.get(kind);
+      if (!series) {
+        series = createSeries();
+        c.commitByKind.set(kind, series);
+      }
+      series.add(ms);
+    },
+
+    markdownParse(ms, chars) {
+      c.parseMs.add(ms);
+      c.parseChars.add(chars);
+    },
+
+    markdownBlocks(instance, kinds) {
+      const previous = c.blockKinds.get(instance);
+      if (previous) {
+        const shared = Math.min(previous.length, kinds.length);
+        for (let index = 0; index < shared; index++) {
+          if (previous[index] !== kinds[index]) {
+            c.flips += 1;
+            bump(c.flipByIndex, String(index));
+          }
+        }
+      }
+      c.blockKinds.set(instance, [...kinds]);
+    },
+
+    height(key, height, streaming) {
+      const previous = c.heights.get(key);
+      c.heights.set(key, height);
+      if (previous === undefined || height >= previous) return;
+      c.heightDecreases += 1;
+      if (streaming === true) c.heightDecreasesStreaming += 1;
+      c.heightDecreasePx += previous - height;
+      if (c.heightEvents.length < EVENT_CAP) {
+        c.heightEvents.push({ key, from: previous, to: height, streaming });
+      }
+    },
+
+    highlightRpc(language) {
+      c.highlightCalls += 1;
+      bump(c.highlightByLanguage, language || "(none)");
+    },
+
+    animationMount(name) {
+      bump(c.animMounted, name);
+      c.animMountsTotal += 1;
+      const live = animationsMounted();
+      if (live > c.animPeak) c.animPeak = live;
+    },
+
+    animationUnmount(name) {
+      const next = (c.animMounted.get(name) ?? 0) - 1;
+      if (next <= 0) c.animMounted.delete(name);
+      else c.animMounted.set(name, next);
+    },
+
+    animationsMounted,
+
+    frame(intervalMs, expectedMs) {
+      if (intervalMs > SUSPEND_GAP_MS) {
+        c.suspendedGaps += 1;
+        return;
+      }
+      c.frames += 1;
+      c.frameIntervals.add(intervalMs);
+      if (intervalMs > c.longestFrame) c.longestFrame = intervalMs;
+      if (intervalMs > expectedMs * DROP_THRESHOLD) {
+        c.droppedFrames += Math.max(1, Math.round(intervalMs / expectedMs) - 1);
+      }
+    },
+
+    longTask(durationMs) {
+      c.longTasks.add(durationMs);
+    },
+
+    layoutShift(value) {
+      c.layoutShifts.add(value);
+    },
+
+    snapshot() {
+      const total = c.frames + c.droppedFrames;
+      return {
+        renders: {
+          byKind: toRecord(c.renderByKind),
+          byItem: toRecord(c.renderByItem),
+        },
+        commitMs: seriesRecord(c.commitByKind),
+        markdown: {
+          parses: c.parseMs.count,
+          parseMs: c.parseMs.summary(),
+          parseChars: c.parseChars.summary(),
+          formatFlips: c.flips,
+          flipsByBlockIndex: toRecord(c.flipByIndex),
+        },
+        heightDecreases: {
+          count: c.heightDecreases,
+          whileStreaming: c.heightDecreasesStreaming,
+          totalPx: round(c.heightDecreasePx),
+          events: [...c.heightEvents],
+        },
+        highlightRpc: {
+          count: c.highlightCalls,
+          byLanguage: toRecord(c.highlightByLanguage),
+        },
+        animations: {
+          mounted: animationsMounted(),
+          peak: c.animPeak,
+          mountsTotal: c.animMountsTotal,
+          byName: toRecord(c.animMounted),
+        },
+        frames: {
+          count: c.frames,
+          dropped: c.droppedFrames,
+          droppedRatio: total === 0 ? 0 : round(c.droppedFrames / total),
+          longestMs: round(c.longestFrame),
+          intervalMs: c.frameIntervals.summary(),
+          suspendedGaps: c.suspendedGaps,
+        },
+        longTasks: c.longTasks.summary(),
+        layoutShifts: c.layoutShifts.summary(),
+      };
+    },
+
+    reset() {
+      const mounted = new Map(c.animMounted);
+      c = createCounters();
+      c.animMounted = mounted;
+      c.animPeak = animationsMounted();
+    },
+  };
 }
 
 export interface PerfSnapshot {
