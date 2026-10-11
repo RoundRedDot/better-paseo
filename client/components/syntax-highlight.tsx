@@ -1,15 +1,14 @@
-import React, { useState, useCallback, useMemo, type ReactNode } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
-import { Glyph } from "./glyph";
+import React, { useEffect, useState, useMemo, type ReactNode } from "react";
+import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { frosted } from "./frosted";
 import { surfaceProps } from "./view-props";
 import { glowing } from "./glow";
-import { Pop } from "./motion";
 import { radius, type ExtendedThemeTokens } from "./theme-tokens";
 import { FileTypeLogo, detectFileType } from "./file-type-logo";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeSurface, selectionSurface } from "./selection-actions";
 import { useHighlightedLines } from "../highlight";
+import { CopyButton } from "../ui/copy-button";
 import type { HighlightLine, HighlightToken } from "../../shared/highlight-rpc";
 
 interface SyntaxHighlightProps {
@@ -27,7 +26,37 @@ interface SyntaxHighlightProps {
    * grammar and the file-type logo.
    */
   filenameNode?: ReactNode;
+  /**
+   * False while the block is still being written (an open Markdown fence):
+   * lines are coloured by the local tokeniser and the daemon is not asked,
+   * so a streaming block costs one highlight call, made once it is complete.
+   */
+  highlight?: boolean;
+  /** Lines keep their length and the block scrolls sideways instead of wrapping. */
+  scrollX?: boolean;
+  /**
+   * Lines drawn before "Show all". Blocks longer than `LARGE_BLOCK_LINES` start
+   * at that many whatever this says (plan §3.2: mounting every row of a
+   * 5000-line diff froze the native UI for seconds).
+   */
+  initialLines?: number;
 }
+
+/** A block longer than this mounts its first rows only, then appends on request. */
+export const LARGE_BLOCK_LINES = 400;
+/** Rows appended per frame once "Show all" is pressed. */
+const APPEND_BATCH = 400;
+
+const scheduleFrame: (callback: () => void) => () => void =
+  typeof requestAnimationFrame === "function"
+    ? (callback) => {
+        const handle = requestAnimationFrame(callback);
+        return () => cancelAnimationFrame(handle);
+      }
+    : (callback) => {
+        const handle = setTimeout(callback, 16);
+        return () => clearTimeout(handle);
+      };
 
 const STATIC_KEYWORDS: Record<string, true> = {
   import: true,
@@ -478,18 +507,26 @@ export function SyntaxHighlightBlock({
   compact = false,
   onRevealFile,
   filenameNode,
+  highlight = true,
+  scrollX = false,
+  initialLines,
 }: SyntaxHighlightProps) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(() => {
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(code).catch(() => {});
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  }, [code]);
-
   const lines = useMemo(() => code.trimEnd().split("\n"), [code]);
+  const total = lines.length;
+  const firstCap = Math.min(
+    initialLines !== undefined && initialLines < total ? initialLines : total,
+    LARGE_BLOCK_LINES,
+  );
+  // null: the first rows only. A number: "Show all" was pressed, and rows are
+  // appended a batch per frame until every row is mounted, so expanding a huge
+  // block never blocks the UI thread for the whole block at once.
+  const [limit, setLimit] = useState<number | null>(null);
+  const shown = limit === null ? firstCap : Math.min(limit, total);
+  useEffect(() => {
+    if (limit === null || limit >= total) return;
+    return scheduleFrame(() => setLimit((current) => (current ?? firstCap) + APPEND_BATCH));
+  }, [limit, total, firstCap]);
+  const visibleLines = shown < total ? lines.slice(0, shown) : lines;
   // A diff is a diff whatever the label says, and everything below reads this
   // flag rather than the label.
   const isDiff = useMemo(
@@ -520,6 +557,7 @@ export function SyntaxHighlightBlock({
     filename,
     dark: tokens.isDark,
     diffBodyCode,
+    enabled: highlight,
   });
   const shikiLines = highlightResult?.lines;
   const diffBodyLines = highlightResult?.diffLines;
@@ -587,22 +625,20 @@ export function SyntaxHighlightBlock({
           paddingVertical: 2,
           borderRadius: radius.chip,
         },
-        copyButton: {
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 4,
-          paddingHorizontal: 8,
-          paddingVertical: 3,
-          borderRadius: radius.block,
-          backgroundColor: tokens.surface2,
-          flexShrink: 0,
+        showAll: {
+          alignSelf: "flex-start",
+          marginTop: 6,
+          paddingVertical: 2,
         },
-        copyText: {
+        showAllText: {
           fontFamily: tokens.fontUi,
-          fontSize: 11,
-          color: copied ? tokens.success : tokens.foregroundMuted,
-          fontWeight: "500",
+          fontSize: 12,
+          color: tokens.accent,
           ...unselectable,
+        },
+        lineNoWrap: {
+          flex: 0,
+          flexShrink: 0,
         },
         codeArea: {
           padding: compact ? 8 : 12,
@@ -628,7 +664,7 @@ export function SyntaxHighlightBlock({
           color: tokens.foreground,
         },
       }),
-    [tokens, compact, copied],
+    [tokens, compact],
   );
 
   return (
@@ -668,21 +704,14 @@ export function SyntaxHighlightBlock({
               </Text>
             ) : null}
           </View>
-          <Pressable onPress={handleCopy} style={styles.copyButton}>
-            <Pop trigger={copied}>
-              <Glyph
-                name={copied ? "Check" : "Copy"}
-                size={12}
-                color={copied ? tokens.success : tokens.foregroundMuted}
-              />
-            </Pop>
-            <Text style={styles.copyText}>{copied ? "Copied" : "Copy"}</Text>
-          </Pressable>
+          <CopyButton text={code} tokens={tokens} label="Copy" showLabel />
         </View>
       )}
 
       <View {...selectionCodeSurface} style={styles.codeArea}>
-        {lines.map((line, idx) => {
+        {wrapRows(
+          scrollX,
+          visibleLines.map((line, idx) => {
           const shikiLine = shikiLines?.[idx];
           // The patched file's tokens, and only for a line the file owns. A
           // chrome line keeps the diff rendering it has today.
@@ -718,7 +747,7 @@ export function SyntaxHighlightBlock({
               ]}
             >
               {showLineNumbers && <Text style={styles.lineNumber}>{idx + 1}</Text>}
-              <Text selectable style={styles.lineContent}>
+              <Text selectable style={scrollX ? [styles.lineContent, styles.lineNoWrap] : styles.lineContent}>
                 {bodyLine
                   ? renderDiffBodyLine(line, bodyLine, tokens)
                   : shikiLine
@@ -733,9 +762,32 @@ export function SyntaxHighlightBlock({
               </Text>
             </View>
           );
-        })}
+          }),
+        )}
+        {shown < total ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setLimit(shown + APPEND_BATCH)}
+            disabled={limit !== null}
+            style={styles.showAll}
+          >
+            <Text style={styles.showAllText}>
+              {limit !== null ? `Showing ${shown} of ${total} lines` : `Show all ${total} lines`}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
+  );
+}
+
+/** Rows as they are, or in a sideways scroller that lets lines keep their length. */
+function wrapRows(scrollX: boolean, rows: React.ReactNode[]): React.ReactNode {
+  if (!scrollX) return rows;
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <View>{rows}</View>
+    </ScrollView>
   );
 }
 
