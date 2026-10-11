@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useState, useMemo, type ReactNode } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import type { StyleProp, TextProps, TextStyle } from "react-native";
 import { surfaceProps } from "./view-props";
 import { radiusV2, space, type ExtendedThemeTokens } from "./theme-tokens";
 import { UI_SCALE } from "../ui/tokens/typography";
@@ -519,19 +520,7 @@ export function SyntaxHighlightBlock({
 }: SyntaxHighlightProps) {
   const lines = useMemo(() => code.trimEnd().split("\n"), [code]);
   const total = lines.length;
-  const firstCap = Math.min(
-    initialLines !== undefined && initialLines < total ? initialLines : total,
-    LARGE_BLOCK_LINES,
-  );
-  // null: the first rows only. A number: "Show all" was pressed, and rows are
-  // appended a batch per frame until every row is mounted, so expanding a huge
-  // block never blocks the UI thread for the whole block at once.
-  const [limit, setLimit] = useState<number | null>(null);
-  const shown = limit === null ? firstCap : Math.min(limit, total);
-  useEffect(() => {
-    if (limit === null || limit >= total) return;
-    return scheduleFrame(() => setLimit((current) => (current ?? firstCap) + APPEND_BATCH));
-  }, [limit, total, firstCap]);
+  const { shown, expanding, showAll } = useBatchedRows(total, initialLines);
   // A diff is a diff whatever the label says, and everything below reads this
   // flag rather than the label.
   const isDiff = useMemo(
@@ -801,18 +790,43 @@ export function SyntaxHighlightBlock({
         {shown < total ? (
           <Pressable
             accessibilityRole="button"
-            onPress={() => setLimit(shown + APPEND_BATCH)}
-            disabled={limit !== null}
+            onPress={showAll}
+            disabled={expanding}
             style={styles.showAll}
           >
             <Text style={styles.showAllText}>
-              {limit !== null ? `Showing ${shown} of ${total} lines` : `Show all ${total} lines`}
+              {expanding ? `Showing ${shown} of ${total} lines` : `Show all ${total} lines`}
             </Text>
           </Pressable>
         ) : null}
       </View>
     </View>
   );
+}
+
+/**
+ * How many of `total` rows to mount. At first the smaller of `initialLines`
+ * and `LARGE_BLOCK_LINES`; after `showAll`, rows are appended a batch per
+ * frame until every row is mounted, so expanding a huge block never blocks
+ * the UI thread for the whole block at once.
+ */
+export function useBatchedRows(
+  total: number,
+  initialLines?: number,
+): { shown: number; expanding: boolean; showAll(): void } {
+  const firstCap = Math.min(
+    initialLines !== undefined && initialLines < total ? initialLines : total,
+    LARGE_BLOCK_LINES,
+  );
+  // null: the first rows only. A number: "Show all" was pressed.
+  const [limit, setLimit] = useState<number | null>(null);
+  const shown = limit === null ? firstCap : Math.min(limit, total);
+  useEffect(() => {
+    if (limit === null || limit >= total) return;
+    return scheduleFrame(() => setLimit((current) => (current ?? firstCap) + APPEND_BATCH));
+  }, [limit, total, firstCap]);
+  const showAll = useCallback(() => setLimit(shown + APPEND_BATCH), [shown]);
+  return { shown, expanding: limit !== null, showAll };
 }
 
 /** Rows per memoised chunk: appending a batch mounts new chunks only. */
@@ -1363,3 +1377,88 @@ export function renderTerminalOutput(text: string, tokens: ExtendedThemeTokens):
     );
   });
 }
+
+interface TerminalOutputProps {
+  text: string;
+  tokens: ExtendedThemeTokens;
+  /** The output text's own style (font, size, colour). */
+  style?: StyleProp<TextStyle>;
+  /** Spread onto the output `Text` (selection markers). */
+  textProps?: TextProps;
+}
+
+/** Output lines per memoised chunk. */
+const OUTPUT_CHUNK_LINES = 200;
+
+interface OutputChunkProps {
+  text: string;
+  tokens: ExtendedThemeTokens;
+  /** A newline joins this chunk to the next one. */
+  more: boolean;
+}
+
+function OutputChunkBody({ text, tokens, more }: OutputChunkProps) {
+  return (
+    <>
+      {renderTerminalOutput(text, tokens)}
+      {more ? "\n" : ""}
+    </>
+  );
+}
+
+const OutputChunk = memo(OutputChunkBody);
+
+/**
+ * Command output with the same cap as a code block (plan §3.2): the first
+ * `LARGE_BLOCK_LINES` lines, then "Show all (N lines)" appends the rest a batch
+ * per frame. Only what is drawn is capped; copying a card copies the full
+ * output from its data, not from this view.
+ */
+export function TerminalOutput({ text, tokens, style, textProps }: TerminalOutputProps) {
+  const lines = useMemo(() => text.replace(/\s+$/, "").split("\n"), [text]);
+  const total = lines.length;
+  const { shown, expanding, showAll } = useBatchedRows(total);
+  const chunks: React.ReactNode[] = [];
+  for (let from = 0; from < shown; from += OUTPUT_CHUNK_LINES) {
+    const to = Math.min(shown, from + OUTPUT_CHUNK_LINES);
+    chunks.push(
+      <OutputChunk
+        key={from}
+        text={lines.slice(from, to).join("\n")}
+        tokens={tokens}
+        more={to < shown}
+      />,
+    );
+  }
+  return (
+    <>
+      <Text selectable {...textProps} style={style}>
+        {chunks}
+      </Text>
+      {shown < total ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={showAll}
+          disabled={expanding}
+          style={outputStyles.showAll}
+        >
+          <Text style={[outputStyles.showAllText, { color: tokens.accent, fontFamily: tokens.fontUi }]}>
+            {expanding ? `Showing ${shown} of ${total} lines` : `Show all (${total} lines)`}
+          </Text>
+        </Pressable>
+      ) : null}
+    </>
+  );
+}
+
+const outputStyles = StyleSheet.create({
+  showAll: {
+    alignSelf: "flex-start",
+    marginTop: 6,
+    paddingVertical: 2,
+  },
+  showAllText: {
+    fontSize: UI_SCALE.base,
+    ...unselectable,
+  },
+});
