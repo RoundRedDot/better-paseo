@@ -184,21 +184,22 @@ describe("interfaceFamily (plan §3.10 item 4)", () => {
     expect(ui(withHost, "host", "ios")).toBe("Geist");
   });
 
-  it("falls back to the system stack, Paseo's own default, without H1", () => {
-    expect(ui(noHost, "host", "web")).toBe("System");
-    expect(ui(noHost, "host", "ios")).toBe("System");
+  it("sets no family without H1, so the host's UI font rule (web) or the system face (native) applies", () => {
+    expect(ui(noHost, "host", "web")).toBeUndefined();
+    expect(ui(noHost, "host", "ios")).toBeUndefined();
+    expect(ui(noHost, "system", "web")).toBe("System");
   });
 
   it("draws an explicit Inter as the bare embedded name on web only", () => {
     expect(ui(noHost, "inter", "web")).toBe(EMBEDDED_FAMILY.ui);
     expect(ui(withHost, "inter", "web")).toBe(EMBEDDED_FAMILY.ui);
-    expect(ui(noHost, "inter", "android")).toBe("System");
+    expect(ui(noHost, "inter", "android")).toBeUndefined();
   });
 
   it("never hands native the embedded name", () => {
     for (const uiFont of ["host", "inter", "system"] as const) {
       for (const platform of ["ios", "android"] as const) {
-        expect(ui(noHost, uiFont, platform)).not.toContain(EMBEDDED_FAMILY.ui);
+        expect(ui(noHost, uiFont, platform) ?? "").not.toContain(EMBEDDED_FAMILY.ui);
       }
     }
   });

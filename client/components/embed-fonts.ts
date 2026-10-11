@@ -1,5 +1,6 @@
 import { EMBEDDED_FONTS } from "./font-data";
-import { fontMono, fontUi } from "./theme-tokens";
+import { fontMono } from "./theme-tokens";
+import { EMBEDDED_FAMILY } from "../ui/tokens/typography";
 
 const STYLE_ELEMENT_ID = "beautiful-chat-fonts";
 
@@ -85,7 +86,7 @@ export async function probeFonts(): Promise<string> {
   if (!fonts) return "Fonts: FontFaceSet unavailable on this host";
 
   const parts: string[] = [];
-  for (const family of [fontUi, fontMono]) {
+  for (const family of [EMBEDDED_FAMILY.ui, fontMono]) {
     try {
       const faces = await fonts.load(`400 14px "${family}"`);
       parts.push(`${family}: ${faces.length > 0 ? "loaded" : "no match"}`);

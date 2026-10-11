@@ -61,7 +61,8 @@ export const fontMono =
  * bytes it stands for, which is wrong for a log line or a patch.
  */
 export const fontCode = STATIC_PLATFORM === "web" ? EMBEDDED_FAMILY.code : fontMono;
-export const fontUi = STATIC_PLATFORM === "web" ? EMBEDDED_FAMILY.ui : "System";
+/** Interface text sets no family: the host's UI font (web) or the system face applies. */
+export const fontUi: string | undefined = undefined;
 
 export interface ExtendedThemeTokens {
   isDark: boolean;
@@ -69,8 +70,8 @@ export interface ExtendedThemeTokens {
   fontMono: string;
   /** `typography.mono.codeFamily`. */
   fontCode: string;
-  /** The interface family; see `interfaceFamily`. */
-  fontUi: string;
+  /** The interface family, or undefined to set none; see `interfaceFamily`. */
+  fontUi: string | undefined;
   typography: Typography;
 
   // Surfaces

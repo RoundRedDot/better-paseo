@@ -319,7 +319,9 @@ function createBar(): Bar {
       host.toggleAttribute("data-bcfrost", tokens.frost);
       host.setAttribute(GLOW_ATTRIBUTE, tokens.isDark ? "dark" : "light");
       bar.style.borderColor = tokens.border;
-      bar.style.fontFamily = tokens.fontUi;
+      // The bar sits on document.body, outside the host's UI font rule, so
+      // "Follow Paseo" reads the host's own font variable directly.
+      bar.style.fontFamily = tokens.fontUi ?? "var(--paseo-ui-font, system-ui, sans-serif)";
       copyButton.style.color = tokens.foreground;
       addButton.style.color = tokens.accent;
     },
