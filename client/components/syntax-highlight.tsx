@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, type ReactNode } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
 import { frosted } from "./frosted";
@@ -21,6 +21,12 @@ interface SyntaxHighlightProps {
   compact?: boolean;
   /** Shows the file in the machine's own file manager. Omitted: plain label. */
   onRevealFile?: () => void;
+  /**
+   * Drawn in the header in place of the filename label, e.g. a `PathText` that
+   * owns its own press, copy and relative display. `filename` still picks the
+   * grammar and the file-type logo.
+   */
+  filenameNode?: ReactNode;
 }
 
 const STATIC_KEYWORDS: Record<string, true> = {
@@ -471,6 +477,7 @@ export function SyntaxHighlightBlock({
   filename,
   compact = false,
   onRevealFile,
+  filenameNode,
 }: SyntaxHighlightProps) {
   const [copied, setCopied] = useState(false);
 
@@ -637,7 +644,9 @@ export function SyntaxHighlightBlock({
               size="sm"
               foregroundColor={tokens.foreground}
             />
-            {filename ? (
+            {filenameNode !== undefined ? (
+              filenameNode
+            ) : filename ? (
               onRevealFile ? (
                 <Pressable
                   onPress={onRevealFile}
