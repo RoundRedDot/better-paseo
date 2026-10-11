@@ -20,6 +20,7 @@ import { useSelectionActions } from "./components/selection-actions";
 import type { TurnUsage } from "./components/user-message";
 import { NoticeCallout } from "./components/notice-callout";
 import { useEnhancerPreferences } from "./preferences";
+import { PreferenceSyncSlot } from "./state/preference-sync-slot";
 import { publishHubSnapshot } from "./hub-activity";
 import { MarkdownView } from "./components/markdown/markdown-view";
 import { TimelineTailHub } from "./components/hub-live";
@@ -141,6 +142,7 @@ function LiveToolCallRendererBody({
   return (
     <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
       {probe.node}
+      <PreferenceSyncSlot />
       <PathContext.Provider value={pathContext}>
         <ToolCallout
           data={view}
@@ -203,6 +205,7 @@ function LiveReasoningRendererBody({
   return (
     <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
       {probe.node}
+      <PreferenceSyncSlot />
       <ReasoningCard
         segmentation={segmentation}
         streaming={streaming}
@@ -253,6 +256,7 @@ function LiveTodoRendererBody({
   return (
     <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
       {probe.node}
+      <PreferenceSyncSlot />
       <TaskList data={taskListData} tokens={tokens} />
     </View>
   );
@@ -325,6 +329,7 @@ function LiveAssistantRendererBody({
   return (
     <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
       {probe.node}
+      <PreferenceSyncSlot />
       {envelope ? (
         <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
       ) : (
@@ -382,6 +387,7 @@ function LiveNoticeRendererBody({
   return (
     <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
       {probe.node}
+      <PreferenceSyncSlot />
       <NoticeCallout data={noticeData} tokens={tokens} />
     </View>
   );
@@ -460,6 +466,7 @@ function LiveUserMessageRendererBody({
       {...probe.viewProps}
     >
       {probe.node}
+      <PreferenceSyncSlot />
       {envelope ? (
         <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
       ) : (
