@@ -8,11 +8,6 @@ import { FadeIn } from "../../../ui/fade-in";
 import { codeSurface } from "../../host-font-escape";
 import { codeLanguage, fenceClosed } from "./text";
 
-/** A document-variant block longer than this starts folded … */
-const FOLD_OVER_LINES = 30;
-/** … to this many lines and an "expand" row. */
-const FOLD_TO_LINES = 20;
-
 function lineCount(code: string): number {
   let count = 1;
   for (let index = 0; index < code.length; index++) if (code.charCodeAt(index) === 10) count++;
@@ -59,7 +54,6 @@ export function CodeBlock({
   }
 
   const closed = !open || token.codeBlockStyle === "indented" || fenceClosed(token.raw);
-  const fold = variant === "document" && lines > FOLD_OVER_LINES ? FOLD_TO_LINES : undefined;
 
   // A block the reader unfolded fades in like any expanded body (plan §3.7).
   const Frame = collapseCode && variant === "compact" ? FadeIn : View;
@@ -73,7 +67,6 @@ export function CodeBlock({
         showLineNumbers={metrics.codeLineNumbers}
         highlight={closed}
         scrollX
-        initialLines={fold}
       />
     </Frame>
   );

@@ -436,7 +436,7 @@ const codeHeaderStyles = StyleSheet.create({
 });
 
 function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }: ToolBodyProps) {
-  const styles = useBodyStyles(tokens);
+  const styles = useBodyStyles(tokens, compact);
   const isRunning = data.status === "running";
 
   // Every branch below needs a payload. A tool that carries none — a hub op
@@ -543,6 +543,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
           {data.mcp.transport ? <Text style={styles.sectionTitle}>{data.mcp.transport}</Text> : null}
           <Text style={styles.sectionTitle}>Input parameters</Text>
           <SyntaxHighlightBlock
+            bare
             code={JSON.stringify(data.mcp.arguments, null, 2)}
             language="json"
             tokens={tokens}
@@ -552,6 +553,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
             <>
               <Text style={styles.sectionTitle}>Response</Text>
               <SyntaxHighlightBlock
+            bare
                 code={
                   typeof data.mcp.result === "string"
                     ? data.mcp.result
@@ -576,6 +578,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
           <ImagePreview path={data.filePath ?? ""} file={imageFile} tokens={tokens} onReveal={revealFile} />
         ) : (
           <SyntaxHighlightBlock
+            bare
             code={data.code || "// [Empty content or pending stream]"}
             language={data.language ?? "text"}
             // `filename` stays the bare path, because the block reads the
@@ -601,6 +604,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
 
       {data.tool === "edit" && (
         <SyntaxHighlightBlock
+            bare
           code={data.diff || data.code || "// [Edit: diff applied]"}
           language="diff"
           filename={displayPath}
@@ -626,6 +630,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
             <View key={idx} style={styles.section}>
               {cell.code ? (
                 <SyntaxHighlightBlock
+            bare
                   code={cell.code}
                   language={cell.language}
                   filename={cell.title || "Persistent Kernel Cell"}
@@ -846,7 +851,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
           {stringifyValue(data.input) ? (
             <>
               <Text style={styles.sectionTitle}>Input</Text>
-              <SyntaxHighlightBlock code={stringifyValue(data.input) ?? ""} language="json" tokens={tokens} compact />
+              <SyntaxHighlightBlock code={stringifyValue(data.input) ?? ""} language="json" tokens={tokens} compact bare />
             </>
           ) : null}
           {data.output ? (
@@ -904,21 +909,19 @@ interface BodyStyles {
 }
 
 /** Body styles, built only once a card is opened. */
-function useBodyStyles(tokens: ExtendedThemeTokens): BodyStyles {
+function useBodyStyles(tokens: ExtendedThemeTokens, compact: boolean): BodyStyles {
   return useMemo(
     () =>
       StyleSheet.create({
         section: { gap: 6 },
         inlineRow: { flexDirection: "row", alignItems: "center", gap: 6 },
         flex: { flex: 1, minWidth: 0 },
-        fileRow: { height: 24, justifyContent: "center" },
+        fileRow: { height: compact ? 28 : 24, justifyContent: "center" },
         webRow: { gap: 1 },
-        // Code-surface blocks inside a card: radius 6, no border, no shadow.
+        // The opened body is already the code surface (S7 §3.1): command
+        // output sits on it directly, with no inner panel.
         terminalWindow: {
-          borderRadius: radiusV2.block,
-          backgroundColor: tokens.v2.surfaceCode,
-          padding: space.sm,
-          gap: 6,
+          gap: space.xs,
         },
         askOption: {
           flexDirection: "row",
@@ -988,7 +991,7 @@ function useBodyStyles(tokens: ExtendedThemeTokens): BodyStyles {
         },
         strong: { fontWeight: "600" },
       }),
-    [tokens],
+    [tokens, compact],
   );
 }
 
