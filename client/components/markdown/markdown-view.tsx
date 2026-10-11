@@ -7,6 +7,7 @@ import { selectableSurface, unselectable } from "../selection";
 import { selectionSurface } from "../selection-actions";
 import { SyntaxHighlightBlock } from "../syntax-highlight";
 import { openLink } from "../open-link";
+import { probeMarkdown } from "../../debug/perf";
 import { parseMarkdown, type MdAlign, type MdBlock, type MdInline, type MdListItem } from "./parse";
 
 /**
@@ -22,6 +23,8 @@ export interface MarkdownViewProps {
   text: string;
   tokens: ExtendedThemeTokens;
   variant: MarkdownVariant;
+  /** Debug only: names this message so the perf probes can track it across chunks. */
+  probeId?: string;
 }
 
 type MdTableBlock = Extract<MdBlock, { kind: "table" }>;
@@ -195,8 +198,8 @@ interface RenderContext {
   metrics: VariantMetrics;
 }
 
-export function MarkdownView({ text, tokens, variant }: MarkdownViewProps) {
-  const blocks = useMemo(() => parseMarkdown(text), [text]);
+export function MarkdownView({ text, tokens, variant, probeId }: MarkdownViewProps) {
+  const blocks = useMemo(() => probeMarkdown(probeId, text, parseMarkdown), [text, probeId]);
   const styles = useMemo(() => buildStyles(tokens, variant), [tokens, variant]);
   const context = useMemo<RenderContext>(
     () => ({ styles, tokens, metrics: VARIANT_METRICS[variant] }),

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Platform } from "react-native";
+import { probeAnimationLoop } from "../debug/perf";
 
 interface PulseDotProps {
   color: string;
@@ -41,8 +42,10 @@ export function PulseDot({ color, size = 6, active = true }: PulseDotProps) {
       ]),
     );
     loop.start();
+    const release = probeAnimationLoop("PulseDot");
     return () => {
       loop.stop();
+      release();
     };
   }, [active, opacity]);
 

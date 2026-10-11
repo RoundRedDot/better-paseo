@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Easing, Platform, View } from "react-native";
+import { probeAnimationLoop } from "../debug/perf";
 
 const useNativeDriver = Platform.OS !== "web";
 
@@ -135,8 +136,10 @@ export function Glow({ children, color, size, active = true, durationMs = 1800 }
       ]),
     );
     loop.start();
+    const release = probeAnimationLoop("Glow");
     return () => {
       loop.stop();
+      release();
     };
   }, [active, durationMs, pulse]);
 

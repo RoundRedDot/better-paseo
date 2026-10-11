@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Platform } from "react-native";
+import { probeAnimationLoop } from "../debug/perf";
 
 interface BreatheProps {
   children: ReactNode;
@@ -42,8 +43,10 @@ export function Breathe({ children, active = true, depth = 1.18, durationMs = 90
       ]),
     );
     loop.start();
+    const release = probeAnimationLoop("Breathe");
     return () => {
       loop.stop();
+      release();
     };
   }, [active, depth, durationMs, scale]);
 

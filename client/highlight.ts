@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRpc } from "@getpaseo/plugin/client";
 import { highlightRpc, type HighlightLine, type HighlightToken } from "../shared/highlight-rpc";
+import { probeHighlightRpc } from "./debug/perf";
 
 export type { HighlightLine, HighlightToken };
 
@@ -167,6 +168,7 @@ function fetchLines(key: string, call: HighlightCall, request: HighlightRequest)
   const pending = inFlight.get(key);
   if (pending) return pending;
 
+  probeHighlightRpc(request.language);
   const started = call({
     code: request.code,
     language: request.language,
