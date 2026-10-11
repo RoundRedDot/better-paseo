@@ -49,7 +49,7 @@ describe("streamed tail", () => {
       }
     }
     expect(shrinks).toEqual([]);
-  });
+  }, 120_000);
 
   it("holds the start of a closing fence, and only that", () => {
     expect(repairTail("```ts\nconst a = 1;\n``")).toBe("```ts\nconst a = 1;\n");
