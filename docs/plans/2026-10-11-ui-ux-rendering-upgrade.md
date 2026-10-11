@@ -188,6 +188,19 @@ lexBlock(raw)：marked.lexer，按 raw LRU 缓存 ──▶ token 树 ──▶ 
 
 结论：流式期间本轮每张已完成的卡片都会重建 tokens、样式和数据并重渲染整棵子树；历史行受宿主 `React.memo` 保护。基线阶段用渲染计数器确认。
 
+**S0 实测结论（`docs/bench/baseline-showcase.md`、`baseline-host.md`）**
+
+| 发现 | 离线回放（当前宿主 / 缓存后） | iOS 模拟器开发版（仅作相对比较） | 结论 |
+|---|---|---|---|
+| 非活跃卡片随 chunk 重渲染 | reads-20 999 / 0；用户消息 990 次 | 用户消息卡只渲染 4–8 次 | 离线模型过于悲观；**H4 优先级下调**，S1 的语义化 memo 已做（成本低） |
+| 活跃卡片自身渲染开销 | reads-20 工具卡 p95 52.9 / 5.4ms | reads-20 工具卡 p50 152 / p95 447ms；markdown-long p95 69ms；diff-large p50 2.2s | **主要瓶颈**：BC-01 默认折叠、BC-05 增量渲染、大代码块分批渲染优先级上调 |
+| 整篇重解析 | markdown-long 509 次，p95 8.2ms | — | S2 |
+| 格式翻转 | codeblock 10、table 6 | — | S2 |
+| 循环动画不释放 | reads-20 结束时 72 个 | reads-20 结束时 33 个 | S3/S4/S5 |
+| H0 间距 | — | 插件工具行间隔 24pt，宿主原生 0，每行多 22pt | H0 必要 |
+
+S1 合并后（离线 `current`）插件内部渲染总数：reads-20 1119→143，mixed-turn 635→76，markdown-long 1022→511（剩余为流式中的回复，归 S2）。
+
 **测量体系（S0）**
 
 生产构建下 `<Profiler onRender>` 不会被调用，因此以自带探针为主，开发构建里的 Profiler 为辅。
@@ -649,6 +662,7 @@ Reduced Motion：只有 shimmer、glow 两处 CSS 处理了；所有 `Animated` 
 5. `navigator.*`/`window.*`/`document.*` 只出现在带 `typeof document` 保护的文件中。
 6. 横向滚动容器不撑破消息栏。
 7. 动画只用 RN `Animated`，原生走 native driver。
+8. 遵守 D9 的 Hermes 语法边界，`npm run check:hermes` 通过，并在 iOS 模拟器上确认插件能加载。
 
 **验证矩阵**
 
@@ -688,7 +702,8 @@ Reduced Motion：只有 shimmer、glow 两处 CSS 处理了；所有 `Animated` 
 | S5 | 收尾（§3.6–§3.11）：代码块外框、Task（含 props 同步 `fix:`）、用户消息与回复 footer 改用 `useCopy`、Notice/System 行样式、图片预览路径、触控设备点击路径改复制、设置页（工具详情、字体、路径显示、磨砂/光晕）、删除旧动效文件、frost 补 reduced-motion、替换根节点 `hostFontEscape` | `syntax-highlight.tsx`（外框，S2 合并后）、`task-list.tsx`、`user-message.tsx`、`turn-footer.tsx`、`notice-callout.tsx`、`system-card.tsx`、`image-preview.tsx`、`settings-page.tsx`、`live-renderers.tsx`（根节点）、`index.client.tsx`（去 shimmer）、删除 `breathe.tsx`/`pulse-dot.tsx`/`motion.tsx`/`shimmer.ts` | S2、S3、S4 | ui · claude-opus-5-5 | 明暗主题截图；静态检查（阴影/圆角字面量/`Animated.loop`/`navigator.clipboard`/`fontSize` 字面量）；Reduced Motion；跨端七条约束 |
 | H0 | **Paseo**：插件 item 保留 `sourceKind` 并参与工具序列间距 | paseo `plugins/timeline/projection.ts`、`types/stream.ts`、`agent-stream/spacing.ts` 及测试 | — | small · codex/gpt-6-luna | 连续插件工具行间距为 0 |
 | H1 | **Paseo**：`PluginTheme.typography`（fontFamily ui/mono、fontSize ui/content/code、lineHeight code） | paseo `packages/plugin/src/contracts.ts`、`packages/app/src/plugins/theme.ts` 及测试 | — | impl · codex/gpt-6-luna | 修改宿主字体设置后，插件 props 实时变化 |
-| H4 | **Paseo**：按 `theme` 缓存 `toPluginTheme`，按 `item.data` 引用缓存 `safeParse` 结果 | paseo `plugins/theme.ts`、`plugins/timeline/view.tsx` 及测试 | — | small · codex/gpt-6-luna | 非流式插件行在 chunk 到来时不重渲染 |
+| H4 | **Paseo**（**优先级下调**：iOS 实测未出现全量重渲染，见 §3.2 S0 实测）：按 `theme` 缓存 `toPluginTheme`，按 `item.data` 引用缓存 `safeParse` 结果 | paseo `plugins/theme.ts`、`plugins/timeline/view.tsx` 及测试 | — | small · codex/gpt-6-luna | 非流式插件行在 chunk 到来时不重渲染 |
+| H5 | **Paseo**：插件客户端 bundle 追加 class 降级（D9） | paseo `packages/server/src/server/plugins/compiler.ts`、server 包依赖 `@babel/core` 及 class 相关插件 | — | impl · codex/gpt-6-luna | 带 class 的依赖在 iOS 上可加载 |
 | H2a | **Paseo**：当前轮 prompt 吸顶栏（原生补阅读位置、原生拉取 prompt 索引、`sticky-prompt-bar.tsx`、`stickyInset`） | paseo `agent-stream/strategy-native.tsx`、`view.tsx`、`reading-anchor.ts`、`chat-outline/use-chat-outline.ts`、新建 `sticky-prompt-bar.tsx` | — | impl · codex/gpt-6-luna | 原生与 Web 均出现/切换/跳转正确；不遮挡正文；Safe Area 正确 |
 | H2b | **Paseo**：`useTimelineStickyHeader` 单元格吸顶 API（`Animated.FlatList` + native driver；Web 同接口） | paseo `packages/plugin/src/client/*`、`plugins/timeline/view.tsx`、`plugins/evaluate.ts`、`strategy-native.tsx`、`strategy-web.tsx` | H2a（`stickyInset`） | complex · claude-opus-5-5 | 限位纯函数单测；Web e2e；原生滚动不闪烁 |
 | S6 | 插件工具 header 吸顶接入与降级（BC-04 由 H2a 交付，插件无改动） | `tool-callouts.tsx`（header 吸顶）、`client/ui/disclosure-header.tsx` | S3、H2b | ui · claude-opus-5-5 | §16.1 第 11 项场景 |
@@ -713,6 +728,7 @@ Reduced Motion：只有 shimmer、glow 两处 CSS 处理了；所有 `Animated` 
 | 字体继承（BC-12） | Paseo | 设置已存在，但未透传 | H1：在 `PluginTheme` 增加只读 `typography`；变更随 theme prop 自然通知 |
 | 双层吸顶（BC-03/04） | Paseo + 插件 | 宿主有 Web 端 prompt 索引与阅读位置，原生端没有；无吸顶能力 | H2a：吸顶栏（宿主功能）；H2b：`useTimelineStickyHeader` |
 | 跨 item 聚合（BC-01 §3.3） | Paseo | transformer 不能合并相邻 item | H3（后续）：分组或装饰 API |
+| 插件 bundle 的 Hermes 兼容（D9） | Paseo | 客户端 bundle 只经 esbuild（es2020），不降级 `class`，任何带 class 的依赖在原生端都会失败 | H5：在 `packages/server/src/server/plugins/compiler.ts` 客户端分支对 esbuild 输出追加一遍只处理 class 的 Babel（S0-D 本地验证：beautiful-chat 749KB bundle 经此后 `hermesc` 零错误，耗时约 2.5s）；先在上游开 issue |
 | 打开宿主文件 tab（BC-13/14） | Paseo | 不暴露（README 第 1 条）；`file.reveal` 在 daemon 机器上执行，远程/移动端无效 | 后续项：开放 `openFile` 导航能力；本轮触控设备点击路径改为复制 |
 | 其余各项 | 插件 | — | 本方案 §3 |
 
@@ -726,9 +742,10 @@ Reduced Motion：只有 shimmer、glow 两处 CSS 处理了；所有 `Animated` 
 | D2 | **字体默认值 = Follow Paseo，但宿主未提供 `typography` 时保持现状**（Web 用内嵌 Iosevka，原生用平台等宽字体）。H1 合并后才真正跟随宿主。 | 满足需求的默认语义，同时在当前 0.11.2 宿主上不产生观感回退。宿主支持后的观感变化写进 changelog。 |
 | D3 | **验证平台**：桌面端用本机 `Paseo.app`（Electron）；iOS 用 paseo 源码 `packages/app` 的 `expo run:ios` 开发版，在 iPhone 16 Pro 模拟器上连接本机 daemon；Android 模拟器用于 S3/S5/S6 的复制、长按和吸顶验证。 | 本机已有 Xcode、iOS 模拟器、Android SDK，Paseo app 是 Expo 工程（`packages/app/package.json:16`）。原生构建失败时，该项如实记为"未验证"，不记为通过。 |
 | D4 | **SDK devDep 升级到与本机宿主一致的 0.11.x**；`requirements.paseo` 保持 `>=0.8.0`；新增 API（`typography`、sticky、cell viewport）全部做运行时特性检测。 | 类型与实际运行的宿主一致，又不抬高安装门槛。 |
-| D5 | **Markdown 依赖方式**：先按 npm 依赖引入 `marked@18` 和 `remend@1.4`；S0 冒烟失败时 vendor 进 `client/vendor/` 并附许可证。 | 宿主编译器源码显示纯 JS 依赖会被内联（§1.1）；vendor 作为确定的退路。 |
+| D5 | **Markdown 依赖方式（S0 后修订）**：`remend@1.4` 照常作为 npm 依赖（无 `class`，已在 iOS 验证）；`marked@18` **用 Babel 预降级后 vendor 进 `client/vendor/marked.js`**（附许可证），生成脚本放在 `tools/vendor-marked/`（独立 package.json，不增加根依赖），根依赖中移除 `marked`。 | S0-D 实测：RN 0.81.5 的 Hermes 不支持任何形态的 `class`，插件 bundle 绕过 Metro/Babel，esbuild 无法把 class 降级；marked 的 `static passThroughHooks` 因此在 iOS 上报错。Babel 降级后的 marked 已在模拟器验证可用（46KB→112KB）。 |
 | D6 | **数学公式和 Mermaid** 本次只做原文降级显示（代码样式），不阻塞引擎替换。 | 纯 JS 方案无法在 RN `Text` 中渲染 KaTeX；原生数学栈需要宿主二进制。 |
 | D7 | **范围外问题**：TodoList 的 props → state 只同步一次，在 S5 统一 Task 视觉时作为独立 `fix:` 提交修复（不修会让 Task 显示错误）；`ApprovalCard` 未挂载不处理（审批归宿主，删掉或接入都属于无关改动）。 | 遵守"不做无关重构"，同时不让新视觉建立在已知错误数据上。 |
+| D9 | **Hermes 语法边界**：客户端代码及其依赖不得使用任何形态的 `class`、正则 `v` 标志、`Array.prototype.toSorted`、`Intl.Segmenter`；timeline renderer 必须注册为普通函数（`React.memo` 对象会被宿主拒绝，宿主 `evaluate.ts:422`）。`npm run check:hermes` 用仓库自带的 `hermesc` 编译客户端 bundle，作为每个切片的必过检查。 | S0-D 特性矩阵与本地 Hermes 复现；S1 在 iOS 上发现 renderer 约束。 |
 | D8 | **跨工具聚合**：本次只做紧凑行（§3.3），H3 分组 API 不进入本轮。 | transformer 无法合并相邻 item；硬做会破坏顺序和状态同步，需求 §3.3 允许先做单工具摘要。 |
 
 ## 7. 剩余风险
