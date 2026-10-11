@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, Image, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
-import { radius } from "./theme-tokens";
+import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { unselectable } from "./selection";
+import { PathText } from "../ui/path-text";
+import { UI_SCALE } from "../ui/tokens/typography";
 import type { ImageFile } from "../image-file";
 
 interface ImagePreviewProps {
@@ -43,59 +45,40 @@ export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps
   const styles = useMemo(
     () =>
       StyleSheet.create({
+        // The code block's frame (plan §3.6): the code surface on the block
+        // radius, a 28px header on the same surface, no border or band.
         container: {
-          borderRadius: radius.block,
-          borderWidth: 1,
-          borderColor: tokens.borderSubtle,
-          backgroundColor: tokens.surfaceCode,
+          borderRadius: radiusV2.block,
+          backgroundColor: tokens.v2.surfaceCode,
           overflow: "hidden",
         },
         header: {
+          minHeight: 28,
           flexDirection: "row",
           alignItems: "center",
-          gap: 8,
-          paddingHorizontal: 10,
-          paddingVertical: 7,
-          backgroundColor: tokens.surface2,
+          gap: space.sm,
+          paddingLeft: space.sm,
+          paddingRight: space.xs,
         },
-        path: {
-          fontFamily: tokens.fontMono,
-          fontSize: 11.5,
-          color: tokens.accent,
-          textDecorationLine: "underline",
-          flexShrink: 1,
-          minWidth: 0,
-        },
-        plainPath: {
-          fontFamily: tokens.fontMono,
-          fontSize: 11.5,
-          color: tokens.foregroundMuted,
-          flexShrink: 1,
-          minWidth: 0,
-        },
-        chips: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 },
+        chips: { flexDirection: "row", alignItems: "center", gap: space.sm, flexShrink: 0 },
         chip: {
           fontFamily: tokens.fontUi,
-          fontSize: 10,
-          color: tokens.foregroundSubtle,
-          backgroundColor: tokens.surface1,
-          paddingHorizontal: 6,
-          paddingVertical: 1,
-          borderRadius: radius.chip,
+          fontSize: UI_SCALE.sm,
+          fontVariant: ["tabular-nums"],
+          color: tokens.foregroundMuted,
           ...unselectable,
         },
         eye: {
           flexDirection: "row",
           alignItems: "center",
-          gap: 4,
+          gap: space.xs,
+          height: 24,
           paddingHorizontal: 6,
-          paddingVertical: 3,
-          borderRadius: radius.block,
-          backgroundColor: tokens.surface1,
+          borderRadius: radiusV2.chip,
         },
         eyeLabel: {
           fontFamily: tokens.fontUi,
-          fontSize: 10,
+          fontSize: UI_SCALE.base,
           fontWeight: "500",
           color: tokens.foregroundMuted,
           ...unselectable,
@@ -105,7 +88,7 @@ export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps
         // PNG needs something behind it, and a repeating background is not a
         // React Native style.
         canvas: {
-          padding: 10,
+          padding: space.sm,
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: tokens.surface0,
@@ -113,9 +96,9 @@ export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps
         image: { width: "100%", height: MAX_HEIGHT },
         message: {
           fontFamily: tokens.fontUi,
-          fontSize: 11.5,
+          fontSize: UI_SCALE.base,
           color: tokens.foregroundMuted,
-          padding: 10,
+          padding: space.sm,
         },
       }),
     [tokens],
@@ -142,22 +125,15 @@ export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Glyph name="Image" size={13} color={tokens.foregroundMuted} />
-        {onReveal ? (
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel={`Show ${path} in the file manager`}
-            onPress={onReveal}
-          >
-            <Text style={styles.path} numberOfLines={1}>
-              {path}
-            </Text>
-          </Pressable>
-        ) : (
-          <Text selectable style={styles.plainPath} numberOfLines={1}>
-            {path}
-          </Text>
-        )}
+        <Glyph name="Image" size={14} color={tokens.foregroundMuted} />
+        {/* Relative to the workspace, middle-truncated; press reveals the
+            file (copies it on touch), as everywhere else (plan §3.9). */}
+        <PathText
+          path={path}
+          tokens={tokens}
+          onReveal={onReveal ? () => onReveal() : undefined}
+          style={{ fontSize: UI_SCALE.base }}
+        />
         <View style={styles.spacer} />
         <View style={styles.chips}>
           {chips.map((chip) => (
@@ -171,9 +147,9 @@ export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps
             accessibilityRole="button"
             accessibilityLabel={shown ? "Hide the image" : "Show the image"}
             onPress={() => setShown((previous) => !previous)}
-            style={styles.eye}
+            style={({ pressed }) => [styles.eye, pressed && { backgroundColor: tokens.v2.surface2 }]}
           >
-            <Glyph name={shown ? "Eye" : "EyeOff"} size={12} color={tokens.foregroundMuted} />
+            <Glyph name={shown ? "Eye" : "EyeOff"} size={14} color={tokens.foregroundMuted} />
             <Text style={styles.eyeLabel}>{shown ? "Hide" : "Show"}</Text>
           </Pressable>
         ) : null}

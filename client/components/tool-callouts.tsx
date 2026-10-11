@@ -25,7 +25,9 @@ import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { FadeIn } from "../ui/fade-in";
 import { formatPath } from "../paths/format-path";
-import { summarizeTool } from "../tools/summarize";
+import { lineRangeLabel, summarizeTool } from "../tools/summarize";
+import { UI_SCALE } from "../ui/tokens/typography";
+import { codeSurface } from "./host-font-escape";
 import { toolCopyPlan } from "../tools/copy";
 import { stringifyValue, type ToolCallView, type ToolKind } from "../tools/classify";
 
@@ -339,6 +341,51 @@ const MAX_FILE_ROWS = 50;
  * The expanded body: the details the card always had — arguments, content
  * and logs, nothing trimmed — without the nested frames and shadows.
  */
+/**
+ * The path in a read, write or edit code header (plan §3.9 item 5): a
+ * `PathText` (relative, middle-truncated, press to reveal or copy on touch)
+ * and, for a read of part of a file, its line window as a muted suffix.
+ */
+function CodeHeaderPath({
+  path,
+  suffix,
+  tokens,
+  compact,
+  onReveal,
+}: {
+  path: string;
+  suffix?: string;
+  tokens: ExtendedThemeTokens;
+  compact: boolean;
+  onReveal?: () => void;
+}) {
+  return (
+    <View style={codeHeaderStyles.row}>
+      <PathText
+        path={path}
+        tokens={tokens}
+        compact={compact}
+        onReveal={onReveal ? () => onReveal() : undefined}
+        style={{ fontSize: UI_SCALE.base }}
+      />
+      {suffix ? (
+        <Text
+          {...(codeSurface as object)}
+          selectable={false}
+          style={[codeHeaderStyles.suffix, unselectable, { color: tokens.foregroundMuted, fontFamily: tokens.fontMono }]}
+        >
+          {suffix}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+const codeHeaderStyles = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", gap: space.xs, flexShrink: 1, minWidth: 0 },
+  suffix: { fontSize: UI_SCALE.base, fontVariant: ["tabular-nums"], flexShrink: 0 },
+});
+
 function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }: ToolBodyProps) {
   const styles = useBodyStyles(tokens);
   const isRunning = data.status === "running";
@@ -476,11 +523,20 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
           <SyntaxHighlightBlock
             code={data.code || "// [Empty content or pending stream]"}
             language={data.language ?? "text"}
-            // TODO(S2): pass `filenameNode={<PathText path=… />}` with the
-            // `L10–80` suffix once SyntaxHighlightBlock takes one. Until then
-            // `filename` is the relative path alone: the block reads the file
-            // extension from its end, so a suffix would break highlighting.
+            // `filename` stays the bare path, because the block reads the
+            // grammar from its extension; what is drawn is `filenameNode`.
             filename={displayPath}
+            filenameNode={
+              data.filePath ? (
+                <CodeHeaderPath
+                  path={data.filePath}
+                  suffix={data.tool === "read" ? (lineRangeLabel(data.offset, data.limit) ?? data.lineRange) : undefined}
+                  tokens={tokens}
+                  compact={compact}
+                  onReveal={revealFile}
+                />
+              ) : undefined
+            }
             tokens={tokens}
             showLineNumbers={Boolean(data.code)}
             onRevealFile={revealFile}
@@ -493,6 +549,11 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
           code={data.diff || data.code || "// [Edit: diff applied]"}
           language="diff"
           filename={displayPath}
+          filenameNode={
+            data.filePath ? (
+              <CodeHeaderPath path={data.filePath} tokens={tokens} compact={compact} onReveal={revealFile} />
+            ) : undefined
+          }
           tokens={tokens}
           showLineNumbers
           onRevealFile={revealFile}
