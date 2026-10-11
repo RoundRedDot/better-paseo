@@ -45,7 +45,6 @@ export function AssistantFooter({ text, at, tokens, compact = false }: Assistant
           flexDirection: "row",
           alignItems: "center",
           gap: space.md,
-          marginTop: space.xs,
         },
         copyButton: {
           // The button's own padding is pulled back, so its icon starts on the
@@ -98,5 +97,9 @@ export function AssistantFooter({ text, at, tokens, compact = false }: Assistant
   );
 }
 
-/** The footer row (S7 §3.8): 32 tall, a 44pt Copy on touch through hitSlop. */
-const FOOTER_HEIGHT = 32;
+/**
+ * The footer row: 24 tall (the mockup's 32 less the padding; it sits under
+ * the last reply, where every extra point moves the turn below), a 44pt Copy
+ * on touch through hitSlop.
+ */
+const FOOTER_HEIGHT = 24;
