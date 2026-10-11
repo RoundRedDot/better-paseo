@@ -144,14 +144,21 @@ Devicon brand marks, and the file-manager link.
 
 ![Settings screen](docs/images/settings.png)
 
-| Setting                | Effect                                                             |
-| ---------------------- | ------------------------------------------------------------------ |
-| Accent colour          | Follow the Paseo theme, or pick Jade, Violet, Amber, or Rose.      |
-| Interface font         | Embedded Inter, or the system interface face.                      |
-| Code glyphs            | Iosevka with ligatures, or literal glyphs.                         |
-| Frosted glass          | Blur card surfaces, or paint them solid.                           |
-| Enhanced prompt bubble | Off hands prompts back to Paseo, whose bubble shows pasted images. |
-| Assistant markdown     | Off hands replies back to Paseo's own markdown renderer.           |
+| Setting                | Effect                                                                                       |
+| ---------------------- | -------------------------------------------------------------------------------------------- |
+| Accent colour          | Follow the Paseo theme, or pick Jade, Violet, Amber, or Rose.                                |
+| Frosted glass          | Blur floating bars (selection actions, full-path tooltip). Web and desktop only.             |
+| Pointer glow           | A light that follows the pointer across floating bars. Web and desktop only.                 |
+| Monospace font         | Follow Paseo, Iosevka, Iosevka Code (ligatures in code blocks), or Custom. On iOS/Android, Custom picks from faces the platform ships. |
+| Code font size         | Follow Paseo, or 10-22px with a live preview. Applies to code, diffs, terminals and paths.   |
+| Interface font         | Follow Paseo's interface font, embedded Inter (web only), or the system face.                |
+| Tool details           | Tool calls start collapsed; optionally open failed calls on their own.                       |
+| File paths             | Relative to the workspace, or absolute. Copying always gives the absolute path.              |
+| Enhanced prompt bubble | Off hands prompts back to Paseo, whose bubble shows pasted images.                           |
+| Assistant markdown     | Off hands replies back to Paseo's own markdown renderer.                                     |
+
+Preferences live in client storage (`localStorage`). iOS and Android have none, so there they
+last until the app restarts.
 
 ---
 
@@ -233,8 +240,11 @@ timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurfac
 10. **No CSS escape hatch.** React Native styles drop unknown keys, so `backdrop-filter` is
     impossible through the style API. Frosted glass is a hand-injected `<style>` rule matched by a
     data attribute.
-11. **No font registration.** Faces are embedded as data URIs in an injected `@font-face` rule, and
-    every surface needs a wrapper that escapes the host's own font cascade.
+11. **No font registration.** Faces are embedded as data URIs in an injected `@font-face` rule
+    (web only). Paseo forces its UI font on every node not under `data-pmono`; the plugin marks
+    only monospace regions with it, so interface text follows the host font, and leaves the
+    interface `fontFamily` unset for "Follow Paseo", since React Native Web writes non-StyleSheet
+    styles inline and an inline family would beat the host rule.
 12. **A closed module allowlist, and no SVG renderer.** Plugin client code may import only
     `react`, `react/jsx-runtime`, `react-native`, `@tanstack/react-query`, `zod`,
     `@getpaseo/plugin`, `@getpaseo/plugin/client`, `@getpaseo/plugin/client/react-native`, and
