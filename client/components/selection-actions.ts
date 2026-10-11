@@ -2,7 +2,9 @@ import { useEffect } from "react";
 import { Platform } from "react-native";
 import type { TextProps, ViewProps } from "react-native";
 import { copyText } from "@getpaseo/plugin/client/react-native";
-import { radius } from "./theme-tokens";
+import { radiusV2 } from "./theme-tokens";
+import { FROSTED_SHADOW_CSS } from "./frosted";
+import { GLOW_ATTRIBUTE } from "./glow";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 
 /**
@@ -161,8 +163,11 @@ const BAR_CSS = `
   padding: 3px;
   border-style: solid;
   border-width: 1px;
-  border-radius: ${radius.block}px;
+  border-radius: ${radiusV2.block}px;
+  /* A floating layer: the one place a shadow belongs (plan §3.6). */
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
+  background-color: var(--bc-bar-bg);
+  background-image: linear-gradient(var(--bc-bar-raise), var(--bc-bar-raise));
   font-size: 12px;
   line-height: 16px;
   user-select: none;
@@ -173,7 +178,7 @@ const BAR_CSS = `
   margin: 0;
   border: 0;
   background: transparent;
-  border-radius: ${radius.chip}px;
+  border-radius: ${radiusV2.chip}px;
   cursor: pointer;
   font: inherit;
   font-weight: 500;
@@ -183,6 +188,19 @@ const BAR_CSS = `
   /* No shrinking: a squeezed button overlaps its neighbour's label. */
   flex: 0 0 auto;
 }
+/* Pointer glow (optional): the document listener sets --bcgx/--bcgy and
+   data-bcglow-on on the host; custom properties inherit into this root. */
+:host([data-bcglow-on]) .bar {
+  background-image:
+    radial-gradient(120px circle at var(--bcgx, 50%) var(--bcgy, 50%), var(--bc-bar-glow), transparent 70%),
+    linear-gradient(var(--bc-bar-raise), var(--bc-bar-raise));
+}
+@media (prefers-reduced-motion: reduce) {
+  :host([data-bcglow-on]) .bar {
+    background-image: linear-gradient(var(--bc-bar-raise), var(--bc-bar-raise));
+  }
+}
+${FROSTED_SHADOW_CSS}
 `;
 
 interface Bar {
@@ -206,6 +224,8 @@ function createBar(): Bar {
     ["display", "none"],
     ["margin", "0"],
     ["padding", "0"],
+    // The document glow rule would paint the host box behind the rounded bar.
+    ["background", "none"],
   ];
   for (const [property, value] of placement) {
     host.style.setProperty(property, value, "important");
@@ -284,9 +304,16 @@ function createBar(): Bar {
       // Every derived surface token is translucent by design — they sit on the
       // host background inside the timeline. A bar floating over text needs to
       // be opaque, so the raised tone is painted as a layer on the one opaque
-      // surface the theme carries.
-      bar.style.backgroundColor = tokens.surface0;
-      bar.style.backgroundImage = `linear-gradient(${tokens.surface2}, ${tokens.surface2})`;
+      // surface the theme carries — unless frosted glass is on, where the
+      // translucent glass surface lets the blur behind it show.
+      host.style.setProperty("--bc-bar-bg", tokens.frost ? tokens.surfaceGlass : tokens.surface0);
+      host.style.setProperty("--bc-bar-raise", tokens.surface2);
+      host.style.setProperty(
+        "--bc-bar-glow",
+        tokens.isDark ? "rgba(255, 255, 255, 0.06)" : "rgba(74, 104, 156, 0.09)",
+      );
+      host.toggleAttribute("data-bcfrost", tokens.frost);
+      host.setAttribute(GLOW_ATTRIBUTE, tokens.isDark ? "dark" : "light");
       bar.style.borderColor = tokens.border;
       bar.style.fontFamily = tokens.fontUi;
       copyButton.style.color = tokens.foreground;

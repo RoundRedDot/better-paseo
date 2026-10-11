@@ -1,17 +1,20 @@
-import { useEffect } from "react";
 import type { ViewProps } from "react-native";
 import { getEnhancerPreferences, subscribeEnhancerPreferences } from "../preferences";
 
 const STYLE_ELEMENT_ID = "beautiful-chat-glow";
-const ATTRIBUTE = "data-bcglow";
+/** The mark `installPointerGlow` tracks; `"dark"` or `"light"` picks the tint. */
+export const GLOW_ATTRIBUTE = "data-bcglow";
+const ATTRIBUTE = GLOW_ATTRIBUTE;
 const ACTIVE_ATTRIBUTE = "data-bcglow-on";
 
 /**
- * A light that follows the pointer across a card.
+ * A light that follows the pointer across a floating surface.
  *
  * React Native has no gradient primitive and no hover position, so this is a
- * real CSS rule matched by attribute — the technique the frosted surface and
- * the shimmer already use.
+ * real CSS rule matched by attribute — the technique the frosted surface
+ * uses. Since plan §3.6 inline blocks are flat, so only overlays carry the
+ * mark: the selection bar paints the light inside its shadow root from the
+ * `--bcgx`/`--bcgy` properties set here, which inherit into it.
  *
  * The light lives in the card's own background layer, not in an overlay. An
  * overlay lit the whole card including the shell output and file blocks inside
@@ -56,11 +59,6 @@ const GLOW_RULE = `@property --bcga {
 }
 [${ATTRIBUTE}][${ACTIVE_ATTRIBUTE}] {
   --bcga: 1;
-}
-/* A card that is not hovered keeps the gradient at zero alpha, which is what
-   lets the light fade out rather than vanish. Only the setting removes it. */
-[data-bcglow-off] [${ATTRIBUTE}] {
-  background-image: none;
 }
 @media (prefers-reduced-motion: reduce) {
   [${ATTRIBUTE}] { background-image: none; }
@@ -141,6 +139,8 @@ export function installPointerGlow(): () => void {
 
   // With the setting off (the default since preferences v2) there is no
   // pointer listener at all, rather than one whose work is hidden by CSS.
+  // Turning the setting off detaches the listener, which also clears the
+  // lit surface; nothing in a renderer has to re-render for it.
   const sync = (): void => {
     if (getEnhancerPreferences().pointerGlow) attach();
     else detach();
@@ -159,25 +159,9 @@ const DARK = { dataSet: { bcglow: "dark" } } as unknown as ViewProps;
 const LIGHT = { dataSet: { bcglow: "light" } } as unknown as ViewProps;
 
 /**
- * Marks a card as lit. Spread onto the same `View` that carries the surface,
- * so the light shares its rounded corners through `border-radius: inherit`.
+ * Marks an overlay as lit. Spread onto the same `View` that carries the
+ * surface, so the light shares its rounded corners.
  */
 export function glowing(isDark: boolean): ViewProps {
   return isDark ? DARK : LIGHT;
-}
-
-/**
- * Honours the setting without a reload, and without re-rendering a card.
- *
- * The switch is one attribute on the document root, so turning the light off
- * costs a single style recalculation rather than a render of every surface in
- * the timeline.
- */
-export function usePointerGlow(enabled: boolean): void {
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const root = document.documentElement;
-    if (enabled) root.removeAttribute("data-bcglow-off");
-    else root.setAttribute("data-bcglow-off", "");
-  }, [enabled]);
 }
