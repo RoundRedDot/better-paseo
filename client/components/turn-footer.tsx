@@ -1,9 +1,9 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { copyText } from "@getpaseo/plugin/client/react-native";
 import { Glyph } from "./glyph";
 import { unselectable } from "./selection";
-import { radius } from "./theme-tokens";
+import { radiusV2 } from "./theme-tokens";
+import { useCopy } from "../ui/use-copy";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 
 /**
@@ -25,8 +25,6 @@ interface AssistantFooterProps {
   at: Date;
   tokens: ExtendedThemeTokens;
 }
-
-const COPIED_MS = 1600;
 
 /**
  * Matches `utils/time.ts:formatMessageTimestamp`: bare time today, weekday and
@@ -54,18 +52,10 @@ export function formatReplyTime(date: Date, now: Date = new Date()): string {
 }
 
 export function AssistantFooter({ text, at, tokens }: AssistantFooterProps) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(() => {
-    void copyText(text)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), COPIED_MS);
-      })
-      .catch(() => {
-        // Clipboard access can be denied; the label simply does not change.
-      });
-  }, [text]);
+  // The shared copy path (plan §3.8): a check for 1.2 s on success, a toast
+  // on failure, and no timer left running after unmount.
+  const { copied, copy } = useCopy();
+  const handleCopy = useCallback(() => void copy(text), [copy, text]);
 
   const styles = useMemo(
     () =>
@@ -85,14 +75,13 @@ export function AssistantFooter({ text, at, tokens }: AssistantFooterProps) {
           gap: 4,
           paddingHorizontal: 6,
           paddingVertical: 3,
-          borderRadius: radius.block,
-          backgroundColor: copied ? tokens.successBg : "transparent",
+          borderRadius: radiusV2.block,
         },
         copyLabel: {
           fontFamily: tokens.fontUi,
           fontSize: 11,
           fontWeight: "500",
-          color: copied ? tokens.success : tokens.foregroundMuted,
+          color: copied ? tokens.foreground : tokens.foregroundMuted,
           ...unselectable,
         },
         time: {
@@ -120,7 +109,7 @@ export function AssistantFooter({ text, at, tokens }: AssistantFooterProps) {
         <Glyph
           name={copied ? "Check" : "Copy"}
           size={12}
-          color={copied ? tokens.success : tokens.foregroundMuted}
+          color={copied ? tokens.foreground : tokens.foregroundMuted}
         />
         <Text style={styles.copyLabel}>{copied ? "Copied" : "Copy"}</Text>
       </Pressable>
