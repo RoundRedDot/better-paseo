@@ -746,6 +746,7 @@ Reduced Motion：只有 shimmer、glow 两处 CSS 处理了；所有 `Animated` 
 | D6 | **数学公式和 Mermaid** 本次只做原文降级显示（代码样式），不阻塞引擎替换。 | 纯 JS 方案无法在 RN `Text` 中渲染 KaTeX；原生数学栈需要宿主二进制。 |
 | D7 | **范围外问题**：TodoList 的 props → state 只同步一次，在 S5 统一 Task 视觉时作为独立 `fix:` 提交修复（不修会让 Task 显示错误）；`ApprovalCard` 未挂载不处理（审批归宿主，删掉或接入都属于无关改动）。 | 遵守"不做无关重构"，同时不让新视觉建立在已知错误数据上。 |
 | D9 | **Hermes 语法边界**：客户端代码及其依赖不得使用任何形态的 `class`、正则 `v` 标志、`Array.prototype.toSorted`、`Intl.Segmenter`；timeline renderer 必须注册为普通函数（`React.memo` 对象会被宿主拒绝，宿主 `evaluate.ts:422`）。`npm run check:hermes` 用仓库自带的 `hermesc` 编译客户端 bundle，作为每个切片的必过检查。 | S0-D 特性矩阵与本地 Hermes 复现；S1 在 iOS 上发现 renderer 约束。 |
+| D10 | **等宽字体来源优先级（用户 2026-10-11 指定，取代 D2）**：宿主 `theme.typography`（H1）→ Paseo 用户在外观设置中设定的字体（`monoFontFamily`、`codeFontSize`）→ Paseo 官方默认字体栈（Web/桌面 `SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace`；iOS `ui-monospace`；Android `monospace`）；Iosevka 仅在用户主动选择时使用。第二级在 0.11.2 上无正式接口，**Web/桌面端以只读临时兼容层读取 `localStorage["@paseo:app-settings"]`（旧键 `@paseo:settings`）**，结构不符或读不到即回退；宿主提供 H1 后自动不再使用。iOS/Android 读不到本地设置，H1 之前用官方默认。 | 用户要求跟随 Paseo 中设定的字体；偏离需求 §11.5“不读私有存储”，由用户明确授权，作为 H1 落地前的过渡。 |
 | D8 | **跨工具聚合**：本次只做紧凑行（§3.3），H3 分组 API 不进入本轮。 | transformer 无法合并相邻 item；硬做会破坏顺序和状态同步，需求 §3.3 允许先做单工具摘要。 |
 
 ## 7. 剩余风险
