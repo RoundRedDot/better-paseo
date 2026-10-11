@@ -1,0 +1,511 @@
+{"kind":"meta","name":"markdown-long","description":"One long assistant reply (~23 KiB) with headings, nested bullet and numbered lists, nested quotes, links, inline code, bold/italic, rules and task lists.","scenario":"Incremental markdown on a long structured reply: reparse cost per delta and settled-prefix reuse (requirement 16.1 item 5)."}
+{"t":0,"item":{"type":"user_message","text":"Write up the rendering performance plan for the chat, with details for each area."},"mode":"append"}
+{"t":295,"item":{"type":"assistant_message","text":"# Chat rendering performance plan\n\nThe "},"mode":"append"}
+{"t":344,"item":{"type":"assistant_message","text":"markdown parser coalesces each table row once the window closes. The reasoning block collapses each table row when "},"mode":"append"}
+{"t":396,"item":{"type":"assistant_message","text":"the viewport is pinned to the bottom. "},"mode":"append"}
+{"t":468,"item":{"type":"assistant_message","text":"The timeline "},"mode":"append"}
+{"t":543,"item":{"type":"assistant_message","text":"reducer invalidates the fenced code block after the first paint.\n\n## "},"mode":"append"}
+{"t":600,"item":{"type":"assistant_message","text":"1. History loading\n\nThe websocket session collapses a stale selection "},"mode":"append"}
+{"t":672,"item":{"type":"assistant_message","text":"range when "},"mode":"append"}
+{"t":1107,"item":{"type":"assistant_message","text":"the viewport is pinned to the bottom. The virtualized list batches "},"mode":"append"}
+{"t":1184,"item":{"type":"assistant_message","text":"the pending text node only when the text actually changed. "},"mode":"append"}
+{"t":1254,"item":{"type":"assistant_message","text":"The diff renderer "},"mode":"append"}
+{"t":1321,"item":{"type":"assistant_message","text":"coalesces a stale selection range while the message is still streaming. See the [design notes](https://example.com/docs/history-loading) "},"mode":"append"}
+{"t":1373,"item":{"type":"assistant_message","text":"for the full background.\n\n### History loading: goals\n\n- Keep **time to first pai"},"mode":"append"}
+{"t":1438,"item":{"type":"assistant_message","text":"nt** under `63ms`\n  - Measured with `performance.mark(\"cursor\")`\n "},"mode":"append"}
+{"t":1497,"item":{"type":"assistant_message","text":" - Reported per *settled* "},"mode":"append"}
+{"t":1549,"item":{"type":"assistant_message","text":"message, not per delta\n    - Deltas inside "},"mode":"append"}
+{"t":1619,"item":{"type":"assistant_message","text":"the open tail are ignored\n- Avoid layout thrash during `scroll`\n- Preserve "},"mode":"append"}
+{"t":1687,"item":{"type":"assistant_message","text":"the user's selection across updates\n\n### History loading: steps\n\n1. Snapshot the current message state\n   1. Freeze everything before "},"mode":"append"}
+{"t":1758,"item":{"type":"assistant_message","text":"the last blank "},"mode":"append"}
+{"t":1823,"item":{"type":"assistant_message","text":"line\n   2. Keep the tail as plain text until it closes\n2. Re-parse only the tail with `parseTail(queue)`\n3. "},"mode":"append"}
+{"t":1877,"item":{"type":"assistant_message","text":"Commit once per animation frame\n\n> **Note:** The virtualized list flushes every incoming delta without touching the DOM.\n> The "},"mode":"append"}
+{"t":1939,"item":{"type":"assistant_message","text":"scroll anchor invalidates a froze"},"mode":"append"}
+{"t":2001,"item":{"type":"assistant_message","text":"n prefix of "},"mode":"append"}
+{"t":2060,"item":{"type":"assistant_message","text":"the message once the window closes.\n>\n> > Nested quote: The markdown parser measures "},"mode":"append"}
+{"t":2132,"item":{"type":"assistant_message","text":"the tool output string while the message is still streaming.\n\n#### "},"mode":"append"}
+{"t":2199,"item":{"type":"assistant_message","text":"Checklist\n\n- [x] Baseline captured on desktop\n- [x] Baseline captured on web\n- [ ] Baseline captur"},"mode":"append"}
+{"t":2276,"item":{"type":"assistant_message","text":"ed on iOS simulat"},"mode":"append"}
+{"t":2341,"item":{"type":"assistant_message","text":"or\n- [ ] Baseline captured on Android emulator\n\nThe scroll anchor flushes the cached token list while the messa"},"mode":"append"}
+{"t":2402,"item":{"type":"assistant_message","text":"ge is still streaming. "},"mode":"append"}
+{"t":2457,"item":{"type":"assistant_message","text":"The diff "},"mode":"append"}
+{"t":2516,"item":{"type":"assistant_message","text":"renderer memoize"},"mode":"append"}
+{"t":2578,"item":{"type":"assistant_message","text":"s every incoming delta under memory pressure. "},"mode":"append"}
+{"t":2647,"item":{"type":"assistant_message","text":"Related: [issue #701](https://example.com/issues/297), `contextChunk()`, and _the reasoning block_.\n\n---\n\n## 2. T"},"mode":"append"}
+{"t":2710,"item":{"type":"assistant_message","text":"ool card layout"},"mode":"append"}
+{"t":2758,"item":{"type":"assistant_message","text":"\n\nThe websocket session collapses the fenced code "},"mode":"append"}
+{"t":2823,"item":{"type":"assistant_message","text":"block while "},"mode":"append"}
+{"t":2891,"item":{"type":"assistant_message","text":"the message "},"mode":"append"}
+{"t":2965,"item":{"type":"assistant_message","text":"is still streaming. The tool-call card batches a frozen prefix of the message under memory "},"mode":"append"}
+{"t":3018,"item":{"type":"assistant_message","text":"pressure. The diff "},"mode":"append"}
+{"t":3066,"item":{"type":"assistant_message","text":"renderer recomputes a frozen "},"mode":"append"}
+{"t":3112,"item":{"type":"assistant_message","text":"prefix "},"mode":"append"}
+{"t":3159,"item":{"type":"assistant_message","text":"of the message before the next commit. See the [design notes](https://example.com/docs/tool-card-layout) for the full background.\n\n### "},"mode":"append"}
+{"t":3230,"item":{"type":"assistant_message","text":"Tool card layout: goals\n\n- Keep **time "},"mode":"append"}
+{"t":3304,"item":{"type":"assistant_message","text":"to first paint** under `110ms`\n  - Measured with `pe"},"mode":"append"}
+{"t":3381,"item":{"type":"assistant_message","text":"rformance.mark(\"entry\")`\n "},"mode":"append"}
+{"t":3439,"item":{"type":"assistant_message","text":" - Reported "},"mode":"append"}
+{"t":3494,"item":{"type":"assistant_message","text":"per *settled* "},"mode":"append"}
+{"t":3552,"item":{"type":"assistant_message","text":"message, not per delta\n    - Deltas inside the open tail are ignored\n- Avoid layout thrash during `scroll`\n- Preserve the user's selection "},"mode":"append"}
+{"t":3620,"item":{"type":"assistant_message","text":"across updates\n\n### Tool card layout: steps\n\n1. Snapshot "},"mode":"append"}
+{"t":3694,"item":{"type":"assistant_message","text":"the current payload state\n "},"mode":"append"}
+{"t":3764,"item":{"type":"assistant_message","text":"  1. Freeze "},"mode":"append"}
+{"t":3820,"item":{"type":"assistant_message","text":"everything "},"mode":"append"}
+{"t":3884,"item":{"type":"assistant_message","text":"before the last "},"mode":"append"}
+{"t":3939,"item":{"type":"assistant_message","text":"blank line\n   2. Keep the tail as plain text until it closes\n2. Re-parse only the tail with `parseTail(handler)`\n3. "},"mode":"append"}
+{"t":3985,"item":{"type":"assistant_message","text":"Commit once "},"mode":"append"}
+{"t":4040,"item":{"type":"assistant_message","text":"per animation frame\n\n> **Note:** The virtualized "},"mode":"append"}
+{"t":4116,"item":{"type":"assistant_message","text":"list defers the unfinished paragraph during "},"mode":"append"}
+{"t":4173,"item":{"type":"assistant_message","text":"scroll.\n> The virtualized "},"mode":"append"}
+{"t":4231,"item":{"type":"assistant_message","text":"list memoizes the unfinished paragraph only when the text actually changed.\n>\n> > Nested quote: The syntax highlighter defers a stale selection "},"mode":"append"}
+{"t":4292,"item":{"type":"assistant_message","text":"range during scroll.\n\n#### Checklist\n\n- "},"mode":"append"}
+{"t":4357,"item":{"type":"assistant_message","text":"[x] Baseline captured on desktop\n- [x] Baseline captured "},"mode":"append"}
+{"t":4410,"item":{"type":"assistant_message","text":"on web\n- [ ] Baseline captured on iOS simulator\n- [ ] Baseline captured on Android emulator\n\nThe syntax highlighter "},"mode":"append"}
+{"t":4485,"item":{"type":"assistant_message","text":"invalidates the unfinished paragraph during scroll. The layout pass "},"mode":"append"}
+{"t":4552,"item":{"type":"assistant_message","text":"flushes a frozen prefix "},"mode":"append"}
+{"t":4623,"item":{"type":"assistant_message","text":"of the message before the next commit. Related: [issue "},"mode":"append"}
+{"t":4674,"item":{"type":"assistant_message","text":"#179](https://example.com/issues/184), `windowToken()`, "},"mode":"append"}
+{"t":4734,"item":{"type":"assistant_message","text":"and _the reasoning block_.\n\n---\n\n## 3. Syntax highlighting\n\nThe syntax highlighter reuses a stale selection range while the "},"mode":"append"}
+{"t":4781,"item":{"type":"assistant_message","text":"message "},"mode":"append"}
+{"t":4850,"item":{"type":"assistant_message","text":"is still streaming. The virtualized list flushes the cached token list under memory pressure. "},"mode":"append"}
+{"t":4914,"item":{"type":"assistant_message","text":"The diff renderer coalesces "},"mode":"append"}
+{"t":4970,"item":{"type":"assistant_message","text":"every incoming delta without touching "},"mode":"append"}
+{"t":5023,"item":{"type":"assistant_message","text":"the DOM. See the [design notes](https://example.com/d"},"mode":"append"}
+{"t":5094,"item":{"type":"assistant_message","text":"ocs/syntax-highlighting) for the full background.\n\n### Syntax highlighting: goals\n\n- Keep **time to first paint** under `8"},"mode":"append"}
+{"t":5143,"item":{"type":"assistant_message","text":"2ms`\n  - Measured with `performance.mark(\"frame\")`\n "},"mode":"append"}
+{"t":5196,"item":{"type":"assistant_message","text":" - Reported per "},"mode":"append"}
+{"t":5245,"item":{"type":"assistant_message","text":"*settled* message, not per delta\n    - Deltas "},"mode":"append"}
+{"t":5317,"item":{"type":"assistant_message","text":"inside the open tail are ignored\n- Avoid layout thrash during `scroll`\n- Preserve the user's selection across updates\n\n### "},"mode":"append"}
+{"t":5382,"item":{"type":"assistant_message","text":"Syntax highlighting: "},"mode":"append"}
+{"t":5446,"item":{"type":"assistant_message","text":"steps\n\n1. Snapshot the current cache state\n   1. Freeze everything before the last "},"mode":"append"}
+{"t":5652,"item":{"type":"assistant_message","text":"blank line\n "},"mode":"append"}
+{"t":5908,"item":{"type":"assistant_message","text":"  2. Keep the tai"},"mode":"append"}
+{"t":5970,"item":{"type":"assistant_message","text":"l as plain text "},"mode":"append"}
+{"t":6034,"item":{"type":"assistant_message","text":"until it closes\n"},"mode":"append"}
+{"t":6083,"item":{"type":"assistant_message","text":"2. Re-parse only the tail "},"mode":"append"}
+{"t":6133,"item":{"type":"assistant_message","text":"with `parseTail(chunk)`\n3. "},"mode":"append"}
+{"t":6180,"item":{"type":"assistant_message","text":"Commit once per "},"mode":"append"}
+{"t":6251,"item":{"type":"assistant_message","text":"animation frame\n\n> "},"mode":"append"}
+{"t":6297,"item":{"type":"assistant_message","text":"**Note:** The reasoning block re-renders "},"mode":"append"}
+{"t":6353,"item":{"type":"assistant_message","text":"the tool output string during scroll.\n> The virtualized list re-renders the tool outpu"},"mode":"append"}
+{"t":6429,"item":{"type":"assistant_message","text":"t string under memory pressure.\n>\n> "},"mode":"append"}
+{"t":6488,"item":{"type":"assistant_message","text":"> Nested quote: The diff renderer flushes every incoming delta "},"mode":"append"}
+{"t":6547,"item":{"type":"assistant_message","text":"while the message is still streaming.\n\n#### Checklist\n\n- [x] Baseline captured on desktop\n- [x] Baseline captured on web\n- [ ] Baseline "},"mode":"append"}
+{"t":6595,"item":{"type":"assistant_message","text":"captured on iOS simulator\n- "},"mode":"append"}
+{"t":6660,"item":{"type":"assistant_message","text":"[ ] Baseline captured on Android "},"mode":"append"}
+{"t":6717,"item":{"type":"assistant_message","text":"emulator\n\nThe syntax highlighter measures the last visible row on every frame. The "},"mode":"append"}
+{"t":6777,"item":{"type":"assistant_message","text":"diff renderer truncates "},"mode":"append"}
+{"t":6851,"item":{"type":"assistant_message","text":"a stale selection range on every frame. Related: [issue #"},"mode":"append"}
+{"t":6909,"item":{"type":"assistant_message","text":"329](https://example.com/issues/885), `offsetCache()`, and _the reasoning block_.\n\n---\n\n## "},"mode":"append"}
+{"t":6977,"item":{"type":"assistant_message","text":"4. Permission prompts\n\nThe stream buffer collapses the "},"mode":"append"}
+{"t":7025,"item":{"type":"assistant_message","text":"offscreen items "},"mode":"append"}
+{"t":7077,"item":{"type":"assistant_message","text":"before the next commit. The reasoning block collapses the offscreen "},"mode":"append"}
+{"t":7124,"item":{"type":"assistant_message","text":"items on every frame. The layout pass reuses "},"mode":"append"}
+{"t":7192,"item":{"type":"assistant_message","text":"the fenced code block "},"mode":"append"}
+{"t":7259,"item":{"type":"assistant_message","text":"under memory pressure. See the [design notes](htt"},"mode":"append"}
+{"t":7334,"item":{"type":"assistant_message","text":"ps://exa"},"mode":"append"}
+{"t":7408,"item":{"type":"assistant_message","text":"mple.com/docs/permission-prompts) "},"mode":"append"}
+{"t":7472,"item":{"type":"assistant_message","text":"for the full background.\n\n### "},"mode":"append"}
+{"t":7525,"item":{"type":"assistant_message","text":"Permission "},"mode":"append"}
+{"t":7594,"item":{"type":"assistant_message","text":"prompts: goals\n\n- "},"mode":"append"}
+{"t":7668,"item":{"type":"assistant_message","text":"Keep **time to first paint** under `104"},"mode":"append"}
+{"t":7729,"item":{"type":"assistant_message","text":"ms`\n  - Measured with `performance.mark(\"session\")`\n "},"mode":"append"}
+{"t":7781,"item":{"type":"assistant_message","text":" - Reported per *settled* message, not "},"mode":"append"}
+{"t":7840,"item":{"type":"assistant_message","text":"per delta\n    - Deltas inside the open tail are ignored\n- "},"mode":"append"}
+{"t":7917,"item":{"type":"assistant_message","text":"Avoid layout thrash during `scroll`\n- "},"mode":"append"}
+{"t":8229,"item":{"type":"assistant_message","text":"Preserve the user's selection across updates\n\n### "},"mode":"append"}
+{"t":8537,"item":{"type":"assistant_message","text":"Permission prompts: "},"mode":"append"}
+{"t":8612,"item":{"type":"assistant_message","text":"steps\n\n1. Snapshot the "},"mode":"append"}
+{"t":8846,"item":{"type":"assistant_message","text":"current "},"mode":"append"}
+{"t":8899,"item":{"type":"assistant_message","text":"offset state\n   1. Freeze everything before the last blank line\n   2. "},"mode":"append"}
+{"t":8960,"item":{"type":"assistant_message","text":"Keep the tail as plain "},"mode":"append"}
+{"t":9027,"item":{"type":"assistant_message","text":"text until "},"mode":"append"}
+{"t":9097,"item":{"type":"assistant_message","text":"it closes\n2. Re-parse "},"mode":"append"}
+{"t":9159,"item":{"type":"assistant_message","text":"only the tail with `parseTail(cache)`\n3. Commit once per animation frame\n\n> **Note:** The websocket session i"},"mode":"append"}
+{"t":9227,"item":{"type":"assistant_message","text":"nvalidat"},"mode":"append"}
+{"t":9283,"item":{"type":"assistant_message","text":"es the cached "},"mode":"append"}
+{"t":9349,"item":{"type":"assistant_message","text":"token list while the "},"mode":"append"}
+{"t":9423,"item":{"type":"assistant_message","text":"message is still streaming.\n> The stream buffer "},"mode":"append"}
+{"t":9500,"item":{"type":"assistant_message","text":"recomputes "},"mode":"append"}
+{"t":9553,"item":{"type":"assistant_message","text":"a frozen prefix "},"mode":"append"}
+{"t":9617,"item":{"type":"assistant_message","text":"of the message without "},"mode":"append"}
+{"t":9694,"item":{"type":"assistant_message","text":"touching the DOM.\n>\n> > Nested quote: The "},"mode":"append"}
+{"t":10137,"item":{"type":"assistant_message","text":"scroll anchor invalidates the "},"mode":"append"}
+{"t":10183,"item":{"type":"assistant_message","text":"unfinished paragraph once the "},"mode":"append"}
+{"t":10254,"item":{"type":"assistant_message","text":"window closes.\n\n#### C"},"mode":"append"}
+{"t":10314,"item":{"type":"assistant_message","text":"hecklist\n\n- [x] Baseline captured on desktop\n- "},"mode":"append"}
+{"t":10381,"item":{"type":"assistant_message","text":"[x] Baseline captured on web\n- [ ] Baseline captured on iOS simulator\n- [ ] Baseline "},"mode":"append"}
+{"t":10448,"item":{"type":"assistant_message","text":"captured on Android "},"mode":"append"}
+{"t":10514,"item":{"type":"assistant_message","text":"emulator\n\nThe message cache recomputes a stale selection range after the first paint. The s"},"mode":"append"}
+{"t":10570,"item":{"type":"assistant_message","text":"yntax highlighter "},"mode":"append"}
+{"t":10760,"item":{"type":"assistant_message","text":"re-renders the offscreen items during scroll. Related: [issue #304](https://example.com/issues/564), "},"mode":"append"}
+{"t":10830,"item":{"type":"assistant_message","text":"`messageCursor()`, and _the websocket session_.\n\n---\n\n## 5. History loading\n\nThe timeline reducer "},"mode":"append"}
+{"t":10897,"item":{"type":"assistant_message","text":"flushes the pending text node before the next commit. The "},"mode":"append"}
+{"t":10954,"item":{"type":"assistant_message","text":"syntax highlighter memoizes a stale selection range only when the "},"mode":"append"}
+{"t":11031,"item":{"type":"assistant_message","text":"text actually changed. "},"mode":"append"}
+{"t":11089,"item":{"type":"assistant_message","text":"The scroll anchor re-renders "},"mode":"append"}
+{"t":11144,"item":{"type":"assistant_message","text":"a frozen prefix of the message when the viewport is pinned to the "},"mode":"append"}
+{"t":11204,"item":{"type":"assistant_message","text":"bottom. "},"mode":"append"}
+{"t":11277,"item":{"type":"assistant_message","text":"See the [design notes](https://example.com/docs/history-loading) "},"mode":"append"}
+{"t":11351,"item":{"type":"assistant_message","text":"for the full background.\n\n### "},"mode":"append"}
+{"t":11411,"item":{"type":"assistant_message","text":"History loading: goals\n\n- "},"mode":"append"}
+{"t":11480,"item":{"type":"assistant_message","text":"Keep **time to first "},"mode":"append"}
+{"t":11534,"item":{"type":"assistant_message","text":"paint** "},"mode":"append"}
+{"t":11582,"item":{"type":"assistant_message","text":"under `103ms`\n  - Measured "},"mode":"append"}
+{"t":11628,"item":{"type":"assistant_message","text":"with `performance.mark(\"buffer\")`\n  - "},"mode":"append"}
+{"t":11677,"item":{"type":"assistant_message","text":"Reported per *settled* message, not per delta\n    - Deltas inside the open tail are ignored\n- Avoid "},"mode":"append"}
+{"t":11732,"item":{"type":"assistant_message","text":"layout thrash during `scroll`\n- Preserve the "},"mode":"append"}
+{"t":11778,"item":{"type":"assistant_message","text":"user's selection "},"mode":"append"}
+{"t":11836,"item":{"type":"assistant_message","text":"across updates\n\n### History loading: "},"mode":"append"}
+{"t":11902,"item":{"type":"assistant_message","text":"steps\n\n1. "},"mode":"append"}
+{"t":11970,"item":{"type":"assistant_message","text":"Snapshot the current snapshot state\n "},"mode":"append"}
+{"t":12041,"item":{"type":"assistant_message","text":"  1. Freeze everything before the "},"mode":"append"}
+{"t":12113,"item":{"type":"assistant_message","text":"last blank line\n   2. Keep the tail as plain text "},"mode":"append"}
+{"t":12183,"item":{"type":"assistant_message","text":"until it closes\n2. "},"mode":"append"}
+{"t":12236,"item":{"type":"assistant_message","text":"Re-parse only the tail with `parseTai"},"mode":"append"}
+{"t":12307,"item":{"type":"assistant_message","text":"l(session)`\n3. Commit once "},"mode":"append"}
+{"t":12368,"item":{"type":"assistant_message","text":"per animation"},"mode":"append"}
+{"t":12425,"item":{"type":"assistant_message","text":" frame\n\n> "},"mode":"append"}
+{"t":12478,"item":{"type":"assistant_message","text":"**Note:** The syntax highlighter "},"mode":"append"}
+{"t":12551,"item":{"type":"assistant_message","text":"truncates the fenced code block once the window closes.\n> "},"mode":"append"}
+{"t":12624,"item":{"type":"assistant_message","text":"The syntax highlighter defers the pending text node while the message is still streaming.\n>\n> > Nested quote: The scroll anchor defers "},"mode":"append"}
+{"t":12676,"item":{"type":"assistant_message","text":"the fenced code block while "},"mode":"append"}
+{"t":12736,"item":{"type":"assistant_message","text":"the message"},"mode":"append"}
+{"t":12787,"item":{"type":"assistant_message","text":" is still streaming.\n\n#### Checklist\n\n- [x] "},"mode":"append"}
+{"t":12838,"item":{"type":"assistant_message","text":"Baseline captured "},"mode":"append"}
+{"t":12897,"item":{"type":"assistant_message","text":"on desktop\n- [x] Baseline "},"mode":"append"}
+{"t":12944,"item":{"type":"assistant_message","text":"captured o"},"mode":"append"}
+{"t":13015,"item":{"type":"assistant_message","text":"n web\n- [ ] Baseline captured on iOS simulator\n- [ ] Baseline captured on Android emulator\n\nThe reasoning "},"mode":"append"}
+{"t":13085,"item":{"type":"assistant_message","text":"block defers the pending "},"mode":"append"}
+{"t":13163,"item":{"type":"assistant_message","text":"text node only when the text "},"mode":"append"}
+{"t":13209,"item":{"type":"assistant_message","text":"actually changed. The "},"mode":"append"}
+{"t":13283,"item":{"type":"assistant_message","text":"timeline reducer truncates "},"mode":"append"}
+{"t":13360,"item":{"type":"assistant_message","text":"a frozen prefix of the "},"mode":"append"}
+{"t":13420,"item":{"type":"assistant_message","text":"message while the message is still streaming. Related: [issue #691](https://example.com/issues/797), `cursorOffset()`, and _"},"mode":"append"}
+{"t":13468,"item":{"type":"assistant_message","text":"the stream buffer_.\n\n---\n\n## 6. Link handling\n\nThe tool-call card measures the pending text node on every "},"mode":"append"}
+{"t":13522,"item":{"type":"assistant_message","text":"frame. The "},"mode":"append"}
+{"t":13587,"item":{"type":"assistant_message","text":"timeline reducer recomputes the cached token list "},"mode":"append"}
+{"t":13635,"item":{"type":"assistant_message","text":"while the "},"mode":"append"}
+{"t":13690,"item":{"type":"assistant_message","text":"message is still streaming. "},"mode":"append"}
+{"t":13744,"item":{"type":"assistant_message","text":"The markdown parser flushes the cached token list once the window closes. See th"},"mode":"append"}
+{"t":13818,"item":{"type":"assistant_message","text":"e [design notes](https://example.com/docs/link-handling) for the full background.\n\n### Link handling: goals\n\n- Ke"},"mode":"append"}
+{"t":14006,"item":{"type":"assistant_message","text":"ep **time to first paint** "},"mode":"append"}
+{"t":14068,"item":{"type":"assistant_message","text":"under `86ms`\n  - Measured with `performance.mark(\"token\")`\n  - Reported per *settled* message, not per delta\n    - Deltas "},"mode":"append"}
+{"t":14134,"item":{"type":"assistant_message","text":"inside the open tail are ignored\n- Avoid layout "},"mode":"append"}
+{"t":14186,"item":{"type":"assistant_message","text":"thrash during `scroll`\n- Preserve the user's selection across updates\n\n### Link handling: steps\n\n1. Snapshot "},"mode":"append"}
+{"t":14242,"item":{"type":"assistant_message","text":"the current offset state\n   1. Freeze everything before the last blank line\n   2. Keep the tail as plain text until it closes\n2. Re-parse "},"mode":"append"}
+{"t":14311,"item":{"type":"assistant_message","text":"only the tail with `parseTail(payload)`\n3. Commit once per animation frame\n\n> **Note:** The "},"mode":"append"}
+{"t":14379,"item":{"type":"assistant_message","text":"scroll anchor truncates "},"mode":"append"}
+{"t":14438,"item":{"type":"assistant_message","text":"the offscreen items when the "},"mode":"append"}
+{"t":14489,"item":{"type":"assistant_message","text":"viewport is pinned to the "},"mode":"append"}
+{"t":14554,"item":{"type":"assistant_message","text":"bottom.\n> The "},"mode":"append"}
+{"t":14607,"item":{"type":"assistant_message","text":"tool-call card collapses each table row under"},"mode":"append"}
+{"t":14660,"item":{"type":"assistant_message","text":" memory pressure.\n>\n> > Nested quote: The markdown parser defers the offscreen items while the message "},"mode":"append"}
+{"t":14735,"item":{"type":"assistant_message","text":"is still streaming.\n\n#### "},"mode":"append"}
+{"t":14787,"item":{"type":"assistant_message","text":"Checklist\n\n- [x] Baseline captured on desktop\n- "},"mode":"append"}
+{"t":14854,"item":{"type":"assistant_message","text":"[x] Baseline captured on web\n- [ ] Baseline captured on iOS simulator\n- [ ] Baseline captured o"},"mode":"append"}
+{"t":14908,"item":{"type":"assistant_message","text":"n Android emulator\n\nThe"},"mode":"append"}
+{"t":14968,"item":{"type":"assistant_message","text":" tool-call card memoizes a stale selection range when the viewport is pinned to the bottom. The websocket session memoizes the "},"mode":"append"}
+{"t":15031,"item":{"type":"assistant_message","text":"last visible row only when the text actually changed. "},"mode":"append"}
+{"t":15102,"item":{"type":"assistant_message","text":"Related: [issue #674](https://example.com/issues/832), `entryContext()`, and _the timeline reducer_.\n\n---\n\n## 7. Stream "},"mode":"append"}
+{"t":15175,"item":{"type":"assistant_message","text":"buffering\n\nThe diff renderer "},"mode":"append"}
+{"t":15223,"item":{"type":"assistant_message","text":"collapses "},"mode":"append"}
+{"t":15284,"item":{"type":"assistant_message","text":"the fenced code block before "},"mode":"append"}
+{"t":15338,"item":{"type":"assistant_message","text":"the next com"},"mode":"append"}
+{"t":15391,"item":{"type":"assistant_message","text":"mit. The reasoning block measures "},"mode":"append"}
+{"t":15462,"item":{"type":"assistant_message","text":"the cached token list when the viewport is pinned to the bottom. The markdown parser flushes every incoming "},"mode":"append"}
+{"t":15514,"item":{"type":"assistant_message","text":"delta when "},"mode":"append"}
+{"t":15744,"item":{"type":"assistant_message","text":"the viewport is pinned to "},"mode":"append"}
+{"t":15816,"item":{"type":"assistant_message","text":"the bottom. See the [design notes](https://example.com/docs/stream-buffering) for the full background.\n\n### Stream buffering: "},"mode":"append"}
+{"t":15870,"item":{"type":"assistant_message","text":"goals\n\n- Keep **time "},"mode":"append"}
+{"t":15939,"item":{"type":"assistant_message","text":"to first paint** under "},"mode":"append"}
+{"t":16005,"item":{"type":"assistant_message","text":"`63ms`\n  - Measured "},"mode":"append"}
+{"t":16076,"item":{"type":"assistant_message","text":"with `"},"mode":"append"}
+{"t":16148,"item":{"type":"assistant_message","text":"performance.mark(\"frame\")`\n  - Reported "},"mode":"append"}
+{"t":16197,"item":{"type":"assistant_message","text":"per *settled* message, not per delta\n    - Deltas inside "},"mode":"append"}
+{"t":16253,"item":{"type":"assistant_message","text":"the open tail "},"mode":"append"}
+{"t":16547,"item":{"type":"assistant_message","text":"are ignored\n- "},"mode":"append"}
+{"t":16625,"item":{"type":"assistant_message","text":"Avoid layout thrash "},"mode":"append"}
+{"t":16683,"item":{"type":"assistant_message","text":"during "},"mode":"append"}
+{"t":16732,"item":{"type":"assistant_message","text":"`scroll`\n- Preserve the user's selection across upda"},"mode":"append"}
+{"t":16799,"item":{"type":"assistant_message","text":"tes\n\n### Stream buffering: steps\n\n1. "},"mode":"append"}
+{"t":16863,"item":{"type":"assistant_message","text":"Snapshot the current entry state\n   1. Freeze everything "},"mode":"append"}
+{"t":16932,"item":{"type":"assistant_message","text":"before the "},"mode":"append"}
+{"t":17000,"item":{"type":"assistant_message","text":"last blank line\n   2. Keep the tail as plain text until it closes\n2. "},"mode":"append"}
+{"t":17350,"item":{"type":"assistant_message","text":"Re-parse only "},"mode":"append"}
+{"t":17420,"item":{"type":"assistant_message","text":"the ta"},"mode":"append"}
+{"t":17487,"item":{"type":"assistant_message","text":"il with `parseTail(range)`\n3. "},"mode":"append"}
+{"t":17533,"item":{"type":"assistant_message","text":"Commit "},"mode":"append"}
+{"t":17589,"item":{"type":"assistant_message","text":"once per animation frame\n\n> **Note:** The stream "},"mode":"append"}
+{"t":17660,"item":{"type":"assistant_message","text":"buffer recomputes "},"mode":"append"}
+{"t":17711,"item":{"type":"assistant_message","text":"each table row while the message is still streaming.\n> The markdown parser flushes the offscreen items "},"mode":"append"}
+{"t":17763,"item":{"type":"assistant_message","text":"under memory pressure.\n>\n> > Nested quote: The"},"mode":"append"}
+{"t":17824,"item":{"type":"assistant_message","text":" diff renderer "},"mode":"append"}
+{"t":17899,"item":{"type":"assistant_message","text":"measures the last visible "},"mode":"append"}
+{"t":17952,"item":{"type":"assistant_message","text":"row on every frame.\n\n#### Checklist\n\n- "},"mode":"append"}
+{"t":18001,"item":{"type":"assistant_message","text":"[x] Baseline captured on desktop\n- "},"mode":"append"}
+{"t":18074,"item":{"type":"assistant_message","text":"[x] Baseline captured on web\n- [ ] Baseline captured on iOS simulator\n- [ ] Baseline captured on Android "},"mode":"append"}
+{"t":18144,"item":{"type":"assistant_message","text":"emulator\n\nThe "},"mode":"append"}
+{"t":18311,"item":{"type":"assistant_message","text":"tool-call "},"mode":"append"}
+{"t":18361,"item":{"type":"assistant_message","text":"card re-renders a stale selection range during scroll. The message cache recomputes the pending tool state without "},"mode":"append"}
+{"t":18416,"item":{"type":"assistant_message","text":"touching the DOM. Related: [issue #"},"mode":"append"}
+{"t":18484,"item":{"type":"assistant_message","text":"108](https://example.com/issues/357), `messageEntry()`, "},"mode":"append"}
+{"t":18545,"item":{"type":"assistant_message","text":"and _the "},"mode":"append"}
+{"t":18604,"item":{"type":"assistant_message","text":"timeline reducer_.\n\n---\n\n## 8. Image previews\n\nThe diff renderer defers t"},"mode":"append"}
+{"t":18669,"item":{"type":"assistant_message","text":"he unfinished "},"mode":"append"}
+{"t":18738,"item":{"type":"assistant_message","text":"paragraph when the viewport is pinned "},"mode":"append"}
+{"t":18802,"item":{"type":"assistant_message","text":"to the bo"},"mode":"append"}
+{"t":18855,"item":{"type":"assistant_message","text":"ttom. The "},"mode":"append"}
+{"t":18925,"item":{"type":"assistant_message","text":"scroll anchor re-renders the unfinished paragraph after the first paint. The message "},"mode":"append"}
+{"t":18991,"item":{"type":"assistant_message","text":"cache defers "},"mode":"append"}
+{"t":19038,"item":{"type":"assistant_message","text":"the tool output string when the viewport is pinned to the bottom. See the [design "},"mode":"append"}
+{"t":19095,"item":{"type":"assistant_message","text":"notes](https://example.com/docs/image-previews) for the full back"},"mode":"append"}
+{"t":19145,"item":{"type":"assistant_message","text":"ground.\n\n### Image previews: goals\n\n- Keep **time to "},"mode":"append"}
+{"t":19196,"item":{"type":"assistant_message","text":"first paint** under `92ms`\n  - Measured with `performance.mark(\"snapshot\")`\n  - Reported per "},"mode":"append"}
+{"t":19262,"item":{"type":"assistant_message","text":"*settled* message, not per delta\n    - Deltas inside the open tail are ignored\n- Avoid layout thrash during `scroll`\n- Preserve the "},"mode":"append"}
+{"t":19325,"item":{"type":"assistant_message","text":"user's selection across "},"mode":"append"}
+{"t":19392,"item":{"type":"assistant_message","text":"updates\n\n### Image "},"mode":"append"}
+{"t":19450,"item":{"type":"assistant_message","text":"preview"},"mode":"append"}
+{"t":19500,"item":{"type":"assistant_message","text":"s: steps\n\n1. Snapshot the current chunk state\n   1. Freeze everything before the last blank line\n "},"mode":"append"}
+{"t":19551,"item":{"type":"assistant_message","text":"  2. Keep the tail as plain "},"mode":"append"}
+{"t":19605,"item":{"type":"assistant_message","text":"text until it closes\n2. "},"mode":"append"}
+{"t":19666,"item":{"type":"assistant_message","text":"Re-parse only "},"mode":"append"}
+{"t":19731,"item":{"type":"assistant_message","text":"the tail with `parseTail(cache)`\n3. Commit once per animati"},"mode":"append"}
+{"t":19798,"item":{"type":"assistant_message","text":"on frame\n\n> "},"mode":"append"}
+{"t":19853,"item":{"type":"assistant_message","text":"**Note:** The virtualized "},"mode":"append"}
+{"t":19921,"item":{"type":"assistant_message","text":"list invalidates each "},"mode":"append"}
+{"t":20351,"item":{"type":"assistant_message","text":"table row under memory pressure.\n> The websocket session "},"mode":"append"}
+{"t":20410,"item":{"type":"assistant_message","text":"collapses the offscreen items only when the text actually changed.\n>\n> > Nested quote: The websocket "},"mode":"append"}
+{"t":20468,"item":{"type":"assistant_message","text":"session "},"mode":"append"}
+{"t":20520,"item":{"type":"assistant_message","text":"coalesces the tool output string "},"mode":"append"}
+{"t":20586,"item":{"type":"assistant_message","text":"while the "},"mode":"append"}
+{"t":20651,"item":{"type":"assistant_message","text":"message is still streaming.\n\n#### "},"mode":"append"}
+{"t":21060,"item":{"type":"assistant_message","text":"Checklist\n\n- [x] Baseline captured on desktop\n- [x] Baseline captured on web\n- [ ] Baseline captured "},"mode":"append"}
+{"t":21109,"item":{"type":"assistant_message","text":"on iOS simulator\n- [ ] Baseline captu"},"mode":"append"}
+{"t":21167,"item":{"type":"assistant_message","text":"red on Andro"},"mode":"append"}
+{"t":21213,"item":{"type":"assistant_message","text":"id emulator\n\nThe "},"mode":"append"}
+{"t":21282,"item":{"type":"assistant_message","text":"layout pass defers the last "},"mode":"append"}
+{"t":21353,"item":{"type":"assistant_message","text":"visible "},"mode":"append"}
+{"t":21427,"item":{"type":"assistant_message","text":"row af"},"mode":"append"}
+{"t":21476,"item":{"type":"assistant_message","text":"ter the first paint. The websocket session "},"mode":"append"}
+{"t":21529,"item":{"type":"assistant_message","text":"reuses a stale selection range without touching the DOM. Related: "},"mode":"append"}
+{"t":21585,"item":{"type":"assistant_message","text":"[issue #773](https://example.com/issues/717), "},"mode":"append"}
+{"t":21657,"item":{"type":"assistant_message","text":"`cursorRequest()`, and _the "},"mode":"append"}
+{"t":21722,"item":{"type":"assistant_message","text":"tool-call card_.\n\n---\n\n"},"mode":"append"}
+{"t":21770,"item":{"type":"assistant_message","text":"## 9. Tool "},"mode":"append"}
+{"t":21822,"item":{"type":"assistant_message","text":"card layout\n\nThe reasoning block reuses a stale selection "},"mode":"append"}
+{"t":21868,"item":{"type":"assistant_message","text":"range only "},"mode":"append"}
+{"t":21930,"item":{"type":"assistant_message","text":"when the "},"mode":"append"}
+{"t":21980,"item":{"type":"assistant_message","text":"text actually "},"mode":"append"}
+{"t":22057,"item":{"type":"assistant_message","text":"changed."},"mode":"append"}
+{"t":22135,"item":{"type":"assistant_message","text":" The virtualized list flushes the pending tool state when "},"mode":"append"}
+{"t":22199,"item":{"type":"assistant_message","text":"the viewport "},"mode":"append"}
+{"t":22255,"item":{"type":"assistant_message","text":"is pinned to the bottom. The stream buffer memoizes each table row only when the text actually changed. See the [design notes](https"},"mode":"append"}
+{"t":22302,"item":{"type":"assistant_message","text":"://example.com/docs/tool-card-layout) "},"mode":"append"}
+{"t":22371,"item":{"type":"assistant_message","text":"for the full background.\n\n### Tool card layout: goals\n\n- Keep **time to first paint** under `59ms`\n  - Measured with "},"mode":"append"}
+{"t":22422,"item":{"type":"assistant_message","text":"`performance.mark(\"message\")`\n "},"mode":"append"}
+{"t":22476,"item":{"type":"assistant_message","text":" - Reported per *settled* message, not per delta\n    - Deltas inside the open tail are ign"},"mode":"append"}
+{"t":22541,"item":{"type":"assistant_message","text":"ored\n- Avoid layout "},"mode":"append"}
+{"t":22619,"item":{"type":"assistant_message","text":"thrash during `scroll`\n- Preserve the user's selection "},"mode":"append"}
+{"t":22812,"item":{"type":"assistant_message","text":"across updates\n\n### "},"mode":"append"}
+{"t":22862,"item":{"type":"assistant_message","text":"Tool card layout: "},"mode":"append"}
+{"t":22912,"item":{"type":"assistant_message","text":"steps\n\n1. Snapshot the current range state\n   1. Freeze everything before the last blank line\n   2. "},"mode":"append"}
+{"t":22977,"item":{"type":"assistant_message","text":"Keep the tail "},"mode":"append"}
+{"t":23035,"item":{"type":"assistant_message","text":"as plain text until it closes\n2. "},"mode":"append"}
+{"t":23083,"item":{"type":"assistant_message","text":"Re-parse only "},"mode":"append"}
+{"t":23139,"item":{"type":"assistant_message","text":"the tail "},"mode":"append"}
+{"t":23198,"item":{"type":"assistant_message","text":"with `parseTail(response)`\n3. "},"mode":"append"}
+{"t":23263,"item":{"type":"assistant_message","text":"Commit once per animation frame\n\n> **Note:** The reasoning block defers "},"mode":"append"}
+{"t":23329,"item":{"type":"assistant_message","text":"a stale selection range only when "},"mode":"append"}
+{"t":23375,"item":{"type":"assistant_message","text":"the text actually changed.\n> The layout pass truncates the cached token list once the window closes.\n>\n> > Nested quote: The diff renderer "},"mode":"append"}
+{"t":23453,"item":{"type":"assistant_message","text":"invalidates the pending tool state only when the "},"mode":"append"}
+{"t":23499,"item":{"type":"assistant_message","text":"text actually changed.\n\n#### Checklist\n\n- [x] Baseline captured "},"mode":"append"}
+{"t":23567,"item":{"type":"assistant_message","text":"on desktop\n- [x] Baseline captured "},"mode":"append"}
+{"t":23633,"item":{"type":"assistant_message","text":"on web\n- [ ] Baseline captured "},"mode":"append"}
+{"t":23683,"item":{"type":"assistant_message","text":"on iOS simulator\n- [ ] Baseline captured on Android emulator\n\nThe timeline reducer memoizes the last visible row "},"mode":"append"}
+{"t":23757,"item":{"type":"assistant_message","text":"only when the text actually changed. The tool-call "},"mode":"append"}
+{"t":23807,"item":{"type":"assistant_message","text":"card measures the offscreen items without touching the DOM. Related: [issue #677](https://example.com/issues/731), `contextSession()`, "},"mode":"append"}
+{"t":23879,"item":{"type":"assistant_message","text":"and _the diff "},"mode":"append"}
+{"t":23940,"item":{"type":"assistant_message","text":"renderer_.\n\n---\n\n## "},"mode":"append"}
+{"t":23994,"item":{"type":"assistant_message","text":"10. Image previews\n\nThe scroll anchor "},"mode":"append"}
+{"t":24053,"item":{"type":"assistant_message","text":"defers the pending "},"mode":"append"}
+{"t":24115,"item":{"type":"assistant_message","text":"tool state before the next commit. The scroll anchor batches the cached "},"mode":"append"}
+{"t":24177,"item":{"type":"assistant_message","text":"token list only when the text actually changed. The message cache collapses "},"mode":"append"}
+{"t":24245,"item":{"type":"assistant_message","text":"the offscreen items during scroll. See the [design notes](https://example.com/docs/image-previews) "},"mode":"append"}
+{"t":24318,"item":{"type":"assistant_message","text":"for the full ba"},"mode":"append"}
+{"t":24384,"item":{"type":"assistant_message","text":"ckground.\n\n### Image previews: goals\n\n- Keep **time to first "},"mode":"append"}
+{"t":24460,"item":{"type":"assistant_message","text":"paint** under `102ms`\n "},"mode":"append"}
+{"t":24512,"item":{"type":"assistant_message","text":" - Measured with `performance.mark(\"timeline\")`\n  - Reported per *settled* message, not per delta\n "},"mode":"append"}
+{"t":24564,"item":{"type":"assistant_message","text":"   - Deltas inside the open tail are ignored\n- Avoid layout "},"mode":"append"}
+{"t":24614,"item":{"type":"assistant_message","text":"thrash during `scroll`\n- "},"mode":"append"}
+{"t":24673,"item":{"type":"assistant_message","text":"Preserve the user's selection across updates\n\n### Image "},"mode":"append"}
+{"t":24747,"item":{"type":"assistant_message","text":"previews: "},"mode":"append"}
+{"t":24799,"item":{"type":"assistant_message","text":"steps\n\n1. Snapshot "},"mode":"append"}
+{"t":24852,"item":{"type":"assistant_message","text":"the current chunk state\n   1. Freeze everything "},"mode":"append"}
+{"t":24907,"item":{"type":"assistant_message","text":"before the last blank line\n   2. Keep the tail as plain text until it closes\n2. Re-parse only the tail with `parseTail(range)`\n3. "},"mode":"append"}
+{"t":24970,"item":{"type":"assistant_message","text":"Commit once per "},"mode":"append"}
+{"t":25033,"item":{"type":"assistant_message","text":"animation frame\n\n> **Note:** The message "},"mode":"append"}
+{"t":25111,"item":{"type":"assistant_message","text":"cache flushes each table "},"mode":"append"}
+{"t":25172,"item":{"type":"assistant_message","text":"row after "},"mode":"append"}
+{"t":25223,"item":{"type":"assistant_message","text":"the first paint.\n> The message "},"mode":"append"}
+{"t":25275,"item":{"type":"assistant_message","text":"cache flushes the unfin"},"mode":"append"}
+{"t":25340,"item":{"type":"assistant_message","text":"ished paragraph "},"mode":"append"}
+{"t":25389,"item":{"type":"assistant_message","text":"on every "},"mode":"append"}
+{"t":25452,"item":{"type":"assistant_message","text":"frame.\n>\n> > Nested quote: "},"mode":"append"}
+{"t":25505,"item":{"type":"assistant_message","text":"The message cache invalidates the pending text node while "},"mode":"append"}
+{"t":25566,"item":{"type":"assistant_message","text":"the message is still streaming.\n\n#### Checklist\n\n- [x] Baseline"},"mode":"append"}
+{"t":25639,"item":{"type":"assistant_message","text":" captured on desktop\n- [x] Baseline "},"mode":"append"}
+{"t":25702,"item":{"type":"assistant_message","text":"captured on web\n- [ ] Baseline captured on iOS simulator\n- [ ] Baseline captured on Android emulator\n\nThe "},"mode":"append"}
+{"t":25763,"item":{"type":"assistant_message","text":"message ca"},"mode":"append"}
+{"t":25832,"item":{"type":"assistant_message","text":"che re-renders "},"mode":"append"}
+{"t":25892,"item":{"type":"assistant_message","text":"the offscreen items "},"mode":"append"}
+{"t":25965,"item":{"type":"assistant_message","text":"after the first "},"mode":"append"}
+{"t":26033,"item":{"type":"assistant_message","text":"paint. The stream "},"mode":"append"}
+{"t":26095,"item":{"type":"assistant_message","text":"buffer measures "},"mode":"append"}
+{"t":26162,"item":{"type":"assistant_message","text":"the cached "},"mode":"append"}
+{"t":26225,"item":{"type":"assistant_message","text":"token list without touching the DOM. Related: [issue #680"},"mode":"append"}
+{"t":26274,"item":{"type":"assistant_message","text":"](https://example.com/issues/294), `frameQueue()`, and _the tool-call card_.\n\n---\n\n## "},"mode":"append"}
+{"t":26344,"item":{"type":"assistant_message","text":"11. Syntax "},"mode":"append"}
+{"t":26416,"item":{"type":"assistant_message","text":"highlighting\n\nThe "},"mode":"append"}
+{"t":26484,"item":{"type":"assistant_message","text":"stream buffer collapses "},"mode":"append"}
+{"t":26535,"item":{"type":"assistant_message","text":"the unfinished paragraph after the first paint. The markdown "},"mode":"append"}
+{"t":26609,"item":{"type":"assistant_message","text":"parser defers "},"mode":"append"}
+{"t":26672,"item":{"type":"assistant_message","text":"the last visible row before the next commit. The stream buffer "},"mode":"append"}
+{"t":27139,"item":{"type":"assistant_message","text":"invalidates a stale selection range when the viewpor"},"mode":"append"}
+{"t":27196,"item":{"type":"assistant_message","text":"t is pinned to the bottom. See the [design notes](ht"},"mode":"append"}
+{"t":27266,"item":{"type":"assistant_message","text":"tps://example.com/docs/syntax-highlighting) for the full background.\n\n### "},"mode":"append"}
+{"t":27330,"item":{"type":"assistant_message","text":"Syntax highlighting: "},"mode":"append"}
+{"t":27393,"item":{"type":"assistant_message","text":"goals\n\n- Keep **time to first "},"mode":"append"}
+{"t":27453,"item":{"type":"assistant_message","text":"paint** under `119ms`\n  - Measured with `performance.mark(\"timeline\")`\n  - Reported per *settled* "},"mode":"append"}
+{"t":27513,"item":{"type":"assistant_message","text":"message, not per delta\n    - Deltas inside the open tail are ignored\n- Avoid "},"mode":"append"}
+{"t":27580,"item":{"type":"assistant_message","text":"layout "},"mode":"append"}
+{"t":27640,"item":{"type":"assistant_message","text":"thrash during "},"mode":"append"}
+{"t":27717,"item":{"type":"assistant_message","text":"`scroll`\n- "},"mode":"append"}
+{"t":27795,"item":{"type":"assistant_message","text":"Preserve the user's selection across updates\n\n### "},"mode":"append"}
+{"t":27866,"item":{"type":"assistant_message","text":"Syntax highlighting: "},"mode":"append"}
+{"t":27938,"item":{"type":"assistant_message","text":"steps\n\n1. "},"mode":"append"}
+{"t":28014,"item":{"type":"assistant_message","text":"Snapshot the current response state\n   1. Freeze everything "},"mode":"append"}
+{"t":28062,"item":{"type":"assistant_message","text":"before the last blank line\n "},"mode":"append"}
+{"t":28138,"item":{"type":"assistant_message","text":"  2. Keep the tail as plain text until it closes\n2. Re-parse only "},"mode":"append"}
+{"t":28198,"item":{"type":"assistant_message","text":"the tail with `parseTail(chunk)`\n3. Commit once per animation frame\n\n> **Note:** The virtualized list re-renders each table row "},"mode":"append"}
+{"t":28382,"item":{"type":"assistant_message","text":"once the window closes.\n> "},"mode":"append"}
+{"t":28428,"item":{"type":"assistant_message","text":"The syntax highlighter measures a frozen "},"mode":"append"}
+{"t":28505,"item":{"type":"assistant_message","text":"prefix of the "},"mode":"append"}
+{"t":28931,"item":{"type":"assistant_message","text":"message when the viewport is pinned "},"mode":"append"}
+{"t":28982,"item":{"type":"assistant_message","text":"to the bottom.\n>\n> > Nested quote: The scroll anchor batches "},"mode":"append"}
+{"t":29038,"item":{"type":"assistant_message","text":"each table row during scroll.\n\n#### Checklist\n\n- [x] Baseline captured on "},"mode":"append"}
+{"t":29116,"item":{"type":"assistant_message","text":"desktop\n- [x] "},"mode":"append"}
+{"t":29168,"item":{"type":"assistant_message","text":"Baseline "},"mode":"append"}
+{"t":29232,"item":{"type":"assistant_message","text":"captured on web\n- [ ] Baseline captured "},"mode":"append"}
+{"t":29294,"item":{"type":"assistant_message","text":"on iOS simulator\n- [ ] Baseline captured on Android emulator\n\nThe layout pass batches a frozen prefix "},"mode":"append"}
+{"t":29347,"item":{"type":"assistant_message","text":"of the message while the message "},"mode":"append"}
+{"t":29425,"item":{"type":"assistant_message","text":"is still streaming. "},"mode":"append"}
+{"t":29496,"item":{"type":"assistant_message","text":"The syntax highlighter defers a frozen prefix of the message during scrol"},"mode":"append"}
+{"t":29567,"item":{"type":"assistant_message","text":"l. Related: [issue "},"mode":"append"}
+{"t":29623,"item":{"type":"assistant_message","text":"#306](https://example.com/issues/834), `cursorFrame()`, and _the layout pass_.\n\n---\n\n## 12. Image previews\n\nThe tool-call "},"mode":"append"}
+{"t":29675,"item":{"type":"assistant_message","text":"card coalesces a frozen prefix of the message "},"mode":"append"}
+{"t":29736,"item":{"type":"assistant_message","text":"only when the text actually changed. "},"mode":"append"}
+{"t":29805,"item":{"type":"assistant_message","text":"The tool-call card truncates a frozen prefix of the message when "},"mode":"append"}
+{"t":29869,"item":{"type":"assistant_message","text":"the viewport is pinned to the bottom. "},"mode":"append"}
+{"t":29926,"item":{"type":"assistant_message","text":"The layout pass defers the pending text "},"mode":"append"}
+{"t":29996,"item":{"type":"assistant_message","text":"node before the next "},"mode":"append"}
+{"t":30064,"item":{"type":"assistant_message","text":"commit. See the [design "},"mode":"append"}
+{"t":30125,"item":{"type":"assistant_message","text":"notes](https:"},"mode":"append"}
+{"t":30178,"item":{"type":"assistant_message","text":"//example.com/docs/image-previews) "},"mode":"append"}
+{"t":30253,"item":{"type":"assistant_message","text":"for the full background.\n\n### Image previews: goals\n\n- Keep **time to first paint** "},"mode":"append"}
+{"t":30309,"item":{"type":"assistant_message","text":"under `49ms`\n  - Measured with `performance.mark(\"window\")`\n "},"mode":"append"}
+{"t":30383,"item":{"type":"assistant_message","text":" - Reported per *settled* message, not per delta\n    - Deltas inside the open tail are ignored\n- "},"mode":"append"}
+{"t":30440,"item":{"type":"assistant_message","text":"Avoid layout thrash during `scroll`\n- Preserve the user's "},"mode":"append"}
+{"t":30513,"item":{"type":"assistant_message","text":"selection across updates\n\n### "},"mode":"append"}
+{"t":30583,"item":{"type":"assistant_message","text":"Image previews: steps\n\n1. Snapshot "},"mode":"append"}
+{"t":31055,"item":{"type":"assistant_message","text":"the current range state\n   1. Freeze every"},"mode":"append"}
+{"t":31111,"item":{"type":"assistant_message","text":"thing before "},"mode":"append"}
+{"t":31184,"item":{"type":"assistant_message","text":"the last blank "},"mode":"append"}
+{"t":31250,"item":{"type":"assistant_message","text":"line\n   2. "},"mode":"append"}
+{"t":31317,"item":{"type":"assistant_message","text":"Keep the "},"mode":"append"}
+{"t":31579,"item":{"type":"assistant_message","text":"tail as plain text "},"mode":"append"}
+{"t":31650,"item":{"type":"assistant_message","text":"until it closes\n2. "},"mode":"append"}
+{"t":31712,"item":{"type":"assistant_message","text":"Re-parse only the "},"mode":"append"}
+{"t":31770,"item":{"type":"assistant_message","text":"tail with `"},"mode":"append"}
+{"t":31832,"item":{"type":"assistant_message","text":"parseTail(frame)`\n3. Commit once per animation frame\n\n> **Note:** The markdown parser re-renders the pending text node under memory pressure.\n> "},"mode":"append"}
+{"t":31879,"item":{"type":"assistant_message","text":"The diff re"},"mode":"append"}
+{"t":32218,"item":{"type":"assistant_message","text":"nderer batches the pending tool"},"mode":"append"}
+{"t":32291,"item":{"type":"assistant_message","text":" state before the "},"mode":"append"}
+{"t":32357,"item":{"type":"assistant_message","text":"next commit.\n>\n> > Nested quote: The scroll "},"mode":"append"}
+{"t":32421,"item":{"type":"assistant_message","text":"anchor measures the cached token list without touching the DOM.\n\n#### Checklist\n\n- [x] Baseline"},"mode":"append"}
+{"t":32490,"item":{"type":"assistant_message","text":" captured on desktop\n- "},"mode":"append"}
+{"t":32537,"item":{"type":"assistant_message","text":"[x] Baseline captured on web\n- "},"mode":"append"}
+{"t":32686,"item":{"type":"assistant_message","text":"[ ] Baseline captured on "},"mode":"append"}
+{"t":32753,"item":{"type":"assistant_message","text":"iOS simulator\n- [ ] Baseline captured on Android emulator\n\nThe virtualized "},"mode":"append"}
+{"t":32799,"item":{"type":"assistant_message","text":"list invalidates a frozen prefix of the message under memory pressure. The virtualized list flushes a stale selection range after "},"mode":"append"}
+{"t":32845,"item":{"type":"assistant_message","text":"the first paint. Related: "},"mode":"append"}
+{"t":32912,"item":{"type":"assistant_message","text":"[issue #407](htt"},"mode":"append"}
+{"t":32966,"item":{"type":"assistant_message","text":"ps://example.com/issues/369), "},"mode":"append"}
+{"t":33247,"item":{"type":"assistant_message","text":"`cursorBuffer()`, "},"mode":"append"}
+{"t":33303,"item":{"type":"assistant_message","text":"and _the virtual"},"mode":"append"}
+{"t":33469,"item":{"type":"assistant_message","text":"ized list_.\n\n---\n\n## 13. "},"mode":"append"}
+{"t":33542,"item":{"type":"assistant_message","text":"Permission prompts\n\nThe tool-call card memoizes a frozen "},"mode":"append"}
+{"t":33620,"item":{"type":"assistant_message","text":"prefix of the message "},"mode":"append"}
+{"t":33685,"item":{"type":"assistant_message","text":"on every "},"mode":"append"}
+{"t":33755,"item":{"type":"assistant_message","text":"frame. The websocket "},"mode":"append"}
+{"t":33817,"item":{"type":"assistant_message","text":"session batches the cached "},"mode":"append"}
+{"t":33869,"item":{"type":"assistant_message","text":"token list before the next commit. The virtualized list flushes a stale "},"mode":"append"}
+{"t":33941,"item":{"type":"assistant_message","text":"selection "},"mode":"append"}
+{"t":34001,"item":{"type":"assistant_message","text":"range once the window closes. See the [design notes](https://example.com/docs/permission-prompts) "},"mode":"append"}
+{"t":34050,"item":{"type":"assistant_message","text":"for the full background.\n\n### Permission prompts: goals\n\n- Keep **time to first paint** under "},"mode":"append"}
+{"t":34103,"item":{"type":"assistant_message","text":"`87ms`\n  - Measured with `performance.mark(\"handler\")`\n  - Reported per *settled* message, not per delta\n    - "},"mode":"append"}
+{"t":34163,"item":{"type":"assistant_message","text":"Deltas inside the"},"mode":"append"}
+{"t":34211,"item":{"type":"assistant_message","text":" open tail are ignored\n- Avoid layout "},"mode":"append"}
+{"t":34258,"item":{"type":"assistant_message","text":"thrash during `scroll`\n- "},"mode":"append"}
+{"t":34321,"item":{"type":"assistant_message","text":"Preserve the user's selection across updates\n\n### Permission prompts: steps\n\n1. Snapshot the current context state\n  "},"mode":"append"}
+{"t":34399,"item":{"type":"assistant_message","text":" 1. Freeze everything before "},"mode":"append"}
+{"t":34465,"item":{"type":"assistant_message","text":"the last blank line\n   2. Keep the tail "},"mode":"append"}
+{"t":34513,"item":{"type":"assistant_message","text":"as plain text until it closes\n2. Re-parse only the tail with `parseTail(response)`\n3. "},"mode":"append"}
+{"t":34559,"item":{"type":"assistant_message","text":"Commit once per anim"},"mode":"append"}
+{"t":34900,"item":{"type":"assistant_message","text":"ation frame\n\n> "},"mode":"append"}
+{"t":34959,"item":{"type":"assistant_message","text":"**Note:** The reasoning block recomputes "},"mode":"append"}
+{"t":35020,"item":{"type":"assistant_message","text":"the pending text node before "},"mode":"append"}
+{"t":35084,"item":{"type":"assistant_message","text":"the next "},"mode":"append"}
+{"t":35404,"item":{"type":"assistant_message","text":"commit.\n> The t"},"mode":"append"}
+{"t":35453,"item":{"type":"assistant_message","text":"imeline reducer reuses the tool output string "},"mode":"append"}
+{"t":35514,"item":{"type":"assistant_message","text":"while the "},"mode":"append"}
+{"t":35568,"item":{"type":"assistant_message","text":"message is "},"mode":"append"}
+{"t":35615,"item":{"type":"assistant_message","text":"still streaming.\n>\n> > Nested quote: The message cache invalidates the fenced code block before the next commit.\n\n#### Chec"},"mode":"append"}
+{"t":35662,"item":{"type":"assistant_message","text":"klist\n\n- [x] Baseline "},"mode":"append"}
+{"t":35725,"item":{"type":"assistant_message","text":"captured on desktop\n- [x] Baseline "},"mode":"append"}
+{"t":35792,"item":{"type":"assistant_message","text":"captured on web\n- [ ] Baseline captured on iOS simulator\n- [ ] Baseline captured on Android "},"mode":"append"}
+{"t":35846,"item":{"type":"assistant_message","text":"emulator\n\nThe timeline reducer memoizes the pending text node "},"mode":"append"}
+{"t":35901,"item":{"type":"assistant_message","text":"without touching "},"mode":"append"}
+{"t":35966,"item":{"type":"assistant_message","text":"the DOM. The virtualized "},"mode":"append"}
+{"t":36025,"item":{"type":"assistant_message","text":"list flushes each table row under memory pressure. Related: [issue #143"},"mode":"append"}
+{"t":36090,"item":{"type":"assistant_message","text":"](https://example.com/issues/774), "},"mode":"append"}
+{"t":36151,"item":{"type":"assistant_message","text":"`queueRange()`, and _the diff rende"},"mode":"append"}
+{"t":36296,"item":{"type":"assistant_message","text":"rer_.\n\n---\n\n## "},"mode":"append"}
+{"t":36362,"item":{"type":"assistant_message","text":"14. Scroll anchoring\n\nThe message cache truncates "},"mode":"append"}
+{"t":36418,"item":{"type":"assistant_message","text":"the pending text node before the next commit. The message cache "},"mode":"append"}
+{"t":36476,"item":{"type":"assistant_message","text":"reuses the pending tool state before the next commit. The markdown parser recomputes every incoming delta while the message is still streaming. "},"mode":"append"}
+{"t":36541,"item":{"type":"assistant_message","text":"See the [design notes](https://example.c"},"mode":"append"}
+{"t":36602,"item":{"type":"assistant_message","text":"om/docs/scroll-anchoring) for th"},"mode":"append"}
+{"t":36656,"item":{"type":"assistant_message","text":"e full background.\n\n### Scroll anchoring: goals\n\n- "},"mode":"append"}
+{"t":36720,"item":{"type":"assistant_message","text":"Keep **time to first paint** under `40ms`\n  - Measured with `performance.mark(\"message\")`\n  - Reported per *settled* "},"mode":"append"}
+{"t":36788,"item":{"type":"assistant_message","text":"message, not per delta\n    - Deltas inside "},"mode":"append"}
+{"t":36859,"item":{"type":"assistant_message","text":"the open tail "},"mode":"append"}
+{"t":36928,"item":{"type":"assistant_message","text":"are ignored\n- Avoid layout thrash during `scroll`\n- Preserve the user's selection across updates\n\n### Scroll an"},"mode":"append"}
+{"t":37003,"item":{"type":"assistant_message","text":"choring: steps\n\n1. Snapshot the "},"mode":"append"}
+{"t":37057,"item":{"type":"assistant_message","text":"current payload state\n   1. Freeze everything "},"mode":"append"}
+{"t":37131,"item":{"type":"assistant_message","text":"before the last blank line\n   2. "},"mode":"append"}
+{"t":37184,"item":{"type":"assistant_message","text":"Keep the tail as plain text until it closes\n2. Re-parse only the tail with `parseTail(payload)`\n3. Commit "},"mode":"append"}
+{"t":37237,"item":{"type":"assistant_message","text":"once per animation frame\n\n> **Note:** The message cache invalidates "},"mode":"append"}
+{"t":37290,"item":{"type":"assistant_message","text":"the last visible row under memory pressure.\n> The stream buffer memoizes a frozen prefix "},"mode":"append"}
+{"t":37341,"item":{"type":"assistant_message","text":"of the message when "},"mode":"append"}
+{"t":37388,"item":{"type":"assistant_message","text":"the viewport is pinned to the bottom.\n>\n> > Nested quote: The markdown parser re-renders the last visible row "},"mode":"append"}
+{"t":37453,"item":{"type":"assistant_message","text":"before the next commit.\n\n#### Checklist\n\n- [x] Baseline captured on desktop\n- [x] Baseline captured on web\n- [ ] "},"mode":"append"}
+{"t":37512,"item":{"type":"assistant_message","text":"Baseline captured on iOS simulator\n- [ ] Baseline captured on Android e"},"mode":"append"}
+{"t":37563,"item":{"type":"assistant_message","text":"mulator\n\nThe message cache batches the last visible row on every "},"mode":"append"}
+{"t":37623,"item":{"type":"assistant_message","text":"frame. The message "},"mode":"append"}
+{"t":38020,"item":{"type":"assistant_message","text":"cache reuses the pending text node under memory pressure. Related: "},"mode":"append"}
+{"t":38079,"item":{"type":"assistant_message","text":"[issue #506](https://example.com/issues/711), `sessionRange()`, and _the tool-call card_.\n\n---\n\n## Summary\n\nThe order of work is:"},"mode":"append"}
+{"t":38279,"item":{"type":"assistant_message","text":" measure, freeze the stable "},"mode":"append"}
+{"t":38341,"item":{"type":"assistant_message","text":"prefix, then tune "},"mode":"append"}
+{"t":38398,"item":{"type":"assistant_message","text":"each area "},"mode":"append"}
+{"t":38476,"item":{"type":"assistant_message","text":"in isolation. Every change ships behind a flag until its baseline moves."},"mode":"append"}

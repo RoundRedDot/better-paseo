@@ -1,0 +1,13 @@
+{
+  "id": "bc-bench",
+  "requirements": {
+    "paseo": ">=0.8.0"
+  },
+  "build": [
+    [
+      "npm",
+      "ci",
+      "--include=dev"
+    ]
+  ]
+}

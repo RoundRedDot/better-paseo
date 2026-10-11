@@ -1,0 +1,24 @@
+{
+  "name": "bc-bench-provider",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DEV-ONLY Paseo plugin: replays recorded stream fixtures as an agent provider for Beautiful Chat performance baselines",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "setup": "node scripts/set-fixtures-dir.mjs",
+    "typecheck": "node scripts/set-fixtures-dir.mjs && tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@getpaseo/plugin": "0.11.2"
+  },
+  "devDependencies": {
+    "@getpaseo/client": "0.11.2",
+    "@getpaseo/protocol": "0.11.2",
+    "@types/node": "^22.15.3",
+    "@types/ws": "^8.18.2",
+    "typescript": "^5.9.3",
+    "ws": "^8.22.0",
+    "zod": "^4.4.3"
+  }
+}
