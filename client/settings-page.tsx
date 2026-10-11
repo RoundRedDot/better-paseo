@@ -4,6 +4,7 @@ import { TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { codeSurface, itemRootFont } from "./components/host-font-escape";
 import { radiusV2, space, buildThemeTokens, type ExtendedThemeTokens } from "./components/theme-tokens";
+import { ensureEmbeddedFonts } from "./components/embed-fonts";
 import {
   ACCENT_PRESETS,
   CODE_FONT_SIZE_MAX,
@@ -522,7 +523,10 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
   const native = platform !== "web";
   const compact = layout?.compact ?? native;
   const tokens = useMemo(
-    () => buildThemeTokens(theme.colors, preferences, { platform, theme }),
+    () => {
+      ensureEmbeddedFonts(preferences, platform);
+      return buildThemeTokens(theme.colors, preferences, { platform, theme });
+    },
     [preferences, theme, platform],
   );
   const look = useMemo<PageLook>(() => ({ tokens, compact }), [tokens, compact]);
@@ -591,9 +595,9 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
         {hostTypography ? null : (
           <SettingRow
             title="Paseo's font settings"
-            description={`This Paseo version does not share its font settings with plugins, so Follow Paseo uses the defaults: ${
-              native ? "the system monospace face" : "the embedded Iosevka"
-            } at 12px.`}
+            description={`This Paseo version does not share its font settings with plugins, so Follow Paseo uses Paseo's default monospace: ${
+              native ? "the system monospace face" : "SF Mono, Menlo, Monaco or Consolas, whichever this computer has"
+            }, at 12px.`}
             look={look}
             first
           />

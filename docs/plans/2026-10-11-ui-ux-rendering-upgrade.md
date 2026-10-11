@@ -604,8 +604,8 @@ Reduced Motion：只有 shimmer、glow 两处 CSS 处理了；所有 `Animated` 
 
    | 设置 | Web / 桌面 | iOS / Android |
    |---|---|---|
-   | 跟随 Paseo（默认） | 有 H1 用宿主值；无 H1 用内嵌 Iosevka（D2） | 有 H1 用宿主值；无 H1 用 `ui-monospace`/`monospace`（修复第 1 条） |
-   | Iosevka / Iosevka Code | 内嵌字体 | 不显示此选项 |
+   | 跟随 Paseo（默认） | 有 H1 用宿主值；无 H1 用宿主自己的默认等宽字体栈 `SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace`（D2，2026-10-11 修订）；代码块同样不用连字字体 | 有 H1 用宿主值；无 H1 用 `ui-monospace`/`monospace`（修复第 1 条） |
+   | Iosevka / Iosevka Code | 内嵌字体（只有选了才注入 `@font-face`）；Iosevka Code 在代码块用连字字体 | 不显示此选项 |
    | 自定义 | 自由输入，生成 `"<输入>", <跟随值字体栈>`，不存在时 CSS 回退 | 从平台确定存在的等宽字体中选择（iOS：SF Mono/Menlo/Courier New；Android：monospace），不提供自由输入 |
 
    原生端无法检测字体是否存在，填错会变成比例字体，因此用下拉列表。中文回退：Web 字体栈末尾追加 `"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC"`；原生由系统回退。
@@ -739,7 +739,7 @@ Reduced Motion：只有 shimmer、glow 两处 CSS 处理了；所有 `Animated` 
 | # | 决策 | 理由 |
 |---|---|---|
 | D1 | **宿主改动走 fork → 上游 PR**。在 `RoundRedDot/paseo`（与插件 fork 同组织）开发；H0、H1、H4 改动小，实现后直接向 `getpaseo/paseo` 提 PR；H2a、H2b 先在上游开 issue 对齐接口形状（§3.5），再从 fork 提 PR。插件发布**不依赖** fork 构建。 | H0/H1/H4 改动小、语义清晰，容易被接受；H2 涉及宿主滚动核心，先对齐 API 可以避免返工。插件全部做特性检测，所以上游合并节奏不阻塞插件。 |
-| D2 | **字体默认值 = Follow Paseo，但宿主未提供 `typography` 时保持现状**（Web 用内嵌 Iosevka，原生用平台等宽字体）。H1 合并后才真正跟随宿主。 | 满足需求的默认语义，同时在当前 0.11.2 宿主上不产生观感回退。宿主支持后的观感变化写进 changelog。 |
+| D2 | **字体默认值 = Follow Paseo。宿主未提供 `typography` 时用宿主自己的默认值**：Web/桌面用宿主的 `DEFAULT_MONO_FONT_STACK`（`SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace`，加中文回退），原生用平台等宽字体。内嵌 Iosevka / Iosevka Code 只在用户明确选择时使用。（2026-10-11 修订：原决定是"Web 保持内嵌 Iosevka"，用户在发布后反馈希望与 Paseo 官方等宽观感一致，因此推翻。） | 默认值与宿主自己的代码渲染一致；内嵌字体变成可选项，不选就不注入。 |
 | D3 | **验证平台**：桌面端用本机 `Paseo.app`（Electron）；iOS 用 paseo 源码 `packages/app` 的 `expo run:ios` 开发版，在 iPhone 16 Pro 模拟器上连接本机 daemon；Android 模拟器用于 S3/S5/S6 的复制、长按和吸顶验证。 | 本机已有 Xcode、iOS 模拟器、Android SDK，Paseo app 是 Expo 工程（`packages/app/package.json:16`）。原生构建失败时，该项如实记为"未验证"，不记为通过。 |
 | D4 | **SDK devDep 升级到与本机宿主一致的 0.11.x**；`requirements.paseo` 保持 `>=0.8.0`；新增 API（`typography`、sticky、cell viewport）全部做运行时特性检测。 | 类型与实际运行的宿主一致，又不抬高安装门槛。 |
 | D5 | **Markdown 依赖方式（S0 后修订）**：`remend@1.4` 照常作为 npm 依赖（无 `class`，已在 iOS 验证）；`marked@18` **用 Babel 预降级后 vendor 进 `client/vendor/marked.js`**（附许可证），生成脚本放在 `tools/vendor-marked/`（独立 package.json，不增加根依赖），根依赖中移除 `marked`。 | S0-D 实测：RN 0.81.5 的 Hermes 不支持任何形态的 `class`，插件 bundle 绕过 Metro/Babel，esbuild 无法把 class 降级；marked 的 `static passThroughHooks` 因此在 iOS 上报错。Babel 降级后的 marked 已在模拟器验证可用（46KB→112KB）。 |

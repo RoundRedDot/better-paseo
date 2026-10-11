@@ -60,6 +60,8 @@ describe("budgetForWidth", () => {
 
   it("knows the common faces", () => {
     expect(monoAdvance("OMP Iosevka Code")).toBe(0.5);
+    // Paseo's own default web stack ("Follow Paseo" without host typography).
+    expect(monoAdvance("SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace")).toBe(0.6);
     expect(monoAdvance("Menlo")).toBe(0.6);
     expect(monoAdvance(undefined)).toBe(0.6);
   });

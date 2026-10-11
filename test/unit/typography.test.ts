@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_WEB_MONO_STACK,
   EMBEDDED_FAMILY,
+  HOST_DEFAULT_WEB_MONO,
   interfaceFamily,
   lineHeightFor,
   proseScale,
@@ -43,7 +45,8 @@ const EXPECTED: Record<
   Record<keyof typeof SETTINGS, Record<keyof typeof THEMES, { starts: string; single?: boolean }>>
 > = {
   web: {
-    follow: { noHost: { starts: `"${EMBEDDED_FAMILY.mono}"` }, withHost: { starts: '"JetBrains Mono"' } },
+    // Without H1, Paseo's own default stack, never the embedded face.
+    follow: { noHost: { starts: HOST_DEFAULT_WEB_MONO }, withHost: { starts: '"JetBrains Mono"' } },
     iosevka: {
       noHost: { starts: `"${EMBEDDED_FAMILY.mono}"` },
       withHost: { starts: `"${EMBEDDED_FAMILY.mono}"` },
@@ -90,22 +93,40 @@ describe("resolveTypography: 3 platforms x 3 settings x host typography", () => 
 });
 
 describe("resolveTypography details", () => {
-  it("uses the ligature cut for code blocks only with embedded Iosevka and ligatures on", () => {
-    const on = resolveTypography(noHost, follow, "web");
-    expect(on.mono.codeFamily.startsWith(`"${EMBEDDED_FAMILY.code}"`)).toBe(true);
-    expect(on.mono.family.startsWith(`"${EMBEDDED_FAMILY.mono}"`)).toBe(true);
-    const off = resolveTypography(noHost, { ...follow, codeFont: "plain" }, "web");
-    expect(off.mono.codeFamily).toBe(off.mono.family);
-    expect(off.mono.ligatures).toBe(false);
+  it("follows Paseo's default web stack exactly, code blocks included, when the host shares no typography", () => {
+    expect(HOST_DEFAULT_WEB_MONO).toBe(
+      "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+    );
+    for (const codeFont of ["code", "plain"] as const) {
+      const result = resolveTypography(noHost, { ...follow, codeFont }, "web");
+      expect(result.mono.family).toBe(DEFAULT_WEB_MONO_STACK);
+      expect(result.mono.family.startsWith(`${HOST_DEFAULT_WEB_MONO}, "PingFang SC"`)).toBe(true);
+      expect(result.mono.codeFamily).toBe(result.mono.family);
+      expect(result.mono.ligatures).toBe(false);
+      expect(result.mono.family).not.toContain("OMP");
+    }
+  });
+
+  it("uses the ligature cut for code blocks only when the reader picks Iosevka Code", () => {
+    const code = resolveTypography(noHost, iosevka, "web");
+    expect(code.mono.codeFamily.startsWith(`"${EMBEDDED_FAMILY.code}"`)).toBe(true);
+    expect(code.mono.family).toBe(`"${EMBEDDED_FAMILY.mono}", ${DEFAULT_WEB_MONO_STACK}`);
+    expect(code.mono.ligatures).toBe(true);
+    const plain = resolveTypography(noHost, { ...iosevka, codeFont: "plain" }, "web");
+    expect(plain.mono.codeFamily).toBe(plain.mono.family);
+    expect(plain.mono.ligatures).toBe(false);
     const host = resolveTypography(withHost, follow, "web");
     expect(host.mono.codeFamily).toBe(host.mono.family);
+    expect(host.mono.ligatures).toBe(false);
+    // Native never draws the cut, whatever is stored.
+    expect(resolveTypography(noHost, iosevka, "ios").mono.ligatures).toBe(false);
   });
 
   it("builds a custom web stack on top of the follow value and strips stray quotes", () => {
     const result = resolveTypography(noHost, { ...follow, monoFont: "custom", customMonoFont: 'Fira "Code"' }, "web");
-    expect(result.mono.family.startsWith('"Fira Code", "OMP Iosevka", ui-monospace')).toBe(true);
+    expect(result.mono.family).toBe(`"Fira Code", ${DEFAULT_WEB_MONO_STACK}`);
     const empty = resolveTypography(noHost, { ...follow, monoFont: "custom", customMonoFont: "  " }, "web");
-    expect(empty.mono.family.startsWith(`"${EMBEDDED_FAMILY.mono}"`)).toBe(true);
+    expect(empty.mono.family).toBe(DEFAULT_WEB_MONO_STACK);
   });
 
   it("only honours native custom fonts from the platform list", () => {

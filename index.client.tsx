@@ -1,7 +1,7 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { z } from "zod";
 import { BeautifulChatSettingsPage } from "./client/settings-page";
-import { embedFonts } from "./client/components/embed-fonts";
+import { removeEmbeddedFonts } from "./client/components/embed-fonts";
 import { installHostNoticeStyle } from "./client/components/host-notice";
 import { installChatFind } from "./client/components/chat-find";
 import { extractPromptImages } from "./client/prompt-images";
@@ -24,8 +24,9 @@ function toJsonValue(value: unknown): JsonValue {
 }
 
 export default function contribute(client: PluginClientContext) {
-  // Install the bundled faces before any surface paints.
-  const removeFonts = embedFonts();
+  // The bundled faces (Iosevka, Inter) are installed on first use by a reader
+  // who picks them (`ensureEmbeddedFonts`); unloading removes them.
+  const removeFonts = removeEmbeddedFonts;
   // The host draws  rows itself; this only re-chromes them.
   const removeNoticeStyle = installHostNoticeStyle();
   // Paseo's Ctrl+F cannot reveal rows this plugin draws; this bar can.
