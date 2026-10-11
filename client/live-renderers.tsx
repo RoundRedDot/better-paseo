@@ -17,7 +17,7 @@ import { itemRootFont } from "./components/host-font-escape";
 import { promptRowAnchor } from "./components/prompt-anchor";
 import { surfaceProps } from "./components/view-props";
 import { useSelectionActions } from "./components/selection-actions";
-import type { TurnUsage } from "./components/user-message";
+import { TurnUsageRow, type TurnUsage } from "./components/user-message";
 import { NoticeCallout } from "./components/notice-callout";
 import { useEnhancerPreferences } from "./preferences";
 import { PreferenceSyncSlot } from "./state/preference-sync-slot";
@@ -411,36 +411,34 @@ export interface LiveUserMessagePayload {
  */
 const LIVE_WINDOW_MS = 5 * 60 * 1000;
 
-function LiveUserMessageRendererBody({
-  item,
-  theme,
-  layout,
+/**
+ * The usage row of a prompt observed live, in a child of its own (F2):
+ * the agent subscription and the refresh RPC live here, so agent updates
+ * re-render this row and never the prompt card's body.
+ *
+ * Only the newest prompt of the agent follows it (defect D3): an older
+ * turn's figures are final, and subscribing every prompt to the agent
+ * re-rendered all of them, with one refresh RPC each, on every agent update.
+ * The selector returns a primitive, and a constant null once the card stops
+ * tracking, so agent updates never reach older prompts at all.
+ */
+const LivePromptUsage = memo(function LivePromptUsage({
   agentId,
-  timestamp,
-}: PluginTimelineItemProps<LiveUserMessagePayload>) {
-  const probe = probeCard("user_message", item.data.messageId ?? String(timestamp.getTime()));
-  const preferences = useEnhancerPreferences();
-  const tokens = useThemeTokens(theme, preferences, layout.platform);
-  useSelectionActions(tokens, preferences.selectionActions);
+  promptKey,
+  at,
+  tokens,
+}: {
+  agentId: string;
+  promptKey: string;
+  at: number;
+  tokens: ReturnType<typeof useThemeTokens>;
+}) {
   const paseo = usePaseo();
   const handle = useMemo(() => paseo.agents.ref(agentId), [paseo, agentId]);
-
-  // Decided once, on mount: a replayed turn must not borrow later figures.
-  const observedLive = useMemo(
-    () => Date.now() - timestamp.getTime() < LIVE_WINDOW_MS,
-    [timestamp],
-  );
-
-  // Only the newest prompt of the agent follows it live (defect D3): an
-  // older turn's figures are final, and subscribing every prompt card to
-  // the agent's status re-rendered all of them on each agent update. The
-  // selector returns a primitive, and a constant null for cards that do not
-  // track, so agent updates never reach those cards.
-  const atMs = timestamp.getTime();
-  const latest = useIsLatestPrompt(agentId, item.data.messageId ?? `at:${atMs}`, atMs);
+  const latest = useIsLatestPrompt(agentId, promptKey, at);
   const [usage, setUsage] = useState<TurnUsage | null>(null);
   const [frozen, setFrozen] = useState(false);
-  const tracking = observedLive && latest && !frozen;
+  const tracking = latest && !frozen;
   const liveKey = useAgent(agentId, (agent) =>
     tracking ? `${agent.status}|${agent.updatedAt}` : null,
   );
@@ -464,6 +462,28 @@ function LiveUserMessageRendererBody({
     };
   }, [handle, tracking, running, liveKey]);
 
+  return <TurnUsageRow usage={usage} pending={running && tracking} tokens={tokens} />;
+});
+
+function LiveUserMessageRendererBody({
+  item,
+  theme,
+  layout,
+  agentId,
+  timestamp,
+}: PluginTimelineItemProps<LiveUserMessagePayload>) {
+  const probe = probeCard("user_message", item.data.messageId ?? String(timestamp.getTime()));
+  const preferences = useEnhancerPreferences();
+  const tokens = useThemeTokens(theme, preferences, layout.platform);
+  useSelectionActions(tokens, preferences.selectionActions);
+  // Decided once, on mount: a replayed turn must not borrow later figures.
+  const observedLive = useMemo(
+    () => Date.now() - timestamp.getTime() < LIVE_WINDOW_MS,
+    [timestamp],
+  );
+  const atMs = timestamp.getTime();
+  const promptKey = item.data.messageId ?? `at:${atMs}`;
+
   // The same envelopes reach this item kind on some hosts and on history
   // replay. A job result is not something the user said, so it never takes the
   // user bubble.
@@ -484,8 +504,11 @@ function LiveUserMessageRendererBody({
           images={item.data.images}
           timestamp={timestamp}
           tokens={tokens}
-          usage={observedLive ? usage : null}
-          pending={running && tracking}
+          footer={
+            observedLive ? (
+              <LivePromptUsage agentId={agentId} promptKey={promptKey} at={atMs} tokens={tokens} />
+            ) : null
+          }
         />
       )}
     </View>

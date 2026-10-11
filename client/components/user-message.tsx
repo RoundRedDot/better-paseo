@@ -27,6 +27,12 @@ interface UserMessageProps {
   usage?: TurnUsage | null;
   /** True while the turn is still running, so the figures are still climbing. */
   pending?: boolean;
+  /**
+   * Drawn where the usage row goes, instead of `usage`/`pending`. The live
+   * renderer passes a child that owns the agent subscription, so agent
+   * updates re-render that child and never the bubble (F2, D3/D6).
+   */
+  footer?: React.ReactNode;
 }
 
 /**
@@ -86,6 +92,7 @@ export function UserMessage({
   tokens,
   usage,
   pending = false,
+  footer,
 }: UserMessageProps) {
   // The shared copy path: the icon turns into a check for 1.2 s, a failure
   // is a toast, and the timer is cleared on unmount.
@@ -151,28 +158,6 @@ export function UserMessage({
           borderRadius: radiusV2.block,
           backgroundColor: tokens.userBorder,
         },
-        usageRow: {
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          flexWrap: "wrap",
-          gap: 10,
-          marginTop: 7,
-          paddingTop: 6,
-          borderTopWidth: 1,
-          borderTopColor: tokens.userBorder,
-        },
-        usageKey: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.xs,
-          color: tokens.userTextMuted,
-        },
-        usageValue: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
-          fontWeight: "600",
-          color: tokens.userText,
-        },
       }),
     [tokens],
   );
@@ -218,19 +203,61 @@ export function UserMessage({
             ))}
           </View>
         ) : null}
-        {usage ? (
-          <View style={styles.usageRow}>
-            <UsageFigure label="in" value={usage.inputTokens} styles={styles} />
-            <UsageFigure label="cached" value={usage.cachedInputTokens} styles={styles} />
-            <UsageFigure label="out" value={usage.outputTokens} styles={styles} />
-            {pending ? (
-              <Text selectable style={styles.usageKey}>
-                counting…
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
+        {footer !== undefined ? footer : <TurnUsageRow usage={usage} pending={pending} tokens={tokens} />}
       </View>
+    </View>
+  );
+}
+
+/** The turn's token figures under the prompt; nothing until usage is known. */
+export function TurnUsageRow({
+  usage,
+  pending = false,
+  tokens,
+}: {
+  usage?: TurnUsage | null;
+  pending?: boolean;
+  tokens: ExtendedThemeTokens;
+}) {
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        usageRow: {
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          flexWrap: "wrap",
+          gap: 10,
+          marginTop: 7,
+          paddingTop: 6,
+          borderTopWidth: 1,
+          borderTopColor: tokens.userBorder,
+        },
+        usageKey: {
+          fontFamily: tokens.fontUi,
+          fontSize: UI_SCALE.xs,
+          color: tokens.userTextMuted,
+        },
+        usageValue: {
+          fontFamily: tokens.fontUi,
+          fontSize: UI_SCALE.sm,
+          fontWeight: "600",
+          color: tokens.userText,
+        },
+      }),
+    [tokens],
+  );
+  if (!usage) return null;
+  return (
+    <View style={styles.usageRow}>
+      <UsageFigure label="in" value={usage.inputTokens} styles={styles} />
+      <UsageFigure label="cached" value={usage.cachedInputTokens} styles={styles} />
+      <UsageFigure label="out" value={usage.outputTokens} styles={styles} />
+      {pending ? (
+        <Text selectable style={styles.usageKey}>
+          counting…
+        </Text>
+      ) : null}
     </View>
   );
 }
