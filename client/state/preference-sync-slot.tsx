@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { memo, useEffect, useRef, useSyncExternalStore } from "react";
 import { useSettings } from "@getpaseo/plugin/client";
 import { PREFERENCES_SETTINGS } from "../../shared/preferences-settings";
 import {
@@ -77,8 +77,7 @@ function PreferenceSyncLeader() {
   return null;
 }
 
-/** Mount once per renderer; renders nothing but keeps the settings in sync. */
-export function PreferenceSyncSlot() {
+function PreferenceSyncSlotBody() {
   const idRef = useRef<number>(-1);
   if (idRef.current === -1) idRef.current = nextSlot++;
   useEffect(() => {
@@ -94,3 +93,14 @@ export function PreferenceSyncSlot() {
   const current = useSyncExternalStore(subscribeSlots, leader, leader);
   return current === idRef.current ? <PreferenceSyncLeader /> : null;
 }
+
+/**
+ * Mount once per renderer; renders nothing but keeps the settings in sync.
+ *
+ * Memoised with no props, so a card's own re-render never re-renders the
+ * slot — and in the leader card never re-runs `useSettings` (react-query
+ * subscriptions, three RPC hooks and a schema parse) as part of that card's
+ * commit (defect D6). The slot re-renders only when leadership moves, and
+ * the leader child only for its own settings updates.
+ */
+export const PreferenceSyncSlot = memo(PreferenceSyncSlotBody);
