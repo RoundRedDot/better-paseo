@@ -96,6 +96,19 @@ export function blockKind(tokens: readonly Token[]): string {
   return "empty";
 }
 
+const WARM_UP_SAMPLE =
+  "# a\n\nb **c** *d* ~~e~~ `f` [g](https://h.io) www.i.io\n\n- j\n  - [x] k\n\n1. l\n\n> m\n\n" +
+  "| n | o |\n| :- | -: |\n| 1 | 2 |\n\n```ts\nconst p = 1;\n```\n\n$$\nq\n$$\n";
+
+/**
+ * Runs the lexer once over every construct, outside any render. The first
+ * lex in a fresh runtime compiles marked's expressions, which would otherwise
+ * land on the first reply's commit. Nothing is cached.
+ */
+export function warmLexer(): void {
+  Lexer.lex(WARM_UP_SAMPLE, LEXER_OPTIONS);
+}
+
 /** Test seam: the LRU's current size. */
 export function lexCacheSize(): number {
   return lru.size;

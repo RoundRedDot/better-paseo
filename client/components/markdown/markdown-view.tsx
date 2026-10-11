@@ -4,7 +4,7 @@ import type { ExtendedThemeTokens } from "../theme-tokens";
 import { selectionSurface } from "../selection-actions";
 import { perfOn, probeMarkdown } from "../../debug/perf";
 import { createBlockCache, splitBlocks, type BlockCache } from "./blocks";
-import { blockKind, lexBlock } from "./lex";
+import { blockKind, lexBlock, warmLexer } from "./lex";
 import { repairTail } from "./repair";
 import type { RenderContext } from "./render/context";
 import { MdBlock } from "./render/md-block";
@@ -29,6 +29,9 @@ export interface MarkdownViewProps {
   /** Debug only: names this message so the perf probes can track it across chunks. */
   probeId?: string;
 }
+
+// Off the render path, once the plugin has loaded: see `warmLexer`.
+if (typeof setTimeout === "function") setTimeout(warmLexer, 0);
 
 interface Split {
   blocks: string[];
