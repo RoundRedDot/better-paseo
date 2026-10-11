@@ -291,9 +291,10 @@ export function BeautifulChatSettingsPage({ theme }: PluginSurfaceProps) {
 
         <ChoiceRow<UiFontPreference>
           title="Interface font"
-          description="Choose the embedded Inter face or the system interface face."
+          description="Follow Paseo's interface font, or choose the embedded Inter face or the system interface face."
           value={preferences.uiFont}
           options={[
+            { value: "host", label: "Follow Paseo" },
             { value: "inter", label: "Inter" },
             { value: "system", label: "System" },
           ]}
