@@ -1,20 +1,21 @@
 import React, { useMemo, useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
-import { frosted } from "./frosted";
-import { surfaceProps } from "./view-props";
-import { glowing } from "./glow";
-import { Rotate } from "./motion";
-import { radius } from "./theme-tokens";
+import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { SyntaxHighlightBlock } from "./syntax-highlight";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface } from "./selection-actions";
+import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
+import { FadeIn } from "../ui/fade-in";
+import { UI_SCALE } from "../ui/tokens/typography";
 import type { SystemEnvelope, SystemEnvelopeKind } from "../system-envelope";
 
 interface SystemCardProps {
   envelope: SystemEnvelope;
   tokens: ExtendedThemeTokens;
+  /** `layout.compact`. */
+  compact?: boolean;
 }
 
 const KIND_LOOK: Record<SystemEnvelopeKind, { glyph: string; label: string }> = {
@@ -41,119 +42,123 @@ function bodyKind(envelope: SystemEnvelope): "json" | "output" | "prose" {
 
 /**
  * Harness text — a finished background job, an agent's relayed message, a
- * reminder — drawn as a card rather than as the model's own words.
+ * reminder — drawn as a row rather than as the model's own words (plan §3.6).
+ *
+ * Collapsed it is a bare `DisclosureHeader` row; expanded it takes the same
+ * frame as a tool call. A failure is marked by a 2px danger rule on the left
+ * and danger text, never by a tinted surface.
  *
  * The host files these under the same item kind as a reply, so without this
  * the raw `<system-notice>` markup reads as something the model typed.
  */
-export function SystemCard({ envelope, tokens }: SystemCardProps): React.ReactElement {
+export function SystemCard({ envelope, tokens, compact = false }: SystemCardProps): React.ReactElement {
   const look = KIND_LOOK[envelope.kind];
   const [expanded, setExpanded] = useState(envelope.body.length <= COLLAPSE_LIMIT);
-  const accent = envelope.failed ? tokens.danger : tokens.foregroundSubtle;
   const kind = bodyKind(envelope);
+  const failed = envelope.failed;
+  const hasBody = envelope.body.length > 0;
+  const open = hasBody && expanded;
 
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        container: {
-          borderRadius: radius.card,
+        ruled: {
+          borderLeftWidth: 2,
+          borderLeftColor: tokens.danger,
+          paddingLeft: space.xs,
+        },
+        // A transparent border while collapsed keeps the header from moving
+        // by a pixel when the frame appears.
+        frame: {
           borderWidth: 1,
-          borderColor: envelope.failed ? tokens.dangerBorder : tokens.borderSubtle,
-          backgroundColor: tokens.surfaceGlass,
+          borderColor: "transparent",
+          borderRadius: radiusV2.card,
           overflow: "hidden",
-          ...tokens.boxShadow,
           ...selectableSurface,
         },
-        header: {
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          paddingHorizontal: 10,
-          paddingVertical: 7,
-          backgroundColor: envelope.failed ? tokens.dangerBg : tokens.surface1,
-        },
-        badge: {
-          fontFamily: tokens.fontUi,
-          fontSize: 10,
-          fontWeight: "700",
-          textTransform: "uppercase",
-          letterSpacing: 0.5,
-          color: accent,
-          ...unselectable,
+        frameOpen: {
+          borderColor: tokens.v2.border,
+          backgroundColor: tokens.v2.surface0,
         },
         title: {
           fontFamily: tokens.fontUi,
-          fontSize: 12,
-          fontWeight: "600",
-          color: tokens.foreground,
-          flexShrink: 1,
-          minWidth: 0,
-        },
-        chips: {
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 6,
-          flexShrink: 0,
-        },
-        chip: {
-          fontFamily: tokens.fontUi,
-          fontSize: 10,
-          color: tokens.foregroundSubtle,
-          backgroundColor: tokens.surface2,
-          paddingHorizontal: 6,
-          paddingVertical: 1,
-          borderRadius: radius.chip,
+          fontSize: UI_SCALE.md,
+          color: failed ? tokens.danger : tokens.foreground,
           ...unselectable,
         },
-        spacer: { flex: 1, minWidth: 8 },
-        body: { padding: 10 },
+        staticRow: {
+          height: DISCLOSURE_HEADER.height.desktop,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: DISCLOSURE_HEADER.gap,
+          paddingHorizontal: DISCLOSURE_HEADER.paddingX,
+        },
+        staticVerb: {
+          fontFamily: tokens.fontUi,
+          fontSize: DISCLOSURE_HEADER.verb,
+          fontWeight: "500",
+          color: failed ? tokens.danger : tokens.foreground,
+          ...unselectable,
+        },
+        iconSlot: {
+          width: DISCLOSURE_HEADER.iconSlot,
+          alignItems: "center",
+        },
+        body: {
+          padding: space.sm,
+          borderTopWidth: 1,
+          borderTopColor: tokens.v2.borderSubtle,
+        },
         prose: {
           fontFamily: tokens.fontUi,
-          fontSize: 12,
-          lineHeight: 18,
+          fontSize: UI_SCALE.md,
+          lineHeight: 20,
           color: tokens.foreground,
         },
       }),
-    [tokens, envelope.failed, accent],
+    [tokens, failed],
   );
 
-  const chips = envelope.chips.map((chip) => (
-    <Text key={chip.label} style={styles.chip}>
-      {chip.value}
+  const icon = (
+    <Glyph
+      name={look.glyph}
+      size={DISCLOSURE_HEADER.icon}
+      color={failed ? tokens.danger : tokens.foregroundMuted}
+    />
+  );
+  const title = (
+    <Text selectable={false} numberOfLines={1} style={styles.title}>
+      {envelope.title}
     </Text>
-  ));
-
-  const head = (
-    <View style={styles.header}>
-      <Glyph name={look.glyph} size={13} color={accent} />
-      <Text style={styles.badge}>{look.label}</Text>
-      <Text style={styles.title} numberOfLines={2}>
-        {envelope.title}
-      </Text>
-      <View style={styles.spacer} />
-      <View style={styles.chips}>{chips}</View>
-      {envelope.body ? (
-        <Rotate active={expanded}>
-          <Glyph name="ChevronDown" size={13} color={tokens.foregroundMuted} />
-        </Rotate>
-      ) : null}
-    </View>
   );
+  const meta = envelope.chips.map((chip) => chip.value);
 
-  return (
-    <View
-      {...surfaceProps(frosted, glowing(tokens.isDark), selectionSurface)}
-      style={styles.container}
-    >
-      {envelope.body ? (
-        <Pressable accessibilityRole="button" onPress={() => setExpanded((prev) => !prev)}>
-          {head}
-        </Pressable>
+  const card = (
+    <View {...selectionSurface} style={[styles.frame, open && styles.frameOpen]}>
+      {hasBody ? (
+        <DisclosureHeader
+          expanded={expanded}
+          onToggle={() => setExpanded((prev) => !prev)}
+          tokens={tokens}
+          compact={compact}
+          icon={icon}
+          verb={look.label}
+          target={title}
+          meta={meta}
+          tone={failed ? "danger" : "default"}
+          accessibilityLabel={`${look.label} ${envelope.title}`}
+        />
       ) : (
-        head
+        <View style={styles.staticRow}>
+          <View style={styles.iconSlot}>{icon}</View>
+          <Text selectable={false} style={styles.staticVerb}>
+            {look.label}
+          </Text>
+          <View style={{ flex: 1, minWidth: 0 }}>{title}</View>
+        </View>
       )}
-      {envelope.body && expanded ? (
-        <View style={styles.body}>
+      {open ? (
+        <FadeIn style={styles.body}>
           {kind === "prose" ? (
             <Text selectable style={styles.prose}>
               {envelope.body}
@@ -166,8 +171,11 @@ export function SystemCard({ envelope, tokens }: SystemCardProps): React.ReactEl
               compact
             />
           )}
-        </View>
+        </FadeIn>
       ) : null}
     </View>
   );
+  // The rule sits outside the frame, so it stays a straight 2px line rather
+  // than following the frame's rounded corner.
+  return failed ? <View style={styles.ruled}>{card}</View> : card;
 }

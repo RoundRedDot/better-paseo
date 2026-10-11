@@ -331,7 +331,7 @@ function LiveAssistantRendererBody({
     <View {...hostFontEscape} {...probe.viewProps}>
       {probe.node}
       {envelope ? (
-        <SystemCard envelope={envelope} tokens={tokens} />
+        <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
       ) : (
         <MarkdownView
           text={revealed}
@@ -468,7 +468,7 @@ function LiveUserMessageRendererBody({
     >
       {probe.node}
       {envelope ? (
-        <SystemCard envelope={envelope} tokens={tokens} />
+        <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
       ) : (
         <UserMessage
           text={item.data.text}
