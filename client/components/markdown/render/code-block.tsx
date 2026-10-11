@@ -1,0 +1,76 @@
+import React, { useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import { Icon } from "@getpaseo/plugin/client/react-native";
+import type { Tokens } from "../../../vendor/marked";
+import { SyntaxHighlightBlock } from "../../syntax-highlight";
+import type { RenderContext } from "./context";
+import { codeLanguage, fenceClosed } from "./text";
+
+/** A document-variant block longer than this starts folded … */
+const FOLD_OVER_LINES = 30;
+/** … to this many lines and an "expand" row. */
+const FOLD_TO_LINES = 20;
+
+function lineCount(code: string): number {
+  let count = 1;
+  for (let index = 0; index < code.length; index++) if (code.charCodeAt(index) === 10) count++;
+  return count;
+}
+
+/**
+ * A fenced (or indented) code block. While its fence is open the lines are
+ * coloured locally; the daemon is asked once, when the fence closes or the
+ * reply ends (plan §3.1 item 7). Copy, the language label and sideways
+ * scrolling come from `SyntaxHighlightBlock`.
+ */
+export function CodeBlock({
+  token,
+  context,
+  open,
+}: {
+  token: Tokens.Code;
+  context: RenderContext;
+  open: boolean;
+}) {
+  const { styles, tokens, metrics, variant, collapseCode } = context;
+  const [expanded, setExpanded] = useState(false);
+  const lang = codeLanguage(token.lang);
+  // An empty info string is the author asking for no grammar, which the daemon
+  // answers as plain text instead of guessing a language.
+  const language = lang === "" ? "plaintext" : lang;
+  const lines = lineCount(token.text);
+
+  if (collapseCode && variant === "compact" && !expanded) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Show ${lang || "code"}, ${lines} lines`}
+        onPress={() => setExpanded(true)}
+        style={styles.codeSummary}
+      >
+        <Icon name="ChevronRight" size={metrics.glyphSize} color={tokens.foregroundMuted} />
+        <Text style={styles.codeSummaryText}>
+          {`${lang || "code"} · ${lines} ${lines === 1 ? "line" : "lines"}`}
+        </Text>
+      </Pressable>
+    );
+  }
+
+  const closed = !open || token.codeBlockStyle === "indented" || fenceClosed(token.raw);
+  const fold = variant === "document" && lines > FOLD_OVER_LINES ? FOLD_TO_LINES : undefined;
+
+  return (
+    <View style={styles.codeBlock}>
+      <SyntaxHighlightBlock
+        code={token.text}
+        language={language}
+        tokens={tokens}
+        compact={metrics.codeCompact}
+        showLineNumbers={metrics.codeLineNumbers}
+        highlight={closed}
+        scrollX
+        initialLines={fold}
+      />
+    </View>
+  );
+}

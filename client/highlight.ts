@@ -11,6 +11,8 @@ export interface HighlightRequest {
   filename?: string;
   dark: boolean;
   diffBodyCode?: string;
+  /** False: answer from the cache only and never call the daemon. */
+  enabled?: boolean;
 }
 
 export interface HighlightResponse {
@@ -72,14 +74,17 @@ function fnv1a(str: string): string {
 
 /**
  * The theme picks the colours and the language picks the grammar, so both
- * belong in the key beside the code itself. `\u0000` cannot occur in a language
- * id or in a path, which keeps the parts from running together.
+ * belong in the key beside the code itself. The length rides beside the hash:
+ * two texts of different length can never share a key, whatever the hash
+ * does. `\u0000` cannot occur in a language id or in a path, which keeps the
+ * parts from running together.
  */
 function cacheKey(request: HighlightRequest): string {
   return [
     request.dark ? "dark" : "light",
     request.language ?? "",
     request.filename ?? "",
+    String(request.code.length),
     fnv1a(request.code),
     request.diffBodyCode ? fnv1a(request.diffBodyCode) : "",
   ].join("\u0000");
@@ -197,7 +202,7 @@ function fetchLines(key: string, call: HighlightCall, request: HighlightRequest)
  */
 export function useHighlightedLines(request: HighlightRequest): HighlightResponse {
   const call: HighlightCall = useRpc(highlightRpc);
-  const { code, language, filename, dark, diffBodyCode } = request;
+  const { code, language, filename, dark, diffBodyCode, enabled = true } = request;
   const key = code.length > 0 ? cacheKey(request) : null;
   // Reading the cache during render, not in an effect, is what removes the
   // unhighlighted frame on a block that was tokenised once already.
@@ -205,7 +210,7 @@ export function useHighlightedLines(request: HighlightRequest): HighlightRespons
   const [, bumpRevision] = useState(0);
 
   useEffect(() => {
-    if (key === null || cache.has(key)) return;
+    if (!enabled || key === null || cache.has(key)) return;
     let mounted = true;
     void fetchLines(key, call, { code, language, filename, dark, diffBodyCode }).then(() => {
       if (mounted) bumpRevision((revision) => revision + 1);
@@ -213,7 +218,7 @@ export function useHighlightedLines(request: HighlightRequest): HighlightRespons
     return () => {
       mounted = false;
     };
-  }, [key, call, code, language, filename, dark, diffBodyCode]);
+  }, [key, call, code, language, filename, dark, diffBodyCode, enabled]);
 
   return cached ?? EMPTY_RESPONSE;
 }

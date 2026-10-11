@@ -30,7 +30,8 @@ const result = babel.transformSync(source, {
   sourceType: "module",
   filename: "marked.esm.js",
   comments: false,
-  compact: false,
+  // marked ships minified; keep it that way rather than pretty-print it.
+  compact: true,
   sourceMaps: false,
   plugins: [
     plugin("class-static-block"),
