@@ -7,7 +7,7 @@
  */
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { View } from "react-native";
+import { Text, View } from "react-native";
 
 import { embedFonts } from "../client/components/embed-fonts";
 import { installFrostedGlass } from "../client/components/frosted";
@@ -29,6 +29,14 @@ import { MarkdownView } from "../client/components/markdown/markdown-view";
 import { parseSystemEnvelope } from "../client/system-envelope";
 import { installPointerGlow } from "../client/components/glow";
 import type { ToolCalloutData } from "../shared/contracts";
+import { DEFAULT_PREFERENCES } from "../client/preferences";
+import type { ExtendedThemeTokens } from "../client/components/theme-tokens";
+import { DisclosureHeader } from "../client/ui/disclosure-header";
+import { CopyButton } from "../client/ui/copy-button";
+import { ActionMenuList, ActionMenuTrigger } from "../client/ui/action-menu";
+import { PathContext, PathText, type PathContextValue } from "../client/ui/path-text";
+import { RunningDot } from "../client/ui/running-dot";
+import { Glyph } from "../client/components/glyph";
 
 const DARK = {
   surface0: "#0f0f11",
@@ -556,14 +564,16 @@ const approval = {
 function Shot({
   id,
   width = 900,
+  background = DARK.surface0,
   children,
 }: {
   id: string;
   width?: number;
+  background?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div id={id} style={{ width, padding: 20, backgroundColor: DARK.surface0 }}>
+    <div id={id} style={{ width, padding: 20, backgroundColor: background }}>
       <View style={{ gap: 10 }}>{children}</View>
     </div>
   );
@@ -686,6 +696,142 @@ function Hero() {
   );
 }
 
+
+/**
+ * The shared primitives from slice S1, on the v2 defaults (no frost, no glow)
+ * in both themes. Hover-only states cannot be captured headless, so the
+ * header actions are pinned visible on one row instead.
+ */
+const LIGHT = {
+  surface0: "#ffffff",
+  surface1: "#f6f6f7",
+  surface2: "#ededef",
+  border: "#e2e2e6",
+  foreground: "#18181b",
+  foregroundMuted: "#62626b",
+  accent: "#2563eb",
+  accentForeground: "#ffffff",
+  statusSuccess: "#1f8a5b",
+  statusWarning: "#a36a00",
+  statusDanger: "#d92d20",
+};
+
+const v2Dark = buildThemeTokens(DARK, DEFAULT_PREFERENCES, { platform: "web" });
+const v2Light = buildThemeTokens(LIGHT, DEFAULT_PREFERENCES, { platform: "web" });
+
+const PATHS: PathContextValue = {
+  roots: [
+    { path: "/Users/me/code/beautiful-chat/.worktrees/s1" },
+    { path: "/Users/me/code/beautiful-chat", label: "beautiful-chat" },
+  ],
+  cwd: "/Users/me/code/beautiful-chat/.worktrees/s1",
+  mode: "relative",
+  reveal: () => {},
+};
+
+function Caption({ tokens, children }: { tokens: ExtendedThemeTokens; children: string }) {
+  return (
+    <Text style={{ color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 11, marginTop: 6 }}>
+      {children}
+    </Text>
+  );
+}
+
+function Primitives({ tokens }: { tokens: ExtendedThemeTokens }) {
+  const muted = tokens.foregroundMuted;
+  return (
+    <PathContext.Provider value={PATHS}>
+      <View style={{ gap: 4 }}>
+        <Caption tokens={tokens}>DisclosureHeader — collapsed, running, failed, expanded with actions, compact</Caption>
+        <DisclosureHeader
+          expanded={false}
+          onToggle={() => {}}
+          tokens={tokens}
+          icon={<Glyph name="FileText" size={14} color={muted} />}
+          verb="Read"
+          target={<PathText path="/Users/me/code/beautiful-chat/.worktrees/s1/client/ui/disclosure-header.tsx:10" tokens={tokens} copyOnHover={false} />}
+          meta={["L10–80"]}
+        />
+        <DisclosureHeader
+          expanded={false}
+          onToggle={() => {}}
+          tokens={tokens}
+          icon={<RunningDot color={tokens.accent} />}
+          verb="Bash"
+          target="npm run typecheck && npm test -- --reporter=verbose"
+          meta={["2.1s"]}
+        />
+        <DisclosureHeader
+          expanded={false}
+          onToggle={() => {}}
+          tokens={tokens}
+          tone="danger"
+          icon={<Glyph name="X" size={14} color={tokens.danger} />}
+          verb="Edit"
+          target={<PathText path="/Users/me/code/beautiful-chat/client/preferences.ts" tokens={tokens} copyOnHover={false} />}
+          meta={["failed"]}
+        />
+        <View style={{ borderWidth: 1, borderColor: tokens.v2.border, borderRadius: tokens.v2.radius.card }}>
+          <DisclosureHeader
+            expanded
+            onToggle={() => {}}
+            tokens={tokens}
+            icon={<Glyph name="Search" size={14} color={muted} />}
+            verb="Search"
+            target={'"useAgent"'}
+            meta={["8 files", "23 matches"]}
+            actionsAlwaysVisible
+            actions={
+              <>
+                <CopyButton text="useAgent" tokens={tokens} />
+                <ActionMenuTrigger open onPress={() => {}} tokens={tokens} />
+              </>
+            }
+          />
+          <ActionMenuList
+            open
+            onClose={() => {}}
+            tokens={tokens}
+            items={[
+              { id: "query", label: "Copy query", icon: "Copy", onSelect: () => {} },
+              { id: "files", label: "Copy file list", icon: "Files", onSelect: () => {} },
+            ]}
+          />
+        </View>
+        <DisclosureHeader
+          expanded={false}
+          onToggle={() => {}}
+          tokens={tokens}
+          compact
+          icon={<Glyph name="Brain" size={14} color={muted} />}
+          verb="Thought"
+          target="4 steps"
+          meta={["12s"]}
+        />
+        <Caption tokens={tokens}>PathText — workspace root, project root (secondary), outside, verbatim, compact budget</Caption>
+        <PathText path="/Users/me/code/beautiful-chat/.worktrees/s1/client/paths/format-path.ts:42" tokens={tokens} />
+        <PathText path="/Users/me/code/beautiful-chat/client/live-renderers.tsx#L388" tokens={tokens} />
+        <PathText path="/etc/hosts" tokens={tokens} />
+        <PathText path="./client/ui/path-text.tsx" tokens={tokens} verbatim />
+        <PathText
+          path="/Users/me/code/beautiful-chat/.worktrees/s1/packages/app/src/components/agent-stream/strategy-native.tsx"
+          tokens={tokens}
+          compact
+        />
+        <Caption tokens={tokens}>CopyButton — icon, labelled · RunningDot</Caption>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <CopyButton text="copied text" tokens={tokens} />
+          <CopyButton text="copied text" tokens={tokens} showLabel />
+          <RunningDot color={tokens.accent} />
+          <Text style={{ color: muted, fontFamily: tokens.fontMono, fontSize: 12 }}>
+            mono: {tokens.typography.mono.size}/{tokens.typography.mono.lineHeight} 中文 fallback
+          </Text>
+        </View>
+      </View>
+    </PathContext.Provider>
+  );
+}
+
 function Showcase() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, backgroundColor: "#000" }}>
@@ -792,6 +938,12 @@ function Showcase() {
           showLineNumbers
           onRevealFile={() => {}}
         />
+      </Shot>
+      <Shot id="shot-primitives-dark" width={640}>
+        <Primitives tokens={v2Dark} />
+      </Shot>
+      <Shot id="shot-primitives-light" width={640} background={LIGHT.surface0}>
+        <Primitives tokens={v2Light} />
       </Shot>
       <Shot id="shot-settings" width={760}>
         <View style={{ height: 880 }}>
