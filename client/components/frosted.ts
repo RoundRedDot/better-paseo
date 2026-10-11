@@ -1,4 +1,5 @@
 import type { ViewProps } from "react-native";
+import { getEnhancerPreferences, subscribeEnhancerPreferences } from "../preferences";
 
 const STYLE_ELEMENT_ID = "beautiful-chat-frosted";
 
@@ -20,6 +21,10 @@ const FROSTED_RULE = `[data-ompfrost] {
 /**
  * Installs the blur rule. A no-op off web, and idempotent so a second client
  * mount reuses the existing element.
+ *
+ * The rule is present only while the setting is on. With it off the glass
+ * tokens are opaque, so a blur would be invisible — but the browser would
+ * still composite a backdrop filter under every marked surface.
  */
 export function installFrostedGlass(): () => void {
   if (typeof document === "undefined") return () => {};
@@ -27,10 +32,16 @@ export function installFrostedGlass(): () => void {
 
   const style = document.createElement("style");
   style.id = STYLE_ELEMENT_ID;
-  style.textContent = FROSTED_RULE;
+  const sync = (): void => {
+    const rule = getEnhancerPreferences().frostedGlass ? FROSTED_RULE : "";
+    if (style.textContent !== rule) style.textContent = rule;
+  };
+  sync();
   document.head.appendChild(style);
+  const unsubscribe = subscribeEnhancerPreferences(sync);
 
   return () => {
+    unsubscribe();
     style.remove();
   };
 }

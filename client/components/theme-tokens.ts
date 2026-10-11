@@ -1,5 +1,15 @@
+import { useMemo } from "react";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { DEFAULT_PREFERENCES, type EnhancerPreferences, ACCENT_PRESETS } from "../preferences";
+import {
+  EMBEDDED_FAMILY,
+  NATIVE_DEFAULT_MONO,
+  resolveTypography,
+  type Typography,
+  type TypographyPlatform,
+} from "../ui/tokens/typography";
+import { currentPlatform } from "../ui/tokens/platform";
+import { themeKey } from "../ui/tokens/theme-key";
 
 export type PluginSurfaceColors = PluginTheme["colors"];
 
@@ -12,27 +22,47 @@ export type PluginSurfaceColors = PluginTheme["colors"];
 export const radius = { card: 12, block: 8, chip: 5 } as const;
 
 /**
- * One family name per stack, never a comma-separated CSS list. React Native's
- * `fontFamily` takes a single family; a list is not parsed and the whole
- * declaration is dropped, which silently leaves every surface on the host
- * default. Fallbacks live in the `@font-face` `src` chain instead, so these
- * names always resolve to something.
+ * Token v2 radii (plan §3.6): the host's own lg / md / base / full, so plugin
+ * cards line up with native rows. New primitives use these; existing
+ * components move over in their own slices.
  */
-export const fontMono = "OMP Iosevka";
+export const radiusV2 = { card: 8, block: 6, chip: 4, pill: 999 } as const;
+
+/** Token v2 spacing, the host's `SPACING` steps. */
+export const space = { xs: 4, sm: 8, md: 12, lg: 16 } as const;
+
+const STATIC_PLATFORM: TypographyPlatform = currentPlatform();
+
+/**
+ * Families for styles built once at module level, outside any theme.
+ *
+ * One family per value on native: React Native's `fontFamily` takes a single
+ * name there, and a name the platform does not have silently draws the
+ * proportional system face — which is what the embedded names did on iOS and
+ * Android, since `@font-face` only exists on web. Native therefore gets the
+ * platform monospace and the system UI face. On web these stay the bare
+ * `@font-face` names `embed-fonts.ts` registers.
+ */
+export const fontMono =
+  STATIC_PLATFORM === "web" ? EMBEDDED_FAMILY.mono : NATIVE_DEFAULT_MONO[STATIC_PLATFORM];
 
 /**
  * The ligature cut of Iosevka, used only inside code blocks. Terminal output,
  * diffs and paths stay on `fontMono`: a shaped `->` or `=>` stops matching the
  * bytes it stands for, which is wrong for a log line or a patch.
  */
-export const fontCode = "OMP Iosevka Code";
-export const fontUi = "OMP Inter";
+export const fontCode = STATIC_PLATFORM === "web" ? EMBEDDED_FAMILY.code : fontMono;
+export const fontUi = STATIC_PLATFORM === "web" ? EMBEDDED_FAMILY.ui : "System";
 
 export interface ExtendedThemeTokens {
   isDark: boolean;
+  /** `typography.mono.family`. */
   fontMono: string;
+  /** `typography.mono.codeFamily`. */
   fontCode: string;
+  /** The interface family; see `legacyUiFamily`. */
   fontUi: string;
+  typography: Typography;
 
   // Surfaces
   surface0: string;
@@ -81,6 +111,26 @@ export interface ExtendedThemeTokens {
     shadowOpacity: number;
     shadowRadius: number;
     elevation: number;
+  };
+
+  /**
+   * Token v2 (plan §3.6), added beside the tokens above so existing
+   * components render unchanged until their own slice moves them over.
+   */
+  v2: {
+    radius: typeof radiusV2;
+    space: typeof space;
+    surface0: string;
+    /** The host's own raised surfaces, not derived from the foreground. */
+    surface1: string;
+    surface2: string;
+    surfaceCode: string;
+    /** Outer frame of an expanded block. */
+    border: string;
+    /** Divider inside a block, e.g. between header and body. */
+    borderSubtle: string;
+    /** Shadow for floating layers only; inline blocks carry none. */
+    elevation: { overlay: ExtendedThemeTokens["boxShadow"] };
   };
 
   // Syntax
@@ -162,10 +212,44 @@ function isDarkSurface(color: string): boolean {
 // PluginTheme only carries six colours, so every other surface is derived from
 // the host foreground/accent with alpha. That keeps the plugin on-theme for any
 // Paseo theme instead of hard-coding a palette that matches only one of them.
+export interface ThemeTokenOptions {
+  /** Defaults to the running platform. */
+  platform?: TypographyPlatform;
+  /** The host theme, read only for its optional `typography` (plan H1). */
+  theme?: unknown;
+}
+
+/**
+ * The interface family the existing components draw with.
+ *
+ * Until slice S5 moves `data-pmono` from item roots to code surfaces, the
+ * host's UI font cannot reach plugin text on web, so "follow Paseo" has
+ * nothing to follow there; and the stack `typography.ui.family` builds for
+ * Inter changes line boxes wherever Inter lacks a glyph. Web therefore keeps
+ * the bare embedded Inter it has always drawn, for both. Native gets the host
+ * family when H1 provides one, else the system face — never the embedded
+ * name, which iOS and Android do not have.
+ */
+function legacyUiFamily(
+  typography: Typography,
+  preferences: EnhancerPreferences,
+  platform: TypographyPlatform,
+): string {
+  if (platform !== "web") return typography.ui.family ?? "System";
+  if (preferences.uiFont === "system") return "System";
+  if (preferences.uiFont === "host" && typography.fromHost && typography.ui.family) {
+    return typography.ui.family;
+  }
+  return EMBEDDED_FAMILY.ui;
+}
+
 export function buildThemeTokens(
   colors: PluginSurfaceColors,
   preferences: EnhancerPreferences = DEFAULT_PREFERENCES,
+  options: ThemeTokenOptions = {},
 ): ExtendedThemeTokens {
+  const platform = options.platform ?? STATIC_PLATFORM;
+  const typography = resolveTypography(options.theme, preferences, platform);
   const isDark = isDarkSurface(colors.surface0);
   const fg = colors.foreground;
   const accent = ACCENT_PRESETS[preferences.accent] ?? colors.accent;
@@ -173,18 +257,29 @@ export function buildThemeTokens(
   const warning = isDark ? "#d9a53f" : "#a36a00";
   const danger = colors.statusDanger;
   const tint = isDark ? 0.1 : 0.08;
+  const boxShadow = {
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDark ? 0.12 : 0.08,
+    shadowRadius: 5,
+    elevation: 1,
+  };
+  const surfaceCode = isDark ? "rgba(0, 0, 0, 0.22)" : withAlpha(fg, 0.03);
+  const border = withAlpha(fg, isDark ? 0.09 : 0.1);
+  const borderSubtle = withAlpha(fg, 0.06);
   const edge = isDark ? 0.22 : 0.18;
 
   return {
     isDark,
-    fontMono,
-    fontCode: preferences.codeFont === "plain" ? fontMono : fontCode,
-    fontUi: preferences.uiFont === "system" ? "System" : fontUi,
+    fontMono: typography.mono.family,
+    fontCode: typography.mono.codeFamily,
+    fontUi: legacyUiFamily(typography, preferences, platform),
+    typography,
 
     surface0: colors.surface0,
     surface1: withAlpha(fg, isDark ? 0.03 : 0.025),
     surface2: withAlpha(fg, isDark ? 0.06 : 0.045),
-    surfaceCode: isDark ? "rgba(0, 0, 0, 0.22)" : withAlpha(fg, 0.03),
+    surfaceCode,
     // Translucent so the blur behind them reads, but still dense enough to
     // keep text legible over whatever scrolls past.
     surfaceGlass: preferences.frostedGlass
@@ -222,14 +317,20 @@ export function buildThemeTokens(
     dangerBg: withAlpha(danger, tint),
     dangerBorder: withAlpha(danger, edge),
 
-    border: withAlpha(fg, isDark ? 0.09 : 0.1),
-    borderSubtle: withAlpha(fg, 0.06),
-    boxShadow: {
-      shadowColor: "#000000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDark ? 0.12 : 0.08,
-      shadowRadius: 5,
-      elevation: 1,
+    border,
+    borderSubtle,
+    boxShadow,
+
+    v2: {
+      radius: radiusV2,
+      space,
+      surface0: colors.surface0,
+      surface1: colors.surface1,
+      surface2: colors.surface2,
+      surfaceCode,
+      border,
+      borderSubtle,
+      elevation: { overlay: boxShadow },
     },
 
     // GitHub Dark Dimmed / GitHub Light
@@ -247,4 +348,23 @@ export function buildThemeTokens(
       hunk: withAlpha(colors.foregroundMuted, 0.7),
     },
   };
+}
+
+/**
+ * Tokens for a renderer, memoised on the theme's colour strings rather than
+ * on the `theme.colors` object, which Paseo 0.11.2 rebuilds on every render
+ * (plan §3.2). `preferences` is the store's own object and only changes when
+ * the reader changes a setting.
+ */
+export function useThemeTokens(
+  theme: PluginTheme,
+  preferences: EnhancerPreferences,
+  platform?: TypographyPlatform,
+): ExtendedThemeTokens {
+  const key = themeKey(theme);
+  return useMemo(
+    () => buildThemeTokens(theme.colors, preferences, { platform, theme }),
+    // `theme` is read through `key`; its identity is exactly what must not count.
+    [key, preferences, platform],
+  );
 }

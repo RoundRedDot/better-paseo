@@ -24,3 +24,15 @@ import type { ViewProps } from "react-native";
 export const hostFontEscape = {
   dataSet: { pmono: true },
 } as unknown as ViewProps;
+
+/**
+ * Marks a monospace region — code, diff, terminal output, a path, a command —
+ * with the host's own code-surface attribute (`CODE_SURFACE_DATASET` in
+ * Paseo, `data-pmono=""`). Plan §3.10 item 4: once item roots stop carrying
+ * `hostFontEscape` (slice S5), interface text follows the host UI font and
+ * only these regions keep their own family. Spread through `surfaceProps`
+ * when combined with another marker. Ignored on native.
+ */
+export const codeSurface = {
+  dataSet: { pmono: "" },
+} as unknown as ViewProps;
