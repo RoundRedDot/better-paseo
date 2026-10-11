@@ -13,6 +13,7 @@ import {
   type TaskOverrides,
 } from "../state/task-overrides";
 import { RunningDot } from "../ui/running-dot";
+import { FadeIn } from "../ui/fade-in";
 import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
 import { UI_SCALE } from "../ui/tokens/typography";
 
@@ -254,11 +255,11 @@ export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
                 ) : null}
               </View>
               {isBlocked && isBlockedOpen && task.blockerReason ? (
-                <View style={styles.reason}>
+                <FadeIn style={styles.reason}>
                   <Text selectable style={styles.reasonText}>
                     {task.blockerReason}
                   </Text>
-                </View>
+                </FadeIn>
               ) : null}
             </View>
           );

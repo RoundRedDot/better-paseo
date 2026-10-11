@@ -9,6 +9,7 @@ import { selectionCodeText } from "./selection-actions";
 import { codeSurface } from "./host-font-escape";
 import { openLink } from "./open-link";
 import type { GitHubToolData } from "../../shared/contracts";
+import { FadeIn } from "../ui/fade-in";
 import { UI_SCALE } from "../ui/tokens/typography";
 
 interface GitHubBodyProps {
@@ -180,14 +181,16 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
             style={styles.toggle}
           >
             <Glyph
-              name={showRequest ? "ChevronUp" : "ChevronDown"}
+              name={showRequest ? "ChevronDown" : "ChevronRight"}
               size={11}
               color={tokens.foregroundMuted}
             />
             <Text style={styles.toggleLabel}>request</Text>
           </Pressable>
           {showRequest ? (
-            <SyntaxHighlightBlock code={data.request} language="json" tokens={tokens} compact />
+            <FadeIn>
+              <SyntaxHighlightBlock code={data.request} language="json" tokens={tokens} compact />
+            </FadeIn>
           ) : null}
         </View>
       ) : null}
