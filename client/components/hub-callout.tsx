@@ -8,6 +8,7 @@ import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface, selectionCodeText } from "./selection-actions";
 import { renderTerminalOutput } from "./syntax-highlight";
 import { RunningDot } from "../ui/running-dot";
+import { codeSurface } from "./host-font-escape";
 import { runningDot } from "../ui/tokens/motion";
 import { normalizeProvider } from "./provider-logo";
 import { MARK_BITMAPS } from "./mark-bitmaps";
@@ -248,7 +249,7 @@ function Chip({
 function MessageBody({ body, styles }: { body: string; styles: HubStyles }) {
   return (
     <View style={styles.messageBox}>
-      <Text selectable style={styles.messageText}>
+      <Text {...(codeSurface as object)} selectable style={styles.messageText}>
         {body}
       </Text>
     </View>
@@ -410,7 +411,7 @@ function SendView({ data, text, tokens, styles }: HubViewProps<HubSendData>) {
             tone={receiptTone(receipt.outcome, tokens)}
             styles={styles}
           />
-          <Text selectable style={styles.rowLabel} numberOfLines={1}>
+          <Text {...(codeSurface as object)} selectable style={styles.rowLabel} numberOfLines={1}>
             {receipt.to}
           </Text>
           {receipt.error ? (
@@ -581,7 +582,7 @@ function PeersView({ data, text, tokens, styles }: HubViewProps<HubPeersData>) {
         <View key={peer.id} style={styles.stackRow}>
           <View style={styles.rowHead}>
             <Chip label={peer.status} tone={peerTone(peer.status, tokens)} styles={styles} />
-            <Text selectable style={styles.rowLabel} numberOfLines={1}>
+            <Text {...(codeSurface as object)} selectable style={styles.rowLabel} numberOfLines={1}>
               {peer.id}
             </Text>
             {peer.displayName && peer.displayName !== peer.id ? (
@@ -672,7 +673,7 @@ function JobsView({ data, text, tokens, styles }: HubViewProps<HubJobsData>) {
           {cancelled.map((row) => (
             <View key={row.id} style={styles.rowHead}>
               <Chip label={row.status} tone={jobTone(row.status, tokens)} styles={styles} />
-              <Text selectable style={styles.rowLabel} numberOfLines={1}>
+              <Text {...(codeSurface as object)} selectable style={styles.rowLabel} numberOfLines={1}>
                 {row.id}
               </Text>
               {row.message ? (
@@ -799,7 +800,7 @@ function JobRow({
     <View style={styles.stackRow}>
       <RunningJobHead running={running} tokens={tokens} styles={styles}>
         <Chip label={job.status} tone={jobTone(job.status, tokens)} styles={styles} />
-        <Text selectable style={styles.rowLabel} numberOfLines={1}>
+        <Text {...(codeSurface as object)} selectable style={styles.rowLabel} numberOfLines={1}>
           {job.id}
         </Text>
         <Text selectable style={styles.figure}>
@@ -871,7 +872,7 @@ function AgentRow({
   return (
     <View style={styles.stackRow}>
       <View style={styles.rowHead}>
-        <Text selectable style={styles.rowLabel} numberOfLines={1}>
+        <Text {...(codeSurface as object)} selectable style={styles.rowLabel} numberOfLines={1}>
           {agent.id}
         </Text>
         {agent.parentId ? (
@@ -982,7 +983,7 @@ function ProcessView({ data, text, tokens, styles }: HubViewProps<HubProcessData
       {data.matched ? (
         <View style={styles.rowHead}>
           <Text style={styles.sectionLabel}>matched</Text>
-          <Text selectable style={styles.rowLabel}>
+          <Text {...(codeSurface as object)} selectable style={styles.rowLabel}>
             {data.matched}
           </Text>
         </View>
@@ -1032,7 +1033,7 @@ function DaemonRow({
     <View style={styles.stackRow}>
       <View style={styles.rowHead}>
         <Chip label={row.state} tone={daemonTone(row.state, tokens)} styles={styles} />
-        <Text selectable style={styles.rowLabel} numberOfLines={1}>
+        <Text {...(codeSurface as object)} selectable style={styles.rowLabel} numberOfLines={1}>
           {row.name}
         </Text>
         {typeof row.pid === "number" ? (

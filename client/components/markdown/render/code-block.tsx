@@ -4,6 +4,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { Tokens } from "../../../vendor/marked";
 import { SyntaxHighlightBlock } from "../../syntax-highlight";
 import type { RenderContext } from "./context";
+import { codeSurface } from "../../host-font-escape";
 import { codeLanguage, fenceClosed } from "./text";
 
 /** A document-variant block longer than this starts folded … */
@@ -49,7 +50,7 @@ export function CodeBlock({
         style={styles.codeSummary}
       >
         <Icon name="ChevronRight" size={metrics.glyphSize} color={tokens.foregroundMuted} />
-        <Text style={styles.codeSummaryText}>
+        <Text {...(codeSurface as object)} style={styles.codeSummaryText}>
           {`${lang || "code"} · ${lines} ${lines === 1 ? "line" : "lines"}`}
         </Text>
       </Pressable>

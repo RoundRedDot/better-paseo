@@ -450,7 +450,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
             </Text>
           ) : null}
           {data.shell?.stderr ? (
-            <Text selectable style={[styles.terminalOutput, { color: tokens.danger }]}>
+            <Text selectable {...(codeSurface as object)} style={[styles.terminalOutput, { color: tokens.danger }]}>
               {data.shell.stderr}
             </Text>
           ) : null}
@@ -665,7 +665,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
               <Text selectable numberOfLines={1} style={styles.plainText}>
                 {row.title}
               </Text>
-              <Text selectable numberOfLines={1} style={[styles.monoText, styles.mutedColor]}>
+              <Text selectable {...(codeSurface as object)} numberOfLines={1} style={[styles.monoText, styles.mutedColor]}>
                 {row.url}
               </Text>
             </View>
@@ -685,7 +685,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
 
       {data.tool === "fetch" && data.fetch && (
         <View style={styles.section}>
-          <Text selectable style={styles.monoText}>
+          <Text selectable {...(codeSurface as object)} style={styles.monoText}>
             {data.fetch.url}
           </Text>
           {data.fetch.prompt ? (
@@ -707,14 +707,14 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
             <PathText path={data.worktree.worktreePath} tokens={tokens} compact={compact} fit />
           ) : null}
           {data.worktree.branchName ? (
-            <Text selectable style={[styles.monoText, styles.mutedColor]}>
+            <Text selectable {...(codeSurface as object)} style={[styles.monoText, styles.mutedColor]}>
               {data.worktree.branchName}
             </Text>
           ) : null}
           {data.worktree.commands.map((step) => (
             <View key={step.index} style={styles.terminalWindow}>
               <View style={styles.inlineRow}>
-                <Text selectable style={[styles.monoText, styles.flex]} numberOfLines={2}>
+                <Text selectable {...(codeSurface as object)} style={[styles.monoText, styles.flex]} numberOfLines={2}>
                   {`$ ${step.command}`}
                 </Text>
                 {step.status === "running" ? <RunningDot color={tokens.accent} /> : null}
@@ -750,7 +750,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
           ) : null}
           {data.subAgent.actions?.map((action) => (
             <View key={action.index} style={styles.inlineRow}>
-              <Text selectable style={[styles.monoText, styles.mutedColor]}>
+              <Text selectable {...(codeSurface as object)} style={[styles.monoText, styles.mutedColor]}>
                 {action.toolName}
               </Text>
               {action.summary ? (
@@ -877,14 +877,14 @@ function useBodyStyles(tokens: ExtendedThemeTokens): BodyStyles {
         askOptionText: { flex: 1, gap: 2 },
         terminalOutput: {
           fontFamily: tokens.fontMono,
-          fontSize: 11.5,
-          lineHeight: 17,
+          fontSize: tokens.typography.mono.size,
+          lineHeight: tokens.typography.mono.lineHeight,
           color: tokens.foregroundMuted,
         },
         commandLine: {
           fontFamily: tokens.fontMono,
-          fontSize: 12,
-          lineHeight: 18,
+          fontSize: tokens.typography.mono.size,
+          lineHeight: tokens.typography.mono.lineHeight,
           color: tokens.foreground,
         },
         silentText: {
@@ -915,7 +915,7 @@ function useBodyStyles(tokens: ExtendedThemeTokens): BodyStyles {
         },
         monoText: {
           fontFamily: tokens.fontMono,
-          fontSize: 12,
+          fontSize: tokens.typography.mono.size,
           color: tokens.foreground,
         },
         mutedColor: { color: tokens.foregroundMuted },

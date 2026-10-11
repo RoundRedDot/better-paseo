@@ -5,6 +5,7 @@ import { Glyph } from "../../glyph";
 import type { MathToken } from "../lex";
 import { CodeBlock } from "./code-block";
 import type { RenderContext } from "./context";
+import { codeSurface } from "../../host-font-escape";
 import { renderInline } from "./inline";
 import {
   BULLETS,
@@ -58,7 +59,7 @@ function renderBlock(
     // TeX source on the code face (plan D6): readable, and copyable as TeX.
     const math = generic as unknown as MathToken;
     return (
-      <Text key={key} selectable style={styles.plain}>
+      <Text key={key} selectable {...(codeSurface as object)} style={styles.plain}>
         {math.text}
       </Text>
     );
@@ -129,7 +130,7 @@ function renderBlock(
       const source = token.raw.replace(/\n+$/, "");
       if (source.trim() === "") return null;
       return (
-        <Text key={key} selectable style={styles.plain}>
+        <Text key={key} selectable {...(codeSurface as object)} style={styles.plain}>
           {source}
         </Text>
       );
@@ -137,7 +138,7 @@ function renderBlock(
 
     default:
       return token.raw.trim() === "" ? null : (
-        <Text key={key} selectable style={styles.plain}>
+        <Text key={key} selectable {...(codeSurface as object)} style={styles.plain}>
           {token.raw}
         </Text>
       );

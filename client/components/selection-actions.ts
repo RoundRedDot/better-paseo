@@ -35,15 +35,19 @@ export const selectionSurface = { dataSet: { bcselection: true } } as unknown as
  * Marks a code or terminal body inside a surface. A selection from one is
  * quoted as a fenced block, because `>` in front of every line of code makes it
  * unreadable to the next reader and to the model.
+ *
+ * Every such body is also a monospace region, so the mark carries the host's
+ * code-surface attribute (`data-pmono`, see `host-font-escape.ts`) too: the
+ * host's UI font rule skips it and the plugin's mono family applies.
  */
-export const selectionCodeSurface = { dataSet: { bccode: true } } as unknown as ViewProps;
+export const selectionCodeSurface = { dataSet: { bccode: true, pmono: "" } } as unknown as ViewProps;
 
 /**
  * The same mark for a code or terminal body that is a `Text` rather than a
  * `View` — React Native types the two prop bags separately, and the DOM
  * attribute is identical.
  */
-export const selectionCodeText = { dataSet: { bccode: true } } as unknown as TextProps;
+export const selectionCodeText = { dataSet: { bccode: true, pmono: "" } } as unknown as TextProps;
 
 const SURFACE_SELECTOR = "[data-bcselection]";
 const CODE_SELECTOR = "[data-bccode]";

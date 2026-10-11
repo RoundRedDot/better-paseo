@@ -2,6 +2,8 @@ import React, { useMemo, useRef } from "react";
 import { View } from "react-native";
 import type { ExtendedThemeTokens } from "../theme-tokens";
 import { selectionSurface } from "../selection-actions";
+import { codeSurface } from "../host-font-escape";
+import { surfaceProps } from "../view-props";
 import { perfOn, probeMarkdown } from "../../debug/perf";
 import { createBlockCache, splitBlocks, type BlockCache } from "./blocks";
 import { blockKind, lexBlock, warmLexer } from "./lex";
@@ -98,7 +100,12 @@ export function MarkdownView({
 
   const last = blocks.length - 1;
   return (
-    <View {...selectionSurface} style={styles.root}>
+    // The terminal variant sets the whole body in the mono face, so the whole
+    // reply is a code surface the host's UI font rule must skip.
+    <View
+      {...(VARIANT_METRICS[variant].mono ? surfaceProps(selectionSurface, codeSurface) : selectionSurface)}
+      style={styles.root}
+    >
       {blocks.map((raw, index) => (
         <MdBlock
           key={`b${index}`}

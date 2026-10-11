@@ -4,6 +4,7 @@ import { DEFAULT_PREFERENCES, type EnhancerPreferences, ACCENT_PRESETS } from ".
 import {
   EMBEDDED_FAMILY,
   NATIVE_DEFAULT_MONO,
+  interfaceFamily,
   resolveTypography,
   type Typography,
   type TypographyPlatform,
@@ -68,7 +69,7 @@ export interface ExtendedThemeTokens {
   fontMono: string;
   /** `typography.mono.codeFamily`. */
   fontCode: string;
-  /** The interface family; see `legacyUiFamily`. */
+  /** The interface family; see `interfaceFamily`. */
   fontUi: string;
   typography: Typography;
 
@@ -230,30 +231,6 @@ export interface ThemeTokenOptions {
   theme?: unknown;
 }
 
-/**
- * The interface family the existing components draw with.
- *
- * Until slice S5 moves `data-pmono` from item roots to code surfaces, the
- * host's UI font cannot reach plugin text on web, so "follow Paseo" has
- * nothing to follow there; and the stack `typography.ui.family` builds for
- * Inter changes line boxes wherever Inter lacks a glyph. Web therefore keeps
- * the bare embedded Inter it has always drawn, for both. Native gets the host
- * family when H1 provides one, else the system face — never the embedded
- * name, which iOS and Android do not have.
- */
-function legacyUiFamily(
-  typography: Typography,
-  preferences: EnhancerPreferences,
-  platform: TypographyPlatform,
-): string {
-  if (platform !== "web") return typography.ui.family ?? "System";
-  if (preferences.uiFont === "system") return "System";
-  if (preferences.uiFont === "host" && typography.fromHost && typography.ui.family) {
-    return typography.ui.family;
-  }
-  return EMBEDDED_FAMILY.ui;
-}
-
 export function buildThemeTokens(
   colors: PluginSurfaceColors,
   preferences: EnhancerPreferences = DEFAULT_PREFERENCES,
@@ -284,7 +261,7 @@ export function buildThemeTokens(
     isDark,
     fontMono: typography.mono.family,
     fontCode: typography.mono.codeFamily,
-    fontUi: legacyUiFamily(typography, preferences, platform),
+    fontUi: interfaceFamily(typography, preferences.uiFont, platform),
     typography,
 
     surface0: colors.surface0,

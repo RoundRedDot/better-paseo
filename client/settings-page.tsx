@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
-import { hostFontEscape } from "./components/host-font-escape";
+import { itemRootFont } from "./components/host-font-escape";
 import { radius, buildThemeTokens, type ExtendedThemeTokens } from "./components/theme-tokens";
 import {
   ACCENT_PRESETS,
@@ -216,7 +216,7 @@ export function BeautifulChatSettingsPage({ theme }: PluginSurfaceProps) {
   );
 
   return (
-    <View {...hostFontEscape} style={[styles.container, { backgroundColor: tokens.surface0 }]}>
+    <View {...itemRootFont(preferences.uiFont)} style={[styles.container, { backgroundColor: tokens.surface0 }]}>
       <View
         style={[
           styles.intro,
