@@ -7,7 +7,7 @@ import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { HubCallout } from "./hub-callout";
 import { PaseoToolCallout } from "./paseo-tool-callouts";
-import { SyntaxHighlightBlock, renderTerminalOutput } from "./syntax-highlight";
+import { SyntaxHighlightBlock, TerminalOutput, renderTerminalOutput } from "./syntax-highlight";
 import { ImagePreview } from "./image-preview";
 import { GitHubBody } from "./github-body";
 import { MarkdownView } from "./markdown/markdown-view";
@@ -445,9 +445,12 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
             </Text>
           ) : null}
           {data.shell?.stdout ? (
-            <Text selectable {...selectionCodeText} style={styles.terminalOutput}>
-              {renderTerminalOutput(data.shell.stdout, tokens)}
-            </Text>
+            <TerminalOutput
+              text={data.shell.stdout}
+              tokens={tokens}
+              textProps={selectionCodeText}
+              style={styles.terminalOutput}
+            />
           ) : null}
           {data.shell?.stderr ? (
             <Text selectable {...(codeSurface as object)} style={[styles.terminalOutput, { color: tokens.danger }]}>
@@ -455,9 +458,12 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
             </Text>
           ) : null}
           {data.output && !data.shell?.stdout ? (
-            <Text selectable {...selectionCodeText} style={styles.terminalOutput}>
-              {renderTerminalOutput(data.output, tokens)}
-            </Text>
+            <TerminalOutput
+              text={data.output}
+              tokens={tokens}
+              textProps={selectionCodeText}
+              style={styles.terminalOutput}
+            />
           ) : null}
           {!data.shell?.stdout && !data.shell?.stderr && !data.output ? (
             <Text selectable style={styles.silentText}>
