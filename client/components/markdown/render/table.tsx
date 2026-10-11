@@ -1,8 +1,9 @@
 import React, { useRef } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import type { Tokens } from "../../../vendor/marked";
 import type { RenderContext } from "./context";
 import { inlineWidth, renderInline } from "./inline";
+import { HScroll } from "../../../ui/h-scroll";
 import { ALIGN_KEYS, CHAR_RATIO_MONO, CHAR_RATIO_UI, TABLE_CELL_PADDING, type VariantMetrics } from "./styles";
 
 /**
@@ -31,10 +32,12 @@ export function columnWidths(token: Tokens.Table, metrics: VariantMetrics): numb
 
 /**
  * A table keeps its own columns and scrolls sideways when the widest row beats
- * the card: clipping would hide the cell that carries the answer. While the
- * table is still being written its columns only widen, so a short cell
- * arriving in a new row never pulls the layout back; once it is complete the
- * widths are measured once more from the final cells.
+ * the card, with a 2px indicator under it while it overflows: clipping would
+ * hide the cell that carries the answer, and an unmarked scroller looks
+ * clipped (S7 iOS screenshots). While the table is still being written its
+ * columns only widen, so a short cell arriving in a new row never pulls the
+ * layout back; once it is complete the widths are measured once more from the
+ * final cells.
  */
 export function MdTable({
   token,
@@ -60,12 +63,7 @@ export function MdTable({
   const align = (column: number) => styles[ALIGN_KEYS[token.align[column] ?? "left"]];
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.tableScroll}
-      contentContainerStyle={styles.tableContent}
-    >
+    <HScroll tokens={context.tokens} style={styles.tableScroll} contentContainerStyle={styles.tableContent}>
       <View>
         <View style={styles.tableHeaderRow}>
           {token.header.map((cell, column) => {
@@ -106,6 +104,6 @@ export function MdTable({
           </View>
         ))}
       </View>
-    </ScrollView>
+    </HScroll>
   );
 }

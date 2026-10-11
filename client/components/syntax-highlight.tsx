@@ -1,10 +1,12 @@
 import React, { memo, useCallback, useEffect, useState, useMemo, type ReactNode } from "react";
-import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import { Platform, View, Text, Pressable, StyleSheet } from "react-native";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { StyleProp, TextProps, TextStyle } from "react-native";
 import { surfaceProps } from "./view-props";
 import { radiusV2, space, type ExtendedThemeTokens } from "./theme-tokens";
-import { UI_SCALE } from "../ui/tokens/typography";
-import { FileTypeLogo, detectFileType } from "./file-type-logo";
+import { TYPE } from "../ui/tokens/typography";
+import { HScroll } from "../ui/h-scroll";
+import { diffLineNumbers } from "./diff-lines";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeSurface, selectionSurface } from "./selection-actions";
 import { useHighlightedLines } from "../highlight";
@@ -40,6 +42,11 @@ interface SyntaxHighlightProps {
    * 5000-line diff froze the native UI for seconds).
    */
   initialLines?: number;
+  /**
+   * Inside an opened tool body, which is already the code surface: no fill,
+   * radius or margin of its own, and the header and lines start at its edge.
+   */
+  bare?: boolean;
 }
 
 /** A block longer than this mounts its first rows only, then appends on request. */
@@ -51,8 +58,8 @@ export const LARGE_BLOCK_LINES = 400;
  * frames at 400 rows per batch and 83% at 100.
  */
 const APPEND_BATCH = 400;
-/** Code header height (plan §3.6): a 24px copy button with 2px either side. */
-const HEADER_HEIGHT = 28;
+/** Code header height (S7 design spec §3.6): 32 on touch platforms, 30 on desktop. */
+const HEADER_HEIGHT = Platform.OS === "web" ? 30 : 32;
 
 const scheduleFrame: (callback: () => void) => () => void =
   typeof requestAnimationFrame === "function"
@@ -517,10 +524,15 @@ export function SyntaxHighlightBlock({
   highlight = true,
   scrollX = false,
   initialLines,
+  bare = false,
 }: SyntaxHighlightProps) {
   const lines = useMemo(() => code.trimEnd().split("\n"), [code]);
   const total = lines.length;
-  const { shown, expanding, showAll } = useBatchedRows(total, initialLines);
+  const { shown, expanding, expanded, showAll, showLess } = useBatchedRows(total, initialLines);
+  // Sideways scrolling is the default for a block that asked for it; Wrap
+  // turns it off for this block only (S7 design spec §3.6).
+  const [wrapped, setWrapped] = useState(false);
+  const scroll = scrollX && !wrapped;
   // A diff is a diff whatever the label says, and everything below reads this
   // flag rather than the label.
   const isDiff = useMemo(
@@ -531,16 +543,15 @@ export function SyntaxHighlightBlock({
     () => dialectFor(isDiff, language, filename),
     [isDiff, language, filename],
   );
-  // The devicon already names the language. The text badge only earns its
-  // place when no brand mark exists for the file.
-  const showLanguageBadge = useMemo(
-    () => detectFileType(filename, language) === "generic",
-    [filename, language],
-  );
   const lineDialects = useMemo(() => classifyLines(lines, codeLanguage), [lines, codeLanguage]);
   const diffBodyCode = useMemo(
     () => (isDiff && patchedFileIsCode(filename) ? strippedDiffCode(lines) : undefined),
     [isDiff, filename, lines],
+  );
+  // A diff row carries the file's own line number, not its position.
+  const numbers = useMemo(
+    () => (showLineNumbers && isDiff ? diffLineNumbers(lines) : null),
+    [showLineNumbers, isDiff, lines],
   );
   // Grammar-accurate colours arrive from the daemon one round trip late, and
   // never for a language it has no grammar for. Until then, and after a failed
@@ -557,75 +568,65 @@ export function SyntaxHighlightBlock({
   const diffBodyLines = highlightResult?.diffLines;
 
   const mono = tokens.typography.mono;
-  const hasHeader = Boolean(filename || language);
+  const languageLabel = codeLanguageLabel(isDiff ? "diff" : language, filename);
+  const hasHeader = Boolean(filename || filenameNode !== undefined || languageLabel);
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        // Plan §3.6: one means per block. The code surface and a 6px radius
-        // say "code" on their own, inside a card or in prose, so there is no
-        // border, shadow or blur, and the header sits on the same surface.
-        container: {
-          ...selectableSurface,
-          backgroundColor: tokens.v2.surfaceCode,
-          borderRadius: radiusV2.block,
-          overflow: "hidden",
-          marginVertical: compact ? space.xs : space.sm,
-        },
+        // One means per block (S7 design spec §3.6): the host's raised surface
+        // and a 6px radius say "code", with no border, shadow or blur. `bare`
+        // drops even that, inside an opened tool body that is already the
+        // code surface.
+        container: bare
+          ? { ...selectableSurface }
+          : {
+              ...selectableSurface,
+              backgroundColor: tokens.v2.surfaceCode,
+              borderRadius: radiusV2.block,
+              overflow: "hidden",
+              marginVertical: compact ? space.xs : space.sm,
+            },
         header: {
-          minHeight: HEADER_HEIGHT,
+          height: HEADER_HEIGHT,
           flexDirection: "row",
           alignItems: "center",
-          justifyContent: "space-between",
           gap: space.sm,
-          paddingLeft: space.sm,
-          paddingRight: space.xs,
-          paddingVertical: 2,
+          paddingLeft: bare ? 0 : space.md,
+          paddingRight: bare ? 0 : space.xs,
         },
-        // A long path wraps onto further lines instead of running under the
-        // copy button, so the file name stays readable at any pane width.
-        headerLeft: {
-          flexDirection: "row",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: space.sm,
-          flexShrink: 1,
+        language: {
+          flexShrink: 0,
+          fontSize: TYPE.caption.size,
+          lineHeight: TYPE.caption.lineHeight,
+          fontFamily: tokens.fontUi,
+          color: tokens.foregroundMuted,
+          ...unselectable,
+        },
+        filenameSlot: {
+          flex: 1,
           minWidth: 0,
         },
         filename: {
-          fontSize: UI_SCALE.base,
-          lineHeight: 17,
-          fontFamily: tokens.fontUi,
-          fontWeight: "600",
-          color: tokens.foregroundMuted,
-          flexShrink: 1,
-        },
-        filenameButton: {
-          flexShrink: 1,
+          flex: 1,
           minWidth: 0,
+          fontSize: TYPE.meta.size,
+          lineHeight: TYPE.meta.lineHeight,
+          fontFamily: tokens.fontMono,
+          color: tokens.foreground,
         },
         filenameLink: {
-          color: tokens.accent,
           textDecorationLine: "underline",
           ...unselectable,
         },
-        langBadge: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          fontWeight: "500",
-          textTransform: "uppercase",
-          letterSpacing: 0.5,
-          color: tokens.foregroundSubtle,
-        },
-        showAll: {
-          alignSelf: "flex-start",
-          marginTop: 6,
-          paddingVertical: 2,
-        },
-        showAllText: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          color: tokens.accent,
-          ...unselectable,
+        // A fixed slot: Wrap and Copy fill it once the fence closes, and the
+        // filename never re-truncates when they appear.
+        actions: {
+          width: ACTION_SLOT,
+          flexShrink: 0,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: space.xs,
         },
         // A line in the sideways scroller sizes to its own text: `flex: 0`
         // would map to a zero basis on web and wrap every word.
@@ -637,9 +638,9 @@ export function SyntaxHighlightBlock({
           color: tokens.foreground,
         },
         codeArea: {
-          paddingHorizontal: compact ? space.sm : space.md,
-          paddingTop: hasHeader ? 0 : compact ? space.sm : space.md,
-          paddingBottom: compact ? space.sm : space.md,
+          paddingHorizontal: bare ? 0 : space.md,
+          paddingTop: hasHeader ? 2 : bare ? 0 : space.sm,
+          paddingBottom: bare ? 0 : space.sm,
         },
         lineRow: {
           flexDirection: "row",
@@ -647,10 +648,12 @@ export function SyntaxHighlightBlock({
         },
         lineNumber: {
           fontSize: mono.size,
+          lineHeight: mono.lineHeight,
           fontFamily: tokens.fontMono,
-          color: tokens.foregroundSubtle,
+          color: tokens.syntax.comment,
           textAlign: "right",
-          paddingRight: 10,
+          paddingRight: space.sm,
+          fontVariant: ["tabular-nums"],
           ...unselectable,
         },
         lineContent: {
@@ -661,10 +664,10 @@ export function SyntaxHighlightBlock({
           color: tokens.foreground,
         },
       }),
-    [tokens, compact, hasHeader],
+    [tokens, compact, hasHeader, bare],
   );
 
-  const numberWidth = lineNumberWidth(total);
+  const numberWidth = lineNumberWidth(numbers ? Math.max(...numbers.map((n) => n ?? 0)) : total, mono.size);
   // One row, as a stable function of the block's inputs: the chunks below are
   // memoised on it, so appending rows never re-renders the rows already shown.
   const row = useCallback(
@@ -679,34 +682,15 @@ export function SyntaxHighlightBlock({
           ? tokens.syntax.diffAddBg
           : kind === "remove"
             ? tokens.syntax.diffRemoveBg
-            : "transparent";
-
-      // Adjacent added and removed rows form one hunk. Only the hunk's
-      // outer edges round, so a delete-to-add transition stays flush.
-      const previousKind = diffTint(lines[idx - 1], isDiff);
-      const nextKind = diffTint(lines[idx + 1], isDiff);
-      const opensRun = kind !== null && previousKind === null;
-      const closesRun = kind !== null && nextKind === null;
-      const corner = radiusV2.chip;
+            : undefined;
+      const number = numbers ? numbers[idx] : idx + 1;
 
       return (
-        <View
-          key={idx}
-          style={[
-            styles.lineRow,
-            {
-              backgroundColor: lineBg,
-              borderTopLeftRadius: opensRun ? corner : 0,
-              borderTopRightRadius: opensRun ? corner : 0,
-              borderBottomLeftRadius: closesRun ? corner : 0,
-              borderBottomRightRadius: closesRun ? corner : 0,
-            },
-          ]}
-        >
+        <View key={idx} style={lineBg ? [styles.lineRow, { backgroundColor: lineBg }] : styles.lineRow}>
           {showLineNumbers && (
-            <Text style={[styles.lineNumber, { width: numberWidth }]}>{idx + 1}</Text>
+            <Text style={[styles.lineNumber, { width: numberWidth }]}>{number ?? ""}</Text>
           )}
-          <Text selectable style={scrollX ? styles.lineNoWrap : styles.lineContent}>
+          <Text selectable style={scroll ? styles.lineNoWrap : styles.lineContent}>
             {bodyLine
               ? renderDiffBodyLine(line, bodyLine, tokens)
               : shikiLine
@@ -727,97 +711,270 @@ export function SyntaxHighlightBlock({
       diffBodyLines,
       isDiff,
       lines,
+      numbers,
       tokens,
       styles,
       showLineNumbers,
       numberWidth,
-      scrollX,
+      scroll,
       language,
       lineDialects,
       codeLanguage,
     ],
   );
 
+  const rows = chunkRows(shown, (from, to) => (
+    <CodeRows key={from} from={from} to={to} lines={lines} row={row} />
+  ));
+
   return (
     <View {...surfaceProps(selectionSurface)} style={styles.container}>
       {hasHeader && (
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <FileTypeLogo
-              filename={filename}
-              language={language}
-              size="sm"
-              foregroundColor={tokens.foreground}
-            />
-            {filenameNode !== undefined ? (
-              filenameNode
-            ) : filename ? (
-              onRevealFile ? (
-                <Pressable
-                  onPress={onRevealFile}
-                  accessibilityRole="link"
-                  accessibilityLabel={`Show ${filename} in the file manager`}
-                  style={styles.filenameButton}
-                >
-                  <Text style={[styles.filename, styles.filenameLink]}>{filename}</Text>
-                </Pressable>
-              ) : (
-                <Text selectable style={styles.filename}>
-                  {filename}
-                </Text>
-              )
-            ) : null}
-            {showLanguageBadge ? (
-              <Text selectable style={styles.langBadge}>
-                {language}
+          {languageLabel ? <Text style={styles.language}>{languageLabel}</Text> : null}
+          {filenameNode !== undefined ? (
+            <View style={styles.filenameSlot}>{filenameNode}</View>
+          ) : filename && onRevealFile ? (
+            <Pressable
+              onPress={onRevealFile}
+              accessibilityRole="link"
+              accessibilityLabel={`Show ${filename} in the file manager`}
+              style={styles.filenameSlot}
+            >
+              <Text numberOfLines={1} style={[styles.filename, styles.filenameLink]}>
+                {filename}
               </Text>
+            </Pressable>
+          ) : (
+            <Text selectable numberOfLines={1} style={styles.filename}>
+              {filename ?? ""}
+            </Text>
+          )}
+          <View style={styles.actions}>
+            {highlight ? (
+              <>
+                {scrollX ? (
+                  <ToggleIconButton
+                    icon="WrapText"
+                    label={wrapped ? "Do not wrap lines" : "Wrap lines"}
+                    active={wrapped}
+                    onPress={() => setWrapped((value) => !value)}
+                    tokens={tokens}
+                  />
+                ) : null}
+                <CopyButton text={code} tokens={tokens} label="Copy code" />
+              </>
             ) : null}
           </View>
-          <CopyButton text={code} tokens={tokens} label="Copy" showLabel />
         </View>
       )}
 
       <View {...selectionCodeSurface} style={styles.codeArea}>
-        {wrapRows(scrollX, chunkRows(shown, (from, to) => (
-          <CodeRows
-            key={from}
-            from={from}
-            to={to}
-            lines={lines}
-            row={row}
-          />
-        )))}
-        {shown < total ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={showAll}
-            disabled={expanding}
-            style={styles.showAll}
-          >
-            <Text style={styles.showAllText}>
-              {expanding ? `Showing ${shown} of ${total} lines` : `Show all ${total} lines`}
-            </Text>
-          </Pressable>
-        ) : null}
+        {scroll ? (
+          <HScroll tokens={tokens} contentContainerStyle={rowStyles.scrollContent}>
+            <View style={rowStyles.scrollRows}>{rows}</View>
+          </HScroll>
+        ) : (
+          rows
+        )}
       </View>
+      <FoldFooter
+        total={total}
+        shown={shown}
+        expanding={expanding}
+        expanded={expanded}
+        onShowAll={showAll}
+        onShowLess={showLess}
+        tokens={tokens}
+        bare={bare}
+      />
     </View>
   );
 }
 
+/** Lines a code block or a command's output shows before "Show N more lines" (S7 §3.6). */
+export const FOLD_LINES = 12;
+
+/** The header's fixed action slot: two 24pt buttons and their gap, plus breathing room. */
+const ACTION_SLOT = 64;
+
+/** Display names for the languages a reply names most often; anything else as written. */
+const LANGUAGE_LABELS: Record<string, string> = {
+  ts: "TypeScript",
+  typescript: "TypeScript",
+  tsx: "TSX",
+  js: "JavaScript",
+  javascript: "JavaScript",
+  jsx: "JSX",
+  json: "JSON",
+  bash: "Shell",
+  sh: "Shell",
+  shell: "Shell",
+  zsh: "Shell",
+  diff: "Diff",
+  py: "Python",
+  python: "Python",
+  rust: "Rust",
+  rs: "Rust",
+  go: "Go",
+  swift: "Swift",
+  kotlin: "Kotlin",
+  java: "Java",
+  css: "CSS",
+  html: "HTML",
+  yaml: "YAML",
+  yml: "YAML",
+  toml: "TOML",
+  sql: "SQL",
+  md: "Markdown",
+  markdown: "Markdown",
+};
+
+/** What the header names the block: the language, or nothing for plain text. */
+export function codeLanguageLabel(language: string | undefined, filename?: string): string {
+  const raw = (language ?? "").trim().toLowerCase();
+  const fromFile = filename ? (fileExtension(filename) ?? "") : "";
+  const key = raw && raw !== "text" && raw !== "plaintext" ? raw : fromFile;
+  if (!key || key === "text" || key === "plaintext" || key === "txt") return "";
+  return LANGUAGE_LABELS[key] ?? key;
+}
+
+/** A 24pt icon button with a pressed-in look while `active` (Wrap). */
+function ToggleIconButton({
+  icon,
+  label,
+  active,
+  onPress,
+  tokens,
+}: {
+  icon: string;
+  label: string;
+  active: boolean;
+  onPress(): void;
+  tokens: ExtendedThemeTokens;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
+      aria-pressed={active}
+      hitSlop={4}
+      onPress={onPress}
+      style={({ pressed }) => [
+        toggleStyles.button,
+        (active || pressed) && { backgroundColor: tokens.v2.surface2 },
+      ]}
+    >
+      <Icon name={icon} size={TYPE.button.size + 1} color={active ? tokens.foreground : tokens.foregroundMuted} />
+    </Pressable>
+  );
+}
+
+const toggleStyles = StyleSheet.create({
+  button: {
+    width: 24,
+    height: 24,
+    borderRadius: radiusV2.chip,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
+
 /**
- * How many of `total` rows to mount. At first the smaller of `initialLines`
- * and `LARGE_BLOCK_LINES`; after `showAll`, rows are appended a batch per
- * frame until every row is mounted, so expanding a huge block never blocks
- * the UI thread for the whole block at once.
+ * "Show N more lines" under a folded block, "Show less" under an unfolded
+ * one, and the progress while a long block is still being appended.
+ */
+function FoldFooter({
+  total,
+  shown,
+  expanding,
+  expanded,
+  onShowAll,
+  onShowLess,
+  tokens,
+  bare,
+  earlier = false,
+}: {
+  total: number;
+  shown: number;
+  expanding: boolean;
+  expanded: boolean;
+  onShowAll(): void;
+  onShowLess(): void;
+  tokens: ExtendedThemeTokens;
+  bare: boolean;
+  /** Tail mode: the hidden lines come before the shown ones. */
+  earlier?: boolean;
+}) {
+  const hidden = total - shown;
+  let label: string | null = null;
+  let onPress: (() => void) | undefined;
+  if (!expanded && hidden > 0) {
+    label = earlier
+      ? `${hidden} earlier ${hidden === 1 ? "line" : "lines"}`
+      : `Show ${hidden} more ${hidden === 1 ? "line" : "lines"}`;
+    onPress = onShowAll;
+  } else if (expanding && hidden > 0) {
+    label = `Showing ${shown} of ${total} lines`;
+  } else if (expanded && total > FOLD_LINES) {
+    label = "Show less";
+    onPress = onShowLess;
+  }
+  if (label === null) return null;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      disabled={onPress === undefined}
+      hitSlop={6}
+      style={({ pressed }) => [
+        bare ? footerStyles.bare : [footerStyles.row, { borderTopColor: tokens.v2.borderSubtle }],
+        pressed && { opacity: 0.7 },
+      ]}
+    >
+      <Text
+        style={[
+          footerStyles.label,
+          { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+const footerStyles = StyleSheet.create({
+  row: {
+    height: 32,
+    justifyContent: "center",
+    paddingHorizontal: space.md,
+    borderTopWidth: 1,
+  },
+  bare: {
+    alignSelf: "flex-start",
+    paddingVertical: 2,
+  },
+  label: {
+    fontSize: TYPE.button.size,
+    lineHeight: TYPE.button.lineHeight,
+    ...unselectable,
+  },
+});
+
+/**
+ * How many of `total` rows to mount. A block over `FOLD_LINES` starts at
+ * `initialLines` (default `FOLD_LINES`), never more than `LARGE_BLOCK_LINES`;
+ * after `showAll`, rows are appended a batch per frame until every row is
+ * mounted, so expanding a huge block never blocks the UI thread for the whole
+ * block at once. `showLess` folds it again.
  */
 export function useBatchedRows(
   total: number,
-  initialLines?: number,
-): { shown: number; expanding: boolean; showAll(): void } {
-  const firstCap = Math.min(
-    initialLines !== undefined && initialLines < total ? initialLines : total,
-    LARGE_BLOCK_LINES,
-  );
+  initialLines: number = FOLD_LINES,
+): { shown: number; expanding: boolean; expanded: boolean; showAll(): void; showLess(): void } {
+  const firstCap = Math.min(total > FOLD_LINES ? Math.min(initialLines, total) : total, LARGE_BLOCK_LINES);
   // null: the first rows only. A number: "Show all" was pressed.
   const [limit, setLimit] = useState<number | null>(null);
   const shown = limit === null ? firstCap : Math.min(limit, total);
@@ -826,7 +983,8 @@ export function useBatchedRows(
     return scheduleFrame(() => setLimit((current) => (current ?? firstCap) + APPEND_BATCH));
   }, [limit, total, firstCap]);
   const showAll = useCallback(() => setLimit(shown + APPEND_BATCH), [shown]);
-  return { shown, expanding: limit !== null, showAll };
+  const showLess = useCallback(() => setLimit(null), []);
+  return { shown, expanding: limit !== null && shown < total, expanded: limit !== null, showAll, showLess };
 }
 
 /** Rows per memoised chunk: appending a batch mounts new chunks only. */
@@ -858,32 +1016,16 @@ function CodeRowsBody({ from, to, lines, row }: CodeRowsProps) {
 
 const CodeRows = memo(CodeRowsBody);
 
-/** The gutter fits the largest line number: 3 digits must not wrap under 2. */
-function lineNumberWidth(total: number): number {
-  const digits = String(Math.max(1, total)).length;
-  return Math.max(32, Math.ceil(digits * 7.5) + 12);
+/** The gutter fits the largest line number at the code size, plus its gap. */
+function lineNumberWidth(largest: number, size: number): number {
+  const digits = String(Math.max(1, largest)).length;
+  return Math.max(2, digits) * Math.ceil(size * 0.62) + space.sm;
 }
 
 const rowStyles = StyleSheet.create({
   scrollContent: { flexGrow: 1 },
   scrollRows: { flexGrow: 1 },
 });
-
-/** Rows as they are, or in a sideways scroller that lets lines keep their length. */
-function wrapRows(scrollX: boolean, rows: React.ReactNode[]): React.ReactNode {
-  if (!scrollX) return rows;
-  return (
-    // The content is at least as wide as the block, so a diff row's tint still
-    // spans the block when every line is short.
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={rowStyles.scrollContent}
-    >
-      <View style={rowStyles.scrollRows}>{rows}</View>
-    </ScrollView>
-  );
-}
 
 /**
  * One line as the daemon tokenised it. A token the theme gives no colour takes
@@ -1409,56 +1551,65 @@ function OutputChunkBody({ text, tokens, more }: OutputChunkProps) {
 const OutputChunk = memo(OutputChunkBody);
 
 /**
- * Command output with the same cap as a code block (plan §3.2): the first
- * `LARGE_BLOCK_LINES` lines, then "Show all (N lines)" appends the rest a batch
- * per frame. Only what is drawn is capped; copying a card copies the full
- * output from its data, not from this view.
+ * Command output, folded to its last `FOLD_LINES` lines (S7 design spec §3.1):
+ * the end of a log is where the result and the error are, and a running
+ * command's tail follows the output as it arrives without the view jumping
+ * when the command finishes. "N earlier lines" above the tail mounts the rest
+ * a batch per frame (plan §3.2); "Show less" folds it again. Only what is
+ * drawn is folded; copying a card copies the full output from its data.
  */
 export function TerminalOutput({ text, tokens, style, textProps }: TerminalOutputProps) {
   const lines = useMemo(() => text.replace(/\s+$/, "").split("\n"), [text]);
   const total = lines.length;
-  const { shown, expanding, showAll } = useBatchedRows(total);
+  const { shown, expanding, expanded, showAll, showLess } = useBatchedRows(total);
+  const from = total - shown;
+  // Chunk edges sit on absolute multiples of OUTPUT_CHUNK_LINES, so growing
+  // the shown range upwards re-renders only the partial first chunk.
   const chunks: React.ReactNode[] = [];
-  for (let from = 0; from < shown; from += OUTPUT_CHUNK_LINES) {
-    const to = Math.min(shown, from + OUTPUT_CHUNK_LINES);
+  let start = from;
+  while (start < total) {
+    const end = Math.min(total, (Math.floor(start / OUTPUT_CHUNK_LINES) + 1) * OUTPUT_CHUNK_LINES);
     chunks.push(
       <OutputChunk
-        key={from}
-        text={lines.slice(from, to).join("\n")}
+        key={start === from ? "first" : start}
+        text={lines.slice(start, end).join("\n")}
         tokens={tokens}
-        more={to < shown}
+        more={end < total}
       />,
     );
+    start = end;
   }
+  const settled = expanded && !expanding;
   return (
     <>
+      {settled ? null : (
+        <FoldFooter
+          total={total}
+          shown={shown}
+          expanding={expanding}
+          expanded={expanded}
+          onShowAll={showAll}
+          onShowLess={showLess}
+          tokens={tokens}
+          bare
+          earlier
+        />
+      )}
       <Text selectable {...textProps} style={style}>
         {chunks}
       </Text>
-      {shown < total ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={showAll}
-          disabled={expanding}
-          style={outputStyles.showAll}
-        >
-          <Text style={[outputStyles.showAllText, { color: tokens.accent, fontFamily: tokens.fontUi }]}>
-            {expanding ? `Showing ${shown} of ${total} lines` : `Show all (${total} lines)`}
-          </Text>
-        </Pressable>
+      {settled ? (
+        <FoldFooter
+          total={total}
+          shown={shown}
+          expanding={false}
+          expanded
+          onShowAll={showAll}
+          onShowLess={showLess}
+          tokens={tokens}
+          bare
+        />
       ) : null}
     </>
   );
 }
-
-const outputStyles = StyleSheet.create({
-  showAll: {
-    alignSelf: "flex-start",
-    marginTop: 6,
-    paddingVertical: 2,
-  },
-  showAllText: {
-    fontSize: UI_SCALE.base,
-    ...unselectable,
-  },
-});
