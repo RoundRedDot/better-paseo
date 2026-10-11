@@ -26,7 +26,15 @@ export const radius = { card: 12, block: 8, chip: 5 } as const;
  * cards line up with native rows. New primitives use these; existing
  * components move over in their own slices.
  */
-export const radiusV2 = { card: 8, block: 6, chip: 4, pill: 999 } as const;
+export const radiusV2 = {
+  card: 8,
+  block: 6,
+  chip: 4,
+  pill: 999,
+  /** The user bubble, as the host draws its own: 2xl with an sm tail corner. */
+  bubble: 16,
+  bubbleTail: 2,
+} as const;
 
 /** Token v2 spacing, the host's `SPACING` steps. */
 export const space = { xs: 4, sm: 8, md: 12, lg: 16 } as const;
