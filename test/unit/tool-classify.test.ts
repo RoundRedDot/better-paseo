@@ -113,6 +113,11 @@ describe("classifyTool", () => {
     expect(agent?.actions).toEqual([{ index: 0, toolName: "Read", summary: "a.ts" }]);
   });
 
+  it("drops an error the transformer could only stringify as [object Object]", () => {
+    const view = classifyTool(call("Bash", { type: "shell", command: "x", output: "boom" }, { status: "failed", error: "[object Object]" }));
+    expect(view.error).toBeUndefined();
+  });
+
   it("reports status and error", () => {
     const view = classifyTool(call("Read", { type: "read", filePath: "/a" }, { status: "failed", error: "ENOENT" }));
     expect(view.status).toBe("failed");
