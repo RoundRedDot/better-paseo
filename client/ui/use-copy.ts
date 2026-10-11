@@ -2,7 +2,7 @@
  * One copy path for the whole plugin (plan §3.8 item 1, BC-10).
  *
  * Always the SDK's `copyText`, which works on every platform and rejects when
- * the clipboard is unavailable or denied — unlike `navigator.clipboard`, which
+ * the clipboard is unavailable or denied — unlike the browser clipboard API, which
  * does nothing on native and was reported as success anyway. Feedback is
  * either the button's own icon turning into a check for 1.2 s, or a toast for
  * entries that have no icon (long-press). A failure is always a toast, and
