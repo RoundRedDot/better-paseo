@@ -1,9 +1,8 @@
 import React, { memo, useCallback, useEffect, useState, useMemo, type ReactNode } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
-import { frosted } from "./frosted";
 import { surfaceProps } from "./view-props";
-import { glowing } from "./glow";
-import { radius, type ExtendedThemeTokens } from "./theme-tokens";
+import { radiusV2, space, type ExtendedThemeTokens } from "./theme-tokens";
+import { UI_SCALE } from "../ui/tokens/typography";
 import { FileTypeLogo, detectFileType } from "./file-type-logo";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeSurface, selectionSurface } from "./selection-actions";
@@ -51,6 +50,8 @@ export const LARGE_BLOCK_LINES = 400;
  * frames at 400 rows per batch and 83% at 100.
  */
 const APPEND_BATCH = 400;
+/** Code header height (plan §3.6): a 24px copy button with 2px either side. */
+const HEADER_HEIGHT = 28;
 
 const scheduleFrame: (callback: () => void) => () => void =
   typeof requestAnimationFrame === "function"
@@ -566,29 +567,30 @@ export function SyntaxHighlightBlock({
   const shikiLines = highlightResult?.lines;
   const diffBodyLines = highlightResult?.diffLines;
 
+  const mono = tokens.typography.mono;
+  const hasHeader = Boolean(filename || language);
   const styles = useMemo(
     () =>
       StyleSheet.create({
+        // Plan §3.6: one means per block. The code surface and a 6px radius
+        // say "code" on their own, inside a card or in prose, so there is no
+        // border, shadow or blur, and the header sits on the same surface.
         container: {
           ...selectableSurface,
-          backgroundColor: tokens.surfaceCodeGlass,
-          borderRadius: radius.card,
-          borderWidth: 1,
-          borderColor: tokens.borderSubtle,
-          ...tokens.boxShadow,
+          backgroundColor: tokens.v2.surfaceCode,
+          borderRadius: radiusV2.block,
           overflow: "hidden",
-          marginVertical: compact ? 4 : 8,
+          marginVertical: compact ? space.xs : space.sm,
         },
         header: {
+          minHeight: HEADER_HEIGHT,
           flexDirection: "row",
-          alignItems: "flex-start",
+          alignItems: "center",
           justifyContent: "space-between",
-          gap: 8,
-          paddingHorizontal: 12,
-          paddingVertical: 6,
-          borderBottomWidth: 1,
-          borderBottomColor: tokens.borderSubtle,
-          backgroundColor: tokens.surface1,
+          gap: space.sm,
+          paddingLeft: space.sm,
+          paddingRight: space.xs,
+          paddingVertical: 2,
         },
         // A long path wraps onto further lines instead of running under the
         // copy button, so the file name stays readable at any pane width.
@@ -601,7 +603,7 @@ export function SyntaxHighlightBlock({
           minWidth: 0,
         },
         filename: {
-          fontSize: 12,
+          fontSize: UI_SCALE.base,
           lineHeight: 17,
           fontFamily: tokens.fontUi,
           fontWeight: "600",
@@ -619,15 +621,11 @@ export function SyntaxHighlightBlock({
         },
         langBadge: {
           fontFamily: tokens.fontUi,
-          fontSize: 11,
+          fontSize: UI_SCALE.sm,
           fontWeight: "500",
           textTransform: "uppercase",
           letterSpacing: 0.5,
           color: tokens.foregroundSubtle,
-          backgroundColor: tokens.surface2,
-          paddingHorizontal: 6,
-          paddingVertical: 2,
-          borderRadius: radius.chip,
         },
         showAll: {
           alignSelf: "flex-start",
@@ -636,7 +634,7 @@ export function SyntaxHighlightBlock({
         },
         showAllText: {
           fontFamily: tokens.fontUi,
-          fontSize: 12,
+          fontSize: UI_SCALE.base,
           color: tokens.accent,
           ...unselectable,
         },
@@ -644,20 +642,22 @@ export function SyntaxHighlightBlock({
         // would map to a zero basis on web and wrap every word.
         lineNoWrap: {
           flexShrink: 0,
-          fontSize: 12,
-          lineHeight: 18,
+          fontSize: mono.size,
+          lineHeight: mono.lineHeight,
           fontFamily: tokens.fontCode,
           color: tokens.foreground,
         },
         codeArea: {
-          padding: compact ? 8 : 12,
+          paddingHorizontal: compact ? space.sm : space.md,
+          paddingTop: hasHeader ? 0 : compact ? space.sm : space.md,
+          paddingBottom: compact ? space.sm : space.md,
         },
         lineRow: {
           flexDirection: "row",
           alignItems: "flex-start",
         },
         lineNumber: {
-          fontSize: 12,
+          fontSize: mono.size,
           fontFamily: tokens.fontMono,
           color: tokens.foregroundSubtle,
           textAlign: "right",
@@ -666,13 +666,13 @@ export function SyntaxHighlightBlock({
         },
         lineContent: {
           flex: 1,
-          fontSize: 12,
-          lineHeight: 18,
+          fontSize: mono.size,
+          lineHeight: mono.lineHeight,
           fontFamily: tokens.fontCode,
           color: tokens.foreground,
         },
       }),
-    [tokens, compact],
+    [tokens, compact, hasHeader],
   );
 
   const numberWidth = lineNumberWidth(total);
@@ -698,7 +698,7 @@ export function SyntaxHighlightBlock({
       const nextKind = diffTint(lines[idx + 1], isDiff);
       const opensRun = kind !== null && previousKind === null;
       const closesRun = kind !== null && nextKind === null;
-      const corner = radius.chip;
+      const corner = radiusV2.chip;
 
       return (
         <View
@@ -750,10 +750,8 @@ export function SyntaxHighlightBlock({
   );
 
   return (
-    // No pointer glow here: a code block is an inner surface, and lighting it
-    // separately from the card that holds it reads as two hovers at once.
-    <View {...surfaceProps(frosted, selectionSurface)} style={styles.container}>
-      {(filename || language) && (
+    <View {...surfaceProps(selectionSurface)} style={styles.container}>
+      {hasHeader && (
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <FileTypeLogo
