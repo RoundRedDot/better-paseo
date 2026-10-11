@@ -35,6 +35,47 @@ export function perfOn(): boolean {
   return on;
 }
 
+// --- Item identity ---------------------------------------------------------
+
+const KEY_PREFIX_CHARS = 80;
+const textKeys = new Map<string, Array<{ prefix: string; key: string }>>();
+
+function fnv1a(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index++) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+/**
+ * A stable id for a streamed text item. The host rewrites a thought's
+ * timestamp on every chunk, so the timestamp cannot name it. The id is a hash
+ * of the first 80 characters; while the text is still shorter than that, the
+ * item keeps the id of an earlier text it extends, so growth never splits it.
+ * Empty text falls back to the kind. Returns "" while the probes are off.
+ */
+export function textItemKey(kind: string, text: string): string {
+  if (!on) return "";
+  if (text === "") return kind;
+  const prefix = text.slice(0, KEY_PREFIX_CHARS);
+  let known = textKeys.get(kind);
+  if (!known) {
+    known = [];
+    textKeys.set(kind, known);
+  }
+  for (const entry of known) {
+    if (prefix.startsWith(entry.prefix)) {
+      entry.prefix = prefix;
+      return entry.key;
+    }
+  }
+  const key = `${kind}#${fnv1a(prefix)}`;
+  known.push({ prefix, key });
+  return key;
+}
+
 // --- Cards -----------------------------------------------------------------
 
 export interface CardProbe {
@@ -199,6 +240,7 @@ export function perfSnapshot(): PerfSnapshot {
 
 export function resetPerf(): void {
   store.reset();
+  textKeys.clear();
 }
 
 /** Prints the headline numbers as tables and returns the full snapshot. */

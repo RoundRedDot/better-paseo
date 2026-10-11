@@ -8,6 +8,7 @@ import {
   probeCard,
   probeHighlightRpc,
   probeMarkdown,
+  textItemKey,
   resetPerf,
 } from "../../client/debug/perf";
 
@@ -72,5 +73,21 @@ describe("perf probes while enabled", () => {
   it("exposes the handle on globalThis", () => {
     const handle = (globalThis as { __bcPerf?: { enabled(): boolean } }).__bcPerf;
     expect(handle?.enabled()).toBe(false);
+  });
+});
+
+describe("textItemKey", () => {
+  it("is empty while disabled", () => {
+    expect(textItemKey("reasoning", "hello")).toBe("");
+  });
+
+  it("keeps one id while the text grows, and splits unrelated texts", () => {
+    enablePerf();
+    const first = textItemKey("reasoning", "Consid");
+    expect(textItemKey("reasoning", "Considering the request")).toBe(first);
+    expect(textItemKey("reasoning", "Considering the request. " + "x".repeat(200))).toBe(first);
+    expect(textItemKey("reasoning", "Another thought")).not.toBe(first);
+    expect(textItemKey("assistant", "Considering")).not.toBe(first);
+    expect(textItemKey("reasoning", "")).toBe("reasoning");
   });
 });

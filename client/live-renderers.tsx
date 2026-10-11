@@ -41,7 +41,7 @@ import type {
 import { revealPathRpc } from "../shared/file-rpc";
 import { buildGitHubData } from "./github-request";
 import { useImageFile } from "./image-file";
-import { probeCard } from "./debug/perf";
+import { probeCard, textItemKey } from "./debug/perf";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -645,11 +645,10 @@ export function LiveToolCallRenderer({
 export function LiveReasoningRenderer({
   item,
   theme,
-  timestamp,
 }: PluginTimelineItemProps<LiveReasoningPayload>) {
   const probe = probeCard(
     "reasoning",
-    String(timestamp.getTime()),
+    textItemKey("reasoning", item.data.text),
     item.data.phase === undefined ? null : item.data.phase === "streaming",
   );
   const preferences = useEnhancerPreferences();
@@ -778,7 +777,7 @@ export function LiveAssistantRenderer({
   theme,
   timestamp,
 }: PluginTimelineItemProps<LiveAssistantPayload>) {
-  const probe = probeCard("assistant", String(timestamp.getTime()));
+  const probe = probeCard("assistant", textItemKey("assistant", item.data.text));
   const preferences = useEnhancerPreferences();
   const tokens = useMemo(
     () => buildThemeTokens(theme.colors, preferences),
