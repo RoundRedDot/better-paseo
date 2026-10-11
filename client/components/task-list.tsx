@@ -12,6 +12,12 @@ import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface } from "./selection-actions";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import type { TaskListData, TaskItemData, TaskStatus } from "../../shared/contracts";
+import {
+  NO_OVERRIDES,
+  applyTaskOverrides,
+  setTaskOverride,
+  type TaskOverrides,
+} from "../state/task-overrides";
 
 interface TaskListProps {
   data: TaskListData;
@@ -20,7 +26,10 @@ interface TaskListProps {
 }
 
 export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
-  const [tasks, setTasks] = useState<TaskItemData[]>(data.tasks);
+  // The host's list is the source of truth and is re-read on every update; a
+  // tap only overrides a task until the host reports a new status for it.
+  const [overrides, setOverrides] = useState<TaskOverrides>(NO_OVERRIDES);
+  const tasks = useMemo(() => applyTaskOverrides(data.tasks, overrides), [data.tasks, overrides]);
   const [expandedBlockedId, setExpandedBlockedId] = useState<string | null>(null);
 
   const completedCount = tasks.filter((t) => t.status === "completed").length;
@@ -283,7 +292,8 @@ export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
     else if (task.status === "in_progress") nextStatus = "completed";
     else if (task.status === "completed") nextStatus = "pending";
 
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: nextStatus } : t)));
+    const hostTask = data.tasks.find((t) => t.id === task.id) ?? task;
+    setOverrides((prev) => setTaskOverride(prev, hostTask, nextStatus));
     onToggleTask?.(task.id, nextStatus);
   };
 
