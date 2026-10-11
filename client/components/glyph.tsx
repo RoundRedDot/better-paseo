@@ -51,6 +51,10 @@ function BrandMark({ id, size, color }: { id: string; size: number; color: strin
   );
 }
 
+/** Corner geometry of drawn glyph parts; part of the icon's shape, not a surface radius. */
+const GLYPH_PIN_RADIUS = 0.5;
+const GLYPH_BODY_RADIUS = 3;
+
 /**
  * Universal zero-dependency stroke and geometric glyphs.
  * Runs in any Paseo plugin sandbox without requiring react-native-svg or external icon packages.
@@ -349,7 +353,7 @@ function renderGlyph(name: string, size: number, color: string): ReactElement {
                 width: 1.5,
                 height: size * 0.28,
                 backgroundColor: color,
-                borderRadius: 0.5,
+                borderRadius: GLYPH_PIN_RADIUS,
               }}
             />
             <View
@@ -357,7 +361,7 @@ function renderGlyph(name: string, size: number, color: string): ReactElement {
                 width: 1.5,
                 height: size * 0.28,
                 backgroundColor: color,
-                borderRadius: 0.5,
+                borderRadius: GLYPH_PIN_RADIUS,
               }}
             />
           </View>
@@ -366,7 +370,7 @@ function renderGlyph(name: string, size: number, color: string): ReactElement {
               width: size * 0.65,
               height: size * 0.44,
               backgroundColor: color,
-              borderRadius: 3,
+              borderRadius: GLYPH_BODY_RADIUS,
             }}
           />
           <View

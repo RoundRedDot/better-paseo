@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Image, View, Text, Pressable, StyleSheet } from "react-native";
 import type { ImageStyle, TextStyle, ViewStyle } from "react-native";
 import { Glyph } from "./glyph";
-import { radius, radiusV2, withAlpha } from "./theme-tokens";
+import { radiusV2, space, withAlpha } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface, selectionCodeText } from "./selection-actions";
@@ -1139,13 +1139,14 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
           borderColor: tokens.v2.border,
           overflow: "hidden",
           ...selectableSurface,
-          gap: 8,
-          padding: 12,
+          gap: space.sm,
+          padding: space.md,
         },
         embedded: {
           borderWidth: 0,
           backgroundColor: "transparent",
-          borderRadius: 0,
+          // No frame to round: the tool card around it supplies the corners.
+          borderRadius: undefined,
           padding: 0,
         },
         header: {
@@ -1153,7 +1154,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
           alignItems: "center",
           justifyContent: "space-between",
           flexWrap: "wrap",
-          gap: 8,
+          gap: space.sm,
         },
         titleRow: {
           flexDirection: "row",
@@ -1185,10 +1186,10 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
           flexDirection: "row",
           alignItems: "center",
           flexWrap: "wrap",
-          gap: 8,
+          gap: space.sm,
         },
         stackRow: {
-          gap: 4,
+          gap: space.xs,
           paddingTop: 6,
           borderTopWidth: 1,
           borderTopColor: tokens.borderSubtle,
@@ -1219,7 +1220,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
           letterSpacing: 0.4,
           paddingHorizontal: 6,
           paddingVertical: 2,
-          borderRadius: radius.chip,
+          borderRadius: radiusV2.chip,
           overflow: "hidden",
         },
         chipPlain: {
@@ -1228,7 +1229,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
           fontWeight: "600",
           paddingHorizontal: 6,
           paddingVertical: 2,
-          borderRadius: radius.chip,
+          borderRadius: radiusV2.chip,
           overflow: "hidden",
         },
         // An id takes the free width and wraps there, so it never pushes a
@@ -1302,7 +1303,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
         },
         messageBox: {
           padding: 10,
-          borderRadius: radius.block,
+          borderRadius: radiusV2.block,
           backgroundColor: tokens.surfaceCode,
           borderLeftWidth: 3,
           borderLeftColor: tokens.accent,
@@ -1315,11 +1316,11 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
         },
         replyBox: {
           padding: 10,
-          borderRadius: radius.block,
+          borderRadius: radiusV2.block,
           backgroundColor: tokens.surface0,
           borderWidth: 1,
           borderColor: tokens.borderSubtle,
-          gap: 4,
+          gap: space.xs,
         },
         replyText: {
           fontFamily: tokens.fontUi,
@@ -1329,7 +1330,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
         },
         codeBlock: {
           padding: 10,
-          borderRadius: radius.block,
+          borderRadius: radiusV2.block,
           backgroundColor: tokens.surfaceCode,
           borderWidth: 1,
           borderColor: tokens.borderSubtle,

@@ -61,7 +61,7 @@ function UsageFigure({
 }) {
   if (typeof value !== "number") return null;
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
       <Text selectable style={styles.usageKey}>
         {label}
       </Text>
@@ -114,7 +114,7 @@ export function UserMessage({
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "flex-end",
-          gap: 8,
+          gap: space.sm,
         },
         label: {
           fontFamily: tokens.fontUi,
@@ -125,7 +125,7 @@ export function UserMessage({
           color: tokens.userTextMuted,
         },
         copyButton: {
-          paddingHorizontal: 4,
+          paddingHorizontal: space.xs,
           paddingVertical: 2,
         },
         clock: {
@@ -140,7 +140,7 @@ export function UserMessage({
           color: tokens.userText,
         },
         imageRow: {
-          marginTop: 8,
+          marginTop: space.sm,
           gap: 6,
         },
         image: {

@@ -598,7 +598,7 @@ export function SyntaxHighlightBlock({
           flexDirection: "row",
           alignItems: "center",
           flexWrap: "wrap",
-          gap: 8,
+          gap: space.sm,
           flexShrink: 1,
           minWidth: 0,
         },
