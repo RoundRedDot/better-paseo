@@ -3,6 +3,7 @@
 - 需求：`writing-block.md` v1.0（BC-01 ~ BC-14），交付结构按需求 §18
 - 方案：`docs/plans/2026-10-11-ui-ux-rendering-upgrade.md`
 - 代码：本地 `main@640dd9b`（基线 `42b61d8`），**未 push**；宿主改动在 Paseo 本地分支 `bc/host-small`（基于上游 `origin/main@7f9b65d46`），**未 push、未开 PR**
+- 证据：切片报告在 `docs/delivery/reports/`；截图与原始日志（约 57MB，未入库）在 `~/workspace/rrd/scratch/beautiful-chat-upgrade-evidence/`
 - 验证环境：Apple M5 Pro / macOS 27；Paseo 0.11.2；Chrome 155（Web 生产构建，作为 Electron 桌面端的代理）；iOS 模拟器 iPhone 16 Pro（Paseo 开发版构建）
 
 ---
@@ -60,7 +61,7 @@
 
 **性能优势（实测）**：定稿块重渲染 0；格式翻转在离线、Web、iOS 上都为 0（改造前 codeblock 10、table 6、history-100 25）；markdown-long 回复卡片 p95 从 7.7 降到 0.8ms（离线）；每个代码块只请求 1 次高亮。
 
-**行为差异**：192 段 fixture 文本中，191 段的新旧渲染树完全一致；差异逐条记录在 `/tmp/bc-orchestrate/reports/S2.md`。setext 标题（`===` 下划线）在下划线到达时由段落变为标题，这是语法本身决定的。
+**行为差异**：192 段 fixture 文本中，191 段的新旧渲染树完全一致；差异逐条记录在 `docs/delivery/reports/S2.md`。setext 标题（`===` 下划线）在下划线到达时由段落变为标题，这是语法本身决定的。
 
 ## 4. 性能优化报告
 

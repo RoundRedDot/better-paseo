@@ -581,7 +581,7 @@ Reduced Motion：只有 shimmer、glow 两处 CSS 处理了；所有 `Animated` 
 
 | # | 事实 | 证据 | 影响 |
 |---|---|---|---|
-| 1 | 等宽字体名固定为 `"OMP Iosevka"`/`"OMP Iosevka Code"`，靠 `@font-face` 注入；无 `document`（iOS/Android）时跳过 | `theme-tokens.ts:21-29`、`embed-fonts.ts:28-29` | **S0-D 已实测确认**：iOS 模拟器上插件的代码块、diff、Shell 输出均为比例字体；停用插件后宿主渲染同样内容为等宽（宿主 `ui-monospace` 经 RN Fabric `RCTFontUtils.mm:296` 映射为 SF Mono）。问题完全在插件；设置项"Inter"在原生端同样无效。截图：`/tmp/bc-orchestrate/reports/ios/b-*.png`、`control-*.png` |
+| 1 | 等宽字体名固定为 `"OMP Iosevka"`/`"OMP Iosevka Code"`，靠 `@font-face` 注入；无 `document`（iOS/Android）时跳过 | `theme-tokens.ts:21-29`、`embed-fonts.ts:28-29` | **S0-D 已实测确认**：iOS 模拟器上插件的代码块、diff、Shell 输出均为比例字体；停用插件后宿主渲染同样内容为等宽（宿主 `ui-monospace` 经 RN Fabric `RCTFontUtils.mm:296` 映射为 SF Mono）。问题完全在插件；设置项"Inter"在原生端同样无效。截图：`/Users/luopeihuan/workspace/rrd/scratch/beautiful-chat-upgrade-evidence/ios/b-*.png`、`control-*.png` |
 | 2 | 每个插件 item 根节点都打了 `data-pmono` | `live-renderers.tsx` 各渲染器根 View、`host-font-escape.ts` | 宿主 Web 端把 UI 字体应用到全局但排除 `[data-pmono]`（宿主 `apply-root-font.web.ts:10-12`），插件界面文字因此不跟随宿主 UI 字体 |
 | 3 | 宿主设置：`uiFontFamily`、`monoFontFamily`、`uiBaseFontSize`、`contentFontSize`、`codeFontSize`（默认 12，范围 9–22，行高 1.5 倍） | 宿主 `hooks/use-settings/storage.ts:68-89`、`appearance/apply.ts:64-66` | `PluginTheme` 未暴露 → H1 |
 | 4 | 宿主原生默认等宽：iOS `ui-monospace`、Android `monospace` | 宿主 `styles/theme.ts:641-645` | 插件可采用相同默认值 |
