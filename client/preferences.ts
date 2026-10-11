@@ -9,14 +9,43 @@ export const ACCENT_PRESETS = {
 } as const;
 
 export type AccentPreset = keyof typeof ACCENT_PRESETS;
-export type UiFontPreference = "inter" | "system";
+/**
+ * `host` follows Paseo's interface font. Inter is embedded on web only; native
+ * renders it as the system face, since a plugin cannot register fonts there.
+ */
+export type UiFontPreference = "host" | "inter" | "system";
+/** Ligatures inside code blocks (`code`, the Iosevka Code cut) or literal glyphs. */
 export type CodeFontPreference = "code" | "plain";
 export type MarkdownVariantPreference = "document" | "compact" | "terminal";
+/**
+ * `host` follows Paseo: its mono font once the host exposes typography, until
+ * then the embedded Iosevka on web and the platform monospace on iOS/Android.
+ */
+export type MonoFontPreference = "host" | "iosevka" | "custom";
+/** Tool cards start collapsed; `expand-failed` opens failed ones by default. */
+export type ToolDetailPreference = "collapsed" | "expand-failed";
+export type PathDisplayPreference = "relative" | "absolute";
+
+export const CODE_FONT_SIZE_MIN = 10;
+export const CODE_FONT_SIZE_MAX = 22;
 
 export interface EnhancerPreferences {
   accent: AccentPreset;
   uiFont: UiFontPreference;
   codeFont: CodeFontPreference;
+  /** Which monospace family code, diffs, terminals and paths use. */
+  monoFont: MonoFontPreference;
+  /**
+   * The family for `monoFont: "custom"`. Free text on web, where a missing
+   * face falls back through the stack; on iOS/Android only a family from the
+   * platform list is honoured, because a wrong name there turns code
+   * proportional with no fallback.
+   */
+  customMonoFont: string;
+  /** Code font size in px, 10-22; null follows Paseo (12 until the host says otherwise). */
+  codeFontSize: number | null;
+  toolDetail: ToolDetailPreference;
+  pathDisplay: PathDisplayPreference;
   frostedGlass: boolean;
   /**
    * A light that follows the pointer across a card. Web and desktop only:
@@ -45,31 +74,34 @@ export interface EnhancerPreferences {
   assistantMarkdown: boolean;
   /** Which look the markdown renderer uses. */
   markdownVariant: MarkdownVariantPreference;
-  /**
-   * Hidden: not shown in settings. Turns on the perf probes in
-   * `client/debug/perf.ts`; toggle it with `__bcPerf.enable()` / `disable()`.
-   */
-  debugPerf: boolean;
 }
 
-const STORAGE_KEY = "paseo/beautiful-chat/preferences/v1";
+export const STORAGE_KEY = "paseo/beautiful-chat/preferences/v2";
+/** Read once, to migrate; never written again. */
+export const LEGACY_STORAGE_KEY = "paseo/beautiful-chat/preferences/v1";
 
 export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   accent: "host",
-  uiFont: "inter",
+  uiFont: "host",
   codeFont: "code",
-  frostedGlass: true,
-  pointerGlow: true,
+  monoFont: "host",
+  customMonoFont: "",
+  codeFontSize: null,
+  toolDetail: "collapsed",
+  pathDisplay: "relative",
+  frostedGlass: false,
+  pointerGlow: false,
   enhancedUserBubble: true,
   selectionActions: true,
   assistantMarkdown: true,
   markdownVariant: "document",
-  debugPerf: false,
 };
 
 const listeners = new Set<() => void>();
 
-function storage(): Storage | undefined {
+type PreferenceStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+function storage(): PreferenceStorage | undefined {
   const candidate = globalThis as typeof globalThis & { localStorage?: Storage };
   return candidate.localStorage;
 }
@@ -78,44 +110,101 @@ function isAccentPreset(value: unknown): value is AccentPreset {
   return typeof value === "string" && value in ACCENT_PRESETS;
 }
 
-function loadPreferences(): EnhancerPreferences {
+function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value)
+    ? (value as T)
+    : fallback;
+}
+
+function flag(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+export function clampCodeFontSize(value: number): number {
+  return Math.min(CODE_FONT_SIZE_MAX, Math.max(CODE_FONT_SIZE_MIN, Math.round(value)));
+}
+
+/** Validates a stored v2 record field by field; anything unusable takes its default. */
+export function parsePreferences(raw: unknown): EnhancerPreferences {
+  const candidate = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const d = DEFAULT_PREFERENCES;
+  return {
+    accent: isAccentPreset(candidate.accent) ? candidate.accent : d.accent,
+    uiFont: oneOf(candidate.uiFont, ["host", "inter", "system"], d.uiFont),
+    codeFont: oneOf(candidate.codeFont, ["code", "plain"], d.codeFont),
+    monoFont: oneOf(candidate.monoFont, ["host", "iosevka", "custom"], d.monoFont),
+    customMonoFont:
+      typeof candidate.customMonoFont === "string"
+        ? candidate.customMonoFont.trim().slice(0, 200)
+        : d.customMonoFont,
+    codeFontSize:
+      typeof candidate.codeFontSize === "number" && Number.isFinite(candidate.codeFontSize)
+        ? clampCodeFontSize(candidate.codeFontSize)
+        : d.codeFontSize,
+    toolDetail: oneOf(candidate.toolDetail, ["collapsed", "expand-failed"], d.toolDetail),
+    pathDisplay: oneOf(candidate.pathDisplay, ["relative", "absolute"], d.pathDisplay),
+    frostedGlass: flag(candidate.frostedGlass, d.frostedGlass),
+    pointerGlow: flag(candidate.pointerGlow, d.pointerGlow),
+    enhancedUserBubble: flag(candidate.enhancedUserBubble, d.enhancedUserBubble),
+    selectionActions: flag(candidate.selectionActions, d.selectionActions),
+    assistantMarkdown: flag(candidate.assistantMarkdown, d.assistantMarkdown),
+    markdownVariant: oneOf(
+      candidate.markdownVariant,
+      ["document", "compact", "terminal"],
+      d.markdownVariant,
+    ),
+    debugPerf: candidate.debugPerf === true,
+  };
+}
+
+/**
+ * v1 -> v2 (plan §3.6 item 2, §3.10 item 4).
+ *
+ * v1 stored every field, defaults included, so a v1 `true` for frosted glass
+ * or pointer glow cannot be told apart from the old default: both are reset
+ * to off, once. The v1 interface font `inter` was likewise the default, so it
+ * becomes "follow Paseo"; an explicit `system` is kept. Fields v1 did not
+ * have take their v2 defaults.
+ */
+export function migrateV1Preferences(raw: unknown): EnhancerPreferences {
+  const v1 = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  return parsePreferences({
+    ...v1,
+    uiFont: v1.uiFont === "system" ? "system" : "host",
+    frostedGlass: false,
+    pointerGlow: false,
+    monoFont: undefined,
+    customMonoFont: undefined,
+    codeFontSize: undefined,
+    toolDetail: undefined,
+    pathDisplay: undefined,
+  });
+}
+
+/**
+ * Reads v2, or migrates v1 and writes the result as v2 so the reset happens
+ * exactly once. The v1 record is left in place for a downgrade.
+ */
+export function readStoredPreferences(store: PreferenceStorage | undefined): EnhancerPreferences {
   try {
-    const stored = storage()?.getItem(STORAGE_KEY);
-    if (!stored) return { ...DEFAULT_PREFERENCES };
-    const candidate = JSON.parse(stored) as Partial<EnhancerPreferences>;
-    return {
-      accent: isAccentPreset(candidate.accent) ? candidate.accent : DEFAULT_PREFERENCES.accent,
-      uiFont: candidate.uiFont === "system" ? "system" : DEFAULT_PREFERENCES.uiFont,
-      codeFont: candidate.codeFont === "plain" ? "plain" : DEFAULT_PREFERENCES.codeFont,
-      frostedGlass:
-        typeof candidate.frostedGlass === "boolean"
-          ? candidate.frostedGlass
-          : DEFAULT_PREFERENCES.frostedGlass,
-      pointerGlow:
-        typeof candidate.pointerGlow === "boolean"
-          ? candidate.pointerGlow
-          : DEFAULT_PREFERENCES.pointerGlow,
-      enhancedUserBubble:
-        typeof candidate.enhancedUserBubble === "boolean"
-          ? candidate.enhancedUserBubble
-          : DEFAULT_PREFERENCES.enhancedUserBubble,
-      selectionActions:
-        typeof candidate.selectionActions === "boolean"
-          ? candidate.selectionActions
-          : DEFAULT_PREFERENCES.selectionActions,
-      assistantMarkdown:
-        typeof candidate.assistantMarkdown === "boolean"
-          ? candidate.assistantMarkdown
-          : DEFAULT_PREFERENCES.assistantMarkdown,
-      markdownVariant:
-        candidate.markdownVariant === "compact" || candidate.markdownVariant === "terminal"
-          ? candidate.markdownVariant
-          : DEFAULT_PREFERENCES.markdownVariant,
-      debugPerf: candidate.debugPerf === true,
-    };
+    const stored = store?.getItem(STORAGE_KEY);
+    if (stored) return parsePreferences(JSON.parse(stored));
+    const legacy = store?.getItem(LEGACY_STORAGE_KEY);
+    if (!legacy) return { ...DEFAULT_PREFERENCES };
+    const migrated = migrateV1Preferences(JSON.parse(legacy));
+    try {
+      store?.setItem(STORAGE_KEY, JSON.stringify(migrated));
+    } catch {
+      // Storage can refuse writes; the migrated value still holds this session.
+    }
+    return migrated;
   } catch {
     return { ...DEFAULT_PREFERENCES };
   }
+}
+
+function loadPreferences(): EnhancerPreferences {
+  return readStoredPreferences(storage());
 }
 
 let preferences = loadPreferences();
@@ -141,19 +230,26 @@ export function updateEnhancerPreferences(update: Partial<EnhancerPreferences>):
 export function resetEnhancerPreferences(): void {
   preferences = { ...DEFAULT_PREFERENCES };
   try {
-    storage()?.removeItem(STORAGE_KEY);
+    // Written rather than removed: an absent v2 record would re-run the v1
+    // migration on the next load and bring the old choices back.
+    storage()?.setItem(STORAGE_KEY, JSON.stringify(preferences));
   } catch {
     // Keep the default session value if storage is unavailable.
   }
   publish();
 }
 
+/** Calls `listener` after every change. Returns the unsubscribe function. */
+export function subscribeEnhancerPreferences(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 export function useEnhancerPreferences(): EnhancerPreferences {
   return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
+    subscribeEnhancerPreferences,
     getEnhancerPreferences,
     getEnhancerPreferences,
   );

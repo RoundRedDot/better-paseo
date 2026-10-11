@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { ViewProps } from "react-native";
+import { getEnhancerPreferences, subscribeEnhancerPreferences } from "../preferences";
 
 const STYLE_ELEMENT_ID = "beautiful-chat-glow";
 const ATTRIBUTE = "data-bcglow";
@@ -85,6 +86,7 @@ export function installPointerGlow(): () => void {
   let active: HTMLElement | null = null;
   let pending: { target: HTMLElement; x: number; y: number } | null = null;
   let frame = 0;
+  let listening = false;
 
   const paint = (): void => {
     frame = 0;
@@ -115,18 +117,40 @@ export function installPointerGlow(): () => void {
     if (frame === 0) frame = requestAnimationFrame(paint);
   };
 
-  document.addEventListener("pointermove", onMove, { passive: true });
-  // A pointer leaving the window stops reporting moves, so the last card would
-  // keep its light on until the pointer returned.
-  document.addEventListener("pointerleave", clear);
-  window.addEventListener("blur", clear);
+  const attach = (): void => {
+    if (listening) return;
+    listening = true;
+    document.addEventListener("pointermove", onMove, { passive: true });
+    // A pointer leaving the window stops reporting moves, so the last card would
+    // keep its light on until the pointer returned.
+    document.addEventListener("pointerleave", clear);
+    window.addEventListener("blur", clear);
+  };
 
-  return () => {
+  const detach = (): void => {
+    if (!listening) return;
+    listening = false;
     if (frame !== 0) cancelAnimationFrame(frame);
+    frame = 0;
+    pending = null;
     document.removeEventListener("pointermove", onMove);
     document.removeEventListener("pointerleave", clear);
     window.removeEventListener("blur", clear);
     clear();
+  };
+
+  // With the setting off (the default since preferences v2) there is no
+  // pointer listener at all, rather than one whose work is hidden by CSS.
+  const sync = (): void => {
+    if (getEnhancerPreferences().pointerGlow) attach();
+    else detach();
+  };
+  sync();
+  const unsubscribe = subscribeEnhancerPreferences(sync);
+
+  return () => {
+    unsubscribe();
+    detach();
     style.remove();
   };
 }
