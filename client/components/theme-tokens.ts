@@ -64,6 +64,15 @@ export const fontCode = STATIC_PLATFORM === "web" ? EMBEDDED_FAMILY.code : fontM
 /** Interface text sets no family: the host's UI font (web) or the system face applies. */
 export const fontUi: string | undefined = undefined;
 
+/** A React Native shadow. Floating layers only (plan §3.6); inline blocks carry none. */
+export interface Elevation {
+  shadowColor: string;
+  shadowOffset: { width: number; height: number };
+  shadowOpacity: number;
+  shadowRadius: number;
+  elevation: number;
+}
+
 export interface ExtendedThemeTokens {
   isDark: boolean;
   /** `typography.mono.family`. */
@@ -118,13 +127,6 @@ export interface ExtendedThemeTokens {
   // Borders
   border: string;
   borderSubtle: string;
-  boxShadow: {
-    shadowColor: string;
-    shadowOffset: { width: number; height: number };
-    shadowOpacity: number;
-    shadowRadius: number;
-    elevation: number;
-  };
 
   /**
    * Token v2 (plan §3.6), added beside the tokens above so existing
@@ -143,7 +145,7 @@ export interface ExtendedThemeTokens {
     /** Divider inside a block, e.g. between header and body. */
     borderSubtle: string;
     /** Shadow for floating layers only; inline blocks carry none. */
-    elevation: { overlay: ExtendedThemeTokens["boxShadow"] };
+    elevation: { overlay: Elevation };
   };
 
   // Syntax
@@ -246,7 +248,7 @@ export function buildThemeTokens(
   const warning = isDark ? "#d9a53f" : "#a36a00";
   const danger = colors.statusDanger;
   const tint = isDark ? 0.1 : 0.08;
-  const boxShadow = {
+  const overlayShadow: Elevation = {
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: isDark ? 0.12 : 0.08,
@@ -309,7 +311,6 @@ export function buildThemeTokens(
 
     border,
     borderSubtle,
-    boxShadow,
 
     v2: {
       radius: radiusV2,
@@ -320,7 +321,7 @@ export function buildThemeTokens(
       surfaceCode,
       border,
       borderSubtle,
-      elevation: { overlay: boxShadow },
+      elevation: { overlay: overlayShadow },
     },
 
     // GitHub Dark Dimmed / GitHub Light

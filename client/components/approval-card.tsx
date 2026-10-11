@@ -49,7 +49,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
           borderColor: isHighRisk ? tokens.dangerBorder : tokens.borderSubtle,
           overflow: "hidden",
           ...selectableSurface,
-          ...tokens.boxShadow,
+          ...tokens.v2.elevation.overlay,
         },
         header: {
           flexDirection: "row",
