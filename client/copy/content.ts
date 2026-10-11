@@ -19,7 +19,17 @@ export type CopySource =
   /** One reasoning section, or the whole thought. */
   | { kind: "reasoning"; text: string }
   | { kind: "code"; code: string }
-  | { kind: "path"; absolutePath: string };
+  | { kind: "path"; absolutePath: string }
+  /** A web fetch: the URL the header shows, then what came back. */
+  | { kind: "fetch"; url: string; result?: string }
+  /** A worktree setup: its directory, then the setup log. */
+  | { kind: "worktree"; absolutePath: string; log?: string }
+  /** A delegated sub-agent: what it was asked, then its log. */
+  | { kind: "sub-agent"; description?: string; log?: string }
+  /** An `ask` call: the question, then the answer (labels or typed reply). */
+  | { kind: "ask"; question?: string; answer?: string }
+  /** An eval run: the cells' source, then what they printed. */
+  | { kind: "eval"; code?: string; output?: string };
 
 export type CopyActionId =
   | "command"
@@ -34,7 +44,12 @@ export type CopyActionId =
   | "result"
   | "args"
   | "text"
-  | "code";
+  | "code"
+  | "url"
+  | "log"
+  | "description"
+  | "question"
+  | "answer";
 
 export interface CopyAction {
   id: CopyActionId;
@@ -96,6 +111,11 @@ export function newContentFromPatch(patch: string): string {
 
 function action(id: CopyActionId, label: string, text: string | undefined): CopyAction | null {
   return text ? { id, label, text } : null;
+}
+
+/** Terminal text as it reads: no ANSI escapes, no trailing blank lines. */
+function terminalText(text: string | undefined): string | undefined {
+  return text ? stripAnsi(text).replace(/\n+$/, "") : undefined;
 }
 
 function joinOutput(stdout?: string, stderr?: string): string {
@@ -162,5 +182,27 @@ export function copyPlan(source: CopySource): CopyPlan {
       return plan(action("code", "Copy code", source.code));
     case "path":
       return plan(action("path", "Copy path", source.absolutePath));
+    case "fetch":
+      return plan(action("url", "Copy URL", source.url.trim()), action("result", "Copy result", source.result));
+    case "worktree":
+      return plan(
+        action("path", "Copy path", source.absolutePath),
+        action("log", "Copy log", terminalText(source.log)),
+      );
+    case "sub-agent":
+      return plan(
+        action("description", "Copy description", source.description?.trim()),
+        action("log", "Copy log", terminalText(source.log)),
+      );
+    case "ask":
+      return plan(
+        action("question", "Copy question", source.question?.trim()),
+        action("answer", "Copy answer", source.answer?.trim()),
+      );
+    case "eval":
+      return plan(
+        action("code", "Copy code", source.code),
+        action("output", "Copy output", terminalText(source.output)),
+      );
   }
 }

@@ -1,5 +1,5 @@
 import React, { type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
@@ -51,6 +51,11 @@ export interface DisclosureHeaderProps {
   actions?: ReactNode;
   /** Show `actions` regardless of hover and expansion. */
   actionsAlwaysVisible?: boolean;
+  /**
+   * Keep hover actions shown without the pointer, e.g. while the `⋯` menu
+   * they opened is open. Laid over the meta as on hover; nothing moves.
+   */
+  actionsActive?: boolean;
   /** Touch entry for the primary action (plan §3.8): long-press the header. */
   onLongPress?(): void;
   accessibilityLabel?: string;
@@ -81,6 +86,7 @@ export function DisclosureHeader({
   tone = "default",
   actions,
   actionsAlwaysVisible = false,
+  actionsActive = false,
   onLongPress,
   accessibilityLabel,
 }: DisclosureHeaderProps) {
@@ -96,7 +102,8 @@ export function DisclosureHeader({
   const persistentActions =
     actions !== undefined &&
     (actionsAlwaysVisible || (capabilities.touch && !capabilities.hover && expanded));
-  const hoverActions = actions !== undefined && !persistentActions && capabilities.hover && hovered;
+  const hoverActions =
+    actions !== undefined && !persistentActions && capabilities.hover && (hovered || actionsActive);
 
   const label =
     accessibilityLabel ?? (typeof target === "string" && target ? `${verb} ${target}` : verb);
@@ -104,20 +111,15 @@ export function DisclosureHeader({
     ? DISCLOSURE_HEADER.targetBudget.compact
     : DISCLOSURE_HEADER.targetBudget.desktop;
 
-  return (
-    // The outer Pressable only tracks hover, so moving onto the actions laid
-    // over the header does not count as leaving it. It has no press handler
-    // and is hidden from accessibility; the inner one is the button.
-    <Pressable
-      accessible={false}
-      focusable={false}
-      {...hoverProps}
-      style={[styles.wrap, persistentActions && styles.wrapRow]}
-    >
+  const wrapStyle = [styles.wrap, persistentActions && styles.wrapRow];
+  const content = (
+    <>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityState={{ expanded }}
+        // React Native Web reads the ARIA prop, not `accessibilityState`.
+        aria-expanded={expanded}
         onPress={onToggle}
         onLongPress={onLongPress}
         hitSlop={{ top: slop, bottom: slop }}
@@ -198,9 +200,34 @@ export function DisclosureHeader({
           {actions}
         </View>
       ) : null}
+    </>
+  );
+
+  // The wrapper only tracks hover, so moving onto the actions laid over the
+  // header does not count as leaving it; the inner Pressable is the button.
+  //
+  // On web this is DOM mouseenter/leave on a plain View. A Pressable cannot
+  // do it there: React Native Web contains hover, so the header button
+  // inside ends the outer Pressable's hover the moment the pointer enters it
+  // — and the button fills the row, so the row never read as hovered.
+  // Native has no such containment, and its pointer hover (iPad) arrives
+  // only through Pressable.
+  if (IS_WEB) {
+    const mouseProps = { onMouseEnter: hoverProps.onHoverIn, onMouseLeave: hoverProps.onHoverOut };
+    return (
+      <View {...(mouseProps as object)} style={wrapStyle}>
+        {content}
+      </View>
+    );
+  }
+  return (
+    <Pressable accessible={false} focusable={false} {...hoverProps} style={wrapStyle}>
+      {content}
     </Pressable>
   );
 }
+
+const IS_WEB = Platform.OS === "web";
 
 const styles = StyleSheet.create({
   wrap: {

@@ -120,3 +120,44 @@ describe("newContentFromPatch", () => {
     expect(newContentFromPatch("@@ -1,2 +1,1 @@\n--- comment\n keep\n")).toBe("keep");
   });
 });
+
+describe("copyPlan for the newer tool kinds", () => {
+  it("copies a fetch's URL first and its result from the menu", () => {
+    expect(copyPlan({ kind: "fetch", url: " https://x.dev/a ", result: "body" })).toEqual({
+      primary: { id: "url", label: "Copy URL", text: "https://x.dev/a" },
+      menu: [{ id: "result", label: "Copy result", text: "body" }],
+    });
+  });
+
+  it("copies a worktree's path and its log without ANSI", () => {
+    expect(copyPlan({ kind: "worktree", absolutePath: "/w/.worktrees/f", log: "\u001b[32mok\u001b[0m\n\n" })).toEqual({
+      primary: { id: "path", label: "Copy path", text: "/w/.worktrees/f" },
+      menu: [{ id: "log", label: "Copy log", text: "ok" }],
+    });
+  });
+
+  it("copies a sub-agent's description and log", () => {
+    const plan = copyPlan({ kind: "sub-agent", description: " Find x ", log: "step 1\n" });
+    expect(plan.primary).toEqual({ id: "description", label: "Copy description", text: "Find x" });
+    expect(plan.menu).toEqual([{ id: "log", label: "Copy log", text: "step 1" }]);
+  });
+
+  it("copies an ask's question and answer", () => {
+    const plan = copyPlan({ kind: "ask", question: "Ship?", answer: "Yes, Later" });
+    expect(plan.primary?.text).toBe("Ship?");
+    expect(plan.menu).toEqual([{ id: "answer", label: "Copy answer", text: "Yes, Later" }]);
+    // Waiting: no answer yet, so no menu entry.
+    expect(copyPlan({ kind: "ask", question: "Ship?" }).menu).toEqual([]);
+  });
+
+  it("copies an eval's code and its printed output", () => {
+    const plan = copyPlan({ kind: "eval", code: "1+1", output: "\u001b[1m2\u001b[0m\n" });
+    expect(plan.primary).toEqual({ id: "code", label: "Copy code", text: "1+1" });
+    expect(plan.menu).toEqual([{ id: "output", label: "Copy output", text: "2" }]);
+  });
+
+  it("has nothing to copy for an empty source", () => {
+    expect(copyPlan({ kind: "fetch", url: "" }).primary).toBeNull();
+    expect(copyPlan({ kind: "sub-agent" })).toEqual({ primary: null, menu: [] });
+  });
+});

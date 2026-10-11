@@ -16,7 +16,7 @@ import { isImagePath } from "../image-file";
 import type { ImageFile } from "../image-file";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeText, selectionSurface } from "./selection-actions";
-import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
+import { DisclosureHeader } from "../ui/disclosure-header";
 import { PathContext, PathText } from "../ui/path-text";
 import { RunningDot } from "../ui/running-dot";
 import { CopyButton } from "../ui/copy-button";
@@ -149,21 +149,6 @@ export function ToolCallout({
   const { copy } = useCopy();
   const menu = useActionMenu();
 
-  // Hover actions on web are tracked here rather than by DisclosureHeader:
-  // React Native Web's Pressable contains hover, so the header button inside
-  // ends the outer row's hover the moment the pointer enters it, and the
-  // header's own overlay never shows. DOM mouseenter/leave on a plain View
-  // do not bubble and track the whole row, overlay included.
-  const webHover = Platform.OS === "web" && capabilities.hover;
-  const [rowHovered, setRowHovered] = useState(false);
-  const webHoverProps = useMemo(
-    () =>
-      webHover
-        ? { onMouseEnter: () => setRowHovered(true), onMouseLeave: () => setRowHovered(false) }
-        : undefined,
-    [webHover],
-  );
-
   const resolvePath = useCallback(
     (path: string) => formatPath(path, pathContext).absolutePath,
     [pathContext],
@@ -201,34 +186,16 @@ export function ToolCallout({
 
   const target =
     summary.targetIsPath && summary.target ? (
-      <PathText path={summary.target} tokens={tokens} compact={compact} copyOnHover={false} />
+      <PathText path={summary.target} tokens={tokens} compact={compact} copyOnHover={false} fit />
     ) : (
       summary.target
     );
-  // The meta is drawn here, not as strings, so the web hover overlay can
-  // hide it (opacity only: nothing moves) the way the header would itself.
-  const metaHidden = webHover && (rowHovered || menu.open);
-  const metaColor = summary.tone === "danger" ? tokens.danger : tokens.foregroundMuted;
-  const meta =
-    summary.metaPath || summary.meta.length > 0
-      ? [
-          <View key="meta" style={[styles.meta, metaHidden && styles.hidden]}>
-            {summary.metaPath ? (
-              <MetaPath path={summary.metaPath} tokens={tokens} compact={compact} />
-            ) : null}
-            {summary.meta.map((entry, index) => (
-              <Text
-                key={index}
-                selectable={false}
-                numberOfLines={1}
-                style={[styles.metaText, unselectable, { color: metaColor, fontFamily: tokens.fontUi }]}
-              >
-                {entry}
-              </Text>
-            ))}
-          </View>,
-        ]
-      : undefined;
+  const meta = summary.metaPath
+    ? [
+        <MetaPath key="path" path={summary.metaPath} tokens={tokens} compact={compact} />,
+        ...summary.meta,
+      ]
+    : summary.meta;
 
   const actions = (
     <>
@@ -256,28 +223,21 @@ export function ToolCallout({
         expanded && { borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface0 },
       ]}
     >
-      <View
-        {...(webHoverProps as object)}
-        style={[styles.headerWrap, rowHovered && { backgroundColor: tokens.v2.surface1 }]}
-      >
-        <DisclosureHeader
-          expanded={expanded}
-          onToggle={onToggle}
-          tokens={tokens}
-          compact={compact}
-          icon={statusIcon}
-          verb={summary.verb}
-          target={target}
-          meta={meta}
-          tone={summary.tone}
-          actions={webHover ? undefined : actions}
-          onLongPress={capabilities.touch ? onLongPress : undefined}
-          accessibilityLabel={[summary.verb, summary.target, ...summary.meta].filter(Boolean).join(" ")}
-        />
-        {webHover && (rowHovered || menu.open) ? (
-          <View style={[styles.hoverActions, { backgroundColor: tokens.v2.surface1 }]}>{actions}</View>
-        ) : null}
-      </View>
+      <DisclosureHeader
+        expanded={expanded}
+        onToggle={onToggle}
+        tokens={tokens}
+        compact={compact}
+        icon={statusIcon}
+        verb={summary.verb}
+        target={target}
+        meta={meta}
+        tone={summary.tone}
+        actions={actions}
+        actionsActive={menu.open}
+        onLongPress={capabilities.touch ? onLongPress : undefined}
+        accessibilityLabel={[summary.verb, summary.target, ...summary.meta].filter(Boolean).join(" ")}
+      />
       {summary.errorLine ? (
         <Text
           selectable
@@ -366,34 +326,6 @@ const styles = StyleSheet.create({
     borderRadius: radiusV2.card,
     overflow: "hidden",
     ...selectableSurface,
-  },
-  meta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: DISCLOSURE_HEADER.gap,
-  },
-  metaText: {
-    fontSize: DISCLOSURE_HEADER.meta,
-    fontVariant: ["tabular-nums"],
-  },
-  hidden: {
-    opacity: 0,
-  },
-  headerWrap: {
-    position: "relative",
-    borderRadius: radiusV2.block,
-  },
-  // Laid over the meta, clear of the chevron, so revealing it moves nothing
-  // (plan §3.8): header padding + chevron + gap from the right edge.
-  hoverActions: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    right: DISCLOSURE_HEADER.paddingX + DISCLOSURE_HEADER.chevron + DISCLOSURE_HEADER.gap,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.xs,
-    paddingLeft: space.xs,
   },
   errorLine: {
     fontSize: 12,
@@ -679,7 +611,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
             <View>
               {data.search.files.slice(0, MAX_FILE_ROWS).map((file, index) => (
                 <View key={`${index}:${file}`} style={styles.fileRow}>
-                  <PathText path={file} tokens={tokens} compact={compact} style={{ fontSize: 12 }} />
+                  <PathText path={file} tokens={tokens} compact={compact} style={{ fontSize: 12 }} fit />
                 </View>
               ))}
               {data.search.files.length > MAX_FILE_ROWS ? (
@@ -732,16 +664,14 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
 
       {data.tool === "worktree_setup" && data.worktree && (
         <View style={styles.section}>
-          <View style={styles.inlineRow}>
-            {data.worktree.worktreePath ? (
-              <PathText path={data.worktree.worktreePath} tokens={tokens} compact={compact} />
-            ) : null}
-            {data.worktree.branchName ? (
-              <Text selectable style={[styles.monoText, styles.mutedColor]}>
-                {data.worktree.branchName}
-              </Text>
-            ) : null}
-          </View>
+          {data.worktree.worktreePath ? (
+            <PathText path={data.worktree.worktreePath} tokens={tokens} compact={compact} fit />
+          ) : null}
+          {data.worktree.branchName ? (
+            <Text selectable style={[styles.monoText, styles.mutedColor]}>
+              {data.worktree.branchName}
+            </Text>
+          ) : null}
           {data.worktree.commands.map((step) => (
             <View key={step.index} style={styles.terminalWindow}>
               <View style={styles.inlineRow}>

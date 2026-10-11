@@ -65,3 +65,108 @@ function truncateChars(text: string, budget: number): string {
   const back = keep - front;
   return `${text.slice(0, front)}${ELLIPSIS}${back > 0 ? text.slice(text.length - back) : ""}`;
 }
+
+/**
+ * Like `truncateMiddle`, but the result always fits `budget`: when even
+ * `…/name` is too long, the file name itself is cut in its middle, so its
+ * start and its extension both stay visible (`…/very-long-na…dler.ts`). Never
+ * cut at the end — a row's tail ellipsis is what used to hide the file name.
+ */
+export function fitMiddle(text: string, budget: number): string {
+  const out = truncateMiddle(text, budget);
+  if (out.length <= budget) return out;
+  const slash = text.lastIndexOf("/");
+  const name = slash >= 0 ? text.slice(slash + 1) : text;
+  // `…/` plus at least three characters of the name, or the name alone.
+  if (slash < 0 || budget < 5) return truncateChars(name || text, Math.max(1, budget));
+  return `${ELLIPSIS}/${truncateChars(name, budget - 2)}`;
+}
+
+/**
+ * Average advance of one monospace character, as a fraction of the font
+ * size. Iosevka is a narrow face (500/1000 em); SF Mono, Menlo, Consolas and
+ * Android's monospace sit at about 0.6. An unknown family gets a slightly
+ * wider guess, so a misjudged one is truncated a little early rather than
+ * cut at the end by the row.
+ */
+export function monoAdvance(family: string | undefined): number {
+  if (family && /iosevka/i.test(family)) return 0.5;
+  if (!family || /ui-monospace|sf mono|menlo|monospace|consolas|courier/i.test(family)) return 0.6;
+  return 0.64;
+}
+
+/**
+ * Characters of a monospace path that fit in `width` points at `fontSize`.
+ * One character of slack absorbs rounding and the ellipsis glyph. Null while
+ * the slot has not been measured yet, so callers keep their fixed budget.
+ */
+export function budgetForWidth(
+  width: number,
+  fontSize: number,
+  family: string | undefined,
+): number | null {
+  if (!(width > 0) || !(fontSize > 0)) return null;
+  const chars = Math.floor(width / (fontSize * monoAdvance(family))) - 1;
+  return Math.max(4, chars);
+}
+
+/**
+ * Character cells one `…` takes in a face. The embedded Iosevka subset has
+ * no ellipsis glyph, so on web it falls back to a proportional face about two
+ * cells wide (measured: 13.3px at 13px, against 6.5px per character).
+ */
+export function ellipsisCells(family: string | undefined): number {
+  return family && /iosevka/i.test(family) ? 2 : 1;
+}
+
+/** Width of `text` in character cells, counting each `…` as `ellipsis` cells. */
+export function cellWidth(text: string, ellipsis = 1): number {
+  let count = 0;
+  for (let index = 0; index < text.length; index++) if (text.charCodeAt(index) === 0x2026) count += 1;
+  return text.length + count * (ellipsis - 1);
+}
+
+/** `fitMiddle` measured in cells: shrinks the budget until the result fits. */
+export function fitCells(text: string, cells: number, ellipsis = 1): string {
+  let budget = cells;
+  let out = fitMiddle(text, budget);
+  while (cellWidth(out, ellipsis) > cells && budget > 1) {
+    budget -= 1;
+    out = fitMiddle(text, budget);
+  }
+  return out;
+}
+
+/** Fewest path characters worth showing after a secondary root's label. */
+export const MIN_REST = 12;
+
+/**
+ * What `PathText` draws for a formatted path within `limit` character cells.
+ *
+ * `strict` (a measured slot) never exceeds `limit`, cutting the file name in
+ * its middle only as a last resort. A secondary root's label is dropped first
+ * whenever keeping it would shorten the file name or leave the path fewer
+ * than `MIN_REST` cells. Without `strict` the fixed-budget behaviour is kept:
+ * the file name is never shortened.
+ */
+export function shownPath(
+  formatted: { displayPath: string; label: string | null; suffix: string },
+  limit: number,
+  strict: boolean,
+  ellipsis = 1,
+): { label: string | null; text: string } {
+  const { displayPath, label, suffix } = formatted;
+  if (!strict) {
+    if (!label) return { label: null, text: truncateMiddle(`${displayPath}${suffix}`, limit) };
+    const rest = `${displayPath.slice(label.length + 1)}${suffix}`;
+    return { label, text: truncateMiddle(rest, Math.max(8, limit - label.length - 1)) };
+  }
+  if (!label) return { label: null, text: fitCells(`${displayPath}${suffix}`, limit, ellipsis) };
+  const rest = `${displayPath.slice(label.length + 1)}${suffix}`;
+  const room = limit - label.length - 1;
+  const name = rest.slice(rest.lastIndexOf("/") + 1);
+  // `…/name` is the least a kept label must leave whole.
+  const nameFits = room >= MIN_REST && cellWidth(`${ELLIPSIS}/${name}`, ellipsis) <= room;
+  if (rest.length > room && !nameFits) return { label: null, text: fitCells(rest, limit, ellipsis) };
+  return { label, text: fitCells(rest, Math.max(1, room), ellipsis) };
+}

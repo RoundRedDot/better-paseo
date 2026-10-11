@@ -895,6 +895,36 @@ const TOOLS_OPEN: ToolCallView[] = [
   payload("o3", "ask", { type: "unknown", input: { question: "Which default for tool details?", options: [{ label: "Collapse all" }, { label: "Expand failures" }], recommended: 0 }, output: "" }, "running"),
 ];
 
+/** Long paths at phone width: the file name must survive every row. */
+const TOOLS_NARROW: ToolCallView[] = [
+  payload("n-r1", "Read", { type: "read", filePath: "/Users/dev/workspace/acme-chat/server/handlers/response-handler.ts", offset: 0, limit: 166 }),
+  payload("n-r2", "Read", { type: "read", filePath: `${TOOL_ROOT}/client/components/markdown/render/table-block-renderer.tsx`, offset: 1, limit: 240 }),
+  payload("n-r3", "Read", { type: "read", filePath: "/Users/me/code/beautiful-chat/docs/plans/2026-10-11-ui-ux-rendering-upgrade.md" }),
+  payload("n-r4", "Read", { type: "read", filePath: "/Users/dev/workspace/acme-chat/client/lib/an-unreasonably-long-module-name-for-a-cursor-store.ts", limit: 112 }),
+  payload("n-e1", "Edit", { type: "edit", filePath: `${TOOL_ROOT}/client/components/tool-callouts.tsx`, unifiedDiff: "@@ -1 +1 @@\n-a\n+b\n" }),
+  payload("n-s1", "Grep", {
+    type: "search",
+    query: "useDisclosure",
+    toolName: "grep",
+    filePaths: [`${TOOL_ROOT}/client/state/disclosure-store.ts`, "/Users/dev/workspace/acme-chat/client/components/agent-stream/strategy-native.tsx"],
+    numFiles: 2,
+    numMatches: 4,
+  }),
+];
+
+function ToolsNarrow({ tokens }: { tokens: ExtendedThemeTokens }) {
+  const paths: PathContextValue = { roots: PATHS.roots, cwd: TOOL_ROOT, mode: "relative", reveal: () => {} };
+  return (
+    <PathContext.Provider value={paths}>
+      <View>
+        {TOOLS_NARROW.map((view) => (
+          <ToolCallout key={view.callId} data={view} tokens={tokens} compact defaultExpanded={view.tool === "search"} />
+        ))}
+      </View>
+    </PathContext.Provider>
+  );
+}
+
 function ToolsV2({ tokens }: { tokens: ExtendedThemeTokens }) {
   const paths: PathContextValue = { roots: PATHS.roots, cwd: TOOL_ROOT, mode: "relative", reveal: () => {} };
   return (
@@ -1133,6 +1163,15 @@ function Showcase() {
       </Shot>
       <Shot id="shot-tools-v2-light" width={720} background={LIGHT.surface0}>
         <ToolsV2 tokens={v2Light} />
+      </Shot>
+      <Shot id="shot-tools-narrow-dark" width={380}>
+        <ToolsNarrow tokens={v2Dark} />
+      </Shot>
+      <Shot id="shot-tools-narrow-light" width={380} background={LIGHT.surface0}>
+        <ToolsNarrow tokens={v2Light} />
+      </Shot>
+      <Shot id="shot-tools-wide-dark" width={1100}>
+        <ToolsNarrow tokens={v2Dark} />
       </Shot>
       <Shot id="shot-primitives-dark" width={640}>
         <Primitives tokens={v2Dark} />
