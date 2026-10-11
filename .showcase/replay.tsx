@@ -155,7 +155,16 @@ function mount(fixture: Fixture, speed: number, hostMode: HostMode) {
   const host = { id: "replay", label: "Replay" };
   const layout = { compact: false, platform: "web" as const };
 
+  // Host-side view of each row render: a render whose data is the same object
+  // as the previous one is wasted work (the row was not the one that changed).
+  const lastData = new Map<string, unknown>();
+  const hostRows: Record<string, { active: number; inactive: number }> = {};
+
   function PluginRowBody({ row, renderer }: { row: Extract<Row, { kind: "plugin" }>; renderer: Renderer }) {
+    const bucket = (hostRows[row.itemKind] ??= { active: 0, inactive: 0 });
+    if (lastData.get(row.id) === row.data) bucket.inactive += 1;
+    else bucket.active += 1;
+    lastData.set(row.id, row.data);
     // Paseo 0.11.2 builds a fresh theme and re-parses on every render of a row.
     const theme = hostMode === "current" ? { colors: { ...DARK } } : cachedTheme;
     let data: unknown;
@@ -212,6 +221,12 @@ function mount(fixture: Fixture, speed: number, hostMode: HostMode) {
   const root = createRoot(document.getElementById("root")!);
   flushSync(() => root.render(<Timeline />));
 
+  async function collect(): Promise<void> {
+    (window as { gc?: () => void }).gc?.();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    (window as { gc?: () => void }).gc?.();
+  }
+
   async function play() {
     const accumulator = new StreamAccumulator();
     const started = performance.now();
@@ -228,6 +243,7 @@ function mount(fixture: Fixture, speed: number, hostMode: HostMode) {
       flushSync(() => setRows(toRows(entries, false)));
     }
     const streamMs = performance.now() - started;
+    const streamHostRows = JSON.parse(JSON.stringify(hostRows));
     const streamingSnapshot = window.__bcPerf!.snapshot();
     // End of file: every item becomes phase complete.
     flushSync(() => setRows(toRows(accumulator.items, true)));
@@ -237,10 +253,17 @@ function mount(fixture: Fixture, speed: number, hostMode: HostMode) {
     window.__bcPerf!.reset();
     await new Promise((resolve) => setTimeout(resolve, 1500));
     const idle = window.__bcPerf!.snapshot();
-    return { streamMs, streamingSnapshot, settled, idle, rows: accumulator.items.length };
+    await collect();
+    const heapAfter = heapBytes();
+    return { streamMs, streamingSnapshot, settled, idle, rows: accumulator.items.length, streamHostRows, heapAfter };
   }
 
-  return { play, stats };
+  return { play, stats, hostRows };
+}
+
+function heapBytes(): number | null {
+  const memory = (performance as { memory?: { usedJSHeapSize: number } }).memory;
+  return memory ? memory.usedJSHeapSize : null;
 }
 
 declare global {
@@ -262,7 +285,11 @@ async function main() {
   const fixture = parseFixture(await (await fetch(`/fixtures/${name}.jsonl`)).text());
   window.__bcPerf!.enable();
   window.__bcPerf!.reset();
-  const { play, stats } = mount(fixture, speed, hostMode);
+  const { play, stats, hostRows } = mount(fixture, speed, hostMode);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  (window as { gc?: () => void }).gc?.();
+  const heapBefore = heapBytes();
+  window.__bcPerf!.reset();
   const outcome = await play();
   window.__replayResult = {
     fixture: fixture.meta,
@@ -277,6 +304,10 @@ async function main() {
     streaming: outcome.streamingSnapshot,
     settled: outcome.settled,
     idle: outcome.idle,
+    heapBefore,
+    heapAfter: outcome.heapAfter,
+    hostRowsStreaming: outcome.streamHostRows,
+    hostRowsTotal: hostRows,
     errors: window.__err ?? [],
   };
   window.__replayDone = true;
