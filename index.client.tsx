@@ -10,6 +10,7 @@ import { installChatFind } from "./client/components/chat-find";
 import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
 import { perfSlashCommand } from "./client/debug/perf-command";
+import { toolErrorText } from "./client/tools/error-text";
 import {
   LiveToolCallRenderer,
   LiveReasoningRenderer,
@@ -62,7 +63,7 @@ export default function contribute(client: PluginClientContext) {
               status: item.status,
               detail: toJsonValue(item.detail),
               ...(item.callId ? { callId: item.callId } : {}),
-              error: item.error ? String(item.error) : null,
+              error: toolErrorText(item.error),
               phase,
             },
           },

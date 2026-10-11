@@ -560,9 +560,10 @@ function readSubAgent(detail: Record<string, unknown>): SubAgentToolData {
 }
 
 /**
- * The host's error text. The protocol types a failed call's `error` as
- * `unknown`, and the transformer stringifies it, so an `{ message }` object
- * arrives as "[object Object]" — which says nothing and is dropped here.
+ * The host's error text. The transformer reads an `{ message }` object's
+ * message (`tools/error-text.ts`); "[object Object]" can still arrive from an
+ * item a previous plugin version transformed, and says nothing, so it is
+ * dropped here.
  */
 function readError(error: string | null | undefined): string | undefined {
   if (!error || error === "[object Object]") return undefined;
