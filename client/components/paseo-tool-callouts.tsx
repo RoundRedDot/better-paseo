@@ -208,7 +208,7 @@ function ListProvidersView({
                       style={{
                         fontSize: UI_SCALE.base,
                         fontFamily: tokens.fontUi,
-                        color: tokens.foregroundSubtle,
+                        color: tokens.foregroundMuted,
                       }}
                     >
                       {p.id}
@@ -242,7 +242,7 @@ function ListProvidersView({
                   style={{
                     fontSize: UI_SCALE.base,
                     fontWeight: "600",
-                    color: isAvail ? tokens.success : tokens.foregroundSubtle,
+                    color: isAvail ? tokens.success : tokens.foregroundMuted,
                   }}
                 >
                   {p.status}
@@ -267,7 +267,7 @@ function ListModelsView({
     <View style={{ gap: space.sm }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
         <ProviderLogo provider={data.provider} size={16} showLabel />
-        <Text selectable style={{ fontSize: UI_SCALE.base, color: tokens.foregroundSubtle }}>
+        <Text selectable style={{ fontSize: UI_SCALE.base, color: tokens.foregroundMuted }}>
           Supported models & reasoning modes:
         </Text>
       </View>
@@ -339,7 +339,7 @@ function ListModelsView({
                 style={{
                   fontSize: UI_SCALE.base,
                   fontFamily: tokens.fontUi,
-                  color: tokens.foregroundSubtle,
+                  color: tokens.foregroundMuted,
                 }}
               >
                 {m.contextTokens}
@@ -384,7 +384,7 @@ function GetActivityView({
             Target: {data.agentId}
           </Text>
         </View>
-        <Text selectable style={{ fontSize: UI_SCALE.base, color: tokens.foregroundSubtle }}>
+        <Text selectable style={{ fontSize: UI_SCALE.base, color: tokens.foregroundMuted }}>
           {data.activities.length} recent activities
         </Text>
       </View>
@@ -423,7 +423,7 @@ function GetActivityView({
               style={{
                 fontSize: UI_SCALE.base,
                 fontFamily: tokens.fontUi,
-                color: tokens.foregroundSubtle,
+                color: tokens.foregroundMuted,
               }}
             >
               {act.elapsed}

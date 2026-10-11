@@ -1400,7 +1400,7 @@ function renderBashTokens(line: string, tokens: ExtendedThemeTokens): React.Reac
   return (
     <>
       {promptPrefix ? (
-        <Text selectable style={{ color: tokens.foregroundSubtle, fontWeight: "600" }}>
+        <Text selectable style={{ color: tokens.foregroundMuted, fontWeight: "600" }}>
           {promptPrefix}
         </Text>
       ) : null}
