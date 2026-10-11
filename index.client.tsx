@@ -4,6 +4,7 @@ import { BeautifulChatSettingsPage } from "./client/settings-page";
 import { removeEmbeddedFonts } from "./client/components/embed-fonts";
 import { installHostNoticeStyle } from "./client/components/host-notice";
 import { installChatFind } from "./client/components/chat-find";
+import { installPointerFocusRing } from "./client/components/focus-ring";
 import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
 import { perfSlashCommand } from "./client/debug/perf-command";
@@ -31,6 +32,8 @@ export default function contribute(client: PluginClientContext) {
   const removeNoticeStyle = installHostNoticeStyle();
   // Paseo's Ctrl+F cannot reveal rows this plugin draws; this bar can.
   const removeChatFind = installChatFind();
+  // A clicked row, chip or button keeps no focus ring; Tab focus does.
+  const removeFocusRing = installPointerFocusRing();
 
   // Configuration lives in the host Settings area. The plugin has no showcase
   // surface, panels, or Command Center item.
@@ -262,6 +265,7 @@ export default function contribute(client: PluginClientContext) {
   return () => {
     removePerfCommand();
     removeFonts();
+    removeFocusRing();
     removeNoticeStyle();
     removeChatFind();
     removeToolTransformer();
