@@ -60,7 +60,7 @@ function LongParagraph({ text, tokens, storeKey, live }: LongParagraphProps) {
   return (
     <View>
       <View style={open ? null : styles.clamped}>
-        <MarkdownView text={text} tokens={tokens} variant="compact" />
+        <MarkdownView text={text} tokens={tokens} variant="compact" collapseCode />
       </View>
       <Pressable
         accessibilityRole="button"
@@ -92,9 +92,8 @@ interface BodyRunViewProps {
 
 const BodyRunView = memo(
   function BodyRunView({ run, tokens, storeKey, live }: BodyRunViewProps) {
-    // TODO(S2): pass `collapseCode` once MarkdownView has it, so fenced code
-    // starts folded as `code · ts · 24 lines ›` (plan §3.4 item 4).
-    if (!run.long) return <MarkdownView text={run.text} tokens={tokens} variant="compact" />;
+    // Fenced code starts folded as `ts · 24 lines ›` (plan §3.4 item 4).
+    if (!run.long) return <MarkdownView text={run.text} tokens={tokens} variant="compact" collapseCode />;
     return <LongParagraph text={run.text} tokens={tokens} storeKey={storeKey} live={live} />;
   },
   (a, b) =>
