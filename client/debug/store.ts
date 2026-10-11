@@ -116,6 +116,8 @@ export interface PerfStore {
   frame(intervalMs: number, expectedMs: number): void;
   longTask(durationMs: number): void;
   layoutShift(value: number): void;
+  /** A named event counter, for probes that only need "how many times". */
+  count(name: string, by: number): void;
   snapshot(): PerfSnapshot;
   /**
    * Clears everything counted so far. Animations still mounted stay mounted:
@@ -151,6 +153,7 @@ function createCounters() {
     suspendedGaps: 0,
     longTasks: createSeries(),
     layoutShifts: createSeries(),
+    counters: new Map<string, number>(),
   };
 }
 
@@ -251,6 +254,10 @@ export function createPerfStore(): PerfStore {
       c.layoutShifts.add(value);
     },
 
+    count(name, by) {
+      bump(c.counters, name, by);
+    },
+
     snapshot() {
       const total = c.frames + c.droppedFrames;
       return {
@@ -292,6 +299,7 @@ export function createPerfStore(): PerfStore {
         },
         longTasks: c.longTasks.summary(),
         layoutShifts: c.layoutShifts.summary(),
+        counters: toRecord(c.counters),
       };
     },
 
@@ -332,4 +340,6 @@ export interface PerfSnapshot {
   };
   longTasks: SeriesSummary;
   layoutShifts: SeriesSummary;
+  /** Named counters from `perfCount`, e.g. `md.finalRerender`. */
+  counters: Record<string, number>;
 }
