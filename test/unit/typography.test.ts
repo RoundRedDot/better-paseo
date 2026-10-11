@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   EMBEDDED_FAMILY,
+  interfaceFamily,
   lineHeightFor,
   readHostTypography,
   resolveTypography,
@@ -171,5 +172,34 @@ describe("readHostTypography", () => {
     expect(readHostTypography(undefined)).toBeNull();
     expect(readHostTypography({ typography: { fontFamily: { ui: "" }, fontSize: { code: -1 } } })).toBeNull();
     expect(readHostTypography({ typography: { fontSize: { code: 14 } } })?.fontSize?.code).toBe(14);
+  });
+});
+
+describe("interfaceFamily (plan §3.10 item 4)", () => {
+  const ui = (theme: unknown, uiFont: TypographyPreferences["uiFont"], platform: TypographyPlatform) =>
+    interfaceFamily(resolveTypography(theme, { ...follow, uiFont }, platform), uiFont, platform);
+
+  it("follows the host family when H1 provides one", () => {
+    expect(ui(withHost, "host", "web")).toContain("Geist");
+    expect(ui(withHost, "host", "ios")).toBe("Geist");
+  });
+
+  it("falls back to the system stack, Paseo's own default, without H1", () => {
+    expect(ui(noHost, "host", "web")).toBe("System");
+    expect(ui(noHost, "host", "ios")).toBe("System");
+  });
+
+  it("draws an explicit Inter as the bare embedded name on web only", () => {
+    expect(ui(noHost, "inter", "web")).toBe(EMBEDDED_FAMILY.ui);
+    expect(ui(withHost, "inter", "web")).toBe(EMBEDDED_FAMILY.ui);
+    expect(ui(noHost, "inter", "android")).toBe("System");
+  });
+
+  it("never hands native the embedded name", () => {
+    for (const uiFont of ["host", "inter", "system"] as const) {
+      for (const platform of ["ios", "android"] as const) {
+        expect(ui(noHost, uiFont, platform)).not.toContain(EMBEDDED_FAMILY.ui);
+      }
+    }
   });
 });

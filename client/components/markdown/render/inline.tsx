@@ -6,6 +6,7 @@ import { openLink } from "../../open-link";
 import { PathText } from "../../../ui/path-text";
 import { CHAR_RATIO_MONO, CODE_CHIP_PADDING } from "./styles";
 import type { RenderContext } from "./context";
+import { codeSurface } from "../../host-font-escape";
 import { decodeEntities, isPathLike, softBreaks } from "./text";
 
 /** The visible text of an inline run, for measuring and summaries. */
@@ -89,7 +90,7 @@ export function renderInline(
           return;
         }
         out.push(
-          <Text key={key} selectable style={styles.codeSpan}>
+          <Text key={key} selectable {...(codeSurface as object)} style={styles.codeSpan}>
             {token.text}
           </Text>,
         );

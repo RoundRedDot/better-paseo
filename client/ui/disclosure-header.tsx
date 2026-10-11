@@ -4,6 +4,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
 import { unselectable } from "../components/selection";
+import { codeSurface } from "../components/host-font-escape";
 import { truncateMiddle } from "../paths/truncate-middle";
 import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
@@ -146,6 +147,7 @@ export function DisclosureHeader({
         <View style={styles.target}>
           {typeof target === "string" ? (
             <Text
+              {...(codeSurface as object)}
               selectable={false}
               numberOfLines={1}
               style={[

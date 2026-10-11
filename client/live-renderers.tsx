@@ -13,7 +13,7 @@ import { observeReasoning, observedDurationMs } from "./reasoning/observed";
 import { useDisclosure } from "./state/disclosure-store";
 import { TaskList } from "./components/task-list";
 import { UserMessage } from "./components/user-message";
-import { hostFontEscape } from "./components/host-font-escape";
+import { itemRootFont } from "./components/host-font-escape";
 import { promptRowAnchor } from "./components/prompt-anchor";
 import { surfaceProps } from "./components/view-props";
 import { useSelectionActions } from "./components/selection-actions";
@@ -139,7 +139,7 @@ function LiveToolCallRendererBody({
   );
 
   return (
-    <View {...hostFontEscape} {...probe.viewProps}>
+    <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
       {probe.node}
       <PathContext.Provider value={pathContext}>
         <ToolCallout
@@ -201,7 +201,7 @@ function LiveReasoningRendererBody({
   const durationMs = streaming ? null : observedDurationMs(storeKey);
 
   return (
-    <View {...hostFontEscape} {...probe.viewProps}>
+    <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
       {probe.node}
       <ReasoningCard
         segmentation={segmentation}
@@ -251,7 +251,7 @@ function LiveTodoRendererBody({
   }, [data]);
 
   return (
-    <View {...hostFontEscape} {...probe.viewProps}>
+    <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
       {probe.node}
       <TaskList data={taskListData} tokens={tokens} />
     </View>
@@ -323,7 +323,7 @@ function LiveAssistantRendererBody({
   );
 
   return (
-    <View {...hostFontEscape} {...probe.viewProps}>
+    <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
       {probe.node}
       {envelope ? (
         <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
@@ -380,7 +380,7 @@ function LiveNoticeRendererBody({
   );
 
   return (
-    <View {...hostFontEscape} {...probe.viewProps}>
+    <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
       {probe.node}
       <NoticeCallout data={noticeData} tokens={tokens} />
     </View>
@@ -456,7 +456,7 @@ function LiveUserMessageRendererBody({
 
   return (
     <View
-      {...surfaceProps(hostFontEscape, promptRowAnchor(item.data.messageId))}
+      {...surfaceProps(itemRootFont(preferences.uiFont), promptRowAnchor(item.data.messageId))}
       {...probe.viewProps}
     >
       {probe.node}

@@ -1,4 +1,5 @@
 import type { ViewProps } from "react-native";
+import type { UiFontPreference } from "../preferences";
 
 /**
  * Opts a subtree out of the host's global font rule.
@@ -16,6 +17,11 @@ import type { ViewProps } from "react-native";
  * everything beneath it are excluded, so a plugin root carrying it keeps its
  * own typography for the whole subtree.
  *
+ * Since plan §3.10 item 4 (slice S5) item roots no longer carry it by default:
+ * interface text follows the host UI font, and only monospace regions are
+ * marked (`codeSurface`). A root takes it only when the reader picked an
+ * interface face of their own (`itemRootFont`).
+ *
  * React Native Web maps `dataSet` onto `data-*` attributes. The cast is needed
  * because React Native's `ViewProps` has no `dataSet`, being a web-only
  * affordance — on native the prop is ignored, which is correct, since there is
@@ -28,11 +34,23 @@ export const hostFontEscape = {
 /**
  * Marks a monospace region — code, diff, terminal output, a path, a command —
  * with the host's own code-surface attribute (`CODE_SURFACE_DATASET` in
- * Paseo, `data-pmono=""`). Plan §3.10 item 4: once item roots stop carrying
- * `hostFontEscape` (slice S5), interface text follows the host UI font and
- * only these regions keep their own family. Spread through `surfaceProps`
- * when combined with another marker. Ignored on native.
+ * Paseo, `data-pmono=""`). Plan §3.10 item 4: item roots do not carry
+ * `hostFontEscape`, so interface text follows the host UI font and only these
+ * regions keep their own family. Spread through `surfaceProps` when combined
+ * with another marker. Ignored on native.
  */
 export const codeSurface = {
   dataSet: { pmono: "" },
 } as unknown as ViewProps;
+
+const NO_MARK = Object.freeze({}) as ViewProps;
+
+/**
+ * The marker for an item root. "Follow Paseo" leaves the root unmarked, so
+ * the host's UI font rule reaches every interface string on web. An explicit
+ * Inter or System choice escapes the whole item, which is the only way the
+ * plugin's own face can win over that rule.
+ */
+export function itemRootFont(uiFont: UiFontPreference): ViewProps {
+  return uiFont === "host" ? NO_MARK : hostFontEscape;
+}

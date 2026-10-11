@@ -6,6 +6,7 @@ import type { ExtendedThemeTokens } from "./theme-tokens";
 import { SyntaxHighlightBlock, renderTerminalOutput } from "./syntax-highlight";
 import { unselectable } from "./selection";
 import { selectionCodeText } from "./selection-actions";
+import { codeSurface } from "./host-font-escape";
 import { openLink } from "./open-link";
 import type { GitHubToolData } from "../../shared/contracts";
 
@@ -128,7 +129,7 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
 
       {data.rows?.map((row) => (
         <View key={`${row.label}:${row.value}`} style={styles.row}>
-          <Text selectable style={styles.label} numberOfLines={1}>
+          <Text {...(codeSurface as object)} selectable style={styles.label} numberOfLines={1}>
             {row.label}
           </Text>
           <View style={styles.spacer} />
@@ -157,7 +158,7 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
 
       {data.link ? (
         <Pressable accessibilityRole="link" onPress={() => openLink(data.link ?? "")}>
-          <Text style={styles.link} numberOfLines={1}>
+          <Text {...(codeSurface as object)} style={styles.link} numberOfLines={1}>
             {data.link}
           </Text>
         </Pressable>
