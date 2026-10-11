@@ -1,6 +1,8 @@
 // Builds the screenshot showcase for a plugin checkout and captures every
-// `#shot-*` element headless, so two checkouts can be compared pixel for pixel.
-//   node .showcase/tools/shots.mjs <pluginDir> <outDir>
+// `#shot-*` element headless, once per theme, so two checkouts can be compared
+// pixel for pixel.
+//   node .showcase/tools/shots.mjs <pluginDir> <outDir> [dark|light ...]
+// Writes <outDir>/<theme>/shot-*.png (default: both themes).
 // <pluginDir>/.showcase/node_modules must resolve (symlink it for old checkouts).
 import { build } from "esbuild";
 import { chromium } from "playwright-core";
@@ -10,6 +12,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 
 const dir = path.resolve(process.argv[2]);
 const out = path.resolve(process.argv[3]);
+const themes = process.argv.slice(4).length > 0 ? process.argv.slice(4) : ["dark", "light"];
 const show = path.join(dir, ".showcase");
 const chromePath =
   process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -43,18 +46,21 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const browser = await chromium.launch({ executablePath: chromePath, headless: true });
-const page = await browser.newPage({ viewport: { width: 1000, height: 900 } });
-// Freeze rAF so looping animations rest on their first frame; otherwise two
-// captures of the same build differ in a pulsing dot.
-await page.addInitScript(() => {
-  window.requestAnimationFrame = () => 0;
-});
-await page.goto(`http://127.0.0.1:${server.address().port}/index.html`);
-await page.waitForTimeout(1500);
-const ids = await page.$$eval("[id^=shot-]", (els) => els.map((el) => el.id));
-for (const id of ids) {
-  await page.locator(`#${id}`).screenshot({ path: path.join(out, `${id}.png`), animations: "disabled" });
+// Reduced motion rather than a frozen rAF: the plugin's motion honours it, so
+// running dots rest on a static frame and an expanded body is drawn at full
+// opacity instead of on the first frame of its fade.
+const page = await browser.newPage({ viewport: { width: 1000, height: 900 }, reducedMotion: "reduce" });
+let ids = [];
+for (const theme of themes) {
+  const themeDir = path.join(out, theme);
+  mkdirSync(themeDir, { recursive: true });
+  await page.goto(`http://127.0.0.1:${server.address().port}/index.html?theme=${theme}`);
+  await page.waitForTimeout(1500);
+  ids = await page.$$eval("[id^=shot-]", (els) => els.map((el) => el.id));
+  for (const id of ids) {
+    await page.locator(`#${id}`).screenshot({ path: path.join(themeDir, `${id}.png`), animations: "disabled" });
+  }
 }
-console.log(`${ids.length} shots -> ${out}`);
+console.log(`${ids.length} shots x ${themes.join("+")} -> ${out}`);
 await browser.close();
 server.close();

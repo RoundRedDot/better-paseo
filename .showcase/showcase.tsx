@@ -54,15 +54,32 @@ const DARK = {
   statusDanger: "#f2555a",
 };
 
-const PREFERENCES = {
-  accent: "host" as const,
-  uiFont: "inter" as const,
-  codeFont: "code" as const,
-  frostedGlass: true,
-  enhancedUserBubble: true,
+const LIGHT = {
+  surface0: "#ffffff",
+  surface1: "#f6f6f7",
+  surface2: "#ededef",
+  border: "#e2e2e6",
+  foreground: "#18181b",
+  foregroundMuted: "#62626b",
+  accent: "#2563eb",
+  accentForeground: "#ffffff",
+  statusSuccess: "#1f8a5b",
+  statusWarning: "#a36a00",
+  statusDanger: "#d92d20",
 };
 
-const tokens = buildThemeTokens(DARK, PREFERENCES);
+/**
+ * `?theme=light` captures the whole page on the light palette; the
+ * `*-dark`/`*-light` shots below keep their fixed theme either way.
+ */
+const THEME =
+  typeof location !== "undefined" && new URLSearchParams(location.search).get("theme") === "light"
+    ? "light"
+    : "dark";
+const BASE = THEME === "light" ? LIGHT : DARK;
+
+// The shipped defaults (no frost, no glow), as a reader first sees them.
+const tokens = buildThemeTokens(BASE, DEFAULT_PREFERENCES, { platform: "web" });
 
 const bash: ToolCalloutData = {
   id: "bash",
@@ -566,7 +583,7 @@ const approval = {
 function Shot({
   id,
   width = 900,
-  background = DARK.surface0,
+  background = BASE.surface0,
   children,
 }: {
   id: string;
@@ -664,19 +681,7 @@ function Hero() {
  * in both themes. Hover-only states cannot be captured headless, so the
  * header actions are pinned visible on one row instead.
  */
-const LIGHT = {
-  surface0: "#ffffff",
-  surface1: "#f6f6f7",
-  surface2: "#ededef",
-  border: "#e2e2e6",
-  foreground: "#18181b",
-  foregroundMuted: "#62626b",
-  accent: "#2563eb",
-  accentForeground: "#ffffff",
-  statusSuccess: "#1f8a5b",
-  statusWarning: "#a36a00",
-  statusDanger: "#d92d20",
-};
+
 
 const v2Dark = buildThemeTokens(DARK, DEFAULT_PREFERENCES, { platform: "web" });
 const v2Light = buildThemeTokens(LIGHT, DEFAULT_PREFERENCES, { platform: "web" });
@@ -1150,7 +1155,7 @@ function Showcase() {
       <Shot id="shot-settings" width={760}>
         <View style={{ height: 880 }}>
           <BeautifulChatSettingsPage
-            theme={{ colors: DARK }}
+            theme={{ colors: BASE }}
             host={{ id: "local", label: "Local" }}
             layout={{ compact: false, platform: "web" }}
           />
