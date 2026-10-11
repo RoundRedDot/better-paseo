@@ -34,8 +34,8 @@ const entry = path.resolve(root, option("entry", "index.client.tsx"));
 const run = !args.includes("--no-run");
 const keep = args.includes("--keep");
 
-// esbuild: the root install has it (vitest -> vite); the showcase install is
-// the fallback. Neither is a new dependency.
+// esbuild: a root devDependency (the release vitest resolves); the showcase
+// install is the fallback for a checkout that skipped the root install.
 function loadEsbuild() {
   for (const base of [root, path.join(root, ".showcase")]) {
     try {
