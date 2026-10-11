@@ -25,6 +25,7 @@ import {
 } from "../reasoning/segment";
 import { reasoningHeaderText } from "../reasoning/preview";
 import { CLAMPED_LINES, splitBodyRuns, type BodyRun } from "../reasoning/paragraphs";
+import { UI_SCALE } from "../ui/tokens/typography";
 
 /** Section title size (plan §3.4 item 4): between the 12 meta and the 13 body. */
 const SECTION_TITLE_SIZE = 12.5;
@@ -445,7 +446,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   preview: {
-    fontSize: 13,
+    fontSize: UI_SCALE.md,
   },
   body: {
     borderTopWidth: 1,
@@ -486,6 +487,6 @@ const styles = StyleSheet.create({
     marginTop: space.xs,
   },
   moreText: {
-    fontSize: 12,
+    fontSize: UI_SCALE.base,
   },
 });

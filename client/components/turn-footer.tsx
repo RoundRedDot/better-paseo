@@ -5,6 +5,7 @@ import { unselectable } from "./selection";
 import { radiusV2, space } from "./theme-tokens";
 import { useCopy } from "../ui/use-copy";
 import type { ExtendedThemeTokens } from "./theme-tokens";
+import { UI_SCALE } from "../ui/tokens/typography";
 
 /**
  * The host's own reply footer — copy, fork and the turn's time — is drawn by
@@ -79,14 +80,14 @@ export function AssistantFooter({ text, at, tokens }: AssistantFooterProps) {
         },
         copyLabel: {
           fontFamily: tokens.fontUi,
-          fontSize: 11,
+          fontSize: UI_SCALE.sm,
           fontWeight: "500",
           color: copied ? tokens.foreground : tokens.foregroundMuted,
           ...unselectable,
         },
         time: {
           fontFamily: tokens.fontUi,
-          fontSize: 11,
+          fontSize: UI_SCALE.sm,
           color: tokens.foregroundSubtle,
           ...unselectable,
         },

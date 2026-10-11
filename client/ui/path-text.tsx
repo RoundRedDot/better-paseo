@@ -18,6 +18,7 @@ import { budgetForWidth, ellipsisCells, fitCells, shownPath, truncateMiddle } fr
 import { useCopy } from "./use-copy";
 import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
+import { UI_SCALE } from "./tokens/typography";
 
 /** Where paths are made relative to, for one renderer (plan §3.9 item 3). */
 export interface PathContextValue {
@@ -317,6 +318,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   tooltipText: {
-    fontSize: 12,
+    fontSize: UI_SCALE.base,
   },
 });

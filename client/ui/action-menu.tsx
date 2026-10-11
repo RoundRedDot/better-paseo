@@ -5,6 +5,7 @@ import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
 import { unselectable } from "../components/selection";
 import { useHover } from "./use-hover";
+import { UI_SCALE } from "./tokens/typography";
 
 export interface ActionMenuItem {
   id: string;
@@ -158,7 +159,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   rowLabel: {
-    fontSize: 13,
+    fontSize: UI_SCALE.md,
     flexShrink: 1,
   },
 });
