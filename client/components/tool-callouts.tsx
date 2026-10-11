@@ -306,7 +306,9 @@ export function ToolCallout({
 
 /**
  * A path among the header's meta (a shell's cwd, a worktree's directory).
- * The workspace root itself says nothing, so it is left out.
+ * Shown only for a directory inside a known root: the root itself says
+ * nothing, and an absolute path outside every root would crowd out the
+ * command on a phone-width row.
  */
 function MetaPath({
   path,
@@ -318,8 +320,10 @@ function MetaPath({
   compact: boolean;
 }) {
   const context = useContext(PathContext);
-  const shown = useMemo(() => formatPath(path, context).displayPath, [path, context]);
-  if (shown === "./" || shown === ".") return null;
+  const formatted = useMemo(() => formatPath(path, context), [path, context]);
+  if (!formatted.projectRoot || formatted.displayPath === "./" || formatted.displayPath === ".") {
+    return null;
+  }
   return (
     <PathText
       path={path}

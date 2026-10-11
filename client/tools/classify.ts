@@ -559,6 +559,16 @@ function readSubAgent(detail: Record<string, unknown>): SubAgentToolData {
   };
 }
 
+/**
+ * The host's error text. The protocol types a failed call's `error` as
+ * `unknown`, and the transformer stringifies it, so an `{ message }` object
+ * arrives as "[object Object]" — which says nothing and is dropped here.
+ */
+function readError(error: string | null | undefined): string | undefined {
+  if (!error || error === "[object Object]") return undefined;
+  return error;
+}
+
 /** `running`, `failed`, or `completed` for anything else the host reports. */
 export function normalizeStatus(status: string): ToolCallView["status"] {
   return status === "running" ? "running" : status === "failed" ? "failed" : "completed";
@@ -740,7 +750,7 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
     title,
     name: payload.name || undefined,
     callId: payload.callId,
-    error: payload.error ? payload.error : undefined,
+    error: readError(payload.error),
     status: normalizeStatus(payload.status),
     filePath,
     language: isShell ? "bash" : languageFromPath(filePath),
