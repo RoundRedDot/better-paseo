@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Image, View, Text, Pressable, StyleSheet } from "react-native";
 import type { ImageStyle, TextStyle, ViewStyle } from "react-native";
 import { Glyph } from "./glyph";
-import { radius, withAlpha } from "./theme-tokens";
+import { radius, radiusV2, withAlpha } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface, selectionCodeText } from "./selection-actions";
@@ -27,6 +27,11 @@ import type {
 interface HubCalloutProps {
   data: HubData;
   tokens: ExtendedThemeTokens;
+  /**
+   * Drawn inside an expanded tool card, which already supplies the frame:
+   * no border, fill or padding of its own (plan §3.6).
+   */
+  embedded?: boolean;
 }
 
 /**
@@ -34,11 +39,11 @@ interface HubCalloutProps {
  * `text` is a fallback for a record that carries no rows, never a second copy
  * of what the rows already say, and no branch here ever prints an object.
  */
-export function HubCallout({ data, tokens }: HubCalloutProps) {
+export function HubCallout({ data, tokens, embedded = false }: HubCalloutProps) {
   const styles = useHubStyles(tokens);
 
   return (
-    <View {...selectionSurface} style={styles.container}>
+    <View {...selectionSurface} style={[styles.container, embedded && styles.embedded]}>
       <HubBody data={data} tokens={tokens} styles={styles} />
     </View>
   );
@@ -203,7 +208,7 @@ function HubHeader({
   return (
     <View style={styles.header}>
       <View style={styles.titleRow}>
-        <Glyph name={icon} size={13} color={tokens.accent} />
+        <Glyph name={icon} size={14} color={tokens.foregroundMuted} />
         <Text selectable style={styles.opBadge}>
           hub {op}
         </Text>
@@ -1094,6 +1099,7 @@ function NoteView({ data, text, tokens, styles }: HubViewProps<{ op: string }>) 
 
 interface HubStyles {
   container: ViewStyle;
+  embedded: ViewStyle;
   header: ViewStyle;
   titleRow: ViewStyle;
   trailing: ViewStyle;
@@ -1129,16 +1135,22 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
   return useMemo(
     () =>
       StyleSheet.create({
+        // One frame, no shadow (plan §3.6): 1px border on surface0, radius 8.
         container: {
-          borderRadius: radius.card,
-          backgroundColor: tokens.surface1,
+          borderRadius: radiusV2.card,
+          backgroundColor: tokens.v2.surface0,
           borderWidth: 1,
-          borderColor: tokens.borderSubtle,
+          borderColor: tokens.v2.border,
           overflow: "hidden",
-          ...tokens.boxShadow,
           ...selectableSurface,
           gap: 8,
           padding: 12,
+        },
+        embedded: {
+          borderWidth: 0,
+          backgroundColor: "transparent",
+          borderRadius: 0,
+          padding: 0,
         },
         header: {
           flexDirection: "row",
@@ -1158,17 +1170,12 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
           alignItems: "center",
           gap: 6,
         },
+        // The op reads as a label, not a filled badge (plan §3.6).
         opBadge: {
           fontFamily: tokens.fontUi,
-          fontSize: 10,
-          fontWeight: "700",
-          textTransform: "uppercase",
-          letterSpacing: 0.5,
-          color: tokens.accent,
-          backgroundColor: tokens.accentBg,
-          paddingHorizontal: 6,
-          paddingVertical: 2,
-          borderRadius: radius.chip,
+          fontSize: 12,
+          fontWeight: "500",
+          color: tokens.foregroundMuted,
         },
         headline: {
           fontFamily: tokens.fontUi,
