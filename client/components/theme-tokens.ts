@@ -5,6 +5,7 @@ import {
   DEFAULT_WEB_MONO_STACK,
   NATIVE_DEFAULT_MONO,
   interfaceFamily,
+  readHostTypography,
   resolveTypography,
   type Typography,
   type TypographyPlatform,
@@ -12,6 +13,7 @@ import {
 import { currentPlatform } from "../ui/tokens/platform";
 import { themeKey } from "../ui/tokens/theme-key";
 import { ensureEmbeddedFonts } from "./embed-fonts";
+import { useHostAppearance, type HostAppearance } from "../ui/tokens/host-appearance-shim";
 
 export type PluginSurfaceColors = PluginTheme["colors"];
 
@@ -227,6 +229,8 @@ export interface ThemeTokenOptions {
   platform?: TypographyPlatform;
   /** The host theme, read only for its optional `typography` (plan H1). */
   theme?: unknown;
+  /** Paseo's Appearance settings from the read-only shim (plan D10 level 2). */
+  appearance?: HostAppearance | null;
 }
 
 export function buildThemeTokens(
@@ -235,7 +239,7 @@ export function buildThemeTokens(
   options: ThemeTokenOptions = {},
 ): ExtendedThemeTokens {
   const platform = options.platform ?? STATIC_PLATFORM;
-  const typography = resolveTypography(options.theme, preferences, platform);
+  const typography = resolveTypography(options.theme, preferences, platform, options.appearance ?? null);
   const isDark = isDarkSurface(colors.surface0);
   const fg = colors.foreground;
   const accent = ACCENT_PRESETS[preferences.accent] ?? colors.accent;
@@ -345,13 +349,20 @@ export function useThemeTokens(
   platform?: TypographyPlatform,
 ): ExtendedThemeTokens {
   const key = themeKey(theme);
+  const resolvedPlatform = platform ?? STATIC_PLATFORM;
+  // Plan D10 level 2: Paseo's Appearance mono settings, read on web while the
+  // host shares no typography. The value keeps its identity until it changes.
+  const appearance = useHostAppearance(
+    resolvedPlatform === "web" && readHostTypography(theme) === null,
+    theme,
+  );
   return useMemo(
     () => {
       // Iosevka and Inter are installed only once a reader picks them.
-      ensureEmbeddedFonts(preferences, platform ?? STATIC_PLATFORM);
-      return buildThemeTokens(theme.colors, preferences, { platform, theme });
+      ensureEmbeddedFonts(preferences, resolvedPlatform);
+      return buildThemeTokens(theme.colors, preferences, { platform, theme, appearance });
     },
     // `theme` is read through `key`; its identity is exactly what must not count.
-    [key, preferences, platform],
+    [key, preferences, platform, appearance],
   );
 }

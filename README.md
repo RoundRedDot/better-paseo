@@ -149,7 +149,7 @@ Devicon brand marks, and the file-manager link.
 | Accent colour          | Follow the Paseo theme, or pick Jade, Violet, Amber, or Rose.                                |
 | Frosted glass          | Blur floating bars (selection actions, full-path tooltip). Web and desktop only.             |
 | Pointer glow           | A light that follows the pointer across floating bars. Web and desktop only.                 |
-| Monospace font         | Follow Paseo (default: Paseo's own monospace, i.e. its `SFMono-Regular, Menlo, Monaco, Consolas, …` stack on web/desktop and the system monospace on iOS/Android until the host shares its font settings), Iosevka, Iosevka Code (ligatures in code blocks), or Custom. On iOS/Android, Custom picks from faces the platform ships. |
+| Monospace font         | Follow Paseo (default), Iosevka, Iosevka Code (ligatures in code blocks), or Custom. Follow Paseo uses, in order: the host's font settings once Paseo shares them with plugins; on web/desktop, the monospace font and code size set in Paseo's Appearance settings (read only, a temporary bridge until then); otherwise Paseo's default monospace (`SFMono-Regular, Menlo, Monaco, Consolas, …` on web/desktop, the system monospace on iOS/Android). The settings page shows which one is in effect. On iOS/Android, Custom picks from faces the platform ships. |
 | Code font size         | Follow Paseo, or 10-22px with a live preview. Applies to code, diffs, terminals and paths.   |
 | Interface font         | Follow Paseo's interface font, embedded Inter (web only), or the system face.                |
 | Tool details           | Tool calls start collapsed; optionally open failed calls on their own.                       |
