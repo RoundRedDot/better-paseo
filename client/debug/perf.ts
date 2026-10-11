@@ -155,6 +155,14 @@ export function probeHighlightRpc(language: string | undefined): void {
   store.highlightRpc(language);
 }
 
+// --- Named counters --------------------------------------------------------
+
+/** Adds `by` to the counter `name` (e.g. `md.finalRerender`). One test while off. */
+export function perfCount(name: string, by = 1): void {
+  if (!on) return;
+  store.count(name, by);
+}
+
 // --- Looping animations ----------------------------------------------------
 
 const noop = (): void => {};
