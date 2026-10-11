@@ -610,7 +610,7 @@ export function SyntaxHighlightBlock({
         },
         langBadge: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           fontWeight: "500",
           textTransform: "uppercase",
           letterSpacing: 0.5,

@@ -23,11 +23,11 @@ export function outCubic(t: number): number {
 
 export const easing = { out: outCubic } as const;
 
-/** The running indicator (`RunningDot`): a 6px dot pulsing 1.0 <-> 0.4 every 1200 ms. */
+/** The running indicator (`RunningDot`): a 6px dot pulsing 1.0 <-> 0.3 every 1200 ms. */
 export const runningDot = {
   size: 6,
   periodMs: 1200,
-  minOpacity: 0.4,
+  minOpacity: 0.3,
   maxOpacity: 1,
 } as const;
 

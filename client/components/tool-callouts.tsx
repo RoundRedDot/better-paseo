@@ -902,7 +902,7 @@ function useBodyStyles(tokens: ExtendedThemeTokens): BodyStyles {
         },
         sectionTitle: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           fontWeight: "500",
           color: tokens.foregroundMuted,
           ...unselectable,
@@ -927,7 +927,7 @@ function useBodyStyles(tokens: ExtendedThemeTokens): BodyStyles {
         mutedColor: { color: tokens.foregroundMuted },
         metaText: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           color: tokens.foregroundMuted,
           fontVariant: ["tabular-nums"],
           ...unselectable,
@@ -1091,7 +1091,7 @@ function useSubagentStyles(tokens: ExtendedThemeTokens): SubagentStyles {
         },
         chip: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           color: tokens.foregroundMuted,
         },
         contextBox: {
@@ -1103,7 +1103,7 @@ function useSubagentStyles(tokens: ExtendedThemeTokens): SubagentStyles {
         contextToggle: { flexDirection: "row", alignItems: "center", gap: 6 },
         contextLabel: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           fontWeight: "500",
           color: tokens.foregroundMuted,
           ...unselectable,
@@ -1132,7 +1132,7 @@ function useSubagentStyles(tokens: ExtendedThemeTokens): SubagentStyles {
         pending: { flexDirection: "row", alignItems: "center", gap: 6 },
         pendingText: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           fontWeight: "500",
           color: tokens.accent,
           ...unselectable,

@@ -1215,7 +1215,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
 
         chip: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.xs,
+          fontSize: UI_SCALE.base,
           fontWeight: "700",
           textTransform: "uppercase",
           letterSpacing: 0.4,
@@ -1226,7 +1226,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
         },
         chipPlain: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.xs,
+          fontSize: UI_SCALE.base,
           fontWeight: "600",
           paddingHorizontal: 6,
           paddingVertical: 2,
@@ -1250,13 +1250,13 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
         },
         figure: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           color: tokens.foregroundSubtle,
           flexShrink: 1,
         },
         marker: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.xs,
+          fontSize: UI_SCALE.base,
           fontWeight: "700",
           textTransform: "uppercase",
           letterSpacing: 0.4,
@@ -1265,7 +1265,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
         },
         sectionLabel: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.xs,
+          fontSize: UI_SCALE.base,
           fontWeight: "700",
           textTransform: "uppercase",
           letterSpacing: 0.5,
@@ -1274,7 +1274,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
         },
         errorText: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           lineHeight: 16,
           color: tokens.danger,
           flexShrink: 1,
@@ -1289,7 +1289,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
         },
         subtleBody: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           lineHeight: 16,
           color: tokens.foregroundMuted,
           flex: 1,
@@ -1297,7 +1297,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
         },
         placeholder: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           fontStyle: "italic",
           color: tokens.foregroundSubtle,
           ...unselectable,
@@ -1339,13 +1339,13 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
         },
         codeText: {
           fontFamily: tokens.fontMono,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           lineHeight: 16,
           color: tokens.foregroundMuted,
         },
         moreLabel: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           fontWeight: "500",
           color: tokens.accent,
           ...unselectable,

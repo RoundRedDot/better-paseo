@@ -75,7 +75,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
           color: tokens.foreground,
         },
         toolChip: {
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           fontFamily: tokens.fontUi,
           fontWeight: "600",
           paddingHorizontal: 6,
@@ -94,7 +94,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
         },
         riskText: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.xs,
+          fontSize: UI_SCALE.base,
           fontWeight: "700",
           textTransform: "uppercase",
           letterSpacing: 0.5,
@@ -123,11 +123,11 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
         },
         metaLabel: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           color: tokens.foregroundSubtle,
         },
         metaValue: {
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           fontFamily: tokens.fontMono,
           color: tokens.foregroundMuted,
         },
@@ -227,7 +227,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
           ...unselectable,
         },
         shortcutBadge: {
-          fontSize: UI_SCALE.xs,
+          fontSize: UI_SCALE.base,
           fontFamily: tokens.fontUi,
           paddingHorizontal: 4,
           paddingVertical: 1,
@@ -237,7 +237,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
           ...unselectable,
         },
         denyShortcutBadge: {
-          fontSize: UI_SCALE.xs,
+          fontSize: UI_SCALE.base,
           fontFamily: tokens.fontUi,
           paddingHorizontal: 4,
           paddingVertical: 1,
@@ -248,7 +248,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
         },
         undoText: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           color: tokens.foregroundMuted,
           textDecorationLine: "underline",
           ...unselectable,

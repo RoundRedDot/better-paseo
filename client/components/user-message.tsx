@@ -125,7 +125,7 @@ export function UserMessage({
         },
         label: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.xs,
+          fontSize: UI_SCALE.base,
           fontWeight: "600",
           letterSpacing: 0.4,
           textTransform: "uppercase",
@@ -137,7 +137,7 @@ export function UserMessage({
         },
         clock: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.xs,
+          fontSize: UI_SCALE.base,
           color: tokens.userTextMuted,
         },
         text: {
@@ -182,7 +182,7 @@ export function UserMessage({
           >
             <Glyph
               name={copied ? "Check" : "Copy"}
-              size={UI_SCALE.sm}
+              size={UI_SCALE.base}
               color={copied ? tokens.userText : tokens.userTextMuted}
             />
           </Pressable>
@@ -235,12 +235,12 @@ export function TurnUsageRow({
         },
         usageKey: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.xs,
+          fontSize: UI_SCALE.base,
           color: tokens.userTextMuted,
         },
         usageValue: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           fontWeight: "600",
           color: tokens.userText,
         },

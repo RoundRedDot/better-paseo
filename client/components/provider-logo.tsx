@@ -144,5 +144,5 @@ const styles = StyleSheet.create({
     borderRadius: radiusV2.chip,
   },
   fallbackLabel: { fontFamily: fontUi, fontWeight: "700" },
-  label: { fontFamily: fontUi, fontSize: UI_SCALE.sm, fontWeight: "600" },
+  label: { fontFamily: fontUi, fontSize: UI_SCALE.base, fontWeight: "600" },
 });

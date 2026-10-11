@@ -63,7 +63,7 @@ export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps
         chips: { flexDirection: "row", alignItems: "center", gap: space.sm, flexShrink: 0 },
         chip: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           fontVariant: ["tabular-nums"],
           color: tokens.foregroundMuted,
           ...unselectable,

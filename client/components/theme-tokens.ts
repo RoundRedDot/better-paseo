@@ -37,8 +37,8 @@ export const radiusV2 = {
   bubbleTail: 2,
 } as const;
 
-/** Token v2 spacing, the host's `SPACING` steps. */
-export const space = { xs: 4, sm: 8, md: 12, lg: 16 } as const;
+/** Token v2 spacing, the host's `SPACING` steps; 24 only separates settings sections. */
+export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
 
 const STATIC_PLATFORM: TypographyPlatform = currentPlatform();
 
@@ -238,10 +238,14 @@ export function buildThemeTokens(
   const isDark = isDarkSurface(colors.surface0);
   const fg = colors.foreground;
   const accent = ACCENT_PRESETS[preferences.accent] ?? colors.accent;
-  const success = isDark ? "#4cb782" : "#1f8a5b";
-  const warning = isDark ? "#d9a53f" : "#a36a00";
+  // Status colours are the host's roles; the constants only cover a host
+  // that does not send them.
+  const success = colors.statusSuccess || (isDark ? "#4cb782" : "#1f8a5b");
+  const warning = colors.statusWarning || (isDark ? "#d9a53f" : "#a36a00");
   const danger = colors.statusDanger;
   const tint = isDark ? 0.1 : 0.08;
+  /** Diff line fills (S7 design spec §2.4). */
+  const diffTint = 0.14;
   const overlayShadow: Elevation = {
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
@@ -249,8 +253,10 @@ export function buildThemeTokens(
     shadowRadius: 5,
     elevation: 1,
   };
-  const surfaceCode = isDark ? "rgba(0, 0, 0, 0.22)" : withAlpha(fg, 0.03);
-  const border = withAlpha(fg, isDark ? 0.09 : 0.1);
+  // Code and an opened tool body sit on the host's first raised surface
+  // (S7 design spec §2.4), the same fill the host gives its own code.
+  const surfaceCode = colors.surface1;
+  const border = colors.border || withAlpha(fg, isDark ? 0.09 : 0.1);
   const borderSubtle = withAlpha(fg, 0.06);
   const edge = isDark ? 0.22 : 0.18;
 
@@ -268,13 +274,17 @@ export function buildThemeTokens(
 
     foreground: fg,
     foregroundMuted: colors.foregroundMuted,
-    foregroundSubtle: withAlpha(colors.foregroundMuted, 0.7),
+    // Only for marks that must sit below muted text: a scroll thumb, the
+    // pending task ring, the streaming caret.
+    foregroundSubtle: withAlpha(colors.foregroundMuted, 0.6),
 
     accent,
     accentForeground: colors.accentForeground,
     accentBg: withAlpha(accent, isDark ? 0.14 : 0.1),
-    userSurface: withAlpha(fg, isDark ? 0.1 : 0.06),
-    userBorder: withAlpha(fg, isDark ? 0.14 : 0.12),
+    // The host draws its own prompt bubble on its most raised surface; surface2
+    // is the most raised one a plugin is given.
+    userSurface: colors.surface2,
+    userBorder: border,
     userText: fg,
     userTextMuted: colors.foregroundMuted,
 
@@ -313,9 +323,9 @@ export function buildThemeTokens(
       comment: isDark ? "#768390" : "#6e7781",
       property: isDark ? "#6cb6ff" : "#0550ae",
       function: isDark ? "#dcbdfb" : "#8250df",
-      diffAddBg: withAlpha(success, tint),
+      diffAddBg: withAlpha(success, diffTint),
       diffAddMarker: success,
-      diffRemoveBg: withAlpha(danger, tint),
+      diffRemoveBg: withAlpha(danger, diffTint),
       diffRemoveMarker: danger,
       hunk: withAlpha(colors.foregroundMuted, 0.7),
     },
