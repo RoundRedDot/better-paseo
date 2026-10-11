@@ -45,6 +45,11 @@ export interface EnhancerPreferences {
   assistantMarkdown: boolean;
   /** Which look the markdown renderer uses. */
   markdownVariant: MarkdownVariantPreference;
+  /**
+   * Hidden: not shown in settings. Turns on the perf probes in
+   * `client/debug/perf.ts`; toggle it with `__bcPerf.enable()` / `disable()`.
+   */
+  debugPerf: boolean;
 }
 
 const STORAGE_KEY = "paseo/beautiful-chat/preferences/v1";
@@ -59,6 +64,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   selectionActions: true,
   assistantMarkdown: true,
   markdownVariant: "document",
+  debugPerf: false,
 };
 
 const listeners = new Set<() => void>();
@@ -105,6 +111,7 @@ function loadPreferences(): EnhancerPreferences {
         candidate.markdownVariant === "compact" || candidate.markdownVariant === "terminal"
           ? candidate.markdownVariant
           : DEFAULT_PREFERENCES.markdownVariant,
+      debugPerf: candidate.debugPerf === true,
     };
   } catch {
     return { ...DEFAULT_PREFERENCES };
