@@ -13,7 +13,8 @@ import { embedFonts } from "../client/components/embed-fonts";
 import { installFrostedGlass } from "../client/components/frosted";
 import { buildThemeTokens } from "../client/components/theme-tokens";
 import { ToolCallout } from "../client/components/tool-callouts";
-import { ReasoningTrace } from "../client/components/reasoning-trace";
+import { ReasoningCard, ReasoningTrace } from "../client/components/reasoning-trace";
+import { reasoningText, segmentReasoning } from "../client/reasoning/segment";
 import { TaskList } from "../client/components/task-list";
 import { ApprovalCard } from "../client/components/approval-card";
 import { UserMessage } from "../client/components/user-message";
@@ -737,6 +738,87 @@ function Caption({ tokens, children }: { tokens: ExtendedThemeTokens; children: 
   );
 }
 
+// --- Reasoning v2 states (plan §3.4) ---------------------------------------
+
+const REASONING_SECTIONS = [
+  "Let me trace where the stutter comes from before changing anything.",
+  "",
+  "**Understanding the symptom**",
+  "",
+  "The highlighter re-tokenises every fenced block on each delta. The message cache then measures a stale selection range, which forces a second layout.",
+  "",
+  "**Mapping the render path**",
+  "",
+  "I need to:",
+  "",
+  "1. Find where `splitBlocks` runs.",
+  "2. Check whether finished blocks are memoised.",
+  "3. Confirm the theme object is stable.",
+  "",
+  "**Checking the memo**",
+  "",
+  "The card compares `text.length` and `phase` only. " +
+    "That should stop most renders, but the host hands every row a fresh theme object on every chunk, so the tokens memo has to key on the colour strings rather than the object identity. ".repeat(4) +
+    "Once that holds, a finished section never renders again while later sections stream in.",
+].join("\n");
+
+const REASONING_PROSE =
+  "The list re-renders on each chunk because the live head is rebuilt from a new array. Memo on the row would stop it, but the theme object changes too. " +
+  "So the comparator has to look at colours, not identity.\n\nThat leaves the reveal loop, which only runs while the text streams.";
+
+function ReasoningState({
+  tokens,
+  label,
+  text,
+  streaming,
+  expanded,
+  durationMs = null,
+  cut,
+}: {
+  tokens: ExtendedThemeTokens;
+  label: string;
+  text: string;
+  streaming: boolean;
+  expanded: boolean;
+  durationMs?: number | null;
+  /** Streaming states show the text cut here, mid-word. */
+  cut?: number;
+}) {
+  const visible = cut === undefined ? text : text.slice(0, cut);
+  const segmentation = segmentReasoning(visible, { streaming });
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={{ color: tokens.foregroundSubtle, fontSize: 11, fontFamily: tokens.fontUi }}>
+        {label}
+      </Text>
+      <ReasoningCard
+        segmentation={segmentation}
+        streaming={streaming}
+        durationMs={durationMs}
+        expanded={expanded}
+        onToggle={() => {}}
+        tokens={tokens}
+        storeKey={`showcase:${label}`}
+        copyText={reasoningText(segmentation)}
+      />
+    </View>
+  );
+}
+
+function ReasoningStates({ tokens }: { tokens: ExtendedThemeTokens }) {
+  const titleCut = REASONING_SECTIONS.indexOf("**Checking") + 40;
+  return (
+    <View style={{ gap: 14 }}>
+      <ReasoningState tokens={tokens} label="streaming · sections · collapsed" text={REASONING_SECTIONS} streaming expanded={false} cut={titleCut} />
+      <ReasoningState tokens={tokens} label="streaming · prose · collapsed" text={REASONING_PROSE} streaming expanded={false} cut={190} />
+      <ReasoningState tokens={tokens} label="done · sections · collapsed (observed 12s)" text={REASONING_SECTIONS} streaming={false} expanded={false} durationMs={12_400} />
+      <ReasoningState tokens={tokens} label="done · prose · collapsed (history: no duration)" text={REASONING_PROSE} streaming={false} expanded={false} />
+      <ReasoningState tokens={tokens} label="done · sections · expanded" text={REASONING_SECTIONS} streaming={false} expanded durationMs={12_400} />
+      <ReasoningState tokens={tokens} label="done · prose · expanded" text={REASONING_PROSE} streaming={false} expanded durationMs={3_100} />
+    </View>
+  );
+}
+
 function Primitives({ tokens }: { tokens: ExtendedThemeTokens }) {
   const muted = tokens.foregroundMuted;
   return (
@@ -938,6 +1020,12 @@ function Showcase() {
           showLineNumbers
           onRevealFile={() => {}}
         />
+      </Shot>
+      <Shot id="shot-reasoning-dark" width={720}>
+        <ReasoningStates tokens={v2Dark} />
+      </Shot>
+      <Shot id="shot-reasoning-light" width={720} background={LIGHT.surface0}>
+        <ReasoningStates tokens={v2Light} />
       </Shot>
       <Shot id="shot-primitives-dark" width={640}>
         <Primitives tokens={v2Dark} />
