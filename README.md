@@ -282,8 +282,40 @@ beautiful-chat/
 ```bash
 npm install
 npm run typecheck
+npm test
+npm run check:hermes
 paseo plugin reload beautiful-chat
 ```
+
+### Hermes check
+
+On iOS and Android the client bundle runs on Hermes without Metro or Babel:
+the daemon bundles `index.client.tsx` with esbuild (target `es2020`, async
+functions lowered, nothing else), and the app evaluates the result as source.
+Code that works on web can still fail to load there, and when it fails the
+whole plugin is dropped, so web testing will not catch it.
+
+`npm run check:hermes` (`scripts/check-hermes.mjs`) bundles the client with
+the host's options and compiles it with `hermesc` from the `react-native`
+devDependency. Any error is mapped back to its source file and line. The
+script then evaluates the bundle in the bundled `hermes` VM against stub
+modules, calls `contribute`, and checks the host's registration rules. Pass
+`--no-run` to compile only. The script uses no new dependency: esbuild comes
+from the root install (through vitest) or from `.showcase/`.
+
+What must not reach client code, including client dependencies:
+
+- **No `class` in any form**: declarations, expressions, fields, private
+  members, or static blocks. Use closures and plain objects. This is why
+  `marked` cannot be imported on the client.
+- No regular-expression `v` flag (a compile error, so the check catches it).
+- No `Array.prototype.toSorted` and no `Intl.Segmenter`. Both are missing at
+  runtime rather than at compile time, so the check only catches them when
+  they run while the plugin loads. Code reached later, from a render, is not
+  covered.
+- Timeline renderers are registered as **plain functions**. Paseo checks
+  `typeof Component === "function"`, so the object `React.memo` returns is
+  rejected. Wrap a memoised body in a function component instead.
 
 Rebuild the screenshots after a visual change:
 
