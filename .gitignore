@@ -3,3 +3,4 @@ dist/
 *.tsbuildinfo
 .showcase/showcase.js
 .showcase/tools/collect.cjs
+.worktrees/
