@@ -16,7 +16,7 @@ import { useHover } from "../ui/use-hover";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { getDisclosure, setDisclosure, useDisclosure } from "../state/disclosure-store";
 import { copyPlan } from "../copy/content";
-import { FadeIn } from "../reasoning/fade-in";
+import { FadeIn } from "../ui/fade-in";
 import {
   reasoningText,
   segmentReasoning,
