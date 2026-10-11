@@ -3,8 +3,6 @@ import { Platform } from "react-native";
 import type { TextProps, ViewProps } from "react-native";
 import { copyText } from "@getpaseo/plugin/client/react-native";
 import { radiusV2 } from "./theme-tokens";
-import { FROSTED_SHADOW_CSS } from "./frosted";
-import { GLOW_ATTRIBUTE } from "./glow";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 
 /**
@@ -192,19 +190,6 @@ const BAR_CSS = `
   /* No shrinking: a squeezed button overlaps its neighbour's label. */
   flex: 0 0 auto;
 }
-/* Pointer glow (optional): the document listener sets --bcgx/--bcgy and
-   data-bcglow-on on the host; custom properties inherit into this root. */
-:host([data-bcglow-on]) .bar {
-  background-image:
-    radial-gradient(120px circle at var(--bcgx, 50%) var(--bcgy, 50%), var(--bc-bar-glow), transparent 70%),
-    linear-gradient(var(--bc-bar-raise), var(--bc-bar-raise));
-}
-@media (prefers-reduced-motion: reduce) {
-  :host([data-bcglow-on]) .bar {
-    background-image: linear-gradient(var(--bc-bar-raise), var(--bc-bar-raise));
-  }
-}
-${FROSTED_SHADOW_CSS}
 `;
 
 interface Bar {
@@ -228,7 +213,7 @@ function createBar(): Bar {
     ["display", "none"],
     ["margin", "0"],
     ["padding", "0"],
-    // The document glow rule would paint the host box behind the rounded bar.
+    // A host rule for bare `div`s must not paint behind the rounded bar.
     ["background", "none"],
   ];
   for (const [property, value] of placement) {
@@ -308,16 +293,9 @@ function createBar(): Bar {
       // Every derived surface token is translucent by design — they sit on the
       // host background inside the timeline. A bar floating over text needs to
       // be opaque, so the raised tone is painted as a layer on the one opaque
-      // surface the theme carries — unless frosted glass is on, where the
-      // translucent glass surface lets the blur behind it show.
-      host.style.setProperty("--bc-bar-bg", tokens.frost ? tokens.surfaceGlass : tokens.surface0);
+      // surface the theme carries.
+      host.style.setProperty("--bc-bar-bg", tokens.surface0);
       host.style.setProperty("--bc-bar-raise", tokens.surface2);
-      host.style.setProperty(
-        "--bc-bar-glow",
-        tokens.isDark ? "rgba(255, 255, 255, 0.06)" : "rgba(74, 104, 156, 0.09)",
-      );
-      host.toggleAttribute("data-bcfrost", tokens.frost);
-      host.setAttribute(GLOW_ATTRIBUTE, tokens.isDark ? "dark" : "light");
       bar.style.borderColor = tokens.border;
       // The bar sits on document.body, outside the host's UI font rule, so
       // "Follow Paseo" reads the host's own font variable directly.

@@ -48,8 +48,6 @@ export const preferencesSchema = z.object({
     .catch(null),
   toolDetail: z.enum(TOOL_DETAILS).catch("collapsed"),
   pathDisplay: z.enum(PATH_DISPLAYS).catch("relative"),
-  frostedGlass: flag(false),
-  pointerGlow: flag(false),
   enhancedUserBubble: flag(true),
   selectionActions: flag(true),
   assistantMarkdown: flag(true),

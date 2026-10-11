@@ -4,7 +4,7 @@ import type { ViewProps } from "react-native";
  * Combines surface markers that each carry a `dataSet`.
  *
  * React Native Web turns `dataSet` into `data-*` attributes, and JSX spreading
- * replaces whole props: `{...frosted} {...selectionSurface}` keeps only the
+ * replaces whole props: `{...codeSurface} {...selectionSurface}` keeps only the
  * last `dataSet`, so the earlier marker silently never reaches the DOM. Every
  * marker therefore goes through here, where the maps are merged rather than
  * overwritten.

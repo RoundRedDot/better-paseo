@@ -88,12 +88,6 @@ export interface ExtendedThemeTokens {
   surface1: string;
   surface2: string;
   surfaceCode: string;
-  /** The frosted-glass setting: floating surfaces (overlays) may blur behind them. */
-  frost: boolean;
-  // Translucent variants, for overlay surfaces that blur what sits behind them
-  // (and the approval card, left as it was; plan D7). Inline blocks use surface0.
-  surfaceGlass: string;
-  surfaceCodeGlass: string;
 
   // Foreground
   foreground: string;
@@ -271,19 +265,6 @@ export function buildThemeTokens(
     surface1: withAlpha(fg, isDark ? 0.03 : 0.025),
     surface2: withAlpha(fg, isDark ? 0.06 : 0.045),
     surfaceCode,
-    frost: preferences.frostedGlass,
-    // Translucent so the blur behind them reads, but still dense enough to
-    // keep text legible over whatever scrolls past.
-    surfaceGlass: preferences.frostedGlass
-      ? withAlpha(colors.surface0, isDark ? 0.52 : 0.64)
-      : colors.surface0,
-    surfaceCodeGlass: preferences.frostedGlass
-      ? isDark
-        ? "rgba(0, 0, 0, 0.34)"
-        : withAlpha(fg, 0.05)
-      : isDark
-        ? "rgba(0, 0, 0, 0.22)"
-        : withAlpha(fg, 0.03),
 
     foreground: fg,
     foregroundMuted: colors.foregroundMuted,

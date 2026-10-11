@@ -2,8 +2,6 @@ import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { z } from "zod";
 import { BeautifulChatSettingsPage } from "./client/settings-page";
 import { embedFonts } from "./client/components/embed-fonts";
-import { installFrostedGlass } from "./client/components/frosted";
-import { installPointerGlow } from "./client/components/glow";
 import { installHostNoticeStyle } from "./client/components/host-notice";
 import { installChatFind } from "./client/components/chat-find";
 import { extractPromptImages } from "./client/prompt-images";
@@ -28,8 +26,6 @@ function toJsonValue(value: unknown): JsonValue {
 export default function contribute(client: PluginClientContext) {
   // Install the bundled faces before any surface paints.
   const removeFonts = embedFonts();
-  const removeFrost = installFrostedGlass();
-  const removeGlow = installPointerGlow();
   // The host draws  rows itself; this only re-chromes them.
   const removeNoticeStyle = installHostNoticeStyle();
   // Paseo's Ctrl+F cannot reveal rows this plugin draws; this bar can.
@@ -265,8 +261,6 @@ export default function contribute(client: PluginClientContext) {
   return () => {
     removePerfCommand();
     removeFonts();
-    removeFrost();
-    removeGlow();
     removeNoticeStyle();
     removeChatFind();
     removeToolTransformer();

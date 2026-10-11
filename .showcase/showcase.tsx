@@ -10,7 +10,6 @@ import { createRoot } from "react-dom/client";
 import { Text, View } from "react-native";
 
 import { embedFonts } from "../client/components/embed-fonts";
-import { installFrostedGlass } from "../client/components/frosted";
 import { buildThemeTokens } from "../client/components/theme-tokens";
 import { ToolCallout } from "../client/components/tool-callouts";
 import { ReasoningCard, ReasoningTrace } from "../client/components/reasoning-trace";
@@ -28,7 +27,6 @@ import { AssistantFooter } from "../client/components/turn-footer";
 import { MARKDOWN_VARIANTS, MarkdownView } from "../client/components/markdown/markdown-view";
 import { parseSystemEnvelope } from "../client/system-envelope";
 import { HERO_REPLY, MD_SAMPLER, REASONING_PROSE, REASONING_SECTIONS, REPLY } from "./markdown-corpus";
-import { installPointerGlow } from "../client/components/glow";
 import type { ToolCalloutData } from "../shared/contracts";
 import { DEFAULT_PREFERENCES } from "../client/preferences";
 import type { ExtendedThemeTokens } from "../client/components/theme-tokens";
@@ -1171,8 +1169,6 @@ function Showcase() {
 }
 
 embedFonts();
-installFrostedGlass();
-installPointerGlow();
 
 console.log("showcase: bundle evaluated");
 const mount = document.getElementById("root");
