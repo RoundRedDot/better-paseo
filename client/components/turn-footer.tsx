@@ -80,14 +80,14 @@ export function AssistantFooter({ text, at, tokens }: AssistantFooterProps) {
         },
         copyLabel: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           fontWeight: "500",
           color: copied ? tokens.foreground : tokens.foregroundMuted,
           ...unselectable,
         },
         time: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.sm,
+          fontSize: UI_SCALE.base,
           color: tokens.foregroundSubtle,
           ...unselectable,
         },

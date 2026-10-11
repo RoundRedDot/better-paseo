@@ -707,7 +707,7 @@ const styles = StyleSheet.create({
   title: { fontSize: UI_SCALE.xl, fontWeight: "600" },
   description: { fontSize: UI_SCALE.md, lineHeight: 18 },
   groupTitle: {
-    fontSize: UI_SCALE.sm,
+    fontSize: UI_SCALE.base,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -745,6 +745,6 @@ const styles = StyleSheet.create({
     fontSize: UI_SCALE.md,
   },
   preview: { borderRadius: radiusV2.block, padding: space.md, gap: 2 },
-  previewMeta: { fontSize: UI_SCALE.xs, marginTop: space.xs },
+  previewMeta: { fontSize: UI_SCALE.base, marginTop: space.xs },
   reset: { alignSelf: "flex-start", marginTop: space.sm },
 });

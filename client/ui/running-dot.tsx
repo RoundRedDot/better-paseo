@@ -13,7 +13,7 @@ interface RunningDotProps {
 
 /**
  * The one looping animation in the plugin (plan §3.7): a dot pulsing between
- * full and 40% opacity while work is in flight. Mount it only while a tool is
+ * full and 30% opacity while work is in flight. Mount it only while a tool is
  * running or a model is thinking; unmounting is what stops the loop, so a
  * finished card costs nothing.
  *

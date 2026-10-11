@@ -3,6 +3,7 @@ import {
   EMBEDDED_FAMILY,
   interfaceFamily,
   lineHeightFor,
+  proseScale,
   readHostTypography,
   resolveTypography,
   type TypographyPlatform,
@@ -151,8 +152,6 @@ describe("resolveTypography details", () => {
 
   it("keeps the fixed UI scale", () => {
     expect(resolveTypography(noHost, follow, "web").ui.scale).toEqual({
-      xs: 10,
-      sm: 11,
       base: 12,
       md: 13,
       lg: 14,
@@ -163,6 +162,37 @@ describe("resolveTypography details", () => {
   it("rounds line height to 1.5x", () => {
     expect(lineHeightFor(11)).toBe(17);
     expect(lineHeightFor(22)).toBe(33);
+  });
+});
+
+describe("proseScale", () => {
+  it("derives integer reading sizes from the host body size", () => {
+    expect(proseScale(15)).toEqual({
+      h1: { size: 22, lineHeight: 28 },
+      h2: { size: 18, lineHeight: 24 },
+      h3: { size: 16, lineHeight: 22 },
+      body: { size: 15, lineHeight: 22 },
+      secondary: { size: 14, lineHeight: 20 },
+      small: { size: 13, lineHeight: 18 },
+      code: { size: 13, lineHeight: 20 },
+    });
+    expect(proseScale(16)).toMatchObject({
+      h1: { size: 24, lineHeight: 30 },
+      h2: { size: 20, lineHeight: 26 },
+      h3: { size: 17, lineHeight: 24 },
+      body: { size: 16, lineHeight: 24 },
+    });
+  });
+
+  it("never yields a fractional size or line height", () => {
+    for (let b = 11; b <= 22; b += 0.5) {
+      for (const step of Object.values(proseScale(b))) {
+        expect(Number.isInteger(step.size)).toBe(true);
+        expect(Number.isInteger(step.lineHeight)).toBe(true);
+      }
+      // Running text sits on the 2px grid; headings are size + 6.
+      expect(proseScale(b).body.lineHeight % 2).toBe(0);
+    }
   });
 });
 

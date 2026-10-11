@@ -53,7 +53,7 @@ describe("motion tokens", () => {
     expect(outCubic(0.5)).toBeCloseTo(0.875);
   });
 
-  it("running dot pulses 1.0 <-> 0.4 over 1200 ms at 6px", () => {
-    expect(runningDot).toEqual({ size: 6, periodMs: 1200, minOpacity: 0.4, maxOpacity: 1 });
+  it("running dot pulses 1.0 <-> 0.3 over 1200 ms at 6px", () => {
+    expect(runningDot).toEqual({ size: 6, periodMs: 1200, minOpacity: 0.3, maxOpacity: 1 });
   });
 });

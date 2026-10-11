@@ -39,7 +39,7 @@ export interface Typography {
   ui: {
     /** Undefined: inherit the host's interface font. */
     family?: string;
-    scale: { xs: 10; sm: 11; base: 12; md: 13; lg: 14; xl: 16 };
+    scale: typeof UI_SCALE;
   };
   content: { size: number; lineHeight: number };
   mono: {
@@ -62,7 +62,81 @@ export const EMBEDDED_FAMILY = {
   code: "OMP Iosevka Code",
 } as const;
 
-export const UI_SCALE = { xs: 10, sm: 11, base: 12, md: 13, lg: 14, xl: 16 } as const;
+/**
+ * Interface sizes. Nothing in a row, a header or a control is drawn below 12
+ * (S7 design spec §2.3): the old 10 and 11 steps read as noise next to the
+ * host's own 12 metadata.
+ */
+export const UI_SCALE = { base: 12, md: 13, lg: 14, xl: 16 } as const;
+
+/** A size and its line height. */
+export interface TypeStep {
+  size: number;
+  lineHeight: number;
+}
+
+/**
+ * Interface text by role (S7 design spec §2.3, F0 "UI scale"). Fixed sizes:
+ * rows and controls track the host's native rows, not the reading size.
+ */
+export const TYPE = {
+  /** Row verb, task text, notice text. */
+  label: { size: 14, lineHeight: 20 },
+  /** A row's path or command, monospace: 13 on touch layouts, 12 on desktop. */
+  target: { compact: { size: 13, lineHeight: 20 }, desktop: { size: 12, lineHeight: 18 } },
+  /** Row meta (`exit 0  1.2s`, `L10–80`) and usage, monospace with tabular digits. */
+  meta: { size: 12, lineHeight: 16 },
+  /** Times, a code block's language, captions, a failed row's error line. */
+  caption: { size: 12, lineHeight: 16 },
+  /** Copy, Show more, Show all. */
+  button: { size: 13, lineHeight: 18 },
+  /** Settings row label: 15 in a touch list, 14 in the desktop two-column layout. */
+  setting: { compact: { size: 15, lineHeight: 22 }, desktop: { size: 14, lineHeight: 20 } },
+  /** Settings descriptions and section labels. */
+  settingNote: { size: 13, lineHeight: 18 },
+  /** A page title (the settings page). */
+  title: { size: 16, lineHeight: 22 },
+} as const;
+
+/** The nearest even integer: prose line heights sit on the 2px grid. */
+export function even(value: number): number {
+  return 2 * Math.round(value / 2);
+}
+
+/** Reading text derived from the host content size `b` (S7 design spec §2.3). */
+export interface ProseScale {
+  h1: TypeStep;
+  h2: TypeStep;
+  h3: TypeStep;
+  body: TypeStep;
+  /** One step quieter than the body: reasoning text. */
+  secondary: TypeStep;
+  /** Table cells, inline code. */
+  small: TypeStep;
+  /** Code in prose: a monospace step under the body. */
+  code: TypeStep;
+}
+
+/**
+ * Every reading size from the host body size, in integers. b = 15 (web)
+ * gives h1 22/28, h2 18/24, h3 16/22, body 15/22; b = 16 (native) gives
+ * 24/30, 20/26, 17/24, 16/24.
+ */
+export function proseScale(b: number): ProseScale {
+  const base = Math.round(b);
+  const body = { size: base, lineHeight: even(1.5 * base) };
+  const h1 = Math.floor(1.5 * base);
+  const h2 = Math.floor(1.25 * base);
+  return {
+    h1: { size: h1, lineHeight: h1 + 6 },
+    h2: { size: h2, lineHeight: h2 + 6 },
+    h3: { size: base + 1, lineHeight: body.lineHeight },
+    body,
+    secondary: { size: base - 1, lineHeight: body.lineHeight - 2 },
+    small: { size: base - 2, lineHeight: body.lineHeight - 4 },
+    code: { size: base - 2, lineHeight: body.lineHeight - 2 },
+  };
+}
 
 export const CODE_SIZE = { default: 12, min: 10, max: 22 } as const;
 
