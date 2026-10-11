@@ -19,7 +19,6 @@ import { TaskList } from "../client/components/task-list";
 import { ApprovalCard } from "../client/components/approval-card";
 import { UserMessage } from "../client/components/user-message";
 import { HubCallout } from "../client/components/hub-callout";
-import { PaseoToolCallout } from "../client/components/paseo-tool-callouts";
 import { SyntaxHighlightBlock } from "../client/components/syntax-highlight";
 import { BeautifulChatSettingsPage } from "../client/settings-page";
 import { buildHubData } from "../client/hub-details";
@@ -38,6 +37,7 @@ import { ActionMenuList, ActionMenuTrigger } from "../client/ui/action-menu";
 import { PathContext, PathText, type PathContextValue } from "../client/ui/path-text";
 import { RunningDot } from "../client/ui/running-dot";
 import { Glyph } from "../client/components/glyph";
+import { classifyTool, type ToolCallPayload, type ToolCallView } from "../client/tools/classify";
 
 const DARK = {
   surface0: "#0f0f11",
@@ -819,6 +819,102 @@ function ReasoningStates({ tokens }: { tokens: ExtendedThemeTokens }) {
   );
 }
 
+/**
+ * Tool calls v2 (plan §3.3): the live classification of real protocol
+ * payloads, under the same roots a worktree agent would have. The first
+ * block is what a turn looks like by default — collapsed rows, no frames —
+ * and the second shows the open states.
+ */
+const TOOL_ROOT = "/Users/me/code/beautiful-chat/.worktrees/s1";
+
+function payload(
+  callId: string,
+  name: string,
+  detail: Record<string, unknown>,
+  status = "completed",
+  error: string | null = null,
+): ToolCallView {
+  const item: ToolCallPayload = { callId, name, status, detail, error };
+  return classifyTool(item);
+}
+
+const READ_CODE = `export function formatPath(raw: string, ctx: FormatPathContext): FormattedPath {
+  const { path, suffix } = splitSelector(raw);
+  if (!path) return unmatched(raw.trim(), raw.trim());
+}`;
+
+const TOOLS_COLLAPSED: ToolCallView[] = [
+  payload("r1", "Read", { type: "read", filePath: `${TOOL_ROOT}/client/paths/format-path.ts`, offset: 10, limit: 71, content: READ_CODE }),
+  payload("r2", "Read", { type: "read", filePath: `${TOOL_ROOT}/client/ui/disclosure-header.tsx`, content: READ_CODE }),
+  payload("r3", "Read", { type: "read", filePath: "/Users/me/code/beautiful-chat/docs/plans/2026-10-11-ui-ux-rendering-upgrade.md", offset: 263, limit: 41 }),
+  payload("e1", "Edit", {
+    type: "edit",
+    filePath: `${TOOL_ROOT}/client/components/tool-callouts.tsx`,
+    unifiedDiff: "--- a\n+++ b\n@@ -1,3 +1,4 @@\n-import { Breathe } from \"./breathe\";\n+import { RunningDot } from \"../ui/running-dot\";\n+import { DisclosureHeader } from \"../ui/disclosure-header\";\n const x = 1;\n",
+  }),
+  payload("w1", "Write", { type: "write", filePath: `${TOOL_ROOT}/client/tools/summarize.ts`, content: "a\n".repeat(120) }),
+  payload("b1", "Bash", { type: "shell", command: "npm test", cwd: TOOL_ROOT, output: "Tests  281 passed (281)", exitCode: 0, durationMs: 1240 }),
+  payload("b2", "Bash", { type: "shell", command: "npm run soak -- --duration 60", cwd: `${TOOL_ROOT}/tools/bench-provider`, output: "[ 0s] iter=00001 ok" }, "running"),
+  payload("g1", "Bash", { type: "shell", command: "git push -u origin s3-tools", cwd: TOOL_ROOT, output: "", exitCode: 0, durationMs: 2300 }),
+  payload("s1", "Grep", { type: "search", query: "useAgent", toolName: "grep", numFiles: 8, numMatches: 23 }),
+  payload("f1", "WebFetch", { type: "fetch", url: "https://github.com/getpaseo/paseo/pull/125", code: 200, bytes: 12288, durationMs: 840 }),
+  payload("m1", "mcp__devnav__codedb_search", { type: "unknown", input: { query: "PathText", limit: 5 }, output: "3 hits" }),
+  payload("x1", "Read", { type: "read", filePath: `${TOOL_ROOT}/client/missing.ts` }, "failed", "ENOENT: no such file or directory, open 'client/missing.ts'"),
+  payload("x2", "Bash", { type: "shell", command: "npm run check:hermes", cwd: TOOL_ROOT, output: "hermesc: error: invalid class syntax\n", exitCode: 1 }, "failed"),
+  payload("t1", "Task", { type: "sub_agent", subAgentType: "explore", description: "Find every Breathe call site", log: "", actions: [{ index: 0, toolName: "Grep" }, { index: 1, toolName: "Read" }] }),
+  payload("wt", "setup", {
+    type: "worktree_setup",
+    worktreePath: `${TOOL_ROOT}/../s3-tools`,
+    branchName: "s3-tools",
+    log: "",
+    commands: [{ index: 0, command: "npm ci", cwd: TOOL_ROOT, log: "added 288 packages", status: "completed", exitCode: 0 }],
+  }),
+  payload("p1", "ExitPlanMode", { type: "plan", text: "## Ship tool callouts v2\n1. classify\n2. summarize" }),
+  payload("n1", "status", { type: "plain_text", label: "Note", text: "The daemon restarted once." }),
+  payload("u1", "frobnicate", { type: "unknown", input: { target: "cache", level: 2 }, output: { ok: true } }),
+  payload("q1", "ask", { type: "unknown", input: { question: "Merge S3 now?", options: [{ label: "Yes" }, { label: "Later" }] }, output: "User selected: Yes" }),
+];
+
+const TOOLS_OPEN: ToolCallView[] = [
+  payload("o1", "Bash", {
+    type: "shell",
+    command: "npm test -- tool",
+    cwd: TOOL_ROOT,
+    output: " ✓ test/unit/tool-classify.test.ts (29 tests)\n ✓ test/unit/tool-summarize.test.ts (36 tests)\n\n Tests  65 passed (65)",
+    exitCode: 0,
+    durationMs: 3100,
+  }),
+  payload("o2", "Grep", {
+    type: "search",
+    query: "useDisclosure",
+    toolName: "grep",
+    filePaths: [`${TOOL_ROOT}/client/live-renderers.tsx`, `${TOOL_ROOT}/client/state/disclosure-store.ts`, "/Users/me/code/beautiful-chat/client/ui/path-text.tsx"],
+    numFiles: 3,
+    numMatches: 7,
+  }),
+  payload("o3", "ask", { type: "unknown", input: { question: "Which default for tool details?", options: [{ label: "Collapse all" }, { label: "Expand failures" }], recommended: 0 }, output: "" }, "running"),
+];
+
+function ToolsV2({ tokens }: { tokens: ExtendedThemeTokens }) {
+  const paths: PathContextValue = { roots: PATHS.roots, cwd: TOOL_ROOT, mode: "relative", reveal: () => {} };
+  return (
+    <PathContext.Provider value={paths}>
+      <View style={{ gap: 0 }}>
+        <Caption tokens={tokens}>Collapsed (default): one row per call, no frame</Caption>
+        {TOOLS_COLLAPSED.map((view) => (
+          <ToolCallout key={view.callId} data={view} tokens={tokens} />
+        ))}
+        <Caption tokens={tokens}>Expanded: bordered block, body mounted; ask open while waiting</Caption>
+        <View style={{ gap: 6 }}>
+          {TOOLS_OPEN.map((view) => (
+            <ToolCallout key={view.callId} data={view} tokens={tokens} defaultExpanded />
+          ))}
+        </View>
+      </View>
+    </PathContext.Provider>
+  );
+}
+
 function Primitives({ tokens }: { tokens: ExtendedThemeTokens }) {
   const muted = tokens.foregroundMuted;
   return (
@@ -924,11 +1020,11 @@ function Showcase() {
         <Thread />
       </Shot>
       <Shot id="shot-tool-bash">
-        <ToolCallout data={bash} tokens={tokens} />
-        <ToolCallout data={git} tokens={tokens} />
+        <ToolCallout data={bash} tokens={tokens} defaultExpanded />
+        <ToolCallout data={git} tokens={tokens} defaultExpanded />
       </Shot>
       <Shot id="shot-tool-read">
-        <ToolCallout data={read} tokens={tokens} onRevealPath={() => {}} />
+        <ToolCallout data={read} tokens={tokens} onRevealPath={() => {}} defaultExpanded />
       </Shot>
       <Shot id="shot-tool-image">
         <ToolCallout
@@ -936,30 +1032,31 @@ function Showcase() {
           tokens={tokens}
           onRevealPath={() => {}}
           imageFile={sampleImage}
+          defaultExpanded
         />
       </Shot>
       <Shot id="shot-tool-github">
         {githubCalls.map((call) => (
-          <ToolCallout key={call.id} data={call} tokens={tokens} />
+          <ToolCallout key={call.id} data={call} tokens={tokens} defaultExpanded />
         ))}
       </Shot>
       <Shot id="shot-tool-edit">
-        <ToolCallout data={edit} tokens={tokens} onRevealPath={() => {}} />
+        <ToolCallout data={edit} tokens={tokens} onRevealPath={() => {}} defaultExpanded />
       </Shot>
       <Shot id="shot-tool-thinking">
-        <ToolCallout data={thinking} tokens={tokens} />
+        <ToolCallout data={thinking} tokens={tokens} defaultExpanded />
       </Shot>
       <Shot id="shot-tool-mcp">
-        <ToolCallout data={mcp} tokens={tokens} />
+        <ToolCallout data={mcp} tokens={tokens} defaultExpanded />
       </Shot>
       <Shot id="shot-tool-eval">
-        <ToolCallout data={evalCall} tokens={tokens} />
+        <ToolCallout data={evalCall} tokens={tokens} defaultExpanded />
       </Shot>
       <Shot id="shot-tool-ask">
-        <ToolCallout data={ask} tokens={tokens} />
+        <ToolCallout data={ask} tokens={tokens} defaultExpanded />
       </Shot>
       <Shot id="shot-tool-task">
-        <ToolCallout data={task} tokens={tokens} />
+        <ToolCallout data={task} tokens={tokens} defaultExpanded />
       </Shot>
       <Shot id="shot-hub">
         <HubCallout data={hubStart} tokens={tokens} />
@@ -992,7 +1089,11 @@ function Showcase() {
         />
       </Shot>
       <Shot id="shot-paseo">
-        <PaseoToolCallout data={paseoTool} tokens={tokens} />
+        <ToolCallout
+          data={{ id: "paseo", tool: "paseo", title: "Paseo: create_agent", status: "completed", paseo: paseoTool }}
+          tokens={tokens}
+          defaultExpanded
+        />
       </Shot>
       <Shot id="shot-reasoning">
         <ReasoningTrace data={reasoning} tokens={tokens} defaultExpanded />
@@ -1026,6 +1127,12 @@ function Showcase() {
       </Shot>
       <Shot id="shot-reasoning-light" width={720} background={LIGHT.surface0}>
         <ReasoningStates tokens={v2Light} />
+      </Shot>
+      <Shot id="shot-tools-v2-dark" width={720}>
+        <ToolsV2 tokens={v2Dark} />
+      </Shot>
+      <Shot id="shot-tools-v2-light" width={720} background={LIGHT.surface0}>
+        <ToolsV2 tokens={v2Light} />
       </Shot>
       <Shot id="shot-primitives-dark" width={640}>
         <Primitives tokens={v2Dark} />
