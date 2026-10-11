@@ -27,14 +27,15 @@ import { reasoningHeaderText } from "../reasoning/preview";
 import { CLAMPED_LINES, splitBodyRuns, type BodyRun } from "../reasoning/paragraphs";
 import { TYPE, UI_SCALE } from "../ui/tokens/typography";
 
-/** Section title size (plan §3.4 item 4): between the 12 meta and the 13 body. */
-const SECTION_TITLE_SIZE = 12.5;
-/** `MarkdownView variant="compact"` body line height; the clamp is six of these. */
+/** `MarkdownView variant="compact"` body line height; the clamp is four of these. */
 const COMPACT_LINE_HEIGHT = 19;
 
 function copyTextOf(text: string): string {
   return copyPlan({ kind: "reasoning", text }).primary?.text ?? "";
 }
+
+/** "Show more" is 28 tall; this brings it to a 44pt target on touch. */
+const MORE_SLOP = 8;
 
 // --- Body ------------------------------------------------------------------
 
@@ -47,7 +48,7 @@ interface LongParagraphProps {
 }
 
 /**
- * A plain paragraph over ~600 characters: six lines and "Show more". A
+ * A plain paragraph over ~600 characters: four lines and "Show more". A
  * paragraph that mounted while it was still streaming starts open and stays
  * open, so text the reader watched arrive never snaps shut under them. The
  * choice lives in the disclosure store, so remounting into history keeps it.
@@ -66,7 +67,7 @@ function LongParagraph({ text, tokens, storeKey, live }: LongParagraphProps) {
       <Pressable
         accessibilityRole="button"
         onPress={() => setOpen(!open)}
-        hitSlop={8}
+        hitSlop={MORE_SLOP}
         style={styles.moreButton}
       >
         <Text
@@ -145,8 +146,8 @@ interface SectionViewProps {
 }
 
 /**
- * One step: a 12.5 semibold title with no number, and its Markdown body,
- * behind a thin static rule. The title row carries a copy button for the
+ * One step: a 14/500 title with no number over its Markdown body, in the
+ * row's text column with no rule or box (S7 §3.2). The title row carries a copy button for the
  * section's own text — revealed on hover where the pointer can hover, and
  * always shown (muted) on touch, where the body only exists once expanded.
  */
@@ -162,7 +163,7 @@ function SectionViewBody({ section, tokens, compact, storeKey, live }: SectionVi
   }
   const showCopy = !capabilities.hover || hovered;
   return (
-    <View style={[styles.section, { borderLeftColor: tokens.v2.border }]}>
+    <View style={styles.section}>
       <Pressable accessible={false} focusable={false} {...hoverProps} style={styles.sectionTitleRow}>
         <Text
           selectable
@@ -444,8 +445,6 @@ const styles = StyleSheet.create({
     gap: space.md,
   },
   section: {
-    borderLeftWidth: 1,
-    paddingLeft: space.md,
     gap: space.xs,
   },
   sectionTitleRow: {
@@ -455,8 +454,9 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     flex: 1,
-    fontSize: SECTION_TITLE_SIZE,
-    fontWeight: "600",
+    fontSize: TYPE.label.size,
+    lineHeight: TYPE.label.lineHeight,
+    fontWeight: "500",
   },
   sectionBody: {
     gap: space.sm,
@@ -470,9 +470,12 @@ const styles = StyleSheet.create({
   },
   moreButton: {
     alignSelf: "flex-start",
-    marginTop: space.xs,
+    height: 28,
+    justifyContent: "center",
   },
   moreText: {
-    fontSize: UI_SCALE.base,
+    fontSize: TYPE.button.size,
+    lineHeight: TYPE.button.lineHeight,
+    fontWeight: "500",
   },
 });

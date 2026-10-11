@@ -24,7 +24,7 @@ import type {
   HubSendData,
   HubWaitedData,
 } from "../../shared/contracts";
-import { UI_SCALE } from "../ui/tokens/typography";
+import { TYPE, UI_SCALE } from "../ui/tokens/typography";
 
 interface HubCalloutProps {
   data: HubData;
@@ -239,7 +239,7 @@ function Chip({
   return (
     <Text
       selectable
-      style={[plain ? styles.chipPlain : styles.chip, { color: tone.fg, backgroundColor: tone.bg }]}
+      style={[plain ? styles.chipPlain : styles.chip, { color: tone.fg }]}
     >
       {label}
     </Text>
@@ -670,7 +670,7 @@ function JobsView({ data, text, tokens, styles }: HubViewProps<HubJobsData>) {
 
       {cancelled.length > 0 ? (
         <>
-          <Text style={styles.sectionLabel}>cancelled</Text>
+          <Text style={styles.sectionLabel}>Cancelled</Text>
           {cancelled.map((row) => (
             <View key={row.id} style={styles.rowHead}>
               <Chip label={row.status} tone={jobTone(row.status, tokens)} styles={styles} />
@@ -689,7 +689,7 @@ function JobsView({ data, text, tokens, styles }: HubViewProps<HubJobsData>) {
 
       {agents.length > 0 ? (
         <>
-          <Text style={styles.sectionLabel}>subagents without a job entry</Text>
+          <Text style={styles.sectionLabel}>Subagents without a job entry</Text>
           {agents.map((agent) => (
             <AgentRow key={agent.id} agent={agent} tokens={tokens} styles={styles} />
           ))}
@@ -983,7 +983,7 @@ function ProcessView({ data, text, tokens, styles }: HubViewProps<HubProcessData
 
       {data.matched ? (
         <View style={styles.rowHead}>
-          <Text style={styles.sectionLabel}>matched</Text>
+          <Text style={styles.sectionLabel}>Matched</Text>
           <Text {...(codeSurface as object)} selectable style={styles.rowLabel}>
             {data.matched}
           </Text>
@@ -992,7 +992,7 @@ function ProcessView({ data, text, tokens, styles }: HubViewProps<HubProcessData
 
       {data.input ? (
         <>
-          <Text style={styles.sectionLabel}>sent to stdin</Text>
+          <Text style={styles.sectionLabel}>Sent to stdin</Text>
           <MessageBody body={data.input} styles={styles} />
         </>
       ) : null}
@@ -1132,16 +1132,16 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
   return useMemo(
     () =>
       StyleSheet.create({
-        // One frame, no shadow (plan §3.6): 1px border on surface0, radius 8.
+        // The standalone card (the running jobs under the newest item) is the
+        // same surface1 slab as an opened tool body (S7 §3.4): no border.
         container: {
-          borderRadius: radiusV2.card,
-          backgroundColor: tokens.v2.surface0,
-          borderWidth: 1,
-          borderColor: tokens.v2.border,
+          borderRadius: radiusV2.block,
+          backgroundColor: tokens.v2.surface1,
           overflow: "hidden",
           ...selectableSurface,
           gap: space.sm,
-          padding: space.md,
+          paddingVertical: space.sm,
+          paddingHorizontal: space.md,
         },
         embedded: {
           borderWidth: 0,
@@ -1213,25 +1213,18 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
           gap: 5,
         },
 
+        // A status reads as coloured text, never a filled pill (S7 §3.4).
         chip: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          fontWeight: "700",
-          textTransform: "uppercase",
-          letterSpacing: 0.4,
-          paddingHorizontal: 6,
-          paddingVertical: 2,
-          borderRadius: radiusV2.chip,
-          overflow: "hidden",
+          fontSize: TYPE.caption.size,
+          lineHeight: TYPE.caption.lineHeight,
+          fontWeight: "500",
         },
         chipPlain: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          fontWeight: "600",
-          paddingHorizontal: 6,
-          paddingVertical: 2,
-          borderRadius: radiusV2.chip,
-          overflow: "hidden",
+          fontSize: TYPE.caption.size,
+          lineHeight: TYPE.caption.lineHeight,
+          fontWeight: "500",
         },
         // An id takes the free width and wraps there, so it never pushes a
         // chip or a duration off the card.
@@ -1256,20 +1249,16 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
         },
         marker: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          fontWeight: "700",
-          textTransform: "uppercase",
-          letterSpacing: 0.4,
+          fontSize: TYPE.caption.size,
+          fontWeight: "500",
           color: tokens.warning,
           ...unselectable,
         },
         sectionLabel: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          fontWeight: "700",
-          textTransform: "uppercase",
-          letterSpacing: 0.5,
-          color: tokens.foregroundSubtle,
+          fontSize: TYPE.caption.size,
+          fontWeight: "500",
+          color: tokens.foregroundMuted,
           ...unselectable,
         },
         errorText: {
@@ -1303,11 +1292,10 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
           ...unselectable,
         },
         messageBox: {
-          padding: 10,
+          paddingVertical: space.sm,
+          paddingHorizontal: space.md,
           borderRadius: radiusV2.block,
-          backgroundColor: tokens.surfaceCode,
-          borderLeftWidth: 3,
-          borderLeftColor: tokens.accent,
+          backgroundColor: tokens.v2.surface2,
         },
         messageText: {
           fontFamily: tokens.fontMono,
@@ -1316,11 +1304,10 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
           color: tokens.foreground,
         },
         replyBox: {
-          padding: 10,
+          paddingVertical: space.sm,
+          paddingHorizontal: space.md,
           borderRadius: radiusV2.block,
-          backgroundColor: tokens.surface0,
-          borderWidth: 1,
-          borderColor: tokens.borderSubtle,
+          backgroundColor: tokens.v2.surface2,
           gap: space.xs,
         },
         replyText: {
@@ -1330,12 +1317,11 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
           color: tokens.foregroundMuted,
         },
         codeBlock: {
-          padding: 10,
+          paddingVertical: space.sm,
+          paddingHorizontal: space.md,
           borderRadius: radiusV2.block,
-          backgroundColor: tokens.surfaceCode,
-          borderWidth: 1,
-          borderColor: tokens.borderSubtle,
-          gap: 6,
+          backgroundColor: tokens.v2.surface2,
+          gap: space.xs,
         },
         codeText: {
           fontFamily: tokens.fontMono,

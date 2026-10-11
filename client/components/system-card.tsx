@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { Glyph } from "./glyph";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { SyntaxHighlightBlock } from "./syntax-highlight";
@@ -8,7 +8,7 @@ import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface } from "./selection-actions";
 import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
 import { FadeIn } from "../ui/fade-in";
-import { UI_SCALE } from "../ui/tokens/typography";
+import { TYPE } from "../ui/tokens/typography";
 import type { SystemEnvelope, SystemEnvelopeKind } from "../system-envelope";
 
 interface SystemCardProps {
@@ -18,12 +18,12 @@ interface SystemCardProps {
   compact?: boolean;
 }
 
-const KIND_LOOK: Record<SystemEnvelopeKind, { glyph: string; label: string }> = {
-  job: { glyph: "ListChecks", label: "Job" },
-  message: { glyph: "Bot", label: "Agent" },
-  reminder: { glyph: "AlertCircle", label: "Reminder" },
-  process: { glyph: "Terminal", label: "Process" },
-  notice: { glyph: "CircleDot", label: "Notice" },
+const KIND_LOOK: Record<SystemEnvelopeKind, { icon: string; label: string }> = {
+  job: { icon: "CircleCheck", label: "Job" },
+  message: { icon: "Bot", label: "Agent" },
+  reminder: { icon: "CircleAlert", label: "Reminder" },
+  process: { icon: "SquareTerminal", label: "Process" },
+  notice: { icon: "Info", label: "Notice" },
 };
 
 /** Body longer than this opens closed: a job preview is pages of JSON. */
@@ -42,11 +42,11 @@ function bodyKind(envelope: SystemEnvelope): "json" | "output" | "prose" {
 
 /**
  * Harness text — a finished background job, an agent's relayed message, a
- * reminder — drawn as a row rather than as the model's own words (plan §3.6).
- *
- * Collapsed it is a bare `DisclosureHeader` row; expanded it takes the same
- * frame as a tool call. A failure is marked by a 2px danger rule on the left
- * and danger text, never by a tinted surface.
+ * reminder — drawn as a tool row rather than as the model's own words (S7
+ * design spec §3.4): the kind's icon, its label, the title, the envelope's
+ * figures as meta. Opened, the body sits on the same surface1 slab as a tool
+ * call's. A failed job shows a danger icon and "failed" in its meta, nothing
+ * more: no frame, no rule, no tinted surface.
  *
  * The host files these under the same item kind as a reply, so without this
  * the raw `<system-notice>` markup reads as something the model typed.
@@ -62,68 +62,42 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        ruled: {
-          borderLeftWidth: 2,
-          borderLeftColor: tokens.danger,
-          paddingLeft: space.xs,
-        },
-        // A transparent border while collapsed keeps the header from moving
-        // by a pixel when the frame appears.
-        frame: {
-          borderWidth: 1,
-          borderColor: "transparent",
-          borderRadius: radiusV2.card,
-          overflow: "hidden",
-          ...selectableSurface,
-        },
-        frameOpen: {
-          borderColor: tokens.v2.border,
-          backgroundColor: tokens.v2.surface0,
-        },
         title: {
+          flex: 1,
+          minWidth: 0,
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.md,
-          color: failed ? tokens.danger : tokens.foreground,
+          fontSize: TYPE.label.size,
+          lineHeight: TYPE.label.lineHeight,
+          color: tokens.foreground,
           ...unselectable,
-        },
-        staticRow: {
-          height: DISCLOSURE_HEADER.height.desktop,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: DISCLOSURE_HEADER.gap,
-          paddingHorizontal: DISCLOSURE_HEADER.paddingX,
-        },
-        staticVerb: {
-          fontFamily: tokens.fontUi,
-          fontSize: DISCLOSURE_HEADER.verb,
-          fontWeight: "500",
-          color: failed ? tokens.danger : tokens.foreground,
-          ...unselectable,
-        },
-        iconSlot: {
-          width: DISCLOSURE_HEADER.iconSlot,
-          alignItems: "center",
         },
         body: {
-          padding: space.sm,
-          borderTopWidth: 1,
-          borderTopColor: tokens.v2.borderSubtle,
+          marginTop: 2,
+          marginBottom: 6,
+          borderRadius: radiusV2.block,
+          overflow: "hidden",
+          backgroundColor: tokens.v2.surface1,
+        },
+        bodyInner: {
+          paddingVertical: space.sm,
+          paddingHorizontal: space.md,
+          ...selectableSurface,
         },
         prose: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.md,
-          lineHeight: 20,
+          fontSize: tokens.typography.content.size - 1,
+          lineHeight: TYPE.label.lineHeight + 2,
           color: tokens.foreground,
         },
       }),
-    [tokens, failed],
+    [tokens],
   );
 
   const icon = (
-    <Glyph
-      name={look.glyph}
+    <Icon
+      name={failed ? "CircleX" : look.icon}
       size={DISCLOSURE_HEADER.icon}
-      color={failed ? tokens.danger : tokens.foregroundMuted}
+      color={failed ? tokens.danger : envelope.kind === "job" ? tokens.success : tokens.foregroundMuted}
     />
   );
   const title = (
@@ -131,50 +105,41 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
       {envelope.title}
     </Text>
   );
-  const meta = envelope.chips.map((chip) => chip.value);
+  const meta: React.ReactNode[] = envelope.chips.map((chip) => chip.value);
+  if (failed) meta.push(<Text style={{ color: tokens.danger }}>failed</Text>);
 
-  const card = (
-    <View {...selectionSurface} style={[styles.frame, open && styles.frameOpen]}>
-      {hasBody ? (
-        <DisclosureHeader
-          expanded={expanded}
-          onToggle={() => setExpanded((prev) => !prev)}
-          tokens={tokens}
-          compact={compact}
-          icon={icon}
-          verb={look.label}
-          target={title}
-          meta={meta}
-          accessibilityLabel={`${look.label} ${envelope.title}`}
-        />
-      ) : (
-        <View style={styles.staticRow}>
-          <View style={styles.iconSlot}>{icon}</View>
-          <Text selectable={false} style={styles.staticVerb}>
-            {look.label}
-          </Text>
-          <View style={{ flex: 1, minWidth: 0 }}>{title}</View>
-        </View>
-      )}
+  return (
+    <>
+      <DisclosureHeader
+        expanded={open}
+        onToggle={hasBody ? () => setExpanded((prev) => !prev) : () => {}}
+        tokens={tokens}
+        compact={compact}
+        icon={icon}
+        verb={look.label}
+        target={title}
+        meta={meta}
+        accessibilityLabel={`${look.label} ${envelope.title}${failed ? ", failed" : ""}`}
+      />
       {open ? (
         <FadeIn style={styles.body}>
-          {kind === "prose" ? (
-            <Text selectable style={styles.prose}>
-              {envelope.body}
-            </Text>
-          ) : (
-            <SyntaxHighlightBlock
-              code={envelope.body}
-              language={kind === "json" ? "json" : "text"}
-              tokens={tokens}
-              compact
-            />
-          )}
+          <View {...selectionSurface} style={styles.bodyInner}>
+            {kind === "prose" ? (
+              <Text selectable style={styles.prose}>
+                {envelope.body}
+              </Text>
+            ) : (
+              <SyntaxHighlightBlock
+                code={envelope.body}
+                language={kind === "json" ? "json" : "text"}
+                tokens={tokens}
+                compact
+                bare
+              />
+            )}
+          </View>
         </FadeIn>
       ) : null}
-    </View>
+    </>
   );
-  // The rule sits outside the frame, so it stays a straight 2px line rather
-  // than following the frame's rounded corner.
-  return failed ? <View style={styles.ruled}>{card}</View> : card;
 }

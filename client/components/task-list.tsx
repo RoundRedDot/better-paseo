@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { Glyph } from "./glyph";
-import { radiusV2, space } from "./theme-tokens";
+import { Icon } from "@getpaseo/plugin/client/react-native";
+import { space } from "./theme-tokens";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface } from "./selection-actions";
 import type { ExtendedThemeTokens } from "./theme-tokens";
@@ -15,17 +15,21 @@ import {
 import { RunningDot } from "../ui/running-dot";
 import { FadeIn } from "../ui/fade-in";
 import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
-import { UI_SCALE } from "../ui/tokens/typography";
+import { TYPE } from "../ui/tokens/typography";
 
 interface TaskListProps {
   data: TaskListData;
   tokens: ExtendedThemeTokens;
+  /** `layout.compact`: 32pt rows. */
+  compact?: boolean;
   onToggleTask?: (taskId: string, newStatus: TaskStatus) => void;
 }
 
-/** Row height (plan §3.6): one line of 13px text, as in a native list. */
-const ROW_HEIGHT = 24;
+/** The static progress line in the header (S7 §3.3): 48 wide, 2 tall. */
+const PROGRESS_WIDTH = 48;
 const PROGRESS_HEIGHT = 2;
+/** The pending ring. */
+const RING = 10;
 
 const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
   pending: "in_progress",
@@ -35,12 +39,16 @@ const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
 };
 
 /**
- * The agent's checklist, flat (plan §3.6): a `Tasks · 3/7` header over a 2px
- * progress line, then one 24px row per task. The only motion is the
- * `RunningDot` of the task in progress; the progress line jumps to its new
- * value without animating.
+ * The agent's checklist as rows (S7 design spec §3.3): a header row —
+ * `Tasks 1/4` and a static 2px progress line — then one row per task in the
+ * same 22pt slot as a tool's icon, so a checklist lines up with the calls
+ * around it. No frame, no fill. The only motion is the `RunningDot` of the
+ * task in progress; the progress line jumps to its value.
+ *
+ * Four views per task: the row, its status button, the status mark and the
+ * title, which takes the same press.
  */
-export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
+export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskListProps) {
   // The host's list is the source of truth and is re-read on every update; a
   // tap only overrides a task until the host reports a new status for it.
   const [overrides, setOverrides] = useState<TaskOverrides>(NO_OVERRIDES);
@@ -49,41 +57,42 @@ export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
 
   const completedCount = tasks.filter((t) => t.status === "completed").length;
   const totalCount = tasks.length;
+  const allDone = totalCount > 0 && completedCount === totalCount;
   const progress = totalCount > 0 ? completedCount / totalCount : 0;
+  const rowHeight = compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop;
 
   const styles = useMemo(
     () =>
       StyleSheet.create({
         container: {
-          borderRadius: radiusV2.card,
-          borderWidth: 1,
-          borderColor: tokens.v2.border,
-          backgroundColor: tokens.v2.surface0,
-          overflow: "hidden",
           ...selectableSurface,
         },
-        header: {
-          height: DISCLOSURE_HEADER.height.desktop,
+        row: {
+          height: rowHeight,
           flexDirection: "row",
           alignItems: "center",
           gap: DISCLOSURE_HEADER.gap,
           paddingHorizontal: DISCLOSURE_HEADER.paddingX,
+          marginHorizontal: -DISCLOSURE_HEADER.bleed,
         },
-        iconSlot: {
+        slot: {
           width: DISCLOSURE_HEADER.iconSlot,
+          alignSelf: "stretch",
           alignItems: "center",
           justifyContent: "center",
         },
         headerTitle: {
           fontFamily: tokens.fontUi,
-          fontSize: DISCLOSURE_HEADER.verb,
+          fontSize: TYPE.label.size,
+          lineHeight: TYPE.label.lineHeight,
           fontWeight: "500",
           color: tokens.foreground,
           ...unselectable,
         },
         headerCount: {
-          fontFamily: tokens.fontUi,
-          fontSize: DISCLOSURE_HEADER.meta,
+          fontFamily: tokens.fontMono,
+          fontSize: TYPE.meta.size,
+          lineHeight: TYPE.meta.lineHeight,
           fontVariant: ["tabular-nums"],
           color: tokens.foregroundMuted,
           ...unselectable,
@@ -93,77 +102,63 @@ export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
           minWidth: 0,
           textAlign: "right",
           fontFamily: tokens.fontUi,
-          fontSize: DISCLOSURE_HEADER.meta,
+          fontSize: TYPE.caption.size,
           color: tokens.foregroundMuted,
           ...unselectable,
         },
+        spacer: { flex: 1 },
         progressTrack: {
+          width: PROGRESS_WIDTH,
           height: PROGRESS_HEIGHT,
-          backgroundColor: tokens.v2.borderSubtle,
+          backgroundColor: tokens.v2.surface2,
         },
         progressFill: {
           height: PROGRESS_HEIGHT,
-          backgroundColor: tokens.accent,
         },
-        list: {
-          paddingVertical: space.xs,
-        },
-        row: {
-          minHeight: ROW_HEIGHT,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: DISCLOSURE_HEADER.gap,
-          paddingHorizontal: DISCLOSURE_HEADER.paddingX,
-        },
-        statusSlot: {
-          width: DISCLOSURE_HEADER.iconSlot,
-          height: ROW_HEIGHT,
-          alignItems: "center",
-          justifyContent: "center",
-        },
-        titlePress: {
-          flex: 1,
-          minWidth: 0,
+        ring: {
+          width: RING,
+          height: RING,
+          borderRadius: RING / 2,
+          borderWidth: 1.5,
+          borderColor: tokens.foregroundSubtle,
         },
         title: {
+          flex: 1,
+          minWidth: 0,
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.md,
-          lineHeight: 18,
+          fontSize: TYPE.label.size,
+          lineHeight: TYPE.label.lineHeight,
           color: tokens.foreground,
         },
         titleDone: {
-          color: tokens.foregroundSubtle,
-          textDecorationLine: "line-through",
-        },
-        titleActive: {
-          fontWeight: "500",
+          color: tokens.foregroundMuted,
         },
         meta: {
-          fontFamily: tokens.fontUi,
-          fontSize: DISCLOSURE_HEADER.meta,
+          fontFamily: tokens.fontMono,
+          fontSize: TYPE.meta.size,
           fontVariant: ["tabular-nums"],
           color: tokens.foregroundMuted,
         },
         blocked: {
           fontFamily: tokens.fontUi,
-          fontSize: DISCLOSURE_HEADER.meta,
+          fontSize: TYPE.caption.size,
+          lineHeight: TYPE.caption.lineHeight,
           color: tokens.warning,
           ...unselectable,
         },
         reason: {
-          // Under the title, past the status slot.
-          paddingLeft: DISCLOSURE_HEADER.paddingX + DISCLOSURE_HEADER.iconSlot + DISCLOSURE_HEADER.gap,
-          paddingRight: DISCLOSURE_HEADER.paddingX,
+          // Under the title: the row's text column.
+          paddingLeft: DISCLOSURE_HEADER.textColumn,
           paddingBottom: space.xs,
         },
         reasonText: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          lineHeight: 16,
-          color: tokens.warning,
+          fontSize: TYPE.settingNote.size,
+          lineHeight: TYPE.settingNote.lineHeight,
+          color: tokens.foregroundMuted,
         },
       }),
-    [tokens],
+    [tokens, rowHeight],
   );
 
   const toggleStatus = (task: TaskItemData) => {
@@ -179,92 +174,104 @@ export function TaskList({ data, tokens, onToggleTask }: TaskListProps) {
 
   return (
     <View {...selectionSurface} style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.iconSlot}>
-          <Glyph name="ListChecks" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+      <View style={styles.row}>
+        <View style={styles.slot}>
+          <Icon
+            name={allDone ? "CircleCheck" : "ListChecks"}
+            size={DISCLOSURE_HEADER.icon}
+            color={allDone ? tokens.success : tokens.foregroundMuted}
+          />
         </View>
         <Text selectable={false} style={styles.headerTitle}>
           Tasks
         </Text>
         <Text selectable={false} style={styles.headerCount}>
-          {`· ${completedCount}/${totalCount}`}
+          {`${completedCount}/${totalCount}`}
         </Text>
         {phase ? (
           <Text selectable={false} numberOfLines={1} style={styles.phase}>
             {phase}
           </Text>
-        ) : null}
+        ) : (
+          <View style={styles.spacer} />
+        )}
+        <View
+          style={styles.progressTrack}
+          accessibilityRole="progressbar"
+          accessibilityValue={{ min: 0, max: totalCount, now: completedCount }}
+        >
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: Math.round(progress * PROGRESS_WIDTH),
+                backgroundColor: allDone ? tokens.success : tokens.accent,
+              },
+            ]}
+          />
+        </View>
       </View>
 
-      <View
-        style={styles.progressTrack}
-        accessibilityRole="progressbar"
-        accessibilityValue={{ min: 0, max: totalCount, now: completedCount }}
-      >
-        <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
-      </View>
+      {tasks.map((task) => {
+        const isDone = task.status === "completed";
+        const isActive = task.status === "in_progress";
+        const isBlocked = task.status === "blocked";
+        const isBlockedOpen = expandedBlockedId === task.id;
 
-      <View style={styles.list}>
-        {tasks.map((task) => {
-          const isDone = task.status === "completed";
-          const isActive = task.status === "in_progress";
-          const isBlocked = task.status === "blocked";
-          const isBlockedOpen = expandedBlockedId === task.id;
-
-          return (
-            <View key={task.id}>
-              <View style={styles.row}>
-                <Pressable
-                  accessibilityLabel={`Set ${task.title} status`}
-                  onPress={() => toggleStatus(task)}
-                  style={styles.statusSlot}
+        return (
+          <React.Fragment key={task.id}>
+            <View style={styles.row}>
+              <Pressable
+                accessibilityLabel={`Set ${task.title} status`}
+                hitSlop={compact ? 6 : 0}
+                onPress={() => toggleStatus(task)}
+                style={styles.slot}
+              >
+                {isActive ? (
+                  <RunningDot color={tokens.accent} accessibilityLabel="In progress" />
+                ) : isDone ? (
+                  <Icon name="Check" size={DISCLOSURE_HEADER.icon} color={tokens.success} />
+                ) : isBlocked ? (
+                  <Icon name="TriangleAlert" size={DISCLOSURE_HEADER.icon} color={tokens.warning} />
+                ) : (
+                  <View style={styles.ring} />
+                )}
+              </Pressable>
+              <Text
+                selectable
+                numberOfLines={1}
+                onPress={() => toggleStatus(task)}
+                style={[styles.title, isDone && styles.titleDone]}
+              >
+                {task.title}
+              </Text>
+              {isBlocked ? (
+                <Text
+                  selectable={false}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: isBlockedOpen }}
+                  onPress={() => setExpandedBlockedId(isBlockedOpen ? null : task.id)}
+                  style={styles.blocked}
                 >
-                  {isActive ? (
-                    <RunningDot color={tokens.accent} accessibilityLabel="In progress" />
-                  ) : isDone ? (
-                    <Glyph name="CheckCircle" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-                  ) : isBlocked ? (
-                    <Glyph name="AlertCircle" size={DISCLOSURE_HEADER.icon} color={tokens.warning} />
-                  ) : (
-                    <Glyph name="Circle" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundSubtle} />
-                  )}
-                </Pressable>
-                <Pressable onPress={() => toggleStatus(task)} style={styles.titlePress}>
-                  <Text
-                    selectable
-                    style={[styles.title, isDone && styles.titleDone, isActive && styles.titleActive]}
-                  >
-                    {task.title}
-                  </Text>
-                </Pressable>
-                {isBlocked ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ expanded: isBlockedOpen }}
-                    onPress={() => setExpandedBlockedId(isBlockedOpen ? null : task.id)}
-                  >
-                    <Text selectable={false} style={styles.blocked}>
-                      Blocked
-                    </Text>
-                  </Pressable>
-                ) : null}
-                {task.duration ? (
-                  <Text selectable style={styles.meta}>
-                    {task.duration}
-                  </Text>
-                ) : null}
-              </View>
-              {isBlocked && isBlockedOpen && task.blockerReason ? (
-                <FadeIn style={styles.reason}>
-                  <Text selectable style={styles.reasonText}>
-                    {task.blockerReason}
-                  </Text>
-                </FadeIn>
+                  Blocked
+                </Text>
+              ) : null}
+              {task.duration ? (
+                <Text selectable style={styles.meta}>
+                  {task.duration}
+                </Text>
               ) : null}
             </View>
-          );
-        })}
-      </View>
+            {isBlocked && isBlockedOpen && task.blockerReason ? (
+              <FadeIn style={styles.reason}>
+                <Text selectable style={styles.reasonText}>
+                  {task.blockerReason}
+                </Text>
+              </FadeIn>
+            ) : null}
+          </React.Fragment>
+        );
+      })}
     </View>
   );
 }

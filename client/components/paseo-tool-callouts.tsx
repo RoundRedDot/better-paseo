@@ -79,10 +79,6 @@ function CreateAgentView({
                 fontSize: UI_SCALE.base,
                 fontFamily: tokens.fontUi,
                 color: tokens.foregroundMuted,
-                backgroundColor: tokens.surface2,
-                paddingHorizontal: 6,
-                paddingVertical: 2,
-                borderRadius: radiusV2.block,
               }}
             >
               {data.model}
@@ -94,9 +90,7 @@ function CreateAgentView({
               style={{
                 fontSize: UI_SCALE.base,
                 fontWeight: "600",
-                textTransform: "uppercase",
                 color: tokens.accent,
-                backgroundColor: tokens.accentBg,
                 paddingHorizontal: 6,
                 paddingVertical: 2,
                 borderRadius: radiusV2.block,
@@ -115,7 +109,6 @@ function CreateAgentView({
             paddingHorizontal: space.sm,
             paddingVertical: 3,
             borderRadius: radiusV2.block,
-            backgroundColor: tokens.successBg,
           }}
         >
           <Glyph name="CheckCircle" size={11} color={tokens.success} />
@@ -138,12 +131,11 @@ function CreateAgentView({
           selectable
           style={{
             fontSize: UI_SCALE.base,
-            fontWeight: "700",
-            textTransform: "uppercase",
-            color: tokens.foregroundSubtle,
+            fontWeight: "500",
+            color: tokens.foregroundMuted,
           }}
         >
-          Initial Task Prompt
+          Initial task prompt
         </Text>
         <SyntaxHighlightBlock
           code={data.initialPrompt}
@@ -188,9 +180,7 @@ function ListProvidersView({
                 paddingHorizontal: 10,
                 paddingVertical: 7,
                 borderRadius: radiusV2.block,
-                backgroundColor: tokens.surface1,
-                borderWidth: 1,
-                borderColor: tokens.borderSubtle,
+                backgroundColor: tokens.v2.surface2,
               }}
             >
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -252,7 +242,6 @@ function ListProvidersView({
                   style={{
                     fontSize: UI_SCALE.base,
                     fontWeight: "600",
-                    textTransform: "uppercase",
                     color: isAvail ? tokens.success : tokens.foregroundSubtle,
                   }}
                 >
@@ -294,9 +283,7 @@ function ListModelsView({
               paddingHorizontal: 10,
               paddingVertical: 6,
               borderRadius: radiusV2.block,
-              backgroundColor: tokens.surface1,
-              borderWidth: 1,
-              borderColor: tokens.borderSubtle,
+              backgroundColor: tokens.v2.surface2,
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
@@ -332,7 +319,6 @@ function ListModelsView({
                     paddingHorizontal: 5,
                     paddingVertical: 1,
                     borderRadius: radiusV2.chip,
-                    backgroundColor: tokens.accentBg,
                   }}
                 >
                   <Glyph name="Brain" size={10} color={tokens.accent} />
@@ -354,10 +340,6 @@ function ListModelsView({
                   fontSize: UI_SCALE.base,
                   fontFamily: tokens.fontUi,
                   color: tokens.foregroundSubtle,
-                  backgroundColor: tokens.surface2,
-                  paddingHorizontal: 5,
-                  paddingVertical: 1,
-                  borderRadius: radiusV2.chip,
                 }}
               >
                 {m.contextTokens}

@@ -35,6 +35,8 @@ const { buildThemeTokens } = await import("../../client/components/theme-tokens"
 const { ToolCallout } = await import("../../client/components/tool-callouts");
 const { ReasoningCard } = await import("../../client/components/reasoning-trace");
 const { classifyTool } = await import("../../client/tools/classify");
+const { NoticeCallout } = await import("../../client/components/notice-callout");
+const { TaskList } = await import("../../client/components/task-list");
 
 const colors = {
   surface0: "#0f1115",
@@ -74,6 +76,9 @@ const BUDGET = {
   pathTarget: 8,
   failed: 7,
   reasoning: 6,
+  notice: 5,
+  /** Four tasks: the header row and four task rows. */
+  tasks: 26,
 } as const;
 
 describe("collapsed row view budget", () => {
@@ -97,6 +102,33 @@ describe("collapsed row view budget", () => {
           copyText: "x",
         }),
       BUDGET.reasoning,
+    ],
+    [
+      "notice, warning",
+      () =>
+        React.createElement(NoticeCallout, {
+          data: { id: "n", level: "warning", message: "The daemon restarted twice in 30s." },
+          tokens,
+        }),
+      BUDGET.notice,
+    ],
+    [
+      "task list, four tasks",
+      () =>
+        React.createElement(TaskList, {
+          data: {
+            id: "t",
+            phaseName: "Checklist Progress",
+            tasks: [
+              { id: "1", title: "Rename plugin", phase: "x", status: "completed" },
+              { id: "2", title: "Build the showcase", phase: "x", status: "in_progress" },
+              { id: "3", title: "Capture every component", phase: "x", status: "pending" },
+              { id: "4", title: "Open the file editor", phase: "x", status: "blocked" },
+            ],
+          },
+          tokens,
+        }),
+      BUDGET.tasks,
     ],
   ];
 
