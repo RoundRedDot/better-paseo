@@ -1,10 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
-import { frosted } from "./frosted";
 import { surfaceProps } from "./view-props";
-import { glowing } from "./glow";
-import { Rotate } from "./motion";
 import { radius } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { ProviderLogo } from "./provider-logo";
@@ -23,130 +20,36 @@ import type {
 interface PaseoToolCalloutProps {
   data: PaseoToolData;
   tokens: ExtendedThemeTokens;
-  defaultExpanded?: boolean;
 }
 
-export function PaseoToolCallout({ data, tokens, defaultExpanded = true }: PaseoToolCalloutProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
-
-  const styles = useMemo(
-    () =>
-      StyleSheet.create({
-        container: {
-          marginVertical: 8,
-          borderRadius: radius.card,
-          backgroundColor: tokens.surfaceGlass,
-          borderWidth: 1,
-          borderColor: tokens.border,
-          overflow: "hidden",
-          ...tokens.boxShadow,
-          ...selectableSurface,
-        },
-        header: {
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          paddingHorizontal: 12,
-          paddingVertical: 8,
-          backgroundColor: tokens.surface2,
-        },
-        headerLeft: {
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          flex: 1,
-        },
-        toolPill: {
-          fontSize: 11,
-          fontFamily: tokens.fontUi,
-          fontWeight: "700",
-          color: tokens.accent,
-          backgroundColor: tokens.accentBg,
-          paddingHorizontal: 6,
-          paddingVertical: 2,
-          borderRadius: radius.chip,
-        },
-        titleText: {
-          fontFamily: tokens.fontUi,
-          fontSize: 12,
-          fontWeight: "600",
-          color: tokens.foreground,
-          flexShrink: 1,
-        },
-        headerRight: {
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-        },
-        durationBadge: {
-          fontSize: 11,
-          fontFamily: tokens.fontUi,
-          color: tokens.foregroundSubtle,
-        },
-        body: {
-          padding: 12,
-          backgroundColor: tokens.surface0,
-          borderTopWidth: 1,
-          borderTopColor: tokens.borderSubtle,
-          gap: 10,
-        },
-      }),
-    [tokens],
-  );
-
+/**
+ * The body of a Paseo agent tool call. It draws no frame, header or
+ * disclosure of its own (plan §3.3 item 5): it sits inside the tool card,
+ * whose header already names the call and whose open state decides whether
+ * this is mounted at all.
+ */
+export function PaseoToolCallout({ data, tokens }: PaseoToolCalloutProps) {
   return (
-    <View
-      {...surfaceProps(frosted, glowing(tokens.isDark), selectionSurface)}
-      style={styles.container}
-    >
-      <Pressable onPress={() => setExpanded((p) => !p)} style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Glyph name="Paseo" size={13} color={tokens.accent} />
-          <Text selectable style={styles.toolPill}>
-            {data.tool}
-          </Text>
-          {data.createAgent && <ProviderLogo provider={data.createAgent.provider} size={14} />}
-          {data.models && <ProviderLogo provider={data.models.provider} size={14} />}
-          {data.activity && <ProviderLogo provider={data.activity.provider} size={14} />}
-          <Text selectable style={styles.titleText} numberOfLines={1}>
-            {data.createAgent?.title ||
-              (data.models && `Models for ${data.models.provider}`) ||
-              (data.activity && `Activity for ${data.activity.agentId}`) ||
-              (data.providers && `Discovered Providers (${data.providers.providers.length})`)}
-          </Text>
-        </View>
-
-        <View style={styles.headerRight}>
-          {data.durationMs ? (
-            <Text selectable style={styles.durationBadge}>
-              {data.durationMs}ms
-            </Text>
-          ) : null}
-          <Rotate active={expanded}>
-            <Glyph name="ChevronDown" size={16} color={tokens.foregroundMuted} />
-          </Rotate>
-        </View>
-      </Pressable>
-
-      {expanded && (
-        <View style={styles.body}>
-          {data.tool === "create_agent" && data.createAgent && (
-            <CreateAgentView data={data.createAgent} tokens={tokens} />
-          )}
-          {data.tool === "list_providers" && data.providers && (
-            <ListProvidersView data={data.providers} tokens={tokens} />
-          )}
-          {data.tool === "list_models" && data.models && (
-            <ListModelsView data={data.models} tokens={tokens} />
-          )}
-          {data.tool === "get_agent_activity" && data.activity && (
-            <GetActivityView data={data.activity} tokens={tokens} />
-          )}
-        </View>
+    <View {...surfaceProps(selectionSurface)} style={styles.body}>
+      {data.tool === "create_agent" && data.createAgent && (
+        <CreateAgentView data={data.createAgent} tokens={tokens} />
+      )}
+      {data.tool === "list_providers" && data.providers && (
+        <ListProvidersView data={data.providers} tokens={tokens} />
+      )}
+      {data.tool === "list_models" && data.models && (
+        <ListModelsView data={data.models} tokens={tokens} />
+      )}
+      {data.tool === "get_agent_activity" && data.activity && (
+        <GetActivityView data={data.activity} tokens={tokens} />
       )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  body: { gap: 10, ...selectableSurface },
+});
 
 function CreateAgentView({
   data,
