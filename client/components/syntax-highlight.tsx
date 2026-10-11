@@ -636,9 +636,14 @@ export function SyntaxHighlightBlock({
           color: tokens.accent,
           ...unselectable,
         },
+        // A line in the sideways scroller sizes to its own text: `flex: 0`
+        // would map to a zero basis on web and wrap every word.
         lineNoWrap: {
-          flex: 0,
           flexShrink: 0,
+          fontSize: 12,
+          lineHeight: 18,
+          fontFamily: tokens.fontCode,
+          color: tokens.foreground,
         },
         codeArea: {
           padding: compact ? 8 : 12,
@@ -747,7 +752,7 @@ export function SyntaxHighlightBlock({
               ]}
             >
               {showLineNumbers && <Text style={styles.lineNumber}>{idx + 1}</Text>}
-              <Text selectable style={scrollX ? [styles.lineContent, styles.lineNoWrap] : styles.lineContent}>
+              <Text selectable style={scrollX ? styles.lineNoWrap : styles.lineContent}>
                 {bodyLine
                   ? renderDiffBodyLine(line, bodyLine, tokens)
                   : shikiLine
