@@ -1,5 +1,5 @@
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, View, Text, Pressable, Platform, StyleSheet } from "react-native";
+import React, { useCallback, useContext, useMemo, useState } from "react";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { Glyph } from "./glyph";
 import { surfaceProps } from "./view-props";
@@ -23,8 +23,7 @@ import { CopyButton } from "../ui/copy-button";
 import { ActionMenuList, ActionMenuTrigger, useActionMenu, type ActionMenuItem } from "../ui/action-menu";
 import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
-import { useReducedMotion } from "../ui/use-reduced-motion";
-import { duration, easing } from "../ui/tokens/motion";
+import { FadeIn } from "../ui/fade-in";
 import { formatPath } from "../paths/format-path";
 import { summarizeTool } from "../tools/summarize";
 import { toolCopyPlan } from "../tools/copy";
@@ -294,27 +293,6 @@ function MetaPath({
       style={{ fontSize: 12, color: tokens.foregroundMuted }}
     />
   );
-}
-
-/** The expand fade (plan §3.7): opacity 0 → 1 over 120 ms; none under reduced motion. */
-function FadeIn({ style, children }: { style: ViewStyle | ViewStyle[]; children: React.ReactNode }) {
-  const reducedMotion = useReducedMotion();
-  const opacity = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
-  useEffect(() => {
-    if (reducedMotion) {
-      opacity.setValue(1);
-      return;
-    }
-    const fade = Animated.timing(opacity, {
-      toValue: 1,
-      duration: duration.fast,
-      easing: easing.out,
-      useNativeDriver: Platform.OS !== "web",
-    });
-    fade.start();
-    return () => fade.stop();
-  }, [opacity, reducedMotion]);
-  return <Animated.View style={[style, { opacity }]}>{children}</Animated.View>;
 }
 
 const styles = StyleSheet.create({
