@@ -954,9 +954,38 @@ function LiveUserMessageRendererBody({
 // gives every row a fresh theme and data object on every streamed chunk, so
 // reference equality never holds. See `state/render-equality.ts` for what
 // each comparator treats as "unchanged".
-export const LiveToolCallRenderer = memo(LiveToolCallRendererBody, toolPropsEqual);
-export const LiveReasoningRenderer = memo(LiveReasoningRendererBody, reasoningPropsEqual);
-export const LiveTodoRenderer = memo(LiveTodoRendererBody, todoPropsEqual);
-export const LiveAssistantRenderer = memo(LiveAssistantRendererBody, assistantPropsEqual);
-export const LiveNoticeRenderer = memo(LiveNoticeRendererBody, noticePropsEqual);
-export const LiveUserMessageRenderer = memo(LiveUserMessageRendererBody, userMessagePropsEqual);
+//
+// Each export is a plain function around its memoised body: the host's
+// `addTimelineRenderer` requires `typeof Component === "function"` and
+// rejects the object `memo` returns, which drops every contribution in
+// `contribute`. The wrapper renders one element; the body bails out.
+const ToolCallMemo = memo(LiveToolCallRendererBody, toolPropsEqual);
+const ReasoningMemo = memo(LiveReasoningRendererBody, reasoningPropsEqual);
+const TodoMemo = memo(LiveTodoRendererBody, todoPropsEqual);
+const AssistantMemo = memo(LiveAssistantRendererBody, assistantPropsEqual);
+const NoticeMemo = memo(LiveNoticeRendererBody, noticePropsEqual);
+const UserMessageMemo = memo(LiveUserMessageRendererBody, userMessagePropsEqual);
+
+export function LiveToolCallRenderer(props: PluginTimelineItemProps<LiveToolCallPayload>) {
+  return <ToolCallMemo {...props} />;
+}
+
+export function LiveReasoningRenderer(props: PluginTimelineItemProps<LiveReasoningPayload>) {
+  return <ReasoningMemo {...props} />;
+}
+
+export function LiveTodoRenderer(props: PluginTimelineItemProps<LiveTodoPayload>) {
+  return <TodoMemo {...props} />;
+}
+
+export function LiveAssistantRenderer(props: PluginTimelineItemProps<LiveAssistantPayload>) {
+  return <AssistantMemo {...props} />;
+}
+
+export function LiveNoticeRenderer(props: PluginTimelineItemProps<LiveNoticePayload>) {
+  return <NoticeMemo {...props} />;
+}
+
+export function LiveUserMessageRenderer(props: PluginTimelineItemProps<LiveUserMessagePayload>) {
+  return <UserMessageMemo {...props} />;
+}
