@@ -300,8 +300,9 @@ the host's options and compiles it with `hermesc` from the `react-native`
 devDependency. Any error is mapped back to its source file and line. The
 script then evaluates the bundle in the bundled `hermes` VM against stub
 modules, calls `contribute`, and checks the host's registration rules. Pass
-`--no-run` to compile only. The script uses no new dependency: esbuild comes
-from the root install (through vitest) or from `.showcase/`.
+`--no-run` to compile only. esbuild is a root devDependency, pinned to the
+same release vitest resolves, so the check does not hang on a transitive
+install.
 
 What must not reach client code, including client dependencies:
 
