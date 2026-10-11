@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 import { useAgent, usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { useRevealedText } from "@getpaseo/plugin/client/react-native";
 import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { buildThemeTokens } from "./components/theme-tokens";
+import { useThemeTokens } from "./components/theme-tokens";
 import { ToolCallout } from "./components/tool-callouts";
 import { ReasoningTrace } from "./components/reasoning-trace";
 import { TaskList } from "./components/task-list";
@@ -42,6 +42,14 @@ import { revealPathRpc } from "../shared/file-rpc";
 import { buildGitHubData } from "./github-request";
 import { useImageFile } from "./image-file";
 import { probeCard, textItemKey } from "./debug/perf";
+import {
+  assistantPropsEqual,
+  noticePropsEqual,
+  reasoningPropsEqual,
+  todoPropsEqual,
+  toolPropsEqual,
+  userMessagePropsEqual,
+} from "./state/render-equality";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -385,7 +393,7 @@ export function languageFromPath(filePath?: string): string | undefined {
   return LANGUAGE_BY_EXTENSION[ext];
 }
 
-export function LiveToolCallRenderer({
+function LiveToolCallRendererBody({
   agentId,
   item,
   theme,
@@ -400,10 +408,7 @@ export function LiveToolCallRenderer({
   const revealPath = useRpc(revealPathRpc);
   const cwd = useAgent(agentId, (agent) => agent.cwd);
   const preferences = useEnhancerPreferences();
-  const tokens = useMemo(
-    () => buildThemeTokens(theme.colors, preferences),
-    [theme.colors, preferences],
-  );
+  const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
   usePointerGlow(preferences.pointerGlow);
   const data = item.data;
@@ -642,9 +647,10 @@ export function LiveToolCallRenderer({
   );
 }
 
-export function LiveReasoningRenderer({
+function LiveReasoningRendererBody({
   item,
   theme,
+  layout,
 }: PluginTimelineItemProps<LiveReasoningPayload>) {
   const probe = probeCard(
     "reasoning",
@@ -652,10 +658,7 @@ export function LiveReasoningRenderer({
     item.data.phase === undefined ? null : item.data.phase === "streaming",
   );
   const preferences = useEnhancerPreferences();
-  const tokens = useMemo(
-    () => buildThemeTokens(theme.colors, preferences),
-    [theme.colors, preferences],
-  );
+  const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
   usePointerGlow(preferences.pointerGlow);
   const data = item.data;
@@ -717,17 +720,15 @@ export function LiveReasoningRenderer({
   );
 }
 
-export function LiveTodoRenderer({
+function LiveTodoRendererBody({
   item,
   theme,
+  layout,
   timestamp,
 }: PluginTimelineItemProps<LiveTodoPayload>) {
   const probe = probeCard("todo", String(timestamp.getTime()), item.data.phase === "streaming");
   const preferences = useEnhancerPreferences();
-  const tokens = useMemo(
-    () => buildThemeTokens(theme.colors, preferences),
-    [theme.colors, preferences],
-  );
+  const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
   usePointerGlow(preferences.pointerGlow);
   const data = item.data;
@@ -771,18 +772,16 @@ export interface LiveAssistantPayload {
  * images, its own file-path links — so `assistantMarkdown` exists to hand the
  * turn back when a reply needs any of that.
  */
-export function LiveAssistantRenderer({
+function LiveAssistantRendererBody({
   agentId,
   item,
   theme,
+  layout,
   timestamp,
 }: PluginTimelineItemProps<LiveAssistantPayload>) {
   const probe = probeCard("assistant", textItemKey("assistant", item.data.text));
   const preferences = useEnhancerPreferences();
-  const tokens = useMemo(
-    () => buildThemeTokens(theme.colors, preferences),
-    [theme.colors, preferences],
-  );
+  const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
   usePointerGlow(preferences.pointerGlow);
 
@@ -829,17 +828,15 @@ export function LiveAssistantRenderer({
  * which reads as a different product beside the plugin's callouts. Both carry
  * only a level and a message, so the card is a badge plus that message.
  */
-export function LiveNoticeRenderer({
+function LiveNoticeRendererBody({
   item,
   theme,
+  layout,
   timestamp,
 }: PluginTimelineItemProps<LiveNoticePayload>) {
   const probe = probeCard("notice", String(timestamp.getTime()));
   const preferences = useEnhancerPreferences();
-  const tokens = useMemo(
-    () => buildThemeTokens(theme.colors, preferences),
-    [theme.colors, preferences],
-  );
+  const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
   usePointerGlow(preferences.pointerGlow);
   const data = item.data;
@@ -878,18 +875,16 @@ export interface LiveUserMessagePayload {
  */
 const LIVE_WINDOW_MS = 5 * 60 * 1000;
 
-export function LiveUserMessageRenderer({
+function LiveUserMessageRendererBody({
   item,
   theme,
+  layout,
   agentId,
   timestamp,
 }: PluginTimelineItemProps<LiveUserMessagePayload>) {
   const probe = probeCard("user_message", item.data.messageId ?? String(timestamp.getTime()));
   const preferences = useEnhancerPreferences();
-  const tokens = useMemo(
-    () => buildThemeTokens(theme.colors, preferences),
-    [theme.colors, preferences],
-  );
+  const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
   usePointerGlow(preferences.pointerGlow);
   const paseo = usePaseo();
@@ -954,3 +949,14 @@ export function LiveUserMessageRenderer({
     </View>
   );
 }
+
+// The registered renderers, behind semantic memo (plan §3.2): Paseo 0.11.2
+// gives every row a fresh theme and data object on every streamed chunk, so
+// reference equality never holds. See `state/render-equality.ts` for what
+// each comparator treats as "unchanged".
+export const LiveToolCallRenderer = memo(LiveToolCallRendererBody, toolPropsEqual);
+export const LiveReasoningRenderer = memo(LiveReasoningRendererBody, reasoningPropsEqual);
+export const LiveTodoRenderer = memo(LiveTodoRendererBody, todoPropsEqual);
+export const LiveAssistantRenderer = memo(LiveAssistantRendererBody, assistantPropsEqual);
+export const LiveNoticeRenderer = memo(LiveNoticeRendererBody, noticePropsEqual);
+export const LiveUserMessageRenderer = memo(LiveUserMessageRendererBody, userMessagePropsEqual);
