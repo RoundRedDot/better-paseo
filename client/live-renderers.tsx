@@ -21,6 +21,7 @@ import type { TurnUsage } from "./components/user-message";
 import { NoticeCallout } from "./components/notice-callout";
 import { useEnhancerPreferences } from "./preferences";
 import { PreferenceSyncSlot } from "./state/preference-sync-slot";
+import { useIsLatestPrompt } from "./state/latest-prompt";
 import { publishHubSnapshot } from "./hub-activity";
 import { MarkdownView } from "./components/markdown/markdown-view";
 import { TimelineTailHub } from "./components/hub-live";
@@ -430,17 +431,23 @@ function LiveUserMessageRendererBody({
     [timestamp],
   );
 
-  const snapshot = useAgent(agentId, (agent) => ({
-    status: agent.status,
-    updatedAt: agent.updatedAt,
-  }));
-  const running = snapshot?.status === "running";
-
+  // Only the newest prompt of the agent follows it live (defect D3): an
+  // older turn's figures are final, and subscribing every prompt card to
+  // the agent's status re-rendered all of them on each agent update. The
+  // selector returns a primitive, and a constant null for cards that do not
+  // track, so agent updates never reach those cards.
+  const atMs = timestamp.getTime();
+  const latest = useIsLatestPrompt(agentId, item.data.messageId ?? `at:${atMs}`, atMs);
   const [usage, setUsage] = useState<TurnUsage | null>(null);
   const [frozen, setFrozen] = useState(false);
+  const tracking = observedLive && latest && !frozen;
+  const liveKey = useAgent(agentId, (agent) =>
+    tracking ? `${agent.status}|${agent.updatedAt}` : null,
+  );
+  const running = liveKey !== null && liveKey.startsWith("running|");
 
   useEffect(() => {
-    if (!observedLive || frozen) return;
+    if (!tracking) return;
     let cancelled = false;
     handle
       .refresh()
@@ -455,7 +462,7 @@ function LiveUserMessageRendererBody({
     return () => {
       cancelled = true;
     };
-  }, [handle, observedLive, frozen, running, snapshot?.updatedAt]);
+  }, [handle, tracking, running, liveKey]);
 
   // The same envelopes reach this item kind on some hosts and on history
   // replay. A job result is not something the user said, so it never takes the
@@ -478,7 +485,7 @@ function LiveUserMessageRendererBody({
           timestamp={timestamp}
           tokens={tokens}
           usage={observedLive ? usage : null}
-          pending={running && !frozen}
+          pending={running && tracking}
         />
       )}
     </View>
