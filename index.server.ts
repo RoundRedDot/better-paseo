@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { open, stat, type FileHandle } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
+import { PREFERENCES_SETTINGS } from "./shared/preferences-settings";
 import { revealPathRpc } from "./shared/file-rpc";
 import { type HighlightLine, type HighlightToken, highlightRpc } from "./shared/highlight-rpc";
 import { imageRpc } from "./shared/image-rpc";
@@ -449,6 +450,11 @@ function tokenize(
 }
 
 export default function contribute(server: PluginServerContext) {
+  // Presentation preferences live in the daemon (host scope), so every
+  // client — including iOS and Android, which have no localStorage — reads
+  // and saves the same record (S5 fix round 1).
+  server.registerSettings(PREFERENCES_SETTINGS);
+
   server.handle(revealPathRpc, async (input) => {
     const requested = stripSelector(input.path);
     if (!requested) return { revealed: null, error: "No path" };

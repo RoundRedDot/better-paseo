@@ -1,4 +1,14 @@
 import { useSyncExternalStore } from "react";
+import {
+  CODE_FONT_SIZE_MAX,
+  CODE_FONT_SIZE_MIN,
+  clampCodeFontSize,
+  preferencesSchema,
+  type StoredPreferences,
+} from "../shared/preferences-settings";
+
+export { CODE_FONT_SIZE_MAX, CODE_FONT_SIZE_MIN, clampCodeFontSize };
+export type { StoredPreferences };
 
 export const ACCENT_PRESETS = {
   host: undefined,
@@ -25,9 +35,6 @@ export type MonoFontPreference = "host" | "iosevka" | "custom";
 /** Tool cards start collapsed; `expand-failed` opens failed ones by default. */
 export type ToolDetailPreference = "collapsed" | "expand-failed";
 export type PathDisplayPreference = "relative" | "absolute";
-
-export const CODE_FONT_SIZE_MIN = 10;
-export const CODE_FONT_SIZE_MAX = 22;
 
 export interface EnhancerPreferences {
   accent: AccentPreset;
@@ -103,9 +110,16 @@ export function monoChoiceUpdate(choice: MonoChoice): Partial<EnhancerPreference
   return { monoFont: "custom" };
 }
 
+/**
+ * Web `localStorage`, kept as a fast-start cache of the daemon's settings
+ * (and, before fix round 1 of S5, the store itself). The daemon is the
+ * source of truth on every platform; see `shared/preferences-settings.ts`.
+ */
 export const STORAGE_KEY = "paseo/beautiful-chat/preferences/v2";
 /** Read once, to migrate; never written again. */
 export const LEGACY_STORAGE_KEY = "paseo/beautiful-chat/preferences/v1";
+/** Set once this client's local record has been offered to the daemon. */
+export const MIGRATED_KEY = "paseo/beautiful-chat/preferences/migrated-to-daemon";
 
 export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   accent: "host",
@@ -134,55 +148,24 @@ function storage(): PreferenceStorage | undefined {
   return candidate.localStorage;
 }
 
-function isAccentPreset(value: unknown): value is AccentPreset {
-  return typeof value === "string" && value in ACCENT_PRESETS;
-}
-
-function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
-  return typeof value === "string" && (allowed as readonly string[]).includes(value)
-    ? (value as T)
-    : fallback;
-}
-
-function flag(value: unknown, fallback: boolean): boolean {
-  return typeof value === "boolean" ? value : fallback;
-}
-
-export function clampCodeFontSize(value: number): number {
-  return Math.min(CODE_FONT_SIZE_MAX, Math.max(CODE_FONT_SIZE_MIN, Math.round(value)));
-}
-
-/** Validates a stored v2 record field by field; anything unusable takes its default. */
+/** Validates a record field by field; anything unusable takes its default. */
 export function parsePreferences(raw: unknown): EnhancerPreferences {
   const candidate = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-  const d = DEFAULT_PREFERENCES;
-  return {
-    accent: isAccentPreset(candidate.accent) ? candidate.accent : d.accent,
-    uiFont: oneOf(candidate.uiFont, ["host", "inter", "system"], d.uiFont),
-    codeFont: oneOf(candidate.codeFont, ["code", "plain"], d.codeFont),
-    monoFont: oneOf(candidate.monoFont, ["host", "iosevka", "custom"], d.monoFont),
-    customMonoFont:
-      typeof candidate.customMonoFont === "string"
-        ? candidate.customMonoFont.trim().slice(0, 200)
-        : d.customMonoFont,
-    codeFontSize:
-      typeof candidate.codeFontSize === "number" && Number.isFinite(candidate.codeFontSize)
-        ? clampCodeFontSize(candidate.codeFontSize)
-        : d.codeFontSize,
-    toolDetail: oneOf(candidate.toolDetail, ["collapsed", "expand-failed"], d.toolDetail),
-    pathDisplay: oneOf(candidate.pathDisplay, ["relative", "absolute"], d.pathDisplay),
-    frostedGlass: flag(candidate.frostedGlass, d.frostedGlass),
-    pointerGlow: flag(candidate.pointerGlow, d.pointerGlow),
-    enhancedUserBubble: flag(candidate.enhancedUserBubble, d.enhancedUserBubble),
-    selectionActions: flag(candidate.selectionActions, d.selectionActions),
-    assistantMarkdown: flag(candidate.assistantMarkdown, d.assistantMarkdown),
-    markdownVariant: oneOf(
-      candidate.markdownVariant,
-      ["document", "compact", "terminal"],
-      d.markdownVariant,
-    ),
-    debugPerf: candidate.debugPerf === true,
-  };
+  return { ...preferencesSchema.parse(candidate), debugPerf: candidate.debugPerf === true };
+}
+
+/** The part of the preferences the daemon stores: all but the local debug flag. */
+export function storedPart(preferences: EnhancerPreferences): StoredPreferences {
+  const { debugPerf: _debugPerf, ...stored } = preferences;
+  return stored;
+}
+
+/** Field-by-field equality of the stored part. */
+export function sameStored(a: StoredPreferences, b: StoredPreferences): boolean {
+  for (const key of Object.keys(a) as Array<keyof StoredPreferences>) {
+    if (a[key] !== b[key]) return false;
+  }
+  return Object.keys(a).length === Object.keys(b).length;
 }
 
 /**
@@ -236,35 +219,84 @@ function loadPreferences(): EnhancerPreferences {
 }
 
 let preferences = loadPreferences();
+let persister: ((values: StoredPreferences) => void) | null = null;
 
 function publish(): void {
   for (const listener of listeners) listener();
+}
+
+function writeCache(): void {
+  try {
+    storage()?.setItem(STORAGE_KEY, JSON.stringify(preferences));
+  } catch {
+    // Browser storage can be disabled; the in-memory value still holds.
+  }
 }
 
 export function getEnhancerPreferences(): EnhancerPreferences {
   return preferences;
 }
 
+/**
+ * Where a change the reader makes goes after the in-memory store: the
+ * daemon sync (`state/preference-sync.ts`) registers itself here.
+ */
+export function setPreferencePersister(next: ((values: StoredPreferences) => void) | null): void {
+  persister = next;
+}
+
+/**
+ * A change from the reader: applied at once (renderers read this store
+ * synchronously), cached on web, and handed to the daemon sync, which saves
+ * it against the settings revision.
+ */
 export function updateEnhancerPreferences(update: Partial<EnhancerPreferences>): void {
+  const before = storedPart(preferences);
   preferences = { ...preferences, ...update };
-  try {
-    storage()?.setItem(STORAGE_KEY, JSON.stringify(preferences));
-  } catch {
-    // Browser storage can be disabled. Keep the change alive for this session.
-  }
+  writeCache();
   publish();
+  const after = storedPart(preferences);
+  if (!sameStored(before, after)) persister?.(after);
 }
 
 export function resetEnhancerPreferences(): void {
-  preferences = { ...DEFAULT_PREFERENCES };
-  try {
-    // Written rather than removed: an absent v2 record would re-run the v1
-    // migration on the next load and bring the old choices back.
-    storage()?.setItem(STORAGE_KEY, JSON.stringify(preferences));
-  } catch {
-    // Keep the default session value if storage is unavailable.
-  }
+  updateEnhancerPreferences({ ...storedPart(DEFAULT_PREFERENCES) });
+}
+
+/**
+ * Values from the daemon. Replaces the stored part (the local debug flag is
+ * kept) and notifies only when something actually changed, so a settings
+ * read that matches the cache costs no render.
+ */
+export function applyStoredPreferences(values: StoredPreferences): void {
+  if (sameStored(storedPart(preferences), values)) return;
+  preferences = { ...values, debugPerf: preferences.debugPerf };
+  writeCache();
   publish();
+}
+
+/**
+ * This client's own record from before the daemon stored preferences (web
+ * `localStorage`, v2 or v1), offered once to a daemon that has none. Null
+ * when there is none or it was offered already.
+ */
+export function legacyLocalPreferences(): StoredPreferences | null {
+  const store = storage();
+  try {
+    if (!store || store.getItem(MIGRATED_KEY)) return null;
+    if (!store.getItem(STORAGE_KEY) && !store.getItem(LEGACY_STORAGE_KEY)) return null;
+  } catch {
+    return null;
+  }
+  return storedPart(readStoredPreferences(store));
+}
+
+export function markLegacyMigrated(): void {
+  try {
+    storage()?.setItem(MIGRATED_KEY, "1");
+  } catch {
+    // Without storage there is no local record to offer twice.
+  }
 }
 
 /** Calls `listener` after every change. Returns the unsubscribe function. */

@@ -20,6 +20,21 @@ import {
   type UiFontPreference,
 } from "./preferences";
 import { NATIVE_MONO_CHOICES, UI_SCALE, readHostTypography } from "./ui/tokens/typography";
+import { usePreferenceSettings } from "./state/preference-sync-slot";
+import type { SyncStatus } from "./state/preference-sync";
+
+/** What the settings page says about the daemon store, or null when all is well. */
+function storageHint(sync: SyncStatus): string | null {
+  if (sync.failed) return "Your last change could not be saved to this Paseo host. It applies on this client until the next change or reload.";
+  if (sync.status === "invalid") {
+    return `The settings stored on this Paseo host could not be read, so the defaults are shown. Changing any setting replaces the stored record. (${sync.error ?? "invalid"})`;
+  }
+  if (sync.status === "error") {
+    return `The settings stored on this Paseo host are unreachable right now; the last known values are shown, and a change is saved once the host answers. (${sync.error ?? "error"})`;
+  }
+  if (sync.status === "loading") return "Loading the settings stored on this Paseo host…";
+  return null;
+}
 
 const ACCENT_OPTIONS: ReadonlyArray<{
   id: AccentPreset;
@@ -395,6 +410,10 @@ function CodeSizeRow({ value, tokens }: { value: number | null; tokens: Extended
 /** Settings content mounted by Paseo under the selected host's Plugin settings. */
 export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps) {
   const preferences = useEnhancerPreferences();
+  // The settings screen reads (and, through the store, saves) the daemon
+  // record itself, so it works with no chat open.
+  const sync = usePreferenceSettings();
+  const hint = storageHint(sync);
   const platform =
     layout?.platform ?? (Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : "web");
   const native = platform !== "web";
@@ -433,9 +452,25 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
         <Text
           style={[styles.description, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}
         >
-          Changes apply to every enhanced tool call, reasoning trace, checklist, and prompt in this
-          client.
+          Saved on this Paseo host and shared by every client connected to it (desktop, web, iOS,
+          Android). Options a platform cannot draw fall back there.
         </Text>
+        {hint ? (
+          <Text
+            accessibilityRole="alert"
+            style={[
+              styles.hint,
+              styles.storageHint,
+              {
+                color: sync.status === "loading" ? tokens.foregroundMuted : tokens.warning,
+                borderColor: tokens.v2.borderSubtle,
+                fontFamily: tokens.fontUi,
+              },
+            ]}
+          >
+            {hint}
+          </Text>
+        ) : null}
       </View>
 
       <GroupTitle title="Appearance" tokens={tokens} />
@@ -703,6 +738,7 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: UI_SCALE.lg, fontWeight: "500" },
   rowDescription: { fontSize: UI_SCALE.base, lineHeight: 17 },
   hint: { fontSize: UI_SCALE.base, lineHeight: 17 },
+  storageHint: { marginTop: space.xs, padding: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
   options: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.sm },
   option: {
     minHeight: 28,
