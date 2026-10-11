@@ -24,12 +24,13 @@ export type AccentPreset = keyof typeof ACCENT_PRESETS;
  * renders it as the system face, since a plugin cannot register fonts there.
  */
 export type UiFontPreference = "host" | "inter" | "system";
-/** Ligatures inside code blocks (`code`, the Iosevka Code cut) or literal glyphs. */
+/** Ligatures inside code blocks (`code`, the Iosevka Code cut) or literal glyphs. Only Iosevka has the cut. */
 export type CodeFontPreference = "code" | "plain";
 export type MarkdownVariantPreference = "document" | "compact" | "terminal";
 /**
  * `host` follows Paseo: its mono font once the host exposes typography, until
- * then the embedded Iosevka on web and the platform monospace on iOS/Android.
+ * then Paseo's own default monospace stack on web and the platform monospace
+ * on iOS/Android. The embedded Iosevka is drawn only when picked.
  */
 export type MonoFontPreference = "host" | "iosevka" | "custom";
 /** Tool cards start collapsed; `expand-failed` opens failed ones by default. */
@@ -98,8 +99,8 @@ export function monoChoice(preferences: Pick<EnhancerPreferences, "monoFont" | "
 export function monoChoiceUpdate(choice: MonoChoice): Partial<EnhancerPreferences> {
   if (choice === "iosevka") return { monoFont: "iosevka", codeFont: "plain" };
   if (choice === "iosevka-code") return { monoFont: "iosevka", codeFont: "code" };
-  // Follow Paseo keeps today's look on a host without typography (D2): the
-  // embedded Iosevka with its ligature cut in code blocks.
+  // Follow Paseo draws the host's own mono, which has no ligature cut;
+  // `codeFont` returns to its default so a later Iosevka pick starts there.
   if (choice === "host") return { monoFont: "host", codeFont: "code" };
   return { monoFont: "custom" };
 }

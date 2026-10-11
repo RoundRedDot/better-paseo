@@ -1,6 +1,6 @@
 import { EMBEDDED_FONTS } from "./font-data";
-import { fontMono } from "./theme-tokens";
-import { EMBEDDED_FAMILY } from "../ui/tokens/typography";
+import { EMBEDDED_FAMILY, type TypographyPlatform } from "../ui/tokens/typography";
+import type { EnhancerPreferences } from "../preferences";
 
 const STYLE_ELEMENT_ID = "beautiful-chat-fonts";
 
@@ -25,6 +25,10 @@ const LOCAL_FALLBACKS: Record<string, readonly string[]> = {
  *
  * Injection is idempotent: a second client mounting reuses the existing style
  * element rather than parsing 75 KB of font data again.
+ *
+ * The plugin calls it only through `ensureEmbeddedFonts`, once a reader has
+ * picked a face that needs it: "Follow Paseo" draws with the host's own
+ * stacks and never references an embedded family.
  */
 export function embedFonts(): () => void {
   if (typeof document === "undefined") return () => {};
@@ -52,6 +56,32 @@ export function embedFonts(): () => void {
   return () => {
     style.remove();
   };
+}
+
+/**
+ * Whether these preferences draw an embedded face: Iosevka (or Iosevka Code)
+ * for monospace, or Inter for the interface. Web only; native never loads
+ * them.
+ */
+export function needsEmbeddedFonts(
+  preferences: Pick<EnhancerPreferences, "monoFont" | "uiFont">,
+  platform: TypographyPlatform,
+): boolean {
+  return platform === "web" && (preferences.monoFont === "iosevka" || preferences.uiFont === "inter");
+}
+
+/** Installs the embedded faces the first time a reader's choice needs them. */
+export function ensureEmbeddedFonts(
+  preferences: Pick<EnhancerPreferences, "monoFont" | "uiFont">,
+  platform: TypographyPlatform,
+): void {
+  if (needsEmbeddedFonts(preferences, platform)) embedFonts();
+}
+
+/** Removes the embedded faces, if anything installed them (plugin unload). */
+export function removeEmbeddedFonts(): void {
+  if (typeof document === "undefined") return;
+  document.getElementById(STYLE_ELEMENT_ID)?.remove();
 }
 
 /**
@@ -86,7 +116,7 @@ export async function probeFonts(): Promise<string> {
   if (!fonts) return "Fonts: FontFaceSet unavailable on this host";
 
   const parts: string[] = [];
-  for (const family of [EMBEDDED_FAMILY.ui, fontMono]) {
+  for (const family of [EMBEDDED_FAMILY.ui, EMBEDDED_FAMILY.mono]) {
     try {
       const faces = await fonts.load(`400 14px "${family}"`);
       parts.push(`${family}: ${faces.length > 0 ? "loaded" : "no match"}`);
@@ -96,7 +126,7 @@ export async function probeFonts(): Promise<string> {
     }
   }
 
-  const widths = advanceWidths(fontMono);
+  const widths = advanceWidths(EMBEDDED_FAMILY.mono);
   if (widths) {
     const uniform = new Set(widths.map((w) => w.toFixed(2))).size === 1;
     const firstWidth = widths[0] ?? 0;

@@ -138,7 +138,7 @@ describe("monospace choice (settings page)", () => {
     }
   });
 
-  it("brings ligatures back when returning to Follow Paseo (plan D2)", () => {
+  it("resets the ligature setting to its default when returning to Follow Paseo", () => {
     expect(monoChoiceUpdate("host")).toEqual({ monoFont: "host", codeFont: "code" });
   });
 });

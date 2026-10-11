@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { DEFAULT_PREFERENCES, type EnhancerPreferences, ACCENT_PRESETS } from "../preferences";
 import {
-  EMBEDDED_FAMILY,
+  DEFAULT_WEB_MONO_STACK,
   NATIVE_DEFAULT_MONO,
   interfaceFamily,
   resolveTypography,
@@ -11,6 +11,7 @@ import {
 } from "../ui/tokens/typography";
 import { currentPlatform } from "../ui/tokens/platform";
 import { themeKey } from "../ui/tokens/theme-key";
+import { ensureEmbeddedFonts } from "./embed-fonts";
 
 export type PluginSurfaceColors = PluginTheme["colors"];
 
@@ -49,18 +50,18 @@ const STATIC_PLATFORM: TypographyPlatform = currentPlatform();
  * name there, and a name the platform does not have silently draws the
  * proportional system face — which is what the embedded names did on iOS and
  * Android, since `@font-face` only exists on web. Native therefore gets the
- * platform monospace and the system UI face. On web these stay the bare
- * `@font-face` names `embed-fonts.ts` registers.
+ * platform monospace. Web gets Paseo's own default monospace stack, the face
+ * "Follow Paseo" resolves to on a host that does not share its typography.
  */
 export const fontMono =
-  STATIC_PLATFORM === "web" ? EMBEDDED_FAMILY.mono : NATIVE_DEFAULT_MONO[STATIC_PLATFORM];
+  STATIC_PLATFORM === "web" ? DEFAULT_WEB_MONO_STACK : NATIVE_DEFAULT_MONO[STATIC_PLATFORM];
 
 /**
- * The ligature cut of Iosevka, used only inside code blocks. Terminal output,
- * diffs and paths stay on `fontMono`: a shaped `->` or `=>` stops matching the
- * bytes it stands for, which is wrong for a log line or a patch.
+ * The code-block family for static styles. It equals `fontMono`: the ligature
+ * cut (Iosevka Code) is drawn only when the reader picks it, which only the
+ * themed `tokens.fontCode` knows.
  */
-export const fontCode = STATIC_PLATFORM === "web" ? EMBEDDED_FAMILY.code : fontMono;
+export const fontCode = fontMono;
 /** Interface text sets no family: the host's UI font (web) or the system face applies. */
 export const fontUi: string | undefined = undefined;
 
@@ -345,7 +346,11 @@ export function useThemeTokens(
 ): ExtendedThemeTokens {
   const key = themeKey(theme);
   return useMemo(
-    () => buildThemeTokens(theme.colors, preferences, { platform, theme }),
+    () => {
+      // Iosevka and Inter are installed only once a reader picks them.
+      ensureEmbeddedFonts(preferences, platform ?? STATIC_PLATFORM);
+      return buildThemeTokens(theme.colors, preferences, { platform, theme });
+    },
     // `theme` is read through `key`; its identity is exactly what must not count.
     [key, preferences, platform],
   );

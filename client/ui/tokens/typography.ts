@@ -45,7 +45,7 @@ export interface Typography {
   mono: {
     /** Terminal output, diffs, paths, commands. */
     family: string;
-    /** Code blocks: the ligature cut when ligatures are on and Iosevka is in use. */
+    /** Code blocks: the ligature cut when the reader picked Iosevka Code, else `family`. */
     codeFamily: string;
     size: number;
     lineHeight: number;
@@ -144,7 +144,18 @@ export const CODE_SIZE = { default: 12, min: 10, max: 22 } as const;
 const CONTENT_SIZE = { web: 15, native: 16 } as const;
 
 const CJK_FALLBACK = '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC"';
-const WEB_MONO_TAIL = `ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace, ${CJK_FALLBACK}`;
+
+/**
+ * Paseo's own default monospace stack on web and desktop, verbatim
+ * (`DEFAULT_MONO_FONT_STACK`, `packages/app/src/styles/theme.ts`). "Follow
+ * Paseo" draws with exactly this when the host does not share its typography,
+ * so plugin code reads like the host's own code blocks and tool output.
+ */
+export const HOST_DEFAULT_WEB_MONO =
+  "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
+/** `HOST_DEFAULT_WEB_MONO` with the CJK fallbacks: the web "Follow Paseo" stack. */
+export const DEFAULT_WEB_MONO_STACK = `${HOST_DEFAULT_WEB_MONO}, ${CJK_FALLBACK}`;
+const WEB_MONO_TAIL = DEFAULT_WEB_MONO_STACK;
 const WEB_UI_TAIL = `system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif, ${CJK_FALLBACK}`;
 
 export const NATIVE_DEFAULT_MONO: Record<"ios" | "android", string> = {
@@ -226,28 +237,28 @@ export function resolveTypography(
 ): Typography {
   const host = readHostTypography(theme);
   const web = platform === "web";
-  const ligatures = prefs.codeFont === "code";
 
   // --- Monospace -----------------------------------------------------------
-  // "Follow Paseo" on a host without H1 keeps today's look (decision D2):
-  // embedded Iosevka on web, the platform monospace on native.
+  // "Follow Paseo" is the host's mono: its H1 value, or else the stack the
+  // host itself defaults to (web) and the platform monospace (native). The
+  // embedded Iosevka is drawn only when the reader picks it.
   const hostMono = host?.fontFamily?.mono;
-  const embeddedStack = `"${EMBEDDED_FAMILY.mono}", ${WEB_MONO_TAIL}`;
-  const embeddedCodeStack = `"${EMBEDDED_FAMILY.code}", ${embeddedStack}`;
   let family: string;
   let codeFamily: string;
+  let ligatures = false;
   if (web) {
-    const follow = hostMono ? withCjk(hostMono) : embeddedStack;
-    const followIsEmbedded = !hostMono;
-    if (prefs.monoFont === "iosevka" || (prefs.monoFont === "host" && followIsEmbedded)) {
-      family = embeddedStack;
-      codeFamily = ligatures ? embeddedCodeStack : embeddedStack;
+    const follow = hostMono ? withCjk(hostMono) : WEB_MONO_TAIL;
+    if (prefs.monoFont === "iosevka") {
+      family = `"${EMBEDDED_FAMILY.mono}", ${WEB_MONO_TAIL}`;
+      // The ligature cut exists only for Iosevka (Iosevka Code).
+      ligatures = prefs.codeFont === "code";
+      codeFamily = ligatures ? `"${EMBEDDED_FAMILY.code}", ${family}` : family;
     } else if (prefs.monoFont === "custom" && text(prefs.customMonoFont)) {
       family = `${quoteFamily(prefs.customMonoFont)}, ${follow}`;
       codeFamily = family;
     } else {
       family = follow;
-      codeFamily = followIsEmbedded && ligatures ? embeddedCodeStack : follow;
+      codeFamily = follow;
     }
   } else {
     const fallback = hostMono ?? NATIVE_DEFAULT_MONO[platform];
