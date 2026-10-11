@@ -1,3 +1,4 @@
+import { PLUGIN_ROOT_ATTRIBUTE } from "./focus-ring";
 import { getEnhancerPreferences } from "../preferences";
 import { radiusV2 } from "./theme-tokens";
 
@@ -186,6 +187,8 @@ export function installChatFind(): () => void {
   bar.id = BAR_ID;
   bar.hidden = true;
   bar.setAttribute("role", "search");
+  // A plugin surface: a clicked button does not keep the host focus ring.
+  bar.setAttribute(PLUGIN_ROOT_ATTRIBUTE, "");
   bar.title = "Searches the messages loaded in this chat";
   const input = document.createElement("input");
   input.type = "text";

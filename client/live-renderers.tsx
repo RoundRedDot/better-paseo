@@ -14,6 +14,7 @@ import { useDisclosure } from "./state/disclosure-store";
 import { TaskList } from "./components/task-list";
 import { UserMessage } from "./components/user-message";
 import { itemRootFont } from "./components/host-font-escape";
+import { pluginRoot } from "./components/focus-ring";
 import { promptRowAnchor } from "./components/prompt-anchor";
 import { surfaceProps } from "./components/view-props";
 import { useSelectionActions } from "./components/selection-actions";
@@ -141,7 +142,7 @@ function LiveToolCallRendererBody({
   );
 
   return (
-    <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
+    <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}>
       {probe.node}
       <PreferenceSyncSlot />
       <PathContext.Provider value={pathContext}>
@@ -204,7 +205,7 @@ function LiveReasoningRendererBody({
   const durationMs = streaming ? null : observedDurationMs(storeKey);
 
   return (
-    <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
+    <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}>
       {probe.node}
       <PreferenceSyncSlot />
       <ReasoningCard
@@ -255,7 +256,7 @@ function LiveTodoRendererBody({
   }, [data]);
 
   return (
-    <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
+    <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}>
       {probe.node}
       <PreferenceSyncSlot />
       <TaskList data={taskListData} tokens={tokens} compact={layout.compact} />
@@ -332,7 +333,7 @@ function LiveAssistantRendererBody({
   );
 
   return (
-    <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
+    <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}>
       {probe.node}
       <PreferenceSyncSlot />
       {envelope ? (
@@ -428,7 +429,7 @@ function LiveNoticeRendererBody({
   );
 
   return (
-    <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
+    <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}>
       {probe.node}
       <PreferenceSyncSlot />
       <NoticeCallout data={noticeData} tokens={tokens} at={timestamp} compact={layout.compact} />
@@ -531,7 +532,7 @@ function LiveUserMessageRendererBody({
 
   return (
     <View
-      {...surfaceProps(itemRootFont(preferences.uiFont), promptRowAnchor(item.data.messageId))}
+      {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot, promptRowAnchor(item.data.messageId))}
       {...probe.viewProps}
     >
       {probe.node}

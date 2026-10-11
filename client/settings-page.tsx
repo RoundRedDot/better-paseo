@@ -5,6 +5,8 @@ import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { codeSurface, itemRootFont } from "./components/host-font-escape";
 import { radiusV2, space, buildThemeTokens, type ExtendedThemeTokens } from "./components/theme-tokens";
 import { ensureEmbeddedFonts } from "./components/embed-fonts";
+import { pluginRoot } from "./components/focus-ring";
+import { surfaceProps } from "./components/view-props";
 import {
   ACCENT_PRESETS,
   CODE_FONT_SIZE_MAX,
@@ -551,7 +553,7 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
 
   return (
     <View
-      {...itemRootFont(preferences.uiFont)}
+      {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       style={[styles.container, compact ? null : styles.containerDesktop, { backgroundColor: tokens.v2.surface0 }]}
     >
       <View style={compact ? styles.introInset : null}>
