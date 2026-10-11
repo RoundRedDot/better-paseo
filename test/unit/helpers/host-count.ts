@@ -4,6 +4,7 @@
  * parent on iOS and Android (no view of its own), so it is not counted.
  */
 import React from "react";
+import "./quiet-renderer";
 import TestRenderer, { act } from "react-test-renderer";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

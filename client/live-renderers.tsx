@@ -342,6 +342,7 @@ function LiveAssistantRendererBody({
           text={revealed}
           tokens={tokens}
           variant={preferences.markdownVariant}
+          compact={layout.compact}
           streaming={streaming}
           onRevealPath={handleRevealPath}
           probeId={`assistant:${timestamp.getTime()}`}

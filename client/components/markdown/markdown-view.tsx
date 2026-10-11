@@ -10,7 +10,7 @@ import { blockKind, lexBlock, warmLexer } from "./lex";
 import { repairTail } from "./repair";
 import type { RenderContext } from "./render/context";
 import { MdBlock } from "./render/md-block";
-import { buildStyles, VARIANT_METRICS, type MarkdownVariant } from "./render/styles";
+import { buildStyles, variantMetrics, type MarkdownVariant } from "./render/styles";
 
 export { MARKDOWN_VARIANTS, type MarkdownVariant } from "./render/styles";
 
@@ -26,6 +26,10 @@ export interface MarkdownViewProps {
   streaming?: boolean;
   /** Compact only: fenced code starts folded to a one-line summary. */
   collapseCode?: boolean;
+  /** `layout.compact`: the touch layout's wider block gap. */
+  compact?: boolean;
+  /** One step quieter: muted text a size down (a thought, not the answer). */
+  quiet?: boolean;
   /** Press on a file path in the prose. */
   onRevealPath?: (path: string) => void;
   /** Debug only: names this message so the perf probes can track it across chunks. */
@@ -62,6 +66,8 @@ export function MarkdownView({
   variant,
   streaming = false,
   collapseCode = false,
+  compact = false,
+  quiet = false,
   onRevealPath,
   probeId,
 }: MarkdownViewProps) {
@@ -98,17 +104,21 @@ export function MarkdownView({
     return result;
   }, [text, cache, streaming, instance]);
 
-  const styles = useMemo(() => buildStyles(tokens, variant), [tokens, variant]);
+  // Sizes follow the host's content size (S7 §2.3); the metrics object is
+  // cached per input, so the context — and every finished block — stays put
+  // while the reply streams.
+  const metrics = variantMetrics(variant, tokens.typography.content.size, compact, quiet);
+  const styles = useMemo(() => buildStyles(tokens, variant, metrics, quiet), [tokens, variant, metrics, quiet]);
   const context = useMemo<RenderContext>(
     () => ({
       styles,
       tokens,
-      metrics: VARIANT_METRICS[variant],
+      metrics,
       variant,
       collapseCode,
       onRevealPath,
     }),
-    [styles, tokens, variant, collapseCode, onRevealPath],
+    [styles, tokens, metrics, variant, collapseCode, onRevealPath],
   );
 
   const last = blocks.length - 1;
@@ -116,7 +126,7 @@ export function MarkdownView({
     // The terminal variant sets the whole body in the mono face, so the whole
     // reply is a code surface the host's UI font rule must skip.
     <View
-      {...(VARIANT_METRICS[variant].mono ? surfaceProps(selectionSurface, codeSurface) : selectionSurface)}
+      {...(metrics.mono ? surfaceProps(selectionSurface, codeSurface) : selectionSurface)}
       style={styles.root}
     >
       {blocks.map((raw, index) => (

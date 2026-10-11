@@ -12,7 +12,7 @@ import { ALIGN_KEYS, CHAR_RATIO_MONO, CHAR_RATIO_UI, TABLE_CELL_PADDING, type Va
  */
 export function columnWidths(token: Tokens.Table, metrics: VariantMetrics): number[] {
   const ratio = metrics.mono ? CHAR_RATIO_MONO : CHAR_RATIO_UI;
-  const cellSize = metrics.bodySize - 1;
+  const cellSize = metrics.cellSize;
   const widths: number[] = [];
   for (let column = 0; column < token.header.length; column++) {
     // The header is bold, which the average advance does not cover, so it is
@@ -28,6 +28,21 @@ export function columnWidths(token: Tokens.Table, metrics: VariantMetrics): numb
     widths.push(Math.min(metrics.columnMax, Math.max(metrics.columnMin, estimate)));
   }
   return widths;
+}
+
+/** A figure: digits with an optional sign, separators, unit or percent. */
+const FIGURE = /^[\s$€£¥+\-−~≈<>]*\d[\d,._\s]*(%|[a-zA-Zµ]{1,3}|×)?\s*$/;
+
+/** Every non-empty body cell of the column reads as a figure. */
+export function numericColumn(token: Tokens.Table, column: number): boolean {
+  let seen = false;
+  for (const row of token.rows) {
+    const text = (row[column]?.text ?? "").trim();
+    if (text === "" || text === "-" || text === "—") continue;
+    if (!FIGURE.test(text)) return false;
+    seen = true;
+  }
+  return seen;
 }
 
 /**
@@ -60,7 +75,10 @@ export function MdTable({
   } else {
     widest.current = measured;
   }
-  const align = (column: number) => styles[ALIGN_KEYS[token.align[column] ?? "left"]];
+  // A column the author left unaligned is right-aligned when every cell is a
+  // figure, so digits line up (S7 §3.7).
+  const align = (column: number) =>
+    styles[ALIGN_KEYS[token.align[column] ?? (numericColumn(token, column) ? "right" : "left")]];
 
   return (
     <HScroll tokens={context.tokens} style={styles.tableScroll} contentContainerStyle={styles.tableContent}>

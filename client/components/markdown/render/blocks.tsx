@@ -1,7 +1,7 @@
 import React from "react";
 import { Text, View } from "react-native";
 import type { MarkedToken, Token, Tokens } from "../../../vendor/marked";
-import { Glyph } from "../../glyph";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { MathToken } from "../lex";
 import { CodeBlock } from "./code-block";
 import type { RenderContext } from "./context";
@@ -76,14 +76,22 @@ function renderBlock(
       const level = Math.min(4, Math.max(1, token.depth));
       const headingStyle = styles[HEADING_KEYS[level - 1] ?? "h4"];
       return (
-        <View key={key} style={options.first ? styles.headingBlockFirst : styles.headingBlock}>
+        <View
+          key={key}
+          style={
+            options.first
+              ? styles.headingBlockFirst
+              : level <= 2
+                ? styles.headingBlock
+                : styles.headingBlockMinor
+          }
+        >
           <Text selectable style={headingStyle}>
             {metrics.headingHash ? (
               <Text style={styles.headingHash}>{HASH_LABELS[level - 1] ?? "# "}</Text>
             ) : null}
             {renderInline(token.tokens, context, key)}
           </Text>
-          {metrics.headingRule && level <= 2 ? <View style={styles.headingRule} /> : null}
         </View>
       );
     }
@@ -250,8 +258,8 @@ function renderRow(
   if (row.item.task) {
     marker = (
       <View style={styles.checkboxCell}>
-        <Glyph
-          name={row.item.checked ? "CheckCircle" : "Circle"}
+        <Icon
+          name={row.item.checked ? "Check" : "Circle"}
           size={metrics.glyphSize}
           color={row.item.checked ? tokens.success : tokens.foregroundSubtle}
         />

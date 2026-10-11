@@ -5,7 +5,8 @@
  */
 import { StyleSheet } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
-import { radiusV2, space, withAlpha, type ExtendedThemeTokens } from "../../theme-tokens";
+import { radiusV2, space, type ExtendedThemeTokens } from "../../theme-tokens";
+import { even, proseScale } from "../../../ui/tokens/typography";
 import { selectableSurface, unselectable } from "../../selection";
 
 /**
@@ -26,90 +27,134 @@ export interface VariantMetrics {
   mono: boolean;
   blockGap: number;
   headingSizes: readonly [number, number, number, number];
-  headingGap: number;
-  /** Draws a rule under h1 and h2. */
-  headingRule: boolean;
+  headingLineHeights: readonly [number, number, number, number];
+  /** Extra space above h1/h2, and above h3. */
+  headingGap: readonly [number, number];
   /** Prefixes headings with their own `#` run instead of relying on size. */
   headingHash: boolean;
   markerWidth: number;
   itemGap: number;
   indentStep: number;
+  /** Table cell text and its line height (the prose `small` step). */
+  cellSize: number;
+  cellLineHeight: number;
+  /** Inline code size. */
+  codeSize: number;
   tableGap: number;
   columnMin: number;
   columnMax: number;
   glyphSize: number;
   codeCompact: boolean;
-  codeLineNumbers: boolean;
+  /** Line numbers on fenced code of at least this many lines; 0 for never. */
+  codeLineNumbersFrom: number;
 }
 
-export const VARIANT_METRICS: Record<MarkdownVariant, VariantMetrics> = {
-  // document: for a long answer read top to bottom. Wide leading and big ruled
-  // headings buy scanability with vertical space, so a section can be found
-  // without reading it.
-  document: {
-    bodySize: 13.5,
-    bodyLineHeight: 22.5,
-    mono: false,
-    blockGap: 13,
-    headingSizes: [23, 18.5, 15.5, 13],
-    headingGap: 9,
-    headingRule: true,
-    headingHash: false,
-    markerWidth: 20,
-    itemGap: 6,
-    indentStep: 18,
-    tableGap: 18,
-    columnMin: 60,
-    columnMax: 320,
-    glyphSize: 13,
-    codeCompact: false,
-    codeLineNumbers: false,
-  },
-  // compact: for a short reply in a crowded thread. Spacing is tight and
-  // headings stay near body size, so a three-line answer reads as one bubble
-  // rather than a document.
-  compact: {
-    bodySize: 13,
-    bodyLineHeight: 19,
-    mono: false,
-    blockGap: 7,
-    headingSizes: [16.5, 14.5, 13.5, 12],
-    headingGap: 4,
-    headingRule: false,
-    headingHash: false,
-    markerWidth: 15,
-    itemGap: 2,
-    indentStep: 13,
-    tableGap: 12,
-    columnMin: 48,
-    columnMax: 240,
-    glyphSize: 11,
-    codeCompact: true,
-    codeLineNumbers: false,
-  },
-  // terminal: for an answer that is mostly code. Body text joins the code on
-  // the mono family at a tight line height, headings keep their literal `##`
-  // marker, and fences carry line numbers so prose and code read as one log.
-  terminal: {
-    bodySize: 12.5,
-    bodyLineHeight: 17.5,
-    mono: true,
-    blockGap: 9,
-    headingSizes: [14.5, 13.5, 12.5, 12],
-    headingGap: 7,
-    headingRule: false,
-    headingHash: true,
-    markerWidth: 18,
-    itemGap: 1,
-    indentStep: 16,
-    tableGap: 14,
-    columnMin: 52,
-    columnMax: 280,
-    glyphSize: 11,
-    codeCompact: false,
-    codeLineNumbers: true,
-  },
-};
+/**
+ * The three variants' metrics, in integers, from the host body size `b`
+ * (S7 design spec §2.3, F0 "Markdown styles"):
+ *
+ * | | Document | Compact | Terminal |
+ * |---|---|---|---|
+ * | body | b / even(1.5b) | b / even(1.33b) | mono b−1 / even(1.4(b−1)) |
+ * | block gap | 16 touch · 12 desktop | 8 | 8 |
+ * | h1 / h2 / h3 | ⌊1.5b⌋ / ⌊1.25b⌋ / b+1 | b+3 / b+2 / b+1 | body size |
+ * | space above | +8 h1, h2 · +4 h3 | +4 · 0 | 0 |
+ * | list indent | 20 | 16 | 16 |
+ * | code line numbers | blocks of 4+ lines | off | off |
+ *
+ * `quiet` (reasoning) sets the body one step down. Results are cached, so a
+ * view gets the same object for the same inputs and its blocks stay memoised.
+ */
+export function variantMetrics(
+  variant: MarkdownVariant,
+  b: number,
+  compact = false,
+  quiet = false,
+): VariantMetrics {
+  const key = `${variant}|${b}|${compact ? 1 : 0}|${quiet ? 1 : 0}`;
+  const cached = METRICS_CACHE.get(key);
+  if (cached) return cached;
+  const base = Math.round(quiet ? b - 1 : b);
+  const scale = proseScale(base);
+  let metrics: VariantMetrics;
+  if (variant === "document") {
+    metrics = {
+      bodySize: scale.body.size,
+      bodyLineHeight: scale.body.lineHeight,
+      mono: false,
+      blockGap: compact ? space.lg : space.md,
+      headingSizes: [scale.h1.size, scale.h2.size, scale.h3.size, scale.body.size],
+      headingLineHeights: [scale.h1.lineHeight, scale.h2.lineHeight, scale.h3.lineHeight, scale.body.lineHeight],
+      headingGap: [space.sm, space.xs],
+      headingHash: false,
+      markerWidth: 20,
+      itemGap: space.xs,
+      indentStep: 20,
+      cellSize: scale.small.size,
+      cellLineHeight: scale.small.lineHeight,
+      codeSize: scale.small.size,
+      tableGap: space.lg,
+      columnMin: 64,
+      columnMax: 320,
+      glyphSize: 14,
+      codeCompact: false,
+      codeLineNumbersFrom: 4,
+    };
+  } else if (variant === "compact") {
+    const body = { size: base, lineHeight: even(1.33 * base) };
+    metrics = {
+      bodySize: body.size,
+      bodyLineHeight: body.lineHeight,
+      mono: false,
+      blockGap: space.sm,
+      headingSizes: [base + 3, base + 2, base + 1, base],
+      headingLineHeights: [body.lineHeight + 2, body.lineHeight + 2, body.lineHeight, body.lineHeight],
+      headingGap: [space.xs, 0],
+      headingHash: false,
+      markerWidth: 16,
+      itemGap: 2,
+      indentStep: 16,
+      cellSize: scale.small.size,
+      cellLineHeight: scale.small.lineHeight,
+      codeSize: scale.small.size,
+      tableGap: space.md,
+      columnMin: 48,
+      columnMax: 240,
+      glyphSize: 12,
+      codeCompact: true,
+      codeLineNumbersFrom: 0,
+    };
+  } else {
+    const size = base - 1;
+    const lineHeight = even(1.4 * size);
+    metrics = {
+      bodySize: size,
+      bodyLineHeight: lineHeight,
+      mono: true,
+      blockGap: space.sm,
+      headingSizes: [size, size, size, size],
+      headingLineHeights: [lineHeight, lineHeight, lineHeight, lineHeight],
+      headingGap: [0, 0],
+      headingHash: true,
+      markerWidth: 16,
+      itemGap: 2,
+      indentStep: 16,
+      cellSize: size - 1,
+      cellLineHeight: lineHeight - 2,
+      codeSize: size - 1,
+      tableGap: space.md,
+      columnMin: 52,
+      columnMax: 280,
+      glyphSize: 12,
+      codeCompact: false,
+      codeLineNumbersFrom: 0,
+    };
+  }
+  METRICS_CACHE.set(key, metrics);
+  return metrics;
+}
+
+const METRICS_CACHE = new Map<string, VariantMetrics>();
 
 // One marker per level, so a nested item is distinguishable from its parent
 // even when the indent is clipped by a narrow card.
@@ -142,13 +187,14 @@ export const TABLE_CELL_PADDING = 6;
 export interface MarkdownStyles {
   root: ViewStyle;
   headingBlock: ViewStyle;
+  /** h3 and deeper: less space above than h1 and h2. */
+  headingBlockMinor: ViewStyle;
   headingBlockFirst: ViewStyle;
   h1: TextStyle;
   h2: TextStyle;
   h3: TextStyle;
   h4: TextStyle;
   headingHash: TextStyle;
-  headingRule: ViewStyle;
   paragraph: TextStyle;
   plain: TextStyle;
   listBlock: ViewStyle;
@@ -188,13 +234,19 @@ export interface MarkdownStyles {
   listItemText: TextStyle;
 }
 
-export function buildStyles(tokens: ExtendedThemeTokens, variant: MarkdownVariant): MarkdownStyles {
-  const metrics = VARIANT_METRICS[variant];
+export function buildStyles(
+  tokens: ExtendedThemeTokens,
+  variant: MarkdownVariant,
+  metrics: VariantMetrics,
+  quiet = false,
+): MarkdownStyles {
   const bodyFont = metrics.mono ? tokens.fontMono : tokens.fontUi;
   const [size1, size2, size3, size4] = metrics.headingSizes;
-  // The terminal variant's headings sit within a point of body size, so the
-  // accent on h1 and the hash run carry the hierarchy that size cannot.
-  const topColor = variant === "terminal" ? tokens.accent : tokens.foreground;
+  const [lead1, lead2, lead3, lead4] = metrics.headingLineHeights;
+  const text = quiet ? tokens.foregroundMuted : tokens.foreground;
+  // The terminal variant's headings are body size, so the accent on h1 and
+  // the hash run carry the hierarchy that size cannot.
+  const topColor = variant === "terminal" ? tokens.accent : text;
 
   return StyleSheet.create({
     root: {
@@ -203,62 +255,54 @@ export function buildStyles(tokens: ExtendedThemeTokens, variant: MarkdownVarian
       gap: metrics.blockGap,
     },
     headingBlock: {
-      marginTop: metrics.headingGap,
-      gap: space.xs,
+      marginTop: metrics.headingGap[0],
     },
-    headingBlockFirst: {
-      gap: space.xs,
+    headingBlockMinor: {
+      marginTop: metrics.headingGap[1],
     },
+    headingBlockFirst: {},
     h1: {
       fontFamily: bodyFont,
       fontSize: size1,
-      lineHeight: size1 * 1.28,
-      fontWeight: "700",
-      letterSpacing: -0.3,
+      lineHeight: lead1,
+      fontWeight: "600",
       color: topColor,
     },
     h2: {
       fontFamily: bodyFont,
       fontSize: size2,
-      lineHeight: size2 * 1.3,
-      fontWeight: "700",
-      letterSpacing: -0.15,
-      color: tokens.foreground,
+      lineHeight: lead2,
+      fontWeight: "600",
+      color: text,
     },
     h3: {
       fontFamily: bodyFont,
       fontSize: size3,
-      lineHeight: size3 * 1.35,
+      lineHeight: lead3,
       fontWeight: "600",
-      color: tokens.foreground,
+      color: text,
     },
     h4: {
       fontFamily: bodyFont,
       fontSize: size4,
-      lineHeight: size4 * 1.4,
+      lineHeight: lead4,
       fontWeight: "600",
-      letterSpacing: 0.7,
-      textTransform: "uppercase",
-      color: tokens.foregroundMuted,
+      color: text,
     },
     headingHash: {
       color: tokens.accent,
       fontWeight: "400",
       ...unselectable,
     },
-    headingRule: {
-      height: 1,
-      backgroundColor: tokens.borderSubtle,
-    },
     paragraph: {
       fontFamily: bodyFont,
       fontSize: metrics.bodySize,
       lineHeight: metrics.bodyLineHeight,
-      color: tokens.foreground,
+      color: text,
     },
     plain: {
       fontFamily: tokens.fontMono,
-      fontSize: metrics.bodySize - 0.5,
+      fontSize: metrics.codeSize,
       lineHeight: metrics.bodyLineHeight,
       color: tokens.foregroundMuted,
     },
@@ -296,8 +340,8 @@ export function buildStyles(tokens: ExtendedThemeTokens, variant: MarkdownVarian
     checkboxCell: {
       width: metrics.markerWidth,
       flexShrink: 0,
-      // Centres the box on the first line of the item, not on the whole item.
-      paddingTop: Math.max(0, (metrics.bodyLineHeight - metrics.glyphSize) / 2),
+      // Centres the mark on the first line of the item, not on the whole item.
+      paddingTop: Math.max(0, Math.round((metrics.bodyLineHeight - metrics.glyphSize) / 2)),
       ...unselectable,
     },
     itemText: {
@@ -305,77 +349,76 @@ export function buildStyles(tokens: ExtendedThemeTokens, variant: MarkdownVarian
       fontFamily: bodyFont,
       fontSize: metrics.bodySize,
       lineHeight: metrics.bodyLineHeight,
-      color: tokens.foreground,
+      color: text,
     },
+    // A finished task reads quieter, not struck through (S7 §3.3).
     itemTextDone: {
       flex: 1,
       fontFamily: bodyFont,
       fontSize: metrics.bodySize,
       lineHeight: metrics.bodyLineHeight,
       color: tokens.foregroundMuted,
-      textDecorationLine: "line-through",
     },
     quote: {
       borderLeftWidth: 2,
-      borderLeftColor: withAlpha(tokens.foregroundMuted, 0.5),
-      paddingLeft: 10,
-      gap: 5,
+      borderLeftColor: tokens.v2.border,
+      paddingLeft: space.md,
+      gap: space.xs,
     },
+    // A quote is one step quieter than the prose, upright: an italic CJK face
+    // is a synthetic slant.
     quoteText: {
       fontFamily: bodyFont,
       fontSize: metrics.bodySize,
       lineHeight: metrics.bodyLineHeight,
-      fontStyle: "italic",
       color: tokens.foregroundMuted,
     },
-    codeBlock: {
-      marginVertical: 1,
-    },
+    codeBlock: {},
     rule: {
       height: 1,
-      backgroundColor: tokens.border,
-      marginVertical: 2,
+      backgroundColor: tokens.v2.border,
     },
     tableScroll: {
       alignSelf: "stretch",
     },
     tableContent: {
-      paddingRight: 6,
+      paddingRight: space.xs,
     },
     tableHeaderRow: {
       flexDirection: "row",
       gap: metrics.tableGap,
-      paddingBottom: 5,
-      marginBottom: space.xs,
+      paddingBottom: space.sm,
       borderBottomWidth: 1,
-      borderBottomColor: tokens.border,
+      borderBottomColor: tokens.v2.border,
     },
     tableRow: {
       flexDirection: "row",
       gap: metrics.tableGap,
-      paddingVertical: 2,
+      paddingVertical: space.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: tokens.v2.borderSubtle,
     },
     tableHeaderCell: {
       fontFamily: bodyFont,
-      fontSize: metrics.bodySize - 1,
-      lineHeight: metrics.bodyLineHeight - 2,
+      fontSize: metrics.cellSize,
+      lineHeight: metrics.cellLineHeight,
       paddingHorizontal: TABLE_CELL_PADDING,
-      fontWeight: "700",
-      color: tokens.foreground,
+      fontWeight: "500",
+      color: tokens.foregroundMuted,
     },
     tableCell: {
       fontFamily: bodyFont,
-      fontSize: metrics.bodySize - 1,
-      lineHeight: metrics.bodyLineHeight - 2,
+      fontSize: metrics.cellSize,
+      lineHeight: metrics.cellLineHeight,
       paddingHorizontal: TABLE_CELL_PADDING,
-      color: tokens.foreground,
+      color: text,
     },
     cellLeft: { textAlign: "left" },
     cellCenter: { textAlign: "center" },
-    cellRight: { textAlign: "right" },
+    cellRight: { textAlign: "right", fontVariant: ["tabular-nums"] },
     strong: {
-      fontWeight: "700",
-      color: tokens.foreground,
+      fontWeight: "600",
+      color: text,
     },
     emphasis: {
       fontStyle: "italic",
@@ -386,13 +429,13 @@ export function buildStyles(tokens: ExtendedThemeTokens, variant: MarkdownVarian
     },
     codeSpan: {
       fontFamily: tokens.fontMono,
-      fontSize: metrics.bodySize - 1,
-      // A neutral tint, not the accent: inline code is not a link and must not
-      // borrow the one colour that means "action" everywhere else in the card.
-      backgroundColor: withAlpha(tokens.foreground, tokens.isDark ? 0.12 : 0.07),
+      fontSize: metrics.codeSize,
+      // A neutral fill, not the accent: inline code is not a link and must not
+      // borrow the one colour that means "action" everywhere else.
+      backgroundColor: tokens.v2.surface2,
       borderRadius: radiusV2.chip,
       paddingHorizontal: CODE_CHIP_PADDING,
-      color: tokens.foreground,
+      color: text,
     },
     link: {
       color: tokens.accent,
@@ -414,7 +457,7 @@ export function buildStyles(tokens: ExtendedThemeTokens, variant: MarkdownVarian
     },
     codeSummaryText: {
       fontFamily: tokens.fontMono,
-      fontSize: metrics.bodySize - 1,
+      fontSize: metrics.codeSize,
       lineHeight: metrics.bodyLineHeight,
       color: tokens.foregroundMuted,
       ...unselectable,
