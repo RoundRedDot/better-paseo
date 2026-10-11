@@ -1,0 +1,170 @@
+{"kind":"meta","name":"reasoning-long-sections","description":"Codex-style reasoning: 19 paragraphs, each introduced by a standalone **Title** line, streamed as one reasoning item, then a one-paragraph answer.","scenario":"Long reasoning block with bold section titles: title extraction, collapsed/expanded reasoning cost and incremental markdown on structured reasoning (requirement 16.1 item 3)."}
+{"t":0,"item":{"type":"user_message","text":"Why does the chat stutter when a long answer streams in? Think it through before answering."},"mode":"append"}
+{"t":244,"item":{"type":"reasoning","text":"**Understanding "},"mode":"append"}
+{"t":300,"item":{"type":"reasoning","text":"the symptom**\n\nThe syntax highlighter "},"mode":"append"}
+{"t":352,"item":{"type":"reasoning","text":"collapses every incoming "},"mode":"append"}
+{"t":417,"item":{"type":"reasoning","text":"delta before the next "},"mode":"append"}
+{"t":484,"item":{"type":"reasoning","text":"commit. The message cache "},"mode":"append"}
+{"t":552,"item":{"type":"reasoning","text":"measures a stale selection "},"mode":"append"}
+{"t":601,"item":{"type":"reasoning","text":"range under memory pressure. "},"mode":"append"}
+{"t":653,"item":{"type":"reasoning","text":"The message cache batches "},"mode":"append"}
+{"t":701,"item":{"type":"reasoning","text":"the tool "},"mode":"append"}
+{"t":778,"item":{"type":"reasoning","text":"output string while the message is still streaming. I want to be careful about what the profiler actually measured "},"mode":"append"}
+{"t":828,"item":{"type":"reasoning","text":"before committing to this.\n\n**Mapping the "},"mode":"append"}
+{"t":881,"item":{"type":"reasoning","text":"render path**\n\nThe markdown parser defers a frozen prefix of the message once the window closes. The message cache memoizes the tool output "},"mode":"append"}
+{"t":950,"item":{"type":"reasoning","text":"string after the "},"mode":"append"}
+{"t":1024,"item":{"type":"reasoning","text":"first paint. The tool-call card collapses "},"mode":"append"}
+{"t":1172,"item":{"type":"reasoning","text":"the cached token list while "},"mode":"append"}
+{"t":1225,"item":{"type":"reasoning","text":"the message is still streaming. The diff renderer "},"mode":"append"}
+{"t":1550,"item":{"type":"reasoning","text":"truncates the cached token list on every frame. The stream buffer flushes every incoming "},"mode":"append"}
+{"t":1606,"item":{"type":"reasoning","text":"delta while"},"mode":"append"}
+{"t":1665,"item":{"type":"reasoning","text":" the message is still streaming.\n\n**Checking the delta cadence**\n\nThe "},"mode":"append"}
+{"t":1717,"item":{"type":"reasoning","text":"markdown parser coalesces every incoming delta while the message is still streaming. The timeline reducer"},"mode":"append"}
+{"t":1778,"item":{"type":"reasoning","text":" truncates each table "},"mode":"append"}
+{"t":1843,"item":{"type":"reasoning","text":"row after the first paint. The timeline reducer measures "},"mode":"append"}
+{"t":1899,"item":{"type":"reasoning","text":"the pending "},"mode":"append"}
+{"t":1957,"item":{"type":"reasoning","text":"tool state only when the "},"mode":"append"}
+{"t":2026,"item":{"type":"reasoning","text":"text actually "},"mode":"append"}
+{"t":2102,"item":{"type":"reasoning","text":"changed. The diff "},"mode":"append"}
+{"t":2175,"item":{"type":"reasoning","text":"renderer flushes the last visibl"},"mode":"append"}
+{"t":2233,"item":{"type":"reasoning","text":"e row on every frame.\n\n**Looking for repeated parsing**\n\nThe "},"mode":"append"}
+{"t":2285,"item":{"type":"reasoning","text":"markdown parser invalidates "},"mode":"append"}
+{"t":2340,"item":{"type":"reasoning","text":"the offscreen "},"mode":"append"}
+{"t":2398,"item":{"type":"reasoning","text":"items once "},"mode":"append"}
+{"t":2463,"item":{"type":"reasoning","text":"the window closes. The virtualized list "},"mode":"append"}
+{"t":2790,"item":{"type":"reasoning","text":"re-renders a stale "},"mode":"append"}
+{"t":2843,"item":{"type":"reasoning","text":"selection range during scroll. The stream buffer flushes the cached token list under memory pressure. The reasoning "},"mode":"append"}
+{"t":2900,"item":{"type":"reasoning","text":"block batches "},"mode":"append"}
+{"t":2956,"item":{"type":"reasoning","text":"the unfinished paragraph only when the text "},"mode":"append"}
+{"t":3016,"item":{"type":"reasoning","text":"actually changed. "},"mode":"append"}
+{"t":3078,"item":{"type":"reasoning","text":"The reasoning "},"mode":"append"}
+{"t":3132,"item":{"type":"reasoning","text":"block re-renders the cached token list without "},"mode":"append"}
+{"t":3180,"item":{"type":"reasoning","text":"touching the DOM. The diff renderer invalidates the last visible row before "},"mode":"append"}
+{"t":3251,"item":{"type":"reasoning","text":"the next commit.\n\n**Weighing "},"mode":"append"}
+{"t":3303,"item":{"type":"reasoning","text":"a frozen-prefix approach**\n\nThe syntax highlighter coalesces the fenced code block once the window closes. The virtualized list truncates the "},"mode":"append"}
+{"t":3377,"item":{"type":"reasoning","text":"last visible row "},"mode":"append"}
+{"t":3431,"item":{"type":"reasoning","text":"once the window closes. The scroll anchor reuses "},"mode":"append"}
+{"t":3483,"item":{"type":"reasoning","text":"the cached token list on every frame. The layout pass batches the tool "},"mode":"append"}
+{"t":3551,"item":{"type":"reasoning","text":"output string without touching the DOM.\n\n**Considering "},"mode":"append"}
+{"t":3619,"item":{"type":"reasoning","text":"memoization limits**\n\nThe layout pass memoizes "},"mode":"append"}
+{"t":3676,"item":{"type":"reasoning","text":"the fenced co"},"mode":"append"}
+{"t":3734,"item":{"type":"reasoning","text":"de block once the window closes. The message cache measures every incoming delta only when the text actually "},"mode":"append"}
+{"t":3802,"item":{"type":"reasoning","text":"changed. The "},"mode":"append"}
+{"t":3848,"item":{"type":"reasoning","text":"message cache coalesces the pending text node only when the text actually changed. The markdown parser truncates the tool output"},"mode":"append"}
+{"t":3907,"item":{"type":"reasoning","text":" string under me"},"mode":"append"}
+{"t":3974,"item":{"type":"reasoning","text":"mory pressure. I want "},"mode":"append"}
+{"t":4052,"item":{"type":"reasoning","text":"to be careful about the "},"mode":"append"}
+{"t":4101,"item":{"type":"reasoning","text":"tool card collapse state before committing to this.\n\n**Inspecting "},"mode":"append"}
+{"t":4159,"item":{"type":"reasoning","text":"scroll a"},"mode":"append"}
+{"t":4216,"item":{"type":"reasoning","text":"nchoring**\n\nThe diff renderer defers the offscreen "},"mode":"append"}
+{"t":4270,"item":{"type":"reasoning","text":"items when the viewport is pinned to the bottom. "},"mode":"append"}
+{"t":4342,"item":{"type":"reasoning","text":"The timeline reducer measures "},"mode":"append"}
+{"t":4414,"item":{"type":"reasoning","text":"the tool output "},"mode":"append"}
+{"t":4558,"item":{"type":"reasoning","text":"string during scroll. The virtualized list recomputes the unfinished paragraph without touching the DOM. "},"mode":"append"}
+{"t":4629,"item":{"type":"reasoning","text":"The reasoning block "},"mode":"append"}
+{"t":4876,"item":{"type":"reasoning","text":"re-renders each table row while the message is still streaming.\n\n**Estimating highlighter cost*"},"mode":"append"}
+{"t":4927,"item":{"type":"reasoning","text":"*\n\nThe virtualized list reuses the last visible row once the window "},"mode":"append"}
+{"t":4976,"item":{"type":"reasoning","text":"closes. The diff renderer reuses every incoming delta under memory pressure. The "},"mode":"append"}
+{"t":5052,"item":{"type":"reasoning","text":"diff renderer reuses "},"mode":"append"}
+{"t":5122,"item":{"type":"reasoning","text":"the pending tool stat"},"mode":"append"}
+{"t":5193,"item":{"type":"reasoning","text":"e on every frame. The "},"mode":"append"}
+{"t":5258,"item":{"type":"reasoning","text":"scroll anchor memoizes the cached token list without touching the DOM. The reasoning block b"},"mode":"append"}
+{"t":5331,"item":{"type":"reasoning","text":"atches the fenced code block during scroll. "},"mode":"append"}
+{"t":5529,"item":{"type":"reasoning","text":"The markdown parser defers the unfinished paragraph on every frame.\n\n**Reviewing tool-card updates**\n\nThe reasoning block collapses "},"mode":"append"}
+{"t":5591,"item":{"type":"reasoning","text":"every incoming delta after the first paint. "},"mode":"append"}
+{"t":5658,"item":{"type":"reasoning","text":"The tool-call card memoizes a frozen prefix of the message once the window closes. The timeline reducer coalesces the last visible row "},"mode":"append"}
+{"t":5706,"item":{"type":"reasoning","text":"only when the text actually changed. The layout "},"mode":"append"}
+{"t":6029,"item":{"type":"reasoning","text":"pass collapses the offscreen items after "},"mode":"append"}
+{"t":6098,"item":{"type":"reasoning","text":"the first pain"},"mode":"append"}
+{"t":6164,"item":{"type":"reasoning","text":"t.\n\n**Looking at list virtualization**\n\nThe "},"mode":"append"}
+{"t":6222,"item":{"type":"reasoning","text":"tool-call card batches "},"mode":"append"}
+{"t":6268,"item":{"type":"reasoning","text":"a stale selection range during"},"mode":"append"}
+{"t":6317,"item":{"type":"reasoning","text":" scroll. The "},"mode":"append"}
+{"t":6377,"item":{"type":"reasoning","text":"virtualized list "},"mode":"append"}
+{"t":6427,"item":{"type":"reasoning","text":"truncates the cached token list before the ne"},"mode":"append"}
+{"t":6499,"item":{"type":"reasoning","text":"xt commit. The layout pass recomputes "},"mode":"append"}
+{"t":6560,"item":{"type":"reasoning","text":"the pending text node once the window closes. I want to be careful about the plan for a "},"mode":"append"}
+{"t":6631,"item":{"type":"reasoning","text":"safe rollout before committing to this.\n\n**Thinking "},"mode":"append"}
+{"t":6681,"item":{"type":"reasoning","text":"about memory growth**\n\nThe "},"mode":"append"}
+{"t":6744,"item":{"type":"reasoning","text":"timeline reducer memoizes "},"mode":"append"}
+{"t":7123,"item":{"type":"reasoning","text":"the offscreen items when the vie"},"mode":"append"}
+{"t":7170,"item":{"type":"reasoning","text":"wport is pinned to the bottom. The scroll anchor invalidates the unfinished "},"mode":"append"}
+{"t":7248,"item":{"type":"reasoning","text":"paragraph after the first paint. The tool-call card collapses the pending text node while the message is still "},"mode":"append"}
+{"t":7320,"item":{"type":"reasoning","text":"streaming. The markdown parser recomputes the offscreen items before"},"mode":"append"}
+{"t":7386,"item":{"type":"reasoning","text":" the next commit. "},"mode":"append"}
+{"t":7447,"item":{"type":"reasoning","text":"I want to be careful about "},"mode":"append"}
+{"t":7631,"item":{"type":"reasoning","text":"how the daemon coalesces "},"mode":"append"}
+{"t":7700,"item":{"type":"reasoning","text":"deltas before committing "},"mode":"append"}
+{"t":7759,"item":{"type":"reasoning","text":"to this.\n\n**Ordering "},"mode":"append"}
+{"t":7835,"item":{"type":"reasoning","text":"the candidate fixes**\n\nThe "},"mode":"append"}
+{"t":7909,"item":{"type":"reasoning","text":"timeline reducer "},"mode":"append"}
+{"t":7975,"item":{"type":"reasoning","text":"memoiz"},"mode":"append"}
+{"t":8026,"item":{"type":"reasoning","text":"es every incoming "},"mode":"append"}
+{"t":8101,"item":{"type":"reasoning","text":"delta without touc"},"mode":"append"}
+{"t":8179,"item":{"type":"reasoning","text":"hing the DOM. The timeline reducer defers the tool output string during scroll. The tool-call card re-renders every incoming delta when "},"mode":"append"}
+{"t":8243,"item":{"type":"reasoning","text":"the viewport is pinned to the bottom. The timeline reducer truncates the "},"mode":"append"}
+{"t":8298,"item":{"type":"reasoning","text":"cached token list under memory pressure. The "},"mode":"append"}
+{"t":8370,"item":{"type":"reasoning","text":"markdown parser reus"},"mode":"append"}
+{"t":8418,"item":{"type":"reasoning","text":"es the offscreen items on every frame. "},"mode":"append"}
+{"t":8484,"item":{"type":"reasoning","text":"I want to be careful about the tool card collapse state before committing to "},"mode":"append"}
+{"t":8536,"item":{"type":"reasoning","text":"this.\n\n**Planning measurements "},"mode":"append"}
+{"t":8587,"item":{"type":"reasoning","text":"first**\n\nThe "},"mode":"append"}
+{"t":8637,"item":{"type":"reasoning","text":"syntax highlighter truncates the fenced code block under "},"mode":"append"}
+{"t":8687,"item":{"type":"reasoning","text":"memory pressure. "},"mode":"append"}
+{"t":8762,"item":{"type":"reasoning","text":"The stream "},"mode":"append"}
+{"t":8932,"item":{"type":"reasoning","text":"buffer invalidates every incoming delta only when "},"mode":"append"}
+{"t":8984,"item":{"type":"reasoning","text":"the text actually changed. The "},"mode":"append"}
+{"t":9054,"item":{"type":"reasoning","text":"virtualized "},"mode":"append"}
+{"t":9129,"item":{"type":"reasoning","text":"list invalidates each table row "},"mode":"append"}
+{"t":9198,"item":{"type":"reasoning","text":"while th"},"mode":"append"}
+{"t":9480,"item":{"type":"reasoning","text":"e message is still streaming. I want "},"mode":"append"}
+{"t":9527,"item":{"type":"reasoning","text":"to be careful about the tool card "},"mode":"append"}
+{"t":9588,"item":{"type":"reasoning","text":"collapse state before committing to this.\n\n**Choosing "},"mode":"append"}
+{"t":9659,"item":{"type":"reasoning","text":"a rollout "},"mode":"append"}
+{"t":9706,"item":{"type":"reasoning","text":"path**\n\nThe diff renderer "},"mode":"append"}
+{"t":9755,"item":{"type":"reasoning","text":"defers the pending "},"mode":"append"}
+{"t":9815,"item":{"type":"reasoning","text":"tool state only when the text actually changed. The websocket "},"mode":"append"}
+{"t":9889,"item":{"type":"reasoning","text":"session truncates the offscreen items without touching the DOM. The layout pass truncates the last visible row before the "},"mode":"append"}
+{"t":9964,"item":{"type":"reasoning","text":"next commit.\n\n**Preparing the explanation**\n\nThe "},"mode":"append"}
+{"t":10037,"item":{"type":"reasoning","text":"layout pass memoizes each table row during scroll. The tool-call "},"mode":"append"}
+{"t":10085,"item":{"type":"reasoning","text":"card coalesces "},"mode":"append"}
+{"t":10150,"item":{"type":"reasoning","text":"the cached token "},"mode":"append"}
+{"t":10210,"item":{"type":"reasoning","text":"list while the message is still streaming. The message cache measures every incoming delta once the window closes. The diff renderer "},"mode":"append"}
+{"t":10285,"item":{"type":"reasoning","text":"re-renders the cached token list before t"},"mode":"append"}
+{"t":10332,"item":{"type":"reasoning","text":"he next co"},"mode":"append"}
+{"t":10525,"item":{"type":"reasoning","text":"mmit.\n\n**Double-checking edge cases**\n\nThe syntax highlighter defers every incoming delta "},"mode":"append"}
+{"t":10589,"item":{"type":"reasoning","text":"while the message is still streaming. "},"mode":"append"}
+{"t":10652,"item":{"type":"reasoning","text":"The tool-call card re-renders a stale selection range without touching the "},"mode":"append"}
+{"t":10714,"item":{"type":"reasoning","text":"DOM. The stream buffer recomputes the offscreen items while the message is still streaming. The markdown "},"mode":"append"}
+{"t":10778,"item":{"type":"reasoning","text":"parser memoizes "},"mode":"append"}
+{"t":11054,"item":{"type":"reasoning","text":"the cached "},"mode":"append"}
+{"t":11116,"item":{"type":"reasoning","text":"token list during scroll. "},"mode":"append"}
+{"t":11166,"item":{"type":"reasoning","text":"The message cache collapses "},"mode":"append"}
+{"t":11238,"item":{"type":"reasoning","text":"each table row after the first paint. "},"mode":"append"}
+{"t":11297,"item":{"type":"reasoning","text":"The diff renderer recomputes the pending text node when the viewport "},"mode":"append"}
+{"t":11350,"item":{"type":"reasoning","text":"is pinned to the bottom.\n\n**Considering mobile constraints**\n\nThe tool-call card re-renders the tool output "},"mode":"append"}
+{"t":11422,"item":{"type":"reasoning","text":"string while the "},"mode":"append"}
+{"t":11485,"item":{"type":"reasoning","text":"message is still streaming. "},"mode":"append"}
+{"t":11879,"item":{"type":"reasoning","text":"The tool-call card defers every incoming delta while the message is still streaming. The reasoning block coalesces "},"mode":"append"}
+{"t":11930,"item":{"type":"reasoning","text":"the fenced code block once the window closes.\n\n**Drafting the summary**\n\nThe "},"mode":"append"}
+{"t":12004,"item":{"type":"reasoning","text":"markdown parser recomputes "},"mode":"append"}
+{"t":12076,"item":{"type":"reasoning","text":"every incoming "},"mode":"append"}
+{"t":12134,"item":{"type":"reasoning","text":"delta only when the text actually changed. The layout pass recomputes the pending tool state when the viewport is pinned to the b"},"mode":"append"}
+{"t":12191,"item":{"type":"reasoning","text":"ottom. The virtualized list defers the tool output string "},"mode":"append"}
+{"t":12251,"item":{"type":"reasoning","text":"during scroll. The virtualized list reuses the "},"mode":"append"}
+{"t":12303,"item":{"type":"reasoning","text":"pending text "},"mode":"append"}
+{"t":12379,"item":{"type":"reasoning","text":"node when the viewport is pinned to the bottom.\n\n"},"mode":"append"}
+{"t":12451,"item":{"type":"reasoning","text":"**Final sanity "},"mode":"append"}
+{"t":12528,"item":{"type":"reasoning","text":"pass**\n\nThe markdown parser memoizes a frozen prefix of the message "},"mode":"append"}
+{"t":12598,"item":{"type":"reasoning","text":"without touching the DOM. The message cache invalidates "},"mode":"append"}
+{"t":12664,"item":{"type":"reasoning","text":"the unfinished paragraph after the first paint. The diff renderer "},"mode":"append"}
+{"t":12734,"item":{"type":"reasoning","text":"invalidates a frozen prefix of the message only when the text "},"mode":"append"}
+{"t":12780,"item":{"type":"reasoning","text":"actual"},"mode":"append"}
+{"t":12848,"item":{"type":"reasoning","text":"ly changed. The layout "},"mode":"append"}
+{"t":12918,"item":{"type":"reasoning","text":"pass re-renders the pending to"},"mode":"append"}
+{"t":12967,"item":{"type":"reasoning","text":"ol state when the viewport is pinned to the bottom. The scroll anchor truncates the offscreen items under memory pressure. The diff "},"mode":"append"}
+{"t":13017,"item":{"type":"reasoning","text":"renderer measures "},"mode":"append"}
+{"t":13095,"item":{"type":"reasoning","text":"the pending text node "},"mode":"append"}
+{"t":13171,"item":{"type":"reasoning","text":"before the next commit."},"mode":"append"}
+{"t":13635,"item":{"type":"assistant_message","text":"The stutter comes from re-parsing and re-rendering the whole message on every delta. "},"mode":"append"}
+{"t":13688,"item":{"type":"assistant_message","text":"Appending to a frozen prefix and only re-parsing the open tail fixes the quadratic behaviour."},"mode":"append"}
