@@ -218,6 +218,19 @@ React.memo = function (type) { return { $$typeof: "react.memo", type: type }; };
 React.forwardRef = function (render) { return { $$typeof: "react.forward_ref", render: render }; };
 React.lazy = function (load) { return { $$typeof: "react.lazy", load: load }; };
 var RN = makeStub("react-native");
+// The host injects this module as a plain object, so a missing export reads as
+// undefined (not as a stub): the exact keys of Paseo 0.11.2's
+// \`pluginReactNativeRuntime\`, and with SHAPE "sticky" the hook the bc/sticky
+// host adds (H2b). The plugin must load under both.
+var STOCK_REACT_NATIVE_KEYS = ["Icon", "Modal", "ScrollView", "FlatList", "TextInput", "copyText", "useRevealedText", "useToast"];
+function pluginReactNative(shape) {
+  var runtime = {};
+  for (var k = 0; k < STOCK_REACT_NATIVE_KEYS.length; k++) {
+    runtime[STOCK_REACT_NATIVE_KEYS[k]] = makeStub("plugin/client/react-native." + STOCK_REACT_NATIVE_KEYS[k]);
+  }
+  if (shape === "sticky") runtime.useTimelineStickyHeader = function () { return null; };
+  return runtime;
+}
 var modules = {
   react: React,
   "react/jsx-runtime": makeStub("react/jsx-runtime"),
@@ -227,7 +240,7 @@ var modules = {
   "@getpaseo/plugin": makeStub("plugin"),
   "@getpaseo/plugin/client": makeStub("plugin/client"),
   "@getpaseo/plugin/client/ui": makeStub("plugin/client/ui"),
-  "@getpaseo/plugin/client/react-native": makeStub("plugin/client/react-native"),
+  "@getpaseo/plugin/client/react-native": pluginReactNative(SHAPE),
 };
 function runtimeRequire(name) {
   if (name in modules) return modules[name];
@@ -271,19 +284,23 @@ try {
 } catch (e) {
   problems.push(stage + " threw " + (e && e.name) + ": " + (e && e.message));
 }
-print("registered " + counts.transformers + " transformers, " + counts.renderers + " renderers, " + counts.settings + " settings screens");
+print("registered " + counts.transformers + " transformers, " + counts.renderers + " renderers, " + counts.settings + " settings screens (" + SHAPE + " host)");
 for (var i = 0; i < problems.length; i++) print("PROBLEM " + problems[i]);
 `;
-const harnessPath = path.join(dir, "harness.js");
-writeFileSync(harnessPath, `var SOURCE = ${JSON.stringify(bundle)};\n${harness}`);
-const ran = spawnSync(hermes, [harnessPath], { encoding: "utf8" });
-const output = `${ran.stdout ?? ""}${ran.stderr ?? ""}`.trim();
-const problems = output.split("\n").filter((line) => line.startsWith("PROBLEM "));
-if (ran.status !== 0 || problems.length > 0) {
-  console.error("check:hermes: FAIL — the bundle compiles but does not load in the Hermes VM");
-  for (const line of output.split("\n")) console.error(`  ${line}`);
-  console.error(`  bundle kept at ${bundlePath}`);
-  process.exit(1);
+// Once against a stock 0.11.2 host and once against a host with the sticky
+// header hook (bc/sticky): feature detection must work both ways.
+for (const shape of ["stock", "sticky"]) {
+  const harnessPath = path.join(dir, `harness-${shape}.js`);
+  writeFileSync(harnessPath, `var SOURCE = ${JSON.stringify(bundle)};\nvar SHAPE = ${JSON.stringify(shape)};\n${harness}`);
+  const ran = spawnSync(hermes, [harnessPath], { encoding: "utf8" });
+  const output = `${ran.stdout ?? ""}${ran.stderr ?? ""}`.trim();
+  const problems = output.split("\n").filter((line) => line.startsWith("PROBLEM "));
+  if (ran.status !== 0 || problems.length > 0) {
+    console.error(`check:hermes: FAIL (${shape} host) — the bundle compiles but does not load in the Hermes VM`);
+    for (const line of output.split("\n")) console.error(`  ${line}`);
+    console.error(`  bundle kept at ${bundlePath}`);
+    process.exit(1);
+  }
+  console.log(`check:hermes: run OK (${output.split("\n").find((line) => line.startsWith("registered")) ?? output})`);
 }
-console.log(`check:hermes: run OK (${output.split("\n").find((line) => line.startsWith("registered")) ?? output})`);
 if (!keep) rmSync(dir, { recursive: true, force: true });

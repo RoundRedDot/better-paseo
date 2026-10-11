@@ -18,6 +18,7 @@ import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeText, selectionSurface } from "./selection-actions";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
+import { STICKY_SUPPORTED, StickyCard } from "../ui/sticky-header";
 import { PathContext, PathText } from "../ui/path-text";
 import { RunningDot } from "../ui/running-dot";
 import { CopyButton } from "../ui/copy-button";
@@ -260,23 +261,55 @@ export function ToolCallout({
   // the error line, the copy menu and the opened body as its siblings. A
   // collapsed call is the row alone, and the row keeps its place in the tree
   // when the body opens, so hover and press state survive the toggle.
+  const header = (
+    <DisclosureHeader
+      expanded={expanded}
+      onToggle={onToggle}
+      tokens={tokens}
+      compact={compact}
+      icon={statusIcon}
+      verb={summary.verb}
+      target={target}
+      meta={meta}
+      metaLead={metaLead}
+      actions={actions}
+      actionsActive={menu.open}
+      onLongPress={capabilities.touch ? onLongPress : undefined}
+      accessibilityLabel={[summary.verb, summary.target, ...summary.meta].filter(Boolean).join(" ")}
+    />
+  );
+  const menuList = menu.open ? (
+    <ActionMenuList items={menuItems} open={menu.open} onClose={menu.close} tokens={tokens} compact={compact} />
+  ) : null;
+  const body = expanded ? (
+    <FadeIn style={[styles.body, { backgroundColor: tokens.v2.surface1 }]}>
+      <View {...surfaceProps(selectionSurface)} style={styles.bodyInner}>
+        <ToolBody
+          data={data}
+          tokens={tokens}
+          compact={compact}
+          imageFile={imageFile}
+          revealFile={revealFile}
+          displayPath={filePath ? formatPath(filePath, pathContext).displayPath : undefined}
+        />
+      </View>
+    </FadeIn>
+  ) : null;
+
+  // An opened card on a host with the sticky header API pins its row while it
+  // scrolls past (S6). Collapsed rows never reach the hook.
+  if (expanded && STICKY_SUPPORTED) {
+    return (
+      <StickyCard tokens={tokens} compact={compact} header={header}>
+        {menuList}
+        {body}
+      </StickyCard>
+    );
+  }
+
   return (
     <>
-      <DisclosureHeader
-        expanded={expanded}
-        onToggle={onToggle}
-        tokens={tokens}
-        compact={compact}
-        icon={statusIcon}
-        verb={summary.verb}
-        target={target}
-        meta={meta}
-        metaLead={metaLead}
-        actions={actions}
-        actionsActive={menu.open}
-        onLongPress={capabilities.touch ? onLongPress : undefined}
-        accessibilityLabel={[summary.verb, summary.target, ...summary.meta].filter(Boolean).join(" ")}
-      />
+      {header}
       {summary.errorLine && !expanded ? (
         <Text
           {...(surfaceProps(selectionSurface, codeSurface) as object)}
@@ -287,23 +320,8 @@ export function ToolCallout({
           {summary.errorLine}
         </Text>
       ) : null}
-      {menu.open ? (
-        <ActionMenuList items={menuItems} open={menu.open} onClose={menu.close} tokens={tokens} compact={compact} />
-      ) : null}
-      {expanded ? (
-        <FadeIn style={[styles.body, { backgroundColor: tokens.v2.surface1 }]}>
-          <View {...surfaceProps(selectionSurface)} style={styles.bodyInner}>
-            <ToolBody
-              data={data}
-              tokens={tokens}
-              compact={compact}
-              imageFile={imageFile}
-              revealFile={revealFile}
-              displayPath={filePath ? formatPath(filePath, pathContext).displayPath : undefined}
-            />
-          </View>
-        </FadeIn>
-      ) : null}
+      {menuList}
+      {body}
     </>
   );
 }

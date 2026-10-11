@@ -116,6 +116,10 @@ export const Dimensions = {
 
 export const Linking = { openURL: () => Promise.resolve() };
 
+export function useWindowDimensions() {
+  return Dimensions.get();
+}
+
 export default {
   View,
   Text,
@@ -129,4 +133,5 @@ export default {
   AccessibilityInfo,
   Dimensions,
   Linking,
+  useWindowDimensions,
 };
