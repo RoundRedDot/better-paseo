@@ -1,9 +1,14 @@
-import React, { useMemo, useCallback } from "react";
-import { View, Text, Pressable, StyleSheet, Image } from "react-native";
-import { Glyph } from "./glyph";
+import React, { useCallback, useMemo, useState } from "react";
+import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import { radiusV2, space } from "./theme-tokens";
 import { useCopy } from "../ui/use-copy";
-import { UI_SCALE } from "../ui/tokens/typography";
+import { useHover } from "../ui/use-hover";
+import { useInputCapabilities } from "../ui/use-input-capabilities";
+import { FadeIn } from "../ui/fade-in";
+import { formatStamp } from "../ui/time";
+import { TYPE } from "../ui/tokens/typography";
+import { unselectable } from "./selection";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { selectableSurface } from "./selection";
 import { selectionSurface } from "./selection-actions";
@@ -33,6 +38,8 @@ interface UserMessageProps {
    * updates re-render that child and never the bubble (F2, D3/D6).
    */
   footer?: React.ReactNode;
+  /** `layout.compact`: the bubble may take more of a narrow column. */
+  compact?: boolean;
 }
 
 /**
@@ -40,7 +47,7 @@ interface UserMessageProps {
  * thousands range: rounding 94,336 to `94k` hides the movement between turns,
  * which is the only reason to watch the number.
  */
-function formatTokens(value: number): string {
+export function formatTokens(value: number): string {
   if (value < 1000) return String(value);
   // Rounding is done on integers: 97850 / 1000 is held as 97.8499…, so
   // `toFixed(1)` would report 97.8 for a value that is 97.9k.
@@ -48,42 +55,20 @@ function formatTokens(value: number): string {
   return `${(Math.round(value / 100_000) / 10).toFixed(1)}M`;
 }
 
-function formatClock(value: Date): string {
-  const hh = String(value.getHours()).padStart(2, "0");
-  const mm = String(value.getMinutes()).padStart(2, "0");
-  const ss = String(value.getSeconds()).padStart(2, "0");
-  return `${hh}:${mm}:${ss}`;
-}
-
-/** One labelled figure. A missing count is omitted, never shown as zero. */
-function UsageFigure({
-  label,
-  value,
-  styles,
-}: {
-  label: string;
-  value?: number;
-  styles: { usageKey: object; usageValue: object };
-}) {
-  if (typeof value !== "number") return null;
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
-      <Text selectable style={styles.usageKey}>
-        {label}
-      </Text>
-      <Text selectable style={styles.usageValue}>
-        {formatTokens(value)}
-      </Text>
-    </View>
-  );
-}
+const IS_WEB = Platform.OS === "web";
 
 /**
- * The user's turn. It sits to the right on light paper with dark text and no
- * accent: colour on this surface marks agent activity, so keeping it off the
- * prompt is what separates what the user wrote from what the agent did.
- * The body text stays left-aligned inside the block, because right-ragged
- * prose is harder to read once it wraps.
+ * The user's turn, drawn as the host draws its own (S7 design spec §3.5,
+ * Paseo `message.tsx` `userMessageStylesheet`): a right-aligned bubble on the
+ * most raised surface, radius 16 with a 2pt tail corner at the top right,
+ * 16pt padding, the text at the host's content size. No label and no icons
+ * inside; colour on this surface marks agent activity, so the prompt has
+ * none.
+ *
+ * Under the bubble, right-aligned: the turn's usage (when this client saw it
+ * live), the time, and Copy — shown on touch, and on hover where the pointer
+ * can hover. A press on the usage opens the in / cached / out figures in
+ * place, below that line.
  */
 export function UserMessage({
   text,
@@ -93,100 +78,94 @@ export function UserMessage({
   usage,
   pending = false,
   footer,
+  compact = false,
 }: UserMessageProps) {
   // The shared copy path: the icon turns into a check for 1.2 s, a failure
   // is a toast, and the timer is cleared on unmount.
   const { copied, copy } = useCopy();
   const handleCopy = useCallback(() => void copy(text), [copy, text]);
+  const capabilities = useInputCapabilities(compact);
+  const { hovered, hoverProps } = useHover();
+  const showCopy = !capabilities.hover || hovered || copied;
 
-  const styles = useMemo(
-    () =>
-      StyleSheet.create({
-        container: {
-          alignSelf: "flex-end",
-          maxWidth: "82%",
-          flexDirection: "row",
-          gap: 10,
-          paddingVertical: space.sm,
-          paddingHorizontal: space.md,
-          borderRadius: radiusV2.bubble,
-          // The square tail marks the turn's owner, matching the native stream.
-          borderTopRightRadius: radiusV2.bubbleTail,
-          // Colour alone carries the bubble (plan §3.6): no border, no shadow.
-          backgroundColor: tokens.userSurface,
-          ...selectableSurface,
-        },
-        body: { flex: 1, gap: 3 },
-        metaRow: {
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          gap: space.sm,
-        },
-        label: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          fontWeight: "600",
-          letterSpacing: 0.4,
-          textTransform: "uppercase",
-          color: tokens.userTextMuted,
-        },
-        copyButton: {
-          paddingHorizontal: space.xs,
-          paddingVertical: 2,
-        },
-        clock: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          color: tokens.userTextMuted,
-        },
-        text: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.lg,
-          lineHeight: 20,
-          color: tokens.userText,
-        },
-        imageRow: {
-          marginTop: space.sm,
-          gap: 6,
-        },
-        image: {
-          width: "100%",
-          // Tall enough to read, bounded so a screenshot cannot take over
-          // the thread.
-          height: 200,
-          borderRadius: radiusV2.block,
-          backgroundColor: tokens.userBorder,
-        },
-      }),
-    [tokens],
-  );
+  const styles = useMemo(() => {
+    const size = tokens.typography.content.size;
+    return StyleSheet.create({
+      column: {
+        alignSelf: "flex-end",
+        alignItems: "flex-end",
+        maxWidth: compact ? "86%" : BUBBLE_MAX_DESKTOP,
+        ...selectableSurface,
+      },
+      bubble: {
+        paddingHorizontal: space.lg,
+        paddingVertical: space.lg,
+        borderRadius: radiusV2.bubble,
+        // The square tail marks the turn's owner, matching the native stream.
+        borderTopRightRadius: radiusV2.bubbleTail,
+        backgroundColor: tokens.userSurface,
+      },
+      text: {
+        fontFamily: tokens.fontUi,
+        fontSize: size,
+        lineHeight: Math.round(size * 1.4),
+        color: tokens.userText,
+      },
+      imageRow: {
+        marginTop: space.sm,
+        gap: space.sm,
+      },
+      image: {
+        width: "100%",
+        // Tall enough to read, bounded so a screenshot cannot take over
+        // the thread.
+        height: 200,
+        borderRadius: radiusV2.block,
+        backgroundColor: tokens.v2.surface1,
+      },
+      // Right to left: Copy, the time, then the footer (usage), whose
+      // breakdown wraps onto its own line below.
+      trailing: {
+        flexDirection: "row-reverse",
+        flexWrap: "wrap",
+        alignItems: "center",
+        minHeight: TRAILING_HEIGHT,
+        marginTop: space.xs,
+        columnGap: space.sm,
+      },
+      clock: {
+        fontFamily: tokens.fontUi,
+        fontSize: TYPE.caption.size,
+        lineHeight: TYPE.caption.lineHeight,
+        fontVariant: ["tabular-nums"],
+        color: tokens.userTextMuted,
+        ...unselectable,
+      },
+      copyButton: {
+        width: TRAILING_HEIGHT,
+        height: TRAILING_HEIGHT,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: radiusV2.chip,
+      },
+    });
+  }, [tokens, compact]);
+
+  // Web follows the pointer with DOM mouseenter/leave, which stay true while
+  // it moves onto Copy; native pointers (iPad) arrive through Pressable hover.
+  const pointerProps = IS_WEB
+    ? { onMouseEnter: hoverProps.onHoverIn, onMouseLeave: hoverProps.onHoverOut }
+    : hoverProps;
+  const Column = IS_WEB ? View : Pressable;
 
   return (
-    <View {...selectionSurface} style={styles.container}>
-      <View style={styles.body}>
-        <View style={styles.metaRow}>
-          <Text selectable style={styles.label}>
-            You
-          </Text>
-          {timestamp ? (
-            <Text selectable style={styles.clock}>
-              {formatClock(timestamp)}
-            </Text>
-          ) : null}
-          <Pressable
-            onPress={handleCopy}
-            accessibilityRole="button"
-            accessibilityLabel={copied ? "Prompt copied" : "Copy prompt"}
-            style={styles.copyButton}
-          >
-            <Glyph
-              name={copied ? "Check" : "Copy"}
-              size={UI_SCALE.base}
-              color={copied ? tokens.userText : tokens.userTextMuted}
-            />
-          </Pressable>
-        </View>
+    <Column
+      {...selectionSurface}
+      {...(pointerProps as object)}
+      {...(IS_WEB ? null : { accessible: false, focusable: false })}
+      style={styles.column}
+    >
+      <View style={styles.bubble}>
         <Text selectable style={styles.text}>
           {text}
         </Text>
@@ -203,13 +182,45 @@ export function UserMessage({
             ))}
           </View>
         ) : null}
+      </View>
+      <View style={styles.trailing}>
+        <Pressable
+          onPress={handleCopy}
+          disabled={!showCopy}
+          accessibilityRole="button"
+          accessibilityLabel={copied ? "Prompt copied" : "Copy prompt"}
+          hitSlop={capabilities.touch ? 10 : 4}
+          style={({ pressed }) => [
+            styles.copyButton,
+            // Always laid out, so revealing it on hover moves nothing.
+            { opacity: showCopy ? 1 : 0 },
+            pressed && { backgroundColor: tokens.v2.surface2 },
+          ]}
+        >
+          <Icon
+            name={copied ? "Check" : "Copy"}
+            size={COPY_ICON}
+            color={copied ? tokens.success : tokens.userTextMuted}
+          />
+        </Pressable>
+        {timestamp ? <Text style={styles.clock}>{formatStamp(timestamp)}</Text> : null}
         {footer !== undefined ? footer : <TurnUsageRow usage={usage} pending={pending} tokens={tokens} />}
       </View>
-    </View>
+    </Column>
   );
 }
 
-/** The turn's token figures under the prompt; nothing until usage is known. */
+/** Desktop bubble width (S7 §3.5): wide enough for a paragraph, never the whole column. */
+const BUBBLE_MAX_DESKTOP = 560;
+/** The line under the bubble, and its 24pt Copy. */
+const TRAILING_HEIGHT = 24;
+const COPY_ICON = 14;
+
+/**
+ * The turn's tokens under the prompt: "62.0k tokens" (output), and the in /
+ * cached / out figures in place below it on press. Nothing until usage is
+ * known; "counting…" while the turn still runs.
+ */
 export function TurnUsageRow({
   usage,
   pending = false,
@@ -219,45 +230,89 @@ export function TurnUsageRow({
   pending?: boolean;
   tokens: ExtendedThemeTokens;
 }) {
+  const [open, setOpen] = useState(false);
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        usageRow: {
+        summary: {
+          fontFamily: tokens.fontMono,
+          fontSize: TYPE.meta.size,
+          lineHeight: TYPE.meta.lineHeight,
+          fontVariant: ["tabular-nums"],
+          color: tokens.userTextMuted,
+          ...unselectable,
+        },
+        // Full width, so it wraps below the time and Copy.
+        breakdown: {
+          width: "100%",
+          alignItems: "flex-end",
+          marginTop: space.xs,
+        },
+        panel: {
+          minWidth: BREAKDOWN_WIDTH,
+          paddingVertical: space.xs,
+          paddingHorizontal: space.md,
+          borderRadius: radiusV2.block,
+          backgroundColor: tokens.v2.surface1,
+        },
+        figureRow: {
+          height: 24,
           flexDirection: "row",
           alignItems: "center",
-          justifyContent: "flex-end",
-          flexWrap: "wrap",
-          gap: 10,
-          marginTop: 7,
-          paddingTop: 6,
-          borderTopWidth: 1,
-          borderTopColor: tokens.userBorder,
+          justifyContent: "space-between",
+          gap: space.lg,
         },
-        usageKey: {
+        figureLabel: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          color: tokens.userTextMuted,
+          fontSize: TYPE.button.size,
+          color: tokens.foregroundMuted,
         },
-        usageValue: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          fontWeight: "600",
-          color: tokens.userText,
+        figureValue: {
+          fontFamily: tokens.fontMono,
+          fontSize: TYPE.meta.size,
+          fontVariant: ["tabular-nums"],
+          color: tokens.foreground,
         },
       }),
     [tokens],
   );
   if (!usage) return null;
+  const output = usage.outputTokens;
+  const summary =
+    typeof output === "number" ? `${formatTokens(output)} tokens` : pending ? "" : "usage";
+  const figures: Array<[string, number | undefined]> = [
+    ["Input", usage.inputTokens],
+    ["Cached", usage.cachedInputTokens],
+    ["Output", usage.outputTokens],
+  ];
   return (
-    <View style={styles.usageRow}>
-      <UsageFigure label="in" value={usage.inputTokens} styles={styles} />
-      <UsageFigure label="cached" value={usage.cachedInputTokens} styles={styles} />
-      <UsageFigure label="out" value={usage.outputTokens} styles={styles} />
-      {pending ? (
-        <Text selectable style={styles.usageKey}>
-          counting…
-        </Text>
+    <>
+      <Text
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((value) => !value)}
+        style={styles.summary}
+      >
+        {pending ? `${summary}${summary ? " · " : ""}counting…` : summary}
+      </Text>
+      {open ? (
+        <FadeIn style={styles.breakdown}>
+          <View style={styles.panel}>
+            {figures.map(([label, value]) =>
+              typeof value === "number" ? (
+                <View key={label} style={styles.figureRow}>
+                  <Text style={styles.figureLabel}>{label}</Text>
+                  <Text selectable style={styles.figureValue}>
+                    {formatTokens(value)}
+                  </Text>
+                </View>
+              ) : null,
+            )}
+          </View>
+        </FadeIn>
       ) : null}
-    </View>
+    </>
   );
 }
+
+const BREAKDOWN_WIDTH = 200;

@@ -349,7 +349,7 @@ function LiveAssistantRendererBody({
         />
       )}
       {isTail && !envelope ? (
-        <AssistantFooter text={item.data.text} at={timestamp} tokens={tokens} />
+        <AssistantFooter text={item.data.text} at={timestamp} tokens={tokens} compact={layout.compact} />
       ) : null}
       <TimelineTailHub
         agentId={agentId}
@@ -507,6 +507,7 @@ function LiveUserMessageRendererBody({
           images={item.data.images}
           timestamp={timestamp}
           tokens={tokens}
+          compact={layout.compact}
           footer={
             observedLive ? (
               <LivePromptUsage agentId={agentId} promptKey={promptKey} at={atMs} tokens={tokens} />
