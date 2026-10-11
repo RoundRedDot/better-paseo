@@ -14,8 +14,8 @@
 |---|---|---|
 | BC-01 工具调用折叠 | **完成**（跨工具聚合除外） | 全部默认折叠为无框单行（≤32px）；`summarizeTool` 按类型生成摘要；展开状态以 `agentId:callId` 存在模块级仓库，完成、移入历史区、重新挂载都不会重置；失败时显示一行错误；协议中 search/fetch 等 7 种类型补齐分类。"Read 12 files"式跨工具聚合需要宿主分组 API（H3，未做） |
 | BC-02 思考过程 | **完成** | 不再按空行编号；只识别真实结构（Codex `**标题**` 分段、多级标题）；默认折叠，流式时 header 单行实时预览；时长只在本端实际看到流式过程时显示，不伪造 |
-| BC-03 工具 header 吸顶 | **未完成：需要宿主** | 插件拿不到滚动容器；方案已设计宿主 API `useTimelineStickyHeader`（H2b），未实施 |
-| BC-04 用户消息吸顶 | **未完成：需要宿主** | 方案为宿主自有的吸顶栏，复用已有 prompt 索引（H2a），未实施 |
+| BC-03 工具 header 吸顶 | **插件侧完成；宿主为原型** | 宿主 API `useTimelineStickyHeader`（H2b）已在 fork 分支 `bc/sticky` 实现并在 iOS/Web 验证；插件 S6 已接入并做特性检测（0.11.2 上行为不变）；上游 Discussion #6634 |
+| BC-04 用户消息吸顶 | **宿主原型完成** | 宿主自有吸顶栏（H2a）已在 fork 分支 `bc/sticky` 实现并在 iOS/Web 验证；插件无需改动；上游 Discussion #6634 |
 | BC-05 Markdown 引擎替换 | **完成** | 自研 `parse.ts` 已删除；改为 vendor 的 `marked@18`（Babel 去 class，兼容 Hermes）+ `remend` |
 | BC-06 流式 Markdown | **完成** | 每条消息独立的增量分块缓存、定稿块 memo、只修复尾块；需求 §6.5 的九类未完成语法均无格式翻转 |
 | BC-07 性能 | **完成**（个别极端场景见 §4、§7） | 见 §4 |
@@ -28,6 +28,10 @@
 | BC-14 跨端适配 | **完成**（Android、iPad 未验证） | 按真实能力（能否悬停、是否触控）分支，不按 platform；触控设备上点击路径改为复制（`file.reveal` 只在 daemon 机器上生效）；跨端约束清单 8 条 |
 
 需求 §14 要求保留的功能全部保留。唯一的行为变化：触控设备上点击路径由"在 daemon 机器的文件管理器中显示"改为复制绝对路径。
+
+### 界面打磨（S7，Claude Design）
+
+交付后按用户反馈，用 Claude Design 迭代 3 轮，选定 **A · Ledger** 方向（几乎只用行）并实现：折叠行视图数 bash 14→6、read 15→8、思考 12→5；11 个 fixture 的 commit p50/p95 全部下降，布局偏移明显降低（表格 0.041→0.009）。设计包与实现对照见 `~/workspace/rrd/scratch/beautiful-chat-upgrade-evidence/s7-design/` 与 `s7-impl/`。
 
 ## 2. 代码修改清单
 
@@ -93,8 +97,8 @@
 | H0：插件工具行与原生工具行的间距一致 | Paseo | **已实现并在设备上验证**（`3291fc51c`）：行距 46.2pt → 30pt（原生 32pt） |
 | H1：`PluginTheme.typography` 透传宿主字体设置 | Paseo | **已实现并在设备上验证**（`c9dc6d447`）：修改宿主字体后插件实时更新 |
 | H4：缓存 `toPluginTheme` 和 `safeParse` 结果 | Paseo | 未实现（实测收益小，插件侧语义化 memo 已覆盖） |
-| H2a：当前轮 prompt 吸顶栏 | Paseo | 已设计，未实现（BC-04） |
-| H2b：`useTimelineStickyHeader` 单元格吸顶 API | Paseo + 插件 S6 | 已设计，未实现（BC-03） |
+| H2a：当前轮 prompt 吸顶栏 | Paseo | **原型已实现并验证**（`bc/sticky` `ec6c00b2a`），上游 Discussion #6634 |
+| H2b：`useTimelineStickyHeader` 单元格吸顶 API | Paseo + 插件 S6 | **原型已实现并验证**（`bc/sticky` `948ff9f14`）；插件 S6 已接入；上游 Discussion #6634 |
 | H3：跨 item 分组 API | Paseo | 后续项（BC-01 聚合） |
 | 打开宿主内文件 tab 的导航能力 | Paseo | 后续项（远程和移动端的文件跳转） |
 | 插件 bundle 压缩（H6 候选） | Paseo | 后续项 |
@@ -120,7 +124,7 @@
 
 ## 7. 已知限制
 
-1. **双层吸顶（BC-03/04）未实现**：需要宿主 H2a/H2b。
+1. **双层吸顶（BC-03/04）依赖上游**：宿主原型在 fork 分支，未进入发布版 Paseo；钉住状态下折叠长卡片会因宿主底部锚定而丢失位置（Discussion 中的开放问题）。
 2. **跨工具聚合（"Read 12 files"）未实现**：需要宿主分组 API。目前用紧凑的单行代替。
 3. **继承 Paseo 字体**需要宿主 H1 合入上游；当前 0.11.2 宿主上回退到默认值。
 4. **未验证的平台**：Electron 桌面端本体（用 Web 生产构建代理）、Android、iPad 指针悬停、真机。
