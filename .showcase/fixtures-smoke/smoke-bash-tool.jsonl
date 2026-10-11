@@ -1,0 +1,18 @@
+{"kind":"meta","name":"smoke-bash-tool","description":"A bash tool call that runs, then completes, between two assistant messages","scenario":"smoke"}
+{"t":0,"item":{"type":"user_message","text":"Run the typecheck.","messageId":"m2"},"mode":"append"}
+{"t":200,"item":{"type":"assistant_message","text":"Runni"},"mode":"append"}
+{"t":260,"item":{"type":"assistant_message","text":"ng th"},"mode":"append"}
+{"t":320,"item":{"type":"assistant_message","text":"e typ"},"mode":"append"}
+{"t":380,"item":{"type":"assistant_message","text":"echec"},"mode":"append"}
+{"t":440,"item":{"type":"assistant_message","text":"k now"},"mode":"append"}
+{"t":500,"item":{"type":"assistant_message","text":"."},"mode":"append"}
+{"t":700,"item":{"type":"tool_call","callId":"call-1","name":"bash","status":"running","error":null,"detail":{"type":"shell","command":"npm run typecheck","cwd":"/repo"}},"mode":"replace"}
+{"t":2200,"item":{"type":"tool_call","callId":"call-1","name":"bash","status":"completed","error":null,"detail":{"type":"shell","command":"npm run typecheck","cwd":"/repo","output":"> beautiful-chat@0.1.0 typecheck\n> tsc --noEmit\n\nChecked 34 files in 4.2s\n","exitCode":0}},"mode":"replace"}
+{"t":2400,"item":{"type":"assistant_message","text":"Type"},"mode":"append"}
+{"t":2460,"item":{"type":"assistant_message","text":"chec"},"mode":"append"}
+{"t":2520,"item":{"type":"assistant_message","text":"k pa"},"mode":"append"}
+{"t":2580,"item":{"type":"assistant_message","text":"ssed"},"mode":"append"}
+{"t":2640,"item":{"type":"assistant_message","text":" wit"},"mode":"append"}
+{"t":2700,"item":{"type":"assistant_message","text":"h no"},"mode":"append"}
+{"t":2760,"item":{"type":"assistant_message","text":" err"},"mode":"append"}
+{"t":2820,"item":{"type":"assistant_message","text":"ors."},"mode":"append"}

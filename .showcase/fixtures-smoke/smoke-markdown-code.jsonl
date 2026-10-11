@@ -1,0 +1,110 @@
+{"kind":"meta","name":"smoke-markdown-code","description":"Streaming markdown reply with a list and a fenced code block","scenario":"smoke"}
+{"t":0,"item":{"type":"user_message","text":"Write a debounce helper in TypeScript.","messageId":"m1"},"mode":"append"}
+{"t":200,"item":{"type":"reasoning","text":"Considering the request. "},"mode":"append"}
+{"t":350,"item":{"type":"reasoning","text":"A debounce needs a timer "},"mode":"append"}
+{"t":500,"item":{"type":"reasoning","text":"and must keep the latest args."},"mode":"append"}
+{"t":900,"item":{"type":"assistant_message","text":"Her"},"mode":"append"}
+{"t":940,"item":{"type":"assistant_message","text":"e is a"},"mode":"append"}
+{"t":980,"item":{"type":"assistant_message","text":" **"},"mode":"append"}
+{"t":1020,"item":{"type":"assistant_message","text":"small*"},"mode":"append"}
+{"t":1060,"item":{"type":"assistant_message","text":"* h"},"mode":"append"}
+{"t":1100,"item":{"type":"assistant_message","text":"elper "},"mode":"append"}
+{"t":1140,"item":{"type":"assistant_message","text":"tha"},"mode":"append"}
+{"t":1180,"item":{"type":"assistant_message","text":"t debo"},"mode":"append"}
+{"t":1220,"item":{"type":"assistant_message","text":"unc"},"mode":"append"}
+{"t":1260,"item":{"type":"assistant_message","text":"es a c"},"mode":"append"}
+{"t":1300,"item":{"type":"assistant_message","text":"all"},"mode":"append"}
+{"t":1340,"item":{"type":"assistant_message","text":"back.\n"},"mode":"append"}
+{"t":1380,"item":{"type":"assistant_message","text":"\n##"},"mode":"append"}
+{"t":1420,"item":{"type":"assistant_message","text":" Usage"},"mode":"append"}
+{"t":1460,"item":{"type":"assistant_message","text":"\n\n-"},"mode":"append"}
+{"t":1500,"item":{"type":"assistant_message","text":" call "},"mode":"append"}
+{"t":1540,"item":{"type":"assistant_message","text":"`de"},"mode":"append"}
+{"t":1580,"item":{"type":"assistant_message","text":"bounce"},"mode":"append"}
+{"t":1620,"item":{"type":"assistant_message","text":"(fn"},"mode":"append"}
+{"t":1660,"item":{"type":"assistant_message","text":", 200)"},"mode":"append"}
+{"t":1700,"item":{"type":"assistant_message","text":"`\n-"},"mode":"append"}
+{"t":1740,"item":{"type":"assistant_message","text":" the r"},"mode":"append"}
+{"t":1780,"item":{"type":"assistant_message","text":"etu"},"mode":"append"}
+{"t":1820,"item":{"type":"assistant_message","text":"rned f"},"mode":"append"}
+{"t":1860,"item":{"type":"assistant_message","text":"unc"},"mode":"append"}
+{"t":1900,"item":{"type":"assistant_message","text":"tion i"},"mode":"append"}
+{"t":1940,"item":{"type":"assistant_message","text":"s c"},"mode":"append"}
+{"t":1980,"item":{"type":"assistant_message","text":"ancela"},"mode":"append"}
+{"t":2020,"item":{"type":"assistant_message","text":"ble"},"mode":"append"}
+{"t":2060,"item":{"type":"assistant_message","text":"\n\n```t"},"mode":"append"}
+{"t":2100,"item":{"type":"assistant_message","text":"s\ne"},"mode":"append"}
+{"t":2140,"item":{"type":"assistant_message","text":"xport "},"mode":"append"}
+{"t":2180,"item":{"type":"assistant_message","text":"fun"},"mode":"append"}
+{"t":2220,"item":{"type":"assistant_message","text":"ction "},"mode":"append"}
+{"t":2260,"item":{"type":"assistant_message","text":"deb"},"mode":"append"}
+{"t":2300,"item":{"type":"assistant_message","text":"ounce<"},"mode":"append"}
+{"t":2340,"item":{"type":"assistant_message","text":"T e"},"mode":"append"}
+{"t":2380,"item":{"type":"assistant_message","text":"xtends"},"mode":"append"}
+{"t":2420,"item":{"type":"assistant_message","text":" un"},"mode":"append"}
+{"t":2460,"item":{"type":"assistant_message","text":"known["},"mode":"append"}
+{"t":2500,"item":{"type":"assistant_message","text":"]>("},"mode":"append"}
+{"t":2540,"item":{"type":"assistant_message","text":"fn: (."},"mode":"append"}
+{"t":2580,"item":{"type":"assistant_message","text":"..a"},"mode":"append"}
+{"t":2620,"item":{"type":"assistant_message","text":"rgs: T"},"mode":"append"}
+{"t":2660,"item":{"type":"assistant_message","text":") ="},"mode":"append"}
+{"t":2700,"item":{"type":"assistant_message","text":"> void"},"mode":"append"}
+{"t":2740,"item":{"type":"assistant_message","text":", w"},"mode":"append"}
+{"t":2780,"item":{"type":"assistant_message","text":"ait: n"},"mode":"append"}
+{"t":2820,"item":{"type":"assistant_message","text":"umb"},"mode":"append"}
+{"t":2860,"item":{"type":"assistant_message","text":"er) {\n"},"mode":"append"}
+{"t":2900,"item":{"type":"assistant_message","text":"  l"},"mode":"append"}
+{"t":2940,"item":{"type":"assistant_message","text":"et tim"},"mode":"append"}
+{"t":2980,"item":{"type":"assistant_message","text":"er:"},"mode":"append"}
+{"t":3020,"item":{"type":"assistant_message","text":" Retur"},"mode":"append"}
+{"t":3060,"item":{"type":"assistant_message","text":"nTy"},"mode":"append"}
+{"t":3100,"item":{"type":"assistant_message","text":"pe<typ"},"mode":"append"}
+{"t":3140,"item":{"type":"assistant_message","text":"eof"},"mode":"append"}
+{"t":3180,"item":{"type":"assistant_message","text":" setTi"},"mode":"append"}
+{"t":3220,"item":{"type":"assistant_message","text":"meo"},"mode":"append"}
+{"t":3260,"item":{"type":"assistant_message","text":"ut> | "},"mode":"append"}
+{"t":3300,"item":{"type":"assistant_message","text":"und"},"mode":"append"}
+{"t":3340,"item":{"type":"assistant_message","text":"efined"},"mode":"append"}
+{"t":3380,"item":{"type":"assistant_message","text":";\n "},"mode":"append"}
+{"t":3420,"item":{"type":"assistant_message","text":" retur"},"mode":"append"}
+{"t":3460,"item":{"type":"assistant_message","text":"n ("},"mode":"append"}
+{"t":3500,"item":{"type":"assistant_message","text":"...arg"},"mode":"append"}
+{"t":3540,"item":{"type":"assistant_message","text":"s: "},"mode":"append"}
+{"t":3580,"item":{"type":"assistant_message","text":"T) => "},"mode":"append"}
+{"t":3620,"item":{"type":"assistant_message","text":"{\n "},"mode":"append"}
+{"t":3660,"item":{"type":"assistant_message","text":"   cle"},"mode":"append"}
+{"t":3700,"item":{"type":"assistant_message","text":"arT"},"mode":"append"}
+{"t":3740,"item":{"type":"assistant_message","text":"imeout"},"mode":"append"}
+{"t":3780,"item":{"type":"assistant_message","text":"(ti"},"mode":"append"}
+{"t":3820,"item":{"type":"assistant_message","text":"mer);\n"},"mode":"append"}
+{"t":3860,"item":{"type":"assistant_message","text":"   "},"mode":"append"}
+{"t":3900,"item":{"type":"assistant_message","text":" timer"},"mode":"append"}
+{"t":3940,"item":{"type":"assistant_message","text":" = "},"mode":"append"}
+{"t":3980,"item":{"type":"assistant_message","text":"setTim"},"mode":"append"}
+{"t":4020,"item":{"type":"assistant_message","text":"eou"},"mode":"append"}
+{"t":4060,"item":{"type":"assistant_message","text":"t(() ="},"mode":"append"}
+{"t":4100,"item":{"type":"assistant_message","text":"> f"},"mode":"append"}
+{"t":4140,"item":{"type":"assistant_message","text":"n(...a"},"mode":"append"}
+{"t":4180,"item":{"type":"assistant_message","text":"rgs"},"mode":"append"}
+{"t":4220,"item":{"type":"assistant_message","text":"), wai"},"mode":"append"}
+{"t":4260,"item":{"type":"assistant_message","text":"t);"},"mode":"append"}
+{"t":4300,"item":{"type":"assistant_message","text":"\n  };\n"},"mode":"append"}
+{"t":4340,"item":{"type":"assistant_message","text":"}\n`"},"mode":"append"}
+{"t":4380,"item":{"type":"assistant_message","text":"``\n\nTh"},"mode":"append"}
+{"t":4420,"item":{"type":"assistant_message","text":"e t"},"mode":"append"}
+{"t":4460,"item":{"type":"assistant_message","text":"imer r"},"mode":"append"}
+{"t":4500,"item":{"type":"assistant_message","text":"ese"},"mode":"append"}
+{"t":4540,"item":{"type":"assistant_message","text":"ts on "},"mode":"append"}
+{"t":4580,"item":{"type":"assistant_message","text":"eve"},"mode":"append"}
+{"t":4620,"item":{"type":"assistant_message","text":"ry cal"},"mode":"append"}
+{"t":4660,"item":{"type":"assistant_message","text":"l, "},"mode":"append"}
+{"t":4700,"item":{"type":"assistant_message","text":"so onl"},"mode":"append"}
+{"t":4740,"item":{"type":"assistant_message","text":"y t"},"mode":"append"}
+{"t":4780,"item":{"type":"assistant_message","text":"he **l"},"mode":"append"}
+{"t":4820,"item":{"type":"assistant_message","text":"ast"},"mode":"append"}
+{"t":4860,"item":{"type":"assistant_message","text":"** cal"},"mode":"append"}
+{"t":4900,"item":{"type":"assistant_message","text":"l i"},"mode":"append"}
+{"t":4940,"item":{"type":"assistant_message","text":"n a bu"},"mode":"append"}
+{"t":4980,"item":{"type":"assistant_message","text":"rst"},"mode":"append"}
+{"t":5020,"item":{"type":"assistant_message","text":" fires"},"mode":"append"}
+{"t":5060,"item":{"type":"assistant_message","text":".\n"},"mode":"append"}
