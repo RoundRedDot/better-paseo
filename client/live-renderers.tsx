@@ -6,7 +6,11 @@ import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useThemeTokens } from "./components/theme-tokens";
 import { ToolCallout } from "./components/tool-callouts";
-import { ReasoningTrace } from "./components/reasoning-trace";
+import { ReasoningCard } from "./components/reasoning-trace";
+import { createReasoningSegmenter } from "./reasoning/segment";
+import { useReasoningKey } from "./reasoning/key";
+import { observeReasoning, observedDurationMs } from "./reasoning/observed";
+import { useDisclosure } from "./state/disclosure-store";
 import { TaskList } from "./components/task-list";
 import { UserMessage } from "./components/user-message";
 import { hostFontEscape } from "./components/host-font-escape";
@@ -28,7 +32,6 @@ import { useIsTimelineTail } from "./timeline-tail";
 import type {
   ToolCalloutData,
   ToolCallKind,
-  ReasoningTraceData,
   TaskListData,
   TaskItemData,
   EvalCell,
@@ -648,9 +651,11 @@ function LiveToolCallRendererBody({
 }
 
 function LiveReasoningRendererBody({
+  agentId,
   item,
   theme,
   layout,
+  timestamp,
 }: PluginTimelineItemProps<LiveReasoningPayload>) {
   const probe = probeCard(
     "reasoning",
@@ -661,60 +666,42 @@ function LiveReasoningRendererBody({
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
   usePointerGlow(preferences.pointerGlow);
-  const data = item.data;
-  // The host owns the reveal cadence, so streamed reasoning animates the same
-  // way it does in the native timeline instead of appearing in whole blocks.
-  const revealed = useRevealedText(
-    data.text || "",
-    data.phase === "streaming" ? "streaming" : "complete",
+  const text = item.data.text || "";
+  const streaming = item.data.phase === "streaming";
+
+  // Collapsed by default, streaming or not (plan §3.4 item 3); the reader's
+  // choice survives the remount into history through the disclosure store.
+  const storeKey = useReasoningKey(agentId, text);
+  const [expanded, setExpanded] = useDisclosure(storeKey, false);
+  const toggle = useCallback(() => setExpanded(!expanded), [expanded, setExpanded]);
+
+  // The host's reveal runs a frame loop only for "streaming". A collapsed card
+  // shows one line, so it takes the text whole and renders once per chunk.
+  const revealed = useRevealedText(text, expanded && streaming ? "streaming" : "complete");
+
+  const [segmenter] = useState(createReasoningSegmenter);
+  const segmentation = useMemo(
+    () => segmenter.update(revealed, { streaming }),
+    [segmenter, revealed, streaming],
   );
 
-  const reasoningData: ReasoningTraceData = useMemo(() => {
-    const rawText = revealed;
-    // Split into paragraphs or steps if separated
-    const paragraphs = rawText.split("\n\n").filter(Boolean);
-    // No fabricated title: slicing the first 60 characters of the body cut
-    // words in half and then repeated the same text underneath.
-    // The final paragraph is the one still being written, so it reads as
-    // active while streaming. That is what advances the timeline rail one
-    // tick at a time instead of lighting the whole thing up at once.
-    const streaming = data.phase === "streaming";
-    const steps = paragraphs.map((p, idx) => ({
-      id: `live-step-${idx}`,
-      number: idx + 1,
-      status:
-        streaming && idx === paragraphs.length - 1 ? ("active" as const) : ("completed" as const),
-      content: p,
-    }));
-
-    return {
-      id: "live-reasoning",
-      agentModel: "",
-      durationMs: 0,
-      totalTokens: Math.round(rawText.length / 4),
-      status: data.phase === "streaming" ? "thinking" : "completed",
-      steps:
-        steps.length > 0
-          ? steps
-          : [
-              {
-                id: "step-1",
-                number: 1,
-                title: "Thought Process",
-                status: "completed" as const,
-                content: rawText,
-              },
-            ],
-    };
-  }, [data, revealed]);
+  // Duration only from what this client saw stream (see reasoning/observed.ts).
+  observeReasoning(storeKey, streaming, timestamp.getTime());
+  const durationMs = streaming ? null : observedDurationMs(storeKey);
 
   return (
     <View {...hostFontEscape} {...probe.viewProps}>
       {probe.node}
-      <ReasoningTrace
-        data={reasoningData}
+      <ReasoningCard
+        segmentation={segmentation}
+        streaming={streaming}
+        durationMs={durationMs}
+        expanded={expanded}
+        onToggle={toggle}
         tokens={tokens}
-        defaultExpanded={data.phase === "streaming"}
+        compact={layout.compact}
+        storeKey={storeKey}
+        copyText={text}
       />
     </View>
   );

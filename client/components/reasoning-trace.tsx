@@ -1,375 +1,492 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { View, Text, Pressable, StyleSheet, Animated } from "react-native";
-import { Glyph } from "./glyph";
-import { frosted } from "./frosted";
-import { surfaceProps } from "./view-props";
-import { glowing } from "./glow";
-import { Glow, Rotate } from "./motion";
-import { PulseDot } from "./pulse-dot";
-import { Breathe } from "./breathe";
-import { radius } from "./theme-tokens";
-import { selectableSurface } from "./selection";
-import { selectionSurface } from "./selection-actions";
+import React, { memo, useCallback, useLayoutEffect, useMemo, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Icon } from "@getpaseo/plugin/client/react-native";
+import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
-import type { ReasoningTraceData, ReasoningStep } from "../../shared/contracts";
-import { SyntaxHighlightBlock } from "./syntax-highlight";
+import { selectableSurface, unselectable } from "./selection";
+import { selectionSurface } from "./selection-actions";
+import { surfaceProps } from "./view-props";
+import { MarkdownView } from "./markdown/markdown-view";
+import type { ReasoningTraceData } from "../../shared/contracts";
+import { DisclosureHeader } from "../ui/disclosure-header";
+import { RunningDot } from "../ui/running-dot";
+import { CopyButton } from "../ui/copy-button";
+import { useCopy } from "../ui/use-copy";
+import { useHover } from "../ui/use-hover";
+import { useInputCapabilities } from "../ui/use-input-capabilities";
+import { getDisclosure, setDisclosure, useDisclosure } from "../state/disclosure-store";
+import { copyPlan } from "../copy/content";
+import { FadeIn } from "../reasoning/fade-in";
+import {
+  reasoningText,
+  segmentReasoning,
+  type ReasoningSection,
+  type ReasoningSegmentation,
+} from "../reasoning/segment";
+import { reasoningHeaderText } from "../reasoning/preview";
+import { CLAMPED_LINES, splitBodyRuns, type BodyRun } from "../reasoning/paragraphs";
+
+/** Section title size (plan §3.4 item 4): between the 12 meta and the 13 body. */
+const SECTION_TITLE_SIZE = 12.5;
+/** `MarkdownView variant="compact"` body line height; the clamp is six of these. */
+const COMPACT_LINE_HEIGHT = 19;
+
+function copyTextOf(text: string): string {
+  return copyPlan({ kind: "reasoning", text }).primary?.text ?? "";
+}
+
+// --- Body ------------------------------------------------------------------
+
+interface LongParagraphProps {
+  text: string;
+  tokens: ExtendedThemeTokens;
+  storeKey: string;
+  /** Growing under the reader's eyes when it mounted. */
+  live: boolean;
+}
+
+/**
+ * A plain paragraph over ~600 characters: six lines and "Show more". A
+ * paragraph that mounted while it was still streaming starts open and stays
+ * open, so text the reader watched arrive never snaps shut under them. The
+ * choice lives in the disclosure store, so remounting into history keeps it.
+ */
+function LongParagraph({ text, tokens, storeKey, live }: LongParagraphProps) {
+  const [liveAtMount] = useState(live);
+  const [open, setOpen] = useDisclosure(storeKey, liveAtMount);
+  useLayoutEffect(() => {
+    if (liveAtMount && getDisclosure(storeKey) === undefined) setDisclosure(storeKey, true);
+  }, [liveAtMount, storeKey]);
+  return (
+    <View>
+      <View style={open ? null : styles.clamped}>
+        <MarkdownView text={text} tokens={tokens} variant="compact" />
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => setOpen(!open)}
+        hitSlop={8}
+        style={styles.moreButton}
+      >
+        <Text
+          selectable={false}
+          style={[
+            styles.moreText,
+            unselectable,
+            { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
+          ]}
+        >
+          {open ? "Show less" : "Show more"}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+interface BodyRunViewProps {
+  run: BodyRun;
+  tokens: ExtendedThemeTokens;
+  storeKey: string;
+  live: boolean;
+}
+
+const BodyRunView = memo(
+  function BodyRunView({ run, tokens, storeKey, live }: BodyRunViewProps) {
+    // TODO(S2): pass `collapseCode` once MarkdownView has it, so fenced code
+    // starts folded as `code · ts · 24 lines ›` (plan §3.4 item 4).
+    if (!run.long) return <MarkdownView text={run.text} tokens={tokens} variant="compact" />;
+    return <LongParagraph text={run.text} tokens={tokens} storeKey={storeKey} live={live} />;
+  },
+  (a, b) =>
+    a.run.text === b.run.text &&
+    a.run.long === b.run.long &&
+    a.tokens === b.tokens &&
+    a.storeKey === b.storeKey &&
+    a.live === b.live,
+);
+
+function SectionBody({
+  body,
+  tokens,
+  storeKey,
+  live,
+}: {
+  body: string;
+  tokens: ExtendedThemeTokens;
+  storeKey: string;
+  live: boolean;
+}) {
+  const runs = useMemo(() => splitBodyRuns(body), [body]);
+  return (
+    <View style={styles.sectionBody}>
+      {runs.map((run, index) => (
+        <BodyRunView
+          // Offsets are stable while the body grows; earlier runs keep their key.
+          key={run.offset}
+          run={run}
+          tokens={tokens}
+          storeKey={`${storeKey}:${run.offset}`}
+          // Only the newest run of a streaming section is still growing.
+          live={live && index === runs.length - 1}
+        />
+      ))}
+    </View>
+  );
+}
+
+// --- Sections --------------------------------------------------------------
+
+interface SectionViewProps {
+  section: ReasoningSection;
+  tokens: ExtendedThemeTokens;
+  compact: boolean;
+  storeKey: string;
+  live: boolean;
+}
+
+/**
+ * One step: a 12.5 semibold title with no number, and its Markdown body,
+ * behind a thin static rule. The title row carries a copy button for the
+ * section's own text — revealed on hover where the pointer can hover, and
+ * always shown (muted) on touch, where the body only exists once expanded.
+ */
+function SectionViewBody({ section, tokens, compact, storeKey, live }: SectionViewProps) {
+  const capabilities = useInputCapabilities(compact);
+  const { hovered, hoverProps } = useHover();
+  const copySource = useCallback(
+    () => copyTextOf(section.title ? `${section.title}\n\n${section.body}` : section.body),
+    [section],
+  );
+  if (section.title === null) {
+    return <SectionBody body={section.body} tokens={tokens} storeKey={storeKey} live={live} />;
+  }
+  const showCopy = !capabilities.hover || hovered;
+  return (
+    <View style={[styles.section, { borderLeftColor: tokens.v2.border }]}>
+      <Pressable accessible={false} focusable={false} {...hoverProps} style={styles.sectionTitleRow}>
+        <Text
+          selectable
+          style={[styles.sectionTitle, { color: tokens.foreground, fontFamily: tokens.fontUi }]}
+        >
+          {section.title}
+        </Text>
+        {/* Always laid out, only hidden, so revealing it moves nothing. */}
+        <View style={showCopy ? null : styles.hidden} pointerEvents={showCopy ? "auto" : "none"}>
+          <CopyButton text={copySource} tokens={tokens} label="Copy section" />
+        </View>
+      </Pressable>
+      {section.body ? (
+        <SectionBody body={section.body} tokens={tokens} storeKey={storeKey} live={live} />
+      ) : null}
+    </View>
+  );
+}
+
+// A finished section's text never changes again, so it never re-renders
+// while later sections stream in (plan §3.4 item 5).
+const SectionView = memo(
+  SectionViewBody,
+  (a, b) =>
+    a.section.title === b.section.title &&
+    a.section.body === b.section.body &&
+    a.tokens === b.tokens &&
+    a.compact === b.compact &&
+    a.storeKey === b.storeKey &&
+    a.live === b.live,
+);
+
+interface ReasoningSectionsViewProps {
+  segmentation: ReasoningSegmentation;
+  tokens: ExtendedThemeTokens;
+  /** Prefix for the long-paragraph disclosure keys. */
+  storeKey: string;
+  streaming?: boolean;
+  compact?: boolean;
+}
+
+/** The expanded body for a segmentation: sections, or one prose body. */
+export function ReasoningSectionsView({
+  segmentation,
+  tokens,
+  storeKey,
+  streaming = false,
+  compact = false,
+}: ReasoningSectionsViewProps) {
+  if (segmentation.kind === "prose") {
+    return (
+      <SectionBody body={segmentation.body} tokens={tokens} storeKey={`${storeKey}:p`} live={streaming} />
+    );
+  }
+  const last = segmentation.sections.length - 1;
+  return (
+    <View style={styles.sections}>
+      {segmentation.sections.map((section, index) => (
+        <SectionView
+          // Sections only append; a position names the same step throughout.
+          key={index}
+          section={section}
+          tokens={tokens}
+          compact={compact}
+          storeKey={`${storeKey}:s${index}`}
+          live={streaming && index === last}
+        />
+      ))}
+    </View>
+  );
+}
+
+interface ReasoningSectionsProps {
+  /** Raw reasoning text; segmented here. */
+  text: string;
+  tokens: ExtendedThemeTokens;
+  /** Stable id for the block, e.g. `${agentId}:${callId}`; keys the long-paragraph toggles. */
+  storeKey?: string;
+  streaming?: boolean;
+  compact?: boolean;
+}
+
+/**
+ * The reasoning body on its own, for any card that holds a thought — the
+ * `thinking` tool's expanded body among them — so there is one reasoning
+ * style. Unframed: the host card supplies the border.
+ */
+export function ReasoningSections({
+  text,
+  tokens,
+  storeKey = "reasoning",
+  streaming = false,
+  compact = false,
+}: ReasoningSectionsProps) {
+  const segmentation = useMemo(() => segmentReasoning(text, { streaming }), [text, streaming]);
+  return (
+    <View {...surfaceProps(selectionSurface)} style={selectableSurface}>
+      <ReasoningSectionsView
+        segmentation={segmentation}
+        tokens={tokens}
+        storeKey={storeKey}
+        streaming={streaming}
+        compact={compact}
+      />
+    </View>
+  );
+}
+
+// --- Card ------------------------------------------------------------------
+
+export interface ReasoningCardProps {
+  segmentation: ReasoningSegmentation;
+  /** Whether the model is still thinking. */
+  streaming: boolean;
+  /** Observed duration; null when this client did not watch the stream. */
+  durationMs: number | null;
+  expanded: boolean;
+  onToggle(): void;
+  tokens: ExtendedThemeTokens;
+  compact?: boolean;
+  /** Disclosure key of the card; prefixes the keys of its inner toggles. */
+  storeKey: string;
+  /** What "copy" puts on the clipboard: the whole thought. */
+  copyText: string;
+}
+
+/**
+ * A thought as one line that opens into its sections (plan §3.4, §3.6).
+ * Collapsed it is a bare `DisclosureHeader` row — no border, no fill — whose
+ * preview follows the stream; expanded it gains a 1px frame on `surface0`
+ * with a divider under the header. The body is not mounted while collapsed.
+ *
+ * The only motion is the `RunningDot`, mounted while thinking, and the body's
+ * fade-in on expansion.
+ */
+export function ReasoningCard({
+  segmentation,
+  streaming,
+  durationMs,
+  expanded,
+  onToggle,
+  tokens,
+  compact = false,
+  storeKey,
+  copyText,
+}: ReasoningCardProps) {
+  const header = reasoningHeaderText(segmentation, streaming, durationMs);
+  const { copy } = useCopy();
+  const copySource = useCallback(() => copyTextOf(copyText), [copyText]);
+  const onLongPress = useCallback(() => {
+    const value = copySource();
+    if (value) void copy(value, { feedback: "toast" });
+  }, [copy, copySource]);
+
+  return (
+    <View
+      style={[
+        styles.card,
+        expanded
+          ? { borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface0 }
+          : styles.cardCollapsed,
+      ]}
+    >
+      <DisclosureHeader
+        expanded={expanded}
+        onToggle={onToggle}
+        tokens={tokens}
+        compact={compact}
+        icon={
+          streaming ? (
+            <RunningDot color={tokens.accent} accessibilityLabel="Thinking" />
+          ) : (
+            <Icon name="Brain" size={14} color={tokens.foregroundMuted} />
+          )
+        }
+        verb={header.verb}
+        target={
+          header.preview ? (
+            <Text
+              selectable={false}
+              numberOfLines={1}
+              style={[
+                styles.preview,
+                unselectable,
+                { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
+              ]}
+            >
+              {header.preview}
+            </Text>
+          ) : undefined
+        }
+        meta={header.meta}
+        actions={<CopyButton text={copySource} tokens={tokens} label="Copy thought" />}
+        onLongPress={onLongPress}
+        accessibilityLabel={header.preview ? `${header.verb}: ${header.preview}` : header.verb}
+      />
+      {expanded ? (
+        <FadeIn>
+          <View
+            {...surfaceProps(selectionSurface)}
+            style={[styles.body, selectableSurface, { borderTopColor: tokens.v2.borderSubtle }]}
+          >
+            <ReasoningSectionsView
+              segmentation={segmentation}
+              tokens={tokens}
+              storeKey={storeKey}
+              streaming={streaming}
+              compact={compact}
+            />
+          </View>
+        </FadeIn>
+      ) : null}
+    </View>
+  );
+}
+
+// --- Static data -----------------------------------------------------------
 
 interface ReasoningTraceProps {
   data: ReasoningTraceData;
   tokens: ExtendedThemeTokens;
   defaultExpanded?: boolean;
+  compact?: boolean;
 }
 
-export function ReasoningTrace({ data, tokens, defaultExpanded = false }: ReasoningTraceProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const [activeStepId, setActiveStepId] = useState<string | null>(null);
+/** `ReasoningTraceData` steps as a segmentation: titled steps are sections. */
+export function segmentationFromTrace(data: ReasoningTraceData): ReasoningSegmentation {
+  const sections = data.steps.map((step): ReasoningSection => {
+    const code = step.codeSnippet
+      ? `\n\n\`\`\`${step.codeSnippet.language}\n${step.codeSnippet.code}\n\`\`\``
+      : "";
+    return { title: step.title?.trim() || null, body: `${step.content}${code}`.trim() };
+  });
+  const steps = sections.filter((section) => section.title !== null).length;
+  if (steps === 0) {
+    return { kind: "prose", body: sections.map((section) => section.body).join("\n\n") };
+  }
+  return { kind: "sections", sections, steps };
+}
 
-  const durationFormatted = (data.durationMs / 1000).toFixed(1);
-  const isThinking = data.status === "thinking";
-
-  // The rail is drawn to measured tick positions rather than a percentage of
-  // the container: step rows have different heights, so a fraction of the
-  // total would stop between ticks instead of on one.
-  const [tickCentres, setTickCentres] = useState<number[]>([]);
-  const recordTick = useCallback((index: number, y: number) => {
-    setTickCentres((current) => {
-      // The dot is 14px tall at top: 4, so its centre sits 11px into the row.
-      const centre = y + 11;
-      if (current[index] === centre) return current;
-      const next = current.slice();
-      next[index] = centre;
-      return next;
-    });
-  }, []);
-
-  // The rail reaches the newest step that has started, so it advances one tick
-  // at a time as the stream produces them.
-  const reachedIndex = useMemo(() => {
-    let last = -1;
-    data.steps.forEach((step, index) => {
-      if (step.status === "completed" || step.status === "active") last = index;
-    });
-    return last;
-  }, [data.steps]);
-
-  const railHeight = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const target = reachedIndex >= 0 ? (tickCentres[reachedIndex] ?? 0) : 0;
-    const animation = Animated.timing(railHeight, {
-      toValue: target,
-      duration: 420,
-      useNativeDriver: false,
-    });
-    animation.start();
-    return () => {
-      animation.stop();
-    };
-  }, [reachedIndex, tickCentres, railHeight]);
-
-  const styles = useMemo(
-    () =>
-      StyleSheet.create({
-        wrapper: {
-          marginVertical: 8,
-          borderRadius: radius.card,
-          backgroundColor: tokens.surfaceGlass,
-          borderWidth: 1,
-          borderColor: isThinking ? tokens.borderSubtle : tokens.borderSubtle,
-          overflow: "hidden",
-          ...tokens.boxShadow,
-          ...selectableSurface,
-        },
-        header: {
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          paddingHorizontal: 14,
-          paddingVertical: 10,
-          backgroundColor: isThinking ? tokens.accentBg : tokens.surface1,
-        },
-        headerLeft: {
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 10,
-          flex: 1,
-        },
-        iconBubble: {
-          width: 22,
-          height: 22,
-          borderRadius: radius.block,
-          backgroundColor: tokens.surface2,
-          alignItems: "center",
-          justifyContent: "center",
-        },
-        titleContainer: {
-          flexDirection: "column",
-          gap: 2,
-        },
-        titleRow: {
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-        },
-        titleText: {
-          fontFamily: tokens.fontUi,
-          fontSize: 13,
-          fontWeight: "600",
-          color: tokens.foreground,
-        },
-        badgeRow: {
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 6,
-          marginTop: 2,
-        },
-        badge: {
-          fontSize: 11,
-          fontFamily: tokens.fontUi,
-          paddingHorizontal: 5,
-          paddingVertical: 1,
-          borderRadius: radius.chip,
-          backgroundColor: tokens.surface2,
-          color: tokens.foregroundMuted,
-        },
-        modelBadge: {
-          fontSize: 11,
-          fontFamily: tokens.fontUi,
-          color: tokens.foregroundMuted,
-        },
-        headerRight: {
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-        },
-        statusRow: {
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 6,
-        },
-        statusText: {
-          fontFamily: tokens.fontUi,
-          fontSize: 11,
-          fontWeight: "600",
-          color: tokens.accent,
-        },
-        body: {
-          paddingHorizontal: 16,
-          paddingTop: 12,
-          paddingBottom: 16,
-          borderTopWidth: 1,
-          borderTopColor: tokens.borderSubtle,
-          backgroundColor: tokens.surfaceGlass,
-        },
-        timelineContainer: {
-          position: "relative",
-          paddingLeft: 20,
-        },
-        timelineRail: {
-          position: "absolute",
-          left: 6,
-          top: 8,
-          width: 2,
-          backgroundColor: tokens.borderSubtle,
-        },
-        stepItem: {
-          marginBottom: 16,
-          position: "relative",
-        },
-        stepDot: {
-          position: "absolute",
-          left: -20,
-          top: 4,
-          width: 14,
-          height: 14,
-          alignItems: "center",
-          justifyContent: "center",
-        },
-        stepHeader: {
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          paddingVertical: 2,
-        },
-        stepTitleRow: {
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          flex: 1,
-        },
-        stepTitle: {
-          fontFamily: tokens.fontUi,
-          fontSize: 13,
-          fontWeight: "600",
-          color: tokens.foreground,
-        },
-        stepDuration: {
-          fontSize: 11,
-          color: tokens.foregroundSubtle,
-          fontFamily: tokens.fontUi,
-        },
-        stepContent: {
-          fontFamily: tokens.fontUi,
-          marginTop: 6,
-          fontSize: 12,
-          lineHeight: 18,
-          color: tokens.foregroundMuted,
-        },
-        footer: {
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          paddingTop: 8,
-          marginTop: 8,
-          borderTopWidth: 1,
-          borderTopColor: tokens.borderSubtle,
-        },
-        footerText: {
-          fontFamily: tokens.fontUi,
-          fontSize: 11,
-          color: tokens.foregroundSubtle,
-        },
-      }),
-    [tokens, isThinking],
-  );
-
+/**
+ * A `ReasoningTraceData` (the showcase and any static source) drawn as the
+ * same card. Token counts, models and step numbers in the data are not
+ * shown; a recorded `durationMs` is, since it is part of the data rather
+ * than an estimate.
+ */
+export function ReasoningTrace({
+  data,
+  tokens,
+  defaultExpanded = false,
+  compact = false,
+}: ReasoningTraceProps) {
+  const storeKey = `trace:${data.id}`;
+  const [expanded, setExpanded] = useDisclosure(storeKey, defaultExpanded);
+  const segmentation = useMemo(() => segmentationFromTrace(data), [data]);
+  const copyText = useMemo(() => reasoningText(segmentation), [segmentation]);
   return (
-    <View
-      {...surfaceProps(frosted, glowing(tokens.isDark), selectionSurface)}
-      style={styles.wrapper}
-    >
-      <Pressable onPress={() => setIsExpanded((prev) => !prev)} style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.iconBubble}>
-            <Breathe active={isThinking}>
-              <Glyph
-                name="Brain"
-                size={13}
-                color={isThinking ? tokens.accent : tokens.foregroundMuted}
-              />
-            </Breathe>
-          </View>
-          <View style={styles.titleContainer}>
-            <View style={styles.titleRow}>
-              <Text selectable style={styles.titleText}>
-                {isThinking
-                  ? "Thinking in progress…"
-                  : data.durationMs > 0
-                    ? `Thought for ${durationFormatted}s`
-                    : "Reasoning summary"}
-              </Text>
-            </View>
-            <View style={styles.badgeRow}>
-              {data.agentModel && data.agentModel !== "Reasoning Trace" ? (
-                <Text selectable style={styles.modelBadge}>
-                  {data.agentModel}
-                </Text>
-              ) : null}
-              {data.steps.length > 0 ? (
-                <Text selectable style={styles.badge}>
-                  {data.steps.length} steps
-                </Text>
-              ) : null}
-              {data.totalTokens > 0 ? (
-                <Text selectable style={styles.badge}>
-                  {data.totalTokens.toLocaleString()} tokens
-                </Text>
-              ) : null}
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.headerRight}>
-          {/* A badge is for an active or failed state. A finished trace already
-              says so through its duration and token count, so a green
-              "Completed" pill only adds colour. */}
-          {isThinking ? (
-            <View style={styles.statusRow}>
-              <PulseDot color={tokens.accent} size={6} />
-              <Text selectable style={styles.statusText}>
-                Reasoning
-              </Text>
-            </View>
-          ) : null}
-          <Rotate active={isExpanded}>
-            <Glyph name="ChevronDown" size={16} color={tokens.foregroundMuted} />
-          </Rotate>
-        </View>
-      </Pressable>
-
-      {isExpanded && (
-        <View style={styles.body}>
-          <View style={styles.timelineContainer}>
-            <Animated.View style={[styles.timelineRail, { height: railHeight }]} />
-
-            {data.steps.map((step, stepIndex) => {
-              const isStepActive = step.status === "active";
-              const isStepDone = step.status === "completed";
-              const isDetailOpen = activeStepId === step.id || isStepActive;
-
-              return (
-                <View
-                  key={step.id}
-                  style={styles.stepItem}
-                  onLayout={(event) => recordTick(stepIndex, event.nativeEvent.layout.y)}
-                >
-                  <View style={styles.stepDot}>
-                    {/* Done gets the filled disc and tick. A step that has not
-                        finished is an empty gray circle, and the rail growing up
-                        to it already says which one is current. */}
-                    {isStepDone ? (
-                      <Glyph name="CheckCircle" size={13} color={tokens.success} />
-                    ) : (
-                      <Glow active={isStepActive} color={tokens.accent} size={22}>
-                        <Glyph
-                          name="Circle"
-                          size={13}
-                          color={isStepActive ? tokens.accent : tokens.foregroundSubtle}
-                        />
-                      </Glow>
-                    )}
-                  </View>
-
-                  <Pressable
-                    onPress={() => setActiveStepId(activeStepId === step.id ? null : step.id)}
-                    style={styles.stepHeader}
-                  >
-                    <View style={styles.stepTitleRow}>
-                      <Text selectable style={styles.stepTitle}>
-                        {step.title ? `${step.number}. ${step.title}` : `Step ${step.number}`}
-                      </Text>
-                    </View>
-                    {step.durationMs ? (
-                      <Text selectable style={styles.stepDuration}>
-                        {(step.durationMs / 1000).toFixed(1)}s
-                      </Text>
-                    ) : null}
-                  </Pressable>
-
-                  <Text selectable style={styles.stepContent}>
-                    {step.content}
-                  </Text>
-
-                  {step.codeSnippet && isDetailOpen && (
-                    <SyntaxHighlightBlock
-                      code={step.codeSnippet.code}
-                      language={step.codeSnippet.language}
-                      filename={step.codeSnippet.filename}
-                      tokens={tokens}
-                      compact
-                    />
-                  )}
-                </View>
-              );
-            })}
-          </View>
-
-          <View style={styles.footer}>
-            <Text selectable style={styles.footerText}>
-              Total Tokens: {data.totalTokens}
-            </Text>
-          </View>
-        </View>
-      )}
-    </View>
+    <ReasoningCard
+      segmentation={segmentation}
+      streaming={data.status === "thinking"}
+      durationMs={data.durationMs > 0 ? data.durationMs : null}
+      expanded={expanded}
+      onToggle={() => setExpanded(!expanded)}
+      tokens={tokens}
+      compact={compact}
+      storeKey={storeKey}
+      copyText={copyText}
+    />
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    // Always 1px, transparent while collapsed, so expanding shifts nothing sideways.
+    borderWidth: 1,
+    borderRadius: radiusV2.card,
+    overflow: "hidden",
+  },
+  cardCollapsed: {
+    borderColor: "transparent",
+    backgroundColor: "transparent",
+  },
+  preview: {
+    fontSize: 13,
+  },
+  body: {
+    borderTopWidth: 1,
+    paddingHorizontal: space.md,
+    paddingTop: space.sm,
+    paddingBottom: space.md,
+  },
+  sections: {
+    gap: space.md,
+  },
+  section: {
+    borderLeftWidth: 1,
+    paddingLeft: space.md,
+    gap: space.xs,
+  },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.sm,
+  },
+  sectionTitle: {
+    flex: 1,
+    fontSize: SECTION_TITLE_SIZE,
+    fontWeight: "600",
+  },
+  sectionBody: {
+    gap: space.sm,
+  },
+  hidden: {
+    opacity: 0,
+  },
+  clamped: {
+    maxHeight: COMPACT_LINE_HEIGHT * CLAMPED_LINES,
+    overflow: "hidden",
+  },
+  moreButton: {
+    alignSelf: "flex-start",
+    marginTop: space.xs,
+  },
+  moreText: {
+    fontSize: 12,
+  },
+});
