@@ -87,7 +87,7 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
           lineHeight: tokens.typography.mono.lineHeight,
           color: tokens.foregroundMuted,
         },
-        note: { fontFamily: tokens.fontUi, fontSize: UI_SCALE.base, color: tokens.foregroundSubtle },
+        note: { fontFamily: tokens.fontUi, fontSize: UI_SCALE.base, color: tokens.foregroundMuted },
         toggle: {
           flexDirection: "row",
           alignItems: "center",

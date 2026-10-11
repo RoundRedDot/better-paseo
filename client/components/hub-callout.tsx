@@ -776,7 +776,7 @@ function JobModel({
       {effort ? (
         <Chip
           label={effort}
-          tone={{ fg: tokens.foregroundSubtle, bg: tokens.surface2 }}
+          tone={{ fg: tokens.foregroundMuted, bg: tokens.surface2 }}
           styles={styles}
           plain
         />
@@ -1244,7 +1244,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
         figure: {
           fontFamily: tokens.fontUi,
           fontSize: UI_SCALE.base,
-          color: tokens.foregroundSubtle,
+          color: tokens.foregroundMuted,
           flexShrink: 1,
         },
         marker: {
@@ -1288,7 +1288,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
           fontFamily: tokens.fontUi,
           fontSize: UI_SCALE.base,
           fontStyle: "italic",
-          color: tokens.foregroundSubtle,
+          color: tokens.foregroundMuted,
           ...unselectable,
         },
         messageBox: {
