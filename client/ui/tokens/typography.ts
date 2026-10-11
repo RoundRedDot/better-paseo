@@ -232,30 +232,30 @@ export function hostTypographyKey(theme: unknown): string {
 }
 
 /**
- * The single `fontFamily` value interface text is drawn with (plan §3.10
- * item 4). React Native's native `fontFamily` takes one name, so native gets
- * the host family (H1) or the system face — never the embedded name, which
- * iOS and Android do not have.
+ * The `fontFamily` interface text is drawn with (plan §3.10 item 4).
  *
- * On web an unmarked item root lets the host's UI font rule override every
- * interface string inside Paseo, so for "Follow Paseo" this value only shows
- * where that rule does not reach (the showcase, a host without the rule):
- * the host family when H1 provides it, else `System`, the same system-ui
- * stack Paseo itself defaults to. An explicit Inter or System choice escapes
- * the item root (`itemRootFont`) and is drawn as chosen.
+ * Undefined means "set none": the text keeps React Native's default class on
+ * web, which the host's UI font rule overrides, and the system face on
+ * native. That is "Follow Paseo" without host typography. It has to be
+ * undefined rather than a family name: React Native Web writes a style that
+ * is not from `StyleSheet.create` as an inline style, and an inline
+ * `font-family` beats the host's rule however specific that rule is.
  *
- * Inter is the bare embedded name, not the full stack `ui.family` builds:
- * the fallback faces in that stack change line boxes by about 2px on text
- * without an explicit line height (measured in S1), and the embedded face is
- * always registered on web, so the stack adds nothing but the shift.
+ * With H1 the host family is set explicitly (it is the same value the host
+ * rule would apply). Native never gets the embedded name, which iOS and
+ * Android do not have. An explicit Inter or System choice also escapes the
+ * item root (`itemRootFont`) and is drawn as chosen; Inter is the bare
+ * embedded name, not the full stack `ui.family` builds, because the stack's
+ * fallback faces shift line boxes by about 2px on text without an explicit
+ * line height (S1) and the embedded face is always registered on web.
  */
 export function interfaceFamily(
   typography: Typography,
   uiFont: TypographyPreferences["uiFont"],
   platform: TypographyPlatform,
-): string {
-  if (platform !== "web") return typography.ui.family ?? "System";
+): string | undefined {
+  if (platform !== "web") return typography.ui.family;
   if (uiFont === "inter") return EMBEDDED_FAMILY.ui;
-  if (uiFont === "host" && typography.fromHost && typography.ui.family) return typography.ui.family;
-  return "System";
+  if (uiFont === "system") return "System";
+  return typography.fromHost ? typography.ui.family : undefined;
 }
