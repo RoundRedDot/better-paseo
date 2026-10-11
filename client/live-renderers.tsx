@@ -258,7 +258,7 @@ function LiveTodoRendererBody({
     <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
       {probe.node}
       <PreferenceSyncSlot />
-      <TaskList data={taskListData} tokens={tokens} />
+      <TaskList data={taskListData} tokens={tokens} compact={layout.compact} />
     </View>
   );
 }
@@ -393,7 +393,7 @@ function LiveNoticeRendererBody({
     <View {...itemRootFont(preferences.uiFont)} {...probe.viewProps}>
       {probe.node}
       <PreferenceSyncSlot />
-      <NoticeCallout data={noticeData} tokens={tokens} />
+      <NoticeCallout data={noticeData} tokens={tokens} at={timestamp} compact={layout.compact} />
     </View>
   );
 }

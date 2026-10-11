@@ -12,7 +12,7 @@
  */
 
 export const LONG_PARAGRAPH_CHARS = 600;
-export const CLAMPED_LINES = 6;
+export const CLAMPED_LINES = 4;
 
 export interface BodyRun {
   /** Offset of the run in the body: a stable key while the body grows. */

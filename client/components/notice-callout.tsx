@@ -1,134 +1,128 @@
-import React, { useMemo } from "react";
-import { View, Text, StyleSheet } from "react-native";
-import { Glyph } from "./glyph";
+import React, { useMemo, useState } from "react";
+import { Pressable, View, Text, StyleSheet } from "react-native";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { renderTerminalOutput } from "./syntax-highlight";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeText, selectionSurface } from "./selection-actions";
 import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
-import { UI_SCALE } from "../ui/tokens/typography";
+import { FadeIn } from "../ui/fade-in";
+import { formatStamp } from "../ui/time";
+import { TYPE } from "../ui/tokens/typography";
 import type { NoticeCalloutData } from "../../shared/contracts";
 
 interface NoticeCalloutProps {
   data: NoticeCalloutData;
   tokens: ExtendedThemeTokens;
+  /** When the notice arrived; drawn at the end of the row. */
+  at?: Date;
+  /** `layout.compact`: 32pt rows. */
+  compact?: boolean;
 }
 
-/** One level, resolved to its mark and colours. */
+/** One level, resolved to its mark and its rule. */
 interface LevelLook {
+  /** Read aloud before the message; the row itself draws no label. */
   label: string;
-  glyph: string;
-  /** The icon's colour. */
+  icon: string;
   mark: string;
-  /** The label's and message's colour. */
-  text: string;
-  /** Errors only: the 2px rule on the row's left edge. */
+  /** Error and fatal only: the 2px rule on the row's left edge. */
   rule: string | null;
+  weight: "400" | "500";
 }
 
 function levelLook(data: NoticeCalloutData, tokens: ExtendedThemeTokens): LevelLook {
   // A host `error` item is a failure whatever level it claims, so it takes the
   // danger look before the level is read.
-  if (data.fatal || data.level === "error") {
-    return {
-      label: "Error",
-      glyph: "AlertCircle",
-      mark: tokens.danger,
-      text: tokens.danger,
-      rule: tokens.danger,
-    };
+  if (data.fatal) {
+    return { label: "Fatal", icon: "OctagonX", mark: tokens.danger, rule: tokens.danger, weight: "500" };
+  }
+  if (data.level === "error") {
+    return { label: "Error", icon: "CircleX", mark: tokens.danger, rule: tokens.danger, weight: "400" };
   }
   if (data.level === "warning") {
-    return {
-      label: "Warning",
-      glyph: "AlertTriangle",
-      mark: tokens.warning,
-      text: tokens.foreground,
-      rule: null,
-    };
+    return { label: "Warning", icon: "TriangleAlert", mark: tokens.warning, rule: null, weight: "400" };
   }
-  return {
-    label: "Info",
-    glyph: "CircleDot",
-    mark: tokens.foregroundMuted,
-    text: tokens.foreground,
-    rule: null,
-  };
+  return { label: "Info", icon: "Info", mark: tokens.foregroundMuted, rule: null, weight: "400" };
 }
 
-/** Past this, a message stops fitting on the row and moves to its own block. */
+/** Past this, a message is read as data rather than a sentence. */
 const INLINE_LIMIT = 120;
 
 /**
  * Marks a notice as machine text rather than a sentence: a URI scheme (`xd://`
  * included), an MCP tool id, a path run, or a comma-separated list of dotted
- * or underscored identifiers. Those read as data, so they go to the monospace
- * body where a mount notice listing thirty tool ids wraps instead of running
- * off the row.
+ * or underscored identifiers. Opened, those go to the monospace body, where a
+ * mount notice listing thirty tool ids wraps instead of running off the row.
  */
 const TECHNICAL =
   /:\/\/|mcp__|[\w.-]+[\\/][\w.-]+[\\/]|[\w.$-]*[._][\w.$-]*\s*,\s*[\w.$-]*[._][\w.$-]*/;
 
 /**
- * A host `notification` or `error` item, drawn as a row (plan §3.6): a status
- * icon, the level, and the message, with no frame and no fill. An error adds
- * a 2px danger rule on the left and colours its text; nothing else is tinted.
- * There is no disclosure control: the item carries one message and nothing
- * else, so hiding it behind a chevron only adds a click.
+ * A host `notification` or `error` item as one row (S7 design spec §3.4):
+ * the level's icon in the 22pt slot, the message on one line, the time at
+ * the end. Only an error or a fatal notice adds a 2px rule on the left, taken
+ * out of the row's outdent so the slot does not move; info and warning stay
+ * plain so they never out-shout the work. Pressing the row shows the whole
+ * message — wrapped, or in a monospace block when it reads as data.
+ *
+ * Four views (five with a time): the row, the slot, the icon, the message.
  */
-export function NoticeCallout({ data, tokens }: NoticeCalloutProps): React.ReactElement {
+export function NoticeCallout({ data, tokens, at, compact = false }: NoticeCalloutProps): React.ReactElement {
   const look = levelLook(data, tokens);
   const message = data.message.trim();
   const asData = message.includes("\n") || message.length > INLINE_LIMIT || TECHNICAL.test(message);
+  const [open, setOpen] = useState(false);
+  const height = compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop;
 
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        container: {
-          gap: space.xs,
-          paddingVertical: space.xs,
-          ...selectableSurface,
-        },
-        ruled: {
-          borderLeftWidth: 2,
-          paddingLeft: space.xs,
-        },
         row: {
+          minHeight: height,
           flexDirection: "row",
-          // Top alignment, because a wrapped message grows downwards and a
-          // centred icon would drift to the middle of it.
-          alignItems: "flex-start",
+          alignItems: "center",
           gap: DISCLOSURE_HEADER.gap,
           paddingHorizontal: DISCLOSURE_HEADER.paddingX,
+          marginHorizontal: -DISCLOSURE_HEADER.bleed,
+          borderRadius: radiusV2.block,
+          ...selectableSurface,
         },
-        iconSlot: {
+        // The rule replaces two points of the outdent's padding.
+        ruled: {
+          borderLeftWidth: 2,
+          paddingLeft: DISCLOSURE_HEADER.paddingX - 2,
+          borderTopLeftRadius: 0,
+          borderBottomLeftRadius: 0,
+        },
+        slot: {
           width: DISCLOSURE_HEADER.iconSlot,
-          height: 20,
           alignItems: "center",
           justifyContent: "center",
         },
-        label: {
-          fontFamily: tokens.fontUi,
-          fontSize: DISCLOSURE_HEADER.verb,
-          lineHeight: 20,
-          fontWeight: "500",
-          ...unselectable,
-        },
-        // `flex: 1` with `minWidth: 0` is what makes the message wrap beside
-        // the label. A flex child floors at its content width by default, so
-        // without the override a long line widens the row instead of folding.
         message: {
           flex: 1,
           minWidth: 0,
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.md,
-          lineHeight: 20,
+          fontSize: TYPE.label.size,
+          lineHeight: TYPE.label.lineHeight,
+          color: tokens.foreground,
+          paddingVertical: open ? space.xs : 0,
+        },
+        time: {
+          fontFamily: tokens.fontMono,
+          fontSize: TYPE.meta.size,
+          lineHeight: TYPE.meta.lineHeight,
+          fontVariant: ["tabular-nums"],
+          color: tokens.foregroundMuted,
+          ...unselectable,
         },
         dataBlock: {
-          marginLeft: DISCLOSURE_HEADER.paddingX + DISCLOSURE_HEADER.iconSlot + DISCLOSURE_HEADER.gap,
-          marginRight: DISCLOSURE_HEADER.paddingX,
-          padding: space.sm,
+          marginLeft: DISCLOSURE_HEADER.textColumn,
+          marginBottom: space.xs,
+          paddingVertical: space.sm,
+          paddingHorizontal: space.md,
           borderRadius: radiusV2.block,
           backgroundColor: tokens.v2.surfaceCode,
         },
@@ -139,35 +133,43 @@ export function NoticeCallout({ data, tokens }: NoticeCalloutProps): React.React
           color: tokens.foregroundMuted,
         },
       }),
-    [tokens],
+    [tokens, height, open],
   );
 
   return (
-    <View
-      {...selectionSurface}
-      style={[styles.container, look.rule ? [styles.ruled, { borderLeftColor: look.rule }] : null]}
-    >
-      <View style={styles.row}>
-        <View style={styles.iconSlot}>
-          <Glyph name={look.glyph} size={DISCLOSURE_HEADER.icon} color={look.mark} />
+    <>
+      <Pressable
+        {...selectionSurface}
+        accessibilityRole="button"
+        accessibilityLabel={`${look.label}: ${message}`}
+        accessibilityState={{ expanded: open }}
+        aria-expanded={open}
+        onPress={() => setOpen((value) => !value)}
+        style={({ pressed }) => [
+          styles.row,
+          look.rule ? [styles.ruled, { borderLeftColor: look.rule }] : null,
+          pressed && { backgroundColor: tokens.v2.surface2 },
+        ]}
+      >
+        <View style={styles.slot}>
+          <Icon name={look.icon} size={DISCLOSURE_HEADER.icon} color={look.mark} />
         </View>
-        <Text selectable={false} style={[styles.label, { color: look.text }]}>
-          {look.label}
+        <Text
+          selectable={open}
+          numberOfLines={open && !asData ? undefined : 1}
+          style={[styles.message, { fontWeight: look.weight }]}
+        >
+          {message}
         </Text>
-        {asData ? null : (
-          <Text selectable style={[styles.message, { color: look.text }]}>
-            {message}
-          </Text>
-        )}
-      </View>
-
-      {asData ? (
-        <View style={styles.dataBlock}>
+        {at ? <Text style={styles.time}>{formatStamp(at)}</Text> : null}
+      </Pressable>
+      {asData && open ? (
+        <FadeIn style={styles.dataBlock}>
           <Text selectable {...selectionCodeText} style={styles.dataText}>
             {renderTerminalOutput(message, tokens)}
           </Text>
-        </View>
+        </FadeIn>
       ) : null}
-    </View>
+    </>
   );
 }
