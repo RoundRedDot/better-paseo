@@ -15,7 +15,20 @@
  *   to CSS, so it gets a real stack with CJK fallbacks at the end.
  */
 
+import { appearanceMonoStack, type HostAppearance } from "./host-appearance-shim";
+
 export type TypographyPlatform = "ios" | "android" | "web";
+
+/**
+ * Where the monospace "Follow Paseo" resolves to came from (plan D10):
+ * the host's typography (H1), the font set in Paseo's Appearance settings
+ * (web shim; `family` absent when only the size is set there), or Paseo's
+ * official default.
+ */
+export type MonoSource =
+  | { kind: "host-typography" }
+  | { kind: "paseo-appearance"; family?: string; size: number }
+  | { kind: "paseo-default" };
 
 /**
  * The shape plan H1 adds to `PluginTheme` as optional `typography`. Paseo
@@ -50,6 +63,8 @@ export interface Typography {
     size: number;
     lineHeight: number;
     ligatures: boolean;
+    /** Where "Follow Paseo" found the family and size (plan D10). */
+    source: MonoSource;
   };
   /** Whether host typography (H1) was present and used. */
   fromHost: boolean;
@@ -230,19 +245,31 @@ export function lineHeightFor(fontSize: number): number {
   return Math.round(fontSize * 1.5);
 }
 
+/**
+ * @param appearance Paseo's Appearance settings as the read-only shim found
+ *   them (`host-appearance-shim.ts`, plan D10 level 2). Used on web only and
+ *   only without host typography (H1), which takes precedence.
+ */
 export function resolveTypography(
   theme: unknown,
   prefs: TypographyPreferences,
   platform: TypographyPlatform,
+  appearance: HostAppearance | null = null,
 ): Typography {
   const host = readHostTypography(theme);
   const web = platform === "web";
+  const paseoAppearance = web && host === null ? appearance : null;
 
   // --- Monospace -----------------------------------------------------------
-  // "Follow Paseo" is the host's mono: its H1 value, or else the stack the
-  // host itself defaults to (web) and the platform monospace (native). The
-  // embedded Iosevka is drawn only when the reader picks it.
-  const hostMono = host?.fontFamily?.mono;
+  // "Follow Paseo" is the host's mono, by priority (plan D10): its H1 value;
+  // else, on web, the font set in Paseo's Appearance settings; else the stack
+  // the host itself defaults to (web) and the platform monospace (native).
+  // The embedded Iosevka is drawn only when the reader picks it.
+  const hostMono =
+    host?.fontFamily?.mono ??
+    (paseoAppearance?.monoFontFamily
+      ? appearanceMonoStack(paseoAppearance.monoFontFamily, DEFAULT_WEB_MONO_STACK)
+      : undefined);
   let family: string;
   let codeFamily: string;
   let ligatures = false;
@@ -273,7 +300,7 @@ export function resolveTypography(
   const codeSize =
     prefs.codeFontSize !== null
       ? Math.min(CODE_SIZE.max, Math.max(CODE_SIZE.min, Math.round(prefs.codeFontSize)))
-      : (host?.fontSize?.code ?? CODE_SIZE.default);
+      : (host?.fontSize?.code ?? paseoAppearance?.codeFontSize ?? CODE_SIZE.default);
   const codeLineHeight =
     prefs.codeFontSize === null && host?.fontSize?.code && host.lineHeight?.code
       ? host.lineHeight.code
@@ -297,9 +324,39 @@ export function resolveTypography(
   return {
     ui: { family: uiFamily, scale: UI_SCALE },
     content: { size: contentSize, lineHeight: lineHeightFor(contentSize) },
-    mono: { family, codeFamily, size: codeSize, lineHeight: codeLineHeight, ligatures },
+    mono: { family, codeFamily, size: codeSize, lineHeight: codeLineHeight, ligatures, source: monoSource(host, paseoAppearance) },
     fromHost: host !== null,
   };
+}
+
+/** Where "Follow Paseo" took the monospace from (plan D10). */
+function monoSource(host: HostTypography | null, appearance: HostAppearance | null): MonoSource {
+  if (host?.fontFamily?.mono || host?.fontSize?.code) return { kind: "host-typography" };
+  // The host stores a code size even when the user never touched it; only a
+  // size other than the default counts as set.
+  const size = appearance?.codeFontSize;
+  if (appearance && (appearance.monoFontFamily || (size !== undefined && size !== CODE_SIZE.default))) {
+    return {
+      kind: "paseo-appearance",
+      family: appearance.monoFontFamily,
+      size: appearance.codeFontSize ?? CODE_SIZE.default,
+    };
+  }
+  return { kind: "paseo-default" };
+}
+
+/**
+ * The settings page's line under "Follow Paseo": which source is in effect,
+ * so a reader can see the Paseo setting arrive.
+ */
+export function describeMonoSource(source: MonoSource, platform: TypographyPlatform): string {
+  if (source.kind === "host-typography") return "Following Paseo's font settings";
+  if (source.kind === "paseo-appearance") {
+    return `Following Paseo appearance: ${source.family ?? "Paseo's default monospace"}, ${source.size} px`;
+  }
+  return platform === "web"
+    ? `Paseo default: SF Mono, Menlo, Monaco or Consolas, ${CODE_SIZE.default} px`
+    : `Paseo default: the system monospace face, ${CODE_SIZE.default} px`;
 }
 
 /** A string that changes exactly when `resolveTypography`'s host input does. */

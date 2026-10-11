@@ -6,6 +6,7 @@ import { codeSurface, itemRootFont } from "./components/host-font-escape";
 import { radiusV2, space, buildThemeTokens, type ExtendedThemeTokens } from "./components/theme-tokens";
 import { ensureEmbeddedFonts } from "./components/embed-fonts";
 import { pluginRoot } from "./components/focus-ring";
+import { useHostAppearance } from "./ui/tokens/host-appearance-shim";
 import { surfaceProps } from "./components/view-props";
 import {
   ACCENT_PRESETS,
@@ -22,7 +23,7 @@ import {
   type ToolDetailPreference,
   type UiFontPreference,
 } from "./preferences";
-import { NATIVE_MONO_CHOICES, TYPE, readHostTypography } from "./ui/tokens/typography";
+import { NATIVE_MONO_CHOICES, TYPE, describeMonoSource, readHostTypography } from "./ui/tokens/typography";
 import { usePreferenceSettings } from "./state/preference-sync-slot";
 import type { SyncStatus } from "./state/preference-sync";
 
@@ -524,15 +525,17 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
     layout?.platform ?? (Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : "web");
   const native = platform !== "web";
   const compact = layout?.compact ?? native;
+  const hostTypography = useMemo(() => readHostTypography(theme) !== null, [theme]);
+  // Plan D10 level 2: Paseo's Appearance mono settings (web, without H1).
+  const appearance = useHostAppearance(platform === "web" && !hostTypography, theme);
   const tokens = useMemo(
     () => {
       ensureEmbeddedFonts(preferences, platform);
-      return buildThemeTokens(theme.colors, preferences, { platform, theme });
+      return buildThemeTokens(theme.colors, preferences, { platform, theme, appearance });
     },
-    [preferences, theme, platform],
+    [preferences, theme, platform, appearance],
   );
   const look = useMemo<PageLook>(() => ({ tokens, compact }), [tokens, compact]);
-  const hostTypography = useMemo(() => readHostTypography(theme) !== null, [theme]);
 
   const monoOptions: ReadonlyArray<{ value: MonoChoice; label: string }> = native
     ? [
@@ -597,9 +600,11 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
         {hostTypography ? null : (
           <SettingRow
             title="Paseo's font settings"
-            description={`This Paseo version does not share its font settings with plugins, so Follow Paseo uses Paseo's default monospace: ${
-              native ? "the system monospace face" : "SF Mono, Menlo, Monaco or Consolas, whichever this computer has"
-            }, at 12px.`}
+            description={
+              native
+                ? "This Paseo version does not share its font settings with plugins, so Follow Paseo uses Paseo's default monospace: the system monospace face, at 12px."
+                : "This Paseo version does not share its font settings with plugins. Until it does, Follow Paseo reads the monospace font and code size from Paseo's Appearance settings on this computer (read only), and otherwise uses Paseo's default monospace: SF Mono, Menlo, Monaco or Consolas, at 12px."
+            }
             look={look}
             first
           />
@@ -621,7 +626,14 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
             />
           }
           below={
-            shownMono === "custom" ? (
+            shownMono === "host" ? (
+              <Text
+                accessibilityLabel="Monospace source"
+                style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}
+              >
+                {describeMonoSource(tokens.typography.mono.source, platform)}
+              </Text>
+            ) : shownMono === "custom" ? (
               native ? (
                 <Segmented<string>
                   label="Custom monospace family"
