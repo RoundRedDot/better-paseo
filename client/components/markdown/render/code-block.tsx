@@ -64,7 +64,7 @@ export function CodeBlock({
         language={language}
         tokens={tokens}
         compact={metrics.codeCompact}
-        showLineNumbers={metrics.codeLineNumbers}
+        showLineNumbers={metrics.codeLineNumbersFrom > 0 && lines >= metrics.codeLineNumbersFrom}
         highlight={closed}
         scrollX
       />

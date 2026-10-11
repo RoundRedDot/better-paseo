@@ -7,6 +7,7 @@ import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface } from "./selection-actions";
 import { surfaceProps } from "./view-props";
 import { MarkdownView } from "./markdown/markdown-view";
+import { variantMetrics } from "./markdown/render/styles";
 import type { ReasoningTraceData } from "../../shared/contracts";
 import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
 import { RunningDot } from "../ui/running-dot";
@@ -27,8 +28,10 @@ import { reasoningHeaderText } from "../reasoning/preview";
 import { CLAMPED_LINES, splitBodyRuns, type BodyRun } from "../reasoning/paragraphs";
 import { TYPE, UI_SCALE } from "../ui/tokens/typography";
 
-/** `MarkdownView variant="compact"` body line height; the clamp is four of these. */
-const COMPACT_LINE_HEIGHT = 19;
+/** Four lines of a thought's body: the quiet compact Markdown at the host's size. */
+function clampHeight(tokens: ExtendedThemeTokens): number {
+  return variantMetrics("compact", tokens.typography.content.size, false, true).bodyLineHeight * CLAMPED_LINES;
+}
 
 function copyTextOf(text: string): string {
   return copyPlan({ kind: "reasoning", text }).primary?.text ?? "";
@@ -61,8 +64,8 @@ function LongParagraph({ text, tokens, storeKey, live }: LongParagraphProps) {
   }, [liveAtMount, storeKey]);
   return (
     <View>
-      <View style={open ? null : styles.clamped}>
-        <MarkdownView text={text} tokens={tokens} variant="compact" collapseCode />
+      <View style={open ? null : { maxHeight: clampHeight(tokens), overflow: "hidden" }}>
+        <MarkdownView text={text} tokens={tokens} variant="compact" collapseCode quiet />
       </View>
       <Pressable
         accessibilityRole="button"
@@ -95,7 +98,7 @@ interface BodyRunViewProps {
 const BodyRunView = memo(
   function BodyRunView({ run, tokens, storeKey, live }: BodyRunViewProps) {
     // Fenced code starts folded as `ts · 24 lines ›` (plan §3.4 item 4).
-    if (!run.long) return <MarkdownView text={run.text} tokens={tokens} variant="compact" collapseCode />;
+    if (!run.long) return <MarkdownView text={run.text} tokens={tokens} variant="compact" collapseCode quiet />;
     return <LongParagraph text={run.text} tokens={tokens} storeKey={storeKey} live={live} />;
   },
   (a, b) =>
@@ -463,10 +466,6 @@ const styles = StyleSheet.create({
   },
   hidden: {
     opacity: 0,
-  },
-  clamped: {
-    maxHeight: COMPACT_LINE_HEIGHT * CLAMPED_LINES,
-    overflow: "hidden",
   },
   moreButton: {
     alignSelf: "flex-start",
