@@ -2,7 +2,7 @@ import React, { useCallback, useMemo } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
 import { unselectable } from "./selection";
-import { radiusV2 } from "./theme-tokens";
+import { radiusV2, space } from "./theme-tokens";
 import { useCopy } from "../ui/use-copy";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 
@@ -63,7 +63,7 @@ export function AssistantFooter({ text, at, tokens }: AssistantFooterProps) {
         container: {
           flexDirection: "row",
           alignItems: "center",
-          gap: 8,
+          gap: space.sm,
           marginTop: 6,
         },
         copyButton: {
@@ -72,7 +72,7 @@ export function AssistantFooter({ text, at, tokens }: AssistantFooterProps) {
           marginLeft: -6,
           flexDirection: "row",
           alignItems: "center",
-          gap: 4,
+          gap: space.xs,
           paddingHorizontal: 6,
           paddingVertical: 3,
           borderRadius: radiusV2.block,

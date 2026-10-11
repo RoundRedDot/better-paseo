@@ -1089,7 +1089,7 @@ function useSubagentStyles(tokens: ExtendedThemeTokens): SubagentStyles {
           color: tokens.foregroundMuted,
         },
         contextBox: {
-          gap: 4,
+          gap: space.xs,
           padding: space.sm,
           borderRadius: radiusV2.block,
           backgroundColor: tokens.v2.surface1,

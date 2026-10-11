@@ -1,4 +1,5 @@
 import { getEnhancerPreferences } from "../preferences";
+import { radiusV2 } from "./theme-tokens";
 
 const STYLE_ELEMENT_ID = "beautiful-chat-find-style";
 const BAR_ID = "beautiful-chat-find";
@@ -23,7 +24,7 @@ const FIND_RULES = `::highlight(${MATCHES}) {
   align-items: center;
   gap: 4px;
   padding: 4px 6px;
-  border-radius: 8px;
+  border-radius: ${radiusV2.card}px;
   border: 1px solid rgb(127 127 127 / 0.35);
   box-shadow: 0 6px 20px rgb(0 0 0 / 0.25);
   font: 13px var(--paseo-ui-font, system-ui, sans-serif);
@@ -35,7 +36,7 @@ const FIND_RULES = `::highlight(${MATCHES}) {
   width: 180px;
   padding: 3px 6px;
   border: 1px solid rgb(127 127 127 / 0.45);
-  border-radius: 5px;
+  border-radius: ${radiusV2.chip}px;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -51,7 +52,7 @@ const FIND_RULES = `::highlight(${MATCHES}) {
   width: 24px;
   height: 24px;
   border: 0;
-  border-radius: 5px;
+  border-radius: ${radiusV2.chip}px;
   background: transparent;
   color: inherit;
   font: inherit;

@@ -4,7 +4,7 @@ import { Glyph } from "./glyph";
 import { frosted } from "./frosted";
 import { surfaceProps } from "./view-props";
 import { glowing } from "./glow";
-import { radius } from "./theme-tokens";
+import { radius, radiusV2 } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import type { ApprovalRequest } from "../../shared/contracts";
 import { SyntaxHighlightBlock } from "./syntax-highlight";
@@ -88,7 +88,7 @@ export function ApprovalCard({ request, tokens, onApprove, onDeny }: ApprovalCar
         riskPill: {
           paddingHorizontal: 8,
           paddingVertical: 3,
-          borderRadius: 999,
+          borderRadius: radiusV2.pill,
           backgroundColor: riskBadgeBg,
           borderWidth: 1,
           borderColor: riskBadgeColor,

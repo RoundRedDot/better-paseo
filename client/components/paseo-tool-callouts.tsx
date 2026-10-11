@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
 import { surfaceProps } from "./view-props";
-import { radius } from "./theme-tokens";
+import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { ProviderLogo } from "./provider-logo";
 import { SyntaxHighlightBlock } from "./syntax-highlight";
@@ -59,7 +59,7 @@ function CreateAgentView({
   tokens: ExtendedThemeTokens;
 }) {
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: space.sm }}>
       <View
         style={{
           flexDirection: "row",
@@ -69,7 +69,7 @@ function CreateAgentView({
           gap: 6,
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
           <ProviderLogo provider={data.provider} size={16} showLabel />
           {data.model && (
             <Text
@@ -81,7 +81,7 @@ function CreateAgentView({
                 backgroundColor: tokens.surface2,
                 paddingHorizontal: 6,
                 paddingVertical: 2,
-                borderRadius: radius.block,
+                borderRadius: radiusV2.block,
               }}
             >
               {data.model}
@@ -98,7 +98,7 @@ function CreateAgentView({
                 backgroundColor: tokens.accentBg,
                 paddingHorizontal: 6,
                 paddingVertical: 2,
-                borderRadius: radius.block,
+                borderRadius: radiusV2.block,
               }}
             >
               {data.modeId} mode
@@ -110,10 +110,10 @@ function CreateAgentView({
           style={{
             flexDirection: "row",
             alignItems: "center",
-            gap: 4,
-            paddingHorizontal: 8,
+            gap: space.xs,
+            paddingHorizontal: space.sm,
             paddingVertical: 3,
-            borderRadius: radius.block,
+            borderRadius: radiusV2.block,
             backgroundColor: tokens.successBg,
           }}
         >
@@ -132,7 +132,7 @@ function CreateAgentView({
         </View>
       </View>
 
-      <View style={{ gap: 4 }}>
+      <View style={{ gap: space.xs }}>
         <Text
           selectable
           style={{
@@ -163,7 +163,7 @@ function ListProvidersView({
   tokens: ExtendedThemeTokens;
 }) {
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: space.sm }}>
       <Text
         selectable
         style={{
@@ -186,7 +186,7 @@ function ListProvidersView({
                 justifyContent: "space-between",
                 paddingHorizontal: 10,
                 paddingVertical: 7,
-                borderRadius: radius.block,
+                borderRadius: radiusV2.block,
                 backgroundColor: tokens.surface1,
                 borderWidth: 1,
                 borderColor: tokens.borderSubtle,
@@ -242,7 +242,7 @@ function ListProvidersView({
                   style={{
                     width: 6,
                     height: 6,
-                    borderRadius: 4,
+                    borderRadius: radiusV2.pill,
                     backgroundColor: isAvail ? tokens.success : tokens.foregroundSubtle,
                   }}
                 />
@@ -274,8 +274,8 @@ function ListModelsView({
   tokens: ExtendedThemeTokens;
 }) {
   return (
-    <View style={{ gap: 8 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+    <View style={{ gap: space.sm }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
         <ProviderLogo provider={data.provider} size={16} showLabel />
         <Text selectable style={{ fontSize: 11, color: tokens.foregroundSubtle }}>
           Supported models & reasoning modes:
@@ -292,13 +292,13 @@ function ListModelsView({
               justifyContent: "space-between",
               paddingHorizontal: 10,
               paddingVertical: 6,
-              borderRadius: radius.block,
+              borderRadius: radiusV2.block,
               backgroundColor: tokens.surface1,
               borderWidth: 1,
               borderColor: tokens.borderSubtle,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
               <Text
                 selectable
                 style={{
@@ -330,7 +330,7 @@ function ListModelsView({
                     gap: 3,
                     paddingHorizontal: 5,
                     paddingVertical: 1,
-                    borderRadius: radius.chip,
+                    borderRadius: radiusV2.chip,
                     backgroundColor: tokens.accentBg,
                   }}
                 >
@@ -356,7 +356,7 @@ function ListModelsView({
                   backgroundColor: tokens.surface2,
                   paddingHorizontal: 5,
                   paddingVertical: 1,
-                  borderRadius: radius.chip,
+                  borderRadius: radiusV2.chip,
                 }}
               >
                 {m.contextTokens}
@@ -413,7 +413,7 @@ function GetActivityView({
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "space-between",
-            paddingVertical: 4,
+            paddingVertical: space.xs,
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>

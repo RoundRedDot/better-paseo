@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { itemRootFont } from "./components/host-font-escape";
-import { radius, buildThemeTokens, type ExtendedThemeTokens } from "./components/theme-tokens";
+import { radiusV2, buildThemeTokens, type ExtendedThemeTokens } from "./components/theme-tokens";
 import {
   ACCENT_PRESETS,
   resetEnhancerPreferences,
@@ -402,15 +402,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   knob: { width: KNOB, height: KNOB, borderRadius: KNOB / 2 },
-  intro: { padding: 14, borderWidth: 1, borderRadius: radius.card, gap: 4 },
+  intro: { padding: 14, borderWidth: 1, borderRadius: radiusV2.card, gap: 4 },
   title: { fontSize: 16, fontWeight: "700" },
   description: { fontSize: 13, lineHeight: 18 },
-  card: { borderWidth: 1, borderRadius: radius.card, overflow: "hidden" },
+  card: { borderWidth: 1, borderRadius: radiusV2.card, overflow: "hidden" },
   row: { padding: 14, gap: 8, borderTopWidth: 1 },
   rowTitle: { fontSize: 14, fontWeight: "600" },
   rowDescription: { fontSize: 12, lineHeight: 17 },
   options: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  option: { borderWidth: 1, borderRadius: radius.block, paddingHorizontal: 10, paddingVertical: 7 },
+  option: { borderWidth: 1, borderRadius: radiusV2.block, paddingHorizontal: 10, paddingVertical: 7 },
   optionLabel: { fontSize: 12, fontWeight: "600" },
   accentOptions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   accentOption: {
@@ -418,16 +418,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     borderWidth: 1,
-    borderRadius: radius.block,
+    borderRadius: radiusV2.block,
     paddingHorizontal: 9,
     paddingVertical: 7,
   },
-  swatch: { width: 12, height: 12, borderRadius: radius.chip },
+  swatch: { width: 12, height: 12, borderRadius: radiusV2.chip },
   accentLabel: { fontSize: 12, fontWeight: "600" },
   reset: {
     alignSelf: "flex-start",
     borderWidth: 1,
-    borderRadius: radius.block,
+    borderRadius: radiusV2.block,
     paddingHorizontal: 11,
     paddingVertical: 8,
   },

@@ -5,7 +5,7 @@
  */
 import { StyleSheet } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
-import { radius, withAlpha, type ExtendedThemeTokens } from "../../theme-tokens";
+import { radiusV2, space, withAlpha, type ExtendedThemeTokens } from "../../theme-tokens";
 import { selectableSurface, unselectable } from "../../selection";
 
 /**
@@ -204,10 +204,10 @@ export function buildStyles(tokens: ExtendedThemeTokens, variant: MarkdownVarian
     },
     headingBlock: {
       marginTop: metrics.headingGap,
-      gap: 4,
+      gap: space.xs,
     },
     headingBlockFirst: {
-      gap: 4,
+      gap: space.xs,
     },
     h1: {
       fontFamily: bodyFont,
@@ -346,7 +346,7 @@ export function buildStyles(tokens: ExtendedThemeTokens, variant: MarkdownVarian
       flexDirection: "row",
       gap: metrics.tableGap,
       paddingBottom: 5,
-      marginBottom: 4,
+      marginBottom: space.xs,
       borderBottomWidth: 1,
       borderBottomColor: tokens.border,
     },
@@ -390,7 +390,7 @@ export function buildStyles(tokens: ExtendedThemeTokens, variant: MarkdownVarian
       // A neutral tint, not the accent: inline code is not a link and must not
       // borrow the one colour that means "action" everywhere else in the card.
       backgroundColor: withAlpha(tokens.foreground, tokens.isDark ? 0.12 : 0.07),
-      borderRadius: radius.chip,
+      borderRadius: radiusV2.chip,
       paddingHorizontal: CODE_CHIP_PADDING,
       color: tokens.foreground,
     },

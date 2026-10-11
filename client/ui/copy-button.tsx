@@ -2,7 +2,7 @@ import React, { useCallback } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
-import { radiusV2 } from "../components/theme-tokens";
+import { radiusV2, space } from "../components/theme-tokens";
 import { unselectable } from "../components/selection";
 import { useCopy, type CopyFeedback } from "./use-copy";
 import { useHover } from "./use-hover";
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
   },
   withLabel: {
     paddingHorizontal: 6,
-    gap: 4,
+    gap: space.xs,
   },
   icon: {
     width: ICON,

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
-import { radius } from "./theme-tokens";
+import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { SyntaxHighlightBlock, renderTerminalOutput } from "./syntax-highlight";
 import { unselectable } from "./selection";
@@ -32,11 +32,11 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        container: { gap: 8 },
+        container: { gap: space.sm },
         row: {
           flexDirection: "row",
           alignItems: "center",
-          gap: 8,
+          gap: space.sm,
           paddingVertical: 3,
         },
         label: {
@@ -54,7 +54,7 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
           backgroundColor: tokens.successBg,
           paddingHorizontal: 6,
           paddingVertical: 1,
-          borderRadius: radius.chip,
+          borderRadius: radiusV2.chip,
         },
         badValue: {
           fontFamily: tokens.fontUi,
@@ -63,7 +63,7 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
           backgroundColor: tokens.dangerBg,
           paddingHorizontal: 6,
           paddingVertical: 1,
-          borderRadius: radius.chip,
+          borderRadius: radiusV2.chip,
         },
         spacer: { flex: 1, minWidth: 8 },
         link: {
@@ -74,7 +74,7 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
         },
         terminal: {
           padding: 10,
-          borderRadius: radius.block,
+          borderRadius: radiusV2.block,
           backgroundColor: tokens.surfaceCode,
           borderWidth: 1,
           borderColor: tokens.borderSubtle,
@@ -89,11 +89,11 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
         toggle: {
           flexDirection: "row",
           alignItems: "center",
-          gap: 4,
+          gap: space.xs,
           alignSelf: "flex-start",
           paddingHorizontal: 6,
           paddingVertical: 3,
-          borderRadius: radius.block,
+          borderRadius: radiusV2.block,
           backgroundColor: tokens.surface2,
         },
         toggleLabel: {
