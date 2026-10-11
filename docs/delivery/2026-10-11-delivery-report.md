@@ -99,6 +99,8 @@
 | 打开宿主内文件 tab 的导航能力 | Paseo | 后续项（远程和移动端的文件跳转） |
 | 插件 bundle 压缩（H6 候选） | Paseo | 后续项 |
 
+**上游提交（2026-10-11，fork `RoundRedDot/paseo`）**：H5 → PR getpaseo/paseo#6601（Closes #5783）；H0 → issue #6599 + PR #6602；H1 → Ideas Discussion #6600（按上游规则功能需求先走 Discussion，原型分支 `feat/plugin-theme-typography`）；xterm 红屏 → 在已有 issue #6504 补充 iOS 确认。上游规则是 PR 默认关闭，维护者决定是否推进；所有提交都注明了实现和 QA 由 AI agent 完成。
+
 插件内部已实现的：§1 中除 BC-03/04 以外的全部内容。所有宿主新能力在插件侧都先做特性检测，旧宿主上自动降级。
 
 另外发现一个与本次无关的上游缺陷：上游 main 的 iOS 开发版启动即红屏（`@xterm/headless` 在模块顶层读取 `navigator.userAgent`，早于宿主的 polyfill）。
