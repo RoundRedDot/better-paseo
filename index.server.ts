@@ -5,6 +5,8 @@ import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { revealPathRpc } from "./shared/file-rpc";
 import { type HighlightLine, type HighlightToken, highlightRpc } from "./shared/highlight-rpc";
 import { imageRpc } from "./shared/image-rpc";
+import { perfDumpRpc } from "./shared/perf-rpc";
+import { writePerfDump } from "./server/perf-dump";
 
 /**
  * Image types worth inlining, and the mime each one needs in its data URI.
@@ -539,6 +541,15 @@ export default function contribute(server: PluginServerContext) {
         language: null,
         theme,
       };
+    }
+  });
+
+  // Debug only: answers `/bc-perf dump`. Idle until a client calls it.
+  server.handle(perfDumpRpc, async (input) => {
+    try {
+      return { path: await writePerfDump(input), error: null };
+    } catch (error) {
+      return { path: null, error: error instanceof Error ? error.message : String(error) };
     }
   });
 

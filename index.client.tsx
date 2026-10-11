@@ -10,6 +10,7 @@ import { installChatFind } from "./client/components/chat-find";
 import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
 import { runBundleProbe } from "./client/debug/bundle-probe";
+import { perfSlashCommand } from "./client/debug/perf-command";
 import {
   LiveToolCallRenderer,
   LiveReasoningRenderer,
@@ -267,7 +268,11 @@ export default function contribute(client: PluginClientContext) {
     Component: LiveNoticeRenderer,
   });
 
+  // Debug only: `/bc-perf on|off|reset|dump [label]` for hosts without a console.
+  const removePerfCommand = client.addSlashCommand(perfSlashCommand);
+
   return () => {
+    removePerfCommand();
     removeFonts();
     removeFrost();
     removeShimmer();
