@@ -8,7 +8,7 @@ import { selectionSurface } from "./selection-actions";
 import { surfaceProps } from "./view-props";
 import { MarkdownView } from "./markdown/markdown-view";
 import type { ReasoningTraceData } from "../../shared/contracts";
-import { DisclosureHeader } from "../ui/disclosure-header";
+import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
 import { RunningDot } from "../ui/running-dot";
 import { CopyButton } from "../ui/copy-button";
 import { useCopy } from "../ui/use-copy";
@@ -25,7 +25,7 @@ import {
 } from "../reasoning/segment";
 import { reasoningHeaderText } from "../reasoning/preview";
 import { CLAMPED_LINES, splitBodyRuns, type BodyRun } from "../reasoning/paragraphs";
-import { UI_SCALE } from "../ui/tokens/typography";
+import { TYPE, UI_SCALE } from "../ui/tokens/typography";
 
 /** Section title size (plan §3.4 item 4): between the 12 meta and the 13 body. */
 const SECTION_TITLE_SIZE = 12.5;
@@ -317,15 +317,10 @@ export function ReasoningCard({
     if (value) void copy(value, { feedback: "toast" });
   }, [copy, copySource]);
 
+  // The row alone while collapsed; the opened body is its sibling, so the row
+  // keeps its place in the tree (and its hover) across the toggle.
   return (
-    <View
-      style={[
-        styles.card,
-        expanded
-          ? { borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface0 }
-          : styles.cardCollapsed,
-      ]}
-    >
+    <>
       <DisclosureHeader
         expanded={expanded}
         onToggle={onToggle}
@@ -335,7 +330,7 @@ export function ReasoningCard({
           streaming ? (
             <RunningDot color={tokens.accent} accessibilityLabel="Thinking" />
           ) : (
-            <Icon name="Brain" size={14} color={tokens.foregroundMuted} />
+            <Icon name="Lightbulb" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
           )
         }
         verb={header.verb}
@@ -361,10 +356,7 @@ export function ReasoningCard({
       />
       {expanded ? (
         <FadeIn>
-          <View
-            {...surfaceProps(selectionSurface)}
-            style={[styles.body, selectableSurface, { borderTopColor: tokens.v2.borderSubtle }]}
-          >
+          <View {...surfaceProps(selectionSurface)} style={[styles.body, selectableSurface]}>
             <ReasoningSectionsView
               segmentation={segmentation}
               tokens={tokens}
@@ -375,7 +367,7 @@ export function ReasoningCard({
           </View>
         </FadeIn>
       ) : null}
-    </View>
+    </>
   );
 }
 
@@ -435,24 +427,18 @@ export function ReasoningTrace({
 }
 
 const styles = StyleSheet.create({
-  card: {
-    // Always 1px, transparent while collapsed, so expanding shifts nothing sideways.
-    borderWidth: 1,
-    borderRadius: radiusV2.card,
-    overflow: "hidden",
-  },
-  cardCollapsed: {
-    borderColor: "transparent",
-    backgroundColor: "transparent",
-  },
+  // The live preview takes the row's free width and ends in an ellipsis.
   preview: {
-    fontSize: UI_SCALE.md,
+    flex: 1,
+    minWidth: 0,
+    fontSize: TYPE.label.size,
+    lineHeight: TYPE.label.lineHeight,
   },
+  // The thought, in the row's text column: no box, no rule (S7 §3.2).
   body: {
-    borderTopWidth: 1,
-    paddingHorizontal: space.md,
-    paddingTop: space.sm,
-    paddingBottom: space.md,
+    paddingLeft: DISCLOSURE_HEADER.textColumn,
+    paddingTop: space.xs,
+    paddingBottom: space.sm,
   },
   sections: {
     gap: space.md,
