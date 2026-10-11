@@ -53,12 +53,6 @@ export interface EnhancerPreferences {
   codeFontSize: number | null;
   toolDetail: ToolDetailPreference;
   pathDisplay: PathDisplayPreference;
-  frostedGlass: boolean;
-  /**
-   * A light that follows the pointer across a card. Web and desktop only:
-   * touch platforms have no hover, so the attribute is inert there.
-   */
-  pointerGlow: boolean;
   /**
    * Paseo maps a stream item to the plugin timeline item before any transformer
    * runs, and that mapping carries only the text. Pasted images therefore never
@@ -130,8 +124,6 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   codeFontSize: null,
   toolDetail: "collapsed",
   pathDisplay: "relative",
-  frostedGlass: false,
-  pointerGlow: false,
   enhancedUserBubble: true,
   selectionActions: true,
   assistantMarkdown: true,
@@ -171,19 +163,17 @@ export function sameStored(a: StoredPreferences, b: StoredPreferences): boolean 
 /**
  * v1 -> v2 (plan §3.6 item 2, §3.10 item 4).
  *
- * v1 stored every field, defaults included, so a v1 `true` for frosted glass
- * or pointer glow cannot be told apart from the old default: both are reset
- * to off, once. The v1 interface font `inter` was likewise the default, so it
- * becomes "follow Paseo"; an explicit `system` is kept. Fields v1 did not
- * have take their v2 defaults.
+ * v1 stored every field, defaults included. Its interface font `inter` was
+ * the default, so it becomes "follow Paseo"; an explicit `system` is kept.
+ * Fields v1 did not have take their v2 defaults, and fields that no longer
+ * exist (the frosted-glass and pointer-glow switches, removed in S7) are
+ * dropped by the schema.
  */
 export function migrateV1Preferences(raw: unknown): EnhancerPreferences {
   const v1 = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   return parsePreferences({
     ...v1,
     uiFont: v1.uiFont === "system" ? "system" : "host",
-    frostedGlass: false,
-    pointerGlow: false,
     monoFont: undefined,
     customMonoFont: undefined,
     codeFontSize: undefined,

@@ -520,26 +520,6 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
           </View>
         </View>
 
-        {/* Blur and a pointer light need CSS: hidden on iOS and Android (plan §3.11). */}
-        {native ? null : (
-          <ToggleRow
-            title="Frosted glass"
-            description="Blur floating bars (selection actions, the full-path tooltip) over what scrolls behind them. Off while the system asks for reduced motion."
-            value={preferences.frostedGlass}
-            onChange={(frostedGlass) => updateEnhancerPreferences({ frostedGlass })}
-            tokens={tokens}
-          />
-        )}
-
-        {native ? null : (
-          <ToggleRow
-            title="Pointer glow"
-            description="A soft light follows the pointer across floating bars. Needs a mouse or trackpad, and is skipped while the system asks for reduced motion."
-            value={preferences.pointerGlow}
-            onChange={(pointerGlow) => updateEnhancerPreferences({ pointerGlow })}
-            tokens={tokens}
-          />
-        )}
       </View>
 
       <GroupTitle title="Fonts" tokens={tokens} />

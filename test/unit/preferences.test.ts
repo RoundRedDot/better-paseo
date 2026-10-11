@@ -36,10 +36,8 @@ const V1 = {
 };
 
 describe("preferences v2 defaults", () => {
-  it("defaults frost and glow off and follows Paseo for fonts", () => {
+  it("follows Paseo for fonts and starts tools collapsed", () => {
     expect(DEFAULT_PREFERENCES).toMatchObject({
-      frostedGlass: false,
-      pointerGlow: false,
       uiFont: "host",
       monoFont: "host",
       customMonoFont: "",
@@ -51,7 +49,7 @@ describe("preferences v2 defaults", () => {
 });
 
 describe("v1 -> v2 migration", () => {
-  it("resets frost and glow once and keeps every other choice", () => {
+  it("keeps every choice v2 still has and drops the removed frost and glow switches", () => {
     const migrated = migrateV1Preferences(V1);
     expect(migrated).toEqual({
       ...DEFAULT_PREFERENCES,
@@ -60,9 +58,9 @@ describe("v1 -> v2 migration", () => {
       enhancedUserBubble: false,
       markdownVariant: "compact",
       uiFont: "host",
-      frostedGlass: false,
-      pointerGlow: false,
     });
+    expect(migrated).not.toHaveProperty("frostedGlass");
+    expect(migrated).not.toHaveProperty("pointerGlow");
   });
 
   it("keeps an explicit system UI font; v1's default Inter becomes follow-Paseo", () => {
@@ -73,13 +71,13 @@ describe("v1 -> v2 migration", () => {
   it("writes v2 on first load so the reset happens exactly once", () => {
     const store = memoryStorage({ [LEGACY_STORAGE_KEY]: JSON.stringify(V1) });
     const first = readStoredPreferences(store);
-    expect(first.frostedGlass).toBe(false);
+    expect(first.uiFont).toBe("host");
     expect(store.data.has(STORAGE_KEY)).toBe(true);
-    // The reader turns frost back on; it must stay on across reloads.
-    store.setItem(STORAGE_KEY, JSON.stringify({ ...first, frostedGlass: true }));
-    expect(readStoredPreferences(store).frostedGlass).toBe(true);
+    // A choice made after the migration must stay across reloads.
+    store.setItem(STORAGE_KEY, JSON.stringify({ ...first, uiFont: "system" }));
+    expect(readStoredPreferences(store).uiFont).toBe("system");
     // v1 is left untouched for a downgrade.
-    expect(JSON.parse(store.getItem(LEGACY_STORAGE_KEY) ?? "{}").frostedGlass).toBe(true);
+    expect(JSON.parse(store.getItem(LEGACY_STORAGE_KEY) ?? "{}").uiFont).toBe("inter");
   });
 
   it("returns defaults with no storage, empty storage or garbage", () => {
@@ -99,7 +97,6 @@ describe("parsePreferences", () => {
       codeFontSize: 40.4,
       toolDetail: "expand-failed",
       pathDisplay: "absolute",
-      frostedGlass: "yes",
     });
     expect(parsed).toMatchObject({
       uiFont: "host",
@@ -108,11 +105,21 @@ describe("parsePreferences", () => {
       codeFontSize: 22,
       toolDetail: "expand-failed",
       pathDisplay: "absolute",
-      frostedGlass: false,
     });
     expect(parsePreferences({ codeFontSize: 3 }).codeFontSize).toBe(10);
     expect(parsePreferences({ codeFontSize: null }).codeFontSize).toBeNull();
     expect(parsePreferences({ codeFontSize: Number.NaN }).codeFontSize).toBeNull();
+  });
+});
+
+describe("records written before S7", () => {
+  it("drops the removed frost and glow switches and keeps the rest", () => {
+    const stored = { ...DEFAULT_PREFERENCES, accent: "jade", frostedGlass: true, pointerGlow: true };
+    const parsed = parsePreferences(stored);
+    expect(parsed.accent).toBe("jade");
+    expect(parsed).not.toHaveProperty("frostedGlass");
+    expect(parsed).not.toHaveProperty("pointerGlow");
+    expect(preferencesSchema.safeParse(stored).success).toBe(true);
   });
 });
 
