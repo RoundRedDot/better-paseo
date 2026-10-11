@@ -10,6 +10,7 @@ import { MarkdownView } from "./markdown/markdown-view";
 import { variantMetrics } from "./markdown/render/styles";
 import type { ReasoningTraceData } from "../../shared/contracts";
 import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
+import { STICKY_SUPPORTED, StickyCard } from "../ui/sticky-header";
 import { RunningDot } from "../ui/running-dot";
 import { CopyButton } from "../ui/copy-button";
 import { useCopy } from "../ui/use-copy";
@@ -313,7 +314,7 @@ export function ReasoningCard({
   storeKey,
   copyText,
 }: ReasoningCardProps) {
-  const header = reasoningHeaderText(segmentation, streaming, durationMs);
+  const label = reasoningHeaderText(segmentation, streaming, durationMs);
   const { copy } = useCopy();
   const copySource = useCallback(() => copyTextOf(copyText), [copyText]);
   const onLongPress = useCallback(() => {
@@ -323,54 +324,67 @@ export function ReasoningCard({
 
   // The row alone while collapsed; the opened body is its sibling, so the row
   // keeps its place in the tree (and its hover) across the toggle.
+  const header = (
+    <DisclosureHeader
+      expanded={expanded}
+      onToggle={onToggle}
+      tokens={tokens}
+      compact={compact}
+      icon={
+        streaming ? (
+          <RunningDot color={tokens.accent} accessibilityLabel="Thinking" />
+        ) : (
+          <Icon name="Lightbulb" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+        )
+      }
+      verb={label.verb}
+      target={
+        label.preview ? (
+          <Text
+            selectable={false}
+            numberOfLines={1}
+            style={[
+              styles.preview,
+              unselectable,
+              { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
+            ]}
+          >
+            {label.preview}
+          </Text>
+        ) : undefined
+      }
+      meta={label.meta}
+      actions={<CopyButton text={copySource} tokens={tokens} label="Copy thought" />}
+      onLongPress={onLongPress}
+      accessibilityLabel={label.preview ? `${label.verb}: ${label.preview}` : label.verb}
+    />
+  );
+  const body = expanded ? (
+    <FadeIn>
+      <View {...surfaceProps(selectionSurface)} style={[styles.body, selectableSurface]}>
+        <ReasoningSectionsView
+          segmentation={segmentation}
+          tokens={tokens}
+          storeKey={storeKey}
+          streaming={streaming}
+          compact={compact}
+        />
+      </View>
+    </FadeIn>
+  ) : null;
+
+  // A long opened thought pins its row on a host with the sticky API (S6).
+  if (expanded && STICKY_SUPPORTED) {
+    return (
+      <StickyCard tokens={tokens} compact={compact} header={header}>
+        {body}
+      </StickyCard>
+    );
+  }
   return (
     <>
-      <DisclosureHeader
-        expanded={expanded}
-        onToggle={onToggle}
-        tokens={tokens}
-        compact={compact}
-        icon={
-          streaming ? (
-            <RunningDot color={tokens.accent} accessibilityLabel="Thinking" />
-          ) : (
-            <Icon name="Lightbulb" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-          )
-        }
-        verb={header.verb}
-        target={
-          header.preview ? (
-            <Text
-              selectable={false}
-              numberOfLines={1}
-              style={[
-                styles.preview,
-                unselectable,
-                { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
-              ]}
-            >
-              {header.preview}
-            </Text>
-          ) : undefined
-        }
-        meta={header.meta}
-        actions={<CopyButton text={copySource} tokens={tokens} label="Copy thought" />}
-        onLongPress={onLongPress}
-        accessibilityLabel={header.preview ? `${header.verb}: ${header.preview}` : header.verb}
-      />
-      {expanded ? (
-        <FadeIn>
-          <View {...surfaceProps(selectionSurface)} style={[styles.body, selectableSurface]}>
-            <ReasoningSectionsView
-              segmentation={segmentation}
-              tokens={tokens}
-              storeKey={storeKey}
-              streaming={streaming}
-              compact={compact}
-            />
-          </View>
-        </FadeIn>
-      ) : null}
+      {header}
+      {body}
     </>
   );
 }
