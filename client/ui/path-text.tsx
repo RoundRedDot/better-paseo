@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, type TextStyle } from "react-native";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type TextStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useAgent, useWorkspace } from "@getpaseo/plugin/client";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
@@ -13,7 +13,7 @@ import {
   type PathDisplayMode,
   type PathRoot,
 } from "../paths/format-path";
-import { truncateMiddle } from "../paths/truncate-middle";
+import { budgetForWidth, ellipsisCells, fitCells, shownPath, truncateMiddle } from "../paths/truncate-middle";
 import { useCopy } from "./use-copy";
 import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
@@ -96,6 +96,13 @@ export interface PathTextProps {
   onReveal?(absolutePath: string): void;
   /** Characters before middle truncation; defaults to 40 compact / 72 desktop. */
   budget?: number;
+  /**
+   * Fill the slot it sits in and truncate to its measured width, so the file
+   * name is never cut by the row's tail ellipsis (plan §3.9). The slot is
+   * measured once per width change. Use in a column-direction slot: a header
+   * target, a list row.
+   */
+  fit?: boolean;
   /** Show the hover copy icon. Off when the surrounding row has its own. */
   copyOnHover?: boolean;
   /** Text style overrides (size, colour). */
@@ -124,6 +131,7 @@ export function PathText({
   budget,
   copyOnHover = true,
   style,
+  fit = false,
 }: PathTextProps) {
   const context = useContext(PathContext);
   const capabilities = useInputCapabilities(compact);
@@ -134,7 +142,23 @@ export function PathText({
   const formatted = useMemo(() => formatPath(path, context), [path, context]);
   const reveal = onReveal ?? context.reveal;
   const touchFirst = capabilities.touch && !capabilities.hover;
-  const limit = budget ?? (compact ? BUDGET.compact : BUDGET.desktop);
+
+  // `fit`: the slot's width, in whole points; 0 until the first layout.
+  const [slotWidth, setSlotWidth] = useState(0);
+  const onSlotLayout = useCallback((event: LayoutChangeEvent) => {
+    const width = Math.round(event.nativeEvent.layout.width);
+    setSlotWidth((previous) => (previous === width ? previous : width));
+  }, []);
+  const flat = StyleSheet.flatten(style) ?? {};
+  const fontSize = typeof flat.fontSize === "number" ? flat.fontSize : TEXT_SIZE;
+  const family = typeof flat.fontFamily === "string" ? flat.fontFamily : tokens.fontMono;
+  // The hover copy icon's reserved space comes out of the slot.
+  const reserved = copyOnHover && capabilities.hover ? COPY_ICON + space.xs : 0;
+  const measured = fit ? budgetForWidth(slotWidth - reserved, fontSize, family) : null;
+  const fallback = budget ?? (compact ? BUDGET.compact : BUDGET.desktop);
+  const limit = measured === null ? fallback : budget ? Math.min(budget, measured) : measured;
+  const strict = measured !== null;
+  const ellipsis = ellipsisCells(family);
 
   useEffect(() => {
     if (!hovered || !capabilities.hover || inline) {
@@ -151,15 +175,11 @@ export function PathText({
     else reveal(formatted.absolutePath);
   };
 
-  const label = verbatim ? null : formatted.label;
-  const shown = verbatim
-    ? truncateMiddle(path.trim(), limit)
-    : label
-      ? truncateMiddle(
-          `${formatted.displayPath.slice(label.length + 1)}${formatted.suffix}`,
-          Math.max(8, limit - label.length - 1),
-        )
-      : truncateMiddle(`${formatted.displayPath}${formatted.suffix}`, limit);
+  const shownParts = verbatim
+    ? { label: null, text: strict ? fitCells(path.trim(), limit, ellipsis) : truncateMiddle(path.trim(), limit) }
+    : shownPath(formatted, limit, strict, ellipsis);
+  const label = shownParts.label;
+  const shown = shownParts.text;
   const textStyle = [
     styles.text,
     { color: tokens.foreground, fontFamily: tokens.fontMono },
@@ -180,7 +200,7 @@ export function PathText({
     );
   }
 
-  return (
+  const pressable = (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={formatted.absolutePath}
@@ -236,9 +256,28 @@ export function PathText({
       ) : null}
     </Pressable>
   );
+  if (!fit) return pressable;
+  // The slot stretches to the space it is given and is what gets measured;
+  // the button inside keeps to the text, so a press beside the path still
+  // reaches whatever row holds it.
+  return (
+    <View style={styles.fitSlot} onLayout={onSlotLayout}>
+      {pressable}
+    </View>
+  );
 }
 
+/** Default path text size. */
+const TEXT_SIZE = 13;
+/** Space the hover copy icon reserves beside the path. */
+const COPY_ICON = 12;
+
 const styles = StyleSheet.create({
+  fitSlot: {
+    alignSelf: "stretch",
+    alignItems: "flex-start",
+    minWidth: 0,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -248,15 +287,15 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   text: {
-    fontSize: 13,
+    fontSize: TEXT_SIZE,
     flexShrink: 1,
   },
   hovered: {
     textDecorationLine: "underline",
   },
   copyIcon: {
-    width: 12,
-    height: 12,
+    width: COPY_ICON,
+    height: COPY_ICON,
     flexShrink: 0,
   },
   tooltip: {
