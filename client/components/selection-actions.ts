@@ -4,6 +4,7 @@ import type { TextProps, ViewProps } from "react-native";
 import { copyText } from "@getpaseo/plugin/client/react-native";
 import { radiusV2 } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
+import { cssShadow } from "../ui/tokens/css-shadow";
 
 /**
  * A floating Copy / Add to chat bar for highlighted callout text.
@@ -166,8 +167,9 @@ const BAR_CSS = `
   border-style: solid;
   border-width: 1px;
   border-radius: ${radiusV2.block}px;
-  /* A floating layer: the one place a shadow belongs (plan §3.6). */
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
+  /* A floating layer, lifted by the theme's overlay elevation: the border
+     does the separating, the shadow only a hint (plan §3.6). */
+  box-shadow: var(--bc-bar-shadow);
   background-color: var(--bc-bar-bg);
   background-image: linear-gradient(var(--bc-bar-raise), var(--bc-bar-raise));
   font-size: 12px;
@@ -297,6 +299,7 @@ function createBar(): Bar {
       host.style.setProperty("--bc-bar-bg", tokens.surface0);
       host.style.setProperty("--bc-bar-raise", tokens.surface2);
       bar.style.borderColor = tokens.border;
+      host.style.setProperty("--bc-bar-shadow", cssShadow(tokens.v2.elevation.overlay));
       // The bar sits on document.body, outside the host's UI font rule, so
       // "Follow Paseo" reads the host's own font variable directly.
       bar.style.fontFamily = tokens.fontUi ?? "var(--paseo-ui-font, system-ui, sans-serif)";
