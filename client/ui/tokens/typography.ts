@@ -96,9 +96,9 @@ export interface TypeStep {
  */
 export const TYPE = {
   /** Row verb, task text, notice text. */
-  label: { size: 14, lineHeight: 20 },
-  /** A row's path or command, monospace: 13 on touch layouts, 12 on desktop. */
-  target: { compact: { size: 13, lineHeight: 20 }, desktop: { size: 12, lineHeight: 18 } },
+  label: { size: 13, lineHeight: 18 },
+  /** A row's path or command, monospace. */
+  target: { compact: { size: 12, lineHeight: 18 }, desktop: { size: 12, lineHeight: 18 } },
   /** Row meta (`exit 0  1.2s`, `L10–80`) and usage, monospace with tabular digits. */
   meta: { size: 12, lineHeight: 16 },
   /** Times, a code block's language, captions, a failed row's error line. */

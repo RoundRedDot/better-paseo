@@ -140,7 +140,7 @@ describe("tool card on a host with the sticky API", () => {
       renderer = TestRenderer.create(card(true));
     });
     // A short card: the hook runs disabled, and the transform is bound to its value.
-    expect(hook).toHaveBeenLastCalledWith({ headerHeight: 32, enabled: false });
+    expect(hook).toHaveBeenLastCalledWith({ headerHeight: 28, enabled: false });
     const shell = () =>
       renderer!.root.findAll(
         (node) => (node.type as unknown) === "Animated.View" && JSON.stringify(node.props.style ?? "").includes("transform"),
@@ -150,7 +150,7 @@ describe("tool card on a host with the sticky API", () => {
     // The body lays out taller than 60% of an 844pt window.
     const body = renderer!.root.findAll((node) => (node.type as unknown) === "View" && typeof node.props.onLayout === "function");
     act(() => body[0]!.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 900 } } }));
-    expect(hook).toHaveBeenLastCalledWith({ headerHeight: 32, enabled: true });
+    expect(hook).toHaveBeenLastCalledWith({ headerHeight: 28, enabled: true });
     expect(shell()).toHaveLength(1);
 
     // Growing further does not re-render: only the threshold crossing does.

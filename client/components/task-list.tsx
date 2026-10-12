@@ -41,7 +41,7 @@ const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
 /**
  * The agent's checklist as rows (S7 design spec §3.3): a header row —
  * `Tasks 1/4` and a static 2px progress line — then one row per task in the
- * same 22pt slot as a tool's icon, so a checklist lines up with the calls
+ * same 20pt slot as a tool's icon, so a checklist lines up with the calls
  * around it. No frame, no fill. The only motion is the `RunningDot` of the
  * task in progress; the progress line jumps to its value.
  *

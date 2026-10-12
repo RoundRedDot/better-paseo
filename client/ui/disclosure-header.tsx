@@ -15,25 +15,25 @@ import { useEnhancerPreferences } from "../preferences";
  * Row geometry (S7 design spec §2.5, F0 "Row heights and hit areas").
  *
  * A row is outdented by `bleed` on both sides and padded back by the same
- * amount, so its 22pt status slot starts on the prose edge and every row's
+ * amount, so its 20pt status slot starts on the prose edge and every row's
  * verb, a failed row's error line and an opened body share one text column
- * at `textColumn`. Desktop rows are the host's native 30; touch rows are 32
- * tall and reach 44 through `hitSlop`.
+ * at `textColumn`. Rows are 26 tall on desktop and 28 on touch, tighter than
+ * the host's own 30, and touch rows reach 44 through `hitSlop`.
  */
 export const DISCLOSURE_HEADER = {
-  height: { desktop: 30, compact: 32 },
+  height: { desktop: 26, compact: 28 },
   hit: 44,
   paddingX: space.sm,
   bleed: space.sm,
   gap: space.sm,
-  iconSlot: 22,
-  icon: 16,
+  iconSlot: 20,
+  icon: 14,
   verb: TYPE.label.size,
   target: TYPE.target,
   meta: TYPE.meta.size,
   chevron: 14,
   /** Slot + gap: where the verb, an error line and an opened body start. */
-  textColumn: 22 + space.sm,
+  textColumn: 20 + space.sm,
   /** Middle-truncation budget for a string target, in characters. */
   targetBudget: { desktop: 72, compact: 40 },
 } as const;
@@ -47,7 +47,7 @@ export interface DisclosureHeaderProps {
   tokens: ExtendedThemeTokens;
   /** `layout.compact`. */
   compact?: boolean;
-  /** The 22pt status slot: a muted tool icon, a `RunningDot`, a failure mark. */
+  /** The 20pt status slot: a muted tool icon, a `RunningDot`, a failure mark. */
   icon?: ReactNode;
   /**
    * What happened: "Read", "Bash", "Thought". Drawn only with the row labels
