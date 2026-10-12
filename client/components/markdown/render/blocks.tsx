@@ -8,7 +8,7 @@ import type { RenderContext } from "./context";
 import { codeSurface } from "../../host-font-escape";
 import { renderInline } from "./inline";
 import { LocalImage } from "./local-image";
-import { soleLocalImage } from "./local-image-path";
+import { soleLocalImage } from "./local-path";
 import {
   BULLETS,
   CHAR_RATIO_MONO,
