@@ -578,7 +578,7 @@ export function SyntaxHighlightBlock({
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        // One means per block (S7 design spec §3.6): the host's raised surface
+        // One means per block (S7 design spec 3.6): the host's raised surface
         // and a 6px radius say "code", with no border, shadow or blur. `bare`
         // drops even that, inside an opened tool body that is already the
         // code surface.
@@ -1441,8 +1441,10 @@ const LINE_VERDICTS: Array<{
   re: RegExp;
   tone: "success" | "danger" | "warning";
 }> = [
-  { re: /^\s*(?:PASS|OK|DONE|SUCCESS|✓|✔)\b/i, tone: "success" },
-  { re: /^\s*(?:FAIL(?:ED)?|ERROR|ERR|FATAL|✕|✗|×)\b/i, tone: "danger" },
+  // Check marks and crosses as escapes: the bundle stays ASCII (see
+  // `scripts/check-hermes.mjs`).
+  { re: /^\s*(?:PASS|OK|DONE|SUCCESS|\u2713|\u2714)\b/i, tone: "success" },
+  { re: /^\s*(?:FAIL(?:ED)?|ERROR|ERR|FATAL|\u2715|\u2717|\u00d7)\b/i, tone: "danger" },
   { re: /^\s*(?:WARN(?:ING)?|SKIP(?:PED)?|DEPRECATED)\b/i, tone: "warning" },
 ];
 

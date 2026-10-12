@@ -1133,7 +1133,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
     () =>
       StyleSheet.create({
         // The standalone card (the running jobs under the newest item) is the
-        // same surface1 slab as an opened tool body (S7 §3.4): no border.
+        // same surface1 slab as an opened tool body (S7 3.4): no border.
         container: {
           borderRadius: radiusV2.block,
           backgroundColor: tokens.v2.surface1,
@@ -1168,7 +1168,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
           alignItems: "center",
           gap: 6,
         },
-        // The op reads as a label, not a filled badge (plan §3.6).
+        // The op reads as a label, not a filled badge (plan 3.6).
         opBadge: {
           fontFamily: tokens.fontUi,
           fontSize: UI_SCALE.base,
@@ -1213,7 +1213,7 @@ function useHubStyles(tokens: ExtendedThemeTokens): HubStyles {
           gap: 5,
         },
 
-        // A status reads as coloured text, never a filled pill (S7 §3.4).
+        // A status reads as coloured text, never a filled pill (S7 3.4).
         chip: {
           fontFamily: tokens.fontUi,
           fontSize: TYPE.caption.size,

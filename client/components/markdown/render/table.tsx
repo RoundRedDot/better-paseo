@@ -40,8 +40,12 @@ export function columnWidths(token: Tokens.Table, metrics: VariantMetrics): numb
   return widths;
 }
 
-/** A figure: digits with an optional sign, separators, unit or percent. */
-const FIGURE = /^[\s$€£¥+\-−~≈<>]*\d[\d,._\s]*(%|[a-zA-Zµ]{1,3}|×)?\s*$/;
+/**
+ * A figure: digits with an optional sign, separators, unit or percent. The
+ * escapes are euro, pound, yen, minus, almost-equal, micro and times: the
+ * bundle stays ASCII (see `scripts/check-hermes.mjs`).
+ */
+const FIGURE = /^[\s$\u20ac\u00a3\u00a5+\-\u2212~\u2248<>]*\d[\d,._\s]*(%|[a-zA-Z\u00b5]{1,3}|\u00d7)?\s*$/;
 
 /** Every non-empty body cell of the column reads as a figure. */
 export function numericColumn(token: Tokens.Table, column: number): boolean {

@@ -164,7 +164,7 @@ export function buildMcpData(
     tool: parts.length > 1 ? parts.slice(1).join(" / ") : (parts[0] ?? rawName),
     arguments: input,
     // An MCP server answers with content blocks. Keeping the envelope here put
-    // `{"content":[{"type":"text",…}]}` in the response panel, so the prose is
+    // `{"content":[{"type":"text",...}]}` in the response panel, so the prose is
     // unwrapped first and only a genuinely structured payload stays an object.
     result:
       (output && typeof output === "object"

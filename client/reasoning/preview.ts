@@ -57,7 +57,7 @@ function isTerminator(char: string): boolean {
 /** Past the quotes, brackets and emphasis markers that close a sentence at `index`. */
 function closersEnd(text: string, index: number): number {
   let next = index + 1;
-  while (next < text.length && /["'”’)\]*_`]/.test(text.charAt(next))) next++;
+  while (next < text.length && /["'\u201d\u2019)\]*_`]/.test(text.charAt(next))) next++;
   return next;
 }
 

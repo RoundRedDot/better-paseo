@@ -92,7 +92,7 @@ const FAILURE_META = /^(exit [1-9]\d*|failed|error|timed out)$/;
 
 /** `+12 −3`: the diff counts, as success and danger spans of the meta Text. */
 function diffCountSpans(entry: string, tokens: ExtendedThemeTokens): React.ReactNode {
-  const match = /^\+(\d+) −(\d+)$/.exec(entry);
+  const match = /^\+(\d+) \u2212(\d+)$/.exec(entry);
   if (!match) return entry;
   return (
     <>
@@ -962,7 +962,7 @@ function useBodyStyles(tokens: ExtendedThemeTokens, compact: boolean): BodyStyle
         flex: { flex: 1, minWidth: 0 },
         fileRow: { height: compact ? 28 : 24, justifyContent: "center" },
         webRow: { gap: 1 },
-        // The opened body is already the code surface (S7 §3.1): command
+        // The opened body is already the code surface (S7 3.1): command
         // output sits on it directly, with no inner panel.
         terminalWindow: {
           gap: space.xs,

@@ -366,7 +366,7 @@ export function buildStyles(
       lineHeight: metrics.bodyLineHeight,
       color: text,
     },
-    // A finished task reads quieter, not struck through (S7 §3.3).
+    // A finished task reads quieter, not struck through (S7 3.3).
     itemTextDone: {
       flex: 1,
       fontFamily: bodyFont,

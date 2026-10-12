@@ -258,7 +258,7 @@ function base(view: ToolCallView): { meta: string[]; tone: ToolSummary["tone"] }
 function errorLineFor(view: ToolCallView): string | undefined {
   if (view.status !== "failed") return undefined;
   return (
-    firstLine(view.error ? stripAnsi(view.error) : undefined)?.replace(/ …$/, "") ??
+    firstLine(view.error ? stripAnsi(view.error) : undefined)?.replace(/ \u2026$/, "") ??
     lastLine(view.output) ??
     (view.exitCode !== undefined ? `Exited with code ${view.exitCode}` : "The tool call failed.")
   );
