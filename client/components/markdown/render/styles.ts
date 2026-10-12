@@ -174,6 +174,9 @@ export const ALIGN_KEYS: Record<MdAlign, "cellLeft" | "cellCenter" | "cellRight"
 // the font size.
 export const CHAR_RATIO_UI = 0.55;
 export const CHAR_RATIO_MONO = 0.62;
+// A digit is wider than the average letter: table figures are set tabular, and
+// a tabular figure advances about 0.62 em in SF and its kin (measured at 15px).
+export const CHAR_RATIO_DIGIT = 0.62;
 
 // A marker sits in a fixed column, so its width has to carry the gutter the
 // style adds; an estimate that forgets it wraps `2.` onto a second line.
