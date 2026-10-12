@@ -10,7 +10,7 @@ import { TYPE } from "./tokens/typography";
 import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { useEnhancerPreferences } from "../preferences";
-import { HoverPreview, HoverPreviewContext, useHoverPreview } from "./hover-preview";
+import { HoverPreview, HoverPreviewContext, RowLongPressContext, useHoverPreview } from "./hover-preview";
 import { useScrollAnchor, type ScrollAnchor } from "./scroll-anchor";
 
 /**
@@ -249,57 +249,59 @@ export function DisclosureHeader({
   return (
     <>
       <HoverPreviewContext.Provider value={previewOwner || (Boolean(previewContent) && !expanded)}>
-        <Pressable
-          ref={rowRef}
-          accessibilityRole="button"
-          accessibilityLabel={label}
-          accessibilityState={{ expanded }}
-          // React Native Web reads the ARIA prop, not `accessibilityState`.
-          aria-expanded={expanded}
-          onPressIn={anchor.hold}
-          onPress={toggle}
-          onLongPress={preview.press ?? onLongPress}
-          hitSlop={slop > 0 ? { top: slop, bottom: slop } : undefined}
-          {...(pointerProps as object)}
-          style={({ pressed }) => [
-            styles.row,
-            { height },
-            hovered && { backgroundColor: tokens.v2.surface1 },
-            pressed && { backgroundColor: tokens.v2.surface2 },
-          ]}
-        >
-          <View style={styles.slot}>
-            {showChevron ? (
-              <Icon
-                name={expanded ? "ChevronDown" : "ChevronRight"}
-                size={DISCLOSURE_HEADER.chevron}
-                color={tokens.foregroundMuted}
-              />
-            ) : showIcon ? (
-              icon
-            ) : null}
-          </View>
-          {showVerb ? (
-            <Text
-              selectable={false}
-              numberOfLines={1}
-              style={[styles.verb, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}
-            >
-              {verb}
-            </Text>
-          ) : null}
-          {hoverActions ? (
-            <View style={styles.targetBox}>
-              {targetNode ?? <View style={styles.fill} />}
-              <View style={[styles.overlay, { backgroundColor: tokens.v2.surface1 }]}>{actions}</View>
+        <RowLongPressContext.Provider value={preview.press}>
+          <Pressable
+            ref={rowRef}
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            accessibilityState={{ expanded }}
+            // React Native Web reads the ARIA prop, not `accessibilityState`.
+            aria-expanded={expanded}
+            onPressIn={anchor.hold}
+            onPress={toggle}
+            onLongPress={preview.press ?? onLongPress}
+            hitSlop={slop > 0 ? { top: slop, bottom: slop } : undefined}
+            {...(pointerProps as object)}
+            style={({ pressed }) => [
+              styles.row,
+              { height },
+              hovered && { backgroundColor: tokens.v2.surface1 },
+              pressed && { backgroundColor: tokens.v2.surface2 },
+            ]}
+          >
+            <View style={styles.slot}>
+              {showChevron ? (
+                <Icon
+                  name={expanded ? "ChevronDown" : "ChevronRight"}
+                  size={DISCLOSURE_HEADER.chevron}
+                  color={tokens.foregroundMuted}
+                />
+              ) : showIcon ? (
+                icon
+              ) : null}
             </View>
-          ) : (
-            targetNode
-          )}
-          {metaLead}
-          {metaText}
-          {persistentActions ? <View style={styles.inlineActions}>{actions}</View> : null}
-        </Pressable>
+            {showVerb ? (
+              <Text
+                selectable={false}
+                numberOfLines={1}
+                style={[styles.verb, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}
+              >
+                {verb}
+              </Text>
+            ) : null}
+            {hoverActions ? (
+              <View style={styles.targetBox}>
+                {targetNode ?? <View style={styles.fill} />}
+                <View style={[styles.overlay, { backgroundColor: tokens.v2.surface1 }]}>{actions}</View>
+              </View>
+            ) : (
+              targetNode
+            )}
+            {metaLead}
+            {metaText}
+            {persistentActions ? <View style={styles.inlineActions}>{actions}</View> : null}
+          </Pressable>
+        </RowLongPressContext.Provider>
       </HoverPreviewContext.Provider>
       {preview.open && previewContent ? (
         <HoverPreview preview={preview} tokens={tokens}>{previewContent()}</HoverPreview>

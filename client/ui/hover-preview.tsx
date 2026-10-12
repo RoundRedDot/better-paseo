@@ -14,6 +14,12 @@ import { pressPreviewPlacement, type WindowRect } from "./press-preview-placemen
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
+/**
+ * The row's long-press preview, for a pressable inside the row (a path target)
+ * that would otherwise take the long press for itself. Undefined where the row
+ * has none: an opened row, a web pointer, previews turned off.
+ */
+export const RowLongPressContext = createContext<(() => void) | undefined>(undefined);
 const PreviewActionsContext = createContext<{
   overflowing: boolean;
   maximized: boolean;
