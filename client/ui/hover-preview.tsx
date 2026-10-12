@@ -5,6 +5,7 @@ import { radiusV2, space } from "../components/theme-tokens";
 import { selectionSurface } from "../components/selection-actions";
 import { bindPreviewPointer, openPreviewLayer } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
+import { cssShadow } from "./tokens/css-shadow";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
@@ -74,7 +75,11 @@ export function HoverPreview({ preview, tokens, children }: {
         ref={panelRef}
         {...selectionSurface}
         testID="hover-preview"
-        style={[styles.panel, { backgroundColor: tokens.surface0, borderColor: tokens.v2.border }]}
+        style={[styles.panel, {
+          backgroundColor: tokens.surface0,
+          borderColor: tokens.v2.border,
+          boxShadow: cssShadow(tokens.v2.elevation.overlay),
+        }]}
       >
         {children}
       </View>
@@ -83,5 +88,5 @@ export function HoverPreview({ preview, tokens, children }: {
 }
 
 const styles = StyleSheet.create({
-  panel: { width: 640, padding: space.md, gap: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
+  panel: { width: 880, padding: space.md, gap: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
 });
