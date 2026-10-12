@@ -84,11 +84,12 @@ export interface LiveNoticePayload {
 /**
  * How much of Paseo's 16pt gap under a plugin item a tool or thought row
  * takes back (`compactRowSpacing`). The 4pt left is the host's own gap between
- * a reply and a tool row. A negative bottom margin pulls the next item up into
+ * a thought and a tool row. A negative bottom margin pulls the next item up into
  * the gap the host hangs under this one; the newest row has nothing below it
  * but the list's own padding or the working indicator, so it keeps its gap.
- * A reply takes the same 12 back, but only above a row (`compactReplySpacing`,
- * `timeline-order.ts`).
+ * A reply can take the same 12 back, but only above a row and only by choice
+ * (`compactReplySpacing`, `timeline-order.ts`): Paseo's own reply keeps 16pt
+ * there.
  */
 export const ROW_GAP_COMPENSATION = 12;
 
@@ -346,9 +347,10 @@ function LiveAssistantRendererBody({
   const itemKey = useTextItemTailKey("assistant", timestamp.getTime(), item.data.text);
   const isTail = useIsTimelineTail(itemKey);
 
-  // The host gives a reply 4pt above the tool row that follows it, but hangs
-  // 16pt under every plugin item, so a reply takes 12 back when a row is next
-  // (as a tool row does). Above a prompt or another reply it keeps the 16.
+  // Paseo's own reply sits 16pt above the tool row that follows it (its 12pt
+  // padding plus a 4pt gap), the same 16pt the host hangs under a plugin item.
+  // `compactReplySpacing` takes 12 of it back when a row is next, as a tool
+  // row does. Above a prompt or another reply the 16 stays.
   useTimelineEntry(timestamp.getTime(), "text");
   const rowBelow = useNextEntryIsRow(timestamp.getTime());
 

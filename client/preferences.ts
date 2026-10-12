@@ -95,11 +95,10 @@ export interface EnhancerPreferences {
    */
   compactRowSpacing: boolean;
   /**
-   * The same host gap under a reply: Paseo leaves 4pt between its own reply
-   * and the tool row below, but 16pt under a plugin-drawn one. On, a reply
-   * takes 12 back when a tool, thought or todo row comes next
-   * (`timeline-order.ts`). A host that spaces plugin items as it spaces its
-   * own needs it off.
+   * A tighter reply than Paseo's own. Paseo leaves 16pt between a reply and
+   * the tool row below it: 12pt of the reply's own padding plus a 4pt gap,
+   * and the same 16pt as the gap under a plugin item. On, a reply takes 12
+   * back when a tool, thought or todo row comes next (`timeline-order.ts`).
    */
   compactReplySpacing: boolean;
   /** The settings page's language; `system` follows the device locale. */
