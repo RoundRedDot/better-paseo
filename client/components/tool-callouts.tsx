@@ -855,9 +855,12 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
           <Text style={styles.silentText}>The plan is empty.</Text>
         ))}
 
+      {/* Tool output as text (a task notification, an ACP or Codex result):
+          commands and logs far more often than prose, so it is set in the
+          code face, as the row's own target already is. */}
       {data.tool === "plain_text" &&
         (data.text ? (
-          <Text selectable style={styles.plainText}>
+          <Text selectable {...selectionCodeText} style={styles.commandLine}>
             {data.text}
           </Text>
         ) : (
