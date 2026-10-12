@@ -9,13 +9,17 @@ import { hashText } from "./state/disclosure-store";
  * item reports the moment it was first projected, and the highest moment wins.
  * Projection is cached per source item, so that moment is the item's arrival
  * time and does not move when the list re-renders or a row scrolls back in.
+ *
+ * One tail per agent: every chat on screen shares this module, and another
+ * agent's later row must not take the newest reply's footer here, nor make
+ * this chat's newest tool row give up its gap above the composer.
  */
 interface Tail {
   key: string;
   at: number;
 }
 
-let tail: Tail | null = null;
+const tails = new Map<string, Tail>();
 const listeners = new Set<() => void>();
 
 function publish(): void {
@@ -23,10 +27,11 @@ function publish(): void {
 }
 
 /** Records an item's arrival. A later arrival takes the tail; ties keep the incumbent. */
-export function noteTimelineItem(key: string, at: number): void {
+export function noteTimelineItem(agentId: string, key: string, at: number): void {
+  const tail = tails.get(agentId);
   if (tail && (at < tail.at || (at === tail.at && key !== tail.key))) return;
   if (tail && tail.key === key && tail.at === at) return;
-  tail = { key, at };
+  tails.set(agentId, { key, at });
   publish();
 }
 
@@ -34,9 +39,10 @@ export function noteTimelineItem(key: string, at: number): void {
  * Moves the tail from `from` to `to` when `from` holds it: the same item under
  * a key that grew (see `useTextItemTailKey`). Any other tail is left alone.
  */
-export function renameTimelineItem(from: string, to: string): void {
+export function renameTimelineItem(agentId: string, from: string, to: string): void {
+  const tail = tails.get(agentId);
   if (from === to || tail?.key !== from) return;
-  tail = { key: to, at: tail.at };
+  tails.set(agentId, { key: to, at: tail.at });
   publish();
 }
 
@@ -61,19 +67,19 @@ export function textItemTailKey(kind: string, at: number, text: string): string 
  * runs after the row's children noted the new key, so the incumbent is the
  * old key at that point.
  */
-export function useTextItemTailKey(kind: string, at: number, text: string): string {
+export function useTextItemTailKey(agentId: string, kind: string, at: number, text: string): string {
   const key = textItemTailKey(kind, at, text);
   const previous = useRef<string | null>(null);
   useEffect(() => {
     const from = previous.current;
     previous.current = key;
-    if (from !== null) renameTimelineItem(from, key);
-  }, [key]);
+    if (from !== null) renameTimelineItem(agentId, from, key);
+  }, [agentId, key]);
   return key;
 }
 
-export function getTimelineTail(): string | null {
-  return tail?.key ?? null;
+export function getTimelineTail(agentId: string): string | null {
+  return tails.get(agentId)?.key ?? null;
 }
 
 function subscribe(listener: () => void): () => void {
@@ -84,7 +90,7 @@ function subscribe(listener: () => void): () => void {
 }
 
 /** True while this item is the newest one the plugin has drawn. */
-export function useIsTimelineTail(key: string): boolean {
-  const getSnapshot = useCallback(() => tail?.key === key, [key]);
+export function useIsTimelineTail(agentId: string, key: string): boolean {
+  const getSnapshot = useCallback(() => tails.get(agentId)?.key === key, [agentId, key]);
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
