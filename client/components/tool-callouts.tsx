@@ -268,6 +268,7 @@ export function ToolCallout({
       tokens={tokens}
       compact={compact}
       icon={statusIcon}
+      iconIsStatus={running || failed}
       verb={summary.verb}
       target={target}
       meta={meta}

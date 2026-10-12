@@ -337,6 +337,7 @@ export function ReasoningCard({
           <Icon name="Lightbulb" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
         )
       }
+      iconIsStatus={streaming}
       verb={label.verb}
       target={
         label.preview ? (

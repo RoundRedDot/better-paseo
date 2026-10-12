@@ -105,9 +105,12 @@ const en = {
     "Relative to the workspace (a worktree's main repository is prefixed with its name), or in full. Copying always gives the absolute path.",
   pathsRelative: "Relative",
   pathsAbsolute: "Absolute",
-  rowLabelsTitle: "Row labels",
+  rowLabelsTitle: "Row icons and labels",
   rowLabelsDescription:
-    "Names each tool and thought row beside its icon: Bash, Read, Thought. Off, the icon alone says what the row is and the command or preview gets the width.",
+    "How tool and thought rows show what they are: an icon, a name such as Bash, Read or Thought, or both. Icon only leaves the most width for the command or preview.",
+  rowLabelsIcon: "Icon only",
+  rowLabelsLabel: "Label only",
+  rowLabelsBoth: "Icon and label",
   rowSpacingTitle: "Compact row spacing",
   rowSpacingDescription:
     "Paseo 0.11 leaves 16pt under every row this plugin draws, where its own tool rows sit flush. This takes most of it back. Turn it off if rows overlap on a Paseo that already stacks them.",
@@ -205,9 +208,11 @@ const zh: SettingsStrings = {
   pathsDescription: "显示为相对 workspace 的路径（worktree 会在前面加上主仓库的名字），或完整路径。复制时总是得到绝对路径。",
   pathsRelative: "相对",
   pathsAbsolute: "绝对",
-  rowLabelsTitle: "行标签",
-  rowLabelsDescription:
-    "在每个工具行和思考行的图标旁显示名称：Bash、Read、Thought。关闭时只靠图标区分，命令或预览可以占用更多宽度。",
+  rowLabelsTitle: "行图标与标签",
+  rowLabelsDescription: "工具行和思考行用什么表明类型：图标、Bash / Read / Thought 这样的名称，或两者都显示。仅图标时，命令或预览能占用最多宽度。",
+  rowLabelsIcon: "仅图标",
+  rowLabelsLabel: "仅标签",
+  rowLabelsBoth: "图标+标签",
   rowSpacingTitle: "紧凑行距",
   rowSpacingDescription:
     "Paseo 0.11 会在插件绘制的每一行下面留出 16pt，而它自己的工具行之间是紧挨着的。开启后会收回其中大部分。如果在已经修正了这个间距的 Paseo 上出现行重叠，请关闭。",

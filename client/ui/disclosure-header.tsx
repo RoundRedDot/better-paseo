@@ -50,9 +50,14 @@ export interface DisclosureHeaderProps {
   /** The 20pt status slot: a muted tool icon, a `RunningDot`, a failure mark. */
   icon?: ReactNode;
   /**
-   * What happened: "Read", "Bash", "Thought". Drawn only with the row labels
-   * preference on, or when there is no target to stand in for it; it always
-   * opens the accessibility label.
+   * The icon reports status (running, failed) rather than the kind of row, so
+   * it stays when the reader chose label-only rows.
+   */
+  iconIsStatus?: boolean;
+  /**
+   * What happened: "Read", "Bash", "Thought". Drawn unless the reader chose
+   * icon-only rows and a target stands in for it; it always opens the
+   * accessibility label.
    */
   verb: string;
   /**
@@ -97,7 +102,8 @@ const IS_WEB = Platform.OS === "web";
  * is hovered, in place of the icon, so nothing moves.
  *
  * Six views for a row with a string target: the row, the slot, its icon, the
- * verb (unless the reader turned row labels off), the target and the meta. Hover adds the actions only while hovered.
+ * verb (unless the reader chose icon-only rows), the target and the meta. Hover adds the actions only while hovered.
+ * Label-only rows keep the slot empty, so the text column never moves.
  *
  * All text is non-selectable: the row is a press target, and a long press
  * must never compete with text selection.
@@ -108,6 +114,7 @@ export function DisclosureHeader({
   tokens,
   compact = false,
   icon,
+  iconIsStatus = false,
   verb,
   target,
   meta,
@@ -120,10 +127,11 @@ export function DisclosureHeader({
 }: DisclosureHeaderProps) {
   const capabilities = useInputCapabilities(compact);
   const { hovered, hoverProps } = useHover();
-  const rowLabels = useEnhancerPreferences().rowLabels;
+  const rowLabelStyle = useEnhancerPreferences().rowLabelStyle;
   // Icon-only rows still need words: a row with no target keeps its verb.
   const hasTarget = target !== undefined && target !== null && target !== "";
-  const showVerb = rowLabels || !hasTarget;
+  const showVerb = rowLabelStyle !== "icon" || !hasTarget;
+  const showIcon = rowLabelStyle !== "label" || iconIsStatus;
   const height = compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop;
   const slop = capabilities.touch ? Math.max(0, (DISCLOSURE_HEADER.hit - height) / 2) : 0;
   const targetType = compact ? DISCLOSURE_HEADER.target.compact : DISCLOSURE_HEADER.target.desktop;
@@ -219,9 +227,9 @@ export function DisclosureHeader({
             size={DISCLOSURE_HEADER.chevron}
             color={tokens.foregroundMuted}
           />
-        ) : (
+        ) : showIcon ? (
           icon
-        )}
+        ) : null}
       </View>
       {showVerb ? (
         <Text
