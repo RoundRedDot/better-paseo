@@ -358,6 +358,7 @@ export function ReasoningCard({
       actions={<CopyButton text={copySource} tokens={tokens} label="Copy thought" />}
       onLongPress={onLongPress}
       accessibilityLabel={label.preview ? `${label.verb}: ${label.preview}` : label.verb}
+      previewContent={() => <MarkdownView text={reasoningText(segmentation)} tokens={tokens} variant="compact" quiet />}
     />
   );
   const body = expanded ? (

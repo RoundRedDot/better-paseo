@@ -20,6 +20,7 @@ import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { UI_SCALE } from "./tokens/typography";
 import { liftStackingRow, scrollTop, tooltipPlacement, type DomBox, type TooltipPlacement } from "./tooltip-placement";
+import { HoverPreview, useHoverPreview } from "./hover-preview";
 
 /** Where paths are made relative to, for one renderer (plan §3.9 item 3). */
 export interface PathContextValue {
@@ -148,6 +149,7 @@ export function PathText({
   const { copied, copy } = useCopy();
   const [tooltip, setTooltip] = useState<TooltipPlacement | null>(null);
   const rowRef = useRef<View>(null);
+  const preview = useHoverPreview(!inline);
 
   const formatted = useMemo(() => formatPath(path, context), [path, context]);
   const reveal = onReveal ?? context.reveal;
@@ -171,7 +173,7 @@ export function PathText({
   const ellipsis = ellipsisCells(family);
 
   useEffect(() => {
-    if (!hovered || !capabilities.hover || inline) {
+    if (!hovered || !capabilities.hover || inline || Platform.OS === "web") {
       setTooltip(null);
       return;
     }
@@ -216,41 +218,42 @@ export function PathText({
   }
 
   const pressable = (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={formatted.absolutePath}
-      accessibilityHint={touchFirst || !reveal ? "Copies the path" : "Reveals the file"}
-      onPress={onPress}
-      onLongPress={capabilities.touch ? copyAbsolute : undefined}
-      {...hoverProps}
-      ref={rowRef}
-      style={styles.row}
-    >
-      <Text
-        {...(codeSurface as object)}
-        selectable={false}
-        numberOfLines={1}
-        style={[...textStyle, unselectable, hovered && styles.hovered]}
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={formatted.absolutePath}
+        accessibilityHint={touchFirst || !reveal ? "Copies the path" : "Reveals the file"}
+        onPress={onPress}
+        onLongPress={capabilities.touch ? copyAbsolute : undefined}
+        {...hoverProps}
+        ref={Platform.OS === "web" ? preview.anchorRef : rowRef}
+        style={styles.row}
       >
-        {label ? <Text style={{ color: tokens.foregroundMuted }}>{`${label}/`}</Text> : null}
-        {shown}
-      </Text>
-      {copyOnHover && capabilities.hover ? (
-        // Space is always reserved, so the icon appearing never shifts layout.
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={copied ? "Copied" : "Copy path"}
-          disabled={!hovered}
-          hitSlop={6}
-          onPress={() => void copy(formatted.absolutePath, { feedback: "icon" })}
-          style={[styles.copyIcon, { opacity: hovered || copied ? 1 : 0 }]}
+        <Text
+          {...(codeSurface as object)}
+          selectable={false}
+          numberOfLines={1}
+          style={[...textStyle, unselectable, hovered && styles.hovered]}
         >
-          <Icon
-            name={copied ? "Check" : "Copy"}
-            size={12}
-            color={copied ? tokens.foreground : tokens.foregroundMuted}
-          />
-        </Pressable>
+          {label ? <Text style={{ color: tokens.foregroundMuted }}>{`${label}/`}</Text> : null}
+          {shown}
+        </Text>
+        {copyOnHover && capabilities.hover ? (
+          // Space is always reserved, so the icon appearing never shifts layout.
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={copied ? "Copied" : "Copy path"}
+            disabled={!hovered}
+            hitSlop={6}
+            onPress={() => void copy(formatted.absolutePath, { feedback: "icon" })}
+            style={[styles.copyIcon, { opacity: hovered || copied ? 1 : 0 }]}
+          >
+            <Icon
+              name={copied ? "Check" : "Copy"}
+              size={12}
+              color={copied ? tokens.foreground : tokens.foregroundMuted}
+            />
+          </Pressable>
       ) : null}
       {tooltip ? (
         <View
@@ -272,6 +275,12 @@ export function PathText({
         </View>
       ) : null}
     </Pressable>
+      {preview.open ? <HoverPreview preview={preview} tokens={tokens}>
+        <Text {...(codeSurface as object)} selectable style={[styles.tooltipText, { color: tokens.foreground, fontFamily: tokens.fontMono }]}>
+          {formatted.absolutePath}{formatted.suffix}
+        </Text>
+      </HoverPreview> : null}
+    </>
   );
   if (!fit) return pressable;
   // The slot stretches to the space it is given and is what gets measured;

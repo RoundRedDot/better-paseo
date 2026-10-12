@@ -277,6 +277,14 @@ export function ToolCallout({
       actionsActive={menu.open}
       onLongPress={capabilities.touch ? onLongPress : undefined}
       accessibilityLabel={[summary.verb, summary.target, ...summary.meta].filter(Boolean).join(" ")}
+      previewContent={() => (
+        <>
+          {filePath ? <Text selectable {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>{resolvePath(filePath)}</Text> : null}
+          <ToolBody data={data} tokens={tokens} compact={compact} imageFile={imageFile}
+            revealFile={revealFile} displayPath={filePath ? formatPath(filePath, pathContext).displayPath : undefined} preview />
+          {data.error ? <Text selectable style={{ color: tokens.danger }}>{data.error}</Text> : null}
+        </>
+      )}
     />
   );
   const menuList = menu.open ? (
@@ -401,6 +409,7 @@ interface ToolBodyProps {
   revealFile?: () => void;
   /** `filePath` relative to the workspace. */
   displayPath?: string;
+  preview?: boolean;
 }
 
 /** Search results beyond this many rows collapse into a count. */
@@ -455,7 +464,7 @@ const codeHeaderStyles = StyleSheet.create({
   suffix: { fontSize: UI_SCALE.base, fontVariant: ["tabular-nums"], flexShrink: 0 },
 });
 
-function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }: ToolBodyProps) {
+function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, preview = false }: ToolBodyProps) {
   const styles = useBodyStyles(tokens, compact);
   const isRunning = data.status === "running";
 
@@ -502,6 +511,15 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
       ),
     );
 
+  // A hover preview must expose the whole file without another disclosure.
+  // The regular code block deliberately batches and folds long files.
+  if (preview && (data.tool === "read" || data.tool === "write" || data.tool === "edit") &&
+      !(imageFile !== undefined && isImagePath(data.filePath))) {
+    return <Text selectable {...selectionCodeText} style={styles.commandLine}>
+      {data.diff || data.code || (isRunning ? "Waiting for content…" : "No content.")}
+    </Text>;
+  }
+
   return (
     <>
       {(data.tool === "bash" || data.tool === "shell" || data.tool === "git") && (
@@ -514,6 +532,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
             </Text>
           ) : null}
           {data.shell?.stdout ? (
+            preview ? <Text selectable {...selectionCodeText} style={styles.terminalOutput}>{renderTerminalOutput(data.shell.stdout, tokens)}</Text> :
             <TerminalOutput
               text={data.shell.stdout}
               tokens={tokens}
@@ -527,6 +546,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
             </Text>
           ) : null}
           {data.output && !data.shell?.stdout ? (
+            preview ? <Text selectable {...selectionCodeText} style={styles.terminalOutput}>{renderTerminalOutput(data.output, tokens)}</Text> :
             <TerminalOutput
               text={data.output}
               tokens={tokens}
@@ -549,6 +569,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath }:
       {data.tool === "github" && <GitHubBody data={data.github} tokens={tokens} running={isRunning} />}
 
       {data.tool === "thinking" && (
+        preview ? <MarkdownView text={data.thinking?.text || data.code || data.output || ""} tokens={tokens} variant="compact" quiet /> :
         <ReasoningSections
           text={data.thinking?.text || data.code || data.output || ""}
           tokens={tokens}
