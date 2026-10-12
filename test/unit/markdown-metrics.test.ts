@@ -39,10 +39,12 @@ describe("variantMetrics", () => {
     }
   });
 
-  it("sets table cells at the body size in every variant", () => {
+  it("sets table cells one step under the body in every variant", () => {
     for (const variant of ["document", "compact", "terminal"] as const) {
       const m = variantMetrics(variant, 15, false);
-      expect([m.cellSize, m.cellLineHeight]).toEqual([m.bodySize, m.bodyLineHeight]);
+      expect(m.cellSize).toBe(m.bodySize - 1);
+      expect(m.cellLineHeight).toBeLessThan(m.bodyLineHeight);
+      expect(m.cellLineHeight % 2).toBe(0);
     }
   });
 
@@ -82,13 +84,14 @@ describe("text width estimate", () => {
 
   it("keeps a short figure with a unit on one line", () => {
     // Measured on a 15px desktop reply: tabular digits advance 0.62 em, so
-    // `974 ms` is about 52px and wrapped in a column estimated at 0.55 em.
+    // `974 ms` is about 52px (3.5 em) and wrapped in a column estimated at
+    // 0.55 em. The cell is a step under the body, so scale it to the cell.
     const [table] = lexBlock("| 页 | 耗时 |\n| --- | --- |\n| 1 | 974 ms |");
     const metrics = variantMetrics("document", 15, false);
     const [, width = 0] = columnWidths(table as Tokens.Table, metrics);
     // Less the cell padding on both sides and the divider on its left.
     const content = width - metrics.tableGap - 12 - 1;
-    expect(content).toBeGreaterThanOrEqual(54);
+    expect(content).toBeGreaterThanOrEqual(Math.ceil((52 / 15) * metrics.cellSize) + 2);
   });
 
   it("gives a Chinese column room for its longest cell", () => {

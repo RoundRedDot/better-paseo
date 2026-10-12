@@ -35,7 +35,7 @@ export interface VariantMetrics {
   markerWidth: number;
   itemGap: number;
   indentStep: number;
-  /** Table cell text and its line height (the prose `small` step). */
+  /** Table cell text and its line height: one step under the body. */
   cellSize: number;
   cellLineHeight: number;
   /** Inline code size. */
@@ -60,6 +60,7 @@ export interface VariantMetrics {
  * | h1 / h2 / h3 | ⌊1.5b⌋ / ⌊1.25b⌋ / b+1 | b+3 / b+2 / b+1 | body size |
  * | space above | +8 h1, h2 · +4 h3 | +4 · 0 | 0 |
  * | list indent | 20 | 16 | 16 |
+ * | table cell | b−1 / even(1.5b)−2 | b−1 / even(1.33(b−1)) | mono b−2 / even(1.4(b−2)) |
  * | code line numbers | blocks of 4+ lines | off | off |
  *
  * `quiet` (reasoning) sets the body one step down. Results are cached, so a
@@ -90,8 +91,8 @@ export function variantMetrics(
       markerWidth: 20,
       itemGap: space.xs,
       indentStep: 20,
-      cellSize: scale.body.size,
-      cellLineHeight: scale.body.lineHeight,
+      cellSize: scale.secondary.size,
+      cellLineHeight: scale.secondary.lineHeight,
       codeSize: scale.small.size,
       tableGap: space.lg,
       columnMin: 64,
@@ -114,8 +115,8 @@ export function variantMetrics(
       markerWidth: 16,
       itemGap: 2,
       indentStep: 16,
-      cellSize: body.size,
-      cellLineHeight: body.lineHeight,
+      cellSize: base - 1,
+      cellLineHeight: even(1.33 * (base - 1)),
       codeSize: scale.small.size,
       tableGap: space.md,
       columnMin: 48,
@@ -139,8 +140,8 @@ export function variantMetrics(
       markerWidth: 16,
       itemGap: 2,
       indentStep: 16,
-      cellSize: size,
-      cellLineHeight: lineHeight,
+      cellSize: size - 1,
+      cellLineHeight: even(1.4 * (size - 1)),
       codeSize: size - 1,
       tableGap: space.md,
       columnMin: 52,
@@ -186,6 +187,9 @@ export const MARKER_GAP = 6;
 // sits against the column edge.
 export const CODE_CHIP_PADDING = 4;
 export const TABLE_CELL_PADDING = 6;
+// A row is a line of text, not a list row: at 8 above and below, a table of
+// body-size cells read a size larger than the prose around it.
+export const TABLE_CELL_PADDING_Y = 5;
 export const TABLE_DIVIDER_WIDTH = 1;
 
 /** Every style the renderer draws with, so callers never infer it from the builder. */
@@ -419,7 +423,7 @@ export function buildStyles(
       fontFamily: bodyFont,
       fontSize: metrics.cellSize,
       lineHeight: metrics.cellLineHeight,
-      paddingVertical: space.sm,
+      paddingVertical: TABLE_CELL_PADDING_Y,
       paddingHorizontal: TABLE_CELL_PADDING + metrics.tableGap / 2,
       fontWeight: "500",
       color: tokens.foregroundMuted,
@@ -428,7 +432,7 @@ export function buildStyles(
       fontFamily: bodyFont,
       fontSize: metrics.cellSize,
       lineHeight: metrics.cellLineHeight,
-      paddingVertical: space.sm,
+      paddingVertical: TABLE_CELL_PADDING_Y,
       paddingHorizontal: TABLE_CELL_PADDING + metrics.tableGap / 2,
       color: text,
     },
