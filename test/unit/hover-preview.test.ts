@@ -4,6 +4,7 @@ import TestRenderer, { act } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
+vi.mock("@getpaseo/plugin/client/react-native", () => ({ Icon: "Icon" }));
 const state = vi.hoisted(() => ({ hover: true }));
 vi.mock("../../client/ui/use-input-capabilities", () => ({ useInputCapabilities: () => ({ hover: state.hover }) }));
 vi.mock("../../client/web", () => ({ bindPreviewPointer: () => () => {}, openPreviewLayer: () => () => {} }));
@@ -81,6 +82,26 @@ describe("hover preview lifetime", () => {
     act(() => { vi.advanceTimersByTime(100); });
     act(() => preview.leave());
     act(() => { vi.advanceTimersByTime(1000); });
+    expect(preview.open).toBe(false);
+  });
+  it("pins a maximized preview, cancels pending dismissal, and resets after closing", () => {
+    mount();
+    act(() => preview.enter());
+    act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+    act(() => preview.leave());
+    act(() => preview.maximize());
+    act(() => preview.leave());
+    act(() => { vi.advanceTimersByTime(5000); });
+    expect(preview.open).toBe(true);
+    expect(preview.maximized).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+    act(() => preview.close());
+    expect(preview.open).toBe(false);
+    expect(preview.maximized).toBe(false);
+    act(() => preview.enter());
+    act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+    act(() => preview.leave());
+    act(() => { vi.advanceTimersByTime(PREVIEW_CLOSE_MS); });
     expect(preview.open).toBe(false);
   });
   it("closes immediately when the row expands and cancels timers on unmount", () => {
