@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useLayoutEffect, useRef, type Context } from "react";
+import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, type Context } from "react";
 import { Platform, VirtualizedList } from "react-native";
 import type { View } from "react-native";
 
@@ -69,7 +69,7 @@ const TOLERANCE = 1;
 
 export interface ScrollAnchor {
   /** For the control that has to stay put. */
-  ref: React.RefObject<View | null>;
+  ref: React.MutableRefObject<View | null>;
   /** On press-in: remember where the control is. */
   hold(): void;
   /** On press, just before the change: correct the next layout. */
@@ -134,5 +134,5 @@ export function useScrollAnchor(changed: unknown): ScrollAnchor {
     });
   }, [changed, measure]);
 
-  return { ref, hold, arm };
+  return useMemo(() => ({ ref, hold, arm }), [hold, arm]);
 }

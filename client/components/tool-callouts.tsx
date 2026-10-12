@@ -19,6 +19,7 @@ import { selectionCodeText, selectionSurface } from "./selection-actions";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
 import { STICKY_SUPPORTED, StickyCard } from "../ui/sticky-header";
+import { useScrollAnchor } from "../ui/scroll-anchor";
 import { PathContext, PathText } from "../ui/path-text";
 import { RunningDot } from "../ui/running-dot";
 import { exitMark, parseExitMeta } from "../ui/exit-mark";
@@ -172,6 +173,8 @@ export function ToolCallout({
   const expanded = controlledExpanded ?? localExpanded;
   const setExpanded = onExpandedChange ?? setLocalExpanded;
   const onToggle = useCallback(() => setExpanded(!expanded), [setExpanded, expanded]);
+  // Owned here, not by the row: an opened card moves the row into `StickyCard`.
+  const scrollAnchor = useScrollAnchor(expanded);
 
   const summary = useMemo(() => summarizeTool(data), [data]);
   const pathContext = useContext(PathContext);
@@ -265,6 +268,7 @@ export function ToolCallout({
     <DisclosureHeader
       expanded={expanded}
       onToggle={onToggle}
+      scrollAnchor={scrollAnchor}
       tokens={tokens}
       compact={compact}
       icon={statusIcon}

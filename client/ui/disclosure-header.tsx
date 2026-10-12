@@ -1,4 +1,4 @@
-import React, { useContext, type ReactNode } from "react";
+import React, { useCallback, useContext, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
@@ -11,6 +11,7 @@ import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { useEnhancerPreferences } from "../preferences";
 import { HoverPreview, HoverPreviewContext, useHoverPreview } from "./hover-preview";
+import { useScrollAnchor, type ScrollAnchor } from "./scroll-anchor";
 
 /**
  * Row geometry (S7 design spec §2.5, F0 "Row heights and hit areas").
@@ -94,6 +95,12 @@ export interface DisclosureHeaderProps {
   accessibilityLabel?: string;
   /** Built only while hovered; does not change the disclosure state. */
   previewContent?(): ReactNode;
+  /**
+   * Keeps the row in place when it toggles. The row brings its own; a card
+   * whose row moves into another parent when it opens (`StickyCard`) passes
+   * one that outlives the move, or the remounted row forgets the press.
+   */
+  scrollAnchor?: ScrollAnchor;
 }
 
 const IS_WEB = Platform.OS === "web";
@@ -114,6 +121,11 @@ const IS_WEB = Platform.OS === "web";
  *
  * All text is non-selectable: the row is a press target, and a long press
  * must never compete with text selection.
+ *
+ * The row stays where it was pressed and the body opens below it. The native
+ * timeline is an inverted list that holds its bottom still, so without
+ * `useScrollAnchor` a body opening near the end would push the row up by its
+ * whole height, and closing one would drop the row down the screen.
  */
 export function DisclosureHeader({
   expanded,
@@ -132,9 +144,24 @@ export function DisclosureHeader({
   onLongPress,
   accessibilityLabel,
   previewContent,
+  scrollAnchor,
 }: DisclosureHeaderProps) {
   const previewOwner = useContext(HoverPreviewContext);
   const preview = useHoverPreview(Boolean(previewContent) && !expanded && !actionsActive);
+  const ownAnchor = useScrollAnchor(expanded);
+  const anchor = scrollAnchor ?? ownAnchor;
+  const { anchorRef } = preview;
+  const rowRef = useCallback(
+    (node: View | null) => {
+      anchorRef.current = node;
+      anchor.ref.current = node;
+    },
+    [anchorRef, anchor.ref],
+  );
+  const toggle = useCallback(() => {
+    anchor.arm();
+    onToggle();
+  }, [anchor, onToggle]);
   const capabilities = useInputCapabilities(compact);
   const { hovered, hoverProps } = useHover();
   const rowLabelStyle = useEnhancerPreferences().rowLabelStyle;
@@ -216,13 +243,14 @@ export function DisclosureHeader({
     <>
       <HoverPreviewContext.Provider value={previewOwner || (Boolean(previewContent) && !expanded)}>
         <Pressable
-          ref={preview.anchorRef}
+          ref={rowRef}
           accessibilityRole="button"
           accessibilityLabel={label}
           accessibilityState={{ expanded }}
           // React Native Web reads the ARIA prop, not `accessibilityState`.
           aria-expanded={expanded}
-          onPress={onToggle}
+          onPressIn={anchor.hold}
+          onPress={toggle}
           onLongPress={onLongPress}
           hitSlop={slop > 0 ? { top: slop, bottom: slop } : undefined}
           {...(pointerProps as object)}

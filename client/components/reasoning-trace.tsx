@@ -11,6 +11,7 @@ import { variantMetrics } from "./markdown/render/styles";
 import type { ReasoningTraceData } from "../../shared/contracts";
 import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
 import { STICKY_SUPPORTED, StickyCard } from "../ui/sticky-header";
+import { useScrollAnchor } from "../ui/scroll-anchor";
 import { RunningDot } from "../ui/running-dot";
 import { CopyButton } from "../ui/copy-button";
 import { useCopy } from "../ui/use-copy";
@@ -316,6 +317,8 @@ export function ReasoningCard({
   copyText,
 }: ReasoningCardProps) {
   const label = reasoningHeaderText(segmentation, streaming, durationMs);
+  // Owned here, not by the row: an opened card moves the row into `StickyCard`.
+  const scrollAnchor = useScrollAnchor(expanded);
   const { copy } = useCopy();
   const copySource = useCallback(() => copyTextOf(copyText), [copyText]);
   const onLongPress = useCallback(() => {
@@ -329,6 +332,7 @@ export function ReasoningCard({
     <DisclosureHeader
       expanded={expanded}
       onToggle={onToggle}
+      scrollAnchor={scrollAnchor}
       tokens={tokens}
       compact={compact}
       icon={
