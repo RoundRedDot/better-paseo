@@ -24,8 +24,9 @@ export const PREVIEW_CLOSE_MS = 150;
 export function useHoverPreview(enabled: boolean) {
   const parentPreview = useContext(HoverPreviewContext);
   const capabilities = useInputCapabilities();
-  const delay = HOVER_DELAY_MS[useEnhancerPreferences().hoverDelay];
-  const active = enabled && !parentPreview && Platform.OS === "web" && capabilities.hover;
+  const preferences = useEnhancerPreferences();
+  const delay = HOVER_DELAY_MS[preferences.hoverDelay];
+  const active = enabled && preferences.hoverPreview && !parentPreview && Platform.OS === "web" && capabilities.hover;
   const anchorRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
   const [maximized, setMaximized] = useState(false);
@@ -48,21 +49,22 @@ export function useHoverPreview(enabled: boolean) {
   }, [cancel]);
   const enter = useCallback(() => {
     cancel();
+    if (!active) return;
     if (!open) {
       timer.current = setTimeout(() => {
         timer.current = null;
         setOpen(true);
       }, delay);
     }
-  }, [cancel, open, delay]);
+  }, [cancel, active, open, delay]);
   const leave = useCallback(() => {
     cancel();
-    if (pinned.current) return;
+    if (!active || pinned.current) return;
     timer.current = setTimeout(() => {
       timer.current = null;
       setOpen(false);
     }, PREVIEW_CLOSE_MS);
-  }, [cancel]);
+  }, [cancel, active]);
 
   useEffect(() => {
     if (!active) {

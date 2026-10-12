@@ -60,6 +60,8 @@ export interface EnhancerPreferences {
   codeFontSize: number | null;
   toolDetail: ToolDetailPreference;
   pathDisplay: PathDisplayPreference;
+  /** Show desktop hover previews for collapsed rows and file paths. */
+  hoverPreview: boolean;
   /** Time the pointer rests before a desktop hover preview opens. */
   hoverDelay: HoverDelayPreference;
   /**
@@ -158,6 +160,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   codeFontSize: null,
   toolDetail: "collapsed",
   pathDisplay: "relative",
+  hoverPreview: true,
   hoverDelay: "500ms",
   enhancedUserBubble: false,
   selectionActions: true,

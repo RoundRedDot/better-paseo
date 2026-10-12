@@ -36,6 +36,13 @@ const V1 = {
 };
 
 describe("preferences v2 defaults", () => {
+  it("enables hover previews for old records and preserves an explicit opt-out", () => {
+    expect(DEFAULT_PREFERENCES.hoverPreview).toBe(true);
+    const { hoverPreview: _hover, ...older } = storedPart(DEFAULT_PREFERENCES);
+    expect(parsePreferences(older).hoverPreview).toBe(true);
+    expect(parsePreferences({ hoverPreview: false }).hoverPreview).toBe(false);
+    expect(parsePreferences({ hoverPreview: "no" }).hoverPreview).toBe(true);
+  });
   it("defaults old records to 500ms and preserves each of the five hover choices", () => {
     expect(DEFAULT_PREFERENCES.hoverDelay).toBe("500ms");
     expect(parsePreferences({}).hoverDelay).toBe("500ms");
@@ -253,6 +260,17 @@ describe("daemon-backed store (S5 fix round 1)", () => {
     expect(readStoredPreferences(local).hoverDelay).toBe("1.5s");
     mod.applyStoredPreferences({ ...storedPart(DEFAULT_PREFERENCES), hoverDelay: "2s" });
     expect(mod.getEnhancerPreferences().hoverDelay).toBe("2s");
+  });
+  it("persists disabled hover previews and restores them when resetting defaults", async () => {
+    const { mod, local } = await freshModule();
+    const persist = vi.fn();
+    mod.setPreferencePersister(persist);
+    mod.updateEnhancerPreferences({ hoverPreview: false });
+    expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({ hoverPreview: false }));
+    expect(readStoredPreferences(local).hoverPreview).toBe(false);
+    mod.resetEnhancerPreferences();
+    expect(mod.getEnhancerPreferences().hoverPreview).toBe(true);
+    expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({ hoverPreview: true }));
   });
 });
 
