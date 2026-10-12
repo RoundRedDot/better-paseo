@@ -358,7 +358,14 @@ export function ReasoningCard({
       actions={<CopyButton text={copySource} tokens={tokens} label="Copy thought" />}
       onLongPress={onLongPress}
       accessibilityLabel={label.preview ? `${label.verb}: ${label.preview}` : label.verb}
-      previewContent={() => <MarkdownView text={reasoningText(segmentation)} tokens={tokens} variant="compact" quiet />}
+      previewContent={() => (
+        <>
+          <View style={styles.previewActions}>
+            <CopyButton text={copySource} tokens={tokens} label="Copy thought" />
+          </View>
+          <MarkdownView text={reasoningText(segmentation)} tokens={tokens} variant="compact" quiet />
+        </>
+      )}
     />
   );
   const body = expanded ? (
@@ -447,6 +454,7 @@ export function ReasoningTrace({
 }
 
 const styles = StyleSheet.create({
+  previewActions: { flexDirection: "row", justifyContent: "flex-end" },
   // The live preview takes the row's free width and ends in an ellipsis.
   preview: {
     flex: 1,
