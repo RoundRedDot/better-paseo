@@ -87,4 +87,18 @@ it("keeps the prompt's Copy visible and enabled on a hover device, unhovered", a
   expect(style.opacity ?? 1).toBe(1);
   expect(copy.props.disabled).toBeFalsy();
   act(() => renderer!.unmount());
+
+  // The host's rewind menu, when the renderer passes one, sits in that row.
+  act(() => {
+    renderer = TestRenderer.create(
+      React.createElement(UserMessage, {
+        text: "回退",
+        timestamp: new Date(),
+        tokens,
+        actions: React.createElement("RewindMenuStub", { testID: "rewind" }),
+      }),
+    );
+  });
+  expect(renderer!.root.findAll((node) => node.props.testID === "rewind")).toHaveLength(1);
+  act(() => renderer!.unmount());
 });

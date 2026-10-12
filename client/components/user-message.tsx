@@ -39,6 +39,8 @@ interface UserMessageProps {
   footer?: React.ReactNode;
   /** `layout.compact`: the bubble may take more of a narrow column. */
   compact?: boolean;
+  /** Controls drawn just before Copy, as the host draws its rewind menu there. */
+  actions?: React.ReactNode;
 }
 
 /**
@@ -79,6 +81,7 @@ export function UserMessage({
   pending = false,
   footer,
   compact = false,
+  actions,
 }: UserMessageProps) {
   // The shared copy path: the icon turns into a check for 1.2 s, a failure
   // is a toast, and the timer is cleared on unmount.
@@ -192,6 +195,8 @@ export function UserMessage({
             color={copied ? tokens.success : tokens.userTextMuted}
           />
         </Pressable>
+        {/* The row runs right to left: these sit just left of Copy. */}
+        {actions}
         {timestamp ? <Text style={styles.clock}>{formatStamp(timestamp)}</Text> : null}
         {footer !== undefined ? footer : <TurnUsageRow usage={usage} pending={pending} tokens={tokens} />}
       </View>
