@@ -247,6 +247,47 @@ describe("selecting text in the long-press preview", () => {
   });
 });
 
+describe("wrapping lines in the long-press preview", () => {
+  const wrapButton = (renderer: ReturnType<typeof TestRenderer.create>) =>
+    panel(renderer).find((node) => (node.type as unknown) === "Pressable" &&
+      (node.props.accessibilityLabel === "Do not wrap lines" || node.props.accessibilityLabel === "Wrap lines"));
+  const icon = (button: ReactTestInstance) =>
+    button.find((node) => (node.type as unknown) === "View" && typeof node.props.name === "string").props.name;
+  const sideways = (renderer: ReturnType<typeof TestRenderer.create>) =>
+    panel(renderer).findAll((node) => (node.type as unknown) === "Animated.ScrollView" && node.props.horizontal === true);
+
+  it("wraps by default and scrolls sideways once wrap is turned off", () => {
+    const renderer = render(React.createElement(ToolCallout, { data: shell, tokens, compact: true }));
+    act(() => row(renderer).props.onLongPress());
+    expect(wrapButton(renderer).props.accessibilityLabel).toBe("Do not wrap lines");
+    expect(icon(wrapButton(renderer))).toBe("WrapText");
+    expect(sideways(renderer)).toHaveLength(0);
+
+    act(() => wrapButton(renderer).props.onPress());
+    expect(wrapButton(renderer).props.accessibilityLabel).toBe("Wrap lines");
+    expect(icon(wrapButton(renderer))).toBe("MoveHorizontal");
+    const [scroller] = sideways(renderer);
+    expect(textOf(scroller!)).toContain("full-output");
+
+    act(() => wrapButton(renderer).props.onPress());
+    expect(icon(wrapButton(renderer))).toBe("WrapText");
+    expect(sideways(renderer)).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it("wraps again when the preview reopens", () => {
+    const renderer = render(React.createElement(ToolCallout, { data: shell, tokens, compact: true }));
+    act(() => row(renderer).props.onLongPress());
+    act(() => wrapButton(renderer).props.onPress());
+    const backdrop = renderer.root.find((node) =>
+      (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Close preview");
+    act(() => backdrop.props.onPress());
+    act(() => row(renderer).props.onLongPress());
+    expect(icon(wrapButton(renderer))).toBe("WrapText");
+    act(() => renderer.unmount());
+  });
+});
+
 function StyleSheetFlat(style: unknown): Record<string, unknown> {
   if (!style) return {};
   if (Array.isArray(style)) return Object.assign({}, ...style.map(StyleSheetFlat));
