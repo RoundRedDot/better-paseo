@@ -33,11 +33,27 @@ export const PRESS_PREVIEW = {
  * above needs the panel's height to sit on the row, and until it is known the
  * panel is placed as if it filled its limit.
  *
- * `row` and `stage` come from `measureInWindow`, whose origin is not the
- * modal's: on Android it sits under the status bar while a translucent modal
- * starts at the top of the screen. `origin` is the modal's own top-left
- * measured the same way, and the result is relative to it.
+ * `row` and `stage` are measured in the modal's window (see
+ * `rowInModalWindow`), where the modal's own top-left measures `origin`; the
+ * result is relative to it.
  */
+/**
+ * The row's box in the coordinates `measureInWindow` gives inside the modal.
+ *
+ * On Android `measureInWindow` subtracts the top of its window's visible
+ * frame. The timeline's window keeps the status bar out of that frame, so its
+ * row reads one status bar (`rowWindowTop`) higher than the screen; the
+ * translucent modal's frame starts at the top of the screen, where the modal's
+ * origin measures `origin.y`. On iOS both are zero.
+ */
+export function rowInModalWindow(
+  row: WindowRect,
+  origin: { x: number; y: number },
+  rowWindowTop: number,
+): WindowRect {
+  return { ...row, y: row.y + rowWindowTop + origin.y };
+}
+
 export function pressPreviewPlacement(
   row: WindowRect,
   stage: WindowRect,

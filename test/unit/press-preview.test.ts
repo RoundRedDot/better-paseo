@@ -31,7 +31,7 @@ import { ToolCallout } from "../../client/components/tool-callouts";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { createReasoningSegmenter } from "../../client/reasoning/segment";
 import { classifyTool } from "../../client/tools/classify";
-import { pressPreviewPlacement } from "../../client/ui/press-preview-placement";
+import { pressPreviewPlacement, rowInModalWindow } from "../../client/ui/press-preview-placement";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -187,13 +187,23 @@ describe("where the long-press preview goes", () => {
     expect(measured).toEqual({ left: 8, width: 374, top: 494, maxHeight: 450, above: true });
   });
 
-  it("places the panel in the modal's coordinates when they start above the measured ones", () => {
-    // Android: measureInWindow starts under a 40pt status bar, the translucent
-    // modal at the top of the screen, so the modal's origin measures at -40.
-    const androidStage = { x: 0, y: 0, width: 390, height: 750 };
-    const placement = pressPreviewPlacement({ x: 8, y: 200, width: 374, height: 28 }, androidStage, null, { x: 0, y: -40 });
-    expect(placement.top).toBe(274);
-    expect(placement.left).toBe(8);
+  it("places the panel under the row on Android, where the row reads one status bar high", () => {
+    // Measured on a PLA110 (40dp status bar): the row sits at 184-212dp on the
+    // screen, the timeline's window reports it at 144, the translucent modal's
+    // origin at 0 and its safe area from 40.
+    const origin = { x: 0, y: 0 };
+    const row = rowInModalWindow({ x: 12, y: 144, width: 336, height: 28 }, origin, 40);
+    expect(row.y).toBe(184);
+    const placement = pressPreviewPlacement(row, { x: 0, y: 40, width: 359, height: 749 }, null, origin);
+    expect(placement.top).toBe(218);
+    expect(placement.above).toBe(false);
+  });
+
+  it("subtracts the modal's origin where its window measures it", () => {
+    const origin = { x: 0, y: -40 };
+    const row = rowInModalWindow({ x: 12, y: 144, width: 336, height: 28 }, origin, 40);
+    const placement = pressPreviewPlacement(row, { x: 0, y: 0, width: 359, height: 749 }, null, origin);
+    expect(placement.top).toBe(218);
   });
 
   it("keeps the panel inside the safe area's sides", () => {

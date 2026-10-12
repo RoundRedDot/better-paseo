@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
+import { Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
@@ -10,7 +10,7 @@ import { cssShadow } from "./tokens/css-shadow";
 import { DEFAULT_PREFERENCES, HOVER_DELAY_MS, useEnhancerPreferences } from "../preferences";
 import { useHover } from "./use-hover";
 import { SafeInset } from "./safe-inset";
-import { pressPreviewPlacement, type WindowRect } from "./press-preview-placement";
+import { pressPreviewPlacement, rowInModalWindow, type WindowRect } from "./press-preview-placement";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
@@ -193,7 +193,10 @@ function PressPreview({ preview, tokens, children }: {
   const onPanelLayout = useCallback((event: LayoutChangeEvent) => {
     setPanelHeight(event.nativeEvent.layout.height);
   }, []);
-  const placement = row && stage && origin ? pressPreviewPlacement(row, stage, panelHeight, origin) : null;
+  const rowWindowTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
+  const placement = row && stage && origin
+    ? pressPreviewPlacement(rowInModalWindow(row, origin, rowWindowTop), stage, panelHeight, origin)
+    : null;
   const ready = placement !== null && (!placement.above || panelHeight !== null);
   return (
     <Modal visible transparent animationType="fade" onRequestClose={close} statusBarTranslucent>
