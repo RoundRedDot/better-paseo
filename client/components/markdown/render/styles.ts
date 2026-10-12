@@ -183,6 +183,7 @@ export const MARKER_GAP = 6;
 // sits against the column edge.
 export const CODE_CHIP_PADDING = 4;
 export const TABLE_CELL_PADDING = 6;
+export const TABLE_DIVIDER_WIDTH = 1;
 
 /** Every style the renderer draws with, so callers never infer it from the builder. */
 export interface MarkdownStyles {
@@ -219,6 +220,8 @@ export interface MarkdownStyles {
   tableRow: ViewStyle;
   tableHeaderCell: TextStyle;
   tableCell: TextStyle;
+  /** The rule between two columns, on the left edge of every cell but the first. */
+  tableDivider: TextStyle;
   cellLeft: TextStyle;
   cellCenter: TextStyle;
   cellRight: TextStyle;
@@ -387,15 +390,11 @@ export function buildStyles(
     },
     tableHeaderRow: {
       flexDirection: "row",
-      gap: metrics.tableGap,
-      paddingBottom: space.sm,
       borderBottomWidth: 1,
       borderBottomColor: tokens.v2.border,
     },
     tableRow: {
       flexDirection: "row",
-      gap: metrics.tableGap,
-      paddingVertical: space.sm,
       borderBottomWidth: 1,
       borderBottomColor: tokens.v2.borderSubtle,
     },
@@ -403,7 +402,7 @@ export function buildStyles(
       fontFamily: bodyFont,
       fontSize: metrics.cellSize,
       lineHeight: metrics.cellLineHeight,
-      paddingHorizontal: TABLE_CELL_PADDING,
+      paddingBottom: space.sm,
       fontWeight: "500",
       color: tokens.foregroundMuted,
     },
@@ -411,8 +410,12 @@ export function buildStyles(
       fontFamily: bodyFont,
       fontSize: metrics.cellSize,
       lineHeight: metrics.cellLineHeight,
-      paddingHorizontal: TABLE_CELL_PADDING,
+      paddingVertical: space.sm,
       color: text,
+    },
+    tableDivider: {
+      borderLeftWidth: TABLE_DIVIDER_WIDTH,
+      borderLeftColor: tokens.v2.borderSubtle,
     },
     cellLeft: { textAlign: "left" },
     cellCenter: { textAlign: "center" },
