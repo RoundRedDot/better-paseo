@@ -6,6 +6,7 @@ import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
 import { codeSurface } from "../components/host-font-escape";
 import { unselectable } from "../components/selection";
+import { ProseSpan } from "./prose-text";
 import { useEnhancerPreferences } from "../preferences";
 import {
   formatPath,
@@ -202,7 +203,7 @@ export function PathText({
 
   if (inline) {
     return (
-      <Text
+      <ProseSpan
         {...(codeSurface as object)}
         accessibilityRole="link"
         accessibilityLabel={formatted.absolutePath}
@@ -210,7 +211,7 @@ export function PathText({
         style={textStyle}
       >
         {shown}
-      </Text>
+      </ProseSpan>
     );
   }
 

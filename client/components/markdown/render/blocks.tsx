@@ -6,6 +6,7 @@ import type { MathToken } from "../lex";
 import { CodeBlock } from "./code-block";
 import type { RenderContext } from "./context";
 import { codeSurface } from "../../host-font-escape";
+import { ProseSpan, ProseText } from "../../../ui/prose-text";
 import { renderInline } from "./inline";
 import { LocalImage } from "./local-image";
 import { splitLocalImages } from "./local-path";
@@ -61,9 +62,9 @@ function renderBlock(
     // TeX source on the code face (plan D6): readable, and copyable as TeX.
     const math = generic as unknown as MathToken;
     return (
-      <Text key={key} selectable {...(codeSurface as object)} style={styles.plain}>
+      <ProseText key={key} {...(codeSurface as object)} style={styles.plain}>
         {math.text}
-      </Text>
+      </ProseText>
     );
   }
 
@@ -88,12 +89,12 @@ function renderBlock(
                 : styles.headingBlockMinor
           }
         >
-          <Text selectable style={headingStyle}>
+          <ProseText style={headingStyle}>
             {metrics.headingHash ? (
-              <Text style={styles.headingHash}>{HASH_LABELS[level - 1] ?? "# "}</Text>
+              <ProseSpan style={styles.headingHash}>{HASH_LABELS[level - 1] ?? "# "}</ProseSpan>
             ) : null}
             {renderInline(token.tokens, context, key)}
-          </Text>
+          </ProseText>
         </View>
       );
     }
@@ -107,18 +108,18 @@ function renderBlock(
               part.kind === "image" ? (
                 <LocalImage key={index} path={part.path} context={context} />
               ) : (
-                <Text key={index} selectable style={options.inQuote ? styles.quoteText : styles.paragraph}>
+                <ProseText key={index} style={options.inQuote ? styles.quoteText : styles.paragraph}>
                   {renderInline(part.tokens, context, `${key}p${index}`)}
-                </Text>
+                </ProseText>
               ),
             )}
           </View>
         );
       }
       return (
-        <Text key={key} selectable style={options.inQuote ? styles.quoteText : styles.paragraph}>
+        <ProseText key={key} style={options.inQuote ? styles.quoteText : styles.paragraph}>
           {renderInline(token.tokens, context, key)}
-        </Text>
+        </ProseText>
       );
     }
 
@@ -126,9 +127,9 @@ function renderBlock(
     // place anywhere else.
     case "text":
       return (
-        <Text key={key} selectable style={options.inQuote ? styles.quoteText : styles.paragraph}>
+        <ProseText key={key} style={options.inQuote ? styles.quoteText : styles.paragraph}>
           {renderInline(token.tokens ?? [token], context, key)}
-        </Text>
+        </ProseText>
       );
 
     case "list":
@@ -157,17 +158,17 @@ function renderBlock(
       const source = token.raw.replace(/\n+$/, "");
       if (source.trim() === "") return null;
       return (
-        <Text key={key} selectable {...(codeSurface as object)} style={styles.plain}>
+        <ProseText key={key} {...(codeSurface as object)} style={styles.plain}>
           {source}
-        </Text>
+        </ProseText>
       );
     }
 
     default:
       return token.raw.trim() === "" ? null : (
-        <Text key={key} selectable {...(codeSurface as object)} style={styles.plain}>
+        <ProseText key={key} {...(codeSurface as object)} style={styles.plain}>
           {token.raw}
-        </Text>
+        </ProseText>
       );
   }
 }
@@ -256,16 +257,16 @@ function renderRow(
   const only = body.length === 1 ? body[0] : undefined;
   const bodyNode =
     only !== undefined && (only.type === "text" || only.type === "paragraph") ? (
-      <Text selectable style={textStyle}>
+      <ProseText style={textStyle}>
         {renderInline((only as Tokens.Text).tokens ?? [only], context, key)}
-      </Text>
+      </ProseText>
     ) : (
       <View style={[styles.listItemBody, { gap: metrics.itemGap }]}>
         {body.map((child, index) =>
           child.type === "text" || child.type === "paragraph" ? (
-            <Text key={`${key}b${index}`} selectable style={[textStyle, styles.listItemText]}>
+            <ProseText key={`${key}b${index}`} style={[textStyle, styles.listItemText]}>
               {renderInline((child as Tokens.Text).tokens ?? [child], context, `${key}b${index}`)}
-            </Text>
+            </ProseText>
           ) : (
             renderBlocks([child], context, `${key}b${index}`, { ...options, first: false })
           ),

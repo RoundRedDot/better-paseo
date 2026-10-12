@@ -1,5 +1,4 @@
 import React from "react";
-import { Text } from "react-native";
 import { INCOMPLETE_IMAGE_PLACEHOLDER } from "remend";
 import type { Token, Tokens } from "../../../vendor/marked";
 import { openLink } from "../../open-link";
@@ -10,6 +9,7 @@ import { codeSurface } from "../../host-font-escape";
 import { decodeEntities, isPathLike, softBreaks } from "./text";
 import { localPath } from "./local-path";
 import { LocalLink } from "./local-link";
+import { ProseSpan } from "../../../ui/prose-text";
 
 /** The visible text of an inline run, for measuring and summaries. */
 export function inlineText(tokens: readonly Token[] | undefined): string {
@@ -43,8 +43,9 @@ export function inlineText(tokens: readonly Token[] | undefined): string {
 }
 
 /**
- * Inline runs as nested `Text`. Every node is selectable, and the order of
- * runs is the order of the source, so a selection copies the prose.
+ * Inline runs as `ProseSpan`s (nested `Text` off iOS). Every node is
+ * selectable, and the order of runs is the order of the source, so a
+ * selection copies the prose.
  */
 export function renderInline(
   tokens: readonly Token[] | undefined,
@@ -92,30 +93,30 @@ export function renderInline(
           return;
         }
         out.push(
-          <Text key={key} selectable {...(codeSurface as object)} style={styles.codeSpan}>
+          <ProseSpan key={key} selectable {...(codeSurface as object)} style={styles.codeSpan}>
             {token.text}
-          </Text>,
+          </ProseSpan>,
         );
         return;
       case "strong":
         out.push(
-          <Text key={key} selectable style={styles.strong}>
+          <ProseSpan key={key} selectable style={styles.strong}>
             {renderInline(token.tokens, context, key)}
-          </Text>,
+          </ProseSpan>,
         );
         return;
       case "em":
         out.push(
-          <Text key={key} selectable style={styles.emphasis}>
+          <ProseSpan key={key} selectable style={styles.emphasis}>
             {renderInline(token.tokens, context, key)}
-          </Text>,
+          </ProseSpan>,
         );
         return;
       case "del":
         out.push(
-          <Text key={key} selectable style={styles.strike}>
+          <ProseSpan key={key} selectable style={styles.strike}>
             {renderInline(token.tokens, context, key)}
-          </Text>,
+          </ProseSpan>,
         );
         return;
       case "link": {
@@ -173,7 +174,7 @@ function renderLink(
   // paragraph's selection range. No `href`: React Native Web would render a
   // real anchor and the click would navigate the app window itself.
   return (
-    <Text
+    <ProseSpan
       key={key}
       selectable
       accessibilityRole="link"
@@ -181,7 +182,7 @@ function renderLink(
       style={context.styles.link}
     >
       {children}
-    </Text>
+    </ProseSpan>
   );
 }
 
