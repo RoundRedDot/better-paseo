@@ -21,6 +21,7 @@ export const MONO_FONTS = ["host", "iosevka", "custom"] as const;
 export const TOOL_DETAILS = ["collapsed", "expand-failed"] as const;
 export const PATH_DISPLAYS = ["relative", "absolute"] as const;
 export const MARKDOWN_VARIANTS_STORED = ["document", "compact", "terminal"] as const;
+export const SETTINGS_LANGUAGES = ["system", "en", "zh"] as const;
 
 export const CODE_FONT_SIZE_MIN = 10;
 export const CODE_FONT_SIZE_MAX = 22;
@@ -54,6 +55,7 @@ export const preferencesSchema = z.object({
   markdownVariant: z.enum(MARKDOWN_VARIANTS_STORED).catch("document"),
   rowLabels: flag(false),
   compactRowSpacing: flag(true),
+  language: z.enum(SETTINGS_LANGUAGES).catch("system"),
 });
 
 export type StoredPreferences = z.output<typeof preferencesSchema>;

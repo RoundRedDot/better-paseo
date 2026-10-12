@@ -16,6 +16,7 @@
  */
 
 import { appearanceMonoStack, type HostAppearance } from "./host-appearance-shim";
+import { SETTINGS_STRINGS, type SettingsStrings } from "../../i18n/settings-strings";
 
 export type TypographyPlatform = "ios" | "android" | "web";
 
@@ -349,14 +350,14 @@ function monoSource(host: HostTypography | null, appearance: HostAppearance | nu
  * The settings page's line under "Follow Paseo": which source is in effect,
  * so a reader can see the Paseo setting arrive.
  */
-export function describeMonoSource(source: MonoSource, platform: TypographyPlatform): string {
-  if (source.kind === "host-typography") return "Following Paseo's font settings";
-  if (source.kind === "paseo-appearance") {
-    return `Following Paseo appearance: ${source.family ?? "Paseo's default monospace"}, ${source.size} px`;
-  }
-  return platform === "web"
-    ? `Paseo default: SF Mono, Menlo, Monaco or Consolas, ${CODE_SIZE.default} px`
-    : `Paseo default: the system monospace face, ${CODE_SIZE.default} px`;
+export function describeMonoSource(
+  source: MonoSource,
+  platform: TypographyPlatform,
+  strings: SettingsStrings = SETTINGS_STRINGS.en,
+): string {
+  if (source.kind === "host-typography") return strings.monoFollowingHost;
+  if (source.kind === "paseo-appearance") return strings.monoFollowingAppearance(source.family ?? null, source.size);
+  return platform === "web" ? strings.monoDefaultWeb(CODE_SIZE.default) : strings.monoDefaultNative(CODE_SIZE.default);
 }
 
 /** A string that changes exactly when `resolveTypography`'s host input does. */
