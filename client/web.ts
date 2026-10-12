@@ -1,6 +1,8 @@
 import { Platform } from "react-native";
 import { PLUGIN_ROOT_ATTRIBUTE } from "./components/focus-ring";
 
+const MAXIMIZED_PREVIEW_GAP = 16;
+
 /** Web-only pointer binding; native renderers never inspect a DOM node. */
 export function bindPreviewPointer(node: unknown, enter: () => void, leave: () => void): () => void {
   if (Platform.OS !== "web") return () => {};
@@ -41,8 +43,8 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     panel.style.left = `${left}px`;
     if (options.maximized) {
       const viewportRect = viewport!.getBoundingClientRect();
-      const top = Math.max(8, viewportRect.top);
-      const bottom = Math.min(view.innerHeight - 8, viewportRect.bottom);
+      const top = Math.max(8, viewportRect.top) + MAXIMIZED_PREVIEW_GAP;
+      const bottom = Math.min(view.innerHeight - 8, viewportRect.bottom) - MAXIMIZED_PREVIEW_GAP;
       const height = Math.max(0, bottom - top);
       panel.style.height = `${height}px`;
       panel.style.maxHeight = `${height}px`;
