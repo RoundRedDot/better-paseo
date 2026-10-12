@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
-import { View, Text, Pressable, Image, StyleSheet } from "react-native";
+import { View, Text, Pressable, Image, StyleSheet, Platform } from "react-native";
 import { Glyph } from "./glyph";
+import { ImageViewer } from "./image-viewer";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { unselectable } from "./selection";
@@ -18,8 +19,11 @@ interface ImagePreviewProps {
   onReveal?: () => void;
 }
 
-/** The tallest a thumbnail grows. Past this the image scales down to fit. */
-const MAX_HEIGHT = 280;
+/**
+ * The tallest a thumbnail grows. Past this the image scales down to fit; a
+ * press opens it at the size of the window.
+ */
+const MAX_HEIGHT = 480;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -41,6 +45,7 @@ function formatBytes(bytes: number): string {
  */
 export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps) {
   const [shown, setShown] = useState(true);
+  const [viewing, setViewing] = useState(false);
 
   const styles = useMemo(
     () =>
@@ -93,6 +98,9 @@ export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps
           justifyContent: "center",
           backgroundColor: tokens.surface0,
         },
+        // The press target carries the frame and hugs the picture, so the
+        // letterboxed sides of a narrow image stay plain background.
+        fill: { width: "100%", height: "100%" },
         image: { width: "100%", height: MAX_HEIGHT },
         message: {
           fontFamily: tokens.fontUi,
@@ -161,11 +169,26 @@ export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps
         <Text style={styles.message}>{file.error ?? "The image could not be read."}</Text>
       ) : shown ? (
         <View style={styles.canvas}>
-          <Image
-            source={{ uri: file.dataUri }}
-            style={frame}
-            resizeMode="contain"
-            accessibilityLabel={path}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open the image full screen"
+            onPress={() => setViewing(true)}
+            style={[frame, Platform.OS === "web" && ({ cursor: "zoom-in" } as never)]}
+          >
+            <Image
+              source={{ uri: file.dataUri }}
+              style={styles.fill}
+              resizeMode="contain"
+              accessibilityLabel={path}
+            />
+          </Pressable>
+          <ImageViewer
+            open={viewing}
+            onClose={() => setViewing(false)}
+            uri={file.dataUri}
+            width={file.width ?? null}
+            height={file.height ?? null}
+            label={path}
           />
         </View>
       ) : null}
