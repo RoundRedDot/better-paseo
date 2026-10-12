@@ -186,6 +186,18 @@ function renderLink(
 }
 
 /**
+ * East Asian wide characters (CJK, kana, hangul, full-width forms): a full em
+ * whatever the face, where Latin text averages `ratio` of one.
+ */
+const WIDE = /[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA960-\uA97F\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]/g;
+
+/** Estimated width of plain text: wide characters at 1 em, the rest at `ratio`. */
+export function textWidth(text: string, size: number, ratio: number): number {
+  const wide = text.match(WIDE)?.length ?? 0;
+  return wide * size + (text.length - wide) * size * ratio;
+}
+
+/**
  * Estimated width of an inline run. A chip is wider than the text it holds:
  * the code face is wider than the UI face and the chip carries padding of its
  * own, so code is measured on its own terms.
@@ -198,22 +210,20 @@ export function inlineWidth(tokens: readonly Token[] | undefined, size: number, 
       case "text":
         width += token.tokens
           ? inlineWidth(token.tokens, size, ratio)
-          : softBreaks(decodeEntities(token.text)).length * size * ratio;
+          : textWidth(softBreaks(decodeEntities(token.text)), size, ratio);
         break;
       case "codespan":
-        width += token.text.length * size * CHAR_RATIO_MONO + CODE_CHIP_PADDING * 2;
+        width += textWidth(token.text, size, CHAR_RATIO_MONO) + CODE_CHIP_PADDING * 2;
         break;
       case "escape":
-        width += token.text.length * size * ratio;
-        break;
       case "image":
-        width += token.text.length * size * ratio;
+        width += textWidth(token.text, size, ratio);
         break;
       default: {
         const children = (token as Tokens.Generic).tokens;
         width += children
           ? inlineWidth(children, size, ratio)
-          : (token.raw ?? "").length * size * ratio;
+          : textWidth(token.raw ?? "", size, ratio);
       }
     }
   }
