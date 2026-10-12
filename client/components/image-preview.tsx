@@ -189,6 +189,8 @@ export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps
             width={file.width ?? null}
             height={file.height ?? null}
             label={path}
+            tokens={tokens}
+            onReveal={onReveal}
           />
         </View>
       ) : null}

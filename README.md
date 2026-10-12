@@ -42,8 +42,10 @@ pressing it shows the file in the machine's file manager.
 A read of a `.png` carries no bytes through the timeline, so the host draws it as an empty code
 block with a language badge. This card draws the file instead: a picture mark, the path as a link,
 the pixel size and file size read from the header, and an eye control that hides the thumbnail.
-Pressing the thumbnail opens the image full screen, fitted to the window; the backdrop, the close
-mark, Escape, or the Android back button close it. The
+Pressing the thumbnail opens the image full screen with the controls of Paseo's own lightbox: zoom
+in, zoom out, reset, show in file manager, and close; the wheel or a pinch zooms about the pointer,
+a drag pans, and a double press resets. The backdrop, Escape, or the Android back button close it.
+The
 bytes come from the plugin's own daemon-side RPC (`file.image`), which is the only side that can
 reach the file; PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG are recognised, and anything past
 3 MB reports its size rather than inlining a data URI.
