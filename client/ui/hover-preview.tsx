@@ -1,16 +1,16 @@
 import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View, type ViewStyle } from "react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
 import { selectionSurface } from "../components/selection-actions";
 import { bindPreviewPointer, openPreviewLayer } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { cssShadow } from "./tokens/css-shadow";
-import { HOVER_DELAY_MS, useEnhancerPreferences } from "../preferences";
+import { DEFAULT_PREFERENCES, HOVER_DELAY_MS, useEnhancerPreferences } from "../preferences";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
-export const PREVIEW_OPEN_MS = HOVER_DELAY_MS["200ms"];
+export const PREVIEW_OPEN_MS = HOVER_DELAY_MS[DEFAULT_PREFERENCES.hoverDelay];
 export const PREVIEW_CLOSE_MS = 150;
 
 export function useHoverPreview(enabled: boolean) {
@@ -110,16 +110,23 @@ export function HoverPreviewHeader({ tokens, children }: {
 }
 
 export function HoverPreviewBody({ children, withHeader = true }: { children: ReactNode; withHeader?: boolean }) {
-  return <View style={[styles.body, !withHeader && { paddingTop: space.md }]}>{children}</View>;
+  return <View testID="hover-preview-body" style={[styles.body, !withHeader && { paddingTop: space.md }]}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
   panel: { padding: 0, borderWidth: 1, borderRadius: radiusV2.block },
-  body: { paddingTop: 0, paddingHorizontal: space.md, paddingBottom: space.md, gap: space.sm },
+  body: {
+    minHeight: 0,
+    flexShrink: 1,
+    overflowY: "auto",
+    overscrollBehavior: "contain",
+    paddingTop: 0,
+    paddingHorizontal: space.md,
+    paddingBottom: space.md,
+    gap: space.sm,
+  } as ViewStyle,
   header: {
-    position: "sticky" as never,
-    top: 0,
-    zIndex: 1,
+    flexShrink: 0,
     paddingHorizontal: space.md,
     paddingTop: space.sm,
     paddingBottom: space.sm + space.md,

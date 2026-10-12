@@ -54,6 +54,7 @@ describe("hover preview lifetime", () => {
     expect(preview.open).toBe(true);
   });
   it("opens after a rest without changing disclosure state", () => {
+    expect(PREVIEW_OPEN_MS).toBe(500);
     mount();
     act(() => preview.enter());
     act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS - 1); });
