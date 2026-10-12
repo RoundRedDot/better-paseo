@@ -87,7 +87,8 @@ export interface LiveNoticePayload {
  * a reply and a tool row. A negative bottom margin pulls the next item up into
  * the gap the host hangs under this one; the newest row has nothing below it
  * but the list's own padding or the working indicator, so it keeps its gap.
- * A reply takes the same 12 back, but only above a row (`timeline-order.ts`).
+ * A reply takes the same 12 back, but only above a row (`compactReplySpacing`,
+ * `timeline-order.ts`).
  */
 export const ROW_GAP_COMPENSATION = 12;
 
@@ -374,7 +375,7 @@ function LiveAssistantRendererBody({
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       {...probe.viewProps}
       style={
-        preferences.compactRowSpacing && !streaming && rowBelow ? rowGapStyles.compensated : undefined
+        preferences.compactReplySpacing && !streaming && rowBelow ? rowGapStyles.compensated : undefined
       }
     >
       {probe.node}

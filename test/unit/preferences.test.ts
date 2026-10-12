@@ -52,6 +52,14 @@ describe("preferences v2 defaults", () => {
     expect(DEFAULT_PREFERENCES.compactRowSpacing).toBe(true);
   });
 
+  it("tightens the host's gap under a reply by default, and keeps a reader's choice", () => {
+    expect(DEFAULT_PREFERENCES.compactReplySpacing).toBe(true);
+    const { compactReplySpacing: _reply, ...older } = storedPart(DEFAULT_PREFERENCES);
+    expect(parsePreferences(older).compactReplySpacing).toBe(true);
+    expect(parsePreferences({ compactReplySpacing: false }).compactReplySpacing).toBe(false);
+    expect(parsePreferences({ compactReplySpacing: "no" }).compactReplySpacing).toBe(true);
+  });
+
   it("gives a record stored before the row switches their defaults", () => {
     const { rowLabels: _rowLabels, compactRowSpacing: _compact, ...older } = storedPart(DEFAULT_PREFERENCES);
     const parsed = parsePreferences({ ...older, accent: "rose" });

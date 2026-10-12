@@ -55,6 +55,7 @@ export const preferencesSchema = z.object({
   markdownVariant: z.enum(MARKDOWN_VARIANTS_STORED).catch("document"),
   rowLabels: flag(false),
   compactRowSpacing: flag(true),
+  compactReplySpacing: flag(true),
   language: z.enum(SETTINGS_LANGUAGES).catch("system"),
 });
 
