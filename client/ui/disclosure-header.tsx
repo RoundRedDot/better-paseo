@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, type ReactNode } from "react";
+import React, { useCallback, useContext, useEffect, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
@@ -102,6 +102,8 @@ export interface DisclosureHeaderProps {
    * disclosure state.
    */
   previewContent?(): ReactNode;
+  /** The preview opened, for content that is fetched only when it is shown. */
+  onPreviewOpen?(): void;
   /**
    * Keeps the row in place when it toggles. The row brings its own; a card
    * whose row moves into another parent when it opens (`StickyCard`) passes
@@ -151,10 +153,14 @@ export function DisclosureHeader({
   onLongPress,
   accessibilityLabel,
   previewContent,
+  onPreviewOpen,
   scrollAnchor,
 }: DisclosureHeaderProps) {
   const previewOwner = useContext(HoverPreviewContext);
   const preview = useHoverPreview(Boolean(previewContent) && !expanded && !actionsActive);
+  useEffect(() => {
+    if (preview.open) onPreviewOpen?.();
+  }, [preview.open, onPreviewOpen]);
   const ownAnchor = useScrollAnchor(expanded);
   const anchor = scrollAnchor ?? ownAnchor;
   const { anchorRef } = preview;

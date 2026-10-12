@@ -34,7 +34,7 @@ import { useIsTimelineTail, useTextItemTailKey } from "./timeline-tail";
 import { useHasEntryAfter, useNextEntryIsRow, useTimelineEntry } from "./timeline-order";
 import type { TaskListData, TaskItemData, NoticeCalloutData } from "../shared/contracts";
 import { revealPathRpc } from "../shared/file-rpc";
-import { useImageFile } from "./image-file";
+import { isImagePath, useImageFile } from "./image-file";
 import { classifyTool } from "./tools/classify";
 import { defaultToolExpanded, toolDisclosureKey } from "./tools/disclosure";
 import { PathContext, usePathContextValue } from "./ui/path-text";
@@ -165,10 +165,15 @@ function LiveToolCallRendererBody({
     defaultToolExpanded(view, preferences.toolDetail),
   );
 
-  // Only an open read or write of an image asks the daemon for bytes; the
-  // hook itself refuses every other path, so a code read costs no RPC.
+  // Only a read or write of an image that is open, or has been previewed,
+  // asks the daemon for bytes; the hook itself refuses every other path, so a
+  // code read costs no RPC. A previewed image stays loaded, so hovering the
+  // row again does not read the file again.
+  const readsImage = (view.tool === "read" || view.tool === "write") && isImagePath(view.filePath);
+  const [previewed, setPreviewed] = useState(false);
+  const markPreviewed = useCallback(() => setPreviewed(true), []);
   const imageFile = useImageFile(
-    expanded && (view.tool === "read" || view.tool === "write") ? view.filePath : undefined,
+    readsImage && (expanded || previewed) ? view.filePath : undefined,
     pathContext.cwd ?? null,
   );
 
@@ -188,6 +193,7 @@ function LiveToolCallRendererBody({
           expanded={expanded}
           onExpandedChange={setExpanded}
           imageFile={imageFile}
+          onPreviewOpen={readsImage ? markPreviewed : undefined}
         />
       </PathContext.Provider>
       <TimelineTailHub
