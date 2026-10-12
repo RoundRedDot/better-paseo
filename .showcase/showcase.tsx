@@ -38,6 +38,7 @@ import { RunningDot } from "../client/ui/running-dot";
 import { Glyph } from "../client/components/glyph";
 import { classifyTool, type ToolCallPayload, type ToolCallView } from "../client/tools/classify";
 import { S7_GROUPS } from "./s7-groups";
+import { pluginRoot } from "../client/components/focus-ring";
 
 const DARK = {
   surface0: "#0f0f11",
@@ -605,7 +606,7 @@ function Shot({
 }) {
   return (
     <div id={id} style={{ width, padding: 20, backgroundColor: background }}>
-      <View style={{ gap: 10 }}>{children}</View>
+      <View {...pluginRoot} style={{ gap: 10 }}>{children}</View>
     </div>
   );
 }
