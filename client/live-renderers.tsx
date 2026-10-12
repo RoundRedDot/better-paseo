@@ -220,8 +220,13 @@ function LiveReasoningRendererBody({
   const toggle = useCallback(() => setExpanded(!expanded), [expanded, setExpanded]);
 
   // The host's reveal runs a frame loop only for "streaming". A collapsed card
-  // shows one line, so it takes the text whole and renders once per chunk.
-  const revealed = useRevealedText(text, expanded && streaming ? "streaming" : "complete");
+  // shows one line, so it takes the text whole. The hook still follows the text,
+  // so a card opened mid-stream picks up the reveal where the text stands; but
+  // its "complete" output lands a commit late (`useRevealedText` settles in a
+  // passive effect), so an unpaced card draws `text` itself.
+  const paced = expanded && streaming;
+  const pacedText = useRevealedText(text, paced ? "streaming" : "complete");
+  const revealed = paced ? pacedText : text;
 
   const [segmenter] = useState(createReasoningSegmenter);
   const segmentation = useMemo(
@@ -365,7 +370,13 @@ function LiveAssistantRendererBody({
   // the model's words, so they are drawn as a card, not as prose.
   const envelope = useMemo(() => parseSystemEnvelope(item.data.text), [item.data.text]);
   const reveal = ASSISTANT_REVEAL[layout.platform === "web" ? "web" : "native"];
-  const revealed = useRevealedText(item.data.text, reveal && streaming ? "streaming" : "complete");
+  // Where the reply is not paced, it bypasses the host's hook: that hook shows
+  // a longer text one commit late (it settles in a passive effect), and Paseo's
+  // web list follows the bottom in the commit that brings the stream data, so a
+  // reply growing a commit later was painted pushed down for a frame, then
+  // scrolled back, and rendered twice per chunk. The hook gets a constant then.
+  const pacedText = useRevealedText(reveal ? item.data.text : "", reveal && streaming ? "streaming" : "complete");
+  const revealed = reveal ? pacedText : item.data.text;
 
   // A path in the prose reveals like a path in a tool card: one daemon RPC,
   // relative to the agent's directory.

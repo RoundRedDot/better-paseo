@@ -1,0 +1,109 @@
+/**
+ * Unpaced text is drawn in the commit that brings it.
+ *
+ * The host's `useRevealedText` keeps showing the old text until a passive
+ * effect settles it, so a longer text appears one commit late. Paseo's web
+ * list follows the bottom in the commit that brings new stream data; a reply
+ * that grows a commit later is painted pushed down for a frame, then scrolled
+ * back. Here the hook is replaced by one that never catches up (`STALE`):
+ * wherever the plugin does not pace the text, the real text must show anyway.
+ */
+import { afterEach, describe, expect, it, vi } from "vitest";
+import React from "react";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+async function load(os: "web" | "ios") {
+  (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+  vi.resetModules();
+  vi.doMock("react-native", () => import("./helpers/rn-mock"));
+  vi.doMock("@getpaseo/plugin/client/react-native", async () => {
+    const rn = await import("./helpers/rn-mock");
+    return {
+      Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
+      TextInput: rn.TextInput,
+      ScrollView: rn.ScrollView,
+      FlatList: rn.ScrollView,
+      Modal: rn.View,
+      copyText: () => Promise.resolve(true),
+      useToast: () => ({ show() {}, error() {}, success() {} }),
+      useRevealedText: () => "STALE",
+    };
+  });
+  vi.doMock("@getpaseo/plugin/client", () => ({
+    useAgent: () => undefined,
+    useWorkspace: () => undefined,
+    useRpc: () => () => Promise.resolve(null),
+    usePaseo: () => ({ agents: { ref: () => ({ refresh: () => Promise.resolve(null) }) } }),
+    useSettings: () => ({ data: undefined, status: "loading" }),
+  }));
+  await import("./helpers/quiet-renderer");
+  const TestRenderer = (await import("react-test-renderer")).default;
+  const { act } = await import("react-test-renderer");
+  const renderers = await import("../../client/live-renderers");
+  return { TestRenderer, act, renderers };
+}
+
+const theme = {
+  colors: {
+    surface0: "#0f1115",
+    surface1: "#16191f",
+    surface2: "#1d2128",
+    border: "#2a2f37",
+    foreground: "#e6e8eb",
+    foregroundMuted: "#9aa1ab",
+    accent: "#4f8cff",
+    accentForeground: "#ffffff",
+    statusSuccess: "#4cb782",
+    statusWarning: "#d9a53f",
+    statusDanger: "#e5484d",
+  },
+};
+
+async function renderedText(
+  os: "web" | "ios",
+  kind: "assistant" | "reasoning",
+  text: string,
+): Promise<string> {
+  const { TestRenderer, act, renderers } = await load(os);
+  const Component =
+    kind === "assistant" ? renderers.LiveAssistantRenderer : renderers.LiveReasoningRenderer;
+  const props = {
+    agentId: `agent-${os}-${kind}`,
+    theme,
+    host: { id: "h", label: "h" },
+    layout: { compact: os !== "web", platform: os },
+    timestamp: new Date(1_000),
+    item: { type: "plugin", kind, version: 1, data: { text, phase: "streaming" } },
+  } as never;
+  let renderer!: ReturnType<typeof TestRenderer.create>;
+  await act(async () => {
+    renderer = TestRenderer.create(React.createElement(Component, props));
+  });
+  const out = JSON.stringify(renderer.toJSON());
+  await act(async () => renderer.unmount());
+  return out;
+}
+
+afterEach(() => {
+  delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+});
+
+describe("reveal and the commit that brings the text", () => {
+  it("draws a streaming reply on web as it arrived", async () => {
+    const out = await renderedText("web", "assistant", "Fresh words from the stream");
+    expect(out).toContain("Fresh words from the stream");
+    expect(out).not.toContain("STALE");
+  });
+
+  it("still paces a streaming reply on iOS", async () => {
+    const out = await renderedText("ios", "assistant", "Fresh words from the stream");
+    expect(out).toContain("STALE");
+  });
+
+  it("previews a collapsed, streaming thought as it arrived", async () => {
+    const out = await renderedText("web", "reasoning", "**Planning the fix**\n\nReading turn-state.ts first.");
+    expect(out).toContain("Planning");
+    expect(out).not.toContain("STALE");
+  });
+});
