@@ -11,6 +11,8 @@ import { followPreference } from "./client/state/follow-preference";
 import { perfSlashCommand } from "./client/debug/perf-command";
 import { toolErrorText } from "./client/tools/error-text";
 import { embeddedFontsRpc } from "./shared/font-rpc";
+import { markBitmapsRpc } from "./shared/mark-rpc";
+import { setMarkLoader } from "./client/components/marks";
 import {
   LiveToolCallRenderer,
   LiveReasoningRenderer,
@@ -35,6 +37,8 @@ export default function contribute(client: PluginClientContext) {
     setEmbeddedFontLoader(null);
     removeEmbeddedFonts();
   };
+  // Brand marks are read from the daemon by id, batched per tick, as rows draw them.
+  setMarkLoader((ids) => client.rpc(markBitmapsRpc, { ids }).then((result) => result.bitmaps));
   // The host draws  rows itself; this only re-chromes them.
   const removeNoticeStyle = installHostNoticeStyle();
   // Paseo's Ctrl+F cannot reveal rows this plugin draws; this bar can.
@@ -280,6 +284,7 @@ export default function contribute(client: PluginClientContext) {
   return () => {
     removePerfCommand();
     removeFonts();
+    setMarkLoader(null);
     removeFocusRing();
     removeNoticeStyle();
     removeChatFind();
