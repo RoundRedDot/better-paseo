@@ -274,7 +274,9 @@ timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurfac
 10. **No CSS escape hatch.** React Native styles drop unknown keys, so `backdrop-filter` cannot be
     set through the style API. The plugin does not draw frosted glass.
 11. **No font registration.** Faces are embedded as data URIs in an injected `@font-face` rule
-    (web only). Paseo forces its UI font on every node not under `data-pmono`; the plugin marks
+    (web only). The bytes stay on the daemon and arrive through the `fonts.embedded` RPC the first
+    time a reader picks Iosevka or Inter, because the host sends the whole client bundle again on
+    every reconnect. Paseo forces its UI font on every node not under `data-pmono`; the plugin marks
     only monospace regions with it, so interface text follows the host font, and leaves the
     interface `fontFamily` unset for "Follow Paseo", since React Native Web writes non-StyleSheet
     styles inline and an inline family would beat the host rule.
@@ -287,7 +289,8 @@ timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurfac
     because the host renders them: `Icon` from `@getpaseo/plugin/client/react-native` takes any
     Lucide name. Brand marks are not in Lucide, and React Native's `<Image>` decodes PNG, JPEG,
     GIF, and WebP but never SVG, so a data-URI SVG renders on web and stays blank on iOS and
-    Android. Those marks ship as PNG rasters in `client/components/mark-bitmaps.ts`.
+    Android. Those marks are PNG rasters in `server/mark-bitmaps.ts`, which the `marks.bitmaps`
+    RPC hands out by id as rows draw them; the client keeps only the ids.
 13. **Settings are host-scoped only.** `defineSettings` rejects any scope other than `host`, so
     per-workspace, per-agent or per-client presentation settings are impossible. This plugin stores
     its preferences in that host scope (shared by all clients of the daemon); only the hidden
@@ -305,17 +308,21 @@ timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurfac
 beautiful-chat/
   paseo-plugin.json          # Manifest: id and Paseo requirement
   index.client.tsx           # Timeline transformers, renderers, settings screen
-  index.server.ts            # Daemon-side RPCs (file.reveal)
+  index.server.ts            # Daemon-side RPCs (file.reveal, file.image, highlight.tokens, fonts.embedded, marks.bitmaps)
   shared/
     contracts.ts             # Data contracts shared by client and server
     file-rpc.ts              # file.reveal contract
+    font-rpc.ts              # fonts.embedded contract
+    mark-rpc.ts              # marks.bitmaps contract
+  server/
+    font-data.ts             # GENERATED subset woff2 faces, served by fonts.embedded
+    mark-bitmaps.ts          # GENERATED PNG rasters of every brand mark, served by marks.bitmaps
   client/
     live-renderers.tsx       # Timeline item to component mapping
     settings-page.tsx        # Settings screen
     preferences.ts           # Client-side presentation preferences
     components/              # Cards, syntax block, glyphs, motion, theme tokens
-      mark-bitmaps.ts        # GENERATED PNG rasters of every brand mark
-      devicon-data.ts        # Vendor SVG sources, read only by the generator
+      marks.ts               # Brand mark ids, and the client cache marks.bitmaps fills
       lobe-marks.ts          # Vendor SVG sources, read only by the generator
   .showcase/                 # Offline harness used to capture the screenshots
   docs/images/               # Screenshots in this README
