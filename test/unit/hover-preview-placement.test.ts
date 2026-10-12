@@ -106,8 +106,10 @@ describe("hover preview content bounds", () => {
     expect(panel.style.width).toBe(normal.panel.style.width);
     expect(panel.style.left).toBe(normal.panel.style.left);
     normal.release();
-    expect(panel.style.height).toBe("736px");
-    expect(panel.style.top).toBe("64px");
+    expect(panel.style.height).toBe("704px");
+    expect(panel.style.top).toBe("80px");
+    expect(Number.parseFloat(panel.style.top!) - viewport.top).toBe(16);
+    expect(viewport.bottom - (Number.parseFloat(panel.style.top!) + Number.parseFloat(panel.style.height!))).toBe(16);
     expect(closeButton.focus).toHaveBeenCalledOnce();
     for (const event of ["scroll", "blur", "resize"]) {
       const listener = view.addEventListener.mock.calls.find(([name]) => name === event)!;
@@ -118,8 +120,8 @@ describe("hover preview content bounds", () => {
     viewport.bottom = 700;
     const resize = view.addEventListener.mock.calls.find(([name]) => name === "resize")!;
     (resize[1] as () => void)();
-    expect(panel.style.top).toBe("80px");
-    expect(panel.style.height).toBe("620px");
+    expect(panel.style.top).toBe("96px");
+    expect(panel.style.height).toBe("588px");
     const key = panel.ownerDocument.addEventListener.mock.calls.find(([name]) => name === "keydown")!;
     (key[1] as (event: unknown) => void)({ key: "Escape" });
     expect(close).toHaveBeenCalledOnce();
