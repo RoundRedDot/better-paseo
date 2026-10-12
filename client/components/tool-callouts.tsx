@@ -279,6 +279,7 @@ export function ToolCallout({
       accessibilityLabel={[summary.verb, summary.target, ...summary.meta].filter(Boolean).join(" ")}
       previewContent={() => (
         <>
+          <ToolPreviewActions getPlan={getPlan} tool={data.tool} tokens={tokens} compact={compact} />
           {filePath ? <Text selectable {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>{resolvePath(filePath)}</Text> : null}
           <ToolBody data={data} tokens={tokens} compact={compact} imageFile={imageFile}
             revealFile={revealFile} displayPath={filePath ? formatPath(filePath, pathContext).displayPath : undefined} preview />
@@ -335,6 +336,35 @@ export function ToolCallout({
   );
 }
 
+/** The preview owns its menu so opening it cannot close the hovered header. */
+function ToolPreviewActions({ getPlan, tool, tokens, compact }: {
+  getPlan: () => ReturnType<typeof toolCopyPlan>;
+  tool: ToolKind;
+  tokens: ExtendedThemeTokens;
+  compact: boolean;
+}) {
+  const menu = useActionMenu();
+  const { copy } = useCopy();
+  const items = useMemo<ActionMenuItem[]>(
+    () => menu.open ? getPlan().menu.map((action) => ({
+      id: action.id,
+      label: action.label,
+      icon: "Copy",
+      onSelect: () => void copy(action.text, { feedback: "toast" }),
+    })) : [],
+    [menu.open, getPlan, copy],
+  );
+  return (
+    <>
+      <View style={styles.previewActions}>
+        <CopyButton text={() => getPlan().primary?.text ?? ""} tokens={tokens} label={primaryCopyLabel(tool)} />
+        <ActionMenuTrigger open={menu.open} onPress={menu.toggle} tokens={tokens} />
+      </View>
+      <ActionMenuList items={items} open={menu.open} onClose={menu.close} tokens={tokens} compact={compact} />
+    </>
+  );
+}
+
 /** A path target takes the row's target type (S7 design spec §2.3). */
 const TARGET_STYLE = {
   compact: { fontSize: TYPE.target.compact.size, lineHeight: TYPE.target.compact.lineHeight },
@@ -374,6 +404,12 @@ function MetaPath({
 }
 
 const styles = StyleSheet.create({
+  previewActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: space.xs,
+  },
   // The first line of a failure, under the verb (the row's text column).
   errorLine: {
     fontSize: TYPE.caption.size,
