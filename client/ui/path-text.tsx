@@ -1,5 +1,5 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type TextStyle } from "react-native";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type TextStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useAgent, useWorkspace } from "@getpaseo/plugin/client";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
@@ -18,6 +18,7 @@ import { useCopy } from "./use-copy";
 import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { UI_SCALE } from "./tokens/typography";
+import { liftStackingRow, scrollTop, tooltipPlacement, type DomBox, type TooltipPlacement } from "./tooltip-placement";
 
 /** Where paths are made relative to, for one renderer (plan §3.9 item 3). */
 export interface PathContextValue {
@@ -144,7 +145,8 @@ export function PathText({
   const capabilities = useInputCapabilities(compact);
   const { hovered, hoverProps } = useHover();
   const { copied, copy } = useCopy();
-  const [tooltip, setTooltip] = useState(false);
+  const [tooltip, setTooltip] = useState<TooltipPlacement | null>(null);
+  const rowRef = useRef<View>(null);
 
   const formatted = useMemo(() => formatPath(path, context), [path, context]);
   const reveal = onReveal ?? context.reveal;
@@ -169,12 +171,17 @@ export function PathText({
 
   useEffect(() => {
     if (!hovered || !capabilities.hover || inline) {
-      setTooltip(false);
+      setTooltip(null);
       return;
     }
-    const timer = setTimeout(() => setTooltip(true), TOOLTIP_DELAY_MS);
+    const timer = setTimeout(() => setTooltip(placeTooltip(rowRef.current)), TOOLTIP_DELAY_MS);
     return () => clearTimeout(timer);
   }, [hovered, capabilities.hover, inline]);
+
+  useEffect(() => {
+    if (tooltip !== "below" || Platform.OS !== "web") return;
+    return liftStackingRow(rowRef.current as unknown as DomBox | null);
+  }, [tooltip]);
 
   const copyAbsolute = () => void copy(formatted.absolutePath, { feedback: "toast" });
   const onPress = () => {
@@ -215,6 +222,7 @@ export function PathText({
       onPress={onPress}
       onLongPress={capabilities.touch ? copyAbsolute : undefined}
       {...hoverProps}
+      ref={rowRef}
       style={styles.row}
     >
       <Text
@@ -248,6 +256,7 @@ export function PathText({
           pointerEvents="none"
           style={[
             styles.tooltip,
+            tooltip === "above" ? styles.tooltipAbove : styles.tooltipBelow,
             { backgroundColor: tokens.v2.surface2, borderColor: tokens.v2.border },
           ]}
         >
@@ -272,6 +281,13 @@ export function PathText({
       {pressable}
     </View>
   );
+}
+
+function placeTooltip(row: unknown): TooltipPlacement {
+  if (Platform.OS !== "web") return "below";
+  const node = row as DomBox | null;
+  const top = node?.getBoundingClientRect?.().top ?? null;
+  return tooltipPlacement("web", top, node ? scrollTop(node) : 0);
 }
 
 /** Default path text size. */
@@ -314,15 +330,21 @@ const styles = StyleSheet.create({
   },
   tooltip: {
     position: "absolute",
-    top: "100%",
     left: 0,
-    marginTop: 2,
     maxWidth: 560,
     paddingHorizontal: 6,
     paddingVertical: space.xs,
     borderRadius: radiusV2.chip,
     borderWidth: StyleSheet.hairlineWidth,
     zIndex: 10,
+  },
+  tooltipAbove: {
+    bottom: "100%",
+    marginBottom: 2,
+  },
+  tooltipBelow: {
+    top: "100%",
+    marginTop: 2,
   },
   tooltipText: {
     fontSize: UI_SCALE.base,
