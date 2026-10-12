@@ -11,7 +11,8 @@ vi.mock("../../client/ui/use-input-capabilities", () => ({ useInputCapabilities:
   native: ["ios", "android"].includes((globalThis as { __rnMockOS?: string }).__rnMockOS ?? ""),
 }) }));
 vi.mock("../../client/web", () => ({ bindPreviewPointer: () => () => {}, openPreviewLayer: () => () => {} }));
-import { HoverPreviewContext, PREVIEW_CLOSE_MS, PREVIEW_OPEN_MS, useHoverPreview } from "../../client/ui/hover-preview";
+import { HoverPreview, HoverPreviewBody, HoverPreviewContext, HoverPreviewHeader, PREVIEW_CLOSE_MS, PREVIEW_OPEN_MS, useHoverPreview } from "../../client/ui/hover-preview";
+import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { HOVER_DELAYS, HOVER_DELAY_MS, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -201,5 +202,45 @@ describe("hover preview lifetime", () => {
     act(() => preview.enter());
     act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
     expect(preview.open).toBe(false);
+  });
+});
+
+describe("line wrap in the desktop preview", () => {
+  const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
+    foreground: "#111", foregroundMuted: "#666", accent: "#00f", accentForeground: "#fff",
+    statusSuccess: "#198754", statusWarning: "#a36a00", statusDanger: "#d92d20" });
+  let own!: ReturnType<typeof useHoverPreview>;
+  function Panel() {
+    own = useHoverPreview(true);
+    const header = React.createElement(HoverPreviewHeader, { tokens, children: React.createElement("Toolbar") });
+    const body = React.createElement(HoverPreviewBody, { children: React.createElement("Text", null, "a long line") });
+    return React.createElement(HoverPreview, { preview: { ...own, open: true }, tokens, children: [header, body] });
+  }
+  const button = () => renderer.root.find((node) => (node.type as unknown) === "Pressable" &&
+    ["Do not wrap lines", "Wrap lines"].includes(node.props.accessibilityLabel));
+  const icon = () => button().find((node) => (node.type as unknown) === "Icon").props.name;
+  const sideways = () => renderer.root.findAll((node) =>
+    (node.type as unknown) === "Animated.ScrollView" && node.props.horizontal === true);
+
+  it("wraps by default and scrolls sideways once wrap is turned off, also when maximized", () => {
+    act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
+    expect(button().props.accessibilityLabel).toBe("Do not wrap lines");
+    expect(icon()).toBe("WrapText");
+    expect(sideways()).toHaveLength(0);
+
+    act(() => button().props.onPress());
+    expect(button().props.accessibilityLabel).toBe("Wrap lines");
+    expect(icon()).toBe("MoveHorizontal");
+    expect(sideways()).toHaveLength(1);
+
+    // Maximize keeps the reader's choice.
+    act(() => own.maximize());
+    expect(own.maximized).toBe(true);
+    expect(icon()).toBe("MoveHorizontal");
+    expect(sideways()).toHaveLength(1);
+
+    act(() => button().props.onPress());
+    expect(icon()).toBe("WrapText");
+    expect(sideways()).toHaveLength(0);
   });
 });

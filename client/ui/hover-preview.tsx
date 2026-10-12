@@ -27,7 +27,7 @@ const PreviewActionsContext = createContext<{
   maximized: boolean;
   maximize(): void;
   close(): void;
-  /** The phone preview's line wrap, on until the reader turns it off. Absent on web. */
+  /** The preview's line wrap, on until the reader turns it off. */
   wrap?: { on: boolean; toggle(): void; tokens: ExtendedThemeTokens };
 } | null>(null);
 export const PREVIEW_OPEN_MS = HOVER_DELAY_MS[DEFAULT_PREFERENCES.hoverDelay];
@@ -127,6 +127,9 @@ function WebPreview({ preview, tokens, children }: {
 }) {
   const panelRef = useRef<View>(null);
   const [overflowing, setOverflowing] = useState(false);
+  // Kept across Maximize, which re-renders this panel rather than remounting it.
+  const [wrapOn, setWrapOn] = useState(true);
+  const toggleWrap = useCallback(() => setWrapOn((on) => !on), []);
   useLayoutEffect(() => {
     const unbind = bindPreviewPointer(panelRef.current, preview.enter, preview.leave);
     const release = openPreviewLayer(panelRef.current, preview.anchorRef.current, preview.close, {
@@ -140,7 +143,13 @@ function WebPreview({ preview, tokens, children }: {
   }, [preview.anchorRef, preview.enter, preview.leave, preview.close, preview.maximized]);
   return (
     <HoverPreviewContext.Provider value>
-      <PreviewActionsContext.Provider value={{ overflowing, maximized: preview.maximized, maximize: preview.maximize, close: preview.close }}>
+      <PreviewActionsContext.Provider value={{
+        overflowing,
+        maximized: preview.maximized,
+        maximize: preview.maximize,
+        close: preview.close,
+        wrap: { on: wrapOn, toggle: toggleWrap, tokens },
+      }}>
         <View
           ref={panelRef}
           {...selectionSurface}
@@ -293,10 +302,13 @@ function PreviewWrapButton({ tokens, wrap, onPress }: {
   wrap: boolean;
   onPress(): void;
 }) {
+  const { hovered, hoverProps } = useHover();
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={wrap ? "Do not wrap lines" : "Wrap lines"}
-      accessibilityState={{ checked: wrap }} hitSlop={4} onPress={onPress}
-      style={({ pressed }) => [styles.windowButton, pressed && { backgroundColor: tokens.v2.surface2 }]}
+      accessibilityState={{ checked: wrap }} hitSlop={4} onPress={onPress} {...hoverProps}
+      style={({ pressed }) => [styles.windowButton,
+        hovered && { backgroundColor: tokens.v2.surface1 },
+        pressed && { backgroundColor: tokens.v2.surface2 }]}
     >
       <Icon name={wrap ? "WrapText" : "MoveHorizontal"} size={14} color={tokens.foregroundMuted} />
     </Pressable>
@@ -305,26 +317,23 @@ function PreviewWrapButton({ tokens, wrap, onPress }: {
 
 export function HoverPreviewBody({ children }: { children: ReactNode }) {
   const wrap = useContext(PreviewActionsContext)?.wrap;
+  // Lines keep their length; the body scrolls sideways, with a track under it
+  // only while it is wider than the panel.
+  const content = wrap && !wrap.on ? (
+    <HScroll tokens={wrap.tokens} contentContainerStyle={styles.unwrappedScroll}>
+      <View style={styles.unwrapped}>{children}</View>
+    </HScroll>
+  ) : children;
   if (Platform.OS !== "web") {
     // The panel's height is capped; the body scrolls inside it. Its text takes
     // a long press as the start of a selection, with a cursor and handles.
     return (
       <ScrollView testID="hover-preview-body" style={styles.pressBody} contentContainerStyle={styles.pressBodyContent}>
-        <ProseSelectionContext.Provider value>
-          {wrap && !wrap.on ? (
-            // Lines keep their length; the body scrolls sideways, with a track
-            // under it only while it is wider than the panel.
-            <HScroll tokens={wrap.tokens} contentContainerStyle={styles.unwrappedScroll}>
-              <View style={styles.unwrapped}>{children}</View>
-            </HScroll>
-          ) : (
-            children
-          )}
-        </ProseSelectionContext.Provider>
+        <ProseSelectionContext.Provider value>{content}</ProseSelectionContext.Provider>
       </ScrollView>
     );
   }
-  return <View testID="hover-preview-body" style={styles.body}>{children}</View>;
+  return <View testID="hover-preview-body" style={styles.body}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
