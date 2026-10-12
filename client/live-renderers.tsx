@@ -116,11 +116,19 @@ function LiveToolCallRendererBody({
   const data = item.data;
 
   const view = useMemo(() => classifyTool(data), [data]);
-  const itemKey = `tool:${data.callId ?? view.title}:${timestamp.getTime()}`;
-  useTimelineEntry(agentId, timestamp.getTime(), "tool");
+  // The host rewrites a call's timestamp as its result arrives, but keeps
+  // its timeline slot. Ordering by that update time can move the gap from
+  // this row onto the call below it while the turn is still streaming.
+  const arrivalRef = useRef({ agentId, callId: data.callId, at: timestamp.getTime() });
+  if (arrivalRef.current.agentId !== agentId || arrivalRef.current.callId !== data.callId) {
+    arrivalRef.current = { agentId, callId: data.callId, at: timestamp.getTime() };
+  }
+  const at = arrivalRef.current.at;
+  const itemKey = `tool:${data.callId ?? view.title}:${at}`;
+  useTimelineEntry(agentId, at, "tool");
   // Not the tail: a thought takes no part in it, and a call with a thought
   // below it kept its gap as if it were the newest row.
-  const anythingBelow = useHasEntryAfter(agentId, timestamp.getTime(), "tool");
+  const anythingBelow = useHasEntryAfter(agentId, at, "tool");
 
   // The daemon side owns the shell, so revealing a file is one RPC. Paths
   // arrive absolute (PathText resolves them); a path the daemon cannot stat
@@ -186,7 +194,7 @@ function LiveToolCallRendererBody({
         agentId={agentId}
         tokens={tokens}
         itemKey={itemKey}
-        at={timestamp.getTime()}
+        at={at}
         kind="tool"
       />
     </View>
