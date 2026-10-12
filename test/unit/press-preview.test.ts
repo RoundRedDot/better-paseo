@@ -32,6 +32,7 @@ vi.mock("../../client/ui/use-input-capabilities", () => ({
 }));
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { ToolCallout } from "../../client/components/tool-callouts";
+import { ImagePreview } from "../../client/components/image-preview";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { createReasoningSegmenter } from "../../client/reasoning/segment";
 import { classifyTool } from "../../client/tools/classify";
@@ -133,6 +134,23 @@ describe("long-pressing a collapsed row on a phone", () => {
     act(() => row(renderer).props.onLongPress());
     expect(clipboard.copyText).not.toHaveBeenCalled();
     expect(textOf(panel(renderer))).toContain("Checking the list of files.");
+    act(() => renderer.unmount());
+  });
+
+  it("opens an image card's preview from a long press on its header instead of copying the path", async () => {
+    const file = { dataUri: "data:image/png;base64,AAAA", width: 637, height: 1400, bytes: 405_000, error: null };
+    const renderer = render(React.createElement(ImagePreview, { path: "/tmp/shots/a.png", file, tokens, bleed: true }));
+    expect(panels(renderer)).toHaveLength(0);
+    const header = renderer.root.find((node) =>
+      (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Hide the image /tmp/shots/a.png");
+    act(() => header.props.onLongPress());
+    expect(clipboard.copyText).not.toHaveBeenCalled();
+    const shown = panel(renderer);
+    expect(textOf(shown)).toContain("/tmp/shots/a.png");
+    expect(shown.findAll((node) => (node.type as unknown) === "Image")).toHaveLength(1);
+    const copy = shown.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Copy path");
+    await act(async () => { copy.props.onPress(); });
+    expect(clipboard.copyText).toHaveBeenLastCalledWith("/tmp/shots/a.png");
     act(() => renderer.unmount());
   });
 

@@ -61,7 +61,8 @@ reach the file; PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG are recognised, and
 3 MB reports its size rather than inlining a data URI. A collapsed image read has a preview too:
 hover the row on desktop, or long-press it on a phone, and the panel draws the picture, smaller
 and without the toggle or the full-screen viewer. The bytes are read the first time the row is
-opened or previewed.
+opened or previewed. The image card's own header previews the picture the same way: hover it,
+or long-press it on a phone, where the panel's copy button takes over the path copy.
 
 ![Image read](docs/images/tool-image.png)
 
