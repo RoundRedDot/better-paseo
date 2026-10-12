@@ -61,7 +61,7 @@ const TECHNICAL =
 
 /**
  * A host `notification` or `error` item as one row (S7 design spec §3.4):
- * the level's icon in the 20pt slot, the message on one line, the time at
+ * the level's icon in the status slot, the message on one line, the time at
  * the end. Only an error or a fatal notice adds a 2px rule on the left, taken
  * out of the row's outdent so the slot does not move; info and warning stay
  * plain so they never out-shout the work. Pressing the row shows the whole
@@ -98,6 +98,7 @@ export function NoticeCallout({ data, tokens, at, compact = false }: NoticeCallo
         },
         slot: {
           width: DISCLOSURE_HEADER.iconSlot,
+          paddingRight: DISCLOSURE_HEADER.iconSlotPad,
           alignItems: "center",
           justifyContent: "center",
         },

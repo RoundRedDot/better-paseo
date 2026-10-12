@@ -1,11 +1,16 @@
-import React, { useMemo, useState } from "react";
+import React, { useContext, useMemo, useState } from "react";
 import { View, Text, Pressable, Image, StyleSheet, Platform } from "react-native";
 import { Glyph } from "./glyph";
 import { ImageViewer } from "./image-viewer";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { unselectable } from "./selection";
-import { PathText } from "../ui/path-text";
+import { PathContext, PathText } from "../ui/path-text";
+import { formatPath } from "../paths/format-path";
+import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
+import { useInputCapabilities } from "../ui/use-input-capabilities";
+import { useScrollAnchor } from "../ui/scroll-anchor";
+import { useCopy } from "../ui/use-copy";
 import { UI_SCALE } from "../ui/tokens/typography";
 import type { ImageFile } from "../image-file";
 
@@ -17,6 +22,13 @@ interface ImagePreviewProps {
   tokens: ExtendedThemeTokens;
   /** Shows the file in the machine's own file manager. */
   onReveal?: () => void;
+  /**
+   * In prose, outdent the card the way a tool row is outdented, so its icon
+   * and path share the rows' icon edge and text column and the picture starts
+   * on the prose edge. Inside an opened tool body the body's own padding
+   * already places it.
+   */
+  bleed?: boolean;
 }
 
 /**
@@ -42,10 +54,22 @@ function formatBytes(bytes: number): string {
  * The thumbnail keeps the file's aspect ratio when the header gave one, and
  * falls back to a fixed box when the header could not be read: an image that
  * loads but reports no size still has to occupy an honest amount of room.
+ *
+ * The whole header is the show/hide control, as a tool row is the control for
+ * its body; the eye at its end says which way it goes. On a pointer device the
+ * path still reveals the file; on touch a press anywhere on the header
+ * toggles and a long press copies the path. The toggle keeps the header under
+ * the finger (`useScrollAnchor`): in the native timeline the picture
+ * collapsing would otherwise throw the header off screen.
  */
-export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps) {
+export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: ImagePreviewProps) {
   const [shown, setShown] = useState(true);
   const [viewing, setViewing] = useState(false);
+  const capabilities = useInputCapabilities();
+  const touchFirst = capabilities.touch && !capabilities.hover;
+  const anchor = useScrollAnchor();
+  const { copy } = useCopy();
+  const pathContext = useContext(PathContext);
 
   const styles = useMemo(
     () =>
@@ -57,13 +81,22 @@ export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps
           backgroundColor: tokens.v2.surfaceCode,
           overflow: "hidden",
         },
+        bleed: { marginHorizontal: -DISCLOSURE_HEADER.bleed },
+        // The row's geometry: the icon in the row's status slot, the path on
+        // the row's text column.
         header: {
           minHeight: 28,
           flexDirection: "row",
           alignItems: "center",
-          gap: space.sm,
-          paddingLeft: space.sm,
+          gap: DISCLOSURE_HEADER.gap,
+          paddingLeft: DISCLOSURE_HEADER.paddingX,
           paddingRight: space.xs,
+        },
+        slot: {
+          width: DISCLOSURE_HEADER.iconSlot,
+          paddingRight: DISCLOSURE_HEADER.iconSlotPad,
+          alignItems: "center",
+          justifyContent: "center",
         },
         chips: { flexDirection: "row", alignItems: "center", gap: space.sm, flexShrink: 0 },
         chip: {
@@ -79,7 +112,6 @@ export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps
           gap: space.xs,
           height: 24,
           paddingHorizontal: 6,
-          borderRadius: radiusV2.chip,
         },
         eyeLabel: {
           fontFamily: tokens.fontUi,
@@ -88,6 +120,7 @@ export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps
           color: tokens.foregroundMuted,
           ...unselectable,
         },
+        path: { flexShrink: 1, minWidth: 0 },
         spacer: { flex: 1, minWidth: 8 },
         // The checker tint is a flat wash rather than a pattern: a transparent
         // PNG needs something behind it, and a repeating background is not a
@@ -130,18 +163,41 @@ export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps
         }
       : styles.image;
 
+  const toggle = file?.dataUri
+    ? () => {
+        anchor.arm();
+        setShown((previous) => !previous);
+      }
+    : undefined;
+  // The absolute path, as a long press on any path gives.
+  const copyPath = () => void copy(formatPath(path, pathContext).absolutePath, { feedback: "toast" });
+
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Glyph name="Image" size={14} color={tokens.foregroundMuted} />
-        {/* Relative to the workspace, middle-truncated; press reveals the
-            file (copies it on touch), as everywhere else (plan §3.9). */}
-        <PathText
-          path={path}
-          tokens={tokens}
-          onReveal={onReveal ? () => onReveal() : undefined}
-          style={{ fontSize: UI_SCALE.base }}
-        />
+    <View style={[styles.container, bleed && styles.bleed]} onLayout={anchor.settle}>
+      <Pressable
+        ref={anchor.ref}
+        accessibilityRole={toggle ? "button" : undefined}
+        accessibilityLabel={toggle ? `${shown ? "Hide" : "Show"} the image ${path}` : undefined}
+        accessibilityState={toggle ? { expanded: shown } : undefined}
+        disabled={!toggle}
+        onPressIn={toggle ? anchor.hold : undefined}
+        onPress={toggle}
+        onLongPress={capabilities.touch ? copyPath : undefined}
+        style={({ pressed }) => [styles.header, pressed && toggle && { backgroundColor: tokens.v2.surface2 }]}
+      >
+        <View style={styles.slot}>
+          <Glyph name="Image" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+        </View>
+        {/* Relative to the workspace, middle-truncated. On touch the path is
+            part of the header's press, as a row's target is (plan §3.9). */}
+        <View pointerEvents={touchFirst ? "none" : "auto"} style={styles.path}>
+          <PathText
+            path={path}
+            tokens={tokens}
+            onReveal={onReveal ? () => onReveal() : undefined}
+            style={{ fontSize: UI_SCALE.base }}
+          />
+        </View>
         <View style={styles.spacer} />
         <View style={styles.chips}>
           {chips.map((chip) => (
@@ -150,18 +206,13 @@ export function ImagePreview({ path, file, tokens, onReveal }: ImagePreviewProps
             </Text>
           ))}
         </View>
-        {file?.dataUri ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={shown ? "Hide the image" : "Show the image"}
-            onPress={() => setShown((previous) => !previous)}
-            style={({ pressed }) => [styles.eye, pressed && { backgroundColor: tokens.v2.surface2 }]}
-          >
+        {toggle ? (
+          <View style={styles.eye}>
             <Glyph name={shown ? "Eye" : "EyeOff"} size={14} color={tokens.foregroundMuted} />
             <Text style={styles.eyeLabel}>{shown ? "Hide" : "Show"}</Text>
-          </Pressable>
+          </View>
         ) : null}
-      </View>
+      </Pressable>
 
       {file === null ? (
         <Text style={styles.message}>Reading the file…</Text>
