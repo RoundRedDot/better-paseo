@@ -15,7 +15,10 @@ export function bindPreviewPointer(node: unknown, enter: () => void, leave: () =
 }
 
 /** A non-modal top-layer surface escapes transformed and clipped timeline rows. */
-export function openPreviewLayer(node: unknown, anchor: unknown, close: () => void): () => void {
+export function openPreviewLayer(node: unknown, anchor: unknown, close: () => void, options: {
+  maximized?: boolean;
+  onOverflow?(overflowing: boolean): void;
+} = {}): () => void {
   if (Platform.OS !== "web") return () => {};
   const panel = node as HTMLElement;
   const row = anchor as HTMLElement;
@@ -30,6 +33,17 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   panel.style.maxWidth = `${Math.max(0, view.innerWidth - 16)}px`;
 
   const position = () => {
+    if (options.maximized) {
+      const width = Math.max(0, Math.min(960, view.innerWidth - 32));
+      const height = Math.max(0, view.innerHeight - 64);
+      panel.style.width = `${width}px`;
+      panel.style.height = `${height}px`;
+      panel.style.maxHeight = `${height}px`;
+      panel.style.left = `${(view.innerWidth - width) / 2}px`;
+      panel.style.top = `${(view.innerHeight - height) / 2}px`;
+      return;
+    }
+    panel.style.height = "";
     const rect = row.getBoundingClientRect();
     const contentRect = content.getBoundingClientRect();
     const left = Math.max(8, contentRect.left);
@@ -44,23 +58,46 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   };
   panel.showPopover();
   position();
+  const body = panel.querySelector<HTMLElement>('[data-testid="hover-preview-body"]');
+  const measure = () => {
+    position();
+    if (!options.maximized && body) options.onOverflow?.(body.scrollHeight > body.clientHeight);
+  };
+  measure();
+  // Content can grow while streaming or after syntax highlighting/fonts settle.
+  const resizeObserver = new view.ResizeObserver(measure);
+  resizeObserver.observe(panel);
+  if (body) {
+    resizeObserver.observe(body);
+    for (const child of body.children) resizeObserver.observe(child);
+  }
+  const mutationObserver = new view.MutationObserver(() => {
+    if (body) for (const child of body.children) resizeObserver.observe(child);
+    measure();
+  });
+  if (body) mutationObserver.observe(body, { childList: true, subtree: true, characterData: true });
+  if (options.maximized) panel.querySelector<HTMLElement>('[aria-label="Close preview"]')?.focus();
   const onScroll = (event: Event) => {
     // Scrolling the preview must not dismiss it or scroll the timeline.
-    if (panel.contains(event.target as Node)) return;
+    if (options.maximized || panel.contains(event.target as Node)) return;
     close();
   };
   const onKey = (event: KeyboardEvent) => {
     if (event.key === "Escape") close();
   };
+  const onResize = options.maximized ? measure : close;
+  const onBlur = () => { if (!options.maximized) close(); };
   view.addEventListener("scroll", onScroll, true);
-  view.addEventListener("resize", close);
-  view.addEventListener("blur", close);
+  view.addEventListener("resize", onResize);
+  view.addEventListener("blur", onBlur);
   panel.ownerDocument.addEventListener("keydown", onKey);
   return () => {
     view.removeEventListener("scroll", onScroll, true);
-    view.removeEventListener("resize", close);
-    view.removeEventListener("blur", close);
+    view.removeEventListener("resize", onResize);
+    view.removeEventListener("blur", onBlur);
     panel.ownerDocument.removeEventListener("keydown", onKey);
+    resizeObserver.disconnect();
+    mutationObserver.disconnect();
     panel.hidePopover();
   };
 }
