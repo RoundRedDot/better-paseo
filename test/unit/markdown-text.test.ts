@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { blockKind, lexBlock, lexCacheSize } from "../../client/components/markdown/lex";
 import {
   codeLanguage,
@@ -79,5 +79,22 @@ describe("lexBlock", () => {
     expect(lexBlock("cache **me**")).toBe(first);
     for (let index = 0; index < 600; index++) lexBlock(`block ${index}`);
     expect(lexCacheSize()).toBe(500);
+  });
+
+  it("keeps a streaming tail out of the LRU but reuses it while it is unchanged", async () => {
+    // A fresh module: the LRU above is already full.
+    vi.resetModules();
+    const lex = await import("../../client/components/markdown/lex");
+    const tail = lex.lexBlock("tail **gro", true);
+    expect(lex.lexBlock("tail **gro", true)).toBe(tail);
+    for (let index = 0; index < 50; index++) lex.lexBlock(`tail ${"x".repeat(index)}`, true);
+    expect(lex.lexCacheSize()).toBe(0);
+    lex.lexBlock("tail **grown**");
+    expect(lex.lexCacheSize()).toBe(1);
+  });
+
+  it("serves a streaming tail from the LRU when a finished block has its source", () => {
+    const finished = lexBlock("done **block**");
+    expect(lexBlock("done **block**", true)).toBe(finished);
   });
 });
