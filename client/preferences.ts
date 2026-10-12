@@ -5,12 +5,13 @@ import {
   clampCodeFontSize,
   HOVER_DELAYS,
   HOVER_DELAY_MS,
+  HOVER_DELAY_LABELS,
   preferencesSchema,
   type StoredPreferences,
 } from "../shared/preferences-settings";
 import type { SettingsLanguagePreference } from "./i18n/settings-strings";
 
-export { CODE_FONT_SIZE_MAX, CODE_FONT_SIZE_MIN, clampCodeFontSize, HOVER_DELAYS, HOVER_DELAY_MS };
+export { CODE_FONT_SIZE_MAX, CODE_FONT_SIZE_MIN, clampCodeFontSize, HOVER_DELAYS, HOVER_DELAY_MS, HOVER_DELAY_LABELS };
 export type { StoredPreferences };
 
 export const ACCENT_PRESETS = {
@@ -157,7 +158,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   codeFontSize: null,
   toolDetail: "collapsed",
   pathDisplay: "relative",
-  hoverDelay: "200ms",
+  hoverDelay: "500ms",
   enhancedUserBubble: false,
   selectionActions: true,
   assistantMarkdown: true,

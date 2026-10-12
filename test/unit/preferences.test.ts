@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { HOVER_DELAYS, HOVER_DELAY_MS, preferencesSchema } from "../../shared/preferences-settings";
+import { HOVER_DELAYS, HOVER_DELAY_MS, HOVER_DELAY_LABELS, preferencesSchema } from "../../shared/preferences-settings";
 import {
   DEFAULT_PREFERENCES,
   LEGACY_STORAGE_KEY,
@@ -36,16 +36,17 @@ const V1 = {
 };
 
 describe("preferences v2 defaults", () => {
-  it("defaults old records to 200ms and accepts exactly the five hover delays", () => {
-    expect(DEFAULT_PREFERENCES.hoverDelay).toBe("200ms");
-    expect(parsePreferences({}).hoverDelay).toBe("200ms");
+  it("defaults old records to 500ms and preserves each of the five hover choices", () => {
+    expect(DEFAULT_PREFERENCES.hoverDelay).toBe("500ms");
+    expect(parsePreferences({}).hoverDelay).toBe("500ms");
     for (const hoverDelay of HOVER_DELAYS) {
       expect(parsePreferences({ hoverDelay }).hoverDelay).toBe(hoverDelay);
     }
     for (const hoverDelay of ["400ms", "0ms", 200, null]) {
-      expect(parsePreferences({ hoverDelay }).hoverDelay).toBe("200ms");
+      expect(parsePreferences({ hoverDelay }).hoverDelay).toBe("500ms");
     }
     expect(HOVER_DELAYS.map((value) => HOVER_DELAY_MS[value])).toEqual([200, 500, 1000, 1500, 2000]);
+    expect(HOVER_DELAYS.map((value) => HOVER_DELAY_LABELS[value])).toEqual(["0.2s", "0.5s", "1.0s", "1.5s", "2s"]);
   });
   it("follows Paseo for fonts and starts tools collapsed", () => {
     expect(DEFAULT_PREFERENCES).toMatchObject({

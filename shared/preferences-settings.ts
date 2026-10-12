@@ -25,6 +25,7 @@ export const MARKDOWN_VARIANTS_STORED = ["document", "compact", "terminal"] as c
 export const SETTINGS_LANGUAGES = ["system", "en", "zh"] as const;
 export const HOVER_DELAYS = ["200ms", "500ms", "1s", "1.5s", "2s"] as const;
 export const HOVER_DELAY_MS = { "200ms": 200, "500ms": 500, "1s": 1000, "1.5s": 1500, "2s": 2000 } as const;
+export const HOVER_DELAY_LABELS = { "200ms": "0.2s", "500ms": "0.5s", "1s": "1.0s", "1.5s": "1.5s", "2s": "2s" } as const;
 
 export const CODE_FONT_SIZE_MIN = 10;
 export const CODE_FONT_SIZE_MAX = 22;
@@ -62,7 +63,7 @@ export const preferencesSchema = z.preprocess(migrateRowLabels, z.object({
     .catch(null),
   toolDetail: z.enum(TOOL_DETAILS).catch("collapsed"),
   pathDisplay: z.enum(PATH_DISPLAYS).catch("relative"),
-  hoverDelay: z.enum(HOVER_DELAYS).catch("200ms"),
+  hoverDelay: z.enum(HOVER_DELAYS).catch("500ms"),
   enhancedUserBubble: flag(false),
   selectionActions: flag(true),
   assistantMarkdown: flag(true),

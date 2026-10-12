@@ -13,6 +13,7 @@ import {
   CODE_FONT_SIZE_MAX,
   CODE_FONT_SIZE_MIN,
   HOVER_DELAYS,
+  HOVER_DELAY_LABELS,
   resetEnhancerPreferences,
   updateEnhancerPreferences,
   useEnhancerPreferences,
@@ -712,7 +713,7 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
             <Segmented<HoverDelayPreference>
               label={t.hoverDelayTitle}
               value={preferences.hoverDelay}
-              options={HOVER_DELAYS.map((value) => ({ value, label: value }))}
+              options={HOVER_DELAYS.map((value) => ({ value, label: HOVER_DELAY_LABELS[value] }))}
               onChange={(hoverDelay) => updateEnhancerPreferences({ hoverDelay })}
               look={look}
             />
