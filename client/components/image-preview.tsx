@@ -20,7 +20,6 @@ import {
   HoverPreviewBody,
   HoverPreviewContext,
   HoverPreviewHeader,
-  RowLongPressContext,
   useHoverPreview,
 } from "../ui/hover-preview";
 import type { ImageFile } from "../image-file";
@@ -215,12 +214,16 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
   const absolutePath = formatPath(path, pathContext).absolutePath;
   // The absolute path, as a long press on any path gives.
   const copyPath = () => void copy(absolutePath, { feedback: "toast" });
-  // The header previews the picture as a tool row previews its body: a resting
-  // pointer on web, a long press on a phone, where the preview carries the
-  // copy the long press used to run.
-  const previews = Boolean(file?.dataUri) && !preview;
+  // On web a resting pointer on the header previews the picture, as it
+  // previews a tool row's body. On a phone a long press opens the picture in
+  // the viewer, as a press on the thumbnail does, hidden or not.
+  const viewable = Boolean(file?.dataUri) && !preview;
+  const previews = viewable && !capabilities.native;
   const previewOwner = useContext(HoverPreviewContext);
   const hover = useHoverPreview(previews);
+  const longPress = viewable && capabilities.native
+    ? () => setViewing(true)
+    : capabilities.touch ? copyPath : undefined;
   const { anchorRef } = hover;
   const headerRef = useCallback(
     (node: View | null) => {
@@ -234,53 +237,51 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
     <View style={[styles.container, bleed && styles.bleed]}>
       {/* The path inside the header must not open a second layer. */}
       <HoverPreviewContext.Provider value={previewOwner || previews}>
-        <RowLongPressContext.Provider value={hover.press}>
-          <Pressable
-            ref={headerRef}
-            accessibilityRole={toggle ? "button" : undefined}
-            accessibilityLabel={toggle ? `${shown ? "Hide" : "Show"} the image ${path}` : undefined}
-            accessibilityState={toggle ? { expanded: shown } : undefined}
-            disabled={!toggle}
-            onPressIn={toggle ? anchor.hold : undefined}
-            onPress={toggle}
-            onLongPress={hover.press ?? (capabilities.touch ? copyPath : undefined)}
-            style={({ pressed }) => [
-              styles.header,
-              file?.dataUri && !shown && styles.headerAlone,
-              pressed && toggle && { backgroundColor: tokens.v2.surface2 },
-            ]}
-          >
-            <View style={styles.slot}>
-              <Glyph name="Image" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+        <Pressable
+          ref={headerRef}
+          accessibilityRole={toggle ? "button" : undefined}
+          accessibilityLabel={toggle ? `${shown ? "Hide" : "Show"} the image ${path}` : undefined}
+          accessibilityState={toggle ? { expanded: shown } : undefined}
+          disabled={!toggle}
+          onPressIn={toggle ? anchor.hold : undefined}
+          onPress={toggle}
+          onLongPress={longPress}
+          style={({ pressed }) => [
+            styles.header,
+            file?.dataUri && !shown && styles.headerAlone,
+            pressed && toggle && { backgroundColor: tokens.v2.surface2 },
+          ]}
+        >
+          <View style={styles.slot}>
+            <Glyph name="Image" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+          </View>
+          {/* Relative to the workspace, middle-truncated. On touch the path is
+              part of the header's press, as a row's target is (plan §3.9).
+              A preview panel already shows the whole path above the card. */}
+          {preview ? null : (
+            <View pointerEvents={touchFirst ? "none" : "auto"} style={styles.path}>
+              <PathText
+                path={path}
+                tokens={tokens}
+                onReveal={onReveal ? () => onReveal() : undefined}
+                style={{ fontSize: UI_SCALE.base }}
+              />
             </View>
-            {/* Relative to the workspace, middle-truncated. On touch the path is
-                part of the header's press, as a row's target is (plan §3.9).
-                A preview panel already shows the whole path above the card. */}
-            {preview ? null : (
-              <View pointerEvents={touchFirst ? "none" : "auto"} style={styles.path}>
-                <PathText
-                  path={path}
-                  tokens={tokens}
-                  onReveal={onReveal ? () => onReveal() : undefined}
-                  style={{ fontSize: UI_SCALE.base }}
-                />
-              </View>
-            )}
-            <View style={styles.spacer} />
-            <View style={styles.chips}>
-              {chips.map((chip) => (
-                <Text key={chip} style={styles.chip}>
-                  {chip}
-                </Text>
-              ))}
+          )}
+          <View style={styles.spacer} />
+          <View style={styles.chips}>
+            {chips.map((chip) => (
+              <Text key={chip} style={styles.chip}>
+                {chip}
+              </Text>
+            ))}
+          </View>
+          {toggle ? (
+            <View style={styles.eye}>
+              <Glyph name={shown ? "Eye" : "EyeOff"} size={14} color={tokens.foregroundMuted} />
             </View>
-            {toggle ? (
-              <View style={styles.eye}>
-                <Glyph name={shown ? "Eye" : "EyeOff"} size={14} color={tokens.foregroundMuted} />
-              </View>
-            ) : null}
-          </Pressable>
-        </RowLongPressContext.Provider>
+          ) : null}
+        </Pressable>
       </HoverPreviewContext.Provider>
       {hover.open && file?.dataUri ? (
         <HoverPreview preview={hover} tokens={tokens} wraps={false}>
@@ -326,19 +327,19 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
               />
             </Pressable>
           )}
-          {preview ? null : (
-            <ImageViewer
-              open={viewing}
-              onClose={() => setViewing(false)}
-              uri={file.dataUri}
-              width={file.width ?? null}
-              height={file.height ?? null}
-              label={path}
-              tokens={tokens}
-              onReveal={onReveal}
-            />
-          )}
         </View>
+      ) : null}
+      {viewable && file?.dataUri ? (
+        <ImageViewer
+          open={viewing}
+          onClose={() => setViewing(false)}
+          uri={file.dataUri}
+          width={file.width ?? null}
+          height={file.height ?? null}
+          label={path}
+          tokens={tokens}
+          onReveal={onReveal}
+        />
       ) : null}
     </View>
   );

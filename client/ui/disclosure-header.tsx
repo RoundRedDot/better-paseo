@@ -107,6 +107,11 @@ export interface DisclosureHeaderProps {
   /** False when the preview holds no text to wrap, so it has no wrap toggle. */
   previewWraps?: boolean;
   /**
+   * False keeps `onLongPress` on a phone instead of the long-press preview;
+   * the hover preview on web is unchanged. An image read opens the picture.
+   */
+  pressPreview?: boolean;
+  /**
    * Keeps the row in place when it toggles. The row brings its own; a card
    * whose row moves into another parent when it opens (`StickyCard`) passes
    * one that outlives the move, or the remounted row forgets the press.
@@ -157,6 +162,7 @@ export function DisclosureHeader({
   previewContent,
   onPreviewOpen,
   previewWraps = true,
+  pressPreview = true,
   scrollAnchor,
 }: DisclosureHeaderProps) {
   const previewOwner = useContext(HoverPreviewContext);
@@ -167,6 +173,7 @@ export function DisclosureHeader({
   const ownAnchor = useScrollAnchor(expanded);
   const anchor = scrollAnchor ?? ownAnchor;
   const { anchorRef } = preview;
+  const longPress = (pressPreview ? preview.press : undefined) ?? onLongPress;
   const rowRef = useCallback(
     (node: View | null) => {
       anchorRef.current = node;
@@ -258,7 +265,7 @@ export function DisclosureHeader({
   return (
     <>
       <HoverPreviewContext.Provider value={previewOwner || (Boolean(previewContent) && !expanded)}>
-        <RowLongPressContext.Provider value={preview.press}>
+        <RowLongPressContext.Provider value={pressPreview ? preview.press : longPress}>
           <Pressable
             ref={rowRef}
             accessibilityRole="button"
@@ -268,7 +275,7 @@ export function DisclosureHeader({
             aria-expanded={expanded}
             onPressIn={anchor.hold}
             onPress={toggle}
-            onLongPress={preview.press ?? onLongPress}
+            onLongPress={longPress}
             hitSlop={slop > 0 ? { top: slop, bottom: slop } : undefined}
             {...(pointerProps as object)}
             style={({ pressed }) => [

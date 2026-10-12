@@ -165,8 +165,8 @@ function LiveToolCallRendererBody({
     defaultToolExpanded(view, preferences.toolDetail),
   );
 
-  // Only a read or write of an image that is open, or has been previewed,
-  // asks the daemon for bytes; the hook itself refuses every other path, so a
+  // Only a read or write of an image that is open, or has been previewed or
+  // long-pressed for the viewer, asks the daemon for bytes; the hook itself refuses every other path, so a
   // code read costs no RPC. A previewed image stays loaded, so hovering the
   // row again does not read the file again.
   const readsImage = (view.tool === "read" || view.tool === "write") && isImagePath(view.filePath);
@@ -193,7 +193,7 @@ function LiveToolCallRendererBody({
           expanded={expanded}
           onExpandedChange={setExpanded}
           imageFile={imageFile}
-          onPreviewOpen={readsImage ? markPreviewed : undefined}
+          requestImage={readsImage ? markPreviewed : undefined}
         />
       </PathContext.Provider>
       <TimelineTailHub
