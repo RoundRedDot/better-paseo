@@ -91,6 +91,14 @@ export interface EnhancerPreferences {
    * itself needs it off, or the rows overlap.
    */
   compactRowSpacing: boolean;
+  /**
+   * The same host gap under a reply: Paseo leaves 4pt between its own reply
+   * and the tool row below, but 16pt under a plugin-drawn one. On, a reply
+   * takes 12 back when a tool, thought or todo row comes next
+   * (`timeline-order.ts`). A host that spaces plugin items as it spaces its
+   * own needs it off.
+   */
+  compactReplySpacing: boolean;
   /** The settings page's language; `system` follows the device locale. */
   language: SettingsLanguagePreference;
   /**
@@ -148,6 +156,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   markdownVariant: "document",
   rowLabels: false,
   compactRowSpacing: true,
+  compactReplySpacing: true,
   language: "system",
   debugPerf: false,
 };

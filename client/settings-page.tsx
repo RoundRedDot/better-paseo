@@ -765,6 +765,19 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
           }
           look={look}
         />
+        <SettingRow
+          title={t.replySpacingTitle}
+          description={t.replySpacingDescription}
+          control={
+            <Toggle
+              value={preferences.compactReplySpacing}
+              onChange={(compactReplySpacing) => updateEnhancerPreferences({ compactReplySpacing })}
+              label={t.replySpacingTitle}
+              look={look}
+            />
+          }
+          look={look}
+        />
       </Section>
 
       <Section title={t.sectionMessages} look={look}>

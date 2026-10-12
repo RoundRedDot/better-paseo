@@ -111,6 +111,9 @@ const en = {
   rowSpacingTitle: "Compact row spacing",
   rowSpacingDescription:
     "Paseo 0.11 leaves 16pt under every row this plugin draws, where its own tool rows sit flush. This takes most of it back. Turn it off if rows overlap on a Paseo that already stacks them.",
+  replySpacingTitle: "Compact reply spacing",
+  replySpacingDescription:
+    "A Paseo issue, not this plugin's: Paseo 0.11 leaves 16pt under a reply this plugin draws, but only 4pt under its own reply when a tool row follows. This takes the extra 12pt back when a tool, thought or todo row comes next; above a prompt or another reply the gap stays. Turn it off once Paseo spaces plugin replies itself, or if a reply overlaps the row below it.",
 
   sectionMessages: "Messages",
   bubbleTitle: "Enhanced prompt bubble",
@@ -208,6 +211,9 @@ const zh: SettingsStrings = {
   rowSpacingTitle: "紧凑行距",
   rowSpacingDescription:
     "Paseo 0.11 会在插件绘制的每一行下面留出 16pt，而它自己的工具行之间是紧挨着的。开启后会收回其中大部分。如果在已经修正了这个间距的 Paseo 上出现行重叠，请关闭。",
+  replySpacingTitle: "紧凑回复间距",
+  replySpacingDescription:
+    "这是宿主 Paseo 的问题，不是插件的：Paseo 0.11 会在插件绘制的回复下面留出 16pt，而它自己的回复下面紧跟工具行时只留 4pt。开启后，回复下面紧跟工具、思考或待办行时会收回多出的 12pt；下面是提问或另一条回复时间距不变。等 Paseo 自己修正了插件回复的间距，或者回复和下面的行重叠时，请关闭。",
 
   sectionMessages: "消息",
   bubbleTitle: "增强的提问气泡",
