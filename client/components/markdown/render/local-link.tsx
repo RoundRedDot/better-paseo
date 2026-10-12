@@ -1,5 +1,5 @@
 import React, { useContext, type ReactNode } from "react";
-import { Text } from "react-native";
+import { ProseSpan } from "../../../ui/prose-text";
 import { formatPath } from "../../../paths/format-path";
 import { PathContext } from "../../../ui/path-text";
 import { useCopy } from "../../../ui/use-copy";
@@ -30,7 +30,7 @@ export function LocalLink({
   // `onPress` on a Text, as for a web link: a View mid sentence would break
   // the line box.
   return (
-    <Text
+    <ProseSpan
       selectable
       accessibilityRole="link"
       accessibilityLabel={absolutePath}
@@ -39,6 +39,6 @@ export function LocalLink({
       style={context.styles.link}
     >
       {children}
-    </Text>
+    </ProseSpan>
   );
 }
