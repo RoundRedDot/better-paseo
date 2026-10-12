@@ -6,6 +6,7 @@ import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { FadeIn } from "../ui/fade-in";
 import { formatStamp } from "../ui/time";
+import { contentTextProps, contentTextStyle } from "../ui/content-text";
 import { TYPE } from "../ui/tokens/typography";
 import { unselectable } from "./selection";
 import type { ExtendedThemeTokens } from "./theme-tokens";
@@ -161,7 +162,7 @@ export function UserMessage({
       style={styles.column}
     >
       <View style={styles.bubble}>
-        <Text selectable style={styles.text}>
+        <Text selectable {...contentTextProps()} style={[styles.text, contentTextStyle()]}>
           {text}
         </Text>
         {images?.length ? (

@@ -350,12 +350,11 @@ export function useThemeTokens(
 ): ExtendedThemeTokens {
   const key = themeKey(theme);
   const resolvedPlatform = platform ?? STATIC_PLATFORM;
-  // Plan D10 level 2: Paseo's Appearance mono settings, read on web while the
-  // host shares no typography. The value keeps its identity until it changes.
-  const appearance = useHostAppearance(
-    resolvedPlatform === "web" && readHostTypography(theme) === null,
-    theme,
-  );
+  // Plan D10 level 2: Paseo's Appearance settings, while the host shares no
+  // typography. Web reads localStorage; iOS and Android read AsyncStorage.
+  // The value keeps its identity until it changes. H1 takes precedence and
+  // the hook stops reading.
+  const appearance = useHostAppearance(readHostTypography(theme) === null, theme);
   return useMemo(
     () => {
       // Iosevka and Inter are installed only once a reader picks them.

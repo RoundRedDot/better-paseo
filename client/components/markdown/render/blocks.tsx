@@ -6,6 +6,7 @@ import type { MathToken } from "../lex";
 import { CodeBlock } from "./code-block";
 import type { RenderContext } from "./context";
 import { codeSurface } from "../../host-font-escape";
+import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
 import { ProseSpan, ProseText } from "../../../ui/prose-text";
 import { renderInline } from "./inline";
 import { LocalImage } from "./local-image";
@@ -287,13 +288,17 @@ function renderRow(
     );
   } else if (row.ordered) {
     marker = (
-      <Text numberOfLines={1} style={[styles.markerOrdered, { width: row.numberWidth }]}>
+      <Text
+        numberOfLines={1}
+        {...contentTextProps()}
+        style={[styles.markerOrdered, { width: row.numberWidth }, contentTextStyle()]}
+      >
         {`${row.number}.`}
       </Text>
     );
   } else {
     marker = (
-      <Text numberOfLines={1} style={styles.markerBullet}>
+      <Text numberOfLines={1} {...contentTextProps()} style={[styles.markerBullet, contentTextStyle()]}>
         {BULLETS[depth % BULLETS.length] ?? BULLETS[0]}
       </Text>
     );

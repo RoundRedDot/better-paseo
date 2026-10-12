@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 import type { Tokens } from "../../../vendor/marked";
 import type { RenderContext } from "./context";
 import { inlineWidth, renderInline } from "./inline";
+import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
 import { HScroll } from "../../../ui/h-scroll";
 import {
   ALIGN_KEYS,
@@ -108,10 +109,12 @@ export function MdTable({
               <Text
                 key={cellKey}
                 selectable
+                {...contentTextProps()}
                 style={[
                   styles.tableHeaderCell,
                   align(column),
                   ...frame(column),
+                  contentTextStyle(),
                 ]}
               >
                 {renderInline(cell.tokens, context, cellKey)}
@@ -130,10 +133,12 @@ export function MdTable({
                 <Text
                   key={cellKey}
                   selectable
+                  {...contentTextProps()}
                   style={[
                     styles.tableCell,
                     align(column),
                     ...frame(column),
+                    contentTextStyle(),
                   ]}
                 >
                   {renderInline(cell.tokens, context, cellKey)}
