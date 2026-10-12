@@ -151,15 +151,17 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: Im
 
   // Size from the image's own pixels: a box sized by width alone letterboxes a
   // tall image inside empty sides, and a fixed height blows a 32 px icon up to
-  // eight times its size. Height leads, width follows the ratio, and the
-  // container clamps anything too wide.
+  // eight times its size. Width leads and height follows the ratio: the box
+  // fills the column but grows no wider than the file itself or than
+  // `MAX_HEIGHT` allows. A fixed height clamped by the column instead keeps
+  // its full height on a phone and letterboxes a wide image above and below.
   const ratio = file?.width && file.height ? file.width / file.height : null;
   const frame =
-    ratio !== null && file?.height
+    ratio !== null && file?.width
       ? {
-          height: Math.min(MAX_HEIGHT, file.height),
+          width: "100%" as const,
+          maxWidth: Math.min(file.width, MAX_HEIGHT * ratio),
           aspectRatio: ratio,
-          maxWidth: "100%" as const,
         }
       : styles.image;
 
