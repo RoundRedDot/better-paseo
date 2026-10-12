@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -8 848 446" width="848" height="446" role="img">
+<title>Web 生产构建，整段回放的主线程任务时间（秒）。淡色是 Paseo 原生，彩色收回或伸出后是本仓库。</title>
+<style>
+.final { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .motion { display: none; }
+  .final { display: inline; }
+}
+</style>
+<text x="132.0" y="426" text-anchor="middle" fill="#5c6e76" font-size="11" font-family="ui-sans-serif, system-ui, sans-serif">0s</text>
+<line x1="262.0" y1="28" x2="262.0" y2="402" stroke="#d5e0e4" stroke-width="1"/>
+<text x="262.0" y="426" text-anchor="middle" fill="#5c6e76" font-size="11" font-family="ui-sans-serif, system-ui, sans-serif">2s</text>
+<line x1="392.0" y1="28" x2="392.0" y2="402" stroke="#d5e0e4" stroke-width="1"/>
+<text x="392.0" y="426" text-anchor="middle" fill="#5c6e76" font-size="11" font-family="ui-sans-serif, system-ui, sans-serif">4s</text>
+<line x1="522.0" y1="28" x2="522.0" y2="402" stroke="#d5e0e4" stroke-width="1"/>
+<text x="522.0" y="426" text-anchor="middle" fill="#5c6e76" font-size="11" font-family="ui-sans-serif, system-ui, sans-serif">6s</text>
+<line x1="652.0" y1="28" x2="652.0" y2="402" stroke="#d5e0e4" stroke-width="1"/>
+<text x="652.0" y="426" text-anchor="middle" fill="#5c6e76" font-size="11" font-family="ui-sans-serif, system-ui, sans-serif">8s</text>
+<text x="120" y="52" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">代码块流式</text>
+<rect x="132" y="42" width="272.0" height="12" fill="#cdd8dc"/>
+<rect class="motion" x="132" y="42" width="138.0" height="12" fill="#1e5c4e"><animate attributeName="width" from="272.0" to="138.0" begin="0.000s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="132" y="42" width="138.0" height="12" fill="#1e5c4e"/>
+<text text-anchor="end" x="752" y="52" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">4.18 → 2.12</text><polygon fill="#1e5c4e" points="770,43 776,51 764,51"/><text x="780" y="52" fill="#1e5c4e" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">49%</text>
+<text x="120" y="86" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">大 diff</text>
+<rect x="132" y="76" width="30.6" height="12" fill="#cdd8dc"/>
+<rect class="motion" x="132" y="76" width="24.4" height="12" fill="#1e5c4e"><animate attributeName="width" from="30.6" to="24.4" begin="0.045s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="132" y="76" width="24.4" height="12" fill="#1e5c4e"/>
+<text text-anchor="end" x="752" y="86" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">0.47 → 0.38</text><polygon fill="#1e5c4e" points="770,77 776,85 764,85"/><text x="780" y="86" fill="#1e5c4e" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">20%</text>
+<text x="120" y="120" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">100 轮历史</text>
+<rect x="132" y="110" width="114.7" height="12" fill="#cdd8dc"/>
+<rect class="motion" x="132" y="110" width="123.7" height="12" fill="#a33b32"><animate attributeName="width" from="114.7" to="123.7" begin="0.090s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="132" y="110" width="123.7" height="12" fill="#a33b32"/>
+<line x1="246.7" y1="107" x2="246.7" y2="125" stroke="#172226" stroke-width="1.5"/>
+<text text-anchor="end" x="752" y="120" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">1.76 → 1.90</text><polygon fill="#a33b32" points="764,113 776,113 770,121"/><text x="780" y="120" fill="#a33b32" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">8%</text>
+<text x="120" y="154" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">长回复</text>
+<rect x="132" y="144" width="472.4" height="12" fill="#cdd8dc"/>
+<rect class="motion" x="132" y="144" width="311.7" height="12" fill="#1e5c4e"><animate attributeName="width" from="472.4" to="311.7" begin="0.135s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="132" y="144" width="311.7" height="12" fill="#1e5c4e"/>
+<text text-anchor="end" x="752" y="154" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">7.27 → 4.80</text><polygon fill="#1e5c4e" points="770,145 776,153 764,153"/><text x="780" y="154" fill="#1e5c4e" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">34%</text>
+<text x="120" y="188" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">混合一轮</text>
+<rect x="132" y="178" width="91.4" height="12" fill="#cdd8dc"/>
+<rect class="motion" x="132" y="178" width="83.7" height="12" fill="#1e5c4e"><animate attributeName="width" from="91.4" to="83.7" begin="0.180s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="132" y="178" width="83.7" height="12" fill="#1e5c4e"/>
+<text text-anchor="end" x="752" y="188" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">1.41 → 1.29</text><polygon fill="#1e5c4e" points="770,179 776,187 764,187"/><text x="780" y="188" fill="#1e5c4e" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">8%</text>
+<text x="120" y="222" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">读 20 个文件</text>
+<rect x="132" y="212" width="83.7" height="12" fill="#cdd8dc"/>
+<rect class="motion" x="132" y="212" width="51.0" height="12" fill="#1e5c4e"><animate attributeName="width" from="83.7" to="51.0" begin="0.225s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="132" y="212" width="51.0" height="12" fill="#1e5c4e"/>
+<text text-anchor="end" x="752" y="222" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">1.29 → 0.78</text><polygon fill="#1e5c4e" points="770,213 776,221 764,221"/><text x="780" y="222" fill="#1e5c4e" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">39%</text>
+<text x="120" y="256" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">思考散文</text>
+<rect x="132" y="246" width="152.0" height="12" fill="#cdd8dc"/>
+<rect class="motion" x="132" y="246" width="87.8" height="12" fill="#1e5c4e"><animate attributeName="width" from="152.0" to="87.8" begin="0.270s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="132" y="246" width="87.8" height="12" fill="#1e5c4e"/>
+<text text-anchor="end" x="752" y="256" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">2.34 → 1.35</text><polygon fill="#1e5c4e" points="770,247 776,255 764,255"/><text x="780" y="256" fill="#1e5c4e" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">42%</text>
+<text x="120" y="290" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">思考分节</text>
+<rect x="132" y="280" width="137.4" height="12" fill="#cdd8dc"/>
+<rect class="motion" x="132" y="280" width="83.4" height="12" fill="#1e5c4e"><animate attributeName="width" from="137.4" to="83.4" begin="0.315s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="132" y="280" width="83.4" height="12" fill="#1e5c4e"/>
+<text text-anchor="end" x="752" y="290" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">2.11 → 1.28</text><polygon fill="#1e5c4e" points="770,281 776,289 764,289"/><text x="780" y="290" fill="#1e5c4e" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">39%</text>
+<text x="120" y="324" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">大段终端</text>
+<rect x="132" y="314" width="58.0" height="12" fill="#cdd8dc"/>
+<rect class="motion" x="132" y="314" width="48.2" height="12" fill="#1e5c4e"><animate attributeName="width" from="58.0" to="48.2" begin="0.360s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="132" y="314" width="48.2" height="12" fill="#1e5c4e"/>
+<text text-anchor="end" x="752" y="324" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">0.89 → 0.74</text><polygon fill="#1e5c4e" points="770,315 776,323 764,323"/><text x="780" y="324" fill="#1e5c4e" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">17%</text>
+<text x="120" y="358" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">表格流式</text>
+<rect x="132" y="348" width="188.1" height="12" fill="#cdd8dc"/>
+<rect class="motion" x="132" y="348" width="90.7" height="12" fill="#1e5c4e"><animate attributeName="width" from="188.1" to="90.7" begin="0.405s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="132" y="348" width="90.7" height="12" fill="#1e5c4e"/>
+<text text-anchor="end" x="752" y="358" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">2.89 → 1.39</text><polygon fill="#1e5c4e" points="770,349 776,357 764,357"/><text x="780" y="358" fill="#1e5c4e" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">52%</text>
+<text x="120" y="392" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">展开的工具</text>
+<rect x="132" y="382" width="84.1" height="12" fill="#cdd8dc"/>
+<rect class="motion" x="132" y="382" width="71.7" height="12" fill="#1e5c4e"><animate attributeName="width" from="84.1" to="71.7" begin="0.450s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="132" y="382" width="71.7" height="12" fill="#1e5c4e"/>
+<text text-anchor="end" x="752" y="392" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">1.29 → 1.10</text><polygon fill="#1e5c4e" points="770,383 776,391 764,391"/><text x="780" y="392" fill="#1e5c4e" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">15%</text>
+</svg>
