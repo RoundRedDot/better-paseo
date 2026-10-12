@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
   Modal,
   View,
   Pressable,
@@ -7,8 +8,12 @@ import {
   StyleSheet,
   Platform,
   PanResponder,
+  SafeAreaView,
+  StatusBar,
   type GestureResponderEvent,
   type LayoutChangeEvent,
+  type PanResponderGestureState,
+  type ViewProps,
 } from "react-native";
 import { Glyph } from "./glyph";
 import { radiusV2, space } from "./theme-tokens";
@@ -46,6 +51,9 @@ const ZOOM_STEP = 1.25;
 const DOUBLE_TAP_MS = 300;
 /** Movement under this many points is a press, not a drag. */
 const TAP_SLOP = 4;
+/** A drag at the fit this far, or this fast, closes the viewer. */
+const DISMISS_DISTANCE = 96;
+const DISMISS_VELOCITY = 0.8;
 const BUTTON_SIZE = IS_WEB ? 24 : 32;
 const GLYPH_SIZE = IS_WEB ? 14 : 18;
 
@@ -58,8 +66,13 @@ const GLYPH_SIZE = IS_WEB ? 14 : 18;
  * and reset in the corner beside close, the wheel (or a trackpad pinch) zooms
  * about the cursor, a drag pans a zoomed picture, two fingers pinch, and a
  * double press resets. The picture fits the window without growing past its
- * own pixels. A press on the backdrop, the close mark, Escape on web and the
- * Android back button close it.
+ * own pixels. A press on the backdrop, the close mark, a drag down (or up)
+ * on the picture at its fit, Escape on web and the Android back button close
+ * it.
+ *
+ * The stage sits inside the screen's safe area, so on a phone the picture and
+ * the toolbar stay clear of the status bar and the Dynamic Island, whose
+ * strip would otherwise sit over the close mark and swallow its presses.
  */
 export function ImageViewer(props: ImageViewerProps) {
   return (
@@ -77,7 +90,14 @@ export function ImageViewer(props: ImageViewerProps) {
 }
 
 type Gesture =
-  | { type: "drag"; start: ViewportPoint; startTransform: ViewportTransform; moved: boolean }
+  | {
+      type: "drag";
+      start: ViewportPoint;
+      startTransform: ViewportTransform;
+      moved: boolean;
+      /** A vertical drag of the picture at its fit: it follows the finger and may close. */
+      dismissing: boolean;
+    }
   | { type: "pinch"; distance: number; midpoint: ViewportPoint };
 
 /** Points relative to the canvas. The picture ignores touches, so the canvas is always the target. */
@@ -98,6 +118,20 @@ function distance([a, b]: Pair): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+/**
+ * The safe area on iOS. React Native's `SafeAreaView` is the only inset source
+ * a plugin can reach (the host's safe-area context is not shared). Named
+ * imports from the host's module are read where they are used, so web and
+ * Android never touch its deprecated getter. (A namespace import would copy
+ * every export at load, and some of them throw on evaluation.)
+ */
+function SafeInset(props: ViewProps) {
+  if (Platform.OS === "ios" && SafeAreaView) return <SafeAreaView {...props} />;
+  // The modal is drawn under Android's translucent status bar.
+  const top = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
+  return <View {...props} style={[props.style, top > 0 && { paddingTop: top }]} />;
+}
+
 function ViewerBody({ onClose, uri, width, height, label, tokens, onReveal }: ImageViewerProps) {
   const [natural, setNatural] = useState<ViewportSize | null>(
     width && height ? { width, height } : null,
@@ -106,6 +140,8 @@ function ViewerBody({ onClose, uri, width, height, label, tokens, onReveal }: Im
   const [transform, setTransform] = useState<ViewportTransform>(FIT_TRANSFORM);
   const [dragging, setDragging] = useState(false);
   const canvasRef = useRef<View>(null);
+  // How far a dismissing drag has carried the picture; the backdrop fades with it.
+  const dismissOffset = useRef(new Animated.Value(0)).current;
 
   // A header that gave no size still leaves the decoded image to ask.
   useEffect(() => {
@@ -193,8 +229,18 @@ function ViewerBody({ onClose, uri, width, height, label, tokens, onReveal }: Im
     };
 
     const startDrag = (point: ViewportPoint, moved: boolean) => {
-      gesture.current = { type: "drag", start: point, startTransform: live.current.transform, moved };
+      gesture.current = {
+        type: "drag",
+        start: point,
+        startTransform: live.current.transform,
+        moved,
+        dismissing: false,
+      };
       setDragging(live.current.transform.scale > 1);
+    };
+
+    const springBack = () => {
+      Animated.spring(dismissOffset, { toValue: 0, useNativeDriver: !IS_WEB, bounciness: 0 }).start();
     };
 
     return PanResponder.create({
@@ -250,7 +296,16 @@ function ViewerBody({ onClose, uri, width, height, label, tokens, onReveal }: Im
         }
         const dx = points[0].x - active.start.x;
         const dy = points[0].y - active.start.y;
-        if (Math.hypot(dx, dy) > TAP_SLOP) active.moved = true;
+        if (!active.moved && Math.hypot(dx, dy) > TAP_SLOP) {
+          active.moved = true;
+          // At the fit there is nothing to pan, so a mostly vertical drag
+          // carries the picture away instead, as in the system photo viewer.
+          active.dismissing = active.startTransform.scale <= 1 && Math.abs(dy) > Math.abs(dx);
+        }
+        if (active.dismissing) {
+          dismissOffset.setValue(dy);
+          return;
+        }
         commit(
           panContent({
             transform: active.startTransform,
@@ -261,18 +316,27 @@ function ViewerBody({ onClose, uri, width, height, label, tokens, onReveal }: Im
           }),
         );
       },
-      onPanResponderRelease: () => {
+      onPanResponderRelease: (_event, state: PanResponderGestureState) => {
         const active = gesture.current;
         gesture.current = null;
         setDragging(false);
+        if (active?.type === "drag" && active.dismissing) {
+          if (Math.abs(state.dy) > DISMISS_DISTANCE || Math.abs(state.vy) > DISMISS_VELOCITY) {
+            live.current.onClose();
+          } else {
+            springBack();
+          }
+          return;
+        }
         if (active?.type === "drag" && !active.moved) press(active.start);
       },
       onPanResponderTerminate: () => {
         gesture.current = null;
         setDragging(false);
+        springBack();
       },
     });
-  }, [commit, reset]);
+  }, [commit, reset, dismissOffset]);
 
   // The wheel, and a trackpad pinch (which arrives as a wheel with ctrlKey),
   // zoom about the cursor. React Native has no wheel event, so on web the
@@ -320,34 +384,46 @@ function ViewerBody({ onClose, uri, width, height, label, tokens, onReveal }: Im
   if (onReveal) actions.push({ icon: "FolderOpen", label: "Show in file manager", onPress: onReveal });
   actions.push({ icon: "X", label: "Close the image", onPress: onClose });
 
+  const backdropOpacity = dismissOffset.interpolate({
+    inputRange: [-DISMISS_DISTANCE * 3, 0, DISMISS_DISTANCE * 3],
+    outputRange: [0.2, 1, 0.2],
+    extrapolate: "clamp",
+  });
+
   return (
     <View style={styles.root}>
-      <View
-        ref={canvasRef}
-        onLayout={onLayout}
-        accessibilityRole="image"
-        accessibilityLabel={label}
-        style={[styles.canvas, IS_WEB && ({ cursor, touchAction: "none", userSelect: "none" } as never)]}
-        {...responder.panHandlers}
-      >
-        {fitted ? (
+      <Animated.View pointerEvents="none" style={[styles.backdrop, { opacity: backdropOpacity }]} />
+      <SafeInset style={styles.safe}>
+        <View style={styles.stage}>
           <View
-            pointerEvents="none"
-            style={{
-              width: fitted.width,
-              height: fitted.height,
-              transform: [{ translateX: transform.x }, { translateY: transform.y }, { scale: transform.scale }],
-            }}
+            ref={canvasRef}
+            onLayout={onLayout}
+            accessibilityRole="image"
+            accessibilityLabel={label}
+            style={[styles.canvas, IS_WEB && ({ cursor, touchAction: "none", userSelect: "none" } as never)]}
+            {...responder.panHandlers}
           >
-            <Image source={{ uri }} style={styles.image} resizeMode="contain" />
+            {fitted ? (
+              <Animated.View pointerEvents="none" style={{ transform: [{ translateY: dismissOffset }] }}>
+                <View
+                  style={{
+                    width: fitted.width,
+                    height: fitted.height,
+                    transform: [{ translateX: transform.x }, { translateY: transform.y }, { scale: transform.scale }],
+                  }}
+                >
+                  <Image source={{ uri }} style={styles.image} resizeMode="contain" />
+                </View>
+              </Animated.View>
+            ) : null}
           </View>
-        ) : null}
-      </View>
-      <View style={styles.toolbar} pointerEvents="box-none">
-        {actions.map((action) => (
-          <ToolbarButton key={action.label} action={action} tokens={tokens} />
-        ))}
-      </View>
+          <View style={styles.toolbar} pointerEvents="box-none">
+            {actions.map((action) => (
+              <ToolbarButton key={action.label} action={action} tokens={tokens} />
+            ))}
+          </View>
+        </View>
+      </SafeInset>
     </View>
   );
 }
@@ -386,7 +462,10 @@ function ToolbarButton({ action, tokens }: { action: ToolbarAction; tokens: Exte
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.9)" },
+  root: { flex: 1 },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0, 0, 0, 0.9)" },
+  safe: { flex: 1 },
+  stage: { flex: 1 },
   canvas: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",

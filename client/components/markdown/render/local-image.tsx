@@ -13,6 +13,7 @@ export function LocalImage({ path, context }: { path: string; context: RenderCon
   return (
     <View style={styles.frame}>
       <ImagePreview
+        bleed
         path={path}
         file={file}
         tokens={context.tokens}
