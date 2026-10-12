@@ -31,7 +31,7 @@ import { AssistantFooter } from "./components/turn-footer";
 import { SystemCard } from "./components/system-card";
 import { parseSystemEnvelope } from "./system-envelope";
 import { useIsTimelineTail, useTextItemTailKey } from "./timeline-tail";
-import { useNextEntryIsRow, useTimelineEntry } from "./timeline-order";
+import { useHasEntryAfter, useNextEntryIsRow, useTimelineEntry } from "./timeline-order";
 import type { TaskListData, TaskItemData, NoticeCalloutData } from "../shared/contracts";
 import { revealPathRpc } from "../shared/file-rpc";
 import { useImageFile } from "./image-file";
@@ -117,8 +117,8 @@ function LiveToolCallRendererBody({
 
   const view = useMemo(() => classifyTool(data), [data]);
   const itemKey = `tool:${data.callId ?? view.title}:${timestamp.getTime()}`;
-  const isTail = useIsTimelineTail(itemKey);
-  useTimelineEntry(timestamp.getTime(), "row");
+  const isTail = useIsTimelineTail(agentId, itemKey);
+  useTimelineEntry(agentId, timestamp.getTime(), "row");
 
   // The daemon side owns the shell, so revealing a file is one RPC. Paths
   // arrive absolute (PathText resolves them); a path the daemon cannot stat
@@ -208,7 +208,8 @@ function LiveReasoningRendererBody({
   useSelectionActions(tokens, preferences.selectionActions);
   const text = item.data.text || "";
   const streaming = item.data.phase === "streaming";
-  useTimelineEntry(timestamp.getTime(), "row");
+  useTimelineEntry(agentId, timestamp.getTime(), "row");
+  const anythingBelow = useHasEntryAfter(agentId, timestamp.getTime());
 
   // Collapsed by default, streaming or not (plan §3.4 item 3); the reader's
   // choice survives the remount into history through the disclosure store.
@@ -230,13 +231,15 @@ function LiveReasoningRendererBody({
   observeReasoning(storeKey, streaming, timestamp.getTime());
   const durationMs = streaming ? null : observedDurationMs(storeKey);
 
-  // Reasoning takes no part in the tail, so a thought keeps its gap only while
-  // it streams, the one time it is reliably the newest row.
+  // Reasoning takes no part in the tail. A thought gives up its gap once it
+  // has finished and something of this agent's arrived below it; a turn that
+  // ends on a thought keeps the gap, or the thought would sit 12pt into the
+  // list's bottom padding, under the composer.
   return (
     <View
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       {...probe.viewProps}
-      style={preferences.compactRowSpacing && !streaming ? rowGapStyles.compensated : undefined}
+      style={preferences.compactRowSpacing && !streaming && anythingBelow ? rowGapStyles.compensated : undefined}
     >
       {probe.node}
       <PreferenceSyncSlot />
@@ -256,13 +259,14 @@ function LiveReasoningRendererBody({
 }
 
 function LiveTodoRendererBody({
+  agentId,
   item,
   theme,
   layout,
   timestamp,
 }: PluginTimelineItemProps<LiveTodoPayload>) {
   const probe = probeCard("todo", String(timestamp.getTime()), item.data.phase === "streaming");
-  useTimelineEntry(timestamp.getTime(), "row");
+  useTimelineEntry(agentId, timestamp.getTime(), "row");
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
@@ -344,15 +348,15 @@ function LiveAssistantRendererBody({
   // host puts it: under the newest message, once, not under every reply.
   // The timestamp alone is shared by replies that arrive in the same
   // millisecond; the key adds the reply's opening (see `textItemTailKey`).
-  const itemKey = useTextItemTailKey("assistant", timestamp.getTime(), item.data.text);
-  const isTail = useIsTimelineTail(itemKey);
+  const itemKey = useTextItemTailKey(agentId, "assistant", timestamp.getTime(), item.data.text);
+  const isTail = useIsTimelineTail(agentId, itemKey);
 
   // Paseo's own reply sits 16pt above the tool row that follows it (its 12pt
   // padding plus a 4pt gap), the same 16pt the host hangs under a plugin item.
   // `compactReplySpacing` takes 12 of it back when a row is next, as a tool
   // row does. Above a prompt or another reply the 16 stays.
-  useTimelineEntry(timestamp.getTime(), "text");
-  const rowBelow = useNextEntryIsRow(timestamp.getTime());
+  useTimelineEntry(agentId, timestamp.getTime(), "text");
+  const rowBelow = useNextEntryIsRow(agentId, timestamp.getTime());
 
   // Job results, IRC relays and reminders arrive as replies because the host
   // files any unclaimed `custom` message under this item kind. They are not
@@ -452,13 +456,14 @@ const TailFooter = memo(function TailFooter({
  * only a level and a message, so the card is a badge plus that message.
  */
 function LiveNoticeRendererBody({
+  agentId,
   item,
   theme,
   layout,
   timestamp,
 }: PluginTimelineItemProps<LiveNoticePayload>) {
   const probe = probeCard("notice", String(timestamp.getTime()));
-  useTimelineEntry(timestamp.getTime(), "text");
+  useTimelineEntry(agentId, timestamp.getTime(), "text");
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
@@ -564,7 +569,7 @@ function LiveUserMessageRendererBody({
   timestamp,
 }: PluginTimelineItemProps<LiveUserMessagePayload>) {
   const probe = probeCard("user_message", item.data.messageId ?? String(timestamp.getTime()));
-  useTimelineEntry(timestamp.getTime(), "text");
+  useTimelineEntry(agentId, timestamp.getTime(), "text");
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);

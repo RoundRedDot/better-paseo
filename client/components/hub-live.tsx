@@ -37,10 +37,10 @@ interface TimelineTailHubProps {
  */
 export function TimelineTailHub({ agentId, tokens, itemKey, at, kind }: TimelineTailHubProps) {
   useEffect(() => {
-    noteTimelineItem(itemKey, at);
-  }, [itemKey, at]);
+    noteTimelineItem(agentId, itemKey, at);
+  }, [agentId, itemKey, at]);
 
-  const isTail = useIsTimelineTail(itemKey);
+  const isTail = useIsTimelineTail(agentId, itemKey);
   const activity = useHubActivity(agentId);
 
   const styles = useMemo(

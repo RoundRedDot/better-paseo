@@ -11,6 +11,12 @@ import { useCallback, useLayoutEffect, useSyncExternalStore } from "react";
  * mounted row records its arrival time and kind here, and a reply asks what
  * arrived next. Arrival order is timeline order, as for the tail
  * (`timeline-tail.ts`).
+ *
+ * Entries are kept per agent. The plugin's module is shared by every chat on
+ * screen — a split pane, a tab kept mounted — and another agent's row is not
+ * below this agent's reply however late it arrived. Pooled, a running agent
+ * next door took the gap from the newest reply here, and its last line slid
+ * under the composer.
  */
 export type TimelineEntryKind = "row" | "text";
 
@@ -19,7 +25,7 @@ interface Entry {
   kind: TimelineEntryKind;
 }
 
-const entries = new Set<Entry>();
+const entriesByAgent = new Map<string, Set<Entry>>();
 const listeners = new Set<() => void>();
 
 function publish(): void {
@@ -27,12 +33,19 @@ function publish(): void {
 }
 
 /** Records a mounted item; the returned function forgets it. */
-export function registerTimelineEntry(at: number, kind: TimelineEntryKind): () => void {
+export function registerTimelineEntry(agentId: string, at: number, kind: TimelineEntryKind): () => void {
   const entry: Entry = { at, kind };
+  let entries = entriesByAgent.get(agentId);
+  if (!entries) {
+    entries = new Set();
+    entriesByAgent.set(agentId, entries);
+  }
   entries.add(entry);
   publish();
   return () => {
-    entries.delete(entry);
+    const current = entriesByAgent.get(agentId);
+    current?.delete(entry);
+    if (current?.size === 0) entriesByAgent.delete(agentId);
     publish();
   };
 }
@@ -43,10 +56,10 @@ export function registerTimelineEntry(at: number, kind: TimelineEntryKind): () =
  * sharing `at` itself is ambiguous and skipped. Nothing after `at` (the reply
  * is the newest, or the next row is not mounted) is false: the gap stays.
  */
-export function nextEntryIsRow(at: number): boolean {
+export function nextEntryIsRow(agentId: string, at: number): boolean {
   let nextAt = Infinity;
   let allRows = false;
-  for (const entry of entries) {
+  for (const entry of entriesByAgent.get(agentId) ?? []) {
     if (entry.at <= at || entry.at > nextAt) continue;
     if (entry.at < nextAt) {
       nextAt = entry.at;
@@ -58,6 +71,18 @@ export function nextEntryIsRow(at: number): boolean {
   return allRows;
 }
 
+/**
+ * True when anything of this agent's arrived after `at`. A row's bottom gap is
+ * only spare with something below it; the newest row sits on the list's own
+ * padding, and taking 12 from there puts its last line under the composer.
+ */
+export function hasEntryAfter(agentId: string, at: number): boolean {
+  for (const entry of entriesByAgent.get(agentId) ?? []) {
+    if (entry.at > at) return true;
+  }
+  return false;
+}
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
@@ -66,14 +91,20 @@ function subscribe(listener: () => void): () => void {
 }
 
 /** Registers this row for as long as it is mounted. */
-export function useTimelineEntry(at: number, kind: TimelineEntryKind): void {
+export function useTimelineEntry(agentId: string, at: number, kind: TimelineEntryKind): void {
   // Before paint, so a reply that loses its gap to a row arriving below it
   // does not show the gap for a frame first.
-  useLayoutEffect(() => registerTimelineEntry(at, kind), [at, kind]);
+  useLayoutEffect(() => registerTimelineEntry(agentId, at, kind), [agentId, at, kind]);
 }
 
 /** `nextEntryIsRow`, kept current as rows mount and unmount. */
-export function useNextEntryIsRow(at: number): boolean {
-  const getSnapshot = useCallback(() => nextEntryIsRow(at), [at]);
+export function useNextEntryIsRow(agentId: string, at: number): boolean {
+  const getSnapshot = useCallback(() => nextEntryIsRow(agentId, at), [agentId, at]);
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+/** `hasEntryAfter`, kept current as items mount and unmount. */
+export function useHasEntryAfter(agentId: string, at: number): boolean {
+  const getSnapshot = useCallback(() => hasEntryAfter(agentId, at), [agentId, at]);
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

@@ -10,6 +10,9 @@ import {
   textItemTailKey,
 } from "../../client/timeline-tail";
 
+const AGENT = "agent-a";
+const OTHER = "agent-b";
+
 // Module state: every test works above the previous test's times.
 let clock = 1_800_000_000_000;
 const nextAt = () => (clock += 1000);
@@ -21,11 +24,11 @@ describe("text item tail keys", () => {
     const second = textItemTailKey("assistant", at, "Found it: `isTurnDone` ignores trailing tool calls.");
     expect(first).not.toBe(second);
 
-    noteTimelineItem(first, at);
-    noteTimelineItem(second, at);
+    noteTimelineItem(AGENT, first, at);
+    noteTimelineItem(AGENT, second, at);
     // One tail, not two: the tie keeps the incumbent, and only it matches.
-    expect(getTimelineTail()).toBe(first);
-    expect([first, second].filter((key) => getTimelineTail() === key)).toHaveLength(1);
+    expect(getTimelineTail(AGENT)).toBe(first);
+    expect([first, second].filter((key) => getTimelineTail(AGENT) === key)).toHaveLength(1);
   });
 
   it("is stable across re-renders and for the remounted row once the opening is complete", () => {
@@ -43,13 +46,13 @@ describe("text item tail keys", () => {
     const longer = textItemTailKey("assistant", at, "Hello there");
     expect(short).not.toBe(longer);
 
-    noteTimelineItem(short, at);
+    noteTimelineItem(AGENT, short, at);
     // The row's child notes the new key first; the tie keeps the old one ...
-    noteTimelineItem(longer, at);
-    expect(getTimelineTail()).toBe(short);
+    noteTimelineItem(AGENT, longer, at);
+    expect(getTimelineTail(AGENT)).toBe(short);
     // ... and the row's own effect then renames it.
-    renameTimelineItem(short, longer);
-    expect(getTimelineTail()).toBe(longer);
+    renameTimelineItem(AGENT, short, longer);
+    expect(getTimelineTail(AGENT)).toBe(longer);
   });
 
   it("does not move a tail that another item holds", () => {
@@ -57,9 +60,22 @@ describe("text item tail keys", () => {
     const b = nextAt();
     const older = textItemTailKey("assistant", a, "older reply");
     const newer = textItemTailKey("assistant", b, "newer reply");
-    noteTimelineItem(older, a);
-    noteTimelineItem(newer, b);
-    renameTimelineItem(older, textItemTailKey("assistant", a, "older reply, grown"));
-    expect(getTimelineTail()).toBe(newer);
+    noteTimelineItem(AGENT, older, a);
+    noteTimelineItem(AGENT, newer, b);
+    renameTimelineItem(AGENT, older, textItemTailKey("assistant", a, "older reply, grown"));
+    expect(getTimelineTail(AGENT)).toBe(newer);
+  });
+
+  it("keeps one tail per agent", () => {
+    // A finished reply in agent A stays A's newest item while agent B, open in
+    // another pane, keeps producing later rows.
+    const a = nextAt();
+    const b = nextAt();
+    const reply = textItemTailKey("assistant", a, "A's last reply");
+    const row = `tool:call-1:${b}`;
+    noteTimelineItem(AGENT, reply, a);
+    noteTimelineItem(OTHER, row, b);
+    expect(getTimelineTail(AGENT)).toBe(reply);
+    expect(getTimelineTail(OTHER)).toBe(row);
   });
 });
