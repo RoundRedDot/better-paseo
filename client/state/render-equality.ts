@@ -12,7 +12,7 @@
  * | tool call | same `callId`, same settled `status` (not running), same phase and error |
  * | reasoning | same text (length first) and phase |
  * | assistant | same text (length first), phase and timestamp |
- * | user message | same `messageId`, text, images and timestamp |
+ * | user message | same message ids, text, images and timestamp |
  * | todo / notice | same content |
  *
  * and, for all of them, the same agent, layout and theme colours. State a
@@ -91,6 +91,7 @@ interface UserData {
   text: string;
   images?: string[];
   messageId?: string;
+  clientMessageId?: string;
 }
 
 export function userMessagePropsEqual<T extends UserData>(prev: Props<T>, next: Props<T>): boolean {
@@ -100,6 +101,7 @@ export function userMessagePropsEqual<T extends UserData>(prev: Props<T>, next: 
     sameFrame(prev, next) &&
     sameTime(prev.timestamp, next.timestamp) &&
     a.messageId === b.messageId &&
+    a.clientMessageId === b.clientMessageId &&
     sameText(a.text, b.text) &&
     (a.images ?? []).join("\n") === (b.images ?? []).join("\n")
   );

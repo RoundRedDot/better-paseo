@@ -163,8 +163,8 @@ export default function contribute(client: PluginClientContext) {
         // Replacing the item drops whatever this renderer does not carry, so a
         // message with an attachment it cannot show is left to the host.
         if (images.hasUnrenderable) return undefined;
-        // `messageId` rides along so the renderer can carry the host's own
-        // `data-history-row-id`, which is the id the chat outline scrolls to.
+        // Both message ids ride along so the renderer can mark the card with
+        // the id the chat outline scrolls to (see `prompt-anchor.ts`).
         // Replacing the item leaves the outline nothing to find otherwise.
         return {
           items: [
@@ -176,6 +176,7 @@ export default function contribute(client: PluginClientContext) {
                 text: item.text,
                 ...(images.uris.length > 0 ? { images: images.uris } : {}),
                 ...(item.messageId ? { messageId: item.messageId } : {}),
+                ...(item.clientMessageId ? { clientMessageId: item.clientMessageId } : {}),
               }),
             },
           ],
@@ -191,6 +192,7 @@ export default function contribute(client: PluginClientContext) {
       text: z.string(),
       images: z.array(z.string()).optional(),
       messageId: z.string().optional(),
+      clientMessageId: z.string().optional(),
     }),
     Component: LiveUserMessageRenderer,
   });
