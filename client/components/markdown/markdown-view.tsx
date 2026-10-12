@@ -94,7 +94,9 @@ export function MarkdownView({
       result = split(source, cache, streaming);
       const last = result.blocks.length - 1;
       const kinds = result.blocks.map((raw, index) => ({
-        kind: blockKind(lexBlock(index === last ? result.tail : raw)),
+        kind: blockKind(
+          index === last ? lexBlock(result.tail, streaming) : lexBlock(raw),
+        ),
       }));
       // A tail the repair held back entirely (a lone `#` or `-`) draws
       // nothing; its first real kind is an appearance, not a flip.

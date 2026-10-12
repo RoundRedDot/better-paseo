@@ -32,7 +32,7 @@ function MdBlockBody({ raw, open, first, context, id }: MdBlockProps) {
     finishedBefore.current = !open;
   });
 
-  const tokens = lexBlock(raw);
+  const tokens = lexBlock(raw, open);
   return <>{renderBlocks(tokens, context, id, { first, open })}</>;
 }
 

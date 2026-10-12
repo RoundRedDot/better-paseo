@@ -66,17 +66,38 @@ const LRU_LIMIT = 500;
 const lru = new Map<string, Token[]>();
 
 /**
+ * Streaming tails, kept apart from the LRU. Each chunk makes a new tail that
+ * is never drawn again, so in the LRU they would push out finished blocks and
+ * hold hundreds of partial copies of the same paragraph (about 2.5 MB after
+ * `markdown-long`). A few slots cover the replies streaming at once and the
+ * probe's second read of the same tail.
+ */
+const TAIL_LIMIT = 8;
+const tails = new Map<string, Token[]>();
+
+/**
  * The full token tree (block and inline) of one block's source. Callers must
  * treat the result as read-only: it is shared by every block with this
- * source.
+ * source. `open` marks the tail of a reply that is still streaming.
  */
-export function lexBlock(raw: string): Token[] {
+export function lexBlock(raw: string, open = false): Token[] {
   const hit = lru.get(raw);
   if (hit !== undefined) {
     // Re-inserting moves the key to the young end of the insertion order.
     lru.delete(raw);
     lru.set(raw, hit);
     return hit;
+  }
+  if (open) {
+    const tail = tails.get(raw);
+    if (tail !== undefined) return tail;
+    const tokens: Token[] = Lexer.lex(raw, LEXER_OPTIONS);
+    tails.set(raw, tokens);
+    if (tails.size > TAIL_LIMIT) {
+      const oldest = tails.keys().next().value;
+      if (oldest !== undefined) tails.delete(oldest);
+    }
+    return tokens;
   }
   const tokens: Token[] = Lexer.lex(raw, LEXER_OPTIONS);
   lru.set(raw, tokens);
