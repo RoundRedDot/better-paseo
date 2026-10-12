@@ -109,8 +109,8 @@ export function HoverPreviewHeader({ tokens, children }: {
   );
 }
 
-export function HoverPreviewBody({ children, withHeader = true }: { children: ReactNode; withHeader?: boolean }) {
-  return <View testID="hover-preview-body" style={[styles.body, !withHeader && { paddingTop: space.md }]}>{children}</View>;
+export function HoverPreviewBody({ children }: { children: ReactNode }) {
+  return <View testID="hover-preview-body" style={styles.body}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     overflowY: "auto",
     overscrollBehavior: "contain",
-    paddingTop: 0,
+    marginTop: space.md,
     paddingHorizontal: space.md,
     paddingBottom: space.md,
     gap: space.sm,
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     paddingHorizontal: space.md,
     paddingTop: space.sm,
-    paddingBottom: space.sm + space.md,
+    paddingBottom: space.sm,
     borderBottomWidth: 1,
   },
 });
