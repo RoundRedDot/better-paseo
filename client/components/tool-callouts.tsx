@@ -25,7 +25,7 @@ import { CopyButton } from "../ui/copy-button";
 import { ActionMenuList, ActionMenuTrigger, useActionMenu, type ActionMenuItem } from "../ui/action-menu";
 import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
-import { HoverPreviewHeader } from "../ui/hover-preview";
+import { HoverPreviewBody, HoverPreviewHeader } from "../ui/hover-preview";
 import { FadeIn } from "../ui/fade-in";
 import { formatPath } from "../paths/format-path";
 import { lineRangeLabel, summarizeTool } from "../tools/summarize";
@@ -281,10 +281,12 @@ export function ToolCallout({
       previewContent={() => (
         <>
           <ToolPreviewActions getPlan={getPlan} tool={data.tool} tokens={tokens} compact={compact} />
-          {filePath ? <Text selectable {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>{resolvePath(filePath)}</Text> : null}
-          <ToolBody data={data} tokens={tokens} compact={compact} imageFile={imageFile}
-            revealFile={revealFile} displayPath={filePath ? formatPath(filePath, pathContext).displayPath : undefined} preview />
-          {data.error ? <Text selectable style={{ color: tokens.danger }}>{data.error}</Text> : null}
+          <HoverPreviewBody>
+            {filePath ? <Text selectable {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>{resolvePath(filePath)}</Text> : null}
+            <ToolBody data={data} tokens={tokens} compact={compact} imageFile={imageFile}
+              revealFile={revealFile} displayPath={filePath ? formatPath(filePath, pathContext).displayPath : undefined} preview />
+            {data.error ? <Text selectable style={{ color: tokens.danger }}>{data.error}</Text> : null}
+          </HoverPreviewBody>
         </>
       )}
     />

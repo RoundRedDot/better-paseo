@@ -6,15 +6,17 @@ import { selectionSurface } from "../components/selection-actions";
 import { bindPreviewPointer, openPreviewLayer } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { cssShadow } from "./tokens/css-shadow";
+import { HOVER_DELAY_MS, useEnhancerPreferences } from "../preferences";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
-export const PREVIEW_OPEN_MS = 400;
+export const PREVIEW_OPEN_MS = HOVER_DELAY_MS["200ms"];
 export const PREVIEW_CLOSE_MS = 150;
 
 export function useHoverPreview(enabled: boolean) {
   const parentPreview = useContext(HoverPreviewContext);
   const capabilities = useInputCapabilities();
+  const delay = HOVER_DELAY_MS[useEnhancerPreferences().hoverDelay];
   const active = enabled && !parentPreview && Platform.OS === "web" && capabilities.hover;
   const anchorRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
@@ -33,9 +35,9 @@ export function useHoverPreview(enabled: boolean) {
       timer.current = setTimeout(() => {
         timer.current = null;
         setOpen(true);
-      }, PREVIEW_OPEN_MS);
+      }, delay);
     }
-  }, [cancel, open]);
+  }, [cancel, open, delay]);
   const leave = useCallback(() => {
     cancel();
     timer.current = setTimeout(() => {
@@ -107,14 +109,17 @@ export function HoverPreviewHeader({ tokens, children }: {
   );
 }
 
+export function HoverPreviewBody({ children }: { children: ReactNode }) {
+  return <View style={styles.body}>{children}</View>;
+}
+
 const styles = StyleSheet.create({
-  panel: { padding: space.md, gap: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
+  panel: { borderWidth: 1, borderRadius: radiusV2.block },
+  body: { padding: space.md, gap: space.sm },
   header: {
     position: "sticky" as never,
     top: 0,
     zIndex: 1,
-    marginTop: -space.md,
-    marginHorizontal: -space.md,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
     borderBottomWidth: 1,

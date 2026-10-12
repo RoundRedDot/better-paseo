@@ -12,6 +12,7 @@ import {
   ACCENT_PRESETS,
   CODE_FONT_SIZE_MAX,
   CODE_FONT_SIZE_MIN,
+  HOVER_DELAYS,
   resetEnhancerPreferences,
   updateEnhancerPreferences,
   useEnhancerPreferences,
@@ -19,6 +20,7 @@ import {
   monoChoiceUpdate,
   type AccentPreset,
   type MonoChoice,
+  type HoverDelayPreference,
   type PathDisplayPreference,
   type RowLabelStylePreference,
   type ToolDetailPreference,
@@ -704,6 +706,22 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
 
       <Section title={t.sectionTools} look={look}>
         <SettingRow
+          title={t.hoverDelayTitle}
+          description={t.hoverDelayDescription}
+          control={
+            <Segmented<HoverDelayPreference>
+              label={t.hoverDelayTitle}
+              value={preferences.hoverDelay}
+              options={HOVER_DELAYS.map((value) => ({ value, label: value }))}
+              onChange={(hoverDelay) => updateEnhancerPreferences({ hoverDelay })}
+              look={look}
+            />
+          }
+          look={look}
+          first
+          stacked
+        />
+        <SettingRow
           title={t.toolDetailTitle}
           description={t.toolDetailDescription}
           control={
@@ -719,7 +737,6 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
             />
           }
           look={look}
-          first
           stacked
         />
         <SettingRow

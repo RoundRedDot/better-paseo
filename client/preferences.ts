@@ -3,12 +3,14 @@ import {
   CODE_FONT_SIZE_MAX,
   CODE_FONT_SIZE_MIN,
   clampCodeFontSize,
+  HOVER_DELAYS,
+  HOVER_DELAY_MS,
   preferencesSchema,
   type StoredPreferences,
 } from "../shared/preferences-settings";
 import type { SettingsLanguagePreference } from "./i18n/settings-strings";
 
-export { CODE_FONT_SIZE_MAX, CODE_FONT_SIZE_MIN, clampCodeFontSize };
+export { CODE_FONT_SIZE_MAX, CODE_FONT_SIZE_MIN, clampCodeFontSize, HOVER_DELAYS, HOVER_DELAY_MS };
 export type { StoredPreferences };
 
 export const ACCENT_PRESETS = {
@@ -38,6 +40,7 @@ export type MonoFontPreference = "host" | "iosevka" | "custom";
 export type ToolDetailPreference = "collapsed" | "expand-failed";
 export type PathDisplayPreference = "relative" | "absolute";
 export type RowLabelStylePreference = "icon" | "label" | "both";
+export type HoverDelayPreference = StoredPreferences["hoverDelay"];
 
 export interface EnhancerPreferences {
   accent: AccentPreset;
@@ -56,6 +59,8 @@ export interface EnhancerPreferences {
   codeFontSize: number | null;
   toolDetail: ToolDetailPreference;
   pathDisplay: PathDisplayPreference;
+  /** Time the pointer rests before a desktop hover preview opens. */
+  hoverDelay: HoverDelayPreference;
   /**
    * Paseo maps a stream item to the plugin timeline item before any transformer
    * runs, and that mapping carries only the text. Pasted images therefore never
@@ -152,6 +157,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   codeFontSize: null,
   toolDetail: "collapsed",
   pathDisplay: "relative",
+  hoverDelay: "200ms",
   enhancedUserBubble: false,
   selectionActions: true,
   assistantMarkdown: true,

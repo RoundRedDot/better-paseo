@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({ hover: true }));
 vi.mock("../../client/ui/use-input-capabilities", () => ({ useInputCapabilities: () => ({ hover: state.hover }) }));
 vi.mock("../../client/web", () => ({ bindPreviewPointer: () => () => {}, openPreviewLayer: () => () => {} }));
 import { HoverPreviewContext, PREVIEW_CLOSE_MS, PREVIEW_OPEN_MS, useHoverPreview } from "../../client/ui/hover-preview";
+import { HOVER_DELAYS, HOVER_DELAY_MS, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let preview!: ReturnType<typeof useHoverPreview>;
@@ -23,6 +24,7 @@ function mount(enabled = true, nested = false) {
 }
 beforeEach(() => {
   vi.useFakeTimers();
+  resetEnhancerPreferences();
   state.hover = true;
   (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
 });
@@ -33,6 +35,24 @@ afterEach(() => {
 });
 
 describe("hover preview lifetime", () => {
+  it.each(HOVER_DELAYS)("uses the configured %s delay", (hoverDelay) => {
+    updateEnhancerPreferences({ hoverDelay });
+    mount();
+    act(() => preview.enter());
+    act(() => { vi.advanceTimersByTime(HOVER_DELAY_MS[hoverDelay] - 1); });
+    expect(preview.open).toBe(false);
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(preview.open).toBe(true);
+  });
+  it("uses an updated preference on the next hover without remounting", () => {
+    mount();
+    act(() => { updateEnhancerPreferences({ hoverDelay: "2s" }); });
+    act(() => preview.enter());
+    act(() => { vi.advanceTimersByTime(1999); });
+    expect(preview.open).toBe(false);
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(preview.open).toBe(true);
+  });
   it("opens after a rest without changing disclosure state", () => {
     mount();
     act(() => preview.enter());
