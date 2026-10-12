@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { PLUGIN_ROOT_ATTRIBUTE } from "./components/focus-ring";
+import { PREVIEW_LIMIT } from "./ui/press-preview-placement";
 
 const MAXIMIZED_PREVIEW_GAP = 16;
 
@@ -55,8 +56,8 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     const rect = row.getBoundingClientRect();
     const below = view.innerHeight - rect.bottom - 14;
     const above = rect.top - 14;
-    const down = below >= Math.min(360, panel.scrollHeight) || below >= above;
-    panel.style.maxHeight = `${Math.max(0, Math.min(360, down ? below : above))}px`;
+    const down = below >= Math.min(PREVIEW_LIMIT.maxHeight, panel.scrollHeight) || below >= above;
+    panel.style.maxHeight = `${Math.max(0, Math.min(PREVIEW_LIMIT.maxHeight, down ? below : above))}px`;
     panel.style.top = `${down ? rect.bottom + 6 : Math.max(8, rect.top - panel.getBoundingClientRect().height - 6)}px`;
   };
   panel.showPopover();

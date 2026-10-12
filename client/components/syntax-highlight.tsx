@@ -11,6 +11,7 @@ import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeSurface, selectionSurface } from "./selection-actions";
 import { useHighlightedLines } from "../highlight";
 import { CopyButton } from "../ui/copy-button";
+import { SelectableSpan } from "../ui/prose-text";
 import type { HighlightLine, HighlightToken } from "../../shared/highlight-rpc";
 
 interface SyntaxHighlightProps {
@@ -1472,27 +1473,27 @@ export function renderTerminalOutput(text: string, tokens: ExtendedThemeTokens):
             ? tokens.danger
             : tokens.warning;
       return (
-        <Text key={key} selectable style={{ color: tone }}>
+        <SelectableSpan key={key} selectable style={{ color: tone }}>
           {line}
           {lineIdx < lines.length - 1 ? "\n" : ""}
-        </Text>
+        </SelectableSpan>
       );
     }
 
     if (line.startsWith("+")) {
       return (
-        <Text key={key} selectable style={{ color: tokens.syntax.diffAddMarker }}>
+        <SelectableSpan key={key} selectable style={{ color: tokens.syntax.diffAddMarker }}>
           {line}
           {lineIdx < lines.length - 1 ? "\n" : ""}
-        </Text>
+        </SelectableSpan>
       );
     }
     if (line.startsWith("-") && !line.startsWith("--")) {
       return (
-        <Text key={key} selectable style={{ color: tokens.syntax.diffRemoveMarker }}>
+        <SelectableSpan key={key} selectable style={{ color: tokens.syntax.diffRemoveMarker }}>
           {line}
           {lineIdx < lines.length - 1 ? "\n" : ""}
-        </Text>
+        </SelectableSpan>
       );
     }
 
@@ -1526,9 +1527,9 @@ export function renderTerminalOutput(text: string, tokens: ExtendedThemeTokens):
       }
 
       parts.push(
-        <Text key={spanKey} selectable style={{ color }}>
+        <SelectableSpan key={spanKey} selectable style={{ color }}>
           {token}
-        </Text>,
+        </SelectableSpan>,
       );
       lastIndex = match.index + token.length;
     }
@@ -1538,10 +1539,10 @@ export function renderTerminalOutput(text: string, tokens: ExtendedThemeTokens):
     }
 
     return (
-      <Text key={key} selectable style={{ color: tokens.foregroundMuted }}>
+      <SelectableSpan key={key} selectable style={{ color: tokens.foregroundMuted }}>
         {parts}
         {lineIdx < lines.length - 1 ? "\n" : ""}
-      </Text>
+      </SelectableSpan>
     );
   });
 }

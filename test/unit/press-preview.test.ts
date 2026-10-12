@@ -7,7 +7,11 @@ import "./helpers/quiet-renderer";
 // opens the preview the desktop shows on hover, and the preview carries the
 // copy actions the long press used to run.
 
-vi.mock("react-native", () => import("./helpers/rn-mock"));
+// The host registers the UITextView pair iOS prose selects through.
+vi.mock("react-native", async () => ({
+  ...(await import("./helpers/rn-mock")),
+  UIManager: { hasViewManagerConfig: (name: string) => name === "RNUITextView" },
+}));
 const clipboard = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => {}), show: vi.fn(), error: vi.fn() }));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -31,7 +35,7 @@ import { ToolCallout } from "../../client/components/tool-callouts";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { createReasoningSegmenter } from "../../client/reasoning/segment";
 import { classifyTool } from "../../client/tools/classify";
-import { pressPreviewPlacement, rowInModalWindow } from "../../client/ui/press-preview-placement";
+import { pressPreviewFrame } from "../../client/ui/press-preview-placement";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -78,6 +82,8 @@ const panel = (renderer: ReturnType<typeof TestRenderer.create>) => {
 
 function textOf(node: ReactTestInstance | string): string {
   if (typeof node === "string") return node;
+  // A run of iOS prose carries its text as a prop.
+  if ((node.type as unknown) === "RNUITextViewChild") return String(node.props.text);
   return node.children.map(textOf).join("");
 }
 
@@ -164,51 +170,82 @@ describe("long-pressing a collapsed row on a phone", () => {
 });
 
 describe("where the long-press preview goes", () => {
-  const stage = { x: 0, y: 59, width: 390, height: 750 };
-
-  it("opens below a row with room under it, as wide as the row", () => {
-    const placement = pressPreviewPlacement({ x: 8, y: 200, width: 374, height: 28 }, stage, null);
-    expect(placement).toEqual({ left: 8, width: 374, top: 234, maxHeight: 450, above: false });
+  it("sits in the middle of the safe area, as wide as the row", () => {
+    const renderer = render(React.createElement(ToolCallout, { data: shell, tokens, compact: true }));
+    act(() => row(renderer).props.onLongPress());
+    // Hidden until the safe area is measured.
+    expect(StyleSheetFlat(panel(renderer).props.style).opacity).toBe(0);
+    let stage = panel(renderer).parent!;
+    while (!stage.props.onLayout) stage = stage.parent!;
+    act(() => stage.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 430, height: 790 } } }));
+    expect(StyleSheetFlat(stage.props.style)).toMatchObject({ flex: 1, alignItems: "center", justifyContent: "center" });
+    const style = StyleSheetFlat(panel(renderer).props.style);
+    expect(style).toMatchObject({ width: 390, maxHeight: 360 });
+    expect(style.position).toBeUndefined();
+    expect(style.opacity).toBeUndefined();
+    act(() => renderer.unmount());
   });
 
-  it("caps the panel at the room left below", () => {
-    const placement = pressPreviewPlacement({ x: 8, y: 400, width: 374, height: 28 }, stage, null);
-    expect(placement.above).toBe(false);
-    // 59 + 750 - 8 - (400 + 28 + 6)
-    expect(placement.maxHeight).toBe(367);
+  it("is capped at the desktop's 360", () => {
+    expect(pressPreviewFrame({ width: 390, height: 750 }, 374)).toEqual({ width: 374, maxHeight: 360 });
   });
 
-  it("opens above a row near the bottom and sits on it once measured", () => {
-    const row = { x: 8, y: 700, width: 374, height: 28 };
-    const unmeasured = pressPreviewPlacement(row, stage, null);
-    expect(unmeasured.above).toBe(true);
-    expect(unmeasured.maxHeight).toBe(450);
-    const measured = pressPreviewPlacement(row, stage, 200);
-    expect(measured).toEqual({ left: 8, width: 374, top: 494, maxHeight: 450, above: true });
+  it("is capped at the room inside the margins on a short screen", () => {
+    // A phone on its side: 343 tall, less 8 above and below.
+    expect(pressPreviewFrame({ width: 750, height: 343 }, 734).maxHeight).toBe(327);
   });
 
-  it("places the panel under the row on Android, where the row reads one status bar high", () => {
-    // Measured on a PLA110 (40dp status bar): the row sits at 184-212dp on the
-    // screen, the timeline's window reports it at 144, the translucent modal's
-    // origin at 0 and its safe area from 40.
-    const origin = { x: 0, y: 0 };
-    const row = rowInModalWindow({ x: 12, y: 144, width: 336, height: 28 }, origin, 40);
-    expect(row.y).toBe(184);
-    const placement = pressPreviewPlacement(row, { x: 0, y: 40, width: 359, height: 749 }, null, origin);
-    expect(placement.top).toBe(218);
-    expect(placement.above).toBe(false);
-  });
-
-  it("subtracts the modal's origin where its window measures it", () => {
-    const origin = { x: 0, y: -40 };
-    const row = rowInModalWindow({ x: 12, y: 144, width: 336, height: 28 }, origin, 40);
-    const placement = pressPreviewPlacement(row, { x: 0, y: 0, width: 359, height: 749 }, null, origin);
-    expect(placement.top).toBe(218);
-  });
-
-  it("keeps the panel inside the safe area's sides", () => {
-    const placement = pressPreviewPlacement({ x: -8, y: 200, width: 406, height: 28 }, stage, null);
-    expect(placement.left).toBe(8);
-    expect(placement.width).toBe(374);
+  it("keeps the margins at the sides when the row is wider than the safe area", () => {
+    expect(pressPreviewFrame({ width: 390, height: 750 }, 406).width).toBe(374);
   });
 });
+
+describe("selecting text in the long-press preview", () => {
+  const roots = (node: ReactTestInstance) =>
+    node.findAll((child) => (child.type as unknown) === "RNUITextView");
+
+  it("puts a cursor in the command and its output on iOS", () => {
+    const renderer = render(React.createElement(ToolCallout, { data: shell, tokens, compact: true }));
+    act(() => row(renderer).props.onLongPress());
+    const texts = roots(panel(renderer)).map((root) => ({ text: textOf(root), selectable: root.props.selectable }));
+    expect(texts).toEqual([
+      { text: "$ printf full-command", selectable: true },
+      { text: "full-output", selectable: true },
+    ]);
+    act(() => renderer.unmount());
+  });
+
+  it("puts a cursor in a Read row's file on iOS", () => {
+    const read = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "const value = 1;" } });
+    const renderer = render(React.createElement(ToolCallout, { data: read, tokens, compact: true }));
+    act(() => row(renderer).props.onLongPress());
+    expect(roots(panel(renderer)).map((root) => textOf(root))).toEqual(["/w/a.ts", "const value = 1;"]);
+    act(() => renderer.unmount());
+  });
+
+  it("keeps the opened row's body on plain selectable Text", () => {
+    const renderer = render(React.createElement(ToolCallout, { data: shell, tokens, compact: true, expanded: true }));
+    expect(roots(renderer.root)).toHaveLength(0);
+    const command = renderer.root.find((node) =>
+      (node.type as unknown) === "Text" && node.props.selectable === true && textOf(node) === "$ printf full-command");
+    expect(command).toBeDefined();
+    act(() => renderer.unmount());
+  });
+
+  it("selects through Android's own selectable Text", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+    const renderer = render(React.createElement(ToolCallout, { data: shell, tokens, compact: true }));
+    act(() => row(renderer).props.onLongPress());
+    expect(roots(panel(renderer))).toHaveLength(0);
+    const output = panel(renderer).find((node) =>
+      (node.type as unknown) === "Text" && node.props.selectable === true && textOf(node) === "full-output");
+    expect(output).toBeDefined();
+    act(() => renderer.unmount());
+  });
+});
+
+function StyleSheetFlat(style: unknown): Record<string, unknown> {
+  if (!style) return {};
+  if (Array.isArray(style)) return Object.assign({}, ...style.map(StyleSheetFlat));
+  return typeof style === "object" ? (style as Record<string, unknown>) : {};
+}
