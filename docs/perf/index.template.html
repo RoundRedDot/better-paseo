@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beautiful Chat 与官方版本的性能对比</title>
+  <style>
+    :root {
+      --sheet: #e6eef1;
+      --ink: #172226;
+      --muted: #5c6e76;
+      --oxide: #a33b32;
+      --ghost: #e7cfc9;
+      --settled: #1e5c4e;
+      --brass: #8a6a32;
+      --line: #c5d2d6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--sheet);
+      color: var(--ink);
+      font-family: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+      font-size: 17px;
+      line-height: 1.55;
+    }
+    main {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 56px 28px 88px;
+    }
+    h1 {
+      margin: 0 0 14px;
+      font-family: "Songti SC", "Noto Serif SC", Palatino, "Palatino Linotype", serif;
+      font-weight: 600;
+      font-size: 36px;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+    }
+    h2 {
+      margin: 56px 0 10px;
+      font-family: "Songti SC", "Noto Serif SC", Palatino, serif;
+      font-weight: 600;
+      font-size: 22px;
+      line-height: 1.3;
+    }
+    p { margin: 0 0 14px; max-width: 62ch; }
+    a { color: var(--settled); }
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid var(--brass);
+      outline-offset: 3px;
+    }
+    .lead { color: var(--ink); }
+    .note { color: var(--muted); font-size: 15px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 16px 22px; align-items: center; margin: 8px 0 18px; font-size: 14px; }
+    .swatch { width: 28px; height: 10px; display: inline-block; margin-right: 6px; vertical-align: -1px; }
+    .swatch.ghost { background: var(--ghost); }
+    .swatch.now { background: var(--settled); }
+    .swatch.native { background: #cdd8dc; }
+    .swatch.budget { width: 18px; height: 0; border-top: 1px dashed var(--brass); vertical-align: 2px; }
+    button {
+      font: inherit;
+      font-size: 15px;
+      color: var(--ink);
+      background: transparent;
+      border: 1px solid var(--ink);
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    button:hover { background: #dfe8eb; }
+    figure { margin: 0 0 8px; }
+    img { width: 100%; height: auto; display: block; }
+    .table-wrap { overflow-x: auto; margin: 18px 0 8px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+      font-size: 14.5px;
+    }
+    th, td { padding: 7px 12px 7px 0; text-align: left; vertical-align: baseline; }
+    th { font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--ink); }
+    td { border-bottom: 1px solid var(--line); }
+    .num { text-align: right; }
+    .before { color: var(--oxide); }
+    .after, .up { color: var(--settled); }
+    .down { color: var(--oxide); }
+    .up::before, .down::before {
+      content: "";
+      display: inline-block;
+      width: 0;
+      height: 0;
+      margin-right: 6px;
+      vertical-align: 1px;
+      border-left: 4.5px solid transparent;
+      border-right: 4.5px solid transparent;
+    }
+    .up::before { border-bottom: 7px solid currentColor; }
+    .down::before { border-top: 7px solid currentColor; vertical-align: 2px; }
+    .flat { color: var(--muted); }
+    .worse { color: var(--oxide); }
+    tr.over td:first-child { box-shadow: inset 2px 0 0 var(--brass); padding-left: 8px; }
+    @media (max-width: 640px) {
+      main { padding: 32px 18px 64px; }
+      h1 { font-size: 28px; }
+    }
+  </style>
+
+</head>
+<body>
+  <main>
+    <h1>Beautiful Chat 与官方版本的性能对比</h1>
+    <p class="lead">官方 Beautiful Chat（<code>42b61d8</code>）对本仓库 <code>{{FORK}}</code>，回放同样的 {{COUNT}} 段对话。横条先画成官方的长度，再收到本仓库的长度，淡色留下的就是省掉的那一截。</p>
+    <p class="lead">页面后半段换了对照组：<a href="#native">不开插件、Paseo 自己渲染</a>，看装上这个插件是更省还是更费。</p>
+    <p class="note">Paseo 0.11.2 Web 生产构建，无头 Chrome 155。两个插件装在同一个隔离 daemon 上，每次只启用一个，按场景交替各跑 {{RUNS}} 次，表中取中位数。两边都用默认设置。测量时机器上还有别的任务在跑（负载 20–50），绝对毫秒数偏高；两边交替测量，相对比较仍然成立。回放速度：100 轮历史用最大速度，展开的工具用 4 倍速，其余按录制时的节奏。</p>
+
+    <div class="legend">
+      <span><i class="swatch ghost"></i>官方</span>
+      <span><i class="swatch now"></i>本仓库</span>
+      <span><i class="swatch budget"></i>4ms 预算</span>
+      <span class="up">更好</span>
+      <span class="down">更差</span>
+      <button type="button" id="replay">再看一次</button>
+    </div>
+
+    <h2 id="commit">最忙那张卡片的提交时间</h2>
+    <p>纵轴是场景，横轴是提交时间的 p95，对数刻度。{{COUNT}} 个场景里本仓库有 {{FASTER}} 个更快，{{WITHIN}} 个收进 4ms 虚线以内。100 轮历史是 110 张卡片同时停在正在生成区、按最大速度回放，是最重的一项。</p>
+    <figure>
+      <img class="chart" data-file="web-commit-p95.svg" src="web-commit-p95.svg" alt="Web 生产构建，{{COUNT}} 个场景里最忙卡片提交时间的 p95，对数刻度。淡色是官方，绿色是本仓库，虚线是 4 毫秒预算。">
+    </figure>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th class="num">官方 p95</th>
+            <th class="num">本仓库 p95</th>
+            <th class="num">变化</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ROWS_P95}}
+        </tbody>
+      </table>
+    </div>
+    <p class="note">单位是毫秒。每次回放取提交时间 p95 最高的那类卡片。左侧有竖线的行没进 4ms。</p>
+
+    <h2 id="frames">帧和动画</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th class="num">掉帧</th>
+            <th class="num">最长帧</th>
+            <th class="num">长任务</th>
+            <th class="num">结束时的循环动画</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ROWS_FRAMES}}
+        </tbody>
+      </table>
+    </div>
+    <p class="note">掉帧是比例，最长帧是毫秒，长任务是超过 50ms 的任务个数，循环动画是跑完时还挂着的个数。帧数据受机器负载影响大：相差一帧（17ms）以内、掉帧相差 0.1 个百分点以内记为持平，其余按好坏标色。</p>
+
+    <h2 id="memory">内存和渲染次数</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th class="num">跑完时的堆</th>
+            <th class="num">GC 后常驻</th>
+            <th class="num">插件渲染次数</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ROWS_MEMORY}}
+        </tbody>
+      </table>
+    </div>
+    <p class="note">单位是 MB，用 CDP 读取。跑完时的堆不做 GC；GC 后常驻是跑完后强制回收两次再读。每轮开跑前的堆在 102–106MB 之间漂移，所以相差 1MB 以内记为持平。插件渲染次数是这一轮里插件卡片渲染的总次数；默认设置下用户消息由 Paseo 自己绘制，不算在本仓库里。</p>
+
+    <p class="note">原始数据在 <a href="../bench/raw-latest/">docs/bench/raw-latest/</a>，用 <code>docs/bench/tools/recheck-ab.mjs</code> 采集，页面由 <code>docs/perf/build.py</code> 生成。这一组没有测 iOS。</p>
+
+    <h2 id="native">和不开插件的 Paseo 比</h2>
+    <p>对照组换成 Paseo 0.11.2 自己的渲染：同一个 daemon、同样 11 段回放，只在开和关这个插件之间切换。测量放在宿主上，原生行和插件行外面套的是同一个 <code>React.Profiler</code>，两边口径一致。</p>
+    <div class="legend">
+      <span><i class="swatch native"></i>Paseo 原生</span>
+      <span><i class="swatch now"></i>本仓库</span>
+      <span class="up">更省</span>
+      <span class="down">更费</span>
+    </div>
+
+    <h2 id="native-web">Web：整段回放的主线程时间</h2>
+    <p>线性刻度，单位是秒，取 Chrome 统计的主线程任务时间。11 个场景里有 10 个比原生更短；文本流式最明显，长回复、代码块、表格都少了三到五成。100 轮历史多了 8%。</p>
+    <figure>
+      <img class="chart" data-file="web-native-cpu.svg" src="web-native-cpu.svg" alt="Web 生产构建，11 个场景的主线程任务时间。淡色是 Paseo 原生，绿色收回后是本仓库，100 轮历史一行是红色，比原生长 8%。">
+    </figure>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th class="num">原生 秒</th>
+            <th class="num">本仓库 秒</th>
+            <th class="num">变化</th>
+            <th class="num">单行渲染 p95 ms</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>代码块流式</td><td class="num flat">4.18</td><td class="num after">2.12</td><td class="num up">49%</td><td class="num flat">3.0 → 1.0</td></tr>
+          <tr><td>大 diff</td><td class="num flat">0.47</td><td class="num after">0.38</td><td class="num up">20%</td><td class="num flat">1.8 → 1.2</td></tr>
+          <tr class="over"><td>100 轮历史</td><td class="num flat">1.76</td><td class="num worse">1.90</td><td class="num down">8%</td><td class="num flat">0.5 → 0.4</td></tr>
+          <tr><td>长回复</td><td class="num flat">7.27</td><td class="num after">4.80</td><td class="num up">34%</td><td class="num flat">1.6 → 0.7</td></tr>
+          <tr><td>混合一轮</td><td class="num flat">1.41</td><td class="num after">1.29</td><td class="num up">8%</td><td class="num flat">1.8 → 1.0</td></tr>
+          <tr><td>读 20 个文件</td><td class="num flat">1.29</td><td class="num after">0.78</td><td class="num up">39%</td><td class="num flat">2.2 → 0.6</td></tr>
+          <tr><td>思考散文</td><td class="num flat">2.34</td><td class="num after">1.35</td><td class="num up">42%</td><td class="num flat">0.7 → 0.4</td></tr>
+          <tr><td>思考分节</td><td class="num flat">2.11</td><td class="num after">1.28</td><td class="num up">39%</td><td class="num flat">0.6 → 0.4</td></tr>
+          <tr><td>大段终端</td><td class="num flat">0.89</td><td class="num after">0.74</td><td class="num up">17%</td><td class="num flat">2.1 → 1.6</td></tr>
+          <tr><td>表格流式</td><td class="num flat">2.89</td><td class="num after">1.39</td><td class="num up">52%</td><td class="num flat">2.9 → 1.1</td></tr>
+          <tr><td>展开的工具</td><td class="num flat">1.29</td><td class="num after">1.10</td><td class="num up">15%</td><td class="num flat">0.3 → 0.4</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Web 生产构建，每格 3 次取中位数，原生和本仓库按场景交替跑。代码是 <code>main</code> 加上运行中圆点改用 CSS 动画的修复（<code>58f6728</code>）。单行渲染 p95 是宿主行外壳上 <code>React.Profiler</code> 的读数，原生 → 本仓库。</p>
+
+    <h2 id="native-ios">iOS：单次提交里所有行加起来</h2>
+    <p>线性刻度，单位毫秒，画的是 p95。长回复从 59 收到 8，代码块、表格、混合一轮都收到一半以下。100 轮历史和大段终端比原生长。iOS 上的圆点走 native driver，不受 Web 圆点修复影响。</p>
+    <figure>
+      <img class="chart" data-file="ios-native-commit.svg" src="ios-native-commit.svg" alt="iOS 模拟器开发版，11 个场景单次提交里所有行之和的 p95。淡色是 Paseo 原生，绿色收回后是本仓库；100 轮历史、思考散文、大段终端是红色。">
+    </figure>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th class="num">原生 p95</th>
+            <th class="num">本仓库 p95</th>
+            <th class="num">变化</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>代码块流式</td><td class="num flat">23.6</td><td class="num after">6.6</td><td class="num up">72%</td></tr>
+          <tr><td>大 diff</td><td class="num flat">13.5</td><td class="num after">6.1</td><td class="num up">55%</td></tr>
+          <tr class="over"><td>100 轮历史</td><td class="num flat">77.5</td><td class="num worse">104.1</td><td class="num down">34%</td></tr>
+          <tr><td>长回复</td><td class="num flat">59.4</td><td class="num after">8.4</td><td class="num up">86%</td></tr>
+          <tr><td>混合一轮</td><td class="num flat">16.0</td><td class="num after">7.5</td><td class="num up">53%</td></tr>
+          <tr><td>读 20 个文件</td><td class="num flat">16.3</td><td class="num after">8.7</td><td class="num up">46%</td></tr>
+          <tr class="over"><td>思考散文</td><td class="num flat">4.1</td><td class="num worse">4.3</td><td class="num down">6%</td></tr>
+          <tr><td>思考分节</td><td class="num flat">4.6</td><td class="num after">3.9</td><td class="num up">15%</td></tr>
+          <tr class="over"><td>大段终端</td><td class="num flat">16.2</td><td class="num worse">19.9</td><td class="num down">22%</td></tr>
+          <tr><td>表格流式</td><td class="num flat">14.8</td><td class="num after">6.9</td><td class="num up">54%</td></tr>
+          <tr><td>展开的工具</td><td class="num flat">5.6</td><td class="num after">3.1</td><td class="num up">44%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">单位是毫秒。iOS 18.6 模拟器上的 Paseo 0.11.2 开发版，每次运行前冷启动 App，每格 2 次（混合一轮 4 次）取中位数，代码 <code>c00be20</code>。开发版的绝对值只能横向比；思考散文的 6% 在噪声以内。</p>
+
+    <p>方法、全部表格和原始数据在 <a href="../bench/native-vs-fork/README.md">docs/bench/native-vs-fork</a>。</p>
+  </main>
+  <script>
+    const replay = document.getElementById("replay");
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) replay.hidden = true;
+    replay.addEventListener("click", () => {
+      document.querySelectorAll("img.chart").forEach((img) => {
+        img.src = img.dataset.file + "?replay=" + Date.now();
+      });
+    });
+  </script>
+</body>
+</html>

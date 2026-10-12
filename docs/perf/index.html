@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>同一段回放，提交时间收回来了</title>
+  <title>Beautiful Chat 与官方版本的性能对比</title>
   <style>
     :root {
       --sheet: #e6eef1;
@@ -43,13 +43,6 @@
       font-weight: 600;
       font-size: 22px;
       line-height: 1.3;
-    }
-    h3 {
-      margin: 32px 0 8px;
-      font-family: "Songti SC", "Noto Serif SC", Palatino, serif;
-      font-weight: 600;
-      font-size: 18px;
-      line-height: 1.35;
     }
     p { margin: 0 0 14px; max-width: 62ch; }
     a { color: var(--settled); }
@@ -111,27 +104,28 @@
       h1 { font-size: 28px; }
     }
   </style>
+
 </head>
 <body>
   <main>
-    <h1>同一段回放，提交时间收回来了</h1>
-    <p class="lead">官方 Beautiful Chat（<code>42b61d8</code>）对上这个 fork。横条先画成官方的长度，再收到现在的长度。淡色留下的是省掉的那一截。</p>
+    <h1>Beautiful Chat 与官方版本的性能对比</h1>
+    <p class="lead">官方 Beautiful Chat（<code>42b61d8</code>）对本仓库 <code>05cf671</code>，回放同样的 11 段对话。横条先画成官方的长度，再收到本仓库的长度，淡色留下的就是省掉的那一截。</p>
     <p class="lead">页面后半段换了对照组：<a href="#native">不开插件、Paseo 自己渲染</a>，看装上这个插件是更省还是更费。</p>
-    <p class="note">Web 是生产构建，每个场景 1 次。iOS 是同一次会话里官方和本仓库交替各跑 4 次的中位数。原始表在 <a href="../bench/final-report.md">docs/bench/final-report.md</a>（代码 <code>81ce36b</code>）。</p>
+    <p class="note">Paseo 0.11.2 Web 生产构建，无头 Chrome 155。两个插件装在同一个隔离 daemon 上，每次只启用一个，按场景交替各跑 3 次，表中取中位数。两边都用默认设置。测量时机器上还有别的任务在跑（负载 20–50），绝对毫秒数偏高；两边交替测量，相对比较仍然成立。回放速度：100 轮历史用最大速度，展开的工具用 4 倍速，其余按录制时的节奏。</p>
 
     <div class="legend">
       <span><i class="swatch ghost"></i>官方</span>
       <span><i class="swatch now"></i>本仓库</span>
       <span><i class="swatch budget"></i>4ms 预算</span>
-      <span class="up">提升</span>
-      <span class="down">倒退</span>
+      <span class="up">更好</span>
+      <span class="down">更差</span>
       <button type="button" id="replay">再看一次</button>
     </div>
 
-    <h2 id="web">Web 上最忙的那张卡片</h2>
-    <p>纵轴是场景，横轴是提交时间的 p95，对数刻度。10 个场景收到虚线左边或贴着虚线；100 轮历史仍在右边。</p>
+    <h2 id="commit">最忙那张卡片的提交时间</h2>
+    <p>纵轴是场景，横轴是提交时间的 p95，对数刻度。11 个场景里本仓库有 11 个更快，6 个收进 4ms 虚线以内。100 轮历史是 110 张卡片同时停在正在生成区、按最大速度回放，是最重的一项。</p>
     <figure>
-      <img class="chart" data-file="web-p95.svg" src="web-p95.svg" alt="Web 生产构建，11 个场景的提交时间 p95。淡色是官方，绿色收回后是本仓库。虚线是 4 毫秒预算。">
+      <img class="chart" data-file="web-commit-p95.svg" src="web-commit-p95.svg" alt="Web 生产构建，11 个场景里最忙卡片提交时间的 p95，对数刻度。淡色是官方，绿色是本仓库，虚线是 4 毫秒预算。">
     </figure>
 
     <div class="table-wrap">
@@ -145,53 +139,23 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td>代码块流式</td><td class="num before">10.5</td><td class="num after">1.7</td><td class="num up">84%</td></tr>
-          <tr><td>大 diff</td><td class="num before">208.9</td><td class="num after">1.9</td><td class="num up">99%</td></tr>
-          <tr class="over"><td>100 轮历史</td><td class="num before">95.6</td><td class="num after">32.4</td><td class="num up">66%</td></tr>
-          <tr><td>长回复</td><td class="num before">16.3</td><td class="num after">1.7</td><td class="num up">90%</td></tr>
-          <tr><td>混合一轮</td><td class="num before">8.7</td><td class="num after">1.7</td><td class="num up">80%</td></tr>
-          <tr><td>读 20 个文件</td><td class="num before">230.2</td><td class="num after">2.0</td><td class="num up">99%</td></tr>
-          <tr><td>思考散文</td><td class="num before">3.1</td><td class="num after">0.8</td><td class="num up">74%</td></tr>
-          <tr><td>思考分节</td><td class="num before">5.5</td><td class="num after">0.8</td><td class="num up">85%</td></tr>
-          <tr><td>大段终端</td><td class="num before">30.0</td><td class="num after">2.2</td><td class="num up">93%</td></tr>
-          <tr><td>表格流式</td><td class="num before">2.0</td><td class="num after">1.4</td><td class="num up">30%</td></tr>
-          <tr><td>展开的工具</td><td class="num before">16.7</td><td class="num after">1.3</td><td class="num up">92%</td></tr>
+          <tr><td>代码块流式</td><td class="num before">12.3</td><td class="num after">1.2</td><td class="num up">90%</td></tr>
+          <tr class="over"><td>大 diff</td><td class="num before">254</td><td class="num after">5.4</td><td class="num up">98%</td></tr>
+          <tr class="over"><td>100 轮历史</td><td class="num before">138</td><td class="num after">30.3</td><td class="num up">78%</td></tr>
+          <tr><td>长回复</td><td class="num before">12.1</td><td class="num after">1.3</td><td class="num up">89%</td></tr>
+          <tr class="over"><td>混合一轮</td><td class="num before">27.0</td><td class="num after">11.3</td><td class="num up">58%</td></tr>
+          <tr class="over"><td>读 20 个文件</td><td class="num before">174</td><td class="num after">4.3</td><td class="num up">98%</td></tr>
+          <tr><td>思考散文</td><td class="num before">6.2</td><td class="num after">2.9</td><td class="num up">53%</td></tr>
+          <tr><td>思考分节</td><td class="num before">5.7</td><td class="num after">2.8</td><td class="num up">51%</td></tr>
+          <tr><td>大段终端</td><td class="num before">31.7</td><td class="num after">4.0</td><td class="num up">87%</td></tr>
+          <tr><td>表格流式</td><td class="num before">5.5</td><td class="num after">1.2</td><td class="num up">78%</td></tr>
+          <tr class="over"><td>展开的工具</td><td class="num before">22.3</td><td class="num after">4.4</td><td class="num up">80%</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note">单位是毫秒。绿色向上箭头是提升（耗时下降），红色向下箭头是倒退（耗时变长）。100 轮那一行没进 4ms：110 张卡片同时停在正在生成区，按最大速度回放。</p>
+    <p class="note">单位是毫秒。每次回放取提交时间 p95 最高的那类卡片。左侧有竖线的行没进 4ms。</p>
 
-    <h2 id="ios">iOS 上同一次会话</h2>
-    <p>线性刻度，0 到 160 毫秒，画的是 p95。五类卡片都比官方快：助手、思考、工具、待办收到原来的四分之一左右，用户卡片从 25.3 降到 13.3。</p>
-    <figure>
-      <img class="chart" data-file="ios-p95.svg" src="ios-p95.svg" alt="iOS 同一次会话，用户、助手、思考、工具、待办的提交时间 p95。五条都比官方短，用户大约减半，其余四条收到四分之一左右。">
-    </figure>
-
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>卡片</th>
-            <th class="num">官方 p50</th>
-            <th class="num">本仓库 p50</th>
-            <th class="num">p50</th>
-            <th class="num">官方 p95</th>
-            <th class="num">本仓库 p95</th>
-            <th class="num">p95</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td>用户</td><td class="num before">15.8</td><td class="num after">13.3</td><td class="num up">16%</td><td class="num before">25.3</td><td class="num after">13.3</td><td class="num up">47%</td></tr>
-          <tr><td>助手</td><td class="num before">20.2</td><td class="num after">13.1</td><td class="num up">35%</td><td class="num before">108.2</td><td class="num after">21.6</td><td class="num up">80%</td></tr>
-          <tr><td>思考</td><td class="num before">22.1</td><td class="num after">9.6</td><td class="num up">57%</td><td class="num before">94.4</td><td class="num after">21.5</td><td class="num up">77%</td></tr>
-          <tr><td>工具</td><td class="num before">45.1</td><td class="num after">15.4</td><td class="num up">66%</td><td class="num before">122.6</td><td class="num after">27.0</td><td class="num up">78%</td></tr>
-          <tr><td>待办</td><td class="num before">60.5</td><td class="num after">28.0</td><td class="num up">54%</td><td class="num before">137.9</td><td class="num after">40.8</td><td class="num up">70%</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="note">单位是毫秒。<code>mixed-turn</code>，同一模拟器会话里交替各 4 次，取中位数。这是设置同步改成单独 memo（<code>a2996c5</code>）之后的配对 A/B。V1 时用户卡片 p50 曾从 18.0 变成 26.6，因为设置同步挂在第一张卡片上；修复后用户卡片每轮只渲染 1 次，原来是 4 次。</p>
-
-    <h2 id="frames">帧和还在转的动画</h2>
+    <h2 id="frames">帧和动画</h2>
     <div class="table-wrap">
       <table>
         <thead>
@@ -199,48 +163,56 @@
             <th>场景</th>
             <th class="num">掉帧</th>
             <th class="num">最长帧</th>
+            <th class="num">长任务</th>
             <th class="num">结束时的循环动画</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td>代码块流式</td><td class="num up">1.0% → 0.2%</td><td class="num up">133 → 50</td><td class="num flat">0 → 0</td></tr>
-          <tr><td>大 diff</td><td class="num up">14.8% → 0.3%</td><td class="num up">517 → 33</td><td class="num up">3 → 0</td></tr>
-          <tr class="over"><td>100 轮历史</td><td class="num up">77.6% → 45.4%</td><td class="num up">833 → 183</td><td class="num up">327 → 0</td></tr>
-          <tr><td>长回复</td><td class="num up">5.4% → 0.2%</td><td class="num up">200 → 50</td><td class="num flat">0 → 0</td></tr>
-          <tr><td>混合一轮</td><td class="num up">1.1% → 0.2%</td><td class="num up">117 → 50</td><td class="num up">21 → 1</td></tr>
-          <tr><td>读 20 个文件</td><td class="num up">9.1% → 0.5%</td><td class="num up">567 → 50</td><td class="num up">72 → 0</td></tr>
-          <tr><td>思考散文</td><td class="num up">0.5% → 0.1%</td><td class="num up">67 → 33</td><td class="num flat">0 → 0</td></tr>
-          <tr><td>思考分节</td><td class="num up">0.4% → 0.2%</td><td class="num up">67 → 33</td><td class="num flat">0 → 0</td></tr>
-          <tr><td>大段终端</td><td class="num up">0.8% → 0.3%</td><td class="num up">133 → 50</td><td class="num up">2 → 0</td></tr>
-          <tr><td>表格流式</td><td class="num up">0.6% → 0.1%</td><td class="num up">67 → 33</td><td class="num flat">0 → 0</td></tr>
-          <tr><td>展开的工具</td><td class="num up">0.3% → 0.2%</td><td class="num up">50 → 33</td><td class="num up">2 → 0</td></tr>
+          <tr><td>代码块流式</td><td class="num up">0.8% → 0.4%</td><td class="num up">117 → 67</td><td class="num flat">0 → 0</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>大 diff</td><td class="num up">14.7% → 1.2%</td><td class="num up">517 → 117</td><td class="num up">6 → 0</td><td class="num up">3 → 0</td></tr>
+          <tr><td>100 轮历史</td><td class="num up">76.8% → 19.2%</td><td class="num up">367 → 200</td><td class="num up">73 → 7</td><td class="num up">344 → 0</td></tr>
+          <tr><td>长回复</td><td class="num up">0.5% → 0.3%</td><td class="num up">117 → 50</td><td class="num flat">0 → 0</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>混合一轮</td><td class="num down">0.8% → 1.0%</td><td class="num down">67 → 133</td><td class="num flat">0 → 0</td><td class="num up">21 → 1</td></tr>
+          <tr><td>读 20 个文件</td><td class="num up">3.5% → 0.7%</td><td class="num up">250 → 83</td><td class="num up">1 → 0</td><td class="num up">72 → 0</td></tr>
+          <tr><td>思考散文</td><td class="num flat">0.8% → 0.9%</td><td class="num down">133 → 167</td><td class="num flat">0 → 0</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>思考分节</td><td class="num down">0.5% → 1.1%</td><td class="num down">100 → 150</td><td class="num flat">0 → 0</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>大段终端</td><td class="num up">1.6% → 1.0%</td><td class="num up">133 → 100</td><td class="num up">1 → 0</td><td class="num up">2 → 0</td></tr>
+          <tr><td>表格流式</td><td class="num up">0.9% → 0.7%</td><td class="num flat">117 → 133</td><td class="num flat">0 → 0</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>展开的工具</td><td class="num up">1.2% → 0.4%</td><td class="num flat">67 → 67</td><td class="num flat">0 → 0</td><td class="num up">2 → 0</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note">Web 生产构建。掉帧是比例，最长帧是毫秒。循环动画是跑完时还挂着的个数。</p>
+    <p class="note">掉帧是比例，最长帧是毫秒，长任务是超过 50ms 的任务个数，循环动画是跑完时还挂着的个数。帧数据受机器负载影响大：相差一帧（17ms）以内、掉帧相差 0.1 个百分点以内记为持平，其余按好坏标色。</p>
 
-    <h2 id="heap">堆内存，10 月 12 日复测</h2>
-    <p>V1 的堆内存读的是 <code>performance.memory</code>，Chrome 会把它量化并缓存，同一场景三次能差 20MB 以上，V1 每个场景又只跑 1 次。这次把官方和本仓库放在同一个隔离 daemon 上交替各跑 3 次，用 CDP 读精确值；两边都由插件绘制用户卡片。</p>
+    <h2 id="memory">内存和渲染次数</h2>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th>场景</th>
-            <th class="num">跑完（不 GC）</th>
-            <th class="num">常驻（GC 后）</th>
+            <th class="num">跑完时的堆</th>
+            <th class="num">GC 后常驻</th>
+            <th class="num">插件渲染次数</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td>代码块流式</td><td class="num up">126.4 → 117.5</td><td class="num up">110.1 → 109.1</td></tr>
-          <tr><td>100 轮历史</td><td class="num up">523.8 → 206.0</td><td class="num up">178.4 → 153.3</td></tr>
-          <tr><td>长回复</td><td class="num up">120.7 → 111.7</td><td class="num flat">110.4 → 110.7</td></tr>
-          <tr><td>思考分节</td><td class="num up">117.2 → 111.7</td><td class="num up">107.4 → 106.7</td></tr>
-          <tr><td>表格流式</td><td class="num up">120.5 → 107.5</td><td class="num up">107.6 → 107.4</td></tr>
-          <tr><td>混合一轮</td><td class="num up">128.8 → 114.2</td><td class="num up">115.6 → 109.3</td></tr>
+          <tr><td>代码块流式</td><td class="num down">111.0 → 114.6</td><td class="num up">109.2 → 107.9</td><td class="num up">454 → 439</td></tr>
+          <tr><td>大 diff</td><td class="num up">316.7 → 110.0</td><td class="num up">197.2 → 106.4</td><td class="num up">29 → 20</td></tr>
+          <tr><td>100 轮历史</td><td class="num up">367.9 → 166.3</td><td class="num up">206.8 → 113.1</td><td class="num up">18,583 → 583</td></tr>
+          <tr><td>长回复</td><td class="num up">124.6 → 112.1</td><td class="num flat">110.2 → 110.9</td><td class="num up">809 → 799</td></tr>
+          <tr><td>混合一轮</td><td class="num up">131.5 → 111.1</td><td class="num up">116.0 → 108.3</td><td class="num up">183 → 129</td></tr>
+          <tr><td>读 20 个文件</td><td class="num up">282.4 → 113.3</td><td class="num up">223.5 → 110.6</td><td class="num up">186 → 156</td></tr>
+          <tr><td>思考散文</td><td class="num up">125.0 → 107.3</td><td class="num flat">107.4 → 106.6</td><td class="num up">803 → 457</td></tr>
+          <tr><td>思考分节</td><td class="num flat">116.8 → 117.6</td><td class="num flat">107.2 → 107.1</td><td class="num up">745 → 403</td></tr>
+          <tr><td>大段终端</td><td class="num up">124.9 → 110.9</td><td class="num up">118.6 → 106.5</td><td class="num up">33 → 20</td></tr>
+          <tr><td>表格流式</td><td class="num flat">111.2 → 111.0</td><td class="num flat">107.2 → 107.8</td><td class="num up">247 → 236</td></tr>
+          <tr><td>展开的工具</td><td class="num up">142.4 → 110.4</td><td class="num up">116.6 → 108.7</td><td class="num down">216 → 297</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note">单位是 MB，3 次中位数。长回复的常驻堆多 0.3MB，在轮次之间的波动以内。复测前的 <code>c00be20</code> 有 4 个场景常驻堆比官方高 1–2.4MB：一是流式尾块的半截版本都存进了 lex 缓存，二是 bundle 里的非 ASCII 字符让整份源码按双字节保存。两处都已修掉，上表是修复后的结果。大 diff（349 → 203）和读 20 个文件（325 → 148）沿用 V1 的读数。</p>
+    <p class="note">单位是 MB，用 CDP 读取。跑完时的堆不做 GC；GC 后常驻是跑完后强制回收两次再读。每轮开跑前的堆在 102–106MB 之间漂移，所以相差 1MB 以内记为持平。插件渲染次数是这一轮里插件卡片渲染的总次数；默认设置下用户消息由 Paseo 自己绘制，不算在本仓库里。</p>
+
+    <p class="note">原始数据在 <a href="../bench/raw-latest/">docs/bench/raw-latest/</a>，用 <code>docs/bench/tools/recheck-ab.mjs</code> 采集，页面由 <code>docs/perf/build.py</code> 生成。这一组没有测 iOS。</p>
 
     <h2 id="native">和不开插件的 Paseo 比</h2>
     <p>对照组换成 Paseo 0.11.2 自己的渲染：同一个 daemon、同样 11 段回放，只在开和关这个插件之间切换。测量放在宿主上，原生行和插件行外面套的是同一个 <code>React.Profiler</code>，两边口径一致。</p>
@@ -283,32 +255,10 @@
         </tbody>
       </table>
     </div>
-    <p class="note">Web 生产构建，每格 3 次取中位数，原生和本仓库按场景交替跑。代码是 <code>main</code> 加上下面的圆点修复。单行渲染 p95 是宿主行外壳上 <code>React.Profiler</code> 的读数，原生 → 本仓库。</p>
-
-    <h3 id="native-dot">修之前：运行中圆点每帧提交整行</h3>
-    <p>第一次对比时，有工具或待办在跑的场景反而比原生慢：混合一轮多 38%，展开的工具多 33%，大段终端多 22%。圆点用 <code>Animated</code> 做透明度循环，Web 上没有 native driver，每一帧都让所在的行重新提交一次。现在 Web 上改成 CSS 动画，交给浏览器去做。</p>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>场景</th>
-            <th class="num">行提交次数 修前</th>
-            <th class="num">修后</th>
-            <th class="num">原生</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td>混合一轮</td><td class="num worse">1,518</td><td class="num after">196</td><td class="num flat">274</td></tr>
-          <tr><td>大段终端</td><td class="num worse">604</td><td class="num after">38</td><td class="num flat">43</td></tr>
-          <tr><td>展开的工具</td><td class="num worse">1,216</td><td class="num after">407</td><td class="num flat">315</td></tr>
-          <tr><td>100 轮历史</td><td class="num flat">5,624</td><td class="num flat">5,763</td><td class="num flat">5,270</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="note">同一份代码，只差圆点这一处。修前修后分两批跑，中间机器负载不同，所以这里只比次数，不比毫秒。100 轮历史按最大速度回放，圆点几乎来不及出现。</p>
+    <p class="note">Web 生产构建，每格 3 次取中位数，原生和本仓库按场景交替跑。代码是 <code>main</code> 加上运行中圆点改用 CSS 动画的修复（<code>58f6728</code>）。单行渲染 p95 是宿主行外壳上 <code>React.Profiler</code> 的读数，原生 → 本仓库。</p>
 
     <h2 id="native-ios">iOS：单次提交里所有行加起来</h2>
-    <p>线性刻度，单位毫秒，画的是 p95。长回复从 59 收到 8，代码块、表格、混合一轮都收到一半以下。100 轮历史和大段终端比原生长。iOS 的圆点本来就走 native driver，这次修复不影响这张图。</p>
+    <p>线性刻度，单位毫秒，画的是 p95。长回复从 59 收到 8，代码块、表格、混合一轮都收到一半以下。100 轮历史和大段终端比原生长。iOS 上的圆点走 native driver，不受 Web 圆点修复影响。</p>
     <figure>
       <img class="chart" data-file="ios-native-commit.svg" src="ios-native-commit.svg" alt="iOS 模拟器开发版，11 个场景单次提交里所有行之和的 p95。淡色是 Paseo 原生，绿色收回后是本仓库；100 轮历史、思考散文、大段终端是红色。">
     </figure>
@@ -341,8 +291,6 @@
     <p class="note">单位是毫秒。iOS 18.6 模拟器上的 Paseo 0.11.2 开发版，每次运行前冷启动 App，每格 2 次（混合一轮 4 次）取中位数，代码 <code>c00be20</code>。开发版的绝对值只能横向比；思考散文的 6% 在噪声以内。</p>
 
     <p>方法、全部表格和原始数据在 <a href="../bench/native-vs-fork/README.md">docs/bench/native-vs-fork</a>。</p>
-
-    <p>文字说明和离线回放的次数在 <a href="../fork-vs-upstream.md#性能">相对官方的差异</a>。</p>
   </main>
   <script>
     const replay = document.getElementById("replay");
