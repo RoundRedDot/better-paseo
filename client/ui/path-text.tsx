@@ -276,7 +276,7 @@ export function PathText({
       ) : null}
     </Pressable>
       {preview.open ? <HoverPreview preview={preview} tokens={tokens}>
-        <HoverPreviewBody>
+        <HoverPreviewBody withHeader={false}>
           <Text {...(codeSurface as object)} selectable style={[styles.tooltipText, { color: tokens.foreground, fontFamily: tokens.fontMono }]}>
             {formatted.absolutePath}{formatted.suffix}
           </Text>

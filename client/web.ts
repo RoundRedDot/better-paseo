@@ -25,6 +25,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   panel.style.position = "fixed";
   panel.style.inset = "auto";
   panel.style.margin = "0";
+  panel.style.padding = "0";
   panel.style.overflowY = "auto";
   panel.style.overscrollBehavior = "contain";
   panel.style.maxWidth = `${Math.max(0, view.innerWidth - 16)}px`;
