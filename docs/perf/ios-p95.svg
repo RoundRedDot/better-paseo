@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 258" width="760" height="258" role="img">
+<title>iOS 同一次会话，mixed-turn 各卡片提交时间 p95，单位毫秒。淡色是官方，绿色是本仓库。</title>
+<style>
+.final { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .motion { display: none; }
+  .final { display: inline; }
+}
+</style>
+<line x1="56.0" y1="18" x2="56.0" y2="210" stroke="#d5e0e4" stroke-width="1"/>
+<text x="56.0" y="232" text-anchor="middle" fill="#5c6e76" font-size="11" font-family="ui-sans-serif, system-ui, sans-serif">0</text>
+<line x1="176.0" y1="18" x2="176.0" y2="210" stroke="#d5e0e4" stroke-width="1"/>
+<text x="176.0" y="232" text-anchor="middle" fill="#5c6e76" font-size="11" font-family="ui-sans-serif, system-ui, sans-serif">40</text>
+<line x1="296.0" y1="18" x2="296.0" y2="210" stroke="#d5e0e4" stroke-width="1"/>
+<text x="296.0" y="232" text-anchor="middle" fill="#5c6e76" font-size="11" font-family="ui-sans-serif, system-ui, sans-serif">80</text>
+<line x1="416.0" y1="18" x2="416.0" y2="210" stroke="#d5e0e4" stroke-width="1"/>
+<text x="416.0" y="232" text-anchor="middle" fill="#5c6e76" font-size="11" font-family="ui-sans-serif, system-ui, sans-serif">120</text>
+<line x1="536.0" y1="18" x2="536.0" y2="210" stroke="#d5e0e4" stroke-width="1"/>
+<text x="536.0" y="232" text-anchor="middle" fill="#5c6e76" font-size="11" font-family="ui-sans-serif, system-ui, sans-serif">160</text>
+<text x="44" y="40" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">用户</text>
+<rect x="56" y="30" width="93.3" height="12" fill="#e7cfc9"/>
+<rect class="motion" x="56" y="30" width="95.7" height="12" fill="#1e5c4e"><animate attributeName="width" from="93.3" to="95.7" begin="0.000s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="56" y="30" width="95.7" height="12" fill="#1e5c4e"/>
+<text x="548" y="40" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">31.1 → 31.9</text><polygon fill="#a33b32" points="664,31 676,31 670,39"/><text x="680" y="40" fill="#a33b32" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">3%</text>
+<text x="44" y="80" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">助手</text>
+<rect x="56" y="70" width="309.0" height="12" fill="#e7cfc9"/>
+<rect class="motion" x="56" y="70" width="75.0" height="12" fill="#1e5c4e"><animate attributeName="width" from="309.0" to="75.0" begin="0.060s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="56" y="70" width="75.0" height="12" fill="#1e5c4e"/>
+<text x="548" y="80" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">103 → 25</text><polygon fill="#1e5c4e" points="670,71 676,79 664,79"/><text x="680" y="80" fill="#1e5c4e" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">76%</text>
+<text x="44" y="120" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">思考</text>
+<rect x="56" y="110" width="300.0" height="12" fill="#e7cfc9"/>
+<rect class="motion" x="56" y="110" width="69.0" height="12" fill="#1e5c4e"><animate attributeName="width" from="300.0" to="69.0" begin="0.120s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="56" y="110" width="69.0" height="12" fill="#1e5c4e"/>
+<text x="548" y="120" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">100 → 23</text><polygon fill="#1e5c4e" points="670,111 676,119 664,119"/><text x="680" y="120" fill="#1e5c4e" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">77%</text>
+<text x="44" y="160" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">工具</text>
+<rect x="56" y="150" width="375.0" height="12" fill="#e7cfc9"/>
+<rect class="motion" x="56" y="150" width="96.0" height="12" fill="#1e5c4e"><animate attributeName="width" from="375.0" to="96.0" begin="0.180s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="56" y="150" width="96.0" height="12" fill="#1e5c4e"/>
+<text x="548" y="160" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">125 → 32</text><polygon fill="#1e5c4e" points="670,151 676,159 664,159"/><text x="680" y="160" fill="#1e5c4e" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">74%</text>
+<text x="44" y="200" text-anchor="end" fill="#172226" font-size="13" font-family="PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">待办</text>
+<rect x="56" y="190" width="438.0" height="12" fill="#e7cfc9"/>
+<rect class="motion" x="56" y="190" width="123.0" height="12" fill="#1e5c4e"><animate attributeName="width" from="438.0" to="123.0" begin="0.240s" dur="1.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.16 0.84 0.22 1"/></rect>
+<rect class="final" x="56" y="190" width="123.0" height="12" fill="#1e5c4e"/>
+<text x="548" y="200" fill="#5c6e76" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">146 → 41</text><polygon fill="#1e5c4e" points="670,191 676,199 664,199"/><text x="680" y="200" fill="#1e5c4e" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">72%</text>
+</svg>
