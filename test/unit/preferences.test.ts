@@ -48,7 +48,7 @@ describe("preferences v2 defaults", () => {
   });
 
   it("draws rows icon-only and tightens the host's gap between them", () => {
-    expect(DEFAULT_PREFERENCES.rowLabels).toBe(false);
+    expect(DEFAULT_PREFERENCES.rowLabelStyle).toBe("icon");
     expect(DEFAULT_PREFERENCES.compactRowSpacing).toBe(true);
   });
 
@@ -61,14 +61,21 @@ describe("preferences v2 defaults", () => {
   });
 
   it("gives a record stored before the row switches their defaults", () => {
-    const { rowLabels: _rowLabels, compactRowSpacing: _compact, ...older } = storedPart(DEFAULT_PREFERENCES);
+    const { rowLabelStyle: _style, compactRowSpacing: _compact, ...older } = storedPart(DEFAULT_PREFERENCES);
     const parsed = parsePreferences({ ...older, accent: "rose" });
-    expect(parsed).toMatchObject({ accent: "rose", rowLabels: false, compactRowSpacing: true });
-    expect(parsePreferences({ rowLabels: true, compactRowSpacing: false })).toMatchObject({
-      rowLabels: true,
+    expect(parsed).toMatchObject({ accent: "rose", rowLabelStyle: "icon", compactRowSpacing: true });
+    expect(parsePreferences({ rowLabelStyle: "label", compactRowSpacing: false })).toMatchObject({
+      rowLabelStyle: "label",
       compactRowSpacing: false,
     });
-    expect(parsePreferences({ rowLabels: "yes" }).rowLabels).toBe(false);
+    expect(parsePreferences({ rowLabelStyle: "yes" }).rowLabelStyle).toBe("icon");
+  });
+
+  it("turns the old row labels switch into a style", () => {
+    expect(preferencesSchema.parse({ rowLabels: true })).toMatchObject({ rowLabelStyle: "both" });
+    expect(preferencesSchema.parse({ rowLabels: false }).rowLabelStyle).toBe("icon");
+    expect(preferencesSchema.parse({ rowLabels: true, rowLabelStyle: "label" }).rowLabelStyle).toBe("label");
+    expect(preferencesSchema.parse({ rowLabels: true })).not.toHaveProperty("rowLabels");
   });
 });
 

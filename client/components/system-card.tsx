@@ -116,6 +116,7 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
         tokens={tokens}
         compact={compact}
         icon={icon}
+        iconIsStatus={failed}
         verb={look.label}
         target={title}
         meta={meta}

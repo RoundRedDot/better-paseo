@@ -37,6 +37,7 @@ export type MonoFontPreference = "host" | "iosevka" | "custom";
 /** Tool cards start collapsed; `expand-failed` opens failed ones by default. */
 export type ToolDetailPreference = "collapsed" | "expand-failed";
 export type PathDisplayPreference = "relative" | "absolute";
+export type RowLabelStylePreference = "icon" | "label" | "both";
 
 export interface EnhancerPreferences {
   accent: AccentPreset;
@@ -80,10 +81,12 @@ export interface EnhancerPreferences {
   /** Which look the markdown renderer uses. */
   markdownVariant: MarkdownVariantPreference;
   /**
-   * The verb beside a row's icon ("Bash", "Read", "Thought"). Off, the icon
-   * alone names the kind of row and the target takes the width.
+   * What names a tool or thought row's kind: its icon, its verb ("Bash",
+   * "Read", "Thought"), or both. Icon only gives the target the most width;
+   * label only keeps the slot for status (running, failed) and the hover
+   * chevron, so every row's text column stays put.
    */
-  rowLabels: boolean;
+  rowLabelStyle: RowLabelStylePreference;
   /**
    * Paseo up to 0.11.2 spaces a plugin item like any other item, 16pt under
    * each, where its own tool rows sit flush. On, tool and thought rows take
@@ -154,7 +157,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   selectionActions: true,
   assistantMarkdown: true,
   markdownVariant: "document",
-  rowLabels: false,
+  rowLabelStyle: "icon",
   compactRowSpacing: true,
   compactReplySpacing: true,
   language: "system",

@@ -20,6 +20,7 @@ import {
   type AccentPreset,
   type MonoChoice,
   type PathDisplayPreference,
+  type RowLabelStylePreference,
   type ToolDetailPreference,
   type UiFontPreference,
 } from "./preferences";
@@ -743,14 +744,20 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
           title={t.rowLabelsTitle}
           description={t.rowLabelsDescription}
           control={
-            <Toggle
-              value={preferences.rowLabels}
-              onChange={(rowLabels) => updateEnhancerPreferences({ rowLabels })}
+            <Segmented<RowLabelStylePreference>
               label={t.rowLabelsTitle}
+              value={preferences.rowLabelStyle}
+              options={[
+                { value: "icon", label: t.rowLabelsIcon },
+                { value: "label", label: t.rowLabelsLabel },
+                { value: "both", label: t.rowLabelsBoth },
+              ]}
+              onChange={(rowLabelStyle) => updateEnhancerPreferences({ rowLabelStyle })}
               look={look}
             />
           }
           look={look}
+          stacked
         />
         <SettingRow
           title={t.rowSpacingTitle}

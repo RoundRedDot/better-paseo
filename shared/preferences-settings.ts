@@ -20,6 +20,7 @@ export const CODE_FONTS = ["code", "plain"] as const;
 export const MONO_FONTS = ["host", "iosevka", "custom"] as const;
 export const TOOL_DETAILS = ["collapsed", "expand-failed"] as const;
 export const PATH_DISPLAYS = ["relative", "absolute"] as const;
+export const ROW_LABEL_STYLES = ["icon", "label", "both"] as const;
 export const MARKDOWN_VARIANTS_STORED = ["document", "compact", "terminal"] as const;
 export const SETTINGS_LANGUAGES = ["system", "en", "zh"] as const;
 
@@ -32,7 +33,17 @@ export function clampCodeFontSize(value: number): number {
 
 const flag = (fallback: boolean) => z.boolean().catch(fallback);
 
-export const preferencesSchema = z.object({
+/**
+ * Row labels were an on/off switch (`rowLabels`) before they became a style;
+ * a record that turned them on keeps both the icon and the label.
+ */
+function migrateRowLabels(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || "rowLabelStyle" in raw) return raw;
+  const { rowLabels, ...rest } = raw as Record<string, unknown>;
+  return rowLabels === true ? { ...rest, rowLabelStyle: "both" } : rest;
+}
+
+export const preferencesSchema = z.preprocess(migrateRowLabels, z.object({
   accent: z.enum(ACCENT_IDS).catch("host"),
   uiFont: z.enum(UI_FONTS).catch("host"),
   codeFont: z.enum(CODE_FONTS).catch("code"),
@@ -53,11 +64,11 @@ export const preferencesSchema = z.object({
   selectionActions: flag(true),
   assistantMarkdown: flag(true),
   markdownVariant: z.enum(MARKDOWN_VARIANTS_STORED).catch("document"),
-  rowLabels: flag(false),
+  rowLabelStyle: z.enum(ROW_LABEL_STYLES).catch("icon"),
   compactRowSpacing: flag(true),
   compactReplySpacing: flag(true),
   language: z.enum(SETTINGS_LANGUAGES).catch("system"),
-});
+}));
 
 export type StoredPreferences = z.output<typeof preferencesSchema>;
 

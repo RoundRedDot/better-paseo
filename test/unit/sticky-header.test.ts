@@ -126,11 +126,18 @@ describe("tool card on a host with the sticky API", () => {
     expect(hook).not.toHaveBeenCalled();
   });
 
-  it("adds the verb, and only the verb, when row labels are on", async () => {
+  it("adds the verb, and only the verb, with icons and labels", async () => {
     const { countHostViews, card } = await load("sticky");
     const { updateEnhancerPreferences } = await import("../../client/preferences");
-    updateEnhancerPreferences({ rowLabels: true });
+    updateEnhancerPreferences({ rowLabelStyle: "both" });
     expect(countHostViews(card(false)).views).toBe(6);
+  });
+
+  it("swaps the icon for the verb with labels only", async () => {
+    const { countHostViews, card } = await load("sticky");
+    const { updateEnhancerPreferences } = await import("../../client/preferences");
+    updateEnhancerPreferences({ rowLabelStyle: "label" });
+    expect(countHostViews(card(false)).views).toBe(5);
   });
 
   it("binds the transform on an expanded card and enables it once the card passes 60% of the window", async () => {
