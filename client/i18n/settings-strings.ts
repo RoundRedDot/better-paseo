@@ -97,7 +97,7 @@ const en = {
 
   sectionTools: "Tools and paths",
   hoverPreviewTitle: "Hover previews",
-  hoverPreviewDescription: "Show a preview when hovering over collapsed rows and file paths on desktop.",
+  hoverPreviewDescription: "Show a preview when hovering over collapsed rows and file paths on desktop, or long-pressing a collapsed row on a phone.",
   hoverDelayTitle: "Hover delay",
   hoverDelayDescription: "Time to wait before showing a desktop hover preview.",
   toolDetailTitle: "Tool details",
@@ -205,7 +205,7 @@ const zh: SettingsStrings = {
 
   sectionTools: "工具与路径",
   hoverPreviewTitle: "Hover 弹窗",
-  hoverPreviewDescription: "在桌面端将鼠标停留在折叠行或文件路径上时显示预览弹窗。",
+  hoverPreviewDescription: "在桌面端将鼠标停留在折叠行或文件路径上，或在手机上长按折叠行时显示预览弹窗。",
   hoverDelayTitle: "Hover 延迟",
   hoverDelayDescription: "鼠标停留多久后显示桌面端 hover 弹窗。",
   toolDetailTitle: "工具详情",

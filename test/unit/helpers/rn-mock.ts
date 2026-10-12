@@ -29,6 +29,15 @@ export const Text = host("Text");
 export const Image = host("Image");
 export const ScrollView = host("ScrollView");
 export const TextInput = host("TextInput");
+export const SafeAreaView = host("SafeAreaView");
+
+/** Its children while visible, as a host element in place. */
+export function Modal(props: Props) {
+  const { visible, children, ...rest } = props;
+  return visible === false ? null : React.createElement("Modal", rest, children);
+}
+
+export const StatusBar = { currentHeight: 0 };
 
 export function Pressable(props: Props) {
   const { style, children, ...rest } = props;
@@ -134,6 +143,9 @@ export default {
   Image,
   ScrollView,
   TextInput,
+  SafeAreaView,
+  Modal,
+  StatusBar,
   Pressable,
   StyleSheet,
   Platform,

@@ -8,14 +8,12 @@ import {
   StyleSheet,
   Platform,
   PanResponder,
-  SafeAreaView,
-  StatusBar,
   type GestureResponderEvent,
   type LayoutChangeEvent,
   type PanResponderGestureState,
-  type ViewProps,
 } from "react-native";
 import { Glyph } from "./glyph";
+import { SafeInset } from "../ui/safe-inset";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import {
@@ -116,20 +114,6 @@ function midpoint([a, b]: Pair): ViewportPoint {
 
 function distance([a, b]: Pair): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-/**
- * The safe area on iOS. React Native's `SafeAreaView` is the only inset source
- * a plugin can reach (the host's safe-area context is not shared). Named
- * imports from the host's module are read where they are used, so web and
- * Android never touch its deprecated getter. (A namespace import would copy
- * every export at load, and some of them throw on evaluation.)
- */
-function SafeInset(props: ViewProps) {
-  if (Platform.OS === "ios" && SafeAreaView) return <SafeAreaView {...props} />;
-  // The modal is drawn under Android's translucent status bar.
-  const top = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
-  return <View {...props} style={[props.style, top > 0 && { paddingTop: top }]} />;
 }
 
 function ViewerBody({ onClose, uri, width, height, label, tokens, onReveal }: ImageViewerProps) {

@@ -6,7 +6,10 @@ import "./helpers/quiet-renderer";
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/react-native", () => ({ Icon: "Icon" }));
 const state = vi.hoisted(() => ({ hover: true }));
-vi.mock("../../client/ui/use-input-capabilities", () => ({ useInputCapabilities: () => ({ hover: state.hover }) }));
+vi.mock("../../client/ui/use-input-capabilities", () => ({ useInputCapabilities: () => ({
+  hover: state.hover,
+  native: ["ios", "android"].includes((globalThis as { __rnMockOS?: string }).__rnMockOS ?? ""),
+}) }));
 vi.mock("../../client/web", () => ({ bindPreviewPointer: () => () => {}, openPreviewLayer: () => () => {} }));
 import { HoverPreviewContext, PREVIEW_CLOSE_MS, PREVIEW_OPEN_MS, useHoverPreview } from "../../client/ui/hover-preview";
 import { HOVER_DELAYS, HOVER_DELAY_MS, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
@@ -146,11 +149,44 @@ describe("hover preview lifetime", () => {
     expect(preview.open).toBe(false);
     expect(vi.getTimerCount()).toBe(0);
   });
-  it.each(["ios", "android"])("does not open on %s", (os) => {
+  it.each(["ios", "android"])("does not open on hover on %s", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     mount();
     act(() => preview.enter());
     act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+    expect(preview.open).toBe(false);
+  });
+  it.each(["ios", "android"])("opens on a long press on %s and stays until closed", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    mount();
+    act(() => preview.press!());
+    expect(preview.open).toBe(true);
+    act(() => preview.leave());
+    act(() => { vi.advanceTimersByTime(5000); });
+    expect(preview.open).toBe(true);
+    act(() => preview.close());
+    expect(preview.open).toBe(false);
+  });
+  it("offers no long press on web, while disabled, or inside another preview owner", () => {
+    mount();
+    expect(preview.press).toBeUndefined();
+    act(() => renderer.unmount());
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    mount(false);
+    expect(preview.press).toBeUndefined();
+    act(() => renderer.unmount());
+    mount(true, true);
+    expect(preview.press).toBeUndefined();
+    act(() => renderer.unmount());
+    updateEnhancerPreferences({ hoverPreview: false });
+    mount();
+    expect(preview.press).toBeUndefined();
+  });
+  it("closes a long-pressed preview when the row expands", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    mount();
+    act(() => preview.press!());
+    act(() => renderer.update(React.createElement(Probe, { enabled: false })));
     expect(preview.open).toBe(false);
   });
   it("does not open on touch-only web or inside another preview owner", () => {

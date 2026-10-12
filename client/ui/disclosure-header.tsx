@@ -90,10 +90,17 @@ export interface DisclosureHeaderProps {
   actionsAlwaysVisible?: boolean;
   /** Keep hover actions shown without the pointer, e.g. while their `⋯` menu is open. */
   actionsActive?: boolean;
-  /** Touch entry for the primary action (plan §3.8): long-press the row. */
+  /**
+   * Touch entry for the primary action (plan §3.8): long-press the row. On iOS
+   * and Android a collapsed row with `previewContent` opens its preview on a
+   * long press instead, and the preview carries the copy actions.
+   */
   onLongPress?(): void;
   accessibilityLabel?: string;
-  /** Built only while hovered; does not change the disclosure state. */
+  /**
+   * Built only while hovered, or long-pressed on a phone; does not change the
+   * disclosure state.
+   */
   previewContent?(): ReactNode;
   /**
    * Keeps the row in place when it toggles. The row brings its own; a card
@@ -251,7 +258,7 @@ export function DisclosureHeader({
           aria-expanded={expanded}
           onPressIn={anchor.hold}
           onPress={toggle}
-          onLongPress={onLongPress}
+          onLongPress={preview.press ?? onLongPress}
           hitSlop={slop > 0 ? { top: slop, bottom: slop } : undefined}
           {...(pointerProps as object)}
           style={({ pressed }) => [
