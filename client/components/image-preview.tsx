@@ -29,6 +29,12 @@ interface ImagePreviewProps {
    * already places it.
    */
   bleed?: boolean;
+  /**
+   * Drawn inside a row's hover or long-press preview: a smaller picture that
+   * fits the panel, no show/hide toggle, and no full-screen viewer, since the
+   * panel closes as soon as the pointer leaves it for the viewer.
+   */
+  preview?: boolean;
 }
 
 /**
@@ -36,6 +42,35 @@ interface ImagePreviewProps {
  * press opens it at the size of the window.
  */
 const MAX_HEIGHT = 480;
+/**
+ * The tallest a thumbnail grows inside a preview panel. On web the hover panel
+ * is 360 tall (`PREVIEW_LIMIT`) and this leaves room for its toolbar, the path
+ * and the card's header; a phone's long-press panel has about 500.
+ */
+export const PREVIEW_MAX_HEIGHT = Platform.OS === "web" ? 220 : 320;
+
+/**
+ * The thumbnail's box, from the image's own pixels: a box sized by width alone
+ * letterboxes a tall image inside empty sides, and a fixed height blows a
+ * 32 px icon up to eight times its size. Width leads and height follows the
+ * ratio: the box fills the column but grows no wider than the file itself or
+ * than `maxHeight` allows.
+ *
+ * `maxHeight` repeats what `maxWidth` already implies, for Yoga: it derives
+ * the height from the 100% width before `maxWidth` narrows it, so a tall
+ * screenshot on a phone got a 218-wide box 750 tall and its picture sat
+ * between two bands of empty canvas. CSS sizes it right either way.
+ */
+export function thumbnailFrame(width: number, height: number, maxHeight: number) {
+  const ratio = width / height;
+  const maxWidth = Math.min(width, maxHeight * ratio);
+  return {
+    width: "100%" as const,
+    maxWidth,
+    maxHeight: maxWidth / ratio,
+    aspectRatio: ratio,
+  };
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -62,7 +97,7 @@ function formatBytes(bytes: number): string {
  * the finger (`useScrollAnchor`): in the native timeline the picture
  * collapsing would otherwise throw the header off screen.
  */
-export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: ImagePreviewProps) {
+export function ImagePreview({ path, file, tokens, onReveal, bleed = false, preview = false }: ImagePreviewProps) {
   const [shown, setShown] = useState(true);
   const [viewing, setViewing] = useState(false);
   const capabilities = useInputCapabilities();
@@ -136,7 +171,7 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: Im
         // The press target carries the frame and hugs the picture, so the
         // letterboxed sides of a narrow image stay plain background.
         fill: { width: "100%", height: "100%" },
-        image: { width: "100%", height: MAX_HEIGHT },
+        image: { width: "100%" },
         message: {
           fontFamily: tokens.fontUi,
           fontSize: UI_SCALE.base,
@@ -151,23 +186,15 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: Im
   if (file?.width && file.height) chips.push(`${file.width} × ${file.height}`);
   if (file?.bytes) chips.push(formatBytes(file.bytes));
 
-  // Size from the image's own pixels: a box sized by width alone letterboxes a
-  // tall image inside empty sides, and a fixed height blows a 32 px icon up to
-  // eight times its size. Width leads and height follows the ratio: the box
-  // fills the column but grows no wider than the file itself or than
-  // `MAX_HEIGHT` allows. A fixed height clamped by the column instead keeps
-  // its full height on a phone and letterboxes a wide image above and below.
-  const ratio = file?.width && file.height ? file.width / file.height : null;
+  // A fixed height clamped by the column instead keeps its full height on a
+  // phone and letterboxes a wide image above and below.
+  const maxHeight = preview ? PREVIEW_MAX_HEIGHT : MAX_HEIGHT;
   const frame =
-    ratio !== null && file?.width
-      ? {
-          width: "100%" as const,
-          maxWidth: Math.min(file.width, MAX_HEIGHT * ratio),
-          aspectRatio: ratio,
-        }
-      : styles.image;
+    file?.width && file.height
+      ? thumbnailFrame(file.width, file.height, maxHeight)
+      : [styles.image, { height: maxHeight }];
 
-  const toggle = file?.dataUri
+  const toggle = file?.dataUri && !preview
     ? () => {
         anchor.arm();
         setShown((previous) => !previous);
@@ -227,29 +254,42 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: Im
         <Text style={styles.message}>{file.error ?? "The image could not be read."}</Text>
       ) : shown ? (
         <View style={styles.canvas}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Open the image full screen"
-            onPress={() => setViewing(true)}
-            style={[frame, Platform.OS === "web" && ({ cursor: "zoom-in" } as never)]}
-          >
-            <Image
-              source={{ uri: file.dataUri }}
-              style={styles.fill}
-              resizeMode="contain"
-              accessibilityLabel={path}
+          {preview ? (
+            <View style={frame}>
+              <Image
+                source={{ uri: file.dataUri }}
+                style={styles.fill}
+                resizeMode="contain"
+                accessibilityLabel={path}
+              />
+            </View>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open the image full screen"
+              onPress={() => setViewing(true)}
+              style={[frame, Platform.OS === "web" && ({ cursor: "zoom-in" } as never)]}
+            >
+              <Image
+                source={{ uri: file.dataUri }}
+                style={styles.fill}
+                resizeMode="contain"
+                accessibilityLabel={path}
+              />
+            </Pressable>
+          )}
+          {preview ? null : (
+            <ImageViewer
+              open={viewing}
+              onClose={() => setViewing(false)}
+              uri={file.dataUri}
+              width={file.width ?? null}
+              height={file.height ?? null}
+              label={path}
+              tokens={tokens}
+              onReveal={onReveal}
             />
-          </Pressable>
-          <ImageViewer
-            open={viewing}
-            onClose={() => setViewing(false)}
-            uri={file.dataUri}
-            width={file.width ?? null}
-            height={file.height ?? null}
-            label={path}
-            tokens={tokens}
-            onReveal={onReveal}
-          />
+          )}
         </View>
       ) : null}
     </View>

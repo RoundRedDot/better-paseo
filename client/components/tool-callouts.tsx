@@ -146,6 +146,11 @@ interface ToolCalloutProps {
    * the read is in flight.
    */
   imageFile?: ImageFile | null;
+  /**
+   * The row's preview opened. The live renderer reads an image only for an
+   * open card or a preview, so this is where a collapsed read asks for it.
+   */
+  onPreviewOpen?(): void;
 }
 
 /**
@@ -169,6 +174,7 @@ export function ToolCallout({
   onExpandedChange,
   onRevealPath,
   imageFile,
+  onPreviewOpen,
 }: ToolCalloutProps) {
   const [localExpanded, setLocalExpanded] = useState(defaultExpanded);
   const expanded = controlledExpanded ?? localExpanded;
@@ -282,6 +288,7 @@ export function ToolCallout({
       actionsActive={menu.open}
       onLongPress={capabilities.touch ? onLongPress : undefined}
       accessibilityLabel={[summary.verb, summary.target, ...summary.meta].filter(Boolean).join(" ")}
+      onPreviewOpen={onPreviewOpen}
       previewContent={() => (
         <>
           <ToolPreviewActions getPlan={getPlan} tool={data.tool} tokens={tokens} compact={compact} />
@@ -659,7 +666,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
 
       {(data.tool === "read" || data.tool === "write") &&
         (imageFile !== undefined && isImagePath(data.filePath) ? (
-          <ImagePreview path={data.filePath ?? ""} file={imageFile} tokens={tokens} onReveal={revealFile} />
+          <ImagePreview path={data.filePath ?? ""} file={imageFile} tokens={tokens} onReveal={revealFile} preview={preview} />
         ) : (
           <SyntaxHighlightBlock
             bare

@@ -58,7 +58,10 @@ Escape, or the Android back button close it; on a phone the controls sit below t
 The
 bytes come from the plugin's own daemon-side RPC (`file.image`), which is the only side that can
 reach the file; PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG are recognised, and anything past
-3 MB reports its size rather than inlining a data URI.
+3 MB reports its size rather than inlining a data URI. A collapsed image read has a preview too:
+hover the row on desktop, or long-press it on a phone, and the panel draws the picture, smaller
+and without the toggle or the full-screen viewer. The bytes are read the first time the row is
+opened or previewed.
 
 ![Image read](docs/images/tool-image.png)
 

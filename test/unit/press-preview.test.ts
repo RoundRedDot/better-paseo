@@ -136,6 +136,23 @@ describe("long-pressing a collapsed row on a phone", () => {
     act(() => renderer.unmount());
   });
 
+  it("asks for a collapsed image read's bytes and draws the picture without a toggle or a viewer", () => {
+    const read = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/shot.png", content: "" } });
+    const onPreviewOpen = vi.fn();
+    const imageFile = { dataUri: "data:image/png;base64,AAAA", width: 637, height: 1400, bytes: 405_000, error: null };
+    const renderer = render(React.createElement(ToolCallout, { data: read, tokens, compact: true, imageFile, onPreviewOpen }));
+    expect(onPreviewOpen).not.toHaveBeenCalled();
+    act(() => row(renderer).props.onLongPress());
+    expect(onPreviewOpen).toHaveBeenCalledTimes(1);
+    const shown = panel(renderer);
+    expect(shown.findAll((node) => (node.type as unknown) === "Image")).toHaveLength(1);
+    expect(textOf(shown)).toContain("637 × 1400");
+    const labels = shown.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel);
+    expect(labels).not.toContain("Open the image full screen");
+    expect(labels.some((label) => typeof label === "string" && /^(Hide|Show) the image/.test(label))).toBe(false);
+    act(() => renderer.unmount());
+  });
+
   it("opens a Read row's preview from a long press on its path, while a tap still copies the path", async () => {
     const read = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "const value = 1;" } });
     const renderer = render(React.createElement(ToolCallout, { data: read, tokens, compact: true }));
