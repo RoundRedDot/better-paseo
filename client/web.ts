@@ -23,6 +23,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   const panel = node as HTMLElement;
   const row = anchor as HTMLElement;
   const content = row.closest<HTMLElement>(`[${PLUGIN_ROOT_ATTRIBUTE}]`)!;
+  const viewport = options.maximized ? row.closest<HTMLElement>("[data-window-content]")! : null;
   const view = panel.ownerDocument.defaultView!;
   panel.setAttribute("popover", "manual");
   panel.style.position = "fixed";
@@ -33,23 +34,23 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   panel.style.maxWidth = `${Math.max(0, view.innerWidth - 16)}px`;
 
   const position = () => {
-    if (options.maximized) {
-      const width = Math.max(0, Math.min(960, view.innerWidth - 32));
-      const height = Math.max(0, view.innerHeight - 64);
-      panel.style.width = `${width}px`;
-      panel.style.height = `${height}px`;
-      panel.style.maxHeight = `${height}px`;
-      panel.style.left = `${(view.innerWidth - width) / 2}px`;
-      panel.style.top = `${(view.innerHeight - height) / 2}px`;
-      return;
-    }
-    panel.style.height = "";
-    const rect = row.getBoundingClientRect();
     const contentRect = content.getBoundingClientRect();
     const left = Math.max(8, contentRect.left);
     const right = Math.min(view.innerWidth - 8, contentRect.right);
     panel.style.width = `${Math.max(0, right - left)}px`;
     panel.style.left = `${left}px`;
+    if (options.maximized) {
+      const viewportRect = viewport!.getBoundingClientRect();
+      const top = Math.max(8, viewportRect.top);
+      const bottom = Math.min(view.innerHeight - 8, viewportRect.bottom);
+      const height = Math.max(0, bottom - top);
+      panel.style.height = `${height}px`;
+      panel.style.maxHeight = `${height}px`;
+      panel.style.top = `${top}px`;
+      return;
+    }
+    panel.style.height = "";
+    const rect = row.getBoundingClientRect();
     const below = view.innerHeight - rect.bottom - 14;
     const above = rect.top - 14;
     const down = below >= Math.min(360, panel.scrollHeight) || below >= above;
@@ -67,6 +68,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   // Content can grow while streaming or after syntax highlighting/fonts settle.
   const resizeObserver = new view.ResizeObserver(measure);
   resizeObserver.observe(panel);
+  if (viewport) resizeObserver.observe(viewport);
   if (body) {
     resizeObserver.observe(body);
     for (const child of body.children) resizeObserver.observe(child);
