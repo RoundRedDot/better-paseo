@@ -570,6 +570,10 @@ export function SyntaxHighlightBlock({
   const mono = tokens.typography.mono;
   const languageLabel = codeLanguageLabel(isDiff ? "diff" : language, filename);
   const hasHeader = Boolean(filename || filenameNode !== undefined || languageLabel);
+  // Plain text names nothing, so it has no header to carry Copy. A framed
+  // block still offers it, pinned to the first line's end; a bare one sits in
+  // a tool body whose row already copies.
+  const floatingCopy = !hasHeader && !bare && highlight;
   const styles = useMemo(
     () =>
       StyleSheet.create({
@@ -639,8 +643,17 @@ export function SyntaxHighlightBlock({
         },
         codeArea: {
           paddingHorizontal: bare ? 0 : space.md,
+          // Reserved whether or not Copy is drawn yet, so the lines do not
+          // reflow when the fence closes.
+          paddingRight: !hasHeader && !bare ? FLOATING_COPY_SLOT : bare ? 0 : space.md,
           paddingTop: hasHeader ? 2 : bare ? 0 : space.sm,
           paddingBottom: bare ? 0 : space.sm,
+        },
+        // Centred on the first line, so a one-line block holds it in its middle.
+        floatingCopy: {
+          position: "absolute",
+          top: Math.max(space.xs, space.sm + mono.lineHeight / 2 - COPY_BOX / 2),
+          right: space.xs,
         },
         lineRow: {
           flexDirection: "row",
@@ -778,6 +791,11 @@ export function SyntaxHighlightBlock({
           rows
         )}
       </View>
+      {floatingCopy ? (
+        <View style={styles.floatingCopy}>
+          <CopyButton text={code} tokens={tokens} label="Copy code" />
+        </View>
+      ) : null}
       <FoldFooter
         total={total}
         shown={shown}
@@ -797,6 +815,11 @@ export const FOLD_LINES = 12;
 
 /** The header's fixed action slot: two 24pt buttons and their gap, plus breathing room. */
 const ACTION_SLOT = 64;
+
+/** `CopyButton`'s visual box. */
+const COPY_BOX = 24;
+/** The right padding of a headerless block: the floating Copy, its inset and a gap before the text. */
+const FLOATING_COPY_SLOT = COPY_BOX + space.xs + space.sm;
 
 /** Display names for the languages a reply names most often; anything else as written. */
 const LANGUAGE_LABELS: Record<string, string> = {
