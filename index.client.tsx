@@ -7,6 +7,7 @@ import { installChatFind } from "./client/components/chat-find";
 import { installPointerFocusRing } from "./client/components/focus-ring";
 import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
+import { followPreference } from "./client/state/follow-preference";
 import { perfSlashCommand } from "./client/debug/perf-command";
 import { toolErrorText } from "./client/tools/error-text";
 import {
@@ -146,38 +147,42 @@ export default function contribute(client: PluginClientContext) {
     Component: LiveTodoRenderer,
   });
 
-  const removeUserTransformer = client.addTimelineTransformer({
-    id: "omp-enhanced-user-message",
-    query: { itemType: "user_message" },
-    transform({ item }) {
-      if (item.type !== "user_message") return undefined;
-      // The host strips images while mapping the stream item, so an enhanced
-      // bubble would silently swallow a pasted screenshot. The preference lets
-      // the reader trade the bubble for the host's image previews.
-      if (!getEnhancerPreferences().enhancedUserBubble) return undefined;
-      const images = extractPromptImages(item);
-      // Replacing the item drops whatever this renderer does not carry, so a
-      // message with an attachment it cannot show is left to the host.
-      if (images.hasUnrenderable) return undefined;
-      // `messageId` rides along so the renderer can carry the host's own
-      // `data-history-row-id`, which is the id the chat outline scrolls to.
-      // Replacing the item leaves the outline nothing to find otherwise.
-      return {
-        items: [
-          {
-            type: "plugin" as const,
-            kind: "omp-user-message",
-            version: 1,
-            data: toJsonValue({
-              text: item.text,
-              ...(images.uris.length > 0 ? { images: images.uris } : {}),
-              ...(item.messageId ? { messageId: item.messageId } : {}),
-            }),
-          },
-        ],
-      };
-    },
-  });
+  // Registered again when the preference changes, so prompts already
+  // projected follow it (see `followPreference`).
+  const removeUserTransformer = followPreference("enhancedUserBubble", () =>
+    client.addTimelineTransformer({
+      id: "omp-enhanced-user-message",
+      query: { itemType: "user_message" },
+      transform({ item }) {
+        if (item.type !== "user_message") return undefined;
+        // The host strips images while mapping the stream item, so an enhanced
+        // bubble would silently swallow a pasted screenshot. The preference lets
+        // the reader trade the bubble for the host's image previews.
+        if (!getEnhancerPreferences().enhancedUserBubble) return undefined;
+        const images = extractPromptImages(item);
+        // Replacing the item drops whatever this renderer does not carry, so a
+        // message with an attachment it cannot show is left to the host.
+        if (images.hasUnrenderable) return undefined;
+        // `messageId` rides along so the renderer can carry the host's own
+        // `data-history-row-id`, which is the id the chat outline scrolls to.
+        // Replacing the item leaves the outline nothing to find otherwise.
+        return {
+          items: [
+            {
+              type: "plugin" as const,
+              kind: "omp-user-message",
+              version: 1,
+              data: toJsonValue({
+                text: item.text,
+                ...(images.uris.length > 0 ? { images: images.uris } : {}),
+                ...(item.messageId ? { messageId: item.messageId } : {}),
+              }),
+            },
+          ],
+        };
+      },
+    }),
+  );
 
   const removeUserRenderer = client.addTimelineRenderer({
     kind: "omp-user-message",
@@ -190,30 +195,32 @@ export default function contribute(client: PluginClientContext) {
     Component: LiveUserMessageRenderer,
   });
 
-  // The assistant's reply. The preference is read inside `transform` so a
-  // change takes effect on the next message without a plugin reload, and a
-  // reply the plugin should not own is left to the host.
-  const removeAssistantTransformer = client.addTimelineTransformer({
-    id: "omp-enhanced-assistant",
-    query: { itemType: "assistant_message" },
-    transform({ item, phase }) {
-      if (item.type !== "assistant_message") return undefined;
-      if (!getEnhancerPreferences().assistantMarkdown) return undefined;
-      if (!item.text.trim()) return undefined;
-      return {
-        items: [
-          {
-            type: "plugin" as const,
-            kind: "omp-assistant",
-            version: 1,
-            // The phase tells the renderer the reply is still being written,
-            // which is what turns on tail repair and the reveal.
-            data: { text: item.text, phase },
-          },
-        ],
-      };
-    },
-  });
+  // The assistant's reply. The preference is read inside `transform`, and the
+  // transformer is registered again when it changes, so replies already shown
+  // follow it too; a reply the plugin should not own is left to the host.
+  const removeAssistantTransformer = followPreference("assistantMarkdown", () =>
+    client.addTimelineTransformer({
+      id: "omp-enhanced-assistant",
+      query: { itemType: "assistant_message" },
+      transform({ item, phase }) {
+        if (item.type !== "assistant_message") return undefined;
+        if (!getEnhancerPreferences().assistantMarkdown) return undefined;
+        if (!item.text.trim()) return undefined;
+        return {
+          items: [
+            {
+              type: "plugin" as const,
+              kind: "omp-assistant",
+              version: 1,
+              // The phase tells the renderer the reply is still being written,
+              // which is what turns on tail repair and the reveal.
+              data: { text: item.text, phase },
+            },
+          ],
+        };
+      },
+    }),
+  );
 
   const removeAssistantRenderer = client.addTimelineRenderer({
     kind: "omp-assistant",
