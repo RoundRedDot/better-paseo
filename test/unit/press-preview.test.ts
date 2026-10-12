@@ -170,7 +170,7 @@ describe("long-pressing a collapsed row on a phone", () => {
 });
 
 describe("where the long-press preview goes", () => {
-  it("sits in the middle of the safe area, as wide as the row", () => {
+  it("sits between the header and the composer, as wide as the row", () => {
     const renderer = render(React.createElement(ToolCallout, { data: shell, tokens, compact: true }));
     act(() => row(renderer).props.onLongPress());
     // Hidden until the safe area is measured.
@@ -178,21 +178,24 @@ describe("where the long-press preview goes", () => {
     let stage = panel(renderer).parent!;
     while (!stage.props.onLayout) stage = stage.parent!;
     act(() => stage.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 430, height: 790 } } }));
-    expect(StyleSheetFlat(stage.props.style)).toMatchObject({ flex: 1, alignItems: "center", justifyContent: "center" });
+    expect(StyleSheetFlat(stage.props.style)).toMatchObject({
+      flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 100, paddingBottom: 120,
+    });
     const style = StyleSheetFlat(panel(renderer).props.style);
-    // 790, less 8 and 16 above and below.
-    expect(style).toMatchObject({ width: 390, maxHeight: 742 });
+    // 790, less the header and tab bar (100), the composer (120) and 16 on each side.
+    expect(style).toMatchObject({ width: 390, maxHeight: 538 });
     expect(style.position).toBeUndefined();
     expect(style.opacity).toBeUndefined();
     act(() => renderer.unmount());
   });
 
-  it("is as tall as the desktop's maximized preview allows", () => {
-    expect(pressPreviewFrame({ width: 390, height: 750 }, 374)).toEqual({ width: 374, maxHeight: 702 });
+  it("leaves the header, the tab bar and the composer in view", () => {
+    // An iPhone 16 Pro's safe area: 759 tall.
+    expect(pressPreviewFrame({ width: 402, height: 759 }, 386)).toEqual({ width: 386, maxHeight: 507 });
   });
 
   it("never asks for a negative height", () => {
-    expect(pressPreviewFrame({ width: 750, height: 40 }, 734).maxHeight).toBe(0);
+    expect(pressPreviewFrame({ width: 750, height: 200 }, 734).maxHeight).toBe(0);
   });
 
   it("keeps the margins at the sides when the row is wider than the safe area", () => {

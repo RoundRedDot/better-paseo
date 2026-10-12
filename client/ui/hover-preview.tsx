@@ -10,7 +10,7 @@ import { cssShadow } from "./tokens/css-shadow";
 import { DEFAULT_PREFERENCES, HOVER_DELAY_MS, useEnhancerPreferences } from "../preferences";
 import { useHover } from "./use-hover";
 import { SafeInset } from "./safe-inset";
-import { pressPreviewFrame } from "./press-preview-placement";
+import { PHONE_CHROME, pressPreviewFrame } from "./press-preview-placement";
 import { ProseSelectionContext } from "./prose-text";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
@@ -168,7 +168,8 @@ function panelLook(tokens: ExtendedThemeTokens) {
 
 /**
  * The long-press preview on iOS and Android: the web panel's contents in a
- * transparent modal, centred in the safe area and sized by `pressPreviewFrame`.
+ * transparent modal, centred between the header and the composer and sized by
+ * `pressPreviewFrame`.
  * The modal is the only layer a plugin can raise above the timeline, and it
  * keeps the list from scrolling out from under the panel. A press outside the
  * panel or Android's back button closes it. The panel stays hidden until the
@@ -297,7 +298,13 @@ const styles = StyleSheet.create({
     gap: space.sm,
   } as ViewStyle,
   backdrop: { backgroundColor: "rgba(0, 0, 0, 0.2)" },
-  stage: { flex: 1, alignItems: "center", justifyContent: "center" },
+  stage: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: PHONE_CHROME.top,
+    paddingBottom: PHONE_CHROME.bottom,
+  },
   pressPanel: { overflow: "hidden" },
   hidden: { opacity: 0 },
   pressBody: { flexGrow: 0, flexShrink: 1 },
