@@ -67,7 +67,7 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: Im
   const [viewing, setViewing] = useState(false);
   const capabilities = useInputCapabilities();
   const touchFirst = capabilities.touch && !capabilities.hover;
-  const anchor = useScrollAnchor();
+  const anchor = useScrollAnchor(shown);
   const { copy } = useCopy();
   const pathContext = useContext(PathContext);
 
@@ -173,7 +173,7 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: Im
   const copyPath = () => void copy(formatPath(path, pathContext).absolutePath, { feedback: "toast" });
 
   return (
-    <View style={[styles.container, bleed && styles.bleed]} onLayout={anchor.settle}>
+    <View style={[styles.container, bleed && styles.bleed]}>
       <Pressable
         ref={anchor.ref}
         accessibilityRole={toggle ? "button" : undefined}
