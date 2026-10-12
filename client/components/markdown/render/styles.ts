@@ -216,6 +216,10 @@ export interface MarkdownStyles {
   rule: ViewStyle;
   tableScroll: ViewStyle;
   tableContent: ViewStyle;
+  /** The table's outer border; clips the header fill to its rounded corners. */
+  tableFrame: ViewStyle;
+  /** The table's last row, header included, drops its rule, which would double the frame's. */
+  tableRowLast: ViewStyle;
   tableHeaderRow: ViewStyle;
   tableRow: ViewStyle;
   tableHeaderCell: TextStyle;
@@ -388,6 +392,12 @@ export function buildStyles(
     tableContent: {
       paddingRight: space.xs,
     },
+    tableFrame: {
+      borderWidth: TABLE_DIVIDER_WIDTH,
+      borderColor: tokens.v2.border,
+      borderRadius: radiusV2.block,
+      overflow: "hidden",
+    },
     tableHeaderRow: {
       flexDirection: "row",
       backgroundColor: tokens.v2.surface1,
@@ -399,11 +409,15 @@ export function buildStyles(
       borderBottomWidth: 1,
       borderBottomColor: tokens.v2.borderSubtle,
     },
+    tableRowLast: {
+      borderBottomWidth: 0,
+    },
     tableHeaderCell: {
       fontFamily: bodyFont,
       fontSize: metrics.cellSize,
       lineHeight: metrics.cellLineHeight,
       paddingVertical: space.sm,
+      paddingHorizontal: TABLE_CELL_PADDING + metrics.tableGap / 2,
       fontWeight: "500",
       color: tokens.foregroundMuted,
     },
@@ -412,6 +426,7 @@ export function buildStyles(
       fontSize: metrics.cellSize,
       lineHeight: metrics.cellLineHeight,
       paddingVertical: space.sm,
+      paddingHorizontal: TABLE_CELL_PADDING + metrics.tableGap / 2,
       color: text,
     },
     tableDivider: {
