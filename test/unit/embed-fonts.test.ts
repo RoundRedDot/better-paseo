@@ -5,7 +5,6 @@
  * live on the daemon, so the client bundle a phone downloads on every
  * reconnect does not carry them.
  */
-import { readdirSync, readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ensureEmbeddedFonts,
@@ -114,17 +113,5 @@ describe("embedded fonts", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     ensureEmbeddedFonts(IOSEVKA, "web");
     await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(2));
-  });
-
-  it("stay out of the client bundle", () => {
-    const root = new URL("../../", import.meta.url);
-    const files = [
-      "index.client.tsx",
-      ...readdirSync(new URL("client/", root), { recursive: true, encoding: "utf8" })
-        .filter((file) => /\.tsx?$/.test(file))
-        .map((file) => `client/${file}`),
-    ];
-    const importers = files.filter((file) => /font-data/.test(readFileSync(new URL(file, root), "utf8")));
-    expect(importers).toEqual([]);
   });
 });

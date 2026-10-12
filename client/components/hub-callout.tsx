@@ -12,7 +12,7 @@ import { exitMark } from "../ui/exit-mark";
 import { codeSurface } from "./host-font-escape";
 import { runningDot } from "../ui/tokens/motion";
 import { normalizeProvider } from "./provider-logo";
-import { MARK_BITMAPS } from "./mark-bitmaps";
+import { MARK_IDS, useMarkBitmap } from "./marks";
 import type {
   HubAgentRow,
   HubData,
@@ -748,11 +748,12 @@ function JobModel({
   const markNames = provider
     ? [provider.toLowerCase(), ...(normalized === "generic" ? [] : [normalized])]
     : [];
-  const uri = markNames
-    .flatMap((name) => [MARK_BITMAPS[`provider:${name}`], MARK_BITMAPS[`lobe:${name}`]])
-    .find((candidate) => Boolean(candidate));
+  const markId = markNames
+    .flatMap((name) => [`provider:${name}`, `lobe:${name}`])
+    .find((candidate) => MARK_IDS.has(candidate));
+  const uri = useMarkBitmap(markId);
 
-  if (!model || !uri || uri === failedUri) {
+  if (!model || uri === null || (uri !== undefined && uri === failedUri)) {
     return (
       <Text selectable style={styles.figure}>
         {value}
@@ -763,14 +764,19 @@ function JobModel({
   return (
     <View style={styles.jobModel}>
       {/* ProviderLogo has fixed brand colours; reuse its raster marks with the figure tint. */}
-      <Image
-        key={uri}
-        source={{ uri }}
-        style={[PROVIDER_LOGO, { tintColor: tokens.foregroundSubtle }]}
-        resizeMode="contain"
-        accessibilityLabel={provider}
-        onError={() => setFailedUri(uri)}
-      />
+      {uri === undefined ? (
+        // On its way from the daemon: the row keeps its shape until it lands.
+        <View style={PROVIDER_LOGO} />
+      ) : (
+        <Image
+          key={uri}
+          source={{ uri }}
+          style={[PROVIDER_LOGO, { tintColor: tokens.foregroundSubtle }]}
+          resizeMode="contain"
+          accessibilityLabel={provider}
+          onError={() => setFailedUri(uri)}
+        />
+      )}
       <Text selectable style={styles.figure}>
         {model}
       </Text>

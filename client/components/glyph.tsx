@@ -2,7 +2,7 @@ import React, { type ReactElement } from "react";
 import { View, Text, StyleSheet, Image } from "react-native";
 import { Icon as HostIcon } from "@getpaseo/plugin/client/react-native";
 import { fontMono } from "./theme-tokens";
-import { MARK_BITMAPS, MONO_MARKS } from "./mark-bitmaps";
+import { MONO_MARKS, useMarkBitmap } from "./marks";
 import { unselectable } from "./selection";
 
 export interface IconProps {
@@ -35,7 +35,8 @@ const BRAND_PATHS = {
 
 /** A brand mark Lucide does not carry, rasterised and tinted when monochrome. */
 function BrandMark({ id, size, color }: { id: string; size: number; color: string }) {
-  const uri = MARK_BITMAPS[id];
+  // The raster comes from the daemon; its slot holds the size until it lands.
+  const uri = useMarkBitmap(id);
   if (!uri) return <View style={{ width: size, height: size }} />;
   return (
     <Image

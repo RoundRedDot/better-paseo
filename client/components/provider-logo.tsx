@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet, Image } from "react-native";
 import { fontUi, radiusV2 } from "./theme-tokens";
-import { MARK_BITMAPS, MONO_MARKS } from "./mark-bitmaps";
+import { MARK_IDS, MONO_MARKS, useMarkBitmap } from "./marks";
 import { unselectable } from "./selection";
 import { UI_SCALE } from "../ui/tokens/typography";
 
@@ -65,7 +65,7 @@ export const LOCAL_MARKS: Partial<Record<KnownProvider, string>> = {
 /** A local mark first, then the vendor table. Both ship as PNG rasters. */
 function markId(provider: KnownProvider): string | undefined {
   for (const candidate of [`provider:${provider}`, `lobe:${provider}`]) {
-    if (MARK_BITMAPS[candidate]) return candidate;
+    if (MARK_IDS.has(candidate)) return candidate;
   }
   return undefined;
 }
@@ -74,7 +74,7 @@ export function ProviderLogo({ provider, size = 14, showLabel = false }: Provide
   const normalized = normalizeProvider(provider);
   const config = PROVIDER_CONFIGS[normalized];
   const id = useMemo(() => markId(normalized), [normalized]);
-  const uri = id ? MARK_BITMAPS[id] : undefined;
+  const uri = useMarkBitmap(id);
   // A monochrome mark is rasterised white, so the brand hue arrives as a tint.
   const tint = id && MONO_MARKS.has(id) ? config.brandColor : undefined;
 
@@ -89,6 +89,9 @@ export function ProviderLogo({ provider, size = 14, showLabel = false }: Provide
           resizeMode="contain"
           accessibilityLabel={config.displayName}
         />
+      ) : uri === undefined ? (
+        // On its way from the daemon: hold the space rather than flash the letter.
+        <View style={{ width: size, height: size }} />
       ) : (
         <View
           style={[styles.fallback, { width: size, height: size, borderColor: config.brandColor }]}

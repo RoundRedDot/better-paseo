@@ -11,6 +11,8 @@ import { Text, View } from "react-native";
 
 import { embedFonts } from "../client/components/embed-fonts";
 import { EMBEDDED_FONTS } from "../server/font-data";
+import { MARK_BITMAPS } from "../server/mark-bitmaps";
+import { seedMarkBitmaps } from "../client/components/marks";
 import { buildThemeTokens } from "../client/components/theme-tokens";
 import { ToolCallout } from "../client/components/tool-callouts";
 import { ReasoningCard, ReasoningTrace } from "../client/components/reasoning-trace";
@@ -1197,6 +1199,7 @@ function Showcase() {
 }
 
 embedFonts(EMBEDDED_FONTS);
+seedMarkBitmaps(MARK_BITMAPS);
 
 console.log("showcase: bundle evaluated");
 const mount = document.getElementById("root");

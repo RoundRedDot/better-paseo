@@ -7,8 +7,10 @@ import { revealPathRpc } from "./shared/file-rpc";
 import { embeddedFontsRpc } from "./shared/font-rpc";
 import { type HighlightLine, type HighlightToken, highlightRpc } from "./shared/highlight-rpc";
 import { imageRpc } from "./shared/image-rpc";
+import { markBitmapsRpc } from "./shared/mark-rpc";
 import { perfDumpRpc } from "./shared/perf-rpc";
 import { EMBEDDED_FONTS } from "./server/font-data";
+import { MARK_BITMAPS } from "./server/mark-bitmaps";
 import { writePerfDump } from "./server/perf-dump";
 
 /**
@@ -571,6 +573,16 @@ export default function contribute(server: PluginServerContext) {
 
   // The embedded faces, asked for only by a web reader who picks Iosevka or Inter.
   server.handle(embeddedFontsRpc, async () => ({ faces: [...EMBEDDED_FONTS] }));
+
+  // Brand marks by id, asked for by the rows that draw them.
+  server.handle(markBitmapsRpc, async ({ ids }) => {
+    const bitmaps: Record<string, string> = {};
+    for (const id of ids) {
+      const uri = Object.hasOwn(MARK_BITMAPS, id) ? MARK_BITMAPS[id] : undefined;
+      if (uri) bitmaps[id] = uri;
+    }
+    return { bitmaps };
+  });
 
   // Debug only: answers `/bc-perf dump`. Idle until a client calls it.
   server.handle(perfDumpRpc, async (input) => {
