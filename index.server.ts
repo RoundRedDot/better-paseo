@@ -4,9 +4,11 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { PREFERENCES_SETTINGS } from "./shared/preferences-settings";
 import { revealPathRpc } from "./shared/file-rpc";
+import { embeddedFontsRpc } from "./shared/font-rpc";
 import { type HighlightLine, type HighlightToken, highlightRpc } from "./shared/highlight-rpc";
 import { imageRpc } from "./shared/image-rpc";
 import { perfDumpRpc } from "./shared/perf-rpc";
+import { EMBEDDED_FONTS } from "./server/font-data";
 import { writePerfDump } from "./server/perf-dump";
 
 /**
@@ -566,6 +568,9 @@ export default function contribute(server: PluginServerContext) {
       };
     }
   });
+
+  // The embedded faces, asked for only by a web reader who picks Iosevka or Inter.
+  server.handle(embeddedFontsRpc, async () => ({ faces: [...EMBEDDED_FONTS] }));
 
   // Debug only: answers `/bc-perf dump`. Idle until a client calls it.
   server.handle(perfDumpRpc, async (input) => {
