@@ -8,7 +8,8 @@ import { CHAR_RATIO_MONO, CODE_CHIP_PADDING } from "./styles";
 import type { RenderContext } from "./context";
 import { codeSurface } from "../../host-font-escape";
 import { decodeEntities, isPathLike, softBreaks } from "./text";
-import { localImagePath } from "./local-image-path";
+import { localPath } from "./local-path";
+import { LocalLink } from "./local-link";
 
 /** The visible text of an inline run, for measuring and summaries. */
 export function inlineText(tokens: readonly Token[] | undefined): string {
@@ -117,9 +118,20 @@ export function renderInline(
           </Text>,
         );
         return;
-      case "link":
-        out.push(renderLink(token.href, renderInline(token.tokens, context, key), context, key));
+      case "link": {
+        const children = renderInline(token.tokens, context, key);
+        const local = localPath(token.href);
+        out.push(
+          local !== null ? (
+            <LocalLink key={key} path={local} context={context}>
+              {children}
+            </LocalLink>
+          ) : (
+            renderLink(token.href, children, context, key)
+          ),
+        );
         return;
+      }
       case "image": {
         // Images are not drawn in a chat row; the alt text links to the image.
         // An image still streaming has no address yet: its alt text alone.
@@ -128,22 +140,15 @@ export function renderInline(
           out.push(label);
           return;
         }
-        // A file on the daemon's machine reveals there, like a path in the
-        // prose; `openLink` refuses `file:`. (A paragraph that is only the
-        // image is drawn as the image, in `blocks.tsx`.)
-        const local = localImagePath(token.href);
+        // A file links as a path does; `openLink` refuses `file:`. (A
+        // paragraph that is only a local image is drawn as the image, in
+        // `blocks.tsx`.)
+        const local = localPath(token.href);
         if (local !== null) {
-          const reveal = context.onRevealPath;
           out.push(
-            <Text
-              key={key}
-              selectable
-              accessibilityRole="link"
-              onPress={reveal ? () => reveal(local) : undefined}
-              style={styles.link}
-            >
+            <LocalLink key={key} path={local} context={context}>
               {label}
-            </Text>,
+            </LocalLink>,
           );
           return;
         }
