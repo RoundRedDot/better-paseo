@@ -256,6 +256,10 @@ export function ToolCallout({
     </>
   );
 
+  // A read of an image is drawn as the picture, which has no lines to wrap.
+  const drawsImage =
+    (data.tool === "read" || data.tool === "write") && imageFile !== undefined && isImagePath(data.filePath);
+
   // A path in the body reveals the file on a pointer device; on touch it
   // copies, because `file.reveal` would open a window on the daemon's machine.
   const filePath = data.filePath;
@@ -289,6 +293,7 @@ export function ToolCallout({
       onLongPress={capabilities.touch ? onLongPress : undefined}
       accessibilityLabel={[summary.verb, summary.target, ...summary.meta].filter(Boolean).join(" ")}
       onPreviewOpen={onPreviewOpen}
+      previewWraps={!drawsImage}
       previewContent={() => (
         <>
           <ToolPreviewActions getPlan={getPlan} tool={data.tool} tokens={tokens} compact={compact} />
