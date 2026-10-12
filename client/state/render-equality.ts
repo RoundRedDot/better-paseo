@@ -28,6 +28,7 @@ type Props<T> = Readonly<PluginTimelineItemProps<T>>;
 export function sameFrame<T>(prev: Props<T>, next: Props<T>): boolean {
   return (
     prev.agentId === next.agentId &&
+    prev.host?.id === next.host?.id &&
     prev.layout.compact === next.layout.compact &&
     prev.layout.platform === next.layout.platform &&
     (prev.theme === next.theme || themeKey(prev.theme) === themeKey(next.theme))

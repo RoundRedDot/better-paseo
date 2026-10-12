@@ -23,6 +23,7 @@ import { NoticeCallout } from "./components/notice-callout";
 import { useEnhancerPreferences } from "./preferences";
 import { PreferenceSyncSlot } from "./state/preference-sync-slot";
 import { useIsLatestPrompt } from "./state/latest-prompt";
+import { HOST_REWIND_MENU } from "./ui/host-rewind";
 import { publishHubSnapshot } from "./hub-activity";
 import { MarkdownView } from "./components/markdown/markdown-view";
 import { TimelineTailHub } from "./components/hub-live";
@@ -535,6 +536,7 @@ function LiveUserMessageRendererBody({
   item,
   theme,
   layout,
+  host,
   agentId,
   timestamp,
 }: PluginTimelineItemProps<LiveUserMessagePayload>) {
@@ -571,6 +573,16 @@ function LiveUserMessageRendererBody({
           timestamp={timestamp}
           tokens={tokens}
           compact={layout.compact}
+          actions={
+            HOST_REWIND_MENU ? (
+              <HOST_REWIND_MENU
+                hostId={host.id}
+                agentId={agentId}
+                messageId={item.data.messageId}
+                text={item.data.text}
+              />
+            ) : null
+          }
           footer={
             observedLive ? (
               <LivePromptUsage agentId={agentId} promptKey={promptKey} at={atMs} tokens={tokens} />
