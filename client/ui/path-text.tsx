@@ -20,7 +20,7 @@ import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { UI_SCALE } from "./tokens/typography";
 import { liftStackingRow, scrollTop, tooltipPlacement, type DomBox, type TooltipPlacement } from "./tooltip-placement";
-import { HoverPreview, useHoverPreview } from "./hover-preview";
+import { HoverPreview, HoverPreviewBody, useHoverPreview } from "./hover-preview";
 
 /** Where paths are made relative to, for one renderer (plan §3.9 item 3). */
 export interface PathContextValue {
@@ -276,9 +276,11 @@ export function PathText({
       ) : null}
     </Pressable>
       {preview.open ? <HoverPreview preview={preview} tokens={tokens}>
-        <Text {...(codeSurface as object)} selectable style={[styles.tooltipText, { color: tokens.foreground, fontFamily: tokens.fontMono }]}>
-          {formatted.absolutePath}{formatted.suffix}
-        </Text>
+        <HoverPreviewBody>
+          <Text {...(codeSurface as object)} selectable style={[styles.tooltipText, { color: tokens.foreground, fontFamily: tokens.fontMono }]}>
+            {formatted.absolutePath}{formatted.suffix}
+          </Text>
+        </HoverPreviewBody>
       </HoverPreview> : null}
     </>
   );

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { preferencesSchema } from "../../shared/preferences-settings";
+import { HOVER_DELAYS, HOVER_DELAY_MS, preferencesSchema } from "../../shared/preferences-settings";
 import {
   DEFAULT_PREFERENCES,
   LEGACY_STORAGE_KEY,
@@ -36,6 +36,17 @@ const V1 = {
 };
 
 describe("preferences v2 defaults", () => {
+  it("defaults old records to 200ms and accepts exactly the five hover delays", () => {
+    expect(DEFAULT_PREFERENCES.hoverDelay).toBe("200ms");
+    expect(parsePreferences({}).hoverDelay).toBe("200ms");
+    for (const hoverDelay of HOVER_DELAYS) {
+      expect(parsePreferences({ hoverDelay }).hoverDelay).toBe(hoverDelay);
+    }
+    for (const hoverDelay of ["400ms", "0ms", 200, null]) {
+      expect(parsePreferences({ hoverDelay }).hoverDelay).toBe("200ms");
+    }
+    expect(HOVER_DELAYS.map((value) => HOVER_DELAY_MS[value])).toEqual([200, 500, 1000, 1500, 2000]);
+  });
   it("follows Paseo for fonts and starts tools collapsed", () => {
     expect(DEFAULT_PREFERENCES).toMatchObject({
       uiFont: "host",
@@ -231,6 +242,16 @@ describe("daemon-backed store (S5 fix round 1)", () => {
     mod.updateEnhancerPreferences({ codeFontSize: 16 });
     expect(persist).toHaveBeenCalledWith(expect.objectContaining({ codeFontSize: 16 }));
     expect(persist.mock.calls[0]![0]).not.toHaveProperty("debugPerf");
+  });
+  it("persists the hover choice to the daemon and reloads it from the cache", async () => {
+    const { mod, local } = await freshModule();
+    const persist = vi.fn();
+    mod.setPreferencePersister(persist);
+    mod.updateEnhancerPreferences({ hoverDelay: "1.5s" });
+    expect(persist).toHaveBeenCalledWith(expect.objectContaining({ hoverDelay: "1.5s" }));
+    expect(readStoredPreferences(local).hoverDelay).toBe("1.5s");
+    mod.applyStoredPreferences({ ...storedPart(DEFAULT_PREFERENCES), hoverDelay: "2s" });
+    expect(mod.getEnhancerPreferences().hoverDelay).toBe("2s");
   });
 });
 
