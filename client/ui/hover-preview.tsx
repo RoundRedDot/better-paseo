@@ -12,6 +12,7 @@ import { useHover } from "./use-hover";
 import { SafeInset } from "./safe-inset";
 import { PHONE_CHROME, pressPreviewFrame } from "./press-preview-placement";
 import { ProseSelectionContext } from "./prose-text";
+import { HScroll } from "./h-scroll";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
@@ -26,6 +27,8 @@ const PreviewActionsContext = createContext<{
   maximized: boolean;
   maximize(): void;
   close(): void;
+  /** The phone preview's line wrap, on until the reader turns it off. Absent on web. */
+  wrap?: { on: boolean; toggle(): void; tokens: ExtendedThemeTokens };
 } | null>(null);
 export const PREVIEW_OPEN_MS = HOVER_DELAY_MS[DEFAULT_PREFERENCES.hoverDelay];
 export const PREVIEW_CLOSE_MS = 150;
@@ -182,6 +185,8 @@ function PressPreview({ preview, tokens, children }: {
 }) {
   const [rowWidth, setRowWidth] = useState<number | null>(null);
   const [stage, setStage] = useState<{ width: number; height: number } | null>(null);
+  const [wrapOn, setWrapOn] = useState(true);
+  const toggleWrap = useCallback(() => setWrapOn((on) => !on), []);
   const { anchorRef, close } = preview;
   useLayoutEffect(() => {
     measureWidth(anchorRef.current, setRowWidth);
@@ -202,7 +207,13 @@ function PressPreview({ preview, tokens, children }: {
       <SafeInset pointerEvents="box-none" style={StyleSheet.absoluteFill}>
         <View onLayout={onStageLayout} pointerEvents="box-none" style={styles.stage}>
           <HoverPreviewContext.Provider value>
-            <PreviewActionsContext.Provider value={{ overflowing: false, maximized: false, maximize: preview.maximize, close }}>
+            <PreviewActionsContext.Provider value={{
+              overflowing: false,
+              maximized: false,
+              maximize: preview.maximize,
+              close,
+              wrap: { on: wrapOn, toggle: toggleWrap, tokens },
+            }}>
               <View
                 {...selectionSurface}
                 testID="hover-preview"
@@ -241,6 +252,9 @@ export function HoverPreviewHeader({ tokens, children }: {
       style={[styles.header, { backgroundColor: tokens.v2.surface1, borderBottomColor: tokens.v2.borderSubtle }]}
     >
       <View style={styles.toolbar}>
+        {actions?.wrap ? (
+          <PreviewWrapButton tokens={tokens} wrap={actions.wrap.on} onPress={actions.wrap.toggle} />
+        ) : null}
         {actions && (actions.overflowing || actions.maximized) ? (
           <PreviewWindowButton tokens={tokens} maximized={actions.maximized}
             onPress={actions.maximized ? actions.close : actions.maximize} />
@@ -270,13 +284,43 @@ function PreviewWindowButton({ tokens, maximized, onPress }: {
   );
 }
 
+/**
+ * Soft wrap on or off. The icon shows the state the body is in: wrapped lines,
+ * or lines at full length that scroll sideways.
+ */
+function PreviewWrapButton({ tokens, wrap, onPress }: {
+  tokens: ExtendedThemeTokens;
+  wrap: boolean;
+  onPress(): void;
+}) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={wrap ? "Do not wrap lines" : "Wrap lines"}
+      accessibilityState={{ checked: wrap }} hitSlop={4} onPress={onPress}
+      style={({ pressed }) => [styles.windowButton, pressed && { backgroundColor: tokens.v2.surface2 }]}
+    >
+      <Icon name={wrap ? "WrapText" : "MoveHorizontal"} size={14} color={tokens.foregroundMuted} />
+    </Pressable>
+  );
+}
+
 export function HoverPreviewBody({ children }: { children: ReactNode }) {
+  const wrap = useContext(PreviewActionsContext)?.wrap;
   if (Platform.OS !== "web") {
     // The panel's height is capped; the body scrolls inside it. Its text takes
     // a long press as the start of a selection, with a cursor and handles.
     return (
       <ScrollView testID="hover-preview-body" style={styles.pressBody} contentContainerStyle={styles.pressBodyContent}>
-        <ProseSelectionContext.Provider value>{children}</ProseSelectionContext.Provider>
+        <ProseSelectionContext.Provider value>
+          {wrap && !wrap.on ? (
+            // Lines keep their length; the body scrolls sideways, with a track
+            // under it only while it is wider than the panel.
+            <HScroll tokens={wrap.tokens} contentContainerStyle={styles.unwrappedScroll}>
+              <View style={styles.unwrapped}>{children}</View>
+            </HScroll>
+          ) : (
+            children
+          )}
+        </ProseSelectionContext.Provider>
       </ScrollView>
     );
   }
@@ -309,6 +353,8 @@ const styles = StyleSheet.create({
   hidden: { opacity: 0 },
   pressBody: { flexGrow: 0, flexShrink: 1 },
   pressBodyContent: { padding: space.md, gap: space.sm },
+  unwrappedScroll: { flexGrow: 1 },
+  unwrapped: { flexGrow: 1, gap: space.sm },
   header: {
     flexShrink: 0,
     paddingHorizontal: space.md,
