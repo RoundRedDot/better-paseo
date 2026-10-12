@@ -1,4 +1,4 @@
-import React, { useContext, useMemo, useState } from "react";
+import React, { useCallback, useContext, useMemo, useState } from "react";
 import { View, Text, Pressable, Image, StyleSheet, Platform } from "react-native";
 import { Glyph } from "./glyph";
 import { ImageViewer } from "./image-viewer";
@@ -12,6 +12,17 @@ import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { useScrollAnchor } from "../ui/scroll-anchor";
 import { useCopy } from "../ui/use-copy";
 import { UI_SCALE } from "../ui/tokens/typography";
+import { CopyButton } from "../ui/copy-button";
+import { SelectableText } from "../ui/prose-text";
+import { selectionCodeText } from "./selection-actions";
+import {
+  HoverPreview,
+  HoverPreviewBody,
+  HoverPreviewContext,
+  HoverPreviewHeader,
+  RowLongPressContext,
+  useHoverPreview,
+} from "../ui/hover-preview";
 import type { ImageFile } from "../image-file";
 
 interface ImagePreviewProps {
@@ -200,53 +211,86 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
         setShown((previous) => !previous);
       }
     : undefined;
+  const absolutePath = formatPath(path, pathContext).absolutePath;
   // The absolute path, as a long press on any path gives.
-  const copyPath = () => void copy(formatPath(path, pathContext).absolutePath, { feedback: "toast" });
+  const copyPath = () => void copy(absolutePath, { feedback: "toast" });
+  // The header previews the picture as a tool row previews its body: a resting
+  // pointer on web, a long press on a phone, where the preview carries the
+  // copy the long press used to run.
+  const previews = Boolean(file?.dataUri) && !preview;
+  const previewOwner = useContext(HoverPreviewContext);
+  const hover = useHoverPreview(previews);
+  const { anchorRef } = hover;
+  const headerRef = useCallback(
+    (node: View | null) => {
+      anchorRef.current = node;
+      anchor.ref.current = node;
+    },
+    [anchorRef, anchor.ref],
+  );
 
   return (
     <View style={[styles.container, bleed && styles.bleed]}>
-      <Pressable
-        ref={anchor.ref}
-        accessibilityRole={toggle ? "button" : undefined}
-        accessibilityLabel={toggle ? `${shown ? "Hide" : "Show"} the image ${path}` : undefined}
-        accessibilityState={toggle ? { expanded: shown } : undefined}
-        disabled={!toggle}
-        onPressIn={toggle ? anchor.hold : undefined}
-        onPress={toggle}
-        onLongPress={capabilities.touch ? copyPath : undefined}
-        style={({ pressed }) => [
-          styles.header,
-          file?.dataUri && !shown && styles.headerAlone,
-          pressed && toggle && { backgroundColor: tokens.v2.surface2 },
-        ]}
-      >
-        <View style={styles.slot}>
-          <Glyph name="Image" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-        </View>
-        {/* Relative to the workspace, middle-truncated. On touch the path is
-            part of the header's press, as a row's target is (plan §3.9). */}
-        <View pointerEvents={touchFirst ? "none" : "auto"} style={styles.path}>
-          <PathText
-            path={path}
-            tokens={tokens}
-            onReveal={onReveal ? () => onReveal() : undefined}
-            style={{ fontSize: UI_SCALE.base }}
-          />
-        </View>
-        <View style={styles.spacer} />
-        <View style={styles.chips}>
-          {chips.map((chip) => (
-            <Text key={chip} style={styles.chip}>
-              {chip}
-            </Text>
-          ))}
-        </View>
-        {toggle ? (
-          <View style={styles.eye}>
-            <Glyph name={shown ? "Eye" : "EyeOff"} size={14} color={tokens.foregroundMuted} />
-          </View>
-        ) : null}
-      </Pressable>
+      {/* The path inside the header must not open a second layer. */}
+      <HoverPreviewContext.Provider value={previewOwner || previews}>
+        <RowLongPressContext.Provider value={hover.press}>
+          <Pressable
+            ref={headerRef}
+            accessibilityRole={toggle ? "button" : undefined}
+            accessibilityLabel={toggle ? `${shown ? "Hide" : "Show"} the image ${path}` : undefined}
+            accessibilityState={toggle ? { expanded: shown } : undefined}
+            disabled={!toggle}
+            onPressIn={toggle ? anchor.hold : undefined}
+            onPress={toggle}
+            onLongPress={hover.press ?? (capabilities.touch ? copyPath : undefined)}
+            style={({ pressed }) => [
+              styles.header,
+              file?.dataUri && !shown && styles.headerAlone,
+              pressed && toggle && { backgroundColor: tokens.v2.surface2 },
+            ]}
+          >
+            <View style={styles.slot}>
+              <Glyph name="Image" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+            </View>
+            {/* Relative to the workspace, middle-truncated. On touch the path is
+                part of the header's press, as a row's target is (plan §3.9). */}
+            <View pointerEvents={touchFirst ? "none" : "auto"} style={styles.path}>
+              <PathText
+                path={path}
+                tokens={tokens}
+                onReveal={onReveal ? () => onReveal() : undefined}
+                style={{ fontSize: UI_SCALE.base }}
+              />
+            </View>
+            <View style={styles.spacer} />
+            <View style={styles.chips}>
+              {chips.map((chip) => (
+                <Text key={chip} style={styles.chip}>
+                  {chip}
+                </Text>
+              ))}
+            </View>
+            {toggle ? (
+              <View style={styles.eye}>
+                <Glyph name={shown ? "Eye" : "EyeOff"} size={14} color={tokens.foregroundMuted} />
+              </View>
+            ) : null}
+          </Pressable>
+        </RowLongPressContext.Provider>
+      </HoverPreviewContext.Provider>
+      {hover.open && file?.dataUri ? (
+        <HoverPreview preview={hover} tokens={tokens}>
+          <HoverPreviewHeader tokens={tokens}>
+            <CopyButton text={absolutePath} tokens={tokens} label="Copy path" />
+          </HoverPreviewHeader>
+          <HoverPreviewBody>
+            <SelectableText {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>
+              {absolutePath}
+            </SelectableText>
+            <ImagePreview path={path} file={file} tokens={tokens} preview />
+          </HoverPreviewBody>
+        </HoverPreview>
+      ) : null}
 
       {file === null ? (
         <Text style={styles.message}>Reading the file…</Text>
