@@ -141,8 +141,8 @@ export function renderInline(
           return;
         }
         // A file links as a path does; `openLink` refuses `file:`. (A
-        // paragraph that is only a local image is drawn as the image, in
-        // `blocks.tsx`.)
+        // local image in a paragraph is drawn as the image, in `blocks.tsx`;
+        // this is one in a heading, a list item or a table cell.)
         const local = localPath(token.href);
         if (local !== null) {
           out.push(
