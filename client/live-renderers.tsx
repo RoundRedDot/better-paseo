@@ -31,6 +31,7 @@ import { AssistantFooter } from "./components/turn-footer";
 import { SystemCard } from "./components/system-card";
 import { parseSystemEnvelope } from "./system-envelope";
 import { useIsTimelineTail, useTextItemTailKey } from "./timeline-tail";
+import { useNextEntryIsRow, useTimelineEntry } from "./timeline-order";
 import type { TaskListData, TaskItemData, NoticeCalloutData } from "../shared/contracts";
 import { revealPathRpc } from "../shared/file-rpc";
 import { useImageFile } from "./image-file";
@@ -86,6 +87,7 @@ export interface LiveNoticePayload {
  * a reply and a tool row. A negative bottom margin pulls the next item up into
  * the gap the host hangs under this one; the newest row has nothing below it
  * but the list's own padding or the working indicator, so it keeps its gap.
+ * A reply takes the same 12 back, but only above a row (`timeline-order.ts`).
  */
 export const ROW_GAP_COMPENSATION = 12;
 
@@ -114,6 +116,7 @@ function LiveToolCallRendererBody({
   const view = useMemo(() => classifyTool(data), [data]);
   const itemKey = `tool:${data.callId ?? view.title}:${timestamp.getTime()}`;
   const isTail = useIsTimelineTail(itemKey);
+  useTimelineEntry(timestamp.getTime(), "row");
 
   // The daemon side owns the shell, so revealing a file is one RPC. Paths
   // arrive absolute (PathText resolves them); a path the daemon cannot stat
@@ -203,6 +206,7 @@ function LiveReasoningRendererBody({
   useSelectionActions(tokens, preferences.selectionActions);
   const text = item.data.text || "";
   const streaming = item.data.phase === "streaming";
+  useTimelineEntry(timestamp.getTime(), "row");
 
   // Collapsed by default, streaming or not (plan §3.4 item 3); the reader's
   // choice survives the remount into history through the disclosure store.
@@ -256,6 +260,7 @@ function LiveTodoRendererBody({
   timestamp,
 }: PluginTimelineItemProps<LiveTodoPayload>) {
   const probe = probeCard("todo", String(timestamp.getTime()), item.data.phase === "streaming");
+  useTimelineEntry(timestamp.getTime(), "row");
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
@@ -340,6 +345,12 @@ function LiveAssistantRendererBody({
   const itemKey = useTextItemTailKey("assistant", timestamp.getTime(), item.data.text);
   const isTail = useIsTimelineTail(itemKey);
 
+  // The host gives a reply 4pt above the tool row that follows it, but hangs
+  // 16pt under every plugin item, so a reply takes 12 back when a row is next
+  // (as a tool row does). Above a prompt or another reply it keeps the 16.
+  useTimelineEntry(timestamp.getTime(), "text");
+  const rowBelow = useNextEntryIsRow(timestamp.getTime());
+
   // Job results, IRC relays and reminders arrive as replies because the host
   // files any unclaimed `custom` message under this item kind. They are not
   // the model's words, so they are drawn as a card, not as prose.
@@ -359,7 +370,13 @@ function LiveAssistantRendererBody({
   );
 
   return (
-    <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}>
+    <View
+      {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
+      {...probe.viewProps}
+      style={
+        preferences.compactRowSpacing && !streaming && rowBelow ? rowGapStyles.compensated : undefined
+      }
+    >
       {probe.node}
       <PreferenceSyncSlot />
       {envelope ? (
@@ -438,6 +455,7 @@ function LiveNoticeRendererBody({
   timestamp,
 }: PluginTimelineItemProps<LiveNoticePayload>) {
   const probe = probeCard("notice", String(timestamp.getTime()));
+  useTimelineEntry(timestamp.getTime(), "text");
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
@@ -543,6 +561,7 @@ function LiveUserMessageRendererBody({
   timestamp,
 }: PluginTimelineItemProps<LiveUserMessagePayload>) {
   const probe = probeCard("user_message", item.data.messageId ?? String(timestamp.getTime()));
+  useTimelineEntry(timestamp.getTime(), "text");
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
