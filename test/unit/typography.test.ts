@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("react-native", () => import("./helpers/rn-mock"));
 import {
   DEFAULT_WEB_MONO_STACK,
   EMBEDDED_FAMILY,
@@ -169,6 +171,25 @@ describe("resolveTypography details", () => {
     expect(resolveTypography(noHost, follow, "web").content).toEqual({ size: 15, lineHeight: 23 });
     expect(resolveTypography(noHost, follow, "ios").content.size).toBe(16);
     expect(resolveTypography(withHost, follow, "android").content.size).toBe(17);
+  });
+
+  it("uses a stored content size on every platform, and drops Android's placeholder UI family", () => {
+    const stored = { contentFontSize: 13 };
+    expect(resolveTypography(noHost, follow, "android", stored).content).toEqual({ size: 13, lineHeight: 20 });
+    expect(resolveTypography(noHost, follow, "web", stored).content.size).toBe(13);
+    const normal = {
+      typography: { fontFamily: { ui: "normal", mono: "monospace" }, fontSize: { content: 14 } },
+    };
+    expect(resolveTypography(normal, follow, "android").ui.family).toBeUndefined();
+    expect(interfaceFamily(resolveTypography(normal, follow, "android"), "host", "android")).toBeUndefined();
+    expect(resolveTypography(normal, follow, "android").content.size).toBe(14);
+    expect(resolveTypography(normal, follow, "ios").ui.family).toBe("normal");
+    expect(
+      resolveTypography({ typography: { fontFamily: { ui: "Roboto, sans-serif" } } }, follow, "android").ui.family,
+    ).toBeUndefined();
+    expect(resolveTypography({ typography: { fontFamily: { ui: "Roboto" } } }, follow, "android").ui.family).toBe(
+      "Roboto",
+    );
   });
 
   it("keeps the fixed UI scale", () => {

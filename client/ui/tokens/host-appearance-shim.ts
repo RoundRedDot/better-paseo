@@ -1,6 +1,7 @@
 /**
- * TEMPORARY, READ-ONLY compatibility layer: the monospace font and code size
- * the user set in Paseo's own Appearance settings, on web and desktop.
+ * TEMPORARY, READ-ONLY compatibility layer: the content size (every platform)
+ * and, on web, the monospace font and code size the user set in Paseo's
+ * Appearance settings.
  *
  * Why it exists (plan decision D10, authorised by the user on 2026-10-11):
  * the monospace source priority is
@@ -18,9 +19,11 @@
  *   persists app settings with `@react-native-async-storage/async-storage`,
  *   whose web backend is `localStorage`, as one JSON object (schema in
  *   `use-settings/storage.ts`).
- * - Two fields of it: `monoFontFamily` (string; "" means the platform default
- *   stack, i.e. unset) and `codeFontSize` (number; the host floors it and
- *   clamps it to 9–22, default 12).
+ * - `monoFontFamily` (string; "" means the platform default stack, i.e. unset),
+ *   `codeFontSize` (number; the host floors it and clamps it to 9–22, default
+ *   12), and `contentFontSize` (number; floored and clamped to 10–21). When
+ *   content size is absent, `uiBaseFontSize` is used, which is what the host
+ *   itself does before it rewrites the blob.
  * It never writes to the host's storage.
  *
  * Validation mirrors the host's own (`sanitizeFontFamily`,
@@ -29,9 +32,11 @@
  * rejected — the host would draw its default for it, so the plugin does too.
  * Any read, parse or shape failure falls back to level 3 silently.
  *
- * Scope: web and desktop only, and only while the host theme carries no
- * `typography`; iOS and Android cannot reach AsyncStorage from a plugin and
- * use level 3.
+ * Scope: while the host theme carries no `typography`. Web and desktop read
+ * `localStorage`. iOS and Android read the same JSON through the host's
+ * AsyncStorage module (`RNCAsyncStorage`); if that module is missing, native
+ * keeps the platform default. Content size is used on every platform. The
+ * monospace family stays web-only: a CSS stack is not a native font name.
  *
  * Liveness: reading is throttled to one look per 500 ms, and a look only
  * re-parses when the raw string changed. Looks happen on triggers: our
@@ -54,6 +59,7 @@ export const LEGACY_SETTINGS_KEY = "@paseo:settings";
 
 /** The host's bounds (`use-settings/storage.ts`). */
 export const HOST_CODE_FONT_SIZE = { min: 9, max: 22, default: 12 } as const;
+export const HOST_CONTENT_FONT_SIZE = { min: 10, max: 21 } as const;
 const MAX_FONT_FAMILY_LENGTH = 200;
 /** Re-read storage at most this often. */
 export const RECHECK_MS = 500;
@@ -66,6 +72,8 @@ export interface HostAppearance {
   monoFontFamily?: string;
   /** Code size in px, floored and clamped like the host does; absent when unreadable. */
   codeFontSize?: number;
+  /** Reading size in px, floored and clamped like the host does; absent when unreadable. */
+  contentFontSize?: number;
 }
 
 /** Same rules as the host's `sanitizeFontFamily`; "" and invalid both mean unset. */
@@ -80,13 +88,22 @@ export function sanitizeFamily(value: unknown): string | undefined {
   return trimmed;
 }
 
-/** Same rules as the host's `parseClampedFontSize` for code. */
-export function clampCodeSize(value: unknown): number | undefined {
+function clampSize(value: unknown, bounds: { min: number; max: number }): number | undefined {
   let numeric = NaN;
   if (typeof value === "number") numeric = value;
   else if (typeof value === "string" && value.trim().length > 0) numeric = Number(value);
   if (!Number.isFinite(numeric)) return undefined;
-  return Math.min(HOST_CODE_FONT_SIZE.max, Math.max(HOST_CODE_FONT_SIZE.min, Math.floor(numeric)));
+  return Math.min(bounds.max, Math.max(bounds.min, Math.floor(numeric)));
+}
+
+/** Same rules as the host's `parseClampedFontSize` for code. */
+export function clampCodeSize(value: unknown): number | undefined {
+  return clampSize(value, HOST_CODE_FONT_SIZE);
+}
+
+/** Same rules as the host's `parseClampedFontSize` for content. */
+export function clampContentSize(value: unknown): number | undefined {
+  return clampSize(value, HOST_CONTENT_FONT_SIZE);
 }
 
 /** One stored settings blob, or null when it is missing, not JSON or not an object. */
@@ -105,6 +122,11 @@ export function parseAppSettings(raw: string | null): HostAppearance | null {
   if (family !== undefined) appearance.monoFontFamily = family;
   const size = clampCodeSize(record.codeFontSize);
   if (size !== undefined) appearance.codeFontSize = size;
+  // The host fills a missing content size from the UI base size, then writes
+  // it back. Read the same way so a blob that has not been rewritten yet
+  // still follows the control.
+  const content = clampContentSize(record.contentFontSize) ?? clampContentSize(record.uiBaseFontSize);
+  if (content !== undefined) appearance.contentFontSize = content;
   return appearance;
 }
 
@@ -159,6 +181,22 @@ const state: StoreState = { current: null, legacy: null, value: null, checkedAt:
 let parses = 0;
 const listeners = new Set<() => void>();
 let trailing: ReturnType<typeof setTimeout> | null = null;
+let nativeInflight = false;
+let nativeAgain = false;
+
+type SettingsPair = { current: string | null; legacy: string | null };
+type NativeSettingsRead = () => Promise<SettingsPair | null>;
+type MultiGet = (
+  keys: string[],
+  callback: (errors?: unknown[] | null, result?: Array<[string, string | null]>) => void,
+) => void;
+
+/** Test seam: replace the AsyncStorage read. `null` uses the host module. */
+let nativeReaderOverride: NativeSettingsRead | null = null;
+
+export function setNativeSettingsReaderForTests(reader: NativeSettingsRead | null): void {
+  nativeReaderOverride = reader;
+}
 
 function webStorage(): Storage | null {
   try {
@@ -178,16 +216,8 @@ function readRaw(storage: Storage, key: string): string | null {
   }
 }
 
-/**
- * Looks at storage if the last look is older than `RECHECK_MS`, and parses
- * only when a raw string changed. Returns whether the value changed.
- */
-export function checkHostAppearance(now: number = Date.now()): boolean {
-  if (now - state.checkedAt < RECHECK_MS) return false;
-  state.checkedAt = now;
-  const storage = webStorage();
-  const current = storage ? readRaw(storage, APP_SETTINGS_KEY) : null;
-  const legacy = storage ? readRaw(storage, LEGACY_SETTINGS_KEY) : null;
+/** Applies one pair of raw blobs. Returns whether the value the plugin uses changed. */
+function applyRaw(current: string | null, legacy: string | null): boolean {
   if (parses > 0 && current === state.current && legacy === state.legacy) return false;
   state.current = current;
   state.legacy = legacy;
@@ -200,9 +230,125 @@ export function checkHostAppearance(now: number = Date.now()): boolean {
   return true;
 }
 
+function readNativeKey(multiGet: MultiGet, key: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      multiGet([key], (_errors, result) => {
+        const value = result?.[0]?.[1];
+        resolve(typeof value === "string" ? value : null);
+      });
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+interface ReactNativeSettingsModule {
+  Platform?: { OS?: string };
+  TurboModuleRegistry?: { get?: (name: string) => { multiGet?: MultiGet } | null };
+  NativeModules?: { RNCAsyncStorage?: { multiGet?: MultiGet } };
+}
+
+// The plugin bundle is CJS. A direct `require` uses that bundle's require,
+// which the host resolves to its own React Native. A static `import` would
+// load the package in every unit test that touches typography.
+declare function require(id: string): unknown;
+
+/**
+ * The host's AsyncStorage, or null on web and where the native module is not
+ * registered. Plugins cannot import the AsyncStorage package; the host app
+ * already links `RNCAsyncStorage`, and `react-native` is the host's module.
+ *
+ * Called only when `localStorage` is absent, so unit tests that stub
+ * `localStorage` never reach it.
+ */
+function builtinNativeRead(): NativeSettingsRead | null {
+  let rn: ReactNativeSettingsModule | null = null;
+  try {
+    rn = require("react-native") as ReactNativeSettingsModule;
+  } catch {
+    return null;
+  }
+  const os = rn?.Platform?.OS;
+  if (os !== "ios" && os !== "android") return null;
+  let storage: { multiGet?: MultiGet } | null = null;
+  try {
+    storage = rn.TurboModuleRegistry?.get?.("RNCAsyncStorage") ?? null;
+  } catch {
+    storage = null;
+  }
+  if (typeof storage?.multiGet !== "function") {
+    try {
+      storage = rn.NativeModules?.RNCAsyncStorage ?? null;
+    } catch {
+      storage = null;
+    }
+  }
+  const multiGet = storage?.multiGet;
+  if (typeof multiGet !== "function") return null;
+  return () =>
+    Promise.all([readNativeKey(multiGet, APP_SETTINGS_KEY), readNativeKey(multiGet, LEGACY_SETTINGS_KEY)]).then(
+      ([current, legacy]) => ({ current, legacy }),
+    );
+}
+
+function startNativeRead(read: NativeSettingsRead): void {
+  if (nativeInflight) {
+    nativeAgain = true;
+    return;
+  }
+  nativeInflight = true;
+  void read()
+    .then((pair) => {
+      nativeInflight = false;
+      if (pair && applyRaw(pair.current, pair.legacy)) notify();
+      if (nativeAgain) {
+        nativeAgain = false;
+        startNativeRead(read);
+      }
+    })
+    .catch(() => {
+      nativeInflight = false;
+      nativeAgain = false;
+    });
+}
+
+/**
+ * Looks at storage if the last look is older than `RECHECK_MS`, and parses
+ * only when a raw string changed. Returns whether the value changed.
+ *
+ * Web reads `localStorage` synchronously. iOS and Android read AsyncStorage;
+ * that result arrives on a later turn and notifies subscribers itself, so
+ * this call returns false.
+ */
+export function checkHostAppearance(now: number = Date.now()): boolean {
+  if (now - state.checkedAt < RECHECK_MS) return false;
+  const storage = webStorage();
+  if (storage) {
+    state.checkedAt = now;
+    return applyRaw(readRaw(storage, APP_SETTINGS_KEY), readRaw(storage, LEGACY_SETTINGS_KEY));
+  }
+  const read = nativeReaderOverride ?? builtinNativeRead();
+  if (!read) {
+    state.checkedAt = now;
+    return applyRaw(null, null);
+  }
+  if (nativeInflight) {
+    nativeAgain = true;
+    return false;
+  }
+  state.checkedAt = now;
+  startNativeRead(read);
+  return false;
+}
+
 function sameAppearance(a: HostAppearance | null, b: HostAppearance | null): boolean {
   if (a === null || b === null) return a === b;
-  return a.monoFontFamily === b.monoFontFamily && a.codeFontSize === b.codeFontSize;
+  return (
+    a.monoFontFamily === b.monoFontFamily &&
+    a.codeFontSize === b.codeFontSize &&
+    a.contentFontSize === b.contentFontSize
+  );
 }
 
 function notify() {
@@ -270,10 +416,11 @@ const noSubscribe = () => () => {};
 const noSnapshot = () => null;
 
 /**
- * Paseo's Appearance mono settings for the tokens hooks, or null.
+ * Paseo's Appearance settings for the tokens hooks, or null.
  *
- * `enabled` is false on iOS/Android and whenever the host theme carries
- * `typography` (H1): then nothing is read or subscribed. `hostTheme` is the
+ * `enabled` is false whenever the host theme carries `typography` (H1): then
+ * nothing is read or subscribed. On iOS and Android the read is asynchronous.
+ * `hostTheme` is the
  * theme prop: the host hands plugins a new one after it applies an
  * appearance change, which is the moment to look again.
  */
@@ -301,6 +448,9 @@ export function resetHostAppearanceForTests(): void {
   state.value = null;
   state.checkedAt = -Infinity;
   parses = 0;
+  nativeInflight = false;
+  nativeAgain = false;
+  nativeReaderOverride = null;
   if (trailing !== null) clearTimeout(trailing);
   trailing = null;
 }

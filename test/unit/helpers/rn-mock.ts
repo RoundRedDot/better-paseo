@@ -116,6 +116,14 @@ export const Dimensions = {
 
 export const Linking = { openURL: () => Promise.resolve() };
 
+export const NativeModules: Record<string, unknown> = {};
+
+export const TurboModuleRegistry = {
+  get(_name: string) {
+    return null;
+  },
+};
+
 export function useWindowDimensions() {
   return Dimensions.get();
 }
@@ -133,5 +141,7 @@ export default {
   AccessibilityInfo,
   Dimensions,
   Linking,
+  NativeModules,
+  TurboModuleRegistry,
   useWindowDimensions,
 };

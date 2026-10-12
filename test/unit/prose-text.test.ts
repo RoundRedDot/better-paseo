@@ -89,6 +89,22 @@ describe("ProseText on iOS", () => {
 });
 
 describe("ProseText off iOS", () => {
+  it("does not let the Android system font scale the reading size", async () => {
+    mockOS.__rnMockOS = "android";
+    const root = await render(true);
+    expect(root.type).toBe("Text");
+    expect(root.props.allowFontScaling).toBe(false);
+    // Selection handles otherwise insert the font's top padding and the line drops.
+    expect(root.props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ includeFontPadding: false, textAlignVertical: "top" })]),
+    );
+    const nested = (root.children ?? []).filter((child) => typeof child === "object");
+    expect(nested[0]?.props.allowFontScaling).toBe(false);
+    expect(nested[0]?.props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ includeFontPadding: false, textAlignVertical: "top" })]),
+    );
+  });
+
   it("is the nested selectable Text it replaced", async () => {
     mockOS.__rnMockOS = "web";
     const root = await render(true);

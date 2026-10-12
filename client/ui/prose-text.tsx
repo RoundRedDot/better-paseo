@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { Platform, StyleSheet, Text, UIManager, type TextProps, type TextStyle } from "react-native";
+import { contentTextProps, contentTextStyle } from "./content-text";
 
 /**
  * Prose that iOS can select a range of.
@@ -149,7 +150,7 @@ export function ProseText({ style, children, ...rest }: TextProps) {
   const run = useMemo<Run>(() => ({ style: fragmentStyle(null, style) }), [style]);
   if (!native) {
     return (
-      <Text selectable style={style} {...rest}>
+      <Text selectable style={[style, contentTextStyle()]} {...rest} {...contentTextProps()}>
         {children}
       </Text>
     );
@@ -190,7 +191,7 @@ export function ProseSpan({ style, onPress, children, ...rest }: TextProps) {
   );
   if (run === null) {
     return (
-      <Text style={style} onPress={onPress} {...rest}>
+      <Text style={[style, contentTextStyle()]} onPress={onPress} {...rest} {...contentTextProps()}>
         {children}
       </Text>
     );

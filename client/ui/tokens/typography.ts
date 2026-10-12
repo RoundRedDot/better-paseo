@@ -237,6 +237,23 @@ function quoteFamily(name: string): string {
   return `"${clean}"`;
 }
 
+/**
+ * A host UI family native can actually draw.
+ *
+ * Android's own default is the token `"normal"`, and a CSS stack is not a
+ * font name there. Setting either makes the text look up a face that does
+ * not exist; the reading size then no longer follows the one we set. Leave
+ * the family unset and the system face is used, which is what Paseo itself
+ * does for chat text. iOS keeps the host string (`system-ui` maps to the
+ * system face).
+ */
+function nativeUiFamily(name: string, platform: "ios" | "android"): string | undefined {
+  if (platform === "ios") return name;
+  const trimmed = name.trim();
+  if (trimmed === "" || trimmed === "normal" || trimmed === "system-ui" || trimmed.includes(",")) return undefined;
+  return trimmed;
+}
+
 /** Appends the CJK tail to a host stack that does not already end with it. */
 function withCjk(stack: string): string {
   return stack.includes("PingFang SC") ? stack : `${stack}, ${CJK_FALLBACK}`;
@@ -248,8 +265,9 @@ export function lineHeightFor(fontSize: number): number {
 
 /**
  * @param appearance Paseo's Appearance settings as the read-only shim found
- *   them (`host-appearance-shim.ts`, plan D10 level 2). Used on web only and
- *   only without host typography (H1), which takes precedence.
+ *   them (`host-appearance-shim.ts`, plan D10 level 2). Content size uses it
+ *   on every platform. The mono stack uses it on web only. Host typography
+ *   (H1) takes precedence for both.
  */
 export function resolveTypography(
   theme: unknown,
@@ -317,10 +335,17 @@ export function resolveTypography(
     uiFamily = web ? `"${EMBEDDED_FAMILY.ui}", ${WEB_UI_TAIL}` : undefined;
   } else {
     const hostUi = host?.fontFamily?.ui;
-    uiFamily = hostUi ? (web ? withCjk(hostUi) : hostUi) : undefined;
+    uiFamily = hostUi ? (web ? withCjk(hostUi) : nativeUiFamily(hostUi, platform)) : undefined;
   }
 
-  const contentSize = host?.fontSize?.content ?? (web ? CONTENT_SIZE.web : CONTENT_SIZE.native);
+  // H1's content size, else the size stored in Paseo's Appearance settings
+  // (every platform; the mono stack from that blob stays web-only), else the
+  // platform default. Android must not keep a fixed 16: that ignores the
+  // content-size control and, with the system font scale, draws much larger.
+  const contentSize =
+    host?.fontSize?.content ??
+    appearance?.contentFontSize ??
+    (web ? CONTENT_SIZE.web : CONTENT_SIZE.native);
 
   return {
     ui: { family: uiFamily, scale: UI_SCALE },

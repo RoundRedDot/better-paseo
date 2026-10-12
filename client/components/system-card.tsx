@@ -8,6 +8,7 @@ import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface } from "./selection-actions";
 import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
 import { FadeIn } from "../ui/fade-in";
+import { contentTextProps, contentTextStyle } from "../ui/content-text";
 import { TYPE } from "../ui/tokens/typography";
 import type { SystemEnvelope, SystemEnvelopeKind } from "../system-envelope";
 
@@ -126,7 +127,7 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
         <FadeIn style={styles.body}>
           <View {...selectionSurface} style={styles.bodyInner}>
             {kind === "prose" ? (
-              <Text selectable style={styles.prose}>
+              <Text selectable {...contentTextProps()} style={[styles.prose, contentTextStyle()]}>
                 {envelope.body}
               </Text>
             ) : (

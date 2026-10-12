@@ -6,6 +6,9 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React from "react";
+
+vi.mock("react-native", () => import("./helpers/rn-mock"));
+
 import {
   APP_SETTINGS_KEY,
   LEGACY_SETTINGS_KEY,
@@ -13,11 +16,13 @@ import {
   appearanceMonoStack,
   checkHostAppearance,
   clampCodeSize,
+  clampContentSize,
   hostAppearanceParseCount,
   parseAppSettings,
   resetHostAppearanceForTests,
   resolveAppearance,
   sanitizeFamily,
+  setNativeSettingsReaderForTests,
   useHostAppearance,
   type HostAppearance,
 } from "../../client/ui/tokens/host-appearance-shim";
@@ -116,6 +121,22 @@ describe("parsing Paseo's app settings", () => {
     expect(sanitizeFamily(` "Fira Code", monospace `)).toBe('"Fira Code", monospace');
   });
 
+  it("reads the content size, and the UI base size when content size was never stored", () => {
+    expect(parseAppSettings(settings({ contentFontSize: 13, uiBaseFontSize: 15 }))).toMatchObject({
+      contentFontSize: 13,
+    });
+    expect(parseAppSettings(settings({ uiBaseFontSize: 14 }))).toEqual({ contentFontSize: 14 });
+    expect(parseAppSettings(settings({ contentFontSize: "big" }))).toEqual({});
+  });
+
+  it("floors and clamps the content size to the host's 10–21", () => {
+    expect(clampContentSize(4)).toBe(10);
+    expect(clampContentSize(40)).toBe(21);
+    expect(clampContentSize(13.7)).toBe(13);
+    expect(clampContentSize("18")).toBe(18);
+    expect(clampContentSize("")).toBeUndefined();
+  });
+
   it("floors and clamps the code size to the host's 9–22", () => {
     expect(clampCodeSize(4)).toBe(9);
     expect(clampCodeSize(40)).toBe(22);
@@ -154,6 +175,23 @@ describe("resolveTypography with Paseo's appearance (plan D10)", () => {
     expect(result.mono.family.startsWith("Geist Mono")).toBe(true);
     expect(result.mono.size).toBe(13);
     expect(result.mono.source.kind).toBe("host-typography");
+  });
+
+  it("follows the stored content size on iOS and Android, and still ignores the mono stack there", () => {
+    const stored: HostAppearance = { monoFontFamily: "Courier New", codeFontSize: 16, contentFontSize: 13 };
+    for (const platform of ["ios", "android"] as const) {
+      const result = resolveTypography({ colors: {} }, follow, platform, stored);
+      expect(result.mono.family).toBe(platform === "ios" ? "ui-monospace" : "monospace");
+      expect(result.mono.size).toBe(12);
+      expect(result.content).toEqual({ size: 13, lineHeight: 20 });
+    }
+    const host = resolveTypography(
+      { colors: {}, typography: { fontSize: { content: 17 } } },
+      follow,
+      "android",
+      stored,
+    );
+    expect(host.content.size).toBe(17);
   });
 
   it("is bypassed on iOS and Android", () => {
@@ -276,7 +314,23 @@ describe("useHostAppearance", () => {
     act(() => renderer.unmount());
   });
 
-  it("does not read storage at all when disabled (H1 present, or native)", () => {
+  it("reads Paseo's content size from AsyncStorage when there is no localStorage", async () => {
+    setNativeSettingsReaderForTests(() =>
+      Promise.resolve({ current: settings({ contentFontSize: 13, codeFontSize: 12 }), legacy: null }),
+    );
+    const seen: Array<HostAppearance | null> = [];
+    function Probe() {
+      seen.push(useHostAppearance(true, {}));
+      return null;
+    }
+    await act(async () => {
+      TestRenderer.create(React.createElement(Probe));
+      await Promise.resolve();
+    });
+    expect(seen.at(-1)).toEqual({ contentFontSize: 13, codeFontSize: 12 });
+  });
+
+  it("does not read storage at all when disabled (host typography is present)", () => {
     const { storage, seen } = setup(false);
     expect(seen.at(-1)).toBeNull();
     expect(storage.reads).toBe(0);
