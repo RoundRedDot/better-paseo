@@ -112,7 +112,8 @@ describe("tool card on a stock 0.11.2 host", () => {
     const { countHostViews, card, hook } = await load("stock");
     const collapsed = countHostViews(card(false));
     const expanded = countHostViews(card(true));
-    expect(collapsed.views).toBe(6);
+    // Row, slot, icon, target, meta: the verb is drawn with row labels on only.
+    expect(collapsed.views).toBe(5);
     expect(expanded.byType["Animated.View"] ?? 0).toBe(1); // the body's fade only
     expect(hook).not.toHaveBeenCalled();
   });
@@ -121,8 +122,15 @@ describe("tool card on a stock 0.11.2 host", () => {
 describe("tool card on a host with the sticky API", () => {
   it("costs a collapsed row nothing: same views, the hook is never called", async () => {
     const { countHostViews, card, hook } = await load("sticky");
-    expect(countHostViews(card(false)).views).toBe(6);
+    expect(countHostViews(card(false)).views).toBe(5);
     expect(hook).not.toHaveBeenCalled();
+  });
+
+  it("adds the verb, and only the verb, when row labels are on", async () => {
+    const { countHostViews, card } = await load("sticky");
+    const { updateEnhancerPreferences } = await import("../../client/preferences");
+    updateEnhancerPreferences({ rowLabels: true });
+    expect(countHostViews(card(false)).views).toBe(6);
   });
 
   it("binds the transform on an expanded card and enables it once the card passes 60% of the window", async () => {

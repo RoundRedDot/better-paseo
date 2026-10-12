@@ -729,6 +729,32 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
           look={look}
           stacked
         />
+        <SettingRow
+          title="Row labels"
+          description="Names each tool and thought row beside its icon: Bash, Read, Thought. Off, the icon alone says what the row is and the command or preview gets the width."
+          control={
+            <Toggle
+              value={preferences.rowLabels}
+              onChange={(rowLabels) => updateEnhancerPreferences({ rowLabels })}
+              label="Row labels"
+              look={look}
+            />
+          }
+          look={look}
+        />
+        <SettingRow
+          title="Compact row spacing"
+          description="Paseo 0.11 leaves 16pt under every row this plugin draws, where its own tool rows sit flush. This takes most of it back. Turn it off if rows overlap on a Paseo that already stacks them."
+          control={
+            <Toggle
+              value={preferences.compactRowSpacing}
+              onChange={(compactRowSpacing) => updateEnhancerPreferences({ compactRowSpacing })}
+              label="Compact row spacing"
+              look={look}
+            />
+          }
+          look={look}
+        />
       </Section>
 
       <Section title="Messages" look={look}>

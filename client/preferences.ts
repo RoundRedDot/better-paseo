@@ -77,6 +77,18 @@ export interface EnhancerPreferences {
   /** Which look the markdown renderer uses. */
   markdownVariant: MarkdownVariantPreference;
   /**
+   * The verb beside a row's icon ("Bash", "Read", "Thought"). Off, the icon
+   * alone names the kind of row and the target takes the width.
+   */
+  rowLabels: boolean;
+  /**
+   * Paseo up to 0.11.2 spaces a plugin item like any other item, 16pt under
+   * each, where its own tool rows sit flush. On, tool and thought rows take
+   * most of that back (`ROW_GAP_COMPENSATION`). A host that stacks plugin rows
+   * itself needs it off, or the rows overlap.
+   */
+  compactRowSpacing: boolean;
+  /**
    * Hidden: not shown in settings. Turns on the perf probes in
    * `client/debug/perf.ts`; toggle it with `__bcPerf.enable()` / `disable()`.
    */
@@ -129,6 +141,8 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   selectionActions: true,
   assistantMarkdown: true,
   markdownVariant: "document",
+  rowLabels: false,
+  compactRowSpacing: true,
   debugPerf: false,
 };
 

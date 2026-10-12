@@ -52,6 +52,8 @@ export const preferencesSchema = z.object({
   selectionActions: flag(true),
   assistantMarkdown: flag(true),
   markdownVariant: z.enum(MARKDOWN_VARIANTS_STORED).catch("document"),
+  rowLabels: flag(false),
+  compactRowSpacing: flag(true),
 });
 
 export type StoredPreferences = z.output<typeof preferencesSchema>;
