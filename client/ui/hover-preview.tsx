@@ -109,19 +109,20 @@ export function HoverPreviewHeader({ tokens, children }: {
   );
 }
 
-export function HoverPreviewBody({ children }: { children: ReactNode }) {
-  return <View style={styles.body}>{children}</View>;
+export function HoverPreviewBody({ children, withHeader = true }: { children: ReactNode; withHeader?: boolean }) {
+  return <View style={[styles.body, !withHeader && { paddingTop: space.md }]}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
-  panel: { borderWidth: 1, borderRadius: radiusV2.block },
-  body: { padding: space.md, gap: space.sm },
+  panel: { padding: 0, borderWidth: 1, borderRadius: radiusV2.block },
+  body: { paddingTop: 0, paddingHorizontal: space.md, paddingBottom: space.md, gap: space.sm },
   header: {
     position: "sticky" as never,
     top: 0,
     zIndex: 1,
     paddingHorizontal: space.md,
-    paddingVertical: space.sm,
+    paddingTop: space.sm,
+    paddingBottom: space.sm + space.md,
     borderBottomWidth: 1,
   },
 });

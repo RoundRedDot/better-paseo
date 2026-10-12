@@ -30,6 +30,7 @@ describe("hover preview content bounds", () => {
     expect(anchor.closest).toHaveBeenCalledWith("[data-bcroot]");
     expect(panel.style.width).toBe("700px");
     expect(panel.style.left).toBe("200px");
+    expect(panel.style.padding).toBe("0");
     expect(panel.showPopover).toHaveBeenCalledOnce();
     release();
     expect(panel.hidePopover).toHaveBeenCalledOnce();
