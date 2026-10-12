@@ -78,7 +78,12 @@ export function HoverPreview({ preview, tokens, children }: {
         style={[styles.panel, {
           backgroundColor: tokens.surface0,
           borderColor: tokens.v2.border,
-          boxShadow: cssShadow(tokens.v2.elevation.overlay),
+          boxShadow: cssShadow({
+            ...tokens.v2.elevation.overlay,
+            shadowOffset: { width: 0, height: 8 },
+            shadowRadius: 24,
+            shadowOpacity: tokens.isDark ? 0.36 : 0.22,
+          }),
         }]}
       >
         {children}
@@ -88,5 +93,5 @@ export function HoverPreview({ preview, tokens, children }: {
 }
 
 const styles = StyleSheet.create({
-  panel: { width: 880, padding: space.md, gap: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
+  panel: { width: 1280, padding: space.md, gap: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
 });
