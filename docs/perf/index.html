@@ -224,9 +224,9 @@
     </div>
 
     <h2 id="native-web">Web：整段回放的主线程时间</h2>
-    <p>线性刻度，单位是秒，取 Chrome 统计的主线程任务时间。11 个场景里有 10 个比原生更短；文本流式最明显，长回复、代码块、表格都少了三到五成。100 轮历史多了 8%。</p>
+    <p>线性刻度，单位是秒，取 Chrome 统计的主线程任务时间。11 个场景都比原生短；文本流式最明显，代码块、思考、表格、长回复少了三到五成。</p>
     <figure>
-      <img class="chart" data-file="web-native-cpu.svg" src="web-native-cpu.svg" alt="Web 生产构建，11 个场景的主线程任务时间。淡色是 Paseo 原生，绿色收回后是本仓库，100 轮历史一行是红色，比原生长 8%。">
+      <img class="chart" data-file="web-native-cpu.svg" src="web-native-cpu.svg" alt="Web 生产构建，11 个场景的主线程任务时间。淡色是 Paseo 原生，绿色收回后是本仓库，11 行都比原生短。">
     </figure>
 
     <div class="table-wrap">
@@ -241,21 +241,51 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td>代码块流式</td><td class="num flat">4.18</td><td class="num after">2.12</td><td class="num up">49%</td><td class="num flat">3.0 → 1.0</td></tr>
-          <tr><td>大 diff</td><td class="num flat">0.47</td><td class="num after">0.38</td><td class="num up">20%</td><td class="num flat">1.8 → 1.2</td></tr>
-          <tr class="over"><td>100 轮历史</td><td class="num flat">1.76</td><td class="num worse">1.90</td><td class="num down">8%</td><td class="num flat">0.5 → 0.4</td></tr>
-          <tr><td>长回复</td><td class="num flat">7.27</td><td class="num after">4.80</td><td class="num up">34%</td><td class="num flat">1.6 → 0.7</td></tr>
-          <tr><td>混合一轮</td><td class="num flat">1.41</td><td class="num after">1.29</td><td class="num up">8%</td><td class="num flat">1.8 → 1.0</td></tr>
-          <tr><td>读 20 个文件</td><td class="num flat">1.29</td><td class="num after">0.78</td><td class="num up">39%</td><td class="num flat">2.2 → 0.6</td></tr>
-          <tr><td>思考散文</td><td class="num flat">2.34</td><td class="num after">1.35</td><td class="num up">42%</td><td class="num flat">0.7 → 0.4</td></tr>
-          <tr><td>思考分节</td><td class="num flat">2.11</td><td class="num after">1.28</td><td class="num up">39%</td><td class="num flat">0.6 → 0.4</td></tr>
-          <tr><td>大段终端</td><td class="num flat">0.89</td><td class="num after">0.74</td><td class="num up">17%</td><td class="num flat">2.1 → 1.6</td></tr>
-          <tr><td>表格流式</td><td class="num flat">2.89</td><td class="num after">1.39</td><td class="num up">52%</td><td class="num flat">2.9 → 1.1</td></tr>
-          <tr><td>展开的工具</td><td class="num flat">1.29</td><td class="num after">1.10</td><td class="num up">15%</td><td class="num flat">0.3 → 0.4</td></tr>
+          <tr><td>代码块流式</td><td class="num flat">3.65</td><td class="num after">1.91</td><td class="num up">48%</td><td class="num flat">2.7 → 1.2</td></tr>
+          <tr><td>大 diff</td><td class="num flat">0.45</td><td class="num after">0.40</td><td class="num up">11%</td><td class="num flat">2.0 → 2.1</td></tr>
+          <tr><td>100 轮历史</td><td class="num flat">1.86</td><td class="num after">1.68</td><td class="num up">10%</td><td class="num flat">0.6 → 0.3</td></tr>
+          <tr><td>长回复</td><td class="num flat">6.97</td><td class="num after">4.67</td><td class="num up">33%</td><td class="num flat">1.6 → 0.7</td></tr>
+          <tr><td>混合一轮</td><td class="num flat">1.41</td><td class="num after">1.05</td><td class="num up">26%</td><td class="num flat">2.0 → 1.0</td></tr>
+          <tr><td>读 20 个文件</td><td class="num flat">0.90</td><td class="num after">0.81</td><td class="num up">10%</td><td class="num flat">1.7 → 0.6</td></tr>
+          <tr><td>思考散文</td><td class="num flat">2.39</td><td class="num after">1.45</td><td class="num up">39%</td><td class="num flat">0.9 → 0.5</td></tr>
+          <tr><td>思考分节</td><td class="num flat">2.14</td><td class="num after">1.22</td><td class="num up">43%</td><td class="num flat">0.8 → 0.5</td></tr>
+          <tr><td>大段终端</td><td class="num flat">0.86</td><td class="num after">0.61</td><td class="num up">29%</td><td class="num flat">1.7 → 1.5</td></tr>
+          <tr><td>表格流式</td><td class="num flat">2.35</td><td class="num after">1.45</td><td class="num up">38%</td><td class="num flat">2.0 → 1.2</td></tr>
+          <tr><td>展开的工具</td><td class="num flat">1.59</td><td class="num after">1.16</td><td class="num up">27%</td><td class="num flat">0.5 → 0.5</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note">Web 生产构建，每格 3 次取中位数，原生和本仓库按场景交替跑。代码是 <code>main</code> 加上运行中圆点改用 CSS 动画的修复（<code>58f6728</code>）。单行渲染 p95 是宿主行外壳上 <code>React.Profiler</code> 的读数，原生 → 本仓库。</p>
+    <p class="note">Web 生产构建，每格 3 次取中位数，原生和本仓库按场景交替跑，代码 <code>de7c0d3</code>。单行渲染 p95 是宿主行外壳上 <code>React.Profiler</code> 的读数，原生 → 本仓库。100 轮历史在前一轮里多 8%，这一轮少 10%，两次都在一成以内，算持平。</p>
+
+    <h2 id="native-memory">Web：回收之后的内存</h2>
+    <p>跑完先强制一次垃圾回收，再读 JS 堆和 DOM 节点；不回收的话，还没回收的游离节点也会算进去，同一场景两次能差出一千多个。回收之后，JS 堆和原生基本一样，多出的零到四 MB 大约是插件代码本身；长回复少四分之一。DOM 节点除 100 轮历史多 1% 外，都更少或持平。</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th class="num">原生 堆 MB</th>
+            <th class="num">本仓库 堆 MB</th>
+            <th class="num">原生 DOM</th>
+            <th class="num">本仓库 DOM</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>代码块流式</td><td class="num flat">123</td><td class="num after">122</td><td class="num flat">2,559</td><td class="num after">2,139</td></tr>
+          <tr><td>大 diff</td><td class="num flat">116</td><td class="num flat">120</td><td class="num flat">1,046</td><td class="num after">991</td></tr>
+          <tr><td>100 轮历史</td><td class="num flat">124</td><td class="num flat">126</td><td class="num flat">1,780</td><td class="num flat">1,797</td></tr>
+          <tr><td>长回复</td><td class="num flat">165</td><td class="num after">124</td><td class="num flat">4,716</td><td class="num after">2,835</td></tr>
+          <tr><td>混合一轮</td><td class="num flat">121</td><td class="num flat">122</td><td class="num flat">1,431</td><td class="num after">1,363</td></tr>
+          <tr><td>读 20 个文件</td><td class="num flat">120</td><td class="num flat">124</td><td class="num flat">1,476</td><td class="num after">1,440</td></tr>
+          <tr><td>思考散文</td><td class="num flat">117</td><td class="num flat">120</td><td class="num flat">1,040</td><td class="num after">979</td></tr>
+          <tr><td>思考分节</td><td class="num flat">117</td><td class="num flat">121</td><td class="num flat">1,040</td><td class="num after">981</td></tr>
+          <tr><td>大段终端</td><td class="num flat">117</td><td class="num flat">121</td><td class="num flat">1,047</td><td class="num after">986</td></tr>
+          <tr><td>表格流式</td><td class="num flat">121</td><td class="num flat">122</td><td class="num flat">1,496</td><td class="num after">1,214</td></tr>
+          <tr><td>展开的工具</td><td class="num flat">120</td><td class="num flat">124</td><td class="num flat">1,047</td><td class="num after">986</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">同一批跑次，3 次中位数。同一格的三次之间，堆相差不超过 3MB。</p>
 
     <h2 id="native-ios">iOS：单次提交里所有行加起来</h2>
     <p>线性刻度，单位毫秒，画的是 p95。长回复从 59 收到 8，代码块、表格、混合一轮都收到一半以下。100 轮历史和大段终端比原生长。iOS 上的圆点走 native driver，不受 Web 圆点修复影响。</p>
