@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { PLUGIN_ROOT_ATTRIBUTE } from "./components/focus-ring";
 
 /** Web-only pointer binding; native renderers never inspect a DOM node. */
 export function bindPreviewPointer(node: unknown, enter: () => void, leave: () => void): () => void {
@@ -18,6 +19,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   if (Platform.OS !== "web") return () => {};
   const panel = node as HTMLElement;
   const row = anchor as HTMLElement;
+  const content = row.closest<HTMLElement>(`[${PLUGIN_ROOT_ATTRIBUTE}]`)!;
   const view = panel.ownerDocument.defaultView!;
   panel.setAttribute("popover", "manual");
   panel.style.position = "fixed";
@@ -29,12 +31,15 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
 
   const position = () => {
     const rect = row.getBoundingClientRect();
+    const contentRect = content.getBoundingClientRect();
+    const left = Math.max(8, contentRect.left);
+    const right = Math.min(view.innerWidth - 8, contentRect.right);
+    panel.style.width = `${Math.max(0, right - left)}px`;
+    panel.style.left = `${left}px`;
     const below = view.innerHeight - rect.bottom - 14;
     const above = rect.top - 14;
     const down = below >= Math.min(360, panel.scrollHeight) || below >= above;
     panel.style.maxHeight = `${Math.max(0, Math.min(360, down ? below : above))}px`;
-    const width = panel.getBoundingClientRect().width;
-    panel.style.left = `${Math.max(8, Math.min(rect.left, view.innerWidth - width - 8))}px`;
     panel.style.top = `${down ? rect.bottom + 6 : Math.max(8, rect.top - panel.getBoundingClientRect().height - 6)}px`;
   };
   panel.showPopover();

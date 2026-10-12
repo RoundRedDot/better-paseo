@@ -93,5 +93,5 @@ export function HoverPreview({ preview, tokens, children }: {
 }
 
 const styles = StyleSheet.create({
-  panel: { width: 1280, padding: space.md, gap: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
+  panel: { padding: space.md, gap: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
 });
