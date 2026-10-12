@@ -3,10 +3,11 @@ import { useCallback, useLayoutEffect, useSyncExternalStore } from "react";
 /**
  * What kind of plugin item sits where in the timeline.
  *
- * Paseo hangs the same 16pt gap under every plugin item, where its own layout
- * leaves 4pt between a reply and the tool row under it. A tool or thought row
- * takes its own gap back, but a reply cannot: the 16pt is right above a prompt
- * or another reply, and the host hands a renderer no neighbours. So each
+ * Paseo hangs the same 16pt gap under every plugin item. A tool or thought row
+ * takes most of it back; a reply that wants to sit tighter above a tool row
+ * than Paseo's own (`compactReplySpacing`) cannot do that blindly: the 16pt is
+ * right above a prompt or another reply, and the host hands a renderer no
+ * neighbours. So each
  * mounted row records its arrival time and kind here, and a reply asks what
  * arrived next. Arrival order is timeline order, as for the tail
  * (`timeline-tail.ts`).
