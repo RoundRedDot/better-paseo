@@ -21,6 +21,7 @@ import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
 import { STICKY_SUPPORTED, StickyCard } from "../ui/sticky-header";
 import { PathContext, PathText } from "../ui/path-text";
 import { RunningDot } from "../ui/running-dot";
+import { exitMark, parseExitMeta } from "../ui/exit-mark";
 import { CopyButton } from "../ui/copy-button";
 import { ActionMenuList, ActionMenuTrigger, useActionMenu, type ActionMenuItem } from "../ui/action-menu";
 import { useCopy } from "../ui/use-copy";
@@ -229,13 +230,11 @@ export function ToolCallout({
     ) : (
       summary.target
     );
-  const meta = summary.meta.map((entry) =>
-    failed && FAILURE_META.test(entry) ? (
-      <Text style={{ color: tokens.danger }}>{entry}</Text>
-    ) : (
-      diffCountSpans(entry, tokens)
-    ),
-  );
+  const meta = summary.meta.map((entry) => {
+    const exitCode = parseExitMeta(entry);
+    const shown = exitCode === undefined ? diffCountSpans(entry, tokens) : exitMark(exitCode);
+    return failed && FAILURE_META.test(entry) ? <Text style={{ color: tokens.danger }}>{shown}</Text> : shown;
+  });
   const metaLead = summary.metaPath ? (
     <MetaPath path={summary.metaPath} tokens={tokens} compact={compact} />
   ) : undefined;
@@ -860,7 +859,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
                 {step.status === "running" ? <RunningDot color={tokens.accent} /> : null}
                 {step.exitCode !== null && step.status !== "running" ? (
                   <Text style={[styles.metaText, step.exitCode !== 0 && { color: tokens.danger }]}>
-                    {`exit ${step.exitCode}`}
+                    {exitMark(step.exitCode)}
                   </Text>
                 ) : null}
               </View>
