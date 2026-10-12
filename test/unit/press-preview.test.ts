@@ -30,9 +30,15 @@ vi.mock("../../client/ui/use-input-capabilities", () => ({
     return { hover: !native, touch: native, compact: native, native };
   },
 }));
+// The viewer's gestures need a real PanResponder; its own tests cover it.
+vi.mock("../../client/components/image-viewer", async () => {
+  const { createElement } = await import("react");
+  return { ImageViewer: (props: { open: boolean }) => (props.open ? createElement("ImageViewer", props) : null) };
+});
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { ToolCallout } from "../../client/components/tool-callouts";
 import { ImagePreview } from "../../client/components/image-preview";
+import type { ImageFile } from "../../client/image-file";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { createReasoningSegmenter } from "../../client/reasoning/segment";
 import { classifyTool } from "../../client/tools/classify";
@@ -137,43 +143,52 @@ describe("long-pressing a collapsed row on a phone", () => {
     act(() => renderer.unmount());
   });
 
-  it("opens an image card's preview from a long press on its header instead of copying the path", async () => {
+  // A picture is opened, not previewed: a long press on its header or on an
+  // image read's row opens the full-screen viewer a press on the thumbnail opens.
+  const viewers = (renderer: ReturnType<typeof TestRenderer.create>) =>
+    renderer.root.findAll((node) => (node.type as unknown) === "ImageViewer");
+
+  it("opens the viewer from a long press on an image card's header", () => {
     const file = { dataUri: "data:image/png;base64,AAAA", width: 637, height: 1400, bytes: 405_000, error: null };
     const renderer = render(React.createElement(ImagePreview, { path: "/tmp/shots/a.png", file, tokens, bleed: true }));
-    expect(panels(renderer)).toHaveLength(0);
     const header = renderer.root.find((node) =>
       (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Hide the image /tmp/shots/a.png");
+    // Hidden or shown, the long press opens the picture.
+    act(() => header.props.onPress());
+    expect(viewers(renderer)).toHaveLength(0);
     act(() => header.props.onLongPress());
     expect(clipboard.copyText).not.toHaveBeenCalled();
-    const shown = panel(renderer);
-    expect(textOf(shown)).toContain("/tmp/shots/a.png");
-    expect(shown.findAll((node) => (node.type as unknown) === "Image")).toHaveLength(1);
-    // The path appears once, and a picture has no lines to wrap.
-    expect(textOf(shown).split("/tmp/shots/a.png")).toHaveLength(2);
-    expect(shown.findAll((node) => (node.type as unknown) === "Pressable" &&
-      /wrap lines/i.test(String(node.props.accessibilityLabel)))).toHaveLength(0);
-    const copy = shown.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Copy path");
-    await act(async () => { copy.props.onPress(); });
-    expect(clipboard.copyText).toHaveBeenLastCalledWith("/tmp/shots/a.png");
+    expect(panels(renderer)).toHaveLength(0);
+    expect(viewers(renderer)).toHaveLength(1);
     act(() => renderer.unmount());
   });
 
-  it("asks for a collapsed image read's bytes and draws the picture without a toggle or a viewer", () => {
+  it("reads a collapsed image read on a long press and opens it in the viewer", () => {
     const read = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/shot.png", content: "" } });
-    const onPreviewOpen = vi.fn();
-    const imageFile = { dataUri: "data:image/png;base64,AAAA", width: 637, height: 1400, bytes: 405_000, error: null };
-    const renderer = render(React.createElement(ToolCallout, { data: read, tokens, compact: true, imageFile, onPreviewOpen }));
-    expect(onPreviewOpen).not.toHaveBeenCalled();
+    const requestImage = vi.fn();
+    const element = (imageFile: ImageFile | null) =>
+      React.createElement(ToolCallout, { data: read, tokens, compact: true, imageFile, requestImage });
+    const renderer = render(element(null));
     act(() => row(renderer).props.onLongPress());
-    expect(onPreviewOpen).toHaveBeenCalledTimes(1);
-    const shown = panel(renderer);
-    expect(shown.findAll((node) => (node.type as unknown) === "Image")).toHaveLength(1);
-    expect(textOf(shown)).toContain("637 × 1400");
-    expect(shown.findAll((node) => (node.type as unknown) === "Pressable" &&
-      /wrap lines/i.test(String(node.props.accessibilityLabel)))).toHaveLength(0);
-    const labels = shown.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel);
-    expect(labels).not.toContain("Open the image full screen");
-    expect(labels.some((label) => typeof label === "string" && /^(Hide|Show) the image/.test(label))).toBe(false);
+    expect(requestImage).toHaveBeenCalledTimes(1);
+    expect(panels(renderer)).toHaveLength(0);
+    // Nothing to show until the bytes arrive.
+    expect(viewers(renderer)).toHaveLength(0);
+    act(() => renderer.update(element({ dataUri: "data:image/png;base64,AAAA", width: 637, height: 1400, bytes: 405_000, error: null })));
+    expect(viewers(renderer)).toHaveLength(1);
+    expect(row(renderer).props["aria-expanded"]).toBe(false);
+    act(() => renderer.unmount());
+  });
+
+  it("says why when a long-pressed image read cannot be read", () => {
+    const read = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/gone.png", content: "" } });
+    const element = (imageFile: ImageFile | null) =>
+      React.createElement(ToolCallout, { data: read, tokens, compact: true, imageFile, requestImage() {} });
+    const renderer = render(element(null));
+    act(() => row(renderer).props.onLongPress());
+    act(() => renderer.update(element({ dataUri: null, width: null, height: null, bytes: null, error: "ENOENT: no such file" })));
+    expect(clipboard.error).toHaveBeenCalledWith("ENOENT: no such file");
+    expect(viewers(renderer)).toHaveLength(0);
     act(() => renderer.unmount());
   });
 

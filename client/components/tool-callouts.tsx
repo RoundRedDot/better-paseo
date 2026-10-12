@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useMemo, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { Glyph } from "./glyph";
@@ -9,6 +9,7 @@ import { HubCallout } from "./hub-callout";
 import { PaseoToolCallout } from "./paseo-tool-callouts";
 import { SyntaxHighlightBlock, TerminalOutput, renderTerminalOutput } from "./syntax-highlight";
 import { ImagePreview } from "./image-preview";
+import { ImageViewer } from "./image-viewer";
 import { GitHubBody } from "./github-body";
 import { MarkdownView } from "./markdown/markdown-view";
 import { ReasoningSections } from "./reasoning-trace";
@@ -16,7 +17,7 @@ import { isImagePath } from "../image-file";
 import type { ImageFile } from "../image-file";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeText, selectionSurface } from "./selection-actions";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
 import { STICKY_SUPPORTED, StickyCard } from "../ui/sticky-header";
 import { useScrollAnchor } from "../ui/scroll-anchor";
@@ -147,10 +148,11 @@ interface ToolCalloutProps {
    */
   imageFile?: ImageFile | null;
   /**
-   * The row's preview opened. The live renderer reads an image only for an
-   * open card or a preview, so this is where a collapsed read asks for it.
+   * Asks for the image: the row's preview opened, or a long press on a phone
+   * wants the viewer. The live renderer reads an image only for an open card
+   * or after this, so this is where a collapsed read asks for it.
    */
-  onPreviewOpen?(): void;
+  requestImage?(): void;
 }
 
 /**
@@ -174,7 +176,7 @@ export function ToolCallout({
   onExpandedChange,
   onRevealPath,
   imageFile,
-  onPreviewOpen,
+  requestImage,
 }: ToolCalloutProps) {
   const [localExpanded, setLocalExpanded] = useState(defaultExpanded);
   const expanded = controlledExpanded ?? localExpanded;
@@ -271,6 +273,36 @@ export function ToolCallout({
     return reveal ? () => reveal(absolutePath) : undefined;
   }, [filePath, resolvePath, touchFirst, copy, reveal]);
 
+  // On a phone a long press on an image read opens the picture in the viewer,
+  // as a press on the picture does, rather than a preview of the card. The
+  // bytes may not be read yet; the viewer opens once they arrive.
+  const viewsImage = drawsImage && capabilities.native;
+  const [viewerWanted, setViewerWanted] = useState(false);
+  const toast = useToast();
+  const openViewer = useCallback(() => {
+    requestImage?.();
+    setViewerWanted(true);
+  }, [requestImage]);
+  const closeViewer = useCallback(() => setViewerWanted(false), []);
+  const unreadable = viewerWanted && imageFile ? imageFile.dataUri === null : false;
+  useEffect(() => {
+    if (!unreadable) return;
+    setViewerWanted(false);
+    toast.error(imageFile?.error ?? "The image could not be read.");
+  }, [unreadable, imageFile, toast]);
+  const viewer = viewsImage && imageFile?.dataUri ? (
+    <ImageViewer
+      open={viewerWanted}
+      onClose={closeViewer}
+      uri={imageFile.dataUri}
+      width={imageFile.width}
+      height={imageFile.height}
+      label={filePath ?? ""}
+      tokens={tokens}
+      onReveal={revealFile}
+    />
+  ) : null;
+
   // No frame (S7 design spec §3.1): the row, then — only when there is one —
   // the error line, the copy menu and the opened body as its siblings. A
   // collapsed call is the row alone, and the row keeps its place in the tree
@@ -290,10 +322,11 @@ export function ToolCallout({
       metaLead={metaLead}
       actions={actions}
       actionsActive={menu.open}
-      onLongPress={capabilities.touch ? onLongPress : undefined}
+      onLongPress={viewsImage ? openViewer : capabilities.touch ? onLongPress : undefined}
       accessibilityLabel={[summary.verb, summary.target, ...summary.meta].filter(Boolean).join(" ")}
-      onPreviewOpen={onPreviewOpen}
+      onPreviewOpen={requestImage}
       previewWraps={!drawsImage}
+      pressPreview={!viewsImage}
       previewContent={() => (
         <>
           <ToolPreviewActions getPlan={getPlan} tool={data.tool} tokens={tokens} compact={compact} />
@@ -330,6 +363,7 @@ export function ToolCallout({
   if (expanded && STICKY_SUPPORTED) {
     return (
       <StickyCard tokens={tokens} compact={compact} header={header}>
+        {viewer}
         {menuList}
         {body}
       </StickyCard>
@@ -339,6 +373,7 @@ export function ToolCallout({
   return (
     <>
       {header}
+      {viewer}
       {summary.errorLine && !expanded ? (
         <Text
           {...(surfaceProps(selectionSurface, codeSurface) as object)}
