@@ -27,8 +27,10 @@ function layer(contentLeft: number, contentWidth: number, viewportWidth = 1600, 
   const body = { scrollHeight, clientHeight: 300, children: [] };
   const closeButton = { focus: vi.fn() };
   const content = { getBoundingClientRect: () => ({ left: contentLeft, right: contentLeft + contentWidth }) };
+  const viewport = { top: 64, bottom: 800 };
   const anchor = {
-    closest: vi.fn(() => content),
+    closest: vi.fn((selector: string) => selector === "[data-window-content]"
+      ? { getBoundingClientRect: () => viewport } : content),
     getBoundingClientRect: () => ({ left: contentLeft - 8, right: contentLeft - 8 + anchorWidth, top: 100, bottom: 126 }),
   };
   const panel = {
@@ -40,7 +42,7 @@ function layer(contentLeft: number, contentWidth: number, viewportWidth = 1600, 
   };
   const close = vi.fn();
   const release = openPreviewLayer(panel, anchor, close, options);
-  return { panel, anchor, view, body, closeButton, close, release,
+  return { panel, anchor, view, viewport, body, closeButton, close, release,
     resize: () => resized(), mutate: () => mutated(), disconnectResize, disconnectMutation };
 }
 
@@ -96,19 +98,28 @@ describe("hover preview content bounds", () => {
     expect(disconnectResize).toHaveBeenCalledOnce();
     expect(disconnectMutation).toHaveBeenCalledOnce();
   });
-  it.each([600, 1600])("centers an expanded window within a %s px viewport and retains it on scroll/blur/resize", (width) => {
-    const { panel, view, closeButton, close, release } = layer(200, 700, width, 24, { maximized: true });
-    const expectedWidth = Math.min(960, width - 32);
+  it.each([600, 1600])("preserves preview width within a %s px viewport and expands to the main content height", (width) => {
+    const normal = layer(200, 700, width);
+    const { panel, view, viewport, closeButton, close, release } = layer(200, 700, width, 24, { maximized: true });
+    const expectedWidth = Math.min(width - 8, 900) - 200;
     expect(panel.style.width).toBe(`${expectedWidth}px`);
-    expect(panel.style.left).toBe(`${(width - expectedWidth) / 2}px`);
-    expect(panel.style.height).toBe("836px");
-    expect(panel.style.top).toBe("32px");
+    expect(panel.style.width).toBe(normal.panel.style.width);
+    expect(panel.style.left).toBe(normal.panel.style.left);
+    normal.release();
+    expect(panel.style.height).toBe("736px");
+    expect(panel.style.top).toBe("64px");
     expect(closeButton.focus).toHaveBeenCalledOnce();
     for (const event of ["scroll", "blur", "resize"]) {
       const listener = view.addEventListener.mock.calls.find(([name]) => name === event)!;
       (listener[1] as (event: unknown) => void)({ target: {} });
     }
     expect(close).not.toHaveBeenCalled();
+    viewport.top = 80;
+    viewport.bottom = 700;
+    const resize = view.addEventListener.mock.calls.find(([name]) => name === "resize")!;
+    (resize[1] as () => void)();
+    expect(panel.style.top).toBe("80px");
+    expect(panel.style.height).toBe("620px");
     const key = panel.ownerDocument.addEventListener.mock.calls.find(([name]) => name === "keydown")!;
     (key[1] as (event: unknown) => void)({ key: "Escape" });
     expect(close).toHaveBeenCalledOnce();
