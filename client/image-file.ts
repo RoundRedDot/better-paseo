@@ -43,10 +43,15 @@ function stripSelector(path: string): string {
 /** True when this path names a file the chat can draw rather than tokenise. */
 export function isImagePath(path: string | undefined): boolean {
   if (!path) return false;
-  const clean = stripSelector(path);
-  const dot = clean.lastIndexOf(".");
-  if (dot <= 0) return false;
-  return IMAGE_EXTENSIONS.has(clean.slice(dot + 1).toLowerCase());
+  // The whole name first: a space or `#` in it (`My Shots/a.png`) is part of
+  // the name, and only a name that is not an image is cut at a selector.
+  return endsInImageExtension(path.trim()) || endsInImageExtension(stripSelector(path));
+}
+
+function endsInImageExtension(path: string): boolean {
+  const dot = path.lastIndexOf(".");
+  if (dot <= 0 || dot < path.lastIndexOf("/")) return false;
+  return IMAGE_EXTENSIONS.has(path.slice(dot + 1).toLowerCase());
 }
 
 /**

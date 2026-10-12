@@ -7,6 +7,8 @@ import { CodeBlock } from "./code-block";
 import type { RenderContext } from "./context";
 import { codeSurface } from "../../host-font-escape";
 import { renderInline } from "./inline";
+import { LocalImage } from "./local-image";
+import { soleLocalImage } from "./local-image-path";
 import {
   BULLETS,
   CHAR_RATIO_MONO,
@@ -96,12 +98,15 @@ function renderBlock(
       );
     }
 
-    case "paragraph":
+    case "paragraph": {
+      const image = soleLocalImage(token.tokens);
+      if (image !== null) return <LocalImage key={key} path={image} context={context} />;
       return (
         <Text key={key} selectable style={options.inQuote ? styles.quoteText : styles.paragraph}>
           {renderInline(token.tokens, context, key)}
         </Text>
       );
+    }
 
     // A bare text block: a tight list item's body, or prose marked could not
     // place anywhere else.

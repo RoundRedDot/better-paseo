@@ -8,6 +8,7 @@ import { CHAR_RATIO_MONO, CODE_CHIP_PADDING } from "./styles";
 import type { RenderContext } from "./context";
 import { codeSurface } from "../../host-font-escape";
 import { decodeEntities, isPathLike, softBreaks } from "./text";
+import { localImagePath } from "./local-image-path";
 
 /** The visible text of an inline run, for measuring and summaries. */
 export function inlineText(tokens: readonly Token[] | undefined): string {
@@ -125,6 +126,25 @@ export function renderInline(
         const label = token.text !== "" ? token.text : token.href;
         if (token.href === INCOMPLETE_IMAGE_PLACEHOLDER) {
           out.push(label);
+          return;
+        }
+        // A file on the daemon's machine reveals there, like a path in the
+        // prose; `openLink` refuses `file:`. (A paragraph that is only the
+        // image is drawn as the image, in `blocks.tsx`.)
+        const local = localImagePath(token.href);
+        if (local !== null) {
+          const reveal = context.onRevealPath;
+          out.push(
+            <Text
+              key={key}
+              selectable
+              accessibilityRole="link"
+              onPress={reveal ? () => reveal(local) : undefined}
+              style={styles.link}
+            >
+              {label}
+            </Text>,
+          );
           return;
         }
         out.push(renderLink(token.href, [label], context, key));
