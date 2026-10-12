@@ -64,7 +64,6 @@ const SWATCH = 22;
 const SWATCH_SLOP = (44 - SWATCH) / 2;
 /** The desktop label column. */
 const LABEL_COLUMN = 300;
-const PAGE_MAX = 820;
 
 /** Layout of the page: a grouped list on touch layouts, two columns on desktop. */
 interface PageLook {
@@ -562,7 +561,7 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
   return (
     <View
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
-      style={[styles.container, compact ? null : styles.containerDesktop, { backgroundColor: tokens.v2.surface0 }]}
+      style={[styles.container, { backgroundColor: tokens.v2.surface0 }]}
     >
       <View style={compact ? styles.introInset : null}>
         <Text style={[styles.title, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
@@ -844,8 +843,10 @@ const styles = StyleSheet.create({
   // column `View` (app `plugins/settings/index.tsx:107`), and React Native Web
   // compiles `flex: 1` to `flex: 1 1 0%` — a zero basis in a container that
   // sizes to its content, so the whole page collapses to nothing.
+  // No width cap or side padding on desktop either: the host's content column
+  // (`PageLayout`, 720 wide and padded) already sets the page width, so the
+  // rows line up with the page title and Paseo's own settings sections.
   container: { alignSelf: "stretch", paddingVertical: space.lg, gap: space.xl },
-  containerDesktop: { paddingHorizontal: space.xl, maxWidth: PAGE_MAX },
   introInset: { paddingHorizontal: space.lg },
   title: {
     fontSize: TYPE.title.size,
