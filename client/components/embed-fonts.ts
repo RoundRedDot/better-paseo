@@ -1,4 +1,4 @@
-import { EMBEDDED_FONTS } from "./font-data";
+import type { EmbeddedFontFace } from "../../shared/font-rpc";
 import { EMBEDDED_FAMILY, type TypographyPlatform } from "../ui/tokens/typography";
 import type { EnhancerPreferences } from "../preferences";
 
@@ -15,7 +15,7 @@ const LOCAL_FALLBACKS: Record<string, readonly string[]> = {
   "OMP Inter": ["Inter", "Segoe UI", "Roboto", "Helvetica Neue"],
 };
 /**
- * Installs the bundled Inter and Iosevka faces.
+ * Installs the given Inter and Iosevka faces.
  *
  * The plugin sandbox exposes no font loader, so on web and Electron the faces
  * are declared with `@font-face` against embedded woff2 data and the browser
@@ -30,11 +30,11 @@ const LOCAL_FALLBACKS: Record<string, readonly string[]> = {
  * picked a face that needs it: "Follow Paseo" draws with the host's own
  * stacks and never references an embedded family.
  */
-export function embedFonts(): () => void {
+export function embedFonts(faces: readonly EmbeddedFontFace[]): () => void {
   if (typeof document === "undefined") return () => {};
   if (document.getElementById(STYLE_ELEMENT_ID)) return () => {};
 
-  const rules = EMBEDDED_FONTS.map(({ family, weight, woff2Base64 }) => {
+  const rules = faces.map(({ family, weight, woff2Base64 }) => {
     const sources = [
       `url(data:font/woff2;base64,${woff2Base64}) format("woff2")`,
       ...(LOCAL_FALLBACKS[family] ?? []).map((name) => `local("${name}")`),
@@ -70,12 +70,56 @@ export function needsEmbeddedFonts(
   return platform === "web" && (preferences.monoFont === "iosevka" || preferences.uiFont === "inter");
 }
 
+export type EmbeddedFontLoader = () => Promise<readonly EmbeddedFontFace[]>;
+
+/**
+ * The faces live on the daemon (`fonts.embedded`), not in the client bundle.
+ * `contribute` sets the loader, since only the plugin context can call RPCs
+ * outside a component.
+ */
+let loader: EmbeddedFontLoader | null = null;
+let loading: Promise<void> | null = null;
+
+export function setEmbeddedFontLoader(next: EmbeddedFontLoader | null): void {
+  loader = next;
+  loading = null;
+}
+
+/**
+ * The host disposes and re-evaluates the bundle on every reconnect, which
+ * drops module state. Keeping the fetched faces on the global object lets the
+ * new evaluation install them at once instead of drawing a frame in the
+ * fallback face while it asks the daemon again.
+ */
+const FACES_KEY = "__beautifulChatEmbeddedFonts";
+type FacesHolder = { [FACES_KEY]?: readonly EmbeddedFontFace[] };
+
 /** Installs the embedded faces the first time a reader's choice needs them. */
 export function ensureEmbeddedFonts(
   preferences: Pick<EnhancerPreferences, "monoFont" | "uiFont">,
   platform: TypographyPlatform,
 ): void {
-  if (needsEmbeddedFonts(preferences, platform)) embedFonts();
+  if (!needsEmbeddedFonts(preferences, platform) || typeof document === "undefined") return;
+  if (document.getElementById(STYLE_ELEMENT_ID)) return;
+  const cached = (globalThis as FacesHolder)[FACES_KEY];
+  if (cached) {
+    embedFonts(cached);
+    return;
+  }
+  if (!loader || loading) return;
+  const from = loader;
+  loading = Promise.resolve()
+    .then(from)
+    .then((faces) => {
+      if (from !== loader || !faces?.length) return;
+      (globalThis as FacesHolder)[FACES_KEY] = faces;
+      embedFonts(faces);
+    })
+    .catch(() => {})
+    .finally(() => {
+      // A failed read may be retried by the next change of preferences or theme.
+      if (from === loader) loading = null;
+    });
 }
 
 /** Removes the embedded faces, if anything installed them (plugin unload). */

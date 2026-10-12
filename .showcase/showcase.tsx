@@ -10,6 +10,7 @@ import { createRoot } from "react-dom/client";
 import { Text, View } from "react-native";
 
 import { embedFonts } from "../client/components/embed-fonts";
+import { EMBEDDED_FONTS } from "../server/font-data";
 import { buildThemeTokens } from "../client/components/theme-tokens";
 import { ToolCallout } from "../client/components/tool-callouts";
 import { ReasoningCard, ReasoningTrace } from "../client/components/reasoning-trace";
@@ -1195,7 +1196,7 @@ function Showcase() {
   );
 }
 
-embedFonts();
+embedFonts(EMBEDDED_FONTS);
 
 console.log("showcase: bundle evaluated");
 const mount = document.getElementById("root");

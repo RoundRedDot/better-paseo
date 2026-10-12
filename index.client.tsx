@@ -1,7 +1,7 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { z } from "zod";
 import { BeautifulChatSettingsPage } from "./client/settings-page";
-import { removeEmbeddedFonts } from "./client/components/embed-fonts";
+import { removeEmbeddedFonts, setEmbeddedFontLoader } from "./client/components/embed-fonts";
 import { installHostNoticeStyle } from "./client/components/host-notice";
 import { installChatFind } from "./client/components/chat-find";
 import { installPointerFocusRing } from "./client/components/focus-ring";
@@ -10,6 +10,7 @@ import { getEnhancerPreferences } from "./client/preferences";
 import { followPreference } from "./client/state/follow-preference";
 import { perfSlashCommand } from "./client/debug/perf-command";
 import { toolErrorText } from "./client/tools/error-text";
+import { embeddedFontsRpc } from "./shared/font-rpc";
 import {
   LiveToolCallRenderer,
   LiveReasoningRenderer,
@@ -26,9 +27,14 @@ function toJsonValue(value: unknown): JsonValue {
 }
 
 export default function contribute(client: PluginClientContext) {
-  // The bundled faces (Iosevka, Inter) are installed on first use by a reader
-  // who picks them (`ensureEmbeddedFonts`); unloading removes them.
-  const removeFonts = removeEmbeddedFonts;
+  // The embedded faces (Iosevka, Inter) are read from the daemon and installed
+  // on first use by a reader who picks them (`ensureEmbeddedFonts`); unloading
+  // removes them.
+  setEmbeddedFontLoader(() => client.rpc(embeddedFontsRpc, {}).then((result) => result.faces));
+  const removeFonts = () => {
+    setEmbeddedFontLoader(null);
+    removeEmbeddedFonts();
+  };
   // The host draws  rows itself; this only re-chromes them.
   const removeNoticeStyle = installHostNoticeStyle();
   // Paseo's Ctrl+F cannot reveal rows this plugin draws; this bar can.
