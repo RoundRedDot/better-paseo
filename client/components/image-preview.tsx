@@ -115,18 +115,10 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: Im
           ...unselectable,
         },
         eye: {
-          flexDirection: "row",
           alignItems: "center",
-          gap: space.xs,
+          justifyContent: "center",
           height: 24,
           paddingHorizontal: 6,
-        },
-        eyeLabel: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          fontWeight: "500",
-          color: tokens.foregroundMuted,
-          ...unselectable,
         },
         path: { flexShrink: 1, minWidth: 0 },
         spacer: { flex: 1, minWidth: 8 },
@@ -225,7 +217,6 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: Im
         {toggle ? (
           <View style={styles.eye}>
             <Glyph name={shown ? "Eye" : "EyeOff"} size={14} color={tokens.foregroundMuted} />
-            <Text style={styles.eyeLabel}>{shown ? "Hide" : "Show"}</Text>
           </View>
         ) : null}
       </Pressable>

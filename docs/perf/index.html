@@ -44,6 +44,13 @@
       font-size: 22px;
       line-height: 1.3;
     }
+    h3 {
+      margin: 32px 0 8px;
+      font-family: "Songti SC", "Noto Serif SC", Palatino, serif;
+      font-weight: 600;
+      font-size: 18px;
+      line-height: 1.35;
+    }
     p { margin: 0 0 14px; max-width: 62ch; }
     a { color: var(--settled); }
     a:focus-visible, button:focus-visible {
@@ -56,6 +63,7 @@
     .swatch { width: 28px; height: 10px; display: inline-block; margin-right: 6px; vertical-align: -1px; }
     .swatch.ghost { background: var(--ghost); }
     .swatch.now { background: var(--settled); }
+    .swatch.native { background: #cdd8dc; }
     .swatch.budget { width: 18px; height: 0; border-top: 1px dashed var(--brass); vertical-align: 2px; }
     button {
       font: inherit;
@@ -108,6 +116,7 @@
   <main>
     <h1>同一段回放，提交时间收回来了</h1>
     <p class="lead">官方 Beautiful Chat（<code>42b61d8</code>）对上这个 fork。横条先画成官方的长度，再收到现在的长度。淡色留下的是省掉的那一截。</p>
+    <p class="lead">页面后半段换了对照组：<a href="#native">不开插件、Paseo 自己渲染</a>，看装上这个插件是更省还是更费。</p>
     <p class="note">Web 是生产构建，每个场景 1 次。iOS 是同一次会话里官方和本仓库交替各跑 4 次的中位数。原始表在 <a href="../bench/final-report.md">docs/bench/final-report.md</a>（代码 <code>81ce36b</code>）。</p>
 
     <div class="legend">
@@ -232,6 +241,106 @@
       </table>
     </div>
     <p class="note">单位是 MB，3 次中位数。长回复的常驻堆多 0.3MB，在轮次之间的波动以内。复测前的 <code>c00be20</code> 有 4 个场景常驻堆比官方高 1–2.4MB：一是流式尾块的半截版本都存进了 lex 缓存，二是 bundle 里的非 ASCII 字符让整份源码按双字节保存。两处都已修掉，上表是修复后的结果。大 diff（349 → 203）和读 20 个文件（325 → 148）沿用 V1 的读数。</p>
+
+    <h2 id="native">和不开插件的 Paseo 比</h2>
+    <p>对照组换成 Paseo 0.11.2 自己的渲染：同一个 daemon、同样 11 段回放，只在开和关这个插件之间切换。测量放在宿主上，原生行和插件行外面套的是同一个 <code>React.Profiler</code>，两边口径一致。</p>
+    <div class="legend">
+      <span><i class="swatch native"></i>Paseo 原生</span>
+      <span><i class="swatch now"></i>本仓库</span>
+      <span class="up">更省</span>
+      <span class="down">更费</span>
+    </div>
+
+    <h2 id="native-web">Web：整段回放的主线程时间</h2>
+    <p>线性刻度，单位是秒，取 Chrome 统计的主线程任务时间。11 个场景里有 10 个比原生更短；文本流式最明显，长回复、代码块、表格都少了三到五成。100 轮历史多了 8%。</p>
+    <figure>
+      <img class="chart" data-file="web-native-cpu.svg" src="web-native-cpu.svg" alt="Web 生产构建，11 个场景的主线程任务时间。淡色是 Paseo 原生，绿色收回后是本仓库，100 轮历史一行是红色，比原生长 8%。">
+    </figure>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th class="num">原生 秒</th>
+            <th class="num">本仓库 秒</th>
+            <th class="num">变化</th>
+            <th class="num">单行渲染 p95 ms</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>代码块流式</td><td class="num flat">4.18</td><td class="num after">2.12</td><td class="num up">49%</td><td class="num flat">3.0 → 1.0</td></tr>
+          <tr><td>大 diff</td><td class="num flat">0.47</td><td class="num after">0.38</td><td class="num up">20%</td><td class="num flat">1.8 → 1.2</td></tr>
+          <tr class="over"><td>100 轮历史</td><td class="num flat">1.76</td><td class="num worse">1.90</td><td class="num down">8%</td><td class="num flat">0.5 → 0.4</td></tr>
+          <tr><td>长回复</td><td class="num flat">7.27</td><td class="num after">4.80</td><td class="num up">34%</td><td class="num flat">1.6 → 0.7</td></tr>
+          <tr><td>混合一轮</td><td class="num flat">1.41</td><td class="num after">1.29</td><td class="num up">8%</td><td class="num flat">1.8 → 1.0</td></tr>
+          <tr><td>读 20 个文件</td><td class="num flat">1.29</td><td class="num after">0.78</td><td class="num up">39%</td><td class="num flat">2.2 → 0.6</td></tr>
+          <tr><td>思考散文</td><td class="num flat">2.34</td><td class="num after">1.35</td><td class="num up">42%</td><td class="num flat">0.7 → 0.4</td></tr>
+          <tr><td>思考分节</td><td class="num flat">2.11</td><td class="num after">1.28</td><td class="num up">39%</td><td class="num flat">0.6 → 0.4</td></tr>
+          <tr><td>大段终端</td><td class="num flat">0.89</td><td class="num after">0.74</td><td class="num up">17%</td><td class="num flat">2.1 → 1.6</td></tr>
+          <tr><td>表格流式</td><td class="num flat">2.89</td><td class="num after">1.39</td><td class="num up">52%</td><td class="num flat">2.9 → 1.1</td></tr>
+          <tr><td>展开的工具</td><td class="num flat">1.29</td><td class="num after">1.10</td><td class="num up">15%</td><td class="num flat">0.3 → 0.4</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Web 生产构建，每格 3 次取中位数，原生和本仓库按场景交替跑。代码是 <code>main</code> 加上下面的圆点修复。单行渲染 p95 是宿主行外壳上 <code>React.Profiler</code> 的读数，原生 → 本仓库。</p>
+
+    <h3 id="native-dot">修之前：运行中圆点每帧提交整行</h3>
+    <p>第一次对比时，有工具或待办在跑的场景反而比原生慢：混合一轮多 38%，展开的工具多 33%，大段终端多 22%。圆点用 <code>Animated</code> 做透明度循环，Web 上没有 native driver，每一帧都让所在的行重新提交一次。现在 Web 上改成 CSS 动画，交给浏览器去做。</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th class="num">行提交次数 修前</th>
+            <th class="num">修后</th>
+            <th class="num">原生</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>混合一轮</td><td class="num worse">1,518</td><td class="num after">196</td><td class="num flat">274</td></tr>
+          <tr><td>大段终端</td><td class="num worse">604</td><td class="num after">38</td><td class="num flat">43</td></tr>
+          <tr><td>展开的工具</td><td class="num worse">1,216</td><td class="num after">407</td><td class="num flat">315</td></tr>
+          <tr><td>100 轮历史</td><td class="num flat">5,624</td><td class="num flat">5,763</td><td class="num flat">5,270</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">同一份代码，只差圆点这一处。修前修后分两批跑，中间机器负载不同，所以这里只比次数，不比毫秒。100 轮历史按最大速度回放，圆点几乎来不及出现。</p>
+
+    <h2 id="native-ios">iOS：单次提交里所有行加起来</h2>
+    <p>线性刻度，单位毫秒，画的是 p95。长回复从 59 收到 8，代码块、表格、混合一轮都收到一半以下。100 轮历史和大段终端比原生长。iOS 的圆点本来就走 native driver，这次修复不影响这张图。</p>
+    <figure>
+      <img class="chart" data-file="ios-native-commit.svg" src="ios-native-commit.svg" alt="iOS 模拟器开发版，11 个场景单次提交里所有行之和的 p95。淡色是 Paseo 原生，绿色收回后是本仓库；100 轮历史、思考散文、大段终端是红色。">
+    </figure>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th class="num">原生 p95</th>
+            <th class="num">本仓库 p95</th>
+            <th class="num">变化</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>代码块流式</td><td class="num flat">23.6</td><td class="num after">6.6</td><td class="num up">72%</td></tr>
+          <tr><td>大 diff</td><td class="num flat">13.5</td><td class="num after">6.1</td><td class="num up">55%</td></tr>
+          <tr class="over"><td>100 轮历史</td><td class="num flat">77.5</td><td class="num worse">104.1</td><td class="num down">34%</td></tr>
+          <tr><td>长回复</td><td class="num flat">59.4</td><td class="num after">8.4</td><td class="num up">86%</td></tr>
+          <tr><td>混合一轮</td><td class="num flat">16.0</td><td class="num after">7.5</td><td class="num up">53%</td></tr>
+          <tr><td>读 20 个文件</td><td class="num flat">16.3</td><td class="num after">8.7</td><td class="num up">46%</td></tr>
+          <tr class="over"><td>思考散文</td><td class="num flat">4.1</td><td class="num worse">4.3</td><td class="num down">6%</td></tr>
+          <tr><td>思考分节</td><td class="num flat">4.6</td><td class="num after">3.9</td><td class="num up">15%</td></tr>
+          <tr class="over"><td>大段终端</td><td class="num flat">16.2</td><td class="num worse">19.9</td><td class="num down">22%</td></tr>
+          <tr><td>表格流式</td><td class="num flat">14.8</td><td class="num after">6.9</td><td class="num up">54%</td></tr>
+          <tr><td>展开的工具</td><td class="num flat">5.6</td><td class="num after">3.1</td><td class="num up">44%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">单位是毫秒。iOS 18.6 模拟器上的 Paseo 0.11.2 开发版，每次运行前冷启动 App，每格 2 次（混合一轮 4 次）取中位数，代码 <code>c00be20</code>。开发版的绝对值只能横向比；思考散文的 6% 在噪声以内。</p>
+
+    <p>方法、全部表格和原始数据在 <a href="../bench/native-vs-fork/README.md">docs/bench/native-vs-fork</a>。</p>
 
     <p>文字说明和离线回放的次数在 <a href="../fork-vs-upstream.md#性能">相对官方的差异</a>。</p>
   </main>
