@@ -510,7 +510,7 @@ Reduced Motion：只有 shimmer、glow 两处 CSS 处理了；所有 `Animated` 
 
    | 位置 | 桌面 / Web | 移动端 |
    |---|---|---|
-   | 工具 header（折叠） | 悬停时右侧浮现 `复制`、`⋯`，绝对定位覆盖 meta，无布局位移 | 无按钮；长按 header 执行主复制 + toast |
+   | 工具 header（折叠） | 悬停时右侧浮现 `复制`、`⋯`，绝对定位覆盖 meta，无布局位移 | 无按钮；iOS/Android 长按 header 弹出与桌面 hover 相同的预览，`复制`、`⋯` 在预览顶部；关闭预览设置或移动端 Web 时长按执行主复制 + toast |
    | 工具 header（展开） | 同上 | `复制`、`⋯` 常驻 |
    | `⋯` 菜单 | 卡片内向下展开的行内列表（无浮层/portal） | 同左 |
    | 代码块、diff header | 复制常驻 | 同左 |
@@ -520,7 +520,7 @@ Reduced Motion：只有 shimmer、glow 两处 CSS 处理了；所有 `Animated` 
 
    可选中正文上一律不绑长按。
 
-**验收**：单测覆盖 `content.ts` 全部行（去 ANSI、diff 提取新内容、思考无编号、路径为绝对路径）；showcase shim 中令 `copyText` reject，确认错误 toast 且不显示勾；桌面悬停无布局位移；iOS/Android 模拟器上长按 header、长按路径、展开后按钮三种方式均可复制，粘贴到宿主输入框核对，正文长按仍为系统菜单；`rg "navigator.clipboard" client` 为 0。
+**验收**：单测覆盖 `content.ts` 全部行（去 ANSI、diff 提取新内容、思考无编号、路径为绝对路径）；showcase shim 中令 `copyText` reject，确认错误 toast 且不显示勾；桌面悬停无布局位移；iOS/Android 模拟器上长按 header 弹出的预览、长按路径、展开后按钮三种方式均可复制，粘贴到宿主输入框核对，正文长按仍为系统菜单；`rg "navigator.clipboard" client` 为 0。
 
 **写集**：S1：`client/ui/copy-button.tsx`、`client/ui/use-copy.ts`、`client/copy/content.ts`、`client/ui/action-menu.tsx`；S2：代码块 header；S3：工具 header 悬停按钮、长按、`⋯` 菜单；S4：思考段落；S5：用户消息与回复 footer 改用 `useCopy`；`PathText` 长按复制随 BC-13。
 
@@ -647,7 +647,7 @@ Reduced Motion：只有 shimmer、glow 两处 CSS 处理了；所有 `Animated` 
 | 性能测量 | 探针 + `longtask`/`layout-shift` | 探针 | 探针 + Xcode/Perf Monitor（手动） |
 | 磨砂、光晕 | 可选开启 | 磨砂可选，光晕不可用 | 均不可用，设置页隐藏 |
 | Reduced Motion | `prefers-reduced-motion` | 同左 | `AccessibilityInfo` |
-| 复制 | 悬停按钮 + 选区工具条 + Cmd/Ctrl+C | 长按 header/路径 + 展开后按钮 | 同左 + 系统选择菜单 |
+| 复制 | 悬停按钮 + 选区工具条 + Cmd/Ctrl+C | 长按 header 弹预览（预览内复制）、长按路径 + 展开后按钮 | 同左 + 系统选择菜单 |
 | 字体 | 内嵌 Iosevka 可选；自定义用输入框 | 同左 | 平台等宽字体；自定义用下拉 |
 | 路径 | 悬停完整路径与复制 | 长按复制 | 长按复制 |
 | 点击路径 | `file.reveal` 在本机文件管理器显示 | **改为复制绝对路径 + toast** | 同左 |
