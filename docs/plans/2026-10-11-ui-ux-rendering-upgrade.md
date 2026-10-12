@@ -2,7 +2,7 @@
 
 - 需求：`writing-block.md` v1.0（BC-01 ~ BC-14）
 - 基线：本仓库 `main@42b61d8`（与 Paseo 实际安装的 checkout 同 HEAD）；插件 SDK devDep `@getpaseo/plugin@0.8.0`；本机 Paseo **0.11.2**（宿主源码核对于 `getpaseo/paseo@7868f5c`）
-- 状态：设计已定稿（关键决策见 §6），未实施。所有 `file:line` 指向上述基线。
+- 状态：已实施。交付记录见 [`docs/delivery/2026-10-11-delivery-report.md`](../delivery/2026-10-11-delivery-report.md)；相对官方插件的当前差异见 [`docs/fork-vs-upstream.md`](../fork-vs-upstream.md)。下文是实施前的设计，`file:line` 指向基线 `42b61d8`。
 
 ---
 

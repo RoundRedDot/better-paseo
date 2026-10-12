@@ -13,15 +13,23 @@ them.
 ## Install
 
 ```bash
-paseo plugin install ABorakati/beautiful-chat
+paseo plugin install RoundRedDot/beautiful-chat
 ```
 
 The manifest requires Paseo `>=0.8.0`. Open **Settings → Plugins → Beautiful Chat** for the
-accent, fonts, frosted glass, and prompt bubble options.
+accent, fonts, row layout, and prompt bubble options.
+
+This repository is a fork of [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat)
+at `42b61d8` (2026-09-23). What changed after that, including the measured rendering work, is in
+[docs/fork-vs-upstream.md](docs/fork-vs-upstream.md).
 
 ---
 
 ## Tool calls
+
+A tool call starts as one row: 26pt on desktop, 28pt on touch. Press the row to open the card
+described below. Rows are icon-only unless **Row icons and labels** says otherwise. A failed call
+can open on its own; see Settings.
 
 ### Shell and Git
 
@@ -132,8 +140,11 @@ actions the host owns.
 
 ### Prompt bubble
 
-The authored turn on a raised theme surface with a square tail, a copy button, and the turn's token
-usage.
+Paseo draws the prompt by default, including pasted images and its rewind menu. **Enhanced prompt
+bubble** (off by default) switches that turn to the plugin's bubble: a raised theme surface, a
+square tail, a copy button that stays visible, and the turn's token usage. The plugin bubble
+cannot show pasted images. On a Paseo that exposes its rewind menu, the plugin bubble draws that
+menu; Paseo 0.11.2 does not, so rewind stays with the host bubble.
 
 ![Prompt bubble](docs/images/user.png)
 
@@ -152,16 +163,20 @@ Devicon brand marks, and the file-manager link.
 
 | Setting                | Effect                                                                                       |
 | ---------------------- | -------------------------------------------------------------------------------------------- |
+| Language               | English or 简体中文 for this page, or follow the device. Plugins cannot see Paseo's own language. |
 | Accent colour          | Follow the Paseo theme, or pick Jade, Violet, Amber, or Rose.                                |
-| Frosted glass          | Blur floating bars (selection actions, full-path tooltip). Web and desktop only.             |
-| Pointer glow           | A light that follows the pointer across floating bars. Web and desktop only.                 |
-| Monospace font         | Follow Paseo (default), Iosevka, Iosevka Code (ligatures in code blocks), or Custom. Follow Paseo uses, in order: the host's font settings once Paseo shares them with plugins; on web/desktop, the monospace font and code size set in Paseo's Appearance settings (read only, a temporary bridge until then); otherwise Paseo's default monospace (`SFMono-Regular, Menlo, Monaco, Consolas, …` on web/desktop, the system monospace on iOS/Android). The settings page shows which one is in effect. On iOS/Android, Custom picks from faces the platform ships. |
+| Monospace font         | Follow Paseo (default), Iosevka, Iosevka Code (ligatures in code blocks; web and desktop), or Custom. Follow Paseo uses, in order: the host's font settings once Paseo shares them with plugins; on web/desktop, the monospace font and code size set in Paseo's Appearance settings (read only, a temporary bridge until then); otherwise Paseo's default monospace (`SFMono-Regular, Menlo, Monaco, Consolas, …` on web/desktop, the system monospace on iOS/Android). The settings page shows which one is in effect. On iOS/Android, Iosevka is not offered and Custom picks from faces the platform ships. |
 | Code font size         | Follow Paseo, or 10-22px with a live preview. Applies to code, diffs, terminals and paths.   |
 | Interface font         | Follow Paseo's interface font, embedded Inter (web only), or the system face.                |
 | Tool details           | Tool calls start collapsed; optionally open failed calls on their own.                       |
 | File paths             | Relative to the workspace, or absolute. Copying always gives the absolute path.              |
-| Enhanced prompt bubble | Off hands prompts back to Paseo, whose bubble shows pasted images.                           |
-| Assistant markdown     | Off hands replies back to Paseo's own markdown renderer.                                     |
+| Row icons and labels   | Icon only (default), label only, or both, on tool and thought rows.                          |
+| Compact row spacing    | On by default. Takes back most of the 16pt Paseo 0.11 leaves under every plugin row.         |
+| Compact reply spacing  | On by default. A reply sitting on a tool, thought, or todo row uses 4pt instead of 16pt.     |
+| Enhanced prompt bubble | Off by default, so Paseo draws the prompt (pasted images, rewind). On uses the plugin bubble. |
+| Selection actions      | Highlighting text in a callout raises Copy and Add to chat.                                  |
+| Assistant markdown     | On by default. Draws headings, lists, tables, highlighted code, and local images. Off hands the reply to Paseo, which is what mermaid and the host's own images need. |
+| Markdown style         | Document, Compact, or Terminal (the body in the code face).                                  |
 
 Preferences are stored by the daemon, through the SDK's settings (`defineSettings` /
 `useSettings`, record `presentation` in `shared/preferences-settings.ts`). Host scope is the only
@@ -186,9 +201,11 @@ to the previous one, and Escape closes the bar.
 
 The bar searches only messages the chat has loaded. Scroll up first to include older history.
 
-To keep Paseo's native search, which also searches unloaded history, turn off **Assistant
-markdown** and **Enhanced prompt bubble** in **Settings -> Plugins -> Beautiful Chat**. Paseo then
-draws replies and prompts itself, and Ctrl/Cmd+F opens Paseo's find instead of the plugin's bar.
+**Enhanced prompt bubble** is off by default, so prompts already use Paseo's find. To keep
+Paseo's native search for replies as well, which also searches unloaded history, turn off
+**Assistant markdown** (and **Enhanced prompt bubble**, if you turned it on) in **Settings ->
+Plugins -> Beautiful Chat**. Paseo then draws replies and prompts itself, and Ctrl/Cmd+F opens
+Paseo's find instead of the plugin's bar.
 New messages follow the change.
 Tool, reasoning, and checklist cards keep the plugin's styling, so Paseo's find still cannot reveal a
 match inside one of them.
@@ -206,6 +223,9 @@ asks the platform shell to show it:
 | Other    | `xdg-open <directory>` opens the containing directory. |
 
 A directory path opens that directory. A path the daemon cannot stat does nothing.
+
+On a touch device the same press copies the absolute path instead. `file.reveal` runs on the
+daemon's machine, so a phone cannot open that machine's file manager.
 
 ## Unmapped output
 
@@ -230,8 +250,8 @@ timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurfac
 2. **Transformers see a stripped item.** The app maps its stream item to the plugin item before any
    transformer runs, and a user message keeps only `text`, `messageId`, and `clientMessageId`. Pasted
    images never reach plugin code, and the daemon timeline row stores the same item, so a server RPC
-   cannot recover them either. Workaround: the **Enhanced prompt bubble** setting returns prompts to
-   the host.
+   cannot recover them either. Workaround: **Enhanced prompt bubble** is off by default, so the host
+   keeps the prompt and its pasted images. Turning the setting on replaces that bubble.
 3. **Interception is all or nothing.** A transformer replaces the host item completely. There is no
    way to decorate an item or keep host affordances that the plugin does not reimplement. Returning
    `undefined` is the only opt-out.
@@ -251,9 +271,8 @@ timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurfac
    `foreground`, `foregroundMuted`, `accent`, `accentForeground`, and three status colours. Every
    other surface, including code backgrounds and diff tints, must be derived with alpha; that is what
    `client/components/theme-tokens.ts` exists for.
-10. **No CSS escape hatch.** React Native styles drop unknown keys, so `backdrop-filter` is
-    impossible through the style API. Frosted glass is a hand-injected `<style>` rule matched by a
-    data attribute.
+10. **No CSS escape hatch.** React Native styles drop unknown keys, so `backdrop-filter` cannot be
+    set through the style API. The plugin does not draw frosted glass.
 11. **No font registration.** Faces are embedded as data URIs in an injected `@font-face` rule
     (web only). Paseo forces its UI font on every node not under `data-pmono`; the plugin marks
     only monospace regions with it, so interface text follows the host font, and leaves the

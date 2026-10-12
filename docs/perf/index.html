@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>同一段回放，提交时间收回来了</title>
+  <style>
+    :root {
+      --sheet: #e6eef1;
+      --ink: #172226;
+      --muted: #5c6e76;
+      --oxide: #a33b32;
+      --ghost: #e7cfc9;
+      --settled: #1e5c4e;
+      --brass: #8a6a32;
+      --line: #c5d2d6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--sheet);
+      color: var(--ink);
+      font-family: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+      font-size: 17px;
+      line-height: 1.55;
+    }
+    main {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 56px 28px 88px;
+    }
+    h1 {
+      margin: 0 0 14px;
+      font-family: "Songti SC", "Noto Serif SC", Palatino, "Palatino Linotype", serif;
+      font-weight: 600;
+      font-size: 36px;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+    }
+    h2 {
+      margin: 56px 0 10px;
+      font-family: "Songti SC", "Noto Serif SC", Palatino, serif;
+      font-weight: 600;
+      font-size: 22px;
+      line-height: 1.3;
+    }
+    p { margin: 0 0 14px; max-width: 62ch; }
+    a { color: var(--settled); }
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid var(--brass);
+      outline-offset: 3px;
+    }
+    .lead { color: var(--ink); }
+    .note { color: var(--muted); font-size: 15px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 16px 22px; align-items: center; margin: 8px 0 18px; font-size: 14px; }
+    .swatch { width: 28px; height: 10px; display: inline-block; margin-right: 6px; vertical-align: -1px; }
+    .swatch.ghost { background: var(--ghost); }
+    .swatch.now { background: var(--settled); }
+    .swatch.budget { width: 18px; height: 0; border-top: 1px dashed var(--brass); vertical-align: 2px; }
+    button {
+      font: inherit;
+      font-size: 15px;
+      color: var(--ink);
+      background: transparent;
+      border: 1px solid var(--ink);
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    button:hover { background: #dfe8eb; }
+    figure { margin: 0 0 8px; }
+    img { width: 100%; height: auto; display: block; }
+    .table-wrap { overflow-x: auto; margin: 18px 0 8px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+      font-size: 14.5px;
+    }
+    th, td { padding: 7px 12px 7px 0; text-align: left; vertical-align: baseline; }
+    th { font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--ink); }
+    td { border-bottom: 1px solid var(--line); }
+    .num { text-align: right; }
+    .before { color: var(--oxide); }
+    .after, .up { color: var(--settled); }
+    .down { color: var(--oxide); }
+    .up::before, .down::before {
+      content: "";
+      display: inline-block;
+      width: 0;
+      height: 0;
+      margin-right: 6px;
+      vertical-align: 1px;
+      border-left: 4.5px solid transparent;
+      border-right: 4.5px solid transparent;
+    }
+    .up::before { border-bottom: 7px solid currentColor; }
+    .down::before { border-top: 7px solid currentColor; vertical-align: 2px; }
+    .flat { color: var(--muted); }
+    .worse { color: var(--oxide); }
+    tr.over td:first-child { box-shadow: inset 2px 0 0 var(--brass); padding-left: 8px; }
+    @media (max-width: 640px) {
+      main { padding: 32px 18px 64px; }
+      h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>同一段回放，提交时间收回来了</h1>
+    <p class="lead">官方 Beautiful Chat（<code>42b61d8</code>）对上这个 fork。横条先画成官方的长度，再收到现在的长度。淡色留下的是省掉的那一截。</p>
+    <p class="note">Web 是生产构建，每个场景 1 次。iOS 是同一次会话里官方和本仓库交替各跑 4 次的中位数。原始表在 <a href="../bench/final-report.md">docs/bench/final-report.md</a>（代码 <code>81ce36b</code>）。</p>
+
+    <div class="legend">
+      <span><i class="swatch ghost"></i>官方</span>
+      <span><i class="swatch now"></i>本仓库</span>
+      <span><i class="swatch budget"></i>4ms 预算</span>
+      <span class="up">提升</span>
+      <span class="down">倒退</span>
+      <button type="button" id="replay">再看一次</button>
+    </div>
+
+    <h2 id="web">Web 上最忙的那张卡片</h2>
+    <p>纵轴是场景，横轴是提交时间的 p95，对数刻度。10 个场景收到虚线左边或贴着虚线；100 轮历史仍在右边。</p>
+    <figure>
+      <img class="chart" data-file="web-p95.svg" src="web-p95.svg" alt="Web 生产构建，11 个场景的提交时间 p95。淡色是官方，绿色收回后是本仓库。虚线是 4 毫秒预算。">
+    </figure>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th class="num">官方 p95</th>
+            <th class="num">本仓库 p95</th>
+            <th class="num">变化</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>代码块流式</td><td class="num before">10.5</td><td class="num after">1.7</td><td class="num up">84%</td></tr>
+          <tr><td>大 diff</td><td class="num before">208.9</td><td class="num after">1.9</td><td class="num up">99%</td></tr>
+          <tr class="over"><td>100 轮历史</td><td class="num before">95.6</td><td class="num after">32.4</td><td class="num up">66%</td></tr>
+          <tr><td>长回复</td><td class="num before">16.3</td><td class="num after">1.7</td><td class="num up">90%</td></tr>
+          <tr><td>混合一轮</td><td class="num before">8.7</td><td class="num after">1.7</td><td class="num up">80%</td></tr>
+          <tr><td>读 20 个文件</td><td class="num before">230.2</td><td class="num after">2.0</td><td class="num up">99%</td></tr>
+          <tr><td>思考散文</td><td class="num before">3.1</td><td class="num after">0.8</td><td class="num up">74%</td></tr>
+          <tr><td>思考分节</td><td class="num before">5.5</td><td class="num after">0.8</td><td class="num up">85%</td></tr>
+          <tr><td>大段终端</td><td class="num before">30.0</td><td class="num after">2.2</td><td class="num up">93%</td></tr>
+          <tr><td>表格流式</td><td class="num before">2.0</td><td class="num after">1.4</td><td class="num up">30%</td></tr>
+          <tr><td>展开的工具</td><td class="num before">16.7</td><td class="num after">1.3</td><td class="num up">92%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">单位是毫秒。绿色向上箭头是提升（耗时下降），红色向下箭头是倒退（耗时变长）。100 轮那一行没进 4ms：110 张卡片同时停在正在生成区，按最大速度回放。</p>
+
+    <h2 id="ios">iOS 上同一次会话</h2>
+    <p>线性刻度，0 到 160 毫秒，画的是 p95。助手、思考、工具、待办收到大约原来的四分之一。用户那一行几乎重叠，p95 从 31.1 到 31.9。</p>
+    <figure>
+      <img class="chart" data-file="ios-p95.svg" src="ios-p95.svg" alt="iOS 同一次会话，用户、助手、思考、工具、待办的提交时间 p95。用户几乎没变，其余四条明显收回。">
+    </figure>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>卡片</th>
+            <th class="num">官方 p50</th>
+            <th class="num">本仓库 p50</th>
+            <th class="num">p50</th>
+            <th class="num">官方 p95</th>
+            <th class="num">本仓库 p95</th>
+            <th class="num">p95</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="over"><td>用户</td><td class="num before">18.0</td><td class="num worse">26.6</td><td class="num down">48%</td><td class="num before">31.1</td><td class="num worse">31.9</td><td class="num down">3%</td></tr>
+          <tr><td>助手</td><td class="num before">23.4</td><td class="num after">15.5</td><td class="num up">34%</td><td class="num before">103</td><td class="num after">25</td><td class="num up">76%</td></tr>
+          <tr><td>思考</td><td class="num before">26.7</td><td class="num after">12.9</td><td class="num up">52%</td><td class="num before">100</td><td class="num after">23</td><td class="num up">77%</td></tr>
+          <tr><td>工具</td><td class="num before">52.2</td><td class="num after">18.9</td><td class="num up">64%</td><td class="num before">125</td><td class="num after">32</td><td class="num up">74%</td></tr>
+          <tr><td>待办</td><td class="num before">74.5</td><td class="num after">28.5</td><td class="num up">62%</td><td class="num before">146</td><td class="num after">41</td><td class="num up">72%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">单位是毫秒。<code>mixed-turn</code>，同一模拟器会话里交替各 4 次。用户卡片的 p50 变慢了，从 18.0 到 26.6；整轮里它多出来的大约 14ms，换来其余卡片少掉零点几秒到一秒多。</p>
+
+    <h2 id="frames">帧、内存、还在转的动画</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th class="num">掉帧</th>
+            <th class="num">最长帧</th>
+            <th class="num">堆内存</th>
+            <th class="num">结束时的循环动画</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>代码块流式</td><td class="num up">1.0% → 0.2%</td><td class="num up">133 → 50</td><td class="num down">143 → 183</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>大 diff</td><td class="num up">14.8% → 0.3%</td><td class="num up">517 → 33</td><td class="num up">349 → 203</td><td class="num up">3 → 0</td></tr>
+          <tr class="over"><td>100 轮历史</td><td class="num up">77.6% → 45.4%</td><td class="num up">833 → 183</td><td class="num down">352 → 384</td><td class="num up">327 → 0</td></tr>
+          <tr><td>长回复</td><td class="num up">5.4% → 0.2%</td><td class="num up">200 → 50</td><td class="num down">147 → 157</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>混合一轮</td><td class="num up">1.1% → 0.2%</td><td class="num up">117 → 50</td><td class="num up">158 → 141</td><td class="num up">21 → 1</td></tr>
+          <tr><td>读 20 个文件</td><td class="num up">9.1% → 0.5%</td><td class="num up">567 → 50</td><td class="num up">325 → 148</td><td class="num up">72 → 0</td></tr>
+          <tr><td>思考散文</td><td class="num up">0.5% → 0.1%</td><td class="num up">67 → 33</td><td class="num up">159 → 142</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>思考分节</td><td class="num up">0.4% → 0.2%</td><td class="num up">67 → 33</td><td class="num down">143 → 153</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>大段终端</td><td class="num up">0.8% → 0.3%</td><td class="num up">133 → 50</td><td class="num up">154 → 152</td><td class="num up">2 → 0</td></tr>
+          <tr><td>表格流式</td><td class="num up">0.6% → 0.1%</td><td class="num up">67 → 33</td><td class="num up">224 → 146</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>展开的工具</td><td class="num up">0.3% → 0.2%</td><td class="num up">50 → 33</td><td class="num up">152 → 149</td><td class="num up">2 → 0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Web 生产构建。掉帧是比例，最长帧是毫秒，堆内存是 MB，取整到个位。循环动画是跑完时还挂着的个数。100 轮历史的掉帧和堆内存没有一起变好。</p>
+
+    <p>文字说明和离线回放的次数在 <a href="../fork-vs-upstream.md#性能">相对官方的差异</a>。</p>
+  </main>
+  <script>
+    const replay = document.getElementById("replay");
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) replay.hidden = true;
+    replay.addEventListener("click", () => {
+      document.querySelectorAll("img.chart").forEach((img) => {
+        img.src = img.dataset.file + "?replay=" + Date.now();
+      });
+    });
+  </script>
+</body>
+</html>
