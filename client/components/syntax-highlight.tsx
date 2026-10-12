@@ -529,10 +529,7 @@ export function SyntaxHighlightBlock({
   const lines = useMemo(() => code.trimEnd().split("\n"), [code]);
   const total = lines.length;
   const { shown, expanding, expanded, showAll, showLess } = useBatchedRows(total, initialLines);
-  // Sideways scrolling is the default for a block that asked for it; Wrap
-  // turns it off for this block only (S7 design spec §3.6).
   const [wrapped, setWrapped] = useState(false);
-  const scroll = scrollX && !wrapped;
   // A diff is a diff whatever the label says, and everything below reads this
   // flag rather than the label.
   const isDiff = useMemo(
@@ -570,6 +567,10 @@ export function SyntaxHighlightBlock({
   const mono = tokens.typography.mono;
   const languageLabel = codeLanguageLabel(isDiff ? "diff" : language, filename);
   const hasHeader = Boolean(filename || filenameNode !== undefined || languageLabel);
+  // Sideways scrolling is the default for a block that asked for it; Wrap
+  // turns it off for this block only (S7 design spec §3.6). Plain text has
+  // no header to hold Wrap and is usually a sentence, not code, so it wraps.
+  const scroll = scrollX && !wrapped && hasHeader;
   // Plain text names nothing, so it has no header to carry Copy. A framed
   // block still offers it, pinned to the first line's end; a bare one sits in
   // a tool body whose row already copies.

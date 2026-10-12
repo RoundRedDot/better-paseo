@@ -1,5 +1,5 @@
 /**
- * Copy on a code block. A block that names a language carries Copy in its
+ * Copy and wrapping on a code block. A block that names a language carries Copy in its
  * header; plain text has no header, so Copy floats over the first line's end
  * instead. A bare block sits in a tool body whose row copies, and an open
  * fence offers nothing until it closes.
@@ -65,7 +65,20 @@ async function load() {
     act(() => renderer!.unmount());
     return found.length;
   }
-  return { copyButtons };
+
+  /** Whether the block scrolls sideways rather than wrapping its lines. */
+  function scrollsSideways(props: Record<string, unknown>): boolean {
+    let renderer: ReturnType<typeof TestRenderer.create> | undefined;
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(SyntaxHighlightBlock, { code: "echo hi", tokens, scrollX: true, ...props }),
+      );
+    });
+    const found = renderer!.root.findAll((node) => node.props.horizontal === true);
+    act(() => renderer!.unmount());
+    return found.length > 0;
+  }
+  return { copyButtons, scrollsSideways };
 }
 
 afterEach(() => {
@@ -83,6 +96,12 @@ describe("code block copy", () => {
   it("keeps Copy in the header of a block that names its language", async () => {
     const { copyButtons } = await load();
     expect(copyButtons({ language: "bash" })).toBe(1);
+  });
+
+  it("wraps a plain-text block, which has no Wrap toggle, and scrolls a named one", async () => {
+    const { scrollsSideways } = await load();
+    expect(scrollsSideways({ language: "plaintext" })).toBe(false);
+    expect(scrollsSideways({ language: "bash" })).toBe(true);
   });
 
   it("offers nothing on a bare block or an open fence", async () => {
