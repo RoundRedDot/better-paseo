@@ -153,9 +153,9 @@
     <p class="note">单位是毫秒。绿色向上箭头是提升（耗时下降），红色向下箭头是倒退（耗时变长）。100 轮那一行没进 4ms：110 张卡片同时停在正在生成区，按最大速度回放。</p>
 
     <h2 id="ios">iOS 上同一次会话</h2>
-    <p>线性刻度，0 到 160 毫秒，画的是 p95。助手、思考、工具、待办收到大约原来的四分之一。用户那一行几乎重叠，p95 从 31.1 到 31.9。</p>
+    <p>线性刻度，0 到 160 毫秒，画的是 p95。五类卡片都比官方快：助手、思考、工具、待办收到原来的四分之一左右，用户卡片从 25.3 降到 13.3。</p>
     <figure>
-      <img class="chart" data-file="ios-p95.svg" src="ios-p95.svg" alt="iOS 同一次会话，用户、助手、思考、工具、待办的提交时间 p95。用户几乎没变，其余四条明显收回。">
+      <img class="chart" data-file="ios-p95.svg" src="ios-p95.svg" alt="iOS 同一次会话，用户、助手、思考、工具、待办的提交时间 p95。五条都比官方短，用户大约减半，其余四条收到四分之一左右。">
     </figure>
 
     <div class="table-wrap">
@@ -172,17 +172,17 @@
           </tr>
         </thead>
         <tbody>
-          <tr class="over"><td>用户</td><td class="num before">18.0</td><td class="num worse">26.6</td><td class="num down">48%</td><td class="num before">31.1</td><td class="num worse">31.9</td><td class="num down">3%</td></tr>
-          <tr><td>助手</td><td class="num before">23.4</td><td class="num after">15.5</td><td class="num up">34%</td><td class="num before">103</td><td class="num after">25</td><td class="num up">76%</td></tr>
-          <tr><td>思考</td><td class="num before">26.7</td><td class="num after">12.9</td><td class="num up">52%</td><td class="num before">100</td><td class="num after">23</td><td class="num up">77%</td></tr>
-          <tr><td>工具</td><td class="num before">52.2</td><td class="num after">18.9</td><td class="num up">64%</td><td class="num before">125</td><td class="num after">32</td><td class="num up">74%</td></tr>
-          <tr><td>待办</td><td class="num before">74.5</td><td class="num after">28.5</td><td class="num up">62%</td><td class="num before">146</td><td class="num after">41</td><td class="num up">72%</td></tr>
+          <tr><td>用户</td><td class="num before">15.8</td><td class="num after">13.3</td><td class="num up">16%</td><td class="num before">25.3</td><td class="num after">13.3</td><td class="num up">47%</td></tr>
+          <tr><td>助手</td><td class="num before">20.2</td><td class="num after">13.1</td><td class="num up">35%</td><td class="num before">108.2</td><td class="num after">21.6</td><td class="num up">80%</td></tr>
+          <tr><td>思考</td><td class="num before">22.1</td><td class="num after">9.6</td><td class="num up">57%</td><td class="num before">94.4</td><td class="num after">21.5</td><td class="num up">77%</td></tr>
+          <tr><td>工具</td><td class="num before">45.1</td><td class="num after">15.4</td><td class="num up">66%</td><td class="num before">122.6</td><td class="num after">27.0</td><td class="num up">78%</td></tr>
+          <tr><td>待办</td><td class="num before">60.5</td><td class="num after">28.0</td><td class="num up">54%</td><td class="num before">137.9</td><td class="num after">40.8</td><td class="num up">70%</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note">单位是毫秒。<code>mixed-turn</code>，同一模拟器会话里交替各 4 次。用户卡片的 p50 变慢了，从 18.0 到 26.6；整轮里它多出来的大约 14ms，换来其余卡片少掉零点几秒到一秒多。</p>
+    <p class="note">单位是毫秒。<code>mixed-turn</code>，同一模拟器会话里交替各 4 次，取中位数。这是设置同步改成单独 memo（<code>a2996c5</code>）之后的配对 A/B。V1 时用户卡片 p50 曾从 18.0 变成 26.6，因为设置同步挂在第一张卡片上；修复后用户卡片每轮只渲染 1 次，原来是 4 次。</p>
 
-    <h2 id="frames">帧、内存、还在转的动画</h2>
+    <h2 id="frames">帧和还在转的动画</h2>
     <div class="table-wrap">
       <table>
         <thead>
@@ -190,26 +190,48 @@
             <th>场景</th>
             <th class="num">掉帧</th>
             <th class="num">最长帧</th>
-            <th class="num">堆内存</th>
             <th class="num">结束时的循环动画</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td>代码块流式</td><td class="num up">1.0% → 0.2%</td><td class="num up">133 → 50</td><td class="num down">143 → 183</td><td class="num flat">0 → 0</td></tr>
-          <tr><td>大 diff</td><td class="num up">14.8% → 0.3%</td><td class="num up">517 → 33</td><td class="num up">349 → 203</td><td class="num up">3 → 0</td></tr>
-          <tr class="over"><td>100 轮历史</td><td class="num up">77.6% → 45.4%</td><td class="num up">833 → 183</td><td class="num down">352 → 384</td><td class="num up">327 → 0</td></tr>
-          <tr><td>长回复</td><td class="num up">5.4% → 0.2%</td><td class="num up">200 → 50</td><td class="num down">147 → 157</td><td class="num flat">0 → 0</td></tr>
-          <tr><td>混合一轮</td><td class="num up">1.1% → 0.2%</td><td class="num up">117 → 50</td><td class="num up">158 → 141</td><td class="num up">21 → 1</td></tr>
-          <tr><td>读 20 个文件</td><td class="num up">9.1% → 0.5%</td><td class="num up">567 → 50</td><td class="num up">325 → 148</td><td class="num up">72 → 0</td></tr>
-          <tr><td>思考散文</td><td class="num up">0.5% → 0.1%</td><td class="num up">67 → 33</td><td class="num up">159 → 142</td><td class="num flat">0 → 0</td></tr>
-          <tr><td>思考分节</td><td class="num up">0.4% → 0.2%</td><td class="num up">67 → 33</td><td class="num down">143 → 153</td><td class="num flat">0 → 0</td></tr>
-          <tr><td>大段终端</td><td class="num up">0.8% → 0.3%</td><td class="num up">133 → 50</td><td class="num up">154 → 152</td><td class="num up">2 → 0</td></tr>
-          <tr><td>表格流式</td><td class="num up">0.6% → 0.1%</td><td class="num up">67 → 33</td><td class="num up">224 → 146</td><td class="num flat">0 → 0</td></tr>
-          <tr><td>展开的工具</td><td class="num up">0.3% → 0.2%</td><td class="num up">50 → 33</td><td class="num up">152 → 149</td><td class="num up">2 → 0</td></tr>
+          <tr><td>代码块流式</td><td class="num up">1.0% → 0.2%</td><td class="num up">133 → 50</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>大 diff</td><td class="num up">14.8% → 0.3%</td><td class="num up">517 → 33</td><td class="num up">3 → 0</td></tr>
+          <tr class="over"><td>100 轮历史</td><td class="num up">77.6% → 45.4%</td><td class="num up">833 → 183</td><td class="num up">327 → 0</td></tr>
+          <tr><td>长回复</td><td class="num up">5.4% → 0.2%</td><td class="num up">200 → 50</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>混合一轮</td><td class="num up">1.1% → 0.2%</td><td class="num up">117 → 50</td><td class="num up">21 → 1</td></tr>
+          <tr><td>读 20 个文件</td><td class="num up">9.1% → 0.5%</td><td class="num up">567 → 50</td><td class="num up">72 → 0</td></tr>
+          <tr><td>思考散文</td><td class="num up">0.5% → 0.1%</td><td class="num up">67 → 33</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>思考分节</td><td class="num up">0.4% → 0.2%</td><td class="num up">67 → 33</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>大段终端</td><td class="num up">0.8% → 0.3%</td><td class="num up">133 → 50</td><td class="num up">2 → 0</td></tr>
+          <tr><td>表格流式</td><td class="num up">0.6% → 0.1%</td><td class="num up">67 → 33</td><td class="num flat">0 → 0</td></tr>
+          <tr><td>展开的工具</td><td class="num up">0.3% → 0.2%</td><td class="num up">50 → 33</td><td class="num up">2 → 0</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note">Web 生产构建。掉帧是比例，最长帧是毫秒，堆内存是 MB，取整到个位。循环动画是跑完时还挂着的个数。100 轮历史的掉帧和堆内存没有一起变好。</p>
+    <p class="note">Web 生产构建。掉帧是比例，最长帧是毫秒。循环动画是跑完时还挂着的个数。</p>
+
+    <h2 id="heap">堆内存，10 月 12 日复测</h2>
+    <p>V1 的堆内存读的是 <code>performance.memory</code>，Chrome 会把它量化并缓存，同一场景三次能差 20MB 以上，V1 每个场景又只跑 1 次。这次把官方和本仓库放在同一个隔离 daemon 上交替各跑 3 次，用 CDP 读精确值；两边都由插件绘制用户卡片。</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th class="num">跑完（不 GC）</th>
+            <th class="num">常驻（GC 后）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>代码块流式</td><td class="num up">126.4 → 117.5</td><td class="num up">110.1 → 109.1</td></tr>
+          <tr><td>100 轮历史</td><td class="num up">523.8 → 206.0</td><td class="num up">178.4 → 153.3</td></tr>
+          <tr><td>长回复</td><td class="num up">120.7 → 111.7</td><td class="num flat">110.4 → 110.7</td></tr>
+          <tr><td>思考分节</td><td class="num up">117.2 → 111.7</td><td class="num up">107.4 → 106.7</td></tr>
+          <tr><td>表格流式</td><td class="num up">120.5 → 107.5</td><td class="num up">107.6 → 107.4</td></tr>
+          <tr><td>混合一轮</td><td class="num up">128.8 → 114.2</td><td class="num up">115.6 → 109.3</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">单位是 MB，3 次中位数。长回复的常驻堆多 0.3MB，在轮次之间的波动以内。复测前的 <code>c00be20</code> 有 4 个场景常驻堆比官方高 1–2.4MB：一是流式尾块的半截版本都存进了 lex 缓存，二是 bundle 里的非 ASCII 字符让整份源码按双字节保存。两处都已修掉，上表是修复后的结果。大 diff（349 → 203）和读 20 个文件（325 → 148）沿用 V1 的读数。</p>
 
     <p>文字说明和离线回放的次数在 <a href="../fork-vs-upstream.md#性能">相对官方的差异</a>。</p>
   </main>
