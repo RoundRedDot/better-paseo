@@ -98,6 +98,23 @@ function stripSelector(path: string): string {
 }
 
 /**
+ * `stripSelector`, unless the whole string names a file: a path with a space,
+ * `#` or `:` in it (`My Shots/a.png`) is a real name, not a path plus selector.
+ */
+async function resolveSelector(path: string, cwd: string): Promise<string> {
+  const whole = path.trim();
+  if (whole) {
+    try {
+      await stat(isAbsolute(whole) ? whole : resolve(cwd, whole));
+      return whole;
+    } catch {
+      // Not a file as written; fall back to cutting the selector.
+    }
+  }
+  return stripSelector(path);
+}
+
+/**
  * Reveals a path with the platform shell. Windows Explorer selects the file
  * itself; macOS Finder does the same with `-R`; every other platform opens the
  * containing directory, because `xdg-open` on a file launches its editor.
@@ -456,7 +473,7 @@ export default function contribute(server: PluginServerContext) {
   server.registerSettings(PREFERENCES_SETTINGS);
 
   server.handle(revealPathRpc, async (input) => {
-    const requested = stripSelector(input.path);
+    const requested = await resolveSelector(input.path, input.cwd);
     if (!requested) return { revealed: null, error: "No path" };
 
     const target = isAbsolute(requested) ? requested : resolve(input.cwd, requested);
@@ -474,7 +491,7 @@ export default function contribute(server: PluginServerContext) {
 
   server.handle(imageRpc, async (input) => {
     const empty = { dataUri: null, mime: null, width: null, height: null, bytes: null };
-    const requested = stripSelector(input.path);
+    const requested = await resolveSelector(input.path, input.cwd);
     if (!requested) return { ...empty, error: "No path" };
 
     const kind = requested.slice(requested.lastIndexOf(".") + 1).toLowerCase();
