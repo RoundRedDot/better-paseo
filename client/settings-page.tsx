@@ -861,7 +861,7 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
 const styles = StyleSheet.create({
   // No `flex: 1` here. The host mounts a settings screen inside a plain
   // column `View` (app `plugins/settings/index.tsx:107`), and React Native Web
-  // compiles `flex: 1` to `flex: 1 1 0%` — a zero basis in a container that
+  // compiles `flex: 1` to `flex: 1 1 0%`: a zero basis in a container that
   // sizes to its content, so the whole page collapses to nothing.
   // No width cap or side padding on desktop either: the host's content column
   // (`PageLayout`, 720 wide and padded) already sets the page width, so the

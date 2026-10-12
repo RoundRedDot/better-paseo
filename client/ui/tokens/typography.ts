@@ -100,7 +100,7 @@ export const TYPE = {
   label: { size: 13, lineHeight: 18 },
   /** A row's path or command, monospace. */
   target: { compact: { size: 12, lineHeight: 18 }, desktop: { size: 12, lineHeight: 18 } },
-  /** Row meta (`exit 0  1.2s`, `L10–80`) and usage, monospace with tabular digits. */
+  /** Row meta (`exit 0  1.2s`, `L10-80`) and usage, monospace with tabular digits. */
   meta: { size: 12, lineHeight: 16 },
   /** Times, a code block's language, captions, a failed row's error line. */
   caption: { size: 12, lineHeight: 16 },

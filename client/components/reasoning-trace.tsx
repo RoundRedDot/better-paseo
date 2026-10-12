@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
     fontSize: TYPE.label.size,
     lineHeight: TYPE.label.lineHeight,
   },
-  // The thought, in the row's text column: no box, no rule (S7 §3.2).
+  // The thought, in the row's text column: no box, no rule (S7 3.2).
   body: {
     paddingLeft: DISCLOSURE_HEADER.textColumn,
     paddingTop: space.xs,

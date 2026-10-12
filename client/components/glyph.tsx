@@ -82,7 +82,7 @@ function renderGlyph(name: string, size: number, color: string): ReactElement {
   const stroke = Math.max(1.2, size / 8.5);
 
   switch (name) {
-    // A stroked chevron, not the `▾` character. A text triangle fills only a
+    // A stroked chevron, not the U+25BE text triangle. A text triangle fills only a
     // fraction of its em box, so it reads far smaller than its nominal size;
     // two borders on a rotated box scale exactly with `size`.
     case "ChevronDown":

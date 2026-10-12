@@ -156,6 +156,32 @@ function sourceLocator(map) {
 const locate = sourceLocator(JSON.parse(mapFile.text));
 const bundleLines = bundle.split("\n");
 
+// --- 1b. ASCII only ----------------------------------------------------------
+// The engine keeps the source it evaluated. V8 stores a string one byte per
+// character only while every character is Latin-1 (Hermes: ASCII), so one
+// `–` anywhere doubles the whole bundle in memory: about 1.7 MB of heap on the
+// web build, measured. esbuild escapes string literals itself; comments it
+// keeps and regex literals reach the bundle as written, so write those with
+// `\uXXXX` escapes or plain ASCII.
+const nonAscii = [];
+for (const [index, text] of jsFile.text.split("\n").entries()) {
+  for (let column = 0; column < text.length; column++) {
+    if (text.charCodeAt(column) > 0x7f) {
+      nonAscii.push({ line: index + 1, column, char: text[column], text });
+      break;
+    }
+  }
+}
+if (nonAscii.length > 0) {
+  console.error(`check:hermes: FAIL — ${nonAscii.length} bundle line(s) with non-ASCII characters`);
+  for (const { line, column, char, text } of nonAscii.slice(0, 20)) {
+    const code = char.charCodeAt(0).toString(16).padStart(4, "0");
+    console.error(`  near ${locate(line, column) ?? `bundle:${line}`}  U+${code.toUpperCase()}`);
+    console.error(`    ${text.trim().slice(0, 160)}`);
+  }
+  process.exit(1);
+}
+
 const compiled = spawnSync(hermesc, ["-emit-binary", "-out", path.join(dir, "client.hbc"), bundlePath], {
   encoding: "utf8",
 });

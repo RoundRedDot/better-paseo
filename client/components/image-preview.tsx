@@ -74,7 +74,7 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: Im
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        // The code block's frame (plan §3.6): the code surface on the block
+        // The code block's frame (plan 3.6): the code surface on the block
         // radius, a 28px header on the same surface, no border or band. The
         // frame does not clip, so the path's hover tooltip can rise above the
         // card; the parts with their own fill round their own corners.
