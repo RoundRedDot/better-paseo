@@ -42,8 +42,9 @@ interface ImagePreviewProps {
   bleed?: boolean;
   /**
    * Drawn inside a row's hover or long-press preview: a smaller picture that
-   * fits the panel, no show/hide toggle, and no full-screen viewer, since the
-   * panel closes as soon as the pointer leaves it for the viewer.
+   * fits the panel, no path (the panel shows it whole), no show/hide toggle,
+   * and no full-screen viewer, since the panel closes as soon as the pointer
+   * leaves it for the viewer.
    */
   preview?: boolean;
 }
@@ -253,15 +254,18 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
               <Glyph name="Image" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
             </View>
             {/* Relative to the workspace, middle-truncated. On touch the path is
-                part of the header's press, as a row's target is (plan §3.9). */}
-            <View pointerEvents={touchFirst ? "none" : "auto"} style={styles.path}>
-              <PathText
-                path={path}
-                tokens={tokens}
-                onReveal={onReveal ? () => onReveal() : undefined}
-                style={{ fontSize: UI_SCALE.base }}
-              />
-            </View>
+                part of the header's press, as a row's target is (plan §3.9).
+                A preview panel already shows the whole path above the card. */}
+            {preview ? null : (
+              <View pointerEvents={touchFirst ? "none" : "auto"} style={styles.path}>
+                <PathText
+                  path={path}
+                  tokens={tokens}
+                  onReveal={onReveal ? () => onReveal() : undefined}
+                  style={{ fontSize: UI_SCALE.base }}
+                />
+              </View>
+            )}
             <View style={styles.spacer} />
             <View style={styles.chips}>
               {chips.map((chip) => (
@@ -279,7 +283,7 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
         </RowLongPressContext.Provider>
       </HoverPreviewContext.Provider>
       {hover.open && file?.dataUri ? (
-        <HoverPreview preview={hover} tokens={tokens}>
+        <HoverPreview preview={hover} tokens={tokens} wraps={false}>
           <HoverPreviewHeader tokens={tokens}>
             <CopyButton text={absolutePath} tokens={tokens} label="Copy path" />
           </HoverPreviewHeader>

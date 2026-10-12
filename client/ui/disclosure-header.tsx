@@ -104,6 +104,8 @@ export interface DisclosureHeaderProps {
   previewContent?(): ReactNode;
   /** The preview opened, for content that is fetched only when it is shown. */
   onPreviewOpen?(): void;
+  /** False when the preview holds no text to wrap, so it has no wrap toggle. */
+  previewWraps?: boolean;
   /**
    * Keeps the row in place when it toggles. The row brings its own; a card
    * whose row moves into another parent when it opens (`StickyCard`) passes
@@ -154,6 +156,7 @@ export function DisclosureHeader({
   accessibilityLabel,
   previewContent,
   onPreviewOpen,
+  previewWraps = true,
   scrollAnchor,
 }: DisclosureHeaderProps) {
   const previewOwner = useContext(HoverPreviewContext);
@@ -310,7 +313,7 @@ export function DisclosureHeader({
         </RowLongPressContext.Provider>
       </HoverPreviewContext.Provider>
       {preview.open && previewContent ? (
-        <HoverPreview preview={preview} tokens={tokens}>{previewContent()}</HoverPreview>
+        <HoverPreview preview={preview} tokens={tokens} wraps={previewWraps}>{previewContent()}</HoverPreview>
       ) : null}
     </>
   );

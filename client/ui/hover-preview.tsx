@@ -115,14 +115,17 @@ export function useHoverPreview(enabled: boolean) {
 export function HoverPreview(props: {
   preview: ReturnType<typeof useHoverPreview>;
   tokens: ExtendedThemeTokens;
+  /** False for content with no lines to wrap, such as a picture: no wrap toggle. */
+  wraps?: boolean;
   children: ReactNode;
 }) {
   return Platform.OS === "web" ? <WebPreview {...props} /> : <PressPreview {...props} />;
 }
 
-function WebPreview({ preview, tokens, children }: {
+function WebPreview({ preview, tokens, wraps = true, children }: {
   preview: ReturnType<typeof useHoverPreview>;
   tokens: ExtendedThemeTokens;
+  wraps?: boolean;
   children: ReactNode;
 }) {
   const panelRef = useRef<View>(null);
@@ -148,7 +151,7 @@ function WebPreview({ preview, tokens, children }: {
         maximized: preview.maximized,
         maximize: preview.maximize,
         close: preview.close,
-        wrap: { on: wrapOn, toggle: toggleWrap, tokens },
+        wrap: wraps ? { on: wrapOn, toggle: toggleWrap, tokens } : undefined,
       }}>
         <View
           ref={panelRef}
@@ -187,9 +190,10 @@ function panelLook(tokens: ExtendedThemeTokens) {
  * panel or Android's back button closes it. The panel stays hidden until the
  * row and the safe area are measured, so it never flashes at the wrong size.
  */
-function PressPreview({ preview, tokens, children }: {
+function PressPreview({ preview, tokens, wraps = true, children }: {
   preview: ReturnType<typeof useHoverPreview>;
   tokens: ExtendedThemeTokens;
+  wraps?: boolean;
   children: ReactNode;
 }) {
   const [rowWidth, setRowWidth] = useState<number | null>(null);
@@ -221,7 +225,7 @@ function PressPreview({ preview, tokens, children }: {
               maximized: false,
               maximize: preview.maximize,
               close,
-              wrap: { on: wrapOn, toggle: toggleWrap, tokens },
+              wrap: wraps ? { on: wrapOn, toggle: toggleWrap, tokens } : undefined,
             }}>
               <View
                 {...selectionSurface}

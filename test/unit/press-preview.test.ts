@@ -148,6 +148,10 @@ describe("long-pressing a collapsed row on a phone", () => {
     const shown = panel(renderer);
     expect(textOf(shown)).toContain("/tmp/shots/a.png");
     expect(shown.findAll((node) => (node.type as unknown) === "Image")).toHaveLength(1);
+    // The path appears once, and a picture has no lines to wrap.
+    expect(textOf(shown).split("/tmp/shots/a.png")).toHaveLength(2);
+    expect(shown.findAll((node) => (node.type as unknown) === "Pressable" &&
+      /wrap lines/i.test(String(node.props.accessibilityLabel)))).toHaveLength(0);
     const copy = shown.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Copy path");
     await act(async () => { copy.props.onPress(); });
     expect(clipboard.copyText).toHaveBeenLastCalledWith("/tmp/shots/a.png");
@@ -165,6 +169,8 @@ describe("long-pressing a collapsed row on a phone", () => {
     const shown = panel(renderer);
     expect(shown.findAll((node) => (node.type as unknown) === "Image")).toHaveLength(1);
     expect(textOf(shown)).toContain("637 × 1400");
+    expect(shown.findAll((node) => (node.type as unknown) === "Pressable" &&
+      /wrap lines/i.test(String(node.props.accessibilityLabel)))).toHaveLength(0);
     const labels = shown.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel);
     expect(labels).not.toContain("Open the image full screen");
     expect(labels.some((label) => typeof label === "string" && /^(Hide|Show) the image/.test(label))).toBe(false);
