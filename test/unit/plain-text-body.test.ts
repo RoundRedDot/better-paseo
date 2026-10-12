@@ -71,7 +71,7 @@ it("draws a plain_text body in the monospace face, marked as code", async () => 
     );
   });
   const body = renderer!.root.find(
-    (node) => node.type === "Text" && node.props.children === text,
+    (node) => (node.type as unknown) === "Text" && node.props.children === text,
   );
   const style = StyleSheet.flatten(body.props.style) as { fontFamily?: string };
   expect(style.fontFamily).toBe(tokens.fontMono);

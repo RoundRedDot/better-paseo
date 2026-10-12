@@ -6,6 +6,7 @@ import {
   preferencesSchema,
   type StoredPreferences,
 } from "../shared/preferences-settings";
+import type { SettingsLanguagePreference } from "./i18n/settings-strings";
 
 export { CODE_FONT_SIZE_MAX, CODE_FONT_SIZE_MIN, clampCodeFontSize };
 export type { StoredPreferences };
@@ -88,6 +89,8 @@ export interface EnhancerPreferences {
    * itself needs it off, or the rows overlap.
    */
   compactRowSpacing: boolean;
+  /** The settings page's language; `system` follows the device locale. */
+  language: SettingsLanguagePreference;
   /**
    * Hidden: not shown in settings. Turns on the perf probes in
    * `client/debug/perf.ts`; toggle it with `__bcPerf.enable()` / `disable()`.
@@ -143,6 +146,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   markdownVariant: "document",
   rowLabels: false,
   compactRowSpacing: true,
+  language: "system",
   debugPerf: false,
 };
 

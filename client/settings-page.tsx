@@ -26,30 +26,32 @@ import {
 import { NATIVE_MONO_CHOICES, TYPE, describeMonoSource, readHostTypography } from "./ui/tokens/typography";
 import { usePreferenceSettings } from "./state/preference-sync-slot";
 import type { SyncStatus } from "./state/preference-sync";
+import {
+  SETTINGS_STRINGS,
+  resolveLanguage,
+  type SettingsLanguagePreference,
+  type SettingsStrings,
+} from "./i18n/settings-strings";
 
 /** What the settings page says about the daemon store, or null when all is well. */
-function storageHint(sync: SyncStatus): string | null {
-  if (sync.failed) return "Your last change could not be saved to this Paseo host. It applies on this client until the next change or reload.";
-  if (sync.status === "invalid") {
-    return `The settings stored on this Paseo host could not be read, so the defaults are shown. Changing any setting replaces the stored record. (${sync.error ?? "invalid"})`;
-  }
-  if (sync.status === "error") {
-    return `The settings stored on this Paseo host are unreachable right now; the last known values are shown, and a change is saved once the host answers. (${sync.error ?? "error"})`;
-  }
-  if (sync.status === "loading") return "Loading the settings stored on this Paseo host…";
+function storageHint(sync: SyncStatus, t: SettingsStrings): string | null {
+  if (sync.failed) return t.syncFailed;
+  if (sync.status === "invalid") return t.syncInvalid(sync.error ?? "invalid");
+  if (sync.status === "error") return t.syncError(sync.error ?? "error");
+  if (sync.status === "loading") return t.syncLoading;
   return null;
 }
 
 const ACCENT_OPTIONS: ReadonlyArray<{
   id: AccentPreset;
-  label: string;
+  label: "accentHost" | "accentJade" | "accentViolet" | "accentAmber" | "accentRose";
   color: string | undefined;
 }> = [
-  { id: "host", label: "Host", color: undefined },
-  { id: "jade", label: "Jade", color: ACCENT_PRESETS.jade },
-  { id: "violet", label: "Violet", color: ACCENT_PRESETS.violet },
-  { id: "amber", label: "Amber", color: ACCENT_PRESETS.amber },
-  { id: "rose", label: "Rose", color: ACCENT_PRESETS.rose },
+  { id: "host", label: "accentHost", color: undefined },
+  { id: "jade", label: "accentJade", color: ACCENT_PRESETS.jade },
+  { id: "violet", label: "accentViolet", color: ACCENT_PRESETS.violet },
+  { id: "amber", label: "accentAmber", color: ACCENT_PRESETS.amber },
+  { id: "rose", label: "accentRose", color: ACCENT_PRESETS.rose },
 ];
 
 /** Switch geometry (S7 §3.9): a 40x24 track and an 18pt knob. */
@@ -68,6 +70,8 @@ const PAGE_MAX = 820;
 interface PageLook {
   compact: boolean;
   tokens: ExtendedThemeTokens;
+  /** The page's strings, in the language the reader chose. */
+  t: SettingsStrings;
 }
 
 /**
@@ -347,7 +351,7 @@ function SettingRow({
  * timeline. A family the browser lacks falls back through the stack.
  */
 function CustomMonoInput({ value, look }: { value: string; look: PageLook }) {
-  const { tokens } = look;
+  const { tokens, t } = look;
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   const commit = () => {
@@ -356,12 +360,12 @@ function CustomMonoInput({ value, look }: { value: string; look: PageLook }) {
   };
   return (
     <TextInput
-      accessibilityLabel="Custom monospace family"
+      accessibilityLabel={t.customMono}
       value={draft}
       onChangeText={setDraft}
       onBlur={commit}
       onSubmitEditing={commit}
-      placeholder="e.g. JetBrains Mono"
+      placeholder={t.customMonoPlaceholder}
       placeholderTextColor={tokens.foregroundSubtle}
       autoCapitalize="none"
       autoCorrect={false}
@@ -391,7 +395,7 @@ function MonoPreview({ look }: { look: PageLook }) {
   return (
     <View
       {...codeSurface}
-      accessibilityLabel="Font preview"
+      accessibilityLabel={look.t.fontPreview}
       style={[styles.preview, { backgroundColor: look.compact ? tokens.v2.surface0 : tokens.v2.surfaceCode }]}
     >
       <Text style={[line, { fontFamily: tokens.fontCode, color: tokens.foreground }]}>
@@ -423,7 +427,7 @@ function MonoPreview({ look }: { look: PageLook }) {
 
 /** Follow Paseo, or a size from 10 to 22 with a stepper, over a live preview. */
 function CodeSizeControl({ value, look }: { value: number | null; look: PageLook }) {
-  const { tokens } = look;
+  const { tokens, t } = look;
   const effective = tokens.typography.mono.size;
   const set = (next: number) =>
     updateEnhancerPreferences({
@@ -432,11 +436,11 @@ function CodeSizeControl({ value, look }: { value: number | null; look: PageLook
   return (
     <View style={styles.controlLine}>
       <Segmented<"host" | "custom">
-        label="Code font size source"
+        label={t.codeSizeSource}
         value={value === null ? "host" : "custom"}
         options={[
-          { value: "host", label: "Follow Paseo" },
-          { value: "custom", label: "Custom" },
+          { value: "host", label: t.followPaseo },
+          { value: "custom", label: t.custom },
         ]}
         onChange={(choice) =>
           updateEnhancerPreferences({ codeFontSize: choice === "host" ? null : effective })
@@ -446,14 +450,14 @@ function CodeSizeControl({ value, look }: { value: number | null; look: PageLook
       <View style={styles.stepper}>
         <PlainButton
           label="−"
-          accessibilityLabel="Smaller code font"
+          accessibilityLabel={t.codeSizeSmaller}
           disabled={effective <= CODE_FONT_SIZE_MIN}
           onPress={() => set(effective - 1)}
           look={look}
           square
         />
         <Text
-          accessibilityLabel={`Code font size ${effective} pixels`}
+          accessibilityLabel={t.codeSizeValue(effective)}
           style={[
             styles.stepperValue,
             { color: value === null ? tokens.foregroundMuted : tokens.foreground, fontFamily: tokens.fontMono },
@@ -463,7 +467,7 @@ function CodeSizeControl({ value, look }: { value: number | null; look: PageLook
         </Text>
         <PlainButton
           label="+"
-          accessibilityLabel="Larger code font"
+          accessibilityLabel={t.codeSizeLarger}
           disabled={effective >= CODE_FONT_SIZE_MAX}
           onPress={() => set(effective + 1)}
           look={look}
@@ -476,9 +480,9 @@ function CodeSizeControl({ value, look }: { value: number | null; look: PageLook
 
 /** "Host" and the four presets: round swatches, the selected one ringed. */
 function AccentControl({ value, hostAccent, look }: { value: AccentPreset; hostAccent: string; look: PageLook }) {
-  const { tokens } = look;
+  const { tokens, t } = look;
   return (
-    <View accessibilityRole="radiogroup" accessibilityLabel="Accent colour" style={styles.swatches}>
+    <View accessibilityRole="radiogroup" accessibilityLabel={t.accentTitle} style={styles.swatches}>
       {ACCENT_OPTIONS.map((option) => {
         const selected = value === option.id;
         const color = option.color ?? hostAccent;
@@ -486,7 +490,7 @@ function AccentControl({ value, hostAccent, look }: { value: AccentPreset; hostA
           <Pressable
             key={option.id}
             accessibilityRole="radio"
-            accessibilityLabel={`Accent: ${option.label}`}
+            accessibilityLabel={t.accentOption(t[option.label])}
             accessibilityState={{ selected, checked: selected }}
             aria-checked={selected}
             hitSlop={SWATCH_SLOP}
@@ -504,7 +508,7 @@ function AccentControl({ value, hostAccent, look }: { value: AccentPreset; hostA
           >
             {option.id === "host" ? (
               <Text style={[styles.hostChipLabel, { color: selected ? tokens.foreground : tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-                Host
+                {t.accentHost}
               </Text>
             ) : null}
           </Pressable>
@@ -520,7 +524,8 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
   // The settings screen reads (and, through the store, saves) the daemon
   // record itself, so it works with no chat open.
   const sync = usePreferenceSettings();
-  const hint = storageHint(sync);
+  const t = SETTINGS_STRINGS[resolveLanguage(preferences.language)];
+  const hint = storageHint(sync, t);
   const platform =
     layout?.platform ?? (Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : "web");
   const native = platform !== "web";
@@ -535,18 +540,18 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
     },
     [preferences, theme, platform, appearance],
   );
-  const look = useMemo<PageLook>(() => ({ tokens, compact }), [tokens, compact]);
+  const look = useMemo<PageLook>(() => ({ tokens, compact, t }), [tokens, compact, t]);
 
   const monoOptions: ReadonlyArray<{ value: MonoChoice; label: string }> = native
     ? [
-        { value: "host", label: "Follow Paseo" },
-        { value: "custom", label: "Custom" },
+        { value: "host", label: t.followPaseo },
+        { value: "custom", label: t.custom },
       ]
     : [
-        { value: "host", label: "Follow Paseo" },
+        { value: "host", label: t.followPaseo },
         { value: "iosevka", label: "Iosevka" },
         { value: "iosevka-code", label: "Iosevka Code" },
-        { value: "custom", label: "Custom" },
+        { value: "custom", label: t.custom },
       ];
   const nativeChoices = platform === "web" ? [] : NATIVE_MONO_CHOICES[platform];
   // A stored Iosevka (from a synced web profile) is drawn as Follow on native,
@@ -561,11 +566,10 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
     >
       <View style={compact ? styles.introInset : null}>
         <Text style={[styles.title, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
-          Chat presentation
+          {t.pageTitle}
         </Text>
         <Text style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-          Saved on this Paseo host and shared by every client connected to it (desktop, web, iOS,
-          Android). Options a platform cannot draw fall back there.
+          {t.pageIntro}
         </Text>
         {hint ? (
           <Text
@@ -585,40 +589,51 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
         ) : null}
       </View>
 
-      <Section title="Appearance" look={look}>
+      <Section title={t.sectionAppearance} look={look}>
         <SettingRow
-          title="Accent colour"
-          description="Follow the Paseo theme, or pick a presentation accent. Only the accent changes; every other colour comes from the theme."
-          control={<AccentControl value={preferences.accent} hostAccent={theme.colors.accent} look={look} />}
+          title={t.languageTitle}
+          description={t.languageDescription}
+          control={
+            <Segmented<SettingsLanguagePreference>
+              label={t.languageTitle}
+              value={preferences.language}
+              options={[
+                { value: "system", label: t.languageSystem },
+                { value: "en", label: t.languageEnglish },
+                { value: "zh", label: t.languageChinese },
+              ]}
+              onChange={(language) => updateEnhancerPreferences({ language })}
+              look={look}
+            />
+          }
           look={look}
           first
           stacked
         />
+        <SettingRow
+          title={t.accentTitle}
+          description={t.accentDescription}
+          control={<AccentControl value={preferences.accent} hostAccent={theme.colors.accent} look={look} />}
+          look={look}
+          stacked
+        />
       </Section>
 
-      <Section title="Fonts" look={look}>
+      <Section title={t.sectionFonts} look={look}>
         {hostTypography ? null : (
           <SettingRow
-            title="Paseo's font settings"
-            description={
-              native
-                ? "This Paseo version does not share its font settings with plugins, so Follow Paseo uses Paseo's default monospace: the system monospace face, at 12px."
-                : "This Paseo version does not share its font settings with plugins. Until it does, Follow Paseo reads the monospace font and code size from Paseo's Appearance settings on this computer (read only), and otherwise uses Paseo's default monospace: SF Mono, Menlo, Monaco or Consolas, at 12px."
-            }
+            title={t.paseoFontsTitle}
+            description={native ? t.paseoFontsNative : t.paseoFontsWeb}
             look={look}
             first
           />
         )}
         <SettingRow
-          title="Monospace font"
-          description={
-            native
-              ? "For code, diffs, terminals and paths. Custom offers only faces this device is known to have, since a missing face would turn code proportional."
-              : "For code, diffs, terminals and paths. Iosevka Code adds programming ligatures inside code blocks; diffs and terminals stay literal."
-          }
+          title={t.monoTitle}
+          description={native ? t.monoNative : t.monoWeb}
           control={
             <Segmented<MonoChoice>
-              label="Monospace font"
+              label={t.monoTitle}
               value={shownMono}
               options={monoOptions}
               onChange={(choice) => updateEnhancerPreferences(monoChoiceUpdate(choice))}
@@ -628,15 +643,15 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
           below={
             shownMono === "host" ? (
               <Text
-                accessibilityLabel="Monospace source"
+                accessibilityLabel={t.monoSource}
                 style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}
               >
-                {describeMonoSource(tokens.typography.mono.source, platform)}
+                {describeMonoSource(tokens.typography.mono.source, platform, t)}
               </Text>
             ) : shownMono === "custom" ? (
               native ? (
                 <Segmented<string>
-                  label="Custom monospace family"
+                  label={t.customMono}
                   value={preferences.customMonoFont}
                   options={nativeChoices}
                   onChange={(customMonoFont) => updateEnhancerPreferences({ customMonoFont })}
@@ -652,34 +667,30 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
           stacked
         />
         <SettingRow
-          title="Code font size"
-          description={`Follow Paseo, or choose ${CODE_FONT_SIZE_MIN}–${CODE_FONT_SIZE_MAX}px for code, diffs, terminals and paths. Line height is 1.5×.`}
+          title={t.codeSizeTitle}
+          description={t.codeSizeDescription(CODE_FONT_SIZE_MIN, CODE_FONT_SIZE_MAX)}
           control={<CodeSizeControl value={preferences.codeFontSize} look={look} />}
           below={<MonoPreview look={look} />}
           look={look}
           stacked
         />
         <SettingRow
-          title="Interface font"
-          description={
-            native
-              ? "Follow Paseo's interface font, or use the system face."
-              : "Follow Paseo's interface font, or choose the embedded Inter face or the system face."
-          }
+          title={t.uiFontTitle}
+          description={native ? t.uiFontNative : t.uiFontWeb}
           control={
             <Segmented<UiFontPreference>
-              label="Interface font"
+              label={t.uiFontTitle}
               value={native && preferences.uiFont === "inter" ? "host" : preferences.uiFont}
               options={
                 native
                   ? [
-                      { value: "host", label: "Follow Paseo" },
-                      { value: "system", label: "System" },
+                      { value: "host", label: t.followPaseo },
+                      { value: "system", label: t.system },
                     ]
                   : [
-                      { value: "host", label: "Follow Paseo" },
+                      { value: "host", label: t.followPaseo },
                       { value: "inter", label: "Inter" },
-                      { value: "system", label: "System" },
+                      { value: "system", label: t.system },
                     ]
               }
               onChange={(uiFont) => updateEnhancerPreferences({ uiFont })}
@@ -691,17 +702,17 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
         />
       </Section>
 
-      <Section title="Tools and paths" look={look}>
+      <Section title={t.sectionTools} look={look}>
         <SettingRow
-          title="Tool details"
-          description="Tool calls start as one line. Choose whether a failed call opens on its own."
+          title={t.toolDetailTitle}
+          description={t.toolDetailDescription}
           control={
             <Segmented<ToolDetailPreference>
-              label="Tool details"
+              label={t.toolDetailTitle}
               value={preferences.toolDetail}
               options={[
-                { value: "collapsed", label: "Always collapsed" },
-                { value: "expand-failed", label: "Open failed calls" },
+                { value: "collapsed", label: t.toolDetailCollapsed },
+                { value: "expand-failed", label: t.toolDetailExpandFailed },
               ]}
               onChange={(toolDetail) => updateEnhancerPreferences({ toolDetail })}
               look={look}
@@ -712,15 +723,15 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
           stacked
         />
         <SettingRow
-          title="File paths"
-          description="Relative to the workspace (a worktree's main repository is prefixed with its name), or in full. Copying always gives the absolute path."
+          title={t.pathsTitle}
+          description={t.pathsDescription}
           control={
             <Segmented<PathDisplayPreference>
-              label="File paths"
+              label={t.pathsTitle}
               value={preferences.pathDisplay}
               options={[
-                { value: "relative", label: "Relative" },
-                { value: "absolute", label: "Absolute" },
+                { value: "relative", label: t.pathsRelative },
+                { value: "absolute", label: t.pathsAbsolute },
               ]}
               onChange={(pathDisplay) => updateEnhancerPreferences({ pathDisplay })}
               look={look}
@@ -730,26 +741,26 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
           stacked
         />
         <SettingRow
-          title="Row labels"
-          description="Names each tool and thought row beside its icon: Bash, Read, Thought. Off, the icon alone says what the row is and the command or preview gets the width."
+          title={t.rowLabelsTitle}
+          description={t.rowLabelsDescription}
           control={
             <Toggle
               value={preferences.rowLabels}
               onChange={(rowLabels) => updateEnhancerPreferences({ rowLabels })}
-              label="Row labels"
+              label={t.rowLabelsTitle}
               look={look}
             />
           }
           look={look}
         />
         <SettingRow
-          title="Compact row spacing"
-          description="Paseo 0.11 leaves 16pt under every row this plugin draws, where its own tool rows sit flush. This takes most of it back. Turn it off if rows overlap on a Paseo that already stacks them."
+          title={t.rowSpacingTitle}
+          description={t.rowSpacingDescription}
           control={
             <Toggle
               value={preferences.compactRowSpacing}
               onChange={(compactRowSpacing) => updateEnhancerPreferences({ compactRowSpacing })}
-              label="Compact row spacing"
+              label={t.rowSpacingTitle}
               look={look}
             />
           }
@@ -757,15 +768,15 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
         />
       </Section>
 
-      <Section title="Messages" look={look}>
+      <Section title={t.sectionMessages} look={look}>
         <SettingRow
-          title="Enhanced prompt bubble"
-          description="Paseo removes pasted images before a plugin sees the message, so the enhanced bubble cannot show them. Turn this off for Paseo's own bubble with image previews. New prompts follow the change."
+          title={t.bubbleTitle}
+          description={t.bubbleDescription}
           control={
             <Toggle
               value={preferences.enhancedUserBubble}
               onChange={(enhancedUserBubble) => updateEnhancerPreferences({ enhancedUserBubble })}
-              label="Enhanced prompt bubble"
+              label={t.bubbleTitle}
               look={look}
             />
           }
@@ -774,13 +785,13 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
         />
         {native ? null : (
           <SettingRow
-            title="Selection actions"
-            description="Highlighting text in a callout raises a small bar with Copy and Add to chat. Add to chat drops the highlight into the composer as a quote, or a fenced block when it came from code."
+            title={t.selectionTitle}
+            description={t.selectionDescription}
             control={
               <Toggle
                 value={preferences.selectionActions}
                 onChange={(selectionActions) => updateEnhancerPreferences({ selectionActions })}
-                label="Selection actions"
+                label={t.selectionTitle}
                 look={look}
               />
             }
@@ -788,29 +799,29 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
           />
         )}
         <SettingRow
-          title="Assistant markdown"
-          description="Draws the reply with the plugin's own headings, lists and syntax-highlighted code blocks. The plugin cannot reach Paseo's markdown pipeline, so its version is a subset: turn this off for mermaid diagrams, images, and the host's file-path links."
+          title={t.markdownTitle}
+          description={t.markdownDescription}
           control={
             <Toggle
               value={preferences.assistantMarkdown}
               onChange={(assistantMarkdown) => updateEnhancerPreferences({ assistantMarkdown })}
-              label="Assistant markdown"
+              label={t.markdownTitle}
               look={look}
             />
           }
           look={look}
         />
         <SettingRow
-          title="Markdown style"
-          description="Document is airy and built for long answers. Compact tightens the spacing for short replies. Terminal sets the body in the code face."
+          title={t.markdownStyleTitle}
+          description={t.markdownStyleDescription}
           control={
             <Segmented
-              label="Markdown style"
+              label={t.markdownStyleTitle}
               value={preferences.markdownVariant}
               options={[
-                { value: "document", label: "Document" },
-                { value: "compact", label: "Compact" },
-                { value: "terminal", label: "Terminal" },
+                { value: "document", label: t.markdownDocument },
+                { value: "compact", label: t.markdownCompact },
+                { value: "terminal", label: t.markdownTerminal },
               ]}
               onChange={(markdownVariant) => updateEnhancerPreferences({ markdownVariant })}
               look={look}
@@ -822,7 +833,7 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
       </Section>
 
       <View style={compact ? styles.introInset : null}>
-        <PlainButton label="Reset defaults" onPress={resetEnhancerPreferences} look={look} />
+        <PlainButton label={t.resetDefaults} onPress={resetEnhancerPreferences} look={look} />
       </View>
     </View>
   );
