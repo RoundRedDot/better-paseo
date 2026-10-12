@@ -92,6 +92,31 @@ export function HoverPreview({ preview, tokens, children }: {
   );
 }
 
+/** Only mounted in web hover previews; the actions and their menu stay above the scrolling body. */
+export function HoverPreviewHeader({ tokens, children }: {
+  tokens: ExtendedThemeTokens;
+  children: ReactNode;
+}) {
+  return (
+    <View
+      testID="hover-preview-header"
+      style={[styles.header, { backgroundColor: tokens.v2.surface1, borderBottomColor: tokens.v2.borderSubtle }]}
+    >
+      {children}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   panel: { padding: space.md, gap: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
+  header: {
+    position: "sticky" as never,
+    top: 0,
+    zIndex: 1,
+    marginTop: -space.md,
+    marginHorizontal: -space.md,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    borderBottomWidth: 1,
+  },
 });

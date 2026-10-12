@@ -16,6 +16,7 @@ import { CopyButton } from "../ui/copy-button";
 import { useCopy } from "../ui/use-copy";
 import { useHover } from "../ui/use-hover";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
+import { HoverPreviewHeader } from "../ui/hover-preview";
 import { getDisclosure, setDisclosure, useDisclosure } from "../state/disclosure-store";
 import { copyPlan } from "../copy/content";
 import { FadeIn } from "../ui/fade-in";
@@ -360,9 +361,11 @@ export function ReasoningCard({
       accessibilityLabel={label.preview ? `${label.verb}: ${label.preview}` : label.verb}
       previewContent={() => (
         <>
-          <View style={styles.previewActions}>
-            <CopyButton text={copySource} tokens={tokens} label="Copy thought" />
-          </View>
+          <HoverPreviewHeader tokens={tokens}>
+            <View style={styles.previewActions}>
+              <CopyButton text={copySource} tokens={tokens} label="Copy thought" />
+            </View>
+          </HoverPreviewHeader>
           <MarkdownView text={reasoningText(segmentation)} tokens={tokens} variant="compact" quiet />
         </>
       )}
