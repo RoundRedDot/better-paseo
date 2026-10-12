@@ -8,6 +8,7 @@ import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface, selectionCodeText } from "./selection-actions";
 import { renderTerminalOutput } from "./syntax-highlight";
 import { RunningDot } from "../ui/running-dot";
+import { exitMark } from "../ui/exit-mark";
 import { codeSurface } from "./host-font-escape";
 import { runningDot } from "../ui/tokens/motion";
 import { normalizeProvider } from "./provider-logo";
@@ -1028,8 +1029,6 @@ function DaemonRow({
   styles: HubStyles;
   detailed?: boolean;
 }) {
-  const exited = typeof row.exitCode === "number";
-
   return (
     <View style={styles.stackRow}>
       <View style={styles.rowHead}>
@@ -1047,9 +1046,9 @@ function DaemonRow({
             {row.restarts} restarts
           </Text>
         ) : null}
-        {exited ? (
+        {typeof row.exitCode === "number" ? (
           <Text selectable style={row.exitCode === 0 ? styles.figure : styles.errorText}>
-            exit {row.exitCode}
+            {exitMark(row.exitCode)}
           </Text>
         ) : null}
       </View>
