@@ -3,7 +3,6 @@ import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { radiusV2, space } from "./theme-tokens";
 import { useCopy } from "../ui/use-copy";
-import { useHover } from "../ui/use-hover";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { FadeIn } from "../ui/fade-in";
 import { formatStamp } from "../ui/time";
@@ -66,9 +65,10 @@ const IS_WEB = Platform.OS === "web";
  * none.
  *
  * Under the bubble, right-aligned: the turn's usage (when this client saw it
- * live), the time, and Copy — shown on touch, and on hover where the pointer
- * can hover. A press on the usage opens the in / cached / out figures in
- * place, below that line.
+ * live), the time, and Copy, always shown: a prompt is copied to be sent
+ * again, and a control that appears only under the pointer is one the reader
+ * has to hunt for. A press on the usage opens the in / cached / out figures
+ * in place, below that line.
  */
 export function UserMessage({
   text,
@@ -85,8 +85,6 @@ export function UserMessage({
   const { copied, copy } = useCopy();
   const handleCopy = useCallback(() => void copy(text), [copy, text]);
   const capabilities = useInputCapabilities(compact);
-  const { hovered, hoverProps } = useHover();
-  const showCopy = !capabilities.hover || hovered || copied;
 
   const styles = useMemo(() => {
     const size = tokens.typography.content.size;
@@ -151,17 +149,11 @@ export function UserMessage({
     });
   }, [tokens, compact]);
 
-  // Web follows the pointer with DOM mouseenter/leave, which stay true while
-  // it moves onto Copy; native pointers (iPad) arrive through Pressable hover.
-  const pointerProps = IS_WEB
-    ? { onMouseEnter: hoverProps.onHoverIn, onMouseLeave: hoverProps.onHoverOut }
-    : hoverProps;
   const Column = IS_WEB ? View : Pressable;
 
   return (
     <Column
       {...selectionSurface}
-      {...(pointerProps as object)}
       {...(IS_WEB ? null : { accessible: false, focusable: false })}
       style={styles.column}
     >
@@ -186,14 +178,11 @@ export function UserMessage({
       <View style={styles.trailing}>
         <Pressable
           onPress={handleCopy}
-          disabled={!showCopy}
           accessibilityRole="button"
           accessibilityLabel={copied ? "Prompt copied" : "Copy prompt"}
           hitSlop={capabilities.touch ? 10 : 4}
           style={({ pressed }) => [
             styles.copyButton,
-            // Always laid out, so revealing it on hover moves nothing.
-            { opacity: showCopy ? 1 : 0 },
             pressed && { backgroundColor: tokens.v2.surface2 },
           ]}
         >
