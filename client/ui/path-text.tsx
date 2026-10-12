@@ -20,7 +20,7 @@ import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { UI_SCALE } from "./tokens/typography";
 import { liftStackingRow, scrollTop, tooltipPlacement, type DomBox, type TooltipPlacement } from "./tooltip-placement";
-import { HoverPreview, HoverPreviewBody, useHoverPreview } from "./hover-preview";
+import { HoverPreview, HoverPreviewBody, RowLongPressContext, useHoverPreview } from "./hover-preview";
 
 /** Where paths are made relative to, for one renderer (plan §3.9 item 3). */
 export interface PathContextValue {
@@ -124,7 +124,7 @@ export interface PathTextProps {
  * | | hover device | touch device |
  * |---|---|---|
  * | press | reveal in the file manager | copy the absolute path + toast |
- * | long-press | — | copy the absolute path + toast |
+ * | long-press | — | copy the absolute path + toast; in a collapsed row, the row's preview |
  * | hover | full path after 400 ms, copy icon | — |
  *
  * Press copies on touch because `file.reveal` runs on the daemon's machine:
@@ -150,6 +150,9 @@ export function PathText({
   const [tooltip, setTooltip] = useState<TooltipPlacement | null>(null);
   const rowRef = useRef<View>(null);
   const preview = useHoverPreview(!inline);
+  // In a collapsed row on a phone the long press opens the row's preview: the
+  // path fills most of a Read row, so it would otherwise swallow every one.
+  const rowLongPress = useContext(RowLongPressContext);
 
   const formatted = useMemo(() => formatPath(path, context), [path, context]);
   const reveal = onReveal ?? context.reveal;
@@ -224,7 +227,7 @@ export function PathText({
         accessibilityLabel={formatted.absolutePath}
         accessibilityHint={touchFirst || !reveal ? "Copies the path" : "Reveals the file"}
         onPress={onPress}
-        onLongPress={capabilities.touch ? copyAbsolute : undefined}
+        onLongPress={rowLongPress ?? (capabilities.touch ? copyAbsolute : undefined)}
         {...hoverProps}
         ref={Platform.OS === "web" ? preview.anchorRef : rowRef}
         style={styles.row}

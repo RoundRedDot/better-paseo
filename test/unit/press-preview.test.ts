@@ -130,6 +130,21 @@ describe("long-pressing a collapsed row on a phone", () => {
     act(() => renderer.unmount());
   });
 
+  it("opens a Read row's preview from a long press on its path, while a tap still copies the path", async () => {
+    const read = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "const value = 1;" } });
+    const renderer = render(React.createElement(ToolCallout, { data: read, tokens, compact: true }));
+    // The path target fills most of the row, so it is what a finger lands on.
+    const path = () => row(renderer).find((node) =>
+      (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "/w/a.ts");
+    await act(async () => { path().props.onPress(); });
+    expect(clipboard.copyText).toHaveBeenLastCalledWith("/w/a.ts");
+    clipboard.copyText.mockClear();
+    act(() => path().props.onLongPress());
+    expect(clipboard.copyText).not.toHaveBeenCalled();
+    expect(textOf(panel(renderer))).toContain("const value = 1;");
+    act(() => renderer.unmount());
+  });
+
   it("still copies from an opened row, which shows no preview", async () => {
     const renderer = render(React.createElement(ToolCallout, { data: shell, tokens, compact: true, expanded: true }));
     await act(async () => { row(renderer).props.onLongPress(); });
