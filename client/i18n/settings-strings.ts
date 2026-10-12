@@ -115,7 +115,7 @@ const en = {
   sectionMessages: "Messages",
   bubbleTitle: "Enhanced prompt bubble",
   bubbleDescription:
-    "Paseo removes pasted images before a plugin sees the message, so the enhanced bubble cannot show them. Turn this off for Paseo's own bubble with image previews. New prompts follow the change.",
+    "Off by default: Paseo's own bubble keeps the rewind menu and image previews, which a plugin cannot reach. On, the plugin's bubble shows the turn's token usage and keeps Copy always visible, but has no rewind and no pasted images. New prompts follow the change.",
   selectionTitle: "Selection actions",
   selectionDescription:
     "Highlighting text in a callout raises a small bar with Copy and Add to chat. Add to chat drops the highlight into the composer as a quote, or a fenced block when it came from code.",
@@ -212,7 +212,7 @@ const zh: SettingsStrings = {
   sectionMessages: "消息",
   bubbleTitle: "增强的提问气泡",
   bubbleDescription:
-    "Paseo 在把消息交给插件之前会去掉粘贴的图片，所以增强气泡无法显示它们。关闭后改用 Paseo 自己的气泡，可以预览图片。之后发送的消息生效。",
+    "默认关闭：使用 Paseo 自己的气泡，保留回退菜单和图片预览，这两样插件都拿不到。开启后改用插件的气泡，显示本轮 token 用量、复制按钮常显，但没有回退，也看不到粘贴的图片。之后发送的消息生效。",
   selectionTitle: "选中操作",
   selectionDescription:
     "在卡片里选中文字后会出现一个小工具栏，提供“复制”和“添加到对话”。“添加到对话”会把选中内容以引用的形式放进输入框；如果选自代码，则放成代码块。",

@@ -58,8 +58,10 @@ export interface EnhancerPreferences {
   /**
    * Paseo maps a stream item to the plugin timeline item before any transformer
    * runs, and that mapping carries only the text. Pasted images therefore never
-   * reach plugin code, so the enhanced bubble cannot draw them. Turning this off
-   * hands prompts back to the host, whose own bubble still shows them.
+   * reach plugin code, so the enhanced bubble cannot draw them. Nor can it
+   * offer the host's rewind menu: the SDK exposes neither the rewind call nor
+   * which rewind modes the agent's provider supports. So prompts stay with the
+   * host by default, and the enhanced bubble is an opt-in.
    */
   enhancedUserBubble: boolean;
   /**
@@ -140,7 +142,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   codeFontSize: null,
   toolDetail: "collapsed",
   pathDisplay: "relative",
-  enhancedUserBubble: true,
+  enhancedUserBubble: false,
   selectionActions: true,
   assistantMarkdown: true,
   markdownVariant: "document",

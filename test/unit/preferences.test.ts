@@ -218,3 +218,11 @@ describe("daemon-backed store (S5 fix round 1)", () => {
     expect(persist.mock.calls[0]![0]).not.toHaveProperty("debugPerf");
   });
 });
+
+describe("prompt bubble default", () => {
+  it("leaves prompts to Paseo's bubble, which keeps rewind and images", () => {
+    expect(DEFAULT_PREFERENCES.enhancedUserBubble).toBe(false);
+    expect(parsePreferences({}).enhancedUserBubble).toBe(false);
+    expect(parsePreferences({ enhancedUserBubble: true }).enhancedUserBubble).toBe(true);
+  });
+});
