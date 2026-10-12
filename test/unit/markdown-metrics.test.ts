@@ -71,8 +71,24 @@ describe("text width estimate", () => {
   it("counts a CJK or full-width character as a full em", () => {
     expect(textWidth("abcd", 10, 0.5)).toBe(20);
     expect(textWidth("两边都跑", 10, 0.5)).toBe(40);
-    expect(textWidth("跑 14 个", 10, 0.5)).toBe(20 + 4 * 5);
+    expect(textWidth("跑 14 个", 10, 0.5)).toBeCloseTo(20 + 2 * 5 + 2 * 6.2);
     expect(textWidth("（全角）", 10, 0.5)).toBe(40);
+  });
+
+  it("counts a digit at the tabular figure's advance, not the average letter's", () => {
+    expect(textWidth("974", 10, 0.55)).toBeCloseTo(3 * 6.2);
+    expect(textWidth("974", 10, 0.7)).toBeCloseTo(3 * 7);
+  });
+
+  it("keeps a short figure with a unit on one line", () => {
+    // Measured on a 15px desktop reply: tabular digits advance 0.62 em, so
+    // `974 ms` is about 52px and wrapped in a column estimated at 0.55 em.
+    const [table] = lexBlock("| 页 | 耗时 |\n| --- | --- |\n| 1 | 974 ms |");
+    const metrics = variantMetrics("document", 15, false);
+    const [, width = 0] = columnWidths(table as Tokens.Table, metrics);
+    // Less the cell padding on both sides and the divider on its left.
+    const content = width - metrics.tableGap - 12 - 1;
+    expect(content).toBeGreaterThanOrEqual(54);
   });
 
   it("gives a Chinese column room for its longest cell", () => {

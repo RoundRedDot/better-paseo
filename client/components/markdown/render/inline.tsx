@@ -4,7 +4,7 @@ import { INCOMPLETE_IMAGE_PLACEHOLDER } from "remend";
 import type { Token, Tokens } from "../../../vendor/marked";
 import { openLink } from "../../open-link";
 import { PathText } from "../../../ui/path-text";
-import { CHAR_RATIO_MONO, CODE_CHIP_PADDING } from "./styles";
+import { CHAR_RATIO_DIGIT, CHAR_RATIO_MONO, CODE_CHIP_PADDING } from "./styles";
 import type { RenderContext } from "./context";
 import { codeSurface } from "../../host-font-escape";
 import { decodeEntities, isPathLike, softBreaks } from "./text";
@@ -191,10 +191,17 @@ function renderLink(
  */
 const WIDE = /[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA960-\uA97F\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]/g;
 
-/** Estimated width of plain text: wide characters at 1 em, the rest at `ratio`. */
+const DIGIT = /[0-9]/g;
+
+/**
+ * Estimated width of plain text: wide characters at 1 em, digits at least at
+ * a tabular figure's advance, the rest at `ratio`.
+ */
 export function textWidth(text: string, size: number, ratio: number): number {
   const wide = text.match(WIDE)?.length ?? 0;
-  return wide * size + (text.length - wide) * size * ratio;
+  const digits = text.match(DIGIT)?.length ?? 0;
+  const rest = text.length - wide - digits;
+  return wide * size + digits * size * Math.max(ratio, CHAR_RATIO_DIGIT) + rest * size * ratio;
 }
 
 /**
