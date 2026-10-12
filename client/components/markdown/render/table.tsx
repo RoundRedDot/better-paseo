@@ -14,29 +14,16 @@ import {
 } from "./styles";
 
 /**
- * A cell's horizontal padding. The gap between two columns is split around the
- * divider that sits on the later column's left edge; the table's outer edges
- * keep the plain cell padding, so the first column lines up with the prose.
- */
-export function cellInset(column: number, count: number, metrics: VariantMetrics): { left: number; right: number } {
-  const half = metrics.tableGap / 2;
-  return {
-    left: column === 0 ? TABLE_CELL_PADDING : TABLE_CELL_PADDING + half,
-    right: column === count - 1 ? TABLE_CELL_PADDING : TABLE_CELL_PADDING + half,
-  };
-}
-
-/**
  * React Native offers no synchronous text measurement, so a column's width is
  * estimated from its longest cell and clamped to the variant's range, then
- * widened by its share of the column gap and its divider.
+ * widened by the column gap, which every cell splits around its edges, and by
+ * the divider on its left.
  */
 export function columnWidths(token: Tokens.Table, metrics: VariantMetrics): number[] {
   const ratio = metrics.mono ? CHAR_RATIO_MONO : CHAR_RATIO_UI;
   const cellSize = metrics.cellSize;
-  const count = token.header.length;
   const widths: number[] = [];
-  for (let column = 0; column < count; column++) {
+  for (let column = 0; column < token.header.length; column++) {
     // The header is bold, which the average advance does not cover, so it is
     // measured a shade wider than a body cell of the same length.
     let longest = inlineWidth(token.header[column]?.tokens, cellSize, ratio) * 1.06;
@@ -47,8 +34,7 @@ export function columnWidths(token: Tokens.Table, metrics: VariantMetrics): numb
       if (width > longest) longest = width;
     }
     const estimate = Math.ceil(longest) + TABLE_CELL_PADDING * 2 + 2;
-    const inset = cellInset(column, count, metrics);
-    const extra = inset.left + inset.right - TABLE_CELL_PADDING * 2 + (column === 0 ? 0 : TABLE_DIVIDER_WIDTH);
+    const extra = metrics.tableGap + (column === 0 ? 0 : TABLE_DIVIDER_WIDTH);
     widths.push(Math.min(metrics.columnMax, Math.max(metrics.columnMin, estimate)) + extra);
   }
   return widths;
@@ -103,19 +89,15 @@ export function MdTable({
   // figure, so digits line up (S7 §3.7).
   const align = (column: number) =>
     styles[ALIGN_KEYS[token.align[column] ?? (numericColumn(token, column) ? "right" : "left")]];
-  const count = token.header.length;
-  const frame = (column: number) => {
-    const inset = cellInset(column, count, metrics);
-    return [
-      column === 0 ? null : styles.tableDivider,
-      { width: widths[column] ?? metrics.columnMin, paddingLeft: inset.left, paddingRight: inset.right },
-    ];
-  };
+  const frame = (column: number) => [
+    column === 0 ? null : styles.tableDivider,
+    { width: widths[column] ?? metrics.columnMin },
+  ];
 
   return (
     <HScroll tokens={context.tokens} style={styles.tableScroll} contentContainerStyle={styles.tableContent}>
-      <View>
-        <View style={styles.tableHeaderRow}>
+      <View style={styles.tableFrame}>
+        <View style={[styles.tableHeaderRow, token.rows.length === 0 && styles.tableRowLast]}>
           {token.header.map((cell, column) => {
             const cellKey = `${keyPrefix}h${column}`;
             return (
@@ -134,7 +116,10 @@ export function MdTable({
           })}
         </View>
         {token.rows.map((row, rowIndex) => (
-          <View key={`${keyPrefix}r${rowIndex}`} style={styles.tableRow}>
+          <View
+            key={`${keyPrefix}r${rowIndex}`}
+            style={[styles.tableRow, rowIndex === token.rows.length - 1 && styles.tableRowLast]}
+          >
             {row.map((cell, column) => {
               const cellKey = `${keyPrefix}r${rowIndex}c${column}`;
               return (
