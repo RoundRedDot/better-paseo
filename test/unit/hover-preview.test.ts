@@ -36,6 +36,40 @@ afterEach(() => {
 });
 
 describe("hover preview lifetime", () => {
+  it("does not schedule previews while disabled and re-enables without remounting", () => {
+    updateEnhancerPreferences({ hoverPreview: false });
+    mount();
+    act(() => preview.enter());
+    act(() => preview.leave());
+    expect(vi.getTimerCount()).toBe(0);
+    expect(preview.open).toBe(false);
+    act(() => { updateEnhancerPreferences({ hoverPreview: true }); });
+    act(() => preview.enter());
+    act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+    expect(preview.open).toBe(true);
+  });
+  it("cancels a pending preview when disabled", () => {
+    mount();
+    act(() => preview.enter());
+    act(() => { vi.advanceTimersByTime(100); });
+    act(() => { updateEnhancerPreferences({ hoverPreview: false }); });
+    expect(vi.getTimerCount()).toBe(0);
+    act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+    act(() => { updateEnhancerPreferences({ hoverPreview: true }); });
+    expect(preview.open).toBe(false);
+  });
+  it.each([false, true])("closes an open preview when disabled (maximized: %s)", (maximized) => {
+    mount();
+    act(() => preview.enter());
+    act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+    if (maximized) act(() => preview.maximize());
+    act(() => { updateEnhancerPreferences({ hoverPreview: false }); });
+    expect(preview.open).toBe(false);
+    expect(preview.maximized).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+    act(() => { updateEnhancerPreferences({ hoverPreview: true }); });
+    expect(preview.open).toBe(false);
+  });
   it.each(HOVER_DELAYS)("uses the configured %s delay", (hoverDelay) => {
     updateEnhancerPreferences({ hoverDelay });
     mount();

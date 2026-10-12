@@ -96,6 +96,8 @@ const en = {
   uiFontWeb: "Follow Paseo's interface font, or choose the embedded Inter face or the system face.",
 
   sectionTools: "Tools and paths",
+  hoverPreviewTitle: "Hover previews",
+  hoverPreviewDescription: "Show a preview when hovering over collapsed rows and file paths on desktop.",
   hoverDelayTitle: "Hover delay",
   hoverDelayDescription: "Time to wait before showing a desktop hover preview.",
   toolDetailTitle: "Tool details",
@@ -202,6 +204,8 @@ const zh: SettingsStrings = {
   uiFontWeb: "跟随 Paseo 的界面字体，或选择内置的 Inter 字体或系统字体。",
 
   sectionTools: "工具与路径",
+  hoverPreviewTitle: "Hover 弹窗",
+  hoverPreviewDescription: "在桌面端将鼠标停留在折叠行或文件路径上时显示预览弹窗。",
   hoverDelayTitle: "Hover 延迟",
   hoverDelayDescription: "鼠标停留多久后显示桌面端 hover 弹窗。",
   toolDetailTitle: "工具详情",

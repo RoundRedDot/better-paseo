@@ -707,6 +707,20 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
 
       <Section title={t.sectionTools} look={look}>
         <SettingRow
+          title={t.hoverPreviewTitle}
+          description={t.hoverPreviewDescription}
+          control={
+            <Toggle
+              value={preferences.hoverPreview}
+              onChange={(hoverPreview) => updateEnhancerPreferences({ hoverPreview })}
+              label={t.hoverPreviewTitle}
+              look={look}
+            />
+          }
+          look={look}
+          first
+        />
+        <SettingRow
           title={t.hoverDelayTitle}
           description={t.hoverDelayDescription}
           control={
@@ -719,7 +733,6 @@ export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps)
             />
           }
           look={look}
-          first
           stacked
         />
         <SettingRow
