@@ -25,6 +25,7 @@ import { CopyButton } from "../ui/copy-button";
 import { ActionMenuList, ActionMenuTrigger, useActionMenu, type ActionMenuItem } from "../ui/action-menu";
 import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
+import { HoverPreviewHeader } from "../ui/hover-preview";
 import { FadeIn } from "../ui/fade-in";
 import { formatPath } from "../paths/format-path";
 import { lineRangeLabel, summarizeTool } from "../tools/summarize";
@@ -355,13 +356,13 @@ function ToolPreviewActions({ getPlan, tool, tokens, compact }: {
     [menu.open, getPlan, copy],
   );
   return (
-    <>
+    <HoverPreviewHeader tokens={tokens}>
       <View style={styles.previewActions}>
         <CopyButton text={() => getPlan().primary?.text ?? ""} tokens={tokens} label={primaryCopyLabel(tool)} />
         <ActionMenuTrigger open={menu.open} onPress={menu.toggle} tokens={tokens} />
       </View>
       <ActionMenuList items={items} open={menu.open} onClose={menu.close} tokens={tokens} compact={compact} />
-    </>
+    </HoverPreviewHeader>
   );
 }
 

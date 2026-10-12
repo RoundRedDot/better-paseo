@@ -19,6 +19,7 @@ import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { ToolCallout } from "../../client/components/tool-callouts";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { DisclosureHeader } from "../../client/ui/disclosure-header";
+import { HoverPreviewHeader } from "../../client/ui/hover-preview";
 import { classifyTool } from "../../client/tools/classify";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -73,6 +74,9 @@ describe("full hover preview content", () => {
       await press(body, "Copy command");
       expect(clipboard.copyText).toHaveBeenLastCalledWith("printf full-command");
       await press(body, "More actions");
+      const pinnedHeader = body.root.findByType(HoverPreviewHeader);
+      expect(pinnedHeader.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem")
+        .map((node) => node.props.accessibilityLabel)).toEqual(["Copy output", "Copy command and output"]);
       expect(row.root.findByType(DisclosureHeader).props.actionsActive).toBe(false);
       await press(body, "Copy output");
       expect(clipboard.copyText).toHaveBeenLastCalledWith("full-output");
@@ -97,6 +101,7 @@ describe("full hover preview content", () => {
     await exercisePreview(React.createElement(ReasoningCard, { segmentation: { kind: "prose", body: thought },
       streaming: false, durationMs: null, expanded: false, onToggle() {}, tokens, storeKey: "preview-copy", copyText: thought }), async (body) => {
       await press(body, "Copy thought");
+      expect(body.root.findByType(HoverPreviewHeader).props.tokens).toBe(tokens);
       expect(clipboard.copyText).toHaveBeenLastCalledWith(thought.trim());
     });
   });
