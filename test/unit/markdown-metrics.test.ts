@@ -6,7 +6,8 @@ vi.mock("@getpaseo/plugin/client/react-native", () => ({ Icon: () => null }));
 vi.mock("@getpaseo/plugin/client", () => ({}));
 
 const { variantMetrics } = await import("../../client/components/markdown/render/styles");
-const { numericColumn } = await import("../../client/components/markdown/render/table");
+const { columnWidths, numericColumn } = await import("../../client/components/markdown/render/table");
+const { textWidth } = await import("../../client/components/markdown/render/inline");
 const { lexBlock } = await import("../../client/components/markdown/lex");
 
 describe("variantMetrics", () => {
@@ -38,6 +39,13 @@ describe("variantMetrics", () => {
     }
   });
 
+  it("sets table cells at the body size in every variant", () => {
+    for (const variant of ["document", "compact", "terminal"] as const) {
+      const m = variantMetrics(variant, 15, false);
+      expect([m.cellSize, m.cellLineHeight]).toEqual([m.bodySize, m.bodyLineHeight]);
+    }
+  });
+
   it("returns the same object for the same inputs, so blocks stay memoised", () => {
     expect(variantMetrics("document", 15, true)).toBe(variantMetrics("document", 15, true));
     expect(variantMetrics("document", 15, true, true)).not.toBe(variantMetrics("document", 15, true));
@@ -56,5 +64,22 @@ describe("numericColumn", () => {
     const t = table("| a | b |\n| --- | --- |\n| — | x |\n| 3 | |\n");
     expect(numericColumn(t, 0)).toBe(true);
     expect(numericColumn(t, 1)).toBe(false);
+  });
+});
+
+describe("text width estimate", () => {
+  it("counts a CJK or full-width character as a full em", () => {
+    expect(textWidth("abcd", 10, 0.5)).toBe(20);
+    expect(textWidth("两边都跑", 10, 0.5)).toBe(40);
+    expect(textWidth("跑 14 个", 10, 0.5)).toBe(20 + 4 * 5);
+    expect(textWidth("（全角）", 10, 0.5)).toBe(40);
+  });
+
+  it("gives a Chinese column room for its longest cell", () => {
+    const [table] = lexBlock("| | Offhand |\n| --- | --- |\n| 两边都跑的 14 个任务 | 成功率 280/280 |");
+    const metrics = variantMetrics("document", 15, false);
+    const [first] = columnWidths(table as Tokens.Table, metrics);
+    // 8 CJK characters alone are 8 em at the cell size.
+    expect(first).toBeGreaterThan(8 * metrics.cellSize);
   });
 });
