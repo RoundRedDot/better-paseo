@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useAgent, usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { useRevealedText } from "@getpaseo/plugin/client/react-native";
 import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
@@ -79,6 +79,19 @@ export interface LiveNoticePayload {
 
 // Tool call classification lives in `tools/classify.ts` (plan §3.3).
 
+/**
+ * How much of Paseo's 16pt gap under a plugin item a tool or thought row
+ * takes back (`compactRowSpacing`). The 4pt left is the host's own gap between
+ * a reply and a tool row. A negative bottom margin pulls the next item up into
+ * the gap the host hangs under this one; the newest row has nothing below it
+ * but the list's own padding or the working indicator, so it keeps its gap.
+ */
+export const ROW_GAP_COMPENSATION = 12;
+
+const rowGapStyles = StyleSheet.create({
+  compensated: { marginBottom: -ROW_GAP_COMPENSATION },
+});
+
 function LiveToolCallRendererBody({
   agentId,
   item,
@@ -98,6 +111,8 @@ function LiveToolCallRendererBody({
   const data = item.data;
 
   const view = useMemo(() => classifyTool(data), [data]);
+  const itemKey = `tool:${data.callId ?? view.title}:${timestamp.getTime()}`;
+  const isTail = useIsTimelineTail(itemKey);
 
   // The daemon side owns the shell, so revealing a file is one RPC. Paths
   // arrive absolute (PathText resolves them); a path the daemon cannot stat
@@ -142,7 +157,11 @@ function LiveToolCallRendererBody({
   );
 
   return (
-    <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}>
+    <View
+      {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
+      {...probe.viewProps}
+      style={preferences.compactRowSpacing && !isTail ? rowGapStyles.compensated : undefined}
+    >
       {probe.node}
       <PreferenceSyncSlot />
       <PathContext.Provider value={pathContext}>
@@ -158,7 +177,7 @@ function LiveToolCallRendererBody({
       <TimelineTailHub
         agentId={agentId}
         tokens={tokens}
-        itemKey={`tool:${data.callId ?? view.title}:${timestamp.getTime()}`}
+        itemKey={itemKey}
         at={timestamp.getTime()}
         kind="tool"
       />
@@ -204,8 +223,14 @@ function LiveReasoningRendererBody({
   observeReasoning(storeKey, streaming, timestamp.getTime());
   const durationMs = streaming ? null : observedDurationMs(storeKey);
 
+  // Reasoning takes no part in the tail, so a thought keeps its gap only while
+  // it streams, the one time it is reliably the newest row.
   return (
-    <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}>
+    <View
+      {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
+      {...probe.viewProps}
+      style={preferences.compactRowSpacing && !streaming ? rowGapStyles.compensated : undefined}
+    >
       {probe.node}
       <PreferenceSyncSlot />
       <ReasoningCard

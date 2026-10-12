@@ -46,6 +46,22 @@ describe("preferences v2 defaults", () => {
       pathDisplay: "relative",
     });
   });
+
+  it("draws rows icon-only and tightens the host's gap between them", () => {
+    expect(DEFAULT_PREFERENCES.rowLabels).toBe(false);
+    expect(DEFAULT_PREFERENCES.compactRowSpacing).toBe(true);
+  });
+
+  it("gives a record stored before the row switches their defaults", () => {
+    const { rowLabels: _rowLabels, compactRowSpacing: _compact, ...older } = storedPart(DEFAULT_PREFERENCES);
+    const parsed = parsePreferences({ ...older, accent: "rose" });
+    expect(parsed).toMatchObject({ accent: "rose", rowLabels: false, compactRowSpacing: true });
+    expect(parsePreferences({ rowLabels: true, compactRowSpacing: false })).toMatchObject({
+      rowLabels: true,
+      compactRowSpacing: false,
+    });
+    expect(parsePreferences({ rowLabels: "yes" }).rowLabels).toBe(false);
+  });
 });
 
 describe("v1 -> v2 migration", () => {

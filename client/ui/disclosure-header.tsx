@@ -9,6 +9,7 @@ import { truncateMiddle } from "../paths/truncate-middle";
 import { TYPE } from "./tokens/typography";
 import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
+import { useEnhancerPreferences } from "../preferences";
 
 /**
  * Row geometry (S7 design spec §2.5, F0 "Row heights and hit areas").
@@ -48,7 +49,11 @@ export interface DisclosureHeaderProps {
   compact?: boolean;
   /** The 22pt status slot: a muted tool icon, a `RunningDot`, a failure mark. */
   icon?: ReactNode;
-  /** What happened: "Read", "Bash", "Thought". */
+  /**
+   * What happened: "Read", "Bash", "Thought". Drawn only with the row labels
+   * preference on, or when there is no target to stand in for it; it always
+   * opens the accessibility label.
+   */
   verb: string;
   /**
    * What it happened to. A string is drawn monospace and middle-truncated. A
@@ -92,7 +97,7 @@ const IS_WEB = Platform.OS === "web";
  * is hovered, in place of the icon, so nothing moves.
  *
  * Six views for a row with a string target: the row, the slot, its icon, the
- * verb, the target and the meta. Hover adds the actions only while hovered.
+ * verb (unless the reader turned row labels off), the target and the meta. Hover adds the actions only while hovered.
  *
  * All text is non-selectable: the row is a press target, and a long press
  * must never compete with text selection.
@@ -115,6 +120,10 @@ export function DisclosureHeader({
 }: DisclosureHeaderProps) {
   const capabilities = useInputCapabilities(compact);
   const { hovered, hoverProps } = useHover();
+  const rowLabels = useEnhancerPreferences().rowLabels;
+  // Icon-only rows still need words: a row with no target keeps its verb.
+  const hasTarget = target !== undefined && target !== null && target !== "";
+  const showVerb = rowLabels || !hasTarget;
   const height = compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop;
   const slop = capabilities.touch ? Math.max(0, (DISCLOSURE_HEADER.hit - height) / 2) : 0;
   const targetType = compact ? DISCLOSURE_HEADER.target.compact : DISCLOSURE_HEADER.target.desktop;
@@ -214,13 +223,15 @@ export function DisclosureHeader({
           icon
         )}
       </View>
-      <Text
-        selectable={false}
-        numberOfLines={1}
-        style={[styles.verb, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}
-      >
-        {verb}
-      </Text>
+      {showVerb ? (
+        <Text
+          selectable={false}
+          numberOfLines={1}
+          style={[styles.verb, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}
+        >
+          {verb}
+        </Text>
+      ) : null}
       {hoverActions ? (
         <View style={styles.targetBox}>
           {targetNode ?? <View style={styles.fill} />}
