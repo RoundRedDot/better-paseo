@@ -187,6 +187,15 @@ describe("where the long-press preview goes", () => {
     expect(measured).toEqual({ left: 8, width: 374, top: 494, maxHeight: 450, above: true });
   });
 
+  it("places the panel in the modal's coordinates when they start above the measured ones", () => {
+    // Android: measureInWindow starts under a 40pt status bar, the translucent
+    // modal at the top of the screen, so the modal's origin measures at -40.
+    const androidStage = { x: 0, y: 0, width: 390, height: 750 };
+    const placement = pressPreviewPlacement({ x: 8, y: 200, width: 374, height: 28 }, androidStage, null, { x: 0, y: -40 });
+    expect(placement.top).toBe(274);
+    expect(placement.left).toBe(8);
+  });
+
   it("keeps the panel inside the safe area's sides", () => {
     const placement = pressPreviewPlacement({ x: -8, y: 200, width: 406, height: 28 }, stage, null);
     expect(placement.left).toBe(8);

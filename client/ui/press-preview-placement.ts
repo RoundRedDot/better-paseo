@@ -32,11 +32,17 @@ export const PRESS_PREVIEW = {
  * chosen from the room alone, so measuring the panel never flips it; opening
  * above needs the panel's height to sit on the row, and until it is known the
  * panel is placed as if it filled its limit.
+ *
+ * `row` and `stage` come from `measureInWindow`, whose origin is not the
+ * modal's: on Android it sits under the status bar while a translucent modal
+ * starts at the top of the screen. `origin` is the modal's own top-left
+ * measured the same way, and the result is relative to it.
  */
 export function pressPreviewPlacement(
   row: WindowRect,
   stage: WindowRect,
   panelHeight: number | null,
+  origin: { x: number; y: number } = { x: 0, y: 0 },
 ): PressPreviewPlacement {
   const { gap, margin, ratio, comfort } = PRESS_PREVIEW;
   const left = Math.max(stage.x + margin, row.x);
@@ -48,9 +54,9 @@ export function pressPreviewPlacement(
   const maxHeight = Math.max(0, Math.min(cap, down ? below : above));
   const height = Math.min(panelHeight ?? maxHeight, maxHeight);
   return {
-    left,
+    left: left - origin.x,
     width: Math.max(0, right - left),
-    top: down ? row.y + row.height + gap : row.y - gap - height,
+    top: (down ? row.y + row.height + gap : row.y - gap - height) - origin.y,
     maxHeight,
     above: !down,
   };

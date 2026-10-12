@@ -180,17 +180,20 @@ function PressPreview({ preview, tokens, children }: {
 }) {
   const [row, setRow] = useState<WindowRect | null>(null);
   const [stage, setStage] = useState<WindowRect | null>(null);
+  const [origin, setOrigin] = useState<WindowRect | null>(null);
   const [panelHeight, setPanelHeight] = useState<number | null>(null);
   const stageRef = useRef<View>(null);
+  const originRef = useRef<View>(null);
   const { anchorRef, close } = preview;
   useLayoutEffect(() => {
     measureWindowRect(anchorRef.current, setRow);
   }, [anchorRef]);
   const onStageLayout = useCallback(() => measureWindowRect(stageRef.current, setStage), []);
+  const onOriginLayout = useCallback(() => measureWindowRect(originRef.current, setOrigin), []);
   const onPanelLayout = useCallback((event: LayoutChangeEvent) => {
     setPanelHeight(event.nativeEvent.layout.height);
   }, []);
-  const placement = row && stage ? pressPreviewPlacement(row, stage, panelHeight) : null;
+  const placement = row && stage && origin ? pressPreviewPlacement(row, stage, panelHeight, origin) : null;
   const ready = placement !== null && (!placement.above || panelHeight !== null);
   return (
     <Modal visible transparent animationType="fade" onRequestClose={close} statusBarTranslucent>
@@ -200,6 +203,8 @@ function PressPreview({ preview, tokens, children }: {
         onPress={close}
         style={[StyleSheet.absoluteFill, styles.backdrop]}
       />
+      {/* Where the modal itself starts, in the coordinates the row was measured in. */}
+      <View ref={originRef} onLayout={onOriginLayout} pointerEvents="none" style={StyleSheet.absoluteFill} />
       <SafeInset pointerEvents="none" style={StyleSheet.absoluteFill}>
         <View ref={stageRef} onLayout={onStageLayout} style={styles.stage} />
       </SafeInset>
