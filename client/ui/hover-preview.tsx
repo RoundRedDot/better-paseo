@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
@@ -10,7 +10,8 @@ import { cssShadow } from "./tokens/css-shadow";
 import { DEFAULT_PREFERENCES, HOVER_DELAY_MS, useEnhancerPreferences } from "../preferences";
 import { useHover } from "./use-hover";
 import { SafeInset } from "./safe-inset";
-import { pressPreviewPlacement, rowInModalWindow, type WindowRect } from "./press-preview-placement";
+import { pressPreviewFrame } from "./press-preview-placement";
+import { ProseSelectionContext } from "./prose-text";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
@@ -167,37 +168,28 @@ function panelLook(tokens: ExtendedThemeTokens) {
 
 /**
  * The long-press preview on iOS and Android: the web panel's contents in a
- * transparent modal, placed on the row that was pressed (`pressPreviewPlacement`).
+ * transparent modal, centred in the safe area and sized by `pressPreviewFrame`.
  * The modal is the only layer a plugin can raise above the timeline, and it
  * keeps the list from scrolling out from under the panel. A press outside the
  * panel or Android's back button closes it. The panel stays hidden until the
- * row and the safe area are measured, so it never flashes in the wrong place.
+ * row and the safe area are measured, so it never flashes at the wrong size.
  */
 function PressPreview({ preview, tokens, children }: {
   preview: ReturnType<typeof useHoverPreview>;
   tokens: ExtendedThemeTokens;
   children: ReactNode;
 }) {
-  const [row, setRow] = useState<WindowRect | null>(null);
-  const [stage, setStage] = useState<WindowRect | null>(null);
-  const [origin, setOrigin] = useState<WindowRect | null>(null);
-  const [panelHeight, setPanelHeight] = useState<number | null>(null);
-  const stageRef = useRef<View>(null);
-  const originRef = useRef<View>(null);
+  const [rowWidth, setRowWidth] = useState<number | null>(null);
+  const [stage, setStage] = useState<{ width: number; height: number } | null>(null);
   const { anchorRef, close } = preview;
   useLayoutEffect(() => {
-    measureWindowRect(anchorRef.current, setRow);
+    measureWidth(anchorRef.current, setRowWidth);
   }, [anchorRef]);
-  const onStageLayout = useCallback(() => measureWindowRect(stageRef.current, setStage), []);
-  const onOriginLayout = useCallback(() => measureWindowRect(originRef.current, setOrigin), []);
-  const onPanelLayout = useCallback((event: LayoutChangeEvent) => {
-    setPanelHeight(event.nativeEvent.layout.height);
+  const onStageLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    setStage({ width, height });
   }, []);
-  const rowWindowTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
-  const placement = row && stage && origin
-    ? pressPreviewPlacement(rowInModalWindow(row, origin, rowWindowTop), stage, panelHeight, origin)
-    : null;
-  const ready = placement !== null && (!placement.above || panelHeight !== null);
+  const frame = rowWidth !== null && stage ? pressPreviewFrame(stage, rowWidth) : null;
   return (
     <Modal visible transparent animationType="fade" onRequestClose={close} statusBarTranslucent>
       <Pressable
@@ -206,42 +198,32 @@ function PressPreview({ preview, tokens, children }: {
         onPress={close}
         style={[StyleSheet.absoluteFill, styles.backdrop]}
       />
-      {/* Where the modal itself starts, in the coordinates the row was measured in. */}
-      <View ref={originRef} onLayout={onOriginLayout} pointerEvents="none" style={StyleSheet.absoluteFill} />
-      <SafeInset pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <View ref={stageRef} onLayout={onStageLayout} style={styles.stage} />
+      <SafeInset pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+        <View onLayout={onStageLayout} pointerEvents="box-none" style={styles.stage}>
+          <HoverPreviewContext.Provider value>
+            <PreviewActionsContext.Provider value={{ overflowing: false, maximized: false, maximize: preview.maximize, close }}>
+              <View
+                {...selectionSurface}
+                testID="hover-preview"
+                accessibilityViewIsModal
+                style={[styles.panel, styles.pressPanel, panelLook(tokens), frame ?? styles.hidden]}
+              >
+                {children}
+              </View>
+            </PreviewActionsContext.Provider>
+          </HoverPreviewContext.Provider>
+        </View>
       </SafeInset>
-      <HoverPreviewContext.Provider value>
-        <PreviewActionsContext.Provider value={{ overflowing: false, maximized: false, maximize: preview.maximize, close }}>
-          <View
-            {...selectionSurface}
-            testID="hover-preview"
-            accessibilityViewIsModal
-            onLayout={onPanelLayout}
-            style={[
-              styles.panel,
-              styles.pressPanel,
-              panelLook(tokens),
-              placement
-                ? { left: placement.left, width: placement.width, top: placement.top, maxHeight: placement.maxHeight }
-                : null,
-              !ready && styles.hidden,
-            ]}
-          >
-            {children}
-          </View>
-        </PreviewActionsContext.Provider>
-      </HoverPreviewContext.Provider>
     </Modal>
   );
 }
 
-function measureWindowRect(node: unknown, done: (rect: WindowRect) => void) {
+function measureWidth(node: unknown, done: (width: number) => void) {
   const view = node as {
     measureInWindow?(callback: (x: number, y: number, width: number, height: number) => void): void;
   } | null;
-  view?.measureInWindow?.((x, y, width, height) => {
-    if ([x, y, width, height].every(Number.isFinite)) done({ x, y, width, height });
+  view?.measureInWindow?.((_x, _y, width) => {
+    if (Number.isFinite(width)) done(width);
   });
 }
 
@@ -289,10 +271,11 @@ function PreviewWindowButton({ tokens, maximized, onPress }: {
 
 export function HoverPreviewBody({ children }: { children: ReactNode }) {
   if (Platform.OS !== "web") {
-    // The panel's height is capped; the body scrolls inside it.
+    // The panel's height is capped; the body scrolls inside it. Its text takes
+    // a long press as the start of a selection, with a cursor and handles.
     return (
       <ScrollView testID="hover-preview-body" style={styles.pressBody} contentContainerStyle={styles.pressBodyContent}>
-        {children}
+        <ProseSelectionContext.Provider value>{children}</ProseSelectionContext.Provider>
       </ScrollView>
     );
   }
@@ -314,8 +297,8 @@ const styles = StyleSheet.create({
     gap: space.sm,
   } as ViewStyle,
   backdrop: { backgroundColor: "rgba(0, 0, 0, 0.2)" },
-  stage: { flex: 1 },
-  pressPanel: { position: "absolute", overflow: "hidden" },
+  stage: { flex: 1, alignItems: "center", justifyContent: "center" },
+  pressPanel: { overflow: "hidden" },
   hidden: { opacity: 0 },
   pressBody: { flexGrow: 0, flexShrink: 1 },
   pressBodyContent: { padding: space.md, gap: space.sm },

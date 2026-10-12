@@ -29,6 +29,7 @@ import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { HoverPreviewBody, HoverPreviewHeader } from "../ui/hover-preview";
 import { FadeIn } from "../ui/fade-in";
+import { SelectableSpan, SelectableText } from "../ui/prose-text";
 import { formatPath } from "../paths/format-path";
 import { lineRangeLabel, summarizeTool } from "../tools/summarize";
 import { TYPE, UI_SCALE } from "../ui/tokens/typography";
@@ -285,10 +286,10 @@ export function ToolCallout({
         <>
           <ToolPreviewActions getPlan={getPlan} tool={data.tool} tokens={tokens} compact={compact} />
           <HoverPreviewBody>
-            {filePath ? <Text selectable {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>{resolvePath(filePath)}</Text> : null}
+            {filePath ? <SelectableText {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>{resolvePath(filePath)}</SelectableText> : null}
             <ToolBody data={data} tokens={tokens} compact={compact} imageFile={imageFile}
               revealFile={revealFile} displayPath={filePath ? formatPath(filePath, pathContext).displayPath : undefined} preview />
-            {data.error ? <Text selectable style={{ color: tokens.danger }}>{data.error}</Text> : null}
+            {data.error ? <SelectableText style={{ color: tokens.danger }}>{data.error}</SelectableText> : null}
           </HoverPreviewBody>
         </>
       )}
@@ -557,9 +558,9 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
   // The regular code block deliberately batches and folds long files.
   if (preview && (data.tool === "read" || data.tool === "write" || data.tool === "edit") &&
       !(imageFile !== undefined && isImagePath(data.filePath))) {
-    return <Text selectable {...selectionCodeText} style={styles.commandLine}>
+    return <SelectableText {...selectionCodeText} style={styles.commandLine}>
       {data.diff || data.code || (isRunning ? "Waiting for content…" : "No content.")}
-    </Text>;
+    </SelectableText>;
   }
 
   return (
@@ -568,13 +569,13 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
         <View style={styles.terminalWindow}>
           {command ? (
             // One line on the code surface, not a nested code card.
-            <Text selectable {...selectionCodeText} style={styles.commandLine}>
-              <Text style={styles.mutedColor}>{"$ "}</Text>
+            <SelectableText {...selectionCodeText} style={styles.commandLine}>
+              <SelectableSpan style={styles.mutedColor}>{"$ "}</SelectableSpan>
               {command}
-            </Text>
+            </SelectableText>
           ) : null}
           {data.shell?.stdout ? (
-            preview ? <Text selectable {...selectionCodeText} style={styles.terminalOutput}>{renderTerminalOutput(data.shell.stdout, tokens)}</Text> :
+            preview ? <SelectableText {...selectionCodeText} style={styles.terminalOutput}>{renderTerminalOutput(data.shell.stdout, tokens)}</SelectableText> :
             <TerminalOutput
               text={data.shell.stdout}
               tokens={tokens}
@@ -583,12 +584,12 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             />
           ) : null}
           {data.shell?.stderr ? (
-            <Text selectable {...(codeSurface as object)} style={[styles.terminalOutput, { color: tokens.danger }]}>
+            <SelectableText {...(codeSurface as object)} style={[styles.terminalOutput, { color: tokens.danger }]}>
               {data.shell.stderr}
-            </Text>
+            </SelectableText>
           ) : null}
           {data.output && !data.shell?.stdout ? (
-            preview ? <Text selectable {...selectionCodeText} style={styles.terminalOutput}>{renderTerminalOutput(data.output, tokens)}</Text> :
+            preview ? <SelectableText {...selectionCodeText} style={styles.terminalOutput}>{renderTerminalOutput(data.output, tokens)}</SelectableText> :
             <TerminalOutput
               text={data.output}
               tokens={tokens}
@@ -597,13 +598,13 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             />
           ) : null}
           {!data.shell?.stdout && !data.shell?.stderr && !data.output ? (
-            <Text selectable style={styles.silentText}>
+            <SelectableText style={styles.silentText}>
               {isRunning
                 ? "Waiting for command output…"
                 : isShellCall
                   ? "Command completed without output."
                   : "The call returned no output."}
-            </Text>
+            </SelectableText>
           ) : null}
         </View>
       )}
@@ -649,9 +650,9 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             </>
           )}
           {data.mcp.error ? (
-            <Text selectable style={[styles.plainText, { color: tokens.danger }]}>
+            <SelectableText style={[styles.plainText, { color: tokens.danger }]}>
               Error: {data.mcp.error}
-            </Text>
+            </SelectableText>
           ) : null}
         </View>
       )}
@@ -725,9 +726,9 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
               {cell.output ? (
                 <View style={styles.terminalWindow}>
                   <Text style={styles.sectionTitle}>stdout</Text>
-                  <Text selectable {...selectionCodeText} style={styles.terminalOutput}>
+                  <SelectableText {...selectionCodeText} style={styles.terminalOutput}>
                     {renderTerminalOutput(cell.output, tokens)}
-                  </Text>
+                  </SelectableText>
                 </View>
               ) : null}
             </View>
@@ -751,15 +752,15 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
               <View key={opt.id} style={[styles.askOption, isChosen && styles.askOptionChosen]}>
                 <View style={styles.askOptionText}>
                   <View style={styles.inlineRow}>
-                    <Text selectable style={[styles.askOptionLabel, isChosen && styles.strong]}>
+                    <SelectableText style={[styles.askOptionLabel, isChosen && styles.strong]}>
                       {opt.label}
-                    </Text>
+                    </SelectableText>
                     {opt.recommended ? <Text style={styles.metaText}>recommended</Text> : null}
                   </View>
                   {opt.description ? (
-                    <Text selectable style={styles.mutedText}>
+                    <SelectableText style={styles.mutedText}>
                       {opt.description}
-                    </Text>
+                    </SelectableText>
                   ) : null}
                 </View>
                 <Glyph
@@ -773,9 +774,9 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
           {answered.length > 0 ? (
             <View style={styles.inlineRow}>
               <Text style={styles.sectionTitle}>{typedReply ? "typed" : "answered"}</Text>
-              <Text selectable style={[styles.plainText, styles.strong]}>
+              <SelectableText style={[styles.plainText, styles.strong]}>
                 {answered.join(", ")}
-              </Text>
+              </SelectableText>
             </View>
           ) : null}
         </View>
@@ -805,19 +806,19 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
           ) : null}
           {data.search.webResults?.map((row, index) => (
             <View key={`${index}:${row.url}`} style={styles.webRow}>
-              <Text selectable numberOfLines={1} style={styles.plainText}>
+              <SelectableText numberOfLines={1} style={styles.plainText}>
                 {row.title}
-              </Text>
-              <Text selectable {...(codeSurface as object)} numberOfLines={1} style={[styles.monoText, styles.mutedColor]}>
+              </SelectableText>
+              <SelectableText {...(codeSurface as object)} numberOfLines={1} style={[styles.monoText, styles.mutedColor]}>
                 {row.url}
-              </Text>
+              </SelectableText>
             </View>
           ))}
           {data.search.content ? (
             <View style={styles.terminalWindow}>
-              <Text selectable {...selectionCodeText} style={styles.terminalOutput}>
+              <SelectableText {...selectionCodeText} style={styles.terminalOutput}>
                 {renderTerminalOutput(data.search.content, tokens)}
-              </Text>
+              </SelectableText>
             </View>
           ) : null}
           {!data.search.files && !data.search.webResults && !data.search.content ? (
@@ -828,13 +829,13 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
 
       {data.tool === "fetch" && data.fetch && (
         <View style={styles.section}>
-          <Text selectable {...(codeSurface as object)} style={styles.monoText}>
+          <SelectableText {...(codeSurface as object)} style={styles.monoText}>
             {data.fetch.url}
-          </Text>
+          </SelectableText>
           {data.fetch.prompt ? (
-            <Text selectable style={styles.mutedText}>
+            <SelectableText style={styles.mutedText}>
               {data.fetch.prompt}
-            </Text>
+            </SelectableText>
           ) : null}
           {data.fetch.result ? (
             <MarkdownView text={data.fetch.result} tokens={tokens} variant="compact" />
@@ -850,16 +851,16 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             <PathText path={data.worktree.worktreePath} tokens={tokens} compact={compact} fit />
           ) : null}
           {data.worktree.branchName ? (
-            <Text selectable {...(codeSurface as object)} style={[styles.monoText, styles.mutedColor]}>
+            <SelectableText {...(codeSurface as object)} style={[styles.monoText, styles.mutedColor]}>
               {data.worktree.branchName}
-            </Text>
+            </SelectableText>
           ) : null}
           {data.worktree.commands.map((step) => (
             <View key={step.index} style={styles.terminalWindow}>
               <View style={styles.inlineRow}>
-                <Text selectable {...(codeSurface as object)} style={[styles.monoText, styles.flex]} numberOfLines={2}>
+                <SelectableText {...(codeSurface as object)} style={[styles.monoText, styles.flex]} numberOfLines={2}>
                   {`$ ${step.command}`}
-                </Text>
+                </SelectableText>
                 {step.status === "running" ? <RunningDot color={tokens.accent} /> : null}
                 {step.exitCode !== null && step.status !== "running" ? (
                   <Text style={[styles.metaText, step.exitCode !== 0 && { color: tokens.danger }]}>
@@ -868,17 +869,17 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
                 ) : null}
               </View>
               {step.log ? (
-                <Text selectable {...selectionCodeText} style={styles.terminalOutput}>
+                <SelectableText {...selectionCodeText} style={styles.terminalOutput}>
                   {renderTerminalOutput(step.log, tokens)}
-                </Text>
+                </SelectableText>
               ) : null}
             </View>
           ))}
           {data.worktree.log ? (
             <View style={styles.terminalWindow}>
-              <Text selectable {...selectionCodeText} style={styles.terminalOutput}>
+              <SelectableText {...selectionCodeText} style={styles.terminalOutput}>
                 {renderTerminalOutput(data.worktree.log, tokens)}
-              </Text>
+              </SelectableText>
             </View>
           ) : null}
         </View>
@@ -887,27 +888,27 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
       {data.tool === "sub_agent" && data.subAgent && (
         <View style={styles.section}>
           {data.subAgent.description ? (
-            <Text selectable style={styles.plainText}>
+            <SelectableText style={styles.plainText}>
               {data.subAgent.description}
-            </Text>
+            </SelectableText>
           ) : null}
           {data.subAgent.actions?.map((action) => (
             <View key={action.index} style={styles.inlineRow}>
-              <Text selectable {...(codeSurface as object)} style={[styles.monoText, styles.mutedColor]}>
+              <SelectableText {...(codeSurface as object)} style={[styles.monoText, styles.mutedColor]}>
                 {action.toolName}
-              </Text>
+              </SelectableText>
               {action.summary ? (
-                <Text selectable numberOfLines={1} style={[styles.plainText, styles.flex]}>
+                <SelectableText numberOfLines={1} style={[styles.plainText, styles.flex]}>
                   {action.summary}
-                </Text>
+                </SelectableText>
               ) : null}
             </View>
           ))}
           {data.subAgent.log ? (
             <View style={styles.terminalWindow}>
-              <Text selectable {...selectionCodeText} style={styles.terminalOutput}>
+              <SelectableText {...selectionCodeText} style={styles.terminalOutput}>
                 {renderTerminalOutput(data.subAgent.log, tokens)}
-              </Text>
+              </SelectableText>
             </View>
           ) : null}
         </View>
@@ -925,9 +926,9 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
           code face, as the row's own target already is. */}
       {data.tool === "plain_text" &&
         (data.text ? (
-          <Text selectable {...selectionCodeText} style={styles.commandLine}>
+          <SelectableText {...selectionCodeText} style={styles.commandLine}>
             {data.text}
-          </Text>
+          </SelectableText>
         ) : (
           <Text style={styles.silentText}>No text.</Text>
         ))}
@@ -942,9 +943,9 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
           ) : null}
           {data.output ? (
             <View style={styles.terminalWindow}>
-              <Text selectable {...selectionCodeText} style={styles.terminalOutput}>
+              <SelectableText {...selectionCodeText} style={styles.terminalOutput}>
                 {renderTerminalOutput(data.output, tokens)}
-              </Text>
+              </SelectableText>
             </View>
           ) : (
             <Text style={styles.silentText}>
@@ -957,13 +958,13 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
       {!hasTypedBody && (
         <View style={styles.terminalWindow}>
           {data.output ? (
-            <Text selectable {...selectionCodeText} style={styles.terminalOutput}>
+            <SelectableText {...selectionCodeText} style={styles.terminalOutput}>
               {renderTerminalOutput(data.output, tokens)}
-            </Text>
+            </SelectableText>
           ) : (
-            <Text selectable style={styles.silentText}>
+            <SelectableText style={styles.silentText}>
               {isRunning ? "Waiting for output…" : "The call returned no output."}
-            </Text>
+            </SelectableText>
           )}
         </View>
       )}

@@ -172,6 +172,27 @@ export function ProseText({ style, children, ...rest }: TextProps) {
 }
 
 /**
+ * Whether `SelectableText` below goes through `ProseText`. The phone preview
+ * sets it, so a long press in a command or its output places a cursor and
+ * handles on iOS instead of offering one Copy for the whole run. Elsewhere
+ * those bodies stay plain `<Text selectable>`, as they were.
+ */
+export const ProseSelectionContext = createContext(false);
+
+/** Selectable text: `ProseText` under `ProseSelectionContext`, else `<Text selectable>`. */
+export function SelectableText(props: TextProps) {
+  return useContext(ProseSelectionContext) ? <ProseText {...props} /> : <Text selectable {...props} />;
+}
+
+/**
+ * A run inside `SelectableText`: part of the native root's text when there is
+ * one, else the nested `Text` it replaces, with exactly the props it is given.
+ */
+export function SelectableSpan(props: TextProps) {
+  return useContext(RunContext) === null ? <Text {...props} /> : <ProseSpan {...props} />;
+}
+
+/**
  * An inline run inside `ProseText`: bold, a code span, a link. Outside a native
  * root (web, Android, a table cell drawn with plain `Text`) it is the nested
  * `Text` it replaces, with the props it is given. A run inherits its parent's
