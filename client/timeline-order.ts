@@ -8,8 +8,8 @@ import { useCallback, useLayoutEffect, useSyncExternalStore } from "react";
  * than Paseo's own (`compactReplySpacing`) cannot do that blindly: the 16pt is
  * right above a prompt or another reply, and the host hands a renderer no
  * neighbours. So each
- * mounted row records its arrival time and kind here, and a reply asks what
- * arrived next. Arrival order is timeline order, as for the tail
+ * mounted item records its arrival time and kind here, and a row or reply asks
+ * what arrived after it. Arrival order is timeline order, as for the tail
  * (`timeline-tail.ts`).
  *
  * Entries are kept per agent. The plugin's module is shared by every chat on
@@ -17,12 +17,37 @@ import { useCallback, useLayoutEffect, useSyncExternalStore } from "react";
  * below this agent's reply however late it arrived. Pooled, a running agent
  * next door took the gap from the newest reply here, and its last line slid
  * under the composer.
+ *
+ * The daemon stamps each event as it dispatches it, to the millisecond, and
+ * one model message — a thought, its reply, its tool calls — goes out in one
+ * burst, so the items of a message often share a moment. Within a moment the
+ * kind decides the order (`KIND_ORDER`): a message reads thought, then reply,
+ * then tool calls. Counted as ambiguous, a thought kept its gap above the tool
+ * call it led to until that call finished and took a later stamp.
  */
-export type TimelineEntryKind = "row" | "text";
+export type TimelineEntryKind = "prompt" | "thought" | "reply" | "notice" | "tool";
+
+/**
+ * Order within one millisecond. A prompt opens its turn; a notice has no fixed
+ * place in a message and ties with the reply, which leaves the pair ambiguous.
+ */
+const KIND_ORDER: Record<TimelineEntryKind, number> = {
+  prompt: 0,
+  thought: 1,
+  reply: 2,
+  notice: 2,
+  tool: 3,
+};
+
+/** Thoughts, tool calls and checklists are rows; the rest are text. */
+function isRow(kind: TimelineEntryKind): boolean {
+  return kind === "thought" || kind === "tool";
+}
 
 interface Entry {
   at: number;
-  kind: TimelineEntryKind;
+  order: number;
+  row: boolean;
 }
 
 const entriesByAgent = new Map<string, Set<Entry>>();
@@ -32,9 +57,14 @@ function publish(): void {
   for (const listener of listeners) listener();
 }
 
+/** Negative when `a` sits above `b`, zero when their order is unknown. */
+function compare(a: { at: number; order: number }, b: { at: number; order: number }): number {
+  return a.at - b.at || a.order - b.order;
+}
+
 /** Records a mounted item; the returned function forgets it. */
 export function registerTimelineEntry(agentId: string, at: number, kind: TimelineEntryKind): () => void {
-  const entry: Entry = { at, kind };
+  const entry: Entry = { at, order: KIND_ORDER[kind], row: isRow(kind) };
   let entries = entriesByAgent.get(agentId);
   if (!entries) {
     entries = new Set();
@@ -51,20 +81,24 @@ export function registerTimelineEntry(agentId: string, at: number, kind: Timelin
 }
 
 /**
- * True when the first item after `at` is a tool, thought or todo row. Items
- * sharing that moment count only if every one of them is a row, and an item
- * sharing `at` itself is ambiguous and skipped. Nothing after `at` (the reply
- * is the newest, or the next row is not mounted) is false: the gap stays.
+ * True when the first item after this one is a tool, thought or todo row.
+ * Items in the same place count only if every one of them is a row, and an
+ * item whose place ties with this one is ambiguous and skipped. Nothing after
+ * it (the reply is the newest, or the next row is not mounted) is false: the
+ * gap stays.
  */
-export function nextEntryIsRow(agentId: string, at: number): boolean {
-  let nextAt = Infinity;
+export function nextEntryIsRow(agentId: string, at: number, kind: TimelineEntryKind): boolean {
+  const self = { at, order: KIND_ORDER[kind] };
+  let next: Entry | null = null;
   let allRows = false;
   for (const entry of entriesByAgent.get(agentId) ?? []) {
-    if (entry.at <= at || entry.at > nextAt) continue;
-    if (entry.at < nextAt) {
-      nextAt = entry.at;
-      allRows = entry.kind === "row";
-    } else if (entry.kind !== "row") {
+    if (compare(entry, self) <= 0) continue;
+    const versusNext = next ? compare(entry, next) : -1;
+    if (versusNext > 0) continue;
+    if (versusNext < 0) {
+      next = entry;
+      allRows = entry.row;
+    } else if (!entry.row) {
       allRows = false;
     }
   }
@@ -72,13 +106,14 @@ export function nextEntryIsRow(agentId: string, at: number): boolean {
 }
 
 /**
- * True when anything of this agent's arrived after `at`. A row's bottom gap is
- * only spare with something below it; the newest row sits on the list's own
+ * True when anything of this agent's sits below this item. A row's bottom gap
+ * is only spare with something below it; the newest row sits on the list's own
  * padding, and taking 12 from there puts its last line under the composer.
  */
-export function hasEntryAfter(agentId: string, at: number): boolean {
+export function hasEntryAfter(agentId: string, at: number, kind: TimelineEntryKind): boolean {
+  const self = { at, order: KIND_ORDER[kind] };
   for (const entry of entriesByAgent.get(agentId) ?? []) {
-    if (entry.at > at) return true;
+    if (compare(entry, self) > 0) return true;
   }
   return false;
 }
@@ -98,13 +133,13 @@ export function useTimelineEntry(agentId: string, at: number, kind: TimelineEntr
 }
 
 /** `nextEntryIsRow`, kept current as rows mount and unmount. */
-export function useNextEntryIsRow(agentId: string, at: number): boolean {
-  const getSnapshot = useCallback(() => nextEntryIsRow(agentId, at), [agentId, at]);
+export function useNextEntryIsRow(agentId: string, at: number, kind: TimelineEntryKind): boolean {
+  const getSnapshot = useCallback(() => nextEntryIsRow(agentId, at, kind), [agentId, at, kind]);
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 /** `hasEntryAfter`, kept current as items mount and unmount. */
-export function useHasEntryAfter(agentId: string, at: number): boolean {
-  const getSnapshot = useCallback(() => hasEntryAfter(agentId, at), [agentId, at]);
+export function useHasEntryAfter(agentId: string, at: number, kind: TimelineEntryKind): boolean {
+  const getSnapshot = useCallback(() => hasEntryAfter(agentId, at, kind), [agentId, at, kind]);
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
