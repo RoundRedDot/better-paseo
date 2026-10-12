@@ -390,6 +390,7 @@ export function buildStyles(
     },
     tableHeaderRow: {
       flexDirection: "row",
+      backgroundColor: tokens.v2.surface1,
       borderBottomWidth: 1,
       borderBottomColor: tokens.v2.border,
     },
@@ -402,7 +403,7 @@ export function buildStyles(
       fontFamily: bodyFont,
       fontSize: metrics.cellSize,
       lineHeight: metrics.cellLineHeight,
-      paddingBottom: space.sm,
+      paddingVertical: space.sm,
       fontWeight: "500",
       color: tokens.foregroundMuted,
     },
