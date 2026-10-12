@@ -8,7 +8,7 @@ import type { RenderContext } from "./context";
 import { codeSurface } from "../../host-font-escape";
 import { renderInline } from "./inline";
 import { LocalImage } from "./local-image";
-import { soleLocalImage } from "./local-path";
+import { splitLocalImages } from "./local-path";
 import {
   BULLETS,
   CHAR_RATIO_MONO,
@@ -99,8 +99,22 @@ function renderBlock(
     }
 
     case "paragraph": {
-      const image = soleLocalImage(token.tokens);
-      if (image !== null) return <LocalImage key={key} path={image} context={context} />;
+      const parts = splitLocalImages(token.tokens);
+      if (parts.some((part) => part.kind === "image")) {
+        return (
+          <View key={key}>
+            {parts.map((part, index) =>
+              part.kind === "image" ? (
+                <LocalImage key={index} path={part.path} context={context} />
+              ) : (
+                <Text key={index} selectable style={options.inQuote ? styles.quoteText : styles.paragraph}>
+                  {renderInline(part.tokens, context, `${key}p${index}`)}
+                </Text>
+              ),
+            )}
+          </View>
+        );
+      }
       return (
         <Text key={key} selectable style={options.inQuote ? styles.quoteText : styles.paragraph}>
           {renderInline(token.tokens, context, key)}

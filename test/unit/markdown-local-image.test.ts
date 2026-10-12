@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { Tokens } from "../../client/vendor/marked";
 import { lexBlock } from "../../client/components/markdown/lex";
 import { isImagePath } from "../../client/image-file";
-import { localImagePath, localPath, soleLocalImage } from "../../client/components/markdown/render/local-path";
+import { localImagePath, localPath, splitLocalImages } from "../../client/components/markdown/render/local-path";
 
 function paragraphTokens(markdown: string) {
   const [block] = lexBlock(markdown);
@@ -57,14 +57,42 @@ describe("localPath", () => {
   });
 });
 
-describe("soleLocalImage", () => {
-  it("finds the daemon's image reply", () => {
-    expect(soleLocalImage(paragraphTokens("![Image](file:///tmp/shot.png)"))).toBe("/tmp/shot.png");
+describe("splitLocalImages", () => {
+  const A = "file:///var/folders/T/paseo-attachments-Px59tw/3b00a7.png";
+  const B = "file:///var/folders/T/paseo-attachments-Px59tw/40e4f6.png";
+  const shape = (markdown: string) =>
+    splitLocalImages(paragraphTokens(markdown)).map((part) =>
+      part.kind === "image" ? `img:${part.path}` : `text:${part.tokens.map((token) => token.raw).join("")}`,
+    );
+
+  it("draws the daemon's image reply as the image", () => {
+    expect(shape(`![Image](${A})`)).toEqual(["img:/var/folders/T/paseo-attachments-Px59tw/3b00a7.png"]);
   });
 
-  it("leaves an image inside prose, and a remote image, to the inline link", () => {
-    expect(soleLocalImage(paragraphTokens("See ![Image](file:///tmp/shot.png) here"))).toBeNull();
-    expect(soleLocalImage(paragraphTokens("![Logo](https://example.com/logo.png)"))).toBeNull();
+  it("splits images the host joined with nothing between them", () => {
+    expect(shape(`![Image](${A})![Image](${B})`)).toEqual([
+      "img:/var/folders/T/paseo-attachments-Px59tw/3b00a7.png",
+      "img:/var/folders/T/paseo-attachments-Px59tw/40e4f6.png",
+    ]);
+  });
+
+  it("keeps the prose a reply ran into its images", () => {
+    expect(shape(`对比改动前后的截图：![Image](${A})![Image](${B})`)).toEqual([
+      "text:对比改动前后的截图：",
+      "img:/var/folders/T/paseo-attachments-Px59tw/3b00a7.png",
+      "img:/var/folders/T/paseo-attachments-Px59tw/40e4f6.png",
+    ]);
+    expect(shape("See ![Image](file:///tmp/shot.png) here")).toEqual([
+      "text:See ",
+      "img:/tmp/shot.png",
+      "text: here",
+    ]);
+  });
+
+  it("leaves a paragraph without a local image whole", () => {
+    expect(shape("![Logo](https://example.com/logo.png) and text")).toEqual([
+      "text:![Logo](https://example.com/logo.png) and text",
+    ]);
   });
 });
 

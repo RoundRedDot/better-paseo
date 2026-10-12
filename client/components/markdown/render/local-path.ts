@@ -48,10 +48,36 @@ export function localImagePath(href: string): string | null {
   return path !== null && isImagePath(path) ? path : null;
 }
 
-/** The local image a paragraph consists of, ignoring the blanks around it. */
-export function soleLocalImage(tokens: readonly Token[] | undefined): string | null {
-  if (!tokens) return null;
-  const visible = tokens.filter((token) => !(token.type === "text" && token.raw.trim() === ""));
-  const only = visible.length === 1 ? visible[0] : undefined;
-  return only?.type === "image" ? localImagePath(only.href) : null;
+export type ParagraphPart =
+  | { kind: "text"; tokens: Token[] }
+  | { kind: "image"; path: string };
+
+/**
+ * A paragraph cut at its local images, so each is drawn as an image block
+ * and the prose around it stays a paragraph. The host joins consecutive
+ * image replies with nothing between them (`![Image](a)![Image](b)`), and a
+ * reply may run straight into them, so a paragraph that is only one image is
+ * not the only shape. Blank runs between images are dropped; a paragraph with
+ * no local image comes back as one text part.
+ */
+export function splitLocalImages(tokens: readonly Token[] | undefined): ParagraphPart[] {
+  const parts: ParagraphPart[] = [];
+  let run: Token[] = [];
+  const flush = () => {
+    if (run.some((token) => !(token.type === "text" && token.raw.trim() === ""))) {
+      parts.push({ kind: "text", tokens: run });
+    }
+    run = [];
+  };
+  for (const token of tokens ?? []) {
+    const path = token.type === "image" ? localImagePath(token.href) : null;
+    if (path === null) {
+      run.push(token);
+      continue;
+    }
+    flush();
+    parts.push({ kind: "image", path });
+  }
+  flush();
+  return parts;
 }
