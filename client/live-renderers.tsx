@@ -117,8 +117,10 @@ function LiveToolCallRendererBody({
 
   const view = useMemo(() => classifyTool(data), [data]);
   const itemKey = `tool:${data.callId ?? view.title}:${timestamp.getTime()}`;
-  const isTail = useIsTimelineTail(agentId, itemKey);
-  useTimelineEntry(agentId, timestamp.getTime(), "row");
+  useTimelineEntry(agentId, timestamp.getTime(), "tool");
+  // Not the tail: a thought takes no part in it, and a call with a thought
+  // below it kept its gap as if it were the newest row.
+  const anythingBelow = useHasEntryAfter(agentId, timestamp.getTime(), "tool");
 
   // The daemon side owns the shell, so revealing a file is one RPC. Paths
   // arrive absolute (PathText resolves them); a path the daemon cannot stat
@@ -166,7 +168,7 @@ function LiveToolCallRendererBody({
     <View
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       {...probe.viewProps}
-      style={preferences.compactRowSpacing && !isTail ? rowGapStyles.compensated : undefined}
+      style={preferences.compactRowSpacing && anythingBelow ? rowGapStyles.compensated : undefined}
     >
       {probe.node}
       <PreferenceSyncSlot />
@@ -208,8 +210,8 @@ function LiveReasoningRendererBody({
   useSelectionActions(tokens, preferences.selectionActions);
   const text = item.data.text || "";
   const streaming = item.data.phase === "streaming";
-  useTimelineEntry(agentId, timestamp.getTime(), "row");
-  const anythingBelow = useHasEntryAfter(agentId, timestamp.getTime());
+  useTimelineEntry(agentId, timestamp.getTime(), "thought");
+  const anythingBelow = useHasEntryAfter(agentId, timestamp.getTime(), "thought");
 
   // Collapsed by default, streaming or not (plan §3.4 item 3); the reader's
   // choice survives the remount into history through the disclosure store.
@@ -231,15 +233,15 @@ function LiveReasoningRendererBody({
   observeReasoning(storeKey, streaming, timestamp.getTime());
   const durationMs = streaming ? null : observedDurationMs(storeKey);
 
-  // Reasoning takes no part in the tail. A thought gives up its gap once it
-  // has finished and something of this agent's arrived below it; a turn that
-  // ends on a thought keeps the gap, or the thought would sit 12pt into the
-  // list's bottom padding, under the composer.
+  // A thought gives up its gap once something of this agent's arrived below
+  // it, whatever its phase: the host can mark a thought loading again while
+  // it catches up. A turn that ends on a thought keeps the gap, or the
+  // thought would sit 12pt into the list's bottom padding, under the composer.
   return (
     <View
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       {...probe.viewProps}
-      style={preferences.compactRowSpacing && !streaming && anythingBelow ? rowGapStyles.compensated : undefined}
+      style={preferences.compactRowSpacing && anythingBelow ? rowGapStyles.compensated : undefined}
     >
       {probe.node}
       <PreferenceSyncSlot />
@@ -266,7 +268,7 @@ function LiveTodoRendererBody({
   timestamp,
 }: PluginTimelineItemProps<LiveTodoPayload>) {
   const probe = probeCard("todo", String(timestamp.getTime()), item.data.phase === "streaming");
-  useTimelineEntry(agentId, timestamp.getTime(), "row");
+  useTimelineEntry(agentId, timestamp.getTime(), "tool");
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
@@ -355,8 +357,8 @@ function LiveAssistantRendererBody({
   // padding plus a 4pt gap), the same 16pt the host hangs under a plugin item.
   // `compactReplySpacing` takes 12 of it back when a row is next, as a tool
   // row does. Above a prompt or another reply the 16 stays.
-  useTimelineEntry(agentId, timestamp.getTime(), "text");
-  const rowBelow = useNextEntryIsRow(agentId, timestamp.getTime());
+  useTimelineEntry(agentId, timestamp.getTime(), "reply");
+  const rowBelow = useNextEntryIsRow(agentId, timestamp.getTime(), "reply");
 
   // Job results, IRC relays and reminders arrive as replies because the host
   // files any unclaimed `custom` message under this item kind. They are not
@@ -463,7 +465,7 @@ function LiveNoticeRendererBody({
   timestamp,
 }: PluginTimelineItemProps<LiveNoticePayload>) {
   const probe = probeCard("notice", String(timestamp.getTime()));
-  useTimelineEntry(agentId, timestamp.getTime(), "text");
+  useTimelineEntry(agentId, timestamp.getTime(), "notice");
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
@@ -569,7 +571,7 @@ function LiveUserMessageRendererBody({
   timestamp,
 }: PluginTimelineItemProps<LiveUserMessagePayload>) {
   const probe = probeCard("user_message", item.data.messageId ?? String(timestamp.getTime()));
-  useTimelineEntry(agentId, timestamp.getTime(), "text");
+  useTimelineEntry(agentId, timestamp.getTime(), "prompt");
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
