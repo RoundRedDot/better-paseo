@@ -15,7 +15,7 @@ import { TaskList } from "./components/task-list";
 import { UserMessage } from "./components/user-message";
 import { itemRootFont } from "./components/host-font-escape";
 import { pluginRoot } from "./components/focus-ring";
-import { promptRowAnchor } from "./components/prompt-anchor";
+import { promptAnchorIds, promptAnchorMarker } from "./components/prompt-anchor";
 import { surfaceProps } from "./components/view-props";
 import { useSelectionActions } from "./components/selection-actions";
 import { TurnUsageRow, type TurnUsage } from "./components/user-message";
@@ -468,6 +468,8 @@ export interface LiveUserMessagePayload {
   images?: string[];
   /** The host's own id for this message, when the provider gave one. */
   messageId?: string;
+  /** The id this window gave the prompt when it sent it. */
+  clientMessageId?: string;
 }
 
 /**
@@ -559,9 +561,12 @@ function LiveUserMessageRendererBody({
 
   return (
     <View
-      {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot, promptRowAnchor(item.data.messageId))}
+      {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       {...probe.viewProps}
     >
+      {promptAnchorIds(item.data.messageId, item.data.clientMessageId).map((id) => (
+        <View key={id} {...promptAnchorMarker(id)} />
+      ))}
       {probe.node}
       <PreferenceSyncSlot />
       {envelope ? (
