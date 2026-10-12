@@ -75,11 +75,12 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: Im
     () =>
       StyleSheet.create({
         // The code block's frame (plan §3.6): the code surface on the block
-        // radius, a 28px header on the same surface, no border or band.
+        // radius, a 28px header on the same surface, no border or band. The
+        // frame does not clip, so the path's hover tooltip can rise above the
+        // card; the parts with their own fill round their own corners.
         container: {
           borderRadius: radiusV2.block,
           backgroundColor: tokens.v2.surfaceCode,
-          overflow: "hidden",
         },
         bleed: { marginHorizontal: -DISCLOSURE_HEADER.bleed },
         // The row's geometry: the icon in the row's status slot, the path on
@@ -91,6 +92,13 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: Im
           gap: DISCLOSURE_HEADER.gap,
           paddingLeft: DISCLOSURE_HEADER.paddingX,
           paddingRight: space.xs,
+          borderTopLeftRadius: radiusV2.block,
+          borderTopRightRadius: radiusV2.block,
+        },
+        // The header with nothing under it: its pressed fill is the whole card.
+        headerAlone: {
+          borderBottomLeftRadius: radiusV2.block,
+          borderBottomRightRadius: radiusV2.block,
         },
         slot: {
           width: DISCLOSURE_HEADER.iconSlot,
@@ -130,6 +138,8 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: Im
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: tokens.surface0,
+          borderBottomLeftRadius: radiusV2.block,
+          borderBottomRightRadius: radiusV2.block,
         },
         // The press target carries the frame and hugs the picture, so the
         // letterboxed sides of a narrow image stay plain background.
@@ -185,7 +195,11 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false }: Im
         onPressIn={toggle ? anchor.hold : undefined}
         onPress={toggle}
         onLongPress={capabilities.touch ? copyPath : undefined}
-        style={({ pressed }) => [styles.header, pressed && toggle && { backgroundColor: tokens.v2.surface2 }]}
+        style={({ pressed }) => [
+          styles.header,
+          file?.dataUri && !shown && styles.headerAlone,
+          pressed && toggle && { backgroundColor: tokens.v2.surface2 },
+        ]}
       >
         <View style={styles.slot}>
           <Glyph name="Image" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />

@@ -376,11 +376,12 @@ const styles = StyleSheet.create({
     ...selectableSurface,
   },
   // An opened call: one surface1 slab under the row, full width, no frame.
+  // Nothing clips it: the padding keeps its content off the rounded corners,
+  // and a path's hover tooltip has to rise out over the row above.
   body: {
     marginTop: 2,
     marginBottom: 6,
     borderRadius: radiusV2.block,
-    overflow: "hidden",
   },
   bodyInner: {
     paddingVertical: space.sm,
