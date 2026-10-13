@@ -88,6 +88,17 @@ describe("row hover recovery", () => {
     expect(row().props.disabled).toBe(true);
     expect(row().props.accessibilityRole).toBeUndefined();
   });
+  it("lets the mouse select the words of a row that has nothing to open", () => {
+    const texts = () => renderer.root.findAllByType("Text" as never).filter((text) => typeof text.props.children === "string");
+    const userSelect = (text: { props: { style?: unknown } }) =>
+      ([text.props.style].flat(3) as Array<{ userSelect?: string } | null>).reduce<string | undefined>((value, style) => style?.userSelect ?? value, undefined);
+    expect(texts().every((text) => text.props.selectable === false)).toBe(true);
+    act(() => renderer.update(React.createElement(DisclosureHeader, { expanded: false, inert: true, onToggle() {}, tokens, verb: "Task", target: "选文件后取消并切回主题" })));
+    const [target] = texts();
+    expect(target!.props.selectable).toBe(true);
+    expect(userSelect(target!)).toBe("text");
+    expect(target!.props.children).toBe("选文件后取消并切回主题");
+  });
   it("removes active listeners on unmount", () => {
     enter();
     const remove = vi.spyOn(node.ownerDocument, "removeEventListener");
