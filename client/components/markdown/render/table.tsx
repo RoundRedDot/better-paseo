@@ -1,10 +1,11 @@
 import React, { useRef } from "react";
-import { Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { Tokens } from "../../../vendor/marked";
 import type { RenderContext } from "./context";
 import { inlineWidth, renderInline } from "./inline";
 import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
 import { HScroll } from "../../../ui/h-scroll";
+import { CopyButton } from "../../../ui/copy-button";
 import {
   ALIGN_KEYS,
   CHAR_RATIO_MONO,
@@ -13,6 +14,9 @@ import {
   TABLE_DIVIDER_WIDTH,
   type VariantMetrics,
 } from "./styles";
+
+// The existing copy button is 24pt wide, followed by a 4pt text gap.
+const COPY_SPACE = 28;
 
 /**
  * React Native offers no synchronous text measurement, so a column's width is
@@ -27,7 +31,8 @@ export function columnWidths(token: Tokens.Table, metrics: VariantMetrics): numb
   for (let column = 0; column < token.header.length; column++) {
     // The header is bold, which the average advance does not cover, so it is
     // measured a shade wider than a body cell of the same length.
-    let longest = inlineWidth(token.header[column]?.tokens, cellSize, ratio) * 1.06;
+    let longest = inlineWidth(token.header[column]?.tokens, cellSize, ratio) * 1.06
+      + (column === 0 ? COPY_SPACE : 0);
     for (const row of token.rows) {
       const cell = row[column];
       if (cell === undefined) continue;
@@ -105,6 +110,32 @@ export function MdTable({
         <View style={[styles.tableHeaderRow, token.rows.length === 0 && styles.tableRowLast]}>
           {token.header.map((cell, column) => {
             const cellKey = `${keyPrefix}h${column}`;
+            if (column === 0) {
+              return (
+                <View
+                  key={cellKey}
+                  style={[
+                    copyStyles.header,
+                    ...frame(column),
+                    { paddingLeft: TABLE_CELL_PADDING + metrics.tableGap / 2 },
+                  ]}
+                >
+                  <CopyButton text={() => token.raw} tokens={context.tokens} />
+                  <Text
+                    selectable
+                    {...contentTextProps()}
+                    style={[
+                      styles.tableHeaderCell,
+                      align(column),
+                      copyStyles.headerText,
+                      contentTextStyle(),
+                    ]}
+                  >
+                    {renderInline(cell.tokens, context, cellKey)}
+                  </Text>
+                </View>
+              );
+            }
             return (
               <Text
                 key={cellKey}
@@ -151,3 +182,15 @@ export function MdTable({
     </HScroll>
   );
 }
+
+const copyStyles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  headerText: {
+    flex: 1,
+    minWidth: 0,
+    paddingLeft: COPY_SPACE - 24,
+  },
+});
