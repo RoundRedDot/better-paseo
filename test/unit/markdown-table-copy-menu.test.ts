@@ -174,7 +174,7 @@ describe("Markdown table copy menu", () => {
       return [text.children.join(""), ...shown(text)];
     });
     expect(StyleSheet.flatten(frame().props.style)).toMatchObject({
-      width: 30, height: 30, borderRadius: 7, borderWidth: 1, borderColor: tokens.v2.border,
+      width: 30, height: 30, borderRadius: 12, borderWidth: 1, borderColor: tokens.v2.border,
       boxShadow: floatShadow(tokens, false),
       transitionProperty: "width, box-shadow",
       transitionDuration: "160ms, 120ms",
@@ -186,7 +186,7 @@ describe("Markdown table copy menu", () => {
     act(() => { entry("Copy as Markdown").props.onHoverIn(); });
     // Opening widens the frame and lifts its shadow; the edge never darkens.
     expect(StyleSheet.flatten(frame().props.style)).toMatchObject({
-      width: 250, borderRadius: 7, borderColor: tokens.v2.border,
+      width: 250, borderRadius: 12, borderColor: tokens.v2.border,
       boxShadow: floatShadow(tokens),
       transitionDuration: "180ms, 180ms",
     });
