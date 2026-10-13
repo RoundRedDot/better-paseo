@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
 import { selectionSurface } from "../components/selection-actions";
@@ -288,7 +288,7 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, center, children }
   tokens: ExtendedThemeTokens;
   /** A glyph name or the content's own icon, in a button's box at the far left. */
   icon?: ReactNode;
-  /** The current tool's type, shown when its icon is hovered. */
+  /** The current tool's type: the icon's hover label and title when the centre is free. */
   iconLabel?: string;
   center?: ReactNode;
   children?: ReactNode;
@@ -332,7 +332,20 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, center, children }
             ) : null}
           </TooltipAlignContext.Provider>
         </View>
-        {center ? <View testID="hover-preview-center" style={styles.toolbarCenter}>{center}</View> : null}
+        {center || iconLabel ? (
+          <View testID="hover-preview-center" style={styles.toolbarCenter}>
+            {center || (
+              <Text
+                testID="hover-preview-tool-name"
+                selectable={false}
+                numberOfLines={1}
+                style={{ color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: tokens.typography.ui.scale.base }}
+              >
+                {iconLabel}
+              </Text>
+            )}
+          </View>
+        ) : null}
         <View style={styles.toolbarEnd}>
           {/* The group ends at the panel's right edge: names open leftwards. */}
           <TooltipAlignContext.Provider value="end">

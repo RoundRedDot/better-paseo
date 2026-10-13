@@ -68,6 +68,29 @@ function previewOf(element: React.ReactElement) {
   return text;
 }
 describe("full hover preview content", () => {
+  it.each(["Bash", "Read"])("centres the tool name in a single %s preview", async (name) => {
+    const data = classifyTool({ name, status: "completed", detail: name === "Bash"
+      ? { type: "shell", command: "printf hello", output: "hello" }
+      : { type: "read", filePath: "/w/a.ts", content: "hello" },
+    });
+    await exercisePreview(React.createElement(ToolCallout, { data, tokens }), async (body) => {
+      const center = body.root.findByProps({ testID: "hover-preview-center" });
+      const title = center.findByProps({ testID: "hover-preview-tool-name" });
+      expect(textOf(title)).toBe(name);
+      expect(title.props.numberOfLines).toBe(1);
+    });
+  });
+
+  it("keeps existing centre content without adding a tool name", () => {
+    let header!: ReturnType<typeof TestRenderer.create>;
+    act(() => { header = TestRenderer.create(React.createElement(HoverPreviewHeader, {
+      tokens, icon: "Image", iconLabel: "Read", center: React.createElement("ImageMeta", null, "640 × 480"),
+    })); });
+    expect(header.root.findByProps({ testID: "hover-preview-center" }).findAll((node) => (node.type as unknown) === "ImageMeta")).toHaveLength(1);
+    expect(header.root.findAllByProps({ testID: "hover-preview-tool-name" })).toHaveLength(0);
+    act(() => header.unmount());
+  });
+
   it.each<ToolKind>([
     "git", "github", "paseo", "bash", "shell", "read", "edit", "write", "thinking", "eval",
     "ask", "mcp", "task", "hub", "search", "fetch", "worktree_setup", "sub_agent", "plan", "plain_text", "unknown",
@@ -93,8 +116,12 @@ describe("full hover preview content", () => {
     await exercisePreview(React.createElement(ToolCallout, { data: calls[0]!, groupCalls: calls, tokens }), async (body) => {
       const kind = () => body.root.findByProps({ testID: "hover-preview-icon" }).findByType(RowIcon).props.name;
       expect(kind()).toBe("FileText");
+      expect(textOf(body.root.findByProps({ testID: "hover-preview-center" }))).toBe("1 / 2");
+      expect(body.root.findAllByProps({ testID: "hover-preview-tool-name" })).toHaveLength(0);
       await press(body, "Next operation");
       expect(kind()).toBe("Pencil");
+      expect(textOf(body.root.findByProps({ testID: "hover-preview-center" }))).toBe("2 / 2");
+      expect(body.root.findAllByProps({ testID: "hover-preview-tool-name" })).toHaveLength(0);
     });
   });
 
