@@ -29,7 +29,7 @@ const PreviewActionsContext = createContext<{
   maximize(): void;
   close(): void;
   /** The preview's line wrap, on until the reader turns it off. */
-  wrap?: { on: boolean; toggle(): void; tokens: ExtendedThemeTokens };
+  wrap?: { on: boolean; disabled?: boolean; toggle(): void; tokens: ExtendedThemeTokens };
 } | null>(null);
 
 /** The panel this content is drawn in, when it is drawn in one. */
@@ -156,7 +156,7 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
   children: ReactNode;
 }) {
   const panelRef = useRef<View>(null);
-  // Content whose every line fits needs no wrap toggle: both states look the same.
+  // Keep the toggle's slot even when wrapping would make no visible difference.
   const [linesFit, setLinesFit] = useState(false);
   // Kept across Maximize, which re-renders this panel rather than remounting it.
   const [wrapOn, toggleWrap] = usePanelWrap();
@@ -178,7 +178,7 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
         maximized: preview.maximized,
         maximize: preview.maximize,
         close: preview.close,
-        wrap: wraps && !linesFit ? { on: wrapOn, toggle: toggleWrap, tokens } : undefined,
+        wrap: wraps ? { on: wrapOn, disabled: linesFit, toggle: toggleWrap, tokens } : undefined,
       }}>
         <View
           ref={panelRef}
@@ -319,6 +319,7 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, chil
                 icon={actions.wrap.on ? "WrapText" : "AlignLeft"}
                 label={actions.wrap.on ? "Do not wrap lines" : "Wrap lines"}
                 checked={actions.wrap.on}
+                disabled={actions.wrap.disabled}
                 onPress={actions.wrap.toggle}
                 tokens={tokens}
               />
