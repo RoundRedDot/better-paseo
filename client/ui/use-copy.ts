@@ -23,6 +23,7 @@ export type { CopyFeedback, CopyOptions } from "./copy-controller";
 export function useCopy(): {
   copied: boolean;
   copy(text: string, options?: CopyOptions): Promise<boolean>;
+  copyWith(write: () => Promise<void>, options?: CopyOptions): Promise<boolean>;
 } {
   const toast = useToast();
   const [copied, setCopied] = useState(false);
@@ -56,5 +57,5 @@ export function useCopy(): {
     return () => controller?.dispose();
   }, []);
 
-  return { copied, copy: controllerRef.current.copy };
+  return { copied, copy: controllerRef.current.copy, copyWith: controllerRef.current.copyWith };
 }
