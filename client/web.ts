@@ -1,6 +1,12 @@
 import { Platform } from "react-native";
 import { PLUGIN_ROOT_ATTRIBUTE } from "./components/focus-ring";
 import { PREVIEW_LIMIT } from "./ui/press-preview-placement";
+import { SELECTION_BAR_SELECTOR } from "./components/selection-actions";
+
+/** The selection bar floats outside a preview but acts on its text, so it counts as part of it. */
+function onSelectionBar(target: EventTarget | null): boolean {
+  return Boolean((target as Element | null)?.closest?.(SELECTION_BAR_SELECTOR));
+}
 
 /** Row hover includes child actions and ends even when a leave event is lost. */
 export function bindRowHover(node: unknown, enter: () => void, leave: () => void): () => void {
@@ -55,11 +61,19 @@ export function bindPreviewPointer(node: unknown, enter: () => void, leave: () =
   if (Platform.OS !== "web") return () => {};
   const element = node as HTMLElement | null;
   if (!element) return () => {};
+  // Into the selection bar is not a leave; out of it to anywhere else is.
+  const exit = (event: MouseEvent) => {
+    const bar = event.relatedTarget as HTMLElement | null;
+    if (!onSelectionBar(bar)) return leave();
+    bar!.addEventListener("mouseleave", (next) => {
+      if (!element.contains(next.relatedTarget as Node)) leave();
+    }, { once: true });
+  };
   element.addEventListener("mouseenter", enter);
-  element.addEventListener("mouseleave", leave);
+  element.addEventListener("mouseleave", exit);
   return () => {
     element.removeEventListener("mouseenter", enter);
-    element.removeEventListener("mouseleave", leave);
+    element.removeEventListener("mouseleave", exit);
   };
 }
 
@@ -182,6 +196,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   const onWheel = (event: WheelEvent) => {
     if (event.ctrlKey) return; // pinch zoom
     const target = event.target as Node;
+    if (onSelectionBar(target)) return;
     if (panel.contains(target)) {
       if (!scrollsWithin(target, panel, event.deltaX, event.deltaY)) event.preventDefault();
       return;
@@ -190,7 +205,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     if (!options.maximized) close();
   };
   const onPointerDown = (event: PointerEvent) => {
-    if (!panel.contains(event.target as Node)) close();
+    if (!panel.contains(event.target as Node) && !onSelectionBar(event.target)) close();
   };
   const onKey = (event: KeyboardEvent) => {
     if (event.key === "Escape") close();
