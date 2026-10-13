@@ -470,10 +470,11 @@ export function buildStyles(
             // A run inside native text has no padding or radius, and its fill
             // covers the whole line box: on a 1.33 line height that is a tall
             // square slab that touches the next line's. Off the web the span
-            // is told apart by its family and a tint, again not the accent.
+            // is told apart by its family and the reader's accent, dark grey
+            // by default.
             fontFamily: tokens.fontMono,
             fontSize: metrics.codeSize,
-            color: quiet ? text : tokens.syntax.function,
+            color: quiet ? text : tokens.codeInline,
           },
     link: {
       color: tokens.accent,
