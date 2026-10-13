@@ -43,9 +43,9 @@ describe("inline code colour on native", () => {
     expect(codeSpan("jade").color).toBe(ACCENT_PRESETS.jade);
   });
 
-  it("is heavier than regular, medium where the face has one", () => {
+  it("is semibold off the web", () => {
     setOS("ios");
-    expect(codeSpan("host").fontWeight).toBe("500");
+    expect(codeSpan("host").fontWeight).toBe("600");
     setOS("android");
     expect(codeSpan("host").fontWeight).toBe("600");
     setOS("web");

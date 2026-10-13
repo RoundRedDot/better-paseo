@@ -287,11 +287,10 @@ export function buildStyles(
           fontSize: metrics.codeSize,
           color: quiet ? text : tokens.codeInline,
         };
-  // A step under the body and in grey, regular SF Mono reads thinner than the
-  // prose around it. Android's monospace has one face and only synthesizes a
-  // bold, so medium would draw regular there.
-  const codeSpanWeight: TextStyle["fontWeight"] =
-    Platform.OS === "web" ? undefined : Platform.OS === "ios" ? "500" : "600";
+  // A step under the body and in grey, SF Mono reads thinner than the prose
+  // around it until semibold; medium was still too light on a phone.
+  // Android's monospace has one face and synthesizes the same bold.
+  const codeSpanWeight: TextStyle["fontWeight"] = Platform.OS === "web" ? undefined : "600";
   const codeSpan: TextStyle =
     codeSpanWeight === undefined ? codeBase : { ...codeBase, fontWeight: codeSpanWeight };
 
