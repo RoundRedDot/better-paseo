@@ -141,24 +141,66 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     if (options.maximized || panel.contains(event.target as Node)) return;
     close();
   };
+  // While the panel is up the wheel never moves what lies under it. Inside the
+  // panel it scrolls the panel's own scrollers and stops at their ends instead
+  // of chaining out to the timeline; outside, a resting panel closes.
+  const onWheel = (event: WheelEvent) => {
+    if (event.ctrlKey) return; // pinch zoom
+    const target = event.target as Node;
+    if (panel.contains(target)) {
+      if (!scrollsWithin(target, panel, event.deltaX, event.deltaY)) event.preventDefault();
+      return;
+    }
+    event.preventDefault();
+    if (!options.maximized) close();
+  };
+  const onPointerDown = (event: PointerEvent) => {
+    if (!panel.contains(event.target as Node)) close();
+  };
   const onKey = (event: KeyboardEvent) => {
     if (event.key === "Escape") close();
   };
   const onResize = options.maximized ? measure : close;
   const onBlur = () => { if (!options.maximized) close(); };
   view.addEventListener("scroll", onScroll, true);
+  view.addEventListener("wheel", onWheel, { capture: true, passive: false });
   view.addEventListener("resize", onResize);
   view.addEventListener("blur", onBlur);
+  panel.ownerDocument.addEventListener("pointerdown", onPointerDown, true);
   panel.ownerDocument.addEventListener("keydown", onKey);
   return () => {
     view.removeEventListener("scroll", onScroll, true);
+    view.removeEventListener("wheel", onWheel, true);
     view.removeEventListener("resize", onResize);
     view.removeEventListener("blur", onBlur);
+    panel.ownerDocument.removeEventListener("pointerdown", onPointerDown, true);
     panel.ownerDocument.removeEventListener("keydown", onKey);
     resizeObserver.disconnect();
     mutationObserver.disconnect();
     panel.hidePopover();
   };
+}
+
+/**
+ * True when a scroller between `target` and `root` (exclusive) can still move
+ * by this wheel delta, so the browser should take the event.
+ */
+export function scrollsWithin(target: Node, root: HTMLElement, deltaX: number, deltaY: number): boolean {
+  const view = root.ownerDocument.defaultView!;
+  for (let node: Node | null = target; node && node !== root; node = node.parentNode) {
+    if (node.nodeType !== 1) continue;
+    const element = node as HTMLElement;
+    const style = view.getComputedStyle(element);
+    if (deltaY !== 0 && /auto|scroll|overlay/.test(style.overflowY)) {
+      const room = deltaY < 0 ? element.scrollTop : element.scrollHeight - element.clientHeight - element.scrollTop;
+      if (room > 1) return true;
+    }
+    if (deltaX !== 0 && /auto|scroll|overlay/.test(style.overflowX)) {
+      const room = deltaX < 0 ? element.scrollLeft : element.scrollWidth - element.clientWidth - element.scrollLeft;
+      if (room > 1) return true;
+    }
+  }
+  return false;
 }
 
 /**
