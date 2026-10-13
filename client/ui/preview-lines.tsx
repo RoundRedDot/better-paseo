@@ -83,7 +83,7 @@ function measureWebTops(root: HTMLElement, lineHeight: number, count: number): n
  * too. The shading is drawn behind it and the numbers in a column of their
  * own beside it, both placed from where the text laid each line out.
  */
-export function PreviewLines({ text, lines, style, tokens, renderLine, diff = false, firstLine = 1 }: {
+export function PreviewLines({ text, lines, style, tokens, renderLine, diff = false, firstLine = 1, numbered = true }: {
   /** The content as one text, drawn as is when there is nothing to place. */
   text: string;
   lines: readonly string[];
@@ -96,14 +96,16 @@ export function PreviewLines({ text, lines, style, tokens, renderLine, diff = fa
   diff?: boolean;
   /** The number of the first line, for a read of part of a file. */
   firstLine?: number;
+  /** False for lines that are no file's lines, which get no number column. */
+  numbered?: boolean;
 }) {
   const { previewLineNumbers, previewStripes } = useEnhancerPreferences();
   const wraps = usePreviewWraps();
   const lineHeight = tokens.typography.mono.lineHeight;
   const placed = previewLineNumbers || previewStripes;
   const numbers = useMemo(
-    () => (!previewLineNumbers ? null : diff ? diffLineNumbers(lines) : lines.map((_, index) => firstLine + index)),
-    [previewLineNumbers, diff, lines, firstLine],
+    () => (!previewLineNumbers || !numbered ? null : diff ? diffLineNumbers(lines) : lines.map((_, index) => firstLine + index)),
+    [previewLineNumbers, numbered, diff, lines, firstLine],
   );
   const content = useMemo(
     () => renderLine
@@ -122,7 +124,7 @@ export function PreviewLines({ text, lines, style, tokens, renderLine, diff = fa
   const tops = measured ?? lines.map((_, index) => index * lineHeight);
   const bottom = height ?? lines.length * lineHeight;
   const contentRef = useRef<View>(null);
-  const selection = useLineSelection({ enabled: previewLineNumbers, lines, tops, bottom, contentRef });
+  const selection = useLineSelection({ enabled: previewLineNumbers && numbered, lines, tops, bottom, contentRef });
   const onTextLayout = useCallback((event: NativeSyntheticEvent<TextLayoutEventData>) => {
     const visual = (event.nativeEvent.lines as ReadonlyArray<VisualLine | string>)
       .map((line) => (typeof line === "string" ? { text: line } : line));

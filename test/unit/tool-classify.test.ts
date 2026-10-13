@@ -123,6 +123,21 @@ describe("classifyTool", () => {
     expect(prompt(" Find x \n")).toBeUndefined();
   });
 
+  it("builds an edit's diff from its old and new text when the provider sent no diff", () => {
+    const view = classifyTool(call("Edit", { type: "edit", filePath: "/w/a.ts", oldString: "a\nb\n", newString: "a\nB\n" }));
+    expect(view).toMatchObject({ diff: " a\n-b\n+B", diffFromText: true });
+    const added = classifyTool(call("Edit", { type: "edit", filePath: "/w/a.ts", newString: "x" }));
+    expect(added).toMatchObject({ diff: "+x", diffFromText: true });
+  });
+
+  it("keeps the provider's own diff over one built from the text", () => {
+    const view = classifyTool(
+      call("Edit", { type: "edit", filePath: "/w/a.ts", oldString: "a", newString: "b", unifiedDiff: "@@ -3 +3 @@\n-a\n+b" }),
+    );
+    expect(view.diff).toBe("@@ -3 +3 @@\n-a\n+b");
+    expect(view.diffFromText).toBeUndefined();
+  });
+
   it("drops an error the transformer could only stringify as [object Object]", () => {
     const view = classifyTool(call("Bash", { type: "shell", command: "x", output: "boom" }, { status: "failed", error: "[object Object]" }));
     expect(view.error).toBeUndefined();

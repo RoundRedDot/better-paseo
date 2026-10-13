@@ -39,6 +39,16 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
     { verb: "Edit", targetIsPath: true, meta: ["+12 −3"] },
   ],
   [
+    "edit from old and new text counts the lines that changed",
+    call("Edit", { type: "edit", filePath: "/w/src/a.ts", oldString: "a\nb\nc\n", newString: "a\nB\nc\nd\n" }),
+    { verb: "Edit", meta: ["+2 −1"] },
+  ],
+  [
+    "edit from old and new text counts a changed SQL comment as a line, not a file header",
+    call("Edit", { type: "edit", filePath: "/w/q.sql", oldString: "-- old\nselect 1", newString: "-- new\nselect 1" }),
+    { verb: "Edit", meta: ["+1 −1"] },
+  ],
+  [
     "bash · exit 0 · 1.2s",
     call("Bash", { type: "unknown", input: { command: "npm test\nnpm run lint" }, output: "", exitCode: 0, durationMs: 1200 }),
     { verb: "Bash", target: "npm test …", meta: ["exit 0", "1.2s"], tone: "default" },
