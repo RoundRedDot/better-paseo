@@ -35,7 +35,7 @@ export function LocalLink({
       accessibilityRole="link"
       accessibilityLabel={absolutePath}
       accessibilityHint={copies ? "Copies the path" : "Reveals the file"}
-      onPress={() => (copies ? void copy(absolutePath, { feedback: "toast" }) : reveal(absolutePath))}
+      onPress={() => (copies ? void copy(absolutePath, { feedback: "toast", label: "Copy path" }) : reveal(absolutePath))}
       style={context.styles.link}
     >
       {children}

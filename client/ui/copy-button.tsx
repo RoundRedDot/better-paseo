@@ -39,8 +39,8 @@ export function CopyButton({
   const { hovered, hoverProps } = useHover();
   const onPress = useCallback(() => {
     const value = typeof text === "function" ? text() : text;
-    if (value) void copy(value, { feedback });
-  }, [copy, feedback, text]);
+    if (value) void copy(value, { feedback, label });
+  }, [copy, feedback, label, text]);
 
   // Success is not coloured (plan §3.6): the check itself is the signal.
   const color = copied ? tokens.foreground : tokens.foregroundMuted;

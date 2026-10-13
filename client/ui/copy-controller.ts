@@ -11,11 +11,17 @@ export const COPY_FAILED_MESSAGE = "Couldn't copy";
 
 export interface CopyOptions {
   feedback?: CopyFeedback;
+  /**
+   * What is copied, as its button names it ("Copy path"): the toast says
+   * "Copied path", so two copies side by side are told apart.
+   */
+  label?: string;
 }
 
 export interface CopyControllerDeps {
   copyText(text: string): Promise<void>;
-  toast: { show(message: string): void; error(message: string): void };
+  /** `label` is the copy's `CopyOptions.label`, when it has one. */
+  toast: { show(message: string, label?: string): void; error(message: string): void };
   onCopiedChange(copied: boolean): void;
   setTimer(callback: () => void, ms: number): unknown;
   clearTimer(handle: unknown): void;
@@ -53,7 +59,7 @@ export function createCopyController(deps: CopyControllerDeps): CopyController {
       }
       if (disposed) return true;
       // Every copy confirms with a toast; a button also turns its icon into a check.
-      deps.toast.show(COPIED_MESSAGE);
+      deps.toast.show(COPIED_MESSAGE, options.label);
       if (feedback === "toast") return true;
       // A second copy restarts the 1.2 s rather than stacking timers.
       clear();

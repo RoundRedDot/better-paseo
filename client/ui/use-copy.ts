@@ -16,7 +16,7 @@ import {
   type CopyOptions,
 } from "./copy-controller";
 import { getEnhancerPreferences } from "../preferences";
-import { toolbarLabel } from "../i18n/toolbar-strings";
+import { copiedToast, toolbarLabel } from "../i18n/toolbar-strings";
 
 export type { CopyFeedback, CopyOptions } from "./copy-controller";
 
@@ -36,7 +36,10 @@ export function useCopy(): {
       copyText,
       // In the settings page's language, read when the toast is shown.
       toast: {
-        show: (message) => toastRef.current.show(toolbarLabel(message, getEnhancerPreferences().language)),
+        show: (message, label) => {
+          const language = getEnhancerPreferences().language;
+          toastRef.current.show(label ? copiedToast(label, language) : toolbarLabel(message, language));
+        },
         error: (message) => toastRef.current.error(toolbarLabel(message, getEnhancerPreferences().language)),
       },
       onCopiedChange: setCopied,

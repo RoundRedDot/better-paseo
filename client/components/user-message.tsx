@@ -87,7 +87,7 @@ export function UserMessage({
   // The shared copy path: the icon turns into a check for 1.2 s, a failure
   // is a toast, and the timer is cleared on unmount.
   const { copied, copy } = useCopy();
-  const handleCopy = useCallback(() => void copy(text), [copy, text]);
+  const handleCopy = useCallback(() => void copy(text, { label: "Copy prompt" }), [copy, text]);
   const capabilities = useInputCapabilities(compact);
 
   const styles = useMemo(() => {
