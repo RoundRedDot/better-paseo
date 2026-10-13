@@ -20,8 +20,8 @@ interface HScrollProps {
   /** The scroller's own style. */
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
-  /** Space between the content and the indicator; defaults to 4pt. */
-  trackGap?: number;
+  /** The indicator's own style, to move it off the default 4pt under the content. */
+  trackStyle?: StyleProp<ViewStyle>;
 }
 
 /**
@@ -36,7 +36,7 @@ interface HScrollProps {
  * and one content-size callback; the indicator is mounted only while the
  * content overflows, so a table that fits costs the scroller alone.
  */
-export function HScroll({ tokens, children, style, contentContainerStyle, trackGap = TRACK_GAP }: HScrollProps) {
+export function HScroll({ tokens, children, style, contentContainerStyle, trackStyle }: HScrollProps) {
   const [viewport, setViewport] = useState(0);
   const [content, setContent] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -90,7 +90,7 @@ export function HScroll({ tokens, children, style, contentContainerStyle, trackG
         {children}
       </Animated.ScrollView>
       {overflow ? (
-        <View style={[styles.track, { marginTop: trackGap, backgroundColor: tokens.v2.surface2 }]} pointerEvents="none">
+        <View style={[styles.track, { backgroundColor: tokens.v2.surface2 }, trackStyle]} pointerEvents="none">
           <Animated.View
             style={[
               styles.thumb,
@@ -106,6 +106,7 @@ export function HScroll({ tokens, children, style, contentContainerStyle, trackG
 const styles = StyleSheet.create({
   track: {
     height: TRACK,
+    marginTop: TRACK_GAP,
     borderRadius: TRACK / 2,
     overflow: "hidden",
   },
