@@ -3,7 +3,7 @@
  * Moved unchanged from the pre-marked `markdown-view.tsx`, so a reply looks
  * the same on either engine; additions are marked as such.
  */
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { radiusV2, space, type ExtendedThemeTokens } from "../../theme-tokens";
 import { even, proseScale } from "../../../ui/tokens/typography";
@@ -265,8 +265,11 @@ export function buildStyles(
   // the hash run carry the hierarchy that size cannot.
   const topColor = variant === "terminal" ? tokens.accent : text;
 
+  // The tokens' platform rather than the running one: the settings page's
+  // mobile preview draws a phone's code spans on the web.
+  const web = tokens.platform === "web";
   const codeBase: TextStyle =
-    Platform.OS === "web"
+    web
       ? {
           fontFamily: tokens.fontMono,
           fontSize: metrics.codeSize,
@@ -290,7 +293,7 @@ export function buildStyles(
   // A step under the body and in grey, SF Mono reads thinner than the prose
   // around it until semibold; medium was still too light on a phone.
   // Android's monospace has one face and synthesizes the same bold.
-  const codeSpanWeight: TextStyle["fontWeight"] = Platform.OS === "web" ? undefined : "600";
+  const codeSpanWeight: TextStyle["fontWeight"] = web ? undefined : "600";
   const codeSpan: TextStyle =
     codeSpanWeight === undefined ? codeBase : { ...codeBase, fontWeight: codeSpanWeight };
 

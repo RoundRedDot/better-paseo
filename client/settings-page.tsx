@@ -26,7 +26,13 @@ import {
   type RowLabelStylePreference,
   type UiFontPreference,
 } from "./preferences";
-import { NATIVE_MONO_CHOICES, TYPE, describeMonoSource, readHostTypography } from "./ui/tokens/typography";
+import {
+  DEFAULT_WEB_MONO_STACK,
+  NATIVE_MONO_CHOICES,
+  TYPE,
+  describeMonoSource,
+  readHostTypography,
+} from "./ui/tokens/typography";
 import { usePreferenceSettings } from "./state/preference-sync-slot";
 import { useWideHostColumn } from "./ui/wide-host-column";
 import { SettingsPreview } from "./settings-preview";
@@ -69,6 +75,11 @@ const INLINE_CODE_OPTIONS: ReadonlyArray<{
   { id: "green", label: "inlineCodeGreen" },
   { id: "coral", label: "inlineCodeCoral" },
 ];
+
+type PreviewDevice = "desktop" | "mobile";
+
+/** A phone's width in points, chat padding included. */
+const PHONE_WIDTH = 390;
 
 /** Switch geometry (S7 §3.9): a 40x24 track and an 18pt knob. */
 const TRACK_WIDTH = 40;
@@ -661,6 +672,7 @@ function PreviewPanel({
   preferences,
   pointer,
   side,
+  mobileTokens,
 }: {
   look: PageLook;
   preferences: EnhancerPreferences;
@@ -668,11 +680,24 @@ function PreviewPanel({
   pointer: boolean;
   /** Drawn in the side column rather than above the options. */
   side: boolean;
+  /**
+   * Tokens for a phone's rows, which add a Desktop / Mobile switch; null on
+   * iOS and Android, where the preview already draws as a phone does.
+   */
+  mobileTokens: ExtendedThemeTokens | null;
 }) {
   const { tokens, compact, t } = look;
   const [open, setOpen] = useState(true);
+  const [device, setDevice] = useState<PreviewDevice>("desktop");
   const { height } = useWindowDimensions();
-  const rows = <SettingsPreview tokens={tokens} preferences={preferences} compact={compact} t={t} />;
+  const mobile = mobileTokens !== null && device === "mobile";
+  const rows = mobile ? (
+    <View style={[styles.phoneFrame, { borderColor: tokens.v2.border }]}>
+      <SettingsPreview tokens={mobileTokens} preferences={preferences} compact t={t} />
+    </View>
+  ) : (
+    <SettingsPreview tokens={tokens} preferences={preferences} compact={compact} t={t} />
+  );
   return (
     <View style={[styles.previewCard, compact ? styles.previewCardInset : null, { borderColor: tokens.v2.border }]}>
       <View
@@ -688,10 +713,23 @@ function PreviewPanel({
           </Text>
           {open ? (
             <Text style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-              {pointer ? t.previewHintPointer : t.previewHintTouch}
+              {mobile ? t.previewHintMobile : pointer ? t.previewHintPointer : t.previewHintTouch}
             </Text>
           ) : null}
         </View>
+        {open && mobileTokens ? (
+          // Sized as on a desktop row even on a narrow page: it sits in a header, not a row of its own.
+          <Segmented<PreviewDevice>
+            label={t.previewDevice}
+            value={device}
+            options={[
+              { value: "desktop", label: t.previewDesktop },
+              { value: "mobile", label: t.previewMobile },
+            ]}
+            onChange={setDevice}
+            look={{ ...look, compact: false }}
+          />
+        ) : null}
         {side ? null : (
           <PlainButton label={open ? t.previewHide : t.previewShow} onPress={() => setOpen(!open)} look={look} />
         )}
@@ -773,7 +811,18 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
   const nativeChoices = platform === "web" ? [] : NATIVE_MONO_CHOICES[platform];
   const previews = preferences.hoverPreview;
 
-  const preview = <PreviewPanel look={look} preferences={preferences} pointer={!native} side={side} />;
+  // The web page also previews a phone: iOS rows at a phone's width, with
+  // the platform monospace and inline code without a fill.
+  const mobileTokens = useMemo(() => {
+    if (native) return null;
+    const ios = buildThemeTokens(theme.colors, preferences, { platform: "ios", theme });
+    // iOS names its monospace `ui-monospace`, which Chromium (Electron
+    // included) does not know: it would draw the code in a serif face.
+    return { ...ios, fontMono: `${ios.fontMono}, ${DEFAULT_WEB_MONO_STACK}` };
+  }, [native, preferences, theme]);
+  const preview = (
+    <PreviewPanel look={look} preferences={preferences} pointer={!native} side={side} mobileTokens={mobileTokens} />
+  );
 
   const options = (
     <View style={styles.options}>
@@ -1337,5 +1386,13 @@ const styles = StyleSheet.create({
   previewHeaderText: { flex: 1, minWidth: 0, gap: 2 },
   previewScroll: { flexGrow: 0 },
   previewBody: { padding: space.lg },
+  phoneFrame: {
+    width: "100%",
+    maxWidth: PHONE_WIDTH,
+    alignSelf: "center",
+    borderWidth: 1,
+    borderRadius: radiusV2.bubble,
+    padding: space.lg,
+  },
   reset: { gap: space.sm },
 });
