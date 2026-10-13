@@ -9,6 +9,7 @@ import { selectionSurface } from "../components/selection-actions";
 import { bindPreviewMaximize, bindPreviewPointer, dropSelectionIn, openPreviewLayer } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { cssShadow } from "./tokens/css-shadow";
+import { floatShadow } from "./tokens/float";
 import { DEFAULT_PREFERENCES, HOVER_DELAY_MS, useEnhancerPreferences } from "../preferences";
 import { SafeInset } from "./safe-inset";
 import { phoneChrome, pressPreviewFrame } from "./press-preview-placement";
@@ -208,12 +209,7 @@ function panelLook(tokens: ExtendedThemeTokens) {
   return {
     backgroundColor: tokens.surface0,
     borderColor: tokens.v2.border,
-    boxShadow: cssShadow({
-      ...tokens.v2.elevation.overlay,
-      shadowOffset: { width: 0, height: 8 },
-      shadowRadius: 24,
-      shadowOpacity: tokens.isDark ? 0.36 : 0.22,
-    }),
+    boxShadow: floatShadow(tokens),
   };
 }
 
