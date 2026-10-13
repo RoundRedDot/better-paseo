@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
@@ -52,16 +52,31 @@ interface ToolbarButtonProps {
  * A 24pt icon button of a preview toolbar. A pointer resting on it shows its
  * name underneath; touch has no hover, so there the label is only spoken.
  */
-export function ToolbarButton({
-  icon,
+export function ToolbarButton({ icon, color, tokens, ...props }: ToolbarButtonProps) {
+  return <ToolbarItem {...props} tokens={tokens}>
+    <Icon name={icon} size={14} color={color ?? tokens.foregroundMuted} />
+  </ToolbarItem>;
+}
+
+/** A passive toolbar icon with the same hover name as the action buttons. */
+export function ToolbarIcon({ children, ...props }: {
+  children: ReactNode;
+  label: string;
+  tokens: ExtendedThemeTokens;
+  align?: TooltipAlign;
+}) {
+  return <ToolbarItem {...props}>{children}</ToolbarItem>;
+}
+
+function ToolbarItem({
+  children,
   label,
   onPress,
   tokens,
   disabled = false,
   checked,
-  color,
   align: alignProp,
-}: ToolbarButtonProps) {
+}: Omit<ToolbarButtonProps, "icon" | "color" | "onPress"> & { children: ReactNode; onPress?: () => void }) {
   const groupAlign = useContext(TooltipAlignContext);
   const sideMode = useContext(TooltipSideContext);
   const anchorRef = useRef<View>(null);
@@ -90,9 +105,10 @@ export function ToolbarButton({
     // can only rise over the buttons after this one if the button does.
     <View ref={anchorRef} style={[styles.anchor, named && styles.raised]}>
       <Pressable
-        accessibilityRole="button"
+        accessibilityRole={onPress ? "button" : "image"}
         accessibilityLabel={label}
-        accessibilityState={checked === undefined ? { disabled } : { disabled, checked }}
+        accessibilityState={onPress ? checked === undefined ? { disabled } : { disabled, checked } : undefined}
+        focusable={onPress ? undefined : false}
         disabled={disabled}
         hitSlop={4}
         onPress={onPress}
@@ -100,11 +116,11 @@ export function ToolbarButton({
         style={({ pressed }) => [
           styles.button,
           disabled && styles.disabled,
-          !disabled && hovered && { backgroundColor: tokens.v2.surface2 },
-          !disabled && pressed && { backgroundColor: tokens.v2.surface2 },
+          onPress && !disabled && hovered && { backgroundColor: tokens.v2.surface2 },
+          onPress && !disabled && pressed && { backgroundColor: tokens.v2.surface2 },
         ]}
       >
-        <Icon name={icon} size={14} color={color ?? tokens.foregroundMuted} />
+        {children}
       </Pressable>
       {named ? (
         <View pointerEvents="none" style={[styles.tooltipSlot, side === "above" ? styles.above : styles.below, ALIGN[align]]}>
