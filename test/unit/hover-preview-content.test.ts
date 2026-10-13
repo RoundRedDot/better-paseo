@@ -18,9 +18,9 @@ vi.mock("@getpaseo/plugin/client", () => ({
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { ToolCallout } from "../../client/components/tool-callouts";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
-import { DisclosureHeader } from "../../client/ui/disclosure-header";
+import { DisclosureHeader, RowIcon } from "../../client/ui/disclosure-header";
 import { HoverPreviewHeader } from "../../client/ui/hover-preview";
-import { classifyTool } from "../../client/tools/classify";
+import { classifyTool, type ToolKind } from "../../client/tools/classify";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { sourceLineTops } from "../../client/ui/preview-lines";
 
@@ -68,6 +68,36 @@ function previewOf(element: React.ReactElement) {
   return text;
 }
 describe("full hover preview content", () => {
+  it.each<ToolKind>([
+    "git", "github", "paseo", "bash", "shell", "read", "edit", "write", "thinking", "eval",
+    "ask", "mcp", "task", "hub", "search", "fetch", "worktree_setup", "sub_agent", "plan", "plain_text", "unknown",
+  ])("uses the timeline row's icon renderer for a %s preview", async (tool) => {
+    const data = { ...classifyTool({ name: "Read", status: "completed", detail: {
+      type: "read", filePath: "/w/a.ts", content: "const value = 1;",
+    } }), tool };
+    await exercisePreview(React.createElement(ToolCallout, { data, tokens }), async (body, row) => {
+      const timelineIcon = row.root.findByType(DisclosureHeader).props.icon as React.ReactElement<{ name: string }>;
+      const previewIcon = body.root.findByProps({ testID: "hover-preview-icon" }).findByType(RowIcon);
+      expect(timelineIcon.type).toBe(RowIcon);
+      expect(previewIcon.props.name).toBe(timelineIcon.props.name);
+      expect(previewIcon.props.color).toBe(tokens.foregroundMuted);
+    });
+  });
+
+  it("updates the preview icon to match the call selected by the group pager", async () => {
+    const calls = ["Read", "Edit"].map((name, index) => classifyTool({
+      callId: String(index), name, status: "completed", detail: index
+        ? { type: "edit", filePath: "/w/a.ts", unifiedDiff: "-old\n+new" }
+        : { type: "read", filePath: "/w/a.ts", content: "old" },
+    }));
+    await exercisePreview(React.createElement(ToolCallout, { data: calls[0]!, groupCalls: calls, tokens }), async (body) => {
+      const kind = () => body.root.findByProps({ testID: "hover-preview-icon" }).findByType(RowIcon).props.name;
+      expect(kind()).toBe("FileText");
+      await press(body, "Next operation");
+      expect(kind()).toBe("Pencil");
+    });
+  });
+
   it("lays every copy out on the preview's toolbar, each with its own icon", async () => {
     const data = classifyTool({ name: "Bash", status: "completed", detail: {
       type: "shell", command: "printf full-command", output: "\u001b[1mfull-output\u001b[0m\n",

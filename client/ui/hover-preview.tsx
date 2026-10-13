@@ -284,8 +284,8 @@ function measureWidth(node: unknown, done: (width: number) => void) {
  */
 export function HoverPreviewHeader({ tokens, icon, center, children }: {
   tokens: ExtendedThemeTokens;
-  /** What the panel shows, as a glyph in a button's box at the far left. */
-  icon?: string;
+  /** A glyph name or the content's own icon, in a button's box at the far left. */
+  icon?: ReactNode;
   center?: ReactNode;
   children?: ReactNode;
 }) {
@@ -308,7 +308,7 @@ export function HoverPreviewHeader({ tokens, icon, center, children }: {
         <View style={styles.toolbarStart}>
           {icon ? (
             <View testID="hover-preview-icon" style={styles.toolbarIcon}>
-              <Glyph name={icon} size={14} color={tokens.foregroundMuted} />
+              {typeof icon === "string" ? <Glyph name={icon} size={14} color={tokens.foregroundMuted} /> : icon}
             </View>
           ) : null}
           {/* At the panel's left edge: its name opens rightwards. */}
