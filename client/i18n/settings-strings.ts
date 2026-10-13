@@ -98,10 +98,6 @@ const en = {
   uiFontWeb: "Follow Paseo's interface font, or choose the embedded Inter face or the system face.",
 
   sectionTools: "Tools and paths",
-  hoverPreviewTitle: "Hover previews",
-  hoverPreviewDescription: "Show a preview when hovering over collapsed rows and file paths on desktop, or long-pressing a collapsed row on a phone.",
-  hoverDelayTitle: "Hover delay",
-  hoverDelayDescription: "Time to wait before showing a desktop hover preview.",
   toolDetailTitle: "Tool details",
   toolDetailDescription: "Tool calls start as one line. Choose whether a failed call opens on its own.",
   toolDetailCollapsed: "Always collapsed",
@@ -123,6 +119,18 @@ const en = {
   replySpacingTitle: "Compact reply spacing",
   replySpacingDescription:
     "Sets a reply closer to the tool, thought or todo row that follows it than Paseo does: 4pt instead of Paseo's own 16pt. Above a prompt or another reply the gap stays. Turn it off for Paseo's own spacing, or if a reply overlaps the row below it.",
+
+  sectionPreview: "Preview panel",
+  hoverPreviewTitle: "Hover previews",
+  hoverPreviewDescription: "Show a preview when hovering over collapsed rows and file paths on desktop, or long-pressing a collapsed row on a phone.",
+  hoverDelayTitle: "Hover delay",
+  hoverDelayDescription: "Time to wait before showing a desktop hover preview.",
+  previewLineNumbersTitle: "Line numbers",
+  previewLineNumbersDescription:
+    "Number the lines of a file, diff or command output in a preview. A diff shows the file's own line numbers. On a phone, text is then selected one line at a time.",
+  previewStripesTitle: "Alternating line shading",
+  previewStripesDescription:
+    "Shade every other line of a file, diff or command output in a preview, so a wrapped line is easy to follow. On a phone, text is then selected one line at a time.",
 
   sectionMessages: "Messages",
   bubbleTitle: "Enhanced prompt bubble",
@@ -206,10 +214,6 @@ const zh: SettingsStrings = {
   uiFontWeb: "跟随 Paseo 的界面字体，或选择内置的 Inter 字体或系统字体。",
 
   sectionTools: "工具与路径",
-  hoverPreviewTitle: "Hover 弹窗",
-  hoverPreviewDescription: "在桌面端将鼠标停留在折叠行或文件路径上，或在手机上长按折叠行时显示预览弹窗。",
-  hoverDelayTitle: "Hover 延迟",
-  hoverDelayDescription: "鼠标停留多久后显示桌面端 hover 弹窗。",
   toolDetailTitle: "工具详情",
   toolDetailDescription: "工具调用默认只显示一行。可以选择失败的调用是否自动展开。",
   toolDetailCollapsed: "始终折叠",
@@ -229,6 +233,18 @@ const zh: SettingsStrings = {
   replySpacingTitle: "紧凑回复间距",
   replySpacingDescription:
     "让回复和下面紧跟的工具、思考或待办行之间比 Paseo 原生更紧凑：间距从 Paseo 原生的 16pt 缩到 4pt。下面是提问或另一条回复时间距不变。关闭后恢复 Paseo 原生间距；回复和下面的行重叠时也请关闭。",
+
+  sectionPreview: "预览弹窗",
+  hoverPreviewTitle: "Hover 弹窗",
+  hoverPreviewDescription: "在桌面端将鼠标停留在折叠行或文件路径上，或在手机上长按折叠行时显示预览弹窗。",
+  hoverDelayTitle: "Hover 延迟",
+  hoverDelayDescription: "鼠标停留多久后显示桌面端 hover 弹窗。",
+  previewLineNumbersTitle: "显示行号",
+  previewLineNumbersDescription:
+    "在预览弹窗里给文件、diff 和命令输出标上行号；diff 显示的是文件中的行号。开启后在手机上只能逐行选择文字。",
+  previewStripesTitle: "奇偶行底色",
+  previewStripesDescription:
+    "预览弹窗里的文件、diff 和命令输出隔行加一层底色，长行折行后也容易分清是哪一行。开启后在手机上只能逐行选择文字。",
 
   sectionMessages: "消息",
   bubbleTitle: "增强的提问气泡",

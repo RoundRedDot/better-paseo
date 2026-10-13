@@ -21,6 +21,7 @@ import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { DisclosureHeader } from "../../client/ui/disclosure-header";
 import { HoverPreviewHeader } from "../../client/ui/hover-preview";
 import { classifyTool } from "../../client/tools/classify";
+import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -115,7 +116,7 @@ describe("full hover preview content", () => {
     const data = classifyTool({ name: "Bash", status: "completed", detail: { type: "shell", command: "printf full-command", output } });
     const text = previewOf(React.createElement(ToolCallout, { data, tokens }));
     expect(text).toContain("printf full-command");
-    expect(text).toContain("output-line-0\n");
+    expect(text).toContain("output-line-0");
     expect(text).toContain("output-line-99");
     expect(text).not.toContain("earlier lines");
   });
@@ -124,7 +125,7 @@ describe("full hover preview content", () => {
     const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/full-path.ts", content } });
     const text = previewOf(React.createElement(ToolCallout, { data, tokens }));
     expect(text).toContain("/w/full-path.ts");
-    expect(text).toContain("file-line-0\n");
+    expect(text).toContain("file-line-0");
     expect(text).toContain("file-line-499");
   });
   it("shows a long thought without a Show more control", () => {
@@ -133,5 +134,91 @@ describe("full hover preview content", () => {
       streaming: false, durationMs: null, expanded: false, onToggle() {}, tokens, storeKey: "preview", copyText: thought }));
     expect(text).toContain("FINAL_SENTENCE");
     expect(text).not.toContain("Show more");
+  });
+});
+
+type JsonNode = { type: string; props: Record<string, unknown>; children: Array<JsonNode | string> | null };
+
+function findJson(node: unknown, match: (node: JsonNode) => boolean): JsonNode | null {
+  if (!node || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findJson(child, match);
+      if (found) return found;
+    }
+    return null;
+  }
+  const json = node as JsonNode;
+  return match(json) ? json : findJson(json.children, match);
+}
+
+/** Each row of a preview's lines: its gutter number, its text, and whether it is shaded. */
+function previewRows(element: React.ReactElement) {
+  let row!: ReturnType<typeof TestRenderer.create>;
+  let body!: ReturnType<typeof TestRenderer.create>;
+  act(() => { row = TestRenderer.create(element); });
+  act(() => { body = TestRenderer.create(React.createElement(React.Fragment, null, row.root.findByType(DisclosureHeader).props.previewContent())); });
+  const json = body.toJSON();
+  act(() => { row.unmount(); body.unmount(); });
+  const lines = findJson(json, (node) => node.props.testID === "preview-lines");
+  const rows = lines === null ? null : (lines.children as JsonNode[]).map((rowNode) => {
+    const style = Object.assign({}, ...[rowNode.props.style].flat(Infinity).filter(Boolean));
+    const [first, second] = rowNode.children as JsonNode[];
+    const number = second ? first! : null;
+    return { number: number ? textOf(number) : null, text: textOf(second ?? first), shaded: Boolean(style.backgroundColor) };
+  });
+  return { rows, text: textOf(json) };
+}
+
+describe("preview line numbers and shading", () => {
+  beforeEach(() => resetEnhancerPreferences());
+
+  it("shades every other line and draws no numbers by default", () => {
+    const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "one\ntwo\nthree\n" } });
+    const { rows } = previewRows(React.createElement(ToolCallout, { data, tokens }));
+    expect(rows).toEqual([
+      { number: null, text: "one", shaded: false },
+      { number: null, text: "two", shaded: true },
+      { number: null, text: "three", shaded: false },
+    ]);
+  });
+
+  it("numbers a partial read from the line it starts at", () => {
+    updateEnhancerPreferences({ previewLineNumbers: true, previewStripes: false });
+    const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "ten\neleven", offset: 10, limit: 2 } });
+    const { rows } = previewRows(React.createElement(ToolCallout, { data, tokens }));
+    expect(rows).toEqual([
+      { number: "10", text: "ten", shaded: false },
+      { number: "11", text: "eleven", shaded: false },
+    ]);
+  });
+
+  it("numbers a diff with the file's own lines and leaves its chrome blank", () => {
+    updateEnhancerPreferences({ previewLineNumbers: true });
+    const diff = "@@ -4,2 +4,2 @@\n-old\n+new\n keep";
+    const data = classifyTool({ name: "Edit", status: "completed", detail: { type: "edit", filePath: "/w/a.ts", unifiedDiff: diff } });
+    const { rows } = previewRows(React.createElement(ToolCallout, { data, tokens }));
+    expect(rows?.map((row) => [row.number, row.text])).toEqual([["", "@@ -4,2 +4,2 @@"], ["4", "-old"], ["4", "+new"], ["5", " keep"]]);
+  });
+
+  it("numbers and shades command output, keeping its colours", () => {
+    updateEnhancerPreferences({ previewLineNumbers: true });
+    const data = classifyTool({ name: "Bash", status: "completed", detail: { type: "shell", command: "make", output: "PASS a\nFAIL b\n" } });
+    const { rows } = previewRows(React.createElement(ToolCallout, { data, tokens }));
+    expect(rows).toEqual([
+      { number: "1", text: "PASS a", shaded: false },
+      { number: "2", text: "FAIL b", shaded: true },
+    ]);
+  });
+
+  it("draws the content as one text when both are off", () => {
+    updateEnhancerPreferences({ previewLineNumbers: false, previewStripes: false });
+    const read = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "one\ntwo" } });
+    const shell = classifyTool({ name: "Bash", status: "completed", detail: { type: "shell", command: "make", output: "PASS a\nFAIL b\n" } });
+    for (const data of [read, shell]) {
+      const { rows, text } = previewRows(React.createElement(ToolCallout, { data, tokens }));
+      expect(rows).toBeNull();
+      expect(text).toMatch(/one\ntwo|PASS a\nFAIL b/);
+    }
   });
 });

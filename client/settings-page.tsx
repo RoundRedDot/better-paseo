@@ -707,35 +707,6 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
 
       <Section title={t.sectionTools} look={look}>
         <SettingRow
-          title={t.hoverPreviewTitle}
-          description={t.hoverPreviewDescription}
-          control={
-            <Toggle
-              value={preferences.hoverPreview}
-              onChange={(hoverPreview) => updateEnhancerPreferences({ hoverPreview })}
-              label={t.hoverPreviewTitle}
-              look={look}
-            />
-          }
-          look={look}
-          first
-        />
-        <SettingRow
-          title={t.hoverDelayTitle}
-          description={t.hoverDelayDescription}
-          control={
-            <Segmented<HoverDelayPreference>
-              label={t.hoverDelayTitle}
-              value={preferences.hoverDelay}
-              options={HOVER_DELAYS.map((value) => ({ value, label: HOVER_DELAY_LABELS[value] }))}
-              onChange={(hoverDelay) => updateEnhancerPreferences({ hoverDelay })}
-              look={look}
-            />
-          }
-          look={look}
-          stacked
-        />
-        <SettingRow
           title={t.toolDetailTitle}
           description={t.toolDetailDescription}
           control={
@@ -751,6 +722,7 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
             />
           }
           look={look}
+          first
           stacked
         />
         <SettingRow
@@ -811,6 +783,64 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
               value={preferences.compactReplySpacing}
               onChange={(compactReplySpacing) => updateEnhancerPreferences({ compactReplySpacing })}
               label={t.replySpacingTitle}
+              look={look}
+            />
+          }
+          look={look}
+        />
+      </Section>
+
+      <Section title={t.sectionPreview} look={look}>
+        <SettingRow
+          title={t.hoverPreviewTitle}
+          description={t.hoverPreviewDescription}
+          control={
+            <Toggle
+              value={preferences.hoverPreview}
+              onChange={(hoverPreview) => updateEnhancerPreferences({ hoverPreview })}
+              label={t.hoverPreviewTitle}
+              look={look}
+            />
+          }
+          look={look}
+          first
+        />
+        <SettingRow
+          title={t.hoverDelayTitle}
+          description={t.hoverDelayDescription}
+          control={
+            <Segmented<HoverDelayPreference>
+              label={t.hoverDelayTitle}
+              value={preferences.hoverDelay}
+              options={HOVER_DELAYS.map((value) => ({ value, label: HOVER_DELAY_LABELS[value] }))}
+              onChange={(hoverDelay) => updateEnhancerPreferences({ hoverDelay })}
+              look={look}
+            />
+          }
+          look={look}
+          stacked
+        />
+        <SettingRow
+          title={t.previewLineNumbersTitle}
+          description={t.previewLineNumbersDescription}
+          control={
+            <Toggle
+              value={preferences.previewLineNumbers}
+              onChange={(previewLineNumbers) => updateEnhancerPreferences({ previewLineNumbers })}
+              label={t.previewLineNumbersTitle}
+              look={look}
+            />
+          }
+          look={look}
+        />
+        <SettingRow
+          title={t.previewStripesTitle}
+          description={t.previewStripesDescription}
+          control={
+            <Toggle
+              value={preferences.previewStripes}
+              onChange={(previewStripes) => updateEnhancerPreferences({ previewStripes })}
+              label={t.previewStripesTitle}
               look={look}
             />
           }

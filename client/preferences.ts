@@ -64,6 +64,10 @@ export interface EnhancerPreferences {
   hoverPreview: boolean;
   /** Time the pointer rests before a desktop hover preview opens. */
   hoverDelay: HoverDelayPreference;
+  /** Number the lines of a file, diff or command output in a preview panel. */
+  previewLineNumbers: boolean;
+  /** Shade every other line of a file, diff or command output in a preview panel. */
+  previewStripes: boolean;
   /**
    * Paseo maps a stream item to the plugin timeline item before any transformer
    * runs, and that mapping carries only the text. Pasted images therefore never
@@ -179,6 +183,8 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   pathDisplay: "relative",
   hoverPreview: true,
   hoverDelay: "500ms",
+  previewLineNumbers: false,
+  previewStripes: true,
   enhancedUserBubble: false,
   selectionActions: true,
   assistantMarkdown: true,

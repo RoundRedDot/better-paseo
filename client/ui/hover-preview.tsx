@@ -36,6 +36,11 @@ export function usePreviewPanel(): { maximized: boolean; close(): void } | null 
   if (!actions) return null;
   return { maximized: actions.maximized, close: actions.close };
 }
+/** False while the reader has turned the panel's line wrap off. */
+export function usePreviewWraps(): boolean {
+  const wrap = useContext(PreviewActionsContext)?.wrap;
+  return !wrap || wrap.on;
+}
 export const PREVIEW_OPEN_MS = HOVER_DELAY_MS[DEFAULT_PREFERENCES.hoverDelay];
 export const PREVIEW_CLOSE_MS = 150;
 
