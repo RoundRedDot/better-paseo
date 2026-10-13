@@ -2,6 +2,53 @@ import { Platform } from "react-native";
 import { PLUGIN_ROOT_ATTRIBUTE } from "./components/focus-ring";
 import { PREVIEW_LIMIT } from "./ui/press-preview-placement";
 
+/** Row hover includes child actions and ends even when a leave event is lost. */
+export function bindRowHover(node: unknown, enter: () => void, leave: () => void): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const element = node as HTMLElement | null;
+  if (!element) return () => {};
+  const doc = element.ownerDocument;
+  const view = doc.defaultView!;
+  let active = false;
+  let point: { x: number; y: number } | null = null;
+  const end = () => {
+    if (!active) return;
+    active = false;
+    doc.removeEventListener("pointermove", checkPointer, true);
+    view.removeEventListener("scroll", checkScroll, true);
+    view.removeEventListener("blur", end);
+    leave();
+  };
+  const checkPointer = (event: PointerEvent) => {
+    if (event.pointerType === "touch") return;
+    point = { x: event.clientX, y: event.clientY };
+    if (!element.contains(event.target as Node)) end();
+  };
+  const checkScroll = () => {
+    if (point && !element.contains(doc.elementFromPoint(point.x, point.y))) end();
+  };
+  const start = (event: PointerEvent) => {
+    if (event.pointerType === "touch") return;
+    point = { x: event.clientX, y: event.clientY };
+    if (active) return;
+    active = true;
+    doc.addEventListener("pointermove", checkPointer, true);
+    view.addEventListener("scroll", checkScroll, true);
+    view.addEventListener("blur", end);
+    enter();
+  };
+  // Native DOM events do not depend on React's synthetic relatedTarget path.
+  element.addEventListener("pointerenter", start);
+  element.addEventListener("pointermove", start);
+  element.addEventListener("pointerleave", end);
+  return () => {
+    element.removeEventListener("pointerenter", start);
+    element.removeEventListener("pointermove", start);
+    element.removeEventListener("pointerleave", end);
+    end();
+  };
+}
+
 
 /** Web-only pointer binding; native renderers never inspect a DOM node. */
 export function bindPreviewPointer(node: unknown, enter: () => void, leave: () => void): () => void {

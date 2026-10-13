@@ -183,8 +183,6 @@ export interface DisclosureHeaderProps {
   tone?: RowTone;
 }
 
-const IS_WEB = Platform.OS === "web";
-
 /**
  * The single row every collapsible block uses (S7 design spec §3.1):
  *
@@ -257,7 +255,7 @@ export function DisclosureHeader({
     onToggle();
   }, [anchor, onToggle]);
   const capabilities = useInputCapabilities(compact);
-  const { hovered, hoverProps } = useHover();
+  const { hovered, hoverProps } = useHover(anchorRef);
   const [pressed, setPressed] = useState(false);
   const pressIn = useCallback(() => {
     setPressed(true);
@@ -335,12 +333,9 @@ export function DisclosureHeader({
       </Text>
     ) : null;
 
-  // Web tracks the pointer with DOM mouseenter/leave, which do not end when the
-  // pointer moves onto the actions inside the row; React Native Web's hover
-  // does. Native pointers (iPad) arrive only through the Pressable's hover.
-  const pointerProps = IS_WEB
-    ? { onMouseEnter: hoverProps.onHoverIn, onMouseLeave: hoverProps.onHoverOut }
-    : hoverProps;
+  // Web binds the whole row through its DOM ref, including nested actions.
+  // Native pointers (iPad) arrive through the Pressable's hover.
+  const pointerProps = Platform.OS === "web" ? {} : hoverProps;
 
   return (
     <>
