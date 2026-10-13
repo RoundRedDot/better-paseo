@@ -136,6 +136,8 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
 }) {
   const panelRef = useRef<View>(null);
   const [overflowing, setOverflowing] = useState(false);
+  // Content whose every line fits needs no wrap toggle: both states look the same.
+  const [linesFit, setLinesFit] = useState(false);
   // Kept across Maximize, which re-renders this panel rather than remounting it.
   const [wrapOn, setWrapOn] = useState(true);
   const toggleWrap = useCallback(() => setWrapOn((on) => !on), []);
@@ -144,6 +146,7 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
     const release = openPreviewLayer(panelRef.current, preview.anchorRef.current, preview.close, {
       maximized: preview.maximized,
       onOverflow: setOverflowing,
+      onLinesFit: setLinesFit,
     });
     return () => {
       unbind();
@@ -157,7 +160,7 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
         maximized: preview.maximized,
         maximize: preview.maximize,
         close: preview.close,
-        wrap: wraps ? { on: wrapOn, toggle: toggleWrap, tokens } : undefined,
+        wrap: wraps && !linesFit ? { on: wrapOn, toggle: toggleWrap, tokens } : undefined,
       }}>
         <View
           ref={panelRef}
