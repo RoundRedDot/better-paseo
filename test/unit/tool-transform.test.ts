@@ -37,4 +37,13 @@ describe("tool_call transformer", () => {
   it("keeps a canceled status as the host reported it", () => {
     expect(data(item({ status: "canceled", metadata: {} }))?.status).toBe("canceled");
   });
+
+  it("leaves a message from another agent to the host, which knows its sender", () => {
+    const message = item({
+      callId: "paseo-agent-message:m1",
+      name: "agent_message",
+      detail: { type: "plain_text", text: "Done: tests pass", icon: "bot" },
+    });
+    expect(transformToolCall({ item: message, phase: "complete" })).toBeUndefined();
+  });
 });
