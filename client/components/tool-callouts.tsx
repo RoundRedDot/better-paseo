@@ -789,7 +789,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
         {isRunning ? "Waiting for content…" : "No content."}
       </SelectableText>;
     }
-    return <PreviewFile text={content} diff={Boolean(data.diff)}
+    return <PreviewFile text={content} diff={Boolean(data.diff)} numbered={!data.diffFromText}
       firstLine={data.tool === "read" && data.offset !== undefined && data.offset > 0 ? Math.floor(data.offset) : 1}
       style={styles.commandLine} tokens={tokens} />;
   }
@@ -934,7 +934,8 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             ) : undefined
           }
           tokens={tokens}
-          showLineNumbers
+          // A diff built from the edit's old and new text names no file lines.
+          showLineNumbers={!data.diffFromText}
           onRevealFile={revealFile}
           compact
         />

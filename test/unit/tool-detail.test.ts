@@ -50,6 +50,12 @@ describe("toolHasDetail", () => {
     expect(toolHasDetail(view({ type: "read", filePath: "/w/a.png" }, { name: "Read" }), BUDGET)).toBe(true);
   });
 
+  it("has detail for an edit that sent only its old and new text", () => {
+    expect(toolHasDetail(view({ type: "edit", filePath: "/w/a.ts", oldString: "a", newString: "b" }, { name: "Edit" }), BUDGET)).toBe(true);
+    expect(toolHasDetail(view({ type: "edit", filePath: "/w/a.ts", newString: "b" }, { name: "Edit" }), BUDGET)).toBe(true);
+    expect(toolHasDetail(view({ type: "edit", filePath: "/w/a.ts" }, { name: "Edit" }), BUDGET)).toBe(false);
+  });
+
   it("has none for an unknown call with no input and no output", () => {
     expect(toolHasDetail(view({}, { name: "frob" }), BUDGET)).toBe(false);
     expect(toolHasDetail(view({ type: "unknown", input: { x: 1 } }, { name: "frob" }), BUDGET)).toBe(true);
