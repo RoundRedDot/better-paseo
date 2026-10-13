@@ -94,6 +94,19 @@ describe("full hover preview content", () => {
       expect(row.root.findByType(DisclosureHeader).props.expanded).toBe(false);
     });
   });
+  it("shows a failed command's error, not \"completed without output\", in the preview and the opened card", () => {
+    const data = classifyTool({ name: "Bash", status: "failed", error: "Exit code 2\nerror: not found",
+      detail: { type: "shell", command: "false" } });
+    const preview = previewOf(React.createElement(ToolCallout, { data, tokens }));
+    expect(preview).toContain("Exit code 2\nerror: not found");
+    expect(preview).not.toContain("Command completed without output.");
+    let row!: ReturnType<typeof TestRenderer.create>;
+    act(() => { row = TestRenderer.create(React.createElement(ToolCallout, { data, tokens, expanded: true, onExpandedChange: () => {} })); });
+    const opened = textOf(row.toJSON());
+    expect(opened).toContain("Exit code 2\nerror: not found");
+    expect(opened).not.toContain("Command completed without output.");
+    act(() => row.unmount());
+  });
   it("copies the absolute path and file content from a read preview", async () => {
     const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "const value = 1;" } });
     await exercisePreview(React.createElement(ToolCallout, { data, tokens }), async (body) => {

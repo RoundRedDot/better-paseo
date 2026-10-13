@@ -328,6 +328,7 @@ export function ToolCallout({
             displayPath={displayPath}
           />
         )}
+        {!groupCalls && data.error ? <CallError text={data.error} tokens={tokens} /> : null}
       </View>
     </FadeIn>
   ) : null;
@@ -425,9 +426,7 @@ function GroupedCallBody({ call, preview, onViewImage, ...rest }: Omit<GroupedBo
     <>
       <ToolBody data={call} {...rest} preview={preview} onViewImage={onViewImage} />
       {errorLine ? preview ? <PreviewError text={call.error ?? errorLine} tokens={rest.tokens} /> :
-        <SelectableText style={{ color: rest.tokens.danger, fontFamily: rest.tokens.fontMono }}>
-          {call.error ?? errorLine}
-        </SelectableText> : null}
+        <CallError text={call.error ?? errorLine} tokens={rest.tokens} /> : null}
     </>
   );
 }
@@ -681,14 +680,23 @@ function PreviewOutput({ text, style, tokens }: { text: string; style: TextStyle
   return <PreviewLines text={text} lines={lines} style={style} tokens={tokens} renderLine={renderLine} />;
 }
 
-/** A call's error in a preview: line by line as its output is, all in the danger colour. */
-function PreviewError({ text, tokens }: { text: string; tokens: ExtendedThemeTokens }) {
-  const style = useMemo<TextStyle>(() => ({
+function useErrorStyle(tokens: ExtendedThemeTokens): TextStyle {
+  return useMemo<TextStyle>(() => ({
     fontFamily: tokens.fontMono,
     fontSize: tokens.typography.mono.size,
     lineHeight: tokens.typography.mono.lineHeight,
     color: tokens.danger,
   }), [tokens]);
+}
+
+/** A call's error in an opened card, set as its output is, in the danger colour. */
+function CallError({ text, tokens }: { text: string; tokens: ExtendedThemeTokens }) {
+  return <SelectableText {...selectionCodeText} style={useErrorStyle(tokens)}>{text}</SelectableText>;
+}
+
+/** A call's error in a preview: line by line as its output is, all in the danger colour. */
+function PreviewError({ text, tokens }: { text: string; tokens: ExtendedThemeTokens }) {
+  const style = useErrorStyle(tokens);
   const lines = useMemo(() => terminalLines(text), [text]);
   return <PreviewLines text={text} lines={lines} style={style} tokens={tokens} />;
 }
@@ -793,7 +801,8 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
               style={styles.terminalOutput}
             />
           ) : null}
-          {!data.shell?.stdout && !data.shell?.stderr && !data.output ? (
+          {/* A failed call's error follows the body; it is not "no output". */}
+          {!data.shell?.stdout && !data.shell?.stderr && !data.output && !(data.error && !isRunning) ? (
             <SelectableText style={styles.silentText}>
               {isRunning
                 ? "Waiting for command output…"
