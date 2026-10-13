@@ -37,7 +37,7 @@ import { TYPE, UI_SCALE } from "../ui/tokens/typography";
 import { codeSurface } from "./host-font-escape";
 import { toolCopyPlan, type ResolvePath } from "../tools/copy";
 import type { CopyAction, CopyActionId, CopyPlan } from "../copy/content";
-import { ToolbarButton, ToolbarCopyButton } from "../ui/toolbar-button";
+import { ToolbarButton, ToolbarCopyButton, TooltipAlignContext } from "../ui/toolbar-button";
 import { stringifyValue, type ToolCallView, type ToolKind } from "../tools/classify";
 import { summarizeToolCall, summarizeToolGroup } from "../tools/group";
 
@@ -441,7 +441,10 @@ function GroupedToolDetails({ calls, ...rest }: GroupedBodyProps) {
   const [index, setIndex] = useGroupPage(calls.length);
   return (
     <>
-      <GroupPager index={index} count={calls.length} onChange={setIndex} tokens={rest.tokens} />
+      {/* At the body's left edge: names open rightwards. */}
+      <TooltipAlignContext.Provider value="start">
+        <GroupPager index={index} count={calls.length} onChange={setIndex} tokens={rest.tokens} />
+      </TooltipAlignContext.Provider>
       <GroupedCallBody key={calls[index]!.callId} call={calls[index]!} {...rest} />
     </>
   );
