@@ -10,12 +10,10 @@ const STYLE_ELEMENT_ID = "better-paseo-fonts";
  * family list is not a valid React Native style value.
  */
 const LOCAL_FALLBACKS: Record<string, readonly string[]> = {
-  "OMP Iosevka": ["Iosevka", "Cascadia Code", "Consolas", "Menlo"],
-  "OMP Iosevka Code": ["Iosevka", "Cascadia Code", "Fira Code", "Consolas"],
   "OMP Inter": ["Inter", "Segoe UI", "Roboto", "Helvetica Neue"],
 };
 /**
- * Installs the given Inter and Iosevka faces.
+ * Installs the given Inter faces.
  *
  * The plugin sandbox exposes no font loader, so on web and Electron the faces
  * are declared with `@font-face` against embedded woff2 data and the browser
@@ -24,7 +22,7 @@ const LOCAL_FALLBACKS: Record<string, readonly string[]> = {
  * embedding native assets needs a build step a directory plugin does not have.
  *
  * Injection is idempotent: a second client mounting reuses the existing style
- * element rather than parsing 75 KB of font data again.
+ * element rather than parsing the font data again.
  *
  * The plugin calls it only through `ensureEmbeddedFonts`, once a reader has
  * picked a face that needs it: "Follow Paseo" draws with the host's own
@@ -59,15 +57,14 @@ export function embedFonts(faces: readonly EmbeddedFontFace[]): () => void {
 }
 
 /**
- * Whether these preferences draw an embedded face: Iosevka (or Iosevka Code)
- * for monospace, or Inter for the interface. Web only; native never loads
- * them.
+ * Whether these preferences draw an embedded face: Inter for the interface.
+ * Web only; native never loads it.
  */
 export function needsEmbeddedFonts(
-  preferences: Pick<EnhancerPreferences, "monoFont" | "uiFont">,
+  preferences: Pick<EnhancerPreferences, "uiFont">,
   platform: TypographyPlatform,
 ): boolean {
-  return platform === "web" && (preferences.monoFont === "iosevka" || preferences.uiFont === "inter");
+  return platform === "web" && preferences.uiFont === "inter";
 }
 
 export type EmbeddedFontLoader = () => Promise<readonly EmbeddedFontFace[]>;
@@ -96,7 +93,7 @@ type FacesHolder = { [FACES_KEY]?: readonly EmbeddedFontFace[] };
 
 /** Installs the embedded faces the first time a reader's choice needs them. */
 export function ensureEmbeddedFonts(
-  preferences: Pick<EnhancerPreferences, "monoFont" | "uiFont">,
+  preferences: Pick<EnhancerPreferences, "uiFont">,
   platform: TypographyPlatform,
 ): void {
   if (!needsEmbeddedFonts(preferences, platform) || typeof document === "undefined") return;
@@ -129,22 +126,6 @@ export function removeEmbeddedFonts(): void {
 }
 
 /**
- * Measures whether a family renders with a uniform advance. This is the only
- * check that proves a face is actually in use: `FontFaceSet.check` reports
- * load state, so it answers false for any face nothing has painted yet.
- */
-function advanceWidths(family: string): number[] | null {
-  try {
-    const context = document.createElement("canvas").getContext("2d");
-    if (!context) return null;
-    context.font = `14px "${family}"`;
-    return [..."iWM1l.@#"].map((character) => context.measureText(character).width);
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Loads the embedded faces and reports what happened, in one line fit for the
  * surface header. Written as a probe rather than a boolean because the useful
  * information is *why* a face did not resolve: a missing style element, a
@@ -160,7 +141,7 @@ export async function probeFonts(): Promise<string> {
   if (!fonts) return "Fonts: FontFaceSet unavailable on this host";
 
   const parts: string[] = [];
-  for (const family of [EMBEDDED_FAMILY.ui, EMBEDDED_FAMILY.mono]) {
+  for (const family of [EMBEDDED_FAMILY.ui]) {
     try {
       const faces = await fonts.load(`400 14px "${family}"`);
       parts.push(`${family}: ${faces.length > 0 ? "loaded" : "no match"}`);
@@ -168,13 +149,6 @@ export async function probeFonts(): Promise<string> {
       const message = error instanceof Error ? error.message : String(error);
       parts.push(`${family}: ${message.slice(0, 48)}`);
     }
-  }
-
-  const widths = advanceWidths(EMBEDDED_FAMILY.mono);
-  if (widths) {
-    const uniform = new Set(widths.map((w) => w.toFixed(2))).size === 1;
-    const firstWidth = widths[0] ?? 0;
-    parts.push(`mono ${uniform ? "uniform" : "proportional"} @${firstWidth.toFixed(2)}px`);
   }
 
   // The host forces its own font over every plugin class, so report whether

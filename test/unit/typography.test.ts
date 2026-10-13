@@ -16,12 +16,10 @@ import {
 
 const follow: TypographyPreferences = {
   uiFont: "host",
-  codeFont: "code",
   monoFont: "host",
   customMonoFont: "",
   codeFontSize: null,
 };
-const iosevka: TypographyPreferences = { ...follow, monoFont: "iosevka" };
 const custom: TypographyPreferences = { ...follow, monoFont: "custom", customMonoFont: "Menlo" };
 
 const noHost = { colors: {} };
@@ -35,7 +33,7 @@ const withHost = {
 };
 
 const PLATFORMS: TypographyPlatform[] = ["web", "ios", "android"];
-const SETTINGS = { follow, iosevka, custom } as const;
+const SETTINGS = { follow, custom } as const;
 const THEMES = { noHost, withHost } as const;
 
 /**
@@ -49,27 +47,20 @@ const EXPECTED: Record<
   web: {
     // Without H1, Paseo's own default stack, never the embedded face.
     follow: { noHost: { starts: HOST_DEFAULT_WEB_MONO }, withHost: { starts: '"JetBrains Mono"' } },
-    iosevka: {
-      noHost: { starts: `"${EMBEDDED_FAMILY.mono}"` },
-      withHost: { starts: `"${EMBEDDED_FAMILY.mono}"` },
-    },
     custom: { noHost: { starts: '"Menlo"' }, withHost: { starts: '"Menlo"' } },
   },
   ios: {
     follow: { noHost: { starts: "ui-monospace", single: true }, withHost: { starts: '"JetBrains Mono"' } },
-    // Iosevka is not offered on native: the platform (or host) face instead.
-    iosevka: { noHost: { starts: "ui-monospace", single: true }, withHost: { starts: '"JetBrains Mono"' } },
     custom: { noHost: { starts: "Menlo", single: true }, withHost: { starts: "Menlo", single: true } },
   },
   android: {
     follow: { noHost: { starts: "monospace", single: true }, withHost: { starts: '"JetBrains Mono"' } },
-    iosevka: { noHost: { starts: "monospace", single: true }, withHost: { starts: '"JetBrains Mono"' } },
     // Menlo does not exist on Android: not in the platform list, so ignored.
     custom: { noHost: { starts: "monospace", single: true }, withHost: { starts: '"JetBrains Mono"' } },
   },
 };
 
-describe("resolveTypography: 3 platforms x 3 settings x host typography", () => {
+describe("resolveTypography: 3 platforms x 2 settings x host typography", () => {
   for (const platform of PLATFORMS) {
     for (const [settingName, prefs] of Object.entries(SETTINGS)) {
       for (const [themeName, theme] of Object.entries(THEMES)) {
@@ -83,7 +74,6 @@ describe("resolveTypography: 3 platforms x 3 settings x host typography", () => 
           if (platform !== "web") {
             // Native never sees an embedded face or a CSS stack.
             expect(result.mono.family).not.toContain("OMP");
-            expect(result.mono.codeFamily).toBe(result.mono.family);
             expect(result.ui.family ?? "").not.toContain("OMP");
           } else {
             expect(result.mono.family).toContain('"PingFang SC"');
@@ -99,29 +89,10 @@ describe("resolveTypography details", () => {
     expect(HOST_DEFAULT_WEB_MONO).toBe(
       "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
     );
-    for (const codeFont of ["code", "plain"] as const) {
-      const result = resolveTypography(noHost, { ...follow, codeFont }, "web");
-      expect(result.mono.family).toBe(DEFAULT_WEB_MONO_STACK);
-      expect(result.mono.family.startsWith(`${HOST_DEFAULT_WEB_MONO}, "PingFang SC"`)).toBe(true);
-      expect(result.mono.codeFamily).toBe(result.mono.family);
-      expect(result.mono.ligatures).toBe(false);
-      expect(result.mono.family).not.toContain("OMP");
-    }
-  });
-
-  it("uses the ligature cut for code blocks only when the reader picks Iosevka Code", () => {
-    const code = resolveTypography(noHost, iosevka, "web");
-    expect(code.mono.codeFamily.startsWith(`"${EMBEDDED_FAMILY.code}"`)).toBe(true);
-    expect(code.mono.family).toBe(`"${EMBEDDED_FAMILY.mono}", ${DEFAULT_WEB_MONO_STACK}`);
-    expect(code.mono.ligatures).toBe(true);
-    const plain = resolveTypography(noHost, { ...iosevka, codeFont: "plain" }, "web");
-    expect(plain.mono.codeFamily).toBe(plain.mono.family);
-    expect(plain.mono.ligatures).toBe(false);
-    const host = resolveTypography(withHost, follow, "web");
-    expect(host.mono.codeFamily).toBe(host.mono.family);
-    expect(host.mono.ligatures).toBe(false);
-    // Native never draws the cut, whatever is stored.
-    expect(resolveTypography(noHost, iosevka, "ios").mono.ligatures).toBe(false);
+    const result = resolveTypography(noHost, follow, "web");
+    expect(result.mono.family).toBe(DEFAULT_WEB_MONO_STACK);
+    expect(result.mono.family.startsWith(`${HOST_DEFAULT_WEB_MONO}, "PingFang SC"`)).toBe(true);
+    expect(result.mono.family).not.toContain("OMP");
   });
 
   it("builds a custom web stack on top of the follow value and strips stray quotes", () => {

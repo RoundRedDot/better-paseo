@@ -60,12 +60,6 @@ const STATIC_PLATFORM: TypographyPlatform = currentPlatform();
 export const fontMono =
   STATIC_PLATFORM === "web" ? DEFAULT_WEB_MONO_STACK : NATIVE_DEFAULT_MONO[STATIC_PLATFORM];
 
-/**
- * The code-block family for static styles. It equals `fontMono`: the ligature
- * cut (Iosevka Code) is drawn only when the reader picks it, which only the
- * themed `tokens.fontCode` knows.
- */
-export const fontCode = fontMono;
 /** Interface text sets no family: the host's UI font (web) or the system face applies. */
 export const fontUi: string | undefined = undefined;
 
@@ -82,8 +76,6 @@ export interface ExtendedThemeTokens {
   isDark: boolean;
   /** `typography.mono.family`. */
   fontMono: string;
-  /** `typography.mono.codeFamily`. */
-  fontCode: string;
   /** The interface family, or undefined to set none; see `interfaceFamily`. */
   fontUi: string | undefined;
   typography: Typography;
@@ -299,7 +291,6 @@ export function buildThemeTokens(
   return {
     isDark,
     fontMono: typography.mono.family,
-    fontCode: typography.mono.codeFamily,
     fontUi: interfaceFamily(typography, preferences.uiFont, platform),
     typography,
 
@@ -404,7 +395,7 @@ export function useThemeTokens(
   const appearance = useHostAppearance(readHostTypography(theme) === null, theme);
   return useMemo(
     () => {
-      // Iosevka and Inter are installed only once a reader picks them.
+      // Inter is installed only once a reader picks it.
       ensureEmbeddedFonts(preferences, resolvedPlatform);
       return buildThemeTokens(theme.colors, preferences, { platform, theme, appearance });
     },

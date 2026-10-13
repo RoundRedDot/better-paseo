@@ -18,11 +18,9 @@ import {
   resetEnhancerPreferences,
   updateEnhancerPreferences,
   useEnhancerPreferences,
-  monoChoice,
-  monoChoiceUpdate,
   type AccentPreset,
   type EnhancerPreferences,
-  type MonoChoice,
+  type MonoFontPreference,
   type PathDisplayPreference,
   type RowLabelStylePreference,
   type UiFontPreference,
@@ -487,7 +485,7 @@ function MonoPreview({ look }: { look: PageLook }) {
       accessibilityLabel={look.t.fontPreview}
       style={[styles.preview, { backgroundColor: look.compact ? tokens.v2.surface0 : tokens.v2.surfaceCode }]}
     >
-      <Text style={[line, { fontFamily: tokens.fontCode, color: tokens.foreground }]}>
+      <Text style={[line, { fontFamily: tokens.fontMono, color: tokens.foreground }]}>
         <Text style={{ color: syntax.keyword }}>const</Text>
         {" ok = (a, b) => a !== b; "}
         <Text style={{ color: syntax.comment }}>{"// 0O 1lI"}</Text>
@@ -727,22 +725,7 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
   const [width, setWidth] = useState(0);
   const side = !compact && width >= TWO_COLUMN_MIN;
 
-  const monoOptions: ReadonlyArray<{ value: MonoChoice; label: string }> = native
-    ? [
-        { value: "host", label: t.followPaseo },
-        { value: "custom", label: t.custom },
-      ]
-    : [
-        { value: "host", label: t.followPaseo },
-        { value: "iosevka", label: "Iosevka" },
-        { value: "iosevka-code", label: "Iosevka Code" },
-        { value: "custom", label: t.custom },
-      ];
   const nativeChoices = platform === "web" ? [] : NATIVE_MONO_CHOICES[platform];
-  // A stored Iosevka (from a synced web profile) is drawn as Follow on native,
-  // which is also what `resolveTypography` renders for it there.
-  const currentMono = monoChoice(preferences);
-  const shownMono: MonoChoice = native && currentMono.startsWith("iosevka") ? "host" : currentMono;
   const previews = preferences.hoverPreview;
 
   const preview = <PreviewPanel look={look} preferences={preferences} pointer={!native} side={side} />;
@@ -815,23 +798,26 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
             title={t.monoTitle}
             description={native ? t.monoNative : t.monoWeb}
             control={
-              <Segmented<MonoChoice>
+              <Segmented<MonoFontPreference>
                 label={t.monoTitle}
-                value={shownMono}
-                options={monoOptions}
-                onChange={(choice) => updateEnhancerPreferences(monoChoiceUpdate(choice))}
+                value={preferences.monoFont}
+                options={[
+                  { value: "host", label: t.followPaseo },
+                  { value: "custom", label: t.custom },
+                ]}
+                onChange={(monoFont) => updateEnhancerPreferences({ monoFont })}
                 look={look}
               />
             }
             below={
-              shownMono === "host" ? (
+              preferences.monoFont === "host" ? (
                 <Text
                   accessibilityLabel={t.monoSource}
                   style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}
                 >
                   {describeMonoSource(tokens.typography.mono.source, platform, t)}
                 </Text>
-              ) : shownMono === "custom" ? (
+              ) : preferences.monoFont === "custom" ? (
                 native ? (
                   <Segmented<string>
                     label={t.customMono}

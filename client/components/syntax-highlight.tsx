@@ -640,7 +640,7 @@ export function SyntaxHighlightBlock({
           flexShrink: 0,
           fontSize: mono.size,
           lineHeight: mono.lineHeight,
-          fontFamily: tokens.fontCode,
+          fontFamily: tokens.fontMono,
           color: tokens.foreground,
         },
         codeArea: {
@@ -675,7 +675,7 @@ export function SyntaxHighlightBlock({
           flex: 1,
           fontSize: mono.size,
           lineHeight: mono.lineHeight,
-          fontFamily: tokens.fontCode,
+          fontFamily: tokens.fontMono,
           color: tokens.foreground,
         },
       }),

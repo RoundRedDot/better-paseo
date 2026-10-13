@@ -29,15 +29,13 @@ export type AccentPreset = keyof typeof ACCENT_PRESETS;
  * renders it as the system face, since a plugin cannot register fonts there.
  */
 export type UiFontPreference = "host" | "inter" | "system";
-/** Ligatures inside code blocks (`code`, the Iosevka Code cut) or literal glyphs. Only Iosevka has the cut. */
-export type CodeFontPreference = "code" | "plain";
 export type MarkdownVariantPreference = "document" | "compact" | "terminal";
 /**
  * `host` follows Paseo: its mono font once the host exposes typography, until
  * then Paseo's own default monospace stack on web and the platform monospace
- * on iOS/Android. The embedded Iosevka is drawn only when picked.
+ * on iOS/Android.
  */
-export type MonoFontPreference = "host" | "iosevka" | "custom";
+export type MonoFontPreference = "host" | "custom";
 /** Tool cards start collapsed; `expand-failed` opens failed ones by default. */
 export type ToolDetailPreference = "collapsed" | "expand-failed";
 export type PathDisplayPreference = "relative" | "absolute";
@@ -46,7 +44,6 @@ export type RowLabelStylePreference = "icon" | "label" | "both";
 export interface EnhancerPreferences {
   accent: AccentPreset;
   uiFont: UiFontPreference;
-  codeFont: CodeFontPreference;
   /** Which monospace family code, diffs, terminals and paths use. */
   monoFont: MonoFontPreference;
   /**
@@ -125,28 +122,6 @@ export interface EnhancerPreferences {
 }
 
 /**
- * The monospace choice as the reader sees it. Iosevka and Iosevka Code are
- * one stored family (`monoFont: "iosevka"`) told apart by the ligature
- * setting (`codeFont`), which only the Code cut draws.
- */
-export type MonoChoice = "host" | "iosevka" | "iosevka-code" | "custom";
-
-export function monoChoice(preferences: Pick<EnhancerPreferences, "monoFont" | "codeFont">): MonoChoice {
-  if (preferences.monoFont === "iosevka") return preferences.codeFont === "code" ? "iosevka-code" : "iosevka";
-  return preferences.monoFont;
-}
-
-/** The preference update a monospace choice stands for. */
-export function monoChoiceUpdate(choice: MonoChoice): Partial<EnhancerPreferences> {
-  if (choice === "iosevka") return { monoFont: "iosevka", codeFont: "plain" };
-  if (choice === "iosevka-code") return { monoFont: "iosevka", codeFont: "code" };
-  // Follow Paseo draws the host's own mono, which has no ligature cut;
-  // `codeFont` returns to its default so a later Iosevka pick starts there.
-  if (choice === "host") return { monoFont: "host", codeFont: "code" };
-  return { monoFont: "custom" };
-}
-
-/**
  * Web `localStorage`, kept as a fast-start cache of the daemon's settings
  * (and, before fix round 1 of S5, the store itself). The daemon is the
  * source of truth on every platform; see `shared/preferences-settings.ts`.
@@ -177,7 +152,6 @@ function readKey(store: PreferenceStorage | undefined, key: string, previous: st
 export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   accent: "host",
   uiFont: "host",
-  codeFont: "code",
   monoFont: "host",
   customMonoFont: "",
   codeFontSize: null,
