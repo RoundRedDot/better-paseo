@@ -1,7 +1,8 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type ViewProps } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import { radiusV2, type ExtendedThemeTokens } from "../components/theme-tokens";
+import type { ExtendedThemeTokens } from "../components/theme-tokens";
+import { FLOAT, floatPressed } from "./tokens/float";
 import { unselectable } from "../components/selection";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
@@ -242,13 +243,13 @@ export function LineSelectionMenu({ top, text, tokens, dismiss }: {
     <View pointerEvents="box-none" style={[styles.slot, { top }]}>
       <View testID="preview-line-selection-menu" style={[styles.menu, tokens.v2.elevation.overlay, {
         backgroundColor: tokens.surface0,
-        borderColor: tokens.border,
+        borderColor: tokens.v2.border,
       }]}>
-        <View style={[styles.raise, { backgroundColor: tokens.surface2 }]}>
+        <View style={styles.raise}>
           <Pressable accessibilityRole="button" accessibilityLabel="Copy selected lines"
             onPress={() => { void copy(text, { feedback: "toast" }).then((ok) => { if (ok) dismiss(); }); }}
-            style={({ pressed }) => [styles.button, pressed && { backgroundColor: tokens.accentBg }]}>
-            <Icon name="Copy" size={15} color={tokens.foreground} />
+            style={({ pressed }) => [styles.button, pressed && { backgroundColor: floatPressed(tokens) }]}>
+            <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
             <Text selectable={false} style={[unselectable, styles.label, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
               {toolbarLabel("Copy", language)}
             </Text>
@@ -261,8 +262,9 @@ export function LineSelectionMenu({ top, text, tokens, dismiss }: {
 
 const styles = StyleSheet.create({
   slot: { position: "absolute", left: 0, right: 0, zIndex: 2, alignItems: "center" },
-  menu: { height: MENU_HEIGHT, borderWidth: 1, borderRadius: radiusV2.block },
-  raise: { flex: 1, padding: 3, borderRadius: radiusV2.block - 1, flexDirection: "row" },
-  button: { flex: 1, minWidth: 64, paddingHorizontal: 14, borderRadius: radiusV2.chip, flexDirection: "row", gap: 6, justifyContent: "center", alignItems: "center" },
+  // The floating controls' frame (float.ts) at a touch target's height.
+  menu: { height: MENU_HEIGHT, borderWidth: 1, borderRadius: FLOAT.radius },
+  raise: { flex: 1, padding: FLOAT.inset, flexDirection: "row" },
+  button: { flex: 1, minWidth: 64, paddingHorizontal: 14, borderRadius: FLOAT.itemRadius, flexDirection: "row", gap: FLOAT.iconText, justifyContent: "center", alignItems: "center" },
   label: { fontSize: 13, fontWeight: "500" },
 });
