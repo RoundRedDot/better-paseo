@@ -86,7 +86,8 @@ function ToolbarItem({
   const [side, setSide] = useState<TooltipPlacement>("below");
   const preferences = useEnhancerPreferences();
   const align = alignProp ?? groupAlign;
-  const { hovered, hoverProps } = useHover();
+  // A disabled Pressable suppresses hover; its outer slot still receives it.
+  const { hovered, hoverProps } = useHover(disabled ? anchorRef : undefined);
   const [named, setNamed] = useState(false);
   useEffect(() => {
     if (!hovered) {
@@ -114,7 +115,7 @@ function ToolbarItem({
         focusable={onPress ? undefined : false}
         disabled={disabled}
         hitSlop={4}
-        onPress={onPress}
+        onPress={disabled ? undefined : onPress}
         {...hoverProps}
         style={({ pressed }) => [
           styles.button,
@@ -197,7 +198,7 @@ const ALIGN = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  anchor: { position: "relative" },
+  anchor: { position: "relative", flexShrink: 0 },
   raised: { zIndex: 1 },
   button: {
     width: 24,
