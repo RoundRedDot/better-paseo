@@ -219,7 +219,7 @@ const zh: SettingsStrings = {
   previewPlanFix: "修复 formatPath",
   previewPlanTest: "跑类型检查和路径测试",
   previewReply:
-    "改好了。工具行里的路径现在**相对于工作区**显示，复制时仍然是绝对路径。\n\n- 补上了 `formatPath` 里漏掉的 `trim()`\n- `format-path.test.ts`：31 个测试全部通过\n\n```ts\nformatPath(raw, { mode: \"relative\", roots })\n```\n\n各项选项的说明见 [设置文档](https://github.com/RoundRedDot/better-paseo#settings)。",
+    "改好了。工具行里的路径现在**相对于工作区**显示，复制时仍然是绝对路径。\n\n- 补上了 `formatPath` 里漏掉的 `trim()`\n- `format-path.test.ts`：31 个测试全部通过\n\n```ts\nformatPath(raw, { mode: \"relative\", roots })\n```\n\n各项选项的说明见 [设置文档](https://github.com/RoundRedDot/better-paseo/blob/main/README-zh.md#设置)。",
 
   sectionGeneral: "通用",
   languageTitle: "语言",
