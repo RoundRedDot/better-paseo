@@ -110,6 +110,13 @@ describe("grouped tool card presentation", () => {
       act(() => button.props.onHoverIn());
       act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
       expect(texts(renderer.root)).toContain("Copy path");
+      // Web Views are each a stacking context: the name rises with its button,
+      // and sits on an opaque surface so the code under it does not show through.
+      const anchor = renderer.root.findAll((node) => (node.type as unknown) === "View")[0]!;
+      expect(StyleSheet.flatten(anchor.props.style).zIndex).toBe(1);
+      const bubble = renderer.root.findAll((node) => (node.type as unknown) === "View" && StyleSheet.flatten(node.props.style).borderRadius !== undefined
+        && StyleSheet.flatten(node.props.style).backgroundColor !== undefined).pop()!;
+      expect(StyleSheet.flatten(bubble.props.style).backgroundColor).toBe(tokens.surface0);
       act(() => button.props.onHoverOut());
       expect(texts(renderer.root)).not.toContain("Copy path");
       act(() => renderer.unmount());

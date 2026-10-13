@@ -602,7 +602,8 @@ function MetaPath({
 }
 
 const styles = StyleSheet.create({
-  pager: { flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-start" },
+  // Above the body after it, so a button's name hangs over the code header.
+  pager: { flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-start", zIndex: 1 },
   pagerLabel: { fontSize: TYPE.caption.size, minWidth: 36, textAlign: "center", fontVariant: ["tabular-nums"] },
   previewActions: {
     flexDirection: "row",
