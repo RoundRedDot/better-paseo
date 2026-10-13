@@ -33,7 +33,8 @@ describe("inline code colour on native", () => {
   it("is dark grey, not Paseo's accent, while the accent follows Paseo", () => {
     setOS("ios");
     const style = codeSpan("host");
-    expect(style.color).toBe("rgba(24, 24, 27, 0.75)");
+    // #18181b moved 15% towards the white surface: opaque, not rgba.
+    expect(style.color).toBe("#3b3b3d");
     expect(style.backgroundColor).toBeUndefined();
   });
 
