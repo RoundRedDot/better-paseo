@@ -50,8 +50,9 @@ const en = {
   system: "System",
 
   previewTitle: "Preview",
-  previewHintPointer: "A sample turn that follows every change here. Click a row to open it; rest the pointer on one to preview it.",
-  previewHintTouch: "A sample turn that follows every change here. Tap a row to open it; long-press one to preview it.",
+  previewHintPointer: "A sample turn that follows every change here, with the Read row's hover preview drawn open. Click a row to open it.",
+  previewHintTouch: "A sample turn that follows every change here, with the Read row's preview drawn open. Tap a row to open it.",
+  previewPanelCaption: "Hover preview of the row above, drawn open:",
   previewShow: "Show preview",
   previewHide: "Hide preview",
   previewPrompt: "Paths in tool rows should be relative to the workspace. Fix it and run the tests.",
@@ -161,7 +162,6 @@ const en = {
   previewLineNumbersDescription: "Beside a file, diff or command output. A diff shows the file's own line numbers.",
   previewStripesTitle: "Alternating line shading",
   previewStripesDescription: "Shades every other line, so a wrapped line is easy to follow.",
-  panelSampleCaption: "A preview as it opens from a collapsed Read row. The options above apply to it as they change.",
 
   resetDefaults: "Reset all settings",
   resetConfirm: "Press again to reset",
@@ -185,8 +185,9 @@ const zh: SettingsStrings = {
   system: "系统",
 
   previewTitle: "效果预览",
-  previewHintPointer: "一段示例对话，随这里的设置实时变化。点击行可展开，鼠标停在行上可查看悬停预览。",
-  previewHintTouch: "一段示例对话，随这里的设置实时变化。点按行可展开，长按可查看预览。",
+  previewHintPointer: "一段示例对话，随这里的设置实时变化；Read 行的悬停预览常驻展开。点击行可展开。",
+  previewHintTouch: "一段示例对话，随这里的设置实时变化；Read 行的预览常驻展开。点按行可展开。",
+  previewPanelCaption: "上面这一行的悬停预览（常驻展开）：",
   previewShow: "显示预览",
   previewHide: "收起预览",
   previewPrompt: "工具行里的路径应该相对于工作区显示。帮我改一下，然后跑测试。",
@@ -282,7 +283,6 @@ const zh: SettingsStrings = {
   previewLineNumbersDescription: "在文件、diff 和命令输出左侧显示行号；diff 显示的是文件中的行号。",
   previewStripesTitle: "奇偶行底色",
   previewStripesDescription: "隔行加一层底色，长行折行后也容易分清是哪一行。",
-  panelSampleCaption: "折叠的 Read 行弹出的预览就是这样；上面的选项改动后会立即反映在这里。",
 
   resetDefaults: "恢复全部默认设置",
   resetConfirm: "再点一次确认恢复",
