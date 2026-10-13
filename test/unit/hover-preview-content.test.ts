@@ -184,6 +184,33 @@ describe("full hover preview content", () => {
     expect(opened).toContain("PROMPT_TAIL");
     act(() => row.unmount());
   });
+  it("shows a web search's text summary as markdown in the preview and the opened card", () => {
+    const data = classifyTool({ name: "WebSearch", status: "completed", detail: {
+      type: "search", query: "paseo", toolName: "web_search",
+      webResults: [{ title: "Paseo docs", url: "https://paseo.dev" }],
+      annotations: ["Paseo is **a host** for agents.", "SUMMARY_TAIL"],
+    } });
+    const preview = previewOf(React.createElement(ToolCallout, { data, tokens }));
+    expect(preview).toContain("Paseo docs");
+    expect(preview).toContain("Paseo is a host for agents.");
+    expect(preview).not.toContain("**a host**");
+    expect(preview).toContain("SUMMARY_TAIL");
+    expect(preview).not.toContain("No results.");
+    let row!: ReturnType<typeof TestRenderer.create>;
+    act(() => { row = TestRenderer.create(React.createElement(ToolCallout, { data, tokens, expanded: true, onExpandedChange: () => {} })); });
+    const opened = textOf(row.toJSON());
+    expect(opened).toContain("Paseo is a host for agents.");
+    expect(opened).toContain("SUMMARY_TAIL");
+    act(() => row.unmount());
+  });
+  it("shows a web search's summary alone, without \"No results.\"", () => {
+    const data = classifyTool({ name: "WebSearch", status: "completed", detail: {
+      type: "search", query: "paseo", toolName: "web_search", annotations: ["Only the summary came back."],
+    } });
+    const preview = previewOf(React.createElement(ToolCallout, { data, tokens }));
+    expect(preview).toContain("Only the summary came back.");
+    expect(preview).not.toContain("No results.");
+  });
   it("shows an OMP github call's reply when it arrives as plain text", () => {
     const data = classifyTool({ name: "github", status: "completed", detail: { type: "plain_text", label: "status", text: "Working tree clean" } });
     expect(previewOf(React.createElement(ToolCallout, { data, tokens }))).toContain("Working tree clean");

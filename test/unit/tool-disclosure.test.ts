@@ -147,6 +147,28 @@ describe("tool copy plan", () => {
     expect(plan.menu[0]?.text).toBe("/w/a.ts\n/x/b.ts");
   });
 
+  it("copies a web search's query, then its text summary and links", () => {
+    const plan = toolCopyPlan(
+      classifyTool({
+        name: "WebSearch",
+        status: "completed",
+        detail: {
+          type: "search",
+          query: "q",
+          toolName: "web_search",
+          webResults: [{ title: "A", url: "https://a.dev" }],
+          annotations: ["First **part**.", "Second part."],
+        },
+      }),
+      resolve,
+    );
+    expect(plan.primary?.text).toBe("q");
+    expect(plan.menu.map((entry) => [entry.id, entry.label, entry.text])).toEqual([
+      ["summary", "Copy summary", "First **part**.\n\nSecond part."],
+      ["files", "Copy file list", "https://a.dev"],
+    ]);
+  });
+
   it("copies an MCP result first and its arguments from the menu", () => {
     const plan = toolCopyPlan(
       classifyTool({ name: "mcp__s__t", status: "completed", detail: { type: "unknown", input: { q: 1 }, output: "res" } }),

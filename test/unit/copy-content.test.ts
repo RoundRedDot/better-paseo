@@ -58,6 +58,15 @@ const TABLE: Array<[string, CopySource, string | null, Array<[string, string]>]>
     [["files", "/p/a.ts\n/p/b.ts"]],
   ],
   [
+    "search: query; the text summary, then the links",
+    { kind: "search", query: "paseo", summary: " Paseo is a host.\n", files: ["https://paseo.dev"] },
+    "paseo",
+    [
+      ["summary", "Paseo is a host."],
+      ["files", "https://paseo.dev"],
+    ],
+  ],
+  [
     "mcp / paseo: result; arguments as JSON",
     { kind: "mcp", result: "done", args: { q: 1 } },
     "done",

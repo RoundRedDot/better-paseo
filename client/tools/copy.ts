@@ -39,6 +39,7 @@ export function toolCopyPlan(view: ToolCallView, resolve: ResolvePath): CopyPlan
       return copyPlan({
         kind: "search",
         query: view.search?.query ?? "",
+        summary: view.search?.annotations?.join("\n\n"),
         files: view.search?.files?.map(resolve) ?? view.search?.webResults?.map((row) => row.url),
       });
     case "mcp":
