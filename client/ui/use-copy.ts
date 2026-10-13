@@ -3,9 +3,9 @@
  *
  * Always the SDK's `copyText`, which works on every platform and rejects when
  * the clipboard is unavailable or denied — unlike the browser clipboard API, which
- * does nothing on native and was reported as success anyway. Feedback is
- * either the button's own icon turning into a check for 1.2 s, or a toast for
- * entries that have no icon (long-press). A failure is always a toast, and
+ * does nothing on native and was reported as success anyway. Every copy
+ * confirms with a toast, in the settings page's language; a button's own
+ * icon also turns into a check for 1.2 s. A failure is always a toast, and
  * never shows the check.
  */
 import { useEffect, useRef, useState } from "react";
@@ -15,6 +15,8 @@ import {
   type CopyController,
   type CopyOptions,
 } from "./copy-controller";
+import { getEnhancerPreferences } from "../preferences";
+import { toolbarLabel } from "../i18n/toolbar-strings";
 
 export type { CopyFeedback, CopyOptions } from "./copy-controller";
 
@@ -32,9 +34,10 @@ export function useCopy(): {
   if (controllerRef.current === null) {
     controllerRef.current = createCopyController({
       copyText,
+      // In the settings page's language, read when the toast is shown.
       toast: {
-        show: (message) => toastRef.current.show(message),
-        error: (message) => toastRef.current.error(message),
+        show: (message) => toastRef.current.show(toolbarLabel(message, getEnhancerPreferences().language)),
+        error: (message) => toastRef.current.error(toolbarLabel(message, getEnhancerPreferences().language)),
       },
       onCopiedChange: setCopied,
       setTimer: (callback, ms) => setTimeout(callback, ms),
