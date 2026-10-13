@@ -17,7 +17,7 @@ import { isImagePath } from "../image-file";
 import type { ImageFile } from "../image-file";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeText, selectionSurface } from "./selection-actions";
-import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
+import { useToast } from "@getpaseo/plugin/client/react-native";
 import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon, RowPaletteContext, RowText } from "../ui/disclosure-header";
 import { STICKY_SUPPORTED, StickyCard } from "../ui/sticky-header";
 import { useScrollAnchor } from "../ui/scroll-anchor";
@@ -28,7 +28,6 @@ import { CopyButton } from "../ui/copy-button";
 import { ActionMenuList, ActionMenuTrigger, useActionMenu, type ActionMenuItem } from "../ui/action-menu";
 import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
-import { useHover } from "../ui/use-hover";
 import { HoverPreviewBody, HoverPreviewHeader } from "../ui/hover-preview";
 import { FadeIn } from "../ui/fade-in";
 import { SelectableSpan, SelectableText } from "../ui/prose-text";
@@ -36,7 +35,9 @@ import { formatPath } from "../paths/format-path";
 import { lineRangeLabel, summarizeTool } from "../tools/summarize";
 import { TYPE, UI_SCALE } from "../ui/tokens/typography";
 import { codeSurface } from "./host-font-escape";
-import { toolCopyPlan } from "../tools/copy";
+import { toolCopyPlan, type ResolvePath } from "../tools/copy";
+import type { CopyAction, CopyActionId, CopyPlan } from "../copy/content";
+import { ToolbarButton, ToolbarCopyButton } from "../ui/toolbar-button";
 import { stringifyValue, type ToolCallView, type ToolKind } from "../tools/classify";
 import { summarizeToolCall, summarizeToolGroup } from "../tools/group";
 
@@ -206,8 +207,10 @@ export function ToolCallout({
   const getPlan = useCallback(() => {
     const plan = toolCopyPlan(data, resolvePath);
     if (!groupCalls) return plan;
+    // Calls that copy the same text (a file read twice unchanged) list it once.
+    const seen = new Set<string>();
     return { ...plan, menu: groupCalls.flatMap((call, index) =>
-      toolCopyPlan(call, resolvePath).menu.map((action) => ({
+      toolCopyPlan(call, resolvePath).menu.filter((action) => !seen.has(action.text) && seen.add(action.text)).map((action) => ({
         ...action, id: `${call.callId}:${action.id}`, label: `${index + 1}. ${action.label}`,
       }))) };
   }, [data, groupCalls, resolvePath]);
@@ -344,11 +347,11 @@ export function ToolCallout({
       pressPreview={!viewsImage}
       previewContent={() => (
         groupCalls ? (
-          <GroupedPreview calls={groupCalls} getPlan={getPlan} tokens={tokens} compact={compact} imageFile={imageFile}
+          <GroupedPreview calls={groupCalls} resolvePath={resolvePath} tokens={tokens} compact={compact} imageFile={imageFile}
             path={filePath ? resolvePath(filePath) : undefined} revealFile={revealFile} displayPath={displayPath} onViewImage={openViewer} />
         ) : (
           <>
-            <ToolPreviewActions getPlan={getPlan} tool={data.tool} tokens={tokens} compact={compact} />
+            <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens} />
             <HoverPreviewBody>
               {filePath ? <SelectableText {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>{resolvePath(filePath)}</SelectableText> : null}
               <ToolBody data={data} tokens={tokens} compact={compact} imageFile={imageFile}
@@ -445,16 +448,16 @@ function GroupedToolDetails({ calls, ...rest }: GroupedBodyProps) {
 }
 
 /** A merged row's preview: the pager sits in the panel's toolbar, so it stays put while the body scrolls. */
-function GroupedPreview({ calls, getPlan, path, onViewImage, ...rest }: GroupedBodyProps & {
-  getPlan: CopyPlanGetter;
+function GroupedPreview({ calls, resolvePath, path, onViewImage, ...rest }: GroupedBodyProps & {
+  resolvePath: ResolvePath;
   path?: string;
   onViewImage(): void;
 }) {
   const [index, setIndex] = useGroupPage(calls.length);
-  const { tokens, compact } = rest;
+  const { tokens } = rest;
   return (
     <>
-      <ToolPreviewActions getPlan={getPlan} tool={calls[0]!.tool} tokens={tokens} compact={compact}
+      <ToolPreviewActions call={calls[index]!} resolvePath={resolvePath} tokens={tokens}
         pager={<GroupPager index={index} count={calls.length} onChange={setIndex} tokens={tokens} />} />
       <HoverPreviewBody>
         {path ? <SelectableText {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>{path}</SelectableText> : null}
@@ -490,76 +493,71 @@ function GroupPager({ index, count, onChange, tokens }: {
 }) {
   return (
     <View style={styles.pager}>
-      <PagerButton icon="ChevronLeft" label="Previous operation" disabled={index === 0}
+      <ToolbarButton icon="ChevronLeft" label="Previous operation" disabled={index === 0}
         onPress={() => onChange(index - 1)} tokens={tokens} />
       <Text selectable={false} style={[styles.pagerLabel, unselectable, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
         {`${index + 1} / ${count}`}
       </Text>
-      <PagerButton icon="ChevronRight" label="Next operation" disabled={index === count - 1}
+      <ToolbarButton icon="ChevronRight" label="Next operation" disabled={index === count - 1}
         onPress={() => onChange(index + 1)} tokens={tokens} />
     </View>
   );
 }
 
-function PagerButton({ icon, label, disabled, onPress, tokens }: {
-  icon: string;
-  label: string;
-  disabled: boolean;
-  onPress(): void;
-  tokens: ExtendedThemeTokens;
-}) {
-  const { hovered, hoverProps } = useHover();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      hitSlop={4}
-      onPress={onPress}
-      {...hoverProps}
-      style={({ pressed }) => [
-        styles.pagerButton,
-        disabled && styles.pagerButtonDisabled,
-        !disabled && hovered && { backgroundColor: tokens.v2.surface2 },
-        !disabled && pressed && { backgroundColor: tokens.v2.surface2 },
-      ]}
-    >
-      <Icon name={icon} size={14} color={tokens.foregroundMuted} />
-    </Pressable>
-  );
+/** Each copy a toolbar offers has its own icon, so two copies side by side are told apart. */
+const COPY_ICON: Record<CopyActionId, string> = {
+  path: "Link",
+  url: "Link",
+  command: "SquareTerminal",
+  "command-output": "ClipboardList",
+  query: "Search",
+  files: "List",
+  patch: "FileDiff",
+  args: "Braces",
+  code: "Code",
+  log: "ScrollText",
+  description: "MessageSquareText",
+  question: "CircleHelp",
+  // The body itself: what the reader most often wants, under the plain copy icon.
+  content: "Copy",
+  "new-content": "Copy",
+  output: "Copy",
+  result: "Copy",
+  text: "Copy",
+  answer: "Copy",
+};
+
+/**
+ * A call's copies as one row of buttons: the header's own object first, then
+ * what the `⋯` menu held. An entry with the same id or text as an earlier one
+ * is dropped, so no two buttons copy the same thing.
+ */
+export function previewCopyActions(plan: CopyPlan): CopyAction[] {
+  const seen = new Set<string>();
+  return [plan.primary, ...plan.menu].filter((action): action is CopyAction => {
+    if (!action || seen.has(action.id) || seen.has(`text:${action.text}`)) return false;
+    seen.add(action.id);
+    seen.add(`text:${action.text}`);
+    return true;
+  });
 }
 
-type CopyPlanGetter = () => { primary: ReturnType<typeof toolCopyPlan>["primary"]; menu: Array<{ id: string; label: string; text: string }> };
-
-/** The preview owns its menu so opening it cannot close the hovered header. */
-function ToolPreviewActions({ getPlan, tool, tokens, compact, pager }: {
-  getPlan: CopyPlanGetter;
-  tool: ToolKind;
+/** The preview's toolbar: a merged row's pager in the middle, every copy of the call on view as a button. */
+function ToolPreviewActions({ call, resolvePath, tokens, pager }: {
+  call: ToolCallView;
+  resolvePath: ResolvePath;
   tokens: ExtendedThemeTokens;
-  compact: boolean;
-  /** A merged row's pager, ahead of the copy buttons. */
+  /** A merged row's pager, centred in the toolbar. */
   pager?: React.ReactNode;
 }) {
-  const menu = useActionMenu();
-  const { copy } = useCopy();
-  const items = useMemo<ActionMenuItem[]>(
-    () => menu.open ? getPlan().menu.map((action) => ({
-      id: action.id,
-      label: action.label,
-      icon: "Copy",
-      onSelect: () => void copy(action.text, { feedback: "toast" }),
-    })) : [],
-    [menu.open, getPlan, copy],
-  );
+  const actions = useMemo(() => previewCopyActions(toolCopyPlan(call, resolvePath)), [call, resolvePath]);
   return (
-    <HoverPreviewHeader tokens={tokens}>
+    <HoverPreviewHeader tokens={tokens} center={pager}>
       <View style={styles.previewActions}>
-        {pager}
-        <CopyButton text={() => getPlan().primary?.text ?? ""} tokens={tokens} label={primaryCopyLabel(tool)} />
-        <ActionMenuTrigger open={menu.open} onPress={menu.toggle} tokens={tokens} />
+        {actions.map((action) => (
+          <ToolbarCopyButton key={action.id} text={action.text} icon={COPY_ICON[action.id]} label={action.label} tokens={tokens} />
+        ))}
       </View>
-      <ActionMenuList items={items} open={menu.open} onClose={menu.close} tokens={tokens} compact={compact} />
     </HoverPreviewHeader>
   );
 }
@@ -605,8 +603,6 @@ function MetaPath({
 
 const styles = StyleSheet.create({
   pager: { flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-start" },
-  pagerButton: { width: 24, height: 24, borderRadius: radiusV2.chip, alignItems: "center", justifyContent: "center" },
-  pagerButtonDisabled: { opacity: 0.35 },
   pagerLabel: { fontSize: TYPE.caption.size, minWidth: 36, textAlign: "center", fontVariant: ["tabular-nums"] },
   previewActions: {
     flexDirection: "row",
