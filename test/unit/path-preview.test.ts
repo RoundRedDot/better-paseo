@@ -24,6 +24,7 @@ const pointer = vi.hoisted(() => ({ enter: null as null | (() => void) }));
 vi.mock("../../client/web", () => ({
   bindRowHover: () => () => {},
   bindPreviewMaximize: () => () => {},
+  dropSelectionIn: () => {},
   bindPreviewPointer: (_node: unknown, enter: () => void) => {
     pointer.enter = enter;
     return () => {};
