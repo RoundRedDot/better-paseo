@@ -522,7 +522,7 @@ function AccentControl({ value, hostAccent, look }: { value: AccentPreset; hostA
 }
 
 /** Settings content mounted by Paseo under the selected host's Plugin settings. */
-export function BeautifulChatSettingsPage({ theme, layout }: PluginSurfaceProps) {
+export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
   const preferences = useEnhancerPreferences();
   // The settings screen reads (and, through the store, saves) the daemon
   // record itself, so it works with no chat open.

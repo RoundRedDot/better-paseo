@@ -22,7 +22,7 @@ import { ApprovalCard } from "../client/components/approval-card";
 import { UserMessage } from "../client/components/user-message";
 import { HubCallout } from "../client/components/hub-callout";
 import { SyntaxHighlightBlock } from "../client/components/syntax-highlight";
-import { BeautifulChatSettingsPage } from "../client/settings-page";
+import { BetterPaseoSettingsPage } from "../client/settings-page";
 import { buildHubData } from "../client/hub-details";
 import { NoticeCallout } from "../client/components/notice-callout";
 import { SystemCard } from "../client/components/system-card";
@@ -107,9 +107,9 @@ const bash: ToolCalloutData = {
   command: "npm run typecheck",
   shell: {
     command: "npm run typecheck",
-    cwd: "~/code/beautiful-chat",
+    cwd: "~/code/better-paseo",
     exitCode: 0,
-    stdout: "> beautiful-chat@0.1.0 typecheck\n> tsc --noEmit\n\nChecked 34 files in 4.2s",
+    stdout: "> better-paseo@0.1.0 typecheck\n> tsc --noEmit\n\nChecked 34 files in 4.2s",
   },
 };
 
@@ -201,18 +201,18 @@ const githubCalls: ToolCalloutData[] = [
   {
     id: "gh-pr",
     tool: "github",
-    title: "pr_create paseo-cafe/paseo-cafe Add beautiful-chat",
+    title: "pr_create paseo-cafe/paseo-cafe Add better-paseo",
     status: "completed",
     durationMs: 2430,
     github: {
       op: "pr_create",
       repo: "paseo-cafe/paseo-cafe",
-      subject: "Add beautiful-chat",
+      subject: "Add better-paseo",
       request:
-        '{"op":"pr_create","repo":"paseo-cafe/paseo-cafe","base":"main","head":"ABorakati:add-beautiful-chat","title":"Add beautiful-chat"}',
+        '{"op":"pr_create","repo":"paseo-cafe/paseo-cafe","base":"main","head":"ABorakati:add-better-paseo","title":"Add better-paseo"}',
       rows: [
-        { label: "pull request", value: "#125 Add beautiful-chat" },
-        { label: "base", value: "main ← ABorakati:add-beautiful-chat" },
+        { label: "pull request", value: "#125 Add better-paseo" },
+        { label: "base", value: "main ← ABorakati:add-better-paseo" },
       ],
       link: "https://github.com/paseo-cafe/paseo-cafe/pull/125",
     },
@@ -499,7 +499,7 @@ const paseoTool = {
     title: "Screenshot builder",
     provider: "claude",
     model: "claude-opus-5",
-    initialPrompt: "Capture every component of the Beautiful Chat plugin.",
+    initialPrompt: "Capture every component of the Better Paseo plugin.",
     agentId: "agent-8f21",
     status: "running" as const,
   },
@@ -555,7 +555,7 @@ const tasks = {
   tasks: [
     {
       id: "t1",
-      title: "Rename plugin to Beautiful Chat",
+      title: "Rename plugin to Better Paseo",
       phase: "Rename",
       status: "completed" as const,
       duration: "6m",
@@ -589,8 +589,8 @@ const approval = {
   riskLevel: "high" as const,
   rationale: "The command removes a directory that is not tracked by Git.",
   command: "rm -rf dist",
-  targetPath: "~/code/beautiful-chat/dist",
-  cwd: "~/code/beautiful-chat",
+  targetPath: "~/code/better-paseo/dist",
+  cwd: "~/code/better-paseo",
   timeoutSeconds: 60,
   status: "pending" as const,
   timestamp: new Date("2026-09-14T10:24:29Z").toISOString(),
@@ -704,10 +704,10 @@ const v2Light = buildThemeTokens(LIGHT, DEFAULT_PREFERENCES, { platform: "web" }
 
 const PATHS: PathContextValue = {
   roots: [
-    { path: "/Users/me/code/beautiful-chat/.worktrees/s1" },
-    { path: "/Users/me/code/beautiful-chat", label: "beautiful-chat" },
+    { path: "/Users/me/code/better-paseo/.worktrees/s1" },
+    { path: "/Users/me/code/better-paseo", label: "better-paseo" },
   ],
-  cwd: "/Users/me/code/beautiful-chat/.worktrees/s1",
+  cwd: "/Users/me/code/better-paseo/.worktrees/s1",
   mode: "relative",
   reveal: () => {},
 };
@@ -783,7 +783,7 @@ function ReasoningStates({ tokens }: { tokens: ExtendedThemeTokens }) {
  * block is what a turn looks like by default — collapsed rows, no frames —
  * and the second shows the open states.
  */
-const TOOL_ROOT = "/Users/me/code/beautiful-chat/.worktrees/s1";
+const TOOL_ROOT = "/Users/me/code/better-paseo/.worktrees/s1";
 
 function payload(
   callId: string,
@@ -804,7 +804,7 @@ const READ_CODE = `export function formatPath(raw: string, ctx: FormatPathContex
 const TOOLS_COLLAPSED: ToolCallView[] = [
   payload("r1", "Read", { type: "read", filePath: `${TOOL_ROOT}/client/paths/format-path.ts`, offset: 10, limit: 71, content: READ_CODE }),
   payload("r2", "Read", { type: "read", filePath: `${TOOL_ROOT}/client/ui/disclosure-header.tsx`, content: READ_CODE }),
-  payload("r3", "Read", { type: "read", filePath: "/Users/me/code/beautiful-chat/docs/plans/2026-10-11-ui-ux-rendering-upgrade.md", offset: 263, limit: 41 }),
+  payload("r3", "Read", { type: "read", filePath: "/Users/me/code/better-paseo/docs/plans/2026-10-11-ui-ux-rendering-upgrade.md", offset: 263, limit: 41 }),
   payload("e1", "Edit", {
     type: "edit",
     filePath: `${TOOL_ROOT}/client/components/tool-callouts.tsx`,
@@ -846,7 +846,7 @@ const TOOLS_OPEN: ToolCallView[] = [
     type: "search",
     query: "useDisclosure",
     toolName: "grep",
-    filePaths: [`${TOOL_ROOT}/client/live-renderers.tsx`, `${TOOL_ROOT}/client/state/disclosure-store.ts`, "/Users/me/code/beautiful-chat/client/ui/path-text.tsx"],
+    filePaths: [`${TOOL_ROOT}/client/live-renderers.tsx`, `${TOOL_ROOT}/client/state/disclosure-store.ts`, "/Users/me/code/better-paseo/client/ui/path-text.tsx"],
     numFiles: 3,
     numMatches: 7,
   }),
@@ -857,7 +857,7 @@ const TOOLS_OPEN: ToolCallView[] = [
 const TOOLS_NARROW: ToolCallView[] = [
   payload("n-r1", "Read", { type: "read", filePath: "/Users/dev/workspace/acme-chat/server/handlers/response-handler.ts", offset: 0, limit: 166 }),
   payload("n-r2", "Read", { type: "read", filePath: `${TOOL_ROOT}/client/components/markdown/render/table-block-renderer.tsx`, offset: 1, limit: 240 }),
-  payload("n-r3", "Read", { type: "read", filePath: "/Users/me/code/beautiful-chat/docs/plans/2026-10-11-ui-ux-rendering-upgrade.md" }),
+  payload("n-r3", "Read", { type: "read", filePath: "/Users/me/code/better-paseo/docs/plans/2026-10-11-ui-ux-rendering-upgrade.md" }),
   payload("n-r4", "Read", { type: "read", filePath: "/Users/dev/workspace/acme-chat/client/lib/an-unreasonably-long-module-name-for-a-cursor-store.ts", limit: 112 }),
   payload("n-e1", "Edit", { type: "edit", filePath: `${TOOL_ROOT}/client/components/tool-callouts.tsx`, unifiedDiff: "@@ -1 +1 @@\n-a\n+b\n" }),
   payload("n-s1", "Grep", {
@@ -915,7 +915,7 @@ function Primitives({ tokens }: { tokens: ExtendedThemeTokens }) {
           tokens={tokens}
           icon={<Glyph name="FileText" size={14} color={muted} />}
           verb="Read"
-          target={<PathText path="/Users/me/code/beautiful-chat/.worktrees/s1/client/ui/disclosure-header.tsx:10" tokens={tokens} copyOnHover={false} />}
+          target={<PathText path="/Users/me/code/better-paseo/.worktrees/s1/client/ui/disclosure-header.tsx:10" tokens={tokens} copyOnHover={false} />}
           meta={["L10–80"]}
         />
         <DisclosureHeader
@@ -934,7 +934,7 @@ function Primitives({ tokens }: { tokens: ExtendedThemeTokens }) {
           tone="danger"
           icon={<Glyph name="X" size={14} color={tokens.danger} />}
           verb="Edit"
-          target={<PathText path="/Users/me/code/beautiful-chat/client/preferences.ts" tokens={tokens} copyOnHover={false} />}
+          target={<PathText path="/Users/me/code/better-paseo/client/preferences.ts" tokens={tokens} copyOnHover={false} />}
           meta={["failed"]}
         />
         <View style={{ borderWidth: 1, borderColor: tokens.v2.border, borderRadius: tokens.v2.radius.card }}>
@@ -975,12 +975,12 @@ function Primitives({ tokens }: { tokens: ExtendedThemeTokens }) {
           meta={["12s"]}
         />
         <Caption tokens={tokens}>PathText — workspace root, project root (secondary), outside, verbatim, compact budget</Caption>
-        <PathText path="/Users/me/code/beautiful-chat/.worktrees/s1/client/paths/format-path.ts:42" tokens={tokens} />
-        <PathText path="/Users/me/code/beautiful-chat/client/live-renderers.tsx#L388" tokens={tokens} />
+        <PathText path="/Users/me/code/better-paseo/.worktrees/s1/client/paths/format-path.ts:42" tokens={tokens} />
+        <PathText path="/Users/me/code/better-paseo/client/live-renderers.tsx#L388" tokens={tokens} />
         <PathText path="/etc/hosts" tokens={tokens} />
         <PathText path="./client/ui/path-text.tsx" tokens={tokens} verbatim />
         <PathText
-          path="/Users/me/code/beautiful-chat/.worktrees/s1/packages/app/src/components/agent-stream/strategy-native.tsx"
+          path="/Users/me/code/better-paseo/.worktrees/s1/packages/app/src/components/agent-stream/strategy-native.tsx"
           tokens={tokens}
           compact
         />
@@ -1169,7 +1169,7 @@ function Showcase() {
         <MarkdownView text={REPLY} tokens={v2Dark} variant="compact" collapseCode />
       </Shot>
       <Shot id="shot-settings" width={760}>
-        <BeautifulChatSettingsPage
+        <BetterPaseoSettingsPage
           theme={{ colors: BASE }}
           host={{ id: "local", label: "Local" }}
           layout={{ compact: false, platform: "web" }}
@@ -1181,14 +1181,14 @@ function Showcase() {
         </Shot>
       ))}
       <Shot id="shot-s7-settings">
-        <BeautifulChatSettingsPage
+        <BetterPaseoSettingsPage
           theme={{ colors: BASE }}
           host={{ id: "local", label: "Local" }}
           layout={{ compact: COMPACT, platform: COMPACT ? "ios" : "web" }}
         />
       </Shot>
       <Shot id="shot-settings-native" width={420}>
-        <BeautifulChatSettingsPage
+        <BetterPaseoSettingsPage
           theme={{ colors: BASE }}
           host={{ id: "local", label: "Local" }}
           layout={{ compact: true, platform: "ios" }}

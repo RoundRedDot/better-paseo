@@ -1,5 +1,5 @@
 {
-  "name": "beautiful-chat-showcase",
+  "name": "better-paseo-showcase",
   "private": true,
   "description": "Web-only dependencies for the offline showcase and replay harness. Kept out of the root package so the daemon's npm ci stays light.",
   "devDependencies": {

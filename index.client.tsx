@@ -1,6 +1,6 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { z } from "zod";
-import { BeautifulChatSettingsPage } from "./client/settings-page";
+import { BetterPaseoSettingsPage } from "./client/settings-page";
 import { removeEmbeddedFonts, setEmbeddedFontLoader } from "./client/components/embed-fonts";
 import { installHostNoticeStyle } from "./client/components/host-notice";
 import { installChatFind } from "./client/components/chat-find";
@@ -52,7 +52,7 @@ export default function contribute(client: PluginClientContext) {
     id: "chat-presentation",
     title: "Settings",
     icon: "Blocks",
-    Component: BeautifulChatSettingsPage,
+    Component: BetterPaseoSettingsPage,
   });
 
   // Live chat timeline interception: render real tool calls, reasoning, and todos with enhanced UI.

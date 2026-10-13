@@ -2,10 +2,10 @@ import { PLUGIN_ROOT_ATTRIBUTE } from "./focus-ring";
 import { getEnhancerPreferences } from "../preferences";
 import { radiusV2 } from "./theme-tokens";
 
-const STYLE_ELEMENT_ID = "beautiful-chat-find-style";
-const BAR_ID = "beautiful-chat-find";
-const MATCHES = "beautiful-chat-find";
-const CURRENT = "beautiful-chat-find-current";
+const STYLE_ELEMENT_ID = "better-paseo-find-style";
+const BAR_ID = "better-paseo-find";
+const MATCHES = "better-paseo-find";
+const CURRENT = "better-paseo-find-current";
 const CHAT = '[data-testid="agent-chat-scroll"]';
 const IGNORED =
   'button, [role="button"], [aria-hidden="true"], input, textarea, svg, script, style';

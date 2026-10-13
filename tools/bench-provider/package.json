@@ -2,7 +2,7 @@
   "name": "bc-bench-provider",
   "version": "0.1.0",
   "private": true,
-  "description": "DEV-ONLY Paseo plugin: replays recorded stream fixtures as an agent provider for Beautiful Chat performance baselines",
+  "description": "DEV-ONLY Paseo plugin: replays recorded stream fixtures as an agent provider for Better Paseo performance baselines",
   "license": "MIT",
   "type": "module",
   "scripts": {

@@ -21,7 +21,7 @@ import { PathContext, type PathContextValue } from "../client/ui/path-text";
 import { classifyTool, type ToolCallPayload, type ToolCallView } from "../client/tools/classify";
 import type { TaskListData } from "../shared/contracts";
 
-const ROOT = "/Users/me/code/beautiful-chat";
+const ROOT = "/Users/me/code/better-paseo";
 const PATHS: PathContextValue = { roots: [{ path: ROOT }], cwd: ROOT, mode: "relative", reveal: () => {} };
 const AT = new Date(2026, 8, 16, 6, 41);
 const LATER = new Date(2026, 8, 16, 6, 47);

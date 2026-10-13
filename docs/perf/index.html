@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Beautiful Chat 与官方版本的性能对比</title>
+  <title>Better Paseo 与官方版本的性能对比</title>
   <style>
     :root {
       --sheet: #e6eef1;
@@ -108,7 +108,7 @@
 </head>
 <body>
   <main>
-    <h1>Beautiful Chat 与官方版本的性能对比</h1>
+    <h1>Better Paseo 与官方版本的性能对比</h1>
     <p class="lead">当前结果在后半段：<a href="#native">不开插件</a>和<a href="#upstream">官方插件</a>放在同一次会话里，对本仓库 <code>2146289</code>。前半段是 10 月 12 日的卡片内部探针，官方 <code>42b61d8</code> 对本仓库 <code>05cf671</code>，口径不同，毫秒数不能和后半段直接比。</p>
     <p class="note">前半段：Paseo 0.11.2 Web 生产构建，无头 Chrome 155。两个插件装在同一个隔离 daemon 上，每次只启用一个，按场景交替各跑 3 次，表中取中位数。两边都用默认设置。测量时机器上还有别的任务在跑（负载 20–50）。回放速度：100 轮历史用最大速度，展开的工具用 4 倍速，其余按录制时的节奏。</p>
 
