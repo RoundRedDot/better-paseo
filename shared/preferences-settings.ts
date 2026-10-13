@@ -17,6 +17,8 @@ import { z } from "zod";
  */
 
 export const ACCENT_IDS = ["host", "jade", "violet", "amber", "rose"] as const;
+/** Inline code text on iOS and Android, where the span has no fill. */
+export const INLINE_CODE_COLORS = ["grey", "blue", "violet", "green", "coral"] as const;
 export const UI_FONTS = ["host", "inter", "system"] as const;
 export const MONO_FONTS = ["host", "custom"] as const;
 export const TOOL_DETAILS = ["collapsed", "expand-failed"] as const;
@@ -70,6 +72,7 @@ function migrateHoverDelay(raw: unknown): unknown {
 export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrateRowLabels(raw)), z.object({
   accent: z.enum(ACCENT_IDS).catch("host"),
   uiFont: z.enum(UI_FONTS).catch("host"),
+  inlineCodeColor: z.enum(INLINE_CODE_COLORS).catch("grey"),
   monoFont: z.enum(MONO_FONTS).catch("host"),
   customMonoFont: z
     .string()

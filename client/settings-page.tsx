@@ -3,7 +3,7 @@ import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View, useW
 import { TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { codeSurface, itemRootFont } from "./components/host-font-escape";
-import { radiusV2, space, buildThemeTokens, type ExtendedThemeTokens } from "./components/theme-tokens";
+import { radiusV2, space, buildThemeTokens, inlineCodeColor, type ExtendedThemeTokens } from "./components/theme-tokens";
 import { ensureEmbeddedFonts } from "./components/embed-fonts";
 import { pluginRoot } from "./components/focus-ring";
 import { useHostAppearance } from "./ui/tokens/host-appearance-shim";
@@ -20,6 +20,7 @@ import {
   useEnhancerPreferences,
   type AccentPreset,
   type EnhancerPreferences,
+  type InlineCodeColorPreference,
   type MonoFontPreference,
   type PathDisplayPreference,
   type RowLabelStylePreference,
@@ -58,6 +59,17 @@ const ACCENT_OPTIONS: ReadonlyArray<{
   { id: "rose", label: "accentRose", color: ACCENT_PRESETS.rose },
 ];
 
+const INLINE_CODE_OPTIONS: ReadonlyArray<{
+  id: InlineCodeColorPreference;
+  label: "inlineCodeGrey" | "inlineCodeBlue" | "inlineCodeViolet" | "inlineCodeGreen" | "inlineCodeCoral";
+}> = [
+  { id: "grey", label: "inlineCodeGrey" },
+  { id: "blue", label: "inlineCodeBlue" },
+  { id: "violet", label: "inlineCodeViolet" },
+  { id: "green", label: "inlineCodeGreen" },
+  { id: "coral", label: "inlineCodeCoral" },
+];
+
 /** Switch geometry (S7 §3.9): a 40x24 track and an 18pt knob. */
 const TRACK_WIDTH = 40;
 const TRACK_HEIGHT = 24;
@@ -66,6 +78,8 @@ const KNOB_INSET = (TRACK_HEIGHT - KNOB) / 2;
 /** Accent swatches: 22pt, each in a 44pt target. */
 const SWATCH = 22;
 const SWATCH_SLOP = (44 - SWATCH) / 2;
+/** A swatch with a 2pt ring and a 2pt gap around it. */
+const RINGED_SWATCH = SWATCH + 8;
 
 /** Layout of the page: a grouped list on touch layouts, cards of label-and-control rows on desktop. */
 interface PageLook {
@@ -606,6 +620,37 @@ function AccentControl({ value, hostAccent, look }: { value: AccentPreset; hostA
 }
 
 /**
+ * Round swatches in the shade this theme would draw, the selected one ringed
+ * with a gap: the grey is a step off the foreground, so a ring drawn on the
+ * swatch itself would vanish into it.
+ */
+function InlineCodeColorControl({ value, look }: { value: InlineCodeColorPreference; look: PageLook }) {
+  const { tokens, t } = look;
+  return (
+    <View accessibilityRole="radiogroup" accessibilityLabel={t.inlineCodeTitle} style={styles.ringedSwatches}>
+      {INLINE_CODE_OPTIONS.map((option) => {
+        const selected = value === option.id;
+        const color = inlineCodeColor(option.id, tokens.foreground, tokens.surface0, tokens.isDark);
+        return (
+          <Pressable
+            key={option.id}
+            accessibilityRole="radio"
+            accessibilityLabel={t.inlineCodeOption(t[option.label])}
+            accessibilityState={{ selected, checked: selected }}
+            aria-checked={selected}
+            hitSlop={SWATCH_SLOP - (RINGED_SWATCH - SWATCH) / 2}
+            onPress={() => updateEnhancerPreferences({ inlineCodeColor: option.id })}
+            style={[styles.ringedSwatch, { borderColor: selected ? tokens.foreground : "transparent" }]}
+          >
+            <View style={[styles.swatchFill, { backgroundColor: color }]} />
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
  * The sample turn in a frame: a header with the title and how to try it, the
  * rows on the chat's own surface below. Beside the options it stays in view
  * while the page scrolls (web `position: sticky`), and scrolls inside itself
@@ -787,6 +832,13 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
               look={look}
             />
           }
+          look={look}
+          stacked
+        />
+        <SettingRow
+          title={t.inlineCodeTitle}
+          description={t.inlineCodeDescription}
+          control={<InlineCodeColorControl value={preferences.inlineCodeColor} look={look} />}
           look={look}
           stacked
         />
@@ -1250,6 +1302,17 @@ const styles = StyleSheet.create({
   },
   hostChipLabel: { fontSize: TYPE.button.size, lineHeight: TYPE.button.lineHeight, fontWeight: "500" },
   swatch: { width: SWATCH, height: SWATCH, borderRadius: SWATCH / 2, borderWidth: 2 },
+  ringedSwatch: {
+    width: RINGED_SWATCH,
+    height: RINGED_SWATCH,
+    borderRadius: RINGED_SWATCH / 2,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Centre to centre as far apart as the accent swatches above.
+  ringedSwatches: { flexDirection: "row", alignItems: "center", gap: space.md - (RINGED_SWATCH - SWATCH) },
+  swatchFill: { width: SWATCH, height: SWATCH, borderRadius: SWATCH / 2 },
   secondsField: { flexDirection: "row", alignItems: "center", gap: space.sm },
   secondsInput: { alignSelf: "auto", width: 72, textAlign: "right" },
   input: {
