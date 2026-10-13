@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
@@ -10,6 +10,7 @@ import { UI_SCALE } from "./tokens/typography";
 import { cssShadow } from "./tokens/css-shadow";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
+import { liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement } from "./tooltip-placement";
 
 /** How long a pointer rests on a button before its name shows. */
 export const TOOLBAR_TOOLTIP_MS = 400;
@@ -25,6 +26,14 @@ export type TooltipAlign = "start" | "center" | "end";
  * right-aligned group would be cut off by the panel.
  */
 export const TooltipAlignContext = createContext<TooltipAlign>("center");
+
+/**
+ * Which side a name opens on. A panel's toolbar has its own body below
+ * (`below`). A timeline row does not: on web every row is a stacking context
+ * that paints over the one before it, so a name below would vanish under the
+ * next row; `auto` opens it above unless the list's top edge leaves no room.
+ */
+export const TooltipSideContext = createContext<"below" | "auto">("below");
 
 interface ToolbarButtonProps {
   icon: string;
@@ -54,6 +63,9 @@ export function ToolbarButton({
   align: alignProp,
 }: ToolbarButtonProps) {
   const groupAlign = useContext(TooltipAlignContext);
+  const sideMode = useContext(TooltipSideContext);
+  const anchorRef = useRef<View>(null);
+  const [side, setSide] = useState<TooltipPlacement>("below");
   const preferences = useEnhancerPreferences();
   const align = alignProp ?? groupAlign;
   const { hovered, hoverProps } = useHover();
@@ -63,13 +75,20 @@ export function ToolbarButton({
       setNamed(false);
       return;
     }
-    const timer = setTimeout(() => setNamed(true), TOOLBAR_TOOLTIP_MS);
+    const timer = setTimeout(() => {
+      setSide(sideMode === "auto" ? placeTooltipNear(anchorRef.current, Platform.OS) : "below");
+      setNamed(true);
+    }, TOOLBAR_TOOLTIP_MS);
     return () => clearTimeout(timer);
-  }, [hovered]);
+  }, [hovered, sideMode]);
+  useEffect(() => {
+    if (!named || sideMode !== "auto" || side !== "below" || Platform.OS !== "web") return;
+    return liftStackingRow(anchorRef.current as unknown as DomBox | null);
+  }, [named, sideMode, side]);
   return (
     // Every web View is its own stacking context (`z-index: 0`), so the name
     // can only rise over the buttons after this one if the button does.
-    <View style={[styles.anchor, named && styles.raised]}>
+    <View ref={anchorRef} style={[styles.anchor, named && styles.raised]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}
@@ -88,7 +107,7 @@ export function ToolbarButton({
         <Icon name={icon} size={14} color={color ?? tokens.foregroundMuted} />
       </Pressable>
       {named ? (
-        <View pointerEvents="none" style={[styles.tooltipSlot, ALIGN[align]]}>
+        <View pointerEvents="none" style={[styles.tooltipSlot, side === "above" ? styles.above : styles.below, ALIGN[align]]}>
           <View style={[styles.tooltip, tooltipLook(tokens)]}>
             <Text
               selectable={false}
@@ -168,10 +187,10 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.35 },
   tooltipSlot: {
     position: "absolute",
-    top: "100%",
-    marginTop: space.xs,
     zIndex: 10,
   },
+  below: { top: "100%", marginTop: space.xs },
+  above: { bottom: "100%", marginBottom: space.xs },
   tooltip: {
     paddingHorizontal: 6,
     paddingVertical: 4,
