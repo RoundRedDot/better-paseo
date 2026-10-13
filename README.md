@@ -169,8 +169,16 @@ highlighting, image reads, file reveal and the plugin's own find bar.
 Most cards read the tool detail Paseo hands every plugin, so they work whichever agent made the
 call: reads, writes, edits, shell and Git commands, searches, fetches, sub-agents, plans, MCP calls
 (in Claude's `mcp__server__tool`, Codex's `server.tool` and Oh My Pi's `server / tool` forms) and
-Paseo's own tools. Oh My Pi's own tools `hub`, `eval`, `ask` and `task`, and its GitHub device
-calls, have cards of their own; other agents never send them.
+Paseo's own tools. Calls Paseo passes as plain text get a label-and-text card.
+
+A few cards are matched by tool name and serve Oh My Pi, which no other agent sends them for:
+
+- `hub` and the GitHub device calls have their own cards on every Paseo release.
+- **Eval** and **Ask** draw `eval` and `ask` calls that arrive with their arguments, as they do
+  up to Paseo 0.10. From 0.11 Paseo turns both into plain text before plugins see them, dropping
+  the code cells and the answer options, so they get the plain-text card.
+- **Task** draws a `task` call with its arguments. Paseo's own Oh My Pi provider sends `task` as a
+  sub-agent item instead, which gets the sub-agent card.
 
 - Every call starts as one borderless row, 26pt on desktop and 28pt on touch, with a summary built
   for its type: the command, the path and line range, `+4 −2` for an edit, the exit code and
@@ -193,7 +201,7 @@ calls, have cards of their own; other agents never send them.
 | ![Edit tool call](docs/images/tool-edit.png) | ![Hub tool calls](docs/images/hub.png) |
 
 <details>
-<summary>More cards: MCP, Paseo tools, image read, syntax block, a <code>thinking</code> tool, and Oh My Pi's Eval, Ask and Task</summary>
+<summary>More cards: MCP, Paseo tools, image read, syntax block, a <code>thinking</code> tool, and the Eval, Ask and Task cards described above</summary>
 
 ![MCP tool call](docs/images/tool-mcp.png)
 ![Eval tool call](docs/images/tool-eval.png)

@@ -112,7 +112,13 @@ iOS 模拟器开发版上（每次运行前冷启动），单次提交里所有�
 
 ### 工具行
 
-大部分卡片读取的是 Paseo 交给每个插件的工具明细，所以不论调用来自哪个 agent 都能使用：读、写、编辑、Shell 和 Git 命令、搜索、抓取网页、子 agent、计划、MCP 调用（兼容 Claude 的 `mcp__server__tool`、Codex 的 `server.tool` 和 Oh My Pi 的 `server / tool` 三种写法），以及 Paseo 自己的工具。Oh My Pi 特有的 `hub`、`eval`、`ask`、`task` 工具和它的 GitHub 设备调用有专门的卡片，其他 agent 不会发出这些调用。
+大部分卡片读取的是 Paseo 交给每个插件的工具明细，所以不论调用来自哪个 agent 都能使用：读、写、编辑、Shell 和 Git 命令、搜索、抓取网页、子 agent、计划、MCP 调用（兼容 Claude 的 `mcp__server__tool`、Codex 的 `server.tool` 和 Oh My Pi 的 `server / tool` 三种写法），以及 Paseo 自己的工具。Paseo 以纯文本形式交来的调用，画成「标题 + 正文」的卡片。
+
+少数卡片按工具名识别，对应的是 Oh My Pi 的工具，其他 agent 不会发出这些调用：
+
+- `hub` 和 GitHub 设备调用在各个 Paseo 版本上都有专门卡片。
+- **Eval** 和 **Ask** 卡片绘制带原始参数到达的 `eval`、`ask` 调用，Paseo 0.10 及以前就是这样。从 0.11 起，Paseo 在交给插件之前就把这两种调用转成了纯文本，代码单元和回答选项都已丢失，所以显示为纯文本卡片。
+- **Task** 卡片绘制带原始参数的 `task` 调用。Paseo 自带的 Oh My Pi provider 会把 `task` 转成子 agent 条目，因此显示为子 agent 卡片。
 
 - 每个调用默认是一条无边框的行，桌面 26pt、触控 28pt，摘要按类型生成：命令、路径和行号范围、编辑的 `+4 −2`、退出码和耗时。点一下展开卡片。
 - 展开状态按调用（`agentId:callId`）记在组件之外，完成、滚进历史、重新挂载都不会丢。iOS 上展开时行头留在按下的位置，内容向下打开。
@@ -129,7 +135,7 @@ iOS 模拟器开发版上（每次运行前冷启动），单次提交里所有�
 | ![Edit 工具调用](docs/images/tool-edit.png) | ![Hub 工具调用（Oh My Pi）](docs/images/hub.png) |
 
 <details>
-<summary>更多卡片：MCP、Paseo 工具、读图、代码块、<code>thinking</code> 工具，以及 Oh My Pi 的 Eval、Ask、Task</summary>
+<summary>更多卡片：MCP、Paseo 工具、读图、代码块、<code>thinking</code> 工具，以及上文所述的 Eval、Ask、Task 卡片</summary>
 
 ![MCP 工具调用](docs/images/tool-mcp.png)
 ![Eval 工具调用](docs/images/tool-eval.png)
