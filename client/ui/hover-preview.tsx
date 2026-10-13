@@ -12,6 +12,7 @@ import { PHONE_CHROME, pressPreviewFrame } from "./press-preview-placement";
 import { ProseSelectionContext } from "./prose-text";
 import { HScroll } from "./h-scroll";
 import { ToolbarButton, TooltipAlignContext } from "./toolbar-button";
+import { Glyph } from "../components/glyph";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
@@ -276,12 +277,15 @@ function measureWidth(node: unknown, done: (width: number) => void) {
 }
 
 /**
- * The panel's toolbar, above the scrolling body. Line wrap sits at the left,
- * `center` (a pager) in the middle, and the content's own buttons on the
- * right, with the window button always last, at the far right.
+ * The panel's toolbar, above the scrolling body. The content's kind (`icon`)
+ * and line wrap sit at the left, `center` (a pager, a picture's size) in the
+ * middle, and the content's own buttons on the right, with the window button
+ * always last, at the far right.
  */
-export function HoverPreviewHeader({ tokens, center, children }: {
+export function HoverPreviewHeader({ tokens, icon, center, children }: {
   tokens: ExtendedThemeTokens;
+  /** What the panel shows, as a glyph in a button's box at the far left. */
+  icon?: string;
   center?: ReactNode;
   children?: ReactNode;
 }) {
@@ -302,6 +306,11 @@ export function HoverPreviewHeader({ tokens, center, children }: {
     >
       <View style={styles.toolbar}>
         <View style={styles.toolbarStart}>
+          {icon ? (
+            <View testID="hover-preview-icon" style={styles.toolbarIcon}>
+              <Glyph name={icon} size={14} color={tokens.foregroundMuted} />
+            </View>
+          ) : null}
           {/* At the panel's left edge: its name opens rightwards. */}
           <TooltipAlignContext.Provider value="start">
             {actions?.wrap ? (
@@ -360,6 +369,8 @@ const styles = StyleSheet.create({
   // Equal flexible sides keep the centre slot in the middle of the panel.
   toolbarStart: { flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", gap: space.xs },
   toolbarCenter: { flexShrink: 0 },
+  // The size of a toolbar button, so the glyph lines up with the buttons.
+  toolbarIcon: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
   toolbarEnd: { flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: space.xs },
   body: {
     minHeight: 0,
