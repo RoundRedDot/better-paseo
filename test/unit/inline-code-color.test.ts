@@ -43,6 +43,23 @@ describe("inline code colour on native", () => {
     expect(codeSpan("jade").color).toBe(ACCENT_PRESETS.jade);
   });
 
+  it("is heavier than regular, medium where the face has one", () => {
+    setOS("ios");
+    expect(codeSpan("host").fontWeight).toBe("500");
+    setOS("android");
+    expect(codeSpan("host").fontWeight).toBe("600");
+    setOS("web");
+    expect(codeSpan("host").fontWeight).toBeUndefined();
+  });
+
+  it("keeps the weight of a heading or strong run it sits in", () => {
+    setOS("ios");
+    const tokens = buildThemeTokens(LIGHT, DEFAULT_PREFERENCES, { platform: "ios" });
+    const styles = buildStyles(tokens, "document", variantMetrics("document", 15));
+    expect(styles.codeSpanBold.fontWeight).toBeUndefined();
+    expect(styles.codeSpanBold.color).toBe(styles.codeSpan.color);
+  });
+
   it("stays the muted prose colour in a quiet reply", () => {
     setOS("ios");
     expect(codeSpan("violet", true).color).toBe(LIGHT.foregroundMuted);
