@@ -336,9 +336,10 @@ export function HoverPreviewBody({ children }: { children: ReactNode }) {
   const maximized = actions?.maximized ?? false;
   // Lines keep their length; the body scrolls sideways, with a track under it
   // only while it is wider than the panel. The track keeps clear of the last
-  // line's descenders.
+  // line's descenders and sits down in the body's bottom padding, near the
+  // panel's edge.
   const content = wrap && !wrap.on ? (
-    <HScroll tokens={wrap.tokens} trackGap={space.sm} contentContainerStyle={styles.unwrappedScroll}>
+    <HScroll tokens={wrap.tokens} trackStyle={styles.track} contentContainerStyle={styles.unwrappedScroll}>
       <View style={styles.unwrapped}>{children}</View>
     </HScroll>
   ) : children;
@@ -388,6 +389,8 @@ const styles = StyleSheet.create({
   pressBodyContent: { padding: space.md, gap: space.sm },
   unwrappedScroll: { flexGrow: 1 },
   unwrapped: { flexGrow: 1, gap: space.sm },
+  // 4pt from the panel's edge, out of the body's 12pt bottom padding.
+  track: { marginTop: space.sm, marginBottom: space.xs - space.md },
   // Raised over the body, so a button's name can hang down across it.
   header: {
     flexShrink: 0,
