@@ -164,22 +164,30 @@ Devicon brand marks, and the file-manager link.
 
 ![Settings screen](docs/images/settings.png)
 
-| Setting                | Effect                                                                                       |
-| ---------------------- | -------------------------------------------------------------------------------------------- |
-| Language               | English or 简体中文 for this page, or follow the device. Plugins cannot see Paseo's own language. |
-| Accent colour          | Follow the Paseo theme, or pick Jade, Violet, Amber, or Rose.                                |
-| Monospace font         | Follow Paseo (default), Iosevka, Iosevka Code (ligatures in code blocks; web and desktop), or Custom. Follow Paseo uses, in order: the host's font settings once Paseo shares them with plugins; on web/desktop, the monospace font and code size set in Paseo's Appearance settings (read only, a temporary bridge until then); otherwise Paseo's default monospace (`SFMono-Regular, Menlo, Monaco, Consolas, …` on web/desktop, the system monospace on iOS/Android). The settings page shows which one is in effect. On iOS/Android, Iosevka is not offered and Custom picks from faces the platform ships. |
-| Code font size         | Follow Paseo, or 10-22px with a live preview. Applies to code, diffs, terminals and paths.   |
-| Interface font         | Follow Paseo's interface font, embedded Inter (web only), or the system face.                |
-| Tool details           | Tool calls start collapsed; optionally open failed calls on their own.                       |
-| File paths             | Relative to the workspace, or absolute. Copying always gives the absolute path.              |
-| Row icons and labels   | Icon only (default), label only, or both, on tool and thought rows.                          |
-| Compact row spacing    | On by default. Takes back most of the 16pt Paseo 0.11 leaves under every plugin row.         |
-| Compact reply spacing  | On by default. A reply sitting on a tool, thought, or todo row uses 4pt instead of 16pt.     |
-| Enhanced prompt bubble | Off by default, so Paseo draws the prompt (pasted images, rewind). On uses the plugin bubble. |
-| Selection actions      | Highlighting text in a callout raises Copy and Add to chat.                                  |
-| Assistant markdown     | On by default. Draws headings, lists, tables, highlighted code, and local images. Off hands the reply to Paseo, which is what mermaid and the host's own images need. |
-| Markdown style         | Document, Compact, or Terminal (the body in the code face).                                  |
+The page groups the options as General, Appearance, Code font, Tool calls, Spacing, Messages and
+Hover previews. A sample turn drawn with the timeline's own components follows every change: beside
+the options on a wide desktop window (the page lifts the 720pt cap Paseo puts on settings pages,
+up to 1440, and keeps the preview in view while the options scroll), above them elsewhere. Its rows
+open on a click and preview on hover or long press like real ones. An option whose parent is off
+(Markdown style, the hover preview details) is dimmed, and Reset asks for a second press.
+
+| Setting                   | Effect                                                                                       |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| Language                  | English or 简体中文 for this page, or follow the device. Plugins cannot see Paseo's own language. |
+| Accent colour             | Follow the Paseo theme, or pick Jade, Violet, Amber, or Rose.                                |
+| Interface font            | Follow Paseo's interface font, embedded Inter (web only), or the system face.                |
+| Monospace font            | Follow Paseo (default), Iosevka, Iosevka Code (ligatures in code blocks; web and desktop), or Custom. Follow Paseo uses, in order: the host's font settings once Paseo shares them with plugins; on web/desktop, the monospace font and code size set in Paseo's Appearance settings (read only, a temporary bridge until then); otherwise Paseo's default monospace (`SFMono-Regular, Menlo, Monaco, Consolas, …` on web/desktop, the system monospace on iOS/Android). The settings page shows which one is in effect. On iOS/Android, Iosevka is not offered and Custom picks from faces the platform ships. |
+| Code font size            | Follow Paseo, or 10-22px with a glyph sample. Applies to code, diffs, terminals and paths.   |
+| Row icons and labels      | Icon only (default), label only, or both, on tool and thought rows.                          |
+| File paths                | Relative to the workspace, or absolute. Copying always gives the absolute path.              |
+| Open failed calls         | Off by default: every call starts as one row. On, a failed call opens to show its error.     |
+| Tight rows                | On by default. Takes back most of the 16pt Paseo 0.11 leaves under every plugin row.         |
+| Tight reply               | On by default. A reply sitting on a tool, thought, or todo row uses 4pt instead of 16pt.     |
+| Enhanced prompt bubble    | Off by default, so Paseo draws the prompt (pasted images, rewind). On uses the plugin bubble. |
+| Plugin markdown for replies | On by default. Draws headings, lists, tables, highlighted code, and local images. Off hands the reply to Paseo, which is what mermaid and the host's own images need. |
+| Markdown style            | Document, Compact, or Terminal (the body in the code face).                                  |
+| Selection toolbar         | Web and desktop. Highlighting text in a callout raises Copy and Add to chat.                 |
+| Hover previews            | Previews a collapsed row or a path on hover (desktop) or long press (phone), with its delay, line wrap, line numbers and alternating shading. |
 
 Preferences are stored by the daemon, through the SDK's settings (`defineSettings` /
 `useSettings`, record `presentation` in `shared/preferences-settings.ts`). Host scope is the only
@@ -206,7 +214,7 @@ The bar searches only messages the chat has loaded. Scroll up first to include o
 
 **Enhanced prompt bubble** is off by default, so prompts already use Paseo's find. To keep
 Paseo's native search for replies as well, which also searches unloaded history, turn off
-**Assistant markdown** (and **Enhanced prompt bubble**, if you turned it on) in **Settings ->
+**Plugin markdown for replies** (and **Enhanced prompt bubble**, if you turned it on) in **Settings ->
 Plugins -> Better Paseo**. Paseo then draws replies and prompts itself, and Ctrl/Cmd+F opens
 Paseo's find instead of the plugin's bar.
 New messages follow the change.

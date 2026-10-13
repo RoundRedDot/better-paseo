@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
 import { TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { codeSurface, itemRootFont } from "./components/host-font-escape";
@@ -20,15 +20,17 @@ import {
   monoChoice,
   monoChoiceUpdate,
   type AccentPreset,
+  type EnhancerPreferences,
   type MonoChoice,
   type HoverDelayPreference,
   type PathDisplayPreference,
   type RowLabelStylePreference,
-  type ToolDetailPreference,
   type UiFontPreference,
 } from "./preferences";
 import { NATIVE_MONO_CHOICES, TYPE, describeMonoSource, readHostTypography } from "./ui/tokens/typography";
 import { usePreferenceSettings } from "./state/preference-sync-slot";
+import { useWideHostColumn } from "./ui/wide-host-column";
+import { SettingsPreview } from "./settings-preview";
 import type { SyncStatus } from "./state/preference-sync";
 import {
   SETTINGS_STRINGS,
@@ -66,10 +68,8 @@ const KNOB_INSET = (TRACK_HEIGHT - KNOB) / 2;
 /** Accent swatches: 22pt, each in a 44pt target. */
 const SWATCH = 22;
 const SWATCH_SLOP = (44 - SWATCH) / 2;
-/** The desktop label column. */
-const LABEL_COLUMN = 300;
 
-/** Layout of the page: a grouped list on touch layouts, two columns on desktop. */
+/** Layout of the page: a grouped list on touch layouts, cards of label-and-control rows on desktop. */
 interface PageLook {
   compact: boolean;
   tokens: ExtendedThemeTokens;
@@ -253,7 +253,11 @@ function PlainButton({
   );
 }
 
-/** A section: a sentence-case label over a grouped list (touch) or bare rows (desktop). */
+/**
+ * A section: a muted label over a card of rows, as Paseo draws its own
+ * settings (`SettingsSection`): a grouped list on touch, a bordered surface1
+ * card on desktop.
+ */
 function Section({ title, look, children }: { title: string; look: PageLook; children: React.ReactNode }) {
   const { tokens, compact } = look;
   return (
@@ -262,23 +266,48 @@ function Section({ title, look, children }: { title: string; look: PageLook; chi
         accessibilityRole="header"
         style={[
           styles.sectionTitle,
-          compact ? styles.sectionTitleInset : null,
+          compact ? styles.sectionTitleInset : styles.sectionTitleDesktop,
           { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
         ]}
       >
         {title}
       </Text>
-      <View style={compact ? [styles.group, { backgroundColor: tokens.v2.surface1 }] : null}>
+      <View
+        style={[
+          styles.group,
+          { backgroundColor: tokens.v2.surface1 },
+          compact ? null : [styles.groupDesktop, { borderColor: tokens.v2.border }],
+        ]}
+      >
         {children}
       </View>
     </View>
   );
 }
 
+/** A muted paragraph under a section's rows, for what applies to the whole section. */
+function SectionNote({ text, look }: { text: string; look: PageLook }) {
+  const { tokens, compact } = look;
+  return (
+    <Text
+      style={[
+        styles.rowNote,
+        compact ? styles.sectionTitleInset : styles.sectionTitleDesktop,
+        styles.sectionNote,
+        { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
+      ]}
+    >
+      {text}
+    </Text>
+  );
+}
+
 /**
  * One setting. Touch: a list row — the label and its note, the control beside
  * them (a switch) or under them (`stacked`, a segmented control). Desktop: the
- * label column, then the control column. Rows after the first take a 1pt rule.
+ * label and note on the left, the control on the right, wrapping under them
+ * when the column is too narrow for both. Rows after the first take a 1pt rule.
+ * A `disabled` row (its parent option is off) is dimmed and takes no input.
  */
 function SettingRow({
   title,
@@ -287,6 +316,7 @@ function SettingRow({
   look,
   first = false,
   stacked = false,
+  disabled = false,
   below,
 }: {
   title: string;
@@ -295,13 +325,15 @@ function SettingRow({
   look: PageLook;
   first?: boolean;
   stacked?: boolean;
+  disabled?: boolean;
   /** Extra content under the row (the font preview, a custom family). */
   below?: React.ReactNode;
 }) {
   const { tokens, compact } = look;
   const rule = first ? null : { borderTopWidth: 1, borderTopColor: tokens.v2.border };
+  const dim = disabled ? styles.rowDisabled : null;
   const text = (
-    <View style={compact ? styles.rowText : styles.labelColumn}>
+    <View style={compact ? styles.rowText : styles.rowTextDesktop}>
       <Text
         style={[
           compact ? styles.rowTitleCompact : styles.rowTitleDesktop,
@@ -319,8 +351,8 @@ function SettingRow({
   );
   if (compact) {
     return (
-      <View style={styles.rowInset}>
-        <View style={[styles.rowCompact, rule, stacked ? styles.rowStacked : null]}>
+      <View style={styles.rowInset} pointerEvents={disabled ? "none" : "auto"} aria-disabled={disabled}>
+        <View style={[styles.rowCompact, rule, stacked ? styles.rowStacked : null, dim]}>
           {stacked ? (
             <>
               {text}
@@ -338,12 +370,16 @@ function SettingRow({
     );
   }
   return (
-    <View style={[styles.rowDesktop, rule]}>
-      {text}
-      <View style={styles.controlColumn}>
-        {control}
-        {below}
+    <View
+      style={[styles.rowDesktop, rule, dim]}
+      pointerEvents={disabled ? "none" : "auto"}
+      aria-disabled={disabled}
+    >
+      <View style={styles.rowLineDesktop}>
+        {text}
+        {control ? <View style={styles.controlDesktop}>{control}</View> : null}
       </View>
+      {below}
     </View>
   );
 }
@@ -521,6 +557,95 @@ function AccentControl({ value, hostAccent, look }: { value: AccentPreset; hostA
   );
 }
 
+/**
+ * The sample turn in a frame: a header with the title and how to try it, the
+ * rows on the chat's own surface below. Beside the options it stays in view
+ * while the page scrolls (web `position: sticky`), and scrolls inside itself
+ * when taller than the window; above the options it can be folded away.
+ */
+function PreviewPanel({
+  look,
+  preferences,
+  pointer,
+  side,
+}: {
+  look: PageLook;
+  preferences: EnhancerPreferences;
+  /** Whether rows preview on hover (web) rather than on a long press. */
+  pointer: boolean;
+  /** Drawn in the side column rather than above the options. */
+  side: boolean;
+}) {
+  const { tokens, compact, t } = look;
+  const [open, setOpen] = useState(true);
+  const { height } = useWindowDimensions();
+  const rows = <SettingsPreview tokens={tokens} preferences={preferences} compact={compact} t={t} />;
+  return (
+    <View style={[styles.previewCard, compact ? styles.previewCardInset : null, { borderColor: tokens.v2.border }]}>
+      <View
+        style={[
+          styles.previewHeader,
+          { backgroundColor: tokens.v2.surface1 },
+          open ? { borderBottomWidth: 1, borderBottomColor: tokens.v2.border } : null,
+        ]}
+      >
+        <View style={styles.previewHeaderText}>
+          <Text style={[styles.rowTitleDesktop, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+            {t.previewTitle}
+          </Text>
+          {open ? (
+            <Text style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+              {pointer ? t.previewHintPointer : t.previewHintTouch}
+            </Text>
+          ) : null}
+        </View>
+        {side ? null : (
+          <PlainButton label={open ? t.previewHide : t.previewShow} onPress={() => setOpen(!open)} look={look} />
+        )}
+      </View>
+      {open ? (
+        side ? (
+          <ScrollView
+            style={[styles.previewScroll, { maxHeight: Math.max(PREVIEW_MIN_HEIGHT, height - PREVIEW_WINDOW_MARGIN) }]}
+            contentContainerStyle={styles.previewBody}
+          >
+            {rows}
+          </ScrollView>
+        ) : (
+          <View style={styles.previewBody}>{rows}</View>
+        )
+      ) : null}
+    </View>
+  );
+}
+
+/** Reset needs a second press within a few seconds: it reaches every client of the host. */
+function ResetButton({ look }: { look: PageLook }) {
+  const { tokens, t } = look;
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const timer = setTimeout(() => setArmed(false), RESET_ARM_MS);
+    return () => clearTimeout(timer);
+  }, [armed]);
+  return (
+    <View style={[styles.reset, look.compact ? styles.introInset : null]}>
+      <PlainButton
+        label={armed ? t.resetConfirm : t.resetDefaults}
+        onPress={() => {
+          if (!armed) return setArmed(true);
+          setArmed(false);
+          resetEnhancerPreferences();
+        }}
+        look={look}
+      />
+      <Text style={[styles.rowNote, { color: armed ? tokens.warning : tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+        {t.resetDescription}
+      </Text>
+    </View>
+  );
+}
+
 /** Settings content mounted by Paseo under the selected host's Plugin settings. */
 export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
   const preferences = useEnhancerPreferences();
@@ -545,6 +670,13 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
   );
   const look = useMemo<PageLook>(() => ({ tokens, compact, t }), [tokens, compact, t]);
 
+  // Desktop web: take the room Paseo's 720 column withholds, and put the
+  // preview beside the options once the page is wide enough for both.
+  const rootRef = useRef<View>(null);
+  useWideHostColumn(rootRef, !compact && platform === "web");
+  const [width, setWidth] = useState(0);
+  const side = !compact && width >= TWO_COLUMN_MIN;
+
   const monoOptions: ReadonlyArray<{ value: MonoChoice; label: string }> = native
     ? [
         { value: "host", label: t.followPaseo },
@@ -561,38 +693,13 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
   // which is also what `resolveTypography` renders for it there.
   const currentMono = monoChoice(preferences);
   const shownMono: MonoChoice = native && currentMono.startsWith("iosevka") ? "host" : currentMono;
+  const previews = preferences.hoverPreview;
 
-  return (
-    <View
-      {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
-      style={[styles.container, { backgroundColor: tokens.v2.surface0 }]}
-    >
-      <View style={compact ? styles.introInset : null}>
-        <Text style={[styles.title, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
-          {t.pageTitle}
-        </Text>
-        <Text style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-          {t.pageIntro}
-        </Text>
-        {hint ? (
-          <Text
-            accessibilityRole="alert"
-            style={[
-              styles.rowNote,
-              styles.storageHint,
-              {
-                color: sync.status === "loading" ? tokens.foregroundMuted : tokens.warning,
-                borderColor: tokens.v2.border,
-                fontFamily: tokens.fontUi,
-              },
-            ]}
-          >
-            {hint}
-          </Text>
-        ) : null}
-      </View>
+  const preview = <PreviewPanel look={look} preferences={preferences} pointer={!native} side={side} />;
 
-      <Section title={t.sectionAppearance} look={look}>
+  const options = (
+    <View style={styles.options}>
+      <Section title={t.sectionGeneral} look={look}>
         <SettingRow
           title={t.languageTitle}
           description={t.languageDescription}
@@ -613,73 +720,20 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
           first
           stacked
         />
+      </Section>
+
+      <Section title={t.sectionAppearance} look={look}>
         <SettingRow
           title={t.accentTitle}
           description={t.accentDescription}
           control={<AccentControl value={preferences.accent} hostAccent={theme.colors.accent} look={look} />}
           look={look}
-          stacked
-        />
-      </Section>
-
-      <Section title={t.sectionFonts} look={look}>
-        {hostTypography ? null : (
-          <SettingRow
-            title={t.paseoFontsTitle}
-            description={native ? t.paseoFontsNative : t.paseoFontsWeb}
-            look={look}
-            first
-          />
-        )}
-        <SettingRow
-          title={t.monoTitle}
-          description={native ? t.monoNative : t.monoWeb}
-          control={
-            <Segmented<MonoChoice>
-              label={t.monoTitle}
-              value={shownMono}
-              options={monoOptions}
-              onChange={(choice) => updateEnhancerPreferences(monoChoiceUpdate(choice))}
-              look={look}
-            />
-          }
-          below={
-            shownMono === "host" ? (
-              <Text
-                accessibilityLabel={t.monoSource}
-                style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}
-              >
-                {describeMonoSource(tokens.typography.mono.source, platform, t)}
-              </Text>
-            ) : shownMono === "custom" ? (
-              native ? (
-                <Segmented<string>
-                  label={t.customMono}
-                  value={preferences.customMonoFont}
-                  options={nativeChoices}
-                  onChange={(customMonoFont) => updateEnhancerPreferences({ customMonoFont })}
-                  look={look}
-                />
-              ) : (
-                <CustomMonoInput value={preferences.customMonoFont} look={look} />
-              )
-            ) : null
-          }
-          look={look}
-          first={hostTypography}
-          stacked
-        />
-        <SettingRow
-          title={t.codeSizeTitle}
-          description={t.codeSizeDescription(CODE_FONT_SIZE_MIN, CODE_FONT_SIZE_MAX)}
-          control={<CodeSizeControl value={preferences.codeFontSize} look={look} />}
-          below={<MonoPreview look={look} />}
-          look={look}
+          first
           stacked
         />
         <SettingRow
           title={t.uiFontTitle}
-          description={native ? t.uiFontNative : t.uiFontWeb}
+          description={t.uiFontDescription}
           control={
             <Segmented<UiFontPreference>
               label={t.uiFontTitle}
@@ -705,19 +759,72 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
         />
       </Section>
 
+      <View style={styles.sectionWithNote}>
+        <Section title={t.sectionCode} look={look}>
+          <SettingRow
+            title={t.monoTitle}
+            description={native ? t.monoNative : t.monoWeb}
+            control={
+              <Segmented<MonoChoice>
+                label={t.monoTitle}
+                value={shownMono}
+                options={monoOptions}
+                onChange={(choice) => updateEnhancerPreferences(monoChoiceUpdate(choice))}
+                look={look}
+              />
+            }
+            below={
+              shownMono === "host" ? (
+                <Text
+                  accessibilityLabel={t.monoSource}
+                  style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}
+                >
+                  {describeMonoSource(tokens.typography.mono.source, platform, t)}
+                </Text>
+              ) : shownMono === "custom" ? (
+                native ? (
+                  <Segmented<string>
+                    label={t.customMono}
+                    value={preferences.customMonoFont}
+                    options={nativeChoices}
+                    onChange={(customMonoFont) => updateEnhancerPreferences({ customMonoFont })}
+                    look={look}
+                  />
+                ) : (
+                  <CustomMonoInput value={preferences.customMonoFont} look={look} />
+                )
+              ) : null
+            }
+            look={look}
+            first
+            stacked
+          />
+          <SettingRow
+            title={t.codeSizeTitle}
+            description={t.codeSizeDescription(CODE_FONT_SIZE_MIN, CODE_FONT_SIZE_MAX)}
+            control={<CodeSizeControl value={preferences.codeFontSize} look={look} />}
+            below={<MonoPreview look={look} />}
+            look={look}
+            stacked
+          />
+        </Section>
+        {hostTypography ? null : <SectionNote text={native ? t.paseoFontsNative : t.paseoFontsWeb} look={look} />}
+      </View>
+
       <Section title={t.sectionTools} look={look}>
         <SettingRow
-          title={t.toolDetailTitle}
-          description={t.toolDetailDescription}
+          title={t.rowLabelsTitle}
+          description={t.rowLabelsDescription}
           control={
-            <Segmented<ToolDetailPreference>
-              label={t.toolDetailTitle}
-              value={preferences.toolDetail}
+            <Segmented<RowLabelStylePreference>
+              label={t.rowLabelsTitle}
+              value={preferences.rowLabelStyle}
               options={[
-                { value: "collapsed", label: t.toolDetailCollapsed },
-                { value: "expand-failed", label: t.toolDetailExpandFailed },
+                { value: "icon", label: t.rowLabelsIcon },
+                { value: "label", label: t.rowLabelsLabel },
+                { value: "both", label: t.rowLabelsBoth },
               ]}
-              onChange={(toolDetail) => updateEnhancerPreferences({ toolDetail })}
+              onChange={(rowLabelStyle) => updateEnhancerPreferences({ rowLabelStyle })}
               look={look}
             />
           }
@@ -744,24 +851,21 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
           stacked
         />
         <SettingRow
-          title={t.rowLabelsTitle}
-          description={t.rowLabelsDescription}
+          title={t.toolDetailTitle}
+          description={t.toolDetailDescription}
           control={
-            <Segmented<RowLabelStylePreference>
-              label={t.rowLabelsTitle}
-              value={preferences.rowLabelStyle}
-              options={[
-                { value: "icon", label: t.rowLabelsIcon },
-                { value: "label", label: t.rowLabelsLabel },
-                { value: "both", label: t.rowLabelsBoth },
-              ]}
-              onChange={(rowLabelStyle) => updateEnhancerPreferences({ rowLabelStyle })}
+            <Toggle
+              value={preferences.toolDetail === "expand-failed"}
+              onChange={(open) => updateEnhancerPreferences({ toolDetail: open ? "expand-failed" : "collapsed" })}
+              label={t.toolDetailTitle}
               look={look}
             />
           }
           look={look}
-          stacked
         />
+      </Section>
+
+      <Section title={t.sectionSpacing} look={look}>
         <SettingRow
           title={t.rowSpacingTitle}
           description={t.rowSpacingDescription}
@@ -774,6 +878,7 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
             />
           }
           look={look}
+          first
         />
         <SettingRow
           title={t.replySpacingTitle}
@@ -783,77 +888,6 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
               value={preferences.compactReplySpacing}
               onChange={(compactReplySpacing) => updateEnhancerPreferences({ compactReplySpacing })}
               label={t.replySpacingTitle}
-              look={look}
-            />
-          }
-          look={look}
-        />
-      </Section>
-
-      <Section title={t.sectionPreview} look={look}>
-        <SettingRow
-          title={t.hoverPreviewTitle}
-          description={t.hoverPreviewDescription}
-          control={
-            <Toggle
-              value={preferences.hoverPreview}
-              onChange={(hoverPreview) => updateEnhancerPreferences({ hoverPreview })}
-              label={t.hoverPreviewTitle}
-              look={look}
-            />
-          }
-          look={look}
-          first
-        />
-        <SettingRow
-          title={t.hoverDelayTitle}
-          description={t.hoverDelayDescription}
-          control={
-            <Segmented<HoverDelayPreference>
-              label={t.hoverDelayTitle}
-              value={preferences.hoverDelay}
-              options={HOVER_DELAYS.map((value) => ({ value, label: HOVER_DELAY_LABELS[value] }))}
-              onChange={(hoverDelay) => updateEnhancerPreferences({ hoverDelay })}
-              look={look}
-            />
-          }
-          look={look}
-          stacked
-        />
-        <SettingRow
-          title={t.previewWrapTitle}
-          description={t.previewWrapDescription}
-          control={
-            <Toggle
-              value={preferences.previewWrap}
-              onChange={(previewWrap) => updateEnhancerPreferences({ previewWrap })}
-              label={t.previewWrapTitle}
-              look={look}
-            />
-          }
-          look={look}
-        />
-        <SettingRow
-          title={t.previewLineNumbersTitle}
-          description={t.previewLineNumbersDescription}
-          control={
-            <Toggle
-              value={preferences.previewLineNumbers}
-              onChange={(previewLineNumbers) => updateEnhancerPreferences({ previewLineNumbers })}
-              label={t.previewLineNumbersTitle}
-              look={look}
-            />
-          }
-          look={look}
-        />
-        <SettingRow
-          title={t.previewStripesTitle}
-          description={t.previewStripesDescription}
-          control={
-            <Toggle
-              value={preferences.previewStripes}
-              onChange={(previewStripes) => updateEnhancerPreferences({ previewStripes })}
-              label={t.previewStripesTitle}
               look={look}
             />
           }
@@ -876,21 +910,6 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
           look={look}
           first
         />
-        {native ? null : (
-          <SettingRow
-            title={t.selectionTitle}
-            description={t.selectionDescription}
-            control={
-              <Toggle
-                value={preferences.selectionActions}
-                onChange={(selectionActions) => updateEnhancerPreferences({ selectionActions })}
-                label={t.selectionTitle}
-                look={look}
-              />
-            }
-            look={look}
-          />
-        )}
         <SettingRow
           title={t.markdownTitle}
           description={t.markdownDescription}
@@ -922,26 +941,174 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
           }
           look={look}
           stacked
+          disabled={!preferences.assistantMarkdown}
+        />
+        {native ? null : (
+          <SettingRow
+            title={t.selectionTitle}
+            description={t.selectionDescription}
+            control={
+              <Toggle
+                value={preferences.selectionActions}
+                onChange={(selectionActions) => updateEnhancerPreferences({ selectionActions })}
+                label={t.selectionTitle}
+                look={look}
+              />
+            }
+            look={look}
+          />
+        )}
+      </Section>
+
+      <Section title={t.sectionPreview} look={look}>
+        <SettingRow
+          title={t.hoverPreviewTitle}
+          description={t.hoverPreviewDescription}
+          control={
+            <Toggle
+              value={preferences.hoverPreview}
+              onChange={(hoverPreview) => updateEnhancerPreferences({ hoverPreview })}
+              label={t.hoverPreviewTitle}
+              look={look}
+            />
+          }
+          look={look}
+          first
+        />
+        {native ? null : (
+          <SettingRow
+            title={t.hoverDelayTitle}
+            description={t.hoverDelayDescription}
+            control={
+              <Segmented<HoverDelayPreference>
+                label={t.hoverDelayTitle}
+                value={preferences.hoverDelay}
+                options={HOVER_DELAYS.map((value) => ({ value, label: HOVER_DELAY_LABELS[value] }))}
+                onChange={(hoverDelay) => updateEnhancerPreferences({ hoverDelay })}
+                look={look}
+              />
+            }
+            look={look}
+            stacked
+            disabled={!previews}
+          />
+        )}
+        <SettingRow
+          title={t.previewWrapTitle}
+          description={t.previewWrapDescription}
+          control={
+            <Toggle
+              value={preferences.previewWrap}
+              onChange={(previewWrap) => updateEnhancerPreferences({ previewWrap })}
+              label={t.previewWrapTitle}
+              look={look}
+            />
+          }
+          look={look}
+          disabled={!previews}
+        />
+        <SettingRow
+          title={t.previewLineNumbersTitle}
+          description={t.previewLineNumbersDescription}
+          control={
+            <Toggle
+              value={preferences.previewLineNumbers}
+              onChange={(previewLineNumbers) => updateEnhancerPreferences({ previewLineNumbers })}
+              label={t.previewLineNumbersTitle}
+              look={look}
+            />
+          }
+          look={look}
+          disabled={!previews}
+        />
+        <SettingRow
+          title={t.previewStripesTitle}
+          description={t.previewStripesDescription}
+          control={
+            <Toggle
+              value={preferences.previewStripes}
+              onChange={(previewStripes) => updateEnhancerPreferences({ previewStripes })}
+              label={t.previewStripesTitle}
+              look={look}
+            />
+          }
+          look={look}
+          disabled={!previews}
         />
       </Section>
 
-      <View style={compact ? styles.introInset : null}>
-        <PlainButton label={t.resetDefaults} onPress={resetEnhancerPreferences} look={look} />
+      <ResetButton look={look} />
+    </View>
+  );
+
+  return (
+    <View
+      ref={rootRef}
+      {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+      style={[styles.container, { backgroundColor: tokens.v2.surface0 }]}
+    >
+      <View style={compact ? styles.introInset : styles.introDesktop}>
+        <Text style={[styles.title, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+          {t.pageTitle}
+        </Text>
+        <Text style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+          {t.pageIntro}
+        </Text>
+        {hint ? (
+          <Text
+            accessibilityRole="alert"
+            style={[
+              styles.rowNote,
+              styles.storageHint,
+              {
+                color: sync.status === "loading" ? tokens.foregroundMuted : tokens.warning,
+                borderColor: tokens.v2.border,
+                fontFamily: tokens.fontUi,
+              },
+            ]}
+          >
+            {hint}
+          </Text>
+        ) : null}
       </View>
+
+      {side ? (
+        <View style={styles.columns}>
+          <View style={styles.optionsColumn}>{options}</View>
+          <View style={[styles.previewColumn, stickyColumn]}>{preview}</View>
+        </View>
+      ) : (
+        <>
+          {preview}
+          {options}
+        </>
+      )}
     </View>
   );
 }
+
+/** Wide enough for the options (about 520) and the preview (about 400) side by side. */
+const TWO_COLUMN_MIN = 960;
+/** The side preview never shrinks below this, however short the window. */
+const PREVIEW_MIN_HEIGHT = 320;
+/** Window height the side preview leaves for Paseo's header and the page's own padding. */
+const PREVIEW_WINDOW_MARGIN = 140;
+const RESET_ARM_MS = 4000;
+/** React Native's types lack `sticky`; React Native Web passes it through to CSS. */
+const stickyColumn = (Platform.OS === "web" ? { position: "sticky", top: space.lg } : null) as ViewStyle | null;
 
 const styles = StyleSheet.create({
   // No `flex: 1` here. The host mounts a settings screen inside a plain
   // column `View` (app `plugins/settings/index.tsx:107`), and React Native Web
   // compiles `flex: 1` to `flex: 1 1 0%`: a zero basis in a container that
   // sizes to its content, so the whole page collapses to nothing.
-  // No width cap or side padding on desktop either: the host's content column
-  // (`PageLayout`, 720 wide and padded) already sets the page width, so the
-  // rows line up with the page title and Paseo's own settings sections.
+  // No side padding on desktop either: the host's content column (`PageLayout`)
+  // already pads the page, so the cards line up with the page title. Its 720
+  // cap is lifted on desktop web (`useWideHostColumn`).
   container: { alignSelf: "stretch", paddingVertical: space.lg, gap: space.xl },
   introInset: { paddingHorizontal: space.lg },
+  introDesktop: { paddingHorizontal: space.xs },
   title: {
     fontSize: TYPE.title.size,
     lineHeight: TYPE.title.lineHeight,
@@ -949,20 +1116,29 @@ const styles = StyleSheet.create({
     marginBottom: space.xs,
   },
   storageHint: { marginTop: space.sm, padding: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
+  columns: { flexDirection: "row", alignItems: "flex-start", gap: space.xl },
+  optionsColumn: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+  previewColumn: { flexGrow: 0, flexShrink: 0, flexBasis: "44%", minWidth: 380, maxWidth: 640 },
+  options: { gap: space.xl },
   section: { gap: space.sm },
+  sectionWithNote: { gap: space.sm },
   sectionTitle: {
     fontSize: TYPE.settingNote.size,
     lineHeight: TYPE.settingNote.lineHeight,
     fontWeight: "500",
   },
   sectionTitleInset: { paddingHorizontal: space.lg },
+  sectionTitleDesktop: { paddingHorizontal: space.xs },
+  sectionNote: { marginTop: -space.xs },
   group: { borderRadius: radiusV2.card, overflow: "hidden" },
+  groupDesktop: { borderWidth: 1 },
   // Touch: the rule runs from the inset, like a native grouped list.
   rowInset: { paddingLeft: space.lg },
   rowCompact: { minHeight: 44, paddingVertical: 11, paddingRight: space.lg, gap: space.sm },
   rowStacked: { gap: space.md },
   rowLine: { flexDirection: "row", alignItems: "center", gap: space.lg },
   rowText: { flex: 1, minWidth: 0, gap: 2 },
+  rowDisabled: { opacity: 0.45 },
   rowTitleCompact: {
     fontSize: TYPE.setting.compact.size,
     lineHeight: TYPE.setting.compact.lineHeight,
@@ -976,10 +1152,18 @@ const styles = StyleSheet.create({
     fontSize: TYPE.settingNote.size,
     lineHeight: TYPE.settingNote.lineHeight,
   },
-  // Desktop: a label column and a control column, rows divided by a rule.
-  rowDesktop: { flexDirection: "row", alignItems: "flex-start", gap: space.xl, paddingVertical: 14 },
-  labelColumn: { width: LABEL_COLUMN, flexShrink: 0, gap: 2 },
-  controlColumn: { flex: 1, minWidth: 0, alignItems: "flex-start", gap: space.md },
+  // Desktop: the text on the left, the control on the right; the control
+  // wraps under the text when the card is too narrow for both.
+  rowDesktop: { paddingVertical: 14, paddingHorizontal: space.lg, gap: space.md },
+  rowLineDesktop: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    columnGap: space.xl,
+    rowGap: space.md,
+  },
+  rowTextDesktop: { flexGrow: 1, flexShrink: 1, flexBasis: 220, minWidth: 0, gap: 2 },
+  controlDesktop: { flexShrink: 0, maxWidth: "100%" },
   controlLine: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.md },
   track: {
     width: TRACK_WIDTH,
@@ -1046,4 +1230,17 @@ const styles = StyleSheet.create({
   },
   preview: { alignSelf: "stretch", borderRadius: radiusV2.block, padding: space.md, gap: 2 },
   previewMeta: { fontSize: TYPE.caption.size, marginTop: space.xs },
+  previewCard: { borderWidth: 1, borderRadius: radiusV2.card, overflow: "hidden" },
+  previewCardInset: { marginHorizontal: space.lg },
+  previewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.md,
+    paddingVertical: space.md,
+    paddingHorizontal: space.lg,
+  },
+  previewHeaderText: { flex: 1, minWidth: 0, gap: 2 },
+  previewScroll: { flexGrow: 0 },
+  previewBody: { padding: space.lg },
+  reset: { gap: space.sm },
 });

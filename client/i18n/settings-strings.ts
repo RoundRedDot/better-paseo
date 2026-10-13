@@ -3,10 +3,10 @@
  *
  * The plugin SDK does not tell a plugin which language Paseo is set to, so
  * "Follow system" reads the device locale; a reader whose Paseo and system
- * languages differ picks one explicitly. Only the settings page and the
- * names preview toolbar buttons show on hover are translated
- * (`toolbar-strings.ts`): the chat itself shows the model's and the tools'
- * own words.
+ * languages differ picks one explicitly. Only the settings page (with the
+ * sample turn of its preview) and the names preview toolbar buttons show on
+ * hover are translated (`toolbar-strings.ts`): the chat itself shows the
+ * model's and the tools' own words.
  */
 
 export type SettingsLanguagePreference = "system" | "en" | "zh";
@@ -36,7 +36,7 @@ export function resolveLanguage(
 const en = {
   pageTitle: "Chat presentation",
   pageIntro:
-    "Saved on this Paseo host and shared by every client connected to it (desktop, web, iOS, Android). Options a platform cannot draw fall back there.",
+    "Saved on this Paseo host and shared by every client connected to it: desktop, web, iOS and Android. An option a platform cannot draw falls back there.",
   syncFailed:
     "Your last change could not be saved to this Paseo host. It applies on this client until the next change or reload.",
   syncInvalid: (error: string) =>
@@ -49,34 +49,47 @@ const en = {
   custom: "Custom",
   system: "System",
 
-  sectionAppearance: "Appearance",
+  previewTitle: "Preview",
+  previewHintPointer: "A sample turn that follows every change here. Click a row to open it; rest the pointer on one to preview it.",
+  previewHintTouch: "A sample turn that follows every change here. Tap a row to open it; long-press one to preview it.",
+  previewShow: "Show preview",
+  previewHide: "Hide preview",
+  previewPrompt: "Paths in tool rows should be relative to the workspace. Fix it and run the tests.",
+  previewThought:
+    "Paths are formatted in format-path.ts. Check how the roots are built before changing anything, then run the type check and the path tests.",
+  previewLead: "Looking at where paths are formatted first.",
+  previewReply:
+    "Done. Paths in tool rows are now **relative to the workspace**, and copying one still gives the absolute path.\n\n- Fixed the missing `trim()` in `formatPath`\n- `format-path.test.ts`: 31 tests passing\n\n```ts\nformatPath(raw, { mode: \"relative\", roots })\n```",
+
+  sectionGeneral: "General",
   languageTitle: "Language",
   languageDescription:
-    "The language of this page and of the names toolbar buttons show on hover. Follow system reads the device's language; plugins cannot see the language Paseo itself is set to.",
+    "For this page and the toolbar tooltips. Plugins cannot read Paseo's own language, so Follow system uses the device's.",
   languageSystem: "Follow system",
   languageEnglish: "English",
   languageChinese: "简体中文",
+
+  sectionAppearance: "Appearance",
   accentTitle: "Accent colour",
-  accentDescription:
-    "Follow the Paseo theme, or pick a presentation accent. Only the accent changes; every other colour comes from the theme.",
-  accentHost: "Host",
+  accentDescription: "Only the accent changes; every other colour follows the Paseo theme.",
+  accentHost: "Theme",
   accentJade: "Jade",
   accentViolet: "Violet",
   accentAmber: "Amber",
   accentRose: "Rose",
   accentOption: (name: string) => `Accent: ${name}`,
+  uiFontTitle: "Interface font",
+  uiFontDescription: "For row labels, buttons and notes.",
 
-  sectionFonts: "Fonts",
-  paseoFontsTitle: "Paseo's font settings",
+  sectionCode: "Code font",
   paseoFontsNative:
-    "This Paseo version does not share its font settings with plugins, so Follow Paseo uses Paseo's default monospace: the system monospace face, at 12px.",
+    "This Paseo does not share its font settings with plugins, so Follow Paseo means the system monospace face at 12px.",
   paseoFontsWeb:
-    "This Paseo version does not share its font settings with plugins. Until it does, Follow Paseo reads the monospace font and code size from Paseo's Appearance settings on this computer (read only), and otherwise uses Paseo's default monospace: SF Mono, Menlo, Monaco or Consolas, at 12px.",
+    "This Paseo does not share its font settings with plugins. Follow Paseo reads the monospace font and size from Paseo's Appearance settings on this computer, or uses Paseo's default (SF Mono, Menlo, Monaco or Consolas at 12px).",
   monoTitle: "Monospace font",
   monoNative:
-    "For code, diffs, terminals and paths. Custom offers only faces this device is known to have, since a missing face would turn code proportional.",
-  monoWeb:
-    "For code, diffs, terminals and paths. Iosevka Code adds programming ligatures inside code blocks; diffs and terminals stay literal.",
+    "For code, diffs, terminal output and paths. Custom lists only faces this device is known to have.",
+  monoWeb: "For code, diffs, terminal output and paths. Iosevka Code adds programming ligatures in code blocks.",
   monoSource: "Monospace source",
   customMono: "Custom monospace family",
   customMonoPlaceholder: "e.g. JetBrains Mono",
@@ -86,81 +99,77 @@ const en = {
   monoDefaultWeb: (size: number) => `Paseo default: SF Mono, Menlo, Monaco or Consolas, ${size} px`,
   monoDefaultNative: (size: number) => `Paseo default: the system monospace face, ${size} px`,
   codeSizeTitle: "Code font size",
-  codeSizeDescription: (min: number, max: number) =>
-    `Follow Paseo, or choose ${min}–${max}px for code, diffs, terminals and paths. Line height is 1.5×.`,
+  codeSizeDescription: (min: number, max: number) => `${min}–${max}px. Lines are 1.5 times the size.`,
   codeSizeSource: "Code font size source",
   codeSizeSmaller: "Smaller code font",
   codeSizeLarger: "Larger code font",
   codeSizeValue: (size: number) => `Code font size ${size} pixels`,
   fontPreview: "Font preview",
-  uiFontTitle: "Interface font",
-  uiFontNative: "Follow Paseo's interface font, or use the system face.",
-  uiFontWeb: "Follow Paseo's interface font, or choose the embedded Inter face or the system face.",
 
-  sectionTools: "Tools and paths",
-  toolDetailTitle: "Tool details",
-  toolDetailDescription: "Tool calls start as one line. Choose whether a failed call opens on its own.",
-  toolDetailCollapsed: "Always collapsed",
-  toolDetailExpandFailed: "Open failed calls",
-  pathsTitle: "File paths",
-  pathsDescription:
-    "Relative to the workspace (a worktree's main repository is prefixed with its name), or in full. Copying always gives the absolute path.",
-  pathsRelative: "Relative",
-  pathsAbsolute: "Absolute",
+  sectionTools: "Tool calls",
   rowLabelsTitle: "Row icons and labels",
   rowLabelsDescription:
-    "How tool and thought rows show what they are: an icon, a name such as Bash, Read or Thought, or both. Icon only leaves the most width for the command or preview.",
-  rowLabelsIcon: "Icon only",
-  rowLabelsLabel: "Label only",
-  rowLabelsBoth: "Icon and label",
-  rowSpacingTitle: "Compact row spacing",
-  rowSpacingDescription:
-    "Paseo 0.11 leaves 16pt under every row this plugin draws, where its own tool rows sit flush. This takes most of it back. Turn it off if rows overlap on a Paseo that already stacks them.",
-  replySpacingTitle: "Compact reply spacing",
-  replySpacingDescription:
-    "Sets a reply closer to the tool, thought or todo row that follows it than Paseo does: 4pt instead of Paseo's own 16pt. Above a prompt or another reply the gap stays. Turn it off for Paseo's own spacing, or if a reply overlaps the row below it.",
+    "What a tool or thought row starts with: an icon, a name such as Bash or Read, or both. Icon only leaves the most room for the command or path.",
+  rowLabelsIcon: "Icon",
+  rowLabelsLabel: "Label",
+  rowLabelsBoth: "Both",
+  toolDetailTitle: "Open failed calls",
+  toolDetailDescription: "Calls start as one row. On, a failed call opens to show its error.",
+  pathsTitle: "File paths",
+  pathsDescription:
+    "Relative paths start at the workspace; a worktree's main repository is shown by name. Copying always gives the absolute path.",
+  pathsRelative: "Relative",
+  pathsAbsolute: "Absolute",
 
-  sectionPreview: "Preview panel",
-  hoverPreviewTitle: "Hover previews",
-  hoverPreviewDescription: "Show a preview when hovering over collapsed rows and file paths on desktop, or long-pressing a collapsed row on a phone.",
-  hoverDelayTitle: "Hover delay",
-  hoverDelayDescription: "Time to wait before showing a desktop hover preview.",
-  previewWrapTitle: "Wrap lines",
-  previewWrapDescription:
-    "Whether a preview opens with long lines wrapped. Off, they keep their length and the preview scrolls sideways. The button at the left of a preview's toolbar switches it for that preview.",
-  previewLineNumbersTitle: "Line numbers",
-  previewLineNumbersDescription:
-    "Number the lines of a file, diff or command output in a preview, in a column beside the text. A diff shows the file's own line numbers.",
-  previewStripesTitle: "Alternating line shading",
-  previewStripesDescription:
-    "Shade every other line of a file, diff or command output in a preview, so a wrapped line is easy to follow.",
+  sectionSpacing: "Spacing",
+  rowSpacingTitle: "Tight rows",
+  rowSpacingDescription:
+    "Closes the gap between tool and thought rows from 16pt to 4pt, as Paseo spaces its own tool rows. Turn it off if rows overlap.",
+  replySpacingTitle: "Tight reply",
+  replySpacingDescription:
+    "Closes the gap between a reply and the tool or thought row under it from 16pt to 4pt. Turn it off if a reply overlaps the row below.",
 
   sectionMessages: "Messages",
   bubbleTitle: "Enhanced prompt bubble",
   bubbleDescription:
-    "Off by default: Paseo's own bubble keeps pasted images and its rewind menu. On, the plugin's bubble shows the turn's token usage and keeps Copy always visible. It cannot show pasted images. Where this Paseo provides a rewind menu, the plugin bubble draws it; otherwise rewind stays with Paseo's bubble. New prompts follow the change.",
-  selectionTitle: "Selection actions",
-  selectionDescription:
-    "Highlighting text in a callout raises a small bar with Copy and Add to chat. Add to chat drops the highlight into the composer as a quote, or a fenced block when it came from code.",
-  markdownTitle: "Assistant markdown",
+    "Shows the turn's token usage and keeps Copy visible. It cannot show pasted images; rewind stays wherever this Paseo provides it. Applies to prompts sent after the change.",
+  markdownTitle: "Plugin markdown for replies",
   markdownDescription:
-    "Draws the reply with the plugin's own headings, lists and syntax-highlighted code blocks. The plugin cannot reach Paseo's markdown pipeline, so its version is a subset: turn this off for mermaid diagrams, images, and the host's file-path links.",
+    "Headings, lists and highlighted code blocks drawn by the plugin. It has no mermaid diagrams, images or Paseo's file-path links; turn it off when a reply needs them.",
   markdownStyleTitle: "Markdown style",
   markdownStyleDescription:
-    "Document is airy and built for long answers. Compact tightens the spacing for short replies. Terminal sets the body in the code face.",
+    "Document is airy, for long answers. Compact is tighter, for short ones. Terminal sets the text in the code font.",
   markdownDocument: "Document",
   markdownCompact: "Compact",
   markdownTerminal: "Terminal",
+  selectionTitle: "Selection toolbar",
+  selectionDescription:
+    "Selecting text in a card shows Copy and Add to chat. Add to chat quotes the selection in the composer, or fences it when it came from code.",
 
-  resetDefaults: "Reset defaults",
+  sectionPreview: "Hover previews",
+  hoverPreviewTitle: "Hover previews",
+  hoverPreviewDescription:
+    "Rest the pointer on a collapsed row or a file path on desktop, or long-press a collapsed row on a phone, to see its content.",
+  hoverDelayTitle: "Delay",
+  hoverDelayDescription: "How long the pointer rests before a preview opens on desktop.",
+  previewWrapTitle: "Wrap lines",
+  previewWrapDescription:
+    "Off, long lines keep their length and the preview scrolls sideways. The button at the left of a preview's toolbar switches it for that preview.",
+  previewLineNumbersTitle: "Line numbers",
+  previewLineNumbersDescription: "Beside a file, diff or command output. A diff shows the file's own line numbers.",
+  previewStripesTitle: "Alternating line shading",
+  previewStripesDescription: "Shades every other line, so a wrapped line is easy to follow.",
+
+  resetDefaults: "Reset all settings",
+  resetConfirm: "Press again to reset",
+  resetDescription: "Puts every option on this page back to its default, on every client of this host.",
 };
 
 export type SettingsStrings = typeof en;
 
 const zh: SettingsStrings = {
   pageTitle: "聊天展示",
-  pageIntro:
-    "保存在这台 Paseo 主机上，连接到它的所有客户端（桌面、网页、iOS、Android）共用。某个平台画不出来的选项会在该平台上自动回退。",
+  pageIntro: "保存在这台 Paseo 主机上，连接它的桌面、网页、iOS 和 Android 客户端共用。某个平台不支持的选项会在该平台自动回退。",
   syncFailed: "上一次修改没能保存到这台 Paseo 主机，只在当前客户端生效，直到下一次修改或重新加载。",
   syncInvalid: (error: string) =>
     `这台 Paseo 主机上保存的设置无法读取，当前显示的是默认值。修改任意一项都会覆盖已保存的记录。（${error}）`,
@@ -172,30 +181,44 @@ const zh: SettingsStrings = {
   custom: "自定义",
   system: "系统",
 
-  sectionAppearance: "外观",
+  previewTitle: "效果预览",
+  previewHintPointer: "一段示例对话，随这里的设置实时变化。点击行可展开，鼠标停在行上可查看悬停预览。",
+  previewHintTouch: "一段示例对话，随这里的设置实时变化。点按行可展开，长按可查看预览。",
+  previewShow: "显示预览",
+  previewHide: "收起预览",
+  previewPrompt: "工具行里的路径应该相对于工作区显示。帮我改一下，然后跑测试。",
+  previewThought:
+    "路径在 format-path.ts 里格式化。先看清根目录是怎么算出来的，再改代码，最后跑类型检查和路径相关的测试。",
+  previewLead: "先看看路径是在哪里格式化的。",
+  previewReply:
+    "改好了。工具行里的路径现在**相对于工作区**显示，复制时仍然是绝对路径。\n\n- 补上了 `formatPath` 里漏掉的 `trim()`\n- `format-path.test.ts`：31 个测试全部通过\n\n```ts\nformatPath(raw, { mode: \"relative\", roots })\n```",
+
+  sectionGeneral: "通用",
   languageTitle: "语言",
-  languageDescription: "本设置页和工具栏按钮悬停名称使用的语言。“跟随系统”读取设备的语言；插件无法得知 Paseo 本身设置的语言。",
+  languageDescription: "本页和工具栏提示使用的语言。插件读不到 Paseo 自身的语言设置，“跟随系统”按设备语言判断。",
   languageSystem: "跟随系统",
   languageEnglish: "English",
   languageChinese: "简体中文",
+
+  sectionAppearance: "外观",
   accentTitle: "强调色",
-  accentDescription: "跟随 Paseo 主题，或另选一种展示用的强调色。只改变强调色，其余颜色仍来自主题。",
+  accentDescription: "只替换强调色，其余颜色跟随 Paseo 主题。",
   accentHost: "主题",
   accentJade: "翠绿",
   accentViolet: "紫罗兰",
   accentAmber: "琥珀",
   accentRose: "玫瑰",
   accentOption: (name: string) => `强调色：${name}`,
+  uiFontTitle: "界面字体",
+  uiFontDescription: "用于行标题、按钮和说明文字。",
 
-  sectionFonts: "字体",
-  paseoFontsTitle: "Paseo 的字体设置",
-  paseoFontsNative:
-    "当前 Paseo 版本不会把字体设置提供给插件，所以“跟随 Paseo”使用 Paseo 的默认等宽字体：系统等宽字体，12px。",
+  sectionCode: "代码字体",
+  paseoFontsNative: "当前 Paseo 不向插件提供字体设置，“跟随 Paseo”即系统等宽字体，12px。",
   paseoFontsWeb:
-    "当前 Paseo 版本不会把字体设置提供给插件。在那之前，“跟随 Paseo”会从这台电脑上 Paseo 的外观设置里读取等宽字体和代码字号（只读）；读不到时使用 Paseo 的默认等宽字体：SF Mono、Menlo、Monaco 或 Consolas，12px。",
+    "当前 Paseo 不向插件提供字体设置。“跟随 Paseo”会读取这台电脑上 Paseo 外观设置里的等宽字体和字号，读不到时使用 Paseo 默认值（SF Mono、Menlo、Monaco 或 Consolas，12px）。",
   monoTitle: "等宽字体",
-  monoNative: "用于代码、diff、终端和路径。“自定义”只列出这台设备确定有的字体，因为缺失的字体会让代码变成比例字体。",
-  monoWeb: "用于代码、diff、终端和路径。Iosevka Code 会在代码块里显示编程连字；diff 和终端仍按原样显示字符。",
+  monoNative: "用于代码、diff、终端输出和路径。“自定义”只列出这台设备确定已安装的字体。",
+  monoWeb: "用于代码、diff、终端输出和路径。Iosevka Code 会在代码块里启用编程连字。",
   monoSource: "等宽字体来源",
   customMono: "自定义等宽字体",
   customMonoPlaceholder: "例如 JetBrains Mono",
@@ -205,70 +228,60 @@ const zh: SettingsStrings = {
   monoDefaultWeb: (size: number) => `Paseo 默认：SF Mono、Menlo、Monaco 或 Consolas，${size} px`,
   monoDefaultNative: (size: number) => `Paseo 默认：系统等宽字体，${size} px`,
   codeSizeTitle: "代码字号",
-  codeSizeDescription: (min: number, max: number) =>
-    `跟随 Paseo，或为代码、diff、终端和路径选择 ${min}–${max}px。行高为字号的 1.5 倍。`,
+  codeSizeDescription: (min: number, max: number) => `${min}–${max}px，行高为字号的 1.5 倍。`,
   codeSizeSource: "代码字号来源",
   codeSizeSmaller: "减小代码字号",
   codeSizeLarger: "增大代码字号",
   codeSizeValue: (size: number) => `代码字号 ${size} 像素`,
   fontPreview: "字体预览",
-  uiFontTitle: "界面字体",
-  uiFontNative: "跟随 Paseo 的界面字体，或使用系统字体。",
-  uiFontWeb: "跟随 Paseo 的界面字体，或选择内置的 Inter 字体或系统字体。",
 
-  sectionTools: "工具与路径",
-  toolDetailTitle: "工具详情",
-  toolDetailDescription: "工具调用默认只显示一行。可以选择失败的调用是否自动展开。",
-  toolDetailCollapsed: "始终折叠",
-  toolDetailExpandFailed: "展开失败的调用",
+  sectionTools: "工具调用",
+  rowLabelsTitle: "行首标识",
+  rowLabelsDescription: "工具行和思考行开头显示图标、名称（如 Bash、Read），或两者都显示。只显示图标时，命令和路径能占用最多宽度。",
+  rowLabelsIcon: "图标",
+  rowLabelsLabel: "名称",
+  rowLabelsBoth: "两者",
+  toolDetailTitle: "自动展开失败的调用",
+  toolDetailDescription: "工具调用默认折叠为一行。开启后，失败的调用会自动展开，直接显示错误。",
   pathsTitle: "文件路径",
-  pathsDescription: "显示为相对 workspace 的路径（worktree 会在前面加上主仓库的名字），或完整路径。复制时总是得到绝对路径。",
+  pathsDescription: "相对路径从工作区算起，worktree 的主仓库以名称显示。复制时总是得到绝对路径。",
   pathsRelative: "相对",
   pathsAbsolute: "绝对",
-  rowLabelsTitle: "行图标与标签",
-  rowLabelsDescription: "工具行和思考行用什么表明类型：图标、Bash / Read / Thought 这样的名称，或两者都显示。仅图标时，命令或预览能占用最多宽度。",
-  rowLabelsIcon: "仅图标",
-  rowLabelsLabel: "仅标签",
-  rowLabelsBoth: "图标+标签",
-  rowSpacingTitle: "紧凑行距",
-  rowSpacingDescription:
-    "Paseo 0.11 会在插件绘制的每一行下面留出 16pt，而它自己的工具行之间是紧挨着的。开启后会收回其中大部分。如果在已经修正了这个间距的 Paseo 上出现行重叠，请关闭。",
-  replySpacingTitle: "紧凑回复间距",
-  replySpacingDescription:
-    "让回复和下面紧跟的工具、思考或待办行之间比 Paseo 原生更紧凑：间距从 Paseo 原生的 16pt 缩到 4pt。下面是提问或另一条回复时间距不变。关闭后恢复 Paseo 原生间距；回复和下面的行重叠时也请关闭。",
 
-  sectionPreview: "预览弹窗",
-  hoverPreviewTitle: "Hover 弹窗",
-  hoverPreviewDescription: "在桌面端将鼠标停留在折叠行或文件路径上，或在手机上长按折叠行时显示预览弹窗。",
-  hoverDelayTitle: "Hover 延迟",
-  hoverDelayDescription: "鼠标停留多久后显示桌面端 hover 弹窗。",
-  previewWrapTitle: "自动换行",
-  previewWrapDescription:
-    "预览弹窗打开时是否自动换行。关闭后长行保持原样，预览可以左右滚动。弹窗工具栏左侧的按钮可以临时切换当前弹窗。",
-  previewLineNumbersTitle: "显示行号",
-  previewLineNumbersDescription:
-    "在预览弹窗的文件、diff 和命令输出左侧单独一列显示行号；diff 显示的是文件中的行号。",
-  previewStripesTitle: "奇偶行底色",
-  previewStripesDescription:
-    "预览弹窗里的文件、diff 和命令输出隔行加一层底色，长行折行后也容易分清是哪一行。",
+  sectionSpacing: "间距",
+  rowSpacingTitle: "紧凑行距",
+  rowSpacingDescription: "工具行、思考行之间的空隙从 16pt 收紧到 4pt，与 Paseo 自己的工具行一致。行与行重叠时请关闭。",
+  replySpacingTitle: "紧凑回复间距",
+  replySpacingDescription: "回复与下方紧跟的工具行、思考行之间从 16pt 收紧到 4pt。回复与下一行重叠时请关闭。",
 
   sectionMessages: "消息",
-  bubbleTitle: "增强的提问气泡",
-  bubbleDescription:
-    "默认关闭：使用 Paseo 自己的气泡，保留粘贴的图片和回退菜单。开启后改用插件的气泡，显示本轮 token 用量，复制按钮常显，但看不到粘贴的图片。当前 Paseo 如果提供回退菜单，插件气泡会把它画出来；否则回退仍留在 Paseo 的气泡上。之后发送的消息生效。",
-  selectionTitle: "选中操作",
-  selectionDescription:
-    "在卡片里选中文字后会出现一个小工具栏，提供“复制”和“添加到对话”。“添加到对话”会把选中内容以引用的形式放进输入框；如果选自代码，则放成代码块。",
-  markdownTitle: "助手回复 Markdown",
-  markdownDescription:
-    "用插件自己的标题、列表和语法高亮代码块来绘制回复。插件用不了 Paseo 的 Markdown 渲染流程，所以只支持其中一部分：需要 mermaid 图表、图片或 Paseo 的文件路径链接时，请关闭此项。",
+  bubbleTitle: "增强提问气泡",
+  bubbleDescription: "显示本轮 token 用量，复制按钮常驻。代价是看不到粘贴的图片；回退菜单在 Paseo 支持时保留。只对之后发送的消息生效。",
+  markdownTitle: "回复使用插件 Markdown",
+  markdownDescription: "由插件绘制标题、列表和语法高亮代码块。不支持 mermaid 图表、图片和 Paseo 的文件路径链接，需要时请关闭。",
   markdownStyleTitle: "Markdown 样式",
-  markdownStyleDescription: "“文档”排版舒展，适合长回答；“紧凑”收紧间距，适合短回复；“终端”用代码字体显示正文。",
+  markdownStyleDescription: "“文档”排版舒展，适合长回答；“紧凑”间距更小，适合短回复；“终端”正文使用代码字体。",
   markdownDocument: "文档",
   markdownCompact: "紧凑",
   markdownTerminal: "终端",
+  selectionTitle: "选中文字工具栏",
+  selectionDescription: "在卡片里选中文字后显示“复制”和“添加到对话”。添加到对话会把选中内容作为引用放进输入框，选自代码时放成代码块。",
 
-  resetDefaults: "恢复默认设置",
+  sectionPreview: "悬停预览",
+  hoverPreviewTitle: "悬停预览",
+  hoverPreviewDescription: "桌面端鼠标停在折叠行或文件路径上、手机上长按折叠行时，弹出内容预览。",
+  hoverDelayTitle: "延迟",
+  hoverDelayDescription: "桌面端鼠标停留多久后弹出预览。",
+  previewWrapTitle: "自动换行",
+  previewWrapDescription: "关闭后长行保持原样，预览可以横向滚动。预览工具栏左侧的按钮可临时切换当前预览。",
+  previewLineNumbersTitle: "显示行号",
+  previewLineNumbersDescription: "在文件、diff 和命令输出左侧显示行号；diff 显示的是文件中的行号。",
+  previewStripesTitle: "奇偶行底色",
+  previewStripesDescription: "隔行加一层底色，长行折行后也容易分清是哪一行。",
+
+  resetDefaults: "恢复全部默认设置",
+  resetConfirm: "再点一次确认恢复",
+  resetDescription: "把本页所有选项恢复为默认值，这台主机的所有客户端都会生效。",
 };
 
 export const SETTINGS_STRINGS: Readonly<Record<SettingsLanguage, SettingsStrings>> = { en, zh };
