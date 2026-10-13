@@ -56,6 +56,10 @@ describe("toolHasDetail", () => {
     expect(toolHasDetail(view({ type: "edit", filePath: "/w/a.ts" }, { name: "Edit" }), BUDGET)).toBe(false);
   });
 
+  it("has detail for an OMP github call sent as plain text", () => {
+    expect(toolHasDetail(view({ type: "plain_text", label: "status", text: "Working tree clean" }, { name: "github" }), BUDGET)).toBe(true);
+  });
+
   it("has none for an unknown call with no input and no output", () => {
     expect(toolHasDetail(view({}, { name: "frob" }), BUDGET)).toBe(false);
     expect(toolHasDetail(view({ type: "unknown", input: { x: 1 } }, { name: "frob" }), BUDGET)).toBe(true);

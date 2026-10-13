@@ -184,6 +184,10 @@ describe("full hover preview content", () => {
     expect(opened).toContain("PROMPT_TAIL");
     act(() => row.unmount());
   });
+  it("shows an OMP github call's reply when it arrives as plain text", () => {
+    const data = classifyTool({ name: "github", status: "completed", detail: { type: "plain_text", label: "status", text: "Working tree clean" } });
+    expect(previewOf(React.createElement(ToolCallout, { data, tokens }))).toContain("Working tree clean");
+  });
   it("copies the absolute path and file content from a read preview", async () => {
     const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "const value = 1;" } });
     await exercisePreview(React.createElement(ToolCallout, { data, tokens }), async (body) => {
