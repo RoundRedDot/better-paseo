@@ -31,6 +31,7 @@ const CASES: Array<[string, ToolCallPayload, ToolKind]> = [
   ["eval", call("eval", { type: "unknown", input: { code: "1+1" }, output: "2" }), "eval"],
   ["omp task", call("task", { type: "unknown", input: { tasks: [{ name: "a", task: "do" }] } }), "task"],
   ["github", call("github", { type: "unknown", input: { content: "{}" }, output: "" }), "github"],
+  ["omp github as plain text", call("github", { type: "plain_text", label: "status", text: "Working tree clean" }), "github"],
   ["thinking", call("thinking", { type: "unknown", input: {}, output: "hmm" }), "thinking"],
   ["anything else", call("frobnicate", { type: "unknown", input: { x: 1 }, output: { y: 2 } }), "unknown"],
 ];
@@ -136,6 +137,17 @@ describe("classifyTool", () => {
     );
     expect(view.diff).toBe("@@ -3 +3 @@\n-a\n+b");
     expect(view.diffFromText).toBeUndefined();
+  });
+
+  it("reads an OMP github call sent as plain text: the op and its target from the label, the reply from the text", () => {
+    expect(classifyTool(call("github", { type: "plain_text", label: "status", text: "Working tree clean" })).github)
+      .toEqual({ op: "status", text: "Working tree clean" });
+    expect(classifyTool(call("github", { type: "plain_text", label: "file_read src/a.ts", text: "const a = 1;" })).github)
+      .toEqual({ op: "file_read", subject: "src/a.ts", file: { name: "src/a.ts", language: "typescript", code: "const a = 1;" } });
+    expect(classifyTool(call("github", { type: "plain_text", label: "pr_view", text: "https://github.com/a/b/pull/3" })).github)
+      .toMatchObject({ op: "pr_view", link: "https://github.com/a/b/pull/3", rows: [{ label: "pull request", value: "#3" }] });
+    expect(classifyTool(call("github", { type: "plain_text", label: "run_watch" }, { status: "running" })).github)
+      .toEqual({ op: "run_watch" });
   });
 
   it("drops an error the transformer could only stringify as [object Object]", () => {

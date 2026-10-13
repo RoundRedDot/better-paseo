@@ -145,7 +145,33 @@ export function buildGitHubData(
       // A body that is not JSON is still a call; it just names no op.
     }
   }
+  return readGitHubData(record, request, reply);
+}
 
+/**
+ * Reads a `github` call that OMP reports as plain text, where the request
+ * itself is not sent. `label` is the op, then the target it names (its
+ * `path`, `query` or `id`, e.g. `file_read src/a.ts`), or the bare tool
+ * name for a call with no op; `text` is the reply.
+ */
+export function buildGitHubDataFromLabel(
+  label: string | undefined,
+  reply: string | undefined,
+): GitHubToolData | undefined {
+  const [op, ...target] = label?.trim().split(/\s+/) ?? [];
+  const record: Record<string, unknown> = {};
+  if (op && op !== "github") record.op = op;
+  // Taken as a path, so a `file_read` names the file it answered with; for
+  // any other op it is only the subject the header shows.
+  if (record.op && target.length > 0) record.path = target.join(" ");
+  return readGitHubData(record, undefined, reply);
+}
+
+function readGitHubData(
+  record: Record<string, unknown>,
+  request: string | undefined,
+  reply: string | undefined,
+): GitHubToolData | undefined {
   const op = asString(record.op);
   if (!op && !reply) return undefined;
 
