@@ -77,6 +77,18 @@ export function bindPreviewPointer(node: unknown, enter: () => void, leave: () =
   };
 }
 
+/**
+ * A selection inside a closing preview goes with it. The selection bar follows
+ * the page's selection, and a panel taken off screen leaves its selection in
+ * place without a `selectionchange`, so the bar would stay up over nothing.
+ */
+export function dropSelectionIn(node: unknown): void {
+  if (Platform.OS !== "web") return;
+  const element = node as HTMLElement | null;
+  const selection = element?.ownerDocument?.defaultView?.getSelection();
+  if (selection?.anchorNode && element!.contains(selection.anchorNode)) selection.removeAllRanges();
+}
+
 /** Double-clicking the toolbar's title or free space maximizes its preview. */
 export function bindPreviewMaximize(node: unknown, maximize: () => void): () => void {
   if (Platform.OS !== "web") return () => {};

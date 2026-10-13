@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { bindPreviewPointer, linesFit, openPreviewLayer, scrollsWithin } from "../../client/web";
+import { bindPreviewPointer, dropSelectionIn, linesFit, openPreviewLayer, scrollsWithin } from "../../client/web";
 
 beforeEach(() => { (globalThis as { __rnMockOS?: string }).__rnMockOS = "web"; });
 afterEach(() => { delete (globalThis as { __rnMockOS?: string }).__rnMockOS; });
@@ -258,5 +258,20 @@ describe("preview pointer and the selection bar", () => {
     mouse(panel, "mouseleave", OUTSIDE);
     expect(leave).toHaveBeenCalledTimes(2);
     release();
+  });
+});
+
+describe("a closing preview's selection", () => {
+  it("is removed with the panel, while a selection elsewhere stays", () => {
+    const inside = {};
+    const selection = { anchorNode: inside as unknown, removeAllRanges: vi.fn() };
+    const panel = { contains: (node: unknown) => node === inside, ownerDocument: { defaultView: { getSelection: () => selection } } };
+    selection.anchorNode = OUTSIDE;
+    dropSelectionIn(panel);
+    expect(selection.removeAllRanges).not.toHaveBeenCalled();
+    selection.anchorNode = inside;
+    dropSelectionIn(panel);
+    expect(selection.removeAllRanges).toHaveBeenCalledOnce();
+    dropSelectionIn(null);
   });
 });
