@@ -240,6 +240,8 @@ export interface MarkdownStyles {
   emphasis: TextStyle;
   strike: TextStyle;
   codeSpan: TextStyle;
+  /** `codeSpan` inside a heading or `strong`: the run's own weight. */
+  codeSpanBold: TextStyle;
   link: TextStyle;
   /** Added with marked: the one-line summary of a folded code block. */
   codeSummary: ViewStyle;
@@ -262,6 +264,36 @@ export function buildStyles(
   // The terminal variant's headings are body size, so the accent on h1 and
   // the hash run carry the hierarchy that size cannot.
   const topColor = variant === "terminal" ? tokens.accent : text;
+
+  const codeBase: TextStyle =
+    Platform.OS === "web"
+      ? {
+          fontFamily: tokens.fontMono,
+          fontSize: metrics.codeSize,
+          // A neutral fill, not the accent: inline code is not a link and must
+          // not borrow the one colour that means "action" everywhere else.
+          backgroundColor: tokens.v2.surface2,
+          borderRadius: radiusV2.chip,
+          paddingHorizontal: CODE_CHIP_PADDING,
+          color: text,
+        }
+      : {
+          // A run inside native text has no padding or radius, and its fill
+          // covers the whole line box: on a 1.33 line height that is a tall
+          // square slab that touches the next line's. Off the web the span is
+          // told apart by its family and the reader's accent, dark grey by
+          // default.
+          fontFamily: tokens.fontMono,
+          fontSize: metrics.codeSize,
+          color: quiet ? text : tokens.codeInline,
+        };
+  // A step under the body and in grey, regular SF Mono reads thinner than the
+  // prose around it. Android's monospace has one face and only synthesizes a
+  // bold, so medium would draw regular there.
+  const codeSpanWeight: TextStyle["fontWeight"] =
+    Platform.OS === "web" ? undefined : Platform.OS === "ios" ? "500" : "600";
+  const codeSpan: TextStyle =
+    codeSpanWeight === undefined ? codeBase : { ...codeBase, fontWeight: codeSpanWeight };
 
   return StyleSheet.create({
     root: {
@@ -454,28 +486,10 @@ export function buildStyles(
       textDecorationLine: "line-through",
       color: tokens.foregroundMuted,
     },
-    codeSpan:
-      Platform.OS === "web"
-        ? {
-            fontFamily: tokens.fontMono,
-            fontSize: metrics.codeSize,
-            // A neutral fill, not the accent: inline code is not a link and must
-            // not borrow the one colour that means "action" everywhere else.
-            backgroundColor: tokens.v2.surface2,
-            borderRadius: radiusV2.chip,
-            paddingHorizontal: CODE_CHIP_PADDING,
-            color: text,
-          }
-        : {
-            // A run inside native text has no padding or radius, and its fill
-            // covers the whole line box: on a 1.33 line height that is a tall
-            // square slab that touches the next line's. Off the web the span
-            // is told apart by its family and the reader's accent, dark grey
-            // by default.
-            fontFamily: tokens.fontMono,
-            fontSize: metrics.codeSize,
-            color: quiet ? text : tokens.codeInline,
-          },
+    codeSpan,
+    // Inside bold (a heading, `strong`) the span keeps the run's weight; the
+    // medium above would make it lighter than the words around it.
+    codeSpanBold: codeBase,
     link: {
       color: tokens.accent,
       textDecorationLine: "underline",

@@ -51,9 +51,12 @@ export function renderInline(
   tokens: readonly Token[] | undefined,
   context: RenderContext,
   keyPrefix: string,
+  /** Inside a heading or `strong`: a code span keeps the bold weight. */
+  inBold = false,
 ): React.ReactNode[] {
   if (!tokens) return [];
   const { styles } = context;
+  const codeStyle = inBold ? styles.codeSpanBold : styles.codeSpan;
   const out: React.ReactNode[] = [];
 
   tokens.forEach((token, index) => {
@@ -62,7 +65,7 @@ export function renderInline(
       case "text":
         // A list item's text token wraps its own inline run.
         if (token.tokens && token.tokens.length > 0) {
-          out.push(...renderInline(token.tokens, context, key));
+          out.push(...renderInline(token.tokens, context, key, inBold));
         } else {
           out.push(softBreaks(decodeEntities(token.text)));
         }
@@ -87,13 +90,13 @@ export function renderInline(
               verbatim
               inline
               onReveal={context.onRevealPath}
-              style={styles.codeSpan}
+              style={codeStyle}
             />,
           );
           return;
         }
         out.push(
-          <ProseSpan key={key} selectable {...(codeSurface as object)} style={styles.codeSpan}>
+          <ProseSpan key={key} selectable {...(codeSurface as object)} style={codeStyle}>
             {token.text}
           </ProseSpan>,
         );
@@ -101,26 +104,26 @@ export function renderInline(
       case "strong":
         out.push(
           <ProseSpan key={key} selectable style={styles.strong}>
-            {renderInline(token.tokens, context, key)}
+            {renderInline(token.tokens, context, key, true)}
           </ProseSpan>,
         );
         return;
       case "em":
         out.push(
           <ProseSpan key={key} selectable style={styles.emphasis}>
-            {renderInline(token.tokens, context, key)}
+            {renderInline(token.tokens, context, key, inBold)}
           </ProseSpan>,
         );
         return;
       case "del":
         out.push(
           <ProseSpan key={key} selectable style={styles.strike}>
-            {renderInline(token.tokens, context, key)}
+            {renderInline(token.tokens, context, key, inBold)}
           </ProseSpan>,
         );
         return;
       case "link": {
-        const children = renderInline(token.tokens, context, key);
+        const children = renderInline(token.tokens, context, key, inBold);
         const local = localPath(token.href);
         out.push(
           local !== null ? (
