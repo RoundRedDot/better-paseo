@@ -323,7 +323,7 @@ export function ReasoningCard({
   const copySource = useCallback(() => copyTextOf(copyText), [copyText]);
   const onLongPress = useCallback(() => {
     const value = copySource();
-    if (value) void copy(value, { feedback: "toast" });
+    if (value) void copy(value, { feedback: "toast", label: "Copy thought" });
   }, [copy, copySource]);
 
   // The row alone while collapsed; the opened body is its sibling, so the row

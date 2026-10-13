@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { copyPlan, type CopySource } from "../../client/copy/content";
-import { toolbarLabel } from "../../client/i18n/toolbar-strings";
+import { copiedToast, toolbarLabel } from "../../client/i18n/toolbar-strings";
 
 // Every copy a preview toolbar can offer, each source filled in so no entry is dropped.
 const SOURCES: CopySource[] = [
@@ -19,7 +19,7 @@ const SOURCES: CopySource[] = [
   { kind: "ask", question: "q", answer: "a" },
   { kind: "eval", code: "c", output: "o" },
 ];
-const TOOLBAR = ["Copied", "Couldn't copy", "Copy thought", "Previous operation", "Next operation", "Wrap lines",
+const TOOLBAR = ["Copied", "Couldn't copy", "Copy thought", "Copy section", "Copy reply", "Copy prompt", "Previous operation", "Next operation", "Wrap lines",
   "Do not wrap lines", "Maximize preview", "Close preview"];
 
 describe("toolbar hover names", () => {
@@ -38,5 +38,21 @@ describe("toolbar hover names", () => {
     expect(toolbarLabel("Copy path", "system", "zh-CN")).toBe("复制路径");
     expect(toolbarLabel("Copy path", "system", "en-US")).toBe("Copy path");
     expect(toolbarLabel("Something new", "zh")).toBe("Something new");
+  });
+
+  it("words each copy's toast after what it copied, in both languages", () => {
+    const labels = [...new Set(SOURCES.flatMap((source) => {
+      const plan = copyPlan(source);
+      return [plan.primary, ...plan.menu].flatMap((action) => action ? [action.label] : []);
+    }))].filter((label) => label !== "Copy");
+    for (const language of ["en", "zh"] as const) {
+      const toasts = labels.map((label) => copiedToast(label, language));
+      expect(new Set(toasts).size).toBe(toasts.length);
+    }
+    expect(copiedToast("Copy path", "zh")).toBe("已复制路径");
+    expect(copiedToast("Copy command and output", "en")).toBe("Copied command and output");
+    expect(copiedToast("2. Copy patch", "zh")).toBe("已复制补丁");
+    expect(copiedToast("Copy", "zh")).toBe("已复制");
+    expect(copiedToast("Copy", "en")).toBe("Copied");
   });
 });
