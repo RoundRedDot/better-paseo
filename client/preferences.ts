@@ -64,6 +64,8 @@ export interface EnhancerPreferences {
   hoverPreview: boolean;
   /** Time the pointer rests before a desktop hover preview opens. */
   hoverDelay: HoverDelayPreference;
+  /** Whether a preview panel opens with its lines wrapped; its toolbar button flips it for that panel. */
+  previewWrap: boolean;
   /** Number the lines of a file, diff or command output in a preview panel. */
   previewLineNumbers: boolean;
   /** Shade every other line of a file, diff or command output in a preview panel. */
@@ -183,6 +185,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   pathDisplay: "relative",
   hoverPreview: true,
   hoverDelay: "500ms",
+  previewWrap: true,
   previewLineNumbers: false,
   previewStripes: true,
   enhancedUserBubble: false,
