@@ -339,7 +339,7 @@ describe("line wrap in the desktop preview", () => {
     expect(windowButton("Close preview")).toHaveLength(1);
   });
 
-  it("maximizes from the toolbar, stays open on leave, and unbinds once maximized", () => {
+  it("maximizes from the toolbar, stays open on leave, and closes on the next double-click", () => {
     act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
     act(() => own.enter());
     act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
@@ -352,6 +352,19 @@ describe("line wrap in the desktop preview", () => {
     act(() => { vi.advanceTimersByTime(PREVIEW_CLOSE_MS); });
     expect(own.open).toBe(true);
     expect(renderer.root.findByProps({ accessibilityLabel: "Expanded preview" })).toBeDefined();
+    const [, close] = state.bindPreviewMaximize.mock.calls.at(-1)!;
+    expect(close).not.toBe(maximize);
+    act(() => close());
+    expect(own.open).toBe(false);
+    expect(own.maximized).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+    // Closing clears the pin; the next hover has the normal lifetime.
+    act(() => own.enter());
+    act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+    expect(own.open).toBe(true);
+    act(() => own.leave());
+    act(() => { vi.advanceTimersByTime(PREVIEW_CLOSE_MS); });
+    expect(own.open).toBe(false);
   });
 
   it("drops a selection inside the panel when it closes, not when it maximizes", () => {
