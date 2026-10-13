@@ -58,7 +58,8 @@ const CODE_SELECTOR = "[data-bccode]";
 const COMPOSER_SELECTOR = "[data-composer-input]";
 
 const GAP = 8;
-const RESET_LABEL_MS = 1400;
+/** How long a pressed button shows its check before the bar steps aside. */
+const DONE_MS = 700;
 
 /** Lucide's shapes, the set the plugin's `Icon` draws, inlined: the bar is raw DOM. */
 const ICONS = {
@@ -72,6 +73,8 @@ interface Snapshot {
   text: string;
   isCode: boolean;
   rect: DOMRect;
+  /** The element the selection sits in, to find its own chat's composer. */
+  element: Element | null;
 }
 
 function elementOf(node: Node | null): HTMLElement | null {
@@ -100,8 +103,9 @@ function readSelection(): Snapshot | null {
   const rect = rects.length > 0 ? rects[0] : range.getBoundingClientRect();
   if (!rect || (rect.width === 0 && rect.height === 0)) return null;
 
-  const isCode = Boolean(elementOf(range.commonAncestorContainer)?.closest(CODE_SELECTOR));
-  return { text, isCode, rect };
+  const element = elementOf(range.commonAncestorContainer);
+  const isCode = Boolean(element?.closest(CODE_SELECTOR));
+  return { text, isCode, rect, element };
 }
 
 /** Markdown the composer can carry: a fence for code, a blockquote for prose. */
@@ -115,11 +119,28 @@ function quote(snapshot: Snapshot): string {
   );
 }
 
-function composerInput(): HTMLTextAreaElement | HTMLInputElement | null {
-  const marked = document.querySelector(COMPOSER_SELECTOR);
-  if (!marked) return null;
+type Field = HTMLTextAreaElement | HTMLInputElement;
+
+function fieldOf(marked: Element): Field | null {
   if (marked instanceof HTMLTextAreaElement || marked instanceof HTMLInputElement) return marked;
   return marked.querySelector("textarea, input");
+}
+
+/**
+ * The composer of the chat the selection was made in. Paseo keeps every open
+ * tab and split pane mounted, hidden with `display: none`, so the document's
+ * first composer is often another chat's, invisible and unable to take focus.
+ * The search widens from the selection outwards, one ancestor at a time, and
+ * takes the first composer that is on screen.
+ */
+export function nearestComposer(from: Element | null): Field | null {
+  for (let scope = from; scope; scope = scope.parentElement) {
+    for (const marked of Array.from(scope.querySelectorAll(COMPOSER_SELECTOR))) {
+      const field = fieldOf(marked);
+      if (field && field.getClientRects().length > 0) return field;
+    }
+  }
+  return null;
 }
 
 /**
@@ -133,8 +154,8 @@ function composerInput(): HTMLTextAreaElement | HTMLInputElement | null {
  * send stays behind — hence the native setter plus a bubbling `input` event as
  * the fallback, and a value check before either path claims success.
  */
-function insertIntoComposer(snippet: string): boolean {
-  const input = composerInput();
+function insertIntoComposer(snippet: string, from: Element | null): boolean {
+  const input = nearestComposer(from);
   if (!input) return false;
 
   const before = input.value;
@@ -227,7 +248,8 @@ interface Bar {
   dispose(): void;
 }
 
-function createBar(): Bar {
+/** `done` runs once a press has shown its result: the bar steps aside. */
+function createBar(done: () => void): Bar {
   const host = document.createElement("div");
   host.setAttribute("data-bcselectionbar", "");
   // Host-app rules can match a bare `div`, so the placement properties are set
@@ -265,7 +287,7 @@ function createBar(): Bar {
   bar.className = "bar";
   shadow.appendChild(bar);
 
-  let labelTimer = 0;
+  let doneTimer = 0;
   let hoverColor = "";
 
   /**
@@ -305,10 +327,12 @@ function createBar(): Bar {
     }
   };
 
+  // The check confirms the press, then the bar leaves; the labels come back
+  // with the next selection.
   const flash = (button: HTMLButtonElement, label: string) => {
     paint(button, label, "check");
-    window.clearTimeout(labelTimer);
-    labelTimer = window.setTimeout(reset, RESET_LABEL_MS);
+    window.clearTimeout(doneTimer);
+    doneTimer = window.setTimeout(done, DONE_MS);
   };
 
   const copyButton = makeButton("Copy", "copy", (button) => {
@@ -321,7 +345,7 @@ function createBar(): Bar {
   const addButton = makeButton("Add to chat", "add", (button) => {
     const snapshot = readSelection();
     if (!snapshot) return;
-    if (insertIntoComposer(quote(snapshot))) {
+    if (insertIntoComposer(quote(snapshot), snapshot.element)) {
       flash(button, "Added");
       return;
     }
@@ -358,7 +382,7 @@ function createBar(): Bar {
     },
     show(rect) {
       if (host.style.getPropertyValue("display") === "none") {
-        window.clearTimeout(labelTimer);
+        window.clearTimeout(doneTimer);
         reset();
       }
       host.style.setProperty("display", "block", "important");
@@ -382,7 +406,7 @@ function createBar(): Bar {
       if (topLayer && host.matches(":popover-open")) host.hidePopover();
     },
     dispose() {
-      window.clearTimeout(labelTimer);
+      window.clearTimeout(doneTimer);
       bar.removeEventListener("mousedown", holdSelection);
       host.remove();
     },
@@ -398,12 +422,18 @@ interface Controller {
 let controller: Controller | null = null;
 
 function startController(): Controller {
-  const bar = createBar();
+  // Set once a press is done, until the selection changes: a copy keeps the
+  // highlight, and a scroll must not bring the bar back over it.
+  let dismissed = false;
+  const bar = createBar(() => {
+    dismissed = true;
+    bar.hide();
+  });
   let pending = 0;
 
   const sync = () => {
     pending = 0;
-    const snapshot = readSelection();
+    const snapshot = dismissed ? null : readSelection();
     if (!snapshot) {
       bar.hide();
       return;
@@ -430,7 +460,12 @@ function startController(): Controller {
     if (event.key === "Escape") bar.hide();
   };
 
-  document.addEventListener("selectionchange", schedule);
+  const onSelectionChange = () => {
+    dismissed = false;
+    schedule();
+  };
+
+  document.addEventListener("selectionchange", onSelectionChange);
   document.addEventListener("pointerdown", onPointerDown, true);
   document.addEventListener("keydown", onKeyDown, true);
   // A scrolled selection keeps its document position but changes its viewport
@@ -443,7 +478,7 @@ function startController(): Controller {
     refs: 0,
     dispose() {
       window.clearTimeout(pending);
-      document.removeEventListener("selectionchange", schedule);
+      document.removeEventListener("selectionchange", onSelectionChange);
       document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("scroll", schedule, true);
