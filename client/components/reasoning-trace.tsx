@@ -1,6 +1,5 @@
 import React, { memo, useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { selectableSurface, unselectable } from "./selection";
@@ -9,7 +8,7 @@ import { surfaceProps } from "./view-props";
 import { MarkdownView } from "./markdown/markdown-view";
 import { variantMetrics } from "./markdown/render/styles";
 import type { ReasoningTraceData } from "../../shared/contracts";
-import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
+import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon, RowText } from "../ui/disclosure-header";
 import { STICKY_SUPPORTED, StickyCard } from "../ui/sticky-header";
 import { useScrollAnchor } from "../ui/scroll-anchor";
 import { RunningDot } from "../ui/running-dot";
@@ -339,24 +338,22 @@ export function ReasoningCard({
         streaming ? (
           <RunningDot color={tokens.accent} accessibilityLabel="Thinking" />
         ) : (
-          <Icon name="Lightbulb" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+          <RowIcon name="Lightbulb" />
         )
       }
       iconIsStatus={streaming}
+      tone={streaming ? "active" : "quiet"}
       verb={label.verb}
       target={
         label.preview ? (
-          <Text
+          <RowText
+            part="target"
             selectable={false}
             numberOfLines={1}
-            style={[
-              styles.preview,
-              unselectable,
-              { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
-            ]}
+            style={[styles.preview, unselectable, { fontFamily: tokens.fontUi }]}
           >
             {label.preview}
-          </Text>
+          </RowText>
         ) : undefined
       }
       meta={label.meta}

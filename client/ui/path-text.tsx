@@ -21,6 +21,7 @@ import { useInputCapabilities } from "./use-input-capabilities";
 import { UI_SCALE } from "./tokens/typography";
 import { liftStackingRow, scrollTop, tooltipPlacement, type DomBox, type TooltipPlacement } from "./tooltip-placement";
 import { HoverPreview, HoverPreviewBody, RowLongPressContext, useHoverPreview } from "./hover-preview";
+import { RowPaletteContext } from "./disclosure-header";
 
 /** Where paths are made relative to, for one renderer (plan §3.9 item 3). */
 export interface PathContextValue {
@@ -153,6 +154,7 @@ export function PathText({
   // In a collapsed row on a phone the long press opens the row's preview: the
   // path fills most of a Read row, so it would otherwise swallow every one.
   const rowLongPress = useContext(RowLongPressContext);
+  const palette = useContext(RowPaletteContext);
 
   const formatted = useMemo(() => formatPath(path, context), [path, context]);
   const reveal = onReveal ?? context.reveal;
@@ -202,7 +204,7 @@ export function PathText({
   const shown = shownParts.text;
   const textStyle = [
     styles.text,
-    { color: tokens.foreground, fontFamily: tokens.fontMono },
+    { color: palette?.target ?? tokens.foreground, fontFamily: tokens.fontMono },
     style,
   ];
 
@@ -238,7 +240,7 @@ export function PathText({
           numberOfLines={1}
           style={[...textStyle, unselectable, hovered && styles.hovered]}
         >
-          {label ? <Text style={{ color: tokens.foregroundMuted }}>{`${label}/`}</Text> : null}
+          {label ? <Text style={{ color: palette?.meta ?? tokens.foregroundMuted }}>{`${label}/`}</Text> : null}
           {shown}
         </Text>
         {copyOnHover && capabilities.hover ? (

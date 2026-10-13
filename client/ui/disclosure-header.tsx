@@ -1,9 +1,10 @@
-import React, { useCallback, useContext, useEffect, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { Platform, Pressable, StyleSheet, Text, View, type TextProps } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
 import { unselectable } from "../components/selection";
+import { Glyph } from "../components/glyph";
 import { codeSurface } from "../components/host-font-escape";
 import { truncateMiddle } from "../paths/truncate-middle";
 import { TYPE } from "./tokens/typography";
@@ -43,6 +44,67 @@ export const DISCLOSURE_HEADER = {
   /** Middle-truncation budget for a string target, in characters. */
   targetBudget: { desktop: 72, compact: 40 },
 } as const;
+
+/**
+ * How loud a row is (docs/prototypes/quiet-tool-rows.md). `quiet` is a call
+ * that has finished: it sits one step behind the prose. `active` is one still
+ * running, its target halfway back to `foreground`. `loud` is a row that waits
+ * for the reader (an open question) and is never dimmed.
+ */
+export type RowTone = "quiet" | "active" | "loud";
+
+/** The colours a row's parts are drawn in, for its tone and state. */
+export interface RowPalette {
+  target: string;
+  meta: string;
+  icon: string;
+  diffAdd: string;
+  diffDel: string;
+}
+
+/**
+ * Hover, a press and an opened row raise a row to the full-contrast palette;
+ * at rest it takes its tone.
+ */
+export function rowPalette(tokens: ExtendedThemeTokens, tone: RowTone, lit: boolean): RowPalette {
+  if (lit || tone === "loud") {
+    return {
+      target: tokens.foreground,
+      meta: tokens.foregroundMuted,
+      icon: tokens.foregroundMuted,
+      diffAdd: tokens.success,
+      diffDel: tokens.danger,
+    };
+  }
+  const row = tokens.row;
+  return {
+    target: tone === "active" ? row.targetActive : row.target,
+    meta: tone === "active" ? tokens.foregroundMuted : row.meta,
+    icon: row.icon,
+    diffAdd: row.diffAdd,
+    diffDel: row.diffDel,
+  };
+}
+
+/**
+ * The palette of the row a node is drawn in. Null outside a row, where a part
+ * shared with bodies and previews (`PathText`) keeps its own colours.
+ */
+export const RowPaletteContext = createContext<RowPalette | null>(null);
+
+/** A tool icon in the row's icon colour, unless `color` sets a status. */
+export function RowIcon({ name, color, size = DISCLOSURE_HEADER.icon }: { name: string; color?: string; size?: number }) {
+  const palette = useContext(RowPaletteContext);
+  const drawn = color ?? palette?.icon ?? "currentColor";
+  if (name.startsWith("brand:")) return <Glyph name={name.slice(6)} size={size} color={drawn} />;
+  return <Icon name={name} size={size} color={drawn} />;
+}
+
+/** Text in one of the row's palette colours; a `style` colour still wins. */
+export function RowText({ part, style, ...props }: TextProps & { part: keyof RowPalette }) {
+  const palette = useContext(RowPaletteContext);
+  return <Text {...props} style={[palette ? { color: palette[part] } : null, style]} />;
+}
 
 /** The hover actions' backing, laid over the end of the target. */
 const ACTION_GAP = space.xs;
@@ -117,6 +179,8 @@ export interface DisclosureHeaderProps {
    * one that outlives the move, or the remounted row forgets the press.
    */
   scrollAnchor?: ScrollAnchor;
+  /** How loud the row is at rest; see `RowTone`. */
+  tone?: RowTone;
 }
 
 const IS_WEB = Platform.OS === "web";
@@ -129,7 +193,13 @@ const IS_WEB = Platform.OS === "web";
  * No frame and no fill of its own. Hover paints `surface1`, a press or a held
  * long-press `surface2`. There is no chevron at rest: the whole row is the
  * control. Where the pointer can hover, the slot shows a chevron while the row
- * is hovered, in place of the icon, so nothing moves.
+ * is hovered, in place of the icon, so nothing moves; an opened row keeps a
+ * down chevron there.
+ *
+ * At rest the row draws in its `tone`'s quiet palette, one step behind the
+ * prose; hover, a press and an opened body raise it to full contrast. Parts a
+ * caller supplies (`RowIcon`, `RowText`, a `PathText` target) read the palette
+ * from `RowPaletteContext`.
  *
  * Six views for a row with a string target: the row, the slot, its icon, the
  * verb (unless the reader chose icon-only rows), the target and the meta. Hover adds the actions only while hovered.
@@ -164,6 +234,7 @@ export function DisclosureHeader({
   previewWraps = true,
   pressPreview = true,
   scrollAnchor,
+  tone = "quiet",
 }: DisclosureHeaderProps) {
   const previewOwner = useContext(HoverPreviewContext);
   const preview = useHoverPreview(Boolean(previewContent) && !expanded && !actionsActive);
@@ -187,6 +258,13 @@ export function DisclosureHeader({
   }, [anchor, onToggle]);
   const capabilities = useInputCapabilities(compact);
   const { hovered, hoverProps } = useHover();
+  const [pressed, setPressed] = useState(false);
+  const pressIn = useCallback(() => {
+    setPressed(true);
+    anchor.hold();
+  }, [anchor]);
+  const pressOut = useCallback(() => setPressed(false), []);
+  const palette = rowPalette(tokens, tone, hovered || pressed || expanded);
   const rowLabelStyle = useEnhancerPreferences().rowLabelStyle;
   // Icon-only rows still need words: a row with no target keeps its verb.
   const hasTarget = target !== undefined && target !== null && target !== "";
@@ -201,7 +279,9 @@ export function DisclosureHeader({
     (actionsAlwaysVisible || (capabilities.touch && !capabilities.hover && expanded));
   const hoverActions =
     actions !== undefined && !persistentActions && capabilities.hover && (hovered || actionsActive);
-  const showChevron = capabilities.hover && hovered;
+  // An opened row shows which way it went; a status icon (running, failed)
+  // keeps its place, since it says more than the direction.
+  const showChevron = (capabilities.hover && hovered) || (expanded && !iconIsStatus);
 
   const label =
     accessibilityLabel ?? (typeof target === "string" && target ? `${verb} ${target}` : verb);
@@ -219,7 +299,7 @@ export function DisclosureHeader({
           styles.targetText,
           unselectable,
           {
-            color: tokens.foreground,
+            color: palette.target,
             fontFamily: tokens.fontMono,
             fontSize: targetType.size,
             lineHeight: targetType.lineHeight,
@@ -241,7 +321,7 @@ export function DisclosureHeader({
         style={[
           styles.metaText,
           unselectable,
-          { color: tokens.foregroundMuted, fontFamily: tokens.fontMono },
+          { color: palette.meta, fontFamily: tokens.fontMono },
           target === undefined && metaLead === undefined ? styles.pushRight : null,
         ]}
       >
@@ -264,61 +344,64 @@ export function DisclosureHeader({
 
   return (
     <>
-      <HoverPreviewContext.Provider value={previewOwner || (Boolean(previewContent) && !expanded)}>
-        <RowLongPressContext.Provider value={pressPreview ? preview.press : longPress}>
-          <Pressable
-            ref={rowRef}
-            accessibilityRole="button"
-            accessibilityLabel={label}
-            accessibilityState={{ expanded }}
-            // React Native Web reads the ARIA prop, not `accessibilityState`.
-            aria-expanded={expanded}
-            onPressIn={anchor.hold}
-            onPress={toggle}
-            onLongPress={longPress}
-            hitSlop={slop > 0 ? { top: slop, bottom: slop } : undefined}
-            {...(pointerProps as object)}
-            style={({ pressed }) => [
-              styles.row,
-              { height },
-              hovered && { backgroundColor: tokens.v2.surface1 },
-              pressed && { backgroundColor: tokens.v2.surface2 },
-            ]}
-          >
-            <View style={styles.slot}>
-              {showChevron ? (
-                <Icon
-                  name={expanded ? "ChevronDown" : "ChevronRight"}
-                  size={DISCLOSURE_HEADER.chevron}
-                  color={tokens.foregroundMuted}
-                />
-              ) : showIcon ? (
-                icon
-              ) : null}
-            </View>
-            {showVerb ? (
-              <Text
-                selectable={false}
-                numberOfLines={1}
-                style={[styles.verb, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}
-              >
-                {verb}
-              </Text>
-            ) : null}
-            {hoverActions ? (
-              <View style={styles.targetBox}>
-                {targetNode ?? <View style={styles.fill} />}
-                <View style={[styles.overlay, { backgroundColor: tokens.v2.surface1 }]}>{actions}</View>
+      <RowPaletteContext.Provider value={palette}>
+        <HoverPreviewContext.Provider value={previewOwner || (Boolean(previewContent) && !expanded)}>
+          <RowLongPressContext.Provider value={pressPreview ? preview.press : longPress}>
+            <Pressable
+              ref={rowRef}
+              accessibilityRole="button"
+              accessibilityLabel={label}
+              accessibilityState={{ expanded }}
+              // React Native Web reads the ARIA prop, not `accessibilityState`.
+              aria-expanded={expanded}
+              onPressIn={pressIn}
+              onPressOut={pressOut}
+              onPress={toggle}
+              onLongPress={longPress}
+              hitSlop={slop > 0 ? { top: slop, bottom: slop } : undefined}
+              {...(pointerProps as object)}
+              style={({ pressed }) => [
+                styles.row,
+                { height },
+                hovered && { backgroundColor: tokens.v2.surface1 },
+                pressed && { backgroundColor: tokens.v2.surface2 },
+              ]}
+            >
+              <View style={styles.slot}>
+                {showChevron ? (
+                  <Icon
+                    name={expanded ? "ChevronDown" : "ChevronRight"}
+                    size={DISCLOSURE_HEADER.chevron}
+                    color={palette.icon}
+                  />
+                ) : showIcon ? (
+                  icon
+                ) : null}
               </View>
-            ) : (
-              targetNode
-            )}
-            {metaLead}
-            {metaText}
-            {persistentActions ? <View style={styles.inlineActions}>{actions}</View> : null}
-          </Pressable>
-        </RowLongPressContext.Provider>
-      </HoverPreviewContext.Provider>
+              {showVerb ? (
+                <Text
+                  selectable={false}
+                  numberOfLines={1}
+                  style={[styles.verb, unselectable, { color: palette.target, fontFamily: tokens.fontUi }]}
+                >
+                  {verb}
+                </Text>
+              ) : null}
+              {hoverActions ? (
+                <View style={styles.targetBox}>
+                  {targetNode ?? <View style={styles.fill} />}
+                  <View style={[styles.overlay, { backgroundColor: tokens.v2.surface1 }]}>{actions}</View>
+                </View>
+              ) : (
+                targetNode
+              )}
+              {metaLead}
+              {metaText}
+              {persistentActions ? <View style={styles.inlineActions}>{actions}</View> : null}
+            </Pressable>
+          </RowLongPressContext.Provider>
+        </HoverPreviewContext.Provider>
+      </RowPaletteContext.Provider>
       {preview.open && previewContent ? (
         <HoverPreview preview={preview} tokens={tokens} wraps={previewWraps}>{previewContent()}</HoverPreview>
       ) : null}

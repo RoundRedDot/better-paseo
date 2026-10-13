@@ -18,7 +18,7 @@ import type { ImageFile } from "../image-file";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeText, selectionSurface } from "./selection-actions";
 import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
-import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
+import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon, RowPaletteContext, RowText } from "../ui/disclosure-header";
 import { STICKY_SUPPORTED, StickyCard } from "../ui/sticky-header";
 import { useScrollAnchor } from "../ui/scroll-anchor";
 import { PathContext, PathText } from "../ui/path-text";
@@ -87,23 +87,23 @@ export function toolIconName(tool: ToolKind): string {
 }
 
 /** A row icon by name: the host's Lucide set, or a brand bitmap for `brand:*`. */
-export function RowIcon({ name, color, size = DISCLOSURE_HEADER.icon }: { name: string; color: string; size?: number }) {
-  if (name.startsWith("brand:")) return <Glyph name={name.slice(6)} size={size} color={color} />;
-  return <Icon name={name} size={size} color={color} />;
-}
+export { RowIcon };
 
 /** `exit 1`, `failed`: the meta entries a failure colours (S7: only these and the icon turn danger). */
 const FAILURE_META = /^(exit [1-9]\d*|failed|error|timed out)$/;
 
-/** `+12 −3`: the diff counts, as success and danger spans of the meta Text. */
-function diffCountSpans(entry: string, tokens: ExtendedThemeTokens): React.ReactNode {
+/**
+ * `+12 −3`: the diff counts, as success and danger spans of the meta Text,
+ * quieted with the row at rest.
+ */
+function diffCountSpans(entry: string): React.ReactNode {
   const match = /^\+(\d+) \u2212(\d+)$/.exec(entry);
   if (!match) return entry;
   return (
     <>
-      <Text style={{ color: tokens.success }}>{`+${match[1]}`}</Text>
+      <RowText part="diffAdd">{`+${match[1]}`}</RowText>
       {" "}
-      <Text style={{ color: tokens.danger }}>{`−${match[2]}`}</Text>
+      <RowText part="diffDel">{`−${match[2]}`}</RowText>
     </>
   );
 }
@@ -219,13 +219,13 @@ export function ToolCallout({
 
   const running = data.status === "running";
   const failed = data.status === "failed" || summary.tone === "danger";
+  // A finished call steps behind the prose; a question still waiting for the
+  // reader does not.
+  const tone = running ? (data.tool === "ask" ? "loud" : "active") : "quiet";
   const statusIcon = running ? (
     <RunningDot color={tokens.accent} />
   ) : (
-    <RowIcon
-      name={toolIconName(data.tool)}
-      color={failed ? tokens.danger : tokens.foregroundMuted}
-    />
+    <RowIcon name={toolIconName(data.tool)} color={failed ? tokens.danger : undefined} />
   );
 
   const target =
@@ -244,7 +244,7 @@ export function ToolCallout({
     );
   const meta = summary.meta.map((entry) => {
     const exitCode = parseExitMeta(entry);
-    const shown = exitCode === undefined ? diffCountSpans(entry, tokens) : exitMark(exitCode);
+    const shown = exitCode === undefined ? diffCountSpans(entry) : exitMark(exitCode);
     return failed && FAILURE_META.test(entry) ? <Text style={{ color: tokens.danger }}>{shown}</Text> : shown;
   });
   const metaLead = summary.metaPath ? (
@@ -314,6 +314,7 @@ export function ToolCallout({
       scrollAnchor={scrollAnchor}
       tokens={tokens}
       compact={compact}
+      tone={tone}
       icon={statusIcon}
       iconIsStatus={running || failed}
       verb={summary.verb}
@@ -344,7 +345,7 @@ export function ToolCallout({
     <ActionMenuList items={menuItems} open={menu.open} onClose={menu.close} tokens={tokens} compact={compact} />
   ) : null;
   const body = expanded ? (
-    <FadeIn style={[styles.body, { backgroundColor: tokens.v2.surface1 }]}>
+    <FadeIn style={[styles.body, { backgroundColor: tokens.row.outputBg }]}>
       <View {...surfaceProps(selectionSurface)} style={styles.bodyInner}>
         <ToolBody
           data={data}
@@ -379,7 +380,7 @@ export function ToolCallout({
           {...(surfaceProps(selectionSurface, codeSurface) as object)}
           selectable
           numberOfLines={1}
-          style={[styles.errorLine, { color: tokens.foregroundMuted, fontFamily: tokens.fontMono }]}
+          style={[styles.errorLine, { color: tokens.row.meta, fontFamily: tokens.fontMono }]}
         >
           {summary.errorLine}
         </Text>
@@ -441,6 +442,7 @@ function MetaPath({
   compact: boolean;
 }) {
   const context = useContext(PathContext);
+  const palette = useContext(RowPaletteContext);
   const formatted = useMemo(() => formatPath(path, context), [path, context]);
   if (!formatted.projectRoot || formatted.displayPath === "./" || formatted.displayPath === ".") {
     return null;
@@ -452,7 +454,7 @@ function MetaPath({
       compact={compact}
       copyOnHover={false}
       budget={compact ? 20 : 32}
-      style={{ fontSize: TYPE.meta.size, color: tokens.foregroundMuted }}
+      style={{ fontSize: TYPE.meta.size, color: palette?.meta ?? tokens.foregroundMuted }}
     />
   );
 }
@@ -619,7 +621,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
           {command ? (
             // One line on the code surface, not a nested code card.
             <SelectableText {...selectionCodeText} style={styles.commandLine}>
-              <SelectableSpan style={styles.mutedColor}>{"$ "}</SelectableSpan>
+              <SelectableSpan style={styles.promptColor}>{"$ "}</SelectableSpan>
               {command}
             </SelectableText>
           ) : null}
@@ -1039,6 +1041,7 @@ interface BodyStyles {
   mutedText: TextStyle;
   monoText: TextStyle;
   mutedColor: TextStyle;
+  promptColor: TextStyle;
   metaText: TextStyle;
   askOptionLabel: TextStyle;
   strong: TextStyle;
@@ -1073,13 +1076,13 @@ function useBodyStyles(tokens: ExtendedThemeTokens, compact: boolean): BodyStyle
           fontFamily: tokens.fontMono,
           fontSize: tokens.typography.mono.size,
           lineHeight: tokens.typography.mono.lineHeight,
-          color: tokens.foregroundMuted,
+          color: tokens.row.outputText,
         },
         commandLine: {
           fontFamily: tokens.fontMono,
           fontSize: tokens.typography.mono.size,
           lineHeight: tokens.typography.mono.lineHeight,
-          color: tokens.foreground,
+          color: tokens.row.outputText,
         },
         silentText: {
           fontFamily: tokens.fontUi,
@@ -1113,6 +1116,7 @@ function useBodyStyles(tokens: ExtendedThemeTokens, compact: boolean): BodyStyle
           color: tokens.foreground,
         },
         mutedColor: { color: tokens.foregroundMuted },
+        promptColor: { color: tokens.row.meta },
         metaText: {
           fontFamily: tokens.fontUi,
           fontSize: UI_SCALE.base,
