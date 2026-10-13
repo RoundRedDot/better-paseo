@@ -1,5 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState, type RefObject } from "react";
 import { noteHover } from "./use-input-capabilities";
+import { bindRowHover } from "../web";
+import { Platform } from "react-native";
 
 /**
  * Hover state for a `Pressable`, on every platform.
@@ -9,7 +11,7 @@ import { noteHover } from "./use-input-capabilities";
  * state is kept here instead. The first native hover also tells
  * `useInputCapabilities` that this device has a pointer.
  */
-export function useHover(): {
+export function useHover(rowRef?: RefObject<unknown>): {
   hovered: boolean;
   hoverProps: { onHoverIn(): void; onHoverOut(): void };
 } {
@@ -19,6 +21,9 @@ export function useHover(): {
     setHovered(true);
   }, []);
   const onHoverOut = useCallback(() => setHovered(false), []);
+  useLayoutEffect(() => {
+    if (rowRef && Platform.OS === "web") return bindRowHover(rowRef.current, onHoverIn, onHoverOut);
+  }, [rowRef, onHoverIn, onHoverOut]);
   const hoverProps = useMemo(() => ({ onHoverIn, onHoverOut }), [onHoverIn, onHoverOut]);
   return { hovered, hoverProps };
 }
