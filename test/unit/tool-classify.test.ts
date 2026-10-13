@@ -113,6 +113,16 @@ describe("classifyTool", () => {
     expect(agent?.actions).toEqual([{ index: 0, toolName: "Read", summary: "a.ts" }]);
   });
 
+  it("reads a sub-agent's prompt, dropping one that is blank, not text, or only repeats the description", () => {
+    const prompt = (value: unknown, description = "Find x") =>
+      classifyTool(call("Task", { type: "sub_agent", description, log: "", prompt: value })).subAgent?.prompt;
+    expect(prompt("Look for x in src/.\n\n- report paths")).toBe("Look for x in src/.\n\n- report paths");
+    expect(prompt(undefined)).toBeUndefined();
+    expect(prompt(42)).toBeUndefined();
+    expect(prompt("  \n ")).toBeUndefined();
+    expect(prompt(" Find x \n")).toBeUndefined();
+  });
+
   it("drops an error the transformer could only stringify as [object Object]", () => {
     const view = classifyTool(call("Bash", { type: "shell", command: "x", output: "boom" }, { status: "failed", error: "[object Object]" }));
     expect(view.error).toBeUndefined();

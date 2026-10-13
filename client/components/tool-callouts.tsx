@@ -487,6 +487,7 @@ const COPY_ICON: Record<CopyActionId, string> = {
   code: "Code",
   log: "ScrollText",
   description: "MessageSquareText",
+  prompt: "FileText",
   question: "CircleHelp",
   // The body itself: what the reader most often wants, under the plain copy icon.
   content: "Copy",
@@ -1126,6 +1127,10 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             <SelectableText style={styles.plainText}>
               {data.subAgent.description}
             </SelectableText>
+          ) : null}
+          {/* The full brief the parent wrote: often markdown, so drawn as a plan is. */}
+          {data.subAgent.prompt ? (
+            <MarkdownView text={data.subAgent.prompt} tokens={tokens} variant="compact" />
           ) : null}
           {data.subAgent.actions?.map((action) => (
             <View key={action.index} style={styles.inlineRow}>
