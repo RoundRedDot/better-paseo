@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { openPreviewLayer } from "../../client/web";
+import { linesFit, openPreviewLayer } from "../../client/web";
 
 beforeEach(() => { (globalThis as { __rnMockOS?: string }).__rnMockOS = "web"; });
 afterEach(() => { delete (globalThis as { __rnMockOS?: string }).__rnMockOS; });
@@ -126,5 +126,22 @@ describe("hover preview content bounds", () => {
     (key[1] as (event: unknown) => void)({ key: "Escape" });
     expect(close).toHaveBeenCalledOnce();
     release();
+  });
+});
+
+describe("linesFit", () => {
+  /** A body `width` wide whose content is `natural` wide unwrapped. */
+  function body(width: number, natural: number) {
+    const style = { width: "", maxWidth: "" };
+    return { style, getBoundingClientRect: () => ({ width: style.width === "max-content" ? natural : width }) } as unknown as HTMLElement;
+  }
+
+  it("is true only when the unwrapped content is no wider than the body, and leaves the body's style as it was", () => {
+    const fits = body(600, 420);
+    expect(linesFit(fits)).toBe(true);
+    expect(fits.style.width).toBe("");
+    expect(fits.style.maxWidth).toBe("");
+    expect(linesFit(body(600, 600))).toBe(true);
+    expect(linesFit(body(600, 1800))).toBe(false);
   });
 });
