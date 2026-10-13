@@ -22,6 +22,7 @@ import { DisclosureHeader } from "../../client/ui/disclosure-header";
 import { HoverPreviewHeader } from "../../client/ui/hover-preview";
 import { classifyTool } from "../../client/tools/classify";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import { sourceLineTops } from "../../client/ui/preview-lines";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -152,73 +153,97 @@ function findJson(node: unknown, match: (node: JsonNode) => boolean): JsonNode |
   return match(json) ? json : findJson(json.children, match);
 }
 
-/** Each row of a preview's lines: its gutter number, its text, and whether it is shaded. */
-function previewRows(element: React.ReactElement) {
+const styleOf = (node: JsonNode) => Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean));
+
+/** A preview's lines as drawn: the one selectable text, the number column, and the shaded bands. */
+function previewLines(element: React.ReactElement, layout?: (renderer: ReturnType<typeof TestRenderer.create>) => void) {
   let row!: ReturnType<typeof TestRenderer.create>;
   let body!: ReturnType<typeof TestRenderer.create>;
   act(() => { row = TestRenderer.create(element); });
   act(() => { body = TestRenderer.create(React.createElement(React.Fragment, null, row.root.findByType(DisclosureHeader).props.previewContent())); });
+  if (layout) act(() => layout(body));
   const json = body.toJSON();
   act(() => { row.unmount(); body.unmount(); });
   const lines = findJson(json, (node) => node.props.testID === "preview-lines");
-  const rows = lines === null ? null : (lines.children as JsonNode[]).map((rowNode) => {
-    const style = Object.assign({}, ...[rowNode.props.style].flat(Infinity).filter(Boolean));
-    const [first, second] = rowNode.children as JsonNode[];
-    const number = second ? first! : null;
-    return { number: number ? textOf(number) : null, text: textOf(second ?? first), shaded: Boolean(style.backgroundColor) };
-  });
-  return { rows, text: textOf(json) };
+  if (!lines) return { placed: false as const, text: textOf(json) };
+  const gutter = findJson(lines, (node) => node.props.testID === "preview-line-numbers");
+  const stripes = findJson(lines, (node) => node.props.testID === "preview-line-stripes");
+  const content = findJson(lines, (node) => node.type === "Text" && node.props.selectable === true)!;
+  return {
+    placed: true as const,
+    content: textOf(content),
+    numbers: gutter ? (gutter.children as JsonNode[]).map((node) => [textOf(node), styleOf(node).top]) : null,
+    stripes: stripes ? (stripes.children as JsonNode[]).map((node) => [styleOf(node).top, styleOf(node).height]) : null,
+  };
 }
 
 describe("preview line numbers and shading", () => {
   beforeEach(() => resetEnhancerPreferences());
+  const line = tokens.typography.mono.lineHeight;
 
-  it("shades every other line and draws no numbers by default", () => {
-    const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "one\ntwo\nthree\n" } });
-    const { rows } = previewRows(React.createElement(ToolCallout, { data, tokens }));
-    expect(rows).toEqual([
-      { number: null, text: "one", shaded: false },
-      { number: null, text: "two", shaded: true },
-      { number: null, text: "three", shaded: false },
-    ]);
+  it("shades every other line behind one text, with no numbers by default", () => {
+    const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "one\ntwo\nthree\nfour\n" } });
+    expect(previewLines(React.createElement(ToolCallout, { data, tokens }))).toEqual({
+      placed: true, content: "one\ntwo\nthree\nfour", numbers: null, stripes: [[line, line], [3 * line, line]],
+    });
   });
 
-  it("numbers a partial read from the line it starts at", () => {
+  it("numbers a partial read from the line it starts at, in a column beside the text", () => {
     updateEnhancerPreferences({ previewLineNumbers: true, previewStripes: false });
     const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "ten\neleven", offset: 10, limit: 2 } });
-    const { rows } = previewRows(React.createElement(ToolCallout, { data, tokens }));
-    expect(rows).toEqual([
-      { number: "10", text: "ten", shaded: false },
-      { number: "11", text: "eleven", shaded: false },
-    ]);
+    expect(previewLines(React.createElement(ToolCallout, { data, tokens }))).toEqual({
+      placed: true, content: "ten\neleven", numbers: [["10", 0], ["11", line]], stripes: null,
+    });
   });
 
   it("numbers a diff with the file's own lines and leaves its chrome blank", () => {
     updateEnhancerPreferences({ previewLineNumbers: true });
     const diff = "@@ -4,2 +4,2 @@\n-old\n+new\n keep";
     const data = classifyTool({ name: "Edit", status: "completed", detail: { type: "edit", filePath: "/w/a.ts", unifiedDiff: diff } });
-    const { rows } = previewRows(React.createElement(ToolCallout, { data, tokens }));
-    expect(rows?.map((row) => [row.number, row.text])).toEqual([["", "@@ -4,2 +4,2 @@"], ["4", "-old"], ["4", "+new"], ["5", " keep"]]);
+    const drawn = previewLines(React.createElement(ToolCallout, { data, tokens }));
+    expect(drawn.placed && drawn.numbers?.map(([number]) => number)).toEqual(["", "4", "4", "5"]);
   });
 
-  it("numbers and shades command output, keeping its colours", () => {
+  it("keeps command output coloured in one text", () => {
     updateEnhancerPreferences({ previewLineNumbers: true });
     const data = classifyTool({ name: "Bash", status: "completed", detail: { type: "shell", command: "make", output: "PASS a\nFAIL b\n" } });
-    const { rows } = previewRows(React.createElement(ToolCallout, { data, tokens }));
-    expect(rows).toEqual([
-      { number: "1", text: "PASS a", shaded: false },
-      { number: "2", text: "FAIL b", shaded: true },
-    ]);
+    const drawn = previewLines(React.createElement(ToolCallout, { data, tokens }));
+    expect(drawn).toMatchObject({ content: "PASS a\nFAIL b", numbers: [["1", 0], ["2", line]], stripes: [[line, line]] });
   });
 
-  it("draws the content as one text when both are off", () => {
+  it("moves numbers and bands to where a wrapped line pushes the lines below it", () => {
+    updateEnhancerPreferences({ previewLineNumbers: true });
+    const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "a long line\nb\nc" } });
+    const drawn = previewLines(React.createElement(ToolCallout, { data, tokens }), (body) => {
+      const text = body.root.find((node) => (node.type as unknown) === "Text" && typeof node.props.onTextLayout === "function");
+      // iOS reports each laid-out line's text only: the first source line takes two.
+      text.props.onTextLayout({ nativeEvent: { lines: ["a long ", "line\n", "b\n", "c"] } });
+      body.root.findByProps({ testID: "preview-lines" }).findAll((node) => typeof node.props.onLayout === "function")[0]!
+        .props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 300, height: 4 * line } } });
+    });
+    expect(drawn).toMatchObject({ numbers: [["1", 0], ["2", 2 * line], ["3", 3 * line]], stripes: [[2 * line, line]] });
+  });
+
+  it("draws the content as one text, with nothing placed, when both are off", () => {
     updateEnhancerPreferences({ previewLineNumbers: false, previewStripes: false });
     const read = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "one\ntwo" } });
     const shell = classifyTool({ name: "Bash", status: "completed", detail: { type: "shell", command: "make", output: "PASS a\nFAIL b\n" } });
     for (const data of [read, shell]) {
-      const { rows, text } = previewRows(React.createElement(ToolCallout, { data, tokens }));
-      expect(rows).toBeNull();
-      expect(text).toMatch(/one\ntwo|PASS a\nFAIL b/);
+      const drawn = previewLines(React.createElement(ToolCallout, { data, tokens }));
+      expect(drawn.placed).toBe(false);
+      expect(drawn.text).toMatch(/one\ntwo|PASS a\nFAIL b/);
     }
+  });
+});
+
+describe("source line tops", () => {
+  it("starts a source line after each laid-out line that ends one", () => {
+    expect(sourceLineTops([{ text: "ab" }, { text: "c\n" }, { text: "\n" }, { text: "d" }], 10, 3)).toEqual([0, 20, 30]);
+  });
+  it("takes a platform's own line tops when it gives them", () => {
+    expect(sourceLineTops([{ text: "a\n", y: 0 }, { text: "b", y: 19 }], 18, 2)).toEqual([0, 19]);
+  });
+  it("ignores a layout of other content", () => {
+    expect(sourceLineTops([{ text: "a\n" }, { text: "b" }], 18, 3)).toBeNull();
   });
 });
