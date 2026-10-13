@@ -130,10 +130,10 @@ const en = {
     "Whether a preview opens with long lines wrapped. Off, they keep their length and the preview scrolls sideways. The button at the left of a preview's toolbar switches it for that preview.",
   previewLineNumbersTitle: "Line numbers",
   previewLineNumbersDescription:
-    "Number the lines of a file, diff or command output in a preview. A diff shows the file's own line numbers. On a phone, text is then selected one line at a time.",
+    "Number the lines of a file, diff or command output in a preview, in a column beside the text. A diff shows the file's own line numbers.",
   previewStripesTitle: "Alternating line shading",
   previewStripesDescription:
-    "Shade every other line of a file, diff or command output in a preview, so a wrapped line is easy to follow. On a phone, text is then selected one line at a time.",
+    "Shade every other line of a file, diff or command output in a preview, so a wrapped line is easy to follow.",
 
   sectionMessages: "Messages",
   bubbleTitle: "Enhanced prompt bubble",
@@ -247,10 +247,10 @@ const zh: SettingsStrings = {
     "预览弹窗打开时是否自动换行。关闭后长行保持原样，预览可以左右滚动。弹窗工具栏左侧的按钮可以临时切换当前弹窗。",
   previewLineNumbersTitle: "显示行号",
   previewLineNumbersDescription:
-    "在预览弹窗里给文件、diff 和命令输出标上行号；diff 显示的是文件中的行号。开启后在手机上只能逐行选择文字。",
+    "在预览弹窗的文件、diff 和命令输出左侧单独一列显示行号；diff 显示的是文件中的行号。",
   previewStripesTitle: "奇偶行底色",
   previewStripesDescription:
-    "预览弹窗里的文件、diff 和命令输出隔行加一层底色，长行折行后也容易分清是哪一行。开启后在手机上只能逐行选择文字。",
+    "预览弹窗里的文件、diff 和命令输出隔行加一层底色，长行折行后也容易分清是哪一行。",
 
   sectionMessages: "消息",
   bubbleTitle: "增强的提问气泡",

@@ -163,6 +163,8 @@ export function ProseText({ style, children, ...rest }: TextProps) {
         numberOfLines={rest.numberOfLines}
         accessible={rest.accessible}
         accessibilityLabel={rest.accessibilityLabel}
+        // The root reports each laid-out line's text (no geometry).
+        onTextLayout={rest.onTextLayout}
         style={style}
       >
         {fragments(children, run)}
