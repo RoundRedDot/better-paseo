@@ -12,8 +12,8 @@ export type CopySource =
   | { kind: "read" | "write"; absolutePath: string; content?: string }
   /** `newString` is the protocol's replacement text, when the provider sent one. */
   | { kind: "edit"; absolutePath: string; patch?: string; newString?: string }
-  /** `files` are absolute paths. */
-  | { kind: "search"; query: string; files?: readonly string[] }
+  /** `files` are absolute paths; `summary` is a web search's text answer. */
+  | { kind: "search"; query: string; summary?: string; files?: readonly string[] }
   /** MCP and Paseo calls. */
   | { kind: "mcp"; result?: string; args?: unknown }
   /** One reasoning section, or the whole thought. */
@@ -40,6 +40,7 @@ export type CopyActionId =
   | "patch"
   | "new-content"
   | "query"
+  | "summary"
   | "files"
   | "result"
   | "args"
@@ -170,6 +171,7 @@ export function copyPlan(source: CopySource): CopyPlan {
     case "search":
       return plan(
         action("query", "Copy query", source.query),
+        action("summary", "Copy summary", source.summary?.trim()),
         action("files", "Copy file list", source.files?.join("\n")),
       );
     case "mcp":

@@ -85,6 +85,23 @@ describe("classifyTool", () => {
     });
   });
 
+  it("reads a web search's text summary and times it in milliseconds", () => {
+    const view = classifyTool(
+      call("WebSearch", {
+        type: "search",
+        query: "paseo",
+        toolName: "web_search",
+        webResults: [{ title: "Paseo", url: "https://paseo.dev" }],
+        annotations: ["Paseo is **a host**.", "", 42, "See [docs](https://paseo.dev)."],
+        durationSeconds: 2.5,
+      }),
+    );
+    expect(view.search?.annotations).toEqual(["Paseo is **a host**.", "See [docs](https://paseo.dev)."]);
+    expect(view.durationMs).toBe(2500);
+    // A grep reports milliseconds already; that figure stays.
+    expect(classifyTool(call("Glob", { type: "search", query: "*.ts", durationMs: 12, durationSeconds: 9 })).durationMs).toBe(12);
+  });
+
   it("does not take a fetch's HTTP status for an exit code", () => {
     const view = classifyTool(call("WebFetch", { type: "fetch", url: "https://x.dev/a", code: 404, bytes: 10 }));
     expect(view.exitCode).toBeUndefined();
