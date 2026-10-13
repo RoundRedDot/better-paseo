@@ -270,8 +270,9 @@ actions remain the host's.
 
 **Settings → Plugins → Better Paseo.** A sample turn drawn with the timeline's own components follows
 every change: beside the options on a wide desktop window, above them elsewhere. The Read row's
-hover preview is drawn open in it. Options whose parent is off are dimmed, and **Reset** asks for a
-second press.
+hover preview is drawn open in it. On web and desktop a **Desktop / Mobile** switch draws the same
+turn as iOS does: a phone's width, the system monospace, and inline code in the colour you picked.
+Options whose parent is off are dimmed, and **Reset** asks for a second press.
 
 ![Settings page with its live preview](docs/images/settings.png)
 
