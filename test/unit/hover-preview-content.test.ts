@@ -165,6 +165,24 @@ describe("full hover preview content", () => {
     expect(opened).not.toContain("Command completed without output.");
     act(() => row.unmount());
   });
+  it("shows a sub-agent's prompt under its description in the preview and the opened card", () => {
+    const data = classifyTool({ name: "Task", status: "running", detail: {
+      type: "sub_agent", subAgentType: "Explore", description: "Find x", log: "",
+      prompt: "Look for **x** in src/.\n\n- list the paths\n- quote PROMPT_TAIL",
+    } });
+    const preview = previewOf(React.createElement(ToolCallout, { data, tokens }));
+    expect(preview).toContain("Find x");
+    expect(preview).toContain("Look for x in src/.");
+    expect(preview).not.toContain("**x**");
+    expect(preview.indexOf("Find x")).toBeLessThan(preview.indexOf("Look for"));
+    expect(preview).toContain("PROMPT_TAIL");
+    let row!: ReturnType<typeof TestRenderer.create>;
+    act(() => { row = TestRenderer.create(React.createElement(ToolCallout, { data, tokens, expanded: true, onExpandedChange: () => {} })); });
+    const opened = textOf(row.toJSON());
+    expect(opened).toContain("Look for x in src/.");
+    expect(opened).toContain("PROMPT_TAIL");
+    act(() => row.unmount());
+  });
   it("copies the absolute path and file content from a read preview", async () => {
     const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "const value = 1;" } });
     await exercisePreview(React.createElement(ToolCallout, { data, tokens }), async (body) => {

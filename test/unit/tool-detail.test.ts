@@ -20,6 +20,12 @@ describe("toolHasDetail", () => {
     expect(toolHasDetail(view({ type: "sub_agent", description: "a\nb", log: "" }), BUDGET)).toBe(true);
   });
 
+  it("has detail once a sub-agent carries a prompt beyond its description", () => {
+    expect(toolHasDetail(view({ type: "sub_agent", description: "截图并读取界面", log: "", prompt: "打开模拟器，截图后读出界面上的文字。" }), BUDGET)).toBe(true);
+    expect(toolHasDetail(view({ type: "sub_agent", description: "截图并读取界面", log: "", prompt: "截图并读取界面" }), BUDGET)).toBe(false);
+    expect(toolHasDetail(view({ type: "sub_agent", description: "截图并读取界面", log: "", prompt: " " }), BUDGET)).toBe(false);
+  });
+
   it("counts full-width characters as two cells", () => {
     expect(fitsRow("界".repeat(36), BUDGET)).toBe(true);
     expect(fitsRow("界".repeat(37), BUDGET)).toBe(false);
