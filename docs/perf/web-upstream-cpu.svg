@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -8 848 446" width="848" height="446" role="img">
-<title>Web 生产构建，整段回放的主线程任务时间（秒）。淡色是官方插件，彩色收回或伸出后是本仓库。</title>
+<title>Web 生产构建，整段回放的主线程任务时间（秒）。淡色是 Beautiful Chat，彩色收回或伸出后是本仓库。</title>
 <style>
 .final { display: none; }
 @media (prefers-reduced-motion: reduce) {
