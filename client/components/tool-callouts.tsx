@@ -747,11 +747,14 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
       {(data.tool === "bash" || data.tool === "shell" || data.tool === "git") && (
         <View style={styles.terminalWindow}>
           {command ? (
-            // One line on the code surface, not a nested code card.
-            <SelectableText {...selectionCodeText} style={styles.commandLine}>
-              <SelectableSpan style={styles.promptColor}>{"$ "}</SelectableSpan>
-              {command}
-            </SelectableText>
+            // One line on the code surface, not a nested code card. A preview
+            // sets it on its own band, ruled at the left, apart from the output.
+            <View style={preview ? styles.previewCommand : undefined}>
+              <SelectableText {...selectionCodeText} style={[styles.commandLine, preview && styles.clear]}>
+                <SelectableSpan style={styles.promptColor}>{"$ "}</SelectableSpan>
+                {command}
+              </SelectableText>
+            </View>
           ) : null}
           {data.shell?.stdout ? (
             preview ? <PreviewOutput text={data.shell.stdout} style={styles.terminalOutput} tokens={tokens} /> :
@@ -1163,6 +1166,8 @@ interface BodyStyles {
   askOptionText: ViewStyle;
   terminalOutput: TextStyle;
   commandLine: TextStyle;
+  previewCommand: ViewStyle;
+  clear: TextStyle;
   silentText: TextStyle;
   sectionTitle: TextStyle;
   plainText: TextStyle;
@@ -1212,6 +1217,18 @@ function useBodyStyles(tokens: ExtendedThemeTokens, compact: boolean): BodyStyle
           lineHeight: tokens.typography.mono.lineHeight,
           color: tokens.row.outputText,
         },
+        previewCommand: {
+          backgroundColor: tokens.v2.surface2,
+          borderLeftWidth: 3,
+          borderLeftColor: tokens.row.meta,
+          borderTopRightRadius: radiusV2.block,
+          borderBottomRightRadius: radiusV2.block,
+          paddingVertical: space.xs,
+          paddingHorizontal: space.sm,
+          marginBottom: space.xs,
+        },
+        // A UITextView paints its own white unless told otherwise.
+        clear: { backgroundColor: "transparent" },
         silentText: {
           fontFamily: tokens.fontUi,
           fontSize: UI_SCALE.base,
