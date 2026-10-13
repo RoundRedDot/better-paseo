@@ -43,6 +43,7 @@ import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { createReasoningSegmenter } from "../../client/reasoning/segment";
 import { classifyTool } from "../../client/tools/classify";
 import { pressPreviewFrame } from "../../client/ui/press-preview-placement";
+import { MAX_UNWRAPPED_WIDTH } from "../../client/ui/hover-preview";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -328,6 +329,23 @@ describe("wrapping lines in the long-press preview", () => {
     act(() => wrapButton(renderer).props.onPress());
     expect(icon(wrapButton(renderer))).toBe("WrapText");
     expect(sideways(renderer)).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it("caps an unwrapped body's width, so a minified line still draws on a phone", () => {
+    // A layer wider than the GPU's largest texture draws nothing on a device:
+    // a 1,700-character JSON line left the whole output blank.
+    const json = classifyTool({ name: "probe", status: "completed", detail: {
+      type: "unknown", input: {}, output: `profiles_ids=${"legacy_favorite:codex:gpt-6-x,".repeat(60)}`,
+    } });
+    const renderer = render(React.createElement(ToolCallout, { data: json, tokens, compact: true }));
+    act(() => row(renderer).props.onLongPress());
+    act(() => wrapButton(renderer).props.onPress());
+    const [scroller] = sideways(renderer);
+    const body = scroller!.find((node) => (node.type as unknown) === "View" &&
+      StyleSheetFlat(node.props.style).maxWidth !== undefined);
+    expect(StyleSheetFlat(body.props.style).maxWidth).toBe(MAX_UNWRAPPED_WIDTH);
+    expect(textOf(body)).toContain("legacy_favorite:codex:gpt-6-x");
     act(() => renderer.unmount());
   });
 
