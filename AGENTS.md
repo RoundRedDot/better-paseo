@@ -1,5 +1,9 @@
 # AGENTS.md
 
+## 提交信息语言
+
+本仓库的 commit message 一律用英文，标题和正文都是，沿用 Conventional Commits 前缀（`feat:`、`fix:`、`docs(readme):` 等）。这条规则优先于全局或 skill 里要求中文提交信息的约定；已有的中文提交保持原样，不为此改写历史。
+
 ## 提交身份（commit 与 PR）
 
 推到 GitHub 的提交一律用 luoph 账号身份，并把 RoundRedDot 署为公共共同作者。范围包括本仓库，以及从 RoundRedDot/paseo、luoph/paseo 发往上游 getpaseo/paseo 的 PR。
