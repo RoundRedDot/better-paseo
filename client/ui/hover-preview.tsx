@@ -3,7 +3,7 @@ import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, type La
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
 import { selectionSurface } from "../components/selection-actions";
-import { bindPreviewPointer, openPreviewLayer } from "../web";
+import { bindPreviewMaximize, bindPreviewPointer, openPreviewLayer } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { cssShadow } from "./tokens/css-shadow";
 import { DEFAULT_PREFERENCES, HOVER_DELAY_MS, useEnhancerPreferences } from "../preferences";
@@ -297,6 +297,11 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, chil
 }) {
   const actions = useContext(PreviewActionsContext);
   const [toolbar, ...rest] = React.Children.toArray(children);
+  const toolbarRef = useRef<View>(null);
+  const maximize = actions?.maximizable && !actions.maximized ? actions.maximize : undefined;
+  useLayoutEffect(() => {
+    if (maximize) return bindPreviewMaximize(toolbarRef.current, maximize);
+  }, [maximize]);
   const windowButton = actions && (actions.maximizable || actions.maximized) ? (
     <ToolbarButton
       icon={actions.maximized ? "X" : "Maximize2"}
@@ -310,7 +315,7 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, chil
       testID="hover-preview-header"
       style={[styles.header, { backgroundColor: tokens.v2.surface1, borderBottomColor: tokens.v2.borderSubtle }]}
     >
-      <View style={styles.toolbar}>
+      <View ref={toolbarRef} testID="hover-preview-toolbar" style={styles.toolbar}>
         <View testID="hover-preview-start" style={styles.toolbarStart}>
           {/* At the panel's left edge: its name opens rightwards. */}
           <TooltipAlignContext.Provider value="start">
