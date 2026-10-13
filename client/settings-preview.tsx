@@ -1,0 +1,204 @@
+import React, { useMemo } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import type { ExtendedThemeTokens } from "./components/theme-tokens";
+import { radiusV2, space } from "./components/theme-tokens";
+import { ToolCallout } from "./components/tool-callouts";
+import { ReasoningCard } from "./components/reasoning-trace";
+import { UserMessage } from "./components/user-message";
+import { MarkdownView } from "./components/markdown/markdown-view";
+import { AssistantFooter } from "./components/turn-footer";
+import { classifyTool, type ToolCallView } from "./tools/classify";
+import { defaultToolExpanded } from "./tools/disclosure";
+import { reasoningText, segmentReasoning } from "./reasoning/segment";
+import { pathRootsFor } from "./paths/format-path";
+import { PathContext, type PathContextValue } from "./ui/path-text";
+import type { EnhancerPreferences } from "./preferences";
+import type { SettingsStrings } from "./i18n/settings-strings";
+
+/**
+ * A made-up turn drawn with the timeline's own components, so a change on the
+ * settings page shows on real rows before the reader opens a chat. The rows
+ * read the same preference store as the timeline, so they follow every
+ * option; only the host's own pieces (its prompt bubble and its markdown,
+ * when the plugin's are off) and its gaps between items are imitated here.
+ */
+
+const ROOT = "/Users/me/code/better-paseo";
+const FILE = `${ROOT}/client/paths/format-path.ts`;
+const PATHS: PathContextValue = {
+  roots: pathRootsFor({ directory: ROOT, cwd: ROOT }),
+  cwd: ROOT,
+  mode: "relative",
+};
+const AT = new Date("2026-10-13T09:41:00Z");
+const DONE = new Date("2026-10-13T09:42:18Z");
+/** The gap Paseo hangs under every item, and what the compact options leave of it. */
+const HOST_GAP = 16;
+const COMPACT_GAP = 4;
+
+const READ_CODE = `export function formatPath(raw: string, ctx: FormatPathContext) {
+  const { path, suffix } = splitSelector(raw);
+  if (!path) return unmatched(raw.trim());
+  return ctx.mode === "absolute" ? absolute(path, suffix) : relative(path, ctx);
+}`;
+
+function call(callId: string, name: string, detail: Record<string, unknown>, status = "completed"): ToolCallView {
+  return classifyTool({ callId, name, status, detail });
+}
+
+const READ = call("preview-read", "Read", { type: "read", filePath: FILE, offset: 40, limit: 24, content: READ_CODE });
+const EDIT = call("preview-edit", "Edit", {
+  type: "edit",
+  filePath: FILE,
+  unifiedDiff:
+    "@@ -42,3 +42,3 @@\n const { path, suffix } = splitSelector(raw);\n-if (!path) return unmatched(raw);\n+if (!path) return unmatched(raw.trim());\n",
+});
+const FAILED = call(
+  "preview-typecheck",
+  "Bash",
+  {
+    type: "shell",
+    command: "npm run typecheck",
+    cwd: ROOT,
+    output:
+      "client/paths/format-path.ts:44:22 - error TS2345: Argument of type 'string | undefined'\n  is not assignable to parameter of type 'string'.\n\nFound 1 error in client/paths/format-path.ts:44",
+    exitCode: 2,
+    durationMs: 3800,
+  },
+  "failed",
+);
+const TESTS = call("preview-test", "Bash", {
+  type: "shell",
+  command: "npm test -- format-path",
+  cwd: ROOT,
+  output: " ✓ test/unit/format-path.test.ts (31 tests)\n\n Tests  31 passed (31)",
+  exitCode: 0,
+  durationMs: 1240,
+});
+
+/** Host prose: the content size at Paseo's 1.4 line height. */
+function hostText(tokens: ExtendedThemeTokens) {
+  const size = tokens.typography.content.size;
+  return { fontSize: size, lineHeight: Math.round(size * 1.4), color: tokens.foreground, fontFamily: tokens.fontUi };
+}
+
+/** Paseo's own prompt bubble, as `message.tsx` draws it: right-aligned, tail at the top right. */
+function HostBubble({ text, tokens }: { text: string; tokens: ExtendedThemeTokens }) {
+  return (
+    <View style={styles.hostBubbleRow}>
+      <View style={[styles.hostBubble, { backgroundColor: tokens.v2.surface2 }]}>
+        <Text style={hostText(tokens)}>{text}</Text>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Paseo's own reply when the plugin's markdown is off. Its renderer cannot be
+ * reached from a plugin, so the sample is shown as the text it formats, with
+ * the markup taken out rather than printed.
+ */
+function HostReply({ text, tokens }: { text: string; tokens: ExtendedThemeTokens }) {
+  const plain = useMemo(
+    () =>
+      text
+        .split("\n")
+        .filter((line) => !line.startsWith("```"))
+        .join("\n")
+        .replace(/\*\*|`/g, "")
+        .replace(/^- /gm, "• "),
+    [text],
+  );
+  return <Text style={hostText(tokens)}>{plain}</Text>;
+}
+
+/** One timeline item with the gap the host leaves under it. */
+function Item({ gap, children }: { gap: number; children: React.ReactNode }) {
+  return <View style={{ marginBottom: gap }}>{children}</View>;
+}
+
+export function SettingsPreview({
+  tokens,
+  preferences,
+  compact,
+  t,
+}: {
+  tokens: ExtendedThemeTokens;
+  preferences: EnhancerPreferences;
+  compact: boolean;
+  t: SettingsStrings;
+}) {
+  const thought = useMemo(() => segmentReasoning(t.previewThought), [t]);
+  const paths = useMemo<PathContextValue>(() => ({ ...PATHS, mode: preferences.pathDisplay }), [preferences.pathDisplay]);
+  const rowGap = preferences.compactRowSpacing ? COMPACT_GAP : HOST_GAP;
+  const replyGap = preferences.compactReplySpacing ? COMPACT_GAP : HOST_GAP;
+  const failedOpen = defaultToolExpanded(FAILED, preferences.toolDetail);
+  const reply = (text: string) =>
+    preferences.assistantMarkdown ? (
+      <MarkdownView text={text} tokens={tokens} variant={preferences.markdownVariant} compact={compact} />
+    ) : (
+      <HostReply text={text} tokens={tokens} />
+    );
+
+  return (
+    <PathContext.Provider value={paths}>
+      <View>
+        <Item gap={HOST_GAP}>
+          {preferences.enhancedUserBubble ? (
+            <UserMessage
+              text={t.previewPrompt}
+              timestamp={AT}
+              tokens={tokens}
+              compact={compact}
+              usage={{ inputTokens: 18_412, cachedInputTokens: 96_300, outputTokens: 1_268 }}
+            />
+          ) : (
+            <HostBubble text={t.previewPrompt} tokens={tokens} />
+          )}
+        </Item>
+        <Item gap={rowGap}>
+          <ReasoningCard
+            segmentation={thought}
+            streaming={false}
+            durationMs={6200}
+            expanded={false}
+            onToggle={() => {}}
+            tokens={tokens}
+            compact={compact}
+            storeKey="settings-preview:thought"
+            copyText={reasoningText(thought)}
+          />
+        </Item>
+        <Item gap={replyGap}>{reply(t.previewLead)}</Item>
+        <Item gap={rowGap}>
+          <ToolCallout data={READ} tokens={tokens} compact={compact} />
+        </Item>
+        <Item gap={rowGap}>
+          <ToolCallout data={EDIT} tokens={tokens} compact={compact} />
+        </Item>
+        <Item gap={rowGap}>
+          {/* Remounted when the option changes: the start state is read once. */}
+          <ToolCallout key={String(failedOpen)} data={FAILED} tokens={tokens} compact={compact} defaultExpanded={failedOpen} />
+        </Item>
+        <Item gap={HOST_GAP}>
+          <ToolCallout data={TESTS} tokens={tokens} compact={compact} />
+        </Item>
+        <View>
+          {reply(t.previewReply)}
+          <AssistantFooter text={t.previewReply} at={DONE} tokens={tokens} compact={compact} />
+        </View>
+      </View>
+    </PathContext.Provider>
+  );
+}
+
+const styles = StyleSheet.create({
+  hostBubbleRow: { flexDirection: "row", justifyContent: "flex-end" },
+  hostBubble: {
+    maxWidth: "86%",
+    borderRadius: radiusV2.bubble,
+    borderTopRightRadius: radiusV2.bubbleTail,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+  },
+});
