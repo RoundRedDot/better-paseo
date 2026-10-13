@@ -27,6 +27,11 @@ await import("./helpers/quiet-renderer");
 const { default: TestRenderer, act } = await import("react-test-renderer");
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
 const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
+const { StyleSheet } = await import("./helpers/rn-mock");
+const { columnWidths } = await import("../../client/components/markdown/render/table");
+const { variantMetrics, TABLE_DIVIDER_WIDTH } = await import("../../client/components/markdown/render/styles");
+const { lexBlock } = await import("../../client/components/markdown/lex");
+type TableToken = import("../../client/vendor/marked").Tokens.Table;
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -66,15 +71,30 @@ describe("Markdown table copy", () => {
       render(source, false, variant);
       expect(buttons()).toHaveLength(1);
       const button = buttons()[0]!;
-      // The copy control precedes the first header text, inside the same cell.
+      // The copy control floats at the frame's corner, outside the header row.
       let cell = button.parent!;
       while (String(cell.type) !== "View") cell = cell.parent!;
-      expect(cell.findAll((node) => String(node.type) === "Text")[0]!.children)
-        .toEqual(["Name"]);
-      expect(cell.children[0]).toBe(button.parent!.parent);
+      expect(StyleSheet.flatten(cell.props.style)).toMatchObject({ position: "absolute", top: 0, left: 0 });
+      expect(cell.findAll((node) => String(node.type) === "Text")).toHaveLength(0);
       await act(async () => { button.props.onPress(); });
       expect(copyText).toHaveBeenCalledExactlyOnceWith(source);
       expect(buttons()[0]!.props.accessibilityLabel).toBe("Copied");
+    },
+  );
+
+  it.each(["document", "compact", "terminal"] as const)(
+    "%s keeps identical columns the same width without copy space",
+    (variant) => {
+      const source = "| Same header | Same header |\n| --- | --- |\n| x | x |";
+      const table = lexBlock(source).find((token) => token.type === "table") as TableToken;
+      const widths = columnWidths(table, variantMetrics(variant, tokens.typography.content.size));
+      expect(widths[1]! - widths[0]!).toBe(TABLE_DIVIDER_WIDTH);
+      const view = render(source, false, variant);
+      const headers = view.root.findAll((node) => String(node.type) === "Text"
+        && node.children[0] === "Same header");
+      expect(headers).toHaveLength(2);
+      expect(headers.map((node) => StyleSheet.flatten(node.props.style).width)).toEqual(widths);
+      expect(headers[0]!.parent!.parent === headers[1]!.parent!.parent).toBe(true);
     },
   );
 
