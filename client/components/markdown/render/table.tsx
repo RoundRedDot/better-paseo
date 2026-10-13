@@ -6,6 +6,7 @@ import { inlineWidth, renderInline } from "./inline";
 import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
 import { HScroll } from "../../../ui/h-scroll";
 import { TableCopyMenu } from "./table-copy-menu";
+import { FLOAT } from "../../../ui/tokens/float";
 import {
   ALIGN_KEYS,
   CHAR_RATIO_MONO,
@@ -161,16 +162,17 @@ export function MdTable({
 
 const copyStyles = StyleSheet.create({
   // Keep the corner control inside the scroller's bounds, outside the columns.
+  // Half the control's side, so its centre sits on the table's corner.
   container: {
     position: "relative",
-    paddingTop: 12,
-    paddingLeft: 12,
+    paddingTop: FLOAT.control / 2,
+    paddingLeft: FLOAT.control / 2,
   },
-  // Round like the control it backs, so the table's border is not cut square.
+  // Shaped like the control it backs, so the table's border is not cut square.
   corner: {
     position: "absolute",
     top: 0,
     left: 0,
-    borderRadius: 12,
+    borderRadius: FLOAT.radius,
   },
 });

@@ -1,6 +1,6 @@
 /**
- * The table's copy control on a desktop pointer: hovering widens its circle
- * to the right into a capsule of "Copy as Markdown" and "Copy as image". Touch and native keep the
+ * The table's copy control on a desktop pointer: hovering widens its rounded
+ * square to the right into "Copy as Markdown" and "Copy as image". Touch and native keep the
  * single button (`markdown-table-copy.test.ts`).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -45,7 +45,7 @@ const { buildThemeTokens } = await import("../../client/components/theme-tokens"
 const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
 const { getEnhancerPreferences, updateEnhancerPreferences } = await import("../../client/preferences");
 const { StyleSheet } = await import("./helpers/rn-mock");
-const { duration } = await import("../../client/ui/tokens/motion");
+const { floatShadow } = await import("../../client/ui/tokens/float");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const mockOS = globalThis as { __rnMockOS?: string };
@@ -58,6 +58,7 @@ const tokens = buildThemeTokens({
 });
 const SOURCE = "| A | B |\n| --- | --- |\n| one | two |";
 let renderer: ReturnType<typeof TestRenderer.create> | undefined;
+type TestInstance = ReturnType<typeof TestRenderer.create>["root"];
 let previousLanguage = getEnhancerPreferences().language;
 
 function render(text = SOURCE) {
@@ -110,30 +111,54 @@ afterEach(() => {
 });
 
 describe("Markdown table copy menu", () => {
-  it("is a circle until hovered, then widens into a capsule of two named entries", () => {
+  it("is a rounded square until hovered, then widens into a rounded rectangle of two named entries", () => {
     render();
     const frame = () => renderer!.root.findAll((node) => String(node.type) === "View"
       && StyleSheet.flatten(node.props.style).overflow === "hidden"
       && node.findAll((child) => child.props.accessibilityLabel === "Copy as image").length > 0)[0]!;
     const row = () => frame().findAll((node) => typeof node.props.onLayout === "function")[0]!;
+    // The nearest fading layer: the first entry's name on its own, the second entry whole.
+    const shown = (node: TestInstance) => {
+      let layer = node;
+      while (!StyleSheet.flatten(layer.props.style).transform) layer = layer.parent!;
+      const style = StyleSheet.flatten(layer.props.style);
+      return [style.opacity, (style.transform as Array<{ translateX: number }>)[0]!.translateX];
+    };
     const names = () => entries().map((node) => {
       const text = node.findAll((child) => String(child.type) === "Text")[0]!;
-      return [text.children.join(""), StyleSheet.flatten(text.props.style).opacity];
+      return [text.children.join(""), ...shown(text)];
     });
     expect(StyleSheet.flatten(frame().props.style)).toMatchObject({
-      width: 24, height: 24, borderRadius: 12, borderWidth: 1, borderColor: tokens.v2.border,
-      transitionDuration: `${duration.menu}ms`,
+      width: 30, height: 30, borderRadius: 7, borderWidth: 1, borderColor: tokens.v2.border,
+      boxShadow: floatShadow(tokens, false),
+      transitionProperty: "width, box-shadow",
+      transitionDuration: "160ms, 120ms",
     });
     expect(reachable()).toEqual(["Copy as Markdown"]);
-    expect(names()).toEqual([["复制为 Markdown", 0], ["复制为图片", 0]]);
+    expect(names()).toEqual([["复制为 Markdown", 0, -4], ["复制为图片", 0, -4]]);
 
-    act(() => { row().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 207.4, height: 22 } } }); });
+    act(() => { row().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 247.4, height: 28 } } }); });
     act(() => { entry("Copy as Markdown").props.onHoverIn(); });
+    // Opening widens the frame and lifts its shadow; the edge never darkens.
     expect(StyleSheet.flatten(frame().props.style)).toMatchObject({
-      width: 210, borderRadius: 12, borderColor: tokens.foregroundMuted,
+      width: 250, borderRadius: 7, borderColor: tokens.v2.border,
+      boxShadow: floatShadow(tokens),
+      transitionDuration: "180ms, 180ms",
     });
     expect(reachable()).toEqual(["Copy as Markdown", "Copy as image"]);
-    expect(names()).toEqual([["复制为 Markdown", 1], ["复制为图片", 1]]);
+    expect(names()).toEqual([["复制为 Markdown", 1, 0], ["复制为图片", 1, 0]]);
+    expect(StyleSheet.flatten(entry("Copy as image").props.style)).toMatchObject({ transitionDelay: "40ms" });
+  });
+
+  it("opens for keyboard focus, so Tab reaches the second entry", () => {
+    render();
+    act(() => { entry("Copy as Markdown").props.onFocus(); });
+    expect(reachable()).toEqual(["Copy as Markdown", "Copy as image"]);
+    act(() => { entry("Copy as Markdown").props.onBlur(); });
+    act(() => { entry("Copy as image").props.onFocus(); });
+    expect(reachable()).toEqual(["Copy as Markdown", "Copy as image"]);
+    act(() => { entry("Copy as image").props.onBlur(); });
+    expect(reachable()).toEqual(["Copy as Markdown"]);
   });
 
   it("drops the transition under reduced motion", async () => {
@@ -145,7 +170,7 @@ describe("Markdown table copy menu", () => {
         && StyleSheet.flatten(node.props.style).transitionDuration !== undefined)
         .map((node) => StyleSheet.flatten(node.props.style).transitionDuration);
       expect(durations.length).toBeGreaterThan(0);
-      expect(new Set(durations)).toEqual(new Set(["0ms"]));
+      expect(new Set(durations.flatMap((value) => String(value).split(", ")))).toEqual(new Set(["0ms"]));
     } finally {
       spy.mockRestore();
     }
@@ -158,6 +183,8 @@ describe("Markdown table copy menu", () => {
     expect(copyText).toHaveBeenCalledExactlyOnceWith(SOURCE);
     expect(toastShow).toHaveBeenCalledExactlyOnceWith("已复制为 Markdown");
     expect(entries().map((node) => node.props.accessibilityLabel)).toEqual(["Copied", "Copy as image"]);
+    const check = entry("Copied").findAll((node) => String(node.type) === "Icon")[0]!;
+    expect(check.props).toMatchObject({ name: "Check", color: tokens.success });
   });
 
   it("copies a picture of the table frame on the chat surface", async () => {
