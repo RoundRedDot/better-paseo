@@ -399,7 +399,7 @@ export function HoverPreviewBody({ children }: { children: ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  panel: { padding: 0, borderWidth: 1, borderRadius: radiusV2.block },
+  panel: { padding: 0, borderWidth: 1, borderRadius: radiusV2.overlay },
   toolbar: { flexDirection: "row", alignItems: "center", gap: space.xs },
   // Equal flexible sides keep the centre slot in the middle of the panel.
   toolbarStart: { flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", gap: space.xs },
