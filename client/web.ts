@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import { PLUGIN_ROOT_ATTRIBUTE } from "./components/focus-ring";
 import { PREVIEW_LIMIT } from "./ui/press-preview-placement";
 import { SELECTION_BAR_SELECTOR } from "./components/selection-actions";
+import { FLOAT_EASE } from "./ui/tokens/float";
 
 /** The selection bar floats outside a preview but acts on its text, so it counts as part of it. */
 function onSelectionBar(target: EventTarget | null): boolean {
@@ -146,6 +147,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   panel.style.overflow = "hidden";
   panel.style.maxWidth = `${Math.max(0, view.innerWidth - 16)}px`;
 
+  let below = true;
   const position = () => {
     const contentRect = content.getBoundingClientRect();
     const left = Math.max(8, contentRect.left);
@@ -169,11 +171,11 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     }
     panel.style.height = "";
     const rect = row.getBoundingClientRect();
-    const below = view.innerHeight - rect.bottom - 14;
+    const room = view.innerHeight - rect.bottom - 14;
     const above = rect.top - 14;
-    const down = below >= Math.min(PREVIEW_LIMIT.maxHeight, panel.scrollHeight) || below >= above;
-    panel.style.maxHeight = `${Math.max(0, Math.min(PREVIEW_LIMIT.maxHeight, down ? below : above))}px`;
-    panel.style.top = `${down ? rect.bottom + 6 : Math.max(8, rect.top - panel.getBoundingClientRect().height - 6)}px`;
+    below = room >= Math.min(PREVIEW_LIMIT.maxHeight, panel.scrollHeight) || room >= above;
+    panel.style.maxHeight = `${Math.max(0, Math.min(PREVIEW_LIMIT.maxHeight, below ? room : above))}px`;
+    panel.style.top = `${below ? rect.bottom + 6 : Math.max(8, rect.top - panel.getBoundingClientRect().height - 6)}px`;
   };
   panel.showPopover();
   position();
@@ -183,6 +185,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     if (body && options.onLinesFit) options.onLinesFit(linesFit(body));
   };
   measure();
+  if (!options.maximized) reveal(panel, below);
   // Content can grow while streaming or after syntax highlighting/fonts settle.
   const resizeObserver = new view.ResizeObserver(measure);
   resizeObserver.observe(panel);
@@ -241,6 +244,24 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     mutationObserver.disconnect();
     panel.hidePopover();
   };
+}
+
+/** The hover panel's entrance: opacity and transform only, so the compositor plays it without a layout or a render. */
+export const PREVIEW_REVEAL = { ms: 140, shift: 4 } as const;
+
+/**
+ * Fades the panel in while it slides `PREVIEW_REVEAL.shift` px away from its
+ * row. A translate leaves the panel's measured height alone, which placing it
+ * above the row reads. No fill: once played, the panel's own style stands.
+ */
+function reveal(panel: HTMLElement, below: boolean): void {
+  const view = panel.ownerDocument.defaultView!;
+  if (typeof panel.animate !== "function" || view.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  const from = below ? -PREVIEW_REVEAL.shift : PREVIEW_REVEAL.shift;
+  panel.animate(
+    [{ opacity: 0, transform: `translateY(${from}px)` }, { opacity: 1, transform: "none" }],
+    { duration: PREVIEW_REVEAL.ms, easing: FLOAT_EASE.out },
+  );
 }
 
 /**
