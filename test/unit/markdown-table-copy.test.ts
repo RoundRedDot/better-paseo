@@ -32,6 +32,7 @@ const { buildThemeTokens } = await import("../../client/components/theme-tokens"
 const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
 const { StyleSheet } = await import("./helpers/rn-mock");
 const { columnWidths } = await import("../../client/components/markdown/render/table");
+const { TOOLBAR_TOOLTIP_MS } = await import("../../client/ui/toolbar-button");
 const { variantMetrics, TABLE_DIVIDER_WIDTH } = await import("../../client/components/markdown/render/styles");
 const { lexBlock } = await import("../../client/components/markdown/lex");
 const { getEnhancerPreferences, updateEnhancerPreferences } = await import("../../client/preferences");
@@ -66,9 +67,43 @@ afterEach(() => {
   renderer = undefined;
   copyText.mockClear();
   toastShow.mockClear();
+  vi.useRealTimers();
 });
 
 describe("Markdown table copy", () => {
+  it.each([
+    ["zh", "复制 Markdown 表格", "已复制"],
+    ["en", "Copy Markdown table", "Copied"],
+  ] as const)("shows a delayed hover label in %s and hides it on exit", async (language, label, copied) => {
+    vi.useFakeTimers();
+    const previousLanguage = getEnhancerPreferences().language;
+    updateEnhancerPreferences({ language });
+    try {
+      render("| A | B |\n| --- | --- |\n| one | two |");
+      const labels = () => renderer!.root.findAll((node) => String(node.type) === "Text"
+        && (node.children[0] === label || node.children[0] === copied));
+      expect(labels()).toHaveLength(0);
+      act(() => { buttons()[0]!.props.onHoverIn(); });
+      act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS - 1); });
+      expect(labels()).toHaveLength(0);
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(labels()[0]!.children).toEqual([label]);
+      let slot = labels()[0]!.parent!;
+      while (slot.props.pointerEvents !== "none") slot = slot.parent!;
+      expect(StyleSheet.flatten(slot.props.style)).toMatchObject({ left: 0, top: "100%" });
+      await act(async () => { buttons()[0]!.props.onPress(); });
+      expect(labels()[0]!.children).toEqual([copied]);
+      act(() => { buttons()[0]!.props.onHoverOut(); });
+      expect(labels()).toHaveLength(0);
+      act(() => { buttons()[0]!.props.onHoverIn(); });
+      act(() => { buttons()[0]!.props.onHoverOut(); });
+      act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
+      expect(labels()).toHaveLength(0);
+    } finally {
+      act(() => { updateEnhancerPreferences({ language: previousLanguage }); });
+    }
+  });
+
   it.each([
     ["zh", "已复制 Markdown 表格"],
     ["en", "Copied Markdown table"],
@@ -80,7 +115,7 @@ describe("Markdown table copy", () => {
       await act(async () => { buttons()[0]!.props.onPress(); });
       expect(toastShow).toHaveBeenCalledExactlyOnceWith(message);
     } finally {
-      updateEnhancerPreferences({ language: previousLanguage });
+      act(() => { updateEnhancerPreferences({ language: previousLanguage }); });
     }
   });
 
@@ -93,7 +128,7 @@ describe("Markdown table copy", () => {
       const button = buttons()[0]!;
       // The copy control floats at the frame's corner, outside the header row.
       let cell = button.parent!;
-      while (String(cell.type) !== "View") cell = cell.parent!;
+      while (StyleSheet.flatten(cell.props.style).position !== "absolute") cell = cell.parent!;
       expect(StyleSheet.flatten(cell.props.style)).toMatchObject({ position: "absolute", top: 0, left: 0 });
       expect(cell.findAll((node) => String(node.type) === "Text")).toHaveLength(0);
       await act(async () => { button.props.onPress(); });
