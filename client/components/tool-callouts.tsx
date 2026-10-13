@@ -41,6 +41,7 @@ import type { CopyAction, CopyActionId, CopyPlan } from "../copy/content";
 import { ToolbarButton, ToolbarCopyButton, TooltipAlignContext } from "../ui/toolbar-button";
 import { stringifyValue, type ToolCallView, type ToolKind } from "../tools/classify";
 import { summarizeToolCall, summarizeToolGroup } from "../tools/group";
+import { toolHasDetail } from "../tools/detail";
 
 /**
  * The muted icon a settled call shows in the row's status slot: one Lucide
@@ -165,7 +166,13 @@ export function ToolCallout({
   requestImage,
 }: ToolCalloutProps) {
   const [localExpanded, setLocalExpanded] = useState(defaultExpanded);
-  const expanded = controlledExpanded ?? localExpanded;
+  // A body that would only repeat the row is never shown, whatever the store says.
+  const budget = compact ? DISCLOSURE_HEADER.targetBudget.compact : DISCLOSURE_HEADER.targetBudget.desktop;
+  const hasDetail = useMemo(
+    () => (groupCalls ?? [data]).some((call) => toolHasDetail(call, budget)),
+    [data, groupCalls, budget],
+  );
+  const expanded = hasDetail && (controlledExpanded ?? localExpanded);
   const setExpanded = onExpandedChange ?? setLocalExpanded;
   const onToggle = useCallback(() => setExpanded(!expanded), [setExpanded, expanded]);
   // Owned here, not by the row: an opened card moves the row into `StickyCard`.
@@ -283,6 +290,7 @@ export function ToolCallout({
       tokens={tokens}
       compact={compact}
       tone={tone}
+      inert={!hasDetail}
       icon={statusIcon}
       iconIsStatus={running || failed}
       verb={summary.verb}

@@ -151,12 +151,12 @@ function ToolCard({ open, toggle }: { open: boolean; toggle(): void }) {
 function ThoughtCard({ open, toggle }: { open: boolean; toggle(): void }) {
   const env = loaded();
   const segmentation = React.useMemo(
-    () => env.createReasoningSegmenter().update("Checking the list.", { streaming: false }),
+    () => env.createReasoningSegmenter().update("Checking the list. Then the tests.", { streaming: false }),
     [env],
   );
   return React.createElement(env.ReasoningCard, {
     segmentation, streaming: false, durationMs: 1200, expanded: open, onToggle: toggle,
-    tokens: env.tokens, storeKey: "thought:anchor", copyText: "Checking the list.",
+    tokens: env.tokens, storeKey: "thought:anchor", copyText: "Checking the list. Then the tests.",
   });
 }
 

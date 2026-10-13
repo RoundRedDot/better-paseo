@@ -110,7 +110,8 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
     <>
       <DisclosureHeader
         expanded={open}
-        onToggle={hasBody ? () => setExpanded((prev) => !prev) : () => {}}
+        onToggle={() => setExpanded((prev) => !prev)}
+        inert={!hasBody}
         tokens={tokens}
         compact={compact}
         icon={icon}
