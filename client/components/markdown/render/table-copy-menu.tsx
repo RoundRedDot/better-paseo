@@ -116,7 +116,6 @@ function ExpandingMenu({ source, frame, tokens, trigger }: {
           focus={focus}
           tokens={tokens}
         />
-        <View style={[styles.divider, motion.reveal, revealed(open), { backgroundColor: tokens.v2.border }]} />
         <Entry
           icon="Image"
           label={COPY_IMAGE_LABEL}
@@ -200,7 +199,7 @@ function Entry({ icon, label, copied, open, first = false, motion, onPress, onLo
 
 interface MenuMotion {
   frame: object;
-  /** The names, the divider and the second entry. */
+  /** The names and the second entry. */
   reveal: object;
   /** An entry's hover and press fill. */
   fill: object;
@@ -250,6 +249,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   // Out of the frame's flow, so it keeps its full width while the frame clips it.
+  // The same inset and gap as the selection bar, so the two entries sit like its buttons.
   row: {
     position: "absolute",
     top: 0,
@@ -257,18 +257,18 @@ const styles = StyleSheet.create({
     height: FLOAT.control - BORDER * 2,
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: FLOAT.inset,
+    gap: FLOAT.inset,
   },
   entry: {
     height: FLOAT.item,
-    marginHorizontal: FLOAT.inset,
     borderRadius: FLOAT.itemRadius,
     flexDirection: "row",
     alignItems: "center",
     gap: FLOAT.iconText,
   },
-  // 1 + 2 + 5 puts the icon's centre at 15, the closed square's centre, so it does not move as the menu opens.
+  // Border 1 + row padding 2 + paddingLeft 5 puts the icon's centre at 15, the closed square's centre.
   entryFirst: { paddingLeft: 5, paddingRight: 10 },
-  entryLast: { paddingLeft: 8, paddingRight: 12 },
-  divider: { width: 1, height: 12, marginHorizontal: 4 },
+  entryLast: { paddingLeft: 8, paddingRight: 10 },
   label: { fontSize: UI_SCALE.base, lineHeight: 16, fontWeight: "500", whiteSpace: "nowrap" } as object,
 });
