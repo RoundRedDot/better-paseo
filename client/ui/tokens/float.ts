@@ -29,15 +29,16 @@ export const FLOAT_EASE = {
 } as const;
 
 /**
- * A 1px contact shadow under a soft ambient one, heavier on a dark surface.
- * Hidden, the same two layers turn transparent, so the change can transition.
+ * A contact shadow under a deep ambient one, heavier on a dark surface: the
+ * frame has to read as lifted off the table it covers. Hidden, the same two
+ * layers turn transparent, so the change can transition.
  */
 export function floatShadow(tokens: Pick<ExtendedThemeTokens, "isDark">, visible = true): string {
-  const [contact, ambient] = tokens.isDark ? ["0, 0, 0, 0.4", "0, 0, 0, 0.55"] : ["17, 17, 20, 0.06", "17, 17, 20, 0.12"];
+  const [contact, ambient] = tokens.isDark ? ["0, 0, 0, 0.5", "0, 0, 0, 0.7"] : ["17, 17, 20, 0.1", "17, 17, 20, 0.22"];
   const rgba = (value: string) => `rgba(${visible ? value : value.replace(/[\d.]+$/, "0")})`;
   return tokens.isDark
-    ? `0 1px 2px ${rgba(contact)}, 0 6px 16px -4px ${rgba(ambient)}`
-    : `0 1px 2px ${rgba(contact)}, 0 4px 12px -2px ${rgba(ambient)}`;
+    ? `0 1px 3px ${rgba(contact)}, 0 10px 28px -6px ${rgba(ambient)}`
+    : `0 1px 3px ${rgba(contact)}, 0 8px 24px -4px ${rgba(ambient)}`;
 }
 
 /** A hovered item: the preview toolbar's hover fill. */

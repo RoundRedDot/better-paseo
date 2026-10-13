@@ -103,43 +103,20 @@ export function MdTable({
   ];
 
   return (
-    <HScroll tokens={context.tokens} style={styles.tableScroll} contentContainerStyle={styles.tableContent}>
-      <View style={copyStyles.container}>
-        <View ref={frameRef} style={styles.tableFrame}>
-          <View style={[styles.tableHeaderRow, token.rows.length === 0 && styles.tableRowLast]}>
-            {token.header.map((cell, column) => {
-              const cellKey = `${keyPrefix}h${column}`;
-              return (
-                <Text
-                  key={cellKey}
-                  selectable
-                  {...contentTextProps()}
-                  style={[
-                    styles.tableHeaderCell,
-                    align(column),
-                    ...frame(column),
-                    contentTextStyle(),
-                  ]}
-                >
-                  {renderInline(cell.tokens, context, cellKey)}
-                </Text>
-              );
-            })}
-          </View>
-          {token.rows.map((row, rowIndex) => (
-            <View
-              key={`${keyPrefix}r${rowIndex}`}
-              style={[styles.tableRow, rowIndex === token.rows.length - 1 && styles.tableRowLast]}
-            >
-              {row.map((cell, column) => {
-                const cellKey = `${keyPrefix}r${rowIndex}c${column}`;
+    <View style={copyStyles.outer}>
+      <HScroll tokens={context.tokens} style={styles.tableScroll} contentContainerStyle={styles.tableContent}>
+        <View style={copyStyles.container}>
+          <View ref={frameRef} style={styles.tableFrame}>
+            <View style={[styles.tableHeaderRow, token.rows.length === 0 && styles.tableRowLast]}>
+              {token.header.map((cell, column) => {
+                const cellKey = `${keyPrefix}h${column}`;
                 return (
                   <Text
                     key={cellKey}
                     selectable
                     {...contentTextProps()}
                     style={[
-                      styles.tableCell,
+                      styles.tableHeaderCell,
                       align(column),
                       ...frame(column),
                       contentTextStyle(),
@@ -150,21 +127,48 @@ export function MdTable({
                 );
               })}
             </View>
-          ))}
+            {token.rows.map((row, rowIndex) => (
+              <View
+                key={`${keyPrefix}r${rowIndex}`}
+                style={[styles.tableRow, rowIndex === token.rows.length - 1 && styles.tableRowLast]}
+              >
+                {row.map((cell, column) => {
+                  const cellKey = `${keyPrefix}r${rowIndex}c${column}`;
+                  return (
+                    <Text
+                      key={cellKey}
+                      selectable
+                      {...contentTextProps()}
+                      style={[
+                        styles.tableCell,
+                        align(column),
+                        ...frame(column),
+                        contentTextStyle(),
+                      ]}
+                    >
+                      {renderInline(cell.tokens, context, cellKey)}
+                    </Text>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
         </View>
-        <View style={[copyStyles.corner, { backgroundColor: context.tokens.surface0 }]}>
-          <TableCopyMenu source={() => token.raw} frame={frameRef} tokens={context.tokens} />
-        </View>
+      </HScroll>
+      {/* Over the scroller rather than in it: a scroller clips what passes its
+          edges, and the open menu's border and shadow reach past the left one. */}
+      <View style={[copyStyles.corner, { backgroundColor: context.tokens.surface0 }]}>
+        <TableCopyMenu source={() => token.raw} frame={frameRef} tokens={context.tokens} />
       </View>
-    </HScroll>
+    </View>
   );
 }
 
 const copyStyles = StyleSheet.create({
-  // Keep the corner control inside the scroller's bounds, outside the columns.
-  // Half the control's side, so its centre sits on the table's corner.
+  outer: { position: "relative" },
+  // Room for the corner control outside the columns: half its side, so its
+  // centre sits on the table's corner.
   container: {
-    position: "relative",
     paddingTop: FLOAT.control / 2,
     paddingLeft: FLOAT.control / 2,
   },
