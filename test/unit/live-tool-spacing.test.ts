@@ -98,6 +98,26 @@ describe("tool row spacing during streaming", () => {
   });
 });
 
+describe("calls sent together in one message", () => {
+  it("gives back the gap of every running call but the lowest of one millisecond", () => {
+    // Parallel calls leave the daemon in one burst and share a stamp; their
+    // kind cannot order them, so where each is drawn does.
+    let created = 0;
+    const createNodeMock = () => {
+      const y = 100 * ++created;
+      return { measureInWindow: (callback: (x: number, y: number, w: number, h: number) => void) => callback(0, y, 300, 40) };
+    };
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+      tool("parallel-1", 8000), tool("parallel-2", 8000)), { createNodeMock }); });
+    expect(margins(renderer)).toEqual([-12, undefined]);
+    act(() => { renderer.update(React.createElement(React.Fragment, null,
+      tool("parallel-1", 8003, "completed"), tool("parallel-2", 8000))); });
+    expect(margins(renderer)).toEqual([-12, undefined]);
+    act(() => renderer.unmount());
+  });
+});
+
 describe("tool row spacing in replayed history", () => {
   it("compensates every finished call when the whole history shares one millisecond", () => {
     // Grok's history after the daemon reloads it: no provider times, so

@@ -138,9 +138,16 @@ describe("live tool groups", () => {
   });
 
   it("compensates a merged row when a different operation follows in the same millisecond", () => {
+    // Calls in one millisecond are ordered by where they are drawn: here, the
+    // order their views are created.
+    let created = 0;
+    const createNodeMock = () => {
+      const y = 100 * ++created;
+      return { measureInWindow: (callback: (x: number, y: number, w: number, h: number) => void) => callback(0, y, 300, 40) };
+    };
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
-      tool("first", 4000), tool("second", 4000), tool("next", 4000, "running", "src/b.ts"))); });
+      tool("first", 4000), tool("second", 4000), tool("next", 4000, "running", "src/b.ts")), { createNodeMock }); });
     expect(margins(renderer)).toEqual([-12, -16, undefined]);
     act(() => renderer.unmount());
   });
