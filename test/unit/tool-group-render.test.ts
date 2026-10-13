@@ -23,6 +23,7 @@ const { StyleSheet } = await import("./helpers/rn-mock");
 const { ToolCallout, previewCopyActions } = await import("../../client/components/tool-callouts");
 const { ToolbarButton, TOOLBAR_TOOLTIP_MS } = await import("../../client/ui/toolbar-button");
 const { HoverPreviewHeader } = await import("../../client/ui/hover-preview");
+const { updateEnhancerPreferences } = await import("../../client/preferences");
 const { classifyTool } = await import("../../client/tools/classify");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -122,6 +123,26 @@ describe("grouped tool card presentation", () => {
       expect(texts(renderer.root)).not.toContain("Copy path");
       act(() => renderer.unmount());
     } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows a button's name in the settings page's language, keeping the English label for assistive tech", () => {
+    vi.useFakeTimers();
+    updateEnhancerPreferences({ language: "zh" });
+    try {
+      let renderer!: ReturnType<typeof TestRenderer.create>;
+      act(() => { renderer = TestRenderer.create(React.createElement(ToolbarButton, {
+        icon: "Link", label: "Copy path", onPress() {}, tokens,
+      })); });
+      const button = renderer.root.find((node) => (node.type as unknown) === "Pressable");
+      act(() => button.props.onHoverIn());
+      act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
+      expect(texts(renderer.root)).toContain("复制路径");
+      expect(button.props.accessibilityLabel).toBe("Copy path");
+      act(() => renderer.unmount());
+    } finally {
+      updateEnhancerPreferences({ language: "system" });
       vi.useRealTimers();
     }
   });

@@ -3,8 +3,10 @@
  *
  * The plugin SDK does not tell a plugin which language Paseo is set to, so
  * "Follow system" reads the device locale; a reader whose Paseo and system
- * languages differ picks one explicitly. Only the settings page is
- * translated: the chat itself shows the model's and the tools' own words.
+ * languages differ picks one explicitly. Only the settings page and the
+ * names preview toolbar buttons show on hover are translated
+ * (`toolbar-strings.ts`): the chat itself shows the model's and the tools'
+ * own words.
  */
 
 export type SettingsLanguagePreference = "system" | "en" | "zh";
@@ -50,7 +52,7 @@ const en = {
   sectionAppearance: "Appearance",
   languageTitle: "Language",
   languageDescription:
-    "The language of this page. Follow system reads the device's language; plugins cannot see the language Paseo itself is set to.",
+    "The language of this page and of the names toolbar buttons show on hover. Follow system reads the device's language; plugins cannot see the language Paseo itself is set to.",
   languageSystem: "Follow system",
   languageEnglish: "English",
   languageChinese: "简体中文",
@@ -161,7 +163,7 @@ const zh: SettingsStrings = {
 
   sectionAppearance: "外观",
   languageTitle: "语言",
-  languageDescription: "本设置页使用的语言。“跟随系统”读取设备的语言；插件无法得知 Paseo 本身设置的语言。",
+  languageDescription: "本设置页和工具栏按钮悬停名称使用的语言。“跟随系统”读取设备的语言；插件无法得知 Paseo 本身设置的语言。",
   languageSystem: "跟随系统",
   languageEnglish: "English",
   languageChinese: "简体中文",
