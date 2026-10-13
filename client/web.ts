@@ -67,6 +67,8 @@ export function bindPreviewPointer(node: unknown, enter: () => void, leave: () =
 export function openPreviewLayer(node: unknown, anchor: unknown, close: () => void, options: {
   maximized?: boolean;
   onOverflow?(overflowing: boolean): void;
+  /** Whether every line fits the body's width unwrapped, so wrapping changes nothing. */
+  onLinesFit?(fits: boolean): void;
 } = {}): () => void {
   if (Platform.OS !== "web") return () => {};
   const panel = node as HTMLElement;
@@ -117,6 +119,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   const measure = () => {
     position();
     if (!options.maximized && body) options.onOverflow?.(body.scrollHeight > body.clientHeight);
+    if (body && options.onLinesFit) options.onLinesFit(linesFit(body));
   };
   measure();
   // Content can grow while streaming or after syntax highlighting/fonts settle.
@@ -156,4 +159,21 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     mutationObserver.disconnect();
     panel.hidePopover();
   };
+}
+
+/**
+ * True when the body's content, laid out without wrapping, is no wider than
+ * the body: its width is set to `max-content` for one synchronous layout and
+ * put back before anything paints. A sideways-scrolling body measures the
+ * same way, since a scroller's max-content width is its content's.
+ */
+export function linesFit(body: HTMLElement): boolean {
+  const { width, maxWidth } = body.style;
+  const fitted = body.getBoundingClientRect().width;
+  body.style.width = "max-content";
+  body.style.maxWidth = "none";
+  const natural = body.getBoundingClientRect().width;
+  body.style.width = width;
+  body.style.maxWidth = maxWidth;
+  return natural <= fitted + 0.5;
 }
