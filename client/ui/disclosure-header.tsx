@@ -188,7 +188,8 @@ export interface DisclosureHeaderProps {
   tone?: RowTone;
   /**
    * Nothing to open: the body would repeat the row. The row neither toggles
-   * nor answers hover (no paint, chevron, actions or preview).
+   * nor lights up on hover (no paint, chevron or preview); hover still shows
+   * its actions, so the copy button stays in reach.
    */
   inert?: boolean;
 }
@@ -269,6 +270,7 @@ export function DisclosureHeader({
   }, [anchor, onToggle]);
   const capabilities = useInputCapabilities(compact);
   const hover = useHover(anchorRef);
+  // An inert row's hover only brings up its actions.
   const hovered = hover.hovered && !inert;
   const { hoverProps } = hover;
   const [pressed, setPressed] = useState(false);
@@ -292,7 +294,7 @@ export function DisclosureHeader({
     actions !== undefined &&
     (actionsAlwaysVisible || (capabilities.touch && !capabilities.hover && expanded));
   const hoverActions =
-    actions !== undefined && !persistentActions && capabilities.hover && (hovered || actionsActive);
+    actions !== undefined && !persistentActions && capabilities.hover && (hover.hovered || actionsActive);
   // An opened row shows which way it went; a status icon (running, failed)
   // keeps its place, since it says more than the direction.
   const showChevron = !inert && ((capabilities.hover && hovered) || (expanded && !iconIsStatus));
@@ -411,7 +413,7 @@ export function DisclosureHeader({
               {hoverActions ? (
                 <View style={styles.targetBox}>
                   {countedTarget ?? <View style={styles.fill} />}
-                  <View style={[styles.overlay, { backgroundColor: tokens.v2.surface1 }]}>
+                  <View style={[styles.overlay, { backgroundColor: inert ? tokens.v2.surface0 : tokens.v2.surface1 }]}>
                     <RowTooltips>{actions}</RowTooltips>
                   </View>
                 </View>
