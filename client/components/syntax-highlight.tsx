@@ -1042,7 +1042,7 @@ function CodeRowsBody({ from, to, lines, row }: CodeRowsProps) {
 const CodeRows = memo(CodeRowsBody);
 
 /** The gutter fits the largest line number at the code size, plus its gap. */
-function lineNumberWidth(largest: number, size: number): number {
+export function lineNumberWidth(largest: number, size: number): number {
   const digits = String(Math.max(1, largest)).length;
   return Math.max(2, digits) * Math.ceil(size * 0.62) + space.sm;
 }
@@ -1459,92 +1459,104 @@ const OUTPUT_TOKENS =
  * lifted out so the numbers are findable.
  */
 export function renderTerminalOutput(text: string, tokens: ExtendedThemeTokens): React.ReactNode {
-  const lines = text.replace(/\s+$/, "").split("\n");
+  const lines = terminalLines(text);
+  return lines.map((line, lineIdx) => renderTerminalLine(line, lineIdx, tokens, lineIdx < lines.length - 1 ? "\n" : ""));
+}
 
-  return lines.map((line, lineIdx) => {
-    const key = `out-${lineIdx}`;
+/** Command output split into lines, trailing blank lines dropped. */
+export function terminalLines(text: string): string[] {
+  return text.replace(/\s+$/, "").split("\n");
+}
 
-    const verdict = LINE_VERDICTS.find((v) => v.re.test(line));
-    if (verdict) {
-      const tone =
-        verdict.tone === "success"
-          ? tokens.success
-          : verdict.tone === "danger"
-            ? tokens.danger
-            : tokens.warning;
-      return (
-        <SelectableSpan key={key} selectable style={{ color: tone }}>
-          {line}
-          {lineIdx < lines.length - 1 ? "\n" : ""}
-        </SelectableSpan>
-      );
-    }
+/** One line of `renderTerminalOutput`, followed by `tail` (its newline, when another line follows). */
+export function renderTerminalLine(
+  line: string,
+  lineIdx: number,
+  tokens: ExtendedThemeTokens,
+  tail = "",
+): React.ReactNode {
+  const key = `out-${lineIdx}`;
 
-    if (line.startsWith("+")) {
-      return (
-        <SelectableSpan key={key} selectable style={{ color: tokens.syntax.diffAddMarker }}>
-          {line}
-          {lineIdx < lines.length - 1 ? "\n" : ""}
-        </SelectableSpan>
-      );
-    }
-    if (line.startsWith("-") && !line.startsWith("--")) {
-      return (
-        <SelectableSpan key={key} selectable style={{ color: tokens.syntax.diffRemoveMarker }}>
-          {line}
-          {lineIdx < lines.length - 1 ? "\n" : ""}
-        </SelectableSpan>
-      );
-    }
-
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-    OUTPUT_TOKENS.lastIndex = 0;
-
-    while ((match = OUTPUT_TOKENS.exec(line)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(line.slice(lastIndex, match.index));
-      }
-      const token = match[0];
-      const spanKey = `${key}-${match.index}`;
-      let color = tokens.foreground;
-
-      if (/^https?:\/\//.test(token)) {
-        color = tokens.accent;
-      } else if (token.startsWith('"') || token.startsWith("'")) {
-        color = tokens.syntax.string;
-      } else if (/^(?:PASS|OK|DONE|SUCCESS)$/i.test(token)) {
-        color = tokens.success;
-      } else if (/^(?:FAIL(?:ED)?|ERROR|FATAL)$/i.test(token)) {
-        color = tokens.danger;
-      } else if (/^(?:WARN(?:ING)?|SKIPPED)$/i.test(token)) {
-        color = tokens.warning;
-      } else if (/^\d/.test(token)) {
-        color = tokens.syntax.number;
-      } else {
-        color = tokens.syntax.property;
-      }
-
-      parts.push(
-        <SelectableSpan key={spanKey} selectable style={{ color }}>
-          {token}
-        </SelectableSpan>,
-      );
-      lastIndex = match.index + token.length;
-    }
-
-    if (lastIndex < line.length) {
-      parts.push(line.slice(lastIndex));
-    }
-
+  const verdict = LINE_VERDICTS.find((v) => v.re.test(line));
+  if (verdict) {
+    const tone =
+      verdict.tone === "success"
+        ? tokens.success
+        : verdict.tone === "danger"
+          ? tokens.danger
+          : tokens.warning;
     return (
-      <SelectableSpan key={key} selectable style={{ color: tokens.foregroundMuted }}>
-        {parts}
-        {lineIdx < lines.length - 1 ? "\n" : ""}
+      <SelectableSpan key={key} selectable style={{ color: tone }}>
+        {line}
+        {tail}
       </SelectableSpan>
     );
-  });
+  }
+
+  if (line.startsWith("+")) {
+    return (
+      <SelectableSpan key={key} selectable style={{ color: tokens.syntax.diffAddMarker }}>
+        {line}
+        {tail}
+      </SelectableSpan>
+    );
+  }
+  if (line.startsWith("-") && !line.startsWith("--")) {
+    return (
+      <SelectableSpan key={key} selectable style={{ color: tokens.syntax.diffRemoveMarker }}>
+        {line}
+        {tail}
+      </SelectableSpan>
+    );
+  }
+
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  OUTPUT_TOKENS.lastIndex = 0;
+
+  while ((match = OUTPUT_TOKENS.exec(line)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(line.slice(lastIndex, match.index));
+    }
+    const token = match[0];
+    const spanKey = `${key}-${match.index}`;
+    let color = tokens.foreground;
+
+    if (/^https?:\/\//.test(token)) {
+      color = tokens.accent;
+    } else if (token.startsWith('"') || token.startsWith("'")) {
+      color = tokens.syntax.string;
+    } else if (/^(?:PASS|OK|DONE|SUCCESS)$/i.test(token)) {
+      color = tokens.success;
+    } else if (/^(?:FAIL(?:ED)?|ERROR|FATAL)$/i.test(token)) {
+      color = tokens.danger;
+    } else if (/^(?:WARN(?:ING)?|SKIPPED)$/i.test(token)) {
+      color = tokens.warning;
+    } else if (/^\d/.test(token)) {
+      color = tokens.syntax.number;
+    } else {
+      color = tokens.syntax.property;
+    }
+
+    parts.push(
+      <SelectableSpan key={spanKey} selectable style={{ color }}>
+        {token}
+      </SelectableSpan>,
+    );
+    lastIndex = match.index + token.length;
+  }
+
+  if (lastIndex < line.length) {
+    parts.push(line.slice(lastIndex));
+  }
+
+  return (
+    <SelectableSpan key={key} selectable style={{ color: tokens.foregroundMuted }}>
+      {parts}
+      {tail}
+    </SelectableSpan>
+  );
 }
 
 interface TerminalOutputProps {

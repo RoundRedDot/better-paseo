@@ -65,6 +65,8 @@ export const preferencesSchema = z.preprocess(migrateRowLabels, z.object({
   pathDisplay: z.enum(PATH_DISPLAYS).catch("relative"),
   hoverPreview: flag(true),
   hoverDelay: z.enum(HOVER_DELAYS).catch("500ms"),
+  previewLineNumbers: flag(false),
+  previewStripes: flag(true),
   enhancedUserBubble: flag(false),
   selectionActions: flag(true),
   assistantMarkdown: flag(true),
