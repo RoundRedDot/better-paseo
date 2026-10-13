@@ -230,13 +230,13 @@ describe("line wrap in the desktop preview", () => {
 
     act(() => button().props.onPress());
     expect(button().props.accessibilityLabel).toBe("Wrap lines");
-    expect(icon()).toBe("MoveHorizontal");
+    expect(icon()).toBe("AlignLeft");
     expect(sideways()).toHaveLength(1);
 
     // Maximize keeps the reader's choice.
     act(() => own.maximize());
     expect(own.maximized).toBe(true);
-    expect(icon()).toBe("MoveHorizontal");
+    expect(icon()).toBe("AlignLeft");
     expect(sideways()).toHaveLength(1);
 
     act(() => button().props.onPress());

@@ -321,7 +321,7 @@ describe("wrapping lines in the long-press preview", () => {
 
     act(() => wrapButton(renderer).props.onPress());
     expect(wrapButton(renderer).props.accessibilityLabel).toBe("Wrap lines");
-    expect(icon(wrapButton(renderer))).toBe("MoveHorizontal");
+    expect(icon(wrapButton(renderer))).toBe("AlignLeft");
     const [scroller] = sideways(renderer);
     expect(textOf(scroller!)).toContain("full-output");
 
