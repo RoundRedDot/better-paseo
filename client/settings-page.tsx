@@ -665,7 +665,9 @@ function InlineCodeColorControl({ value, look }: { value: InlineCodeColorPrefere
  * The sample turn in a frame: a header with the title and how to try it, the
  * rows on the chat's own surface below. Beside the options it stays in view
  * while the page scrolls (web `position: sticky`), and scrolls inside itself
- * when taller than the window; above the options it can be folded away.
+ * when taller than the window; above the options it can be folded away. The
+ * phone is drawn whole instead, scrolling with the page: a narrow column that
+ * scrolls on its own hides most of the turn behind a scroll bar.
  */
 function PreviewPanel({
   look,
@@ -673,6 +675,8 @@ function PreviewPanel({
   pointer,
   side,
   mobileTokens,
+  device,
+  onDevice,
 }: {
   look: PageLook;
   preferences: EnhancerPreferences;
@@ -685,10 +689,12 @@ function PreviewPanel({
    * iOS and Android, where the preview already draws as a phone does.
    */
   mobileTokens: ExtendedThemeTokens | null;
+  /** Which tab is showing; the page holds it, since the phone also unpins the side column. */
+  device: PreviewDevice;
+  onDevice(device: PreviewDevice): void;
 }) {
   const { tokens, compact, t } = look;
   const [open, setOpen] = useState(true);
-  const [device, setDevice] = useState<PreviewDevice>("desktop");
   const { height } = useWindowDimensions();
   const mobile = mobileTokens !== null && device === "mobile";
   const rows = mobile ? (
@@ -726,7 +732,7 @@ function PreviewPanel({
               { value: "desktop", label: t.previewDesktop },
               { value: "mobile", label: t.previewMobile },
             ]}
-            onChange={setDevice}
+            onChange={onDevice}
             look={{ ...look, compact: false }}
           />
         ) : null}
@@ -735,7 +741,7 @@ function PreviewPanel({
         )}
       </View>
       {open ? (
-        side ? (
+        side && !mobile ? (
           <ScrollView
             style={[styles.previewScroll, { maxHeight: Math.max(PREVIEW_MIN_HEIGHT, height - PREVIEW_WINDOW_MARGIN) }]}
             contentContainerStyle={styles.previewBody}
@@ -820,8 +826,18 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
     // included) does not know: it would draw the code in a serif face.
     return { ...ios, fontMono: `${ios.fontMono}, ${DEFAULT_WEB_MONO_STACK}` };
   }, [native, preferences, theme]);
+  const [previewDevice, setPreviewDevice] = useState<PreviewDevice>("desktop");
+  const pinned = !(mobileTokens !== null && previewDevice === "mobile");
   const preview = (
-    <PreviewPanel look={look} preferences={preferences} pointer={!native} side={side} mobileTokens={mobileTokens} />
+    <PreviewPanel
+      look={look}
+      preferences={preferences}
+      pointer={!native}
+      side={side}
+      mobileTokens={mobileTokens}
+      device={previewDevice}
+      onDevice={setPreviewDevice}
+    />
   );
 
   const options = (
@@ -1207,7 +1223,7 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
       {side ? (
         <View style={styles.columns}>
           <View style={styles.optionsColumn}>{options}</View>
-          <View style={[styles.previewColumn, stickyColumn]}>{preview}</View>
+          <View style={[styles.previewColumn, pinned ? stickyColumn : null]}>{preview}</View>
         </View>
       ) : (
         <>
