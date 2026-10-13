@@ -24,6 +24,20 @@ export const ACCENT_PRESETS = {
 } as const;
 
 export type AccentPreset = keyof typeof ACCENT_PRESETS;
+
+/**
+ * Inline code colours for iOS and Android, a light and a dark shade each so
+ * the small mono glyphs keep their contrast on either theme. `grey` is not
+ * listed: it is derived from the theme's own body colour.
+ */
+export const INLINE_CODE_PALETTE = {
+  blue: { light: "#0969da", dark: "#58a6ff" },
+  violet: { light: "#8250df", dark: "#bc8cff" },
+  green: { light: "#1a7f37", dark: "#3fb950" },
+  coral: { light: "#cf222e", dark: "#ff7b72" },
+} as const;
+
+export type InlineCodeColorPreference = "grey" | keyof typeof INLINE_CODE_PALETTE;
 /**
  * `host` follows Paseo's interface font. Inter is embedded on web only; native
  * renders it as the system face, since a plugin cannot register fonts there.
@@ -44,6 +58,8 @@ export type RowLabelStylePreference = "icon" | "label" | "both";
 export interface EnhancerPreferences {
   accent: AccentPreset;
   uiFont: UiFontPreference;
+  /** Inline code text off the web; the web keeps its filled chip. */
+  inlineCodeColor: InlineCodeColorPreference;
   /** Which monospace family code, diffs, terminals and paths use. */
   monoFont: MonoFontPreference;
   /**
@@ -152,6 +168,7 @@ function readKey(store: PreferenceStorage | undefined, key: string, previous: st
 export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   accent: "host",
   uiFont: "host",
+  inlineCodeColor: "grey",
   monoFont: "host",
   customMonoFont: "",
   codeFontSize: null,

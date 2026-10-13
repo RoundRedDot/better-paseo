@@ -2,13 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Off the web an inline code span has no fill (it would cover the whole line
 // box), so its colour is what sets it apart: the accent the reader picked in
-// the plugin settings, dark grey while the accent follows Paseo.
+// the plugin settings, dark grey by default, whatever the accent.
 
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
 
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
 const { buildStyles, variantMetrics } = await import("../../client/components/markdown/render/styles");
-const { ACCENT_PRESETS, DEFAULT_PREFERENCES } = await import("../../client/preferences");
+const { DEFAULT_PREFERENCES, INLINE_CODE_PALETTE } = await import("../../client/preferences");
+type InlineCodeColor = import("../../client/preferences").InlineCodeColorPreference;
 
 const LIGHT = {
   surface0: "#ffffff", surface1: "#f6f6f7", surface2: "#ededef", border: "#e2e2e6",
@@ -16,8 +17,10 @@ const LIGHT = {
   statusSuccess: "#1f8a5b", statusWarning: "#a36a00", statusDanger: "#d92d20",
 };
 
-function codeSpan(accent: keyof typeof ACCENT_PRESETS, quiet = false) {
-  const tokens = buildThemeTokens(LIGHT, { ...DEFAULT_PREFERENCES, accent }, { platform: "ios" });
+const DARK = { ...LIGHT, surface0: "#0b0b0c", foreground: "#fafafa" };
+
+function codeSpan(inlineCodeColor: InlineCodeColor, quiet = false, colors = LIGHT) {
+  const tokens = buildThemeTokens(colors, { ...DEFAULT_PREFERENCES, inlineCodeColor }, { platform: "ios" });
   return buildStyles(tokens, "document", variantMetrics("document", 15), quiet).codeSpan;
 }
 
@@ -30,27 +33,40 @@ afterEach(() => {
 });
 
 describe("inline code colour on native", () => {
-  it("is dark grey, not Paseo's accent, while the accent follows Paseo", () => {
+  it("is dark grey by default", () => {
     setOS("ios");
-    const style = codeSpan("host");
+    const style = codeSpan(DEFAULT_PREFERENCES.inlineCodeColor);
     // #18181b moved 15% towards the white surface: opaque, not rgba.
     expect(style.color).toBe("#3b3b3d");
     expect(style.backgroundColor).toBeUndefined();
   });
 
-  it("takes the accent picked in the plugin settings", () => {
+  it("does not follow a picked accent", () => {
+    setOS("ios");
+    const tokens = buildThemeTokens(LIGHT, { ...DEFAULT_PREFERENCES, accent: "violet" }, { platform: "ios" });
+    expect(tokens.codeInline).toBe("#3b3b3d");
+  });
+
+  it("takes the colour picked in the plugin settings, in the theme's shade", () => {
     setOS("android");
-    expect(codeSpan("violet").color).toBe(ACCENT_PRESETS.violet);
-    expect(codeSpan("jade").color).toBe(ACCENT_PRESETS.jade);
+    expect(codeSpan("blue").color).toBe(INLINE_CODE_PALETTE.blue.light);
+    expect(codeSpan("coral").color).toBe(INLINE_CODE_PALETTE.coral.light);
+    expect(codeSpan("blue", false, DARK).color).toBe(INLINE_CODE_PALETTE.blue.dark);
+  });
+
+  it("is a light grey on a dark theme", () => {
+    setOS("ios");
+    // #fafafa moved 15% towards #0b0b0c.
+    expect(codeSpan("grey", false, DARK).color).toBe("#d6d6d6");
   });
 
   it("is semibold off the web", () => {
     setOS("ios");
-    expect(codeSpan("host").fontWeight).toBe("600");
+    expect(codeSpan("grey").fontWeight).toBe("600");
     setOS("android");
-    expect(codeSpan("host").fontWeight).toBe("600");
+    expect(codeSpan("grey").fontWeight).toBe("600");
     setOS("web");
-    expect(codeSpan("host").fontWeight).toBeUndefined();
+    expect(codeSpan("grey").fontWeight).toBeUndefined();
   });
 
   it("keeps the weight of a heading or strong run it sits in", () => {
