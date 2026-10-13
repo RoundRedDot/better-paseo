@@ -11,7 +11,7 @@ import { SafeInset } from "./safe-inset";
 import { PHONE_CHROME, pressPreviewFrame } from "./press-preview-placement";
 import { ProseSelectionContext } from "./prose-text";
 import { HScroll } from "./h-scroll";
-import { ToolbarButton } from "./toolbar-button";
+import { ToolbarButton, TooltipAlignContext } from "./toolbar-button";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
@@ -276,7 +276,6 @@ export function HoverPreviewHeader({ tokens, center, children }: {
       label={actions.maximized ? "Close preview" : "Maximize preview"}
       onPress={actions.maximized ? actions.close : actions.maximize}
       tokens={tokens}
-      align="end"
     />
   ) : null;
   return (
@@ -288,17 +287,20 @@ export function HoverPreviewHeader({ tokens, center, children }: {
         <View style={styles.toolbarStart} />
         {center ? <View testID="hover-preview-center" style={styles.toolbarCenter}>{center}</View> : null}
         <View style={styles.toolbarEnd}>
-          {actions?.wrap ? (
-            <ToolbarButton
-              icon={actions.wrap.on ? "WrapText" : "AlignLeft"}
-              label={actions.wrap.on ? "Do not wrap lines" : "Wrap lines"}
-              checked={actions.wrap.on}
-              onPress={actions.wrap.toggle}
-              tokens={tokens}
-            />
-          ) : null}
-          {toolbar}
-          {windowButton}
+          {/* The group ends at the panel's right edge: names open leftwards. */}
+          <TooltipAlignContext.Provider value="end">
+            {actions?.wrap ? (
+              <ToolbarButton
+                icon={actions.wrap.on ? "WrapText" : "AlignLeft"}
+                label={actions.wrap.on ? "Do not wrap lines" : "Wrap lines"}
+                checked={actions.wrap.on}
+                onPress={actions.wrap.toggle}
+                tokens={tokens}
+              />
+            ) : null}
+            {toolbar}
+            {windowButton}
+          </TooltipAlignContext.Provider>
         </View>
       </View>
       {rest}

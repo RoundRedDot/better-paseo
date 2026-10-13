@@ -22,6 +22,7 @@ const { default: TestRenderer, act } = await import("react-test-renderer");
 const { StyleSheet } = await import("./helpers/rn-mock");
 const { ToolCallout, previewCopyActions } = await import("../../client/components/tool-callouts");
 const { ToolbarButton, TOOLBAR_TOOLTIP_MS } = await import("../../client/ui/toolbar-button");
+const { HoverPreviewHeader } = await import("../../client/ui/hover-preview");
 const { classifyTool } = await import("../../client/tools/classify");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -119,6 +120,25 @@ describe("grouped tool card presentation", () => {
       expect(StyleSheet.flatten(bubble.props.style).backgroundColor).toBe(tokens.surface0);
       act(() => button.props.onHoverOut());
       expect(texts(renderer.root)).not.toContain("Copy path");
+      act(() => renderer.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens the names of the toolbar's right-hand buttons leftwards, inside the panel", () => {
+    vi.useFakeTimers();
+    try {
+      let renderer!: ReturnType<typeof TestRenderer.create>;
+      act(() => { renderer = TestRenderer.create(React.createElement(HoverPreviewHeader, { tokens },
+        React.createElement(ToolbarButton, { icon: "Copy", label: "Copy new content", onPress() {}, tokens }))); });
+      const button = renderer.root.find((node) => (node.type as unknown) === "Pressable");
+      act(() => button.props.onHoverIn());
+      act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
+      const slot = renderer.root.find((node) => (node.type as unknown) === "View" && node.props.pointerEvents === "none");
+      const style = StyleSheet.flatten(slot.props.style);
+      expect(style.right).toBe(0);
+      expect(style.left).toBeUndefined();
       act(() => renderer.unmount());
     } finally {
       vi.useRealTimers();
