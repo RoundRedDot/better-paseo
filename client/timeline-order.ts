@@ -35,7 +35,9 @@ import { groupAdjacentTools, toolGroupKey } from "./tools/group";
  * items (`settledKey`) that share a millisecond have no order in their stamps.
  * Below a moment that is not the newest there is always a later one, so only
  * the newest moment needs one: there the item drawn lowest keeps its gap and
- * the rest count as above it (`lowestSettledKey`). The host passes no
+ * the rest count as above it (`lowestTiedKey`). Calls sent together in one
+ * message tie the same way, running or not: they share a stamp and a kind,
+ * and counted as unordered, every one of them kept its gap. The host passes no
  * position, and mounting order runs newest-first in the native inverted list,
  * oldest-first on web, and restarts as cells scroll back into the window, so
  * the order comes from where each item is drawn.
@@ -67,10 +69,13 @@ interface Entry {
   /**
    * The item's identity, given once it is complete; a call gives it only if
    * it was complete as its row mounted, since its stamp is its arrival.
-   * Two settled items in one millisecond are unordered; the same key is the
-   * same item (itself, or its copy in another pane).
+   * Two settled items in one millisecond are unordered, as are two calls
+   * (`callId`); the same key is the same item (itself, or its copy in
+   * another pane).
    */
   settledKey?: string;
+  /** A call's id. Two calls in one millisecond are unordered, finished or not. */
+  callId?: string;
   /** Where the item is drawn: its centre's y in the window, null when unknown. */
   locate?: () => number | null;
   tool?: ToolCallView;
@@ -100,7 +105,7 @@ interface AgentTimeline {
   /** Groups as last computed; rebuilt on first read once `stale`. */
   slots: Map<Entry, ToolSlot>;
   stale: boolean;
-  /** `lowestSettledKey` for the moment it was last asked about, until an item mounts or unmounts. */
+  /** `lowestTiedKey` for the moment it was last asked about, until an item mounts or unmounts. */
   lowest?: { at: number; key: string | null };
 }
 
@@ -113,35 +118,54 @@ function compare(a: { at: number; order: number }, b: { at: number; order: numbe
   return a.at - b.at || a.order - b.order;
 }
 
-/** Two different settled items in one millisecond: their stamps do not order them. */
-function unordered(a: Pick<Entry, "at" | "settledKey">, b: Pick<Entry, "at" | "settledKey">): boolean {
-  return a.at === b.at && a.settledKey !== undefined && b.settledKey !== undefined && a.settledKey !== b.settledKey;
+type Tie = Pick<Entry, "at" | "settledKey" | "callId">;
+
+/** What names an item among those it ties with; the same key is the same item. */
+function tieKey(entry: Tie): string | undefined {
+  return entry.settledKey ?? entry.callId;
 }
 
 /**
- * The key of the settled item drawn lowest at `at`, the newest moment; null
- * when one of them cannot be placed, and every tied item then counts as having
- * one below it. With the chat in two panes the lowest copy overall is the
- * lowest item of its own pane, so its key names the same item in both.
+ * Two different items in one millisecond that their stamps do not order:
+ * both settled, or two calls.
+ */
+function unordered(a: Tie, b: Tie): boolean {
+  if (a.at !== b.at) return false;
+  const both = (a.settledKey !== undefined && b.settledKey !== undefined) || (a.callId !== undefined && b.callId !== undefined);
+  return both && tieKey(a) !== tieKey(b);
+}
+
+/**
+ * The key of the tied item drawn lowest at `at`, the newest moment; null
+ * when one of them cannot be placed in any pane, and every tied item then
+ * counts as having one below it. With the chat in two panes the lowest copy
+ * overall is the lowest item of its own pane, so its key names the same item
+ * in both.
  * Items keep their order on screen, so the answer holds until one mounts or
  * unmounts, however the list scrolls; an unplaced one is asked again.
  */
-function lowestSettledKey(timeline: AgentTimeline, at: number): string | null {
+function lowestTiedKey(timeline: AgentTimeline, at: number): string | null {
   if (timeline.lowest?.at === at) return timeline.lowest.key;
   let key: string | null = null;
   let lowest = -Infinity;
+  const placed = new Set<string>();
+  const unplaced = new Set<string>();
   for (const entry of timeline.entries) {
-    if (entry.at !== at || entry.settledKey === undefined) continue;
+    const own = tieKey(entry);
+    if (entry.at !== at || own === undefined) continue;
     const y = entry.locate?.() ?? null;
     if (y === null) {
-      key = null;
-      break;
+      unplaced.add(own);
+      continue;
     }
+    placed.add(own);
     if (y > lowest) {
       lowest = y;
-      key = entry.settledKey;
+      key = own;
     }
   }
+  // A copy in a hidden pane has no size; the copy on screen places it.
+  for (const own of unplaced) if (!placed.has(own)) return null;
   if (key !== null) timeline.lowest = { at, key };
   return key;
 }
@@ -223,8 +247,8 @@ function toolSlots(timeline: AgentTimeline): Map<Entry, ToolSlot> {
       return versus > 0 || (versus === 0 && run!.members.length > 1 && index > last);
     });
     if (!run.anythingBelow && tied) {
-      const key = lowestSettledKey(timeline, lowest.at);
-      run.anythingBelow = key === null || ![...own].some((entry) => entry.settledKey === key);
+      const key = lowestTiedKey(timeline, lowest.at);
+      run.anythingBelow = key === null || ![...own].some((entry) => tieKey(entry) === key);
     }
     const head = run.members[0]!;
     const previous = timeline.slots.get(head)?.run.calls;
@@ -276,8 +300,9 @@ export function registerTimelineEntry(
   kind: TimelineEntryKind,
   settledKey?: string,
   locate?: () => number | null,
+  callId?: string,
 ): () => void {
-  const entry: Entry = { at, order: KIND_ORDER[kind], row: isRow(kind), sequence: sequence++, settledKey, locate };
+  const entry: Entry = { at, order: KIND_ORDER[kind], row: isRow(kind), sequence: sequence++, settledKey, callId, locate };
   return addEntry(agentId, entry);
 }
 
@@ -352,6 +377,7 @@ export function useTimelineToolGroup(
     sequence: sequence++,
     tool,
     settledKey: settled ? tool.callId : undefined,
+    callId: tool.callId,
     locate: view ? () => viewCentre(view.current) : undefined,
   }), [agentId, at]);
   const single = useMemo(() => [tool], [tool]);
@@ -381,7 +407,7 @@ export function useTimelineToolGroup(
   const getBelow = useCallback(() => {
     const slot = slotOf();
     if (slot) return slot.index === 0 && slot.run.anythingBelow;
-    return hasEntryAfter(agentId, at, "tool", entry.settledKey);
+    return hasEntryAfter(agentId, at, "tool", entry.settledKey, entry.callId);
   }, [slotOf, agentId, at, entry]);
   const group = useSyncExternalStore(subscribe, getGroup, getGroup);
   const anythingBelow = useSyncExternalStore(subscribe, getBelow, getBelow);
@@ -417,21 +443,27 @@ export function nextEntryIsRow(agentId: string, at: number, kind: TimelineEntryK
  * True when anything of this agent's sits below this item. A row's bottom gap
  * is only spare with something below it; the newest row sits on the list's own
  * padding, and taking 12 from there puts its last line under the composer.
- * A settled item tied with others in the newest moment has one below it
- * unless it is drawn lowest.
+ * An item tied with others in the newest moment has one below it unless it
+ * is drawn lowest.
  */
-export function hasEntryAfter(agentId: string, at: number, kind: TimelineEntryKind, settledKey?: string): boolean {
+export function hasEntryAfter(
+  agentId: string,
+  at: number,
+  kind: TimelineEntryKind,
+  settledKey?: string,
+  callId?: string,
+): boolean {
   const timeline = timelines.get(agentId);
   if (!timeline) return false;
-  const self = { at, order: KIND_ORDER[kind], settledKey };
+  const self = { at, order: KIND_ORDER[kind], settledKey, callId };
   let tied = false;
   for (const entry of timeline.entries) {
     if (unordered(entry, self)) tied = true;
     else if (compare(entry, self) > 0) return true;
   }
   if (!tied) return false;
-  const key = lowestSettledKey(timeline, at);
-  return key === null || key !== settledKey;
+  const key = lowestTiedKey(timeline, at);
+  return key === null || key !== tieKey(self);
 }
 
 function subscribe(listener: () => void): () => void {

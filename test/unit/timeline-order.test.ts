@@ -228,6 +228,31 @@ describe("the newest moment of replayed history, ordered by where items sit", ()
     for (const done of forget) done();
   });
 
+  it("places an item by its copy on screen when a hidden pane holds another", () => {
+    const time = nextAt();
+    const forget = [
+      registerTimelineEntry(AGENT, time, "thought", "plan", at(100)),
+      registerTimelineEntry(AGENT, time, "tool", "call", at(200)),
+      registerTimelineEntry(AGENT, time, "thought", "plan", () => null),
+      registerTimelineEntry(AGENT, time, "tool", "call", () => null),
+    ];
+    expect(hasEntryAfter(AGENT, time, "tool", "call")).toBe(false);
+    expect(hasEntryAfter(AGENT, time, "thought", "plan")).toBe(true);
+    for (const done of forget) done();
+  });
+
+  it("orders two calls of one message by where they sit, running or not", () => {
+    const time = nextAt();
+    // Running calls carry their id but no settled key.
+    const forget = [
+      registerTimelineEntry(AGENT, time, "tool", undefined, at(100), "first"),
+      registerTimelineEntry(AGENT, time, "tool", undefined, at(200), "second"),
+    ];
+    expect(hasEntryAfter(AGENT, time, "tool", undefined, "first")).toBe(true);
+    expect(hasEntryAfter(AGENT, time, "tool", undefined, "second")).toBe(false);
+    for (const done of forget) done();
+  });
+
   it("takes the lowest item from whichever pane draws it lowest", () => {
     // The same chat in two panes: the lowest copy overall is the lowest item
     // of its own pane, and so the same item in the other.
