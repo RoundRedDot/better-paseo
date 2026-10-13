@@ -1,4 +1,6 @@
-import { useCallback, useLayoutEffect, useSyncExternalStore } from "react";
+import { useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
+import type { ToolCallView } from "./tools/classify";
+import { groupAdjacentTools, toolGroupKey } from "./tools/group";
 
 /**
  * What kind of plugin item sits where in the timeline.
@@ -48,36 +50,226 @@ interface Entry {
   at: number;
   order: number;
   row: boolean;
+  sequence: number;
+  tool?: ToolCallView;
+  /** Subscribers to this tool row's group (`useTimelineToolGroup`). */
+  groupListeners?: Set<() => void>;
 }
 
-const entriesByAgent = new Map<string, Set<Entry>>();
+/**
+ * Consecutive file operations behind one header. `members` are the calls in
+ * timeline order; `viewers` are the rows that draw the header: the first
+ * member and its copies in other panes.
+ */
+interface ToolRun {
+  calls: readonly ToolCallView[];
+  members: Entry[];
+  viewers: Entry[];
+  anythingBelow: boolean;
+}
+
+interface ToolSlot {
+  run: ToolRun;
+  index: number;
+}
+
+interface AgentTimeline {
+  entries: Set<Entry>;
+  /** Groups as last computed; rebuilt on first read once `stale`. */
+  slots: Map<Entry, ToolSlot>;
+  stale: boolean;
+}
+
+const timelines = new Map<string, AgentTimeline>();
 const listeners = new Set<() => void>();
-
-function publish(): void {
-  for (const listener of listeners) listener();
-}
+let sequence = 0;
 
 /** Negative when `a` sits above `b`, zero when their order is unknown. */
 function compare(a: { at: number; order: number }, b: { at: number; order: number }): number {
   return a.at - b.at || a.order - b.order;
 }
 
+/**
+ * Regroups one agent. Only a mount, an unmount or a call changing its id,
+ * operation or path gets here; a result streaming into a call patches its
+ * run in place (`updateTool`).
+ */
+function toolSlots(timeline: AgentTimeline): Map<Entry, ToolSlot> {
+  if (!timeline.stale) return timeline.slots;
+  const ordered = [...timeline.entries].sort((a, b) => compare(a, b) || a.sequence - b.sequence);
+  const position = new Map<Entry, number>();
+  // A chat mounted in two panes must not count the same call twice.
+  const firstById = new Map<string, Entry>();
+  const copies = new Map<Entry, Entry[]>();
+  const unique: Entry[] = [];
+  ordered.forEach((entry, index) => {
+    position.set(entry, index);
+    const id = entry.tool?.callId;
+    const first = id ? firstById.get(id) : undefined;
+    if (!first) {
+      if (id) firstById.set(id, entry);
+      unique.push(entry);
+    } else {
+      const list = copies.get(first);
+      if (list) list.push(entry);
+      else copies.set(first, [entry]);
+    }
+  });
+  const groups = groupAdjacentTools(unique);
+  const slots = new Map<Entry, ToolSlot>();
+  const newest = ordered[ordered.length - 1];
+  let run: ToolRun | null = null;
+  const close = () => {
+    if (!run) return;
+    // A merged row keeps the bottom gap of its last member, not its first:
+    // anything sorted after that member, or after a copy of it, is below.
+    let last = -1;
+    for (const member of run.members) {
+      last = Math.max(last, position.get(member)!);
+      for (const copy of copies.get(member) ?? []) last = Math.max(last, position.get(copy)!);
+    }
+    run.anythingBelow = run.members.length > 1
+      ? last < ordered.length - 1
+      : compare(newest!, ordered[last]!) > 0;
+    const head = run.members[0]!;
+    const previous = timeline.slots.get(head)?.run.calls;
+    if (previous && previous.length === run.calls.length && run.calls.every((call, index) => call === previous[index])) {
+      run.calls = previous;
+    }
+    run.viewers = [head, ...(copies.get(head) ?? [])];
+  };
+  for (const entry of unique) {
+    const calls = groups.get(entry);
+    if (calls === undefined) continue;
+    if (calls !== null) {
+      close();
+      run = { calls, members: [], viewers: [], anythingBelow: false };
+    }
+    slots.set(entry, { run: run!, index: run!.members.length });
+    run!.members.push(entry);
+  }
+  close();
+  for (const [first, list] of copies) {
+    const slot = slots.get(first);
+    if (slot) for (const copy of list) slots.set(copy, slot);
+  }
+  timeline.slots = slots;
+  timeline.stale = false;
+  return slots;
+}
+
+function notifyGroup(entry: Entry): void {
+  for (const listener of entry.groupListeners ?? []) listener();
+}
+
+/**
+ * Marks an agent's groups for rebuilding and tells its tool rows to look again.
+ * A listener reads its snapshot as it is told, and that read rebuilds; still
+ * stale means nobody has looked since the last call, so a commit mounting a
+ * whole page of rows rebuilds once, on the first read after it.
+ */
+function invalidate(timeline: AgentTimeline): void {
+  if (timeline.stale) return;
+  timeline.stale = true;
+  for (const entry of timeline.entries) notifyGroup(entry);
+}
+
 /** Records a mounted item; the returned function forgets it. */
 export function registerTimelineEntry(agentId: string, at: number, kind: TimelineEntryKind): () => void {
-  const entry: Entry = { at, order: KIND_ORDER[kind], row: isRow(kind) };
-  let entries = entriesByAgent.get(agentId);
-  if (!entries) {
-    entries = new Set();
-    entriesByAgent.set(agentId, entries);
+  const entry: Entry = { at, order: KIND_ORDER[kind], row: isRow(kind), sequence: sequence++ };
+  return addEntry(agentId, entry);
+}
+
+function addEntry(agentId: string, entry: Entry): () => void {
+  let timeline = timelines.get(agentId);
+  if (!timeline) {
+    timeline = { entries: new Set(), slots: new Map(), stale: true };
+    timelines.set(agentId, timeline);
   }
-  entries.add(entry);
+  timeline.entries.add(entry);
+  invalidate(timeline);
   publish();
   return () => {
-    const current = entriesByAgent.get(agentId);
-    current?.delete(entry);
-    if (current?.size === 0) entriesByAgent.delete(agentId);
+    const current = timelines.get(agentId);
+    if (current?.entries.delete(entry)) {
+      if (current.entries.size === 0) timelines.delete(agentId);
+      invalidate(current);
+    }
     publish();
   };
+}
+
+/** Rows' order changed: every `nextEntryIsRow` and `hasEntryAfter` may differ. */
+function publish(): void {
+  for (const listener of listeners) listener();
+}
+
+/**
+ * A call's new result. Its run keeps its members, so only the rows drawing
+ * that run's header hear about it; a changed id, operation or path regroups.
+ */
+function updateTool(agentId: string, entry: Entry, previous: ToolCallView | undefined): void {
+  const timeline = timelines.get(agentId);
+  if (!timeline?.entries.has(entry)) return;
+  const tool = entry.tool!;
+  if (timeline.stale || previous?.callId !== tool.callId || toolGroupKey(previous) !== toolGroupKey(tool)) {
+    invalidate(timeline);
+    return;
+  }
+  const slot = timeline.slots.get(entry);
+  // A copy in another pane: the run shows the first pane's call.
+  if (!slot || slot.run.members[slot.index] !== entry) return;
+  const calls = [...slot.run.calls];
+  calls[slot.index] = tool;
+  slot.run.calls = calls;
+  for (const viewer of slot.run.viewers) notifyGroup(viewer);
+}
+
+/**
+ * Keep the original slot while results update; hidden members stay registered.
+ * Grouping follows the mounted timeline window and recomputes as history mounts.
+ *
+ * `group` is null for a member drawn by the row above it, and `anythingBelow`
+ * is whether something of this agent's sits below the run's last member.
+ */
+export function useTimelineToolGroup(
+  agentId: string,
+  at: number,
+  tool: ToolCallView,
+): { group: readonly ToolCallView[] | null; anythingBelow: boolean } {
+  const entry = useMemo<Entry>(() => ({ at, order: KIND_ORDER.tool, row: true, sequence: sequence++, tool }), [agentId, at]);
+  const single = useMemo(() => [tool], [tool]);
+  useLayoutEffect(() => addEntry(agentId, entry), [agentId, entry]);
+  useLayoutEffect(() => {
+    if (entry.tool === tool) return;
+    const previous = entry.tool;
+    entry.tool = tool;
+    updateTool(agentId, entry, previous);
+  }, [agentId, entry, tool]);
+  const subscribe = useCallback((listener: () => void) => {
+    (entry.groupListeners ??= new Set()).add(listener);
+    return () => {
+      entry.groupListeners?.delete(listener);
+    };
+  }, [entry]);
+  const slotOf = useCallback(() => {
+    const timeline = timelines.get(agentId);
+    return timeline?.entries.has(entry) ? toolSlots(timeline).get(entry) : undefined;
+  }, [agentId, entry]);
+  const getGroup = useCallback(() => {
+    const slot = slotOf();
+    if (!slot) return single;
+    return slot.index === 0 ? slot.run.calls : null;
+  }, [slotOf, single]);
+  // Not mounted yet (the first render): below is whatever sorts after this slot.
+  const getBelow = useCallback(() => {
+    const slot = slotOf();
+    if (slot) return slot.index === 0 && slot.run.anythingBelow;
+    return hasEntryAfter(agentId, at, "tool");
+  }, [slotOf, agentId, at]);
+  const group = useSyncExternalStore(subscribe, getGroup, getGroup);
+  const anythingBelow = useSyncExternalStore(subscribe, getBelow, getBelow);
+  return { group, anythingBelow };
 }
 
 /**
@@ -91,7 +283,7 @@ export function nextEntryIsRow(agentId: string, at: number, kind: TimelineEntryK
   const self = { at, order: KIND_ORDER[kind] };
   let next: Entry | null = null;
   let allRows = false;
-  for (const entry of entriesByAgent.get(agentId) ?? []) {
+  for (const entry of timelines.get(agentId)?.entries ?? []) {
     if (compare(entry, self) <= 0) continue;
     const versusNext = next ? compare(entry, next) : -1;
     if (versusNext > 0) continue;
@@ -112,7 +304,7 @@ export function nextEntryIsRow(agentId: string, at: number, kind: TimelineEntryK
  */
 export function hasEntryAfter(agentId: string, at: number, kind: TimelineEntryKind): boolean {
   const self = { at, order: KIND_ORDER[kind] };
-  for (const entry of entriesByAgent.get(agentId) ?? []) {
+  for (const entry of timelines.get(agentId)?.entries ?? []) {
     if (compare(entry, self) > 0) return true;
   }
   return false;

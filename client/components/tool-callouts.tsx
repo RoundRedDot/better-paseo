@@ -37,6 +37,7 @@ import { TYPE, UI_SCALE } from "../ui/tokens/typography";
 import { codeSurface } from "./host-font-escape";
 import { toolCopyPlan } from "../tools/copy";
 import { stringifyValue, type ToolCallView, type ToolKind } from "../tools/classify";
+import { summarizeToolCall, summarizeToolGroup } from "../tools/group";
 
 /**
  * The muted icon a settled call shows in the row's status slot: one Lucide
@@ -131,6 +132,8 @@ function primaryCopyLabel(tool: ToolKind): string {
 
 interface ToolCalloutProps {
   data: ToolCallView;
+  /** Consecutive calls sharing this file-operation header, in timeline order. */
+  groupCalls?: readonly ToolCallView[];
   tokens: ExtendedThemeTokens;
   /** `layout.compact`: 28px header and shorter truncation budgets. */
   compact?: boolean;
@@ -169,6 +172,7 @@ interface ToolCalloutProps {
  */
 export function ToolCallout({
   data,
+  groupCalls,
   tokens,
   compact = false,
   defaultExpanded = false,
@@ -185,7 +189,7 @@ export function ToolCallout({
   // Owned here, not by the row: an opened card moves the row into `StickyCard`.
   const scrollAnchor = useScrollAnchor(expanded);
 
-  const summary = useMemo(() => summarizeTool(data), [data]);
+  const summary = useMemo(() => groupCalls ? summarizeToolGroup(groupCalls) : summarizeTool(data), [data, groupCalls]);
   const pathContext = useContext(PathContext);
   const capabilities = useInputCapabilities(compact);
   const touchFirst = capabilities.touch && !capabilities.hover;
@@ -198,7 +202,14 @@ export function ToolCallout({
   );
   // Built on demand: a running shell's output is stripped of ANSI only when
   // someone actually copies it, not on every chunk.
-  const getPlan = useCallback(() => toolCopyPlan(data, resolvePath), [data, resolvePath]);
+  const getPlan = useCallback(() => {
+    const plan = toolCopyPlan(data, resolvePath);
+    if (!groupCalls) return plan;
+    return { ...plan, menu: groupCalls.flatMap((call, index) =>
+      toolCopyPlan(call, resolvePath).menu.map((action) => ({
+        ...action, id: `${call.callId}:${action.id}`, label: `${index + 1}. ${action.label}`,
+      }))) };
+  }, [data, groupCalls, resolvePath]);
   const copyPrimary = useCallback(() => getPlan().primary?.text ?? "", [getPlan]);
   const onLongPress = useCallback(() => {
     const primary = getPlan().primary;
@@ -217,7 +228,7 @@ export function ToolCallout({
     [menu.open, getPlan, copy],
   );
 
-  const running = data.status === "running";
+  const running = groupCalls ? groupCalls.some((call) => call.status === "running") : data.status === "running";
   const failed = data.status === "failed" || summary.tone === "danger";
   // A finished call steps behind the prose; a question still waiting for the
   // reader does not.
@@ -235,8 +246,8 @@ export function ToolCallout({
         tokens={tokens}
         compact={compact}
         copyOnHover={false}
-        fit
-        grow
+        fit={!groupCalls}
+        grow={!groupCalls}
         style={compact ? TARGET_STYLE.compact : TARGET_STYLE.desktop}
       />
     ) : (
@@ -319,6 +330,7 @@ export function ToolCallout({
       iconIsStatus={running || failed}
       verb={summary.verb}
       target={target}
+      count={groupCalls?.length}
       meta={meta}
       metaLead={metaLead}
       actions={actions}
@@ -333,8 +345,8 @@ export function ToolCallout({
           <ToolPreviewActions getPlan={getPlan} tool={data.tool} tokens={tokens} compact={compact} />
           <HoverPreviewBody>
             {filePath ? <SelectableText {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>{resolvePath(filePath)}</SelectableText> : null}
-            <ToolBody data={data} tokens={tokens} compact={compact} imageFile={imageFile}
-              revealFile={revealFile} displayPath={filePath ? formatPath(filePath, pathContext).displayPath : undefined} preview onViewImage={openViewer} />
+            {groupCalls ? <GroupedToolDetails calls={groupCalls} tokens={tokens} compact={compact} imageFile={imageFile} /> : <ToolBody data={data} tokens={tokens} compact={compact} imageFile={imageFile}
+              revealFile={revealFile} displayPath={filePath ? formatPath(filePath, pathContext).displayPath : undefined} preview onViewImage={openViewer} />}
             {data.error ? <SelectableText style={{ color: tokens.danger }}>{data.error}</SelectableText> : null}
           </HoverPreviewBody>
         </>
@@ -347,14 +359,14 @@ export function ToolCallout({
   const body = expanded ? (
     <FadeIn style={[styles.body, { backgroundColor: tokens.row.outputBg }]}>
       <View {...surfaceProps(selectionSurface)} style={styles.bodyInner}>
-        <ToolBody
+        {groupCalls ? <GroupedToolDetails calls={groupCalls} tokens={tokens} compact={compact} imageFile={imageFile} /> : <ToolBody
           data={data}
           tokens={tokens}
           compact={compact}
           imageFile={imageFile}
           revealFile={revealFile}
           displayPath={filePath ? formatPath(filePath, pathContext).displayPath : undefined}
-        />
+        />}
       </View>
     </FadeIn>
   ) : null;
@@ -391,9 +403,29 @@ export function ToolCallout({
   );
 }
 
+function GroupedToolDetails({ calls, tokens, compact, imageFile }: {
+  calls: readonly ToolCallView[];
+  tokens: ExtendedThemeTokens;
+  compact: boolean;
+  imageFile?: ImageFile | null;
+}) {
+  return <>{calls.map((call, index) => {
+    const errorLine = summarizeToolCall(call).errorLine;
+    return <View key={call.callId}>
+      <Text style={{ color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: TYPE.caption.size }}>
+        {`${index + 1} / ${calls.length}`}
+      </Text>
+      <ToolCallout data={call} tokens={tokens} compact={compact} defaultExpanded imageFile={imageFile} />
+      {errorLine ? <SelectableText style={{ color: tokens.danger, fontFamily: tokens.fontMono }}>
+        {call.error ?? errorLine}
+      </SelectableText> : null}
+    </View>;
+  })}</>;
+}
+
 /** The preview owns its menu so opening it cannot close the hovered header. */
 function ToolPreviewActions({ getPlan, tool, tokens, compact }: {
-  getPlan: () => ReturnType<typeof toolCopyPlan>;
+  getPlan: () => { primary: ReturnType<typeof toolCopyPlan>["primary"]; menu: Array<{ id: string; label: string; text: string }> };
   tool: ToolKind;
   tokens: ExtendedThemeTokens;
   compact: boolean;
