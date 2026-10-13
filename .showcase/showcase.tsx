@@ -35,7 +35,6 @@ import { DEFAULT_PREFERENCES } from "../client/preferences";
 import type { ExtendedThemeTokens } from "../client/components/theme-tokens";
 import { DisclosureHeader } from "../client/ui/disclosure-header";
 import { CopyButton } from "../client/ui/copy-button";
-import { ActionMenuList, ActionMenuTrigger } from "../client/ui/action-menu";
 import { PathContext, PathText, type PathContextValue } from "../client/ui/path-text";
 import { RunningDot } from "../client/ui/running-dot";
 import { Glyph } from "../client/components/glyph";
@@ -947,21 +946,7 @@ function Primitives({ tokens }: { tokens: ExtendedThemeTokens }) {
             target={'"useAgent"'}
             meta={["8 files", "23 matches"]}
             actionsAlwaysVisible
-            actions={
-              <>
-                <CopyButton text="useAgent" tokens={tokens} />
-                <ActionMenuTrigger open onPress={() => {}} tokens={tokens} />
-              </>
-            }
-          />
-          <ActionMenuList
-            open
-            onClose={() => {}}
-            tokens={tokens}
-            items={[
-              { id: "query", label: "Copy query", icon: "Copy", onSelect: () => {} },
-              { id: "files", label: "Copy file list", icon: "Files", onSelect: () => {} },
-            ]}
+            actions={<CopyButton text="useAgent" tokens={tokens} />}
           />
         </View>
         <DisclosureHeader
@@ -1175,6 +1160,20 @@ function Showcase() {
           layout={{ compact: false, platform: "web" }}
         />
       </Shot>
+      {/* Paseo's settings pane: a scroller around `PageLayout`'s centred 720
+          column, which the page lifts so the preview sits beside the options
+          (docs/images/settings.png). */}
+      <div id="shot-settings-wide" style={{ width: 1240, height: 890, overflow: "hidden", backgroundColor: BASE.surface0 }}>
+        <div style={{ maxWidth: 720, width: "100%", margin: "0 auto", padding: 16, paddingTop: 8, boxSizing: "border-box" }}>
+          <View {...pluginRoot}>
+            <BetterPaseoSettingsPage
+              theme={{ colors: BASE }}
+              host={{ id: "local", label: "Local" }}
+              layout={{ compact: false, platform: "web" }}
+            />
+          </View>
+        </div>
+      </div>
       {S7_GROUPS.map((group) => (
         <Shot key={group.id} id={`shot-s7-${group.id}`}>
           {group.render(s7Tokens, COMPACT)}
