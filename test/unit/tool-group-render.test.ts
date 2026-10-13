@@ -36,7 +36,7 @@ const calls = ["first", "second"].map((callId, index) => classifyTool({
 }));
 
 describe("grouped tool card presentation", () => {
-  it("shows a circular count, exposes it to accessibility, and preserves both expanded calls", () => {
+  it("shows a circular count, exposes it to accessibility, and pages through the calls", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, {
       data: calls[0]!, groupCalls: calls, tokens,
@@ -54,9 +54,57 @@ describe("grouped tool card presentation", () => {
     expect(button).toBeDefined();
     expect(renderer.root.findAllByType(ToolCallout)).toHaveLength(1);
     act(() => button.props.onPress());
-    const children = renderer.root.findAllByType(ToolCallout).slice(1);
-    expect(children.map((child) => child.props.data.callId)).toEqual(["first", "second"]);
-    expect(children.every((child) => child.props.defaultExpanded)).toBe(true);
+    // One call at a time, stepped left and right, not stacked.
+    expect(renderer.root.findAllByType(ToolCallout)).toHaveLength(1);
+    expect(texts(renderer.root)).toContain("1 / 2");
+    expect(shown(renderer.root)).toEqual(["first"]);
+    const prev = pagerButton(renderer.root, "Previous operation");
+    const next = pagerButton(renderer.root, "Next operation");
+    expect(prev.props.disabled).toBe(true);
+    expect(next.props.disabled).toBe(false);
+    act(() => next.props.onPress());
+    expect(texts(renderer.root)).toContain("2 / 2");
+    expect(shown(renderer.root)).toEqual(["second"]);
+    expect(texts(renderer.root)).toContain("Permission denied");
+    expect(pagerButton(renderer.root, "Next operation").props.disabled).toBe(true);
+    act(() => pagerButton(renderer.root, "Previous operation").props.onPress());
+    expect(shown(renderer.root)).toEqual(["first"]);
     act(() => renderer.unmount());
   });
+
+  it("puts the pager in the preview panel's toolbar", () => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, {
+      data: calls[0]!, groupCalls: calls, tokens,
+    })); });
+    const previewContent = renderer.root.findByType(DisclosureHeader).props.previewContent as () => React.ReactElement;
+    let preview!: ReturnType<typeof TestRenderer.create>;
+    act(() => { preview = TestRenderer.create(previewContent()); });
+    const toolbar = preview.root.findByProps({ testID: "hover-preview-header" });
+    expect(pagerButton(toolbar, "Previous operation").props.disabled).toBe(true);
+    expect(texts(toolbar)).toContain("1 / 2");
+    expect(shown(preview.root)).toEqual(["first"]);
+    act(() => pagerButton(toolbar, "Next operation").props.onPress());
+    expect(texts(toolbar)).toContain("2 / 2");
+    expect(shown(preview.root)).toEqual(["second"]);
+    act(() => { preview.unmount(); renderer.unmount(); });
+  });
 });
+
+type Node = ReturnType<typeof TestRenderer.create>["root"];
+
+function texts(root: Node): string[] {
+  return root.findAll((node) => (node.type as unknown) === "Text")
+    .flatMap((node) => [node.props.children].flat(Infinity))
+    .filter((child): child is string => typeof child === "string");
+}
+
+/** Which calls have a body on screen (the header row's own `data` aside). */
+function shown(root: Node): string[] {
+  return root.findAll((node) => typeof node.type === "function" && node.type.name === "ToolBody")
+    .map((node) => node.props.data.callId);
+}
+
+function pagerButton(root: Node, label: string) {
+  return root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === label);
+}
