@@ -192,6 +192,29 @@ describe("summarizeTool", () => {
     expect(summary.errorLine).toBe("npm ERR! 1 failing");
   });
 
+  it("drops an error line that only repeats the row's target", () => {
+    // A failed background task: its summary is the label, the text and the error.
+    const summary = summarizeTool(
+      classifyTool(
+        call(
+          "task_notification",
+          { type: "plain_text", label: "选文件后取消并切回主题", text: "选文件后取消并切回主题" },
+          { status: "failed", error: "选文件后取消并切回主题" },
+        ),
+      ),
+    );
+    expect(summary.tone).toBe("danger");
+    expect(summary.errorLine).toBeUndefined();
+  });
+
+  it("drops an error line that only repeats the verb of a row without a target", () => {
+    const summary = summarizeTool(
+      classifyTool(call("task_notification", { type: "plain_text", label: "Build" }, { status: "failed", error: "Build" })),
+    );
+    expect(summary.tone).toBe("danger");
+    expect(summary.errorLine).toBeUndefined();
+  });
+
   it("has no error line for a call that did not fail", () => {
     expect(summarizeTool(classifyTool(call("Read", { type: "read", filePath: "/a" }))).errorLine).toBeUndefined();
   });
