@@ -30,7 +30,7 @@ import {
 import { NATIVE_MONO_CHOICES, TYPE, describeMonoSource, readHostTypography } from "./ui/tokens/typography";
 import { usePreferenceSettings } from "./state/preference-sync-slot";
 import { useWideHostColumn } from "./ui/wide-host-column";
-import { HoverPanelPreview, SettingsPreview } from "./settings-preview";
+import { SettingsPreview } from "./settings-preview";
 import type { SyncStatus } from "./state/preference-sync";
 import {
   SETTINGS_STRINGS,
@@ -1079,19 +1079,6 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
           look={look}
           disabled={!previews}
         />
-        <View
-          style={[
-            styles.panelSample,
-            compact ? styles.panelSampleCompact : null,
-            { borderTopColor: tokens.v2.border },
-            previews ? null : styles.rowDisabled,
-          ]}
-        >
-          <Text style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-            {t.panelSampleCaption}
-          </Text>
-          <HoverPanelPreview tokens={tokens} preferences={preferences} compact={compact} />
-        </View>
       </Section>
 
       <ResetButton look={look} />
@@ -1302,7 +1289,4 @@ const styles = StyleSheet.create({
   previewScroll: { flexGrow: 0 },
   previewBody: { padding: space.lg },
   reset: { gap: space.sm },
-  // The open panel under the hover options, on the chat's own surface.
-  panelSample: { borderTopWidth: 1, padding: space.lg, gap: space.sm },
-  panelSampleCompact: { marginLeft: space.lg, paddingLeft: 0 },
 });
