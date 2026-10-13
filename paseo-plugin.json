@@ -1,5 +1,6 @@
 {
   "id": "better-paseo",
+  "name": "Better Paseo",
   "requirements": {
     "paseo": ">=0.8.0"
   },
