@@ -66,7 +66,6 @@ export function bindPreviewPointer(node: unknown, enter: () => void, leave: () =
 /** A non-modal top-layer surface escapes transformed and clipped timeline rows. */
 export function openPreviewLayer(node: unknown, anchor: unknown, close: () => void, options: {
   maximized?: boolean;
-  onOverflow?(overflowing: boolean): void;
   /** Whether every line fits the body's width unwrapped, so wrapping changes nothing. */
   onLinesFit?(fits: boolean): void;
 } = {}): () => void {
@@ -118,7 +117,6 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   const body = panel.querySelector<HTMLElement>('[data-testid="hover-preview-body"]');
   const measure = () => {
     position();
-    if (!options.maximized && body) options.onOverflow?.(body.scrollHeight > body.clientHeight);
     if (body && options.onLinesFit) options.onLinesFit(linesFit(body));
   };
   measure();

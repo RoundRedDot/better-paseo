@@ -255,6 +255,18 @@ describe("line wrap in the desktop preview", () => {
     expect(getEnhancerPreferences().previewWrap).toBe(false);
   });
 
+  it("offers Maximize whatever the content's size, and Close once maximized", () => {
+    // The layer is mocked and never reports a measurement: the button does not wait for one.
+    act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
+    const windowButton = (label: string) => renderer.root.findAll((node) =>
+      (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === label);
+    expect(windowButton("Maximize preview")).toHaveLength(1);
+    act(() => windowButton("Maximize preview")[0]!.props.onPress());
+    expect(own.maximized).toBe(true);
+    expect(windowButton("Maximize preview")).toHaveLength(0);
+    expect(windowButton("Close preview")).toHaveLength(1);
+  });
+
   it("puts the wrap button at the toolbar's left, apart from the content's own buttons", () => {
     act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
     const toolbar = renderer.root.findByProps({ testID: "hover-preview-header" }).findAll((node) => (node.type as unknown) === "View")[1]!;

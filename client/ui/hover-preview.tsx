@@ -22,7 +22,8 @@ export const HoverPreviewContext = createContext(false);
  */
 export const RowLongPressContext = createContext<(() => void) | undefined>(undefined);
 const PreviewActionsContext = createContext<{
-  overflowing: boolean;
+  /** The desktop panel can always grow to the window; a phone's cannot. */
+  maximizable: boolean;
   maximized: boolean;
   maximize(): void;
   close(): void;
@@ -152,7 +153,6 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
   children: ReactNode;
 }) {
   const panelRef = useRef<View>(null);
-  const [overflowing, setOverflowing] = useState(false);
   // Content whose every line fits needs no wrap toggle: both states look the same.
   const [linesFit, setLinesFit] = useState(false);
   // Kept across Maximize, which re-renders this panel rather than remounting it.
@@ -161,7 +161,6 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
     const unbind = bindPreviewPointer(panelRef.current, preview.enter, preview.leave);
     const release = openPreviewLayer(panelRef.current, preview.anchorRef.current, preview.close, {
       maximized: preview.maximized,
-      onOverflow: setOverflowing,
       onLinesFit: setLinesFit,
     });
     return () => {
@@ -172,7 +171,7 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
   return (
     <HoverPreviewContext.Provider value>
       <PreviewActionsContext.Provider value={{
-        overflowing,
+        maximizable: true,
         maximized: preview.maximized,
         maximize: preview.maximize,
         close: preview.close,
@@ -245,7 +244,7 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
         <View onLayout={onStageLayout} pointerEvents="box-none" style={styles.stage}>
           <HoverPreviewContext.Provider value>
             <PreviewActionsContext.Provider value={{
-              overflowing: false,
+              maximizable: false,
               maximized: false,
               maximize: preview.maximize,
               close,
@@ -288,7 +287,7 @@ export function HoverPreviewHeader({ tokens, center, children }: {
 }) {
   const actions = useContext(PreviewActionsContext);
   const [toolbar, ...rest] = React.Children.toArray(children);
-  const windowButton = actions && (actions.overflowing || actions.maximized) ? (
+  const windowButton = actions && (actions.maximizable || actions.maximized) ? (
     <ToolbarButton
       icon={actions.maximized ? "X" : "Maximize2"}
       label={actions.maximized ? "Close preview" : "Maximize preview"}
