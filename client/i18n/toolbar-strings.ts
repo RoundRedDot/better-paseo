@@ -26,6 +26,8 @@ const ZH: Readonly<Record<string, string>> = {
   "Copy arguments": "复制参数",
   "Copy code": "复制代码",
   "Copy Markdown table": "复制 Markdown 表格",
+  "Copy as Markdown": "复制为 Markdown",
+  "Copy as image": "复制为图片",
   "Copy log": "复制日志",
   "Copy description": "复制描述",
   "Copy question": "复制问题",
