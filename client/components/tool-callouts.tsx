@@ -7,7 +7,7 @@ import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { HubCallout } from "./hub-callout";
 import { PaseoToolCallout } from "./paseo-tool-callouts";
-import { SyntaxHighlightBlock, TerminalOutput, renderTerminalOutput } from "./syntax-highlight";
+import { SyntaxHighlightBlock, TerminalOutput, renderTerminalLine, renderTerminalOutput, terminalLines } from "./syntax-highlight";
 import { ImagePreview } from "./image-preview";
 import { ImageViewer } from "./image-viewer";
 import { GitHubBody } from "./github-body";
@@ -27,6 +27,7 @@ import { exitMark, parseExitMeta } from "../ui/exit-mark";
 import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { HoverPreviewBody, HoverPreviewHeader } from "../ui/hover-preview";
+import { PreviewLines } from "../ui/preview-lines";
 import { FadeIn } from "../ui/fade-in";
 import { SelectableSpan, SelectableText } from "../ui/prose-text";
 import { formatPath } from "../paths/format-path";
@@ -666,6 +667,19 @@ const codeHeaderStyles = StyleSheet.create({
   suffix: { fontSize: UI_SCALE.base, fontVariant: ["tabular-nums"], flexShrink: 0 },
 });
 
+/** A file or diff in a preview, line by line as the file has it. */
+function PreviewFile({ text, ...rest }: Omit<React.ComponentProps<typeof PreviewLines>, "lines">) {
+  const lines = useMemo(() => text.replace(/\n+$/, "").split("\n"), [text]);
+  return <PreviewLines text={text} lines={lines} {...rest} />;
+}
+
+/** A command's output in a preview, coloured as `renderTerminalOutput` colours it. */
+function PreviewOutput({ text, style, tokens }: { text: string; style: TextStyle; tokens: ExtendedThemeTokens }) {
+  const lines = useMemo(() => terminalLines(text), [text]);
+  const renderLine = useCallback((line: string, index: number) => renderTerminalLine(line, index, tokens), [tokens]);
+  return <PreviewLines text={text} lines={lines} style={style} tokens={tokens} renderLine={renderLine} />;
+}
+
 function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, preview = false, onViewImage }: ToolBodyProps) {
   const styles = useBodyStyles(tokens, compact);
   const isRunning = data.status === "running";
@@ -717,9 +731,15 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
   // The regular code block deliberately batches and folds long files.
   if (preview && (data.tool === "read" || data.tool === "write" || data.tool === "edit") &&
       !(imageFile !== undefined && isImagePath(data.filePath))) {
-    return <SelectableText {...selectionCodeText} style={styles.commandLine}>
-      {data.diff || data.code || (isRunning ? "Waiting for content…" : "No content.")}
-    </SelectableText>;
+    const content = data.diff || data.code;
+    if (!content) {
+      return <SelectableText {...selectionCodeText} style={styles.commandLine}>
+        {isRunning ? "Waiting for content…" : "No content."}
+      </SelectableText>;
+    }
+    return <PreviewFile text={content} diff={Boolean(data.diff)}
+      firstLine={data.tool === "read" && data.offset !== undefined && data.offset > 0 ? Math.floor(data.offset) : 1}
+      style={styles.commandLine} tokens={tokens} />;
   }
 
   return (
@@ -734,7 +754,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             </SelectableText>
           ) : null}
           {data.shell?.stdout ? (
-            preview ? <SelectableText {...selectionCodeText} style={styles.terminalOutput}>{renderTerminalOutput(data.shell.stdout, tokens)}</SelectableText> :
+            preview ? <PreviewOutput text={data.shell.stdout} style={styles.terminalOutput} tokens={tokens} /> :
             <TerminalOutput
               text={data.shell.stdout}
               tokens={tokens}
@@ -748,7 +768,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             </SelectableText>
           ) : null}
           {data.output && !data.shell?.stdout ? (
-            preview ? <SelectableText {...selectionCodeText} style={styles.terminalOutput}>{renderTerminalOutput(data.output, tokens)}</SelectableText> :
+            preview ? <PreviewOutput text={data.output} style={styles.terminalOutput} tokens={tokens} /> :
             <TerminalOutput
               text={data.output}
               tokens={tokens}
