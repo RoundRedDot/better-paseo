@@ -70,18 +70,8 @@ export function toolCopyPlan(view: ToolCallView, resolve: ResolvePath): CopyPlan
         kind: "reasoning",
         text: view.text ?? view.thinking?.text ?? view.code ?? view.output ?? "",
       });
-    case "ask":
-      return copyPlan({ kind: "ask", question: view.askQuestion, answer: view.askAnswer?.join(", ") });
-    case "eval": {
-      const cells = view.cells ?? [];
-      return copyPlan({
-        kind: "eval",
-        code: cells.map((cell) => cell.code).join("\n\n") || view.code,
-        output: cells.map((cell) => cell.output ?? "").filter(Boolean).join("\n") || view.output,
-      });
-    }
     default:
-      // paseo, hub, task, github and unknown: the result, then the arguments.
+      // paseo, hub, github and unknown: the result, then the arguments.
       return copyPlan({ kind: "mcp", result: view.output ?? view.github?.text, args: view.input });
   }
 }

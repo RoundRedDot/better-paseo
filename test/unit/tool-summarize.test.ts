@@ -113,21 +113,7 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
     call("mcp__paseo__list_models", { type: "unknown", input: { provider: "claude" }, output: "" }),
     { verb: "paseo / list_models" },
   ],
-  [
-    "task keeps its title",
-    call("task", { type: "unknown", input: { tasks: [{ name: "a", task: "x" }, { name: "b", task: "y" }] } }),
-    { verb: "Task", target: "2 subagents" },
-  ],
   ["hub keeps its op", call("hub", { type: "unknown", input: { op: "wait" }, output: "" }), { verb: "Hub", target: "wait" }],
-  [
-    "eval keeps its cell title",
-    call("eval", {
-      type: "unknown",
-      input: {},
-      output: { details: { cells: [{ title: "Sum", code: "1+1" }, { code: "2" }] } },
-    }),
-    { verb: "Eval", target: "Sum", meta: ["2 cells"] },
-  ],
   [
     "github keeps op, repo and subject",
     call("github", { type: "unknown", input: { content: '{"op":"pr_view","repo":"a/b","pr":3}' }, output: "" }),
@@ -194,16 +180,6 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
     call("frobnicate", { type: "unknown", input: { path: "/w/x" }, output: "" }),
     { verb: "frobnicate", target: "/w/x" },
   ],
-  [
-    "ask while waiting",
-    call("ask", { type: "unknown", input: { question: "Ship?", options: [{ label: "Yes" }] }, output: "" }, { status: "running" }),
-    { verb: "Ask", target: "Ship?" },
-  ],
-  [
-    "ask once answered · q → a",
-    call("ask", { type: "unknown", input: { question: "Ship?", options: [{ label: "Yes" }] }, output: "User selected: Yes" }),
-    { verb: "Ask", target: "Ship? → Yes" },
-  ],
 ];
 
 describe("summarizeTool", () => {
@@ -215,7 +191,7 @@ describe("summarizeTool", () => {
     const kinds = new Set(TABLE.map(([, payload]) => classifyTool(payload).tool));
     for (const kind of [
       "read", "write", "edit", "bash", "shell", "git", "search", "fetch", "mcp", "paseo",
-      "task", "hub", "eval", "github", "plan", "plain_text", "worktree_setup", "sub_agent", "unknown", "ask",
+      "hub", "github", "plan", "plain_text", "worktree_setup", "sub_agent", "unknown",
     ]) {
       expect(kinds.has(kind as never), kind).toBe(true);
     }

@@ -7,15 +7,10 @@ import { disclosureKey, fallbackDisclosureKey } from "../state/disclosure-store"
 import type { ToolCallView } from "./classify";
 
 /**
- * Collapsed for running, completed and failed alike. Two exceptions: an
- * `ask` that is still waiting for its answer stays open (the host draws the
- * answer controls, and the question is the point), and a failure opens when
- * the reader chose "expand on failure".
+ * Collapsed for running, completed and failed alike, except a failure, which
+ * opens when the reader chose "expand on failure".
  */
 export function defaultToolExpanded(view: ToolCallView, preference: ToolDetailPreference): boolean {
-  if (view.tool === "ask") {
-    return view.status === "running" && !(view.askAnswer && view.askAnswer.length > 0);
-  }
   return view.status === "failed" && preference === "expand-failed";
 }
 

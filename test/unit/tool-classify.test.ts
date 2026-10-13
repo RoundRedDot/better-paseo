@@ -37,10 +37,14 @@ const CASES: Array<[string, ToolCallPayload, ToolKind]> = [
   ["a dotted name with a typed detail keeps its kind", call("custom.run", { type: "shell", command: "ls" }), "shell"],
   ["a title with spaces is not an mcp tool", call("Read notes.txt", { type: "unknown", input: {}, output: null }), "unknown"],
   ["a slash without the bridge's spaces", call("a/b", { type: "unknown", input: {}, output: { content: [] } }), "unknown"],
-  ["ask", call("ask", { type: "unknown", input: { question: "Go?", options: [{ label: "Yes" }] }, output: "" }), "ask"],
+  // Paseo 0.8-0.10 passes these Oh My Pi tools by name; they have no card of their own.
+  ["ask by name", call("ask", { type: "unknown", input: { question: "Go?", options: [{ label: "Yes" }] }, output: "" }), "unknown"],
   ["hub", call("hub", { type: "unknown", input: { op: "wait" }, output: "" }), "hub"],
-  ["eval", call("eval", { type: "unknown", input: { code: "1+1" }, output: "2" }), "eval"],
-  ["omp task", call("task", { type: "unknown", input: { tasks: [{ name: "a", task: "do" }] } }), "task"],
+  ["eval by name", call("eval", { type: "unknown", input: { code: "1+1" }, output: "2" }), "unknown"],
+  ["task by name", call("task", { type: "unknown", input: { tasks: [{ name: "a", task: "do" }] } }), "unknown"],
+  // Paseo 0.11 turns them into protocol details first.
+  ["eval as plain text", call("eval", { type: "plain_text", label: "run", text: "2" }), "plain_text"],
+  ["task as a sub-agent", call("task", { type: "sub_agent", subAgentType: "a", description: "do" }), "sub_agent"],
   ["github", call("github", { type: "unknown", input: { content: "{}" }, output: "" }), "github"],
   ["omp github as plain text", call("github", { type: "plain_text", label: "status", text: "Working tree clean" }), "github"],
   ["thinking", call("thinking", { type: "unknown", input: {}, output: "hmm" }), "thinking"],

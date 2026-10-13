@@ -16,8 +16,6 @@ const SOURCES: CopySource[] = [
   { kind: "fetch", url: "https://a", result: "r" },
   { kind: "worktree", absolutePath: "/a", log: "l" },
   { kind: "sub-agent", description: "d", log: "l" },
-  { kind: "ask", question: "q", answer: "a" },
-  { kind: "eval", code: "c", output: "o" },
 ];
 const TOOLBAR = ["Copied", "Couldn't copy", "Copy thought", "Copy section", "Copy reply", "Copy prompt", "Previous operation", "Next operation", "Wrap lines",
   "Do not wrap lines", "Maximize preview", "Close preview", "Copy Markdown table", "Copy as Markdown", "Copy as image",

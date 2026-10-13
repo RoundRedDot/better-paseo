@@ -25,11 +25,7 @@ export type CopySource =
   /** A worktree setup: its directory, then the setup log. */
   | { kind: "worktree"; absolutePath: string; log?: string }
   /** A delegated sub-agent: what it was asked (title, then full prompt), then its log. */
-  | { kind: "sub-agent"; description?: string; prompt?: string; log?: string }
-  /** An `ask` call: the question, then the answer (labels or typed reply). */
-  | { kind: "ask"; question?: string; answer?: string }
-  /** An eval run: the cells' source, then what they printed. */
-  | { kind: "eval"; code?: string; output?: string };
+  | { kind: "sub-agent"; description?: string; prompt?: string; log?: string };
 
 export type CopyActionId =
   | "command"
@@ -49,9 +45,7 @@ export type CopyActionId =
   | "url"
   | "log"
   | "description"
-  | "prompt"
-  | "question"
-  | "answer";
+  | "prompt";
 
 export interface CopyAction {
   id: CopyActionId;
@@ -197,16 +191,6 @@ export function copyPlan(source: CopySource): CopyPlan {
         action("description", "Copy description", source.description?.trim()),
         action("prompt", "Copy prompt", source.prompt?.trim()),
         action("log", "Copy log", terminalText(source.log)),
-      );
-    case "ask":
-      return plan(
-        action("question", "Copy question", source.question?.trim()),
-        action("answer", "Copy answer", source.answer?.trim()),
-      );
-    case "eval":
-      return plan(
-        action("code", "Copy code", source.code),
-        action("output", "Copy output", terminalText(source.output)),
       );
   }
 }

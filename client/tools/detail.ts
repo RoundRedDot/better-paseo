@@ -66,8 +66,6 @@ function bodyDetail(view: ToolCallView, budget: number): boolean {
     }
     case "fetch":
       return Boolean(view.fetch && (view.fetch.url || view.fetch.prompt || view.fetch.result));
-    case "eval":
-      return Boolean(view.code || view.output || view.cells?.some((cell) => cell.code || cell.output));
     case "worktree_setup":
       return Boolean(view.worktree && (view.worktree.commands.length > 0 || view.worktree.log));
     case "unknown":
@@ -76,12 +74,6 @@ function bodyDetail(view: ToolCallView, budget: number): boolean {
       if (view.mcp) {
         return hasArguments(view.mcp.arguments) || view.mcp.result !== undefined || Boolean(view.mcp.error);
       }
-      break;
-    case "ask":
-      if (view.askOptions) return true;
-      break;
-    case "task":
-      if (view.subagent) return true;
       break;
     case "hub":
       if (view.hub) return true;

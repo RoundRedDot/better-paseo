@@ -384,12 +384,6 @@ function summarizeKind(view: ToolCallView): ToolSummary {
       pushDuration(meta, view);
       return { verb: clip(`paseo / ${tool}`, VERB_MAX) ?? "paseo", target: clip(target, TARGET_MAX), meta, tone };
     }
-    case "ask": {
-      const question = view.askQuestion ?? (view.title === "User Decision" ? undefined : view.title);
-      const answer = view.askAnswer && view.askAnswer.length > 0 ? view.askAnswer.join(", ") : undefined;
-      const target = question && answer ? `${firstLine(question)} → ${answer}` : (firstLine(question) ?? answer);
-      return { verb: "Ask", target: clip(target, TARGET_MAX), meta, tone };
-    }
     case "hub": {
       const op = view.input && typeof view.input === "object" ? (view.input as Record<string, unknown>).op : undefined;
       return {
@@ -399,20 +393,6 @@ function summarizeKind(view: ToolCallView): ToolSummary {
         tone,
       };
     }
-    case "eval": {
-      const cells = view.cells ?? [];
-      const titled = cells.find((cell) => cell.title)?.title;
-      if (cells.length > 1) meta.push(plural(cells.length, "cell"));
-      pushDuration(meta, view);
-      return {
-        verb: "Eval",
-        target: clip(titled ?? firstLine(cells[0]?.code ?? view.code), TARGET_MAX),
-        meta,
-        tone,
-      };
-    }
-    case "task":
-      return { verb: "Task", target: clip(view.title, TARGET_MAX), meta, tone };
     case "github":
       return {
         verb: "GitHub",

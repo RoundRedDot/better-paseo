@@ -160,20 +160,6 @@ describe("copyPlan for the newer tool kinds", () => {
     ]);
   });
 
-  it("copies an ask's question and answer", () => {
-    const plan = copyPlan({ kind: "ask", question: "Ship?", answer: "Yes, Later" });
-    expect(plan.primary?.text).toBe("Ship?");
-    expect(plan.menu).toEqual([{ id: "answer", label: "Copy answer", text: "Yes, Later" }]);
-    // Waiting: no answer yet, so no menu entry.
-    expect(copyPlan({ kind: "ask", question: "Ship?" }).menu).toEqual([]);
-  });
-
-  it("copies an eval's code and its printed output", () => {
-    const plan = copyPlan({ kind: "eval", code: "1+1", output: "\u001b[1m2\u001b[0m\n" });
-    expect(plan.primary).toEqual({ id: "code", label: "Copy code", text: "1+1" });
-    expect(plan.menu).toEqual([{ id: "output", label: "Copy output", text: "2" }]);
-  });
-
   it("has nothing to copy for an empty source", () => {
     expect(copyPlan({ kind: "fetch", url: "" }).primary).toBeNull();
     expect(copyPlan({ kind: "sub-agent" })).toEqual({ primary: null, menu: [] });
