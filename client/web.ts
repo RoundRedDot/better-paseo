@@ -63,6 +63,26 @@ export function bindPreviewPointer(node: unknown, enter: () => void, leave: () =
   };
 }
 
+/** Arrow keys page a maximized preview while focus stays in its panel. */
+export function bindPreviewPaging(node: unknown, step: (direction: -1 | 1) => void): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const pager = node as HTMLElement | null;
+  if (!pager) return () => {};
+  const panel = pager.closest<HTMLElement>('[data-testid="hover-preview"]')!;
+  const doc = pager.ownerDocument;
+  const onKey = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    const target = event.target as HTMLElement;
+    if (!panel.contains(target) || target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    step(event.key === "ArrowLeft" ? -1 : 1);
+  };
+  doc.addEventListener("keydown", onKey);
+  return () => doc.removeEventListener("keydown", onKey);
+}
+
 /** A non-modal top-layer surface escapes transformed and clipped timeline rows. */
 export function openPreviewLayer(node: unknown, anchor: unknown, close: () => void, options: {
   maximized?: boolean;

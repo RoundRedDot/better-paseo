@@ -4,6 +4,15 @@ import { describe, expect, it, vi } from "vitest";
 // contrast on hover, press or when opened (docs/prototypes/quiet-tool-rows.md).
 
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
+const paging = vi.hoisted(() => ({ maximized: false, bind: vi.fn(), release: vi.fn() }));
+vi.mock("../../client/web", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../client/web")>(),
+  bindPreviewPaging: paging.bind,
+}));
+vi.mock("../../client/ui/hover-preview", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../client/ui/hover-preview")>(),
+  usePreviewPanel: () => ({ maximized: paging.maximized, close() {} }),
+}));
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined, useWorkspace: () => undefined,
   useRpc: () => () => Promise.resolve(null), usePaseo: () => ({}),
@@ -39,6 +48,38 @@ const calls = ["first", "second"].map((callId, index) => classifyTool({
 }));
 
 describe("grouped tool card presentation", () => {
+  it("enables arrow paging only when maximized, keeps pages in range, and releases the binding", () => {
+    paging.maximized = false;
+    paging.bind.mockReset().mockReturnValue(paging.release);
+    paging.release.mockClear();
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    let preview!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, {
+      data: calls[0]!, groupCalls: calls, tokens,
+    })); });
+    const content = renderer.root.findByType(DisclosureHeader).props.previewContent as () => React.ReactElement;
+    act(() => { preview = TestRenderer.create(content()); });
+    expect(paging.bind).not.toHaveBeenCalled();
+    paging.maximized = true;
+    act(() => preview.update(content()));
+    const step = (direction: -1 | 1) => {
+      act(() => paging.bind.mock.calls.at(-1)![1](direction));
+    };
+    step(-1);
+    expect(shown(preview.root)).toEqual(["first"]);
+    step(1);
+    expect(texts(preview.root)).toContain("2 / 2");
+    expect(shown(preview.root)).toEqual(["second"]);
+    step(1);
+    expect(shown(preview.root)).toEqual(["second"]);
+    step(-1);
+    expect(shown(preview.root)).toEqual(["first"]);
+    const releases = paging.release.mock.calls.length;
+    act(() => { preview.unmount(); renderer.unmount(); });
+    expect(paging.release).toHaveBeenCalledTimes(releases + 1);
+    paging.maximized = false;
+  });
+
   it("shows a circular count, exposes it to accessibility, and pages through the calls", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, {
