@@ -151,7 +151,7 @@ export function PreviewLines({ text, lines, style, tokens, renderLine, diff = fa
             <Text key={index} selectable={false}
               style={[styles.number, {
                 top: tops[index],
-                fontSize: tokens.typography.mono.size,
+                fontSize: tokens.typography.mono.size - 2,
                 lineHeight,
                 color: tokens.syntax.comment,
                 fontFamily: tokens.fontMono,
