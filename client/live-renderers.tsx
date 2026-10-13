@@ -128,8 +128,10 @@ function LiveToolCallRendererBody({
   const at = arrivalRef.current.at;
   const itemKey = `tool:${data.callId ?? view.title}:${at}`;
   // Not the tail: a thought takes no part in it, and a call with a thought
-  // below it kept its gap as if it were the newest row.
-  const { group, anythingBelow } = useTimelineToolGroup(agentId, at, view);
+  // below it kept its gap as if it were the newest row. A call already
+  // finished as its row mounts is replayed history (see `timeline-order.ts`).
+  const rootRef = useRef<View>(null);
+  const { group, anythingBelow } = useTimelineToolGroup(agentId, at, view, data.phase === "complete", rootRef);
   const groupFailed = group?.some((call) => call.status === "failed") ?? false;
 
   // The daemon side owns the shell, so revealing a file is one RPC. Paths
@@ -181,6 +183,7 @@ function LiveToolCallRendererBody({
 
   return (
     <View
+      ref={rootRef}
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       {...probe.viewProps}
       style={group === null ? rowGapStyles.grouped : preferences.compactRowSpacing && anythingBelow ? rowGapStyles.compensated : undefined}
@@ -231,8 +234,10 @@ function LiveReasoningRendererBody({
   useSelectionActions(tokens, preferences.selectionActions);
   const text = item.data.text || "";
   const streaming = item.data.phase === "streaming";
-  useTimelineEntry(agentId, timestamp.getTime(), "thought");
-  const anythingBelow = useHasEntryAfter(agentId, timestamp.getTime(), "thought");
+  const settledKey = streaming ? undefined : `thought:${text}`;
+  const rootRef = useRef<View>(null);
+  useTimelineEntry(agentId, timestamp.getTime(), "thought", settledKey, rootRef);
+  const anythingBelow = useHasEntryAfter(agentId, timestamp.getTime(), "thought", settledKey);
 
   // Collapsed by default, streaming or not (plan §3.4 item 3); the reader's
   // choice survives the remount into history through the disclosure store.
@@ -265,6 +270,7 @@ function LiveReasoningRendererBody({
   // thought would sit 12pt into the list's bottom padding, under the composer.
   return (
     <View
+      ref={rootRef}
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       {...probe.viewProps}
       style={preferences.compactRowSpacing && anythingBelow ? rowGapStyles.compensated : undefined}
@@ -383,7 +389,8 @@ function LiveAssistantRendererBody({
   // padding plus a 4pt gap), the same 16pt the host hangs under a plugin item.
   // `compactReplySpacing` takes 12 of it back when a row is next, as a tool
   // row does. Above a prompt or another reply the 16 stays.
-  useTimelineEntry(agentId, timestamp.getTime(), "reply");
+  const rootRef = useRef<View>(null);
+  useTimelineEntry(agentId, timestamp.getTime(), "reply", streaming ? undefined : `reply:${item.data.text}`, rootRef);
   const rowBelow = useNextEntryIsRow(agentId, timestamp.getTime(), "reply");
 
   // Job results, IRC relays and reminders arrive as replies because the host
@@ -412,6 +419,7 @@ function LiveAssistantRendererBody({
 
   return (
     <View
+      ref={rootRef}
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       {...probe.viewProps}
       style={
@@ -497,7 +505,8 @@ function LiveNoticeRendererBody({
   timestamp,
 }: PluginTimelineItemProps<LiveNoticePayload>) {
   const probe = probeCard("notice", String(timestamp.getTime()));
-  useTimelineEntry(agentId, timestamp.getTime(), "notice");
+  const rootRef = useRef<View>(null);
+  useTimelineEntry(agentId, timestamp.getTime(), "notice", `notice:${item.data.message}`, rootRef);
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
@@ -515,7 +524,7 @@ function LiveNoticeRendererBody({
   );
 
   return (
-    <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}>
+    <View ref={rootRef} {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}>
       {probe.node}
       <PreferenceSyncSlot />
       <NoticeCallout data={noticeData} tokens={tokens} at={timestamp} compact={layout.compact} />
@@ -603,7 +612,8 @@ function LiveUserMessageRendererBody({
   timestamp,
 }: PluginTimelineItemProps<LiveUserMessagePayload>) {
   const probe = probeCard("user_message", item.data.messageId ?? String(timestamp.getTime()));
-  useTimelineEntry(agentId, timestamp.getTime(), "prompt");
+  const rootRef = useRef<View>(null);
+  useTimelineEntry(agentId, timestamp.getTime(), "prompt", `prompt:${item.data.messageId ?? item.data.text}`, rootRef);
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
@@ -622,6 +632,7 @@ function LiveUserMessageRendererBody({
 
   return (
     <View
+      ref={rootRef}
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       {...probe.viewProps}
     >

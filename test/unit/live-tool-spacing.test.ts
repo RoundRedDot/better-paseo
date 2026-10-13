@@ -42,6 +42,7 @@ await import("./helpers/quiet-renderer");
 const { default: TestRenderer, act } = await import("react-test-renderer");
 const { StyleSheet } = await import("./helpers/rn-mock");
 const { LiveToolCallRenderer } = await import("../../client/live-renderers");
+const { registerTimelineEntry } = await import("../../client/timeline-order");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 function tool(callId: string, at: number, status = "running") {
@@ -94,5 +95,34 @@ describe("tool row spacing during streaming", () => {
       tool("newest", 1002, "completed"))); });
     expect(margins(renderer)).toEqual([undefined]);
     act(() => renderer.unmount());
+  });
+});
+
+describe("tool row spacing in replayed history", () => {
+  it("compensates every finished call when the whole history shares one millisecond", () => {
+    // Grok's history after the daemon reloads it: no provider times, so
+    // calls and the thoughts between them carry the same stamp.
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    const forget = registerTimelineEntry("tool-spacing-agent", 9000, "thought", "between");
+    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+      tool("replayed-1", 9000, "completed"), tool("replayed-2", 9000, "completed"))); });
+    expect(margins(renderer)).toEqual([-12, -12]);
+    act(() => { renderer.unmount(); forget(); });
+  });
+
+  it("keeps the gap under the call a replayed history ends on", () => {
+    // Each row's root is the only view it draws here, so views are placed in
+    // the order they are created: the second call is the lowest item.
+    let created = 0;
+    const createNodeMock = () => {
+      const y = 100 * ++created;
+      return { measureInWindow: (callback: (x: number, y: number, w: number, h: number) => void) => callback(0, y, 300, 40) };
+    };
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    const forget = registerTimelineEntry("tool-spacing-agent", 9500, "thought", "between", () => 0);
+    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+      tool("ending-1", 9500, "completed"), tool("ending-2", 9500, "completed")), { createNodeMock }); });
+    expect(margins(renderer)).toEqual([-12, undefined]);
+    act(() => { renderer.unmount(); forget(); });
   });
 });
