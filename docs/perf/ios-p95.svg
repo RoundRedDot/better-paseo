@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 258" width="760" height="258" role="img">
-<title>iOS 同一次会话，mixed-turn 各卡片提交时间 p95，单位毫秒。淡色是官方，绿色是本仓库。</title>
+<title>iOS 同一次会话，mixed-turn 各卡片提交时间 p95，单位毫秒。淡色是 Beautiful Chat，绿色是本仓库。</title>
 <style>
 .final { display: none; }
 @media (prefers-reduced-motion: reduce) {
