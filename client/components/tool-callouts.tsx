@@ -305,7 +305,7 @@ export function ToolCallout({
               {filePath ? <SelectableText {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>{resolvePath(filePath)}</SelectableText> : null}
               <ToolBody data={data} tokens={tokens} compact={compact} imageFile={imageFile}
                 revealFile={revealFile} displayPath={displayPath} preview onViewImage={openViewer} />
-              {data.error ? <SelectableText style={{ color: tokens.danger }}>{data.error}</SelectableText> : null}
+              {data.error ? <PreviewError text={data.error} tokens={tokens} /> : null}
             </HoverPreviewBody>
           </>
         )
@@ -424,9 +424,10 @@ function GroupedCallBody({ call, preview, onViewImage, ...rest }: Omit<GroupedBo
   return (
     <>
       <ToolBody data={call} {...rest} preview={preview} onViewImage={onViewImage} />
-      {errorLine ? <SelectableText style={{ color: rest.tokens.danger, fontFamily: rest.tokens.fontMono }}>
-        {call.error ?? errorLine}
-      </SelectableText> : null}
+      {errorLine ? preview ? <PreviewError text={call.error ?? errorLine} tokens={rest.tokens} /> :
+        <SelectableText style={{ color: rest.tokens.danger, fontFamily: rest.tokens.fontMono }}>
+          {call.error ?? errorLine}
+        </SelectableText> : null}
     </>
   );
 }
@@ -680,6 +681,18 @@ function PreviewOutput({ text, style, tokens }: { text: string; style: TextStyle
   return <PreviewLines text={text} lines={lines} style={style} tokens={tokens} renderLine={renderLine} />;
 }
 
+/** A call's error in a preview: line by line as its output is, all in the danger colour. */
+function PreviewError({ text, tokens }: { text: string; tokens: ExtendedThemeTokens }) {
+  const style = useMemo<TextStyle>(() => ({
+    fontFamily: tokens.fontMono,
+    fontSize: tokens.typography.mono.size,
+    lineHeight: tokens.typography.mono.lineHeight,
+    color: tokens.danger,
+  }), [tokens]);
+  const lines = useMemo(() => terminalLines(text), [text]);
+  return <PreviewLines text={text} lines={lines} style={style} tokens={tokens} />;
+}
+
 function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, preview = false, onViewImage }: ToolBodyProps) {
   const styles = useBodyStyles(tokens, compact);
   const isRunning = data.status === "running";
@@ -766,6 +779,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             />
           ) : null}
           {data.shell?.stderr ? (
+            preview ? <PreviewError text={data.shell.stderr} tokens={tokens} /> :
             <SelectableText {...(codeSurface as object)} style={[styles.terminalOutput, { color: tokens.danger }]}>
               {data.shell.stderr}
             </SelectableText>
