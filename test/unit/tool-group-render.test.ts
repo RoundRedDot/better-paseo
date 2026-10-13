@@ -20,7 +20,8 @@ const React = await import("react");
 await import("./helpers/quiet-renderer");
 const { default: TestRenderer, act } = await import("react-test-renderer");
 const { StyleSheet } = await import("./helpers/rn-mock");
-const { ToolCallout } = await import("../../client/components/tool-callouts");
+const { ToolCallout, previewCopyActions } = await import("../../client/components/tool-callouts");
+const { ToolbarButton, TOOLBAR_TOOLTIP_MS } = await import("../../client/ui/toolbar-button");
 const { classifyTool } = await import("../../client/tools/classify");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -81,13 +82,47 @@ describe("grouped tool card presentation", () => {
     let preview!: ReturnType<typeof TestRenderer.create>;
     act(() => { preview = TestRenderer.create(previewContent()); });
     const toolbar = preview.root.findByProps({ testID: "hover-preview-header" });
-    expect(pagerButton(toolbar, "Previous operation").props.disabled).toBe(true);
+    const center = preview.root.findByProps({ testID: "hover-preview-center" });
+    expect(pagerButton(center, "Previous operation").props.disabled).toBe(true);
+    // The copies of the call on view, once each: no `⋯`, no per-call numbering.
+    const copies = () => toolbar.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel?.startsWith("Copy"))
+      .map((node) => node.props.accessibilityLabel);
+    expect(copies()).toEqual(["Copy path", "Copy patch", "Copy new content"]);
+    expect(toolbar.findAll((node) => node.props.accessibilityLabel === "More actions")).toHaveLength(0);
     expect(texts(toolbar)).toContain("1 / 2");
     expect(shown(preview.root)).toEqual(["first"]);
     act(() => pagerButton(toolbar, "Next operation").props.onPress());
     expect(texts(toolbar)).toContain("2 / 2");
     expect(shown(preview.root)).toEqual(["second"]);
+    expect(copies()).toEqual(["Copy path", "Copy patch", "Copy new content"]);
     act(() => { preview.unmount(); renderer.unmount(); });
+  });
+
+  it("names a toolbar button once a pointer rests on it", () => {
+    vi.useFakeTimers();
+    try {
+      let renderer!: ReturnType<typeof TestRenderer.create>;
+      act(() => { renderer = TestRenderer.create(React.createElement(ToolbarButton, {
+        icon: "Link", label: "Copy path", onPress() {}, tokens,
+      })); });
+      const button = renderer.root.find((node) => (node.type as unknown) === "Pressable");
+      expect(texts(renderer.root)).not.toContain("Copy path");
+      act(() => button.props.onHoverIn());
+      act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
+      expect(texts(renderer.root)).toContain("Copy path");
+      act(() => button.props.onHoverOut());
+      expect(texts(renderer.root)).not.toContain("Copy path");
+      act(() => renderer.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("drops a copy that repeats an earlier one", () => {
+    expect(previewCopyActions({
+      primary: { id: "path", label: "Copy path", text: "/a" },
+      menu: [{ id: "content", label: "Copy file content", text: "/a" }, { id: "patch", label: "Copy patch", text: "p" }],
+    }).map((action) => action.id)).toEqual(["path", "patch"]);
   });
 });
 
