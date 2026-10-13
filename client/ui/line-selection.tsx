@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import React, { useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type ViewProps } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
@@ -7,9 +7,13 @@ import { unselectable } from "../components/selection";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { useCopy } from "./use-copy";
+import { PreviewScrollerContext } from "./preview-scroller";
 
 const HOLD_MS = 400;
 const MOVE_SLOP = 8;
+/** A frame's scroll for a finger just past the body's edge, and at most. */
+const EDGE_STEP = 2;
+const MAX_EDGE_STEP = 24;
 /** The phone menu's height, fixed so it can be placed before it lays out. */
 const MENU_HEIGHT = 40;
 const MENU_GAP = 6;
@@ -53,11 +57,28 @@ function selectDomLines(root: HTMLElement, lines: readonly string[], range: Line
   selection.setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
 }
 
+interface Gesture {
+  /** The line the gesture began on. */
+  anchor: number;
+  /** Where it began, in the gutter and on the page. */
+  y: number;
+  pageY: number;
+  /** The finger's travel since. */
+  delta: number;
+  active: boolean;
+  /** The body's scroll when the gesture began. */
+  offset: number;
+  /** The gutter's and the body's place on screen, once measured. */
+  gutterTop?: number;
+  viewport?: { top: number; height: number };
+}
+
 /**
  * Gutter gestures select source lines, independent of wrapping or displayed
  * diff numbers. Web hands the lines to the page's selection; iOS and Android
  * cannot set a native selection from a plugin, so they draw the range and
- * offer their own Copy.
+ * offer their own Copy. There a held drag keeps the body still, and scrolls
+ * it only while the finger is past the body's top or bottom edge.
  */
 export function useLineSelection({ enabled, lines, tops, bottom, contentRef }: {
   enabled: boolean;
@@ -68,16 +89,23 @@ export function useLineSelection({ enabled, lines, tops, bottom, contentRef }: {
   contentRef: RefObject<View | null>;
 }) {
   const web = Platform.OS === "web";
+  const scroller = useContext(PreviewScrollerContext);
   const [range, setRange] = useState<LineRange | null>(null);
   const [menu, setMenu] = useState(false);
   const gutterRef = useRef<View>(null);
-  const gesture = useRef<{ anchor: number; y: number; focusY: number; pageY: number; active: boolean } | null>(null);
+  const gesture = useRef<Gesture | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latest = useRef({ tops, lines });
-  latest.current = { tops, lines };
+  const frame = useRef<number | null>(null);
+  const holding = useRef(false);
+  const latest = useRef({ tops, lines, scroller });
+  latest.current = { tops, lines, scroller };
   const stopTimer = () => {
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = null;
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = null;
+    if (holding.current) latest.current.scroller?.hold(false);
+    holding.current = false;
   };
   const dismiss = () => { setRange(null); setMenu(false); };
   const cancel = () => { stopTimer(); gesture.current = null; dismiss(); };
@@ -96,14 +124,56 @@ export function useLineSelection({ enabled, lines, tops, bottom, contentRef }: {
     const root = contentRef.current as unknown as HTMLElement | null;
     if (web && root?.ownerDocument) selectDomLines(root, latest.current.lines, next, focus < current.anchor);
   };
+  /** The finger's line, counting what the body has scrolled under it. */
+  const track = (current: Gesture) => {
+    const scrolled = (latest.current.scroller?.offset() ?? current.offset) - current.offset;
+    select(current.y + current.delta + scrolled);
+  };
+  /** How far past the body's edge the finger is, signed; 0 inside it. */
+  const overshoot = (current: Gesture) => {
+    if (current.gutterTop === undefined || !current.viewport) return 0;
+    const at = current.gutterTop + current.y + current.delta;
+    const { top, height } = current.viewport;
+    return at < top ? at - top : at > top + height ? at - top - height : 0;
+  };
+  // Each frame the finger stays out, the body scrolls on, faster the further
+  // out it is, and the range follows the lines that pass under it.
+  const follow = () => {
+    if (frame.current !== null) return;
+    const tick = () => {
+      frame.current = null;
+      const current = gesture.current;
+      const over = current?.active ? overshoot(current) : 0;
+      if (!current || over === 0) return;
+      const step = Math.sign(over) * Math.min(MAX_EDGE_STEP, EDGE_STEP + Math.abs(over) / 4);
+      if (!latest.current.scroller?.scrollBy(step)) return;
+      track(current);
+      frame.current = requestAnimationFrame(tick);
+    };
+    frame.current = requestAnimationFrame(tick);
+  };
   const begin = (y: number, pageY: number, touch: boolean) => {
     stopTimer();
     dismiss();
-    gesture.current = { anchor: lineAt(y), y, focusY: y, pageY, active: !touch };
+    const current: Gesture = { anchor: lineAt(y), y, pageY, delta: 0, active: !touch, offset: 0 };
+    gesture.current = current;
+    const body = web ? null : latest.current.scroller;
+    if (body) {
+      current.offset = body.offset();
+      (gutterRef.current as { measure?: View["measure"] } | null)?.measure?.((_x, _y, _width, _height, _pageX, top) => {
+        current.gutterTop = top;
+      });
+      body.measure((top, height) => { current.viewport = { top, height }; });
+    }
     if (touch) {
       timer.current = setTimeout(() => {
         timer.current = null;
-        if (gesture.current) gesture.current.active = true;
+        if (gesture.current !== current) return;
+        current.active = true;
+        if (body) {
+          holding.current = true;
+          body.hold(true);
+        }
         select(y);
       }, HOLD_MS);
     } else select(y);
@@ -111,14 +181,14 @@ export function useLineSelection({ enabled, lines, tops, bottom, contentRef }: {
   const move = (pageY: number) => {
     const current = gesture.current;
     if (!current) return;
-    const delta = pageY - current.pageY;
-    if (!current.active && Math.abs(delta) > MOVE_SLOP) {
+    current.delta = pageY - current.pageY;
+    if (!current.active && Math.abs(current.delta) > MOVE_SLOP) {
       stopTimer();
       gesture.current = null;
       return;
     }
-    current.focusY = current.y + delta;
-    select(current.focusY);
+    track(current);
+    if (current.active && overshoot(current) !== 0) follow();
   };
   const finish = () => {
     stopTimer();
@@ -265,6 +335,8 @@ const styles = StyleSheet.create({
   // The floating controls' frame (float.ts) at a touch target's height.
   menu: { height: MENU_HEIGHT, borderWidth: 1, borderRadius: FLOAT.radius },
   raise: { flex: 1, padding: FLOAT.inset, flexDirection: "row" },
-  button: { flex: 1, minWidth: 64, paddingHorizontal: 14, borderRadius: FLOAT.itemRadius, flexDirection: "row", gap: FLOAT.iconText, justifyContent: "center", alignItems: "center" },
+  // Sized by its icon and label: a `flex: 1` item in a frame sized by its
+  // content shrinks to its minimum on iOS and Android, and the label spills out.
+  button: { minWidth: 64, paddingHorizontal: 14, borderRadius: FLOAT.itemRadius, flexDirection: "row", gap: FLOAT.iconText, justifyContent: "center", alignItems: "center" },
   label: { fontSize: 13, fontWeight: "500" },
 });

@@ -1,5 +1,8 @@
-import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View,
+  type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle,
+} from "react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
 import { selectionSurface } from "../components/selection-actions";
@@ -11,6 +14,7 @@ import { SafeInset } from "./safe-inset";
 import { PHONE_CHROME, pressPreviewFrame } from "./press-preview-placement";
 import { ProseSelectionContext } from "./prose-text";
 import { HScroll } from "./h-scroll";
+import { PreviewScrollerContext, type PreviewScroller } from "./preview-scroller";
 import { ToolbarButton, ToolbarIcon, TooltipAlignContext } from "./toolbar-button";
 import { Glyph } from "../components/glyph";
 
@@ -377,12 +381,13 @@ export function HoverPreviewBody({ children }: { children: ReactNode }) {
   const actions = useContext(PreviewActionsContext);
   const wrap = actions?.wrap;
   const maximized = actions?.maximized ?? false;
+  const scroller = usePreviewScroller();
   // Lines keep their length; the body scrolls sideways, with a track under it
   // only while it is wider than the panel. The track keeps clear of the last
   // line's descenders and sits down in the body's bottom padding, near the
   // panel's edge.
   const content = wrap && !wrap.on ? (
-    <HScroll tokens={wrap.tokens} trackStyle={styles.track} contentContainerStyle={styles.unwrappedScroll}>
+    <HScroll tokens={wrap.tokens} trackStyle={styles.track} contentContainerStyle={styles.unwrappedScroll} scrollEnabled={!scroller.held}>
       <View style={[styles.unwrapped, Platform.OS !== "web" && styles.unwrappedNative]}>{children}</View>
     </HScroll>
   ) : children;
@@ -390,12 +395,53 @@ export function HoverPreviewBody({ children }: { children: ReactNode }) {
     // The panel's height is capped; the body scrolls inside it. Its text takes
     // a long press as the start of a selection, with a cursor and handles.
     return (
-      <ScrollView testID="hover-preview-body" style={styles.pressBody} contentContainerStyle={styles.pressBodyContent}>
-        <ProseSelectionContext.Provider value>{content}</ProseSelectionContext.Provider>
+      <ScrollView ref={scroller.ref} testID="hover-preview-body" style={styles.pressBody} contentContainerStyle={styles.pressBodyContent}
+        scrollEnabled={!scroller.held} scrollEventThrottle={16} {...scroller.props}>
+        <PreviewScrollerContext.Provider value={scroller.value}>
+          <ProseSelectionContext.Provider value>{content}</ProseSelectionContext.Provider>
+        </PreviewScrollerContext.Provider>
       </ScrollView>
     );
   }
   return <View testID="hover-preview-body" style={[styles.body, maximized && styles.bodyFill]}>{content}</View>;
+}
+
+/**
+ * The phone body's scroller as a gesture inside it sees it. A held body
+ * scrolls only by `scrollBy`, so its offset is kept here and the scroll
+ * events still on their way from before the hold are ignored.
+ */
+function usePreviewScroller() {
+  const ref = useRef<ScrollView>(null);
+  const [held, setHeld] = useState(false);
+  const state = useRef({ held: false, offset: 0, viewport: 0, content: 0 });
+  const value = useMemo<PreviewScroller>(() => ({
+    hold(on) {
+      state.current.held = on;
+      setHeld(on);
+    },
+    measure(done) {
+      (ref.current as unknown as View | null)?.measure?.((_x, _y, _width, height, _pageX, pageY) => done(pageY, height));
+    },
+    offset: () => state.current.offset,
+    scrollBy(delta) {
+      const current = state.current;
+      const next = Math.max(0, Math.min(current.content - current.viewport, current.offset + delta));
+      const moved = next - current.offset;
+      if (moved === 0) return 0;
+      current.offset = next;
+      ref.current?.scrollTo({ y: next, animated: false });
+      return moved;
+    },
+  }), []);
+  const props = useMemo(() => ({
+    onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
+      if (!state.current.held) state.current.offset = event.nativeEvent.contentOffset.y;
+    },
+    onLayout(event: LayoutChangeEvent) { state.current.viewport = event.nativeEvent.layout.height; },
+    onContentSizeChange(_width: number, height: number) { state.current.content = height; },
+  }), []);
+  return { ref, held, value, props };
 }
 
 const styles = StyleSheet.create({

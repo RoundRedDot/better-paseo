@@ -7,10 +7,11 @@ import type { View } from "react-native";
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/react-native", () => ({ copyText: vi.fn(), useToast: () => ({ show() {}, error() {} }) }));
 import { useLineSelection } from "../../client/ui/line-selection";
+import { PreviewScrollerContext, type PreviewScroller } from "../../client/ui/preview-scroller";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const platform = globalThis as { __rnMockOS?: string };
-afterEach(() => { delete platform.__rnMockOS; vi.useRealTimers(); });
+afterEach(() => { delete platform.__rnMockOS; vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 // The DOM is a system boundary: only event delivery, geometry, pointer
 // capture, the text's nodes and the page selection are supplied here.
@@ -22,6 +23,8 @@ class Surface extends EventTarget {
   contains(target: unknown): boolean { return target === this || this.children.some((child) => child.contains(target)); }
   getBoundingClientRect() { return { top: 100 }; }
   setPointerCapture() {}
+  /** A native view's place on screen, 100pt down like its client rect. */
+  measure(done: (...values: number[]) => void) { done(0, 0, 40, 50, 0, 100); }
 }
 class TextNode extends Surface {
   constructor(public nodeValue: string) { super(); }
@@ -50,7 +53,7 @@ function fire(node: EventTarget, type: string, values: Record<string, unknown> =
   return event;
 }
 
-function mount(os: string, tops = [0, 10, 30, 40]) {
+function mount(os: string, tops = [0, 10, 30, 40], scroller: PreviewScroller | null = null) {
   platform.__rnMockOS = os;
   const doc = new FakeDocument();
   const gutter = new Surface();
@@ -65,11 +68,13 @@ function mount(os: string, tops = [0, 10, 30, 40]) {
     current = useLineSelection({ enabled, lines, tops, bottom: 50, contentRef });
     return React.createElement("View", { ref: current.gutterRef, testID: "gutter" });
   }
+  const Root = (props: { lines?: string[]; enabled?: boolean }) =>
+    React.createElement(PreviewScrollerContext.Provider, { value: scroller }, React.createElement(Harness, props));
   let renderer!: ReturnType<typeof TestRenderer.create>;
   act(() => {
-    renderer = TestRenderer.create(React.createElement(Harness), { createNodeMock: () => gutter });
+    renderer = TestRenderer.create(React.createElement(Root), { createNodeMock: () => gutter });
   });
-  return { doc, gutter, content, runs, renderer, Harness, get state() { return current; },
+  return { doc, gutter, content, runs, renderer, Harness: Root, get state() { return current; },
     close() { act(() => renderer.unmount()); } };
 }
 
@@ -129,6 +134,51 @@ describe("gutter line selection", () => {
       // No room above or below the range: Copy sits on its top.
       expect(view.state.menuTop).toBe(16);
       expect(view.doc.selection.set).toEqual([]);
+    } finally { view.close(); }
+  });
+
+  it("holds the body still under a held finger and scrolls it only past the body's edge", () => {
+    vi.useFakeTimers();
+    const frames: Array<() => void> = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: () => void) => frames.push(callback));
+    vi.stubGlobal("cancelAnimationFrame", () => { frames.length = 0; });
+    const runFrame = () => act(() => { frames.shift()?.(); });
+    // The body shows 50..150 on screen and scrolls up to 9pt; the gutter is at 100.
+    let offset = 0;
+    const scroller: PreviewScroller = {
+      hold: vi.fn(),
+      measure: (done) => done(50, 100),
+      offset: () => offset,
+      scrollBy(delta) {
+        const next = Math.max(0, Math.min(9, offset + delta));
+        const moved = next - offset;
+        offset = next;
+        return moved;
+      },
+    };
+    const view = mount("ios", [0, 10, 20, 60], scroller);
+    try {
+      act(() => view.state.gutterProps.onResponderGrant!({ nativeEvent: { locationY: 11, pageY: 111 } } as never));
+      expect(scroller.hold).not.toHaveBeenCalled();
+      act(() => { vi.advanceTimersByTime(400); });
+      expect(scroller.hold).toHaveBeenLastCalledWith(true);
+      // Inside the body the lines stay where they are.
+      act(() => view.state.gutterProps.onResponderMove!({ nativeEvent: { pageY: 139 } } as never));
+      expect(frames).toHaveLength(0);
+      expect(view.state.range).toEqual({ from: 1, to: 2 });
+      // Just past the bottom edge it scrolls on each frame, and the range
+      // takes in the line that scrolls under the finger.
+      act(() => view.state.gutterProps.onResponderMove!({ nativeEvent: { pageY: 151 } } as never));
+      expect(view.state.range).toEqual({ from: 1, to: 2 });
+      for (let index = 0; index < 4; index++) runFrame();
+      expect(offset).toBe(9);
+      expect(view.state.range).toEqual({ from: 1, to: 3 });
+      // At the end of the content the frames stop.
+      runFrame();
+      expect(frames).toHaveLength(0);
+      act(() => view.state.gutterProps.onResponderRelease!({} as never));
+      expect(scroller.hold).toHaveBeenLastCalledWith(false);
+      expect(view.state.selectedText).toBe("  wrapped\n\nlast");
     } finally { view.close(); }
   });
 
