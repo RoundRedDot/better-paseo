@@ -23,6 +23,7 @@ import { HoverPreviewHeader } from "../../client/ui/hover-preview";
 import { classifyTool, type ToolKind } from "../../client/tools/classify";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { sourceLineTops } from "../../client/ui/preview-lines";
+import { SyntaxHighlightBlock } from "../../client/components/syntax-highlight";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -311,6 +312,25 @@ describe("preview line numbers and shading", () => {
     const data = classifyTool({ name: "Edit", status: "completed", detail: { type: "edit", filePath: "/w/a.ts", unifiedDiff: diff } });
     const drawn = previewLines(React.createElement(ToolCallout, { data, tokens }));
     expect(drawn.placed && drawn.numbers?.map(([number]) => number)).toEqual(["", "4", "4", "5"]);
+  });
+
+  it("draws a diff built from an edit's old and new text without inventing file line numbers", () => {
+    updateEnhancerPreferences({ previewLineNumbers: true });
+    const data = classifyTool({ name: "Edit", status: "completed", detail: { type: "edit", filePath: "/w/a.ts", oldString: "keep\nold", newString: "keep\nnew" } });
+    expect(previewLines(React.createElement(ToolCallout, { data, tokens }))).toMatchObject({
+      placed: true, content: " keep\n-old\n+new", numbers: null,
+    });
+    let row!: ReturnType<typeof TestRenderer.create>;
+    act(() => { row = TestRenderer.create(React.createElement(ToolCallout, { data, tokens, expanded: true, onExpandedChange: () => {} })); });
+    const block = row.root.findByType(SyntaxHighlightBlock);
+    expect(block.props).toMatchObject({ code: " keep\n-old\n+new", language: "diff", showLineNumbers: false });
+    expect(textOf(row.toJSON())).not.toContain("[Edit: diff applied]");
+    act(() => row.unmount());
+  });
+
+  it("draws an edit that only added text as added lines", () => {
+    const data = classifyTool({ name: "Edit", status: "completed", detail: { type: "edit", filePath: "/w/a.ts", newString: "one\ntwo" } });
+    expect(previewOf(React.createElement(ToolCallout, { data, tokens }))).toContain("+one\n+two");
   });
 
   it("keeps command output coloured in one text", () => {

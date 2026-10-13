@@ -87,12 +87,16 @@ export function countLines(text: string | undefined): number {
   return trimmed === "" ? 0 : trimmed.split("\n").length;
 }
 
-/** Added and removed lines of a unified diff; file headers are not counted. */
-export function countDiff(diff: string): { added: number; removed: number } {
+/**
+ * Added and removed lines of a unified diff; file headers are not counted.
+ * A diff built from an edit's text has none, so there a `--- x` row is a
+ * removed `-- x` line.
+ */
+export function countDiff(diff: string, fileHeaders = true): { added: number; removed: number } {
   let added = 0;
   let removed = 0;
   for (const line of diff.split("\n")) {
-    if (line.startsWith("+++") || line.startsWith("---")) continue;
+    if (fileHeaders && (line.startsWith("+++") || line.startsWith("---"))) continue;
     if (line.startsWith("+")) added += 1;
     else if (line.startsWith("-")) removed += 1;
   }
@@ -286,10 +290,8 @@ function summarizeKind(view: ToolCallView): ToolSummary {
     }
     case "edit": {
       if (view.diff) {
-        const { added, removed } = countDiff(view.diff);
+        const { added, removed } = countDiff(view.diff, !view.diffFromText);
         meta.push(`+${added} −${removed}`);
-      } else if (view.newString !== undefined || view.oldString !== undefined) {
-        meta.push(`+${countLines(view.newString)} −${countLines(view.oldString)}`);
       }
       return path("Edit", view, meta, tone);
     }

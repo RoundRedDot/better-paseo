@@ -110,6 +110,18 @@ describe("tool copy plan", () => {
     expect(plan.menu.map((entry) => entry.id)).toEqual(["patch", "new-content"]);
   });
 
+  it("copies an edit's path, the diff built from its text, and its new text", () => {
+    const plan = toolCopyPlan(
+      classifyTool({ name: "Edit", status: "completed", detail: { type: "edit", filePath: "/w/a.ts", oldString: "a\nb", newString: "a\nB" } }),
+      resolve,
+    );
+    expect(plan.primary?.text).toBe("/w/a.ts");
+    expect(plan.menu.map((entry) => [entry.id, entry.text])).toEqual([
+      ["patch", " a\n-b\n+B"],
+      ["new-content", "a\nB"],
+    ]);
+  });
+
   it("copies a sub-agent's description, then its prompt and log", () => {
     const plan = toolCopyPlan(
       classifyTool({

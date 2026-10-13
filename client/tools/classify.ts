@@ -20,6 +20,7 @@ import type {
 } from "../../shared/contracts";
 import { buildHubData } from "../hub-details";
 import { buildGitHubData } from "../github-request";
+import { lineDiff } from "../components/diff-lines";
 
 function extractStringProp(obj: unknown, key: string): string | undefined {
   if (obj && typeof obj === "object" && key in obj) {
@@ -424,6 +425,11 @@ export interface ToolCallView extends Omit<ToolCalloutData, "tool"> {
   limit?: number;
   oldString?: string;
   newString?: string;
+  /**
+   * `diff` was built here from `oldString` and `newString` because the
+   * provider sent none. Its rows carry no file line numbers.
+   */
+  diffFromText?: boolean;
   askQuestion?: string;
   search?: SearchToolData;
   fetch?: FetchToolData;
@@ -710,6 +716,10 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
     title = filePath ? `Edit ${filePath.split(/[/\\]/).pop() || filePath}` : "Edit file";
     extra.oldString = asString(detail.oldString) ?? asString(input.old_string);
     extra.newString = asString(detail.newString) ?? asString(input.new_string);
+    if (!diff && (extra.oldString || extra.newString)) {
+      extra.diff = lineDiff(extra.oldString ?? "", extra.newString ?? "");
+      extra.diffFromText = true;
+    }
   } else if (rawName === "bash" || rawName === "shell" || detailType === "shell") {
     toolKind = rawName === "shell" || detailType === "shell" ? "shell" : "bash";
     title = command ? `$ ${command.trim().slice(0, 55)}` : "Execute command";
