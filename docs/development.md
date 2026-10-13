@@ -78,7 +78,7 @@ What must not reach client code, including client dependencies:
 ## Screenshots
 
 `.showcase/` renders the real components with React Native Web and fixture data. Rebuild every
-`#shot-*` capture after a visual change:
+`#shot-*` capture after a visual change (`SHOT_SCALE=2` renders at 2x, as the README hero `#shot-hero-devices` is):
 
 ```bash
 (cd .showcase && npm install)

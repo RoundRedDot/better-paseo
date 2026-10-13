@@ -49,7 +49,10 @@ const browser = await chromium.launch({ executablePath: chromePath, headless: tr
 // Reduced motion rather than a frozen rAF: the plugin's motion honours it, so
 // running dots rest on a static frame and an expanded body is drawn at full
 // opacity instead of on the first frame of its fade.
-const page = await browser.newPage({ viewport: { width: 1000, height: 900 }, reducedMotion: "reduce" });
+const page = await browser.newPage({ viewport: { width: 1900, height: 900 },
+  deviceScaleFactor: Number(process.env.SHOT_SCALE ?? 1),
+  reducedMotion: "reduce",
+});
 let ids = [];
 for (const theme of themes) {
   const themeDir = path.join(out, theme);

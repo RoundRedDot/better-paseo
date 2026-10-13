@@ -7,7 +7,10 @@ whichever provider is behind it (Claude Code, Codex, Oh My Pi and the rest): too
 replies, prompts, checklists and errors become compact, typed, syntax-aware rows that follow the
 active Paseo theme, and the whole timeline renders faster than Paseo does on its own.
 
-![One turn drawn by Better Paseo: a prompt, a file read, a finished background job and the reply](images/hero.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/hero-devices-dark.png">
+  <img alt="Better Paseo on desktop and on a phone: reasoning, shell, read, edit diff, MCP, checklist, Paseo and hub calls, a background job and the reply" src="images/hero-devices-light.png">
+</picture>
 
 > Better Paseo is a fork of [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat),
 > continued from `42b61d8` (2026-09-23). It keeps Beautiful Chat's cards except the Eval, Ask,

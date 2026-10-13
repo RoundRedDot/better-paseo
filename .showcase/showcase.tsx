@@ -40,6 +40,7 @@ import { Glyph } from "../client/components/glyph";
 import { classifyTool, type ToolCallPayload, type ToolCallView } from "../client/tools/classify";
 import { S7_GROUPS } from "./s7-groups";
 import { pluginRoot } from "../client/components/focus-ring";
+import { DEFAULT_WEB_MONO_STACK } from "../client/ui/tokens/typography";
 
 const DARK = {
   surface0: "#0f0f11",
@@ -608,6 +609,325 @@ function Hero() {
 
 
 /**
+ * The README hero: the same plugin cards in a desktop window and on a phone,
+ * framed the way a device capture would show them. The chrome around the
+ * timeline is a plain drawing; everything inside the column is the real
+ * component, the phone on the iOS tokens the settings preview uses.
+ */
+const iosTokens = (() => {
+  const ios = buildThemeTokens(BASE, DEFAULT_PREFERENCES, { platform: "ios" });
+  return { ...ios, fontMono: `${ios.fontMono}, ${DEFAULT_WEB_MONO_STACK}` };
+})();
+const UI_FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif";
+
+function Composer({ radius = 14 }: { radius?: number }) {
+  return (
+    <div
+      style={{
+        border: `1px solid ${BASE.border}`,
+        borderRadius: radius,
+        backgroundColor: BASE.surface1,
+        padding: "12px 14px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        fontFamily: UI_FONT,
+        fontSize: 14,
+        color: BASE.foregroundMuted,
+      }}
+    >
+      <span>Message the agent...</span>
+      <span
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 14,
+          backgroundColor: BASE.foreground,
+          color: BASE.surface0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 15,
+        }}
+      >
+        &#8593;
+      </span>
+    </div>
+  );
+}
+
+function SidebarRow({ label, active, dot }: { label: string; active?: boolean; dot?: string }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "6px 10px",
+        borderRadius: 7,
+        backgroundColor: active ? BASE.surface2 : "transparent",
+        color: active ? BASE.foreground : BASE.foregroundMuted,
+        fontFamily: UI_FONT,
+        fontSize: 13,
+      }}
+    >
+      <span style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: dot ?? "transparent" }} />
+      {label}
+    </div>
+  );
+}
+
+function DesktopTimeline() {
+  const envelope = parseSystemEnvelope(JOB_NOTICE);
+  const t = tokens;
+  return (
+    <View {...pluginRoot} style={{ gap: 10 }}>
+      <UserMessage
+        text="I can't click on URLs in the assistant responses."
+        timestamp={new Date("2026-09-15T22:41:00Z")}
+        tokens={t}
+        usage={{ inputTokens: 270, cachedInputTokens: 36211627, outputTokens: 62024 }}
+      />
+      <ReasoningTrace data={reasoning} tokens={t} />
+      <ToolCallout data={bash} tokens={t} />
+      <ToolCallout data={read} tokens={t} onRevealPath={() => {}} />
+      <ToolCallout data={edit} tokens={t} onRevealPath={() => {}} defaultExpanded />
+      <ToolCallout data={mcp} tokens={t} />
+      <TaskList data={tasks} tokens={t} />
+      {envelope ? <SystemCard envelope={envelope} tokens={t} /> : null}
+      <View>
+        <MarkdownView text={HERO_REPLY} tokens={t} variant="document" />
+        <AssistantFooter text={HERO_REPLY} at={new Date("2026-09-15T22:47:12Z")} tokens={t} />
+      </View>
+    </View>
+  );
+}
+
+function DesktopWindow() {
+  return (
+    <div
+      style={{
+        width: 1240,
+        borderRadius: 12,
+        overflow: "hidden",
+        border: `1px solid ${THEME === "light" ? "rgba(0,0,0,0.18)" : "rgba(255,255,255,0.14)"}`,
+        boxShadow: "0 30px 80px rgba(0,0,0,0.28), 0 6px 18px rgba(0,0,0,0.14)",
+        backgroundColor: BASE.surface0,
+      }}
+    >
+      <div style={{ display: "flex", height: 1200 }}>
+        <div
+          style={{
+            width: 232,
+            flexShrink: 0,
+            backgroundColor: BASE.surface1,
+            borderRight: `1px solid ${BASE.border}`,
+            padding: "14px 10px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          }}
+        >
+          <div style={{ display: "flex", gap: 8, padding: "2px 6px 18px" }}>
+            {["#ff5f57", "#febc2e", "#28c840"].map((c) => (
+              <span key={c} style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: c }} />
+            ))}
+          </div>
+          <div style={{ fontFamily: UI_FONT, fontSize: 11, fontWeight: 600, color: BASE.foregroundMuted, padding: "4px 10px" }}>
+            better-paseo
+          </div>
+          <SidebarRow label="Clickable links" active dot={BASE.statusSuccess} />
+          <SidebarRow label="Table copy menu" dot={BASE.accent} />
+          <SidebarRow label="Replay benchmark" />
+          <div style={{ fontFamily: UI_FONT, fontSize: 11, fontWeight: 600, color: BASE.foregroundMuted, padding: "16px 10px 4px" }}>
+            paseo
+          </div>
+          <SidebarRow label="Plugin SDK docs" />
+          <SidebarRow label="Relay reconnect" dot={BASE.statusWarning} />
+        </div>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <div
+            style={{
+              height: 46,
+              flexShrink: 0,
+              borderBottom: `1px solid ${BASE.border}`,
+              display: "flex",
+              alignItems: "center",
+              padding: "0 20px",
+              gap: 10,
+              fontFamily: UI_FONT,
+              fontSize: 13,
+              color: BASE.foreground,
+            }}
+          >
+            <span style={{ fontWeight: 600 }}>Clickable links</span>
+            <span style={{ color: BASE.foregroundMuted }}>Claude Code</span>
+          </div>
+          <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
+            <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, display: "flex", justifyContent: "center" }}>
+              <div style={{ width: 760, padding: "0 20px 16px" }}>
+                <DesktopTimeline />
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "center", padding: "0 20px 18px" }}>
+            <div style={{ width: 720 }}>
+              <Composer />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PhoneTimeline() {
+  const t = iosTokens;
+  return (
+    <View {...pluginRoot} style={{ gap: 10 }}>
+      <UserMessage
+        text="Ship the GitHub check before the merge."
+        timestamp={new Date("2026-09-15T22:51:00Z")}
+        tokens={t}
+        usage={{ inputTokens: 410, cachedInputTokens: 1200000, outputTokens: 8200 }}
+      />
+      <ToolCallout data={git} tokens={t} defaultExpanded />
+      {githubCalls.slice(0, 2).map((call) => (
+        <ToolCallout key={call.id} data={call} tokens={t} />
+      ))}
+      <ToolCallout
+        data={{ id: "paseo", tool: "paseo", title: "Paseo: create_agent", status: "completed", paseo: paseoTool }}
+        tokens={t}
+        defaultExpanded
+      />
+      <TaskList data={tasks} tokens={t} />
+      <HubCallout data={hubMessage} tokens={t} />
+      <View>
+        <MarkdownView text={MOBILE_REPLY} tokens={t} variant="document" />
+        <AssistantFooter text={MOBILE_REPLY} at={new Date("2026-09-15T22:58:40Z")} tokens={t} />
+      </View>
+    </View>
+  );
+}
+
+const MOBILE_REPLY = `Checks are green and the reviewer agent is on it.
+
+| Check | Result |
+| --- | --- |
+| typecheck | pass |
+| vitest | 412 passed |`;
+
+function Phone() {
+  const W = 390;
+  const H = 844;
+  return (
+    <div
+      style={{
+        padding: 12,
+        borderRadius: 64,
+        backgroundColor: "#1b1b1f",
+        boxShadow: "0 30px 80px rgba(0,0,0,0.35), inset 0 0 0 2px #3a3a40",
+      }}
+    >
+      <div
+        style={{
+          width: W,
+          height: H,
+          borderRadius: 52,
+          overflow: "hidden",
+          backgroundColor: BASE.surface0,
+          display: "flex",
+          flexDirection: "column",
+          position: "relative",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: 11,
+            left: (W - 124) / 2,
+            width: 124,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: "#000",
+            zIndex: 2,
+          }}
+        />
+        <div
+          style={{
+            height: 54,
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "4px 34px 0 44px",
+            fontFamily: UI_FONT,
+            fontSize: 16,
+            fontWeight: 600,
+            color: BASE.foreground,
+          }}
+        >
+          <span>9:41</span>
+          <span style={{ fontSize: 13, letterSpacing: 1 }}>&#9679;&#9679;&#9679; 100%</span>
+        </div>
+        <div
+          style={{
+            height: 44,
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            padding: "0 16px",
+            gap: 12,
+            borderBottom: `1px solid ${BASE.border}`,
+            fontFamily: UI_FONT,
+            color: BASE.foreground,
+          }}
+        >
+          <span style={{ fontSize: 24, color: BASE.accent, lineHeight: "24px" }}>&#8249;</span>
+          <span style={{ fontSize: 16, fontWeight: 600 }}>GitHub check</span>
+          <span style={{ fontSize: 13, color: BASE.foregroundMuted }}>Codex</span>
+        </div>
+        <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "0 14px 12px" }}>
+            <PhoneTimeline />
+          </div>
+        </div>
+        <div style={{ padding: "0 12px 34px", flexShrink: 0 }}>
+          <Composer radius={22} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HeroDevices() {
+  return (
+    <div
+      id="shot-hero-devices"
+      style={{
+        width: 1860,
+        padding: "56px 60px",
+        background:
+          THEME === "light"
+            ? "linear-gradient(135deg, #e9eefc 0%, #f4f1fb 50%, #eaf6f1 100%)"
+            : "linear-gradient(135deg, #161a2b 0%, #1d1726 50%, #12211c 100%)",
+        display: "flex",
+        alignItems: "flex-end",
+        gap: 40,
+        boxSizing: "border-box",
+      }}
+    >
+      <div id="shot-hero-desktop" style={{ padding: 0 }}>
+        <DesktopWindow />
+      </div>
+      <div id="shot-hero-mobile">
+        <Phone />
+      </div>
+    </div>
+  );
+}
+
+/**
  * The shared primitives from slice S1, on the v2 defaults (no frost, no glow)
  * in both themes. Hover-only states cannot be captured headless, so the
  * header actions are pinned visible on one row instead.
@@ -900,6 +1220,7 @@ function Primitives({ tokens }: { tokens: ExtendedThemeTokens }) {
 function Showcase() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, backgroundColor: "#000" }}>
+      <HeroDevices />
       <Shot id="shot-hero">
         <Hero />
       </Shot>
