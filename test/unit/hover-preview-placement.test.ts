@@ -1,10 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { linesFit, openPreviewLayer } from "../../client/web";
+import { linesFit, openPreviewLayer, scrollsWithin } from "../../client/web";
 
 beforeEach(() => { (globalThis as { __rnMockOS?: string }).__rnMockOS = "web"; });
 afterEach(() => { delete (globalThis as { __rnMockOS?: string }).__rnMockOS; });
+
+/** A node under the panel, in the timeline. */
+const OUTSIDE = { nodeType: 1 };
+
+function listener(target: { addEventListener: { mock: { calls: unknown[][] } } }, name: string) {
+  return target.addEventListener.mock.calls.find(([event]) => event === name)![1] as (event: unknown) => void;
+}
+
+function wheel(target: unknown, deltaY = 40, ctrlKey = false) {
+  return { target, deltaX: 0, deltaY, ctrlKey, preventDefault: vi.fn() };
+}
 
 function layer(contentLeft: number, contentWidth: number, viewportWidth = 1600, anchorWidth = 24,
   options: Parameters<typeof openPreviewLayer>[3] = {}, scrollHeight = 1200) {
@@ -36,7 +47,7 @@ function layer(contentLeft: number, contentWidth: number, viewportWidth = 1600, 
   const panel = {
     style: {} as Record<string, string>, scrollHeight: 1200,
     ownerDocument: { defaultView: view, addEventListener: vi.fn(), removeEventListener: vi.fn() },
-    setAttribute: vi.fn(), showPopover: vi.fn(), hidePopover: vi.fn(), contains: () => true,
+    setAttribute: vi.fn(), showPopover: vi.fn(), hidePopover: vi.fn(), contains: (node: unknown) => node !== OUTSIDE,
     querySelector: vi.fn((selector: string) => selector.includes("hover-preview-body") ? body : closeButton),
     getBoundingClientRect: () => ({ height: 360 }),
   };
@@ -126,6 +137,78 @@ describe("hover preview content bounds", () => {
     (key[1] as (event: unknown) => void)({ key: "Escape" });
     expect(close).toHaveBeenCalledOnce();
     release();
+  });
+});
+
+describe("hover preview dismissal and wheel", () => {
+  it.each([false, true])("closes on a press outside the panel (maximized: %s), not inside it", (maximized) => {
+    const { panel, close, release } = layer(200, 700, 1600, 24, { maximized });
+    const press = listener(panel.ownerDocument, "pointerdown");
+    press({ target: {} });
+    expect(close).not.toHaveBeenCalled();
+    press({ target: OUTSIDE });
+    expect(close).toHaveBeenCalledOnce();
+    release();
+    expect(panel.ownerDocument.removeEventListener).toHaveBeenCalledWith("pointerdown", press, true);
+  });
+  it("keeps the wheel off the timeline under a maximized panel", () => {
+    const { view, close, release } = layer(200, 700, 1600, 24, { maximized: true });
+    const event = wheel(OUTSIDE);
+    listener(view, "wheel")(event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(close).not.toHaveBeenCalled();
+    release();
+  });
+  it("closes a resting panel on a wheel outside it without scrolling the timeline", () => {
+    const { view, close, release } = layer(200, 700, 1600, 24);
+    const event = wheel(OUTSIDE);
+    listener(view, "wheel")(event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+    release();
+  });
+  it("leaves pinch zoom alone", () => {
+    const { view, close, release } = layer(200, 700, 1600, 24, { maximized: true });
+    const event = wheel(OUTSIDE, 40, true);
+    listener(view, "wheel")(event);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+    release();
+  });
+});
+
+describe("scrollsWithin", () => {
+  function tree(scroller: Partial<Record<"scrollTop" | "scrollHeight" | "clientHeight" | "scrollLeft" | "scrollWidth" | "clientWidth", number>>,
+    overflow = "auto") {
+    const styles = new Map<unknown, { overflowX: string; overflowY: string }>();
+    const root = { nodeType: 1, parentNode: null, ownerDocument: { defaultView: { getComputedStyle: (node: unknown) => styles.get(node) } } };
+    const body = { nodeType: 1, parentNode: root, scrollTop: 0, scrollHeight: 300, clientHeight: 300,
+      scrollLeft: 0, scrollWidth: 600, clientWidth: 600, ...scroller };
+    const text = { nodeType: 3, parentNode: body };
+    styles.set(body, { overflowX: overflow, overflowY: overflow });
+    return { root: root as unknown as HTMLElement, text: text as unknown as Node };
+  }
+  it("is false when nothing in the panel can scroll, so the wheel would chain out", () => {
+    const { root, text } = tree({});
+    expect(scrollsWithin(text, root, 0, 40)).toBe(false);
+    expect(scrollsWithin(text, root, 0, -40)).toBe(false);
+  });
+  it("follows the scroller's room in the wheel's direction", () => {
+    const { root, text } = tree({ scrollTop: 0, scrollHeight: 900 });
+    expect(scrollsWithin(text, root, 0, 40)).toBe(true);
+    expect(scrollsWithin(text, root, 0, -40)).toBe(false);
+    const end = tree({ scrollTop: 600, scrollHeight: 900 });
+    expect(scrollsWithin(end.text, end.root, 0, 40)).toBe(false);
+    expect(scrollsWithin(end.text, end.root, 0, -40)).toBe(true);
+  });
+  it("takes a sideways wheel for an unwrapped body", () => {
+    const { root, text } = tree({ scrollWidth: 1200 });
+    expect(scrollsWithin(text, root, 40, 0)).toBe(true);
+    expect(scrollsWithin(text, root, -40, 0)).toBe(false);
+  });
+  it("ignores clipped content that does not scroll", () => {
+    const { root, text } = tree({ scrollHeight: 900 }, "hidden");
+    expect(scrollsWithin(text, root, 0, 40)).toBe(false);
   });
 });
 
