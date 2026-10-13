@@ -279,17 +279,19 @@ function measureWidth(node: unknown, done: (width: number) => void) {
 }
 
 /**
- * The panel's toolbar, above the scrolling body. The content's kind (`icon`)
- * and line wrap sit at the left, `center` (a pager, a picture's size) in the
- * middle, and the content's own buttons on the right, with the window button
+ * The panel's toolbar, above the scrolling body. Line wrap and `left` (a
+ * pager) sit at the left, the content's icon and name or size in the middle,
+ * and the content's own buttons on the right, with the window button
  * always last, at the far right.
  */
-export function HoverPreviewHeader({ tokens, icon, iconLabel, center, children }: {
+export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, children }: {
   tokens: ExtendedThemeTokens;
-  /** A glyph name or the content's own icon, in a button's box at the far left. */
+  /** A glyph name or the content's own icon, beside its name or size in the centre. */
   icon?: ReactNode;
   /** The current tool's type: the icon's hover label and title when the centre is free. */
   iconLabel?: string;
+  /** Controls after the line-wrap button, such as a grouped tool's pager. */
+  left?: ReactNode;
   center?: ReactNode;
   children?: ReactNode;
 }) {
@@ -309,16 +311,7 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, center, children }
       style={[styles.header, { backgroundColor: tokens.v2.surface1, borderBottomColor: tokens.v2.borderSubtle }]}
     >
       <View style={styles.toolbar}>
-        <View style={styles.toolbarStart}>
-          {icon ? (
-            <View testID="hover-preview-icon" style={styles.toolbarIcon}>
-              {iconLabel ? (
-                <ToolbarIcon label={iconLabel} tokens={tokens} align="start">
-                  {typeof icon === "string" ? <Glyph name={icon} size={14} color={tokens.foregroundMuted} /> : icon}
-                </ToolbarIcon>
-              ) : typeof icon === "string" ? <Glyph name={icon} size={14} color={tokens.foregroundMuted} /> : icon}
-            </View>
-          ) : null}
+        <View testID="hover-preview-start" style={styles.toolbarStart}>
           {/* At the panel's left edge: its name opens rightwards. */}
           <TooltipAlignContext.Provider value="start">
             {actions?.wrap ? (
@@ -330,11 +323,21 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, center, children }
                 tokens={tokens}
               />
             ) : null}
+            {left}
           </TooltipAlignContext.Provider>
         </View>
-        {center || iconLabel ? (
+        {icon || center || iconLabel ? (
           <View testID="hover-preview-center" style={styles.toolbarCenter}>
-            {center || (
+            {icon ? (
+              <View testID="hover-preview-icon" style={styles.toolbarIcon}>
+                {iconLabel ? (
+                  <ToolbarIcon label={iconLabel} tokens={tokens} align="center">
+                    {typeof icon === "string" ? <Glyph name={icon} size={14} color={tokens.foregroundMuted} /> : icon}
+                  </ToolbarIcon>
+                ) : typeof icon === "string" ? <Glyph name={icon} size={14} color={tokens.foregroundMuted} /> : icon}
+              </View>
+            ) : null}
+            {center || (iconLabel ? (
               <Text
                 testID="hover-preview-tool-name"
                 selectable={false}
@@ -343,7 +346,7 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, center, children }
               >
                 {iconLabel}
               </Text>
-            )}
+            ) : null)}
           </View>
         ) : null}
         <View style={styles.toolbarEnd}>
@@ -389,7 +392,7 @@ const styles = StyleSheet.create({
   toolbar: { flexDirection: "row", alignItems: "center", gap: space.xs },
   // Equal flexible sides keep the centre slot in the middle of the panel.
   toolbarStart: { flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", gap: space.xs },
-  toolbarCenter: { flexShrink: 0 },
+  toolbarCenter: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: space.xs },
   // The size of a toolbar button, so the glyph lines up with the buttons.
   toolbarIcon: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
   toolbarEnd: { flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: space.xs },
