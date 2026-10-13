@@ -68,7 +68,7 @@ const en = {
   previewPlanFix: "Fix formatPath",
   previewPlanTest: "Run the type check and the path tests",
   previewReply:
-    "Done. Paths in tool rows are now **relative to the workspace**, and copying one still gives the absolute path.\n\n- Fixed the missing `trim()` in `formatPath`\n- `format-path.test.ts`: 31 tests passing\n\n```ts\nformatPath(raw, { mode: \"relative\", roots })\n```\n\nThe options are listed under [Settings](https://github.com/RoundRedDot/better-paseo#settings).",
+    "Done. Paths in tool rows are now **relative to the workspace**, and copying one still gives the absolute path.\n\n- Fixed the missing `trim()` in `formatPath`\n- Added a test for a path outside the worktree\n\n| Check | Before | After |\n| --- | ---: | ---: |\n| Type check | 1 error | 0 |\n| Path tests | 30 / 31 | 31 / 31 |\n\n```ts\nformatPath(raw, { mode: \"relative\", roots })\n```\n\nThe options are listed under [Settings](https://github.com/RoundRedDot/better-paseo#settings).",
 
   sectionGeneral: "General",
   languageTitle: "Language",
@@ -219,7 +219,7 @@ const zh: SettingsStrings = {
   previewPlanFix: "修复 formatPath",
   previewPlanTest: "跑类型检查和路径测试",
   previewReply:
-    "改好了。工具行里的路径现在**相对于工作区**显示，复制时仍然是绝对路径。\n\n- 补上了 `formatPath` 里漏掉的 `trim()`\n- `format-path.test.ts`：31 个测试全部通过\n\n```ts\nformatPath(raw, { mode: \"relative\", roots })\n```\n\n各项选项的说明见 [设置文档](https://github.com/RoundRedDot/better-paseo/blob/main/README-zh.md#设置)。",
+    "改好了。工具行里的路径现在**相对于工作区**显示，复制时仍然是绝对路径。\n\n- 补上了 `formatPath` 里漏掉的 `trim()`\n- 为 worktree 之外的路径补了测试\n\n| 检查 | 修改前 | 修改后 |\n| --- | ---: | ---: |\n| 类型检查 | 1 个错误 | 0 |\n| 路径测试 | 30 / 31 | 31 / 31 |\n\n```ts\nformatPath(raw, { mode: \"relative\", roots })\n```\n\n各项选项的说明见 [设置文档](https://github.com/RoundRedDot/better-paseo/blob/main/README-zh.md#设置)。",
 
   sectionGeneral: "通用",
   languageTitle: "语言",
