@@ -76,6 +76,7 @@ describe("full hover preview content", () => {
     await exercisePreview(React.createElement(ToolCallout, { data, tokens }), async (body) => {
       const center = body.root.findByProps({ testID: "hover-preview-center" });
       const title = center.findByProps({ testID: "hover-preview-tool-name" });
+      expect(center.findByProps({ testID: "hover-preview-icon" }).findByType(RowIcon)).toBeDefined();
       expect(textOf(title)).toBe(name);
       expect(title.props.numberOfLines).toBe(1);
     });
@@ -116,12 +117,12 @@ describe("full hover preview content", () => {
     await exercisePreview(React.createElement(ToolCallout, { data: calls[0]!, groupCalls: calls, tokens }), async (body) => {
       const kind = () => body.root.findByProps({ testID: "hover-preview-icon" }).findByType(RowIcon).props.name;
       expect(kind()).toBe("FileText");
-      expect(textOf(body.root.findByProps({ testID: "hover-preview-center" }))).toBe("1 / 2");
-      expect(body.root.findAllByProps({ testID: "hover-preview-tool-name" })).toHaveLength(0);
+      expect(textOf(body.root.findByProps({ testID: "hover-preview-start" }))).toBe("1 / 2");
+      expect(textOf(body.root.findByProps({ testID: "hover-preview-center" }))).toBe("Read");
       await press(body, "Next operation");
       expect(kind()).toBe("Pencil");
-      expect(textOf(body.root.findByProps({ testID: "hover-preview-center" }))).toBe("2 / 2");
-      expect(body.root.findAllByProps({ testID: "hover-preview-tool-name" })).toHaveLength(0);
+      expect(textOf(body.root.findByProps({ testID: "hover-preview-start" }))).toBe("2 / 2");
+      expect(textOf(body.root.findByProps({ testID: "hover-preview-center" }))).toBe("Edit");
     });
   });
 
