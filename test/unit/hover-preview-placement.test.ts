@@ -1,10 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { bindPreviewPointer, dropSelectionIn, linesFit, openPreviewLayer, scrollsWithin } from "../../client/web";
+import { bindPreviewPointer, dropSelectionIn, linesFit, openPreviewLayer, PREVIEW_REVEAL, scrollsWithin } from "../../client/web";
 
+/** The system's reduce-motion setting and the anchor row's top, for the next `layer`. */
+let reduceMotion = false;
+let anchorTop = 100;
 beforeEach(() => { (globalThis as { __rnMockOS?: string }).__rnMockOS = "web"; });
-afterEach(() => { delete (globalThis as { __rnMockOS?: string }).__rnMockOS; });
+afterEach(() => {
+  delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+  reduceMotion = false;
+  anchorTop = 100;
+});
 
 /** A node under the panel, in the timeline. */
 const OUTSIDE = { nodeType: 1 };
@@ -24,6 +31,7 @@ function layer(contentLeft: number, contentWidth: number, viewportWidth = 1600, 
   const disconnectResize = vi.fn();
   const disconnectMutation = vi.fn();
   const view = { innerWidth: viewportWidth, innerHeight: 900, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    matchMedia: vi.fn(() => ({ matches: reduceMotion })),
     ResizeObserver: class {
       constructor(callback: () => void) { resized = callback; }
       observe = vi.fn();
@@ -44,7 +52,7 @@ function layer(contentLeft: number, contentWidth: number, viewportWidth = 1600, 
   const anchor = {
     closest: vi.fn((selector: string) => selector === "[data-window-content]"
       ? { getBoundingClientRect: () => viewport } : content),
-    getBoundingClientRect: () => ({ left: contentLeft - 8, right: contentLeft - 8 + anchorWidth, top: 100, bottom: 126 }),
+    getBoundingClientRect: () => ({ left: contentLeft - 8, right: contentLeft - 8 + anchorWidth, top: anchorTop, bottom: anchorTop + 26 }),
   };
   const panel = {
     style: {} as Record<string, string>, scrollHeight: 1200,
@@ -52,6 +60,7 @@ function layer(contentLeft: number, contentWidth: number, viewportWidth = 1600, 
     setAttribute: vi.fn(), showPopover: vi.fn(), hidePopover: vi.fn(), contains: (node: unknown) => node !== OUTSIDE,
     querySelector: vi.fn((selector: string) => selector.includes("hover-preview-body") ? body : closeButton),
     getBoundingClientRect: () => ({ height: 360 }),
+    animate: vi.fn(),
   };
   const close = vi.fn();
   const release = openPreviewLayer(panel, anchor, close, options);
@@ -134,6 +143,38 @@ describe("hover preview content bounds", () => {
     (key[1] as (event: unknown) => void)({ key: "Escape" });
     expect(close).toHaveBeenCalledOnce();
     release();
+  });
+});
+
+describe("hover preview entrance", () => {
+  it("fades in on the compositor, sliding down from a row above it", () => {
+    const { panel, view, release } = layer(200, 700);
+    expect(view.matchMedia).toHaveBeenCalledWith("(prefers-reduced-motion: reduce)");
+    expect(panel.animate).toHaveBeenCalledOnce();
+    const [frames, timing] = panel.animate.mock.calls[0]!;
+    expect(frames).toEqual([
+      { opacity: 0, transform: `translateY(-${PREVIEW_REVEAL.shift}px)` },
+      { opacity: 1, transform: "none" },
+    ]);
+    // No fill, so nothing outlives the entrance.
+    expect(timing).toEqual({ duration: PREVIEW_REVEAL.ms, easing: expect.any(String) });
+    release();
+  });
+  it("slides up when it opens above its row", () => {
+    anchorTop = 800;
+    const { panel, release } = layer(200, 700);
+    expect(Number.parseFloat(panel.style.top!)).toBeLessThan(anchorTop);
+    expect(panel.animate.mock.calls[0]![0][0]).toEqual({ opacity: 0, transform: `translateY(${PREVIEW_REVEAL.shift}px)` });
+    release();
+  });
+  it("appears at once when maximized or when the system reduces motion", () => {
+    const maximized = layer(200, 700, 1600, 24, { maximized: true });
+    expect(maximized.panel.animate).not.toHaveBeenCalled();
+    maximized.release();
+    reduceMotion = true;
+    const reduced = layer(200, 700);
+    expect(reduced.panel.animate).not.toHaveBeenCalled();
+    reduced.release();
   });
 });
 
