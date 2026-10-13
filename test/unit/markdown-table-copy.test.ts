@@ -83,7 +83,11 @@ describe("Markdown table copy", () => {
       const labels = () => renderer!.root.findAll((node) => String(node.type) === "Text"
         && (node.children[0] === label || node.children[0] === copied));
       expect(labels()).toHaveLength(0);
+      expect(StyleSheet.flatten(buttons()[0]!.props.style)).toMatchObject({
+        width: 24, height: 24, borderWidth: 1, borderColor: tokens.v2.border,
+      });
       act(() => { buttons()[0]!.props.onHoverIn(); });
+      expect(StyleSheet.flatten(buttons()[0]!.props.style).borderColor).toBe(tokens.foregroundMuted);
       act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS - 1); });
       expect(labels()).toHaveLength(0);
       act(() => { vi.advanceTimersByTime(1); });
@@ -95,6 +99,7 @@ describe("Markdown table copy", () => {
       expect(labels()[0]!.children).toEqual([copied]);
       act(() => { buttons()[0]!.props.onHoverOut(); });
       expect(labels()).toHaveLength(0);
+      expect(StyleSheet.flatten(buttons()[0]!.props.style).borderColor).toBe(tokens.v2.border);
       act(() => { buttons()[0]!.props.onHoverIn(); });
       act(() => { buttons()[0]!.props.onHoverOut(); });
       act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
