@@ -24,7 +24,7 @@ active Paseo theme, and the whole timeline renders faster than Paseo does on its
   than Beautiful Chat. [Charts below](#performance).
 - **Memory close to no plugin.** On the Web production build, after a forced GC, the JS heap
   stays within 0–4 MB of no plugin; a long reply uses 41 MB less. Beautiful Chat reaches
-  239–266 MB in tool-output scenarios. [Memory comparison below](#performance).
+  239–266 MB in tool-output scenarios. [Memory comparison below](#memory-comparison).
 - **One row per tool call.** Calls start collapsed to a 26pt row with a typed summary, open on a
   press, and stay open or closed across completion, history and remounts.
 - **Streaming that does not jump.** Replies are parsed block by block; a half-written code fence
@@ -69,12 +69,6 @@ tables, reasoning, large diffs, shell logs and a 100-turn history.
   1,488 and takes 0.70 s.
 - Streaming text gains the most: a long reply drops from 7.07 s (no plugin) and 8.42 s (Beautiful
   Chat) to 3.67 s.
-
-![JS heap and DOM nodes after a forced GC](docs/perf/readme/web-memory.en.svg)
-
-Memory is read after a forced garbage collection. Better Paseo's JS heap stays within 0–4 MB of no
-plugin, about the size of the plugin code, and a long reply needs 41 MB less. Beautiful Chat reaches
-239–266 MB where it expands tool output.
 
 Cumulative layout shift while streaming (lower is better):
 
@@ -162,6 +156,36 @@ Chat, with the history of each measurement: [`docs/fork-vs-upstream.md`](docs/fo
   marks and the Inter face are served by the daemon on demand (`marks.bitmaps`, `fonts.embedded`),
   the embedded Iosevka faces are gone, and the bundle is kept ASCII so Hermes stores it as one-byte
   text.
+
+---
+
+## Memory comparison
+
+Web production build, measured on 2026-10-13: each value is the median of 3 runs after a forced GC.
+The table reports JS heap usage, not total app or process memory. Differences are Better Paseo
+minus the baseline, calculated before rounding; negative means less memory. All values are in MB.
+
+![JS heap and DOM nodes after a forced GC](docs/perf/readme/web-memory.en.svg)
+
+Compared with no plugin, a long reply uses 41.1 MB less; the other scenarios differ by −2.5 to
++3.7 MB. Compared with Beautiful Chat, large diffs, 100-turn history and 20 file reads use
+105.0–126.9 MB less. Beautiful Chat expands running tools by default; Better Paseo keeps them collapsed.
+
+| Scenario | No plugin | Beautiful Chat | Better Paseo | vs no plugin | vs Beautiful Chat |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Code block streaming | 139.1 | 138.3 | **136.6** | -2.5 | -1.7 |
+| Large diff | 131.6 | 239.5 | **134.5** | +2.9 | -105.0 |
+| 100-turn history | 140.3 | 264.7 | **141.9** | +1.6 | -122.8 |
+| Long reply | 180.8 | 141.4 | **139.8** | -41.1 | -1.6 |
+| Mixed turn | 136.8 | 146.0 | **137.1** | +0.3 | -8.9 |
+| 20 file reads | 136.0 | 265.9 | **139.0** | +3.1 | -126.9 |
+| Reasoning, prose | 133.9 | 137.3 | **135.7** | +1.9 | -1.6 |
+| Reasoning, sections | 133.0 | 136.7 | **136.7** | +3.7 | 0.0 |
+| Large shell log | 133.1 | 151.6 | **135.4** | +2.3 | -16.2 |
+| Table streaming | 136.7 | 137.0 | **136.7** | 0.0 | -0.3 |
+| Expanded tool | 135.2 | 147.2 | **137.8** | +2.6 | -9.4 |
+
+Raw measurements: [`docs/bench/native-vs-fork/raw/web-2026-10-13`](docs/bench/native-vs-fork/raw/web-2026-10-13).
 
 ---
 
