@@ -11,7 +11,7 @@ import { useInputCapabilities } from "./use-input-capabilities";
 import { cssShadow } from "./tokens/css-shadow";
 import { DEFAULT_PREFERENCES, HOVER_DELAY_MS, useEnhancerPreferences } from "../preferences";
 import { SafeInset } from "./safe-inset";
-import { PHONE_CHROME, pressPreviewFrame } from "./press-preview-placement";
+import { phoneChrome, pressPreviewFrame } from "./press-preview-placement";
 import { ProseSelectionContext } from "./prose-text";
 import { HScroll } from "./h-scroll";
 import { PreviewScrollerContext, type PreviewScroller } from "./preview-scroller";
@@ -243,7 +243,7 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
     const { width, height } = event.nativeEvent.layout;
     setStage({ width, height });
   }, []);
-  const frame = rowWidth !== null && stage ? pressPreviewFrame(stage, rowWidth) : null;
+  const frame = rowWidth !== null && stage ? pressPreviewFrame(stage, rowWidth, Platform.OS) : null;
   return (
     <Modal visible transparent animationType="fade" onRequestClose={close} statusBarTranslucent>
       <Pressable
@@ -253,7 +253,7 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
         style={[StyleSheet.absoluteFill, styles.backdrop]}
       />
       <SafeInset pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-        <View onLayout={onStageLayout} pointerEvents="box-none" style={styles.stage}>
+        <View onLayout={onStageLayout} pointerEvents="box-none" style={[styles.stage, stagePadding()]}>
           <HoverPreviewContext.Provider value>
             <PreviewActionsContext.Provider value={{
               maximizable: false,
@@ -276,6 +276,12 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
       </SafeInset>
     </Modal>
   );
+}
+
+/** The stage keeps the header and the composer clear; the panel centres in what is left. */
+function stagePadding(): ViewStyle {
+  const { top, bottom } = phoneChrome(Platform.OS);
+  return { paddingTop: top, paddingBottom: bottom };
 }
 
 function measureWidth(node: unknown, done: (width: number) => void) {
@@ -471,8 +477,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: PHONE_CHROME.top,
-    paddingBottom: PHONE_CHROME.bottom,
   },
   pressPanel: { overflow: "hidden" },
   hidden: { opacity: 0 },
