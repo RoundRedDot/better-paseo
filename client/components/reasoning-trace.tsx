@@ -27,7 +27,8 @@ import {
   type ReasoningSection,
   type ReasoningSegmentation,
 } from "../reasoning/segment";
-import { reasoningHeaderText } from "../reasoning/preview";
+import { plainInline, reasoningHeaderText } from "../reasoning/preview";
+import { fitsRow } from "../tools/detail";
 import { CLAMPED_LINES, splitBodyRuns, type BodyRun } from "../reasoning/paragraphs";
 import { TYPE, UI_SCALE } from "../ui/tokens/typography";
 
@@ -309,7 +310,7 @@ export function ReasoningCard({
   segmentation,
   streaming,
   durationMs,
-  expanded,
+  expanded: expandedProp,
   onToggle,
   tokens,
   compact = false,
@@ -317,6 +318,14 @@ export function ReasoningCard({
   copyText,
 }: ReasoningCardProps) {
   const label = reasoningHeaderText(segmentation, streaming, durationMs);
+  // A finished one-sentence thought is all on the row already: nothing to open.
+  const budget = compact ? DISCLOSURE_HEADER.targetBudget.compact : DISCLOSURE_HEADER.targetBudget.desktop;
+  const inert =
+    !streaming &&
+    segmentation.kind === "prose" &&
+    plainInline(segmentation.body) === label.preview &&
+    fitsRow(label.preview, budget);
+  const expanded = expandedProp && !inert;
   // Owned here, not by the row: an opened card moves the row into `StickyCard`.
   const scrollAnchor = useScrollAnchor(expanded);
   const { copy } = useCopy();
@@ -335,6 +344,7 @@ export function ReasoningCard({
       scrollAnchor={scrollAnchor}
       tokens={tokens}
       compact={compact}
+      inert={inert}
       icon={
         streaming ? (
           <RunningDot color={tokens.accent} accessibilityLabel="Thinking" />
