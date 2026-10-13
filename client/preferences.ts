@@ -3,15 +3,16 @@ import {
   CODE_FONT_SIZE_MAX,
   CODE_FONT_SIZE_MIN,
   clampCodeFontSize,
-  HOVER_DELAYS,
-  HOVER_DELAY_MS,
-  HOVER_DELAY_LABELS,
+  HOVER_DELAY_DEFAULT,
+  HOVER_DELAY_MAX,
+  HOVER_DELAY_MIN,
+  clampHoverDelay,
   preferencesSchema,
   type StoredPreferences,
 } from "../shared/preferences-settings";
 import type { SettingsLanguagePreference } from "./i18n/settings-strings";
 
-export { CODE_FONT_SIZE_MAX, CODE_FONT_SIZE_MIN, clampCodeFontSize, HOVER_DELAYS, HOVER_DELAY_MS, HOVER_DELAY_LABELS };
+export { CODE_FONT_SIZE_MAX, CODE_FONT_SIZE_MIN, clampCodeFontSize, HOVER_DELAY_DEFAULT, HOVER_DELAY_MAX, HOVER_DELAY_MIN, clampHoverDelay };
 export type { StoredPreferences };
 
 export const ACCENT_PRESETS = {
@@ -41,7 +42,6 @@ export type MonoFontPreference = "host" | "iosevka" | "custom";
 export type ToolDetailPreference = "collapsed" | "expand-failed";
 export type PathDisplayPreference = "relative" | "absolute";
 export type RowLabelStylePreference = "icon" | "label" | "both";
-export type HoverDelayPreference = StoredPreferences["hoverDelay"];
 
 export interface EnhancerPreferences {
   accent: AccentPreset;
@@ -62,8 +62,8 @@ export interface EnhancerPreferences {
   pathDisplay: PathDisplayPreference;
   /** Show desktop hover previews for collapsed rows and file paths. */
   hoverPreview: boolean;
-  /** Time the pointer rests before a desktop hover preview opens. */
-  hoverDelay: HoverDelayPreference;
+  /** Seconds the pointer rests before a desktop hover preview opens (0-10, tenths). */
+  hoverDelaySeconds: number;
   /** Whether a preview panel opens with its lines wrapped; its toolbar button flips it for that panel. */
   previewWrap: boolean;
   /** Number the lines of a file, diff or command output in a preview panel. */
@@ -184,7 +184,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   toolDetail: "collapsed",
   pathDisplay: "relative",
   hoverPreview: true,
-  hoverDelay: "500ms",
+  hoverDelaySeconds: HOVER_DELAY_DEFAULT,
   previewWrap: true,
   previewLineNumbers: false,
   previewStripes: true,

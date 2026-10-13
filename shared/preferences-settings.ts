@@ -23,15 +23,23 @@ export const PATH_DISPLAYS = ["relative", "absolute"] as const;
 export const ROW_LABEL_STYLES = ["icon", "label", "both"] as const;
 export const MARKDOWN_VARIANTS_STORED = ["document", "compact", "terminal"] as const;
 export const SETTINGS_LANGUAGES = ["system", "en", "zh"] as const;
-export const HOVER_DELAYS = ["200ms", "500ms", "1s", "1.5s", "2s"] as const;
-export const HOVER_DELAY_MS = { "200ms": 200, "500ms": 500, "1s": 1000, "1.5s": 1500, "2s": 2000 } as const;
-export const HOVER_DELAY_LABELS = { "200ms": "0.2s", "500ms": "0.5s", "1s": "1.0s", "1.5s": "1.5s", "2s": "2s" } as const;
+/** The desktop hover preview's delay, in seconds, typed by the reader. */
+export const HOVER_DELAY_MIN = 0;
+export const HOVER_DELAY_MAX = 10;
+export const HOVER_DELAY_DEFAULT = 1;
+/** The fixed delays the setting offered before it took a typed value. */
+const LEGACY_HOVER_DELAYS: Readonly<Record<string, number>> = { "200ms": 0.2, "500ms": 0.5, "1s": 1, "1.5s": 1.5, "2s": 2 };
 
 export const CODE_FONT_SIZE_MIN = 10;
 export const CODE_FONT_SIZE_MAX = 22;
 
 export function clampCodeFontSize(value: number): number {
   return Math.min(CODE_FONT_SIZE_MAX, Math.max(CODE_FONT_SIZE_MIN, Math.round(value)));
+}
+
+/** A delay within 0-10 s, to a tenth of a second. */
+export function clampHoverDelay(seconds: number): number {
+  return Math.min(HOVER_DELAY_MAX, Math.max(HOVER_DELAY_MIN, Math.round(seconds * 10) / 10));
 }
 
 const flag = (fallback: boolean) => z.boolean().catch(fallback);
@@ -46,7 +54,19 @@ function migrateRowLabels(raw: unknown): unknown {
   return rowLabels === true ? { ...rest, rowLabelStyle: "both" } : rest;
 }
 
-export const preferencesSchema = z.preprocess(migrateRowLabels, z.object({
+/**
+ * The hover delay was one of five fixed steps (`hoverDelay: "500ms"` and so
+ * on) before it became a typed number of seconds; a stored step keeps its
+ * length. A record without one takes the new default.
+ */
+function migrateHoverDelay(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || "hoverDelaySeconds" in raw) return raw;
+  const { hoverDelay, ...rest } = raw as Record<string, unknown>;
+  const seconds = typeof hoverDelay === "string" ? LEGACY_HOVER_DELAYS[hoverDelay] : undefined;
+  return seconds === undefined ? rest : { ...rest, hoverDelaySeconds: seconds };
+}
+
+export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrateRowLabels(raw)), z.object({
   accent: z.enum(ACCENT_IDS).catch("host"),
   uiFont: z.enum(UI_FONTS).catch("host"),
   codeFont: z.enum(CODE_FONTS).catch("code"),
@@ -64,7 +84,11 @@ export const preferencesSchema = z.preprocess(migrateRowLabels, z.object({
   toolDetail: z.enum(TOOL_DETAILS).catch("collapsed"),
   pathDisplay: z.enum(PATH_DISPLAYS).catch("relative"),
   hoverPreview: flag(true),
-  hoverDelay: z.enum(HOVER_DELAYS).catch("500ms"),
+  hoverDelaySeconds: z
+    .number()
+    .refine((value) => Number.isFinite(value))
+    .transform(clampHoverDelay)
+    .catch(HOVER_DELAY_DEFAULT),
   previewWrap: flag(true),
   previewLineNumbers: flag(false),
   previewStripes: flag(true),

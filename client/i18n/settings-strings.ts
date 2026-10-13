@@ -151,7 +151,9 @@ const en = {
   hoverPreviewDescription:
     "Rest the pointer on a collapsed row or a file path on desktop, or long-press a collapsed row on a phone, to see its content.",
   hoverDelayTitle: "Delay",
-  hoverDelayDescription: "How long the pointer rests before a preview opens on desktop.",
+  hoverDelayDescription: (min: number, max: number) =>
+    `Seconds the pointer rests on a row before its preview opens on desktop, ${min}–${max}.`,
+  hoverDelayUnit: "seconds",
   previewWrapTitle: "Wrap lines",
   previewWrapDescription:
     "Off, long lines keep their length and the preview scrolls sideways. The button at the left of a preview's toolbar switches it for that preview.",
@@ -159,6 +161,7 @@ const en = {
   previewLineNumbersDescription: "Beside a file, diff or command output. A diff shows the file's own line numbers.",
   previewStripesTitle: "Alternating line shading",
   previewStripesDescription: "Shades every other line, so a wrapped line is easy to follow.",
+  panelSampleCaption: "A preview as it opens from a collapsed Read row. The options above apply to it as they change.",
 
   resetDefaults: "Reset all settings",
   resetConfirm: "Press again to reset",
@@ -271,13 +274,15 @@ const zh: SettingsStrings = {
   hoverPreviewTitle: "悬停预览",
   hoverPreviewDescription: "桌面端鼠标停在折叠行或文件路径上、手机上长按折叠行时，弹出内容预览。",
   hoverDelayTitle: "延迟",
-  hoverDelayDescription: "桌面端鼠标停留多久后弹出预览。",
+  hoverDelayDescription: (min: number, max: number) => `桌面端鼠标在行上停留多少秒后弹出预览，可填 ${min}–${max}。`,
+  hoverDelayUnit: "秒",
   previewWrapTitle: "自动换行",
   previewWrapDescription: "关闭后长行保持原样，预览可以横向滚动。预览工具栏左侧的按钮可临时切换当前预览。",
   previewLineNumbersTitle: "显示行号",
   previewLineNumbersDescription: "在文件、diff 和命令输出左侧显示行号；diff 显示的是文件中的行号。",
   previewStripesTitle: "奇偶行底色",
   previewStripesDescription: "隔行加一层底色，长行折行后也容易分清是哪一行。",
+  panelSampleCaption: "折叠的 Read 行弹出的预览就是这样；上面的选项改动后会立即反映在这里。",
 
   resetDefaults: "恢复全部默认设置",
   resetConfirm: "再点一次确认恢复",

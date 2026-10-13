@@ -187,7 +187,7 @@ open on a click and preview on hover or long press like real ones. An option who
 | Plugin markdown for replies | On by default. Draws headings, lists, tables, highlighted code, and local images. Off hands the reply to Paseo, which is what mermaid and the host's own images need. |
 | Markdown style            | Document, Compact, or Terminal (the body in the code face).                                  |
 | Selection toolbar         | Web and desktop. Highlighting text in a callout raises Copy and Add to chat.                 |
-| Hover previews            | Previews a collapsed row or a path on hover (desktop) or long press (phone), with its delay, line wrap, line numbers and alternating shading. |
+| Hover previews            | Previews a collapsed row or a path on hover (desktop) or long press (phone). The delay is typed in seconds (0-10, default 1). Line wrap, line numbers and alternating shading show on an open sample panel under the options. |
 
 Preferences are stored by the daemon, through the SDK's settings (`defineSettings` /
 `useSettings`, record `presentation` in `shared/preferences-settings.ts`). Host scope is the only
