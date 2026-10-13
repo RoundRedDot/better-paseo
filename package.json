@@ -2,7 +2,7 @@
   "name": "better-paseo",
   "version": "0.1.0",
   "private": true,
-  "description": "Paseo plugin: Better Paseo for OMP tools, reasoning, prompts, and tasks",
+  "description": "Paseo plugin: Better Paseo redraws the chat timeline of every agent: tool calls, reasoning, replies, prompts, and tasks",
   "license": "MIT",
   "scripts": {
     "typecheck": "tsc --noEmit",
