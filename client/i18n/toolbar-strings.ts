@@ -1,6 +1,6 @@
 /**
- * The names a preview toolbar shows on hover, and the copy toasts, in the
- * language the settings page is set to. The buttons are labelled in English (their accessibility
+ * The names a preview toolbar shows on hover, the selection bar's labels and
+ * the copy toasts, in the language the settings page is set to. The buttons are labelled in English (their accessibility
  * labels, and the copy menu's entries); this translates only what is drawn.
  */
 import { resolveLanguage, type SettingsLanguagePreference } from "./settings-strings";
@@ -8,6 +8,9 @@ import { resolveLanguage, type SettingsLanguagePreference } from "./settings-str
 const ZH: Readonly<Record<string, string>> = {
   Copy: "复制",
   Copied: "已复制",
+  "Copied instead": "已复制到剪贴板",
+  "Add to chat": "添加到对话",
+  Added: "已添加",
   "Couldn't copy": "复制失败",
   "Copy path": "复制路径",
   "Copy URL": "复制 URL",

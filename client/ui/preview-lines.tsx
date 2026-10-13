@@ -18,6 +18,7 @@ import { unselectable } from "../components/selection";
 import { useEnhancerPreferences } from "../preferences";
 import { usePreviewWraps } from "./hover-preview";
 import { SelectableSpan, SelectableText } from "./prose-text";
+import { LineSelectionMenu, useLineSelection } from "./line-selection";
 
 /** A line as laid out: its text, ending in `\n` where a source line ends, and its top where the platform says. */
 export interface VisualLine {
@@ -121,6 +122,7 @@ export function PreviewLines({ text, lines, style, tokens, renderLine, diff = fa
   const tops = measured ?? lines.map((_, index) => index * lineHeight);
   const bottom = height ?? lines.length * lineHeight;
   const contentRef = useRef<View>(null);
+  const selection = useLineSelection({ enabled: previewLineNumbers, lines, tops, bottom, contentRef });
   const onTextLayout = useCallback((event: NativeSyntheticEvent<TextLayoutEventData>) => {
     const visual = (event.nativeEvent.lines as ReadonlyArray<VisualLine | string>)
       .map((line) => (typeof line === "string" ? { text: line } : line));
@@ -146,16 +148,19 @@ export function PreviewLines({ text, lines, style, tokens, renderLine, diff = fa
   return (
     <View testID="preview-lines" style={styles.row}>
       {numbers ? (
-        // Beside the text, not in it: never selected, and it stays put while
-        // unwrapped lines scroll sideways (web).
-        <View testID="preview-line-numbers" style={[styles.gutter, { width: gutter }, !wraps && stickyGutter(tokens)]}>
+        // The gutter owns hit testing so native locationY is relative to the
+        // whole column, never an individual number. Numbers stay out of copies.
+        <View ref={selection.gutterRef} {...selection.gutterProps} pointerEvents="box-only"
+          testID="preview-line-numbers" style={[styles.gutter, { width: gutter }, !wraps && stickyGutter(tokens)]}>
           {numbers.map((number, index) => (
             <Text key={index} selectable={false}
               style={[styles.number, {
                 top: tops[index],
                 fontSize: tokens.typography.mono.size - 2,
                 lineHeight,
-                color: tokens.syntax.comment,
+                // A selected line's number stands out, as in an editor.
+                color: selection.range && index >= selection.range.from && index <= selection.range.to
+                  ? tokens.foreground : tokens.syntax.comment,
                 fontFamily: tokens.fontMono,
               }]}>
               {number ?? ""}
@@ -163,7 +168,9 @@ export function PreviewLines({ text, lines, style, tokens, renderLine, diff = fa
           ))}
         </View>
       ) : null}
-      <View ref={contentRef} onLayout={onLayout} style={wraps ? styles.wrapped : styles.unwrapped}>
+      <View ref={contentRef} onLayout={onLayout}
+        onTouchStart={Platform.OS !== "web" ? selection.dismiss : undefined}
+        style={wraps ? styles.wrapped : styles.unwrapped}>
         {previewStripes ? (
           <View testID="preview-line-stripes" pointerEvents="none" style={StyleSheet.absoluteFill}>
             {tops.map((top, index) => index % 2 === 1 ? (
@@ -175,8 +182,16 @@ export function PreviewLines({ text, lines, style, tokens, renderLine, diff = fa
             ) : null)}
           </View>
         ) : null}
+        {selection.selectionStyle ? (
+          <View testID="preview-line-selection" pointerEvents="none" style={[
+            styles.stripe, selection.selectionStyle, { backgroundColor: tokens.accentBg },
+          ]} />
+        ) : null}
         <SelectableText {...selectionCodeText} style={[style, styles.clear]} onTextLayout={onTextLayout}>{content}</SelectableText>
       </View>
+      {selection.menuTop !== null ? (
+        <LineSelectionMenu top={selection.menuTop} text={selection.selectedText} tokens={tokens} dismiss={selection.dismiss} />
+      ) : null}
     </View>
   );
 }

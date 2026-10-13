@@ -5,6 +5,8 @@ import { copyText } from "@getpaseo/plugin/client/react-native";
 import { radiusV2 } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { cssShadow } from "../ui/tokens/css-shadow";
+import { getEnhancerPreferences } from "../preferences";
+import { toolbarLabel } from "../i18n/toolbar-strings";
 
 /**
  * A floating Copy / Add to chat bar for highlighted callout text.
@@ -49,12 +51,22 @@ export const selectionCodeSurface = { dataSet: { bccode: true, pmono: "" } } as 
 export const selectionCodeText = { dataSet: { bccode: true, pmono: "" } } as unknown as TextProps;
 
 const SURFACE_SELECTOR = "[data-bcselection]";
+/** The bar's host, for layers that must treat a press on it as their own. */
+export const SELECTION_BAR_SELECTOR = "[data-bcselectionbar]";
 const CODE_SELECTOR = "[data-bccode]";
 /** The host composer input carries `dataSet={{ composerInput: "" }}`. */
 const COMPOSER_SELECTOR = "[data-composer-input]";
 
 const GAP = 8;
 const RESET_LABEL_MS = 1400;
+
+/** Lucide's shapes, the set the plugin's `Icon` draws, inlined: the bar is raw DOM. */
+const ICONS = {
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  add: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>',
+} as const;
+type IconName = keyof typeof ICONS;
 
 interface Snapshot {
   text: string;
@@ -178,6 +190,9 @@ const BAR_CSS = `
   -webkit-user-select: none;
 }
 .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   appearance: none;
   margin: 0;
   border: 0;
@@ -191,6 +206,16 @@ const BAR_CSS = `
   white-space: nowrap;
   /* No shrinking: a squeezed button overlaps its neighbour's label. */
   flex: 0 0 auto;
+}
+.btn svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 `;
 
@@ -217,10 +242,19 @@ function createBar(): Bar {
     ["padding", "0"],
     // A host rule for bare `div`s must not paint behind the rounded bar.
     ["background", "none"],
+    // The popover UA rules: no border, no stretch to the far edges.
+    ["border", "0"],
+    ["right", "auto"],
+    ["bottom", "auto"],
+    ["overflow", "visible"],
   ];
   for (const [property, value] of placement) {
     host.style.setProperty(property, value, "important");
   }
+  // A preview panel is a top-layer popover, above every z-index; the bar
+  // joins the top layer too, after the panel, so it is drawn over it.
+  const topLayer = typeof host.showPopover === "function";
+  if (topLayer) host.setAttribute("popover", "manual");
 
   const shadow = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
@@ -234,12 +268,26 @@ function createBar(): Bar {
   let labelTimer = 0;
   let hoverColor = "";
 
-  const makeButton = (label: string, onPress: (button: HTMLButtonElement) => void) => {
+  /**
+   * An icon and a label in the settings page's language, read on every paint
+   * so a change there reaches a bar that is already up. The accessible name
+   * stays the English label, as on every other plugin button.
+   */
+  const paint = (button: HTMLButtonElement, label: string, icon: IconName) => {
+    const text = document.createElement("span");
+    text.textContent = toolbarLabel(label, getEnhancerPreferences().language);
+    button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[icon]}</svg>`;
+    button.appendChild(text);
+  };
+
+  const makeButton = (label: string, icon: IconName, onPress: (button: HTMLButtonElement) => void) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "btn";
-    button.textContent = label;
+    button.setAttribute("aria-label", label);
     button.dataset.label = label;
+    button.dataset.icon = icon;
+    paint(button, label, icon);
     button.addEventListener("click", () => onPress(button));
     button.addEventListener("mouseenter", () => {
       button.style.backgroundColor = hoverColor;
@@ -251,24 +299,26 @@ function createBar(): Bar {
     return button;
   };
 
-  const flash = (button: HTMLButtonElement, label: string) => {
-    button.textContent = label;
-    window.clearTimeout(labelTimer);
-    labelTimer = window.setTimeout(() => {
-      for (const candidate of [copyButton, addButton]) {
-        candidate.textContent = candidate.dataset.label ?? "";
-      }
-    }, RESET_LABEL_MS);
+  const reset = () => {
+    for (const button of [copyButton, addButton]) {
+      paint(button, button.dataset.label ?? "", button.dataset.icon as IconName);
+    }
   };
 
-  const copyButton = makeButton("Copy", (button) => {
+  const flash = (button: HTMLButtonElement, label: string) => {
+    paint(button, label, "check");
+    window.clearTimeout(labelTimer);
+    labelTimer = window.setTimeout(reset, RESET_LABEL_MS);
+  };
+
+  const copyButton = makeButton("Copy", "copy", (button) => {
     const snapshot = readSelection();
     if (!snapshot) return;
     void copyText(snapshot.text);
     flash(button, "Copied");
   });
 
-  const addButton = makeButton("Add to chat", (button) => {
+  const addButton = makeButton("Add to chat", "add", (button) => {
     const snapshot = readSelection();
     if (!snapshot) return;
     if (insertIntoComposer(quote(snapshot))) {
@@ -307,7 +357,12 @@ function createBar(): Bar {
       addButton.style.color = tokens.accent;
     },
     show(rect) {
+      if (host.style.getPropertyValue("display") === "none") {
+        window.clearTimeout(labelTimer);
+        reset();
+      }
       host.style.setProperty("display", "block", "important");
+      if (topLayer && !host.matches(":popover-open")) host.showPopover();
       // Measure once visible, then clamp inside the viewport. Above the
       // selection by default: below it covers the next line of output.
       const width = bar.offsetWidth;
@@ -324,6 +379,7 @@ function createBar(): Bar {
     },
     hide() {
       host.style.setProperty("display", "none", "important");
+      if (topLayer && host.matches(":popover-open")) host.hidePopover();
     },
     dispose() {
       window.clearTimeout(labelTimer);

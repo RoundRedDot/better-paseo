@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { linesFit, openPreviewLayer, scrollsWithin } from "../../client/web";
+import { bindPreviewPointer, linesFit, openPreviewLayer, scrollsWithin } from "../../client/web";
 
 beforeEach(() => { (globalThis as { __rnMockOS?: string }).__rnMockOS = "web"; });
 afterEach(() => { delete (globalThis as { __rnMockOS?: string }).__rnMockOS; });
@@ -148,6 +148,17 @@ describe("hover preview dismissal and wheel", () => {
     release();
     expect(panel.ownerDocument.removeEventListener).toHaveBeenCalledWith("pointerdown", press, true);
   });
+  it("treats a press or wheel on the selection bar as inside the panel", () => {
+    const { panel, view, close, release } = layer(200, 700, 1600, 24);
+    // Outside the panel's DOM, on document.body, yet acting on its text.
+    const bar = { ...OUTSIDE, closest: (selector: string) => selector === "[data-bcselectionbar]" ? bar : null };
+    listener(panel.ownerDocument, "pointerdown")({ target: bar });
+    const event = wheel(bar);
+    listener(view, "wheel")(event);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+    release();
+  });
   it("keeps the wheel off the timeline under a maximized panel", () => {
     const { view, close, release } = layer(200, 700, 1600, 24, { maximized: true });
     const event = wheel(OUTSIDE);
@@ -223,5 +234,29 @@ describe("linesFit", () => {
     expect(fits.style.maxWidth).toBe("");
     expect(linesFit(body(600, 600))).toBe(true);
     expect(linesFit(body(600, 1800))).toBe(false);
+  });
+});
+
+describe("preview pointer and the selection bar", () => {
+  function mouse(target: EventTarget, type: string, relatedTarget: unknown) {
+    const event = new Event(type);
+    Object.defineProperty(event, "relatedTarget", { value: relatedTarget });
+    target.dispatchEvent(event);
+  }
+  it("does not leave the panel for the selection bar, only for what lies past it", () => {
+    const panel = Object.assign(new EventTarget(), { contains: (node: unknown) => node === panel });
+    const bar = Object.assign(new EventTarget(), { closest: (selector: string) => selector === "[data-bcselectionbar]" ? bar : null });
+    const leave = vi.fn();
+    const release = bindPreviewPointer(panel, () => {}, leave);
+    mouse(panel, "mouseleave", bar);
+    expect(leave).not.toHaveBeenCalled();
+    mouse(bar, "mouseleave", panel);
+    expect(leave).not.toHaveBeenCalled();
+    mouse(panel, "mouseleave", bar);
+    mouse(bar, "mouseleave", OUTSIDE);
+    expect(leave).toHaveBeenCalledOnce();
+    mouse(panel, "mouseleave", OUTSIDE);
+    expect(leave).toHaveBeenCalledTimes(2);
+    release();
   });
 });
