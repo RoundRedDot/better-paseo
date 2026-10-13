@@ -43,6 +43,8 @@ export function usePreviewWraps(): boolean {
   const wrap = useContext(PreviewActionsContext)?.wrap;
   return !wrap || wrap.on;
 }
+/** The widest an unwrapped phone preview gets, about 500 characters of code. */
+export const MAX_UNWRAPPED_WIDTH = 4096;
 export const PREVIEW_OPEN_MS = HOVER_DELAY_MS[DEFAULT_PREFERENCES.hoverDelay];
 export const PREVIEW_CLOSE_MS = 150;
 
@@ -348,7 +350,7 @@ export function HoverPreviewBody({ children }: { children: ReactNode }) {
   // panel's edge.
   const content = wrap && !wrap.on ? (
     <HScroll tokens={wrap.tokens} trackStyle={styles.track} contentContainerStyle={styles.unwrappedScroll}>
-      <View style={styles.unwrapped}>{children}</View>
+      <View style={[styles.unwrapped, Platform.OS !== "web" && styles.unwrappedNative]}>{children}</View>
     </HScroll>
   ) : children;
   if (Platform.OS !== "web") {
@@ -399,6 +401,10 @@ const styles = StyleSheet.create({
   pressBodyContent: { padding: space.md, gap: space.sm },
   unwrappedScroll: { flexGrow: 1 },
   unwrapped: { flexGrow: 1, gap: space.sm },
+  // On a phone a text is one layer, and a layer wider than the GPU's largest
+  // texture (16384px, 5461pt at 3x) draws nothing: a minified JSON line
+  // left the whole output blank. Lines past this width wrap here instead.
+  unwrappedNative: { maxWidth: MAX_UNWRAPPED_WIDTH },
   // 4pt from the panel's edge, out of the body's 12pt bottom padding.
   track: { marginTop: space.sm, marginBottom: space.xs - space.md },
   // Raised over the body, so a button's name can hang down across it.
