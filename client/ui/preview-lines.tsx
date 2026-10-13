@@ -17,7 +17,7 @@ import { selectionCodeText } from "../components/selection-actions";
 import { unselectable } from "../components/selection";
 import { useEnhancerPreferences } from "../preferences";
 import { usePreviewWraps } from "./hover-preview";
-import { SelectableText } from "./prose-text";
+import { SelectableSpan, SelectableText } from "./prose-text";
 
 /** A line as laid out: its text, ending in `\n` where a source line ends, and its top where the platform says. */
 export interface VisualLine {
@@ -107,7 +107,9 @@ export function PreviewLines({ text, lines, style, tokens, renderLine, diff = fa
   const content = useMemo(
     () => renderLine
       ? lines.map((line, index) => (
-        <Fragment key={index}>{renderLine(line, index)}{index < lines.length - 1 ? "\n" : ""}</Fragment>
+        // The newline is a run of its own: on iOS the text view takes its
+        // text from runs, and a bare string beside them never reaches it.
+        <Fragment key={index}>{renderLine(line, index)}{index < lines.length - 1 ? <SelectableSpan>{"\n"}</SelectableSpan> : null}</Fragment>
       ))
       : placed ? lines.join("\n") : text,
     [renderLine, lines, placed, text],
