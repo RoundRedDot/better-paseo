@@ -2,7 +2,7 @@
 
 - 需求：`writing-block.md` v1.0（BC-01 ~ BC-14）
 - 基线：本仓库 `main@42b61d8`（与 Paseo 实际安装的 checkout 同 HEAD）；插件 SDK devDep `@getpaseo/plugin@0.8.0`；本机 Paseo **0.11.2**（宿主源码核对于 `getpaseo/paseo@7868f5c`）
-- 状态：已实施。交付记录见 [`docs/delivery/2026-10-11-delivery-report.md`](../delivery/2026-10-11-delivery-report.md)；相对官方插件的当前差异见 [`docs/fork-vs-upstream.md`](../fork-vs-upstream.md)。下文是实施前的设计，`file:line` 指向基线 `42b61d8`。
+- 状态：已实施。交付记录见 [`docs/delivery/2026-10-11-delivery-report.md`](../delivery/2026-10-11-delivery-report.md)；相对 Beautiful Chat 的当前差异见 [`docs/fork-vs-upstream.md`](../fork-vs-upstream.md)。下文是实施前的设计，`file:line` 指向基线 `42b61d8`。
 
 ---
 
@@ -739,14 +739,14 @@ Reduced Motion：只有 shimmer、glow 两处 CSS 处理了；所有 `Animated` 
 | # | 决策 | 理由 |
 |---|---|---|
 | D1 | **宿主改动走 fork → 上游 PR**。在 `RoundRedDot/paseo`（与插件 fork 同组织）开发；H0、H1、H4 改动小，实现后直接向 `getpaseo/paseo` 提 PR；H2a、H2b 先在上游开 issue 对齐接口形状（§3.5），再从 fork 提 PR。插件发布**不依赖** fork 构建。 | H0/H1/H4 改动小、语义清晰，容易被接受；H2 涉及宿主滚动核心，先对齐 API 可以避免返工。插件全部做特性检测，所以上游合并节奏不阻塞插件。 |
-| D2 | **字体默认值 = Follow Paseo。宿主未提供 `typography` 时用宿主自己的默认值**：Web/桌面用宿主的 `DEFAULT_MONO_FONT_STACK`（`SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace`，加中文回退），原生用平台等宽字体。内嵌 Iosevka / Iosevka Code 只在用户明确选择时使用。（2026-10-11 修订：原决定是"Web 保持内嵌 Iosevka"，用户在发布后反馈希望与 Paseo 官方等宽观感一致，因此推翻。）**已被 D10 取代**：D2 的默认字体栈现在是 D10 来源优先级的第三级。 | 默认值与宿主自己的代码渲染一致；内嵌字体变成可选项，不选就不注入。 |
+| D2 | **字体默认值 = Follow Paseo。宿主未提供 `typography` 时用宿主自己的默认值**：Web/桌面用宿主的 `DEFAULT_MONO_FONT_STACK`（`SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace`，加中文回退），原生用平台等宽字体。内嵌 Iosevka / Iosevka Code 只在用户明确选择时使用。（2026-10-11 修订：原决定是"Web 保持内嵌 Iosevka"，用户在发布后反馈希望与 Paseo 默认等宽观感一致，因此推翻。）**已被 D10 取代**：D2 的默认字体栈现在是 D10 来源优先级的第三级。 | 默认值与宿主自己的代码渲染一致；内嵌字体变成可选项，不选就不注入。 |
 | D3 | **验证平台**：桌面端用本机 `Paseo.app`（Electron）；iOS 用 paseo 源码 `packages/app` 的 `expo run:ios` 开发版，在 iPhone 16 Pro 模拟器上连接本机 daemon；Android 模拟器用于 S3/S5/S6 的复制、长按和吸顶验证。 | 本机已有 Xcode、iOS 模拟器、Android SDK，Paseo app 是 Expo 工程（`packages/app/package.json:16`）。原生构建失败时，该项如实记为"未验证"，不记为通过。 |
 | D4 | **SDK devDep 升级到与本机宿主一致的 0.11.x**；`requirements.paseo` 保持 `>=0.8.0`；新增 API（`typography`、sticky、cell viewport）全部做运行时特性检测。 | 类型与实际运行的宿主一致，又不抬高安装门槛。 |
 | D5 | **Markdown 依赖方式（S0 后修订）**：`remend@1.4` 照常作为 npm 依赖（无 `class`，已在 iOS 验证）；`marked@18` **用 Babel 预降级后 vendor 进 `client/vendor/marked.js`**（附许可证），生成脚本放在 `tools/vendor-marked/`（独立 package.json，不增加根依赖），根依赖中移除 `marked`。 | S0-D 实测：RN 0.81.5 的 Hermes 不支持任何形态的 `class`，插件 bundle 绕过 Metro/Babel，esbuild 无法把 class 降级；marked 的 `static passThroughHooks` 因此在 iOS 上报错。Babel 降级后的 marked 已在模拟器验证可用（46KB→112KB）。 |
 | D6 | **数学公式和 Mermaid** 本次只做原文降级显示（代码样式），不阻塞引擎替换。 | 纯 JS 方案无法在 RN `Text` 中渲染 KaTeX；原生数学栈需要宿主二进制。 |
 | D7 | **范围外问题**：TodoList 的 props → state 只同步一次，在 S5 统一 Task 视觉时作为独立 `fix:` 提交修复（不修会让 Task 显示错误）；`ApprovalCard` 未挂载不处理（审批归宿主，删掉或接入都属于无关改动）。 | 遵守"不做无关重构"，同时不让新视觉建立在已知错误数据上。 |
 | D9 | **Hermes 语法边界**：客户端代码及其依赖不得使用任何形态的 `class`、正则 `v` 标志、`Array.prototype.toSorted`、`Intl.Segmenter`；timeline renderer 必须注册为普通函数（`React.memo` 对象会被宿主拒绝，宿主 `evaluate.ts:422`）。`npm run check:hermes` 用仓库自带的 `hermesc` 编译客户端 bundle，作为每个切片的必过检查。 | S0-D 特性矩阵与本地 Hermes 复现；S1 在 iOS 上发现 renderer 约束。 |
-| D10 | **等宽字体来源优先级（用户 2026-10-11 指定，取代 D2）**：宿主 `theme.typography`（H1）→ Paseo 用户在外观设置中设定的字体（`monoFontFamily`、`codeFontSize`）→ Paseo 官方默认字体栈（Web/桌面 `SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace`；iOS `ui-monospace`；Android `monospace`）；Iosevka 仅在用户主动选择时使用。第二级在 0.11.2 上无正式接口，**Web/桌面端以只读临时兼容层读取 `localStorage["@paseo:app-settings"]`（旧键 `@paseo:settings`）**，结构不符或读不到即回退；宿主提供 H1 后自动不再使用。iOS/Android 读不到本地设置，H1 之前用官方默认。 | 用户要求跟随 Paseo 中设定的字体；偏离需求 §11.5“不读私有存储”，由用户明确授权，作为 H1 落地前的过渡。 |
+| D10 | **等宽字体来源优先级（用户 2026-10-11 指定，取代 D2）**：宿主 `theme.typography`（H1）→ Paseo 用户在外观设置中设定的字体（`monoFontFamily`、`codeFontSize`）→ Paseo 默认字体栈（Web/桌面 `SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace`；iOS `ui-monospace`；Android `monospace`）；Iosevka 仅在用户主动选择时使用。第二级在 0.11.2 上无正式接口，**Web/桌面端以只读临时兼容层读取 `localStorage["@paseo:app-settings"]`（旧键 `@paseo:settings`）**，结构不符或读不到即回退；宿主提供 H1 后自动不再使用。iOS/Android 读不到本地设置，H1 之前用 Paseo 默认。 | 用户要求跟随 Paseo 中设定的字体；偏离需求 §11.5“不读私有存储”，由用户明确授权，作为 H1 落地前的过渡。 |
 | D8 | **跨工具聚合**：本次只做紧凑行（§3.3），H3 分组 API 不进入本轮。 | transformer 无法合并相邻 item；硬做会破坏顺序和状态同步，需求 §3.3 允许先做单工具摘要。 |
 
 ## 7. 剩余风险
