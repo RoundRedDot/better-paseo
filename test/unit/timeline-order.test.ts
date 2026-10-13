@@ -4,7 +4,7 @@
  * gap only while nothing of its agent's sits below it.
  */
 import { describe, expect, it } from "vitest";
-import { hasEntryAfter, nextEntryIsRow, registerTimelineEntry } from "../../client/timeline-order";
+import { hasEntryAfter, nextEntryIsRow, registerTimelineEntry, viewCentre } from "../../client/timeline-order";
 
 const AGENT = "agent-a";
 const OTHER = "agent-b";
@@ -140,5 +140,120 @@ describe("whether anything follows an item", () => {
     const forget = [registerTimelineEntry(AGENT, at, "tool"), registerTimelineEntry(AGENT, at, "tool")];
     expect(hasEntryAfter(AGENT, at, "tool")).toBe(false);
     for (const done of forget) done();
+  });
+});
+
+describe("replayed history, every item stamped in one millisecond", () => {
+  // A provider that keeps no times (Grok over ACP) has its history stamped as
+  // the daemon replays it, in one loop: a call and the thought after it share
+  // a millisecond, and the kind says nothing about which sits lower.
+  it("puts a settled thought below a settled call it ties with", () => {
+    const at = nextAt();
+    const forget = [
+      registerTimelineEntry(AGENT, at, "tool", "call-1"),
+      registerTimelineEntry(AGENT, at, "thought", "next step"),
+    ];
+    expect(hasEntryAfter(AGENT, at, "tool", "call-1")).toBe(true);
+    expect(hasEntryAfter(AGENT, at, "thought", "next step")).toBe(true);
+    for (const done of forget) done();
+  });
+
+  it("does not count the item itself, or its copy in another pane", () => {
+    const at = nextAt();
+    const forget = [
+      registerTimelineEntry(AGENT, at, "thought", "same"),
+      registerTimelineEntry(AGENT, at, "thought", "same"),
+    ];
+    expect(hasEntryAfter(AGENT, at, "thought", "same")).toBe(false);
+    for (const done of forget) done();
+  });
+
+  it("keeps a running call below a thought in its millisecond: it is live, not replayed", () => {
+    const at = nextAt();
+    const forget = [registerTimelineEntry(AGENT, at, "thought", "plan"), registerTimelineEntry(AGENT, at, "tool")];
+    expect(hasEntryAfter(AGENT, at, "tool")).toBe(false);
+    expect(hasEntryAfter(AGENT, at, "thought", "plan")).toBe(true);
+    for (const done of forget) done();
+  });
+});
+
+describe("the newest moment of replayed history, ordered by where items sit", () => {
+  // Only the newest moment needs it: an older moment has a later one below.
+  // Its lowest settled item keeps its gap, so the last row of a history that
+  // ends on a call does not sink into the list's bottom padding.
+  const at = (y: number) => () => y;
+
+  it("keeps the gap under the lowest item, whatever its kind", () => {
+    const time = nextAt();
+    const forget = [
+      registerTimelineEntry(AGENT, time, "thought", "plan", at(100)),
+      registerTimelineEntry(AGENT, time, "tool", "call-last", at(200)),
+    ];
+    expect(hasEntryAfter(AGENT, time, "tool", "call-last")).toBe(false);
+    expect(hasEntryAfter(AGENT, time, "thought", "plan")).toBe(true);
+    for (const done of forget) done();
+  });
+
+  it("puts a thought that sits lowest below the call it ties with", () => {
+    const time = nextAt();
+    const forget = [
+      registerTimelineEntry(AGENT, time, "tool", "call", at(100)),
+      registerTimelineEntry(AGENT, time, "thought", "after", at(200)),
+    ];
+    expect(hasEntryAfter(AGENT, time, "tool", "call")).toBe(true);
+    expect(hasEntryAfter(AGENT, time, "thought", "after")).toBe(false);
+    for (const done of forget) done();
+  });
+
+  it("counts every tied item as below when one cannot be placed", () => {
+    const time = nextAt();
+    const forget = [
+      registerTimelineEntry(AGENT, time, "thought", "plan", at(100)),
+      registerTimelineEntry(AGENT, time, "tool", "call", () => null),
+    ];
+    expect(hasEntryAfter(AGENT, time, "tool", "call")).toBe(true);
+    expect(hasEntryAfter(AGENT, time, "thought", "plan")).toBe(true);
+    for (const done of forget) done();
+  });
+
+  it("follows a newer moment: the old one is no longer the newest", () => {
+    const time = nextAt();
+    const forget = [
+      registerTimelineEntry(AGENT, time, "thought", "plan", at(100)),
+      registerTimelineEntry(AGENT, time, "tool", "call", at(200)),
+    ];
+    expect(hasEntryAfter(AGENT, time, "tool", "call")).toBe(false);
+    forget.push(registerTimelineEntry(AGENT, nextAt(), "reply", "done", at(300)));
+    expect(hasEntryAfter(AGENT, time, "tool", "call")).toBe(true);
+    for (const done of forget) done();
+  });
+
+  it("takes the lowest item from whichever pane draws it lowest", () => {
+    // The same chat in two panes: the lowest copy overall is the lowest item
+    // of its own pane, and so the same item in the other.
+    const time = nextAt();
+    const forget = [
+      registerTimelineEntry(AGENT, time, "thought", "plan", at(100)),
+      registerTimelineEntry(AGENT, time, "tool", "call", at(150)),
+      registerTimelineEntry(AGENT, time, "thought", "plan", at(400)),
+      registerTimelineEntry(AGENT, time, "tool", "call", at(450)),
+    ];
+    expect(hasEntryAfter(AGENT, time, "tool", "call")).toBe(false);
+    expect(hasEntryAfter(AGENT, time, "thought", "plan")).toBe(true);
+    for (const done of forget) done();
+  });
+});
+
+describe("where a view is drawn", () => {
+  it("reads a web view's box and a Fabric view's synchronous measurement", () => {
+    expect(viewCentre({ getBoundingClientRect: () => ({ top: 10, width: 300, height: 20 }) })).toBe(20);
+    expect(viewCentre({ measureInWindow: (callback: (x: number, y: number, w: number, h: number) => void) => callback(0, 40, 300, 20) })).toBe(50);
+  });
+
+  it("leaves a view unplaced when it has no size or answers later", () => {
+    expect(viewCentre({ getBoundingClientRect: () => ({ top: 0, width: 0, height: 0 }) })).toBeNull();
+    expect(viewCentre({ measureInWindow: (callback: (x: number, y: number, w: number, h: number) => void) => callback(0, 0, 0, 0) })).toBeNull();
+    expect(viewCentre({ measureInWindow: () => {} })).toBeNull();
+    expect(viewCentre(null)).toBeNull();
   });
 });

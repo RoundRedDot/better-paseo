@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useLayoutEffect, useMemo, useSyncExternalStore, type RefObject } from "react";
 import type { ToolCallView } from "./tools/classify";
 import { groupAdjacentTools, toolGroupKey } from "./tools/group";
 
@@ -26,6 +26,19 @@ import { groupAdjacentTools, toolGroupKey } from "./tools/group";
  * kind decides the order (`KIND_ORDER`): a message reads thought, then reply,
  * then tool calls. Counted as ambiguous, a thought kept its gap above the tool
  * call it led to until that call finished and took a later stamp.
+ *
+ * Replayed history breaks that rule. A provider that keeps no times of its own
+ * (Grok, over ACP) has its whole history stamped as the daemon reloads it, in
+ * one loop, so a call and the thought after it share a millisecond as often
+ * as not, and the kind order put the thought above. Every call then kept its
+ * gap and every thought gave its up: the rows read unevenly spaced. Complete
+ * items (`settledKey`) that share a millisecond have no order in their stamps.
+ * Below a moment that is not the newest there is always a later one, so only
+ * the newest moment needs one: there the item drawn lowest keeps its gap and
+ * the rest count as above it (`lowestSettledKey`). The host passes no
+ * position, and mounting order runs newest-first in the native inverted list,
+ * oldest-first on web, and restarts as cells scroll back into the window, so
+ * the order comes from where each item is drawn.
  */
 export type TimelineEntryKind = "prompt" | "thought" | "reply" | "notice" | "tool";
 
@@ -51,6 +64,15 @@ interface Entry {
   order: number;
   row: boolean;
   sequence: number;
+  /**
+   * The item's identity, given once it is complete; a call gives it only if
+   * it was complete as its row mounted, since its stamp is its arrival.
+   * Two settled items in one millisecond are unordered; the same key is the
+   * same item (itself, or its copy in another pane).
+   */
+  settledKey?: string;
+  /** Where the item is drawn: its centre's y in the window, null when unknown. */
+  locate?: () => number | null;
   tool?: ToolCallView;
   /** Subscribers to this tool row's group (`useTimelineToolGroup`). */
   groupListeners?: Set<() => void>;
@@ -78,6 +100,8 @@ interface AgentTimeline {
   /** Groups as last computed; rebuilt on first read once `stale`. */
   slots: Map<Entry, ToolSlot>;
   stale: boolean;
+  /** `lowestSettledKey` for the moment it was last asked about, until an item mounts or unmounts. */
+  lowest?: { at: number; key: string | null };
 }
 
 const timelines = new Map<string, AgentTimeline>();
@@ -87,6 +111,63 @@ let sequence = 0;
 /** Negative when `a` sits above `b`, zero when their order is unknown. */
 function compare(a: { at: number; order: number }, b: { at: number; order: number }): number {
   return a.at - b.at || a.order - b.order;
+}
+
+/** Two different settled items in one millisecond: their stamps do not order them. */
+function unordered(a: Pick<Entry, "at" | "settledKey">, b: Pick<Entry, "at" | "settledKey">): boolean {
+  return a.at === b.at && a.settledKey !== undefined && b.settledKey !== undefined && a.settledKey !== b.settledKey;
+}
+
+/**
+ * The key of the settled item drawn lowest at `at`, the newest moment; null
+ * when one of them cannot be placed, and every tied item then counts as having
+ * one below it. With the chat in two panes the lowest copy overall is the
+ * lowest item of its own pane, so its key names the same item in both.
+ * Items keep their order on screen, so the answer holds until one mounts or
+ * unmounts, however the list scrolls; an unplaced one is asked again.
+ */
+function lowestSettledKey(timeline: AgentTimeline, at: number): string | null {
+  if (timeline.lowest?.at === at) return timeline.lowest.key;
+  let key: string | null = null;
+  let lowest = -Infinity;
+  for (const entry of timeline.entries) {
+    if (entry.at !== at || entry.settledKey === undefined) continue;
+    const y = entry.locate?.() ?? null;
+    if (y === null) {
+      key = null;
+      break;
+    }
+    if (y > lowest) {
+      lowest = y;
+      key = entry.settledKey;
+    }
+  }
+  if (key !== null) timeline.lowest = { at, key };
+  return key;
+}
+
+/**
+ * The centre of a mounted view, read at once. Fabric measures from the
+ * committed tree in the call, transforms included, so the inverted list reads
+ * as drawn; the web view is a DOM element. Anything that answers later (the
+ * old architecture), or a view in a hidden pane (no size), leaves the item
+ * unplaced.
+ */
+export function viewCentre(view: unknown): number | null {
+  const node = view as {
+    getBoundingClientRect?: () => { top: number; width: number; height: number };
+    measureInWindow?: (callback: (x: number, y: number, width: number, height: number) => void) => void;
+  } | null;
+  if (!node) return null;
+  if (typeof node.getBoundingClientRect === "function") {
+    const box = node.getBoundingClientRect();
+    return box.width === 0 && box.height === 0 ? null : box.top + box.height / 2;
+  }
+  let centre: number | null = null;
+  node.measureInWindow?.((_x, y, width, height) => {
+    if (width !== 0 || height !== 0) centre = y + height / 2;
+  });
+  return centre;
 }
 
 /**
@@ -117,7 +198,6 @@ function toolSlots(timeline: AgentTimeline): Map<Entry, ToolSlot> {
   });
   const groups = groupAdjacentTools(unique);
   const slots = new Map<Entry, ToolSlot>();
-  const newest = ordered[ordered.length - 1];
   let run: ToolRun | null = null;
   const close = () => {
     if (!run) return;
@@ -128,9 +208,24 @@ function toolSlots(timeline: AgentTimeline): Map<Entry, ToolSlot> {
       last = Math.max(last, position.get(member)!);
       for (const copy of copies.get(member) ?? []) last = Math.max(last, position.get(copy)!);
     }
-    run.anythingBelow = run.members.length > 1
-      ? last < ordered.length - 1
-      : compare(newest!, ordered[last]!) > 0;
+    const lowest = ordered[last]!;
+    const own = new Set(run.members.flatMap((member) => [member, ...(copies.get(member) ?? [])]));
+    let tied = false;
+    run.anythingBelow = ordered.some((entry, index) => {
+      if (own.has(entry)) return false;
+      if (unordered(entry, lowest)) {
+        tied = true;
+        return false;
+      }
+      // A merged row's members arrived together: whatever sorts after the
+      // last of them is below it.
+      const versus = compare(entry, lowest);
+      return versus > 0 || (versus === 0 && run!.members.length > 1 && index > last);
+    });
+    if (!run.anythingBelow && tied) {
+      const key = lowestSettledKey(timeline, lowest.at);
+      run.anythingBelow = key === null || ![...own].some((entry) => entry.settledKey === key);
+    }
     const head = run.members[0]!;
     const previous = timeline.slots.get(head)?.run.calls;
     if (previous && previous.length === run.calls.length && run.calls.every((call, index) => call === previous[index])) {
@@ -175,8 +270,14 @@ function invalidate(timeline: AgentTimeline): void {
 }
 
 /** Records a mounted item; the returned function forgets it. */
-export function registerTimelineEntry(agentId: string, at: number, kind: TimelineEntryKind): () => void {
-  const entry: Entry = { at, order: KIND_ORDER[kind], row: isRow(kind), sequence: sequence++ };
+export function registerTimelineEntry(
+  agentId: string,
+  at: number,
+  kind: TimelineEntryKind,
+  settledKey?: string,
+  locate?: () => number | null,
+): () => void {
+  const entry: Entry = { at, order: KIND_ORDER[kind], row: isRow(kind), sequence: sequence++, settledKey, locate };
   return addEntry(agentId, entry);
 }
 
@@ -187,12 +288,14 @@ function addEntry(agentId: string, entry: Entry): () => void {
     timelines.set(agentId, timeline);
   }
   timeline.entries.add(entry);
+  timeline.lowest = undefined;
   invalidate(timeline);
   publish();
   return () => {
     const current = timelines.get(agentId);
     if (current?.entries.delete(entry)) {
       if (current.entries.size === 0) timelines.delete(agentId);
+      current.lowest = undefined;
       invalidate(current);
     }
     publish();
@@ -231,13 +334,26 @@ function updateTool(agentId: string, entry: Entry, previous: ToolCallView | unde
  *
  * `group` is null for a member drawn by the row above it, and `anythingBelow`
  * is whether something of this agent's sits below the run's last member.
+ * `settled` is whether the call was complete as its row mounted: replayed
+ * history, not a call the reader watched start. `view` is the row's root,
+ * which places it among calls that share its millisecond.
  */
 export function useTimelineToolGroup(
   agentId: string,
   at: number,
   tool: ToolCallView,
+  settled = false,
+  view?: RefObject<unknown>,
 ): { group: readonly ToolCallView[] | null; anythingBelow: boolean } {
-  const entry = useMemo<Entry>(() => ({ at, order: KIND_ORDER.tool, row: true, sequence: sequence++, tool }), [agentId, at]);
+  const entry = useMemo<Entry>(() => ({
+    at,
+    order: KIND_ORDER.tool,
+    row: true,
+    sequence: sequence++,
+    tool,
+    settledKey: settled ? tool.callId : undefined,
+    locate: view ? () => viewCentre(view.current) : undefined,
+  }), [agentId, at]);
   const single = useMemo(() => [tool], [tool]);
   useLayoutEffect(() => addEntry(agentId, entry), [agentId, entry]);
   useLayoutEffect(() => {
@@ -265,8 +381,8 @@ export function useTimelineToolGroup(
   const getBelow = useCallback(() => {
     const slot = slotOf();
     if (slot) return slot.index === 0 && slot.run.anythingBelow;
-    return hasEntryAfter(agentId, at, "tool");
-  }, [slotOf, agentId, at]);
+    return hasEntryAfter(agentId, at, "tool", entry.settledKey);
+  }, [slotOf, agentId, at, entry]);
   const group = useSyncExternalStore(subscribe, getGroup, getGroup);
   const anythingBelow = useSyncExternalStore(subscribe, getBelow, getBelow);
   return { group, anythingBelow };
@@ -301,13 +417,21 @@ export function nextEntryIsRow(agentId: string, at: number, kind: TimelineEntryK
  * True when anything of this agent's sits below this item. A row's bottom gap
  * is only spare with something below it; the newest row sits on the list's own
  * padding, and taking 12 from there puts its last line under the composer.
+ * A settled item tied with others in the newest moment has one below it
+ * unless it is drawn lowest.
  */
-export function hasEntryAfter(agentId: string, at: number, kind: TimelineEntryKind): boolean {
-  const self = { at, order: KIND_ORDER[kind] };
-  for (const entry of timelines.get(agentId)?.entries ?? []) {
-    if (compare(entry, self) > 0) return true;
+export function hasEntryAfter(agentId: string, at: number, kind: TimelineEntryKind, settledKey?: string): boolean {
+  const timeline = timelines.get(agentId);
+  if (!timeline) return false;
+  const self = { at, order: KIND_ORDER[kind], settledKey };
+  let tied = false;
+  for (const entry of timeline.entries) {
+    if (unordered(entry, self)) tied = true;
+    else if (compare(entry, self) > 0) return true;
   }
-  return false;
+  if (!tied) return false;
+  const key = lowestSettledKey(timeline, at);
+  return key === null || key !== settledKey;
 }
 
 function subscribe(listener: () => void): () => void {
@@ -317,11 +441,23 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-/** Registers this row for as long as it is mounted. */
-export function useTimelineEntry(agentId: string, at: number, kind: TimelineEntryKind): void {
+/**
+ * Registers this item for as long as it is mounted. `settledKey` identifies an
+ * item that is complete (see `Entry`); leave it out while the item streams.
+ */
+export function useTimelineEntry(
+  agentId: string,
+  at: number,
+  kind: TimelineEntryKind,
+  settledKey?: string,
+  view?: RefObject<unknown>,
+): void {
   // Before paint, so a reply that loses its gap to a row arriving below it
   // does not show the gap for a frame first.
-  useLayoutEffect(() => registerTimelineEntry(agentId, at, kind), [agentId, at, kind]);
+  useLayoutEffect(
+    () => registerTimelineEntry(agentId, at, kind, settledKey, view ? () => viewCentre(view.current) : undefined),
+    [agentId, at, kind, settledKey, view],
+  );
 }
 
 /** `nextEntryIsRow`, kept current as rows mount and unmount. */
@@ -331,7 +467,7 @@ export function useNextEntryIsRow(agentId: string, at: number, kind: TimelineEnt
 }
 
 /** `hasEntryAfter`, kept current as items mount and unmount. */
-export function useHasEntryAfter(agentId: string, at: number, kind: TimelineEntryKind): boolean {
-  const getSnapshot = useCallback(() => hasEntryAfter(agentId, at, kind), [agentId, at, kind]);
+export function useHasEntryAfter(agentId: string, at: number, kind: TimelineEntryKind, settledKey?: string): boolean {
+  const getSnapshot = useCallback(() => hasEntryAfter(agentId, at, kind, settledKey), [agentId, at, kind, settledKey]);
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
