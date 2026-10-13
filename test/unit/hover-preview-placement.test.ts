@@ -18,7 +18,7 @@ function wheel(target: unknown, deltaY = 40, ctrlKey = false) {
 }
 
 function layer(contentLeft: number, contentWidth: number, viewportWidth = 1600, anchorWidth = 24,
-  options: Parameters<typeof openPreviewLayer>[3] = {}, scrollHeight = 1200) {
+  options: Parameters<typeof openPreviewLayer>[3] = {}) {
   let resized!: () => void;
   let mutated!: () => void;
   const disconnectResize = vi.fn();
@@ -35,7 +35,9 @@ function layer(contentLeft: number, contentWidth: number, viewportWidth = 1600, 
       disconnect = disconnectMutation;
     },
   };
-  const body = { scrollHeight, clientHeight: 300, children: [] };
+  // 600 wide; `natural` is how wide its lines are unwrapped.
+  const body = { children: [], natural: 600, style: { width: "", maxWidth: "" },
+    getBoundingClientRect() { return { width: this.style.width === "max-content" ? this.natural : 600 }; } };
   const closeButton = { focus: vi.fn() };
   const content = { getBoundingClientRect: () => ({ left: contentLeft, right: contentLeft + contentWidth }) };
   const viewport = { top: 64, bottom: 800 };
@@ -90,21 +92,16 @@ describe("hover preview content bounds", () => {
     expect(close).toHaveBeenCalledOnce();
     release();
   });
-  it.each([299, 300, 301])("only reports overflow when %s px exceeds the visible body", (height) => {
-    const onOverflow = vi.fn();
-    const { release } = layer(200, 700, 1600, 24, { onOverflow }, height);
-    expect(onOverflow).toHaveBeenLastCalledWith(height > 300);
-    release();
-  });
   it("remeasures changing content and disconnects observers on release", () => {
-    const onOverflow = vi.fn();
-    const { body, resize, mutate, release, disconnectResize, disconnectMutation } = layer(200, 700, 1600, 24, { onOverflow }, 200);
-    body.scrollHeight = 500;
+    const onLinesFit = vi.fn();
+    const { body, resize, mutate, release, disconnectResize, disconnectMutation } = layer(200, 700, 1600, 24, { onLinesFit });
+    expect(onLinesFit).toHaveBeenLastCalledWith(true);
+    body.natural = 900;
     mutate();
-    expect(onOverflow).toHaveBeenLastCalledWith(true);
-    body.clientHeight = 500;
+    expect(onLinesFit).toHaveBeenLastCalledWith(false);
+    body.natural = 500;
     resize();
-    expect(onOverflow).toHaveBeenLastCalledWith(false);
+    expect(onLinesFit).toHaveBeenLastCalledWith(true);
     release();
     expect(disconnectResize).toHaveBeenCalledOnce();
     expect(disconnectMutation).toHaveBeenCalledOnce();

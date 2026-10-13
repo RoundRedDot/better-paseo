@@ -36,12 +36,7 @@ vi.mock("../../client/web", () => ({
     pointer.enter = enter;
     return () => {};
   },
-  openPreviewLayer: (_panel: unknown, _anchor: unknown, _close: () => void, options?: {
-    onOverflow?: (overflowing: boolean) => void;
-  }) => {
-    options?.onOverflow?.(true);
-    return () => {};
-  },
+  openPreviewLayer: () => () => {},
 }));
 vi.mock("../../client/components/image-viewer", async () => {
   const { createElement } = await import("react");
