@@ -19,6 +19,20 @@ describe("toolErrorText", () => {
     expect(toolErrorText(new Error("boom"))).toBe("boom");
   });
 
+  it("reads the output of a tool_result block", () => {
+    expect(toolErrorText({
+      type: "tool_result",
+      content: "Exit code 2\nerror: not found",
+      is_error: true,
+      tool_use_id: "toolu_1",
+    })).toBe("Exit code 2\nerror: not found");
+    expect(toolErrorText({
+      type: "tool_result",
+      content: [{ type: "text", text: "Exit code 1" }, { type: "text", text: "boom" }],
+      is_error: true,
+    })).toBe("Exit code 1\nboom");
+  });
+
   it("serialises any other object", () => {
     expect(toolErrorText({ code: 2, reason: "denied" })).toBe('{"code":2,"reason":"denied"}');
   });
