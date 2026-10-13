@@ -1,12 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { SyntaxHighlightBlock } from "./syntax-highlight";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface } from "./selection-actions";
-import { DISCLOSURE_HEADER, DisclosureHeader } from "../ui/disclosure-header";
+import { DisclosureHeader, RowIcon, RowText } from "../ui/disclosure-header";
 import { FadeIn } from "../ui/fade-in";
 import { contentTextProps, contentTextStyle } from "../ui/content-text";
 import { TYPE } from "../ui/tokens/typography";
@@ -69,7 +68,6 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
           fontFamily: tokens.fontUi,
           fontSize: TYPE.label.size,
           lineHeight: TYPE.label.lineHeight,
-          color: tokens.foreground,
           ...unselectable,
         },
         body: {
@@ -95,16 +93,15 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
   );
 
   const icon = (
-    <Icon
+    <RowIcon
       name={failed ? "CircleX" : look.icon}
-      size={DISCLOSURE_HEADER.icon}
-      color={failed ? tokens.danger : envelope.kind === "job" ? tokens.success : tokens.foregroundMuted}
+      color={failed ? tokens.danger : envelope.kind === "job" ? tokens.success : undefined}
     />
   );
   const title = (
-    <Text selectable={false} numberOfLines={1} style={styles.title}>
+    <RowText part="target" selectable={false} numberOfLines={1} style={styles.title}>
       {envelope.title}
-    </Text>
+    </RowText>
   );
   const meta: React.ReactNode[] = envelope.chips.map((chip) => chip.value);
   if (failed) meta.push(<Text style={{ color: tokens.danger }}>failed</Text>);
