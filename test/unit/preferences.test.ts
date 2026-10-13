@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { HOVER_DELAYS, HOVER_DELAY_MS, HOVER_DELAY_LABELS, preferencesSchema } from "../../shared/preferences-settings";
+import { HOVER_DELAY_DEFAULT, clampHoverDelay, preferencesSchema } from "../../shared/preferences-settings";
 import {
   DEFAULT_PREFERENCES,
   LEGACY_STORAGE_KEY,
@@ -43,17 +43,30 @@ describe("preferences v2 defaults", () => {
     expect(parsePreferences({ hoverPreview: false }).hoverPreview).toBe(false);
     expect(parsePreferences({ hoverPreview: "no" }).hoverPreview).toBe(true);
   });
-  it("defaults old records to 500ms and preserves each of the five hover choices", () => {
-    expect(DEFAULT_PREFERENCES.hoverDelay).toBe("500ms");
-    expect(parsePreferences({}).hoverDelay).toBe("500ms");
-    for (const hoverDelay of HOVER_DELAYS) {
-      expect(parsePreferences({ hoverDelay }).hoverDelay).toBe(hoverDelay);
+  it("defaults the hover delay to one second and keeps a typed value to a tenth, within 0-10", () => {
+    expect(HOVER_DELAY_DEFAULT).toBe(1);
+    expect(DEFAULT_PREFERENCES.hoverDelaySeconds).toBe(1);
+    expect(parsePreferences({}).hoverDelaySeconds).toBe(1);
+    expect(parsePreferences({ hoverDelaySeconds: 0.3 }).hoverDelaySeconds).toBe(0.3);
+    expect(parsePreferences({ hoverDelaySeconds: 0 }).hoverDelaySeconds).toBe(0);
+    expect(parsePreferences({ hoverDelaySeconds: 2.75 }).hoverDelaySeconds).toBe(2.8);
+    expect(parsePreferences({ hoverDelaySeconds: 42 }).hoverDelaySeconds).toBe(10);
+    expect(parsePreferences({ hoverDelaySeconds: -1 }).hoverDelaySeconds).toBe(0);
+    for (const hoverDelaySeconds of ["1", null, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(parsePreferences({ hoverDelaySeconds }).hoverDelaySeconds).toBe(1);
     }
-    for (const hoverDelay of ["400ms", "0ms", 200, null]) {
-      expect(parsePreferences({ hoverDelay }).hoverDelay).toBe("500ms");
+    expect(clampHoverDelay(0.1 + 0.2)).toBe(0.3);
+  });
+  it("carries a stored delay step over as seconds", () => {
+    const steps = { "200ms": 0.2, "500ms": 0.5, "1s": 1, "1.5s": 1.5, "2s": 2 };
+    for (const [hoverDelay, seconds] of Object.entries(steps)) {
+      const parsed = parsePreferences({ hoverDelay });
+      expect(parsed.hoverDelaySeconds).toBe(seconds);
+      expect(parsed).not.toHaveProperty("hoverDelay");
     }
-    expect(HOVER_DELAYS.map((value) => HOVER_DELAY_MS[value])).toEqual([200, 500, 1000, 1500, 2000]);
-    expect(HOVER_DELAYS.map((value) => HOVER_DELAY_LABELS[value])).toEqual(["0.2s", "0.5s", "1.0s", "1.5s", "2s"]);
+    expect(parsePreferences({ hoverDelay: "400ms" }).hoverDelaySeconds).toBe(1);
+    // A record that already has the typed value ignores a leftover step.
+    expect(parsePreferences({ hoverDelay: "2s", hoverDelaySeconds: 0.4 }).hoverDelaySeconds).toBe(0.4);
   });
   it("starts previews wrapped and shaded without line numbers and keeps an explicit choice", () => {
     expect(DEFAULT_PREFERENCES.previewWrap).toBe(true);
@@ -267,11 +280,11 @@ describe("daemon-backed store (S5 fix round 1)", () => {
     const { mod, local } = await freshModule();
     const persist = vi.fn();
     mod.setPreferencePersister(persist);
-    mod.updateEnhancerPreferences({ hoverDelay: "1.5s" });
-    expect(persist).toHaveBeenCalledWith(expect.objectContaining({ hoverDelay: "1.5s" }));
-    expect(readStoredPreferences(local).hoverDelay).toBe("1.5s");
-    mod.applyStoredPreferences({ ...storedPart(DEFAULT_PREFERENCES), hoverDelay: "2s" });
-    expect(mod.getEnhancerPreferences().hoverDelay).toBe("2s");
+    mod.updateEnhancerPreferences({ hoverDelaySeconds: 1.5 });
+    expect(persist).toHaveBeenCalledWith(expect.objectContaining({ hoverDelaySeconds: 1.5 }));
+    expect(readStoredPreferences(local).hoverDelaySeconds).toBe(1.5);
+    mod.applyStoredPreferences({ ...storedPart(DEFAULT_PREFERENCES), hoverDelaySeconds: 2 });
+    expect(mod.getEnhancerPreferences().hoverDelaySeconds).toBe(2);
   });
   it("persists disabled hover previews and restores them when resetting defaults", async () => {
     const { mod, local } = await freshModule();

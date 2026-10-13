@@ -316,16 +316,9 @@ export function ToolCallout({
           <GroupedPreview calls={groupCalls} resolvePath={resolvePath} tokens={tokens} compact={compact} imageFile={imageFile}
             path={filePath ? resolvePath(filePath) : undefined} revealFile={revealFile} displayPath={displayPath} onViewImage={openViewer} />
         ) : (
-          <>
-            <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens}
-              meta={drawsImage ? <ImageMeta file={imageFile ?? null} tokens={tokens} /> : undefined} />
-            <HoverPreviewBody>
-              {filePath ? <PreviewPath path={resolvePath(filePath)} tokens={tokens} /> : null}
-              <ToolBody data={data} tokens={tokens} compact={compact} imageFile={imageFile}
-                revealFile={revealFile} displayPath={displayPath} preview onViewImage={openViewer} />
-              {data.error ? <PreviewError text={data.error} tokens={tokens} /> : null}
-            </HoverPreviewBody>
-          </>
+          <ToolPreviewContent data={data} resolvePath={resolvePath} tokens={tokens} compact={compact}
+            imageFile={imageFile} drawsImage={drawsImage} revealFile={revealFile} displayPath={displayPath}
+            onViewImage={openViewer} />
         )
       )}
     />
@@ -409,6 +402,29 @@ function GroupedToolDetails({ calls, ...rest }: GroupedBodyProps) {
         <GroupPager index={index} count={calls.length} onChange={setIndex} tokens={rest.tokens} />
       </TooltipAlignContext.Provider>
       <GroupedCallBody key={calls[index]!.callId} call={calls[index]!} {...rest} />
+    </>
+  );
+}
+
+/**
+ * What a single call's preview panel holds: the toolbar, then the path, the
+ * body and the error. Also drawn outside a panel's layer by the settings page
+ * (`PreviewPanelSample`), so a reader sees the panel options take effect.
+ */
+export function ToolPreviewContent({ data, resolvePath, drawsImage = false, ...rest }: Omit<ToolBodyProps, "preview"> & {
+  resolvePath: ResolvePath;
+  drawsImage?: boolean;
+}) {
+  const { tokens, imageFile } = rest;
+  return (
+    <>
+      <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens}
+        meta={drawsImage ? <ImageMeta file={imageFile ?? null} tokens={tokens} /> : undefined} />
+      <HoverPreviewBody>
+        {data.filePath ? <PreviewPath path={resolvePath(data.filePath)} tokens={tokens} /> : null}
+        <ToolBody data={data} {...rest} preview />
+        {data.error ? <PreviewError text={data.error} tokens={tokens} /> : null}
+      </HoverPreviewBody>
     </>
   );
 }
