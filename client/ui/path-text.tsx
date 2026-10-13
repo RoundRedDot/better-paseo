@@ -14,7 +14,7 @@ import {
   type PathDisplayMode,
   type PathRoot,
 } from "../paths/format-path";
-import { budgetForWidth, ellipsisCells, fitCells, shownPath, truncateMiddle } from "../paths/truncate-middle";
+import { budgetForWidth, fitMiddle, shownPath, truncateMiddle } from "../paths/truncate-middle";
 import { useCopy } from "./use-copy";
 import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
@@ -176,7 +176,6 @@ export function PathText({
   const fallback = budget ?? (compact ? BUDGET.compact : BUDGET.desktop);
   const limit = measured === null ? fallback : budget ? Math.min(budget, measured) : measured;
   const strict = measured !== null;
-  const ellipsis = ellipsisCells(family);
 
   useEffect(() => {
     if (!hovered || !capabilities.hover || inline || Platform.OS === "web") {
@@ -199,8 +198,8 @@ export function PathText({
   };
 
   const shownParts = verbatim
-    ? { label: null, text: strict ? fitCells(path.trim(), limit, ellipsis) : truncateMiddle(path.trim(), limit) }
-    : shownPath(formatted, limit, strict, ellipsis);
+    ? { label: null, text: strict ? fitMiddle(path.trim(), limit) : truncateMiddle(path.trim(), limit) }
+    : shownPath(formatted, limit, strict);
   const label = shownParts.label;
   const shown = shownParts.text;
   const textStyle = [

@@ -10,14 +10,15 @@ import { z } from "zod";
  * Shared by `index.server.ts` (registration, validation, the file on disk)
  * and the client (`useSettings`). Every field degrades to its default on its
  * own (`catch`), so one unusable value never invalidates the whole record;
- * a platform-specific value (Iosevka on iOS, a desktop family name on
- * Android) is stored as chosen and degraded at render by `resolveTypography`.
+ * a platform-specific value (Inter on iOS, a desktop family name on Android)
+ * is stored as chosen and degraded at render by `resolveTypography`. A value
+ * no longer offered (the removed `monoFont: "iosevka"`) falls back to its
+ * default.
  */
 
 export const ACCENT_IDS = ["host", "jade", "violet", "amber", "rose"] as const;
 export const UI_FONTS = ["host", "inter", "system"] as const;
-export const CODE_FONTS = ["code", "plain"] as const;
-export const MONO_FONTS = ["host", "iosevka", "custom"] as const;
+export const MONO_FONTS = ["host", "custom"] as const;
 export const TOOL_DETAILS = ["collapsed", "expand-failed"] as const;
 export const PATH_DISPLAYS = ["relative", "absolute"] as const;
 export const ROW_LABEL_STYLES = ["icon", "label", "both"] as const;
@@ -69,7 +70,6 @@ function migrateHoverDelay(raw: unknown): unknown {
 export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrateRowLabels(raw)), z.object({
   accent: z.enum(ACCENT_IDS).catch("host"),
   uiFont: z.enum(UI_FONTS).catch("host"),
-  codeFont: z.enum(CODE_FONTS).catch("code"),
   monoFont: z.enum(MONO_FONTS).catch("host"),
   customMonoFont: z
     .string()

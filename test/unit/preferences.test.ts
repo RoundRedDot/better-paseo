@@ -5,8 +5,6 @@ import {
   LEGACY_STORAGE_KEY,
   STORAGE_KEY,
   migrateV1Preferences,
-  monoChoice,
-  monoChoiceUpdate,
   parsePreferences,
   readStoredPreferences,
   storedPart,
@@ -129,7 +127,6 @@ describe("v1 -> v2 migration", () => {
     expect(migrated).toEqual({
       ...DEFAULT_PREFERENCES,
       accent: "violet",
-      codeFont: "plain",
       enhancedUserBubble: false,
       markdownVariant: "compact",
       uiFont: "host",
@@ -198,23 +195,11 @@ describe("records written before S7", () => {
   });
 });
 
-describe("monospace choice (settings page)", () => {
-  it("tells Iosevka and Iosevka Code apart by the ligature setting", () => {
-    expect(monoChoice({ monoFont: "iosevka", codeFont: "plain" })).toBe("iosevka");
-    expect(monoChoice({ monoFont: "iosevka", codeFont: "code" })).toBe("iosevka-code");
-    expect(monoChoice({ monoFont: "host", codeFont: "plain" })).toBe("host");
-    expect(monoChoice({ monoFont: "custom", codeFont: "code" })).toBe("custom");
-  });
-
-  it("round-trips every choice through the stored preferences", () => {
-    for (const choice of ["host", "iosevka", "iosevka-code", "custom"] as const) {
-      const stored = parsePreferences({ ...DEFAULT_PREFERENCES, ...monoChoiceUpdate(choice) });
-      expect(monoChoice(stored)).toBe(choice);
-    }
-  });
-
-  it("resets the ligature setting to its default when returning to Follow Paseo", () => {
-    expect(monoChoiceUpdate("host")).toEqual({ monoFont: "host", codeFont: "code" });
+describe("removed Iosevka choice", () => {
+  it("falls back to Follow Paseo and drops the ligature setting", () => {
+    const parsed = preferencesSchema.parse({ monoFont: "iosevka", codeFont: "plain" });
+    expect(parsed.monoFont).toBe("host");
+    expect(parsed).not.toHaveProperty("codeFont");
   });
 });
 

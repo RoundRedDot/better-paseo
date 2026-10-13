@@ -94,7 +94,7 @@ const en = {
   monoTitle: "Monospace font",
   monoNative:
     "For code, diffs, terminal output and paths. Custom lists only faces this device is known to have.",
-  monoWeb: "For code, diffs, terminal output and paths. Iosevka Code adds programming ligatures in code blocks.",
+  monoWeb: "For code, diffs, terminal output and paths.",
   monoSource: "Monospace source",
   customMono: "Custom monospace family",
   customMonoPlaceholder: "e.g. JetBrains Mono",
@@ -230,7 +230,7 @@ const zh: SettingsStrings = {
     "当前 Paseo 不向插件提供字体设置。“跟随 Paseo”会读取这台电脑上 Paseo 外观设置里的等宽字体和字号，读不到时使用 Paseo 默认值（SF Mono、Menlo、Monaco 或 Consolas，12px）。",
   monoTitle: "等宽字体",
   monoNative: "用于代码、diff、终端输出和路径。“自定义”只列出这台设备确定已安装的字体。",
-  monoWeb: "用于代码、diff、终端输出和路径。Iosevka Code 会在代码块里启用编程连字。",
+  monoWeb: "用于代码、diff、终端输出和路径。",
   monoSource: "等宽字体来源",
   customMono: "自定义等宽字体",
   customMonoPlaceholder: "例如 JetBrains Mono",
