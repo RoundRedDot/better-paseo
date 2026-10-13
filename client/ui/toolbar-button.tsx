@@ -46,6 +46,8 @@ interface ToolbarButtonProps {
   /** Icon colour; muted by default. */
   color?: string;
   align?: TooltipAlign;
+  /** Subtle outline for a standalone button, outside a toolbar group. */
+  outlined?: boolean;
 }
 
 /**
@@ -76,6 +78,7 @@ function ToolbarItem({
   disabled = false,
   checked,
   align: alignProp,
+  outlined = false,
 }: Omit<ToolbarButtonProps, "icon" | "color" | "onPress"> & { children: ReactNode; onPress?: () => void }) {
   const groupAlign = useContext(TooltipAlignContext);
   const sideMode = useContext(TooltipSideContext);
@@ -115,6 +118,7 @@ function ToolbarItem({
         {...hoverProps}
         style={({ pressed }) => [
           styles.button,
+          outlined && { borderWidth: 1, borderColor: hovered && !disabled ? tokens.foregroundMuted : tokens.v2.border },
           disabled && styles.disabled,
           onPress && !disabled && hovered && { backgroundColor: tokens.v2.surface2 },
           onPress && !disabled && pressed && { backgroundColor: tokens.v2.surface2 },
@@ -140,13 +144,14 @@ function ToolbarItem({
 }
 
 /** A toolbar button that copies; its icon turns into a check for 1.2 s once the text is on the clipboard. */
-export function ToolbarCopyButton({ text, icon = "Copy", label, tokens, align }: {
+export function ToolbarCopyButton({ text, icon = "Copy", label, tokens, align, outlined }: {
   /** The raw text, or a function that builds it only when pressed. */
   text: string | (() => string);
   icon?: string;
   label: string;
   tokens: ExtendedThemeTokens;
   align?: TooltipAlign;
+  outlined?: boolean;
 }) {
   const { copied, copy } = useCopy();
   const onPress = useCallback(() => {
@@ -161,6 +166,7 @@ export function ToolbarCopyButton({ text, icon = "Copy", label, tokens, align }:
       onPress={onPress}
       tokens={tokens}
       align={align}
+      outlined={outlined}
     />
   );
 }
