@@ -9,6 +9,7 @@
  * shadow lifts the frame off the content under it.
  */
 import { mix, type ExtendedThemeTokens } from "../../components/theme-tokens";
+import { cssShadow } from "./css-shadow";
 
 export const FLOAT = {
   /** The frame's height, its border included; also the closed table control's side. */
@@ -29,17 +30,19 @@ export const FLOAT_EASE = {
 } as const;
 
 /**
- * A tight contact shadow under a short, faint ambient one, heavier on a dark
- * surface. Both stay small: a wide, dense blur bands into visible rings on a
- * light page and smears the light stroke, so the edge stops reading as sharp.
- * Hidden, the same two layers turn transparent, so the change can transition.
+ * The hover preview's edge at the frame's size: the solid border alone draws
+ * the edge, and a single shadow dropped below it lifts the frame. A layer
+ * hugging the border turns the line into a gradient and the edge looks soft,
+ * and the preview's own 24px blur bands into rings around a frame this small.
+ * Hidden, the shadow turns transparent, so the change can transition.
  */
-export function floatShadow(tokens: Pick<ExtendedThemeTokens, "isDark">, visible = true): string {
-  const [contact, ambient] = tokens.isDark ? ["0, 0, 0, 0.4", "0, 0, 0, 0.45"] : ["17, 17, 20, 0.08", "17, 17, 20, 0.1"];
-  const rgba = (value: string) => `rgba(${visible ? value : value.replace(/[\d.]+$/, "0")})`;
-  return tokens.isDark
-    ? `0 1px 2px ${rgba(contact)}, 0 4px 12px -2px ${rgba(ambient)}`
-    : `0 1px 2px ${rgba(contact)}, 0 4px 10px -2px ${rgba(ambient)}`;
+export function floatShadow(tokens: ExtendedThemeTokens, visible = true): string {
+  return cssShadow({
+    ...tokens.v2.elevation.overlay,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 16,
+    shadowOpacity: visible ? (tokens.isDark ? 0.28 : 0.14) : 0,
+  });
 }
 
 /** A hovered item: the preview toolbar's hover fill. */
