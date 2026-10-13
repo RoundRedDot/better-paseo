@@ -7,6 +7,7 @@ import { ReasoningCard } from "./components/reasoning-trace";
 import { UserMessage } from "./components/user-message";
 import { MarkdownView } from "./components/markdown/markdown-view";
 import { AssistantFooter } from "./components/turn-footer";
+import { TaskList } from "./components/task-list";
 import { classifyTool, type ToolCallView } from "./tools/classify";
 import { defaultToolExpanded } from "./tools/disclosure";
 import { reasoningText, segmentReasoning } from "./reasoning/segment";
@@ -15,6 +16,7 @@ import { pluginRoot } from "./components/focus-ring";
 import { PathContext, type PathContextValue } from "./ui/path-text";
 import { PreviewPanelSample } from "./ui/hover-preview";
 import type { EnhancerPreferences } from "./preferences";
+import type { TaskListData } from "../shared/contracts";
 import type { SettingsStrings } from "./i18n/settings-strings";
 
 /**
@@ -23,6 +25,10 @@ import type { SettingsStrings } from "./i18n/settings-strings";
  * read the same preference store as the timeline, so they follow every
  * option; only the host's own pieces (its prompt bubble and its markdown,
  * when the plugin's are off) and its gaps between items are imitated here.
+ *
+ * The accent has its own showcase: the plan is mid-way (an accent progress
+ * line and a running dot on the open task) and the reply ends on a link,
+ * since a finished turn otherwise shows no accent at all.
  *
  * The Read row's hover preview is drawn open under it, so the panel options
  * show without a hover. The turn is its own plugin root: a preview a row
@@ -115,6 +121,7 @@ function HostReply({ text, tokens }: { text: string; tokens: ExtendedThemeTokens
         .split("\n")
         .filter((line) => !line.startsWith("```"))
         .join("\n")
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
         .replace(/\*\*|`/g, "")
         .replace(/^- /gm, "• "),
     [text],
@@ -143,6 +150,18 @@ export function SettingsPreview({
   const rowGap = preferences.compactRowSpacing ? COMPACT_GAP : HOST_GAP;
   const replyGap = preferences.compactReplySpacing ? COMPACT_GAP : HOST_GAP;
   const failedOpen = defaultToolExpanded(FAILED, preferences.toolDetail);
+  const plan = useMemo<TaskListData>(
+    () => ({
+      id: "settings-preview-plan",
+      phaseName: t.previewPlanPhase,
+      tasks: [
+        { id: "find", title: t.previewPlanFind, phase: t.previewPlanPhase, status: "completed" },
+        { id: "fix", title: t.previewPlanFix, phase: t.previewPlanPhase, status: "in_progress" },
+        { id: "test", title: t.previewPlanTest, phase: t.previewPlanPhase, status: "pending" },
+      ],
+    }),
+    [t],
+  );
   const reply = (text: string) =>
     preferences.assistantMarkdown ? (
       <MarkdownView text={text} tokens={tokens} variant={preferences.markdownVariant} compact={compact} />
@@ -180,6 +199,10 @@ export function SettingsPreview({
           />
         </Item>
         <Item gap={replyGap}>{reply(t.previewLead)}</Item>
+        {/* Paseo's own gap under a plan: the row options do not apply to it. */}
+        <Item gap={HOST_GAP}>
+          <TaskList data={plan} tokens={tokens} compact={compact} />
+        </Item>
         <Item gap={rowGap}>
           <ToolCallout data={READ} tokens={tokens} compact={compact} />
           {preferences.hoverPreview ? (
