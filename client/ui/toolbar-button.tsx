@@ -8,6 +8,7 @@ import { useCopy } from "./use-copy";
 import { useHover } from "./use-hover";
 import { UI_SCALE } from "./tokens/typography";
 import { cssShadow } from "./tokens/css-shadow";
+import { FLOAT } from "./tokens/float";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement } from "./tooltip-placement";
@@ -46,7 +47,7 @@ interface ToolbarButtonProps {
   /** Icon colour; muted by default. */
   color?: string;
   align?: TooltipAlign;
-  /** A subtle round outline for a standalone button, outside a toolbar group. */
+  /** A subtle outline for a standalone button, outside a toolbar group, in the floating controls' frame. */
   outlined?: boolean;
 }
 
@@ -120,7 +121,7 @@ function ToolbarItem({
         style={({ pressed }) => [
           styles.button,
           outlined && styles.outlined,
-          outlined && { borderColor: hovered && !disabled ? tokens.foregroundMuted : tokens.v2.border },
+          outlined && { borderColor: tokens.v2.border },
           disabled && styles.disabled,
           onPress && !disabled && hovered && { backgroundColor: tokens.v2.surface2 },
           onPress && !disabled && pressed && { backgroundColor: tokens.v2.surface2 },
@@ -208,8 +209,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  // A standalone button is a circle, so it reads as a control rather than a cell.
-  outlined: { borderWidth: 1, borderRadius: 12 },
+  // A standalone button takes the floating controls' frame (float.ts), so the
+  // table's touch button matches the menu a pointer opens.
+  outlined: { width: FLOAT.control, height: FLOAT.control, borderWidth: 1, borderRadius: FLOAT.radius },
   disabled: { opacity: 0.35 },
   tooltipSlot: {
     position: "absolute",

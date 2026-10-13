@@ -4,7 +4,7 @@ import type { TextProps, ViewProps } from "react-native";
 import { copyText } from "@getpaseo/plugin/client/react-native";
 import { radiusV2 } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
-import { cssShadow } from "../ui/tokens/css-shadow";
+import { FLOAT, FLOAT_EASE, floatHover, floatPressed, floatShadow } from "../ui/tokens/float";
 import { getEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 
@@ -60,6 +60,8 @@ const COMPOSER_SELECTOR = "[data-composer-input]";
 const GAP = 8;
 /** How long a pressed button shows its check before the bar steps aside. */
 const DONE_MS = 700;
+/** The bar's fade out, after which it leaves the page. */
+const LEAVE_MS = 100;
 
 /** Lucide's shapes, the set the plugin's `Icon` draws, inlined: the bar is raw DOM. */
 const ICONS = {
@@ -190,53 +192,73 @@ function insertIntoComposer(snippet: string, from: Element | null): boolean {
   return true;
 }
 
+// The floating controls' family (float.ts): a rounded frame 30 tall lifted by
+// a shadow, with toolbar-sized items, muted icons and a success check.
 const BAR_CSS = `
 :host { all: initial; }
 .bar {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px;
+  gap: ${FLOAT.inset}px;
+  padding: ${FLOAT.inset}px;
   border-style: solid;
   border-width: 1px;
-  border-radius: ${radiusV2.block}px;
-  /* A floating layer, lifted by the theme's overlay elevation: the border
-     does the separating, the shadow only a hint (plan §3.6). */
+  border-radius: ${FLOAT.radius}px;
   box-shadow: var(--bc-bar-shadow);
   background-color: var(--bc-bar-bg);
-  background-image: linear-gradient(var(--bc-bar-raise), var(--bc-bar-raise));
   font-size: 12px;
   line-height: 16px;
   user-select: none;
   -webkit-user-select: none;
+  opacity: 0;
+  transform: translateY(var(--bc-bar-from, 4px));
+  transition: opacity 140ms ${FLOAT_EASE.out}, transform 140ms ${FLOAT_EASE.out};
+}
+.bar.shown { opacity: 1; transform: none; }
+.bar.leaving {
+  opacity: 0;
+  transform: translateY(var(--bc-bar-to, 2px));
+  transition: opacity ${LEAVE_MS}ms ${FLOAT_EASE.in}, transform ${LEAVE_MS}ms ${FLOAT_EASE.in};
 }
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: ${FLOAT.iconText}px;
   appearance: none;
   margin: 0;
   border: 0;
   background: transparent;
-  border-radius: ${radiusV2.chip}px;
+  color: var(--bc-bar-text);
+  border-radius: ${FLOAT.itemRadius}px;
   cursor: pointer;
   font: inherit;
   font-weight: 500;
-  letter-spacing: 0.1px;
-  padding: 4px 9px;
+  height: ${FLOAT.item}px;
+  padding: 0 10px 0 8px;
   white-space: nowrap;
   /* No shrinking: a squeezed button overlaps its neighbour's label. */
   flex: 0 0 auto;
+  transition: background-color 100ms ${FLOAT_EASE.out};
 }
+.btn:hover { background-color: var(--bc-bar-hover); }
+.btn:active { background-color: var(--bc-bar-pressed); }
+.btn:focus { outline: none; }
+.btn:focus-visible { box-shadow: 0 0 0 2px var(--bc-bar-ring); }
 .btn svg {
-  width: 14px;
-  height: 14px;
+  width: ${FLOAT.iconSize}px;
+  height: ${FLOAT.iconSize}px;
   flex: 0 0 auto;
   fill: none;
+  /* The icons stay muted, as on a preview toolbar; only the check is coloured. */
+  color: var(--bc-bar-icon);
   stroke: currentColor;
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+.btn[data-done] svg { color: var(--bc-bar-done); }
+@media (prefers-reduced-motion: reduce) {
+  .bar, .bar.leaving, .btn { transition: none; }
 }
 `;
 
@@ -288,7 +310,7 @@ function createBar(done: () => void): Bar {
   shadow.appendChild(bar);
 
   let doneTimer = 0;
-  let hoverColor = "";
+  let leaveTimer = 0;
 
   /**
    * An icon and a label in the settings page's language, read on every paint
@@ -299,6 +321,7 @@ function createBar(done: () => void): Bar {
     const text = document.createElement("span");
     text.textContent = toolbarLabel(label, getEnhancerPreferences().language);
     button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[icon]}</svg>`;
+    button.toggleAttribute("data-done", icon === "check");
     button.appendChild(text);
   };
 
@@ -311,12 +334,6 @@ function createBar(done: () => void): Bar {
     button.dataset.icon = icon;
     paint(button, label, icon);
     button.addEventListener("click", () => onPress(button));
-    button.addEventListener("mouseenter", () => {
-      button.style.backgroundColor = hoverColor;
-    });
-    button.addEventListener("mouseleave", () => {
-      button.style.backgroundColor = "transparent";
-    });
     bar.appendChild(button);
     return button;
   };
@@ -365,22 +382,24 @@ function createBar(done: () => void): Bar {
   return {
     host,
     setTheme(tokens) {
-      hoverColor = tokens.accentBg;
-      // Every derived surface token is translucent by design — they sit on the
-      // host background inside the timeline. A bar floating over text needs to
-      // be opaque, so the raised tone is painted as a layer on the one opaque
-      // surface the theme carries.
+      // The bar floats over text, so it needs the theme's one opaque surface;
+      // the derived surfaces are translucent by design.
       host.style.setProperty("--bc-bar-bg", tokens.surface0);
-      host.style.setProperty("--bc-bar-raise", tokens.surface2);
-      bar.style.borderColor = tokens.border;
-      host.style.setProperty("--bc-bar-shadow", cssShadow(tokens.v2.elevation.overlay));
+      host.style.setProperty("--bc-bar-shadow", floatShadow(tokens));
+      host.style.setProperty("--bc-bar-text", tokens.foreground);
+      host.style.setProperty("--bc-bar-icon", tokens.foregroundMuted);
+      host.style.setProperty("--bc-bar-done", tokens.success);
+      host.style.setProperty("--bc-bar-hover", floatHover(tokens));
+      host.style.setProperty("--bc-bar-pressed", floatPressed(tokens));
+      host.style.setProperty("--bc-bar-ring", tokens.accent);
+      bar.style.borderColor = tokens.v2.border;
       // The bar sits on document.body, outside the host's UI font rule, so
       // "Follow Paseo" reads the host's own font variable directly.
       bar.style.fontFamily = tokens.fontUi ?? "var(--paseo-ui-font, system-ui, sans-serif)";
-      copyButton.style.color = tokens.foreground;
-      addButton.style.color = tokens.accent;
     },
     show(rect) {
+      window.clearTimeout(leaveTimer);
+      const arriving = host.style.getPropertyValue("display") === "none" || bar.classList.contains("leaving");
       if (host.style.getPropertyValue("display") === "none") {
         window.clearTimeout(doneTimer);
         reset();
@@ -400,13 +419,30 @@ function createBar(done: () => void): Bar {
         above >= GAP ? above : Math.min(rect.bottom + GAP, window.innerHeight - height - GAP);
       host.style.setProperty("left", `${Math.round(left)}px`, "important");
       host.style.setProperty("top", `${Math.round(top)}px`, "important");
+      // A bar already up moves with its selection at once; a new one rises 4
+      // from the selection's side and fades in, and leaves 2 the other way.
+      if (!arriving) return;
+      const below = above < GAP;
+      bar.style.setProperty("--bc-bar-from", below ? "-4px" : "4px");
+      bar.style.setProperty("--bc-bar-to", below ? "-2px" : "2px");
+      bar.classList.remove("leaving", "shown");
+      void bar.offsetWidth;
+      bar.classList.add("shown");
     },
     hide() {
-      host.style.setProperty("display", "none", "important");
-      if (topLayer && host.matches(":popover-open")) host.hidePopover();
+      if (host.style.getPropertyValue("display") === "none" || bar.classList.contains("leaving")) return;
+      bar.classList.add("leaving");
+      bar.classList.remove("shown");
+      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+      leaveTimer = window.setTimeout(() => {
+        bar.classList.remove("leaving");
+        host.style.setProperty("display", "none", "important");
+        if (topLayer && host.matches(":popover-open")) host.hidePopover();
+      }, reduced ? 0 : LEAVE_MS);
     },
     dispose() {
       window.clearTimeout(doneTimer);
+      window.clearTimeout(leaveTimer);
       bar.removeEventListener("mousedown", holdSelection);
       host.remove();
     },

@@ -84,10 +84,11 @@ describe("Markdown table copy", () => {
         && (node.children[0] === label || node.children[0] === copied));
       expect(labels()).toHaveLength(0);
       expect(StyleSheet.flatten(buttons()[0]!.props.style)).toMatchObject({
-        width: 24, height: 24, borderWidth: 1, borderRadius: 12, borderColor: tokens.v2.border,
+        width: 30, height: 30, borderWidth: 1, borderRadius: 7, borderColor: tokens.v2.border,
       });
       act(() => { buttons()[0]!.props.onHoverIn(); });
-      expect(StyleSheet.flatten(buttons()[0]!.props.style).borderColor).toBe(tokens.foregroundMuted);
+      // The frame's edge stays light on hover: only the fill marks it.
+      expect(StyleSheet.flatten(buttons()[0]!.props.style)).toMatchObject({ borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface2 });
       act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS - 1); });
       expect(labels()).toHaveLength(0);
       act(() => { vi.advanceTimersByTime(1); });

@@ -2,8 +2,9 @@
  * Motion tokens (plan §3.7, BC-09).
  *
  * Three kinds of motion remain in the plugin: the running indicator, the
- * fade-in of an expanded body, and a table's copy circle opening into its
- * menu. All read their timing from here. There is no
+ * fade-in of an expanded body, and the floating controls (a table's copy
+ * menu, the selection bar), whose CSS transitions live with their family in
+ * `float.ts`. The first two read their timing from here. There is no
  * spring and no scale on purpose: the requirement rules out bounce and
  * noticeable zoom.
  *
@@ -14,8 +15,6 @@
 export const duration = {
   /** Fades and state changes. */
   fast: 120,
-  /** A table's copy circle widening into its menu, and closing again. */
-  menu: 180,
 } as const;
 
 /** Decelerating cubic: `1 - (1 - t)^3`. */

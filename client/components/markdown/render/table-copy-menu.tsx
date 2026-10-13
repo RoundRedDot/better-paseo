@@ -2,13 +2,13 @@ import React, { useCallback, useRef, useState, type RefObject } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../../theme-tokens";
-import { radiusV2 } from "../../theme-tokens";
 import { unselectable } from "../../selection";
 import { useCopy } from "../../../ui/use-copy";
 import { useHover } from "../../../ui/use-hover";
 import { useInputCapabilities } from "../../../ui/use-input-capabilities";
 import { useReducedMotion } from "../../../ui/use-reduced-motion";
-import { duration, motionDuration } from "../../../ui/tokens/motion";
+import { motionDuration } from "../../../ui/tokens/motion";
+import { FLOAT, FLOAT_EASE, floatHover, floatPressed, floatShadow } from "../../../ui/tokens/float";
 import { canCopyImage, copyElementImage } from "../../../ui/element-image";
 import { ToolbarCopyButton } from "../../../ui/toolbar-button";
 import { UI_SCALE } from "../../../ui/tokens/typography";
@@ -19,8 +19,8 @@ export const COPY_MARKDOWN_LABEL = "Copy as Markdown";
 export const COPY_IMAGE_LABEL = "Copy as image";
 
 /**
- * The copy control at a table's corner. A pointer on web opens it to the
- * right into two entries, the Markdown source and a picture of the table as
+ * The copy control at a table's corner, a rounded square like the selection
+ * bar's frame. A pointer on web opens it to the right into two entries, the Markdown source and a picture of the table as
  * drawn; the first sits where the icon was, so a click without a pause still
  * copies the Markdown. Touch and native keep the single button: they have no
  * hover to open it, and no DOM to draw the picture from.
@@ -46,7 +46,10 @@ function HoverMenu({ source, frame, tokens }: {
 }) {
   const anchorRef = useRef<View>(null);
   // Bound to the whole control, so the pointer moving between entries keeps it open.
-  const { hovered: open, hoverProps } = useHover(anchorRef);
+  const { hovered, hoverProps } = useHover(anchorRef);
+  // Keyboard focus opens it too, so Tab reaches the second entry.
+  const [focused, setFocused] = useState(0);
+  const open = hovered || focused > 0;
   const reducedMotion = useReducedMotion();
   // The open width, measured from the row of entries, which is laid out at
   // its full size whether or not the frame shows it.
@@ -64,17 +67,22 @@ function HoverMenu({ source, frame, tokens }: {
       await copyElementImage(element, { background: tokens.surface0 });
     }, { label: COPY_IMAGE_LABEL });
   }, [frame, image.copyWith, tokens.surface0]);
-  const motion = transition(motionDuration(duration.menu, reducedMotion));
+  const motion = menuMotion(open, reducedMotion);
+  const focus = {
+    onFocus: () => setFocused((count) => count + 1),
+    onBlur: () => setFocused((count) => Math.max(0, count - 1)),
+  };
   return (
     <View
       ref={anchorRef}
       style={[
         styles.frame,
-        motion,
+        motion.frame,
         {
-          width: open ? openWidth ?? CLOSED : CLOSED,
+          width: open ? openWidth ?? FLOAT.control : FLOAT.control,
           backgroundColor: tokens.surface0,
-          borderColor: open ? tokens.foregroundMuted : tokens.v2.border,
+          borderColor: tokens.v2.border,
+          boxShadow: floatShadow(tokens, open),
         },
       ]}
     >
@@ -91,9 +99,10 @@ function HoverMenu({ source, frame, tokens }: {
           motion={motion}
           onPress={copyMarkdown}
           onHoverIn={hoverProps.onHoverIn}
+          focus={focus}
           tokens={tokens}
         />
-        <View style={[styles.divider, motion, { backgroundColor: tokens.v2.border, opacity: open ? 1 : 0 }]} />
+        <View style={[styles.divider, motion.reveal, revealed(open), { backgroundColor: tokens.v2.border }]} />
         <Entry
           icon="Image"
           label={COPY_IMAGE_LABEL}
@@ -102,6 +111,7 @@ function HoverMenu({ source, frame, tokens }: {
           motion={motion}
           onPress={copyImage}
           onHoverIn={hoverProps.onHoverIn}
+          focus={focus}
           tokens={tokens}
         />
       </View>
@@ -111,25 +121,35 @@ function HoverMenu({ source, frame, tokens }: {
 
 /**
  * One entry. Both stay mounted so the frame can widen over them; while it is
- * closed the names are faded out and the second entry, clipped away, is also
- * out of the tab order and hidden from assistive tech.
+ * closed the names and the second entry are faded out and shifted 4 to the
+ * left, and the second entry, clipped away, is out of the tab order and
+ * hidden from assistive tech.
  */
-function Entry({ icon, label, copied, open, first = false, motion, onPress, onHoverIn, tokens }: {
+function Entry({ icon, label, copied, open, first = false, motion, onPress, onHoverIn, focus, tokens }: {
   icon: string;
   label: string;
   copied: boolean;
   open: boolean;
-  /** The entry under the closed circle: the only one reachable while closed. */
+  /** The entry under the closed square: the only one reachable while closed. */
   first?: boolean;
-  motion: object;
+  motion: MenuMotion;
   onPress(): void;
   onHoverIn(): void;
+  focus: { onFocus(): void; onBlur(): void };
   tokens: ExtendedThemeTokens;
 }) {
   const { hovered, hoverProps } = useHover();
   const preferences = useEnhancerPreferences();
-  const color = copied ? tokens.foreground : tokens.foregroundMuted;
   const reachable = open || first;
+  const name = (
+    <Text
+      selectable={false}
+      numberOfLines={1}
+      style={[styles.label, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}
+    >
+      {toolbarLabel(label, preferences.language)}
+    </Text>
+  );
   return (
     <Pressable
       accessibilityRole="button"
@@ -142,47 +162,75 @@ function Entry({ icon, label, copied, open, first = false, motion, onPress, onHo
         onHoverIn();
       }}
       onHoverOut={hoverProps.onHoverOut}
+      {...focus}
       style={({ pressed }) => [
         styles.entry,
-        first ? styles.entryFirst : styles.entryLast,
-        motion,
-        { backgroundColor: (hovered || pressed) && open ? tokens.v2.surface2 : "transparent" },
+        first ? styles.entryFirst : [styles.entryLast, motion.reveal, revealed(open)],
+        motion.fill,
+        {
+          backgroundColor: !open ? "transparent"
+            : pressed ? floatPressed(tokens)
+            : hovered ? floatHover(tokens)
+            : "transparent",
+        },
       ]}
     >
-      <Icon name={copied ? "Check" : icon} size={ICON} color={color} />
-      <Text
-        selectable={false}
-        numberOfLines={1}
-        style={[styles.label, unselectable, motion, { color: tokens.foreground, fontFamily: tokens.fontUi, opacity: open ? 1 : 0 }]}
-      >
-        {toolbarLabel(label, preferences.language)}
-      </Text>
+      {/* The check is the result, so it alone takes a colour; the icons stay muted like the preview toolbar's. */}
+      <Icon name={copied ? "Check" : icon} size={FLOAT.iconSize} color={copied ? tokens.success : tokens.foregroundMuted} />
+      {first ? <View style={[motion.reveal, revealed(open)]}>{name}</View> : name}
     </Pressable>
   );
 }
 
-/** A CSS transition for the frame's width and the fades: the menu exists on web only. */
-function transition(ms: number): object {
+interface MenuMotion {
+  frame: object;
+  /** The names, the divider and the second entry. */
+  reveal: object;
+  /** An entry's hover and press fill. */
+  fill: object;
+}
+
+/**
+ * CSS transitions, as the menu exists on web only (docs/prototypes/table-copy-menu.md).
+ * Opening widens the frame and lifts its shadow over 180 ms, and the names
+ * follow 40 ms later; closing fades the names first and narrows the frame
+ * over 160 ms. The declarations follow the state being entered, so a pointer
+ * that leaves halfway reverses from where the frame is.
+ */
+function menuMotion(open: boolean, reducedMotion: boolean): MenuMotion {
+  const ms = (value: number) => `${motionDuration(value, reducedMotion)}ms`;
   return {
-    transitionProperty: "width, opacity, border-color, background-color",
-    transitionDuration: `${ms}ms`,
-    transitionTimingFunction: "cubic-bezier(0.33, 1, 0.68, 1)",
+    frame: {
+      transitionProperty: "width, box-shadow",
+      transitionDuration: open ? `${ms(180)}, ${ms(180)}` : `${ms(160)}, ${ms(120)}`,
+      transitionTimingFunction: FLOAT_EASE.out,
+    },
+    reveal: {
+      transitionProperty: "opacity, transform",
+      transitionDuration: open ? ms(140) : ms(80),
+      transitionDelay: open ? ms(40) : "0ms",
+      transitionTimingFunction: open ? FLOAT_EASE.out : FLOAT_EASE.in,
+    },
+    fill: {
+      transitionProperty: "background-color",
+      transitionDuration: ms(100),
+      transitionTimingFunction: FLOAT_EASE.out,
+    },
   };
 }
 
-/** The closed circle's diameter, its border included: the closed toolbar button's size. */
-const CLOSED = 24;
+function revealed(open: boolean): object {
+  return open ? { opacity: 1, transform: [{ translateX: 0 }] } : { opacity: 0, transform: [{ translateX: -4 }] };
+}
+
 const BORDER = 1;
-const ICON = 14;
-// The first icon sits in the middle of the closed circle.
-const ICON_INSET = (CLOSED - BORDER * 2 - ICON) / 2;
 
 const styles = StyleSheet.create({
-  // A circle while closed; open, the round ends make it a capsule.
+  // A rounded square while closed; open, the same frame is a wider rounded rectangle.
   frame: {
-    height: CLOSED,
+    height: FLOAT.control,
     borderWidth: BORDER,
-    borderRadius: CLOSED / 2,
+    borderRadius: FLOAT.radius,
     overflow: "hidden",
   },
   // Out of the frame's flow, so it keeps its full width while the frame clips it.
@@ -190,19 +238,21 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     left: 0,
-    height: CLOSED - BORDER * 2,
+    height: FLOAT.control - BORDER * 2,
     flexDirection: "row",
     alignItems: "center",
   },
   entry: {
-    height: CLOSED - BORDER * 2,
+    height: FLOAT.item,
+    marginHorizontal: FLOAT.inset,
+    borderRadius: FLOAT.itemRadius,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: FLOAT.iconText,
   },
-  entryFirst: { paddingLeft: ICON_INSET, paddingRight: 8 },
-  // A little more room before the capsule's round end.
-  entryLast: { paddingLeft: 8, paddingRight: 10 },
-  divider: { width: 1, height: 12 },
-  label: { fontSize: UI_SCALE.base, lineHeight: 16, whiteSpace: "nowrap" } as object,
+  // 1 + 2 + 5 puts the icon's centre at 15, the closed square's centre, so it does not move as the menu opens.
+  entryFirst: { paddingLeft: 5, paddingRight: 10 },
+  entryLast: { paddingLeft: 8, paddingRight: 12 },
+  divider: { width: 1, height: 12, marginHorizontal: 4 },
+  label: { fontSize: UI_SCALE.base, lineHeight: 16, fontWeight: "500", whiteSpace: "nowrap" } as object,
 });
