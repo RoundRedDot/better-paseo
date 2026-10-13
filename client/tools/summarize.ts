@@ -485,5 +485,10 @@ function path(verb: string, view: ToolCallView, meta: string[], tone: ToolSummar
 export function summarizeTool(view: ToolCallView): ToolSummary {
   const summary = summarizeKind(view);
   const errorLine = errorLineFor(view);
-  return errorLine ? { ...summary, tone: "danger", errorLine } : summary;
+  if (!errorLine) return summary;
+  // A failed background task's summary is its label, text and error at once:
+  // a line that only repeats what the row already says is not drawn again.
+  const shown = summary.target ?? summary.verb;
+  if (errorLine.trim() === shown.trim()) return { ...summary, tone: "danger" };
+  return { ...summary, tone: "danger", errorLine };
 }
