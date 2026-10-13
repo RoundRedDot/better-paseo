@@ -3,7 +3,7 @@
  * Moved unchanged from the pre-marked `markdown-view.tsx`, so a reply looks
  * the same on either engine; additions are marked as such.
  */
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { radiusV2, space, type ExtendedThemeTokens } from "../../theme-tokens";
 import { even, proseScale } from "../../../ui/tokens/typography";
@@ -454,16 +454,27 @@ export function buildStyles(
       textDecorationLine: "line-through",
       color: tokens.foregroundMuted,
     },
-    codeSpan: {
-      fontFamily: tokens.fontMono,
-      fontSize: metrics.codeSize,
-      // A neutral fill, not the accent: inline code is not a link and must not
-      // borrow the one colour that means "action" everywhere else.
-      backgroundColor: tokens.v2.surface2,
-      borderRadius: radiusV2.chip,
-      paddingHorizontal: CODE_CHIP_PADDING,
-      color: text,
-    },
+    codeSpan:
+      Platform.OS === "web"
+        ? {
+            fontFamily: tokens.fontMono,
+            fontSize: metrics.codeSize,
+            // A neutral fill, not the accent: inline code is not a link and must
+            // not borrow the one colour that means "action" everywhere else.
+            backgroundColor: tokens.v2.surface2,
+            borderRadius: radiusV2.chip,
+            paddingHorizontal: CODE_CHIP_PADDING,
+            color: text,
+          }
+        : {
+            // A run inside native text has no padding or radius, and its fill
+            // covers the whole line box: on a 1.33 line height that is a tall
+            // square slab that touches the next line's. Off the web the span
+            // is told apart by its family and a tint, again not the accent.
+            fontFamily: tokens.fontMono,
+            fontSize: metrics.codeSize,
+            color: quiet ? text : tokens.syntax.function,
+          },
     link: {
       color: tokens.accent,
       textDecorationLine: "underline",
