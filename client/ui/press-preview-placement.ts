@@ -12,15 +12,23 @@ export const PREVIEW_LIMIT = {
 
 /**
  * The phone chrome the preview leaves in view, inside the safe area: Paseo's
- * header (56 and its 8 top padding) and the agent's tab bar (36) above, the
- * composer below (about 100 on iOS, 120 on Android with its navigation bar).
- * The host tells a plugin neither the timeline's bounds nor these heights, so
- * they are Paseo 0.11's, read from its layout constants and measured on device.
+ * workspace header above (56 and its 8 top padding; the agent's tab bar under
+ * it may be covered), the composer below. The composer sits 104 above the safe
+ * area on iOS; Android's safe area keeps its navigation bar, so there it is
+ * 120. The host tells a plugin neither the timeline's bounds nor these heights,
+ * so they are Paseo 0.11's, read from its layout constants and measured on
+ * device. `gap` keeps the panel off both.
  */
 export const PHONE_CHROME = {
-  top: 100,
-  bottom: 120,
+  top: 64,
+  bottom: { ios: 104, android: 120 },
+  gap: 8,
 } as const;
+
+/** The chrome above and below the preview on this platform. */
+export function phoneChrome(os: string): { top: number; bottom: number } {
+  return { top: PHONE_CHROME.top, bottom: os === "ios" ? PHONE_CHROME.bottom.ios : PHONE_CHROME.bottom.android };
+}
 
 export interface PressPreviewFrame {
   width: number;
@@ -29,19 +37,20 @@ export interface PressPreviewFrame {
 
 /**
  * The size of a long-pressed row's preview on a phone. It opens in the middle
- * of the timeline's band of the safe area (`stage` less `PHONE_CHROME`), sized
- * like the desktop's maximized preview, whose viewport is the timeline too: as
- * wide as the row, the text column the desktop panel spans, and as tall as its
- * content, up to the band less `maximizedGap` above and below.
+ * of the band of the safe area between the header and the composer (`stage`
+ * less `phoneChrome`): as wide as the row, the text column the desktop panel
+ * spans, and as tall as its content, up to the band less `gap` above and below.
  */
 export function pressPreviewFrame(
   stage: { width: number; height: number },
   rowWidth: number,
+  os: string,
 ): PressPreviewFrame {
-  const { maximizedGap, margin } = PREVIEW_LIMIT;
-  const band = stage.height - PHONE_CHROME.top - PHONE_CHROME.bottom;
+  const { margin } = PREVIEW_LIMIT;
+  const chrome = phoneChrome(os);
+  const band = stage.height - chrome.top - chrome.bottom;
   return {
     width: Math.max(0, Math.min(rowWidth, stage.width - 2 * margin)),
-    maxHeight: Math.max(0, band - 2 * maximizedGap),
+    maxHeight: Math.max(0, band - 2 * PHONE_CHROME.gap),
   };
 }

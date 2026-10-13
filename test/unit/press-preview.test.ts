@@ -236,27 +236,29 @@ describe("where the long-press preview goes", () => {
     while (!stage.props.onLayout) stage = stage.parent!;
     act(() => stage.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 430, height: 790 } } }));
     expect(StyleSheetFlat(stage.props.style)).toMatchObject({
-      flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 100, paddingBottom: 120,
+      flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 64, paddingBottom: 104,
     });
     const style = StyleSheetFlat(panel(renderer).props.style);
-    // 790, less the header and tab bar (100), the composer (120) and 16 on each side.
-    expect(style).toMatchObject({ width: 390, maxHeight: 538 });
+    // 790, less the header (64), the composer (104) and 8 on each side.
+    expect(style).toMatchObject({ width: 390, maxHeight: 606 });
     expect(style.position).toBeUndefined();
     expect(style.opacity).toBeUndefined();
     act(() => renderer.unmount());
   });
 
-  it("leaves the header, the tab bar and the composer in view", () => {
+  it("leaves the header and the composer in view, covering the tab bar", () => {
     // An iPhone 16 Pro's safe area: 759 tall.
-    expect(pressPreviewFrame({ width: 402, height: 759 }, 386)).toEqual({ width: 386, maxHeight: 507 });
+    expect(pressPreviewFrame({ width: 402, height: 759 }, 386, "ios")).toEqual({ width: 386, maxHeight: 575 });
+    // Android's stage keeps the navigation bar, so its composer sits higher.
+    expect(pressPreviewFrame({ width: 402, height: 759 }, 386, "android")).toEqual({ width: 386, maxHeight: 559 });
   });
 
   it("never asks for a negative height", () => {
-    expect(pressPreviewFrame({ width: 750, height: 200 }, 734).maxHeight).toBe(0);
+    expect(pressPreviewFrame({ width: 750, height: 150 }, 734, "ios").maxHeight).toBe(0);
   });
 
   it("keeps the margins at the sides when the row is wider than the safe area", () => {
-    expect(pressPreviewFrame({ width: 390, height: 750 }, 406).width).toBe(374);
+    expect(pressPreviewFrame({ width: 390, height: 750 }, 406, "ios").width).toBe(374);
   });
 });
 
