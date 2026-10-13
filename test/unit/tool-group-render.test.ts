@@ -168,6 +168,68 @@ describe("grouped tool card presentation", () => {
     }
   });
 
+  it.each(["Read", "Edit", "Write"])("names the %s preview icon only while hovered", (name) => {
+    vi.useFakeTimers();
+    try {
+      const call = classifyTool({ name, status: "completed", detail: { type: name.toLowerCase(), filePath: "/a.ts" } });
+      let renderer!: ReturnType<typeof TestRenderer.create>;
+      let preview!: ReturnType<typeof TestRenderer.create>;
+      act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, { data: call, tokens })); });
+      const content = renderer.root.findByType(DisclosureHeader).props.previewContent as () => React.ReactElement;
+      act(() => { preview = TestRenderer.create(content()); });
+      const icon = preview.root.findByProps({ testID: "hover-preview-icon" });
+      const trigger = icon.find((node) => (node.type as unknown) === "Pressable");
+      expect(trigger.props.accessibilityLabel).toBe(name);
+      expect(trigger.props.accessibilityRole).toBe("image");
+      expect(trigger.props.onPress).toBeUndefined();
+      expect(texts(icon)).not.toContain(name);
+      act(() => trigger.props.onHoverIn());
+      act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS - 1); });
+      expect(texts(icon)).not.toContain(name);
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(texts(icon)).toContain(name);
+      const slot = icon.find((node) => (node.type as unknown) === "View" && node.props.pointerEvents === "none");
+      expect(StyleSheet.flatten(slot.props.style).left).toBe(0);
+      act(() => trigger.props.onHoverOut());
+      expect(texts(icon)).not.toContain(name);
+      // A pointer that leaves before the delay must not show a stale name.
+      act(() => trigger.props.onHoverIn());
+      act(() => trigger.props.onHoverOut());
+      act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
+      expect(texts(icon)).not.toContain(name);
+      act(() => { preview.unmount(); renderer.unmount(); });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("updates the preview icon's hovered type when paging through different operations", () => {
+    vi.useFakeTimers();
+    try {
+      const operations = ["Read", "Write"].map((name) => classifyTool({
+        name, status: "completed", detail: { type: name.toLowerCase(), filePath: "/a.ts" },
+      }));
+      let renderer!: ReturnType<typeof TestRenderer.create>;
+      let preview!: ReturnType<typeof TestRenderer.create>;
+      act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, {
+        data: operations[0]!, groupCalls: operations, tokens,
+      })); });
+      const content = renderer.root.findByType(DisclosureHeader).props.previewContent as () => React.ReactElement;
+      act(() => { preview = TestRenderer.create(content()); });
+      const icon = preview.root.findByProps({ testID: "hover-preview-icon" });
+      act(() => icon.find((node) => (node.type as unknown) === "Pressable").props.onHoverIn());
+      act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
+      expect(texts(icon)).toContain("Read");
+      act(() => pagerButton(preview.root, "Next operation").props.onPress());
+      expect(texts(icon)).toContain("Write");
+      expect(texts(icon)).not.toContain("Read");
+      expect(icon.find((node) => (node.type as unknown) === "Pressable").props.accessibilityLabel).toBe("Write");
+      act(() => { preview.unmount(); renderer.unmount(); });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("shows a button's name in the settings page's language, keeping the English label for assistive tech", () => {
     vi.useFakeTimers();
     updateEnhancerPreferences({ language: "zh" });
