@@ -1219,7 +1219,7 @@ function useBodyStyles(tokens: ExtendedThemeTokens, compact: boolean): BodyStyle
         },
         previewCommand: {
           backgroundColor: tokens.v2.surface2,
-          borderLeftWidth: 3,
+          borderLeftWidth: 2,
           borderLeftColor: tokens.row.meta,
           borderTopRightRadius: radiusV2.block,
           borderBottomRightRadius: radiusV2.block,
