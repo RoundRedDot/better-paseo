@@ -124,6 +124,21 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
     { verb: "GitHub", target: "search_code useAgent" },
   ],
   ["plan · first line", call("ExitPlanMode", { type: "plan", text: "# Ship it\n1. a" }), { verb: "Plan", target: "Ship it …" }],
+  [
+    "plan · rejected, in the quiet tone",
+    call("plan_approval", { type: "plan", text: "# Ship it" }, { approved: false }),
+    { verb: "Plan", target: "Ship it", meta: ["rejected"], tone: "default" },
+  ],
+  [
+    "plan · canceled is not drawn as running or failed",
+    call("plan_approval", { type: "plan", text: "# Ship it" }, { status: "canceled" }),
+    { verb: "Plan", target: "Ship it", meta: ["canceled"], tone: "default" },
+  ],
+  [
+    "plan · approved",
+    call("plan_approval", { type: "plan", text: "# Ship it" }, { approved: true }),
+    { verb: "Plan", meta: ["approved"] },
+  ],
   ["plain_text · label", call("x", { type: "plain_text", label: "Note", text: "hello" }), { verb: "Note", target: "hello" }],
   ["plain_text without label uses the name", call("status", { type: "plain_text", text: "ok" }), { verb: "Status" }],
   [

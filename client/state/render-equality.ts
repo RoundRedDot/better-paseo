@@ -9,7 +9,7 @@
  *
  * | renderer | skips the render when |
  * |---|---|
- * | tool call | same `callId`, same settled `status` (not running), same phase and error |
+ * | tool call | same `callId`, same settled `status` (not running), same phase, error and plan verdict |
  * | reasoning | same text (length first) and phase |
  * | assistant | same text (length first), phase and timestamp |
  * | user message | same message ids, text, images and timestamp |
@@ -49,6 +49,7 @@ interface ToolData {
   callId?: string;
   phase?: string;
   error?: string | null;
+  approved?: boolean;
 }
 
 export function toolPropsEqual<T extends ToolData>(prev: Props<T>, next: Props<T>): boolean {
@@ -60,7 +61,7 @@ export function toolPropsEqual<T extends ToolData>(prev: Props<T>, next: Props<T
   if (!a.callId || a.callId !== b.callId) return false;
   // A running call is the live one: its output is what is changing.
   if (a.status === "running" || a.status !== b.status) return false;
-  return a.phase === b.phase && (a.error ?? null) === (b.error ?? null);
+  return a.phase === b.phase && (a.error ?? null) === (b.error ?? null) && a.approved === b.approved;
 }
 
 interface TextData {

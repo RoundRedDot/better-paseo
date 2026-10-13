@@ -155,6 +155,19 @@ describe("classifyTool", () => {
     expect(view.error).toBeUndefined();
   });
 
+  it("reads a plan's verdict as the host draws it: canceled, then rejected or approved", () => {
+    const plan = (extra: Partial<ToolCallPayload>) => classifyTool(call("plan_approval", { type: "plan", text: "# Ship it" }, extra));
+    expect(plan({ approved: false })).toMatchObject({ planOutcome: "rejected", status: "completed" });
+    expect(plan({ approved: true })).toMatchObject({ planOutcome: "approved", status: "completed" });
+    expect(plan({ status: "canceled" })).toMatchObject({ planOutcome: "canceled", status: "completed" });
+    expect(plan({ status: "canceled", approved: true }).planOutcome).toBe("canceled");
+    expect(plan({ status: "running" }).planOutcome).toBeUndefined();
+    expect(plan({}).planOutcome).toBeUndefined();
+    // Only a plan has a verdict; another canceled call is drawn as finished.
+    const read = classifyTool(call("Read", { type: "read", filePath: "/a" }, { status: "canceled", approved: false }));
+    expect(read.planOutcome).toBeUndefined();
+  });
+
   it("reports status and error", () => {
     const view = classifyTool(call("Read", { type: "read", filePath: "/a" }, { status: "failed", error: "ENOENT" }));
     expect(view.status).toBe("failed");

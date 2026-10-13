@@ -354,6 +354,8 @@ export interface ToolCallPayload {
   callId?: string;
   error?: string | null;
   phase?: string;
+  /** The host's `metadata.approved`: the verdict on a plan. */
+  approved?: boolean;
 }
 
 export interface SearchToolData {
@@ -439,6 +441,8 @@ export interface ToolCallView extends Omit<ToolCalloutData, "tool"> {
   text?: string;
   /** A `plain_text` call's own label. */
   label?: string;
+  /** A plan's verdict, once it has one; the host titles its plan card with it. */
+  planOutcome?: "approved" | "rejected" | "canceled";
   /** The call's arguments, for `unknown` bodies and "copy arguments". */
   input?: unknown;
 }
@@ -585,9 +589,21 @@ function readError(error: string | null | undefined): string | undefined {
   return error;
 }
 
-/** `running`, `failed`, or `completed` for anything else the host reports. */
+/**
+ * `running`, `failed`, or `completed` for anything else the host reports. A
+ * `canceled` call is drawn as finished, as the host draws it; a plan says so
+ * through its `planOutcome`.
+ */
 export function normalizeStatus(status: string): ToolCallView["status"] {
   return status === "running" ? "running" : status === "failed" ? "failed" : "completed";
+}
+
+/** As the host reads it: a cancel outranks the verdict; a plan still pending has none. */
+function readPlanOutcome(payload: ToolCallPayload): ToolCallView["planOutcome"] {
+  if (payload.status === "canceled") return "canceled";
+  if (payload.approved === false) return "rejected";
+  if (payload.approved === true) return "approved";
+  return undefined;
 }
 
 /**
@@ -702,6 +718,7 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
       extra.subAgent = readSubAgent(detail);
     } else if (protocolKind === "plan") {
       extra.text = asString(detail.text);
+      extra.planOutcome = readPlanOutcome(payload);
     } else {
       extra.text = asString(detail.text);
       extra.label = asString(detail.label);

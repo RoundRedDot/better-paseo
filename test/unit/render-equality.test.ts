@@ -65,11 +65,12 @@ describe("toolPropsEqual", () => {
     expect(toolPropsEqual(props(running), props(running))).toBe(false);
   });
 
-  it("renders on status, phase, error, call id, theme or layout change", () => {
+  it("renders on status, phase, error, call id, plan verdict, theme or layout change", () => {
     expect(toolPropsEqual(props(done), props({ ...done, status: "failed" }))).toBe(false);
     expect(toolPropsEqual(props(done), props({ ...done, phase: "complete" }))).toBe(false);
     expect(toolPropsEqual(props(done), props({ ...done, error: "boom" }))).toBe(false);
     expect(toolPropsEqual(props(done), props({ ...done, callId: "c2" }))).toBe(false);
+    expect(toolPropsEqual(props(done), props({ ...done, approved: false }))).toBe(false);
     expect(
       toolPropsEqual(props(done), props(done, 1000, { theme: { colors: { ...COLORS, surface0: "#fff" } } })),
     ).toBe(false);
