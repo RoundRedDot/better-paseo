@@ -15,9 +15,6 @@ import {
   type VariantMetrics,
 } from "./styles";
 
-// The existing copy button is 24pt wide, followed by a 4pt text gap.
-const COPY_SPACE = 28;
-
 /**
  * React Native offers no synchronous text measurement, so a column's width is
  * estimated from its longest cell and clamped to the variant's range, then
@@ -31,8 +28,7 @@ export function columnWidths(token: Tokens.Table, metrics: VariantMetrics): numb
   for (let column = 0; column < token.header.length; column++) {
     // The header is bold, which the average advance does not cover, so it is
     // measured a shade wider than a body cell of the same length.
-    let longest = inlineWidth(token.header[column]?.tokens, cellSize, ratio) * 1.06
-      + (column === 0 ? COPY_SPACE : 0);
+    let longest = inlineWidth(token.header[column]?.tokens, cellSize, ratio) * 1.06;
     for (const row of token.rows) {
       const cell = row[column];
       if (cell === undefined) continue;
@@ -106,67 +102,18 @@ export function MdTable({
 
   return (
     <HScroll tokens={context.tokens} style={styles.tableScroll} contentContainerStyle={styles.tableContent}>
-      <View style={styles.tableFrame}>
-        <View style={[styles.tableHeaderRow, token.rows.length === 0 && styles.tableRowLast]}>
-          {token.header.map((cell, column) => {
-            const cellKey = `${keyPrefix}h${column}`;
-            if (column === 0) {
-              return (
-                <View
-                  key={cellKey}
-                  style={[
-                    copyStyles.header,
-                    ...frame(column),
-                    { paddingLeft: TABLE_CELL_PADDING + metrics.tableGap / 2 },
-                  ]}
-                >
-                  <CopyButton text={() => token.raw} tokens={context.tokens} />
-                  <Text
-                    selectable
-                    {...contentTextProps()}
-                    style={[
-                      styles.tableHeaderCell,
-                      align(column),
-                      copyStyles.headerText,
-                      contentTextStyle(),
-                    ]}
-                  >
-                    {renderInline(cell.tokens, context, cellKey)}
-                  </Text>
-                </View>
-              );
-            }
-            return (
-              <Text
-                key={cellKey}
-                selectable
-                {...contentTextProps()}
-                style={[
-                  styles.tableHeaderCell,
-                  align(column),
-                  ...frame(column),
-                  contentTextStyle(),
-                ]}
-              >
-                {renderInline(cell.tokens, context, cellKey)}
-              </Text>
-            );
-          })}
-        </View>
-        {token.rows.map((row, rowIndex) => (
-          <View
-            key={`${keyPrefix}r${rowIndex}`}
-            style={[styles.tableRow, rowIndex === token.rows.length - 1 && styles.tableRowLast]}
-          >
-            {row.map((cell, column) => {
-              const cellKey = `${keyPrefix}r${rowIndex}c${column}`;
+      <View style={copyStyles.container}>
+        <View style={styles.tableFrame}>
+          <View style={[styles.tableHeaderRow, token.rows.length === 0 && styles.tableRowLast]}>
+            {token.header.map((cell, column) => {
+              const cellKey = `${keyPrefix}h${column}`;
               return (
                 <Text
                   key={cellKey}
                   selectable
                   {...contentTextProps()}
                   style={[
-                    styles.tableCell,
+                    styles.tableHeaderCell,
                     align(column),
                     ...frame(column),
                     contentTextStyle(),
@@ -177,20 +124,51 @@ export function MdTable({
               );
             })}
           </View>
-        ))}
+          {token.rows.map((row, rowIndex) => (
+            <View
+              key={`${keyPrefix}r${rowIndex}`}
+              style={[styles.tableRow, rowIndex === token.rows.length - 1 && styles.tableRowLast]}
+            >
+              {row.map((cell, column) => {
+                const cellKey = `${keyPrefix}r${rowIndex}c${column}`;
+                return (
+                  <Text
+                    key={cellKey}
+                    selectable
+                    {...contentTextProps()}
+                    style={[
+                      styles.tableCell,
+                      align(column),
+                      ...frame(column),
+                      contentTextStyle(),
+                    ]}
+                  >
+                    {renderInline(cell.tokens, context, cellKey)}
+                  </Text>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+        <View style={[copyStyles.corner, { backgroundColor: context.tokens.surface0 }]}>
+          <CopyButton text={() => token.raw} tokens={context.tokens} />
+        </View>
       </View>
     </HScroll>
   );
 }
 
 const copyStyles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
+  // Keep the corner control inside the scroller's bounds, outside the columns.
+  container: {
+    position: "relative",
+    paddingTop: 12,
+    paddingLeft: 12,
   },
-  headerText: {
-    flex: 1,
-    minWidth: 0,
-    paddingLeft: COPY_SPACE - 24,
+  corner: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    borderRadius: 4,
   },
 });
