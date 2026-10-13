@@ -19,7 +19,7 @@ import type {
   ToolCalloutData,
 } from "../../shared/contracts";
 import { buildHubData } from "../hub-details";
-import { buildGitHubData } from "../github-request";
+import { buildGitHubData, buildGitHubDataFromLabel } from "../github-request";
 import { lineDiff } from "../components/diff-lines";
 
 function extractStringProp(obj: unknown, key: string): string | undefined {
@@ -672,9 +672,15 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
     // result text is the reply. They are read separately here because the
     // generic `code` extraction prefers whichever it finds first, which drew
     // the request twice and the answer never.
-    const request = asString(input.content) ?? asString(detail.content);
-    const reply = outputText && outputText !== request ? outputText : undefined;
-    github = buildGitHubData(request, reply);
+    // OMP itself reports the call as `plain_text`: the op in `label`, the
+    // reply in `text`, and no request.
+    if (detailType === "plain_text") {
+      github = buildGitHubDataFromLabel(asString(detail.label), asString(detail.text));
+    } else {
+      const request = asString(input.content) ?? asString(detail.content);
+      const reply = outputText && outputText !== request ? outputText : undefined;
+      github = buildGitHubData(request, reply);
+    }
     title = github ? [github.op, github.repo, github.subject].filter(Boolean).join(" ") : "GitHub";
   } else if (protocolKind) {
     toolKind = protocolKind;

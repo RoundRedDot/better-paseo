@@ -118,6 +118,11 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
     call("github", { type: "unknown", input: { content: '{"op":"pr_view","repo":"a/b","pr":3}' }, output: "" }),
     { verb: "GitHub" },
   ],
+  [
+    "omp github sent as plain text keeps its op and target",
+    call("github", { type: "plain_text", label: "search_code useAgent", text: "src/a.ts:1: useAgent()" }),
+    { verb: "GitHub", target: "search_code useAgent" },
+  ],
   ["plan · first line", call("ExitPlanMode", { type: "plan", text: "# Ship it\n1. a" }), { verb: "Plan", target: "Ship it …" }],
   ["plain_text · label", call("x", { type: "plain_text", label: "Note", text: "hello" }), { verb: "Note", target: "hello" }],
   ["plain_text without label uses the name", call("status", { type: "plain_text", text: "ok" }), { verb: "Status" }],
