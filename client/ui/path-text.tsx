@@ -20,7 +20,8 @@ import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { UI_SCALE } from "./tokens/typography";
 import { liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement } from "./tooltip-placement";
-import { HoverPreview, HoverPreviewBody, RowLongPressContext, useHoverPreview } from "./hover-preview";
+import { HoverPreview, HoverPreviewBody, HoverPreviewHeader, RowLongPressContext, useHoverPreview } from "./hover-preview";
+import { ToolbarCopyButton } from "./toolbar-button";
 import { RowPaletteContext } from "./disclosure-header";
 
 /** Where paths are made relative to, for one renderer (plan §3.9 item 3). */
@@ -281,6 +282,10 @@ export function PathText({
       ) : null}
     </Pressable>
       {preview.open ? <HoverPreview preview={preview} tokens={tokens}>
+        {/* The same toolbar as every other preview: copy, and the window button. */}
+        <HoverPreviewHeader tokens={tokens}>
+          <ToolbarCopyButton text={formatted.absolutePath} icon="Link" tokens={tokens} label="Copy path" />
+        </HoverPreviewHeader>
         <HoverPreviewBody>
           <Text {...(codeSurface as object)} selectable style={[styles.tooltipText, { color: tokens.foreground, fontFamily: tokens.fontMono }]}>
             {formatted.absolutePath}{formatted.suffix}
