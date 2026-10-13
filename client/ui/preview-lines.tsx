@@ -191,8 +191,10 @@ const styles = StyleSheet.create({
   number: { position: "absolute", left: 0, right: 0, textAlign: "right", paddingRight: space.sm, fontVariant: ["tabular-nums"], ...unselectable },
   wrapped: { flex: 1, minWidth: 0 },
   // In the sideways scroller the text sizes to its longest line: `flex: 1`
-  // would map to a zero basis on web and wrap every word.
-  unwrapped: { flexGrow: 1, flexShrink: 0 },
+  // would map to a zero basis on web and wrap every word. A phone caps the
+  // scroller's width (`MAX_UNWRAPPED_WIDTH`), and the text gives the
+  // numbers their room inside it.
+  unwrapped: { flexGrow: 1, flexShrink: Platform.OS === "web" ? 0 : 1, minWidth: 0 },
   stripe: { position: "absolute", left: 0, right: 0 },
   // iOS draws the text in a UITextView, which keeps UIKit's own fill unless
   // told otherwise and would hide the shading behind it.
