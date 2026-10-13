@@ -30,6 +30,13 @@ const PreviewActionsContext = createContext<{
   /** The preview's line wrap, on until the reader turns it off. */
   wrap?: { on: boolean; toggle(): void; tokens: ExtendedThemeTokens };
 } | null>(null);
+
+/** The panel this content is drawn in, when it is drawn in one. */
+export function usePreviewPanel(): { maximized: boolean; close(): void } | null {
+  const actions = useContext(PreviewActionsContext);
+  if (!actions) return null;
+  return { maximized: actions.maximized, close: actions.close };
+}
 export const PREVIEW_OPEN_MS = HOVER_DELAY_MS[DEFAULT_PREFERENCES.hoverDelay];
 export const PREVIEW_CLOSE_MS = 150;
 
@@ -320,7 +327,9 @@ function PreviewWrapButton({ tokens, wrap, onPress }: {
 }
 
 export function HoverPreviewBody({ children }: { children: ReactNode }) {
-  const wrap = useContext(PreviewActionsContext)?.wrap;
+  const actions = useContext(PreviewActionsContext);
+  const wrap = actions?.wrap;
+  const maximized = actions?.maximized ?? false;
   // Lines keep their length; the body scrolls sideways, with a track under it
   // only while it is wider than the panel.
   const content = wrap && !wrap.on ? (
@@ -337,7 +346,7 @@ export function HoverPreviewBody({ children }: { children: ReactNode }) {
       </ScrollView>
     );
   }
-  return <View testID="hover-preview-body" style={styles.body}>{content}</View>;
+  return <View testID="hover-preview-body" style={[styles.body, maximized && styles.bodyFill]}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -354,6 +363,9 @@ const styles = StyleSheet.create({
     paddingBottom: space.md,
     gap: space.sm,
   } as ViewStyle,
+  // A maximized panel has a fixed height. The body fills it, so a picture can
+  // grow with the window; text still scrolls inside the same box.
+  bodyFill: { flexGrow: 1 },
   backdrop: { backgroundColor: "rgba(0, 0, 0, 0.2)" },
   stage: {
     flex: 1,

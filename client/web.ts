@@ -47,6 +47,10 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
       const top = Math.max(margin, viewportRect.top) + maximizedGap;
       const bottom = Math.min(view.innerHeight - margin, viewportRect.bottom) - maximizedGap;
       const height = Math.max(0, bottom - top);
+      // A column, so the body and a picture in it can take this height.
+      // The popover UA style would otherwise leave the picture at its content size.
+      panel.style.display = "flex";
+      panel.style.flexDirection = "column";
       panel.style.height = `${height}px`;
       panel.style.maxHeight = `${height}px`;
       panel.style.top = `${top}px`;
