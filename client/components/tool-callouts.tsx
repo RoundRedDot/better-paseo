@@ -538,7 +538,7 @@ function ToolPreviewActions({ call, resolvePath, tokens, pager, meta }: {
   meta?: React.ReactNode;
 }) {
   return (
-    <HoverPreviewHeader tokens={tokens} icon={meta ? "Image" : undefined}
+    <HoverPreviewHeader tokens={tokens} icon={meta ? "Image" : <RowIcon name={toolIconName(call.tool)} color={tokens.foregroundMuted} />}
       center={pager && meta ? <View style={styles.previewCenter}>{pager}{meta}</View> : pager ?? meta}>
       <View style={styles.previewActions}>
         <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />
