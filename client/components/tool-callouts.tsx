@@ -8,7 +8,7 @@ import type { ExtendedThemeTokens } from "./theme-tokens";
 import { HubCallout } from "./hub-callout";
 import { PaseoToolCallout } from "./paseo-tool-callouts";
 import { SyntaxHighlightBlock, TerminalOutput, renderTerminalLine, renderTerminalOutput, terminalLines } from "./syntax-highlight";
-import { ImagePreview } from "./image-preview";
+import { ImageMeta, ImagePreview } from "./image-preview";
 import { ImageViewer } from "./image-viewer";
 import { GitHubBody } from "./github-body";
 import { MarkdownView } from "./markdown/markdown-view";
@@ -28,6 +28,7 @@ import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { HoverPreviewBody, HoverPreviewHeader } from "../ui/hover-preview";
 import { PreviewLines } from "../ui/preview-lines";
+import { CommandBand, PreviewPath } from "../ui/command-band";
 import { FadeIn } from "../ui/fade-in";
 import { SelectableSpan, SelectableText } from "../ui/prose-text";
 import { formatPath } from "../paths/format-path";
@@ -300,9 +301,10 @@ export function ToolCallout({
             path={filePath ? resolvePath(filePath) : undefined} revealFile={revealFile} displayPath={displayPath} onViewImage={openViewer} />
         ) : (
           <>
-            <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens} />
+            <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens}
+              meta={drawsImage ? <ImageMeta file={imageFile ?? null} tokens={tokens} /> : undefined} />
             <HoverPreviewBody>
-              {filePath ? <SelectableText {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>{resolvePath(filePath)}</SelectableText> : null}
+              {filePath ? <PreviewPath path={resolvePath(filePath)} tokens={tokens} /> : null}
               <ToolBody data={data} tokens={tokens} compact={compact} imageFile={imageFile}
                 revealFile={revealFile} displayPath={displayPath} preview onViewImage={openViewer} />
               {data.error ? <PreviewError text={data.error} tokens={tokens} /> : null}
@@ -402,13 +404,16 @@ function GroupedPreview({ calls, resolvePath, path, onViewImage, ...rest }: Grou
   onViewImage(): void;
 }) {
   const [index, setIndex] = useGroupPage(calls.length);
-  const { tokens } = rest;
+  const { tokens, imageFile } = rest;
+  const call = calls[index]!;
+  const drawsImage = (call.tool === "read" || call.tool === "write") && imageFile !== undefined && isImagePath(call.filePath);
   return (
     <>
-      <ToolPreviewActions call={calls[index]!} resolvePath={resolvePath} tokens={tokens}
-        pager={<GroupPager index={index} count={calls.length} onChange={setIndex} tokens={tokens} />} />
+      <ToolPreviewActions call={call} resolvePath={resolvePath} tokens={tokens}
+        pager={<GroupPager index={index} count={calls.length} onChange={setIndex} tokens={tokens} />}
+        meta={drawsImage ? <ImageMeta file={imageFile ?? null} tokens={tokens} /> : undefined} />
       <HoverPreviewBody>
-        {path ? <SelectableText {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>{path}</SelectableText> : null}
+        {path ? <PreviewPath path={path} tokens={tokens} /> : null}
         <GroupedCallBody key={calls[index]!.callId} call={calls[index]!} {...rest} preview onViewImage={onViewImage} />
       </HoverPreviewBody>
     </>
@@ -509,16 +514,22 @@ function ToolCopyButtons({ call, resolvePath, tokens }: {
   );
 }
 
-/** The preview's toolbar: a merged row's pager in the middle, every copy of the call on view as a button. */
-function ToolPreviewActions({ call, resolvePath, tokens, pager }: {
+/**
+ * The preview's toolbar: a merged row's pager or a picture's size in the
+ * middle, every copy of the call on view as a button.
+ */
+function ToolPreviewActions({ call, resolvePath, tokens, pager, meta }: {
   call: ToolCallView;
   resolvePath: ResolvePath;
   tokens: ExtendedThemeTokens;
   /** A merged row's pager, centred in the toolbar. */
   pager?: React.ReactNode;
+  /** A picture's size and weight, centred in the toolbar. */
+  meta?: React.ReactNode;
 }) {
   return (
-    <HoverPreviewHeader tokens={tokens} center={pager}>
+    <HoverPreviewHeader tokens={tokens} icon={meta ? "Image" : undefined}
+      center={pager && meta ? <View style={styles.previewCenter}>{pager}{meta}</View> : pager ?? meta}>
       <View style={styles.previewActions}>
         <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />
       </View>
@@ -569,6 +580,8 @@ const styles = StyleSheet.create({
   // Above the body after it, so a button's name hangs over the code header.
   pager: { flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-start", zIndex: 1 },
   pagerLabel: { fontSize: TYPE.caption.size, minWidth: 36, textAlign: "center", fontVariant: ["tabular-nums"] },
+  // A merged row of pictures: the pager, then the size of the one on view.
+  previewCenter: { flexDirection: "row", alignItems: "center", gap: space.md },
   previewActions: {
     flexDirection: "row",
     justifyContent: "flex-end",
@@ -770,12 +783,12 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
           {command ? (
             // One line on the code surface, not a nested code card: its own
             // band, ruled at the left, apart from the output.
-            <View style={styles.commandBand}>
+            <CommandBand tokens={tokens} style={styles.commandBand}>
               <SelectableText {...selectionCodeText} style={[styles.commandLine, styles.clear]}>
                 <SelectableSpan style={styles.promptColor}>{"$ "}</SelectableSpan>
                 {command}
               </SelectableText>
-            </View>
+            </CommandBand>
           ) : null}
           {data.shell?.stdout ? (
             preview ? <PreviewOutput text={data.shell.stdout} style={styles.terminalOutput} tokens={tokens} /> :
@@ -1240,16 +1253,7 @@ function useBodyStyles(tokens: ExtendedThemeTokens, compact: boolean): BodyStyle
           lineHeight: tokens.typography.mono.lineHeight,
           color: tokens.row.outputText,
         },
-        commandBand: {
-          backgroundColor: tokens.v2.surface2,
-          borderLeftWidth: 2,
-          borderLeftColor: tokens.row.meta,
-          borderTopRightRadius: radiusV2.block,
-          borderBottomRightRadius: radiusV2.block,
-          paddingVertical: space.xs,
-          paddingHorizontal: space.sm,
-          marginBottom: space.xs,
-        },
+        commandBand: { marginBottom: space.xs },
         // A UITextView paints its own white unless told otherwise.
         clear: { backgroundColor: "transparent" },
         silentText: {
