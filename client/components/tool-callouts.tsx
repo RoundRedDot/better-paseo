@@ -747,10 +747,10 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
       {(data.tool === "bash" || data.tool === "shell" || data.tool === "git") && (
         <View style={styles.terminalWindow}>
           {command ? (
-            // One line on the code surface, not a nested code card. A preview
-            // sets it on its own band, ruled at the left, apart from the output.
-            <View style={preview ? styles.previewCommand : undefined}>
-              <SelectableText {...selectionCodeText} style={[styles.commandLine, preview && styles.clear]}>
+            // One line on the code surface, not a nested code card: its own
+            // band, ruled at the left, apart from the output.
+            <View style={styles.commandBand}>
+              <SelectableText {...selectionCodeText} style={[styles.commandLine, styles.clear]}>
                 <SelectableSpan style={styles.promptColor}>{"$ "}</SelectableSpan>
                 {command}
               </SelectableText>
@@ -1166,7 +1166,7 @@ interface BodyStyles {
   askOptionText: ViewStyle;
   terminalOutput: TextStyle;
   commandLine: TextStyle;
-  previewCommand: ViewStyle;
+  commandBand: ViewStyle;
   clear: TextStyle;
   silentText: TextStyle;
   sectionTitle: TextStyle;
@@ -1217,7 +1217,7 @@ function useBodyStyles(tokens: ExtendedThemeTokens, compact: boolean): BodyStyle
           lineHeight: tokens.typography.mono.lineHeight,
           color: tokens.row.outputText,
         },
-        previewCommand: {
+        commandBand: {
           backgroundColor: tokens.v2.surface2,
           borderLeftWidth: 2,
           borderLeftColor: tokens.row.meta,
