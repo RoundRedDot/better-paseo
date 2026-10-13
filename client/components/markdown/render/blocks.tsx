@@ -94,7 +94,7 @@ function renderBlock(
             {metrics.headingHash ? (
               <ProseSpan style={styles.headingHash}>{HASH_LABELS[level - 1] ?? "# "}</ProseSpan>
             ) : null}
-            {renderInline(token.tokens, context, key)}
+            {renderInline(token.tokens, context, key, true)}
           </ProseText>
         </View>
       );
