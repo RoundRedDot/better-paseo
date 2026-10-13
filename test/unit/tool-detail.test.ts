@@ -26,6 +26,11 @@ describe("toolHasDetail", () => {
     expect(toolHasDetail(view({ type: "sub_agent", description: "截图并读取界面", log: "", prompt: " " }), BUDGET)).toBe(false);
   });
 
+  it("has detail for a web search that brought back only its text summary", () => {
+    expect(toolHasDetail(view({ type: "search", query: "q", toolName: "web_search" }), BUDGET)).toBe(false);
+    expect(toolHasDetail(view({ type: "search", query: "q", toolName: "web_search", annotations: ["Paseo is a host."] }), BUDGET)).toBe(true);
+  });
+
   it("counts full-width characters as two cells", () => {
     expect(fitsRow("界".repeat(36), BUDGET)).toBe(true);
     expect(fitsRow("界".repeat(37), BUDGET)).toBe(false);

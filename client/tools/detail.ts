@@ -62,7 +62,7 @@ function bodyDetail(view: ToolCallView, budget: number): boolean {
     }
     case "search": {
       const search = view.search;
-      return Boolean(search?.files?.length || search?.webResults?.length || search?.content);
+      return Boolean(search?.files?.length || search?.webResults?.length || search?.annotations?.length || search?.content);
     }
     case "fetch":
       return Boolean(view.fetch && (view.fetch.url || view.fetch.prompt || view.fetch.result));

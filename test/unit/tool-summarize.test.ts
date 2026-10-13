@@ -79,6 +79,11 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
     { verb: "Web search", target: '"paseo"', meta: ["1 result"] },
   ],
   [
+    "web search times itself in seconds, drawn as every other duration",
+    call("WebSearch", { type: "search", query: "paseo", toolName: "web_search", annotations: ["x"], durationSeconds: 3.25 }),
+    { verb: "Web search", target: '"paseo"', meta: ["3.3s"] },
+  ],
+  [
     "fetch · github.com · 200 · 12 KB",
     call("WebFetch", { type: "fetch", url: "https://user@github.com/a/b?x=1", code: 200, bytes: 12288 }),
     { verb: "Fetch", target: "github.com", meta: ["200", "12 KB"], tone: "default" },

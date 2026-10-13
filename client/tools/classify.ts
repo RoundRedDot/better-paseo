@@ -368,6 +368,8 @@ export interface SearchToolData {
   numMatches?: number;
   content?: string;
   webResults?: Array<{ title: string; url: string }>;
+  /** A web search's text summary, one markdown passage per entry. */
+  annotations?: string[];
   truncated?: boolean;
 }
 
@@ -526,6 +528,7 @@ function readSearch(
     numMatches: asNumber(detail.numMatches),
     content: asString(detail.content) ?? outputText,
     webResults: webResults.length > 0 ? webResults : undefined,
+    annotations: asStringArray(detail.annotations),
     truncated: detail.truncated === true ? true : undefined,
   };
 }
@@ -658,7 +661,12 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
       : extractStringProp(output, "stdout") ||
         extractStringProp(output, "text") ||
         (asRecord(output) ? extractContentText(output as Record<string, unknown>) : undefined);
-  const durationMs = asNumber(detail.durationMs) ?? extractEvalDuration(output);
+  // A web search times itself in seconds; every row draws milliseconds.
+  const durationSeconds = asNumber(detail.durationSeconds);
+  const durationMs =
+    asNumber(detail.durationMs) ??
+    extractEvalDuration(output) ??
+    (durationSeconds !== undefined ? durationSeconds * 1000 : undefined);
 
   let toolKind: ToolKind = "unknown";
   let hub: HubData | undefined;

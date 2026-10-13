@@ -488,6 +488,7 @@ const COPY_ICON: Record<CopyActionId, string> = {
   command: "SquareTerminal",
   "command-output": "ClipboardList",
   query: "Search",
+  summary: "MessageSquareText",
   files: "List",
   patch: "FileDiff",
   args: "Braces",
@@ -1058,6 +1059,10 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
               </SelectableText>
             </View>
           ))}
+          {/* A web search's own answer: markdown prose, drawn as a fetch's result is. */}
+          {data.search.annotations ? (
+            <MarkdownView text={data.search.annotations.join("\n\n")} tokens={tokens} variant="compact" />
+          ) : null}
           {data.search.content ? (
             <View style={styles.terminalWindow}>
               <SelectableText {...selectionCodeText} style={styles.terminalOutput}>
@@ -1065,7 +1070,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
               </SelectableText>
             </View>
           ) : null}
-          {!data.search.files && !data.search.webResults && !data.search.content ? (
+          {!data.search.files && !data.search.webResults && !data.search.annotations && !data.search.content ? (
             <Text style={styles.silentText}>{isRunning ? "Searching…" : "No results."}</Text>
           ) : null}
         </View>
