@@ -32,23 +32,6 @@ export interface ReasoningTraceData {
   steps: ReasoningStep[];
 }
 
-export type RiskLevel = "low" | "medium" | "high";
-
-export interface ApprovalRequest {
-  id: string;
-  toolName: string;
-  title: string;
-  riskLevel: RiskLevel;
-  rationale: string;
-  command?: string;
-  targetPath?: string;
-  diff?: string;
-  cwd?: string;
-  timeoutSeconds?: number;
-  status: "pending" | "approved" | "denied";
-  timestamp: string;
-}
-
 export type TaskStatus = "completed" | "in_progress" | "pending" | "blocked";
 
 export interface TaskItemData {
@@ -76,9 +59,6 @@ export type ToolCallKind =
   | "read"
   | "edit"
   | "write"
-  | "eval"
-  | "task"
-  | "ask"
   | "hub"
   | "paseo"
   | "ast_grep"
@@ -347,17 +327,6 @@ export interface PaseoToolData {
   models?: PaseoListModelsData;
 }
 /**
- * One cell of an eval run. The kernel is persistent, so a call carries the
- * source it ran and the text that source printed, and both belong on screen.
- */
-export interface EvalCell {
-  title?: string;
-  code: string;
-  language: string;
-  output?: string;
-}
-
-/**
  * A `github` device call: one op, the arguments it was given, and whatever the
  * op answered with.
  *
@@ -400,30 +369,6 @@ export interface ToolCalloutData {
   language?: string;
   diff?: string;
   output?: string;
-  cells?: EvalCell[];
-  askOptions?: Array<{
-    id: string;
-    label: string;
-    description?: string;
-    recommended?: boolean;
-  }>;
-  /** Selected option labels, or the typed reply. Empty until answered. */
-  askAnswer?: string[];
-  /**
-   * One `task` call spawns a batch: the tool takes a shared `context` plus a
-   * list of briefs, so the card carries the list. `model` is absent here on
-   * purpose — the call names an agent type, and which model that resolves to
-   * is the spawned agent's business, reported later by `hub`.
-   */
-  subagent?: {
-    context?: string;
-    agents: Array<{
-      name: string;
-      agentType: string;
-      task: string;
-      status?: string;
-    }>;
-  };
   hub?: HubData;
   mcp?: McpToolData;
   shell?: ShellToolData;
@@ -443,15 +388,4 @@ export interface NoticeCalloutData {
   message: string;
   /** Present when the item came from the host's `error` type rather than `notification`. */
   fatal?: boolean;
-}
-
-export interface MockChatMessage {
-  id: string;
-  sender: "user" | "assistant";
-  timestamp: string;
-  text?: string;
-  reasoningTrace?: ReasoningTraceData;
-  taskList?: TaskListData;
-  toolCallouts?: ToolCalloutData[];
-  approvalRequest?: ApprovalRequest;
 }

@@ -76,10 +76,4 @@ describe("toolHasDetail", () => {
     const long = view({ type: "shell", command: "false" }, { name: "Bash", status: "failed", error: "boom\nat x" });
     expect(toolHasDetail(long, BUDGET)).toBe(true);
   });
-
-  it("keeps an ask with options open-able", () => {
-    const ask = view({ input: { questions: [{ question: "Pick", options: [{ label: "A" }] }] } }, { name: "ask", status: "running" });
-    expect(ask.askOptions?.length).toBeGreaterThan(0);
-    expect(toolHasDetail(ask, BUDGET)).toBe(true);
-  });
 });

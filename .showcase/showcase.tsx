@@ -18,7 +18,6 @@ import { ToolCallout } from "../client/components/tool-callouts";
 import { ReasoningCard, ReasoningTrace } from "../client/components/reasoning-trace";
 import { reasoningText, segmentReasoning } from "../client/reasoning/segment";
 import { TaskList } from "../client/components/task-list";
-import { ApprovalCard } from "../client/components/approval-card";
 import { UserMessage } from "../client/components/user-message";
 import { HubCallout } from "../client/components/hub-callout";
 import { SyntaxHighlightBlock } from "../client/components/syntax-highlight";
@@ -307,73 +306,6 @@ const mcp: ToolCalloutData = {
   },
 };
 
-const evalCall: ToolCalloutData = {
-  id: "eval",
-  tool: "eval",
-  title: "Eval kernel",
-  status: "completed",
-  durationMs: 180,
-  cells: [
-    {
-      title: "resolve paths",
-      language: "javascript",
-      code: `const target = isAbsolute(clean) ? clean : resolve(cwd, clean);\nconsole.log(target);`,
-      output: "C:\\Users\\dev\\code\\paseo\\package.json",
-    },
-  ],
-};
-
-const ask: ToolCalloutData = {
-  id: "ask",
-  tool: "ask",
-  title: "User decision",
-  status: "completed",
-  askOptions: [
-    {
-      id: "keep",
-      label: "Keep enhanced bubble",
-      description: "Token usage and copy stay. Pasted images stay hidden.",
-    },
-    {
-      id: "host",
-      label: "Use the host bubble",
-      description: "Paseo draws prompts, so image previews return.",
-      recommended: true,
-    },
-  ],
-  askAnswer: ["Use the host bubble"],
-};
-
-const task: ToolCalloutData = {
-  id: "task",
-  tool: "task",
-  title: "3 subagents",
-  status: "running",
-  subagent: {
-    context: "Goal: capture one screenshot per component against real mock data.",
-    agents: [
-      {
-        name: "ShotBuilder",
-        agentType: "task",
-        task: "Build the offline showcase page and capture one screenshot per component.",
-        status: "running",
-      },
-      {
-        name: "MarkdownFixes",
-        agentType: "task",
-        task: "Size the ordered marker column from the whole marker, and measure table cells in the mono face.",
-        status: "completed",
-      },
-      {
-        name: "SurfaceMarkers",
-        agentType: "sonic",
-        task: "Add the selection surface spread to every card root.",
-        status: "completed",
-      },
-    ],
-  },
-};
-
 // Built by the plugin's own mapper from the arguments and output of real
 // `hub` calls, so the capture proves the mapping rather than a mock.
 const hubStart = buildHubData(
@@ -581,20 +513,6 @@ const tasks = {
   ],
 };
 
-const approval = {
-  id: "approval",
-  toolName: "bash",
-  title: "Delete the build output",
-  riskLevel: "high" as const,
-  rationale: "The command removes a directory that is not tracked by Git.",
-  command: "rm -rf dist",
-  targetPath: "~/code/better-paseo/dist",
-  cwd: "~/code/better-paseo",
-  timeoutSeconds: 60,
-  status: "pending" as const,
-  timestamp: new Date("2026-09-14T10:24:29Z").toISOString(),
-};
-
 function Shot({
   id,
   width = 900,
@@ -647,7 +565,6 @@ function Thread() {
       <ToolCallout data={bash} tokens={tokens} />
       <ToolCallout data={read} tokens={tokens} onRevealPath={() => {}} />
       <ToolCallout data={edit} tokens={tokens} onRevealPath={() => {}} />
-      <ToolCallout data={task} tokens={tokens} />
       <TaskList data={tasks} tokens={tokens} />
       <HubCallout data={hubWait} tokens={tokens} />
       {envelope ? <SystemCard envelope={envelope} tokens={tokens} /> : null}
@@ -828,7 +745,6 @@ const TOOLS_COLLAPSED: ToolCallView[] = [
   payload("p1", "ExitPlanMode", { type: "plan", text: "## Ship tool callouts v2\n1. classify\n2. summarize" }),
   payload("n1", "status", { type: "plain_text", label: "Note", text: "The daemon restarted once." }),
   payload("u1", "frobnicate", { type: "unknown", input: { target: "cache", level: 2 }, output: { ok: true } }),
-  payload("q1", "ask", { type: "unknown", input: { question: "Merge S3 now?", options: [{ label: "Yes" }, { label: "Later" }] }, output: "User selected: Yes" }),
 ];
 
 const TOOLS_OPEN: ToolCallView[] = [
@@ -848,7 +764,6 @@ const TOOLS_OPEN: ToolCallView[] = [
     numFiles: 3,
     numMatches: 7,
   }),
-  payload("o3", "ask", { type: "unknown", input: { question: "Which default for tool details?", options: [{ label: "Collapse all" }, { label: "Expand failures" }], recommended: 0 }, output: "" }, "running"),
 ];
 
 /** Long paths at phone width: the file name must survive every row. */
@@ -890,7 +805,7 @@ function ToolsV2({ tokens }: { tokens: ExtendedThemeTokens }) {
         {TOOLS_COLLAPSED.map((view) => (
           <ToolCallout key={view.callId} data={view} tokens={tokens} />
         ))}
-        <Caption tokens={tokens}>Expanded: bordered block, body mounted; ask open while waiting</Caption>
+        <Caption tokens={tokens}>Expanded: bordered block, body mounted</Caption>
         <View style={{ gap: 6 }}>
           {TOOLS_OPEN.map((view) => (
             <ToolCallout key={view.callId} data={view} tokens={tokens} defaultExpanded />
@@ -1021,15 +936,6 @@ function Showcase() {
       <Shot id="shot-tool-mcp">
         <ToolCallout data={mcp} tokens={tokens} defaultExpanded />
       </Shot>
-      <Shot id="shot-tool-eval">
-        <ToolCallout data={evalCall} tokens={tokens} defaultExpanded />
-      </Shot>
-      <Shot id="shot-tool-ask">
-        <ToolCallout data={ask} tokens={tokens} defaultExpanded />
-      </Shot>
-      <Shot id="shot-tool-task">
-        <ToolCallout data={task} tokens={tokens} defaultExpanded />
-      </Shot>
       <Shot id="shot-hub">
         <HubCallout data={hubStart} tokens={tokens} />
         <HubCallout data={hubPs} tokens={tokens} />
@@ -1072,9 +978,6 @@ function Showcase() {
       </Shot>
       <Shot id="shot-tasks">
         <TaskList data={tasks} tokens={tokens} />
-      </Shot>
-      <Shot id="shot-approval">
-        <ApprovalCard request={approval} tokens={tokens} />
       </Shot>
       <Shot id="shot-user">
         <UserMessage

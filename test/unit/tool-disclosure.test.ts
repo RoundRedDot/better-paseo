@@ -59,18 +59,6 @@ describe("tool disclosure", () => {
     expect(toolDisclosureKey("a", first)).toBe(toolDisclosureKey("a", later));
     expect(toolDisclosureKey("a", first)).toMatch(/^a:frob:/);
   });
-
-  it("opens an ask while it waits, and closes it once answered", () => {
-    const ask = (status: string, output: string): ToolCallPayload => ({
-      name: "ask",
-      status,
-      callId: "q1",
-      error: null,
-      detail: { type: "unknown", input: { question: "Ship?", options: [{ label: "Yes" }] }, output },
-    });
-    expect(isExpanded("a", ask("running", ""))).toBe(true);
-    expect(isExpanded("a", ask("completed", "User selected: Yes"))).toBe(false);
-  });
 });
 
 describe("tool copy plan", () => {

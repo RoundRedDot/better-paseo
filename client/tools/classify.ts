@@ -10,7 +10,6 @@
  * Pure: no React, no host hooks.
  */
 import type {
-  EvalCell,
   GitHubToolData,
   HubData,
   McpToolData,
@@ -30,75 +29,6 @@ function extractStringProp(obj: unknown, key: string): string | undefined {
   return undefined;
 }
 
-/** The eval result nests its cells under `details`, not under the call input. */
-interface RawEvalCell {
-  title?: unknown;
-  code?: unknown;
-  language?: unknown;
-  output?: unknown;
-}
-
-/**
- * Eval reports the source it ran and the text that source printed. Both live
- * inside the result payload, so reading only the top level yields a JSON blob
- * where the cell should be.
- */
-export function extractEvalCells(
-  detail: Record<string, unknown>,
-  input: Record<string, unknown>,
-  output: unknown,
-): EvalCell[] {
-  const container =
-    output && typeof output === "object" ? (output as Record<string, unknown>) : detail;
-  const details =
-    container.details && typeof container.details === "object"
-      ? (container.details as Record<string, unknown>)
-      : {};
-  const fallbackLanguage =
-    typeof details.language === "string"
-      ? details.language
-      : typeof input.language === "string"
-        ? input.language
-        : "js";
-
-  const raw = Array.isArray(details.cells) ? (details.cells as RawEvalCell[]) : [];
-  const cells = raw
-    .map((cell): EvalCell | null => {
-      const code = typeof cell.code === "string" ? cell.code : "";
-      if (!code) return null;
-      return {
-        title: typeof cell.title === "string" ? cell.title : undefined,
-        code,
-        language: normalizeKernel(
-          typeof cell.language === "string" ? cell.language : fallbackLanguage,
-        ),
-        output: typeof cell.output === "string" ? cell.output : undefined,
-      };
-    })
-    .filter((cell): cell is EvalCell => cell !== null);
-
-  if (cells.length > 0) return cells;
-
-  // A provider that does not nest still supplies the source on the call input.
-  const code = typeof input.code === "string" ? input.code : "";
-  if (!code) return [];
-  return [
-    {
-      title: typeof input.title === "string" ? input.title : undefined,
-      code,
-      language: normalizeKernel(fallbackLanguage),
-      output: extractContentText(container),
-    },
-  ];
-}
-
-/** Kernel ids are short; the highlighter names dialects in full. */
-function normalizeKernel(language: string): string {
-  const id = language.toLowerCase();
-  if (id === "py" || id === "python") return "python";
-  return "typescript";
-}
-
 /** A tool's human-readable text sits in the first text block of `content`. */
 export function extractContentText(container: Record<string, unknown>): string | undefined {
   const content = container.content;
@@ -112,8 +42,8 @@ export function extractContentText(container: Record<string, unknown>): string |
   return undefined;
 }
 
-/** Eval times the whole run and reports it beside the cells. */
-export function extractEvalDuration(output: unknown): number | undefined {
+/** A tool that times its run reports it under the result's `details`. */
+export function extractDetailsDuration(output: unknown): number | undefined {
   if (!output || typeof output !== "object") return undefined;
   const details = (output as Record<string, unknown>).details;
 
@@ -124,32 +54,6 @@ export function extractEvalDuration(output: unknown): number | undefined {
 
 function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-/**
- * One `task` call spawns a batch, so the card reads the call's own arguments:
- * the shared `context` and the `tasks` array. The result text only confirms
- * the ids, and it is absent while the call is still running, which is exactly
- * when the reader most wants to see what was sent.
- */
-export function buildSubagentBatch(input: Record<string, unknown>): ToolCalloutData["subagent"] {
-  const entries = Array.isArray(input.tasks) ? input.tasks : [];
-  const agents = entries.flatMap((entry, index) => {
-    if (!entry || typeof entry !== "object") return [];
-    const row = entry as Record<string, unknown>;
-    const brief = asString(row.task);
-    if (!brief) return [];
-    return [
-      {
-        name: asString(row.name) ?? `agent ${index + 1}`,
-        agentType: asString(row.agent) ?? "task",
-        task: brief,
-      },
-    ];
-  });
-  if (agents.length === 0) return undefined;
-  const context = asString(input.context);
-  return context ? { context, agents } : { agents };
 }
 
 /** An MCP call's server and tool, as read from its name. */
@@ -252,93 +156,6 @@ export function buildPaseoData(
       status: "created",
     },
   };
-}
-
-interface AskOption {
-  id: string;
-  label: string;
-  description?: string;
-  recommended?: boolean;
-}
-
-/**
- * The ask tool nests its prompt under `questions`, so reading `input.question`
- * finds nothing and the options never reach the callout.
- */
-export function extractAskQuestion(input: Record<string, unknown>): {
-  question: string;
-  options: AskOption[];
-} | null {
-  const raw = Array.isArray(input.questions)
-    ? (input.questions[0] as Record<string, unknown> | undefined)
-    : typeof input.question === "string"
-      ? input
-      : undefined;
-  if (!raw) return null;
-
-  const question = typeof raw.question === "string" ? raw.question : "";
-  const recommended = typeof raw.recommended === "number" ? raw.recommended : undefined;
-  const options = Array.isArray(raw.options)
-    ? raw.options.flatMap((entry, index): AskOption[] => {
-        if (!entry || typeof entry !== "object") return [];
-        const option = entry as Record<string, unknown>;
-        const label = typeof option.label === "string" ? option.label : "";
-        if (!label) return [];
-        return [
-          {
-            id: typeof option.id === "string" ? option.id : `opt-${index}`,
-            label,
-            description: typeof option.description === "string" ? option.description : undefined,
-            recommended: index === recommended,
-          },
-        ];
-      })
-    : [];
-
-  if (!question && options.length === 0) return null;
-  return { question, options };
-}
-
-/**
- * The chosen answer is reported as prose, so the prefix is stripped and the
- * remainder kept verbatim — it may be a typed reply rather than a label.
- */
-export function extractAskAnswer(text?: string): string | undefined {
-  if (!text) return undefined;
-  const trimmed = text.trim();
-  if (!trimmed) return undefined;
-  const match = trimmed.match(/^user\s+(?:selected|answered|chose)\s*:?\s*/i);
-  const answer = match ? trimmed.slice(match[0].length).trim() : trimmed;
-  return answer.length > 0 ? answer : undefined;
-}
-
-/**
- * The selected option labels.
- *
- * The ask result nests its answer, so reading the top level yields the whole
- * JSON object where the choice should be. `details.selectedOptions` is the
- * authoritative list and covers multi-select; the prose line is the fallback
- * for a host that does not report it. A typed reply arrives here too, and
- * matches no option label, which is exactly how free text should behave.
- */
-export function extractAskSelections(output: unknown, outputText?: string): string[] {
-  const container =
-    output && typeof output === "object" ? (output as Record<string, unknown>) : undefined;
-
-  const details = container?.details;
-  if (details && typeof details === "object") {
-    const selected = (details as Record<string, unknown>).selectedOptions;
-    if (Array.isArray(selected)) {
-      const labels = selected.filter(
-        (entry): entry is string => typeof entry === "string" && entry.length > 0,
-      );
-      if (labels.length > 0) return labels;
-    }
-  }
-
-  const prose = container ? extractContentText(container) : outputText;
-  const single = extractAskAnswer(prose);
-  return single ? [single] : [];
 }
 
 /** Extension to the language ids the highlighter and the devicons share. */
@@ -488,7 +305,6 @@ export interface ToolCallView extends Omit<ToolCalloutData, "tool"> {
    * provider sent none. Its rows carry no file line numbers.
    */
   diffFromText?: boolean;
-  askQuestion?: string;
   search?: SearchToolData;
   fetch?: FetchToolData;
   worktree?: WorktreeSetupData;
@@ -719,19 +535,14 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
   const durationSeconds = asNumber(detail.durationSeconds);
   const durationMs =
     asNumber(detail.durationMs) ??
-    extractEvalDuration(output) ??
+    extractDetailsDuration(output) ??
     (durationSeconds !== undefined ? durationSeconds * 1000 : undefined);
 
   let toolKind: ToolKind = "unknown";
   let hub: HubData | undefined;
   let mcp: McpToolData | undefined;
-  let subagent: ToolCalloutData["subagent"];
   let paseo: PaseoToolData | undefined;
   let github: GitHubToolData | undefined;
-  let evalCells: EvalCell[] = [];
-  let askOptions: AskOption[] = [];
-  let askAnswer: string[] = [];
-  let askQuestion: string | undefined;
   let title = payload.name || "tool";
   const extra: Partial<ToolCallView> = {};
 
@@ -827,27 +638,10 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
     toolKind = "mcp";
     title = name.server === "mcp" ? name.tool : `${name.server} / ${name.tool}`;
     mcp = buildMcpData(name, input, output, durationMs);
-  } else if (rawName === "ask") {
-    toolKind = "ask";
-    const asked = extractAskQuestion(input);
-    title = asked?.question || "User Decision";
-    askQuestion = asked?.question || undefined;
-    askOptions = asked?.options ?? [];
-    askAnswer = extractAskSelections(output, outputText);
   } else if (rawName === "hub") {
     toolKind = "hub";
     title = `Hub: ${String(input.op || "operation")}`;
     hub = buildHubData(input, outputText, output);
-  } else if (rawName === "eval") {
-    toolKind = "eval";
-    evalCells = extractEvalCells(detail, input, output);
-    const cellTitle = evalCells.find((cell) => cell.title)?.title;
-    title = cellTitle ? `Eval: ${cellTitle}` : "Eval Kernel";
-  } else if (rawName === "task") {
-    toolKind = "task";
-    subagent = buildSubagentBatch(input);
-    const count = subagent?.agents.length ?? 0;
-    title = count === 1 ? (subagent?.agents[0]?.name ?? "Subagent") : `${count || "No"} subagents`;
   } else if (SEARCH_NAMES.has(rawName)) {
     toolKind = "search";
     extra.search = readSearch(detail, input, rawName, outputText);
@@ -875,20 +669,15 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
     code: toolKind === "github" || protocolKind ? undefined : code,
     diff,
     output:
-      toolKind === "github" || evalCells.length > 0 || protocolKind
+      toolKind === "github" || protocolKind
         ? undefined
         : toolKind === "unknown"
           ? (outputText ?? stringifyValue(output))
           : outputText,
-    cells: evalCells.length > 0 ? evalCells : undefined,
-    askQuestion,
-    askOptions: askOptions.length > 0 ? askOptions : undefined,
-    askAnswer: askAnswer.length > 0 ? askAnswer : undefined,
     // The protocol's fetch reports an HTTP status in `code`, not an exit code.
     exitCode: toolKind === "fetch" ? undefined : exitCodeCandidate,
     durationMs,
     hub,
-    subagent,
     mcp,
     paseo,
     github,

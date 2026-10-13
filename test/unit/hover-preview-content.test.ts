@@ -94,8 +94,8 @@ describe("full hover preview content", () => {
   });
 
   it.each<ToolKind>([
-    "git", "github", "paseo", "bash", "shell", "read", "edit", "write", "thinking", "eval",
-    "ask", "mcp", "task", "hub", "search", "fetch", "worktree_setup", "sub_agent", "plan", "plain_text", "unknown",
+    "git", "github", "paseo", "bash", "shell", "read", "edit", "write", "thinking",
+    "mcp", "hub", "search", "fetch", "worktree_setup", "sub_agent", "plan", "plain_text", "unknown",
   ])("uses the timeline row's icon renderer for a %s preview", async (tool) => {
     const data = { ...classifyTool({ name: "Read", status: "completed", detail: {
       type: "read", filePath: "/w/a.ts", content: "const value = 1;",

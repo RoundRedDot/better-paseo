@@ -30,8 +30,6 @@ const ZH: Readonly<Record<string, string>> = {
   "Copy as image": "复制为图片",
   "Copy log": "复制日志",
   "Copy description": "复制描述",
-  "Copy question": "复制问题",
-  "Copy answer": "复制回答",
   "Copy thought": "复制思考",
   "Copy section": "复制段落",
   "Copy reply": "复制回复",
