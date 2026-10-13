@@ -3,7 +3,9 @@ import { Platform, Pressable, StyleSheet, Text, View, type TextProps } from "rea
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
-import { unselectable } from "../components/selection";
+import { selectableTextStyle, unselectable } from "../components/selection";
+import { selectionSurface } from "../components/selection-actions";
+import { surfaceProps } from "../components/view-props";
 import { Glyph } from "../components/glyph";
 import { codeSurface } from "../components/host-font-escape";
 import { truncateMiddle } from "../paths/truncate-middle";
@@ -212,7 +214,8 @@ export interface DisclosureHeaderProps {
  * Label-only rows keep the slot empty, so the text column never moves.
  *
  * All text is non-selectable: the row is a press target, and a long press
- * must never compete with text selection.
+ * must never compete with text selection. An inert row presses nothing, so
+ * its verb and target are selectable: they are all there is to copy.
  *
  * The row stays where it was pressed and the body opens below it. The native
  * timeline is an inverted list that holds its bottom still, so without
@@ -283,6 +286,7 @@ export function DisclosureHeader({
   const height = compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop;
   const slop = capabilities.touch ? Math.max(0, (DISCLOSURE_HEADER.hit - height) / 2) : 0;
   const targetType = compact ? DISCLOSURE_HEADER.target.compact : DISCLOSURE_HEADER.target.desktop;
+  const textSelect = inert ? selectableTextStyle : unselectable;
 
   const persistentActions =
     actions !== undefined &&
@@ -302,12 +306,12 @@ export function DisclosureHeader({
   const targetNode =
     typeof target === "string" ? (
       <Text
-        {...(codeSurface as object)}
-        selectable={false}
+        {...((inert ? surfaceProps(selectionSurface, codeSurface) : codeSurface) as object)}
+        selectable={inert}
         numberOfLines={1}
         style={[
           styles.targetText,
-          unselectable,
+          textSelect,
           {
             color: palette.target,
             fontFamily: tokens.fontMono,
@@ -396,9 +400,10 @@ export function DisclosureHeader({
               </View>
               {showVerb ? (
                 <Text
-                  selectable={false}
+                  {...((inert ? selectionSurface : {}) as object)}
+                  selectable={inert}
                   numberOfLines={1}
-                  style={[styles.verb, unselectable, { color: palette.target, fontFamily: tokens.fontUi }]}
+                  style={[styles.verb, textSelect, { color: palette.target, fontFamily: tokens.fontUi }]}
                 >
                   {verb}
                 </Text>
