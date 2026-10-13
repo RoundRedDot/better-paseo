@@ -8,7 +8,7 @@
  *   1. host `theme.typography` (plan H1),
  *   2. the font the user set in Paseo's Appearance settings,
  *   3. Paseo's official default stack,
- * with the embedded Iosevka only when picked in this plugin's settings.
+ * with a custom family only when picked in this plugin's settings.
  * Paseo 0.11.2 has no plugin API for level 2, so this module reads the
  * host's persisted app settings directly. It departs from requirement §11.5
  * ("do not read private storage") on the user's explicit instruction.

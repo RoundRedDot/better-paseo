@@ -571,7 +571,7 @@ export default function contribute(server: PluginServerContext) {
     }
   });
 
-  // The embedded faces, asked for only by a web reader who picks Iosevka or Inter.
+  // The embedded faces, asked for only by a web reader who picks Inter.
   server.handle(embeddedFontsRpc, async () => ({ faces: [...EMBEDDED_FONTS] }));
 
   // Brand marks by id, asked for by the rows that draw them.

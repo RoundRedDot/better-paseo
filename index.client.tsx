@@ -29,8 +29,8 @@ function toJsonValue(value: unknown): JsonValue {
 }
 
 export default function contribute(client: PluginClientContext) {
-  // The embedded faces (Iosevka, Inter) are read from the daemon and installed
-  // on first use by a reader who picks them (`ensureEmbeddedFonts`); unloading
+  // The embedded Inter faces are read from the daemon and installed on first
+  // use by a reader who picks them (`ensureEmbeddedFonts`); unloading
   // removes them.
   setEmbeddedFontLoader(() => client.rpc(embeddedFontsRpc, {}).then((result) => result.faces));
   const removeFonts = () => {

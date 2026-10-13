@@ -177,7 +177,7 @@ hovering a row stays within the sample. An option whose parent is off
 | Language                  | English or 简体中文 for this page, or follow the device. Plugins cannot see Paseo's own language. |
 | Accent colour             | Follow the Paseo theme, or pick Jade, Violet, Amber, or Rose.                                |
 | Interface font            | Follow Paseo's interface font, embedded Inter (web only), or the system face.                |
-| Monospace font            | Follow Paseo (default), Iosevka, Iosevka Code (ligatures in code blocks; web and desktop), or Custom. Follow Paseo uses, in order: the host's font settings once Paseo shares them with plugins; on web/desktop, the monospace font and code size set in Paseo's Appearance settings (read only, a temporary bridge until then); otherwise Paseo's default monospace (`SFMono-Regular, Menlo, Monaco, Consolas, …` on web/desktop, the system monospace on iOS/Android). The settings page shows which one is in effect. On iOS/Android, Iosevka is not offered and Custom picks from faces the platform ships. |
+| Monospace font            | Follow Paseo (default) or Custom. Follow Paseo uses, in order: the host's font settings once Paseo shares them with plugins; on web/desktop, the monospace font and code size set in Paseo's Appearance settings (read only, a temporary bridge until then); otherwise Paseo's default monospace (`SFMono-Regular, Menlo, Monaco, Consolas, …` on web/desktop, the system monospace on iOS/Android). The settings page shows which one is in effect. On iOS/Android, Custom picks from faces the platform ships. |
 | Code font size            | Follow Paseo, or 10-22px with a glyph sample. Applies to code, diffs, terminals and paths.   |
 | Row icons and labels      | Icon only (default), label only, or both, on tool and thought rows.                          |
 | File paths                | Relative to the workspace, or absolute. Copying always gives the absolute path.              |
@@ -194,8 +194,8 @@ Preferences are stored by the daemon, through the SDK's settings (`defineSetting
 `useSettings`, record `presentation` in `shared/preferences-settings.ts`). Host scope is the only
 scope the SDK allows, so **every client connected to one daemon shares them**: a change on the
 desktop shows up on iOS, and the other way round. A choice one platform cannot draw is stored as
-made and degraded where it renders by `resolveTypography` (Iosevka and a typed custom family become
-the platform monospace on iOS/Android; Inter becomes the system face). On web, `localStorage` is
+made and degraded where it renders by `resolveTypography` (a typed custom family becomes the platform
+monospace on iOS/Android; Inter becomes the system face). On web, `localStorage` is
 only a fast-start cache, and a record saved there by an older version is copied to the daemon once,
 if the daemon has none yet. Until the settings arrive, cards draw with the cached or default
 values and switch once; a record the daemon cannot read shows the defaults and a hint on the
@@ -287,7 +287,7 @@ timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurfac
     set through the style API. The plugin does not draw frosted glass.
 11. **No font registration.** Faces are embedded as data URIs in an injected `@font-face` rule
     (web only). The bytes stay on the daemon and arrive through the `fonts.embedded` RPC the first
-    time a reader picks Iosevka or Inter, because the host sends the whole client bundle again on
+    time a reader picks Inter, because the host sends the whole client bundle again on
     every reconnect. Paseo forces its UI font on every node not under `data-pmono`; the plugin marks
     only monospace regions with it, so interface text follows the host font, and leaves the
     interface `fontFamily` unset for "Follow Paseo", since React Native Web writes non-StyleSheet

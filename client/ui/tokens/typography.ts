@@ -43,8 +43,7 @@ export interface HostTypography {
 
 export interface TypographyPreferences {
   uiFont: "host" | "inter" | "system";
-  codeFont: "code" | "plain";
-  monoFont: "host" | "iosevka" | "custom";
+  monoFont: "host" | "custom";
   customMonoFont: string;
   codeFontSize: number | null;
 }
@@ -57,13 +56,10 @@ export interface Typography {
   };
   content: { size: number; lineHeight: number };
   mono: {
-    /** Terminal output, diffs, paths, commands. */
+    /** Code blocks, terminal output, diffs, paths, commands. */
     family: string;
-    /** Code blocks: the ligature cut when the reader picked Iosevka Code, else `family`. */
-    codeFamily: string;
     size: number;
     lineHeight: number;
-    ligatures: boolean;
     /** Where "Follow Paseo" found the family and size (plan D10). */
     source: MonoSource;
   };
@@ -74,8 +70,6 @@ export interface Typography {
 /** The `@font-face` names `embed-fonts.ts` registers on web. */
 export const EMBEDDED_FAMILY = {
   ui: "OMP Inter",
-  mono: "OMP Iosevka",
-  code: "OMP Iosevka Code",
 } as const;
 
 /**
@@ -283,37 +277,22 @@ export function resolveTypography(
   // "Follow Paseo" is the host's mono, by priority (plan D10): its H1 value;
   // else, on web, the font set in Paseo's Appearance settings; else the stack
   // the host itself defaults to (web) and the platform monospace (native).
-  // The embedded Iosevka is drawn only when the reader picks it.
   const hostMono =
     host?.fontFamily?.mono ??
     (paseoAppearance?.monoFontFamily
       ? appearanceMonoStack(paseoAppearance.monoFontFamily, DEFAULT_WEB_MONO_STACK)
       : undefined);
   let family: string;
-  let codeFamily: string;
-  let ligatures = false;
   if (web) {
     const follow = hostMono ? withCjk(hostMono) : WEB_MONO_TAIL;
-    if (prefs.monoFont === "iosevka") {
-      family = `"${EMBEDDED_FAMILY.mono}", ${WEB_MONO_TAIL}`;
-      // The ligature cut exists only for Iosevka (Iosevka Code).
-      ligatures = prefs.codeFont === "code";
-      codeFamily = ligatures ? `"${EMBEDDED_FAMILY.code}", ${family}` : family;
-    } else if (prefs.monoFont === "custom" && text(prefs.customMonoFont)) {
-      family = `${quoteFamily(prefs.customMonoFont)}, ${follow}`;
-      codeFamily = family;
-    } else {
-      family = follow;
-      codeFamily = follow;
-    }
+    family = prefs.monoFont === "custom" && text(prefs.customMonoFont)
+      ? `${quoteFamily(prefs.customMonoFont)}, ${follow}`
+      : follow;
   } else {
     const fallback = hostMono ?? NATIVE_DEFAULT_MONO[platform];
     const custom = text(prefs.customMonoFont);
     const allowed = NATIVE_MONO_CHOICES[platform].some((choice) => choice.value === custom);
-    // Iosevka is not offered on native; a stored choice from a synced web
-    // profile falls back to the platform face rather than to a missing font.
     family = prefs.monoFont === "custom" && custom && allowed ? custom : fallback;
-    codeFamily = family;
   }
 
   const codeSize =
@@ -350,7 +329,7 @@ export function resolveTypography(
   return {
     ui: { family: uiFamily, scale: UI_SCALE },
     content: { size: contentSize, lineHeight: lineHeightFor(contentSize) },
-    mono: { family, codeFamily, size: codeSize, lineHeight: codeLineHeight, ligatures, source: monoSource(host, paseoAppearance) },
+    mono: { family, size: codeSize, lineHeight: codeLineHeight, source: monoSource(host, paseoAppearance) },
     fromHost: host !== null,
   };
 }

@@ -10,12 +10,12 @@ const embeddedFontFace = z.object({
 export type EmbeddedFontFace = z.infer<typeof embeddedFontFace>;
 
 /**
- * The embedded Inter and Iosevka faces, read from the daemon.
+ * The embedded Inter faces, read from the daemon.
  *
  * The host sends every plugin's client bundle again on each reconnect, and on a
  * phone behind the relay each byte of it is decrypted in JavaScript. The faces
- * are 150 KB that only a web reader who picks Iosevka or Inter ever draws, so
- * they stay on the daemon and travel only when one does.
+ * are 65 KB that only a web reader who picks Inter ever draws, so they stay on
+ * the daemon and travel only when one does.
  */
 export const embeddedFontsRpc = defineRpc({
   // The host accepts lower-case, dotted RPC names only.

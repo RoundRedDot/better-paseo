@@ -40,7 +40,6 @@ const { act } = await import("react-test-renderer");
 
 const follow: TypographyPreferences = {
   uiFont: "host",
-  codeFont: "code",
   monoFont: "host",
   customMonoFont: "",
   codeFontSize: null,
@@ -163,8 +162,7 @@ describe("resolveTypography with Paseo's appearance (plan D10)", () => {
   it("uses it on web without host typography, for code blocks and terminals alike", () => {
     const result = resolveTypography({ colors: {} }, follow, "web", appearance);
     expect(result.mono.family).toBe(`"Courier New", ${DEFAULT_WEB_MONO_STACK}`);
-    expect(result.mono.codeFamily).toBe(result.mono.family);
-    expect(result.mono).toMatchObject({ size: 16, lineHeight: 24, ligatures: false });
+    expect(result.mono).toMatchObject({ size: 16, lineHeight: 24 });
     expect(result.mono.source).toEqual({ kind: "paseo-appearance", family: "Courier New", size: 16 });
     expect(describeMonoSource(result.mono.source, "web")).toBe("Following Paseo appearance: Courier New, 16 px");
   });
@@ -217,10 +215,7 @@ describe("resolveTypography with Paseo's appearance (plan D10)", () => {
     );
   });
 
-  it("ranks below the plugin's own choices: Iosevka, Custom and a custom size", () => {
-    expect(resolveTypography({ colors: {} }, { ...follow, monoFont: "iosevka" }, "web", appearance).mono.family).toMatch(
-      /^"OMP Iosevka"/,
-    );
+  it("ranks below the plugin's own choices: Custom and a custom size", () => {
     const custom = resolveTypography(
       { colors: {} },
       { ...follow, monoFont: "custom", customMonoFont: "Menlo", codeFontSize: 11 },

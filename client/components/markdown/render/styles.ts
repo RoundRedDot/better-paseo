@@ -171,7 +171,7 @@ export const ALIGN_KEYS: Record<MdAlign, "cellLeft" | "cellCenter" | "cellRight"
 
 // React Native offers no synchronous text measurement, so a column's width is
 // estimated from its longest cell. These ratios are the average advance width
-// of a UI face and a monospace face (SF Mono, Menlo, Iosevka) as a fraction of
+// of a UI face and a monospace face (SF Mono, Menlo, Consolas) as a fraction of
 // the font size.
 export const CHAR_RATIO_UI = 0.55;
 export const CHAR_RATIO_MONO = 0.62;

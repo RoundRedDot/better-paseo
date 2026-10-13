@@ -84,10 +84,10 @@ export function fitMiddle(text: string, budget: number): string {
 
 /**
  * Average advance of one monospace character, as a fraction of the font
- * size. Iosevka is a narrow face (500/1000 em); SF Mono, Menlo, Consolas and
- * Android's monospace sit at about 0.6. An unknown family gets a slightly
- * wider guess, so a misjudged one is truncated a little early rather than
- * cut at the end by the row.
+ * size. Iosevka, typed as a custom family, is a narrow face (500/1000 em);
+ * SF Mono, Menlo, Consolas and Android's monospace sit at about 0.6. An
+ * unknown family gets a slightly wider guess, so a misjudged one is truncated
+ * a little early rather than cut at the end by the row.
  */
 export function monoAdvance(family: string | undefined): number {
   if (family && /iosevka/i.test(family)) return 0.5;
@@ -110,33 +110,6 @@ export function budgetForWidth(
   return Math.max(4, chars);
 }
 
-/**
- * Character cells one `…` takes in a face. The embedded Iosevka subset has
- * no ellipsis glyph, so on web it falls back to a proportional face about two
- * cells wide (measured: 13.3px at 13px, against 6.5px per character).
- */
-export function ellipsisCells(family: string | undefined): number {
-  return family && /iosevka/i.test(family) ? 2 : 1;
-}
-
-/** Width of `text` in character cells, counting each `…` as `ellipsis` cells. */
-export function cellWidth(text: string, ellipsis = 1): number {
-  let count = 0;
-  for (let index = 0; index < text.length; index++) if (text.charCodeAt(index) === 0x2026) count += 1;
-  return text.length + count * (ellipsis - 1);
-}
-
-/** `fitMiddle` measured in cells: shrinks the budget until the result fits. */
-export function fitCells(text: string, cells: number, ellipsis = 1): string {
-  let budget = cells;
-  let out = fitMiddle(text, budget);
-  while (cellWidth(out, ellipsis) > cells && budget > 1) {
-    budget -= 1;
-    out = fitMiddle(text, budget);
-  }
-  return out;
-}
-
 /** Fewest path characters worth showing after a secondary root's label. */
 export const MIN_REST = 12;
 
@@ -153,7 +126,6 @@ export function shownPath(
   formatted: { displayPath: string; label: string | null; suffix: string },
   limit: number,
   strict: boolean,
-  ellipsis = 1,
 ): { label: string | null; text: string } {
   const { displayPath, label, suffix } = formatted;
   if (!strict) {
@@ -161,12 +133,12 @@ export function shownPath(
     const rest = `${displayPath.slice(label.length + 1)}${suffix}`;
     return { label, text: truncateMiddle(rest, Math.max(8, limit - label.length - 1)) };
   }
-  if (!label) return { label: null, text: fitCells(`${displayPath}${suffix}`, limit, ellipsis) };
+  if (!label) return { label: null, text: fitMiddle(`${displayPath}${suffix}`, limit) };
   const rest = `${displayPath.slice(label.length + 1)}${suffix}`;
   const room = limit - label.length - 1;
   const name = rest.slice(rest.lastIndexOf("/") + 1);
   // `…/name` is the least a kept label must leave whole.
-  const nameFits = room >= MIN_REST && cellWidth(`${ELLIPSIS}/${name}`, ellipsis) <= room;
-  if (rest.length > room && !nameFits) return { label: null, text: fitCells(rest, limit, ellipsis) };
-  return { label, text: fitCells(rest, Math.max(1, room), ellipsis) };
+  const nameFits = room >= MIN_REST && `${ELLIPSIS}/${name}`.length <= room;
+  if (rest.length > room && !nameFits) return { label: null, text: fitMiddle(rest, limit) };
+  return { label, text: fitMiddle(rest, Math.max(1, room)) };
 }

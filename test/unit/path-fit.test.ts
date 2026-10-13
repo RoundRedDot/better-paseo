@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   budgetForWidth,
-  cellWidth,
-  ellipsisCells,
-  fitCells,
   fitMiddle,
   monoAdvance,
   shownPath,
@@ -42,8 +39,8 @@ describe("budgetForWidth", () => {
   it("counts monospace characters per face", () => {
     // 13pt SF Mono ≈ 7.8pt per character: 200pt holds 25, less one of slack.
     expect(budgetForWidth(200, 13, "ui-monospace")).toBe(24);
-    // Iosevka is narrower: 6.5pt per character.
-    expect(budgetForWidth(200, 13, '"OMP Iosevka", ui-monospace')).toBe(29);
+    // A custom Iosevka is narrower: 6.5pt per character.
+    expect(budgetForWidth(200, 13, '"Iosevka", ui-monospace')).toBe(29);
     // An unknown custom face is guessed a little wide.
     expect(budgetForWidth(200, 13, "Fancy Mono")).toBe(23);
   });
@@ -59,7 +56,7 @@ describe("budgetForWidth", () => {
   });
 
   it("knows the common faces", () => {
-    expect(monoAdvance("OMP Iosevka Code")).toBe(0.5);
+    expect(monoAdvance("Iosevka Term")).toBe(0.5);
     // Paseo's own default web stack ("Follow Paseo" without host typography).
     expect(monoAdvance("SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace")).toBe(0.6);
     expect(monoAdvance("Menlo")).toBe(0.6);
@@ -114,23 +111,14 @@ describe("shownPath", () => {
   });
 });
 
-describe("ellipsis cells", () => {
-  it("counts the fallback ellipsis of the Iosevka subset as two cells", () => {
-    expect(ellipsisCells('"OMP Iosevka", ui-monospace')).toBe(2);
-    expect(ellipsisCells("ui-monospace")).toBe(1);
-    expect(cellWidth("…/an-…-store.ts", 2)).toBe(17);
-    expect(cellWidth("…/an-…-store.ts", 1)).toBe(15);
-  });
-
-  it("fits in cells, so two ellipses never push past the slot", () => {
+describe("ellipsis", () => {
+  it("fits the slot and never ends on an ellipsis", () => {
     const path = "/Users/dev/workspace/acme-chat/client/lib/an-unreasonably-long-module-name-for-a-cursor-store.ts";
     for (let cells = 8; cells < 60; cells++) {
-      const out = fitCells(path, cells, 2);
-      expect(cellWidth(out, 2)).toBeLessThanOrEqual(cells);
+      const out = fitMiddle(path, cells);
+      expect(out.length).toBeLessThanOrEqual(cells);
       expect(out.endsWith("…")).toBe(false);
     }
-    // The measured row 4 of the narrow shot: 240px / 6.5px = 36 cells, less one.
-    expect(cellWidth(fitCells(path, 35, 2), 2)).toBeLessThanOrEqual(35);
   });
 
   it("drops a label before it would cut the file name", () => {
@@ -139,8 +127,8 @@ describe("ellipsis cells", () => {
       label: "better-paseo",
       suffix: "",
     };
-    // 41 cells: the label leaves 26, too few for "…/2026-…-upgrade.md" (39).
-    const out = shownPath(secondary, 41, true, 2);
+    // 41 cells: the label leaves 29, too few for "…/2026-10-11-ui-ux-rendering-upgrade.md" (39).
+    const out = shownPath(secondary, 41, true);
     expect(out.label).toBeNull();
     expect(out.text).toBe("…/2026-10-11-ui-ux-rendering-upgrade.md");
   });

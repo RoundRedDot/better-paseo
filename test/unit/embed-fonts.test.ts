@@ -1,7 +1,7 @@
 /**
- * The embedded faces (Iosevka, Inter) are installed only when a reader picks
- * one: "Follow Paseo" draws with the host's own stacks and must not parse
- * 75 KB of font data or register `@font-face` rules it never uses. The bytes
+ * The embedded Inter faces are installed only when a reader picks Inter:
+ * "Follow Paseo" draws with the host's own stacks and must not parse
+ * 65 KB of font data or register `@font-face` rules it never uses. The bytes
  * live on the daemon, so the client bundle a phone downloads on every
  * reconnect does not carry them.
  */
@@ -47,19 +47,22 @@ afterEach(() => {
   delete globals.__beautifulChatEmbeddedFonts;
 });
 
-const IOSEVKA = { monoFont: "iosevka", uiFont: "host" } as const;
+const INTER = { uiFont: "inter" } as const;
 
 describe("embedded fonts", () => {
-  it("are needed on web only for an explicit Iosevka or Inter choice", () => {
+  it("are needed on web only for an explicit Inter choice", () => {
     expect(needsEmbeddedFonts(DEFAULT_PREFERENCES, "web")).toBe(false);
-    expect(needsEmbeddedFonts({ monoFont: "custom", uiFont: "system" }, "web")).toBe(false);
-    expect(needsEmbeddedFonts({ monoFont: "iosevka", uiFont: "host" }, "web")).toBe(true);
-    expect(needsEmbeddedFonts({ monoFont: "host", uiFont: "inter" }, "web")).toBe(true);
-    expect(needsEmbeddedFonts({ monoFont: "iosevka", uiFont: "inter" }, "ios")).toBe(false);
-    expect(needsEmbeddedFonts({ monoFont: "iosevka", uiFont: "inter" }, "android")).toBe(false);
+    expect(needsEmbeddedFonts({ uiFont: "system" }, "web")).toBe(false);
+    expect(needsEmbeddedFonts(INTER, "web")).toBe(true);
+    expect(needsEmbeddedFonts(INTER, "ios")).toBe(false);
+    expect(needsEmbeddedFonts(INTER, "android")).toBe(false);
   });
 
-  it("are not installed for Follow Paseo, and read once from the daemon when Iosevka is picked", async () => {
+  it("carry Inter only", () => {
+    expect(new Set(EMBEDDED_FONTS.map((face) => face.family))).toEqual(new Set(["OMP Inter"]));
+  });
+
+  it("are not installed for Follow Paseo, and read once from the daemon when Inter is picked", async () => {
     const doc = fakeDocument();
     globals.document = doc;
     const load = vi.fn(async () => EMBEDDED_FONTS);
@@ -70,12 +73,12 @@ describe("embedded fonts", () => {
     expect(load).not.toHaveBeenCalled();
     expect(doc.elements.size).toBe(0);
 
-    ensureEmbeddedFonts(IOSEVKA, "web");
-    ensureEmbeddedFonts(IOSEVKA, "web");
+    ensureEmbeddedFonts(INTER, "web");
+    ensureEmbeddedFonts(INTER, "web");
     await vi.waitFor(() => expect(doc.elements.size).toBe(1));
     expect(load).toHaveBeenCalledTimes(1);
     const style = [...doc.elements.values()][0]!;
-    expect(style.textContent).toContain('font-family: "OMP Iosevka"');
+    expect(style.textContent).toContain('font-family: "OMP Inter"');
 
     removeEmbeddedFonts();
     expect(doc.elements.size).toBe(0);
@@ -85,7 +88,7 @@ describe("embedded fonts", () => {
     const doc = fakeDocument();
     globals.document = doc;
     setEmbeddedFontLoader(async () => EMBEDDED_FONTS);
-    ensureEmbeddedFonts(IOSEVKA, "web");
+    ensureEmbeddedFonts(INTER, "web");
     await vi.waitFor(() => expect(doc.elements.size).toBe(1));
 
     // Unload, then a fresh evaluation whose loader would never answer.
@@ -93,7 +96,7 @@ describe("embedded fonts", () => {
     removeEmbeddedFonts();
     const load = vi.fn(() => new Promise<never>(() => {}));
     setEmbeddedFontLoader(load);
-    ensureEmbeddedFonts(IOSEVKA, "web");
+    ensureEmbeddedFonts(INTER, "web");
     expect(doc.elements.size).toBe(1);
     expect(load).not.toHaveBeenCalled();
   });
@@ -104,14 +107,14 @@ describe("embedded fonts", () => {
       throw new Error("offline");
     });
     setEmbeddedFontLoader(load);
-    ensureEmbeddedFonts({ monoFont: "iosevka", uiFont: "inter" }, "ios");
-    ensureEmbeddedFonts({ monoFont: "iosevka", uiFont: "inter" }, "android");
+    ensureEmbeddedFonts(INTER, "ios");
+    ensureEmbeddedFonts(INTER, "android");
     expect(load).not.toHaveBeenCalled();
 
-    ensureEmbeddedFonts(IOSEVKA, "web");
+    ensureEmbeddedFonts(INTER, "web");
     await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(1));
     await new Promise((resolve) => setTimeout(resolve, 0));
-    ensureEmbeddedFonts(IOSEVKA, "web");
+    ensureEmbeddedFonts(INTER, "web");
     await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(2));
   });
 });
