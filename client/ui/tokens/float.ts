@@ -1,7 +1,8 @@
 /**
  * The floating controls' one family (docs/prototypes/table-copy-menu.md): the
  * table's copy menu and the selection bar share the frame, the items, the
- * shadow and the motion, so they read as the same piece of UI.
+ * shadow and the motion, so they read as the same piece of UI; the edge and
+ * shadow are also the hover preview panel's.
  *
  * The frame is a rounded rectangle 30 tall, its items 24 tall like a preview
  * toolbar's buttons, inset 2 from its inner edge; an item's radius is the
@@ -30,18 +31,17 @@ export const FLOAT_EASE = {
 } as const;
 
 /**
- * The hover preview's edge at the frame's size: the solid border alone draws
- * the edge, and a single shadow dropped below it lifts the frame. A layer
- * hugging the border turns the line into a gradient and the edge looks soft,
- * and the preview's own 24px blur bands into rings around a frame this small.
- * Hidden, the shadow turns transparent, so the change can transition.
+ * The hover preview's shadow, shared by the floating controls so every
+ * overlay has one edge: the solid border draws it, and this one shadow,
+ * dropped below, lifts the frame. Hidden, it turns transparent, so the change
+ * can transition.
  */
 export function floatShadow(tokens: ExtendedThemeTokens, visible = true): string {
   return cssShadow({
     ...tokens.v2.elevation.overlay,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 16,
-    shadowOpacity: visible ? (tokens.isDark ? 0.28 : 0.14) : 0,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 24,
+    shadowOpacity: visible ? (tokens.isDark ? 0.36 : 0.22) : 0,
   });
 }
 
