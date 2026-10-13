@@ -26,6 +26,17 @@ const CASES: Array<[string, ToolCallPayload, ToolKind]> = [
   ["plain text", call("note", { type: "plain_text", label: "Note", text: "hello" }), "plain_text"],
   ["mcp", call("mcp__srv__do_thing", { type: "unknown", input: { query: "q" }, output: "r" }), "mcp"],
   ["paseo", call("create_agent", { type: "unknown", input: { title: "T", provider: "claude/opus" }, output: "" }), "paseo"],
+  // Codex names an MCP call `server.tool`; OMP's bridge, `server / tool`.
+  ["codex mcp", call("custom.run", { type: "unknown", input: { foo: "bar" }, output: null }), "mcp"],
+  ["omp bridged mcp", call("local / echo_secret", { type: "unknown", input: { word: "hi" }, output: { content: [] } }), "mcp"],
+  ["claude paseo tool", call("mcp__paseo__create_agent", { type: "unknown", input: { title: "T" }, output: "" }), "paseo"],
+  ["codex paseo tool", call("paseo.create_agent", { type: "unknown", input: { title: "T" }, output: null }), "paseo"],
+  // Dotted names the host can send for other reasons stay what they are.
+  ["a file name is not an mcp tool", call("package.json", { type: "unknown", input: { path: "package.json" }, output: null }), "unknown"],
+  ["a dotted name answering with text is not an mcp tool", call("foo.bar", { type: "unknown", input: {}, output: "done" }), "unknown"],
+  ["a dotted name with a typed detail keeps its kind", call("custom.run", { type: "shell", command: "ls" }), "shell"],
+  ["a title with spaces is not an mcp tool", call("Read notes.txt", { type: "unknown", input: {}, output: null }), "unknown"],
+  ["a slash without the bridge's spaces", call("a/b", { type: "unknown", input: {}, output: { content: [] } }), "unknown"],
   ["ask", call("ask", { type: "unknown", input: { question: "Go?", options: [{ label: "Yes" }] }, output: "" }), "ask"],
   ["hub", call("hub", { type: "unknown", input: { op: "wait" }, output: "" }), "hub"],
   ["eval", call("eval", { type: "unknown", input: { code: "1+1" }, output: "2" }), "eval"],
@@ -100,6 +111,57 @@ describe("classifyTool", () => {
     expect(view.durationMs).toBe(2500);
     // A grep reports milliseconds already; that figure stays.
     expect(classifyTool(call("Glob", { type: "search", query: "*.ts", durationMs: 12, durationSeconds: 9 })).durationMs).toBe(12);
+  });
+
+  it("splits Codex's `server.tool` MCP name and unwraps its result", () => {
+    const view = classifyTool(
+      call("custom.run", {
+        type: "unknown",
+        input: { foo: "bar" },
+        output: { content: [{ type: "text", text: "ran" }], structuredContent: { ok: true } },
+      }),
+    );
+    expect(view.mcp).toMatchObject({ server: "custom", tool: "run", arguments: { foo: "bar" }, result: "ran" });
+    expect(view.title).toBe("custom / run");
+    // A tool whose own name carries a dot keeps it; the server is the first segment.
+    expect(classifyTool(call("docs.files.read", { type: "unknown", input: {}, output: null })).mcp)
+      .toMatchObject({ server: "docs", tool: "files.read" });
+  });
+
+  it("splits OMP's bridged `server / tool` MCP name", () => {
+    const view = classifyTool(
+      call("local / echo_secret", {
+        type: "unknown",
+        input: { word: "hello" },
+        output: { content: [{ type: "text", text: "MANGO:hello" }] },
+      }),
+    );
+    expect(view.mcp).toMatchObject({ server: "local", tool: "echo_secret", arguments: { word: "hello" }, result: "MANGO:hello" });
+    expect(view.title).toBe("local / echo_secret");
+  });
+
+  it.each(["mcp__paseo__create_agent", "paseo.create_agent", "paseo_remote.create_agent", "paseo / create_agent"])(
+    "draws Paseo's own %s as its create-agent card",
+    (name) => {
+      const view = classifyTool(
+        call(name, { type: "unknown", input: { title: "Reviewer", provider: "claude/opus" }, output: null }),
+      );
+      expect(view.tool).toBe("paseo");
+      expect(view.title).toBe("Paseo: create_agent");
+      expect(view.paseo?.createAgent).toMatchObject({ title: "Reviewer", provider: "claude", model: "opus" });
+    },
+  );
+
+  it("keeps a Paseo-server tool this plugin has no card for as an MCP call", () => {
+    const view = classifyTool(call("mcp__paseo__list_worktrees", { type: "unknown", input: {}, output: "" }));
+    expect(view.tool).toBe("mcp");
+    expect(view.mcp).toMatchObject({ server: "paseo", tool: "list_worktrees" });
+  });
+
+  it("does not take another server's tool of the same name for Paseo's", () => {
+    const view = classifyTool(call("github.create_agent", { type: "unknown", input: {}, output: null }));
+    expect(view.tool).toBe("mcp");
+    expect(view.mcp).toMatchObject({ server: "github", tool: "create_agent" });
   });
 
   it("does not take a fetch's HTTP status for an exit code", () => {

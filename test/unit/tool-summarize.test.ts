@@ -104,6 +104,16 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
     { verb: "paseo / create_agent", target: "Reviewer" },
   ],
   [
+    "codex mcp · server / tool",
+    call("devnav.codedb_search", { type: "unknown", input: { query: "PathText" }, output: null }),
+    { verb: "devnav / codedb_search", target: "PathText" },
+  ],
+  [
+    "paseo through mcp · leaf name",
+    call("mcp__paseo__list_models", { type: "unknown", input: { provider: "claude" }, output: "" }),
+    { verb: "paseo / list_models" },
+  ],
+  [
     "task keeps its title",
     call("task", { type: "unknown", input: { tasks: [{ name: "a", task: "x" }, { name: "b", task: "y" }] } }),
     { verb: "Task", target: "2 subagents" },
