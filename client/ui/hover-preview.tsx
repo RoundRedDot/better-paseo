@@ -303,10 +303,10 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, chil
   const actions = useContext(PreviewActionsContext);
   const [toolbar, ...rest] = React.Children.toArray(children);
   const toolbarRef = useRef<View>(null);
-  const maximize = actions?.maximizable && !actions.maximized ? actions.maximize : undefined;
+  const windowAction = actions?.maximizable ? (actions.maximized ? actions.close : actions.maximize) : undefined;
   useLayoutEffect(() => {
-    if (maximize) return bindPreviewMaximize(toolbarRef.current, maximize);
-  }, [maximize]);
+    if (windowAction) return bindPreviewMaximize(toolbarRef.current, windowAction);
+  }, [windowAction]);
   const windowButton = actions && (actions.maximizable || actions.maximized) ? (
     <ToolbarButton
       icon={actions.maximized ? "X" : "Maximize2"}
