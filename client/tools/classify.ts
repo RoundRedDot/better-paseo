@@ -152,17 +152,71 @@ export function buildSubagentBatch(input: Record<string, unknown>): ToolCalloutD
   return context ? { context, agents } : { agents };
 }
 
-/** Splits `mcp__server__tool` and keeps the call's own arguments and result. */
+/** An MCP call's server and tool, as read from its name. */
+export interface McpName {
+  server: string;
+  tool: string;
+}
+
+/** OMP's bridge labels a call `server / tool` (`omp/agent.ts`). */
+const BRIDGED_MCP_NAME = /^([^\s/]+) \/ ([^\s/]+)$/;
+/** Codex names a call `server.tool`; the tool's own name may carry dots. */
+const DOTTED_MCP_NAME = /^([a-z0-9_-]+)\.([a-z0-9_.-]+)$/;
+/** Extensions a dotted title can end in that the highlighter does not know. */
+const FILE_EXTENSIONS = new Set(["txt", "lock", "toml", "log", "csv", "xml", "ini", "env", "pdf", "png", "jpg", "svg"]);
+
+/** Paseo's own server, as Claude and Codex name it (`paseo`, `paseo_voice`). */
+function isPaseoServer(server: string): boolean {
+  return server === "paseo" || server.startsWith("paseo_");
+}
+
+/** An MCP answer: content blocks, or nothing yet while it runs or after it fails. */
+function isMcpResult(output: unknown): boolean {
+  return output === undefined || output === null || Array.isArray(asRecord(output)?.content);
+}
+
+/**
+ * The server and tool an MCP call's name carries, or undefined for any other
+ * call.
+ *
+ * Claude's `mcp__server__tool` says so in its prefix. The other two forms say
+ * nothing by themselves, so they count only on an `unknown` detail, which is
+ * what Codex and the OMP bridge send for every MCP call. A dotted name is
+ * still looser: an ACP call is named by its title when it has no kind, and a
+ * title can be a file name. So it also needs an MCP-shaped answer and must not
+ * read as a file, unless it is one of Paseo's own tools, which the host
+ * recognises by the `paseo.` prefix alone (`isPaseoToolName`).
+ */
+export function readMcpName(rawName: string, detailType: string, output: unknown): McpName | undefined {
+  if (rawName.startsWith("mcp__")) {
+    const parts = rawName.replace(/^mcp__/, "").split("__");
+    return {
+      server: parts.length > 1 ? (parts[0] ?? "mcp") : "mcp",
+      tool: parts.length > 1 ? parts.slice(1).join(" / ") : (parts[0] ?? rawName),
+    };
+  }
+  if (detailType !== "unknown") return undefined;
+  const bridged = BRIDGED_MCP_NAME.exec(rawName);
+  if (bridged) return { server: bridged[1]!, tool: bridged[2]! };
+  const dotted = DOTTED_MCP_NAME.exec(rawName);
+  if (!dotted) return undefined;
+  const name = { server: dotted[1]!, tool: dotted[2]! };
+  if (isPaseoServer(name.server) && PASEO_TOOLS.has(name.tool)) return name;
+  const extension = rawName.split(".").pop() ?? "";
+  const fileLike = languageFromPath(rawName) !== undefined || FILE_EXTENSIONS.has(extension);
+  return isMcpResult(output) && !fileLike ? name : undefined;
+}
+
+/** Keeps an MCP call's own arguments and result under its server and tool. */
 export function buildMcpData(
-  rawName: string,
+  name: McpName,
   input: Record<string, unknown>,
   output: unknown,
   durationMs: number | undefined,
 ): McpToolData {
-  const parts = rawName.replace(/^mcp__/, "").split("__");
   return {
-    server: parts.length > 1 ? (parts[0] ?? "mcp") : "mcp",
-    tool: parts.length > 1 ? parts.slice(1).join(" / ") : (parts[0] ?? rawName),
+    server: name.server,
+    tool: name.tool,
     arguments: input,
     // An MCP server answers with content blocks. Keeping the envelope here put
     // `{"content":[{"type":"text",...}]}` in the response panel, so the prose is
@@ -689,6 +743,13 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
   const isGitCommand =
     rawName === "git" || detailType === "git" || /^\s*git(?:\.exe)?(?:\s|$)/i.test(command ?? "");
   const protocolKind = PROTOCOL_KINDS[detailType];
+  const mcpName = readMcpName(rawName, detailType, detail.output);
+  // Paseo's own tools arrive bare from OMP and under its MCP server elsewhere.
+  const paseoTool = PASEO_TOOLS.has(rawName)
+    ? rawName
+    : mcpName && isPaseoServer(mcpName.server) && PASEO_TOOLS.has(mcpName.tool)
+      ? mcpName.tool
+      : undefined;
 
   if (isGitHubTool) {
     toolKind = "github";
@@ -757,14 +818,15 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
   } else if (rawName === "thinking") {
     toolKind = "thinking";
     title = "Reasoning Process";
-  } else if (PASEO_TOOLS.has(rawName)) {
+  } else if (paseoTool) {
     toolKind = "paseo";
-    title = `Paseo: ${rawName}`;
-    paseo = buildPaseoData(rawName, input, outputText, durationMs);
-  } else if (rawName.startsWith("mcp__") || rawName === "mcp") {
+    title = `Paseo: ${paseoTool}`;
+    paseo = buildPaseoData(paseoTool, input, outputText, durationMs);
+  } else if (mcpName || rawName === "mcp") {
+    const name = mcpName ?? { server: "mcp", tool: rawName };
     toolKind = "mcp";
-    title = rawName.replace(/^mcp__/, "").replace(/__/g, " / ");
-    mcp = buildMcpData(rawName, input, output, durationMs);
+    title = name.server === "mcp" ? name.tool : `${name.server} / ${name.tool}`;
+    mcp = buildMcpData(name, input, output, durationMs);
   } else if (rawName === "ask") {
     toolKind = "ask";
     const asked = extractAskQuestion(input);
