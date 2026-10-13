@@ -59,8 +59,12 @@ const en = {
   previewThought:
     "Paths are formatted in format-path.ts. Check how the roots are built before changing anything, then run the type check and the path tests.",
   previewLead: "Looking at where paths are formatted first.",
+  previewPlanPhase: "Relative paths",
+  previewPlanFind: "Find where paths are formatted",
+  previewPlanFix: "Fix formatPath",
+  previewPlanTest: "Run the type check and the path tests",
   previewReply:
-    "Done. Paths in tool rows are now **relative to the workspace**, and copying one still gives the absolute path.\n\n- Fixed the missing `trim()` in `formatPath`\n- `format-path.test.ts`: 31 tests passing\n\n```ts\nformatPath(raw, { mode: \"relative\", roots })\n```",
+    "Done. Paths in tool rows are now **relative to the workspace**, and copying one still gives the absolute path.\n\n- Fixed the missing `trim()` in `formatPath`\n- `format-path.test.ts`: 31 tests passing\n\n```ts\nformatPath(raw, { mode: \"relative\", roots })\n```\n\nThe options are listed under [Settings](https://github.com/RoundRedDot/better-paseo#settings).",
 
   sectionGeneral: "General",
   languageTitle: "Language",
@@ -194,8 +198,12 @@ const zh: SettingsStrings = {
   previewThought:
     "路径在 format-path.ts 里格式化。先看清根目录是怎么算出来的，再改代码，最后跑类型检查和路径相关的测试。",
   previewLead: "先看看路径是在哪里格式化的。",
+  previewPlanPhase: "相对路径",
+  previewPlanFind: "找到路径格式化的位置",
+  previewPlanFix: "修复 formatPath",
+  previewPlanTest: "跑类型检查和路径测试",
   previewReply:
-    "改好了。工具行里的路径现在**相对于工作区**显示，复制时仍然是绝对路径。\n\n- 补上了 `formatPath` 里漏掉的 `trim()`\n- `format-path.test.ts`：31 个测试全部通过\n\n```ts\nformatPath(raw, { mode: \"relative\", roots })\n```",
+    "改好了。工具行里的路径现在**相对于工作区**显示，复制时仍然是绝对路径。\n\n- 补上了 `formatPath` 里漏掉的 `trim()`\n- `format-path.test.ts`：31 个测试全部通过\n\n```ts\nformatPath(raw, { mode: \"relative\", roots })\n```\n\n各项选项的说明见 [设置文档](https://github.com/RoundRedDot/better-paseo#settings)。",
 
   sectionGeneral: "通用",
   languageTitle: "语言",
