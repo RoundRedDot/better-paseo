@@ -126,6 +126,30 @@ export interface ExtendedThemeTokens {
   borderSubtle: string;
 
   /**
+   * A collapsed tool row at rest (docs/prototypes/quiet-tool-rows.md): one step
+   * behind the prose, so a run of calls reads as a quiet log. Hover, press and
+   * an opened row go back to `foreground`, `foregroundMuted` and the status
+   * colours; see `rowTone` in `disclosure-header.tsx`.
+   */
+  row: {
+    /** Command, path, verb: `foregroundMuted`. */
+    target: string;
+    /** A running row's target, halfway back to `foreground`. */
+    targetActive: string;
+    /** Meta, `✓` and a failure's error line: muted, 10% towards the page. */
+    meta: string;
+    /** The tool icon: muted, 30% towards the page. */
+    icon: string;
+    /** Diff counts, 35% towards muted. */
+    diffAdd: string;
+    diffDel: string;
+    /** An opened call's body: surface1, 30% towards the page. */
+    outputBg: string;
+    /** The command and output in that body. */
+    outputText: string;
+  };
+
+  /**
    * Token v2 (plan §3.6), added beside the tokens above so existing
    * components render unchanged until their own slice moves them over.
    */
@@ -307,6 +331,17 @@ export function buildThemeTokens(
 
     border,
     borderSubtle,
+
+    row: {
+      target: colors.foregroundMuted,
+      targetActive: mix(colors.foregroundMuted, fg, 0.5),
+      meta: mix(colors.foregroundMuted, colors.surface0, 0.1),
+      icon: mix(colors.foregroundMuted, colors.surface0, 0.3),
+      diffAdd: mix(success, colors.foregroundMuted, 0.35),
+      diffDel: mix(danger, colors.foregroundMuted, 0.35),
+      outputBg: mix(colors.surface1, colors.surface0, 0.3),
+      outputText: mix(fg, colors.foregroundMuted, 0.25),
+    },
 
     v2: {
       radius: radiusV2,
