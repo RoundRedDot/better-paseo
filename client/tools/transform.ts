@@ -17,6 +17,11 @@ export function transformToolCall({ item, phase }: {
   phase: "streaming" | "complete";
 }): PluginTimelineTransformResult | undefined {
   if (item.type !== "tool_call") return undefined;
+  // A message from another agent (`agent_message`) is left to the host. Its
+  // sender and event ride on `agentMessage`, which the host keeps on its own
+  // item but leaves out of the one handed here; drawn by the host it reads
+  // "Message from X" or "X finished".
+  if (item.name === "agent_message") return undefined;
   // The status rides as the host sent it, `canceled` included. Of the
   // metadata only a plan's verdict is kept: Claude reports a rejected plan
   // as `completed` with `approved: false`, so the status alone cannot tell.
