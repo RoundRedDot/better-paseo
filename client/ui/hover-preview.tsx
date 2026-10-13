@@ -123,6 +123,18 @@ export function useHoverPreview(enabled: boolean) {
   };
 }
 
+/**
+ * A panel's line wrap: the reader's setting when it opens (Preview panel
+ * settings), then this panel's own toggle until it closes.
+ */
+function usePanelWrap(): [boolean, () => void] {
+  const { previewWrap } = useEnhancerPreferences();
+  const [on, setOn] = useState(previewWrap);
+  useEffect(() => setOn(previewWrap), [previewWrap]);
+  const toggle = useCallback(() => setOn((value) => !value), []);
+  return [on, toggle];
+}
+
 export function HoverPreview(props: {
   preview: ReturnType<typeof useHoverPreview>;
   tokens: ExtendedThemeTokens;
@@ -144,8 +156,7 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
   // Content whose every line fits needs no wrap toggle: both states look the same.
   const [linesFit, setLinesFit] = useState(false);
   // Kept across Maximize, which re-renders this panel rather than remounting it.
-  const [wrapOn, setWrapOn] = useState(true);
-  const toggleWrap = useCallback(() => setWrapOn((on) => !on), []);
+  const [wrapOn, toggleWrap] = usePanelWrap();
   useLayoutEffect(() => {
     const unbind = bindPreviewPointer(panelRef.current, preview.enter, preview.leave);
     const release = openPreviewLayer(panelRef.current, preview.anchorRef.current, preview.close, {
@@ -212,8 +223,7 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
 }) {
   const [rowWidth, setRowWidth] = useState<number | null>(null);
   const [stage, setStage] = useState<{ width: number; height: number } | null>(null);
-  const [wrapOn, setWrapOn] = useState(true);
-  const toggleWrap = useCallback(() => setWrapOn((on) => !on), []);
+  const [wrapOn, toggleWrap] = usePanelWrap();
   const { anchorRef, close } = preview;
   useLayoutEffect(() => {
     measureWidth(anchorRef.current, setRowWidth);
@@ -267,9 +277,9 @@ function measureWidth(node: unknown, done: (width: number) => void) {
 }
 
 /**
- * The panel's toolbar, above the scrolling body. `center` (a pager) sits in
- * the middle; the content's own buttons follow line wrap on the right, and
- * the window button always comes last, at the far right.
+ * The panel's toolbar, above the scrolling body. Line wrap sits at the left,
+ * `center` (a pager) in the middle, and the content's own buttons on the
+ * right, with the window button always last, at the far right.
  */
 export function HoverPreviewHeader({ tokens, center, children }: {
   tokens: ExtendedThemeTokens;
@@ -292,11 +302,9 @@ export function HoverPreviewHeader({ tokens, center, children }: {
       style={[styles.header, { backgroundColor: tokens.v2.surface1, borderBottomColor: tokens.v2.borderSubtle }]}
     >
       <View style={styles.toolbar}>
-        <View style={styles.toolbarStart} />
-        {center ? <View testID="hover-preview-center" style={styles.toolbarCenter}>{center}</View> : null}
-        <View style={styles.toolbarEnd}>
-          {/* The group ends at the panel's right edge: names open leftwards. */}
-          <TooltipAlignContext.Provider value="end">
+        <View style={styles.toolbarStart}>
+          {/* At the panel's left edge: its name opens rightwards. */}
+          <TooltipAlignContext.Provider value="start">
             {actions?.wrap ? (
               <ToolbarButton
                 icon={actions.wrap.on ? "WrapText" : "AlignLeft"}
@@ -306,6 +314,12 @@ export function HoverPreviewHeader({ tokens, center, children }: {
                 tokens={tokens}
               />
             ) : null}
+          </TooltipAlignContext.Provider>
+        </View>
+        {center ? <View testID="hover-preview-center" style={styles.toolbarCenter}>{center}</View> : null}
+        <View style={styles.toolbarEnd}>
+          {/* The group ends at the panel's right edge: names open leftwards. */}
+          <TooltipAlignContext.Provider value="end">
             {toolbar}
             {windowButton}
           </TooltipAlignContext.Provider>
@@ -343,7 +357,7 @@ const styles = StyleSheet.create({
   panel: { padding: 0, borderWidth: 1, borderRadius: radiusV2.block },
   toolbar: { flexDirection: "row", alignItems: "center", gap: space.xs },
   // Equal flexible sides keep the centre slot in the middle of the panel.
-  toolbarStart: { flex: 1, flexBasis: 0 },
+  toolbarStart: { flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", gap: space.xs },
   toolbarCenter: { flexShrink: 0 },
   toolbarEnd: { flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: space.xs },
   body: {

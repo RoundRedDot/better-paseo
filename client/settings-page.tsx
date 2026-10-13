@@ -821,6 +821,19 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
           stacked
         />
         <SettingRow
+          title={t.previewWrapTitle}
+          description={t.previewWrapDescription}
+          control={
+            <Toggle
+              value={preferences.previewWrap}
+              onChange={(previewWrap) => updateEnhancerPreferences({ previewWrap })}
+              label={t.previewWrapTitle}
+              look={look}
+            />
+          }
+          look={look}
+        />
+        <SettingRow
           title={t.previewLineNumbersTitle}
           description={t.previewLineNumbersDescription}
           control={

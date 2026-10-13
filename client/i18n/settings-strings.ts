@@ -125,6 +125,9 @@ const en = {
   hoverPreviewDescription: "Show a preview when hovering over collapsed rows and file paths on desktop, or long-pressing a collapsed row on a phone.",
   hoverDelayTitle: "Hover delay",
   hoverDelayDescription: "Time to wait before showing a desktop hover preview.",
+  previewWrapTitle: "Wrap lines",
+  previewWrapDescription:
+    "Whether a preview opens with long lines wrapped. Off, they keep their length and the preview scrolls sideways. The button at the left of a preview's toolbar switches it for that preview.",
   previewLineNumbersTitle: "Line numbers",
   previewLineNumbersDescription:
     "Number the lines of a file, diff or command output in a preview. A diff shows the file's own line numbers. On a phone, text is then selected one line at a time.",
@@ -239,6 +242,9 @@ const zh: SettingsStrings = {
   hoverPreviewDescription: "在桌面端将鼠标停留在折叠行或文件路径上，或在手机上长按折叠行时显示预览弹窗。",
   hoverDelayTitle: "Hover 延迟",
   hoverDelayDescription: "鼠标停留多久后显示桌面端 hover 弹窗。",
+  previewWrapTitle: "自动换行",
+  previewWrapDescription:
+    "预览弹窗打开时是否自动换行。关闭后长行保持原样，预览可以左右滚动。弹窗工具栏左侧的按钮可以临时切换当前弹窗。",
   previewLineNumbersTitle: "显示行号",
   previewLineNumbersDescription:
     "在预览弹窗里给文件、diff 和命令输出标上行号；diff 显示的是文件中的行号。开启后在手机上只能逐行选择文字。",
