@@ -21,6 +21,7 @@ import {
   HoverPreviewContext,
   HoverPreviewHeader,
   useHoverPreview,
+  usePreviewPanel,
 } from "../ui/hover-preview";
 import type { ImageFile } from "../image-file";
 
@@ -41,11 +42,17 @@ interface ImagePreviewProps {
   bleed?: boolean;
   /**
    * Drawn inside a row's hover or long-press preview: a smaller picture that
-   * fits the panel, no path (the panel shows it whole), no show/hide toggle,
-   * and no full-screen viewer, since the panel closes as soon as the pointer
-   * leaves it for the viewer.
+   * fits the resting panel, no path (the panel shows it whole), and no
+   * show/hide toggle. A maximized panel gives the picture the room left over.
+   * A press calls `onView` and closes the panel: the viewer has to be owned
+   * outside the popover, which would otherwise cover it.
    */
   preview?: boolean;
+  /**
+   * Opens the full-screen viewer from a maximized preview. The owner stays
+   * mounted after the panel closes.
+   */
+  onView?: () => void;
 }
 
 /**
@@ -108,7 +115,7 @@ function formatBytes(bytes: number): string {
  * the finger (`useScrollAnchor`): in the native timeline the picture
  * collapsing would otherwise throw the header off screen.
  */
-export function ImagePreview({ path, file, tokens, onReveal, bleed = false, preview = false }: ImagePreviewProps) {
+export function ImagePreview({ path, file, tokens, onReveal, bleed = false, preview = false, onView }: ImagePreviewProps) {
   const [shown, setShown] = useState(true);
   const [viewing, setViewing] = useState(false);
   const capabilities = useInputCapabilities();
@@ -183,6 +190,20 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
         // letterboxed sides of a narrow image stay plain background.
         fill: { width: "100%", height: "100%" },
         image: { width: "100%" },
+        // A maximized preview has a fixed height. These pass it down to the
+        // picture, which then fills the box (`fillFrame` / `fillImage`).
+        containerFill: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minHeight: 0, alignSelf: "stretch" },
+        canvasFill: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minHeight: 0 },
+        fillFrame: {
+          flexGrow: 1,
+          flexShrink: 1,
+          flexBasis: 0,
+          alignSelf: "stretch",
+          minHeight: 0,
+          width: "100%",
+          position: "relative",
+        },
+        fillImage: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
         message: {
           fontFamily: tokens.fontUi,
           fontSize: UI_SCALE.base,
@@ -199,6 +220,10 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
 
   // A fixed height clamped by the column instead keeps its full height on a
   // phone and letterboxes a wide image above and below.
+  const panel = usePreviewPanel();
+  // The resting panel stays a thumbnail. Maximized, the picture takes the
+  // height the window just gained instead of leaving it empty.
+  const fillsPreview = preview && (panel?.maximized ?? false);
   const maxHeight = preview ? PREVIEW_MAX_HEIGHT : MAX_HEIGHT;
   const frame =
     file?.width && file.height
@@ -233,8 +258,18 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
     [anchorRef, anchor.ref],
   );
 
+  const zoomCursor = Platform.OS === "web" ? ({ cursor: "zoom-in" } as never) : null;
+  const picture = file?.dataUri ? (
+    <Image
+      source={{ uri: file.dataUri }}
+      style={fillsPreview ? styles.fillImage : styles.fill}
+      resizeMode="contain"
+      accessibilityLabel={path}
+    />
+  ) : null;
+
   return (
-    <View style={[styles.container, bleed && styles.bleed]}>
+    <View style={[styles.container, bleed && styles.bleed, fillsPreview && styles.containerFill]}>
       {/* The path inside the header must not open a second layer. */}
       <HoverPreviewContext.Provider value={previewOwner || previews}>
         <Pressable
@@ -292,7 +327,7 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
             <SelectableText {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>
               {absolutePath}
             </SelectableText>
-            <ImagePreview path={path} file={file} tokens={tokens} preview />
+            <ImagePreview path={path} file={file} tokens={tokens} preview onView={() => setViewing(true)} />
           </HoverPreviewBody>
         </HoverPreview>
       ) : null}
@@ -301,30 +336,45 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
         <Text style={styles.message}>Reading the file…</Text>
       ) : file.dataUri === null ? (
         <Text style={styles.message}>{file.error ?? "The image could not be read."}</Text>
-      ) : shown ? (
-        <View style={styles.canvas}>
-          {preview ? (
-            <View style={frame}>
-              <Image
-                source={{ uri: file.dataUri }}
-                style={styles.fill}
-                resizeMode="contain"
-                accessibilityLabel={path}
-              />
-            </View>
+      ) : shown && picture ? (
+        <View style={[styles.canvas, fillsPreview && styles.canvasFill]}>
+          {fillsPreview ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open the image full screen"
+              onPress={() => {
+                if (!onView) return;
+                onView();
+                panel?.close();
+              }}
+              style={[styles.fillFrame, zoomCursor]}
+            >
+              {picture}
+            </Pressable>
+          ) : preview ? (
+            onView ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Open the image full screen"
+                onPress={() => {
+                  onView();
+                  panel?.close();
+                }}
+                style={[frame, zoomCursor]}
+              >
+                {picture}
+              </Pressable>
+            ) : (
+              <View style={frame}>{picture}</View>
+            )
           ) : (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Open the image full screen"
               onPress={() => setViewing(true)}
-              style={[frame, Platform.OS === "web" && ({ cursor: "zoom-in" } as never)]}
+              style={[frame, zoomCursor]}
             >
-              <Image
-                source={{ uri: file.dataUri }}
-                style={styles.fill}
-                resizeMode="contain"
-                accessibilityLabel={path}
-              />
+              {picture}
             </Pressable>
           )}
         </View>

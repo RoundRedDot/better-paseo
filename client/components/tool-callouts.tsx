@@ -290,7 +290,7 @@ export function ToolCallout({
     setViewerWanted(false);
     toast.error(imageFile?.error ?? "The image could not be read.");
   }, [unreadable, imageFile, toast]);
-  const viewer = viewsImage && imageFile?.dataUri ? (
+  const viewer = viewerWanted && imageFile?.dataUri ? (
     <ImageViewer
       open={viewerWanted}
       onClose={closeViewer}
@@ -333,7 +333,7 @@ export function ToolCallout({
           <HoverPreviewBody>
             {filePath ? <SelectableText {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>{resolvePath(filePath)}</SelectableText> : null}
             <ToolBody data={data} tokens={tokens} compact={compact} imageFile={imageFile}
-              revealFile={revealFile} displayPath={filePath ? formatPath(filePath, pathContext).displayPath : undefined} preview />
+              revealFile={revealFile} displayPath={filePath ? formatPath(filePath, pathContext).displayPath : undefined} preview onViewImage={openViewer} />
             {data.error ? <SelectableText style={{ color: tokens.danger }}>{data.error}</SelectableText> : null}
           </HoverPreviewBody>
         </>
@@ -500,6 +500,8 @@ interface ToolBodyProps {
   /** `filePath` relative to the workspace. */
   displayPath?: string;
   preview?: boolean;
+  /** Opens the full-screen viewer for an image drawn in a preview panel. */
+  onViewImage?: () => void;
 }
 
 /** Search results beyond this many rows collapse into a count. */
@@ -554,7 +556,7 @@ const codeHeaderStyles = StyleSheet.create({
   suffix: { fontSize: UI_SCALE.base, fontVariant: ["tabular-nums"], flexShrink: 0 },
 });
 
-function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, preview = false }: ToolBodyProps) {
+function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, preview = false, onViewImage }: ToolBodyProps) {
   const styles = useBodyStyles(tokens, compact);
   const isRunning = data.status === "running";
 
@@ -706,7 +708,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
 
       {(data.tool === "read" || data.tool === "write") &&
         (imageFile !== undefined && isImagePath(data.filePath) ? (
-          <ImagePreview path={data.filePath ?? ""} file={imageFile} tokens={tokens} onReveal={revealFile} preview={preview} />
+          <ImagePreview path={data.filePath ?? ""} file={imageFile} tokens={tokens} onReveal={revealFile} preview={preview} onView={onViewImage} />
         ) : (
           <SyntaxHighlightBlock
             bare
