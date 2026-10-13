@@ -1,15 +1,15 @@
 /**
  * The floating controls' one family (docs/prototypes/table-copy-menu.md): the
  * table's copy menu and the selection bar share the frame, the items, the
- * shadow and the motion, so they read as the same piece of UI; the edge and
- * shadow are also the hover preview panel's.
+ * shadow and the motion, so they read as the same piece of UI; the edge,
+ * shadow and corner radius are also the hover preview panel's.
  *
  * The frame is a rounded rectangle 30 tall, its items 24 tall like a preview
  * toolbar's buttons, inset 2 from its inner edge; an item's radius is the
  * frame's minus 3. The edge is a light border that never darkens, and the
  * shadow lifts the frame off the content under it.
  */
-import { mix, type ExtendedThemeTokens } from "../../components/theme-tokens";
+import { mix, radiusV2, type ExtendedThemeTokens } from "../../components/theme-tokens";
 import { cssShadow } from "./css-shadow";
 
 export const FLOAT = {
@@ -18,8 +18,10 @@ export const FLOAT = {
   item: 24,
   /** Between an item and the frame's inner edge, and between two items. */
   inset: 2,
-  radius: 7,
-  itemRadius: 4,
+  /** The hover preview panel's radius, so every overlay has one corner. */
+  radius: radiusV2.overlay,
+  /** The frame's radius less its border and inset, so the corners nest. */
+  itemRadius: radiusV2.overlay - 3,
   iconSize: 14,
   iconText: 6,
 } as const;
