@@ -1,6 +1,12 @@
 import { useMemo } from "react";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { DEFAULT_PREFERENCES, type EnhancerPreferences, ACCENT_PRESETS } from "../preferences";
+import {
+  DEFAULT_PREFERENCES,
+  type EnhancerPreferences,
+  type InlineCodeColorPreference,
+  ACCENT_PRESETS,
+  INLINE_CODE_PALETTE,
+} from "../preferences";
 import {
   DEFAULT_WEB_MONO_STACK,
   NATIVE_DEFAULT_MONO,
@@ -96,8 +102,8 @@ export interface ExtendedThemeTokens {
   accentForeground: string;
   accentBg: string;
   /**
-   * Inline code where it cannot have a fill (iOS, Android): the accent the
-   * reader picked, or an opaque dark grey while the accent follows Paseo.
+   * Inline code where it cannot have a fill (iOS, Android): the colour picked
+   * in the settings, an opaque dark grey by default. See `inlineCodeColor`.
    */
   codeInline: string;
   // The authored turn sits on a raised theme surface, exactly as the native
@@ -226,6 +232,24 @@ export function withAlpha(color: string, alpha: number): string {
   return `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${a})`;
 }
 
+/**
+ * The inline code colour off the web. It has its own setting rather than
+ * following the accent: the accent marks actions and running state, and code
+ * is read at body size, so it wants a shade per theme. The grey is opaque and
+ * only a step off the body colour: a lighter or translucent one made the small
+ * mono glyphs read thin on a phone.
+ */
+export function inlineCodeColor(
+  preference: InlineCodeColorPreference,
+  foreground: string,
+  surface: string,
+  isDark: boolean,
+): string {
+  if (preference === "grey") return mix(foreground, surface, 0.15);
+  const shades = INLINE_CODE_PALETTE[preference];
+  return isDark ? shades.dark : shades.light;
+}
+
 /** Linear blend from `from` towards `to`; `t = 0` returns `from`. */
 export function mix(from: string, to: string, t: number): string {
   const a = parseColor(from);
@@ -308,11 +332,7 @@ export function buildThemeTokens(
     accent,
     accentForeground: colors.accentForeground,
     accentBg: withAlpha(accent, isDark ? 0.14 : 0.1),
-    // Paseo's own accent is the action colour, so inline code does not take
-    // it; a picked preset is the reader asking for that colour on code too.
-    // The grey is opaque and only a step off the body colour: a lighter or
-    // translucent one made the small mono glyphs read thin on a phone.
-    codeInline: ACCENT_PRESETS[preferences.accent] ?? mix(fg, colors.surface0, 0.15),
+    codeInline: inlineCodeColor(preferences.inlineCodeColor, fg, colors.surface0, isDark),
     // The host draws its own prompt bubble on its most raised surface; surface2
     // is the most raised one a plugin is given.
     userSurface: colors.surface2,

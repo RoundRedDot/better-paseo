@@ -177,6 +177,7 @@ hovering a row stays within the sample. An option whose parent is off
 | Language                  | English or 简体中文 for this page, or follow the device. Plugins cannot see Paseo's own language. |
 | Accent colour             | Follow the Paseo theme, or pick Jade, Violet, Amber, or Rose.                                |
 | Interface font            | Follow Paseo's interface font, embedded Inter (web only), or the system face.                |
+| Inline code on mobile     | Text colour of inline code on iOS and Android: Dark grey (default), Blue, Violet, Green, Coral. |
 | Monospace font            | Follow Paseo (default) or Custom. Follow Paseo uses, in order: the host's font settings once Paseo shares them with plugins; on web/desktop, the monospace font and code size set in Paseo's Appearance settings (read only, a temporary bridge until then); otherwise Paseo's default monospace (`SFMono-Regular, Menlo, Monaco, Consolas, …` on web/desktop, the system monospace on iOS/Android). The settings page shows which one is in effect. On iOS/Android, Custom picks from faces the platform ships. |
 | Code font size            | Follow Paseo, or 10-22px with a glyph sample. Applies to code, diffs, terminals and paths.   |
 | Row icons and labels      | Icon only (default), label only, or both, on tool and thought rows.                          |
