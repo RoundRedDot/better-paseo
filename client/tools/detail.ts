@@ -1,8 +1,9 @@
 /**
  * Whether opening a tool row would show anything its header does not
  * already say. A row without detail neither opens nor previews: a sub-agent
- * whose only payload is its one-line description, a shell call that printed
- * nothing, a read that returned no content.
+ * whose only payload is its one-line description (no prompt, log or
+ * actions), a shell call that printed nothing, a read that returned no
+ * content.
  */
 import { isImagePath } from "../image-file";
 import { stringifyValue, type ToolCallView } from "./classify";
@@ -57,7 +58,7 @@ function bodyDetail(view: ToolCallView, budget: number): boolean {
       return !fitsRow(view.text, budget);
     case "sub_agent": {
       const agent = view.subAgent;
-      return Boolean(agent?.actions?.length || agent?.log) || !fitsRow(agent?.description, budget);
+      return Boolean(agent?.prompt || agent?.actions?.length || agent?.log) || !fitsRow(agent?.description, budget);
     }
     case "search": {
       const search = view.search;

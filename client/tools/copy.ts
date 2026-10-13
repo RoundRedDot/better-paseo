@@ -56,7 +56,12 @@ export function toolCopyPlan(view: ToolCallView, resolve: ResolvePath): CopyPlan
         log: view.worktree?.log,
       });
     case "sub_agent":
-      return copyPlan({ kind: "sub-agent", description: view.subAgent?.description, log: view.subAgent?.log });
+      return copyPlan({
+        kind: "sub-agent",
+        description: view.subAgent?.description,
+        prompt: view.subAgent?.prompt,
+        log: view.subAgent?.log,
+      });
     case "plan":
     case "plain_text":
     case "thinking":

@@ -134,6 +134,17 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
     { verb: "Explore", target: "Find the bug", meta: ["1 action"] },
   ],
   [
+    "sub_agent · the description, not the prompt",
+    call("Agent", {
+      type: "sub_agent",
+      subAgentType: "general-purpose",
+      description: "Find the bug",
+      prompt: "Read src/ and report where the crash starts.",
+      log: "",
+    }),
+    { verb: "General-purpose", target: "Find the bug", meta: [] },
+  ],
+  [
     "unknown · name · key argument",
     call("frobnicate", { type: "unknown", input: { path: "/w/x" }, output: "" }),
     { verb: "frobnicate", target: "/w/x" },

@@ -110,6 +110,22 @@ describe("tool copy plan", () => {
     expect(plan.menu.map((entry) => entry.id)).toEqual(["patch", "new-content"]);
   });
 
+  it("copies a sub-agent's description, then its prompt and log", () => {
+    const plan = toolCopyPlan(
+      classifyTool({
+        name: "Task",
+        status: "completed",
+        detail: { type: "sub_agent", description: "Find x", prompt: "Look for x in src/.", log: "done" },
+      }),
+      resolve,
+    );
+    expect(plan.primary).toMatchObject({ id: "description", text: "Find x" });
+    expect(plan.menu.map((entry) => [entry.id, entry.text])).toEqual([
+      ["prompt", "Look for x in src/."],
+      ["log", "done"],
+    ]);
+  });
+
   it("copies a search's query and its files as absolute paths", () => {
     const plan = toolCopyPlan(
       classifyTool({ name: "Grep", status: "completed", detail: { type: "search", query: "q", filePaths: ["a.ts", "/x/b.ts"] } }),

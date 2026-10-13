@@ -396,6 +396,12 @@ export interface WorktreeSetupData {
 export interface SubAgentToolData {
   subAgentType?: string;
   description?: string;
+  /**
+   * What the parent asked the sub-agent (Claude's Task/Agent `prompt`).
+   * Absent when blank or only repeating the description, and from hosts
+   * that do not send it.
+   */
+  prompt?: string;
   log: string;
   actions?: Array<{ index: number; toolName: string; summary?: string }>;
 }
@@ -551,9 +557,12 @@ function readSubAgent(detail: Record<string, unknown>): SubAgentToolData {
         return [{ index: asNumber(row.index) ?? position, toolName, summary: asString(row.summary) }];
       })
     : undefined;
+  const description = asString(detail.description);
+  const prompt = asString(detail.prompt);
   return {
     subAgentType: asString(detail.subAgentType),
-    description: asString(detail.description),
+    description,
+    prompt: prompt?.trim() && prompt.trim() !== description?.trim() ? prompt : undefined,
     log: typeof detail.log === "string" ? detail.log : "",
     actions: actions && actions.length > 0 ? actions : undefined,
   };

@@ -142,6 +142,15 @@ describe("copyPlan for the newer tool kinds", () => {
     expect(plan.menu).toEqual([{ id: "log", label: "Copy log", text: "step 1" }]);
   });
 
+  it("copies a sub-agent's prompt between its description and log", () => {
+    const plan = copyPlan({ kind: "sub-agent", description: "Find x", prompt: "Look for x.\n", log: "step 1\n" });
+    expect(plan.primary?.id).toBe("description");
+    expect(plan.menu).toEqual([
+      { id: "prompt", label: "Copy prompt", text: "Look for x." },
+      { id: "log", label: "Copy log", text: "step 1" },
+    ]);
+  });
+
   it("copies an ask's question and answer", () => {
     const plan = copyPlan({ kind: "ask", question: "Ship?", answer: "Yes, Later" });
     expect(plan.primary?.text).toBe("Ship?");
