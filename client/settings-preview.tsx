@@ -112,14 +112,16 @@ function HostBubble({ text, tokens }: { text: string; tokens: ExtendedThemeToken
 /**
  * Paseo's own reply when the plugin's markdown is off. Its renderer cannot be
  * reached from a plugin, so the sample is shown as the text it formats, with
- * the markup taken out rather than printed.
+ * the markup taken out rather than printed: a table row keeps its cells,
+ * spaced apart, and loses its pipes and its divider row.
  */
 function HostReply({ text, tokens }: { text: string; tokens: ExtendedThemeTokens }) {
   const plain = useMemo(
     () =>
       text
         .split("\n")
-        .filter((line) => !line.startsWith("```"))
+        .filter((line) => !line.startsWith("```") && !/^\|[\s:|-]+\|$/.test(line))
+        .map((line) => (line.startsWith("|") ? line.slice(1, -1).split("|").map((cell) => cell.trim()).join("   ") : line))
         .join("\n")
         .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
         .replace(/\*\*|`/g, "")

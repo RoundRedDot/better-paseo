@@ -215,6 +215,9 @@ highlighting, image reads, file reveal and the plugin's own find bar.
   and local images. Three styles: **Document**, **Compact** and **Terminal**.
 - Tables have column rules, a header fill and a rounded frame; cells are a size smaller with tighter
   lines, and column widths account for tabular digits and CJK width.
+- Every table has a copy control at its top-left corner. On web and desktop, hovering it (or a
+  long press on a touch screen) opens **Copy as Markdown** and **Copy as image**, a picture of the
+  table as drawn; a plain press copies the Markdown. On iOS and Android it copies the Markdown.
 - Every local image in a reply is drawn, not only the first.
 - Turn **Plugin markdown for replies** off to hand replies back to Paseo, which draws mermaid
   diagrams and its own images and file links.
