@@ -22,6 +22,8 @@ interface HScrollProps {
   contentContainerStyle?: StyleProp<ViewStyle>;
   /** The indicator's own style, to move it off the default 4pt under the content. */
   trackStyle?: StyleProp<ViewStyle>;
+  /** False while a gesture inside holds the content still. */
+  scrollEnabled?: boolean;
 }
 
 /**
@@ -36,7 +38,7 @@ interface HScrollProps {
  * and one content-size callback; the indicator is mounted only while the
  * content overflows, so a table that fits costs the scroller alone.
  */
-export function HScroll({ tokens, children, style, contentContainerStyle, trackStyle }: HScrollProps) {
+export function HScroll({ tokens, children, style, contentContainerStyle, trackStyle, scrollEnabled }: HScrollProps) {
   const [viewport, setViewport] = useState(0);
   const [content, setContent] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -84,6 +86,7 @@ export function HScroll({ tokens, children, style, contentContainerStyle, trackS
         onContentSizeChange={onContentSizeChange}
         onScroll={onScroll}
         scrollEventThrottle={16}
+        scrollEnabled={scrollEnabled}
         style={style}
         contentContainerStyle={contentContainerStyle}
       >
