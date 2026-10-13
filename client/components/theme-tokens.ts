@@ -35,6 +35,8 @@ export const radiusV2 = {
   block: 6,
   chip: 4,
   pill: 999,
+  /** A floating panel over the timeline (the hover preview): the host's xl. */
+  overlay: 12,
   /** The user bubble, as the host draws its own: 2xl with an sm tail corner. */
   bubble: 16,
   bubbleTail: 2,
