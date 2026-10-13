@@ -58,7 +58,9 @@ const page = await browser.newPage({ viewport: { width: 1900, height: 1400 },
   deviceScaleFactor: Number(process.env.SHOT_SCALE ?? 1),
   reducedMotion: "reduce",
 });
-const HOVER = { "shot-hero-devices": "150-166" };
+const HOVER = {
+  "shot-hero-devices": { text: "L150\u2013157", preferences: { previewLineNumbers: true } },
+};
 let ids = [];
 for (const theme of themes) {
   const themeDir = path.join(out, theme);
@@ -71,10 +73,16 @@ for (const theme of themes) {
     // preview panel are captured as a reader would see them.
     const hover = HOVER[id];
     if (hover) {
-      await page.locator(`#${id}`).getByText(hover, { exact: true }).first().hover();
+      await page.evaluate((p) => globalThis.setShowcasePreferences(p), hover.preferences);
+      await page.locator(`#${id}`).getByText(hover.text, { exact: true }).first().hover();
       await page.waitForTimeout(2000);
     }
     await page.locator(`#${id}`).screenshot({ path: path.join(themeDir, `${id}.png`), animations: "disabled" });
+    if (hover) {
+      await page.mouse.move(0, 0);
+      const off = Object.fromEntries(Object.keys(hover.preferences).map((key) => [key, false]));
+      await page.evaluate((p) => globalThis.setShowcasePreferences(p), off);
+    }
   }
 }
 console.log(`${ids.length} shots x ${themes.join("+")} -> ${out}`);

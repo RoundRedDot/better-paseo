@@ -30,7 +30,7 @@ import { MARKDOWN_VARIANTS, MarkdownView } from "../client/components/markdown/m
 import { parseSystemEnvelope } from "../client/system-envelope";
 import { HERO_REPLY, MD_SAMPLER, REASONING_PROSE, REASONING_SECTIONS, REPLY } from "./markdown-corpus";
 import type { ToolCalloutData } from "../shared/contracts";
-import { DEFAULT_PREFERENCES } from "../client/preferences";
+import { DEFAULT_PREFERENCES, updateEnhancerPreferences } from "../client/preferences";
 import type { ExtendedThemeTokens } from "../client/components/theme-tokens";
 import { DisclosureHeader } from "../client/ui/disclosure-header";
 import { CopyButton } from "../client/ui/copy-button";
@@ -41,6 +41,10 @@ import { classifyTool, type ToolCallPayload, type ToolCallView } from "../client
 import { S7_GROUPS } from "./s7-groups";
 import { pluginRoot } from "../client/components/focus-ring";
 import { DEFAULT_WEB_MONO_STACK } from "../client/ui/tokens/typography";
+
+// For `tools/shots.mjs`: a shot can switch a reader preference on while it is captured.
+(globalThis as { setShowcasePreferences?: typeof updateEnhancerPreferences }).setShowcasePreferences =
+  updateEnhancerPreferences;
 
 const DARK = {
   surface0: "#0f0f11",
@@ -132,7 +136,9 @@ const read: ToolCalloutData = {
   status: "completed",
   durationMs: 41,
   filePath: "client/components/theme-tokens.ts",
-  lineRange: "150-166",
+  lineRange: "150-157",
+  offset: 150,
+  limit: 8,
   language: "typescript",
   code: `export function buildThemeTokens(
   colors: PluginSurfaceColors,
