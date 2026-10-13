@@ -151,7 +151,7 @@ export function MdTable({
           ))}
         </View>
         <View style={[copyStyles.corner, { backgroundColor: context.tokens.surface0 }]}>
-          <ToolbarCopyButton text={() => token.raw} tokens={context.tokens} label="Copy Markdown table" align="start" />
+          <ToolbarCopyButton text={() => token.raw} tokens={context.tokens} label="Copy Markdown table" align="start" outlined />
         </View>
       </View>
     </HScroll>
