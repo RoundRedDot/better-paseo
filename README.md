@@ -22,6 +22,9 @@ active Paseo theme, and the whole timeline renders faster than Paseo does on its
 - **Faster than no plugin at all.** On the Web production build every one of the 11 replay
   scenarios uses less main-thread time than Paseo's own timeline (one is even), and 34–85% less
   than Beautiful Chat. [Charts below](#performance).
+- **Memory close to no plugin.** On the Web production build, after a forced GC, the JS heap
+  stays within 0–4 MB of no plugin; a long reply uses 41 MB less. Beautiful Chat reaches
+  239–266 MB in tool-output scenarios. [Memory comparison below](#performance).
 - **One row per tool call.** Calls start collapsed to a 26pt row with a typed summary, open on a
   press, and stay open or closed across completion, history and remounts.
 - **Streaming that does not jump.** Replies are parsed block by block; a half-written code fence
