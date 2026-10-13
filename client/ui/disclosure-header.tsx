@@ -184,6 +184,11 @@ export interface DisclosureHeaderProps {
   scrollAnchor?: ScrollAnchor;
   /** How loud the row is at rest; see `RowTone`. */
   tone?: RowTone;
+  /**
+   * Nothing to open: the body would repeat the row. The row neither toggles
+   * nor answers hover (no paint, chevron, actions or preview).
+   */
+  inert?: boolean;
 }
 
 /**
@@ -237,9 +242,10 @@ export function DisclosureHeader({
   pressPreview = true,
   scrollAnchor,
   tone = "quiet",
+  inert = false,
 }: DisclosureHeaderProps) {
   const previewOwner = useContext(HoverPreviewContext);
-  const preview = useHoverPreview(Boolean(previewContent) && !expanded && !actionsActive);
+  const preview = useHoverPreview(Boolean(previewContent) && !expanded && !actionsActive && !inert);
   useEffect(() => {
     if (preview.open) onPreviewOpen?.();
   }, [preview.open, onPreviewOpen]);
@@ -259,7 +265,9 @@ export function DisclosureHeader({
     onToggle();
   }, [anchor, onToggle]);
   const capabilities = useInputCapabilities(compact);
-  const { hovered, hoverProps } = useHover(anchorRef);
+  const hover = useHover(anchorRef);
+  const hovered = hover.hovered && !inert;
+  const { hoverProps } = hover;
   const [pressed, setPressed] = useState(false);
   const pressIn = useCallback(() => {
     setPressed(true);
@@ -283,7 +291,7 @@ export function DisclosureHeader({
     actions !== undefined && !persistentActions && capabilities.hover && (hovered || actionsActive);
   // An opened row shows which way it went; a status icon (running, failed)
   // keeps its place, since it says more than the direction.
-  const showChevron = (capabilities.hover && hovered) || (expanded && !iconIsStatus);
+  const showChevron = !inert && ((capabilities.hover && hovered) || (expanded && !iconIsStatus));
 
   const baseLabel = accessibilityLabel ?? (typeof target === "string" && target ? `${verb} ${target}` : verb);
   const label = count && count > 1 ? `${baseLabel}, ${count} operations` : baseLabel;
@@ -356,11 +364,12 @@ export function DisclosureHeader({
           <RowLongPressContext.Provider value={pressPreview ? preview.press : longPress}>
             <Pressable
               ref={rowRef}
-              accessibilityRole="button"
+              accessibilityRole={inert ? undefined : "button"}
               accessibilityLabel={label}
-              accessibilityState={{ expanded }}
+              accessibilityState={inert ? undefined : { expanded }}
               // React Native Web reads the ARIA prop, not `accessibilityState`.
-              aria-expanded={expanded}
+              aria-expanded={inert ? undefined : expanded}
+              disabled={inert}
               onPressIn={pressIn}
               onPressOut={pressOut}
               onPress={toggle}

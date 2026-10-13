@@ -133,10 +133,10 @@ describe("long-pressing a collapsed row on a phone", () => {
   });
 
   it("opens a thought row's preview", () => {
-    const segmentation = createReasoningSegmenter().update("Checking the list of files.", { streaming: false });
+    const segmentation = createReasoningSegmenter().update("Checking the list of files. Then the tests.", { streaming: false });
     const renderer = render(React.createElement(ReasoningCard, {
       segmentation, streaming: false, durationMs: 1200, expanded: false, onToggle() {},
-      tokens, compact: true, storeKey: "thought:press", copyText: "Checking the list of files.",
+      tokens, compact: true, storeKey: "thought:press", copyText: "Checking the list of files. Then the tests.",
     }));
     act(() => row(renderer).props.onLongPress());
     expect(clipboard.copyText).not.toHaveBeenCalled();

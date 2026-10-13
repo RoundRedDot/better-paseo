@@ -81,6 +81,13 @@ describe("row hover recovery", () => {
     fire(node, "pointerenter", undefined, "touch");
     expectRest();
   });
+  it("does not answer hover or presses when the row has nothing to open", () => {
+    act(() => renderer.update(React.createElement(DisclosureHeader, { expanded: true, inert: true, onToggle() {}, tokens, verb: "Agent", target: "截图并读取界面", actions: React.createElement("Action"), previewContent: () => "body" })));
+    fire(node, "pointerenter");
+    expectRest();
+    expect(row().props.disabled).toBe(true);
+    expect(row().props.accessibilityRole).toBeUndefined();
+  });
   it("removes active listeners on unmount", () => {
     enter();
     const remove = vi.spyOn(node.ownerDocument, "removeEventListener");
