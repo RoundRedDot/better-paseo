@@ -655,7 +655,6 @@ function Thread() {
         data={{ id: "n1", level: "warning", message: "The daemon restarted twice in 30s." }}
         tokens={tokens}
       />
-      <ApprovalCard request={approval} tokens={tokens} />
       <View>
         <MarkdownView text={REPLY} tokens={tokens} variant="document" />
         <AssistantFooter text={REPLY} at={new Date("2026-09-15T22:47:12Z")} tokens={tokens} />

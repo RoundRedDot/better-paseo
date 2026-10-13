@@ -2,7 +2,7 @@
 
 [English](README.md) | **简体中文**
 
-一个 [Paseo](https://paseo.sh) 插件，重新绘制 Oh My Pi（OMP）的聊天时间线：工具调用、思考、回复、提问、审批和待办都画成紧凑、按类型区分、带语法高亮的行，配色跟随当前的 Paseo 主题；整条时间线的渲染比 Paseo 自己画还快。
+一个 [Paseo](https://paseo.sh) 插件，重新绘制 Paseo 中所有 agent 的聊天时间线，不论背后是哪家服务（Claude Code、Codex、Oh My Pi 等）：工具调用、思考、回复、提问、待办和错误都画成紧凑、按类型区分、带语法高亮的行，配色跟随当前的 Paseo 主题；整条时间线的渲染比 Paseo 自己画还快。
 
 ![Better Paseo 绘制的一轮对话：提问、读文件、完成的后台任务和回复](images/hero.png)
 
@@ -112,21 +112,24 @@ iOS 模拟器开发版上（每次运行前冷启动），单次提交里所有�
 
 ### 工具行
 
+大部分卡片读取的是 Paseo 交给每个插件的工具明细，所以不论调用来自哪个 agent 都能使用：读、写、编辑、Shell 和 Git 命令、搜索、抓取网页、子 agent、计划、MCP 调用（兼容 Claude 的 `mcp__server__tool`、Codex 的 `server.tool` 和 Oh My Pi 的 `server / tool` 三种写法），以及 Paseo 自己的工具。Oh My Pi 特有的 `hub`、`eval`、`ask`、`task` 工具和它的 GitHub 设备调用有专门的卡片，其他 agent 不会发出这些调用。
+
 - 每个调用默认是一条无边框的行，桌面 26pt、触控 28pt，摘要按类型生成：命令、路径和行号范围、编辑的 `+4 −2`、退出码和耗时。点一下展开卡片。
 - 展开状态按调用（`agentId:callId`）记在组件之外，完成、滚进历史、重新挂载都不会丢。iOS 上展开时行头留在按下的位置，内容向下打开。
 - 失败的调用只显示一行错误；打开「自动展开失败的调用」后会自动展开。
 - 每一行记住自己首次出现的时间，并行读取时先完成的那一行不会再换位置、改间距。
 - 行首可显示图标、名称或两者都显示。长代码和终端输出先折叠到 12 行。
-- 每个 `hub` 操作都有对应卡片：进程、消息和任务快照。Paseo 自己的工具带 Paseo 标识，新建的 agent 带它所属服务商的标识。
+- Paseo 自己的工具带 Paseo 标识，新建的 agent 带它所属服务商的标识。
+- Oh My Pi 的 `hub` 工具每个操作都有对应卡片：进程、消息和任务快照。卡片只做展示，不带按钮，因为插件无法重启或取消任何东西。
 
 | Shell 与 Git | Read |
 | --- | --- |
 | ![Shell 与 Git 工具调用](docs/images/tool-bash.png) | ![Read 工具调用](docs/images/tool-read.png) |
-| **Edit** | **Hub** |
-| ![Edit 工具调用](docs/images/tool-edit.png) | ![Hub 工具调用](docs/images/hub.png) |
+| **Edit** | **Hub**（Oh My Pi） |
+| ![Edit 工具调用](docs/images/tool-edit.png) | ![Hub 工具调用（Oh My Pi）](docs/images/hub.png) |
 
 <details>
-<summary>更多卡片：MCP、Eval、Ask、Task、Paseo 工具、思考工具、读图、代码块</summary>
+<summary>更多卡片：MCP、Paseo 工具、读图、代码块、<code>thinking</code> 工具，以及 Oh My Pi 的 Eval、Ask、Task</summary>
 
 ![MCP 工具调用](docs/images/tool-mcp.png)
 ![Eval 工具调用](docs/images/tool-eval.png)
@@ -180,11 +183,12 @@ iOS 模拟器开发版上（每次运行前冷启动），单次提交里所有�
 
 ![提问气泡](docs/images/user.png)
 
-### 审批
+### 错误与系统消息
 
-风险分级、完整命令、目标路径和工作目录；同意和拒绝操作仍由宿主负责。
+- agent 报错时画成一张提示卡片，显示错误信息。
+- Oh My Pi 会把任务结果、转发的消息和提醒包在 `<system-notice>`、`<irc>` 等标签里，作为消息文本发出，Paseo 把它们当成回复。打开「回复使用插件 Markdown」时，插件把这些画成系统卡片（标题，加上 agent、状态、耗时等小标签，以及其余正文），而不是原样显示 XML。
 
-![审批卡片](docs/images/approval.png)
+权限请求不会被重画：仍由 Paseo 绘制，同意和拒绝也由 Paseo 负责。
 
 ---
 

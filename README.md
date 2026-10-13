@@ -2,9 +2,10 @@
 
 **English** | [简体中文](README-zh.md)
 
-A [Paseo](https://paseo.sh) plugin that redraws the Oh My Pi (OMP) chat timeline: tool calls,
-reasoning, replies, prompts, approvals and checklists become compact, typed, syntax-aware rows that
-follow the active Paseo theme, and the whole timeline renders faster than Paseo does on its own.
+A [Paseo](https://paseo.sh) plugin that redraws the chat timeline of every agent Paseo runs,
+whichever provider is behind it (Claude Code, Codex, Oh My Pi and the rest): tool calls, reasoning,
+replies, prompts, checklists and errors become compact, typed, syntax-aware rows that follow the
+active Paseo theme, and the whole timeline renders faster than Paseo does on its own.
 
 ![One turn drawn by Better Paseo: a prompt, a file read, a finished background job and the reply](images/hero.png)
 
@@ -165,6 +166,12 @@ highlighting, image reads, file reveal and the plugin's own find bar.
 
 ### Tool rows
 
+Most cards read the tool detail Paseo hands every plugin, so they work whichever agent made the
+call: reads, writes, edits, shell and Git commands, searches, fetches, sub-agents, plans, MCP calls
+(in Claude's `mcp__server__tool`, Codex's `server.tool` and Oh My Pi's `server / tool` forms) and
+Paseo's own tools. Oh My Pi's own tools `hub`, `eval`, `ask` and `task`, and its GitHub device
+calls, have cards of their own; other agents never send them.
+
 - Every call starts as one borderless row, 26pt on desktop and 28pt on touch, with a summary built
   for its type: the command, the path and line range, `+4 −2` for an edit, the exit code and
   duration. A press opens the card.
@@ -175,17 +182,18 @@ highlighting, image reads, file reveal and the plugin's own find bar.
 - Rows keep the time they first appeared, so parallel reads no longer reorder or change spacing
   when one finishes first.
 - Row heads show an icon, a label or both. Long code and terminal output fold to 12 lines.
-- Every `hub` op has a card: processes, messages and job snapshots. Paseo's own tools carry the
-  Paseo mark, and a created agent its provider's mark.
+- Paseo's own tools carry the Paseo mark, and a created agent its provider's mark.
+- Every op of Oh My Pi's `hub` tool has a card: processes, messages and job snapshots. The cards
+  report; they carry no buttons, since a plugin cannot restart or cancel anything.
 
 | Shell and Git | Read |
 | --- | --- |
 | ![Shell and Git tool calls](docs/images/tool-bash.png) | ![Read tool call](docs/images/tool-read.png) |
-| **Edit** | **Hub** |
+| **Edit** | **Hub** (Oh My Pi) |
 | ![Edit tool call](docs/images/tool-edit.png) | ![Hub tool calls](docs/images/hub.png) |
 
 <details>
-<summary>More cards: MCP, Eval, Ask, Task, Paseo tools, reasoning tool, image read, syntax block</summary>
+<summary>More cards: MCP, Paseo tools, image read, syntax block, a <code>thinking</code> tool, and Oh My Pi's Eval, Ask and Task</summary>
 
 ![MCP tool call](docs/images/tool-mcp.png)
 ![Eval tool call](docs/images/tool-eval.png)
@@ -260,12 +268,15 @@ It cannot show pasted images; rewind stays wherever the running Paseo provides i
 
 ![Prompt bubble](docs/images/user.png)
 
-### Approvals
+### Errors and system messages
 
-Risk classification, the exact command, target path and working directory; the approve and deny
-actions remain the host's.
+- An agent error is drawn as a notice card carrying its message.
+- Oh My Pi sends job results, relayed messages and reminders as message text wrapped in tags such
+  as `<system-notice>` or `<irc>`, and Paseo files them as replies. With **Plugin markdown for
+  replies** on, they are drawn as system cards (a title, chips for agent, status and duration, and
+  the rest of the body) instead of raw XML.
 
-![Approval card](docs/images/approval.png)
+Permission requests are not redrawn: Paseo draws them and owns the approve and deny actions.
 
 ---
 
