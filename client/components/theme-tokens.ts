@@ -103,6 +103,11 @@ export interface ExtendedThemeTokens {
   accent: string;
   accentForeground: string;
   accentBg: string;
+  /**
+   * Inline code where it cannot have a fill (iOS, Android): the accent the
+   * reader picked, or a dark grey while the accent follows Paseo.
+   */
+  codeInline: string;
   // The authored turn sits on a raised theme surface, exactly as the native
   // stream draws it. It carries no accent: colour belongs to the agent's work.
   userSurface: string;
@@ -312,6 +317,9 @@ export function buildThemeTokens(
     accent,
     accentForeground: colors.accentForeground,
     accentBg: withAlpha(accent, isDark ? 0.14 : 0.1),
+    // Paseo's own accent is the action colour, so inline code does not take
+    // it; a picked preset is the reader asking for that colour on code too.
+    codeInline: ACCENT_PRESETS[preferences.accent] ?? withAlpha(fg, 0.75),
     // The host draws its own prompt bubble on its most raised surface; surface2
     // is the most raised one a plugin is given.
     userSurface: colors.surface2,
