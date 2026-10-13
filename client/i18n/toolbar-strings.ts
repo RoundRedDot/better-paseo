@@ -27,6 +27,9 @@ const ZH: Readonly<Record<string, string>> = {
   "Copy question": "复制问题",
   "Copy answer": "复制回答",
   "Copy thought": "复制思考",
+  "Copy section": "复制段落",
+  "Copy reply": "复制回复",
+  "Copy prompt": "复制提问",
   "Previous operation": "上一次操作",
   "Next operation": "下一次操作",
   "Wrap lines": "自动换行",
@@ -39,4 +42,19 @@ const ZH: Readonly<Record<string, string>> = {
 export function toolbarLabel(label: string, preference: SettingsLanguagePreference, locale?: string | null): string {
   if (resolveLanguage(preference, locale) !== "zh") return label;
   return ZH[label] ?? label;
+}
+
+/**
+ * The toast for a copy, from its button's label: "Copy path" says "Copied
+ * path" (已复制路径). A menu entry's "2. " prefix is dropped; a label that
+ * names nothing says "Copied".
+ */
+export function copiedToast(label: string, preference: SettingsLanguagePreference, locale?: string | null): string {
+  const base = label.replace(/^\d+\.\s*/, "");
+  if (resolveLanguage(preference, locale) === "zh") {
+    const zh = ZH[base];
+    return zh?.startsWith("复制") ? `已${zh}` : "已复制";
+  }
+  const match = /^Copy (.+)$/.exec(base);
+  return match ? `Copied ${match[1]}` : "Copied";
 }

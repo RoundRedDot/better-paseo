@@ -35,14 +35,20 @@ describe("copy controller", () => {
     vi.advanceTimersByTime(1);
     expect(states).toEqual([true, false]);
     expect(toast.show).toHaveBeenCalledTimes(1);
-    expect(toast.show).toHaveBeenCalledWith(COPIED_MESSAGE);
+    expect(toast.show).toHaveBeenCalledWith(COPIED_MESSAGE, undefined);
   });
 
   it("toasts instead of checking for toast feedback", async () => {
     const { controller, states, toast } = setup();
     await controller.copy("abc", { feedback: "toast" });
-    expect(toast.show).toHaveBeenCalledWith(COPIED_MESSAGE);
+    expect(toast.show).toHaveBeenCalledWith(COPIED_MESSAGE, undefined);
     expect(states).toEqual([]);
+  });
+
+  it("hands the copy's label to the toast", async () => {
+    const { controller, toast } = setup();
+    await controller.copy("abc", { label: "Copy path" });
+    expect(toast.show).toHaveBeenCalledWith(COPIED_MESSAGE, "Copy path");
   });
 
   it("toasts an error and never shows the check when copying fails", async () => {

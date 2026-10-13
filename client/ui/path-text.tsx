@@ -191,7 +191,7 @@ export function PathText({
     return liftStackingRow(rowRef.current as unknown as DomBox | null);
   }, [tooltip]);
 
-  const copyAbsolute = () => void copy(formatted.absolutePath, { feedback: "toast" });
+  const copyAbsolute = () => void copy(formatted.absolutePath, { feedback: "toast", label: "Copy path" });
   const onPress = () => {
     if (touchFirst || !reveal) copyAbsolute();
     else reveal(formatted.absolutePath);
@@ -250,7 +250,7 @@ export function PathText({
             accessibilityLabel={copied ? "Copied" : "Copy path"}
             disabled={!hovered}
             hitSlop={6}
-            onPress={() => void copy(formatted.absolutePath, { feedback: "icon" })}
+            onPress={() => void copy(formatted.absolutePath, { feedback: "icon", label: "Copy path" })}
             style={[styles.copyIcon, { opacity: hovered || copied ? 1 : 0 }]}
           >
             <Icon

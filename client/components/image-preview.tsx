@@ -238,7 +238,7 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
     : undefined;
   const absolutePath = formatPath(path, pathContext).absolutePath;
   // The absolute path, as a long press on any path gives.
-  const copyPath = () => void copy(absolutePath, { feedback: "toast" });
+  const copyPath = () => void copy(absolutePath, { feedback: "toast", label: "Copy path" });
   // On web a resting pointer on the header previews the picture, as it
   // previews a tool row's body. On a phone a long press opens the picture in
   // the viewer, as a press on the thumbnail does, hidden or not.

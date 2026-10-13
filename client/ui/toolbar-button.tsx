@@ -116,7 +116,7 @@ export function ToolbarCopyButton({ text, icon = "Copy", label, tokens, align }:
   const { copied, copy } = useCopy();
   const onPress = useCallback(() => {
     const value = typeof text === "function" ? text() : text;
-    if (value) void copy(value, { feedback: "icon" });
+    if (value) void copy(value, { feedback: "icon", label });
   }, [copy, text]);
   return (
     <ToolbarButton

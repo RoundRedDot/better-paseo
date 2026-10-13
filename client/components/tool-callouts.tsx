@@ -217,7 +217,7 @@ export function ToolCallout({
   const copyPrimary = useCallback(() => getPlan().primary?.text ?? "", [getPlan]);
   const onLongPress = useCallback(() => {
     const primary = getPlan().primary;
-    if (primary) void copy(primary.text, { feedback: "toast" });
+    if (primary) void copy(primary.text, { feedback: "toast", label: primary.label });
   }, [getPlan, copy]);
   const menuItems = useMemo<ActionMenuItem[]>(
     () =>
@@ -226,7 +226,7 @@ export function ToolCallout({
             id: action.id,
             label: action.label,
             icon: "Copy",
-            onSelect: () => void copy(action.text, { feedback: "toast" }),
+            onSelect: () => void copy(action.text, { feedback: "toast", label: action.label }),
           }))
         : [],
     [menu.open, getPlan, copy],
@@ -284,7 +284,7 @@ export function ToolCallout({
   const revealFile = useMemo(() => {
     if (!filePath) return undefined;
     const absolutePath = resolvePath(filePath);
-    if (touchFirst) return () => void copy(absolutePath, { feedback: "toast" });
+    if (touchFirst) return () => void copy(absolutePath, { feedback: "toast", label: "Copy path" });
     return reveal ? () => reveal(absolutePath) : undefined;
   }, [filePath, resolvePath, touchFirst, copy, reveal]);
   const displayPath = filePath ? formatPath(filePath, pathContext).displayPath : undefined;

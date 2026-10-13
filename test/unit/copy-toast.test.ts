@@ -38,20 +38,27 @@ async function pressCopy(element: React.ReactElement) {
 }
 
 describe("copy toast", () => {
-  it("toasts from a header copy button and a preview toolbar button", async () => {
+  it("names what each button copied, so two copies are told apart", async () => {
     updateEnhancerPreferences({ language: "en" });
-    toast.show.mockClear();
-    await pressCopy(React.createElement(CopyButton, { text: "a", tokens, label: "Copy path" }));
-    expect(toast.show).toHaveBeenLastCalledWith("Copied");
-    await pressCopy(React.createElement(ToolbarCopyButton, { text: "a", tokens, label: "Copy path" }));
-    expect(toast.show).toHaveBeenCalledTimes(2);
+    try {
+      toast.show.mockClear();
+      await pressCopy(React.createElement(CopyButton, { text: "a", tokens, label: "Copy path" }));
+      expect(toast.show).toHaveBeenLastCalledWith("Copied path");
+      await pressCopy(React.createElement(ToolbarCopyButton, { text: "a", tokens, label: "Copy file content" }));
+      expect(toast.show).toHaveBeenLastCalledWith("Copied file content");
+      expect(toast.show).toHaveBeenCalledTimes(2);
+    } finally {
+      updateEnhancerPreferences({ language: "system" });
+    }
   });
 
   it("says it in Chinese when the settings page is in Chinese", async () => {
     updateEnhancerPreferences({ language: "zh" });
     try {
       await pressCopy(React.createElement(ToolbarCopyButton, { text: "a", tokens, label: "Copy path" }));
-      expect(toast.show).toHaveBeenLastCalledWith("已复制");
+      expect(toast.show).toHaveBeenLastCalledWith("已复制路径");
+      await pressCopy(React.createElement(ToolbarCopyButton, { text: "a", tokens, label: "Copy new content" }));
+      expect(toast.show).toHaveBeenLastCalledWith("已复制新内容");
     } finally {
       updateEnhancerPreferences({ language: "system" });
     }
