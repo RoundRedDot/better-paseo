@@ -1,6 +1,7 @@
 /**
  * What a tool header copies (plan §3.8 item 2): the primary action is the
- * object the header shows, the `⋯` menu holds the rest. The table itself
+ * object the header shows, then the rest; each is a button on the row
+ * and in its preview. The table itself
  * lives in `copy/content.ts`; this only maps a tool view onto its sources.
  */
 import { copyPlan, type CopyPlan } from "../copy/content";

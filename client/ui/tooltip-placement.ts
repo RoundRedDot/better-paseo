@@ -23,6 +23,14 @@ export function tooltipPlacement(
   return rowTop - viewportTop < TOOLTIP_ROOM ? "below" : "above";
 }
 
+/** Where a tooltip for `node` (a web DOM node, a native ref) opens, by the room above it. */
+export function placeTooltipNear(node: unknown, platform: string): TooltipPlacement {
+  if (platform !== "web") return "below";
+  const box = node as DomBox | null;
+  const top = box?.getBoundingClientRect?.().top ?? null;
+  return tooltipPlacement("web", top, box ? scrollTop(box) : 0);
+}
+
 export interface DomBox {
   getBoundingClientRect?(): { top: number };
   parentElement?: DomBox | null;

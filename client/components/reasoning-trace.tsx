@@ -358,7 +358,7 @@ export function ReasoningCard({
         ) : undefined
       }
       meta={label.meta}
-      actions={<CopyButton text={copySource} tokens={tokens} label="Copy thought" />}
+      actions={<ToolbarCopyButton text={copySource} tokens={tokens} label="Copy thought" />}
       onLongPress={onLongPress}
       accessibilityLabel={label.preview ? `${label.verb}: ${label.preview}` : label.verb}
       previewContent={() => (

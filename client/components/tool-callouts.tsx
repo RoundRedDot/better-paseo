@@ -24,8 +24,6 @@ import { useScrollAnchor } from "../ui/scroll-anchor";
 import { PathContext, PathText } from "../ui/path-text";
 import { RunningDot } from "../ui/running-dot";
 import { exitMark, parseExitMeta } from "../ui/exit-mark";
-import { CopyButton } from "../ui/copy-button";
-import { ActionMenuList, ActionMenuTrigger, useActionMenu, type ActionMenuItem } from "../ui/action-menu";
 import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { HoverPreviewBody, HoverPreviewHeader } from "../ui/hover-preview";
@@ -111,27 +109,6 @@ function diffCountSpans(entry: string): React.ReactNode {
   );
 }
 
-/** Label of the header's copy button: what the primary copy puts on the clipboard. */
-function primaryCopyLabel(tool: ToolKind): string {
-  switch (tool) {
-    case "bash":
-    case "shell":
-    case "git":
-      return "Copy command";
-    case "read":
-    case "write":
-    case "edit":
-    case "worktree_setup":
-      return "Copy path";
-    case "search":
-      return "Copy query";
-    case "fetch":
-      return "Copy URL";
-    default:
-      return "Copy";
-  }
-}
-
 interface ToolCalloutProps {
   data: ToolCallView;
   /** Consecutive calls sharing this file-operation header, in timeline order. */
@@ -196,7 +173,6 @@ export function ToolCallout({
   const capabilities = useInputCapabilities(compact);
   const touchFirst = capabilities.touch && !capabilities.hover;
   const { copy } = useCopy();
-  const menu = useActionMenu();
 
   const resolvePath = useCallback(
     (path: string) => formatPath(path, pathContext).absolutePath,
@@ -204,33 +180,10 @@ export function ToolCallout({
   );
   // Built on demand: a running shell's output is stripped of ANSI only when
   // someone actually copies it, not on every chunk.
-  const getPlan = useCallback(() => {
-    const plan = toolCopyPlan(data, resolvePath);
-    if (!groupCalls) return plan;
-    // Calls that copy the same text (a file read twice unchanged) list it once.
-    const seen = new Set<string>();
-    return { ...plan, menu: groupCalls.flatMap((call, index) =>
-      toolCopyPlan(call, resolvePath).menu.filter((action) => !seen.has(action.text) && seen.add(action.text)).map((action) => ({
-        ...action, id: `${call.callId}:${action.id}`, label: `${index + 1}. ${action.label}`,
-      }))) };
-  }, [data, groupCalls, resolvePath]);
-  const copyPrimary = useCallback(() => getPlan().primary?.text ?? "", [getPlan]);
   const onLongPress = useCallback(() => {
-    const primary = getPlan().primary;
+    const primary = toolCopyPlan(data, resolvePath).primary;
     if (primary) void copy(primary.text, { feedback: "toast", label: primary.label });
-  }, [getPlan, copy]);
-  const menuItems = useMemo<ActionMenuItem[]>(
-    () =>
-      menu.open
-        ? getPlan().menu.map((action) => ({
-            id: action.id,
-            label: action.label,
-            icon: "Copy",
-            onSelect: () => void copy(action.text, { feedback: "toast", label: action.label }),
-          }))
-        : [],
-    [menu.open, getPlan, copy],
-  );
+  }, [data, resolvePath, copy]);
 
   const running = groupCalls ? groupCalls.some((call) => call.status === "running") : data.status === "running";
   const failed = data.status === "failed" || summary.tone === "danger";
@@ -266,12 +219,8 @@ export function ToolCallout({
     <MetaPath path={summary.metaPath} tokens={tokens} compact={compact} />
   ) : undefined;
 
-  const actions = (
-    <>
-      <CopyButton text={copyPrimary} tokens={tokens} label={primaryCopyLabel(data.tool)} />
-      <ActionMenuTrigger open={menu.open} onPress={menu.toggle} tokens={tokens} />
-    </>
-  );
+  // Mounted only while the row shows its actions, so the plan is built then.
+  const actions = <ToolCopyButtons call={data} resolvePath={resolvePath} tokens={tokens} />;
 
   // A read of an image is drawn as the picture, which has no lines to wrap.
   const drawsImage =
@@ -339,7 +288,6 @@ export function ToolCallout({
       meta={meta}
       metaLead={metaLead}
       actions={actions}
-      actionsActive={menu.open}
       onLongPress={viewsImage ? openViewer : capabilities.touch ? onLongPress : undefined}
       accessibilityLabel={[summary.verb, summary.target, ...summary.meta].filter(Boolean).join(" ")}
       onPreviewOpen={requestImage}
@@ -363,9 +311,6 @@ export function ToolCallout({
       )}
     />
   );
-  const menuList = menu.open ? (
-    <ActionMenuList items={menuItems} open={menu.open} onClose={menu.close} tokens={tokens} compact={compact} />
-  ) : null;
   const body = expanded ? (
     <FadeIn style={[styles.body, { backgroundColor: tokens.row.outputBg }]}>
       <View {...surfaceProps(selectionSurface)} style={styles.bodyInner}>
@@ -392,7 +337,6 @@ export function ToolCallout({
     return (
       <StickyCard tokens={tokens} compact={compact} header={header}>
         {viewer}
-        {menuList}
         {body}
       </StickyCard>
     );
@@ -412,7 +356,6 @@ export function ToolCallout({
           {summary.errorLine}
         </Text>
       ) : null}
-      {menuList}
       {body}
     </>
   );
@@ -532,7 +475,7 @@ const COPY_ICON: Record<CopyActionId, string> = {
 
 /**
  * A call's copies as one row of buttons: the header's own object first, then
- * what the `⋯` menu held. An entry with the same id or text as an earlier one
+ * the rest of the plan. An entry with the same id or text as an earlier one
  * is dropped, so no two buttons copy the same thing.
  */
 export function previewCopyActions(plan: CopyPlan): CopyAction[] {
@@ -545,6 +488,26 @@ export function previewCopyActions(plan: CopyPlan): CopyAction[] {
   });
 }
 
+/**
+ * Every copy of a call as a row of buttons, the same on the row's header and
+ * in its preview's toolbar. A merged row's header offers its first call's,
+ * as its preview opens on that call.
+ */
+function ToolCopyButtons({ call, resolvePath, tokens }: {
+  call: ToolCallView;
+  resolvePath: ResolvePath;
+  tokens: ExtendedThemeTokens;
+}) {
+  const actions = useMemo(() => previewCopyActions(toolCopyPlan(call, resolvePath)), [call, resolvePath]);
+  return (
+    <>
+      {actions.map((action) => (
+        <ToolbarCopyButton key={action.id} text={action.text} icon={COPY_ICON[action.id]} label={action.label} tokens={tokens} />
+      ))}
+    </>
+  );
+}
+
 /** The preview's toolbar: a merged row's pager in the middle, every copy of the call on view as a button. */
 function ToolPreviewActions({ call, resolvePath, tokens, pager }: {
   call: ToolCallView;
@@ -553,13 +516,10 @@ function ToolPreviewActions({ call, resolvePath, tokens, pager }: {
   /** A merged row's pager, centred in the toolbar. */
   pager?: React.ReactNode;
 }) {
-  const actions = useMemo(() => previewCopyActions(toolCopyPlan(call, resolvePath)), [call, resolvePath]);
   return (
     <HoverPreviewHeader tokens={tokens} center={pager}>
       <View style={styles.previewActions}>
-        {actions.map((action) => (
-          <ToolbarCopyButton key={action.id} text={action.text} icon={COPY_ICON[action.id]} label={action.label} tokens={tokens} />
-        ))}
+        <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />
       </View>
     </HoverPreviewHeader>
   );

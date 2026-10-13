@@ -83,7 +83,12 @@ describe("full hover preview content", () => {
       expect(clipboard.copyText).toHaveBeenLastCalledWith("full-output");
       await press(body, "Copy command and output");
       expect(clipboard.copyText).toHaveBeenLastCalledWith("$ printf full-command\nfull-output");
-      expect(row.root.findByType(DisclosureHeader).props.actionsActive).toBe(false);
+      // The row's own header offers the same buttons, and no `⋯` either.
+      let rowActions!: ReturnType<typeof TestRenderer.create>;
+      act(() => { rowActions = TestRenderer.create(row.root.findByType(DisclosureHeader).props.actions); });
+      expect(rowActions.root.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel))
+        .toEqual(["Copy command", "Copy output", "Copy command and output"]);
+      act(() => rowActions.unmount());
       expect(row.root.findByType(DisclosureHeader).props.expanded).toBe(false);
     });
   });

@@ -11,6 +11,7 @@ import { TYPE } from "./tokens/typography";
 import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { useEnhancerPreferences } from "../preferences";
+import { TooltipAlignContext, TooltipSideContext } from "./toolbar-button";
 import { HoverPreview, HoverPreviewContext, RowLongPressContext, useHoverPreview } from "./hover-preview";
 import { useScrollAnchor, type ScrollAnchor } from "./scroll-anchor";
 
@@ -144,7 +145,7 @@ export interface DisclosureHeaderProps {
   /** A view before the meta Text that cannot be a span (a pressable path). */
   metaLead?: ReactNode;
   /**
-   * Buttons for the block (copy, `⋯`). On a hover device they appear while the
+   * Buttons for the block (its copies). On a hover device they appear while the
    * row is hovered, over the end of the target, so the meta never moves; on
    * touch they sit at the end of the row while the block is expanded and are
    * absent when it is collapsed, where `onLongPress` is the entry instead.
@@ -152,7 +153,7 @@ export interface DisclosureHeaderProps {
   actions?: ReactNode;
   /** Show `actions` regardless of hover and expansion. */
   actionsAlwaysVisible?: boolean;
-  /** Keep hover actions shown without the pointer, e.g. while their `⋯` menu is open. */
+  /** Keep hover actions shown without the pointer, e.g. while a menu of theirs is open. */
   actionsActive?: boolean;
   /**
    * Touch entry for the primary action (plan §3.8): long-press the row. On iOS
@@ -396,14 +397,20 @@ export function DisclosureHeader({
               {hoverActions ? (
                 <View style={styles.targetBox}>
                   {countedTarget ?? <View style={styles.fill} />}
-                  <View style={[styles.overlay, { backgroundColor: tokens.v2.surface1 }]}>{actions}</View>
+                  <View style={[styles.overlay, { backgroundColor: tokens.v2.surface1 }]}>
+                    <RowTooltips>{actions}</RowTooltips>
+                  </View>
                 </View>
               ) : (
                 countedTarget
               )}
               {metaLead}
               {metaText}
-              {persistentActions ? <View style={styles.inlineActions}>{actions}</View> : null}
+              {persistentActions ? (
+                <View style={styles.inlineActions}>
+                  <RowTooltips>{actions}</RowTooltips>
+                </View>
+              ) : null}
             </Pressable>
           </RowLongPressContext.Provider>
         </HoverPreviewContext.Provider>
@@ -412,6 +419,18 @@ export function DisclosureHeader({
         <HoverPreview preview={preview} tokens={tokens} wraps={previewWraps}>{previewContent()}</HoverPreview>
       ) : null}
     </>
+  );
+}
+
+/**
+ * The names of a row's buttons open above the row (the next row would paint
+ * over them below) and towards the row's start: the buttons sit at its end.
+ */
+function RowTooltips({ children }: { children: ReactNode }) {
+  return (
+    <TooltipSideContext.Provider value="auto">
+      <TooltipAlignContext.Provider value="end">{children}</TooltipAlignContext.Provider>
+    </TooltipSideContext.Provider>
   );
 }
 
