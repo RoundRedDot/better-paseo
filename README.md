@@ -9,7 +9,7 @@ active Paseo theme, and the whole timeline renders faster than Paseo does on its
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/hero-devices-dark.png">
-  <img alt="Better Paseo on desktop and on a phone: reasoning, shell, read, edit diff, MCP, checklist, Paseo and hub calls, a background job and the reply" src="images/hero-devices-light.png">
+  <img alt="Better Paseo on desktop and on a phone: a hover preview of a collapsed read, reasoning, shell, read, edit diff, MCP, checklist, Paseo and hub calls, a background job and the reply" src="images/hero-devices-light.png">
 </picture>
 
 > Better Paseo is a fork of [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat),

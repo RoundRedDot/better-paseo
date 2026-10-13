@@ -45,14 +45,20 @@ const server = http.createServer((req, res) => {
   }
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
-const browser = await chromium.launch({ executablePath: chromePath, headless: true });
+const browser = await chromium.launch({
+  executablePath: chromePath,
+  headless: true,
+  // Headless reports `(hover: none)`; a desktop mouse turns the hover previews on.
+  args: ["--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4"],
+});
 // Reduced motion rather than a frozen rAF: the plugin's motion honours it, so
 // running dots rest on a static frame and an expanded body is drawn at full
 // opacity instead of on the first frame of its fade.
-const page = await browser.newPage({ viewport: { width: 1900, height: 900 },
+const page = await browser.newPage({ viewport: { width: 1900, height: 1400 },
   deviceScaleFactor: Number(process.env.SHOT_SCALE ?? 1),
   reducedMotion: "reduce",
 });
+const HOVER = { "shot-hero-devices": "150-166" };
 let ids = [];
 for (const theme of themes) {
   const themeDir = path.join(out, theme);
@@ -61,6 +67,13 @@ for (const theme of themes) {
   await page.waitForTimeout(1500);
   ids = await page.$$eval("[id^=shot-]", (els) => els.map((el) => el.id));
   for (const id of ids) {
+    // The hero rests a real pointer on a collapsed row, so its hover state and
+    // preview panel are captured as a reader would see them.
+    const hover = HOVER[id];
+    if (hover) {
+      await page.locator(`#${id}`).getByText(hover, { exact: true }).first().hover();
+      await page.waitForTimeout(2000);
+    }
     await page.locator(`#${id}`).screenshot({ path: path.join(themeDir, `${id}.png`), animations: "disabled" });
   }
 }
