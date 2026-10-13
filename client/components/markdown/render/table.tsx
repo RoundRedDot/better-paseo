@@ -5,7 +5,7 @@ import type { RenderContext } from "./context";
 import { inlineWidth, renderInline } from "./inline";
 import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
 import { HScroll } from "../../../ui/h-scroll";
-import { CopyButton } from "../../../ui/copy-button";
+import { ToolbarCopyButton } from "../../../ui/toolbar-button";
 import {
   ALIGN_KEYS,
   CHAR_RATIO_MONO,
@@ -151,7 +151,7 @@ export function MdTable({
           ))}
         </View>
         <View style={[copyStyles.corner, { backgroundColor: context.tokens.surface0 }]}>
-          <CopyButton text={() => token.raw} tokens={context.tokens} label="Copy Markdown table" />
+          <ToolbarCopyButton text={() => token.raw} tokens={context.tokens} label="Copy Markdown table" align="start" />
         </View>
       </View>
     </HScroll>
