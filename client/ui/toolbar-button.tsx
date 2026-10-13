@@ -7,6 +7,7 @@ import { unselectable } from "../components/selection";
 import { useCopy } from "./use-copy";
 import { useHover } from "./use-hover";
 import { UI_SCALE } from "./tokens/typography";
+import { cssShadow } from "./tokens/css-shadow";
 
 /** How long a pointer rests on a button before its name shows. */
 export const TOOLBAR_TOOLTIP_MS = 400;
@@ -54,7 +55,9 @@ export function ToolbarButton({
     return () => clearTimeout(timer);
   }, [hovered]);
   return (
-    <View style={styles.anchor}>
+    // Every web View is its own stacking context (`z-index: 0`), so the name
+    // can only rise over the buttons after this one if the button does.
+    <View style={[styles.anchor, named && styles.raised]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}
@@ -74,7 +77,7 @@ export function ToolbarButton({
       </Pressable>
       {named ? (
         <View pointerEvents="none" style={[styles.tooltipSlot, ALIGN[align]]}>
-          <View style={[styles.tooltip, { backgroundColor: tokens.v2.surface2, borderColor: tokens.v2.border }]}>
+          <View style={[styles.tooltip, tooltipLook(tokens)]}>
             <Text
               selectable={false}
               numberOfLines={1}
@@ -115,6 +118,23 @@ export function ToolbarCopyButton({ text, icon = "Copy", label, tokens, align }:
   );
 }
 
+/**
+ * An opaque bubble: the v2 surfaces are tints of the foreground, and the
+ * code under a name would show through one.
+ */
+function tooltipLook(tokens: ExtendedThemeTokens) {
+  return {
+    backgroundColor: tokens.surface0,
+    borderColor: tokens.v2.border,
+    boxShadow: cssShadow({
+      ...tokens.v2.elevation.overlay,
+      shadowOffset: { width: 0, height: 2 },
+      shadowRadius: 8,
+      shadowOpacity: tokens.isDark ? 0.36 : 0.12,
+    }),
+  };
+}
+
 // The slot is wider than any name and the bubble sits at one end or in the
 // middle of it, so no measuring is needed to centre it under the button.
 const ALIGN = StyleSheet.create({
@@ -125,6 +145,7 @@ const ALIGN = StyleSheet.create({
 
 const styles = StyleSheet.create({
   anchor: { position: "relative" },
+  raised: { zIndex: 1 },
   button: {
     width: 24,
     height: 24,
@@ -141,9 +162,9 @@ const styles = StyleSheet.create({
   },
   tooltip: {
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 4,
     borderRadius: radiusV2.chip,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  tooltipText: { fontSize: UI_SCALE.base, whiteSpace: "nowrap" } as object,
+  tooltipText: { fontSize: UI_SCALE.base, lineHeight: 18, whiteSpace: "nowrap" } as object,
 });
