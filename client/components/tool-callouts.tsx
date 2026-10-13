@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { Glyph } from "./glyph";
@@ -26,7 +26,8 @@ import { RunningDot } from "../ui/running-dot";
 import { exitMark, parseExitMeta } from "../ui/exit-mark";
 import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
-import { HoverPreviewBody, HoverPreviewHeader } from "../ui/hover-preview";
+import { HoverPreviewBody, HoverPreviewHeader, usePreviewPanel } from "../ui/hover-preview";
+import { bindPreviewPaging } from "../web";
 import { PreviewLines } from "../ui/preview-lines";
 import { CommandBand, PreviewPath } from "../ui/command-band";
 import { FadeIn } from "../ui/fade-in";
@@ -443,8 +444,17 @@ function GroupPager({ index, count, onChange, tokens }: {
   onChange(index: number): void;
   tokens: ExtendedThemeTokens;
 }) {
+  const pagerRef = useRef<View>(null);
+  const maximized = usePreviewPanel()?.maximized ?? false;
+  useEffect(() => {
+    if (!maximized) return;
+    return bindPreviewPaging(pagerRef.current, (direction) => {
+      const next = index + direction;
+      if (next >= 0 && next < count) onChange(next);
+    });
+  }, [maximized, index, count, onChange]);
   return (
-    <View style={styles.pager}>
+    <View ref={pagerRef} style={styles.pager}>
       <ToolbarButton icon="ChevronLeft" label="Previous operation" disabled={index === 0}
         onPress={() => onChange(index - 1)} tokens={tokens} />
       <Text selectable={false} style={[styles.pagerLabel, unselectable, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
