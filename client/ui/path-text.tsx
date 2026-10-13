@@ -19,7 +19,7 @@ import { useCopy } from "./use-copy";
 import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { UI_SCALE } from "./tokens/typography";
-import { liftStackingRow, scrollTop, tooltipPlacement, type DomBox, type TooltipPlacement } from "./tooltip-placement";
+import { liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement } from "./tooltip-placement";
 import { HoverPreview, HoverPreviewBody, RowLongPressContext, useHoverPreview } from "./hover-preview";
 import { RowPaletteContext } from "./disclosure-header";
 
@@ -301,10 +301,7 @@ export function PathText({
 }
 
 function placeTooltip(row: unknown): TooltipPlacement {
-  if (Platform.OS !== "web") return "below";
-  const node = row as DomBox | null;
-  const top = node?.getBoundingClientRect?.().top ?? null;
-  return tooltipPlacement("web", top, node ? scrollTop(node) : 0);
+  return placeTooltipNear(row, Platform.OS);
 }
 
 /** Default path text size. */

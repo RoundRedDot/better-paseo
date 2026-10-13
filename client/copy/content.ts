@@ -60,7 +60,7 @@ export interface CopyAction {
 export interface CopyPlan {
   /** The header's own object. Null when the source carries nothing to copy. */
   primary: CopyAction | null;
-  /** The `⋯` menu's other entries; empty values are left out. */
+  /** The other copies, after the primary; empty values are left out. */
   menu: CopyAction[];
 }
 
