@@ -103,7 +103,7 @@ def p95_chart():
     bottom = top + row_h * len(FIXTURES)
     out = [
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -8 848 {bottom + 40}" width="848" height="{bottom + 40}" role="img">',
-        "<title>Web 生产构建，最忙卡片提交时间 p95，对数刻度。淡色横条是官方，绿色是本仓库，虚线是 4 毫秒预算。</title>",
+        "<title>Web 生产构建，最忙卡片提交时间 p95，对数刻度。淡色横条是 Beautiful Chat，绿色是本仓库，虚线是 4 毫秒预算。</title>",
         "<style>\n.final { display: none; }\n@media (prefers-reduced-motion: reduce) {\n  .motion { display: none; }\n  .final { display: inline; }\n}\n</style>",
     ]
     for tick in (1, 4, 16, 64, 256):
