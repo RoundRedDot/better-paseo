@@ -4,7 +4,10 @@
 
 一个 [Paseo](https://paseo.sh) 插件，重新绘制 Paseo 中所有 agent 的聊天时间线，不论背后是哪家服务（Claude Code、Codex、Oh My Pi 等）：工具调用、思考、回复、提问、待办和错误都画成紧凑、按类型区分、带语法高亮的行，配色跟随当前的 Paseo 主题；整条时间线的渲染比 Paseo 自己画还快。
 
-![Better Paseo 绘制的一轮对话：提问、读文件、完成的后台任务和回复](images/hero.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/hero-devices-dark.png">
+  <img alt="Better Paseo 的桌面端与移动端：思考、Shell、读文件、编辑 diff、MCP、待办、Paseo 与 hub 调用、后台任务和回复" src="images/hero-devices-light.png">
+</picture>
 
 > Better Paseo fork 自 [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat)，从 `42b61d8`（2026-09-23）接着开发。除 Eval、Ask、Task 和审批卡片外，Beautiful Chat 原有的卡片都还在；当前的 Paseo 不会把这几类内容交给插件（见[兼容性](#兼容性)）。本文介绍这个 fork 新增的功能和它的性能表现。
 
