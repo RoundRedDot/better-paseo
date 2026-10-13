@@ -32,6 +32,7 @@ vi.mock("../../client/ui/use-input-capabilities", () => ({
 const pointer = vi.hoisted(() => ({ enter: null as null | (() => void) }));
 vi.mock("../../client/web", () => ({
   bindRowHover: () => () => {},
+  bindPreviewMaximize: () => () => {},
   bindPreviewPointer: (_node: unknown, enter: () => void) => {
     pointer.enter = enter;
     return () => {};
