@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { ExtendedThemeTokens } from "./components/theme-tokens";
 import { radiusV2, space } from "./components/theme-tokens";
-import { ToolCallout } from "./components/tool-callouts";
+import { ToolCallout, ToolPreviewContent } from "./components/tool-callouts";
 import { ReasoningCard } from "./components/reasoning-trace";
 import { UserMessage } from "./components/user-message";
 import { MarkdownView } from "./components/markdown/markdown-view";
@@ -10,8 +10,9 @@ import { AssistantFooter } from "./components/turn-footer";
 import { classifyTool, type ToolCallView } from "./tools/classify";
 import { defaultToolExpanded } from "./tools/disclosure";
 import { reasoningText, segmentReasoning } from "./reasoning/segment";
-import { pathRootsFor } from "./paths/format-path";
+import { formatPath, pathRootsFor } from "./paths/format-path";
 import { PathContext, type PathContextValue } from "./ui/path-text";
+import { PreviewPanelSample } from "./ui/hover-preview";
 import type { EnhancerPreferences } from "./preferences";
 import type { SettingsStrings } from "./i18n/settings-strings";
 
@@ -42,11 +43,21 @@ const READ_CODE = `export function formatPath(raw: string, ctx: FormatPathContex
   return ctx.mode === "absolute" ? absolute(path, suffix) : relative(path, ctx);
 }`;
 
+/** Long enough lines that the wrap option visibly changes the panel. */
+const PANEL_CODE = `export function formatPath(raw: string, ctx: FormatPathContext): FormattedPath {
+  const { path, suffix } = splitSelector(raw);
+  if (!path) return unmatched(raw.trim());
+  // A worktree's main repository is shown by its name, so a path outside the worktree still reads as part of the project.
+  const root = ctx.roots.find((candidate) => isInside(path, candidate.path));
+  return ctx.mode === "absolute" || !root ? absolute(path, suffix) : relative(path, root, suffix);
+}`;
+
 function call(callId: string, name: string, detail: Record<string, unknown>, status = "completed"): ToolCallView {
   return classifyTool({ callId, name, status, detail });
 }
 
 const READ = call("preview-read", "Read", { type: "read", filePath: FILE, offset: 40, limit: 24, content: READ_CODE });
+const PANEL_READ = call("preview-panel", "Read", { type: "read", filePath: FILE, offset: 112, limit: 7, content: PANEL_CODE });
 const EDIT = call("preview-edit", "Edit", {
   type: "edit",
   filePath: FILE,
@@ -202,3 +213,34 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
   },
 });
+
+/**
+ * A hover preview panel, open, as a collapsed read shows it: the panel options
+ * (wrap, line numbers, shading) apply to it as they change, and its own wrap
+ * button flips it as a real panel's does.
+ */
+export function HoverPanelPreview({
+  tokens,
+  preferences,
+  compact,
+}: {
+  tokens: ExtendedThemeTokens;
+  preferences: EnhancerPreferences;
+  compact: boolean;
+}) {
+  const paths = useMemo<PathContextValue>(() => ({ ...PATHS, mode: preferences.pathDisplay }), [preferences.pathDisplay]);
+  const resolvePath = useMemo(() => (path: string) => formatPath(path, paths).absolutePath, [paths]);
+  return (
+    <PathContext.Provider value={paths}>
+      <PreviewPanelSample tokens={tokens}>
+        <ToolPreviewContent
+          data={PANEL_READ}
+          resolvePath={resolvePath}
+          tokens={tokens}
+          compact={compact}
+          displayPath={formatPath(FILE, paths).displayPath}
+        />
+      </PreviewPanelSample>
+    </PathContext.Provider>
+  );
+}

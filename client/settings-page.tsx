@@ -12,8 +12,9 @@ import {
   ACCENT_PRESETS,
   CODE_FONT_SIZE_MAX,
   CODE_FONT_SIZE_MIN,
-  HOVER_DELAYS,
-  HOVER_DELAY_LABELS,
+  HOVER_DELAY_MAX,
+  HOVER_DELAY_MIN,
+  clampHoverDelay,
   resetEnhancerPreferences,
   updateEnhancerPreferences,
   useEnhancerPreferences,
@@ -22,7 +23,6 @@ import {
   type AccentPreset,
   type EnhancerPreferences,
   type MonoChoice,
-  type HoverDelayPreference,
   type PathDisplayPreference,
   type RowLabelStylePreference,
   type UiFontPreference,
@@ -30,7 +30,7 @@ import {
 import { NATIVE_MONO_CHOICES, TYPE, describeMonoSource, readHostTypography } from "./ui/tokens/typography";
 import { usePreferenceSettings } from "./state/preference-sync-slot";
 import { useWideHostColumn } from "./ui/wide-host-column";
-import { SettingsPreview } from "./settings-preview";
+import { HoverPanelPreview, SettingsPreview } from "./settings-preview";
 import type { SyncStatus } from "./state/preference-sync";
 import {
   SETTINGS_STRINGS,
@@ -418,6 +418,56 @@ function CustomMonoInput({ value, look }: { value: string; look: PageLook }) {
         },
       ]}
     />
+  );
+}
+
+/** Seconds as the field shows them: `1`, `0.5`, never `1.0` or `0.30000000000000004`. */
+function formatSeconds(seconds: number): string {
+  return String(Math.round(seconds * 10) / 10);
+}
+
+/**
+ * The hover delay, typed in seconds. Like the custom family it is saved when
+ * the field is left or submitted; a value outside 0-10 is pulled into range,
+ * and anything that is not a number puts the saved value back.
+ */
+function SecondsInput({ value, look }: { value: number; look: PageLook }) {
+  const { tokens, t } = look;
+  const [draft, setDraft] = useState(formatSeconds(value));
+  useEffect(() => setDraft(formatSeconds(value)), [value]);
+  const commit = () => {
+    const parsed = Number(draft.trim().replace(",", "."));
+    if (draft.trim() === "" || !Number.isFinite(parsed)) return setDraft(formatSeconds(value));
+    const next = clampHoverDelay(parsed);
+    setDraft(formatSeconds(next));
+    if (next !== value) updateEnhancerPreferences({ hoverDelaySeconds: next });
+  };
+  return (
+    <View style={styles.secondsField}>
+      <TextInput
+        accessibilityLabel={t.hoverDelayTitle}
+        value={draft}
+        onChangeText={setDraft}
+        onBlur={commit}
+        onSubmitEditing={commit}
+        keyboardType="decimal-pad"
+        inputMode="decimal"
+        selectTextOnFocus
+        style={[
+          styles.input,
+          styles.secondsInput,
+          {
+            color: tokens.foreground,
+            borderColor: tokens.v2.border,
+            backgroundColor: tokens.v2.surface0,
+            fontFamily: tokens.fontMono,
+          },
+        ]}
+      />
+      <Text style={[styles.plainLabel, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+        {t.hoverDelayUnit}
+      </Text>
+    </View>
   );
 }
 
@@ -978,15 +1028,9 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
         {native ? null : (
           <SettingRow
             title={t.hoverDelayTitle}
-            description={t.hoverDelayDescription}
+            description={t.hoverDelayDescription(HOVER_DELAY_MIN, HOVER_DELAY_MAX)}
             control={
-              <Segmented<HoverDelayPreference>
-                label={t.hoverDelayTitle}
-                value={preferences.hoverDelay}
-                options={HOVER_DELAYS.map((value) => ({ value, label: HOVER_DELAY_LABELS[value] }))}
-                onChange={(hoverDelay) => updateEnhancerPreferences({ hoverDelay })}
-                look={look}
-              />
+              <SecondsInput value={preferences.hoverDelaySeconds} look={look} />
             }
             look={look}
             stacked
@@ -1035,6 +1079,19 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
           look={look}
           disabled={!previews}
         />
+        <View
+          style={[
+            styles.panelSample,
+            compact ? styles.panelSampleCompact : null,
+            { borderTopColor: tokens.v2.border },
+            previews ? null : styles.rowDisabled,
+          ]}
+        >
+          <Text style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+            {t.panelSampleCaption}
+          </Text>
+          <HoverPanelPreview tokens={tokens} preferences={preferences} compact={compact} />
+        </View>
       </Section>
 
       <ResetButton look={look} />
@@ -1220,6 +1277,8 @@ const styles = StyleSheet.create({
   },
   hostChipLabel: { fontSize: TYPE.button.size, lineHeight: TYPE.button.lineHeight, fontWeight: "500" },
   swatch: { width: SWATCH, height: SWATCH, borderRadius: SWATCH / 2, borderWidth: 2 },
+  secondsField: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  secondsInput: { alignSelf: "auto", width: 72, textAlign: "right" },
   input: {
     alignSelf: "stretch",
     minHeight: 32,
@@ -1243,4 +1302,7 @@ const styles = StyleSheet.create({
   previewScroll: { flexGrow: 0 },
   previewBody: { padding: space.lg },
   reset: { gap: space.sm },
+  // The open panel under the hover options, on the chat's own surface.
+  panelSample: { borderTopWidth: 1, padding: space.lg, gap: space.sm },
+  panelSampleCompact: { marginLeft: space.lg, paddingLeft: 0 },
 });

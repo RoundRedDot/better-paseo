@@ -10,7 +10,7 @@ import { bindPreviewMaximize, bindPreviewPointer, dropSelectionIn, openPreviewLa
 import { useInputCapabilities } from "./use-input-capabilities";
 import { cssShadow } from "./tokens/css-shadow";
 import { floatShadow } from "./tokens/float";
-import { DEFAULT_PREFERENCES, HOVER_DELAY_MS, useEnhancerPreferences } from "../preferences";
+import { DEFAULT_PREFERENCES, useEnhancerPreferences } from "../preferences";
 import { SafeInset } from "./safe-inset";
 import { phoneChrome, pressPreviewFrame } from "./press-preview-placement";
 import { ProseSelectionContext } from "./prose-text";
@@ -50,7 +50,7 @@ export function usePreviewWraps(): boolean {
 }
 /** The widest an unwrapped phone preview gets, about 500 characters of code. */
 export const MAX_UNWRAPPED_WIDTH = 4096;
-export const PREVIEW_OPEN_MS = HOVER_DELAY_MS[DEFAULT_PREFERENCES.hoverDelay];
+export const PREVIEW_OPEN_MS = DEFAULT_PREFERENCES.hoverDelaySeconds * 1000;
 export const PREVIEW_CLOSE_MS = 150;
 
 /**
@@ -62,7 +62,7 @@ export function useHoverPreview(enabled: boolean) {
   const parentPreview = useContext(HoverPreviewContext);
   const capabilities = useInputCapabilities();
   const preferences = useEnhancerPreferences();
-  const delay = HOVER_DELAY_MS[preferences.hoverDelay];
+  const delay = Math.round(preferences.hoverDelaySeconds * 1000);
   const allowed = enabled && preferences.hoverPreview && !parentPreview;
   const hoverActive = allowed && Platform.OS === "web" && capabilities.hover;
   const pressActive = allowed && capabilities.native === true;
@@ -204,6 +204,33 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
     </HoverPreviewContext.Provider>
   );
 }
+
+/**
+ * A panel drawn in place rather than on the preview layer: the settings page
+ * shows one, open, so the panel options (line wrap, numbers, shading) are
+ * seen as they change. Its wrap button works; there is nothing to maximize
+ * or close, and paths inside it do not open a preview of their own.
+ */
+export function PreviewPanelSample({ tokens, children }: { tokens: ExtendedThemeTokens; children: ReactNode }) {
+  const [wrapOn, toggleWrap] = usePanelWrap();
+  return (
+    <HoverPreviewContext.Provider value>
+      <PreviewActionsContext.Provider value={{
+        maximizable: false,
+        maximized: false,
+        maximize: noop,
+        close: noop,
+        wrap: { on: wrapOn, toggle: toggleWrap, tokens },
+      }}>
+        <View {...selectionSurface} style={[styles.panel, panelLook(tokens), styles.sample]}>
+          {children}
+        </View>
+      </PreviewActionsContext.Provider>
+    </HoverPreviewContext.Provider>
+  );
+}
+
+function noop(): void {}
 
 function panelLook(tokens: ExtendedThemeTokens) {
   return {
@@ -468,6 +495,8 @@ function usePreviewScroller() {
 
 const styles = StyleSheet.create({
   panel: { padding: 0, borderWidth: 1, borderRadius: radiusV2.overlay },
+  // In the page, not on the layer: clipped to its corners, with no shadow to float on.
+  sample: { overflow: "hidden", boxShadow: "none" } as ViewStyle,
   toolbar: { flexDirection: "row", alignItems: "center", gap: space.xs },
   // Equal flexible sides keep the centre slot in the middle of the panel.
   toolbarStart: { flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", gap: space.xs },

@@ -30,7 +30,7 @@ import { HoverPreview, HoverPreviewBody, HoverPreviewContext, HoverPreviewHeader
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { TOOLBAR_TOOLTIP_MS } from "../../client/ui/toolbar-button";
 import { StyleSheet } from "./helpers/rn-mock";
-import { HOVER_DELAYS, HOVER_DELAY_MS, getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import { getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let preview!: ReturnType<typeof useHoverPreview>;
@@ -95,18 +95,18 @@ describe("hover preview lifetime", () => {
     act(() => { updateEnhancerPreferences({ hoverPreview: true }); });
     expect(preview.open).toBe(false);
   });
-  it.each(HOVER_DELAYS)("uses the configured %s delay", (hoverDelay) => {
-    updateEnhancerPreferences({ hoverDelay });
+  it.each([0.2, 0.5, 1, 1.5, 2.3])("uses a configured delay of %s s", (hoverDelaySeconds) => {
+    updateEnhancerPreferences({ hoverDelaySeconds });
     mount();
     act(() => preview.enter());
-    act(() => { vi.advanceTimersByTime(HOVER_DELAY_MS[hoverDelay] - 1); });
+    act(() => { vi.advanceTimersByTime(Math.round(hoverDelaySeconds * 1000) - 1); });
     expect(preview.open).toBe(false);
     act(() => { vi.advanceTimersByTime(1); });
     expect(preview.open).toBe(true);
   });
   it("uses an updated preference on the next hover without remounting", () => {
     mount();
-    act(() => { updateEnhancerPreferences({ hoverDelay: "2s" }); });
+    act(() => { updateEnhancerPreferences({ hoverDelaySeconds: 2 }); });
     act(() => preview.enter());
     act(() => { vi.advanceTimersByTime(1999); });
     expect(preview.open).toBe(false);
@@ -114,7 +114,7 @@ describe("hover preview lifetime", () => {
     expect(preview.open).toBe(true);
   });
   it("opens after a rest without changing disclosure state", () => {
-    expect(PREVIEW_OPEN_MS).toBe(500);
+    expect(PREVIEW_OPEN_MS).toBe(1000);
     mount();
     act(() => preview.enter());
     act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS - 1); });
