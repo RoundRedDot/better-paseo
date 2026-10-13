@@ -203,12 +203,14 @@ function textsIn(node: ReactTestInstance): string[] {
 
 describe("an image preview's chrome", () => {
   function expectChrome(panel: ReactTestInstance) {
-    // An image glyph at the toolbar's left edge says what the panel shows.
-    const icon = panel.findByProps({ testID: "hover-preview-icon" });
+    // The image glyph sits beside its size and weight in the centre.
+    const center = panel.findByProps({ testID: "hover-preview-center" });
+    const icon = center.findByProps({ testID: "hover-preview-icon" });
     expect(icon.findAll((node) => node.props.name === "Image").length).toBeGreaterThan(0);
     // The size and weight sit in the middle of the toolbar, and only there.
-    const center = panel.findByProps({ testID: "hover-preview-center" });
     expect(textsIn(center)).toEqual(["940 × 1542", "210 KB"]);
+    expect(center.findAllByProps({ testID: "hover-preview-tool-name" })).toHaveLength(0);
+    expect(panel.findByProps({ testID: "hover-preview-start" }).findAllByProps({ testID: "hover-preview-icon" })).toHaveLength(0);
     const body = panel.findByProps({ testID: "hover-preview-body" });
     expect(textsIn(body)).not.toContain("940 × 1542");
     // The path is set on the command band: a fill and a rule at the left.
@@ -231,6 +233,22 @@ describe("an image preview's chrome", () => {
     const renderer = render(React.createElement(ToolCallout, { data, tokens, imageFile: file }));
     openPreview();
     expectChrome(panelOf(renderer));
+    act(() => renderer.unmount());
+  });
+
+  it("keeps a grouped image's pager at the left and its icon and size centred", () => {
+    const calls = ["first", "second"].map((callId) => classifyTool({
+      callId, name: "Read", status: "completed", detail: { type: "read", filePath: "/tmp/shot.png", content: "" },
+    }));
+    const renderer = render(React.createElement(ToolCallout, { data: calls[0]!, groupCalls: calls, tokens, imageFile: file }));
+    openPreview();
+    const panel = panelOf(renderer);
+    expectChrome(panel);
+    const start = panel.findByProps({ testID: "hover-preview-start" });
+    expect(textsIn(start)).toEqual(["1 / 2"]);
+    press(start, "Next operation");
+    expect(textsIn(start)).toEqual(["2 / 2"]);
+    expectChrome(panel);
     act(() => renderer.unmount());
   });
 });

@@ -126,7 +126,10 @@ describe("grouped tool card presentation", () => {
     act(() => { preview = TestRenderer.create(previewContent()); });
     const toolbar = preview.root.findByProps({ testID: "hover-preview-header" });
     const center = preview.root.findByProps({ testID: "hover-preview-center" });
-    expect(pagerButton(center, "Previous operation").props.disabled).toBe(true);
+    const start = preview.root.findByProps({ testID: "hover-preview-start" });
+    expect(pagerButton(start, "Previous operation").props.disabled).toBe(true);
+    expect(texts(center)).toEqual(["Edit"]);
+    expect(center.findByProps({ testID: "hover-preview-icon" })).toBeDefined();
     // The copies of the call on view, once each: no `⋯`, no per-call numbering.
     const copies = () => toolbar.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel?.startsWith("Copy"))
       .map((node) => node.props.accessibilityLabel);
@@ -189,7 +192,7 @@ describe("grouped tool card presentation", () => {
       act(() => { vi.advanceTimersByTime(1); });
       expect(texts(icon)).toContain(name);
       const slot = icon.find((node) => (node.type as unknown) === "View" && node.props.pointerEvents === "none");
-      expect(StyleSheet.flatten(slot.props.style).left).toBe(0);
+      expect(StyleSheet.flatten(slot.props.style).alignItems).toBe("center");
       act(() => trigger.props.onHoverOut());
       expect(texts(icon)).not.toContain(name);
       // A pointer that leaves before the delay must not show a stale name.

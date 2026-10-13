@@ -212,7 +212,7 @@ describe("line wrap in the desktop preview", () => {
   let own!: ReturnType<typeof useHoverPreview>;
   function Panel() {
     own = useHoverPreview(true);
-    const header = React.createElement(HoverPreviewHeader, { tokens, icon: React.createElement("ToolIcon"), children: React.createElement("Toolbar") });
+    const header = React.createElement(HoverPreviewHeader, { tokens, icon: React.createElement("ToolIcon"), left: React.createElement("Pager"), children: React.createElement("Toolbar") });
     const body = React.createElement(HoverPreviewBody, { children: React.createElement("Text", null, "a long line") });
     return React.createElement(HoverPreview, { preview: { ...own, open: true }, tokens, children: [header, body] });
   }
@@ -267,14 +267,15 @@ describe("line wrap in the desktop preview", () => {
     expect(windowButton("Close preview")).toHaveLength(1);
   });
 
-  it("puts the tool icon first and the wrap button immediately to its right", () => {
+  it("puts the pager after wrap at the left and the tool icon in the centre", () => {
     act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
     const toolbar = renderer.root.findByProps({ testID: "hover-preview-header" }).findAll((node) => (node.type as unknown) === "View")[1]!;
-    const [start, end] = toolbar.children as TestRenderer.ReactTestInstance[];
-    const [kind, wrap] = start!.find((node) => (node.type as unknown) === "View").children as TestRenderer.ReactTestInstance[];
-    expect(kind!.props.testID).toBe("hover-preview-icon");
-    expect(kind!.findAll((node) => (node.type as unknown) === "ToolIcon")).toHaveLength(1);
+    const [start, center, end] = toolbar.children as TestRenderer.ReactTestInstance[];
+    const [wrap, pager] = start!.find((node) => (node.type as unknown) === "View").children as TestRenderer.ReactTestInstance[];
     expect(wrap!.findAll((node) => node === button())).toHaveLength(1);
+    expect((pager!.type as unknown)).toBe("Pager");
+    expect(start!.findAllByProps({ testID: "hover-preview-icon" })).toHaveLength(0);
+    expect(center!.findByProps({ testID: "hover-preview-icon" }).findAll((node) => (node.type as unknown) === "ToolIcon")).toHaveLength(1);
     expect(start!.findAll((node) => node === button())).toHaveLength(1);
     expect(end!.findAll((node) => (node.type as unknown) === "Toolbar")).toHaveLength(1);
     expect(end!.findAll((node) => node === button())).toHaveLength(0);

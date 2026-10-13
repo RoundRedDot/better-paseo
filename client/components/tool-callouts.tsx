@@ -525,14 +525,14 @@ function ToolCopyButtons({ call, resolvePath, tokens }: {
 }
 
 /**
- * The preview's toolbar: a merged row's pager or a picture's size in the
- * middle, every copy of the call on view as a button.
+ * The preview's toolbar: a merged row's pager at the left, the tool's icon
+ * and name or picture size in the middle, and copies at the right.
  */
 function ToolPreviewActions({ call, resolvePath, tokens, pager, meta }: {
   call: ToolCallView;
   resolvePath: ResolvePath;
   tokens: ExtendedThemeTokens;
-  /** A merged row's pager, centred in the toolbar. */
+  /** A merged row's pager, after the line-wrap button at the left. */
   pager?: React.ReactNode;
   /** A picture's size and weight, centred in the toolbar. */
   meta?: React.ReactNode;
@@ -540,7 +540,7 @@ function ToolPreviewActions({ call, resolvePath, tokens, pager, meta }: {
   return (
     <HoverPreviewHeader tokens={tokens} icon={meta ? "Image" : <RowIcon name={toolIconName(call.tool)} color={tokens.foregroundMuted} />}
       iconLabel={summarizeTool(call).verb}
-      center={pager && meta ? <View style={styles.previewCenter}>{pager}{meta}</View> : pager ?? meta}>
+      left={pager} center={meta}>
       <View style={styles.previewActions}>
         <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />
       </View>
@@ -591,8 +591,6 @@ const styles = StyleSheet.create({
   // Above the body after it, so a button's name hangs over the code header.
   pager: { flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-start", zIndex: 1 },
   pagerLabel: { fontSize: TYPE.caption.size, minWidth: 36, textAlign: "center", fontVariant: ["tabular-nums"] },
-  // A merged row of pictures: the pager, then the size of the one on view.
-  previewCenter: { flexDirection: "row", alignItems: "center", gap: space.md },
   previewActions: {
     flexDirection: "row",
     justifyContent: "flex-end",
