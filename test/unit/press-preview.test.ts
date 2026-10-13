@@ -349,6 +349,22 @@ describe("wrapping lines in the long-press preview", () => {
     act(() => renderer.unmount());
   });
 
+  it("keeps a command's line breaks in the native text, with stripes on", () => {
+    // The UITextView takes its text from its child runs only; a bare string
+    // beside them never reaches it, and every line ran into the next.
+    const lines = classifyTool({ name: "Bash", status: "completed", detail: {
+      type: "shell", command: "cat ids.txt", output: "short line one\nprofiles_ids=a,b\nshort line three\n",
+    } });
+    const renderer = render(React.createElement(ToolCallout, { data: lines, tokens, compact: true }));
+    act(() => row(renderer).props.onLongPress());
+    const runs = (node: ReactTestInstance): string => node.children.map((child) => typeof child === "string" ? ""
+      : (child.type as unknown) === "RNUITextViewChild" ? String(child.props.text) : runs(child)).join("");
+    const output = panel(renderer).findAll((node) => (node.type as unknown) === "RNUITextView")
+      .map(runs).find((text) => text.includes("profiles_ids"));
+    expect(output).toBe("short line one\nprofiles_ids=a,b\nshort line three");
+    act(() => renderer.unmount());
+  });
+
   it("wraps again when the preview reopens", () => {
     const renderer = render(React.createElement(ToolCallout, { data: shell, tokens, compact: true }));
     act(() => row(renderer).props.onLongPress());
