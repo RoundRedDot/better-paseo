@@ -49,7 +49,7 @@ export function createBenchProvider(): ProviderRegistration {
   return {
     id: "bc-bench",
     label: "BC Bench Replay",
-    description: "DEV ONLY: replays recorded stream fixtures for Beautiful Chat performance baselines. Prompt: `fixture:<name> speed:<n>` or `list`.",
+    description: "DEV ONLY: replays recorded stream fixtures for Better Paseo performance baselines. Prompt: `fixture:<name> speed:<n>` or `list`.",
     async connect(request) {
       if (!request.versions.includes(1)) throw new Error("Provider protocol version 1 is required");
       return createConnection(negotiateProviderCapabilities(request.capabilities, CAPABILITIES));

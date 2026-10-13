@@ -2,7 +2,7 @@ import type { EmbeddedFontFace } from "../../shared/font-rpc";
 import { EMBEDDED_FAMILY, type TypographyPlatform } from "../ui/tokens/typography";
 import type { EnhancerPreferences } from "../preferences";
 
-const STYLE_ELEMENT_ID = "beautiful-chat-fonts";
+const STYLE_ELEMENT_ID = "better-paseo-fonts";
 
 /**
  * Host faces to try if the embedded bytes ever fail to decode. These belong in

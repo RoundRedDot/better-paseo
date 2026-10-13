@@ -70,7 +70,7 @@ const CHECK_LINE =
 /** A search hit as the op prints it: `path/to/file.ts:12: const x = 1`. */
 const SEARCH_LINE = /^([\w./\\-]+\.[\w]+):(\d+):/;
 
-/** `#125 Add beautiful-chat`, or the number inside a pull-request URL. */
+/** `#125 Add better-paseo`, or the number inside a pull-request URL. */
 const PR_LINE = /(?:^|\s)#(\d+)\b\s*(.*)$/;
 const PR_URL = /\/pull\/(\d+)\b/;
 

@@ -17,7 +17,7 @@ function heapBytes(): number | null {
 
 export const perfSlashCommand: PluginClientSlashCommandContribution = {
   name: "bc-perf",
-  description: "Beautiful Chat perf probes (debug)",
+  description: "Better Paseo perf probes (debug)",
   argumentHint: "on | off | reset | dump [label]",
   context: "agent",
   async onSubmit(context) {
@@ -49,11 +49,11 @@ export const perfSlashCommand: PluginClientSlashCommandContribution = {
             snapshot: perfSnapshot(),
           },
         });
-        console.info("[beautiful-chat] perf dump", result);
+        console.info("[better-paseo] perf dump", result);
         return;
       }
       default:
-        console.info("[beautiful-chat] /bc-perf on | off | reset | dump [label]");
+        console.info("[better-paseo] /bc-perf on | off | reset | dump [label]");
     }
   },
 };

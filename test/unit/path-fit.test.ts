@@ -81,8 +81,8 @@ describe("budgetForWidth", () => {
 describe("shownPath", () => {
   const relative = { displayPath: "server/handlers/response-handler.ts", label: null, suffix: ":12" };
   const secondary = {
-    displayPath: "beautiful-chat/docs/plans/2026-10-11-ui-ux-rendering-upgrade.md",
-    label: "beautiful-chat",
+    displayPath: "better-paseo/docs/plans/2026-10-11-ui-ux-rendering-upgrade.md",
+    label: "better-paseo",
     suffix: "",
   };
 
@@ -95,7 +95,7 @@ describe("shownPath", () => {
 
   it("keeps a secondary root's label when the path still has room", () => {
     const out = shownPath(secondary, 60, true);
-    expect(out.label).toBe("beautiful-chat");
+    expect(out.label).toBe("better-paseo");
     expect(out.label!.length + 1 + out.text.length).toBeLessThanOrEqual(60);
     expect(out.text.endsWith("2026-10-11-ui-ux-rendering-upgrade.md")).toBe(true);
   });
@@ -109,7 +109,7 @@ describe("shownPath", () => {
 
   it("keeps the fixed-budget behaviour when not measured", () => {
     const out = shownPath(secondary, 24, false);
-    expect(out.label).toBe("beautiful-chat");
+    expect(out.label).toBe("better-paseo");
     expect(out.text).toBe("…/2026-10-11-ui-ux-rendering-upgrade.md");
   });
 });
@@ -135,8 +135,8 @@ describe("ellipsis cells", () => {
 
   it("drops a label before it would cut the file name", () => {
     const secondary = {
-      displayPath: "beautiful-chat/docs/plans/2026-10-11-ui-ux-rendering-upgrade.md",
-      label: "beautiful-chat",
+      displayPath: "better-paseo/docs/plans/2026-10-11-ui-ux-rendering-upgrade.md",
+      label: "better-paseo",
       suffix: "",
     };
     // 41 cells: the label leaves 26, too few for "…/2026-…-upgrade.md" (39).

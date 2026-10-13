@@ -1,6 +1,6 @@
 # Stream fixtures
 
-Deterministic recordings of agent streams, used to benchmark Beautiful Chat's rendering under
+Deterministic recordings of agent streams, used to benchmark Better Paseo's rendering under
 identical load on every platform (desktop, web dev, iOS simulator, Android emulator).
 
 Two consumers read them:

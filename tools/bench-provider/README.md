@@ -5,9 +5,9 @@ Instead of calling a model it replays one of the recorded streams in
 [`test/fixtures/streams`](../../test/fixtures/streams/README.md) through the real
 provider -> daemon -> client path, with the recorded timing. Every client (Paseo desktop, web dev
 build, iOS simulator, Android emulator) therefore renders the exact same stream, which is what
-the Beautiful Chat performance baselines need.
+the Better Paseo performance baselines need.
 
-It is never shipped with Beautiful Chat: it has its own `package.json`, is not referenced from the
+It is never shipped with Better Paseo: it has its own `package.json`, is not referenced from the
 root package, and is installed only into an isolated bench daemon.
 
 Everything below uses an isolated daemon home, `~/.paseo-bench`, port `6868`. **Never** point
@@ -74,20 +74,20 @@ paseo --home "$H" plugin logs bc-bench              # compile/runtime errors
 ```
 
 Remove it with `paseo --home "$H" plugin remove bc-bench`. Touch no other plugin in the bench
-daemon: the `beautiful-chat` plugin there belongs to whoever is measuring the UI.
+daemon: the `better-paseo` plugin there belongs to whoever is measuring the UI.
 
-## 3. Install a Beautiful Chat build into the bench daemon
+## 3. Install a Better Paseo build into the bench daemon
 
-Beautiful Chat is also a directory plugin; install the checkout you want to measure (its manifest
+Better Paseo is also a directory plugin; install the checkout you want to measure (its manifest
 build runs `npm ci --include=dev`):
 
 ```bash
-paseo --home "$H" plugin install /path/to/beautiful-chat    # e.g. a worktree
-paseo --home "$H" plugin reload beautiful-chat              # after changing its code
+paseo --home "$H" plugin install /path/to/better-paseo    # e.g. a worktree
+paseo --home "$H" plugin reload better-paseo              # after changing its code
 ```
 
-Only one `beautiful-chat` plugin can be installed per daemon, so to measure another build point
-the plugin at the new path (`plugin remove beautiful-chat`, then install again) - coordinate with
+Only one `better-paseo` plugin can be installed per daemon, so to measure another build point
+the plugin at the new path (`plugin remove better-paseo`, then install again) - coordinate with
 whoever else uses the bench daemon.
 
 ## 4. Run a fixture

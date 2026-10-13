@@ -1,4 +1,4 @@
-# Beautiful Chat
+# Better Paseo
 
 A Paseo plugin that redraws the Oh My Pi (OMP) chat stream: tool calls, reasoning, prompts, approvals,
 and checklists. It replaces the host rendering of OMP timeline items with typed, syntax-aware cards
@@ -13,10 +13,10 @@ them.
 ## Install
 
 ```bash
-paseo plugin install RoundRedDot/beautiful-chat
+paseo plugin install RoundRedDot/better-paseo
 ```
 
-The manifest requires Paseo `>=0.8.0`. Open **Settings → Plugins → Beautiful Chat** for the
+The manifest requires Paseo `>=0.8.0`. Open **Settings → Plugins → Better Paseo** for the
 accent, fonts, row layout, and prompt bubble options.
 
 This repository is a fork of [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat)
@@ -207,7 +207,7 @@ The bar searches only messages the chat has loaded. Scroll up first to include o
 **Enhanced prompt bubble** is off by default, so prompts already use Paseo's find. To keep
 Paseo's native search for replies as well, which also searches unloaded history, turn off
 **Assistant markdown** (and **Enhanced prompt bubble**, if you turned it on) in **Settings ->
-Plugins -> Beautiful Chat**. Paseo then draws replies and prompts itself, and Ctrl/Cmd+F opens
+Plugins -> Better Paseo**. Paseo then draws replies and prompts itself, and Ctrl/Cmd+F opens
 Paseo's find instead of the plugin's bar.
 New messages follow the change.
 Tool, reasoning, and checklist cards keep the plugin's styling, so Paseo's find still cannot reveal a
@@ -308,7 +308,7 @@ timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurfac
 ## Project structure
 
 ```text
-beautiful-chat/
+better-paseo/
   paseo-plugin.json          # Manifest: id and Paseo requirement
   index.client.tsx           # Timeline transformers, renderers, settings screen
   index.server.ts            # Daemon-side RPCs (file.reveal, file.image, highlight.tokens, fonts.embedded, marks.bitmaps)
@@ -338,7 +338,7 @@ npm install
 npm run typecheck
 npm test
 npm run check:hermes
-paseo plugin reload beautiful-chat
+paseo plugin reload better-paseo
 ```
 
 ### Hermes check

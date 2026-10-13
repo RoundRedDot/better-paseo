@@ -145,11 +145,28 @@ export function monoChoiceUpdate(choice: MonoChoice): Partial<EnhancerPreference
  * (and, before fix round 1 of S5, the store itself). The daemon is the
  * source of truth on every platform; see `shared/preferences-settings.ts`.
  */
-export const STORAGE_KEY = "paseo/beautiful-chat/preferences/v2";
+export const STORAGE_KEY = "paseo/better-chat/preferences/v2";
 /** Read once, to migrate; never written again. */
-export const LEGACY_STORAGE_KEY = "paseo/beautiful-chat/preferences/v1";
+export const LEGACY_STORAGE_KEY = "paseo/better-chat/preferences/v1";
 /** Set once this client's local record has been offered to the daemon. */
-export const MIGRATED_KEY = "paseo/beautiful-chat/preferences/migrated-to-daemon";
+export const MIGRATED_KEY = "paseo/better-chat/preferences/migrated-to-daemon";
+/** Keys from before the plugin id changed. Copied forward on the first read. */
+const PREVIOUS_STORAGE_KEY = "paseo/beautiful-chat/preferences/v2";
+const PREVIOUS_LEGACY_STORAGE_KEY = "paseo/beautiful-chat/preferences/v1";
+const PREVIOUS_MIGRATED_KEY = "paseo/beautiful-chat/preferences/migrated-to-daemon";
+
+function readKey(store: PreferenceStorage | undefined, key: string, previous: string): string | null {
+  const current = store?.getItem(key);
+  if (current) return current;
+  const old = store?.getItem(previous);
+  if (!old) return null;
+  try {
+    store?.setItem(key, old);
+  } catch {
+    // Storage can refuse writes; the old value still holds this session.
+  }
+  return old;
+}
 
 export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   accent: "host",
@@ -230,9 +247,9 @@ export function migrateV1Preferences(raw: unknown): EnhancerPreferences {
  */
 export function readStoredPreferences(store: PreferenceStorage | undefined): EnhancerPreferences {
   try {
-    const stored = store?.getItem(STORAGE_KEY);
+    const stored = readKey(store, STORAGE_KEY, PREVIOUS_STORAGE_KEY);
     if (stored) return parsePreferences(JSON.parse(stored));
-    const legacy = store?.getItem(LEGACY_STORAGE_KEY);
+    const legacy = readKey(store, LEGACY_STORAGE_KEY, PREVIOUS_LEGACY_STORAGE_KEY);
     if (!legacy) return { ...DEFAULT_PREFERENCES };
     const migrated = migrateV1Preferences(JSON.parse(legacy));
     try {
@@ -315,8 +332,8 @@ export function applyStoredPreferences(values: StoredPreferences): void {
 export function legacyLocalPreferences(): StoredPreferences | null {
   const store = storage();
   try {
-    if (!store || store.getItem(MIGRATED_KEY)) return null;
-    if (!store.getItem(STORAGE_KEY) && !store.getItem(LEGACY_STORAGE_KEY)) return null;
+    if (!store || readKey(store, MIGRATED_KEY, PREVIOUS_MIGRATED_KEY)) return null;
+    if (!readKey(store, STORAGE_KEY, PREVIOUS_STORAGE_KEY) && !readKey(store, LEGACY_STORAGE_KEY, PREVIOUS_LEGACY_STORAGE_KEY)) return null;
   } catch {
     return null;
   }

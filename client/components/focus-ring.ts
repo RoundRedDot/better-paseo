@@ -1,6 +1,6 @@
 import type { ViewProps } from "react-native";
 
-const STYLE_ELEMENT_ID = "beautiful-chat-focus-ring";
+const STYLE_ELEMENT_ID = "better-paseo-focus-ring";
 
 /** Set on every element this plugin draws a surface from (`data-bcroot`). */
 export const PLUGIN_ROOT_ATTRIBUTE = "data-bcroot";
