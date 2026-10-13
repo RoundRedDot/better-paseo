@@ -94,6 +94,13 @@ export function toolIconName(tool: ToolKind): string {
 /** A row icon by name: the host's Lucide set, or a brand bitmap for `brand:*`. */
 export { RowIcon };
 
+/** The host's plan-card titles (`agentStream.permission.*Plan`). */
+const PLAN_OUTCOME_TITLE: Record<NonNullable<ToolCallView["planOutcome"]>, string> = {
+  approved: "Approved plan",
+  rejected: "Rejected plan",
+  canceled: "Canceled plan",
+};
+
 /** `exit 1`, `failed`: the meta entries a failure colours (S7: only these and the icon turn danger). */
 const FAILURE_META = /^(exit [1-9]\d*|failed|error|timed out)$/;
 
@@ -1155,12 +1162,18 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
         </View>
       )}
 
-      {data.tool === "plan" &&
-        (data.text ? (
-          <MarkdownView text={data.text} tokens={tokens} variant="compact" />
-        ) : (
-          <Text style={styles.silentText}>The plan is empty.</Text>
-        ))}
+      {/* The body and its preview show no row, so a verdict leads with the
+          host's own plan-card title. */}
+      {data.tool === "plan" && (
+        <View style={styles.section}>
+          {data.planOutcome ? <Text style={styles.sectionTitle}>{PLAN_OUTCOME_TITLE[data.planOutcome]}</Text> : null}
+          {data.text ? (
+            <MarkdownView text={data.text} tokens={tokens} variant="compact" />
+          ) : (
+            <Text style={styles.silentText}>The plan is empty.</Text>
+          )}
+        </View>
+      )}
 
       {/* Tool output as text (a task notification, an ACP or Codex result):
           commands and logs far more often than prose, so it is set in the

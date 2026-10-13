@@ -1,0 +1,40 @@
+import { describe, expect, it } from "vitest";
+import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
+import { transformToolCall } from "../../client/tools/transform";
+
+function item(extra: Partial<ToolCallTimelineItem> = {}): ToolCallTimelineItem {
+  return {
+    type: "tool_call",
+    callId: "c1",
+    name: "plan_approval",
+    status: "completed",
+    error: null,
+    detail: { type: "plan", text: "# Ship it" },
+    ...extra,
+  } as ToolCallTimelineItem;
+}
+
+function data(input: ToolCallTimelineItem, phase: "streaming" | "complete" = "complete") {
+  return transformToolCall({ item: input, phase })?.items[0]?.data as Record<string, unknown> | undefined;
+}
+
+describe("tool_call transformer", () => {
+  it("carries a plan's verdict, and no other metadata", () => {
+    expect(data(item({ metadata: { approved: false, sessionId: "s", big: { x: 1 } } }))).toEqual({
+      name: "plan_approval",
+      status: "completed",
+      detail: { type: "plan", text: "# Ship it" },
+      callId: "c1",
+      error: null,
+      phase: "complete",
+      approved: false,
+    });
+    expect(data(item({ metadata: { approved: true } }))?.approved).toBe(true);
+    expect(data(item({ metadata: { approved: "yes" } }))).not.toHaveProperty("approved");
+    expect(data(item())).not.toHaveProperty("approved");
+  });
+
+  it("keeps a canceled status as the host reported it", () => {
+    expect(data(item({ status: "canceled", metadata: {} }))?.status).toBe("canceled");
+  });
+});

@@ -9,7 +9,7 @@ import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
 import { followPreference } from "./client/state/follow-preference";
 import { perfSlashCommand } from "./client/debug/perf-command";
-import { toolErrorText } from "./client/tools/error-text";
+import { transformToolCall } from "./client/tools/transform";
 import { embeddedFontsRpc } from "./shared/font-rpc";
 import { markBitmapsRpc } from "./shared/mark-rpc";
 import { setMarkLoader } from "./client/components/marks";
@@ -59,26 +59,7 @@ export default function contribute(client: PluginClientContext) {
   const removeToolTransformer = client.addTimelineTransformer({
     id: "omp-enhanced-tool-call",
     query: { itemType: "tool_call" },
-    transform({ item, phase }) {
-      if (item.type !== "tool_call") return undefined;
-      return {
-        items: [
-          {
-            type: "plugin" as const,
-            kind: "omp-tool-call",
-            version: 1,
-            data: {
-              name: item.name,
-              status: item.status,
-              detail: toJsonValue(item.detail),
-              ...(item.callId ? { callId: item.callId } : {}),
-              error: toolErrorText(item.error),
-              phase,
-            },
-          },
-        ],
-      };
-    },
+    transform: transformToolCall,
   });
 
   const removeToolRenderer = client.addTimelineRenderer({
@@ -91,6 +72,7 @@ export default function contribute(client: PluginClientContext) {
       callId: z.string().optional(),
       error: z.string().nullable().optional(),
       phase: z.string().optional(),
+      approved: z.boolean().optional(),
     }),
     Component: LiveToolCallRenderer,
   });

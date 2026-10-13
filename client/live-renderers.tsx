@@ -63,6 +63,7 @@ export interface LiveToolCallPayload {
   callId?: string;
   error?: string | null;
   phase?: string;
+  approved?: boolean;
 }
 
 export interface LiveReasoningPayload {
