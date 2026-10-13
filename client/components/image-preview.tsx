@@ -13,8 +13,7 @@ import { useScrollAnchor } from "../ui/scroll-anchor";
 import { useCopy } from "../ui/use-copy";
 import { UI_SCALE } from "../ui/tokens/typography";
 import { ToolbarCopyButton } from "../ui/toolbar-button";
-import { SelectableText } from "../ui/prose-text";
-import { selectionCodeText } from "./selection-actions";
+import { PreviewPath } from "../ui/command-band";
 import {
   HoverPreview,
   HoverPreviewBody,
@@ -96,6 +95,39 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function imageChips(file: ImageFile | null): string[] {
+  const chips: string[] = [];
+  if (file?.width && file.height) chips.push(`${file.width} × ${file.height}`);
+  if (file?.bytes) chips.push(formatBytes(file.bytes));
+  return chips;
+}
+
+/** A picture's size and weight, as the card's header and a preview's toolbar show them. */
+export function ImageMeta({ file, tokens }: { file: ImageFile | null; tokens: ExtendedThemeTokens }) {
+  const chips = imageChips(file);
+  if (chips.length === 0) return null;
+  const chip = {
+    fontFamily: tokens.fontUi,
+    fontSize: UI_SCALE.base,
+    fontVariant: ["tabular-nums" as const],
+    color: tokens.foregroundMuted,
+    ...unselectable,
+  };
+  return (
+    <View style={metaStyles.chips}>
+      {chips.map((text) => (
+        <Text key={text} selectable={false} style={chip}>
+          {text}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
+const metaStyles = StyleSheet.create({
+  chips: { flexDirection: "row", alignItems: "center", gap: space.sm, flexShrink: 0 },
+});
+
 /**
  * A read of an image, drawn as the image.
  *
@@ -159,14 +191,6 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
           alignItems: "center",
           justifyContent: "center",
         },
-        chips: { flexDirection: "row", alignItems: "center", gap: space.sm, flexShrink: 0 },
-        chip: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          fontVariant: ["tabular-nums"],
-          color: tokens.foregroundMuted,
-          ...unselectable,
-        },
         eye: {
           alignItems: "center",
           justifyContent: "center",
@@ -185,6 +209,11 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
           backgroundColor: tokens.surface0,
           borderBottomLeftRadius: radiusV2.block,
           borderBottomRightRadius: radiusV2.block,
+        },
+        // In a preview the card has no header: the canvas is the whole card.
+        canvasAlone: {
+          borderTopLeftRadius: radiusV2.block,
+          borderTopRightRadius: radiusV2.block,
         },
         // The press target carries the frame and hugs the picture, so the
         // letterboxed sides of a narrow image stay plain background.
@@ -213,10 +242,6 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
       }),
     [tokens],
   );
-
-  const chips: string[] = [];
-  if (file?.width && file.height) chips.push(`${file.width} × ${file.height}`);
-  if (file?.bytes) chips.push(formatBytes(file.bytes));
 
   // A fixed height clamped by the column instead keeps its full height on a
   // phone and letterboxes a wide image above and below.
@@ -270,30 +295,31 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
 
   return (
     <View style={[styles.container, bleed && styles.bleed, fillsPreview && styles.containerFill]}>
-      {/* The path inside the header must not open a second layer. */}
-      <HoverPreviewContext.Provider value={previewOwner || previews}>
-        <Pressable
-          ref={headerRef}
-          accessibilityRole={toggle ? "button" : undefined}
-          accessibilityLabel={toggle ? `${shown ? "Hide" : "Show"} the image ${path}` : undefined}
-          accessibilityState={toggle ? { expanded: shown } : undefined}
-          disabled={!toggle}
-          onPressIn={toggle ? anchor.hold : undefined}
-          onPress={toggle}
-          onLongPress={longPress}
-          style={({ pressed }) => [
-            styles.header,
-            file?.dataUri && !shown && styles.headerAlone,
-            pressed && toggle && { backgroundColor: tokens.v2.surface2 },
-          ]}
-        >
-          <View style={styles.slot}>
-            <Glyph name="Image" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-          </View>
-          {/* Relative to the workspace, middle-truncated. On touch the path is
-              part of the header's press, as a row's target is (plan §3.9).
-              A preview panel already shows the whole path above the card. */}
-          {preview ? null : (
+      {/* In a preview panel the path sits above the card and the size in the
+          panel's toolbar, so the card is the picture alone. The path inside
+          the header must not open a second layer. */}
+      {preview ? null : (
+        <HoverPreviewContext.Provider value={previewOwner || previews}>
+          <Pressable
+            ref={headerRef}
+            accessibilityRole={toggle ? "button" : undefined}
+            accessibilityLabel={toggle ? `${shown ? "Hide" : "Show"} the image ${path}` : undefined}
+            accessibilityState={toggle ? { expanded: shown } : undefined}
+            disabled={!toggle}
+            onPressIn={toggle ? anchor.hold : undefined}
+            onPress={toggle}
+            onLongPress={longPress}
+            style={({ pressed }) => [
+              styles.header,
+              file?.dataUri && !shown && styles.headerAlone,
+              pressed && toggle && { backgroundColor: tokens.v2.surface2 },
+            ]}
+          >
+            <View style={styles.slot}>
+              <Glyph name="Image" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+            </View>
+            {/* Relative to the workspace, middle-truncated. On touch the path is
+                part of the header's press, as a row's target is (plan §3.9). */}
             <View pointerEvents={touchFirst ? "none" : "auto"} style={styles.path}>
               <PathText
                 path={path}
@@ -302,31 +328,23 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
                 style={{ fontSize: UI_SCALE.base }}
               />
             </View>
-          )}
-          <View style={styles.spacer} />
-          <View style={styles.chips}>
-            {chips.map((chip) => (
-              <Text key={chip} style={styles.chip}>
-                {chip}
-              </Text>
-            ))}
-          </View>
-          {toggle ? (
-            <View style={styles.eye}>
-              <Glyph name={shown ? "Eye" : "EyeOff"} size={14} color={tokens.foregroundMuted} />
-            </View>
-          ) : null}
-        </Pressable>
-      </HoverPreviewContext.Provider>
+            <View style={styles.spacer} />
+            <ImageMeta file={file} tokens={tokens} />
+            {toggle ? (
+              <View style={styles.eye}>
+                <Glyph name={shown ? "Eye" : "EyeOff"} size={14} color={tokens.foregroundMuted} />
+              </View>
+            ) : null}
+          </Pressable>
+        </HoverPreviewContext.Provider>
+      )}
       {hover.open && file?.dataUri ? (
         <HoverPreview preview={hover} tokens={tokens} wraps={false}>
-          <HoverPreviewHeader tokens={tokens}>
+          <HoverPreviewHeader tokens={tokens} icon="Image" center={<ImageMeta file={file} tokens={tokens} />}>
             <ToolbarCopyButton text={absolutePath} icon="Link" tokens={tokens} label="Copy path" />
           </HoverPreviewHeader>
           <HoverPreviewBody>
-            <SelectableText {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>
-              {absolutePath}
-            </SelectableText>
+            <PreviewPath path={absolutePath} tokens={tokens} />
             <ImagePreview path={path} file={file} tokens={tokens} preview onView={() => setViewing(true)} />
           </HoverPreviewBody>
         </HoverPreview>
@@ -337,7 +355,7 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
       ) : file.dataUri === null ? (
         <Text style={styles.message}>{file.error ?? "The image could not be read."}</Text>
       ) : shown && picture ? (
-        <View style={[styles.canvas, fillsPreview && styles.canvasFill]}>
+        <View style={[styles.canvas, preview && styles.canvasAlone, fillsPreview && styles.canvasFill]}>
           {fillsPreview ? (
             <Pressable
               accessibilityRole="button"

@@ -193,3 +193,44 @@ describe("a maximized image preview", () => {
     act(() => renderer.unmount());
   });
 });
+
+/** Every string drawn under a node. */
+function textsIn(node: ReactTestInstance): string[] {
+  return node.findAll((child) => (child.type as unknown) === "Text")
+    .flatMap((child) => React.Children.toArray(child.props.children))
+    .filter((child): child is string => typeof child === "string");
+}
+
+describe("an image preview's chrome", () => {
+  function expectChrome(panel: ReactTestInstance) {
+    // An image glyph at the toolbar's left edge says what the panel shows.
+    const icon = panel.findByProps({ testID: "hover-preview-icon" });
+    expect(icon.findAll((node) => node.props.name === "Image").length).toBeGreaterThan(0);
+    // The size and weight sit in the middle of the toolbar, and only there.
+    const center = panel.findByProps({ testID: "hover-preview-center" });
+    expect(textsIn(center)).toEqual(["940 × 1542", "210 KB"]);
+    const body = panel.findByProps({ testID: "hover-preview-body" });
+    expect(textsIn(body)).not.toContain("940 × 1542");
+    // The path is set on the command band: a fill and a rule at the left.
+    const path = body.find((node) => (node.type as unknown) === "Text" && node.props.children === "/tmp/shot.png");
+    const band = flat(hostParent(path).props.style);
+    expect(band).toMatchObject({ backgroundColor: tokens.v2.surface2, borderLeftWidth: 2, borderLeftColor: tokens.row.meta });
+  }
+
+  it("puts the icon and size in the toolbar and the path on the command band", () => {
+    const renderer = render(React.createElement(ImagePreview, { path: "/tmp/shot.png", file, tokens }));
+    openPreview();
+    expectChrome(panelOf(renderer));
+    act(() => renderer.unmount());
+  });
+
+  it("does the same for an image read's floating preview", () => {
+    const data = classifyTool({
+      name: "Read", status: "completed", detail: { type: "read", filePath: "/tmp/shot.png", content: "" },
+    });
+    const renderer = render(React.createElement(ToolCallout, { data, tokens, imageFile: file }));
+    openPreview();
+    expectChrome(panelOf(renderer));
+    act(() => renderer.unmount());
+  });
+});
