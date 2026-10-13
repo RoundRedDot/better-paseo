@@ -5,14 +5,27 @@ import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/react-native", () => ({ Icon: "Icon" }));
-const state = vi.hoisted(() => ({ hover: true }));
+const state = vi.hoisted(() => ({
+  hover: true,
+  onLinesFit: undefined as ((fits: boolean) => void) | undefined,
+  bindRowHover: vi.fn(() => () => {}),
+}));
 vi.mock("../../client/ui/use-input-capabilities", () => ({ useInputCapabilities: () => ({
   hover: state.hover,
   native: ["ios", "android"].includes((globalThis as { __rnMockOS?: string }).__rnMockOS ?? ""),
-}) }));
-vi.mock("../../client/web", () => ({ bindPreviewPointer: () => () => {}, openPreviewLayer: () => () => {} }));
+}), noteHover: vi.fn() }));
+vi.mock("../../client/web", () => ({
+  bindRowHover: state.bindRowHover,
+  bindPreviewPointer: () => () => {},
+  openPreviewLayer: (_node: unknown, _anchor: unknown, _close: unknown, options: { onLinesFit(fits: boolean): void }) => {
+    state.onLinesFit = options.onLinesFit;
+    return () => {};
+  },
+}));
 import { HoverPreview, HoverPreviewBody, HoverPreviewContext, HoverPreviewHeader, PREVIEW_CLOSE_MS, PREVIEW_OPEN_MS, useHoverPreview } from "../../client/ui/hover-preview";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
+import { TOOLBAR_TOOLTIP_MS } from "../../client/ui/toolbar-button";
+import { StyleSheet } from "./helpers/rn-mock";
 import { HOVER_DELAYS, HOVER_DELAY_MS, getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -31,6 +44,8 @@ beforeEach(() => {
   vi.useFakeTimers();
   resetEnhancerPreferences();
   state.hover = true;
+  state.onLinesFit = undefined;
+  state.bindRowHover.mockClear();
   (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
 });
 afterEach(() => {
@@ -210,17 +225,68 @@ describe("line wrap in the desktop preview", () => {
     foreground: "#111", foregroundMuted: "#666", accent: "#00f", accentForeground: "#fff",
     statusSuccess: "#198754", statusWarning: "#a36a00", statusDanger: "#d92d20" });
   let own!: ReturnType<typeof useHoverPreview>;
-  function Panel() {
+  function Panel({ wraps = true, paged = true }: { wraps?: boolean; paged?: boolean }) {
     own = useHoverPreview(true);
-    const header = React.createElement(HoverPreviewHeader, { tokens, icon: React.createElement("ToolIcon"), left: React.createElement("Pager"), children: React.createElement("Toolbar") });
-    const body = React.createElement(HoverPreviewBody, { children: React.createElement("Text", null, "a long line") });
-    return React.createElement(HoverPreview, { preview: { ...own, open: true }, tokens, children: [header, body] });
+    const header = React.createElement(HoverPreviewHeader, { key: "header", tokens, icon: React.createElement("ToolIcon"), left: paged ? React.createElement("Pager") : undefined, children: React.createElement("Toolbar") });
+    const body = React.createElement(HoverPreviewBody, { key: "body", children: React.createElement("Text", null, "a long line") });
+    return React.createElement(HoverPreview, { preview: { ...own, open: true }, tokens, wraps, children: [header, body] });
   }
   const button = () => renderer.root.find((node) => (node.type as unknown) === "Pressable" &&
     ["Do not wrap lines", "Wrap lines"].includes(node.props.accessibilityLabel));
   const icon = () => button().find((node) => (node.type as unknown) === "Icon").props.name;
   const sideways = () => renderer.root.findAll((node) =>
     (node.type as unknown) === "Animated.ScrollView" && node.props.horizontal === true);
+
+  it("keeps a disabled wrap slot before a newly added pager and retains its hover name", () => {
+    act(() => { renderer = TestRenderer.create(React.createElement(Panel, { paged: false })); });
+    const original = button();
+    const size = StyleSheet.flatten(original.props.style);
+    act(() => state.onLinesFit!(true));
+    expect(button()).toBe(original);
+    expect(button().props.disabled).toBe(true);
+    expect(button().props.accessibilityState).toEqual({ disabled: true, checked: true });
+    expect(button().props.onPress).toBeUndefined();
+    expect(StyleSheet.flatten(button().props.style)).toMatchObject({ width: size.width, height: size.height, opacity: 0.35 });
+
+    // Exercise the outer DOM hover binding, independent of the disabled Pressable.
+    const [, enter, leave] = state.bindRowHover.mock.calls.at(-1)! as unknown as [unknown, () => void, () => void];
+    act(() => enter());
+    act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
+    expect(renderer.root.findAll((node) => (node.type as unknown) === "Text" && node.props.children === "Do not wrap lines")).toHaveLength(1);
+    act(() => leave());
+    expect(renderer.root.findAll((node) => (node.type as unknown) === "Text" && node.props.children === "Do not wrap lines")).toHaveLength(0);
+
+    act(() => renderer.update(React.createElement(Panel, { paged: true })));
+    expect(button()).toBe(original);
+    const start = renderer.root.findByProps({ testID: "hover-preview-start" });
+    const [wrap, pager] = start.find((node) => (node.type as unknown) === "View").children as TestRenderer.ReactTestInstance[];
+    expect(wrap!.findAll((node) => node === original)).toHaveLength(1);
+    expect(StyleSheet.flatten(original.parent!.parent!.props.style).flexShrink).toBe(0);
+    expect(pager!.type as unknown).toBe("Pager");
+    act(() => state.onLinesFit!(false));
+    expect(button()).toBe(original);
+    expect(button().props.disabled).toBe(false);
+    act(() => button().props.onPress());
+    expect(icon()).toBe("AlignLeft");
+  });
+
+  it("preserves the unwrapped choice when short content disables the toggle", () => {
+    updateEnhancerPreferences({ previewWrap: false });
+    act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
+    act(() => state.onLinesFit!(true));
+    expect(button().props.disabled).toBe(true);
+    expect(icon()).toBe("AlignLeft");
+    expect(sideways()).toHaveLength(1);
+    act(() => state.onLinesFit!(false));
+    expect(button().props.disabled).toBe(false);
+    expect(icon()).toBe("AlignLeft");
+  });
+
+  it("omits the wrap toggle for non-text previews", () => {
+    act(() => { renderer = TestRenderer.create(React.createElement(Panel, { wraps: false })); });
+    expect(renderer.root.findAll((node) => (node.type as unknown) === "Pressable" &&
+      ["Do not wrap lines", "Wrap lines"].includes(node.props.accessibilityLabel))).toHaveLength(0);
+  });
 
   it("wraps by default and scrolls sideways once wrap is turned off, also when maximized", () => {
     act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
