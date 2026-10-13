@@ -84,7 +84,7 @@ describe("Markdown table copy", () => {
         && (node.children[0] === label || node.children[0] === copied));
       expect(labels()).toHaveLength(0);
       expect(StyleSheet.flatten(buttons()[0]!.props.style)).toMatchObject({
-        width: 30, height: 30, borderWidth: 1, borderRadius: 7, borderColor: tokens.v2.border,
+        width: 30, height: 30, borderWidth: 1, borderRadius: 12, borderColor: tokens.v2.border,
       });
       act(() => { buttons()[0]!.props.onHoverIn(); });
       // The frame's edge stays light on hover: only the fill marks it.
