@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
@@ -16,6 +16,13 @@ const TOOLTIP_SLOT = 240;
 
 /** Which edge of the button its name lines up with, so one at a panel edge stays inside it. */
 export type TooltipAlign = "start" | "center" | "end";
+
+/**
+ * The alignment for the buttons of one group, set by whoever knows which
+ * edge the group sits against: a name centred under the last button of a
+ * right-aligned group would be cut off by the panel.
+ */
+export const TooltipAlignContext = createContext<TooltipAlign>("center");
 
 interface ToolbarButtonProps {
   icon: string;
@@ -42,8 +49,10 @@ export function ToolbarButton({
   disabled = false,
   checked,
   color,
-  align = "center",
+  align: alignProp,
 }: ToolbarButtonProps) {
+  const groupAlign = useContext(TooltipAlignContext);
+  const align = alignProp ?? groupAlign;
   const { hovered, hoverProps } = useHover();
   const [named, setNamed] = useState(false);
   useEffect(() => {
