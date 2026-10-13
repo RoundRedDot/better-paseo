@@ -6,7 +6,7 @@
 
 ![Better Paseo 绘制的一轮对话：提问、读文件、完成的后台任务和回复](images/hero.png)
 
-> Better Paseo fork 自 [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat)，从 `42b61d8`（2026-09-23）接着开发。Beautiful Chat 原有的卡片都还在；本文介绍这个 fork 新增的功能和它的性能表现。
+> Better Paseo fork 自 [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat)，从 `42b61d8`（2026-09-23）接着开发。除 Eval、Ask、Task 和审批卡片外，Beautiful Chat 原有的卡片都还在；当前的 Paseo 不会把这几类内容交给插件（见[兼容性](#兼容性)）。本文介绍这个 fork 新增的功能和它的性能表现。
 
 ## 亮点
 
@@ -22,7 +22,7 @@
 paseo plugin install RoundRedDot/better-paseo
 ```
 
-需要 Paseo `>=0.8.0`，开发与测量基于 Paseo 0.11.2。在 **设置 → 插件 → Better Paseo** 中配置。Paseo 从 GitHub 安装插件，更新到新版本：
+需要 Paseo `>=0.8.0`，开发与测量基于 Paseo 0.11.2。在 Paseo 0.8–0.10 上可以使用，但有部分兼容问题，见[兼容性](#兼容性)。在 **设置 → 插件 → Better Paseo** 中配置。Paseo 从 GitHub 安装插件，更新到新版本：
 
 ```bash
 paseo plugin update better-paseo
@@ -114,11 +114,7 @@ iOS 模拟器开发版上（每次运行前冷启动），单次提交里所有�
 
 大部分卡片读取的是 Paseo 交给每个插件的工具明细，所以不论调用来自哪个 agent 都能使用：读、写、编辑、Shell 和 Git 命令、搜索、抓取网页、子 agent、计划、MCP 调用（兼容 Claude 的 `mcp__server__tool`、Codex 的 `server.tool` 和 Oh My Pi 的 `server / tool` 三种写法），以及 Paseo 自己的工具。Paseo 以纯文本形式交来的调用，画成「标题 + 正文」的卡片。
 
-少数卡片按工具名识别，对应的是 Oh My Pi 的工具，其他 agent 不会发出这些调用：
-
-- `hub` 和 GitHub 设备调用在各个 Paseo 版本上都有专门卡片。
-- **Eval** 和 **Ask** 卡片绘制带原始参数到达的 `eval`、`ask` 调用，Paseo 0.10 及以前就是这样。从 0.11 起，Paseo 在交给插件之前就把这两种调用转成了纯文本，代码单元和回答选项都已丢失，所以显示为纯文本卡片。
-- **Task** 卡片绘制带原始参数的 `task` 调用。Paseo 自带的 Oh My Pi provider 会把 `task` 转成子 agent 条目，因此显示为子 agent 卡片。
+Oh My Pi 的 `hub` 工具和它的 GitHub 设备调用按工具名识别，有专门的卡片；其他 agent 不会发出这些调用。Paseo 0.11 会把 Oh My Pi 的 `eval`、`ask` 以纯文本、把 `task` 以子 agent 条目交给插件，所以它们分别显示为纯文本卡片和子 agent 卡片。
 
 - 每个调用默认是一条无边框的行，桌面 26pt、触控 28pt，摘要按类型生成：命令、路径和行号范围、编辑的 `+4 −2`、退出码和耗时。点一下展开卡片。
 - 展开状态按调用（`agentId:callId`）记在组件之外，完成、滚进历史、重新挂载都不会丢。iOS 上展开时行头留在按下的位置，内容向下打开。
@@ -135,12 +131,9 @@ iOS 模拟器开发版上（每次运行前冷启动），单次提交里所有�
 | ![Edit 工具调用](docs/images/tool-edit.png) | ![Hub 工具调用（Oh My Pi）](docs/images/hub.png) |
 
 <details>
-<summary>更多卡片：MCP、Paseo 工具、读图、代码块、<code>thinking</code> 工具，以及上文所述的 Eval、Ask、Task 卡片</summary>
+<summary>更多卡片：MCP、Paseo 工具、读图、代码块、<code>thinking</code> 工具</summary>
 
 ![MCP 工具调用](docs/images/tool-mcp.png)
-![Eval 工具调用](docs/images/tool-eval.png)
-![Ask 工具调用](docs/images/tool-ask.png)
-![Task 工具调用](docs/images/tool-task.png)
 ![Paseo 工具调用](docs/images/paseo.png)
 ![思考工具调用](docs/images/tool-thinking.png)
 ![读图](docs/images/tool-image.png)
@@ -252,6 +245,13 @@ Paseo 自带的聊天查找（Ctrl/Cmd+F）定位不到插件绘制的行，因�
 | 改了设置，之前的消息没变 | 重新加载聊天；转换后的条目有缓存。 |
 | 旧的一轮对话没有 token 数字 | 用量不保存在时间线条目上，只有本客户端实时看到的轮次才显示。 |
 | 推送了修复，但界面没变化 | 运行 `paseo plugin update better-paseo`；Paseo 运行的是 GitHub 上的版本。 |
+
+## 兼容性
+
+Better Paseo 以 Paseo 0.11 及以后的版本为目标。在 Paseo 0.8–0.10 上可以安装并绘制时间线，但有以下已知问题：
+
+- 在这些版本上，Oh My Pi 的 `eval` 和 `ask` 调用以原工具名到达插件，而不是 Paseo 0.11 转换后的纯文本，而 Better Paseo 没有对应的卡片。它们会显示为通用卡片：工具名、原始参数和原始结果。
+- 宿主缺少某项能力时，插件按[等待 Paseo 支持的改动](#等待-paseo-支持的改动)中的方式回退；这些回退只在 0.11.2 上测过。
 
 ## 等待 Paseo 支持的改动
 

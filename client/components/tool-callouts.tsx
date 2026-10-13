@@ -67,13 +67,8 @@ export function toolIconName(tool: ToolKind): string {
       return "Pencil";
     case "thinking":
       return "Lightbulb";
-    case "eval":
-      return "Play";
-    case "ask":
-      return "CircleHelp";
     case "mcp":
       return "Plug";
-    case "task":
     case "sub_agent":
       return "Bot";
     case "hub":
@@ -204,9 +199,8 @@ export function ToolCallout({
 
   const running = groupCalls ? groupCalls.some((call) => call.status === "running") : data.status === "running";
   const failed = data.status === "failed" || summary.tone === "danger";
-  // A finished call steps behind the prose; a question still waiting for the
-  // reader does not.
-  const tone = running ? (data.tool === "ask" ? "loud" : "active") : "quiet";
+  // A finished call steps behind the prose.
+  const tone = running ? "active" : "quiet";
   const statusIcon = running ? (
     <RunningDot color={tokens.accent} />
   ) : (
@@ -512,14 +506,12 @@ const COPY_ICON: Record<CopyActionId, string> = {
   log: "ScrollText",
   description: "MessageSquareText",
   prompt: "FileText",
-  question: "CircleHelp",
   // The body itself: what the reader most often wants, under the plain copy icon.
   content: "Copy",
   "new-content": "Copy",
   output: "Copy",
   result: "Copy",
   text: "Copy",
-  answer: "Copy",
 };
 
 /**
@@ -772,7 +764,6 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
     data.tool === "read" ||
     data.tool === "write" ||
     data.tool === "edit" ||
-    data.tool === "eval" ||
     data.tool === "search" ||
     data.tool === "fetch" ||
     data.tool === "worktree_setup" ||
@@ -781,8 +772,6 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
     data.tool === "plain_text" ||
     data.tool === "unknown" ||
     (data.tool === "mcp" && Boolean(data.mcp)) ||
-    (data.tool === "ask" && Boolean(data.askOptions)) ||
-    (data.tool === "task" && Boolean(data.subagent)) ||
     (data.tool === "hub" && Boolean(data.hub)) ||
     (data.tool === "paseo" && Boolean(data.paseo));
 
@@ -791,17 +780,6 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
   // shell sentence.
   const isShellCall = data.tool === "bash" || data.tool === "shell";
   const command = data.shell?.command || data.command;
-
-  // A reply that matches no offered label is free text the user typed, so it
-  // is labelled as such rather than pretending an option was picked.
-  const answered = data.askAnswer ?? [];
-  const typedReply =
-    answered.length > 0 &&
-    !answered.some((answer) =>
-      (data.askOptions ?? []).some(
-        (option) => option.label.trim().toLowerCase() === answer.trim().toLowerCase(),
-      ),
-    );
 
   // A hover preview must expose the whole file without another disclosure.
   // The regular code block deliberately batches and folds long files.
@@ -965,87 +943,6 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
         />
       )}
 
-      {data.tool === "eval" && (
-        <View style={styles.section}>
-          {(
-            data.cells ?? [
-              { code: data.code || "", language: data.language || "typescript", output: data.output },
-            ]
-          ).map((cell, idx) => (
-            <View key={idx} style={styles.section}>
-              {cell.code ? (
-                <SyntaxHighlightBlock
-            bare
-                  code={cell.code}
-                  language={cell.language}
-                  filename={cell.title || "Persistent Kernel Cell"}
-                  tokens={tokens}
-                  showLineNumbers
-                  compact
-                />
-              ) : null}
-              {cell.output ? (
-                <View style={styles.terminalWindow}>
-                  <Text style={styles.sectionTitle}>stdout</Text>
-                  <SelectableText {...selectionCodeText} style={styles.terminalOutput}>
-                    {renderTerminalOutput(cell.output, tokens)}
-                  </SelectableText>
-                </View>
-              ) : null}
-            </View>
-          ))}
-        </View>
-      )}
-
-      {data.tool === "ask" && data.askOptions && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {answered.length > 0 ? "Options offered" : "Waiting for a decision"}
-          </Text>
-          {data.askOptions.map((opt) => {
-            // The answer is whatever the tool reported, so a label match
-            // marks the chosen row. A typed reply matches nothing and is
-            // shown on its own line below.
-            const isChosen = answered.some(
-              (answer) => answer.trim().toLowerCase() === opt.label.trim().toLowerCase(),
-            );
-            return (
-              <View key={opt.id} style={[styles.askOption, isChosen && styles.askOptionChosen]}>
-                <View style={styles.askOptionText}>
-                  <View style={styles.inlineRow}>
-                    <SelectableText style={[styles.askOptionLabel, isChosen && styles.strong]}>
-                      {opt.label}
-                    </SelectableText>
-                    {opt.recommended ? <Text style={styles.metaText}>recommended</Text> : null}
-                  </View>
-                  {opt.description ? (
-                    <SelectableText style={styles.mutedText}>
-                      {opt.description}
-                    </SelectableText>
-                  ) : null}
-                </View>
-                <Glyph
-                  name={isChosen ? "CheckCircle" : "Circle"}
-                  size={14}
-                  color={isChosen ? tokens.foreground : tokens.foregroundMuted}
-                />
-              </View>
-            );
-          })}
-          {answered.length > 0 ? (
-            <View style={styles.inlineRow}>
-              <Text style={styles.sectionTitle}>{typedReply ? "typed" : "answered"}</Text>
-              <SelectableText style={[styles.plainText, styles.strong]}>
-                {answered.join(", ")}
-              </SelectableText>
-            </View>
-          ) : null}
-        </View>
-      )}
-
-      {data.tool === "task" && data.subagent && (
-        <SubagentBatch batch={data.subagent} running={isRunning} tokens={tokens} />
-      )}
       {data.tool === "hub" && data.hub && <HubCallout data={data.hub} tokens={tokens} embedded />}
       {data.tool === "paseo" && data.paseo && <PaseoToolCallout data={data.paseo} tokens={tokens} />}
 
@@ -1254,9 +1151,6 @@ interface BodyStyles {
   fileRow: ViewStyle;
   webRow: ViewStyle;
   terminalWindow: ViewStyle;
-  askOption: ViewStyle;
-  askOptionChosen: ViewStyle;
-  askOptionText: ViewStyle;
   terminalOutput: TextStyle;
   commandLine: TextStyle;
   commandBand: ViewStyle;
@@ -1269,7 +1163,6 @@ interface BodyStyles {
   mutedColor: TextStyle;
   promptColor: TextStyle;
   metaText: TextStyle;
-  askOptionLabel: TextStyle;
   strong: TextStyle;
 }
 
@@ -1288,16 +1181,6 @@ function useBodyStyles(tokens: ExtendedThemeTokens, compact: boolean): BodyStyle
         terminalWindow: {
           gap: space.xs,
         },
-        askOption: {
-          flexDirection: "row",
-          alignItems: "center",
-          gap: space.sm,
-          paddingHorizontal: space.sm,
-          paddingVertical: 6,
-          borderRadius: radiusV2.block,
-        },
-        askOptionChosen: { backgroundColor: tokens.v2.surface1 },
-        askOptionText: { flex: 1, gap: 2 },
         terminalOutput: {
           fontFamily: tokens.fontMono,
           fontSize: tokens.typography.mono.size,
@@ -1353,212 +1236,9 @@ function useBodyStyles(tokens: ExtendedThemeTokens, compact: boolean): BodyStyle
           fontVariant: ["tabular-nums"],
           ...unselectable,
         },
-        askOptionLabel: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.md,
-          color: tokens.foreground,
-        },
         strong: { fontWeight: "600" },
       }),
     [tokens, compact],
   );
 }
 
-/** The agent type always shows; the status only once the batch reports one. */
-function SubagentChips({
-  agent,
-  tokens,
-  styles,
-}: {
-  agent: { agentType: string; status?: string };
-  tokens: ExtendedThemeTokens;
-  styles: SubagentStyles;
-}) {
-  const status = agent.status;
-  // Status reads as coloured text, never a filled badge (plan §3.6).
-  const color =
-    status === "failed" ? tokens.danger : status === "running" ? tokens.accent : tokens.foregroundMuted;
-  return (
-    <>
-      <Text selectable style={styles.chip}>
-        {agent.agentType}
-      </Text>
-      {status ? (
-        <Text selectable style={[styles.chip, { color }]}>
-          {status}
-        </Text>
-      ) : null}
-    </>
-  );
-}
-
-/**
- * One `task` call spawns a batch, so the card reads as a roster: one row per
- * brief, every brief clamped to two lines, and the shared preamble folded away
- * until it is asked for. A brief runs to hundreds of words, and six of them
- * printed whole would bury the rest of the transcript.
- */
-function SubagentBatch({
-  batch,
-  running,
-  tokens,
-}: {
-  batch: NonNullable<ToolCallView["subagent"]>;
-  running: boolean;
-  tokens: ExtendedThemeTokens;
-}) {
-  const [contextOpen, setContextOpen] = useState(false);
-  const styles = useSubagentStyles(tokens);
-
-  const agents = batch.agents;
-  const count = agents.length;
-  // A batch of one is a single delegation rather than a list, so its name
-  // leads and the row below carries the brief on its own.
-  const only = count === 1 ? agents[0] : undefined;
-  const headline = only ? only.name : count === 0 ? "subagents" : `${count} subagents`;
-  const pending =
-    count === 0
-      ? "spawning subagents…"
-      : count === 1
-        ? "spawning 1 subagent…"
-        : `spawning ${count} subagents…`;
-
-  return (
-    <View style={styles.batch}>
-      <View style={styles.head}>
-        <Text selectable style={styles.headline} numberOfLines={1}>
-          {headline}
-        </Text>
-        {only ? <SubagentChips agent={only} tokens={tokens} styles={styles} /> : null}
-      </View>
-
-      {batch.context ? (
-        <View style={styles.contextBox}>
-          <Pressable
-            onPress={() => setContextOpen((previous) => !previous)}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: contextOpen }}
-            style={styles.contextToggle}
-          >
-            <Glyph
-              name={contextOpen ? "ChevronDown" : "ChevronRight"}
-              size={12}
-              color={tokens.foregroundMuted}
-            />
-            <Text style={styles.contextLabel}>shared context</Text>
-          </Pressable>
-          <Text selectable style={styles.contextBody} numberOfLines={contextOpen ? undefined : 2}>
-            {batch.context}
-          </Text>
-        </View>
-      ) : null}
-
-      {agents.map((agent, index) => (
-        <View key={`${agent.name}-${index}`} style={styles.row}>
-          {only ? null : (
-            <View style={styles.rowHead}>
-              <Text selectable style={styles.name} numberOfLines={1}>
-                {agent.name}
-              </Text>
-              <SubagentChips agent={agent} tokens={tokens} styles={styles} />
-            </View>
-          )}
-          <Text selectable style={styles.brief} numberOfLines={2}>
-            {agent.task}
-          </Text>
-        </View>
-      ))}
-
-      {running ? (
-        <View style={styles.pending}>
-          <RunningDot color={tokens.accent} />
-          <Text style={styles.pendingText}>{pending}</Text>
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-interface SubagentStyles {
-  batch: ViewStyle;
-  head: ViewStyle;
-  contextBox: ViewStyle;
-  contextToggle: ViewStyle;
-  row: ViewStyle;
-  rowHead: ViewStyle;
-  pending: ViewStyle;
-  headline: TextStyle;
-  chip: TextStyle;
-  contextLabel: TextStyle;
-  contextBody: TextStyle;
-  name: TextStyle;
-  brief: TextStyle;
-  pendingText: TextStyle;
-}
-
-function useSubagentStyles(tokens: ExtendedThemeTokens): SubagentStyles {
-  return useMemo(
-    () =>
-      StyleSheet.create({
-        // No frame of its own: the expanded tool card is the only border.
-        batch: { gap: space.sm },
-        head: { flexDirection: "row", alignItems: "center", gap: 6 },
-        headline: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.md,
-          fontWeight: "600",
-          color: tokens.foreground,
-          flexShrink: 1,
-        },
-        chip: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          color: tokens.foregroundMuted,
-        },
-        contextBox: {
-          gap: space.xs,
-          padding: space.sm,
-          borderRadius: radiusV2.block,
-          backgroundColor: tokens.v2.surface1,
-        },
-        contextToggle: { flexDirection: "row", alignItems: "center", gap: 6 },
-        contextLabel: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          fontWeight: "500",
-          color: tokens.foregroundMuted,
-          ...unselectable,
-        },
-        contextBody: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          lineHeight: 17,
-          color: tokens.foregroundMuted,
-        },
-        row: { gap: 3 },
-        rowHead: { flexDirection: "row", alignItems: "center", gap: 6 },
-        name: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.md,
-          fontWeight: "600",
-          color: tokens.foreground,
-          flexShrink: 1,
-        },
-        brief: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          lineHeight: 16,
-          color: tokens.foregroundMuted,
-        },
-        pending: { flexDirection: "row", alignItems: "center", gap: 6 },
-        pendingText: {
-          fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          fontWeight: "500",
-          color: tokens.accent,
-          ...unselectable,
-        },
-      }),
-    [tokens],
-  );
-}

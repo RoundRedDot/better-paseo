@@ -10,8 +10,9 @@ active Paseo theme, and the whole timeline renders faster than Paseo does on its
 ![One turn drawn by Better Paseo: a prompt, a file read, a finished background job and the reply](images/hero.png)
 
 > Better Paseo is a fork of [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat),
-> continued from `42b61d8` (2026-09-23). Every card Beautiful Chat had is still here; this README
-> describes what the fork adds and how it performs.
+> continued from `42b61d8` (2026-09-23). It keeps Beautiful Chat's cards except the Eval, Ask,
+> Task and approval cards, which current Paseo never feeds a plugin (see
+> [Compatibility](#compatibility)). This README describes what the fork adds and how it performs.
 
 ## Highlights
 
@@ -34,8 +35,9 @@ active Paseo theme, and the whole timeline renders faster than Paseo does on its
 paseo plugin install RoundRedDot/better-paseo
 ```
 
-Paseo `>=0.8.0` is required; the plugin is developed and measured against Paseo 0.11.2. Open
-**Settings → Plugins → Better Paseo** to configure it. Paseo installs plugins from GitHub, so pull a
+Paseo `>=0.8.0` is required; the plugin is developed and measured against Paseo 0.11.2. On Paseo
+0.8–0.10 it works with some compatibility issues, listed under [Compatibility](#compatibility).
+Open **Settings → Plugins → Better Paseo** to configure it. Paseo installs plugins from GitHub, so pull a
 new version with:
 
 ```bash
@@ -171,14 +173,9 @@ call: reads, writes, edits, shell and Git commands, searches, fetches, sub-agent
 (in Claude's `mcp__server__tool`, Codex's `server.tool` and Oh My Pi's `server / tool` forms) and
 Paseo's own tools. Calls Paseo passes as plain text get a label-and-text card.
 
-A few cards are matched by tool name and serve Oh My Pi, which no other agent sends them for:
-
-- `hub` and the GitHub device calls have their own cards on every Paseo release.
-- **Eval** and **Ask** draw `eval` and `ask` calls that arrive with their arguments, as they do
-  up to Paseo 0.10. From 0.11 Paseo turns both into plain text before plugins see them, dropping
-  the code cells and the answer options, so they get the plain-text card.
-- **Task** draws a `task` call with its arguments. Paseo's own Oh My Pi provider sends `task` as a
-  sub-agent item instead, which gets the sub-agent card.
+Oh My Pi's `hub` tool and its GitHub device calls are matched by name and have cards of their
+own; no other agent sends them. Paseo 0.11 hands Oh My Pi's `eval` and `ask` to plugins as plain
+text and its `task` as a sub-agent item, so those get the plain-text and sub-agent cards.
 
 - Every call starts as one borderless row, 26pt on desktop and 28pt on touch, with a summary built
   for its type: the command, the path and line range, `+4 −2` for an edit, the exit code and
@@ -201,12 +198,9 @@ A few cards are matched by tool name and serve Oh My Pi, which no other agent se
 | ![Edit tool call](docs/images/tool-edit.png) | ![Hub tool calls](docs/images/hub.png) |
 
 <details>
-<summary>More cards: MCP, Paseo tools, image read, syntax block, a <code>thinking</code> tool, and the Eval, Ask and Task cards described above</summary>
+<summary>More cards: MCP, Paseo tools, image read, syntax block, a <code>thinking</code> tool</summary>
 
 ![MCP tool call](docs/images/tool-mcp.png)
-![Eval tool call](docs/images/tool-eval.png)
-![Ask tool call](docs/images/tool-ask.png)
-![Task tool call](docs/images/tool-task.png)
 ![Paseo tool call](docs/images/paseo.png)
 ![Thinking tool call](docs/images/tool-thinking.png)
 ![Image read](docs/images/tool-image.png)
@@ -364,6 +358,17 @@ open the daemon machine's file manager.
 | A settings change does not affect earlier messages | Reload the chat; transformed items are cached. |
 | Token figures are missing on an old turn | Usage is not stored on timeline items, so only turns this client watched live show it. |
 | Nothing changed after pushing a fix | Run `paseo plugin update better-paseo`; Paseo runs the GitHub version. |
+
+## Compatibility
+
+Better Paseo targets Paseo 0.11 and later. It installs and draws the timeline on Paseo 0.8–0.10,
+with these known issues:
+
+- Oh My Pi's `eval` and `ask` calls reach plugins under their own names there, not as the plain
+  text Paseo 0.11 sends, and Better Paseo has no card for them. They show as a generic card: the
+  tool name, its raw arguments and its raw result.
+- Where a host ability is missing, the plugin falls back as described under
+  [Waiting on Paseo](#waiting-on-paseo); the fallbacks were measured on 0.11.2 only.
 
 ## Waiting on Paseo
 
