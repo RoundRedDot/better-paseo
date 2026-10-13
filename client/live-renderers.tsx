@@ -31,7 +31,7 @@ import { AssistantFooter } from "./components/turn-footer";
 import { SystemCard } from "./components/system-card";
 import { parseSystemEnvelope } from "./system-envelope";
 import { useIsTimelineTail, useTextItemTailKey } from "./timeline-tail";
-import { useHasEntryAfter, useNextEntryIsRow, useTimelineEntry } from "./timeline-order";
+import { useHasEntryAfter, useNextEntryIsRow, useTimelineEntry, useTimelineToolGroup } from "./timeline-order";
 import type { TaskListData, TaskItemData, NoticeCalloutData } from "../shared/contracts";
 import { revealPathRpc } from "../shared/file-rpc";
 import { isImagePath, useImageFile } from "./image-file";
@@ -95,6 +95,8 @@ export const ROW_GAP_COMPENSATION = 12;
 
 const rowGapStyles = StyleSheet.create({
   compensated: { marginBottom: -ROW_GAP_COMPENSATION },
+  // Empty plugin slots still carry the host's full 16pt bottom margin.
+  grouped: { marginBottom: -16 },
 });
 
 function LiveToolCallRendererBody({
@@ -125,10 +127,10 @@ function LiveToolCallRendererBody({
   }
   const at = arrivalRef.current.at;
   const itemKey = `tool:${data.callId ?? view.title}:${at}`;
-  useTimelineEntry(agentId, at, "tool");
   // Not the tail: a thought takes no part in it, and a call with a thought
   // below it kept its gap as if it were the newest row.
-  const anythingBelow = useHasEntryAfter(agentId, at, "tool");
+  const { group, anythingBelow } = useTimelineToolGroup(agentId, at, view);
+  const groupFailed = group?.some((call) => call.status === "failed") ?? false;
 
   // The daemon side owns the shell, so revealing a file is one RPC. Paths
   // arrive absolute (PathText resolves them); a path the daemon cannot stat
@@ -162,7 +164,7 @@ function LiveToolCallRendererBody({
   // history (a remount) and the call completing (plan §3.3 item 1).
   const [expanded, setExpanded] = useDisclosure(
     toolDisclosureKey(agentId, view),
-    defaultToolExpanded(view, preferences.toolDetail),
+    defaultToolExpanded(groupFailed ? { ...view, status: "failed" } : view, preferences.toolDetail),
   );
 
   // Only a read or write of an image that is open, or has been previewed or
@@ -181,21 +183,26 @@ function LiveToolCallRendererBody({
     <View
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       {...probe.viewProps}
-      style={preferences.compactRowSpacing && anythingBelow ? rowGapStyles.compensated : undefined}
+      style={group === null ? rowGapStyles.grouped : preferences.compactRowSpacing && anythingBelow ? rowGapStyles.compensated : undefined}
     >
-      {probe.node}
-      <PreferenceSyncSlot />
-      <PathContext.Provider value={pathContext}>
-        <ToolCallout
-          data={view}
-          tokens={tokens}
-          compact={layout.compact}
-          expanded={expanded}
-          onExpandedChange={setExpanded}
-          imageFile={imageFile}
-          requestImage={readsImage ? markPreviewed : undefined}
-        />
-      </PathContext.Provider>
+      {group !== null ? (
+        <>
+          {probe.node}
+          <PreferenceSyncSlot />
+          <PathContext.Provider value={pathContext}>
+            <ToolCallout
+              data={view}
+              groupCalls={group.length > 1 ? group : undefined}
+              tokens={tokens}
+              compact={layout.compact}
+              expanded={expanded}
+              onExpandedChange={setExpanded}
+              imageFile={imageFile}
+              requestImage={readsImage ? markPreviewed : undefined}
+            />
+          </PathContext.Provider>
+        </>
+      ) : null}
       <TimelineTailHub
         agentId={agentId}
         tokens={tokens}

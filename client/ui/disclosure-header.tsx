@@ -134,6 +134,8 @@ export interface DisclosureHeaderProps {
    * itself (`flex: 1`, `minWidth: 0`).
    */
   target?: ReactNode;
+  /** Number of operations sharing this header; single calls have no badge. */
+  count?: number;
   /**
    * Right-aligned facts: "L10–80", "exit 0", "1.2s". All of them are spans of
    * one monospace Text, so a nested `Text` may colour one (`+4` in success).
@@ -220,6 +222,7 @@ export function DisclosureHeader({
   iconIsStatus = false,
   verb,
   target,
+  count,
   meta,
   metaLead,
   actions,
@@ -281,8 +284,8 @@ export function DisclosureHeader({
   // keeps its place, since it says more than the direction.
   const showChevron = (capabilities.hover && hovered) || (expanded && !iconIsStatus);
 
-  const label =
-    accessibilityLabel ?? (typeof target === "string" && target ? `${verb} ${target}` : verb);
+  const baseLabel = accessibilityLabel ?? (typeof target === "string" && target ? `${verb} ${target}` : verb);
+  const label = count && count > 1 ? `${baseLabel}, ${count} operations` : baseLabel;
   const budget = compact
     ? DISCLOSURE_HEADER.targetBudget.compact
     : DISCLOSURE_HEADER.targetBudget.desktop;
@@ -311,6 +314,14 @@ export function DisclosureHeader({
     );
 
   const metaEntries = meta?.filter((entry) => entry !== null && entry !== undefined && entry !== "") ?? [];
+  const countedTarget = count && count > 1 ? (
+    <View style={styles.countedTarget}>
+      <View style={styles.countedTitle}>{targetNode}</View>
+      <View style={[styles.countBadge, { backgroundColor: tokens.v2.surface2 }]}>
+        <Text selectable={false} style={[styles.countText, unselectable, { color: palette.meta, fontFamily: tokens.fontUi }]}>{count}</Text>
+      </View>
+    </View>
+  ) : targetNode;
   const metaText =
     metaEntries.length > 0 ? (
       <Text
@@ -384,11 +395,11 @@ export function DisclosureHeader({
               ) : null}
               {hoverActions ? (
                 <View style={styles.targetBox}>
-                  {targetNode ?? <View style={styles.fill} />}
+                  {countedTarget ?? <View style={styles.fill} />}
                   <View style={[styles.overlay, { backgroundColor: tokens.v2.surface1 }]}>{actions}</View>
                 </View>
               ) : (
-                targetNode
+                countedTarget
               )}
               {metaLead}
               {metaText}
@@ -405,6 +416,10 @@ export function DisclosureHeader({
 }
 
 const styles = StyleSheet.create({
+  countedTarget: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: space.xs },
+  countedTitle: { flexShrink: 1, minWidth: 0 },
+  countBadge: { width: 22, height: 22, borderRadius: 11, flexShrink: 0, alignItems: "center", justifyContent: "center" },
+  countText: { fontSize: 11, lineHeight: 14, fontVariant: ["tabular-nums"] },
   row: {
     flexDirection: "row",
     alignItems: "center",
