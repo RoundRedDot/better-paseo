@@ -1,6 +1,6 @@
 # Beautiful Chat UI/UX 与渲染架构升级 — 交付报告
 
-本文是 2026-10-11 交付时的记录（代码 `640dd9b`）。相对官方插件的当前差异和性能结论见 [`docs/fork-vs-upstream.md`](../fork-vs-upstream.md)。正文里「磨砂和光晕保留为可选开关」已在 S7 删除，不再是当前行为。
+本文是 2026-10-11 交付时的记录（代码 `640dd9b`）。相对 Beautiful Chat 的当前差异和性能结论见 [`docs/fork-vs-upstream.md`](../fork-vs-upstream.md)。正文里「磨砂和光晕保留为可选开关」已在 S7 删除，不再是当前行为。
 
 - 需求：`writing-block.md` v1.0（BC-01 ~ BC-14），交付结构按需求 §18
 - 方案：`docs/plans/2026-10-11-ui-ux-rendering-upgrade.md`
