@@ -80,6 +80,11 @@ export interface Elevation {
 
 export interface ExtendedThemeTokens {
   isDark: boolean;
+  /**
+   * The platform these tokens draw for: the running one, except in the
+   * settings page's mobile preview, which draws a phone's rows on the web.
+   */
+  platform: TypographyPlatform;
   /** `typography.mono.family`. */
   fontMono: string;
   /** The interface family, or undefined to set none; see `interfaceFamily`. */
@@ -314,6 +319,7 @@ export function buildThemeTokens(
 
   return {
     isDark,
+    platform,
     fontMono: typography.mono.family,
     fontUi: interfaceFamily(typography, preferences.uiFont, platform),
     typography,
