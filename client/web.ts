@@ -3,6 +3,7 @@ import { PLUGIN_ROOT_ATTRIBUTE } from "./components/focus-ring";
 import { PREVIEW_LIMIT } from "./ui/press-preview-placement";
 import { SELECTION_BAR_SELECTOR } from "./components/selection-actions";
 import { FLOAT_EASE } from "./ui/tokens/float";
+import { radiusV2 } from "./components/theme-tokens";
 
 /** The selection bar floats outside a preview but acts on its text, so it counts as part of it. */
 function onSelectionBar(target: EventTarget | null): boolean {
@@ -185,7 +186,9 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     if (body && options.onLinesFit) options.onLinesFit(linesFit(body));
   };
   measure();
-  if (!options.maximized) reveal(panel, below);
+  if (options.maximized) grow(panel, hoverRects.get(panel));
+  else reveal(panel, below);
+  hoverRects.delete(panel);
   // Content can grow while streaming or after syntax highlighting/fonts settle.
   const resizeObserver = new view.ResizeObserver(measure);
   resizeObserver.observe(panel);
@@ -242,6 +245,8 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     panel.ownerDocument.removeEventListener("keydown", onKey);
     resizeObserver.disconnect();
     mutationObserver.disconnect();
+    // Maximize re-lays out this same panel: the grow starts from where it was.
+    if (!options.maximized) hoverRects.set(panel, panel.getBoundingClientRect());
     panel.hidePopover();
   };
 }
@@ -261,6 +266,31 @@ function reveal(panel: HTMLElement, below: boolean): void {
   panel.animate(
     [{ opacity: 0, transform: `translateY(${from}px)` }, { opacity: 1, transform: "none" }],
     { duration: PREVIEW_REVEAL.ms, easing: FLOAT_EASE.out },
+  );
+}
+
+/** Where each hover panel last stood, until the layer that replaces it reads it. */
+const hoverRects = new WeakMap<HTMLElement, DOMRect>();
+
+/** Maximize: the panel's clip opens from its hover box to the whole panel. */
+export const PREVIEW_GROW = { ms: 200, shadow: 48 } as const;
+
+/**
+ * Lays the panel out at its maximized size at once, then opens a clip from the
+ * box it had while hovering. Nothing is scaled, so text never stretches, and
+ * layout runs once. The end of the clip reaches past the panel so its shadow
+ * comes in with it; with no fill, the clip is gone once played.
+ */
+function grow(panel: HTMLElement, from: DOMRect | undefined): void {
+  const view = panel.ownerDocument.defaultView!;
+  if (!from || typeof panel.animate !== "function" || view.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  const to = panel.getBoundingClientRect();
+  const inset = [from.top - to.top, to.right - from.right, to.bottom - from.bottom, from.left - to.left]
+    .map((side) => `${Math.max(0, side)}px`).join(" ");
+  const round = `round ${radiusV2.overlay}px`;
+  panel.animate(
+    [{ clipPath: `inset(${inset} ${round})` }, { clipPath: `inset(-${PREVIEW_GROW.shadow}px ${round})` }],
+    { duration: PREVIEW_GROW.ms, easing: FLOAT_EASE.out },
   );
 }
 

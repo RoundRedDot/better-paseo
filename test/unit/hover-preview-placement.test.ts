@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { bindPreviewPointer, dropSelectionIn, linesFit, openPreviewLayer, PREVIEW_REVEAL, scrollsWithin } from "../../client/web";
+import { bindPreviewPointer, dropSelectionIn, linesFit, openPreviewLayer, PREVIEW_GROW, PREVIEW_REVEAL, scrollsWithin } from "../../client/web";
 
 /** The system's reduce-motion setting and the anchor row's top, for the next `layer`. */
 let reduceMotion = false;
@@ -175,6 +175,47 @@ describe("hover preview entrance", () => {
     const reduced = layer(200, 700);
     expect(reduced.panel.animate).not.toHaveBeenCalled();
     reduced.release();
+  });
+});
+
+describe("maximizing a hover preview", () => {
+  /** Hovers, then maximizes the same panel, as the preview's re-render does. */
+  function maximize() {
+    const hover = layer(200, 700);
+    const { panel, anchor, close } = hover;
+    // The panel's box while hovering, then once maximized.
+    panel.getBoundingClientRect = vi.fn(() => ({ height: 360, top: 132, bottom: 492, left: 200, right: 900 }));
+    hover.release();
+    panel.getBoundingClientRect = vi.fn(() => ({ height: 704, top: 80, bottom: 784, left: 200, right: 900 }));
+    panel.animate.mockClear();
+    const release = openPreviewLayer(panel, anchor, close, { maximized: true });
+    return { panel, anchor, close, release };
+  }
+
+  it("opens a clip from the hover box to the maximized panel and its shadow", () => {
+    const { panel, release } = maximize();
+    expect(panel.animate).toHaveBeenCalledOnce();
+    const [frames, timing] = panel.animate.mock.calls[0]!;
+    expect(frames).toEqual([
+      { clipPath: "inset(52px 0px 292px 0px round 12px)" },
+      { clipPath: `inset(-${PREVIEW_GROW.shadow}px round 12px)` },
+    ]);
+    expect(timing).toEqual({ duration: PREVIEW_GROW.ms, easing: expect.any(String) });
+    release();
+  });
+  it("grows only from a hover box this panel just had", () => {
+    const { panel, anchor, close, release } = maximize();
+    release();
+    panel.animate.mockClear();
+    // Closing a maximized panel leaves no box behind for the next one.
+    openPreviewLayer(panel, anchor, close, { maximized: true })();
+    expect(panel.animate).not.toHaveBeenCalled();
+  });
+  it("jumps straight to its size when the system reduces motion", () => {
+    reduceMotion = true;
+    const { panel, release } = maximize();
+    expect(panel.animate).not.toHaveBeenCalled();
+    release();
   });
 });
 

@@ -4,7 +4,7 @@ import {
   type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle,
 } from "react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
-import { radiusV2, space } from "../components/theme-tokens";
+import { radiusV2, space, withAlpha } from "../components/theme-tokens";
 import { selectionSurface } from "../components/selection-actions";
 import { bindPreviewMaximize, bindPreviewPointer, dropSelectionIn, openPreviewLayer } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
@@ -218,6 +218,26 @@ function panelLook(tokens: ExtendedThemeTokens) {
 }
 
 /**
+ * The phone panel sits on a dimmed backdrop, which the host's opaque border
+ * is lighter than: the edge read as a pale halo. A device-pixel line of the
+ * foreground at low alpha darkens whatever is under it, so the edge stays a
+ * crisp line on the backdrop, and a tighter shadow keeps it from smearing.
+ */
+function pressLook(tokens: ExtendedThemeTokens) {
+  return {
+    backgroundColor: tokens.surface0,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: withAlpha(tokens.foreground, tokens.isDark ? 0.18 : 0.14),
+    boxShadow: cssShadow({
+      ...tokens.v2.elevation.overlay,
+      shadowOffset: { width: 0, height: 4 },
+      shadowRadius: 12,
+      shadowOpacity: tokens.isDark ? 0.3 : 0.12,
+    }),
+  };
+}
+
+/**
  * The long-press preview on iOS and Android: the web panel's contents in a
  * transparent modal, centred between the header and the composer and sized by
  * `pressPreviewFrame`.
@@ -266,7 +286,7 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
                 {...selectionSurface}
                 testID="hover-preview"
                 accessibilityViewIsModal
-                style={[styles.panel, styles.pressPanel, panelLook(tokens), frame ?? styles.hidden]}
+                style={[styles.panel, styles.pressPanel, pressLook(tokens), frame ?? styles.hidden]}
               >
                 {children}
               </View>
