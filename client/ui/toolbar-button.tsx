@@ -8,6 +8,8 @@ import { useCopy } from "./use-copy";
 import { useHover } from "./use-hover";
 import { UI_SCALE } from "./tokens/typography";
 import { cssShadow } from "./tokens/css-shadow";
+import { useEnhancerPreferences } from "../preferences";
+import { toolbarLabel } from "../i18n/toolbar-strings";
 
 /** How long a pointer rests on a button before its name shows. */
 export const TOOLBAR_TOOLTIP_MS = 400;
@@ -26,7 +28,7 @@ export const TooltipAlignContext = createContext<TooltipAlign>("center");
 
 interface ToolbarButtonProps {
   icon: string;
-  /** Accessibility label, and the name shown on hover. */
+  /** Accessibility label; shown on hover in the settings page's language. */
   label: string;
   onPress(): void;
   tokens: ExtendedThemeTokens;
@@ -52,6 +54,7 @@ export function ToolbarButton({
   align: alignProp,
 }: ToolbarButtonProps) {
   const groupAlign = useContext(TooltipAlignContext);
+  const preferences = useEnhancerPreferences();
   const align = alignProp ?? groupAlign;
   const { hovered, hoverProps } = useHover();
   const [named, setNamed] = useState(false);
@@ -92,7 +95,7 @@ export function ToolbarButton({
               numberOfLines={1}
               style={[styles.tooltipText, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}
             >
-              {label}
+              {toolbarLabel(label, preferences.language)}
             </Text>
           </View>
         </View>
