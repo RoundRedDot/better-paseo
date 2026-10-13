@@ -72,9 +72,52 @@ function render(text = SOURCE) {
 }
 
 /** Enough of a DOM element for the hover binding, tagged with its host's style. */
-function domNode(style: unknown) {
-  const events = { addEventListener() {}, removeEventListener() {} };
-  return { mock: style, ...events, ownerDocument: { ...events, defaultView: events } };
+type Listener = (event: { target: unknown }) => void;
+interface EventTargetMock {
+  listeners: Map<string, Set<Listener>>;
+  addEventListener(type: string, listener: Listener): void;
+  removeEventListener(type: string, listener: Listener): void;
+}
+interface DomNodeMock extends EventTargetMock {
+  mock: unknown;
+  ownerDocument: EventTargetMock & { defaultView: EventTargetMock };
+  style: { setProperty: ReturnType<typeof vi.fn> };
+  contains(other: unknown): boolean;
+}
+
+/** Enough of a DOM element for the hover and dismiss bindings, tagged with its host's style. */
+function domNode(style: unknown): DomNodeMock {
+  const doc = { ...target(), defaultView: target() };
+  const node: DomNodeMock = { mock: style, ...target(), ownerDocument: doc, style: { setProperty: vi.fn() },
+    contains: (other) => other === node };
+  nodes.push(node);
+  return node;
+}
+
+/** Listeners by event, so a test can scroll the page or touch somewhere. */
+function target(): EventTargetMock {
+  const listeners = new Map<string, Set<Listener>>();
+  return {
+    listeners,
+    addEventListener(type, listener) {
+      listeners.set(type, (listeners.get(type) ?? new Set()).add(listener));
+    },
+    removeEventListener(type, listener) {
+      listeners.get(type)?.delete(listener);
+    },
+  };
+}
+let nodes: DomNodeMock[] = [];
+
+/** Fires a document-wide event on every mocked window or document that listens. */
+function fire(on: "window" | "document", type: string, eventTarget: unknown = {}) {
+  const seen = new Set<unknown>();
+  for (const node of nodes) {
+    const host = on === "window" ? node.ownerDocument.defaultView : node.ownerDocument;
+    if (seen.has(host)) continue;
+    seen.add(host);
+    for (const listener of [...(host.listeners.get(type) ?? [])]) listener({ target: eventTarget });
+  }
 }
 
 function entries() {
@@ -95,6 +138,7 @@ function entry(label: string) {
 beforeEach(() => {
   mockOS.__rnMockOS = "web";
   capabilities.hover = true;
+  capabilities.touch = false;
   previousLanguage = getEnhancerPreferences().language;
   updateEnhancerPreferences({ language: "zh" });
 });
@@ -102,6 +146,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
+  nodes = [];
   delete mockOS.__rnMockOS;
   act(() => { updateEnhancerPreferences({ language: previousLanguage }); });
   copyText.mockClear();
@@ -215,11 +260,49 @@ describe("Markdown table copy menu", () => {
     expect(entry("Copy as image")).toBeDefined();
   });
 
-  it.each([
-    ["a touch-only web reader", () => { capabilities.hover = false; }],
-    ["native", () => { mockOS.__rnMockOS = "ios"; }],
-  ])("keeps the single Markdown button for %s", (_name, setup) => {
-    setup();
+  describe("on a touch screen", () => {
+    beforeEach(() => { capabilities.hover = false; capabilities.touch = true; });
+
+    it("copies the Markdown on a tap and stays a single button", async () => {
+      render();
+      await act(async () => { entry("Copy as Markdown").props.onPress(); });
+      expect(copyText).toHaveBeenCalledExactlyOnceWith(SOURCE);
+      // A hover a phone reports for a tap does not open it either.
+      act(() => { entry("Copied").props.onHoverIn(); });
+      expect(reachable()).toEqual(["Copied"]);
+    });
+
+    it("opens on a long press and closes when anything scrolls", () => {
+      render();
+      act(() => { entry("Copy as Markdown").props.onLongPress(); });
+      expect(reachable()).toEqual(["Copy as Markdown", "Copy as image"]);
+      act(() => { fire("window", "scroll"); });
+      expect(reachable()).toEqual(["Copy as Markdown"]);
+    });
+
+    it("stays open for a touch on itself and closes for a touch elsewhere", async () => {
+      render();
+      act(() => { entry("Copy as Markdown").props.onLongPress(); });
+      // The control listens for touches on its document while it is open.
+      const anchor = nodes.find((node) => (node.ownerDocument.listeners.get("pointerdown")?.size ?? 0) > 0);
+      expect(anchor).toBeDefined();
+      act(() => { fire("document", "pointerdown", anchor); });
+      expect(reachable()).toEqual(["Copy as Markdown", "Copy as image"]);
+      await act(async () => { entry("Copy as image").props.onPress(); });
+      expect(copyElementImage).toHaveBeenCalledTimes(1);
+      act(() => { fire("document", "pointerdown", {}); });
+      expect(reachable()).toEqual(["Copy as Markdown"]);
+    });
+
+    it("keeps iOS Safari's callout off a long press", () => {
+      render();
+      expect(nodes.some((node) => node.style.setProperty.mock.calls
+        .some(([name, value]) => name === "-webkit-touch-callout" && value === "none"))).toBe(true);
+    });
+  });
+
+  it("keeps the single Markdown button on native", () => {
+    mockOS.__rnMockOS = "ios";
     render();
     expect(entries().map((node) => node.props.accessibilityLabel)).toEqual(["Copy Markdown table"]);
   });

@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState, type RefObject } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../../theme-tokens";
@@ -14,16 +14,18 @@ import { ToolbarCopyButton } from "../../../ui/toolbar-button";
 import { UI_SCALE } from "../../../ui/tokens/typography";
 import { useEnhancerPreferences } from "../../../preferences";
 import { toolbarLabel } from "../../../i18n/toolbar-strings";
+import { bindTouchDismiss, suppressTouchCallout } from "../../../web";
 
 export const COPY_MARKDOWN_LABEL = "Copy as Markdown";
 export const COPY_IMAGE_LABEL = "Copy as image";
 
 /**
  * The copy control at a table's corner, a rounded square like the selection
- * bar's frame. A pointer on web opens it to the right into two entries, the Markdown source and a picture of the table as
- * drawn; the first sits where the icon was, so a click without a pause still
- * copies the Markdown. Touch and native keep the single button: they have no
- * hover to open it, and no DOM to draw the picture from.
+ * bar's frame. On web it opens to the right into two entries, the Markdown
+ * source and a picture of the table as drawn: under a pointer while hovered,
+ * on a touch screen after a long press. The first entry sits where the icon
+ * was, so a click or a tap without a pause still copies the Markdown. Native
+ * keeps the single button: it has no DOM to draw the picture from.
  */
 export function TableCopyMenu({ source, frame, tokens }: {
   /** The table's Markdown, read when pressed so a streaming table copies its latest rows. */
@@ -33,23 +35,34 @@ export function TableCopyMenu({ source, frame, tokens }: {
   tokens: ExtendedThemeTokens;
 }) {
   const { hover } = useInputCapabilities();
-  if (Platform.OS !== "web" || !hover || !canCopyImage()) {
+  if (Platform.OS !== "web" || !canCopyImage()) {
     return <ToolbarCopyButton text={source} tokens={tokens} label="Copy Markdown table" align="start" outlined />;
   }
-  return <HoverMenu source={source} frame={frame} tokens={tokens} />;
+  return <ExpandingMenu source={source} frame={frame} tokens={tokens} trigger={hover ? "hover" : "longPress"} />;
 }
 
-function HoverMenu({ source, frame, tokens }: {
+function ExpandingMenu({ source, frame, tokens, trigger }: {
   source: () => string;
   frame: RefObject<View | null>;
   tokens: ExtendedThemeTokens;
+  /** A pointer opens it by resting on it; touch by a long press, and a scroll or a touch elsewhere closes it. */
+  trigger: "hover" | "longPress";
 }) {
   const anchorRef = useRef<View>(null);
   // Bound to the whole control, so the pointer moving between entries keeps it open.
   const { hovered, hoverProps } = useHover(anchorRef);
-  // Keyboard focus opens it too, so Tab reaches the second entry.
+  // Keyboard focus opens it too, so Tab reaches the second entry. A tap also
+  // focuses a button on some phones, so touch leaves focus out.
   const [focused, setFocused] = useState(0);
-  const open = hovered || focused > 0;
+  const [pressedOpen, setPressedOpen] = useState(false);
+  const open = trigger === "hover" ? hovered || focused > 0 : pressedOpen;
+  useLayoutEffect(() => {
+    if (trigger === "longPress") suppressTouchCallout(anchorRef.current);
+  }, [trigger]);
+  useEffect(() => {
+    if (!pressedOpen) return;
+    return bindTouchDismiss(anchorRef.current, () => setPressedOpen(false));
+  }, [pressedOpen]);
   const reducedMotion = useReducedMotion();
   // The open width, measured from the row of entries, which is laid out at
   // its full size whether or not the frame shows it.
@@ -98,6 +111,7 @@ function HoverMenu({ source, frame, tokens }: {
           first
           motion={motion}
           onPress={copyMarkdown}
+          onLongPress={trigger === "longPress" ? () => setPressedOpen(true) : undefined}
           onHoverIn={hoverProps.onHoverIn}
           focus={focus}
           tokens={tokens}
@@ -125,7 +139,7 @@ function HoverMenu({ source, frame, tokens }: {
  * left, and the second entry, clipped away, is out of the tab order and
  * hidden from assistive tech.
  */
-function Entry({ icon, label, copied, open, first = false, motion, onPress, onHoverIn, focus, tokens }: {
+function Entry({ icon, label, copied, open, first = false, motion, onPress, onLongPress, onHoverIn, focus, tokens }: {
   icon: string;
   label: string;
   copied: boolean;
@@ -134,6 +148,7 @@ function Entry({ icon, label, copied, open, first = false, motion, onPress, onHo
   first?: boolean;
   motion: MenuMotion;
   onPress(): void;
+  onLongPress?: () => void;
   onHoverIn(): void;
   focus: { onFocus(): void; onBlur(): void };
   tokens: ExtendedThemeTokens;
@@ -157,6 +172,7 @@ function Entry({ icon, label, copied, open, first = false, motion, onPress, onHo
       aria-hidden={!reachable}
       focusable={reachable}
       onPress={onPress}
+      onLongPress={onLongPress}
       onHoverIn={() => {
         hoverProps.onHoverIn();
         onHoverIn();
