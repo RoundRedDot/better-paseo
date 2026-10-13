@@ -252,6 +252,26 @@ describe("preview line numbers and shading", () => {
   beforeEach(() => resetEnhancerPreferences());
   const line = tokens.typography.mono.lineHeight;
 
+  it("copies whole lines after holding the gutter and dragging, preserving indentation and empty lines", async () => {
+    vi.useFakeTimers();
+    updateEnhancerPreferences({ previewLineNumbers: true });
+    const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "first\n  second\n\nlast" } });
+    try {
+      await exercisePreview(React.createElement(ToolCallout, { data, tokens }), async (body) => {
+        const gutter = () => body.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "preview-line-numbers");
+        act(() => gutter().props.onResponderGrant({ nativeEvent: { locationY: line + 1, pageY: 100 } }));
+        act(() => { vi.advanceTimersByTime(400); });
+        act(() => gutter().props.onResponderMove({ nativeEvent: { pageY: 100 + line } }));
+        expect(body.root.findAllByProps({ testID: "preview-line-selection-menu" })).toHaveLength(0);
+        act(() => gutter().props.onResponderRelease());
+        await press(body, "Copy selected lines");
+        expect(clipboard.copyText).toHaveBeenCalledWith("  second\n");
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("shades every other line behind one text, with no numbers by default", () => {
     const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "one\ntwo\nthree\nfour\n" } });
     expect(previewLines(React.createElement(ToolCallout, { data, tokens }))).toEqual({

@@ -20,7 +20,9 @@ const SOURCES: CopySource[] = [
   { kind: "eval", code: "c", output: "o" },
 ];
 const TOOLBAR = ["Copied", "Couldn't copy", "Copy thought", "Copy section", "Copy reply", "Copy prompt", "Previous operation", "Next operation", "Wrap lines",
-  "Do not wrap lines", "Maximize preview", "Close preview"];
+  "Do not wrap lines", "Maximize preview", "Close preview",
+  // The selection bar's buttons and what they turn into after a press.
+  "Copy", "Add to chat", "Added", "Copied instead"];
 
 describe("toolbar hover names", () => {
   it("has a Chinese name for every copy and toolbar button", () => {
