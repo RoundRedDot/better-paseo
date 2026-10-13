@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   onLinesFit: undefined as ((fits: boolean) => void) | undefined,
   bindRowHover: vi.fn(() => () => {}),
   bindPreviewMaximize: vi.fn((_node: unknown, _maximize: () => void) => vi.fn()),
+  dropSelectionIn: vi.fn(),
 }));
 vi.mock("../../client/ui/use-input-capabilities", () => ({ useInputCapabilities: () => ({
   hover: state.hover,
@@ -18,6 +19,7 @@ vi.mock("../../client/ui/use-input-capabilities", () => ({ useInputCapabilities:
 vi.mock("../../client/web", () => ({
   bindRowHover: state.bindRowHover,
   bindPreviewMaximize: state.bindPreviewMaximize,
+  dropSelectionIn: state.dropSelectionIn,
   bindPreviewPointer: () => () => {},
   openPreviewLayer: (_node: unknown, _anchor: unknown, _close: unknown, options: { onLinesFit(fits: boolean): void }) => {
     state.onLinesFit = options.onLinesFit;
@@ -49,6 +51,7 @@ beforeEach(() => {
   state.onLinesFit = undefined;
   state.bindRowHover.mockClear();
   state.bindPreviewMaximize.mockClear();
+  state.dropSelectionIn.mockClear();
   (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
 });
 afterEach(() => {
@@ -349,6 +352,15 @@ describe("line wrap in the desktop preview", () => {
     act(() => { vi.advanceTimersByTime(PREVIEW_CLOSE_MS); });
     expect(own.open).toBe(true);
     expect(renderer.root.findByProps({ accessibilityLabel: "Expanded preview" })).toBeDefined();
+  });
+
+  it("drops a selection inside the panel when it closes, not when it maximizes", () => {
+    act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
+    act(() => own.maximize());
+    expect(own.maximized).toBe(true);
+    expect(state.dropSelectionIn).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+    expect(state.dropSelectionIn).toHaveBeenCalledOnce();
   });
 
   it.each(["ios", "android"])("does not offer toolbar double-click maximization on %s", (os) => {

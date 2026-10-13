@@ -3,7 +3,7 @@ import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, type La
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
 import { selectionSurface } from "../components/selection-actions";
-import { bindPreviewMaximize, bindPreviewPointer, openPreviewLayer } from "../web";
+import { bindPreviewMaximize, bindPreviewPointer, dropSelectionIn, openPreviewLayer } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { cssShadow } from "./tokens/css-shadow";
 import { DEFAULT_PREFERENCES, HOVER_DELAY_MS, useEnhancerPreferences } from "../preferences";
@@ -171,6 +171,11 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
       release();
     };
   }, [preview.anchorRef, preview.enter, preview.leave, preview.close, preview.maximized]);
+  // On closing only: Maximize re-renders this panel and keeps its selection.
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    return () => dropSelectionIn(panel);
+  }, []);
   return (
     <HoverPreviewContext.Provider value>
       <PreviewActionsContext.Provider value={{
