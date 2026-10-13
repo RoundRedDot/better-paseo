@@ -25,7 +25,7 @@ describe("copy controller", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("shows the check for 1.2 s after a successful icon copy", async () => {
+  it("shows the check for 1.2 s and a toast after a successful icon copy", async () => {
     const { controller, states, clipboard, toast } = setup();
     await expect(controller.copy("abc")).resolves.toBe(true);
     expect(clipboard).toHaveBeenCalledWith("abc");
@@ -34,7 +34,8 @@ describe("copy controller", () => {
     expect(states).toEqual([true]);
     vi.advanceTimersByTime(1);
     expect(states).toEqual([true, false]);
-    expect(toast.show).not.toHaveBeenCalled();
+    expect(toast.show).toHaveBeenCalledTimes(1);
+    expect(toast.show).toHaveBeenCalledWith(COPIED_MESSAGE);
   });
 
   it("toasts instead of checking for toast feedback", async () => {

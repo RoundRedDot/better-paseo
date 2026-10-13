@@ -19,7 +19,7 @@ const SOURCES: CopySource[] = [
   { kind: "ask", question: "q", answer: "a" },
   { kind: "eval", code: "c", output: "o" },
 ];
-const TOOLBAR = ["Copied", "Copy thought", "Previous operation", "Next operation", "Wrap lines",
+const TOOLBAR = ["Copied", "Couldn't copy", "Copy thought", "Previous operation", "Next operation", "Wrap lines",
   "Do not wrap lines", "Maximize preview", "Close preview"];
 
 describe("toolbar hover names", () => {

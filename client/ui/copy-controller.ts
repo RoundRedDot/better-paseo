@@ -2,6 +2,7 @@
  * The copy state machine behind `useCopy`, without React or the SDK, so it is
  * tested with fake timers and a fake clipboard.
  */
+/** `icon`: a toast and the button's check; `toast`: the toast alone, for entries with no icon. */
 export type CopyFeedback = "icon" | "toast";
 
 export const COPIED_MS = 1200;
@@ -51,10 +52,9 @@ export function createCopyController(deps: CopyControllerDeps): CopyController {
         return false;
       }
       if (disposed) return true;
-      if (feedback === "toast") {
-        deps.toast.show(COPIED_MESSAGE);
-        return true;
-      }
+      // Every copy confirms with a toast; a button also turns its icon into a check.
+      deps.toast.show(COPIED_MESSAGE);
+      if (feedback === "toast") return true;
       // A second copy restarts the 1.2 s rather than stacking timers.
       clear();
       deps.onCopiedChange(true);
