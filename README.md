@@ -168,7 +168,8 @@ The page groups the options as General, Appearance, Code font, Tool calls, Spaci
 Hover previews. A sample turn drawn with the timeline's own components follows every change: beside
 the options on a wide desktop window (the page lifts the 720pt cap Paseo puts on settings pages,
 up to 1440, and keeps the preview in view while the options scroll), above them elsewhere. Its rows
-open on a click and preview on hover or long press like real ones. An option whose parent is off
+open on a click, the Read row's hover preview is drawn open under it, and a preview opened by
+hovering a row stays within the sample. An option whose parent is off
 (Markdown style, the hover preview details) is dimmed, and Reset asks for a second press.
 
 | Setting                   | Effect                                                                                       |
@@ -187,7 +188,7 @@ open on a click and preview on hover or long press like real ones. An option who
 | Plugin markdown for replies | On by default. Draws headings, lists, tables, highlighted code, and local images. Off hands the reply to Paseo, which is what mermaid and the host's own images need. |
 | Markdown style            | Document, Compact, or Terminal (the body in the code face).                                  |
 | Selection toolbar         | Web and desktop. Highlighting text in a callout raises Copy and Add to chat.                 |
-| Hover previews            | Previews a collapsed row or a path on hover (desktop) or long press (phone). The delay is typed in seconds (0-10, default 1). Line wrap, line numbers and alternating shading show on an open sample panel under the options. |
+| Hover previews            | Previews a collapsed row or a path on hover (desktop) or long press (phone). The delay is typed in seconds (0-10, default 1). Line wrap, line numbers and alternating shading show on the sample Read row's preview, drawn open in the page preview. |
 
 Preferences are stored by the daemon, through the SDK's settings (`defineSettings` /
 `useSettings`, record `presentation` in `shared/preferences-settings.ts`). Host scope is the only

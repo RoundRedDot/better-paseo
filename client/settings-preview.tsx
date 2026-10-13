@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useContext, useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { ExtendedThemeTokens } from "./components/theme-tokens";
 import { radiusV2, space } from "./components/theme-tokens";
@@ -11,6 +11,7 @@ import { classifyTool, type ToolCallView } from "./tools/classify";
 import { defaultToolExpanded } from "./tools/disclosure";
 import { reasoningText, segmentReasoning } from "./reasoning/segment";
 import { formatPath, pathRootsFor } from "./paths/format-path";
+import { pluginRoot } from "./components/focus-ring";
 import { PathContext, type PathContextValue } from "./ui/path-text";
 import { PreviewPanelSample } from "./ui/hover-preview";
 import type { EnhancerPreferences } from "./preferences";
@@ -22,6 +23,11 @@ import type { SettingsStrings } from "./i18n/settings-strings";
  * read the same preference store as the timeline, so they follow every
  * option; only the host's own pieces (its prompt bubble and its markdown,
  * when the plugin's are off) and its gaps between items are imitated here.
+ *
+ * The Read row's hover preview is drawn open under it, so the panel options
+ * show without a hover. The turn is its own plugin root: a preview a row
+ * opens on hover spans the turn, as it spans the chat column in a timeline,
+ * rather than the whole settings page.
  */
 
 const ROOT = "/Users/me/code/better-paseo";
@@ -37,12 +43,6 @@ const DONE = new Date("2026-10-13T09:42:18Z");
 const HOST_GAP = 16;
 const COMPACT_GAP = 4;
 
-const READ_CODE = `export function formatPath(raw: string, ctx: FormatPathContext) {
-  const { path, suffix } = splitSelector(raw);
-  if (!path) return unmatched(raw.trim());
-  return ctx.mode === "absolute" ? absolute(path, suffix) : relative(path, ctx);
-}`;
-
 /** Long enough lines that the wrap option visibly changes the panel. */
 const PANEL_CODE = `export function formatPath(raw: string, ctx: FormatPathContext): FormattedPath {
   const { path, suffix } = splitSelector(raw);
@@ -56,13 +56,12 @@ function call(callId: string, name: string, detail: Record<string, unknown>, sta
   return classifyTool({ callId, name, status, detail });
 }
 
-const READ = call("preview-read", "Read", { type: "read", filePath: FILE, offset: 40, limit: 24, content: READ_CODE });
-const PANEL_READ = call("preview-panel", "Read", { type: "read", filePath: FILE, offset: 112, limit: 7, content: PANEL_CODE });
+const READ = call("preview-read", "Read", { type: "read", filePath: FILE, offset: 112, limit: 7, content: PANEL_CODE });
 const EDIT = call("preview-edit", "Edit", {
   type: "edit",
   filePath: FILE,
   unifiedDiff:
-    "@@ -42,3 +42,3 @@\n const { path, suffix } = splitSelector(raw);\n-if (!path) return unmatched(raw);\n+if (!path) return unmatched(raw.trim());\n",
+    "@@ -114,3 +114,3 @@\n const { path, suffix } = splitSelector(raw);\n-if (!path) return unmatched(raw);\n+if (!path) return unmatched(raw.trim());\n",
 });
 const FAILED = call(
   "preview-typecheck",
@@ -72,7 +71,7 @@ const FAILED = call(
     command: "npm run typecheck",
     cwd: ROOT,
     output:
-      "client/paths/format-path.ts:44:22 - error TS2345: Argument of type 'string | undefined'\n  is not assignable to parameter of type 'string'.\n\nFound 1 error in client/paths/format-path.ts:44",
+      "client/paths/format-path.ts:116:22 - error TS2345: Argument of type 'string | undefined'\n  is not assignable to parameter of type 'string'.\n\nFound 1 error in client/paths/format-path.ts:116",
     exitCode: 2,
     durationMs: 3800,
   },
@@ -153,7 +152,7 @@ export function SettingsPreview({
 
   return (
     <PathContext.Provider value={paths}>
-      <View>
+      <View {...pluginRoot}>
         <Item gap={HOST_GAP}>
           {preferences.enhancedUserBubble ? (
             <UserMessage
@@ -183,6 +182,14 @@ export function SettingsPreview({
         <Item gap={replyGap}>{reply(t.previewLead)}</Item>
         <Item gap={rowGap}>
           <ToolCallout data={READ} tokens={tokens} compact={compact} />
+          {preferences.hoverPreview ? (
+            <View style={styles.openPanel}>
+              <Text style={[styles.caption, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+                {t.previewPanelCaption}
+              </Text>
+              <OpenPanel tokens={tokens} compact={compact} />
+            </View>
+          ) : null}
         </Item>
         <Item gap={rowGap}>
           <ToolCallout data={EDIT} tokens={tokens} compact={compact} />
@@ -204,6 +211,9 @@ export function SettingsPreview({
 }
 
 const styles = StyleSheet.create({
+  // Where the real panel opens: 6pt under its row.
+  openPanel: { marginTop: 6, gap: space.xs },
+  caption: { fontSize: 12, lineHeight: 16 },
   hostBubbleRow: { flexDirection: "row", justifyContent: "flex-end" },
   hostBubble: {
     maxWidth: "86%",
@@ -215,32 +225,22 @@ const styles = StyleSheet.create({
 });
 
 /**
- * A hover preview panel, open, as a collapsed read shows it: the panel options
- * (wrap, line numbers, shading) apply to it as they change, and its own wrap
- * button flips it as a real panel's does.
+ * The Read row's hover preview, open: the panel options (wrap, line numbers,
+ * shading) apply to it as they change, and its wrap button flips it as a
+ * real panel's does. Paths resolve against the turn's own context.
  */
-export function HoverPanelPreview({
-  tokens,
-  preferences,
-  compact,
-}: {
-  tokens: ExtendedThemeTokens;
-  preferences: EnhancerPreferences;
-  compact: boolean;
-}) {
-  const paths = useMemo<PathContextValue>(() => ({ ...PATHS, mode: preferences.pathDisplay }), [preferences.pathDisplay]);
+function OpenPanel({ tokens, compact }: { tokens: ExtendedThemeTokens; compact: boolean }) {
+  const paths = useContext(PathContext);
   const resolvePath = useMemo(() => (path: string) => formatPath(path, paths).absolutePath, [paths]);
   return (
-    <PathContext.Provider value={paths}>
-      <PreviewPanelSample tokens={tokens}>
-        <ToolPreviewContent
-          data={PANEL_READ}
-          resolvePath={resolvePath}
-          tokens={tokens}
-          compact={compact}
-          displayPath={formatPath(FILE, paths).displayPath}
-        />
-      </PreviewPanelSample>
-    </PathContext.Provider>
+    <PreviewPanelSample tokens={tokens}>
+      <ToolPreviewContent
+        data={READ}
+        resolvePath={resolvePath}
+        tokens={tokens}
+        compact={compact}
+        displayPath={formatPath(FILE, paths).displayPath}
+      />
+    </PreviewPanelSample>
   );
 }
