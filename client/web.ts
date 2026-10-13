@@ -63,6 +63,23 @@ export function bindPreviewPointer(node: unknown, enter: () => void, leave: () =
   };
 }
 
+/** Double-clicking the toolbar's title or free space maximizes its preview. */
+export function bindPreviewMaximize(node: unknown, maximize: () => void): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const toolbar = node as HTMLElement | null;
+  if (!toolbar) return () => {};
+  const onDoubleClick = (event: MouseEvent) => {
+    if (event.defaultPrevented || event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('button, [role="button"], a, input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    maximize();
+  };
+  toolbar.addEventListener("dblclick", onDoubleClick);
+  return () => toolbar.removeEventListener("dblclick", onDoubleClick);
+}
+
 /** Arrow keys page a maximized preview while focus stays in its panel. */
 export function bindPreviewPaging(node: unknown, step: (direction: -1 | 1) => void): () => void {
   if (Platform.OS !== "web") return () => {};

@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   hover: true,
   onLinesFit: undefined as ((fits: boolean) => void) | undefined,
   bindRowHover: vi.fn(() => () => {}),
+  bindPreviewMaximize: vi.fn((_node: unknown, _maximize: () => void) => vi.fn()),
 }));
 vi.mock("../../client/ui/use-input-capabilities", () => ({ useInputCapabilities: () => ({
   hover: state.hover,
@@ -16,6 +17,7 @@ vi.mock("../../client/ui/use-input-capabilities", () => ({ useInputCapabilities:
 }), noteHover: vi.fn() }));
 vi.mock("../../client/web", () => ({
   bindRowHover: state.bindRowHover,
+  bindPreviewMaximize: state.bindPreviewMaximize,
   bindPreviewPointer: () => () => {},
   openPreviewLayer: (_node: unknown, _anchor: unknown, _close: unknown, options: { onLinesFit(fits: boolean): void }) => {
     state.onLinesFit = options.onLinesFit;
@@ -46,6 +48,7 @@ beforeEach(() => {
   state.hover = true;
   state.onLinesFit = undefined;
   state.bindRowHover.mockClear();
+  state.bindPreviewMaximize.mockClear();
   (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
 });
 afterEach(() => {
@@ -331,6 +334,27 @@ describe("line wrap in the desktop preview", () => {
     expect(own.maximized).toBe(true);
     expect(windowButton("Maximize preview")).toHaveLength(0);
     expect(windowButton("Close preview")).toHaveLength(1);
+  });
+
+  it("maximizes from the toolbar, stays open on leave, and unbinds once maximized", () => {
+    act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
+    act(() => own.enter());
+    act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+    const [, maximize] = state.bindPreviewMaximize.mock.calls.at(-1)!;
+    const release = state.bindPreviewMaximize.mock.results.at(-1)!.value;
+    act(() => maximize());
+    expect(own.maximized).toBe(true);
+    expect(release).toHaveBeenCalledOnce();
+    act(() => own.leave());
+    act(() => { vi.advanceTimersByTime(PREVIEW_CLOSE_MS); });
+    expect(own.open).toBe(true);
+    expect(renderer.root.findByProps({ accessibilityLabel: "Expanded preview" })).toBeDefined();
+  });
+
+  it.each(["ios", "android"])("does not offer toolbar double-click maximization on %s", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
+    expect(state.bindPreviewMaximize).not.toHaveBeenCalled();
   });
 
   it("puts the pager after wrap at the left and the tool icon in the centre", () => {
