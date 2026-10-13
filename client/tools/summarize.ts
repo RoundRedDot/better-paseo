@@ -430,6 +430,8 @@ function summarizeKind(view: ToolCallView): ToolSummary {
         tone,
       };
     case "plan":
+      // A verdict is no failure: a rejected or canceled plan keeps the quiet tone.
+      if (view.planOutcome) meta.push(view.planOutcome);
       return { verb: "Plan", target: clip(firstLine(stripHeading(view.text)), TARGET_MAX), meta, tone };
     case "plain_text":
       return {
