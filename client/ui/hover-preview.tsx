@@ -314,7 +314,7 @@ function PreviewWrapButton({ tokens, wrap, onPress }: {
         hovered && { backgroundColor: tokens.v2.surface1 },
         pressed && { backgroundColor: tokens.v2.surface2 }]}
     >
-      <Icon name={wrap ? "WrapText" : "MoveHorizontal"} size={14} color={tokens.foregroundMuted} />
+      <Icon name={wrap ? "WrapText" : "AlignLeft"} size={14} color={tokens.foregroundMuted} />
     </Pressable>
   );
 }
