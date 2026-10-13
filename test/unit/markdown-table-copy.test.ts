@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import React from "react";
 
-const { copyText } = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => {}) }));
+const { copyText, toastShow } = vi.hoisted(() => ({
+  copyText: vi.fn(async (_text: string) => {}),
+  toastShow: vi.fn(),
+}));
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -11,7 +14,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     ScrollView: rn.ScrollView,
     Modal: rn.View,
     copyText,
-    useToast: () => ({ show() {}, error() {}, success() {} }),
+    useToast: () => ({ show: toastShow, error() {}, success() {} }),
     useRevealedText: (text: string) => text,
   };
 });
@@ -31,6 +34,7 @@ const { StyleSheet } = await import("./helpers/rn-mock");
 const { columnWidths } = await import("../../client/components/markdown/render/table");
 const { variantMetrics, TABLE_DIVIDER_WIDTH } = await import("../../client/components/markdown/render/styles");
 const { lexBlock } = await import("../../client/components/markdown/lex");
+const { getEnhancerPreferences, updateEnhancerPreferences } = await import("../../client/preferences");
 type TableToken = import("../../client/vendor/marked").Tokens.Table;
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -54,16 +58,32 @@ function render(text: string, streaming = false, variant: "document" | "compact"
 
 function buttons() {
   return renderer!.root.findAll((node) => String(node.type) === "Pressable"
-    && ["Copy", "Copied"].includes(node.props.accessibilityLabel));
+    && ["Copy Markdown table", "Copied"].includes(node.props.accessibilityLabel));
 }
 
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
   copyText.mockClear();
+  toastShow.mockClear();
 });
 
 describe("Markdown table copy", () => {
+  it.each([
+    ["zh", "已复制 Markdown 表格"],
+    ["en", "Copied Markdown table"],
+  ] as const)("names the copied Markdown table in %s", async (language, message) => {
+    const previousLanguage = getEnhancerPreferences().language;
+    updateEnhancerPreferences({ language });
+    try {
+      render("| A | B |\n| --- | --- |\n| one | two |");
+      await act(async () => { buttons()[0]!.props.onPress(); });
+      expect(toastShow).toHaveBeenCalledExactlyOnceWith(message);
+    } finally {
+      updateEnhancerPreferences({ language: previousLanguage });
+    }
+  });
+
   it.each(["document", "compact", "terminal"] as const)(
     "%s copies the entire table source with formatting and alignment",
     async (variant) => {
