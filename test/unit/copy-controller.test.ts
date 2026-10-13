@@ -38,6 +38,19 @@ describe("copy controller", () => {
     expect(toast.show).toHaveBeenCalledWith(COPIED_MESSAGE, undefined);
   });
 
+  it("gives any other clipboard write the same check and toast", async () => {
+    const { controller, states, clipboard, toast } = setup();
+    const write = vi.fn(async () => {});
+    await expect(controller.copyWith(write, { label: "Copy as image" })).resolves.toBe(true);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(clipboard).not.toHaveBeenCalled();
+    expect(states).toEqual([true]);
+    expect(toast.show).toHaveBeenCalledWith(COPIED_MESSAGE, "Copy as image");
+    await expect(controller.copyWith(async () => { throw new Error("denied"); })).resolves.toBe(false);
+    expect(states).toEqual([true, false]);
+    expect(toast.error).toHaveBeenCalledWith(COPY_FAILED_MESSAGE);
+  });
+
   it("toasts instead of checking for toast feedback", async () => {
     const { controller, states, toast } = setup();
     await controller.copy("abc", { feedback: "toast" });

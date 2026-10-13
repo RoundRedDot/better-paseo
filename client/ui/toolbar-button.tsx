@@ -46,7 +46,7 @@ interface ToolbarButtonProps {
   /** Icon colour; muted by default. */
   color?: string;
   align?: TooltipAlign;
-  /** Subtle outline for a standalone button, outside a toolbar group. */
+  /** A subtle round outline for a standalone button, outside a toolbar group. */
   outlined?: boolean;
 }
 
@@ -119,7 +119,8 @@ function ToolbarItem({
         {...hoverProps}
         style={({ pressed }) => [
           styles.button,
-          outlined && { borderWidth: 1, borderColor: hovered && !disabled ? tokens.foregroundMuted : tokens.v2.border },
+          outlined && styles.outlined,
+          outlined && { borderColor: hovered && !disabled ? tokens.foregroundMuted : tokens.v2.border },
           disabled && styles.disabled,
           onPress && !disabled && hovered && { backgroundColor: tokens.v2.surface2 },
           onPress && !disabled && pressed && { backgroundColor: tokens.v2.surface2 },
@@ -207,6 +208,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  // A standalone button is a circle, so it reads as a control rather than a cell.
+  outlined: { borderWidth: 1, borderRadius: 12 },
   disabled: { opacity: 0.35 },
   tooltipSlot: {
     position: "absolute",

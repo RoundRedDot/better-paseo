@@ -5,7 +5,7 @@ import type { RenderContext } from "./context";
 import { inlineWidth, renderInline } from "./inline";
 import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
 import { HScroll } from "../../../ui/h-scroll";
-import { ToolbarCopyButton } from "../../../ui/toolbar-button";
+import { TableCopyMenu } from "./table-copy-menu";
 import {
   ALIGN_KEYS,
   CHAR_RATIO_MONO,
@@ -84,6 +84,7 @@ export function MdTable({
   const { styles, metrics } = context;
   const measured = columnWidths(token, metrics);
   const widest = useRef<number[]>([]);
+  const frameRef = useRef<View>(null);
   let widths = measured;
   if (open) {
     widths = measured.map((width, column) => Math.max(width, widest.current[column] ?? 0));
@@ -103,7 +104,7 @@ export function MdTable({
   return (
     <HScroll tokens={context.tokens} style={styles.tableScroll} contentContainerStyle={styles.tableContent}>
       <View style={copyStyles.container}>
-        <View style={styles.tableFrame}>
+        <View ref={frameRef} style={styles.tableFrame}>
           <View style={[styles.tableHeaderRow, token.rows.length === 0 && styles.tableRowLast]}>
             {token.header.map((cell, column) => {
               const cellKey = `${keyPrefix}h${column}`;
@@ -151,7 +152,7 @@ export function MdTable({
           ))}
         </View>
         <View style={[copyStyles.corner, { backgroundColor: context.tokens.surface0 }]}>
-          <ToolbarCopyButton text={() => token.raw} tokens={context.tokens} label="Copy Markdown table" align="start" outlined />
+          <TableCopyMenu source={() => token.raw} frame={frameRef} tokens={context.tokens} />
         </View>
       </View>
     </HScroll>
@@ -165,10 +166,11 @@ const copyStyles = StyleSheet.create({
     paddingTop: 12,
     paddingLeft: 12,
   },
+  // Round like the control it backs, so the table's border is not cut square.
   corner: {
     position: "absolute",
     top: 0,
     left: 0,
-    borderRadius: 4,
+    borderRadius: 12,
   },
 });
