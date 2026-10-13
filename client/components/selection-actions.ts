@@ -457,6 +457,25 @@ interface Controller {
 
 let controller: Controller | null = null;
 
+const LIVE_BAR = Symbol.for("better-paseo.selection-bar");
+
+/**
+ * Makes `next` the page's one live bar. A plugin update loads a new bundle
+ * without unmounting the old one's renderers, so every bundle would keep its
+ * own bar, all shown on one selection and their shadows stacked into a dark,
+ * soft edge. The newest bundle's bar retires the one before it. The returned
+ * release clears the slot only while `next` still holds it.
+ */
+export function claimSelectionBar(next: { dispose(): void }, scope: object = globalThis): () => void {
+  const slot = scope as { [LIVE_BAR]?: { dispose(): void } };
+  const previous = slot[LIVE_BAR];
+  if (previous && previous !== next) previous.dispose();
+  slot[LIVE_BAR] = next;
+  return () => {
+    if (slot[LIVE_BAR] === next) delete slot[LIVE_BAR];
+  };
+}
+
 function startController(): Controller {
   // Set once a press is done, until the selection changes: a copy keeps the
   // highlight, and a scroll must not bring the bar back over it.
@@ -509,10 +528,11 @@ function startController(): Controller {
   window.addEventListener("scroll", schedule, true);
   window.addEventListener("resize", schedule);
 
-  return {
+  const started: Controller = {
     bar,
     refs: 0,
     dispose() {
+      release();
       window.clearTimeout(pending);
       document.removeEventListener("selectionchange", onSelectionChange);
       document.removeEventListener("pointerdown", onPointerDown, true);
@@ -522,6 +542,8 @@ function startController(): Controller {
       bar.dispose();
     },
   };
+  const release = claimSelectionBar(started);
+  return started;
 }
 
 /**
