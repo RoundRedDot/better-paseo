@@ -374,7 +374,8 @@ function summarizeKind(view: ToolCallView): ToolSummary {
     }
     case "paseo": {
       const paseo = view.paseo;
-      const tool = paseo?.tool ?? (view.name ?? view.title.replace(/^Paseo:\s*/, ""));
+      // The title carries the bare name; `name` may still be `mcp__paseo__…`.
+      const tool = paseo?.tool ?? (view.title.replace(/^Paseo:\s*/, "") || view.name);
       const target =
         paseo?.createAgent?.title ??
         (paseo?.models ? paseo.models.provider : undefined) ??
