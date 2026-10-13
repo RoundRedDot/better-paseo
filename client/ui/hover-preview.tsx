@@ -11,7 +11,7 @@ import { SafeInset } from "./safe-inset";
 import { PHONE_CHROME, pressPreviewFrame } from "./press-preview-placement";
 import { ProseSelectionContext } from "./prose-text";
 import { HScroll } from "./h-scroll";
-import { ToolbarButton, TooltipAlignContext } from "./toolbar-button";
+import { ToolbarButton, ToolbarIcon, TooltipAlignContext } from "./toolbar-button";
 import { Glyph } from "../components/glyph";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
@@ -284,10 +284,12 @@ function measureWidth(node: unknown, done: (width: number) => void) {
  * middle, and the content's own buttons on the right, with the window button
  * always last, at the far right.
  */
-export function HoverPreviewHeader({ tokens, icon, center, children }: {
+export function HoverPreviewHeader({ tokens, icon, iconLabel, center, children }: {
   tokens: ExtendedThemeTokens;
   /** A glyph name or the content's own icon, in a button's box at the far left. */
   icon?: ReactNode;
+  /** The current tool's type, shown when its icon is hovered. */
+  iconLabel?: string;
   center?: ReactNode;
   children?: ReactNode;
 }) {
@@ -310,7 +312,11 @@ export function HoverPreviewHeader({ tokens, icon, center, children }: {
         <View style={styles.toolbarStart}>
           {icon ? (
             <View testID="hover-preview-icon" style={styles.toolbarIcon}>
-              {typeof icon === "string" ? <Glyph name={icon} size={14} color={tokens.foregroundMuted} /> : icon}
+              {iconLabel ? (
+                <ToolbarIcon label={iconLabel} tokens={tokens} align="start">
+                  {typeof icon === "string" ? <Glyph name={icon} size={14} color={tokens.foregroundMuted} /> : icon}
+                </ToolbarIcon>
+              ) : typeof icon === "string" ? <Glyph name={icon} size={14} color={tokens.foregroundMuted} /> : icon}
             </View>
           ) : null}
           {/* At the panel's left edge: its name opens rightwards. */}
