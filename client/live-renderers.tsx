@@ -12,6 +12,8 @@ import { useReasoningKey } from "./reasoning/key";
 import { observeReasoning, observedDurationMs } from "./reasoning/observed";
 import { useDisclosure } from "./state/disclosure-store";
 import { TaskList } from "./components/task-list";
+import { TaskActivityRow } from "./components/task-activity-row";
+import { deriveTodoActivities, todoTaskStatus, useTodoTimeline, type TodoTask } from "./state/todo-timeline";
 import { UserMessage } from "./components/user-message";
 import { itemRootFont } from "./components/host-font-escape";
 import { pluginRoot } from "./components/focus-ring";
@@ -305,32 +307,47 @@ function LiveTodoRendererBody({
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
   const data = item.data;
+  const items = data.items as unknown as TodoTask[];
+  // Paseo hands over one item per change of an update, each with the whole
+  // list: only one of them draws, and only the newest update draws open.
+  const { role, previous } = useTodoTimeline(agentId, timestamp.getTime(), items);
+  const activities = useMemo(
+    () => (role === "summary" ? deriveTodoActivities(previous, items) : []),
+    [role, previous, items],
+  );
 
   const taskListData: TaskListData = useMemo(() => {
-    const tasks: TaskItemData[] = (data.items || []).map((task, idx) => ({
-      id: typeof task.id === "string" ? task.id : `todo-${idx}`,
-      title: typeof task.text === "string" ? task.text : "Untitled task",
-      phase: "Execution",
-      status:
-        task.completed === true
-          ? "completed"
-          : task.status === "in_progress"
-            ? "in_progress"
-            : "pending",
-    }));
+    const tasks: TaskItemData[] = (items || []).map((task, idx) => {
+      const status = todoTaskStatus(task);
+      const text = typeof task.text === "string" ? task.text : "Untitled task";
+      return {
+        id: typeof task.id === "string" ? task.id : `todo-${idx}`,
+        // As Paseo does: the task in progress reads as what is happening now.
+        title: status === "in_progress" && typeof task.activeForm === "string" && task.activeForm ? task.activeForm : text,
+        phase: "Execution",
+        status,
+      };
+    });
 
     return {
       id: "live-todo",
       phaseName: "Checklist Progress",
       tasks,
     };
-  }, [data]);
+  }, [items]);
+
+  // Empty plugin slots still carry the host's 16pt gap.
+  if (role === "hidden") return <View style={rowGapStyles.grouped} />;
 
   return (
     <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}>
       {probe.node}
       <PreferenceSyncSlot />
-      <TaskList data={taskListData} tokens={tokens} compact={layout.compact} />
+      {role === "full" ? (
+        <TaskList data={taskListData} tokens={tokens} compact={layout.compact} />
+      ) : (
+        <TaskActivityRow activities={activities} data={taskListData} tokens={tokens} compact={layout.compact} />
+      )}
     </View>
   );
 }
