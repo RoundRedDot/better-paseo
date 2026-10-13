@@ -13,7 +13,7 @@ vi.mock("../../client/ui/use-input-capabilities", () => ({ useInputCapabilities:
 vi.mock("../../client/web", () => ({ bindPreviewPointer: () => () => {}, openPreviewLayer: () => () => {} }));
 import { HoverPreview, HoverPreviewBody, HoverPreviewContext, HoverPreviewHeader, PREVIEW_CLOSE_MS, PREVIEW_OPEN_MS, useHoverPreview } from "../../client/ui/hover-preview";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
-import { HOVER_DELAYS, HOVER_DELAY_MS, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import { HOVER_DELAYS, HOVER_DELAY_MS, getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let preview!: ReturnType<typeof useHoverPreview>;
@@ -242,5 +242,25 @@ describe("line wrap in the desktop preview", () => {
     act(() => button().props.onPress());
     expect(icon()).toBe("WrapText");
     expect(sideways()).toHaveLength(0);
+  });
+
+  it("opens unwrapped when the setting is off, and the button still switches this panel", () => {
+    updateEnhancerPreferences({ previewWrap: false });
+    act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
+    expect(button().props.accessibilityLabel).toBe("Wrap lines");
+    expect(sideways()).toHaveLength(1);
+    act(() => button().props.onPress());
+    expect(sideways()).toHaveLength(0);
+    // The setting is the default for the next panel, not changed by the button.
+    expect(getEnhancerPreferences().previewWrap).toBe(false);
+  });
+
+  it("puts the wrap button at the toolbar's left, apart from the content's own buttons", () => {
+    act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
+    const toolbar = renderer.root.findByProps({ testID: "hover-preview-header" }).findAll((node) => (node.type as unknown) === "View")[1]!;
+    const [start, end] = toolbar.children as TestRenderer.ReactTestInstance[];
+    expect(start!.findAll((node) => node === button())).toHaveLength(1);
+    expect(end!.findAll((node) => (node.type as unknown) === "Toolbar")).toHaveLength(1);
+    expect(end!.findAll((node) => node === button())).toHaveLength(0);
   });
 });

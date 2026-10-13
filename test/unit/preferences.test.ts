@@ -55,11 +55,13 @@ describe("preferences v2 defaults", () => {
     expect(HOVER_DELAYS.map((value) => HOVER_DELAY_MS[value])).toEqual([200, 500, 1000, 1500, 2000]);
     expect(HOVER_DELAYS.map((value) => HOVER_DELAY_LABELS[value])).toEqual(["0.2s", "0.5s", "1.0s", "1.5s", "2s"]);
   });
-  it("starts previews shaded without line numbers and keeps an explicit choice", () => {
+  it("starts previews wrapped and shaded without line numbers and keeps an explicit choice", () => {
+    expect(DEFAULT_PREFERENCES.previewWrap).toBe(true);
     expect(DEFAULT_PREFERENCES.previewLineNumbers).toBe(false);
     expect(DEFAULT_PREFERENCES.previewStripes).toBe(true);
-    const { previewLineNumbers: _numbers, previewStripes: _stripes, ...older } = storedPart(DEFAULT_PREFERENCES);
-    expect(parsePreferences(older)).toMatchObject({ previewLineNumbers: false, previewStripes: true });
+    const { previewWrap: _wrap, previewLineNumbers: _numbers, previewStripes: _stripes, ...older } = storedPart(DEFAULT_PREFERENCES);
+    expect(parsePreferences(older)).toMatchObject({ previewWrap: true, previewLineNumbers: false, previewStripes: true });
+    expect(parsePreferences({ previewWrap: false }).previewWrap).toBe(false);
     expect(parsePreferences({ previewLineNumbers: true, previewStripes: false }))
       .toMatchObject({ previewLineNumbers: true, previewStripes: false });
     expect(parsePreferences({ previewLineNumbers: "yes", previewStripes: 0 }))
