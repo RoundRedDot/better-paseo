@@ -335,9 +335,10 @@ export function HoverPreviewBody({ children }: { children: ReactNode }) {
   const wrap = actions?.wrap;
   const maximized = actions?.maximized ?? false;
   // Lines keep their length; the body scrolls sideways, with a track under it
-  // only while it is wider than the panel.
+  // only while it is wider than the panel. The track keeps clear of the last
+  // line's descenders.
   const content = wrap && !wrap.on ? (
-    <HScroll tokens={wrap.tokens} contentContainerStyle={styles.unwrappedScroll}>
+    <HScroll tokens={wrap.tokens} trackGap={space.sm} contentContainerStyle={styles.unwrappedScroll}>
       <View style={styles.unwrapped}>{children}</View>
     </HScroll>
   ) : children;
