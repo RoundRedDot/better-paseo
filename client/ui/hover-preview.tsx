@@ -1,6 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
 import { selectionSurface } from "../components/selection-actions";
@@ -8,11 +7,11 @@ import { bindPreviewPointer, openPreviewLayer } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { cssShadow } from "./tokens/css-shadow";
 import { DEFAULT_PREFERENCES, HOVER_DELAY_MS, useEnhancerPreferences } from "../preferences";
-import { useHover } from "./use-hover";
 import { SafeInset } from "./safe-inset";
 import { PHONE_CHROME, pressPreviewFrame } from "./press-preview-placement";
 import { ProseSelectionContext } from "./prose-text";
 import { HScroll } from "./h-scroll";
+import { ToolbarButton } from "./toolbar-button";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
@@ -259,70 +258,51 @@ function measureWidth(node: unknown, done: (width: number) => void) {
   });
 }
 
-/** Only mounted in web hover previews; the actions and their menu stay above the scrolling body. */
-export function HoverPreviewHeader({ tokens, children }: {
+/**
+ * The panel's toolbar, above the scrolling body. `center` (a pager) sits in
+ * the middle; the content's own buttons follow line wrap on the right, and
+ * the window button always comes last, at the far right.
+ */
+export function HoverPreviewHeader({ tokens, center, children }: {
   tokens: ExtendedThemeTokens;
-  children: ReactNode;
+  center?: ReactNode;
+  children?: ReactNode;
 }) {
   const actions = useContext(PreviewActionsContext);
   const [toolbar, ...rest] = React.Children.toArray(children);
+  const windowButton = actions && (actions.overflowing || actions.maximized) ? (
+    <ToolbarButton
+      icon={actions.maximized ? "X" : "Maximize2"}
+      label={actions.maximized ? "Close preview" : "Maximize preview"}
+      onPress={actions.maximized ? actions.close : actions.maximize}
+      tokens={tokens}
+      align="end"
+    />
+  ) : null;
   return (
     <View
       testID="hover-preview-header"
       style={[styles.header, { backgroundColor: tokens.v2.surface1, borderBottomColor: tokens.v2.borderSubtle }]}
     >
       <View style={styles.toolbar}>
-        {actions?.wrap ? (
-          <PreviewWrapButton tokens={tokens} wrap={actions.wrap.on} onPress={actions.wrap.toggle} />
-        ) : null}
-        {actions && (actions.overflowing || actions.maximized) ? (
-          <PreviewWindowButton tokens={tokens} maximized={actions.maximized}
-            onPress={actions.maximized ? actions.close : actions.maximize} />
-        ) : null}
-        {toolbar}
+        <View style={styles.toolbarStart} />
+        {center ? <View testID="hover-preview-center" style={styles.toolbarCenter}>{center}</View> : null}
+        <View style={styles.toolbarEnd}>
+          {actions?.wrap ? (
+            <ToolbarButton
+              icon={actions.wrap.on ? "WrapText" : "AlignLeft"}
+              label={actions.wrap.on ? "Do not wrap lines" : "Wrap lines"}
+              checked={actions.wrap.on}
+              onPress={actions.wrap.toggle}
+              tokens={tokens}
+            />
+          ) : null}
+          {toolbar}
+          {windowButton}
+        </View>
       </View>
       {rest}
     </View>
-  );
-}
-
-function PreviewWindowButton({ tokens, maximized, onPress }: {
-  tokens: ExtendedThemeTokens;
-  maximized: boolean;
-  onPress(): void;
-}) {
-  const { hovered, hoverProps } = useHover();
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={maximized ? "Close preview" : "Maximize preview"}
-      hitSlop={4} onPress={onPress} {...hoverProps}
-      style={({ pressed }) => [styles.windowButton,
-        hovered && { backgroundColor: tokens.v2.surface1 },
-        pressed && { backgroundColor: tokens.v2.surface2 }]}
-    >
-      <Icon name={maximized ? "X" : "Maximize2"} size={14} color={tokens.foregroundMuted} />
-    </Pressable>
-  );
-}
-
-/**
- * Soft wrap on or off. The icon shows the state the body is in: wrapped lines,
- * or lines at full length that scroll sideways.
- */
-function PreviewWrapButton({ tokens, wrap, onPress }: {
-  tokens: ExtendedThemeTokens;
-  wrap: boolean;
-  onPress(): void;
-}) {
-  const { hovered, hoverProps } = useHover();
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={wrap ? "Do not wrap lines" : "Wrap lines"}
-      accessibilityState={{ checked: wrap }} hitSlop={4} onPress={onPress} {...hoverProps}
-      style={({ pressed }) => [styles.windowButton,
-        hovered && { backgroundColor: tokens.v2.surface1 },
-        pressed && { backgroundColor: tokens.v2.surface2 }]}
-    >
-      <Icon name={wrap ? "WrapText" : "AlignLeft"} size={14} color={tokens.foregroundMuted} />
-    </Pressable>
   );
 }
 
@@ -351,8 +331,11 @@ export function HoverPreviewBody({ children }: { children: ReactNode }) {
 
 const styles = StyleSheet.create({
   panel: { padding: 0, borderWidth: 1, borderRadius: radiusV2.block },
-  toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: space.xs },
-  windowButton: { width: 24, height: 24, borderRadius: radiusV2.chip, alignItems: "center", justifyContent: "center" },
+  toolbar: { flexDirection: "row", alignItems: "center", gap: space.xs },
+  // Equal flexible sides keep the centre slot in the middle of the panel.
+  toolbarStart: { flex: 1, flexBasis: 0 },
+  toolbarCenter: { flexShrink: 0 },
+  toolbarEnd: { flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: space.xs },
   body: {
     minHeight: 0,
     flexShrink: 1,
@@ -380,8 +363,10 @@ const styles = StyleSheet.create({
   pressBodyContent: { padding: space.md, gap: space.sm },
   unwrappedScroll: { flexGrow: 1 },
   unwrapped: { flexGrow: 1, gap: space.sm },
+  // Raised over the body, so a button's name can hang down across it.
   header: {
     flexShrink: 0,
+    zIndex: 1,
     paddingHorizontal: space.md,
     paddingTop: space.sm,
     paddingBottom: space.sm,

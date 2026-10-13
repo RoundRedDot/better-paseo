@@ -12,7 +12,7 @@ import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { useScrollAnchor } from "../ui/scroll-anchor";
 import { useCopy } from "../ui/use-copy";
 import { UI_SCALE } from "../ui/tokens/typography";
-import { CopyButton } from "../ui/copy-button";
+import { ToolbarCopyButton } from "../ui/toolbar-button";
 import { SelectableText } from "../ui/prose-text";
 import { selectionCodeText } from "./selection-actions";
 import {
@@ -321,7 +321,7 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
       {hover.open && file?.dataUri ? (
         <HoverPreview preview={hover} tokens={tokens} wraps={false}>
           <HoverPreviewHeader tokens={tokens}>
-            <CopyButton text={absolutePath} tokens={tokens} label="Copy path" />
+            <ToolbarCopyButton text={absolutePath} icon="Link" tokens={tokens} label="Copy path" />
           </HoverPreviewHeader>
           <HoverPreviewBody>
             <SelectableText {...selectionCodeText} style={{ color: tokens.foreground, fontFamily: tokens.fontMono }}>

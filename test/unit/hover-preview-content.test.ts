@@ -66,23 +66,24 @@ function previewOf(element: React.ReactElement) {
   return text;
 }
 describe("full hover preview content", () => {
-  it("copies command, output, and both from the preview without opening the row's menu", async () => {
+  it("lays every copy out on the preview's toolbar, each with its own icon", async () => {
     const data = classifyTool({ name: "Bash", status: "completed", detail: {
       type: "shell", command: "printf full-command", output: "\u001b[1mfull-output\u001b[0m\n",
     } });
     await exercisePreview(React.createElement(ToolCallout, { data, tokens }), async (body, row) => {
+      const header = body.root.findByType(HoverPreviewHeader);
+      const buttons = header.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel?.startsWith("Copy"));
+      expect(buttons.map((node) => node.props.accessibilityLabel)).toEqual(["Copy command", "Copy output", "Copy command and output"]);
+      const icons = buttons.map((node) => node.find((child) => typeof child.props.name === "string").props.name);
+      expect(new Set(icons).size).toBe(icons.length);
+      expect(header.findAll((node) => node.props.accessibilityLabel === "More actions")).toHaveLength(0);
       await press(body, "Copy command");
       expect(clipboard.copyText).toHaveBeenLastCalledWith("printf full-command");
-      await press(body, "More actions");
-      const pinnedHeader = body.root.findByType(HoverPreviewHeader);
-      expect(pinnedHeader.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem")
-        .map((node) => node.props.accessibilityLabel)).toEqual(["Copy output", "Copy command and output"]);
-      expect(row.root.findByType(DisclosureHeader).props.actionsActive).toBe(false);
       await press(body, "Copy output");
       expect(clipboard.copyText).toHaveBeenLastCalledWith("full-output");
-      await press(body, "More actions");
       await press(body, "Copy command and output");
       expect(clipboard.copyText).toHaveBeenLastCalledWith("$ printf full-command\nfull-output");
+      expect(row.root.findByType(DisclosureHeader).props.actionsActive).toBe(false);
       expect(row.root.findByType(DisclosureHeader).props.expanded).toBe(false);
     });
   });
@@ -91,7 +92,6 @@ describe("full hover preview content", () => {
     await exercisePreview(React.createElement(ToolCallout, { data, tokens }), async (body) => {
       await press(body, "Copy path");
       expect(clipboard.copyText).toHaveBeenLastCalledWith("/w/a.ts");
-      await press(body, "More actions");
       await press(body, "Copy file content");
       expect(clipboard.copyText).toHaveBeenLastCalledWith("const value = 1;");
     });
