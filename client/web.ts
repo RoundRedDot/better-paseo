@@ -302,3 +302,31 @@ export function linesFit(body: HTMLElement): boolean {
   body.style.maxWidth = maxWidth;
   return natural <= fitted + 0.5;
 }
+
+/**
+ * Closes a control a long press opened once the reader scrolls anything (the
+ * chat list, the table's own scroller) or touches outside it. Bound only
+ * while it is open. Web only.
+ */
+export function bindTouchDismiss(node: unknown, close: () => void): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const element = node as HTMLElement | null;
+  if (!element) return () => {};
+  const doc = element.ownerDocument;
+  const view = doc.defaultView!;
+  const outside = (event: Event) => {
+    if (!element.contains(event.target as Node)) close();
+  };
+  view.addEventListener("scroll", close, true);
+  doc.addEventListener("pointerdown", outside, true);
+  return () => {
+    view.removeEventListener("scroll", close, true);
+    doc.removeEventListener("pointerdown", outside, true);
+  };
+}
+
+/** Keeps a long press on the element from raising iOS Safari's callout. Web only. */
+export function suppressTouchCallout(node: unknown): void {
+  if (Platform.OS !== "web") return;
+  (node as HTMLElement | null)?.style.setProperty("-webkit-touch-callout", "none");
+}
