@@ -407,7 +407,7 @@ export function buildStyles(
     },
     tableHeaderRow: {
       flexDirection: "row",
-      backgroundColor: tokens.v2.surface1,
+      backgroundColor: tokens.v2.surface2,
       borderBottomWidth: 1,
       borderBottomColor: tokens.v2.border,
     },
