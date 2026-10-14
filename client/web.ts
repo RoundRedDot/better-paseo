@@ -284,6 +284,11 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   onLeave?(): void;
   /** Reapplies a placed frame after React commits, which rewrites the panel's style. */
   onFrame?(sync: () => void): void;
+  /**
+   * Opened as a window (a pop-out button): it keeps the box it opens in, as a
+   * placed one does, so the timeline scrolling under it does not close it.
+   */
+  floating?: boolean;
 } = {}): () => void {
   if (Platform.OS !== "web") return () => {};
   const panel = node as HTMLElement;
@@ -376,6 +381,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     if (body && options.onLinesFit) options.onLinesFit(linesFit(body));
   };
   measure();
+  if (options.floating && !frame && !options.maximized) frame = boxFrom(panel);
   // A box carried over from a drag is already in place, so it does not fade or grow again.
   if (!options.frame) {
     if (options.maximized) grow(panel, hoverRects.get(panel));
