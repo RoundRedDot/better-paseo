@@ -25,20 +25,46 @@ export const COPY_IMAGE_LABEL = "Copy as image";
  * source and a picture of the table as drawn: under a pointer while hovered,
  * on a touch screen after a long press. The first entry sits where the icon
  * was, so a click or a tap without a pause still copies the Markdown. Native
- * keeps the single button: it has no DOM to draw the picture from.
+ * keeps the single button, expanding it to Copy selected for a selected cell.
  */
-export function TableCopyMenu({ source, frame, tokens }: {
+export function TableCopyMenu({ source, frame, tokens, selected }: {
   /** The table's Markdown, read when pressed so a streaming table copies its latest rows. */
   source: () => string;
   /** The table's frame; on web its DOM element. */
   frame: RefObject<View | null>;
   tokens: ExtendedThemeTokens;
+  selected?: { text: string; dismiss(): void };
 }) {
   const { hover } = useInputCapabilities();
+  if (selected && Platform.OS !== "web") return <SelectedCellMenu selected={selected} tokens={tokens} />;
   if (Platform.OS !== "web" || !canCopyImage()) {
     return <ToolbarCopyButton text={source} tokens={tokens} label="Copy Markdown table" align="start" outlined />;
   }
   return <ExpandingMenu source={source} frame={frame} tokens={tokens} trigger={hover ? "hover" : "longPress"} />;
+}
+
+/** Expands in the existing absolute corner slot, leaving the table's height unchanged. */
+function SelectedCellMenu({ selected, tokens }: {
+  selected: { text: string; dismiss(): void };
+  tokens: ExtendedThemeTokens;
+}) {
+  const { copy } = useCopy();
+  const { language } = useEnhancerPreferences();
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="Copy selected cell"
+      onPress={() => { void copy(selected.text, { feedback: "toast", label: "Copy selected" })
+        .then((ok) => { if (ok) selected.dismiss(); }); }}
+      style={({ pressed }) => [styles.frame, styles.selected, {
+        backgroundColor: pressed ? floatPressed(tokens) : tokens.surface0,
+        borderColor: tokens.v2.border,
+      }]}>
+      <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
+      <Text selectable={false} numberOfLines={1}
+        style={[styles.label, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+        {toolbarLabel("Copy selected", language)}
+      </Text>
+    </Pressable>
+  );
 }
 
 function ExpandingMenu({ source, frame, tokens, trigger }: {
@@ -241,6 +267,7 @@ function revealed(open: boolean): object {
 const BORDER = 1;
 
 const styles = StyleSheet.create({
+  selected: { flexDirection: "row", alignItems: "center", gap: FLOAT.iconText, paddingHorizontal: 8 },
   // A rounded square while closed; open, the same frame is a wider rounded rectangle.
   frame: {
     height: FLOAT.control,

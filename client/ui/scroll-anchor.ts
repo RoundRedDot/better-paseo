@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, type Context } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, type Context } from "react";
 import { Platform, VirtualizedList } from "react-native";
 import type { View } from "react-native";
 
@@ -66,6 +66,27 @@ function resolveListContext(): Context<ListContextValue | null> {
 
 /** A move under this many points is layout noise, not a jump. */
 const TOLERANCE = 1;
+
+/** Observe the native timeline's offset only while a floating menu is open. */
+export function useScrollDismiss(active: boolean, dismiss: () => void): void {
+  const list = useContext(resolveListContext());
+  const latest = useRef({ list, dismiss });
+  latest.current = { list, dismiss };
+  useEffect(() => {
+    if (!active || Platform.OS === "web" || !latest.current.list?.getScrollMetrics) return;
+    const offset = latest.current.list.getScrollMetrics().offset;
+    let frame: number;
+    const check = () => {
+      if (latest.current.list?.getScrollMetrics?.().offset !== offset) {
+        latest.current.dismiss();
+        return;
+      }
+      frame = requestAnimationFrame(check);
+    };
+    frame = requestAnimationFrame(check);
+    return () => cancelAnimationFrame(frame);
+  }, [active]);
+}
 
 export interface ScrollAnchor {
   /** For the control that has to stay put. */

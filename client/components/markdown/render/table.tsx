@@ -8,7 +8,6 @@ import { HScroll } from "../../../ui/h-scroll";
 import { TableCopyMenu } from "./table-copy-menu";
 import { bindTableCellSelection, TABLE_CELL_TEST_ID } from "./table-selection";
 import { useTableTouchSelection } from "./table-touch-selection";
-import { LineSelectionMenu } from "../../../ui/line-selection";
 import { FLOAT } from "../../../ui/tokens/float";
 import {
   ALIGN_KEYS,
@@ -109,7 +108,8 @@ export function MdTable({
 
   return (
     <View style={copyStyles.outer}>
-      <HScroll tokens={context.tokens} style={styles.tableScroll} contentContainerStyle={styles.tableContent}>
+      <HScroll tokens={context.tokens} style={styles.tableScroll} contentContainerStyle={styles.tableContent}
+        onScrollBeginDrag={selection.selected ? selection.dismiss : undefined}>
         <View style={copyStyles.container}>
           <View ref={frameRef} style={styles.tableFrame}>
             <View style={[styles.tableHeaderRow, token.rows.length === 0 && styles.tableRowLast]}>
@@ -169,14 +169,9 @@ export function MdTable({
       {/* Over the scroller rather than in it: a scroller clips what passes its
           edges, and the open menu's border and shadow reach past the left one. */}
       <View style={[copyStyles.corner, { backgroundColor: context.tokens.surface0 }]}>
-        <TableCopyMenu source={() => token.raw} frame={frameRef} tokens={context.tokens} />
+        <TableCopyMenu source={() => token.raw} frame={frameRef} tokens={context.tokens}
+          selected={selection.selected ? { text: selection.selected.text, dismiss: selection.dismiss } : undefined} />
       </View>
-      {selection.selected ? (
-        <View style={copyStyles.selectionMenu}>
-          <LineSelectionMenu top={0} text={selection.selected.text} tokens={context.tokens}
-            dismiss={selection.dismiss} accessibilityLabel="Copy selected cell" />
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -191,7 +186,6 @@ function TableCell({ touchProps, ...props }: TextProps & { touchProps: ViewProps
 
 const copyStyles = StyleSheet.create({
   touchCell: { flexDirection: "row" },
-  selectionMenu: { height: 40, marginTop: 6 },
   outer: { position: "relative" },
   // Room for the corner control outside the columns: half its side, so its
   // centre sits on the table's corner.
