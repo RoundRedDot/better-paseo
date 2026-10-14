@@ -109,6 +109,9 @@ export const ROW_GAP_COMPENSATION = 12;
 
 const rowGapStyles = StyleSheet.create({
   compensated: { marginBottom: -ROW_GAP_COMPENSATION },
+  // Reserve the compact header's 8pt top hit slop inside the item while
+  // thinking, so a long press stays clear of the preceding tool row.
+  mobileStreamingThought: { paddingTop: 8 },
 });
 
 /** Whether a row with something below it takes back the gap under it. */
@@ -293,7 +296,10 @@ function LiveReasoningRendererBody({
       ref={rootRef}
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       {...probe.viewProps}
-      style={compensatesRow(preferences.compactRowSpacing, anythingBelow, rowBelow, hostStacks) ? rowGapStyles.compensated : undefined}
+      style={[
+        compensatesRow(preferences.compactRowSpacing, anythingBelow, rowBelow, hostStacks) ? rowGapStyles.compensated : undefined,
+        streaming && layout.platform !== "web" ? rowGapStyles.mobileStreamingThought : undefined,
+      ]}
     >
       {probe.node}
       <PreferenceSyncSlot />

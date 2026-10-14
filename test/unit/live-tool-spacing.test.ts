@@ -1,7 +1,7 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
-import type { LiveToolCallPayload } from "../../client/live-renderers";
+import type { LiveReasoningPayload, LiveToolCallPayload } from "../../client/live-renderers";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/react-native", () => ({
@@ -23,6 +23,7 @@ vi.mock("../../client/components/theme-tokens", async (original) => ({
 }));
 vi.mock("../../client/components/selection-actions", () => ({ useSelectionActions() {} }));
 vi.mock("../../client/components/tool-callouts", () => ({ ToolCallout: () => null }));
+vi.mock("../../client/components/reasoning-trace", () => ({ ReasoningCard: () => null }));
 vi.mock("../../client/components/hub-live", () => ({ TimelineTailHub: () => null }));
 vi.mock("../../client/state/preference-sync-slot", () => ({ PreferenceSyncSlot: () => null }));
 vi.mock("../../client/state/disclosure-store", async (original) => ({
@@ -41,7 +42,7 @@ vi.mock("../../client/image-file", async (original) => ({
 await import("./helpers/quiet-renderer");
 const { default: TestRenderer, act } = await import("react-test-renderer");
 const { StyleSheet } = await import("./helpers/rn-mock");
-const { LiveToolCallRenderer } = await import("../../client/live-renderers");
+const { LiveReasoningRenderer, LiveToolCallRenderer } = await import("../../client/live-renderers");
 const { registerTimelineEntry } = await import("../../client/timeline-order");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -64,6 +65,52 @@ function margins(renderer: ReturnType<typeof TestRenderer.create>) {
   return renderer.root.findAll((node) => (node.type as unknown) === "View")
     .map((view) => StyleSheet.flatten(view.props.style).marginBottom);
 }
+
+function thought(platform: "ios" | "android" | "web", text = "Allocating an ID", phase = "streaming") {
+  const props: PluginTimelineItemProps<LiveReasoningPayload> = {
+    agentId: "tool-spacing-agent",
+    host: { id: "local", label: "Local" },
+    layout: { compact: true, platform },
+    theme: { colors: {} } as never,
+    timestamp: new Date(1001),
+    item: { type: "plugin", kind: "omp-reasoning", version: 1, data: { text, phase } },
+  };
+  return React.createElement(LiveReasoningRenderer, { ...props, key: "thought" });
+}
+
+describe("mobile streaming thought spacing", () => {
+  it.each(["ios", "android"] as const)("reserves space above a %s thought across chunks, then releases it on completion", (platform) => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    const render = (text: string, phase = "streaming") => React.createElement(React.Fragment, null,
+      tool("before-thought", 1000, "completed"), thought(platform, text, phase));
+    const thoughtStyle = () => StyleSheet.flatten(
+      renderer.root.findAll((node) => (node.type as unknown) === "View")[1]!.props.style,
+    );
+    act(() => { renderer = TestRenderer.create(render("Allocating an ID")); });
+    try {
+      expect(thoughtStyle().paddingTop).toBe(8);
+      expect(margins(renderer)).toEqual([-12, undefined]);
+      act(() => { renderer.update(render("Allocating an ID for the block")); });
+      expect(thoughtStyle().paddingTop).toBe(8);
+      act(() => { renderer.update(render("Allocating an ID for the block", "complete")); });
+      expect(thoughtStyle().paddingTop).toBeUndefined();
+      expect(margins(renderer)).toEqual([-12, undefined]);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it("keeps web thought spacing unchanged even in a compact layout", () => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(thought("web")); });
+    try {
+      const root = renderer.root.findByType("View" as never);
+      expect(StyleSheet.flatten(root.props.style).paddingTop).toBeUndefined();
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+});
 
 describe("tool row spacing during streaming", () => {
   it("keeps the first Read compact when its completion timestamp passes the next Read", () => {
