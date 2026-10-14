@@ -41,6 +41,7 @@ const ZH: Readonly<Record<string, string>> = {
   "Do not wrap lines": "不自动换行",
   "Maximize preview": "最大化预览",
   "Close preview": "关闭预览",
+  "Open tasks in a window": "在窗口中打开任务",
 };
 
 /** A button's English label as the reader's chosen language shows it; an unknown label stays English. */
