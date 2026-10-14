@@ -42,7 +42,7 @@ import type { ImageFile } from "../../client/image-file";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { createReasoningSegmenter } from "../../client/reasoning/segment";
 import { classifyTool } from "../../client/tools/classify";
-import { pressPreviewFrame } from "../../client/ui/press-preview-placement";
+import { pressPreviewFrame, pressPreviewOrigin } from "../../client/ui/press-preview-placement";
 import { MAX_UNWRAPPED_WIDTH } from "../../client/ui/hover-preview";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
@@ -232,8 +232,7 @@ describe("where the long-press preview goes", () => {
     act(() => row(renderer).props.onLongPress());
     // Hidden until the safe area is measured.
     expect(StyleSheetFlat(panel(renderer).props.style).opacity).toBe(0);
-    let stage = panel(renderer).parent!;
-    while (!stage.props.onLayout) stage = stage.parent!;
+    const stage = renderer.root.findByProps({ testID: "hover-preview-stage" });
     act(() => stage.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 430, height: 790 } } }));
     expect(StyleSheetFlat(stage.props.style)).toMatchObject({
       flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 64, paddingBottom: 104,
@@ -259,6 +258,56 @@ describe("where the long-press preview goes", () => {
 
   it("keeps the margins at the sides when the row is wider than the safe area", () => {
     expect(pressPreviewFrame({ width: 390, height: 750 }, 406, "ios").width).toBe(374);
+  });
+
+  it("centres the measured panel in the band between the header and the composer", () => {
+    // 700 tall, less 64 above and 104 below, leaves 532. A 280 panel sits 126 into that band.
+    expect(pressPreviewOrigin({ width: 390, height: 700 }, { width: 374, height: 280 }, "ios")).toEqual({
+      x: 8, y: 190, width: 374, height: 280,
+    });
+  });
+});
+
+describe("dragging the long-press preview", () => {
+  const at = (x: number, y: number) => ({ nativeEvent: { pageX: x, pageY: y } });
+
+  function opened() {
+    const renderer = render(React.createElement(ToolCallout, { data: shell, tokens, compact: true }));
+    act(() => row(renderer).props.onLongPress());
+    const stage = renderer.root.findByProps({ testID: "hover-preview-stage" });
+    act(() => stage.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 700 } } }));
+    act(() => panel(renderer).props.onLayout({ nativeEvent: { layout: { x: 8, y: 190, width: 374, height: 280 } } }));
+    return renderer;
+  }
+
+  it("moves with the toolbar and resizes from an edge", () => {
+    const renderer = opened();
+    expect(StyleSheetFlat(panel(renderer).props.style)).toMatchObject({
+      position: "absolute", left: 8, top: 190, width: 374, height: 280,
+    });
+    const toolbar = panel(renderer).findByProps({ testID: "hover-preview-toolbar" });
+    // A finger that barely moves is still a tap.
+    act(() => { toolbar.props.onStartShouldSetResponderCapture(at(120, 220)); });
+    expect(toolbar.props.onMoveShouldSetResponderCapture(at(122, 222))).toBe(false);
+    expect(toolbar.props.onMoveShouldSetResponderCapture(at(120, 280))).toBe(true);
+    act(() => { toolbar.props.onResponderGrant(at(120, 280)); });
+    // The window is as wide as the stage allows, so it slides only vertically: 190 + 60.
+    expect(StyleSheetFlat(panel(renderer).props.style)).toMatchObject({ left: 8, top: 250, width: 374, height: 280 });
+
+    const east = panel(renderer).findByProps({ testID: "hover-preview-edge-e" });
+    act(() => { east.props.onResponderGrant(at(370, 300)); });
+    act(() => { east.props.onResponderMove(at(368, 300)); });
+    expect(StyleSheetFlat(panel(renderer).props.style).width).toBe(374);
+    act(() => { east.props.onResponderMove(at(330, 300)); });
+    // Dragging the right edge left by 40 narrows it; the left edge stays.
+    expect(StyleSheetFlat(panel(renderer).props.style)).toMatchObject({ left: 8, width: 334, height: 280 });
+
+    const narrowed = panel(renderer).findByProps({ testID: "hover-preview-toolbar" });
+    act(() => { narrowed.props.onStartShouldSetResponderCapture(at(40, 200)); });
+    act(() => { narrowed.props.onResponderGrant(at(80, 200)); });
+    // Now there is room beside it: 8 + 40.
+    expect(StyleSheetFlat(panel(renderer).props.style)).toMatchObject({ left: 48, top: 250, width: 334 });
+    act(() => renderer.unmount());
   });
 });
 
