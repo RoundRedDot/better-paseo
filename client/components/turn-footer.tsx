@@ -42,6 +42,8 @@ export function AssistantFooter({ text, at, tokens, compact = false }: Assistant
       StyleSheet.create({
         container: {
           height: FOOTER_HEIGHT,
+          // Keep the Copy touch target clear of the composer below the tail.
+          marginBottom: compact ? space.lg : 0,
           flexDirection: "row",
           alignItems: "center",
           gap: space.md,
@@ -73,7 +75,7 @@ export function AssistantFooter({ text, at, tokens, compact = false }: Assistant
           ...unselectable,
         },
       }),
-    [tokens],
+    [tokens, compact],
   );
 
   return (
