@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../../theme-tokens";
 import { unselectable } from "../../selection";
@@ -7,7 +7,7 @@ import { useCopy } from "../../../ui/use-copy";
 import { useHover } from "../../../ui/use-hover";
 import { useInputCapabilities } from "../../../ui/use-input-capabilities";
 import { useReducedMotion } from "../../../ui/use-reduced-motion";
-import { motionDuration } from "../../../ui/tokens/motion";
+import { easing, motionDuration } from "../../../ui/tokens/motion";
 import { FLOAT, FLOAT_EASE, floatHover, floatPressed, floatShadow } from "../../../ui/tokens/float";
 import { canCopyImage, copyElementImage } from "../../../ui/element-image";
 import { ToolbarCopyButton } from "../../../ui/toolbar-button";
@@ -36,34 +36,86 @@ export function TableCopyMenu({ source, frame, tokens, selected }: {
   selected?: { text: string; dismiss(): void };
 }) {
   const { hover } = useInputCapabilities();
-  if (selected && Platform.OS !== "web") return <SelectedCellMenu selected={selected} tokens={tokens} />;
-  if (Platform.OS !== "web" || !canCopyImage()) {
+  if (Platform.OS !== "web") return <NativeCopyMenu source={source} selected={selected} tokens={tokens} />;
+  if (!canCopyImage()) {
     return <ToolbarCopyButton text={source} tokens={tokens} label="Copy Markdown table" align="start" outlined />;
   }
   return <ExpandingMenu source={source} frame={frame} tokens={tokens} trigger={hover ? "hover" : "longPress"} />;
 }
 
-/** Expands in the existing absolute corner slot, leaving the table's height unchanged. */
-function SelectedCellMenu({ selected, tokens }: {
-  selected: { text: string; dismiss(): void };
+/** The fixed corner slot keeps its menu mounted through an interruptible exit. */
+function NativeCopyMenu({ source, selected, tokens }: {
+  source: () => string;
+  selected?: { text: string; dismiss(): void };
   tokens: ExtendedThemeTokens;
 }) {
   const { copy } = useCopy();
   const { language } = useEnhancerPreferences();
+  const reducedMotion = useReducedMotion();
+  const windowWidth = useWindowDimensions().width;
+  const open = selected !== undefined;
+  const [shown, setShown] = useState(open);
+  const [measured, setMeasured] = useState<number | null>(null);
+  const width = useRef(new Animated.Value(FLOAT.control)).current;
+  const reveal = useRef(new Animated.Value(0)).current;
+  const latestOpen = useRef(open);
+  latestOpen.current = open;
+  useLayoutEffect(() => {
+    if (!open && !shown) return;
+    if (open) setShown(true);
+    const target = open && measured !== null ? measured : FLOAT.control;
+    const visible = open && measured !== null ? 1 : 0;
+    if (reducedMotion) {
+      width.setValue(target);
+      reveal.setValue(visible);
+      if (!open) setShown(false);
+      return;
+    }
+    // Only the absolute clipping frame changes width; the row inside keeps
+    // its measured size, and the table never participates in this layout.
+    const frameAnimation = Animated.timing(width, {
+      toValue: target, duration: open ? 180 : 160, easing: easing.out, useNativeDriver: false,
+    });
+    const labelAnimation = Animated.timing(reveal, {
+      toValue: visible, duration: open ? 140 : 80, easing: easing.out, useNativeDriver: true,
+    });
+    frameAnimation.start(({ finished }) => {
+      if (finished && !latestOpen.current) setShown(false);
+    });
+    labelAnimation.start();
+    return () => { frameAnimation.stop(); labelAnimation.stop(); };
+  }, [open, shown, measured, reducedMotion, width, reveal]);
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel="Copy selected cell"
-      onPress={() => { void copy(selected.text, { feedback: "toast", label: "Copy selected" })
-        .then((ok) => { if (ok) selected.dismiss(); }); }}
-      style={({ pressed }) => [styles.frame, styles.selected, {
-        backgroundColor: pressed ? floatPressed(tokens) : tokens.surface0,
-        borderColor: tokens.v2.border,
-      }]}>
-      <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
-      <Text selectable={false} numberOfLines={1}
-        style={[styles.label, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
-        {toolbarLabel("Copy selected", language)}
-      </Text>
-    </Pressable>
+    <View testID="table-native-copy-slot" style={[styles.nativeSlot, { width: shown ? measured ?? FLOAT.control : FLOAT.control }]}>
+      <View pointerEvents={open ? "none" : "auto"} accessibilityElementsHidden={open}
+        style={{ opacity: open ? 0 : 1 }}>
+        <ToolbarCopyButton text={source} tokens={tokens} label="Copy Markdown table" align="start" outlined />
+      </View>
+      {shown ? (
+        <Animated.View testID="table-selection-menu-animation" pointerEvents={open ? "auto" : "none"}
+          accessibilityElementsHidden={!open}
+          style={[styles.frame, styles.nativeFrame, { width, backgroundColor: tokens.surface0, borderColor: tokens.v2.border }]}>
+          <View style={{ width: windowWidth }}>
+            <Pressable accessibilityRole="button" accessible={open} accessibilityLabel={open ? "Copy selected cell" : undefined}
+              onLayout={(event) => setMeasured(Math.ceil(event.nativeEvent.layout.width) + BORDER * 2)}
+              onPress={() => {
+                if (selected) void copy(selected.text, { feedback: "toast", label: "Copy selected" })
+                  .then((ok) => { if (ok) selected.dismiss(); });
+              }}
+              style={({ pressed }) => [styles.selected, { backgroundColor: pressed ? floatPressed(tokens) : tokens.surface0 }]}>
+              <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
+              <Animated.View style={{ opacity: reveal,
+                transform: [{ translateX: reveal.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}>
+                <Text selectable={false} numberOfLines={1}
+                  style={[styles.label, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+                  {toolbarLabel("Copy selected", language)}
+                </Text>
+              </Animated.View>
+            </Pressable>
+          </View>
+        </Animated.View>
+      ) : null}
+    </View>
   );
 }
 
@@ -267,7 +319,9 @@ function revealed(open: boolean): object {
 const BORDER = 1;
 
 const styles = StyleSheet.create({
-  selected: { flexDirection: "row", alignItems: "center", gap: FLOAT.iconText, paddingHorizontal: 8 },
+  nativeSlot: { width: FLOAT.control, height: FLOAT.control },
+  nativeFrame: { position: "absolute", top: 0, left: 0 },
+  selected: { alignSelf: "flex-start", height: FLOAT.control - BORDER * 2, flexDirection: "row", alignItems: "center", gap: FLOAT.iconText, paddingLeft: 7, paddingRight: 10 },
   // A rounded square while closed; open, the same frame is a wider rounded rectangle.
   frame: {
     height: FLOAT.control,

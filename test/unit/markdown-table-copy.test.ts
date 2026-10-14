@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import React from "react";
 
-const { copyText, toastShow } = vi.hoisted(() => ({
+const { copyText, toastShow, motionSetting } = vi.hoisted(() => ({
   copyText: vi.fn(async (_text: string) => {}),
   toastShow: vi.fn(),
+  motionSetting: { reduced: false },
 }));
+vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motionSetting.reduced }));
 function listContext() {
   const store = globalThis as { __tableListContext?: React.Context<{ getScrollMetrics(): { offset: number } } | null> };
   return store.__tableListContext ??= React.createContext<{ getScrollMetrics(): { offset: number } } | null>(null);
@@ -34,7 +36,7 @@ await import("./helpers/quiet-renderer");
 const { default: TestRenderer, act } = await import("react-test-renderer");
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
 const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
-const { StyleSheet } = await import("./helpers/rn-mock");
+const { StyleSheet, Animated } = await import("./helpers/rn-mock");
 const { columnWidths } = await import("../../client/components/markdown/render/table");
 const { TOOLBAR_TOOLTIP_MS } = await import("../../client/ui/toolbar-button");
 const { variantMetrics, TABLE_DIVIDER_WIDTH } = await import("../../client/components/markdown/render/styles");
@@ -75,6 +77,8 @@ afterEach(() => {
   toastShow.mockClear();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  motionSetting.reduced = false;
 });
 
 describe("Markdown table copy", () => {
@@ -82,6 +86,8 @@ describe("Markdown table copy", () => {
     && node.props.testID === "markdown-table-cell")[index]!;
   const selectedCopy = () => renderer!.root.findAll((node) => String(node.type) === "Pressable"
     && node.props.accessibilityLabel === "Copy selected cell");
+  const animatedMenu = () => renderer!.root.findAll((node) => String(node.type) === "Animated.View"
+    && node.props.testID === "table-selection-menu-animation");
   const touchCell = (index: number) => renderer!.root.findAll((node) => String(node.type) === "View"
     && node.props.testID === "markdown-table-touch-cell")[index]!;
   const touch = (timestamp: number, pageX = 10, pageY = 10) => ({
@@ -123,8 +129,71 @@ describe("Markdown table copy", () => {
       tap(2, 230);
       expect(outer().children).toHaveLength(childCount);
       expect(selectedCopy()[0]!.findAll((node) => String(node.type) === "Text")[0]!.children).toEqual(["复制选中"]);
-      expect(StyleSheet.flatten(selectedCopy()[0]!.props.style)).toMatchObject({ height: 30, flexDirection: "row" });
+      expect(StyleSheet.flatten(animatedMenu()[0]!.props.style)).toMatchObject({ height: 30, position: "absolute" });
     } finally { act(() => { updateEnhancerPreferences({ language: previousLanguage }); }); }
+  });
+
+  function captureAnimations() {
+    const runs: Array<{ config: { toValue: number; duration: number; useNativeDriver: boolean };
+      finish?: (result: { finished: boolean }) => void; stop: ReturnType<typeof vi.fn> }> = [];
+    vi.spyOn(Animated, "timing").mockImplementation((...args: unknown[]) => {
+      const run = { config: args[1] as (typeof runs)[number]["config"],
+        finish: undefined as (typeof runs)[number]["finish"], stop: vi.fn() };
+      runs.push(run);
+      return { start: (finish?: (typeof runs)[number]["finish"]) => { run.finish = finish; }, stop: run.stop, reset() {} };
+    });
+    return runs;
+  }
+
+  it("animates the measured frame and label, retaining the menu until its exit finishes", () => {
+    const runs = captureAnimations();
+    render("| A | B |\n| --- | --- |\n| one | two |");
+    tap(2, 100);
+    tap(2, 230);
+    act(() => selectedCopy()[0]!.props.onLayout({ nativeEvent: { layout: { width: 96 } } }));
+    expect(runs.at(-2)!.config).toMatchObject({ toValue: 98, duration: 180, useNativeDriver: false });
+    const slot = () => renderer!.root.findAll((node) => String(node.type) === "View"
+      && node.props.testID === "table-native-copy-slot")[0]!;
+    // Native hit testing must reach the label outside the original 30pt icon.
+    expect(StyleSheet.flatten(slot().props.style).width).toBe(98);
+    expect(runs.at(-1)!.config).toMatchObject({ toValue: 1, duration: 140, useNativeDriver: true });
+    act(() => renderer!.root.findAll((node) => String(node.type) === "Animated.ScrollView")[0]!.props.onScrollBeginDrag());
+    expect(selectedCopy()).toHaveLength(0);
+    expect(animatedMenu()).toHaveLength(1);
+    expect(animatedMenu()[0]!.props.pointerEvents).toBe("none");
+    expect(runs.at(-2)!.config).toMatchObject({ toValue: 30, duration: 160 });
+    expect(runs.at(-1)!.config).toMatchObject({ toValue: 0, duration: 80 });
+    act(() => runs.at(-2)!.finish!({ finished: true }));
+    expect(animatedMenu()).toHaveLength(0);
+    expect(StyleSheet.flatten(slot().props.style).width).toBe(30);
+    expect(buttons()).toHaveLength(1);
+  });
+
+  it("reverses an interrupted exit without letting its obsolete completion remove the reopened menu", () => {
+    const runs = captureAnimations();
+    render("| A | B |\n| --- | --- |\n| one | two |");
+    tap(2, 100); tap(2, 230);
+    act(() => selectedCopy()[0]!.props.onLayout({ nativeEvent: { layout: { width: 96 } } }));
+    act(() => renderer!.root.findAll((node) => String(node.type) === "Animated.ScrollView")[0]!.props.onScrollBeginDrag());
+    const exit = runs.at(-2)!;
+    tap(2, 500); tap(2, 630);
+    expect(exit.stop).toHaveBeenCalled();
+    act(() => exit.finish!({ finished: true }));
+    expect(selectedCopy()).toHaveLength(1);
+    expect(animatedMenu()).toHaveLength(1);
+    expect(runs.at(-2)!.config.toValue).toBe(98);
+  });
+
+  it("switches instantly when reduced motion is enabled", () => {
+    motionSetting.reduced = true;
+    const runs = captureAnimations();
+    render("| A | B |\n| --- | --- |\n| one | two |");
+    tap(2, 100); tap(2, 230);
+    act(() => selectedCopy()[0]!.props.onLayout({ nativeEvent: { layout: { width: 96 } } }));
+    expect(runs).toHaveLength(0);
+    expect((StyleSheet.flatten(animatedMenu()[0]!.props.style).width as { __value: number }).__value).toBe(98);
+    act(() => renderer!.root.findAll((node) => String(node.type) === "Animated.ScrollView")[0]!.props.onScrollBeginDrag());
+    expect(animatedMenu()).toHaveLength(0);
   });
 
   it("restores the corner icon when the native page scrolls and stops observing once closed", () => {
