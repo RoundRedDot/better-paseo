@@ -196,7 +196,12 @@ export function bindPreviewFrame(node: unknown, hooks: {
   const onPointerMove = (event: PointerEvent) => {
     if (!drag || event.pointerId !== drag.pointerId) return;
     const delta = { x: event.clientX - drag.x, y: event.clientY - drag.y };
-    if (!drag.moved && Math.hypot(delta.x, delta.y) < PREVIEW_DRAG_SLOP) return;
+    if (!drag.moved) {
+      if (Math.hypot(delta.x, delta.y) < PREVIEW_DRAG_SLOP) return;
+      // Only a drag captures: a captured press sends its click and dblclick to the panel,
+      // and the toolbar's double-click maximize would never see them.
+      panel.setPointerCapture?.(drag.pointerId);
+    }
     drag.moved = true;
     event.preventDefault();
     const next = drag.kind === "move"
@@ -232,7 +237,6 @@ export function bindPreviewFrame(node: unknown, hooks: {
       moved: false,
     };
     hooks.hold(true);
-    panel.setPointerCapture?.(event.pointerId);
     doc.addEventListener("pointermove", onPointerMove);
     doc.addEventListener("pointerup", endDrag);
     doc.addEventListener("pointercancel", endDrag);
