@@ -59,7 +59,7 @@ function layer(contentLeft: number, contentWidth: number, viewportWidth = 1600, 
     ownerDocument: { defaultView: view, addEventListener: vi.fn(), removeEventListener: vi.fn() },
     setAttribute: vi.fn(), showPopover: vi.fn(), hidePopover: vi.fn(), contains: (node: unknown) => node !== OUTSIDE,
     querySelector: vi.fn((selector: string) => selector.includes("hover-preview-body") ? body : closeButton),
-    getBoundingClientRect: () => ({ height: 360 }),
+    getBoundingClientRect: (): Record<string, number> => ({ left: contentLeft, top: anchorTop + 32, width: contentWidth, height: 360 }),
     animate: vi.fn(),
   };
   const close = vi.fn();
@@ -283,6 +283,22 @@ describe("hover preview dismissal and wheel", () => {
     listener(view, "wheel")(event);
     expect(event.preventDefault).toHaveBeenCalledOnce();
     expect(close).not.toHaveBeenCalled();
+    release();
+  });
+  it("keeps a popped-out window where it opened while the timeline scrolls or the window resizes", () => {
+    const { panel, view, close, resize, release } = layer(200, 700, 1600, 24, { floating: true });
+    listener(view, "scroll")({ target: OUTSIDE });
+    const event = wheel(OUTSIDE);
+    listener(view, "wheel")(event);
+    listener(view, "resize")({});
+    listener(view, "blur")({});
+    expect(close).not.toHaveBeenCalled();
+    // Its first box is kept as a placed one: the same spot, at the height it opened with.
+    resize();
+    expect(panel.style).toMatchObject({ left: "200px", top: "132px", width: "700px", height: "360px" });
+    // A press outside or Escape still closes it, as they close a dragged panel.
+    listener(panel.ownerDocument, "pointerdown")({ target: OUTSIDE });
+    expect(close).toHaveBeenCalledOnce();
     release();
   });
   it("closes a resting panel on a wheel outside it without scrolling the timeline", () => {

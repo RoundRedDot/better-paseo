@@ -65,7 +65,9 @@ export const PREVIEW_CLOSE_MS = 150;
 /**
  * The preview of a collapsed row. On web a pointer that rests on the row opens
  * it and leaving closes it. A phone has no hover, so on iOS and Android a long
- * press opens it (`press`), pinned until the reader dismisses it.
+ * press opens it (`press`), pinned until the reader dismisses it. A button can
+ * open it as a window (`pop`): pinned, and shown even where hover and
+ * long-press previews are turned off.
  */
 export function useHoverPreview(enabled: boolean) {
   const parentPreview = useContext(HoverPreviewContext);
@@ -80,6 +82,9 @@ export function useHoverPreview(enabled: boolean) {
   const [open, setOpen] = useState(false);
   const [maximized, setMaximized] = useState(false);
   const [placed, setPlaced] = useState(false);
+  const [popped, setPopped] = useState(false);
+  const poppedRef = useRef(false);
+  poppedRef.current = popped;
   const pinned = useRef(false);
   const interacting = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -92,6 +97,7 @@ export function useHoverPreview(enabled: boolean) {
     pinned.current = false;
     interacting.current = false;
     setPlaced(false);
+    setPopped(false);
     setMaximized(false);
     setOpen(false);
   }, [cancel]);
@@ -116,6 +122,12 @@ export function useHoverPreview(enabled: boolean) {
     pinned.current = true;
     setOpen(true);
   }, [cancel]);
+  const pop = useCallback(() => {
+    cancel();
+    pinned.current = true;
+    setPopped(true);
+    setOpen(true);
+  }, [cancel]);
   const enter = useCallback(() => {
     cancel();
     if (!hoverActive) return;
@@ -137,7 +149,7 @@ export function useHoverPreview(enabled: boolean) {
 
   useEffect(() => {
     if (!active) {
-      close();
+      if (!poppedRef.current) close();
       return;
     }
     return hoverActive ? bindPreviewPointer(anchorRef.current, enter, leave) : undefined;
@@ -145,8 +157,10 @@ export function useHoverPreview(enabled: boolean) {
   useEffect(() => cancel, [cancel]);
   return {
     anchorRef,
-    open: active && open,
+    open: (active || popped) && open,
     maximized,
+    /** Opened by `pop`, as a window. */
+    popped,
     maximize,
     /** True once the reader has dragged or resized this preview. */
     placed,
@@ -159,6 +173,8 @@ export function useHoverPreview(enabled: boolean) {
     close,
     /** Opens the preview from a long press; absent where a long press does not. */
     press: pressActive ? press : undefined,
+    /** Opens the preview as a window from a button; absent inside another preview. */
+    pop: enabled && !parentPreview ? pop : undefined,
   };
 }
 
@@ -211,13 +227,14 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
       },
       onLeave: preview.leave,
       onFrame(sync) { frameSync.current = sync; },
+      floating: preview.popped,
     });
     return () => {
       frameSync.current = null;
       unbind();
       release();
     };
-  }, [preview.anchorRef, preview.enter, preview.leave, preview.close, preview.hold, preview.place, preview.maximized]);
+  }, [preview.anchorRef, preview.enter, preview.leave, preview.close, preview.hold, preview.place, preview.maximized, preview.popped]);
   // A commit rewrites the panel's style and would drop a box applied on the DOM node.
   useLayoutEffect(() => {
     frameSync.current?.();
