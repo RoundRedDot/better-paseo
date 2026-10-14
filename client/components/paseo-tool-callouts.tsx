@@ -16,7 +16,6 @@ import type {
   PaseoListModelsData,
   PaseoToolData,
 } from "../../shared/contracts";
-import { UI_SCALE } from "../ui/tokens/typography";
 
 interface PaseoToolCalloutProps {
   data: PaseoToolData;
@@ -76,7 +75,7 @@ function CreateAgentView({
             <Text
               selectable
               style={{
-                fontSize: UI_SCALE.base,
+                fontSize: tokens.typography.block.meta.size,
                 fontFamily: tokens.fontUi,
                 color: tokens.foregroundMuted,
               }}
@@ -88,7 +87,7 @@ function CreateAgentView({
             <Text
               selectable
               style={{
-                fontSize: UI_SCALE.base,
+                fontSize: tokens.typography.block.meta.size,
                 fontWeight: "600",
                 color: tokens.accent,
                 paddingHorizontal: 6,
@@ -115,7 +114,7 @@ function CreateAgentView({
           <Text
             selectable
             style={{
-              fontSize: UI_SCALE.base,
+              fontSize: tokens.typography.block.meta.size,
               fontFamily: tokens.fontUi,
               color: tokens.success,
               fontWeight: "600",
@@ -130,7 +129,7 @@ function CreateAgentView({
         <Text
           selectable
           style={{
-            fontSize: UI_SCALE.base,
+            fontSize: tokens.typography.block.meta.size,
             fontWeight: "500",
             color: tokens.foregroundMuted,
           }}
@@ -160,7 +159,7 @@ function ListProvidersView({
       <Text
         selectable
         style={{
-          fontSize: UI_SCALE.base,
+          fontSize: tokens.typography.block.meta.size,
           color: tokens.foregroundMuted,
         }}
       >
@@ -196,7 +195,7 @@ function ListProvidersView({
                     <Text
                       selectable
                       style={{
-                        fontSize: UI_SCALE.base,
+                        fontSize: tokens.typography.block.meta.size,
                         fontWeight: "700",
                         color: tokens.foreground,
                       }}
@@ -206,7 +205,7 @@ function ListProvidersView({
                     <Text
                       selectable
                       style={{
-                        fontSize: UI_SCALE.base,
+                        fontSize: tokens.typography.block.meta.size,
                         fontFamily: tokens.fontUi,
                         color: tokens.foregroundMuted,
                       }}
@@ -217,7 +216,7 @@ function ListProvidersView({
                   <Text
                     selectable
                     style={{
-                      fontSize: UI_SCALE.base,
+                      fontSize: tokens.typography.block.meta.size,
                       color: tokens.foregroundMuted,
                       marginTop: 1,
                     }}
@@ -240,7 +239,7 @@ function ListProvidersView({
                 <Text
                   selectable
                   style={{
-                    fontSize: UI_SCALE.base,
+                    fontSize: tokens.typography.block.meta.size,
                     fontWeight: "600",
                     color: isAvail ? tokens.success : tokens.foregroundMuted,
                   }}
@@ -267,7 +266,7 @@ function ListModelsView({
     <View style={{ gap: space.sm }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
         <ProviderLogo provider={data.provider} size={16} showLabel />
-        <Text selectable style={{ fontSize: UI_SCALE.base, color: tokens.foregroundMuted }}>
+        <Text selectable style={{ fontSize: tokens.typography.block.meta.size, color: tokens.foregroundMuted }}>
           Supported models & reasoning modes:
         </Text>
       </View>
@@ -290,7 +289,7 @@ function ListModelsView({
               <Text
                 selectable
                 style={{
-                  fontSize: UI_SCALE.base,
+                  fontSize: tokens.typography.block.meta.size,
                   fontFamily: tokens.fontUi,
                   fontWeight: "700",
                   color: tokens.foreground,
@@ -301,7 +300,7 @@ function ListModelsView({
               <Text
                 selectable
                 style={{
-                  fontSize: UI_SCALE.base,
+                  fontSize: tokens.typography.block.meta.size,
                   color: tokens.foregroundMuted,
                 }}
               >
@@ -325,7 +324,7 @@ function ListModelsView({
                   <Text
                     selectable
                     style={{
-                      fontSize: UI_SCALE.base,
+                      fontSize: tokens.typography.block.meta.size,
                       color: tokens.accent,
                       fontWeight: "600",
                     }}
@@ -337,7 +336,7 @@ function ListModelsView({
               <Text
                 selectable
                 style={{
-                  fontSize: UI_SCALE.base,
+                  fontSize: tokens.typography.block.meta.size,
                   fontFamily: tokens.fontUi,
                   color: tokens.foregroundMuted,
                 }}
@@ -376,7 +375,7 @@ function GetActivityView({
           <Text
             selectable
             style={{
-              fontSize: UI_SCALE.base,
+              fontSize: tokens.typography.block.meta.size,
               fontFamily: tokens.fontUi,
               color: tokens.foregroundMuted,
             }}
@@ -384,7 +383,7 @@ function GetActivityView({
             Target: {data.agentId}
           </Text>
         </View>
-        <Text selectable style={{ fontSize: UI_SCALE.base, color: tokens.foregroundMuted }}>
+        <Text selectable style={{ fontSize: tokens.typography.block.meta.size, color: tokens.foregroundMuted }}>
           {data.activities.length} recent activities
         </Text>
       </View>
@@ -410,7 +409,7 @@ function GetActivityView({
             <Text
               selectable
               style={{
-                fontSize: UI_SCALE.base,
+                fontSize: tokens.typography.block.meta.size,
                 color: tokens.foreground,
               }}
             >
@@ -421,7 +420,7 @@ function GetActivityView({
             <Text
               selectable
               style={{
-                fontSize: UI_SCALE.base,
+                fontSize: tokens.typography.block.meta.size,
                 fontFamily: tokens.fontUi,
                 color: tokens.foregroundMuted,
               }}

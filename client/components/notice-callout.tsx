@@ -9,7 +9,6 @@ import { selectionCodeText, selectionSurface } from "./selection-actions";
 import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
 import { FadeIn } from "../ui/fade-in";
 import { formatStamp } from "../ui/time";
-import { TYPE } from "../ui/tokens/typography";
 import type { NoticeCalloutData } from "../../shared/contracts";
 
 interface NoticeCalloutProps {
@@ -74,7 +73,8 @@ export function NoticeCallout({ data, tokens, at, compact = false }: NoticeCallo
   const message = data.message.trim();
   const asData = message.includes("\n") || message.length > INLINE_LIMIT || TECHNICAL.test(message);
   const [open, setOpen] = useState(false);
-  const height = compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop;
+  const height = compact ? tokens.typography.block.rowHeight.compact : tokens.typography.block.rowHeight.desktop;
+  const block = tokens.typography.block;
 
   const styles = useMemo(
     () =>
@@ -106,15 +106,15 @@ export function NoticeCallout({ data, tokens, at, compact = false }: NoticeCallo
           flex: 1,
           minWidth: 0,
           fontFamily: tokens.fontUi,
-          fontSize: TYPE.label.size,
-          lineHeight: TYPE.label.lineHeight,
+          fontSize: block.label.size,
+          lineHeight: block.label.lineHeight,
           color: tokens.foreground,
           paddingVertical: open ? space.xs : 0,
         },
         time: {
           fontFamily: tokens.fontMono,
-          fontSize: TYPE.meta.size,
-          lineHeight: TYPE.meta.lineHeight,
+          fontSize: block.meta.size,
+          lineHeight: block.meta.lineHeight,
           fontVariant: ["tabular-nums"],
           color: tokens.foregroundMuted,
           ...unselectable,

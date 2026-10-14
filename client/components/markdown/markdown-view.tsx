@@ -30,6 +30,12 @@ export interface MarkdownViewProps {
   compact?: boolean;
   /** One step quieter: muted text a size down (a thought, not the answer). */
   quiet?: boolean;
+  /**
+   * Metrics base instead of the reply's content size. Tool and thought prose
+   * pass `blockProseBase`, which equals the content size at the default block
+   * size and grows with the setting.
+   */
+  size?: number;
   /** Press on a file path in the prose. */
   onRevealPath?: (path: string) => void;
   /** Debug only: names this message so the perf probes can track it across chunks. */
@@ -68,6 +74,7 @@ export function MarkdownView({
   collapseCode = false,
   compact = false,
   quiet = false,
+  size,
   onRevealPath,
   probeId,
 }: MarkdownViewProps) {
@@ -109,7 +116,7 @@ export function MarkdownView({
   // Sizes follow the host's content size (S7 §2.3); the metrics object is
   // cached per input, so the context — and every finished block — stays put
   // while the reply streams.
-  const metrics = variantMetrics(variant, tokens.typography.content.size, compact, quiet);
+  const metrics = variantMetrics(variant, size ?? tokens.typography.content.size, compact, quiet);
   const styles = useMemo(() => buildStyles(tokens, variant, metrics, quiet), [tokens, variant, metrics, quiet]);
   const context = useMemo<RenderContext>(
     () => ({

@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 import {
+  blockMetrics,
+  blockProseBase,
   DEFAULT_WEB_MONO_STACK,
   EMBEDDED_FAMILY,
   HOST_DEFAULT_WEB_MONO,
@@ -175,6 +177,33 @@ describe("resolveTypography details", () => {
   it("rounds line height to 1.5x", () => {
     expect(lineHeightFor(11)).toBe(17);
     expect(lineHeightFor(22)).toBe(33);
+  });
+
+  it("keeps block text at the built-in row sizes until the reader changes it", () => {
+    const block = resolveTypography(noHost, follow, "web").block;
+    expect(block).toMatchObject({
+      size: 13,
+      delta: 0,
+      label: { size: 13, lineHeight: 18 },
+      target: { size: 12, lineHeight: 18 },
+      meta: { size: 12, lineHeight: 16 },
+      rowHeight: { desktop: 26, compact: 28 },
+    });
+    expect(block.caption).toEqual(block.meta);
+    expect(block.button).toEqual(block.label);
+    expect(blockMetrics(16)).toMatchObject({
+      size: 16,
+      delta: 3,
+      label: { size: 16, lineHeight: 22 },
+      target: { size: 15, lineHeight: 22 },
+      meta: { size: 15, lineHeight: 20 },
+      rowHeight: { desktop: 30, compact: 32 },
+    });
+    expect(blockMetrics(4).size).toBe(12);
+    expect(blockMetrics(12).target.size).toBe(12);
+    const grown = resolveTypography(noHost, { ...follow, blockFontSize: 16 }, "web");
+    expect(blockProseBase(grown)).toBe(grown.content.size + 3);
+    expect(blockProseBase(resolveTypography(noHost, follow, "web"))).toBe(15);
   });
 });
 

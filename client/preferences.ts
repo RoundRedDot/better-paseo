@@ -1,7 +1,11 @@
 import { useSyncExternalStore } from "react";
 import {
+  BLOCK_FONT_SIZE_DEFAULT,
+  BLOCK_FONT_SIZE_MAX,
+  BLOCK_FONT_SIZE_MIN,
   CODE_FONT_SIZE_MAX,
   CODE_FONT_SIZE_MIN,
+  clampBlockFontSize,
   clampCodeFontSize,
   HOVER_DELAY_DEFAULT,
   HOVER_DELAY_MAX,
@@ -12,7 +16,19 @@ import {
 } from "../shared/preferences-settings";
 import type { SettingsLanguagePreference } from "./i18n/settings-strings";
 
-export { CODE_FONT_SIZE_MAX, CODE_FONT_SIZE_MIN, clampCodeFontSize, HOVER_DELAY_DEFAULT, HOVER_DELAY_MAX, HOVER_DELAY_MIN, clampHoverDelay };
+export {
+  BLOCK_FONT_SIZE_DEFAULT,
+  BLOCK_FONT_SIZE_MAX,
+  BLOCK_FONT_SIZE_MIN,
+  CODE_FONT_SIZE_MAX,
+  CODE_FONT_SIZE_MIN,
+  clampBlockFontSize,
+  clampCodeFontSize,
+  HOVER_DELAY_DEFAULT,
+  HOVER_DELAY_MAX,
+  HOVER_DELAY_MIN,
+  clampHoverDelay,
+};
 export type { StoredPreferences };
 
 export const ACCENT_PRESETS = {
@@ -71,6 +87,11 @@ export interface EnhancerPreferences {
   customMonoFont: string;
   /** Code font size in px, 10-22; null follows Paseo (12 until the host says otherwise). */
   codeFontSize: number | null;
+  /**
+   * Text size in tool rows, thoughts, checklists and notices, 12-20.
+   * 13 is the built-in row label. Code inside those blocks keeps `codeFontSize`.
+   */
+  blockFontSize: number;
   toolDetail: ToolDetailPreference;
   pathDisplay: PathDisplayPreference;
   /** Show desktop hover previews for collapsed rows and file paths. */
@@ -173,6 +194,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   monoFont: "host",
   customMonoFont: "",
   codeFontSize: null,
+  blockFontSize: BLOCK_FONT_SIZE_DEFAULT,
   toolDetail: "collapsed",
   pathDisplay: "relative",
   hoverPreview: true,

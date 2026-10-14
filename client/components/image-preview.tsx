@@ -11,7 +11,6 @@ import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { useScrollAnchor } from "../ui/scroll-anchor";
 import { useCopy } from "../ui/use-copy";
-import { UI_SCALE } from "../ui/tokens/typography";
 import { ToolbarCopyButton } from "../ui/toolbar-button";
 import { PreviewPath } from "../ui/command-band";
 import {
@@ -108,7 +107,7 @@ export function ImageMeta({ file, tokens }: { file: ImageFile | null; tokens: Ex
   if (chips.length === 0) return null;
   const chip = {
     fontFamily: tokens.fontUi,
-    fontSize: UI_SCALE.base,
+    fontSize: tokens.typography.block.meta.size,
     fontVariant: ["tabular-nums" as const],
     color: tokens.foregroundMuted,
     ...unselectable,
@@ -235,7 +234,7 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
         fillImage: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
         message: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
+          fontSize: tokens.typography.block.meta.size,
           color: tokens.foregroundMuted,
           padding: space.sm,
         },
@@ -325,7 +324,7 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
                 path={path}
                 tokens={tokens}
                 onReveal={onReveal ? () => onReveal() : undefined}
-                style={{ fontSize: UI_SCALE.base }}
+                style={{ fontSize: tokens.typography.block.meta.size }}
               />
             </View>
             <View style={styles.spacer} />
