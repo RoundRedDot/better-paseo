@@ -71,6 +71,60 @@ afterEach(() => {
 });
 
 describe("Markdown table copy", () => {
+  const cell = (index: number) => renderer!.root.findAll((node) => String(node.type) === "Text"
+    && node.props.testID === "markdown-table-cell")[index]!;
+  const selectedCopy = () => renderer!.root.findAll((node) => String(node.type) === "Pressable"
+    && node.props.accessibilityLabel === "Copy selected cell");
+  const touchCell = (index: number) => renderer!.root.findAll((node) => String(node.type) === "View"
+    && node.props.testID === "markdown-table-touch-cell")[index]!;
+  const touch = (timestamp: number, pageX = 10, pageY = 10) => ({
+    nativeEvent: { timestamp, pageX, pageY, touches: [{}] },
+  });
+  const tap = (index: number, timestamp: number) => {
+    act(() => touchCell(index).props.onTouchStart(touch(timestamp)));
+    act(() => touchCell(index).props.onTouchEnd(touch(timestamp + 30)));
+  };
+
+  it.each([0, 2])("on iOS selects all rendered text of cell %s on a double tap and copies it", async (index) => {
+    render("| Header words | B |\n| --- | --- |\n| **bold** and `code` | two |");
+    tap(index, 100);
+    expect(selectedCopy()).toHaveLength(0);
+    tap(index, 230);
+    expect(selectedCopy()).toHaveLength(1);
+    expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).toBe(tokens.accentBg);
+    await act(async () => selectedCopy()[0]!.props.onPress());
+    expect(copyText).toHaveBeenCalledExactlyOnceWith(index === 0 ? "Header words" : "bold and code");
+    expect(selectedCopy()).toHaveLength(0);
+  });
+
+  it("on iOS does not combine taps on different cells, delayed taps, holds, or scrolling gestures", () => {
+    render("| A | B |\n| --- | --- |\n| one | two |");
+    tap(2, 100);
+    tap(3, 230);
+    expect(selectedCopy()).toHaveLength(0);
+    tap(3, 700);
+    expect(selectedCopy()).toHaveLength(0);
+    act(() => touchCell(3).props.onTouchStart(touch(800)));
+    act(() => touchCell(3).props.onTouchMove(touch(820, 30)));
+    act(() => touchCell(3).props.onTouchEnd(touch(850, 30)));
+    tap(3, 900);
+    expect(selectedCopy()).toHaveLength(0);
+    act(() => touchCell(3).props.onTouchStart(touch(1000)));
+    act(() => touchCell(3).props.onTouchEnd(touch(1400)));
+    tap(3, 1500);
+    expect(selectedCopy()).toHaveLength(0);
+  });
+
+  it("on iOS clears the cell selection when streaming changes its source", () => {
+    const source = "| A | B |\n| --- | --- |\n| one | two |";
+    render(source, true);
+    tap(2, 100);
+    tap(2, 230);
+    expect(selectedCopy()).toHaveLength(1);
+    render(source + "\n| three | four |", true);
+    expect(selectedCopy()).toHaveLength(0);
+  });
+
   it.each([
     ["zh", "复制 Markdown 表格", "已复制"],
     ["en", "Copy Markdown table", "Copied"],
@@ -155,7 +209,12 @@ describe("Markdown table copy", () => {
         && node.children[0] === "Same header");
       expect(headers).toHaveLength(2);
       expect(headers.map((node) => StyleSheet.flatten(node.props.style).width)).toEqual(widths);
-      expect(headers[0]!.parent!.parent === headers[1]!.parent!.parent).toBe(true);
+      const headerRow = (node: (typeof headers)[number]) => {
+        let parent = node.parent!;
+        while (StyleSheet.flatten(parent.props.style).backgroundColor !== tokens.v2.surface2) parent = parent.parent!;
+        return parent;
+      };
+      expect(headerRow(headers[0]!)).toBe(headerRow(headers[1]!));
     },
   );
 
