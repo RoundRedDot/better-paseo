@@ -199,8 +199,9 @@ describe("resolveTypography details", () => {
       meta: { size: 15, lineHeight: 20 },
       rowHeight: { desktop: 30, compact: 32 },
     });
-    expect(blockMetrics(4).size).toBe(12);
-    expect(blockMetrics(12).target.size).toBe(12);
+    expect(blockMetrics(4).size).toBe(9);
+    expect(blockMetrics(9)).toMatchObject({ size: 9, target: { size: 9 }, meta: { size: 9 } });
+    expect(blockMetrics(12).target.size).toBe(11);
     const grown = resolveTypography(noHost, { ...follow, blockFontSize: 16 }, "web");
     expect(blockProseBase(grown)).toBe(grown.content.size + 3);
     expect(blockProseBase(resolveTypography(noHost, follow, "web"))).toBe(15);
