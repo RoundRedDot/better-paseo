@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useAgent, usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { useRevealedText } from "@getpaseo/plugin/client/react-native";
 import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
@@ -13,7 +13,7 @@ import { observeReasoning, observedDurationMs } from "./reasoning/observed";
 import { useDisclosure } from "./state/disclosure-store";
 import { TaskList } from "./components/task-list";
 import { TaskActivityRow } from "./components/task-activity-row";
-import { deriveTodoActivities, todoTaskStatus, useTodoTimeline, type TodoTask } from "./state/todo-timeline";
+import { deriveTodoActivities, todoTaskStatus, useTodoTimeline, type EmptyGapTakeBack, type TodoTask } from "./state/todo-timeline";
 import { UserMessage } from "./components/user-message";
 import { itemRootFont } from "./components/host-font-escape";
 import { pluginRoot } from "./components/focus-ring";
@@ -99,10 +99,11 @@ export interface LiveNoticePayload {
  * rows, so a row takes nothing back above another row, only above a reply or
  * a prompt, where the 16pt stays.
  *
- * An empty slot (a member a merged row draws, an earlier checklist) cannot
- * take its gap back: a negative margin on a view with no height leaves the
- * host's wrapper at zero, not below it, so the 16pt under it stays on a host
- * that spaces rows.
+ * An empty slot (a member a merged row draws, a todo item another item of
+ * its update draws) cannot take its gap back: a negative margin on a view
+ * with no height leaves the host's wrapper at zero, not below it, so the 16pt
+ * under it stays on a host that spaces rows. A checklist takes its empty
+ * siblings' gaps back itself (`state/todo-timeline.ts`).
  */
 export const ROW_GAP_COMPENSATION = 12;
 
@@ -311,6 +312,12 @@ function LiveReasoningRendererBody({
   );
 }
 
+/** Negative margins taking back the gaps of a checklist's empty siblings. */
+function emptyGapStyle({ above, below }: EmptyGapTakeBack): ViewStyle | undefined {
+  if (above === 0 && below === 0) return undefined;
+  return { ...(above > 0 ? { marginTop: -above } : null), ...(below > 0 ? { marginBottom: -below } : null) };
+}
+
 function LiveTodoRendererBody({
   agentId,
   item,
@@ -327,7 +334,9 @@ function LiveTodoRendererBody({
   const items = data.items as unknown as TodoTask[];
   // Paseo hands over one item per change of an update, each with the whole
   // list: only one of them draws, and only the newest update draws open.
-  const { role, previous } = useTodoTimeline(agentId, timestamp.getTime(), items);
+  const rootRef = useRef<View>(null);
+  const { role, previous, emptyGaps, measureEmptyGaps } = useTodoTimeline(agentId, timestamp.getTime(), items, rootRef);
+  const hostStacks = useHostStacksRows();
   const activities = useMemo(
     () => (role === "summary" ? deriveTodoActivities(previous, items) : []),
     [role, previous, items],
@@ -353,11 +362,21 @@ function LiveTodoRendererBody({
     };
   }, [items]);
 
-  // Empty plugin slots still carry the host's 16pt gap.
-  if (role === "hidden") return <View />;
+  // Empty plugin slots still carry the host's 16pt gap; the item drawing the
+  // update takes it back for them, unless the host stacks rows and hangs none.
+  if (role === "hidden") return <View ref={rootRef} />;
 
   return (
-    <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}>
+    <View
+      ref={rootRef}
+      {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
+      {...probe.viewProps}
+      onLayout={(event: LayoutChangeEvent) => {
+        probe.viewProps.onLayout?.(event);
+        measureEmptyGaps();
+      }}
+      style={hostStacks ? undefined : emptyGapStyle(emptyGaps)}
+    >
       {probe.node}
       <PreferenceSyncSlot />
       {role === "full" ? (

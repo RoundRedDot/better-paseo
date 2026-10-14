@@ -1,4 +1,5 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import { viewBox, type ViewBox } from "../timeline-order";
 
 /**
  * One checklist per update, not one per change.
@@ -21,6 +22,12 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useSyncExternalStore } f
  * Updates are remembered after their item unmounts, so a list scrolled out of
  * a virtualised timeline still counts as newest and still names the changes
  * of the one after it.
+ *
+ * An item that draws nothing is still an empty plugin slot, and the host hangs
+ * its 16pt under it: an update split five ways left 64pt of blank space by its
+ * checklist. With no height the empty slot cannot give that back (a negative
+ * margin leaves the host's wrapper at zero), so the item that draws the update
+ * does, on the side its siblings sit (`EmptyGapTakeBack`).
  */
 
 /** A task as the host sends it (`AgentTaskItem`). */
@@ -88,7 +95,26 @@ interface Entry {
   at: number;
   key: string;
   sequence: number;
+  /** Where the item is drawn, in the window; null when unknown. */
+  measure?: () => ViewBox | null;
 }
+
+/** The gap Paseo up to 0.11.2 hangs under every plugin item, an empty one too. */
+export const HOST_ITEM_GAP = 16;
+
+/**
+ * The gaps of an update's empty siblings that the item drawing it takes back,
+ * as negative margins: `above` for siblings over it, `below` for those under
+ * it. Which side they sit on is how the host mounts its list (top-down on the
+ * web, inverted on native), so it is read off the screen. The take-back stops
+ * at the item's own height: the host's wrapper does not shrink below zero.
+ */
+export interface EmptyGapTakeBack {
+  above: number;
+  below: number;
+}
+
+const NO_TAKE_BACK: EmptyGapTakeBack = { above: 0, below: 0 };
 
 interface Update {
   at: number;
@@ -148,6 +174,39 @@ function todoRole(agentId: string, self: Entry, at: number, key: string): TodoRo
   return at >= newest ? "full" : "summary";
 }
 
+/** Mounted items drawing the same update as `self`, `self` excluded. */
+function siblingCount(agentId: string, self: Entry): number {
+  let count = 0;
+  for (const other of agents.get(agentId)?.mounted ?? []) {
+    if (other !== self && other.at === self.at && other.key === self.key) count++;
+  }
+  return count;
+}
+
+/**
+ * `EmptyGapTakeBack` for `self`, which already takes `takenAbove` above it:
+ * that margin moved it up, so its own top is read back where it was. A sibling
+ * in another column (a second pane) or with no size (a hidden pane) is not
+ * beside it.
+ */
+function measureEmptyGaps(agentId: string, self: Entry, takenAbove: number): EmptyGapTakeBack {
+  const own = self.measure?.() ?? null;
+  if (!own) return NO_TAKE_BACK;
+  const top = own.top + takenAbove;
+  let above = 0;
+  let below = 0;
+  for (const other of agents.get(agentId)?.mounted ?? []) {
+    if (other === self || other.at !== self.at || other.key !== self.key) continue;
+    const box = other.measure?.() ?? null;
+    if (!box || Math.abs(box.left - own.left) > 1 || Math.abs(box.width - own.width) > 1) continue;
+    if (box.top < top) above++;
+    else below++;
+  }
+  const takeBelow = Math.min(below * HOST_ITEM_GAP, own.height);
+  const takeAbove = Math.min(above * HOST_ITEM_GAP, own.height - takeBelow);
+  return takeAbove === 0 && takeBelow === 0 ? NO_TAKE_BACK : { above: takeAbove, below: takeBelow };
+}
+
 /** The list of the update before `at`, or null when none is known. */
 function previousItems(agentId: string, at: number): readonly TodoTask[] | null {
   let best: Update | null = null;
@@ -159,15 +218,26 @@ function previousItems(agentId: string, at: number): readonly TodoTask[] | null 
 
 /**
  * Records this todo item while it is mounted and says how it draws. `previous`
- * is the list of the update before it, null when none is known.
+ * is the list of the update before it, null when none is known. `view` is the
+ * item's root; `emptyGaps` is what a drawing item takes back for its empty
+ * siblings, read again by `measureEmptyGaps` as the root lays out.
  */
 export function useTodoTimeline(
   agentId: string,
   at: number,
   items: readonly TodoTask[],
-): { role: TodoRole; previous: readonly TodoTask[] | null } {
+  view?: RefObject<unknown>,
+): {
+  role: TodoRole;
+  previous: readonly TodoTask[] | null;
+  emptyGaps: EmptyGapTakeBack;
+  measureEmptyGaps: () => void;
+} {
   const key = useMemo(() => todoListKey(items), [items]);
-  const entry = useMemo<Entry>(() => ({ at, key, sequence: sequence++ }), []);
+  const entry = useMemo<Entry>(
+    () => ({ at, key, sequence: sequence++, measure: view ? () => viewBox(view.current) : undefined }),
+    [],
+  );
   const last = useRef<{ agentId: string; at: number; key: string } | null>(null);
   const itemsRef = useRef(items);
   itemsRef.current = items;
@@ -198,7 +268,19 @@ export function useTodoTimeline(
 
   const getRole = useCallback(() => todoRole(agentId, entry, at, key), [agentId, entry, at, key]);
   const getPrevious = useCallback(() => previousItems(agentId, at), [agentId, at]);
+  const getSiblings = useCallback(() => siblingCount(agentId, entry), [agentId, entry, at, key]);
   const role = useSyncExternalStore(subscribe, getRole, getRole);
   const previous = useSyncExternalStore(subscribe, getPrevious, getPrevious);
-  return { role, previous };
+  const siblings = useSyncExternalStore(subscribe, getSiblings, getSiblings);
+
+  // Before paint, so the blank space never shows for a frame.
+  const [emptyGaps, setEmptyGaps] = useState(NO_TAKE_BACK);
+  const takenAbove = useRef(0);
+  takenAbove.current = emptyGaps.above;
+  const measure = useCallback(() => {
+    const next = role === "hidden" || siblings === 0 ? NO_TAKE_BACK : measureEmptyGaps(agentId, entry, takenAbove.current);
+    setEmptyGaps((prev) => (prev.above === next.above && prev.below === next.below ? prev : next));
+  }, [agentId, entry, role, siblings]);
+  useLayoutEffect(measure, [measure]);
+  return { role, previous, emptyGaps, measureEmptyGaps: measure };
 }
