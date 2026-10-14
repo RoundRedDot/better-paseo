@@ -413,11 +413,18 @@ describe("line wrap in the desktop preview", () => {
     expect(renderer.root.findAll((node) => node.props.accessibilityLabel === "Expanded preview")).toHaveLength(0);
   });
 
-  it("opens a popped-out panel as a floating window on the layer", () => {
+  it("opens a popped-out panel as a floating window on the layer, with a close button", () => {
     act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
+    const button = (label: string) => renderer.root.findAll((node) =>
+      (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === label);
     expect(state.layers.at(-1)).toMatchObject({ floating: false });
+    expect(button("Close preview")).toHaveLength(0);
     act(() => own.pop!());
     expect(state.layers.at(-1)).toMatchObject({ floating: true });
+    expect(button("Maximize preview")).toHaveLength(1);
+    act(() => button("Close preview")[0]!.props.onPress());
+    expect(own.open).toBe(false);
+    expect(own.popped).toBe(false);
   });
 
   it("offers Maximize whatever the content's size, and Close once maximized", () => {
