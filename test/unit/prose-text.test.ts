@@ -70,6 +70,20 @@ describe("ProseText on iOS", () => {
     for (const run of runs) expect(run.props.style).not.toHaveProperty("marginBottom");
   });
 
+  it("clears the root's fill, which UITextView otherwise paints system black in dark mode", async () => {
+    const root = await render(true);
+    expect(root.props.style).toMatchObject({ backgroundColor: "transparent", marginBottom: 8 });
+  });
+
+  it("keeps a fill the block asks for on the root", async () => {
+    const { TestRenderer, act, ProseText } = await load(true);
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(ProseText, { style: { backgroundColor: "#222" } }, "x"));
+    });
+    expect((renderer.toJSON() as unknown as Node).props.style).toMatchObject({ backgroundColor: "#222" });
+  });
+
   it("lets a nested run inherit its parent's style and press handler", async () => {
     const onPress = vi.fn();
     const root = await render(true, onPress);
