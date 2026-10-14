@@ -10,6 +10,7 @@ import { diffLineNumbers } from "./diff-lines";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeSurface, selectionSurface } from "./selection-actions";
 import { useHighlightedLines } from "../highlight";
+import { perfCount } from "../debug/perf";
 import { CopyButton } from "../ui/copy-button";
 import { SelectableSpan } from "../ui/prose-text";
 import type { HighlightLine, HighlightToken } from "../../shared/highlight-rpc";
@@ -682,7 +683,15 @@ export function SyntaxHighlightBlock({
     [tokens, compact, hasHeader, bare],
   );
 
-  const numberWidth = lineNumberWidth(numbers ? Math.max(...numbers.map((n) => n ?? 0)) : total, mono.size);
+  const largestLineNumber = useMemo(() => {
+    if (numbers === null) return null;
+    perfCount("code.maxLineNumber");
+    return maxLineNumber(numbers);
+  }, [numbers]);
+  const numberWidth = lineNumberWidth(
+    numbers === null ? total : largestLineNumber ?? Number.NEGATIVE_INFINITY,
+    mono.size,
+  );
   // One row, as a stable function of the block's inputs: the chunks below are
   // memoised on it, so appending rows never re-renders the rows already shown.
   const row = useCallback(
@@ -1045,6 +1054,13 @@ const CodeRows = memo(CodeRowsBody);
 export function lineNumberWidth(largest: number, size: number): number {
   const digits = String(Math.max(1, largest)).length;
   return Math.max(2, digits) * Math.ceil(size * 0.62) + space.sm;
+}
+
+/** Largest line number in a diff; null rows count as zero. */
+export function maxLineNumber(numbers: readonly (number | null)[]): number {
+  let largest = Number.NEGATIVE_INFINITY;
+  for (const number of numbers) largest = Math.max(largest, number ?? 0);
+  return largest;
 }
 
 const rowStyles = StyleSheet.create({
