@@ -216,6 +216,25 @@ function previousItems(agentId: string, at: number): readonly TodoTask[] | null 
   return best?.items ?? null;
 }
 
+/** The list of the agent's newest update; of two at one time, the one seen last. */
+function latestItems(agentId: string): readonly TodoTask[] | null {
+  let best: Update | null = null;
+  for (const update of agents.get(agentId)?.updates.values() ?? []) {
+    if (!best || update.at >= best.at) best = update;
+  }
+  return best?.items ?? null;
+}
+
+/**
+ * The agent's newest list, read while `enabled`: the checklist's panel follows
+ * it after the item it was opened from folds to a row (`live-renderers.tsx`).
+ * Null while disabled or before any update is known.
+ */
+export function useLatestTodoItems(agentId: string, enabled: boolean): readonly TodoTask[] | null {
+  const getLatest = useCallback(() => (enabled ? latestItems(agentId) : null), [agentId, enabled]);
+  return useSyncExternalStore(subscribe, getLatest, getLatest);
+}
+
 /**
  * Records this todo item while it is mounted and says how it draws. `previous`
  * is the list of the update before it, null when none is known. `view` is the
