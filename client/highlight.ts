@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRpc } from "@getpaseo/plugin/client";
 import { highlightRpc, type HighlightLine, type HighlightToken } from "../shared/highlight-rpc";
-import { probeHighlightRpc } from "./debug/perf";
+import { perfCount, probeHighlightRpc } from "./debug/perf";
 
 export type { HighlightLine, HighlightToken };
 
@@ -203,7 +203,11 @@ function fetchLines(key: string, call: HighlightCall, request: HighlightRequest)
 export function useHighlightedLines(request: HighlightRequest): HighlightResponse {
   const call: HighlightCall = useRpc(highlightRpc);
   const { code, language, filename, dark, diffBodyCode, enabled = true } = request;
-  const key = code.length > 0 ? cacheKey(request) : null;
+  const key = useMemo(() => {
+    if (code.length === 0) return null;
+    perfCount("highlight.cacheKey");
+    return cacheKey(request);
+  }, [code, language, filename, dark, diffBodyCode]);
   // Reading the cache during render, not in an effect, is what removes the
   // unhighlighted frame on a block that was tokenised once already.
   const cached = key !== null ? (cache.get(key) ?? null) : null;
