@@ -368,7 +368,7 @@ describe("moving and resizing a hover preview", () => {
       style: {} as Record<string, string>,
       scrollHeight: 200,
       ownerDocument,
-      setAttribute: vi.fn(), showPopover: vi.fn(), hidePopover: vi.fn(),
+      setAttribute: vi.fn(), showPopover: vi.fn(), hidePopover: vi.fn(), setPointerCapture: vi.fn(),
       contains: (node: unknown) => node !== OUTSIDE && node !== button,
       querySelector: (selector: string) => {
         if (selector.includes("hover-preview-body")) return body;
@@ -419,6 +419,23 @@ describe("moving and resizing a hover preview", () => {
     expect(close).not.toHaveBeenCalled();
     expect(panel.style.left).toBe("8px");
     expect(panel.style.width).toBe("384px");
+    release();
+  });
+
+  it("captures the pointer only once a press travels, so a click or double-click keeps its target", () => {
+    const { panel, docEvents, title, release, pointer } = movable();
+    panel.emit("pointerdown", pointer(title, { x: 400, y: 160 }));
+    docEvents.emit("pointermove", pointer(title, { x: 402, y: 161 }));
+    docEvents.emit("pointerup", pointer(title, { x: 402, y: 161 }));
+    // A captured pointer sends the click and dblclick to the panel, past the toolbar's listener.
+    expect(panel.setPointerCapture).not.toHaveBeenCalled();
+
+    panel.emit("pointerdown", pointer(title, { x: 400, y: 160 }));
+    docEvents.emit("pointermove", pointer(title, { x: 480, y: 200 }));
+    docEvents.emit("pointermove", pointer(title, { x: 500, y: 210 }));
+    expect(panel.setPointerCapture).toHaveBeenCalledOnce();
+    expect(panel.setPointerCapture).toHaveBeenCalledWith(1);
+    docEvents.emit("pointerup", pointer(title, { x: 500, y: 210 }));
     release();
   });
 
