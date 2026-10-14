@@ -11,6 +11,14 @@
  */
 export const PREVIEW_FOLLOW_SLACK = 24;
 
+/**
+ * The time constant of the glide toward new output, in milliseconds. Output
+ * arrives in chunks; jumping a chunk's height at once read as a stutter. The
+ * glide closes about two thirds of the gap in this time, nearly all of it in
+ * three times this, so it keeps up with a stream without trailing it.
+ */
+export const PREVIEW_GLIDE_MS = 90;
+
 /** The offset that puts the end of `extent` at the bottom of `viewport`. */
 export function previewTailOffset(viewport: number, extent: number): number {
   if (!(viewport > 0) || !(extent > 0)) return 0;
@@ -27,36 +35,105 @@ export function previewFollowsTail(offset: number, viewport: number, extent: num
 }
 
 /**
+ * The offset `elapsed` milliseconds into a glide from `from` down to `to`.
+ * More than a screen behind, it starts a screen short of `to`: what it skips
+ * could not be read at that speed anyway. Each step moves at least a pixel,
+ * so a browser that rounds `scrollTop` still arrives.
+ */
+export function previewGlideStep(from: number, to: number, elapsed: number, viewport: number): number {
+  if (!(to - from > 1)) return to;
+  const start = viewport > 0 && to - from > viewport ? to - viewport : from;
+  const eased = start + (to - start) * (1 - Math.exp(-Math.max(0, elapsed) / PREVIEW_GLIDE_MS));
+  const next = Math.max(eased, from + 1);
+  return to - next <= 1 ? to : next;
+}
+
+/**
  * Starts at the tail and stays there while the content grows, until a scroll
  * leaves the tail. That scroll is the reader; later growth leaves it where
  * they put it. Scrolling back to the tail follows again.
  *
+ * Growth glides to the new tail, a frame at a time, on the scroll offset
+ * alone: nothing re-renders. Opening, a resized panel and reduced motion
+ * jump there instead.
+ *
  * `pinned` outlives this binding, so a re-render can ask `follow` to catch
  * the tail without a DOM mutation of its own. A scroll event fired while the
- * jump is being applied is ignored: it can still report the old offset.
+ * jump is being applied is ignored: it can still report the old offset. So
+ * are the glide's own offsets, reported a frame late; only a move up from
+ * where the glide left the body is the reader's.
  */
 export function bindPreviewTail(
   node: HTMLElement,
   pinned: { current: boolean },
   followRef?: { current: (() => void) | null },
 ): () => void {
+  const view = node.ownerDocument?.defaultView;
+  const frames = typeof view?.requestAnimationFrame === "function" ? view : null;
+  const still = view?.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   let adjusting = false;
-  const follow = () => {
-    if (!pinned.current) return;
-    const top = previewTailOffset(node.clientHeight, node.scrollHeight);
-    if (node.scrollTop === top) return;
+  let frame = 0;
+  let stamp = 0;
+  let left = 0;
+  let viewport = node.clientHeight;
+  const tail = () => previewTailOffset(node.clientHeight, node.scrollHeight);
+  const write = (top: number) => {
     adjusting = true;
     node.scrollTop = top;
     adjusting = false;
+    left = node.scrollTop;
+  };
+  const stop = () => {
+    if (frame) frames?.cancelAnimationFrame(frame);
+    frame = 0;
+  };
+  // Whether the reader has taken the body: true once it moved up from where
+  // the glide left it and is no longer on the tail.
+  const taken = () => {
+    if (node.scrollTop >= left - 1) return false;
+    pinned.current = previewFollowsTail(node.scrollTop, node.clientHeight, node.scrollHeight);
+    return !pinned.current;
+  };
+  const step = (time: number) => {
+    frame = 0;
+    if (!pinned.current || taken()) return;
+    const elapsed = stamp ? time - stamp : 16;
+    stamp = time;
+    const top = tail();
+    const next = previewGlideStep(node.scrollTop, top, elapsed, node.clientHeight);
+    if (next !== node.scrollTop) write(next);
+    if (next !== top) frame = frames!.requestAnimationFrame(step);
+  };
+  const jump = () => {
+    stop();
+    const top = tail();
+    if (node.scrollTop !== top) write(top);
+  };
+  const follow = () => {
+    if (!pinned.current) return;
+    const resized = node.clientHeight !== viewport;
+    viewport = node.clientHeight;
+    const top = tail();
+    if (!frames || still || resized || top < node.scrollTop) {
+      jump();
+      return;
+    }
+    if (frame || node.scrollTop === top) return;
+    left = node.scrollTop;
+    stamp = 0;
+    frame = frames.requestAnimationFrame(step);
   };
   const onScroll = () => {
     if (adjusting) return;
+    if (frame) {
+      if (taken()) stop();
+      return;
+    }
     pinned.current = previewFollowsTail(node.scrollTop, node.clientHeight, node.scrollHeight);
   };
   node.addEventListener("scroll", onScroll, { passive: true });
   if (followRef) followRef.current = follow;
-  follow();
-  const view = node.ownerDocument?.defaultView;
+  if (pinned.current) jump();
   const resize = view?.ResizeObserver ? new view.ResizeObserver(follow) : null;
   const watch = () => {
     if (!resize) return;
@@ -76,5 +153,9 @@ export function bindPreviewTail(
     node.removeEventListener("scroll", onScroll);
     resize?.disconnect();
     mutations?.disconnect();
+    // The last output can land with the end of the stream, in the commit that
+    // releases this binding; a glide still under way finishes at once.
+    if (pinned.current && (frame || node.scrollTop < tail())) jump();
+    stop();
   };
 }
