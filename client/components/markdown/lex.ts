@@ -7,6 +7,7 @@
  * lexed twice. Pure module: no React.
  */
 import { Lexer, type MarkedOptions, type Token } from "../../vendor/marked";
+import { perfCount, perfOn } from "../../debug/perf";
 
 /**
  * `$$ … $$` on its own lines: TeX shown as source (plan D6, no KaTeX). An
@@ -88,6 +89,7 @@ export function lexBlock(raw: string, open = false): Token[] {
     lru.set(raw, hit);
     return hit;
   }
+  if (!open && perfOn()) perfCount("md.lexFinalMiss");
   if (open) {
     const tail = tails.get(raw);
     if (tail !== undefined) return tail;
