@@ -77,8 +77,8 @@ const BUDGET = {
   failed: 7,
   reasoning: 6,
   notice: 5,
-  /** Four tasks: the header row and four task rows. */
-  tasks: 26,
+  /** Four tasks: the header row and four task rows; the ring is a quarter full. */
+  tasks: 27,
 } as const;
 
 describe("collapsed row view budget", () => {

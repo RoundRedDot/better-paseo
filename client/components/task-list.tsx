@@ -13,6 +13,7 @@ import {
   type TaskOverrides,
 } from "../state/task-overrides";
 import { RunningDot } from "../ui/running-dot";
+import { ProgressRing } from "../ui/progress-ring";
 import { FadeIn } from "../ui/fade-in";
 import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
 
@@ -24,9 +25,9 @@ interface TaskListProps {
   onToggleTask?: (taskId: string, newStatus: TaskStatus) => void;
 }
 
-/** The static progress line in the header (S7 §3.3): 48 wide, 2 tall. */
-const PROGRESS_WIDTH = 48;
-const PROGRESS_HEIGHT = 2;
+/** The static progress ring in the header: as wide as the status icons. */
+const PROGRESS_SIZE = DISCLOSURE_HEADER.icon;
+const PROGRESS_STROKE = 2;
 /** The pending ring. */
 const RING = 10;
 
@@ -39,10 +40,10 @@ const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
 
 /**
  * The agent's checklist as rows (S7 design spec §3.3): a header row —
- * `Tasks 1/4` and a static 2px progress line — then one row per task in the
+ * `Tasks 1/4` and a static progress ring — then one row per task in the
  * same status slot as a tool's icon, so a checklist lines up with the calls
  * around it. No frame, no fill. The only motion is the `RunningDot` of the
- * task in progress; the progress line jumps to its value.
+ * task in progress; the progress ring jumps to its value.
  *
  * Four views per task: the row, its status button, the status mark and the
  * title, which takes the same press.
@@ -57,7 +58,6 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
   const completedCount = tasks.filter((t) => t.status === "completed").length;
   const totalCount = tasks.length;
   const allDone = totalCount > 0 && completedCount === totalCount;
-  const progress = totalCount > 0 ? completedCount / totalCount : 0;
   const rowHeight = compact ? tokens.typography.block.rowHeight.compact : tokens.typography.block.rowHeight.desktop;
   const block = tokens.typography.block;
 
@@ -108,14 +108,6 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
           ...unselectable,
         },
         spacer: { flex: 1 },
-        progressTrack: {
-          width: PROGRESS_WIDTH,
-          height: PROGRESS_HEIGHT,
-          backgroundColor: tokens.v2.surface2,
-        },
-        progressFill: {
-          height: PROGRESS_HEIGHT,
-        },
         ring: {
           width: RING,
           height: RING,
@@ -196,21 +188,14 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
         ) : (
           <View style={styles.spacer} />
         )}
-        <View
-          style={styles.progressTrack}
-          accessibilityRole="progressbar"
-          accessibilityValue={{ min: 0, max: totalCount, now: completedCount }}
-        >
-          <View
-            style={[
-              styles.progressFill,
-              {
-                width: Math.round(progress * PROGRESS_WIDTH),
-                backgroundColor: allDone ? tokens.success : tokens.accent,
-              },
-            ]}
-          />
-        </View>
+        <ProgressRing
+          value={completedCount}
+          max={totalCount}
+          size={PROGRESS_SIZE}
+          stroke={PROGRESS_STROKE}
+          color={tokens.accent}
+          trackColor={tokens.v2.surface2}
+        />
       </View>
 
       {tasks.map((task) => {
