@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
+import { Platform, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useAgent, usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { useRevealedText } from "@getpaseo/plugin/client/react-native";
 import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
@@ -11,9 +11,9 @@ import { createReasoningSegmenter } from "./reasoning/segment";
 import { useReasoningKey } from "./reasoning/key";
 import { observeReasoning, observedDurationMs } from "./reasoning/observed";
 import { useDisclosure } from "./state/disclosure-store";
-import { TaskList } from "./components/task-list";
+import { TaskList, TaskListPanel, useTaskListPanel } from "./components/task-list";
 import { TaskActivityRow } from "./components/task-activity-row";
-import { deriveTodoActivities, todoTaskStatus, useTodoTimeline, type EmptyGapTakeBack, type TodoTask } from "./state/todo-timeline";
+import { deriveTodoActivities, todoTaskStatus, useLatestTodoItems, useTodoTimeline, type EmptyGapTakeBack, type TodoTask } from "./state/todo-timeline";
 import { UserMessage } from "./components/user-message";
 import { itemRootFont } from "./components/host-font-escape";
 import { pluginRoot } from "./components/focus-ring";
@@ -324,6 +324,27 @@ function emptyGapStyle({ above, below }: EmptyGapTakeBack): ViewStyle | undefine
   return { ...(above > 0 ? { marginTop: -above } : null), ...(below > 0 ? { marginBottom: -below } : null) };
 }
 
+/** A host todo list as the checklist draws it. */
+function todoTaskListData(items: readonly TodoTask[]): TaskListData {
+  const tasks: TaskItemData[] = (items || []).map((task, idx) => {
+    const status = todoTaskStatus(task);
+    const text = typeof task.text === "string" ? task.text : "Untitled task";
+    return {
+      id: typeof task.id === "string" ? task.id : `todo-${idx}`,
+      // As Paseo does: the task in progress reads as what is happening now.
+      title: status === "in_progress" && typeof task.activeForm === "string" && task.activeForm ? task.activeForm : text,
+      phase: "Execution",
+      status,
+    };
+  });
+
+  return {
+    id: "live-todo",
+    phaseName: "Checklist Progress",
+    tasks,
+  };
+}
+
 function LiveTodoRendererBody({
   agentId,
   item,
@@ -348,25 +369,23 @@ function LiveTodoRendererBody({
     [role, previous, items],
   );
 
-  const taskListData: TaskListData = useMemo(() => {
-    const tasks: TaskItemData[] = (items || []).map((task, idx) => {
-      const status = todoTaskStatus(task);
-      const text = typeof task.text === "string" ? task.text : "Untitled task";
-      return {
-        id: typeof task.id === "string" ? task.id : `todo-${idx}`,
-        // As Paseo does: the task in progress reads as what is happening now.
-        title: status === "in_progress" && typeof task.activeForm === "string" && task.activeForm ? task.activeForm : text,
-        phase: "Execution",
-        status,
-      };
-    });
+  const taskListData = useMemo(() => todoTaskListData(items), [items]);
 
-    return {
-      id: "live-todo",
-      phaseName: "Checklist Progress",
-      tasks,
-    };
-  }, [items]);
+  // The checklist's panel lives here, not in the list: when the next update
+  // arrives this item folds to a row and its list unmounts, but the item
+  // stays, and so does a panel the reader opened from it, now showing the
+  // agent's newest list. A transient hover panel goes with the list.
+  const panel = useTaskListPanel(role !== "hidden");
+  const latest = useLatestTodoItems(agentId, panel.open);
+  const panelData = useMemo(() => (latest && latest !== items ? todoTaskListData(latest) : taskListData), [latest, items, taskListData]);
+  const transient = Platform.OS === "web" && !panel.popped && !panel.placed && !panel.maximized;
+  const transientRef = useRef(transient);
+  transientRef.current = transient;
+  const { close: closePanel } = panel;
+  useEffect(() => {
+    if (role !== "full" && transientRef.current) closePanel();
+  }, [role, closePanel]);
+  const rowHeight = layout.compact ? tokens.typography.block.rowHeight.compact : tokens.typography.block.rowHeight.desktop;
 
   // Empty plugin slots still carry the host's 16pt gap; the item drawing the
   // update takes it back for them, unless the host stacks rows and hangs none.
@@ -385,14 +404,21 @@ function LiveTodoRendererBody({
     >
       {probe.node}
       <PreferenceSyncSlot />
+      {/* The panel's anchor: the checklist's header, or the row it folds to, in the same place. */}
+      <View ref={panel.anchorRef} pointerEvents="none" style={[todoStyles.anchor, { height: rowHeight }]} />
       {role === "full" ? (
-        <TaskList data={taskListData} tokens={tokens} compact={layout.compact} />
+        <TaskList data={taskListData} tokens={tokens} compact={layout.compact} panel={panel} />
       ) : (
         <TaskActivityRow activities={activities} data={taskListData} tokens={tokens} compact={layout.compact} />
       )}
+      <TaskListPanel panel={panel} data={panelData} tokens={tokens} compact={layout.compact} />
     </View>
   );
 }
+
+const todoStyles = StyleSheet.create({
+  anchor: { position: "absolute", top: 0, left: 0, right: 0 },
+});
 
 export interface LiveAssistantPayload {
   text: string;

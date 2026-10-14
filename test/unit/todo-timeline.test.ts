@@ -1,8 +1,8 @@
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import type { LiveTodoPayload } from "../../client/live-renderers";
-import { deriveTodoActivities, type TodoTask } from "../../client/state/todo-timeline";
+import { deriveTodoActivities, useLatestTodoItems, type TodoTask } from "../../client/state/todo-timeline";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/react-native", () => ({
@@ -20,13 +20,28 @@ vi.mock("../../client/preferences", async (original) => ({
 }));
 vi.mock("../../client/components/theme-tokens", async (original) => ({
   ...await original<object>(),
-  useThemeTokens: () => ({}),
+  useThemeTokens: () => ({ typography: { block: { rowHeight: { desktop: 26, compact: 28 } } } }),
 }));
 vi.mock("../../client/components/selection-actions", () => ({ useSelectionActions() {} }));
 vi.mock("../../client/state/preference-sync-slot", () => ({ PreferenceSyncSlot: () => null }));
+// Every item's checklist panel reads this: open, and opened as a window or not.
+const panelState = vi.hoisted(() => ({ open: false, popped: false, closed: 0 }));
 vi.mock("../../client/components/task-list", () => ({
   TaskList: (props: object) => React.createElement("TaskList", props),
+  TaskListPanel: (props: { panel: { open: boolean } }) => (props.panel.open ? React.createElement("TaskListPanel", props) : null),
+  useTaskListPanel: (enabled: boolean) => ({
+    // No ref: `createNodeMock` hands its boxes to the item roots in mount order.
+    anchorRef: undefined,
+    open: enabled && panelState.open,
+    popped: panelState.popped,
+    placed: false,
+    maximized: false,
+    close: closePanel,
+  }),
 }));
+function closePanel() {
+  panelState.closed++;
+}
 vi.mock("../../client/components/task-activity-row", () => ({
   TaskActivityRow: (props: object) => React.createElement("TaskActivityRow", props),
 }));
@@ -299,6 +314,117 @@ describe("live todo timeline", () => {
         todo("agent-b", "b1", 1000, firstDone)));
     });
     expect(lists(renderer)).toHaveLength(2);
+    act(() => renderer.unmount());
+  });
+});
+
+describe("the checklist's panel across updates", () => {
+  afterEach(() => {
+    panelState.open = false;
+    panelState.popped = false;
+    panelState.closed = 0;
+    delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+  });
+
+  function itemPanels(renderer: Renderer, index: number) {
+    const item = renderer.root.children[index];
+    if (!item || typeof item === "string") return [];
+    return item.findAll((node) => (node.type as unknown) === "TaskListPanel");
+  }
+
+  function statuses(panel: { props: Record<string, any> }) {
+    return (panel.props.data as { tasks: Array<{ status: string }> }).tasks.map((task) => task.status);
+  }
+
+  it("keeps a panel opened from the live list open on the newest list once that list folds", () => {
+    panelState.open = true;
+    panelState.popped = true;
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    let renderer!: Renderer;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+        todo("panel-agent", "u1", 1000, created)));
+    });
+    expect(statuses(itemPanels(renderer, 0)[0]!)).toEqual(["pending", "pending", "pending"]);
+    const panelBefore = itemPanels(renderer, 0)[0]!;
+    act(() => {
+      renderer.update(React.createElement(React.Fragment, null,
+        todo("panel-agent", "u1", 1000, created),
+        todo("panel-agent", "u2-completed", 2000, firstDone),
+        todo("panel-agent", "u2-started", 2000, firstDone)));
+    });
+    // The first item folded to a row, and its panel is the same one, on the new list.
+    expect(rows(renderer)).toHaveLength(1);
+    const panelAfter = itemPanels(renderer, 0)[0]!;
+    expect(panelAfter.parent).toBe(panelBefore.parent);
+    expect(statuses(panelAfter)).toEqual(["completed", "in_progress", "pending"]);
+    expect(panelState.closed).toBe(0);
+    act(() => {
+      renderer.update(React.createElement(React.Fragment, null,
+        todo("panel-agent", "u1", 1000, created),
+        todo("panel-agent", "u2-completed", 2000, firstDone),
+        todo("panel-agent", "u2-started", 2000, firstDone),
+        todo("panel-agent", "u3-completed", 3000, secondDone)));
+    });
+    expect(statuses(itemPanels(renderer, 0)[0]!)).toEqual(["completed", "completed", "in_progress"]);
+    act(() => renderer.unmount());
+  });
+
+  it("keeps a phone's long-press panel open too", () => {
+    panelState.open = true;
+    let renderer!: Renderer;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+        todo("press-agent", "u1", 1000, created)));
+    });
+    act(() => {
+      renderer.update(React.createElement(React.Fragment, null,
+        todo("press-agent", "u1", 1000, created),
+        todo("press-agent", "u2", 2000, firstDone)));
+    });
+    expect(panelState.closed).toBe(0);
+    expect(statuses(itemPanels(renderer, 0)[0]!)).toEqual(["completed", "in_progress", "pending"]);
+    act(() => renderer.unmount());
+  });
+
+  it("closes a web hover panel when the list under the pointer folds", () => {
+    panelState.open = true;
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    let renderer!: Renderer;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+        todo("hover-agent", "u1", 1000, created)));
+    });
+    expect(panelState.closed).toBe(0);
+    act(() => {
+      renderer.update(React.createElement(React.Fragment, null,
+        todo("hover-agent", "u1", 1000, created),
+        todo("hover-agent", "u2", 2000, firstDone)));
+    });
+    expect(panelState.closed).toBeGreaterThan(0);
+    act(() => renderer.unmount());
+  });
+
+  it("reads the newest list of an agent only while asked", () => {
+    let latest: readonly TodoTask[] | null = null;
+    function Probe({ enabled }: { enabled: boolean }) {
+      latest = useLatestTodoItems("latest-agent", enabled);
+      return null;
+    }
+    let renderer!: Renderer;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+        React.createElement(Probe, { key: "probe", enabled: false }),
+        todo("latest-agent", "u1", 1000, created)));
+    });
+    expect(latest).toBeNull();
+    act(() => {
+      renderer.update(React.createElement(React.Fragment, null,
+        React.createElement(Probe, { key: "probe", enabled: true }),
+        todo("latest-agent", "u1", 1000, created),
+        todo("latest-agent", "u2", 2000, firstDone)));
+    });
+    expect(latest).toEqual(firstDone);
     act(() => renderer.unmount());
   });
 });
