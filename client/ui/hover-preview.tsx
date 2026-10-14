@@ -12,7 +12,9 @@ import { cssShadow } from "./tokens/css-shadow";
 import { floatShadow } from "./tokens/float";
 import { DEFAULT_PREFERENCES, useEnhancerPreferences } from "../preferences";
 import { SafeInset } from "./safe-inset";
-import { phoneChrome, pressPreviewFrame } from "./press-preview-placement";
+import { phoneChrome, PREVIEW_LIMIT, pressPreviewFrame, pressPreviewOrigin } from "./press-preview-placement";
+import { PREVIEW_EDGES, PREVIEW_MIN, type PreviewBox } from "./preview-frame";
+import { previewEdgeResponders, previewEdgeStyle, toolbarResponder, type FrameDrag } from "./preview-drag";
 import { ProseSelectionContext } from "./prose-text";
 import { HScroll } from "./h-scroll";
 import { PreviewScrollerContext, type PreviewScroller } from "./preview-scroller";
@@ -35,9 +37,13 @@ const PreviewActionsContext = createContext<{
   maximized: boolean;
   maximize(): void;
   close(): void;
+  /** The body fills a fixed height: the maximized window, or one the reader has sized. */
+  fill: boolean;
   /** The preview's line wrap, on until the reader turns it off. */
   wrap?: { on: boolean; disabled?: boolean; toggle(): void; tokens: ExtendedThemeTokens };
 } | null>(null);
+/** The phone toolbar's drag. Web moves the panel from pointer events on the popover. */
+const PreviewDragContext = createContext<ReturnType<typeof toolbarResponder> | null>(null);
 
 /** The panel this content is drawn in, when it is drawn in one. */
 export function usePreviewPanel(): { maximized: boolean; close(): void } | null {
@@ -72,7 +78,9 @@ export function useHoverPreview(enabled: boolean) {
   const anchorRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
   const [maximized, setMaximized] = useState(false);
+  const [placed, setPlaced] = useState(false);
   const pinned = useRef(false);
+  const interacting = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancel = useCallback(() => {
     if (timer.current !== null) clearTimeout(timer.current);
@@ -81,8 +89,19 @@ export function useHoverPreview(enabled: boolean) {
   const close = useCallback(() => {
     cancel();
     pinned.current = false;
+    interacting.current = false;
+    setPlaced(false);
     setMaximized(false);
     setOpen(false);
+  }, [cancel]);
+  const hold = useCallback((on: boolean) => {
+    interacting.current = on;
+    if (on) cancel();
+  }, [cancel]);
+  const place = useCallback(() => {
+    cancel();
+    pinned.current = true;
+    setPlaced(true);
   }, [cancel]);
   const maximize = useCallback(() => {
     cancel();
@@ -106,7 +125,7 @@ export function useHoverPreview(enabled: boolean) {
   }, [cancel, hoverActive, open, delay]);
   const leave = useCallback(() => {
     cancel();
-    if (!hoverActive || pinned.current) return;
+    if (!hoverActive || pinned.current || interacting.current) return;
     timer.current = setTimeout(() => {
       timer.current = null;
       setOpen(false);
@@ -126,6 +145,12 @@ export function useHoverPreview(enabled: boolean) {
     open: active && open,
     maximized,
     maximize,
+    /** True once the reader has dragged or resized this preview. */
+    placed,
+    /** Pointer is down on the frame. Leaving during that press must not close it. */
+    hold,
+    /** The drag moved the frame: keep the preview open after the pointer leaves. */
+    place,
     enter,
     leave,
     close,
@@ -163,6 +188,7 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
   children: ReactNode;
 }) {
   const panelRef = useRef<View>(null);
+  const frameSync = useRef<(() => void) | null>(null);
   // Keep the toggle's slot even when wrapping would make no visible difference.
   const [linesFit, setLinesFit] = useState(false);
   // Kept across Maximize, which re-renders this panel rather than remounting it.
@@ -172,12 +198,21 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
     const release = openPreviewLayer(panelRef.current, preview.anchorRef.current, preview.close, {
       maximized: preview.maximized,
       onLinesFit: setLinesFit,
+      onHold: preview.hold,
+      onPlace: preview.place,
+      onLeave: preview.leave,
+      onFrame(sync) { frameSync.current = sync; },
     });
     return () => {
+      frameSync.current = null;
       unbind();
       release();
     };
-  }, [preview.anchorRef, preview.enter, preview.leave, preview.close, preview.maximized]);
+  }, [preview.anchorRef, preview.enter, preview.leave, preview.close, preview.hold, preview.place, preview.maximized]);
+  // A commit rewrites the panel's style and would drop a box applied on the DOM node.
+  useLayoutEffect(() => {
+    frameSync.current?.();
+  });
   // On closing only: Maximize re-renders this panel and keeps its selection.
   useLayoutEffect(() => {
     const panel = panelRef.current;
@@ -190,6 +225,7 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
         maximized: preview.maximized,
         maximize: preview.maximize,
         close: preview.close,
+        fill: preview.maximized || preview.placed,
         wrap: wraps ? { on: wrapOn, disabled: linesFit, toggle: toggleWrap, tokens } : undefined,
       }}>
         <View
@@ -222,6 +258,7 @@ export function PreviewPanelSample({ tokens, children }: { tokens: ExtendedTheme
         maximized: false,
         maximize: noop,
         close: noop,
+        fill: false,
         wrap: { on: wrapOn, toggle: toggleWrap, tokens },
       }}>
         <View {...selectionSurface} style={[styles.panel, panelLook(tokens), styles.sample]}>
@@ -279,8 +316,14 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
 }) {
   const [rowWidth, setRowWidth] = useState<number | null>(null);
   const [stage, setStage] = useState<{ width: number; height: number } | null>(null);
+  const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
+  const [box, setBox] = useState<PreviewBox | null>(null);
   const [wrapOn, toggleWrap] = usePanelWrap();
   const { anchorRef, close } = preview;
+  const measured = useRef(false);
+  const boxRef = useRef<PreviewBox | null>(null);
+  const boundsRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
+  const frameReady = useRef(false);
   useLayoutEffect(() => {
     measureWidth(anchorRef.current, setRowWidth);
   }, [anchorRef]);
@@ -288,7 +331,38 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
     const { width, height } = event.nativeEvent.layout;
     setStage({ width, height });
   }, []);
+  const onPanelLayout = useCallback((event: LayoutChangeEvent) => {
+    // The hidden first layout has no frame yet; measuring it would lock the wrong size.
+    if (measured.current || !frameReady.current) return;
+    const { width, height } = event.nativeEvent.layout;
+    if (width <= 0 || height <= 0) return;
+    measured.current = true;
+    setNatural({ width, height });
+  }, []);
   const frame = rowWidth !== null && stage ? pressPreviewFrame(stage, rowWidth, Platform.OS) : null;
+  frameReady.current = frame !== null;
+  const shown = box ?? (natural && stage ? pressPreviewOrigin(stage, natural, Platform.OS) : null);
+  boxRef.current = shown;
+  if (stage) boundsRef.current = stage;
+  const drag = useRef<FrameDrag>(null!);
+  if (!drag.current) {
+    drag.current = {
+      box: () => boxRef.current,
+      bounds: () => boundsRef.current,
+      margin: PREVIEW_LIMIT.margin,
+      min: PREVIEW_MIN,
+      commit(next) {
+        const current = boxRef.current;
+        if (current && current.x === next.x && current.y === next.y && current.width === next.width && current.height === next.height) return;
+        boxRef.current = next;
+        setBox(next);
+      },
+    };
+  }
+  const gestures = useMemo(() => ({
+    toolbar: toolbarResponder(drag.current),
+    edges: previewEdgeResponders(drag.current),
+  }), []);
   return (
     <Modal visible transparent animationType="fade" onRequestClose={close} statusBarTranslucent>
       <Pressable
@@ -298,28 +372,60 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
         style={[StyleSheet.absoluteFill, styles.backdrop]}
       />
       <SafeInset pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-        <View onLayout={onStageLayout} pointerEvents="box-none" style={[styles.stage, stagePadding()]}>
+        <View testID="hover-preview-stage" onLayout={onStageLayout} pointerEvents="box-none" style={[styles.stage, stagePadding()]}>
           <HoverPreviewContext.Provider value>
             <PreviewActionsContext.Provider value={{
               maximizable: false,
               maximized: false,
               maximize: preview.maximize,
               close,
+              fill: box !== null,
               wrap: wraps ? { on: wrapOn, toggle: toggleWrap, tokens } : undefined,
             }}>
-              <View
-                {...selectionSurface}
-                testID="hover-preview"
-                accessibilityViewIsModal
-                style={[styles.panel, styles.pressPanel, pressLook(tokens), frame ?? styles.hidden]}
-              >
-                {children}
-              </View>
+              <PreviewDragContext.Provider value={gestures.toolbar}>
+                <View
+                  {...selectionSurface}
+                  testID="hover-preview"
+                  accessibilityViewIsModal
+                  onLayout={onPanelLayout}
+                  style={[
+                    styles.panel, styles.pressPanel, pressLook(tokens),
+                    // Centred in the band until its own height is known; then the same
+                    // spot, absolutely, so a drag can move it without a jump.
+                    shown
+                      ? { position: "absolute", left: shown.x, top: shown.y, width: shown.width, height: shown.height }
+                      : frame
+                        ? { width: frame.width, maxHeight: frame.maxHeight }
+                        : styles.hidden,
+                  ]}
+                >
+                  {children}
+                  {shown ? <PreviewEdges edges={gestures.edges} /> : null}
+                </View>
+              </PreviewDragContext.Provider>
             </PreviewActionsContext.Provider>
           </HoverPreviewContext.Provider>
         </View>
       </SafeInset>
     </Modal>
+  );
+}
+
+function PreviewEdges({ edges }: { edges: ReturnType<typeof previewEdgeResponders> }) {
+  return (
+    <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, styles.edges]}>
+      {PREVIEW_EDGES.map((edge) => (
+        <View
+          key={edge}
+          testID={`hover-preview-edge-${edge}`}
+          accessible={false}
+          pointerEvents="auto"
+          hitSlop={edge === "e" ? { right: 8 } : edge === "w" ? { left: 8 } : edge === "s" ? { bottom: 8 } : undefined}
+          style={previewEdgeStyle(edge)}
+          {...edges[edge]}
+        />
+      ))}
+    </View>
   );
 }
 
@@ -342,7 +448,8 @@ function measureWidth(node: unknown, done: (width: number) => void) {
  * The panel's toolbar, above the scrolling body. Line wrap and `left` (a
  * pager) sit at the left, the content's icon and name or size in the middle,
  * and the content's own buttons on the right, with the window button
- * always last, at the far right.
+ * always last, at the far right. The bar is also the window's handle: a drag
+ * on its free space or title moves the panel, on desktop and on a phone.
  *
  * While `streaming`, the same pulsing dot a running row uses sits in that
  * middle, in front of the name when there is one. Hover and the maximized
@@ -362,6 +469,7 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, stre
   children?: ReactNode;
 }) {
   const actions = useContext(PreviewActionsContext);
+  const toolbarDrag = useContext(PreviewDragContext);
   const [toolbar, ...rest] = React.Children.toArray(children);
   const toolbarRef = useRef<View>(null);
   const windowAction = actions?.maximizable ? (actions.maximized ? actions.close : actions.maximize) : undefined;
@@ -381,7 +489,7 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, stre
       testID="hover-preview-header"
       style={[styles.header, { backgroundColor: tokens.v2.surface1, borderBottomColor: tokens.v2.borderSubtle }]}
     >
-      <View ref={toolbarRef} testID="hover-preview-toolbar" style={styles.toolbar}>
+      <View ref={toolbarRef} testID="hover-preview-toolbar" {...(toolbarDrag ?? {})} style={[styles.toolbar, Platform.OS === "web" && styles.grab]}>
         <View testID="hover-preview-start" style={styles.toolbarStart}>
           {/* At the panel's left edge: its name opens rightwards. */}
           <TooltipAlignContext.Provider value="start">
@@ -442,7 +550,7 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, stre
 export function HoverPreviewBody({ children, streaming = false }: { children: ReactNode; streaming?: boolean }) {
   const actions = useContext(PreviewActionsContext);
   const wrap = actions?.wrap;
-  const maximized = actions?.maximized ?? false;
+  const fill = actions?.fill ?? false;
   const scroller = usePreviewScroller(streaming);
   const webBody = useRef<View>(null);
   useStreamingTail(streaming, webBody);
@@ -459,7 +567,7 @@ export function HoverPreviewBody({ children, streaming = false }: { children: Re
     // The panel's height is capped; the body scrolls inside it. Its text takes
     // a long press as the start of a selection, with a cursor and handles.
     return (
-      <ScrollView ref={scroller.ref} testID="hover-preview-body" style={styles.pressBody} contentContainerStyle={styles.pressBodyContent}
+      <ScrollView ref={scroller.ref} testID="hover-preview-body" style={[styles.pressBody, fill && styles.pressBodyFill]} contentContainerStyle={styles.pressBodyContent}
         scrollEnabled={!scroller.held} scrollEventThrottle={16} {...scroller.props}>
         <PreviewScrollerContext.Provider value={scroller.value}>
           <ProseSelectionContext.Provider value>{content}</ProseSelectionContext.Provider>
@@ -468,7 +576,7 @@ export function HoverPreviewBody({ children, streaming = false }: { children: Re
     );
   }
   return (
-    <View ref={webBody} testID="hover-preview-body" style={[styles.body, maximized && styles.bodyFill]}>
+    <View ref={webBody} testID="hover-preview-body" style={[styles.body, fill && styles.bodyFill]}>
       {content}
     </View>
   );
@@ -557,6 +665,8 @@ const styles = StyleSheet.create({
   // In the page, not on the layer: clipped to its corners, with no shadow to float on.
   sample: { overflow: "hidden", boxShadow: "none" } as ViewStyle,
   toolbar: { flexDirection: "row", alignItems: "center", gap: space.xs },
+  // The title and the empty stretches drag; buttons set their own pointer cursor.
+  grab: { cursor: "grab", touchAction: "none" } as unknown as ViewStyle,
   // Equal flexible sides keep the centre slot in the middle of the panel.
   toolbarStart: { flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", gap: space.xs },
   toolbarCenter: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: space.xs },
@@ -583,8 +693,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   pressPanel: { overflow: "hidden" },
+  // Above the toolbar, so the top edge can be grabbed; the overlay itself ignores touches.
+  edges: { zIndex: 2 },
   hidden: { opacity: 0 },
   pressBody: { flexGrow: 0, flexShrink: 1 },
+  pressBodyFill: { flexGrow: 1, minHeight: 0 },
   pressBodyContent: { padding: space.md, gap: space.sm },
   unwrappedScroll: { flexGrow: 1 },
   unwrapped: { flexGrow: 1, gap: space.sm },

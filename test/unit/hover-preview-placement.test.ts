@@ -302,6 +302,164 @@ describe("scrollsWithin", () => {
   });
 });
 
+describe("moving and resizing a hover preview", () => {
+  function emitter() {
+    const map = new Map<string, Set<(event: unknown) => void>>();
+    return {
+      addEventListener(name: string, fn: (event: unknown) => void) {
+        let set = map.get(name);
+        if (!set) map.set(name, (set = new Set()));
+        set.add(fn);
+      },
+      removeEventListener(name: string, fn: (event: unknown) => void) {
+        map.get(name)?.delete(fn);
+      },
+      emit(name: string, event?: unknown) {
+        for (const fn of [...(map.get(name) ?? [])]) fn(event);
+      },
+      has(name: string) {
+        return (map.get(name)?.size ?? 0) > 0;
+      },
+    };
+  }
+
+  function movable() {
+    const panelEvents = emitter();
+    const docEvents = emitter();
+    const viewEvents = emitter();
+    const onPlace = vi.fn();
+    const onHold = vi.fn();
+    const onLeave = vi.fn();
+    const close = vi.fn();
+    const documentElement = { style: {} as Record<string, string> };
+    const view = {
+      innerWidth: 1600, innerHeight: 900,
+      addEventListener: viewEvents.addEventListener, removeEventListener: viewEvents.removeEventListener,
+      emit: viewEvents.emit,
+      matchMedia: vi.fn(() => ({ matches: false })),
+      ResizeObserver: class { observe() {} disconnect() {} },
+      MutationObserver: class { observe() {} disconnect() {} },
+    };
+    const ownerDocument = Object.assign(docEvents, { defaultView: view, documentElement });
+    const body = {
+      children: [] as unknown[], natural: 600, style: { width: "", maxWidth: "", flexGrow: "" },
+      getBoundingClientRect() { return { width: this.style.width === "max-content" ? this.natural : 600 }; },
+    };
+    const title = { closest: () => null };
+    const button = { closest: (selector: string) => selector.includes("button") ? button : null };
+    const toolbar = { contains: (node: unknown) => node === title || node === toolbar };
+    const content = { getBoundingClientRect: () => ({ left: 200, right: 900 }) };
+    const anchor = {
+      closest: vi.fn(() => content),
+      getBoundingClientRect: () => ({ left: 192, right: 216, top: 100, bottom: 126 }),
+    };
+    const panel = Object.assign(panelEvents, {
+      style: {} as Record<string, string>,
+      scrollHeight: 200,
+      ownerDocument,
+      setAttribute: vi.fn(), showPopover: vi.fn(), hidePopover: vi.fn(),
+      contains: (node: unknown) => node !== OUTSIDE && node !== button,
+      querySelector: (selector: string) => {
+        if (selector.includes("hover-preview-body")) return body;
+        if (selector.includes("hover-preview-toolbar")) return toolbar;
+        return { focus: vi.fn() };
+      },
+      getBoundingClientRect() {
+        const n = (value: string | undefined, fallback: number) => {
+          const parsed = Number.parseFloat(value ?? "");
+          return Number.isFinite(parsed) ? parsed : fallback;
+        };
+        const x = n(panel.style.left, 200);
+        const y = n(panel.style.top, 132);
+        const width = n(panel.style.width, 700);
+        const height = n(panel.style.height, 360);
+        return { left: x, top: y, x, y, width, height, right: x + width, bottom: y + height };
+      },
+      animate: vi.fn(),
+    });
+    const release = openPreviewLayer(panel, anchor, close, { onPlace, onHold, onLeave });
+    const pointer = (target: unknown, point: { x: number; y: number }, extra: Record<string, unknown> = {}) => ({
+      button: 0, pointerId: 1, pointerType: "mouse", clientX: point.x, clientY: point.y, target,
+      defaultPrevented: false, preventDefault: vi.fn(), stopPropagation: vi.fn(), ...extra,
+    });
+    return { panel, view, docEvents, onPlace, onHold, onLeave, close, title, button, release, pointer };
+  }
+
+  it("moves from the toolbar and then stays put when the window resizes", () => {
+    const { panel, view, docEvents, onPlace, onHold, close, title, release, pointer } = movable();
+    expect(panel.style.left).toBe("200px");
+    const down = pointer(title, { x: 400, y: 160 });
+    panel.emit("pointerdown", down);
+    expect(down.preventDefault).not.toHaveBeenCalled();
+    expect(onHold).toHaveBeenLastCalledWith(true);
+    docEvents.emit("pointermove", pointer(title, { x: 402, y: 161 }));
+    expect(onPlace).not.toHaveBeenCalled();
+    expect(panel.style.left).toBe("200px");
+    docEvents.emit("pointermove", pointer(title, { x: 480, y: 200 }));
+    docEvents.emit("pointerup", pointer(title, { x: 480, y: 200 }));
+    expect(onPlace).toHaveBeenCalledOnce();
+    expect(onHold).toHaveBeenLastCalledWith(false);
+    expect(panel.style.left).toBe("280px");
+    expect(panel.style.top).toBe("172px");
+    expect(panel.style.width).toBe("700px");
+    expect(panel.style.height).toBe("360px");
+    view.innerWidth = 400;
+    view.emit("resize");
+    expect(close).not.toHaveBeenCalled();
+    expect(panel.style.left).toBe("8px");
+    expect(panel.style.width).toBe("384px");
+    release();
+  });
+
+  it("resizes from an edge and ignores a drag that starts on a button", () => {
+    const { panel, docEvents, onPlace, button, title, release, pointer } = movable();
+    const down = pointer(button, { x: 500, y: 160 });
+    panel.emit("pointerdown", down);
+    docEvents.emit("pointermove", pointer(button, { x: 560, y: 160 }));
+    docEvents.emit("pointerup", pointer(button, { x: 560, y: 160 }));
+    expect(onPlace).not.toHaveBeenCalled();
+    expect(panel.style.left).toBe("200px");
+
+    const edge = pointer(title, { x: 896, y: 300 });
+    panel.emit("pointerdown", edge);
+    expect(edge.preventDefault).toHaveBeenCalledOnce();
+    docEvents.emit("pointermove", pointer(title, { x: 946, y: 300 }));
+    docEvents.emit("pointerup", pointer(title, { x: 946, y: 300 }));
+    expect(panel.style.left).toBe("200px");
+    expect(panel.style.width).toBe("750px");
+    release();
+  });
+
+  it("treats a wider strip as an edge for touch than for a mouse", () => {
+    const touch = movable();
+    const down = touch.pointer(touch.title, { x: 212, y: 300 }, { pointerType: "touch" });
+    touch.panel.emit("pointerdown", down);
+    touch.docEvents.emit("pointermove", touch.pointer(touch.title, { x: 252, y: 300 }, { pointerType: "touch" }));
+    touch.docEvents.emit("pointerup", touch.pointer(touch.title, { x: 252, y: 300 }, { pointerType: "touch" }));
+    // 12px in from the left: a finger resizes, and the right edge stays at 900.
+    expect(touch.panel.style.left).toBe("240px");
+    expect(touch.panel.style.width).toBe("660px");
+    touch.release();
+
+    const mouse = movable();
+    mouse.panel.emit("pointerdown", mouse.pointer(mouse.title, { x: 212, y: 300 }));
+    mouse.docEvents.emit("pointermove", mouse.pointer(mouse.title, { x: 252, y: 300 }));
+    mouse.docEvents.emit("pointerup", mouse.pointer(mouse.title, { x: 252, y: 300 }));
+    // The same point with a mouse is the toolbar, so the window moves and keeps its width.
+    expect(mouse.panel.style.left).toBe("240px");
+    expect(mouse.panel.style.width).toBe("700px");
+    mouse.release();
+  });
+
+  it("drops the drag listeners when the layer closes", () => {
+    const { panel, docEvents, release } = movable();
+    expect(panel.has("pointerdown")).toBe(true);
+    release();
+    expect(panel.has("pointerdown")).toBe(false);
+    expect(docEvents.has("pointermove")).toBe(false);
+  });
+});
+
 describe("linesFit", () => {
   /** A body `width` wide whose content is `natural` wide unwrapped. */
   function body(width: number, natural: number) {

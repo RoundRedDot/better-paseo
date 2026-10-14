@@ -1,3 +1,5 @@
+import { clampPreview, type PreviewBox } from "./preview-frame";
+
 /**
  * The preview's limits, shared with the desktop hover preview
  * (`openPreviewLayer`): the hover panel is never taller than `maxHeight`, a
@@ -53,4 +55,29 @@ export function pressPreviewFrame(
     width: Math.max(0, Math.min(rowWidth, stage.width - 2 * margin)),
     maxHeight: Math.max(0, band - 2 * PHONE_CHROME.gap),
   };
+}
+
+/**
+ * Where that frame first sits: centred in the band between the header and the
+ * composer. Absolute coordinates are the stage's own, padding included, so a
+ * later drag can slide into that band without a jump from the centred layout.
+ */
+export function pressPreviewOrigin(
+  stage: { width: number; height: number },
+  size: { width: number; height: number },
+  os: string,
+): PreviewBox {
+  const chrome = phoneChrome(os);
+  const inner = stage.height - chrome.top - chrome.bottom;
+  return clampPreview(
+    {
+      x: (stage.width - size.width) / 2,
+      y: chrome.top + (inner - size.height) / 2,
+      width: size.width,
+      height: size.height,
+    },
+    stage,
+    size,
+    PREVIEW_LIMIT.margin,
+  );
 }

@@ -1,6 +1,10 @@
 import { Platform } from "react-native";
 import { PLUGIN_ROOT_ATTRIBUTE } from "./components/focus-ring";
 import { PREVIEW_LIMIT } from "./ui/press-preview-placement";
+import {
+  PREVIEW_DRAG_SLOP, PREVIEW_EDGE_HIT, PREVIEW_MIN, clampPreview, movePreview, previewCursor, previewEdgeAt, resizePreview,
+  type PreviewBox, type PreviewEdge, type PreviewSize,
+} from "./ui/preview-frame";
 import { SELECTION_BAR_SELECTOR } from "./components/selection-actions";
 import { FLOAT_EASE } from "./ui/tokens/float";
 import { radiusV2 } from "./components/theme-tokens";
@@ -128,11 +132,149 @@ export function bindPreviewPaging(node: unknown, step: (direction: -1 | 1) => vo
   return () => doc.removeEventListener("keydown", onKey);
 }
 
+const FRAME_CONTROL = 'button, [role="button"], a, input, textarea, select, [contenteditable]:not([contenteditable="false"])';
+
+function isFrameControl(target: EventTarget | null): boolean {
+  const closest = (target as { closest?: (selector: string) => unknown } | null)?.closest;
+  return Boolean(closest?.(FRAME_CONTROL));
+}
+
+function boxFrom(panel: HTMLElement): PreviewBox {
+  const rect = panel.getBoundingClientRect();
+  return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+}
+
+/**
+ * Drag the toolbar to move a preview, or an edge to resize it. A press that
+ * does not travel stays a click: double-click on the toolbar can still
+ * maximize, and a button still receives its tap. The window is only pinned
+ * (`place`) once the pointer has actually moved.
+ */
+export function bindPreviewFrame(node: unknown, hooks: {
+  toolbar(): unknown;
+  readBox(): PreviewBox;
+  writeBox(box: PreviewBox): void;
+  hold(on: boolean): void;
+  place(): void;
+  leave(): void;
+  bounds(): PreviewSize;
+}): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const panel = node as HTMLElement | null;
+  if (!panel || typeof panel.addEventListener !== "function") return () => {};
+  const doc = panel.ownerDocument;
+  const view = doc?.defaultView;
+  if (!doc || !view) return () => {};
+
+  type Drag = {
+    kind: "move" | PreviewEdge;
+    pointerId: number;
+    start: PreviewBox;
+    x: number;
+    y: number;
+    moved: boolean;
+  };
+  let drag: Drag | null = null;
+  const paint = (cursor: string) => {
+    panel.style.cursor = cursor;
+    const root = doc.documentElement;
+    if (root?.style) root.style.cursor = cursor;
+  };
+  const edgeAt = (event: PointerEvent) => {
+    const rect = panel.getBoundingClientRect();
+    const hit = event.pointerType === "touch" ? PREVIEW_EDGE_HIT.touch : PREVIEW_EDGE_HIT.pointer;
+    return previewEdgeAt(
+      { x: event.clientX - rect.left, y: event.clientY - rect.top },
+      { width: rect.width, height: rect.height },
+      hit,
+    );
+  };
+  const onToolbar = (target: EventTarget | null) => {
+    const toolbar = hooks.toolbar() as { contains?(node: Node): boolean } | null;
+    return Boolean(toolbar?.contains?.(target as Node));
+  };
+  const onPointerMove = (event: PointerEvent) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const delta = { x: event.clientX - drag.x, y: event.clientY - drag.y };
+    if (!drag.moved && Math.hypot(delta.x, delta.y) < PREVIEW_DRAG_SLOP) return;
+    drag.moved = true;
+    event.preventDefault();
+    const next = drag.kind === "move"
+      ? movePreview(drag.start, delta, hooks.bounds(), PREVIEW_LIMIT.margin)
+      : resizePreview(drag.start, drag.kind, delta, hooks.bounds(), PREVIEW_MIN, PREVIEW_LIMIT.margin);
+    hooks.writeBox(next);
+    paint(drag.kind === "move" ? previewCursor("moving") : previewCursor(drag.kind));
+  };
+  const endDrag = (event: PointerEvent) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const moved = drag.moved;
+    drag = null;
+    doc.removeEventListener("pointermove", onPointerMove);
+    doc.removeEventListener("pointerup", endDrag);
+    doc.removeEventListener("pointercancel", endDrag);
+    paint("");
+    hooks.hold(false);
+    if (moved) hooks.place();
+    else if (typeof panel.matches === "function" && !panel.matches(":hover")) hooks.leave();
+  };
+  const onPointerDown = (event: PointerEvent) => {
+    if (event.button !== 0 || drag) return;
+    const edge = edgeAt(event);
+    const draggingToolbar = onToolbar(event.target) && !isFrameControl(event.target);
+    if (!edge && !draggingToolbar) return;
+    if (edge) event.preventDefault();
+    drag = {
+      kind: edge ?? "move",
+      pointerId: event.pointerId,
+      start: hooks.readBox(),
+      x: event.clientX,
+      y: event.clientY,
+      moved: false,
+    };
+    hooks.hold(true);
+    panel.setPointerCapture?.(event.pointerId);
+    doc.addEventListener("pointermove", onPointerMove);
+    doc.addEventListener("pointerup", endDrag);
+    doc.addEventListener("pointercancel", endDrag);
+  };
+  const onHover = (event: PointerEvent) => {
+    if (drag) return;
+    const edge = edgeAt(event);
+    if (edge) paint(previewCursor(edge));
+    else if (onToolbar(event.target) && !isFrameControl(event.target)) paint(previewCursor("move"));
+    else paint("");
+  };
+  const onLeave = () => {
+    if (!drag) paint("");
+  };
+  panel.addEventListener("pointerdown", onPointerDown);
+  panel.addEventListener("pointermove", onHover);
+  panel.addEventListener("pointerleave", onLeave);
+  return () => {
+    drag = null;
+    paint("");
+    panel.removeEventListener("pointerdown", onPointerDown);
+    panel.removeEventListener("pointermove", onHover);
+    panel.removeEventListener("pointerleave", onLeave);
+    doc.removeEventListener("pointermove", onPointerMove);
+    doc.removeEventListener("pointerup", endDrag);
+    doc.removeEventListener("pointercancel", endDrag);
+  };
+}
+
 /** A non-modal top-layer surface escapes transformed and clipped timeline rows. */
 export function openPreviewLayer(node: unknown, anchor: unknown, close: () => void, options: {
   maximized?: boolean;
   /** Whether every line fits the body's width unwrapped, so wrapping changes nothing. */
   onLinesFit?(fits: boolean): void;
+  /** The pointer is down on the frame, so leaving must not start the close timer. */
+  onHold?(holding: boolean): void;
+  /** The reader moved or resized the frame: pin it and stop following the row. */
+  onPlace?(): void;
+  /** A press ended without a drag and the pointer is no longer over the frame. */
+  onLeave?(): void;
+  /** Reapplies a placed frame after React commits, which rewrites the panel's style. */
+  onFrame?(sync: () => void): void;
 } = {}): () => void {
   if (Platform.OS !== "web") return () => {};
   const panel = node as HTMLElement;
@@ -149,7 +291,32 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   panel.style.maxWidth = `${Math.max(0, view.innerWidth - 16)}px`;
 
   let below = true;
+  // Set once the reader drags or resizes. Until then the panel follows its row.
+  let frame: PreviewBox | null = null;
+  let holding = false;
+  const screen = (): PreviewSize => ({ width: view.innerWidth, height: view.innerHeight });
+  const floating = () => frame !== null || Boolean(options.maximized);
+  const applyFrame = (box: PreviewBox) => {
+    const next = clampPreview(box, screen(), PREVIEW_MIN, PREVIEW_LIMIT.margin);
+    frame = next;
+    // A column with a fixed height, so the body scrolls inside the box the reader set.
+    panel.style.display = "flex";
+    panel.style.flexDirection = "column";
+    panel.style.left = `${next.x}px`;
+    panel.style.top = `${next.y}px`;
+    panel.style.width = `${next.width}px`;
+    panel.style.height = `${next.height}px`;
+    panel.style.maxWidth = "none";
+    panel.style.maxHeight = `${next.height}px`;
+    const fitted = panel.querySelector<HTMLElement>('[data-testid="hover-preview-body"]');
+    if (fitted) fitted.style.flexGrow = "1";
+  };
   const position = () => {
+    if (holding) return;
+    if (frame) {
+      applyFrame(frame);
+      return;
+    }
     const contentRect = content.getBoundingClientRect();
     const left = Math.max(8, contentRect.left);
     const right = Math.min(view.innerWidth - 8, contentRect.right);
@@ -203,9 +370,29 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   });
   if (body) mutationObserver.observe(body, { childList: true, subtree: true, characterData: true });
   if (options.maximized) panel.querySelector<HTMLElement>('[aria-label="Close preview"]')?.focus();
+  options.onFrame?.(() => {
+    if (!holding && frame) applyFrame(frame);
+  });
+  const unbindFrame = bindPreviewFrame(panel, {
+    toolbar: () => panel.querySelector('[data-testid="hover-preview-toolbar"]'),
+    readBox: () => frame ?? boxFrom(panel),
+    writeBox: applyFrame,
+    hold(on) {
+      holding = on;
+      options.onHold?.(on);
+    },
+    place() {
+      if (frame) applyFrame(frame);
+      if (body && options.onLinesFit) options.onLinesFit(linesFit(body));
+      options.onPlace?.();
+    },
+    leave() { options.onLeave?.(); },
+    bounds: screen,
+  });
   const onScroll = (event: Event) => {
     // Scrolling the preview must not dismiss it or scroll the timeline.
-    if (options.maximized || panel.contains(event.target as Node)) return;
+    // A frame the reader has placed stays, the way a maximized one does.
+    if (floating() || panel.contains(event.target as Node)) return;
     close();
   };
   // While the panel is up the wheel never moves what lies under it. Inside the
@@ -220,7 +407,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
       return;
     }
     event.preventDefault();
-    if (!options.maximized) close();
+    if (!floating()) close();
   };
   const onPointerDown = (event: PointerEvent) => {
     if (!panel.contains(event.target as Node) && !onSelectionBar(event.target)) close();
@@ -228,8 +415,8 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   const onKey = (event: KeyboardEvent) => {
     if (event.key === "Escape") close();
   };
-  const onResize = options.maximized ? measure : close;
-  const onBlur = () => { if (!options.maximized) close(); };
+  const onResize = () => { if (floating()) measure(); else close(); };
+  const onBlur = () => { if (!floating()) close(); };
   view.addEventListener("scroll", onScroll, true);
   view.addEventListener("wheel", onWheel, { capture: true, passive: false });
   view.addEventListener("resize", onResize);
@@ -245,6 +432,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     panel.ownerDocument.removeEventListener("keydown", onKey);
     resizeObserver.disconnect();
     mutationObserver.disconnect();
+    unbindFrame();
     // Maximize re-lays out this same panel: the grow starts from where it was.
     if (!options.maximized) hoverRects.set(panel, panel.getBoundingClientRect());
     panel.hidePopover();

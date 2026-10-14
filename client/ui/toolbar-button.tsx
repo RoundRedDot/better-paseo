@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
@@ -120,6 +120,7 @@ function ToolbarItem({
         {...hoverProps}
         style={({ pressed }) => [
           styles.button,
+          Platform.OS === "web" && styles.pointer,
           outlined && styles.outlined,
           outlined && { borderColor: tokens.v2.border },
           disabled && styles.disabled,
@@ -209,6 +210,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  pointer: { cursor: "pointer" } as ViewStyle,
   // A standalone button takes the floating controls' frame (float.ts), so the
   // table's touch button matches the menu a pointer opens.
   outlined: { width: FLOAT.control, height: FLOAT.control, borderWidth: 1, borderRadius: FLOAT.radius },
