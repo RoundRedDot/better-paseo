@@ -162,8 +162,7 @@ export const CODE_SIZE = { default: 12, min: 10, max: 22 } as const;
 /**
  * Sizes for a tool row, a thought, a checklist or a notice, from the reader's
  * block text size. At 13 every step matches `TYPE` and the row stays 26 / 28
- * tall, so a stored default changes nothing. A step that was 12 stays at
- * least 12.
+ * tall, so a stored default changes nothing. A quieter step stays at least 9.
  */
 export interface BlockMetrics {
   /** The chosen size; 13 is the built-in row label. */

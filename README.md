@@ -330,7 +330,7 @@ Options whose parent is off are dimmed, and **Reset** asks for a second press.
 | Appearance | Interface font | Follow Paseo | Paseo's interface font, Inter (web only, fetched from the daemon) or the system face. |
 | Code font | Monospace font | Follow Paseo | Follow Paseo or a custom family. Follow Paseo uses, in order: the host's font settings once Paseo shares them; on web and desktop, the monospace font and size from Paseo's Appearance settings; otherwise Paseo's default monospace. On iOS and Android, Custom lists faces the platform ships. |
 | Code font | Code font size | Follow Paseo | Or 10–22px; lines are 1.5× the size. Applies to code, diffs, terminals and paths. |
-| Tool calls | Block text size | 13px | 12–20px for tool rows, thoughts, checklists and notices. Text inside those blocks grows with it. Code, diffs and terminal output keep the code font size. |
+| Tool calls | Block text size | 13px | 9–20px for tool rows, thoughts, checklists and notices. Text inside those blocks grows with it. Code, diffs and terminal output keep the code font size. |
 | Tool calls | Row icons and labels | Icon | Icon, label (Bash, Read…) or both at the start of tool and thought rows. |
 | Tool calls | Open failed calls | Off | On, a failed call opens to show its error. |
 | Tool calls | File paths | Relative | Relative to the workspace, or absolute. Copying always gives the absolute path. |

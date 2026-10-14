@@ -88,7 +88,7 @@ export interface EnhancerPreferences {
   /** Code font size in px, 10-22; null follows Paseo (12 until the host says otherwise). */
   codeFontSize: number | null;
   /**
-   * Text size in tool rows, thoughts, checklists and notices, 12-20.
+   * Text size in tool rows, thoughts, checklists and notices, 9-20.
    * 13 is the built-in row label. Code inside those blocks keeps `codeFontSize`.
    */
   blockFontSize: number;

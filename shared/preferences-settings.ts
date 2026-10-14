@@ -42,9 +42,9 @@ export function clampCodeFontSize(value: number): number {
 
 /**
  * Text in tool rows, thoughts, checklists and notices. 13 is the built-in
- * row label; nothing in a row is drawn below 12.
+ * row label. The smallest step a reader can pick is 9.
  */
-export const BLOCK_FONT_SIZE_MIN = 12;
+export const BLOCK_FONT_SIZE_MIN = 9;
 export const BLOCK_FONT_SIZE_MAX = 20;
 export const BLOCK_FONT_SIZE_DEFAULT = 13;
 
