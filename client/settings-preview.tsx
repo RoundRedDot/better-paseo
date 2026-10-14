@@ -27,7 +27,7 @@ import type { SettingsStrings } from "./i18n/settings-strings";
  * when the plugin's are off) and its gaps between items are imitated here.
  *
  * The accent has its own showcase: the plan is mid-way (an accent progress
- * line and a running dot on the open task) and the reply ends on a link,
+ * ring and a running dot on the open task) and the reply ends on a link,
  * since a finished turn otherwise shows no accent at all.
  *
  * The Read row's hover preview is drawn open under it, so the panel options
