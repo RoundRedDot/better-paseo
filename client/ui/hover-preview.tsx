@@ -38,6 +38,8 @@ const PreviewActionsContext = createContext<{
   maximized: boolean;
   maximize(): void;
   close(): void;
+  /** Opened as a window (`pop`): it stays up until closed, so it has a close button. */
+  popped?: boolean;
   /** The body fills a fixed height: the maximized window, or one the reader has sized. */
   fill: boolean;
   /** The preview's line wrap, on until the reader turns it off. */
@@ -251,6 +253,7 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
         maximized: preview.maximized,
         maximize: preview.maximize,
         close: preview.close,
+        popped: preview.popped,
         fill: preview.maximized || preview.placed,
         wrap: wraps ? { on: wrapOn, disabled: linesFit, toggle: toggleWrap, tokens } : undefined,
       }}>
@@ -510,6 +513,10 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, stre
       tokens={tokens}
     />
   ) : null;
+  // A popped-out window ignores presses outside it; this is its way out.
+  const closeButton = actions?.popped && actions.maximizable && !actions.maximized ? (
+    <ToolbarButton icon="X" label="Close preview" onPress={actions.close} tokens={tokens} />
+  ) : null;
   return (
     <View
       testID="hover-preview-header"
@@ -565,6 +572,7 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, stre
           <TooltipAlignContext.Provider value="end">
             {toolbar}
             {windowButton}
+            {closeButton}
           </TooltipAlignContext.Provider>
         </View>
       </View>

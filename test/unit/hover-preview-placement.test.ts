@@ -285,19 +285,21 @@ describe("hover preview dismissal and wheel", () => {
     expect(close).not.toHaveBeenCalled();
     release();
   });
-  it("keeps a popped-out window where it opened while the timeline scrolls or the window resizes", () => {
+  it("keeps a popped-out window up and in place while the reader goes on with the timeline", () => {
     const { panel, view, close, resize, release } = layer(200, 700, 1600, 24, { floating: true });
     listener(view, "scroll")({ target: OUTSIDE });
-    const event = wheel(OUTSIDE);
-    listener(view, "wheel")(event);
+    // The wheel outside scrolls the timeline as usual; inside, the panel's own body.
+    const outside = wheel(OUTSIDE);
+    listener(view, "wheel")(outside);
+    expect(outside.preventDefault).not.toHaveBeenCalled();
+    listener(panel.ownerDocument, "pointerdown")({ target: OUTSIDE });
     listener(view, "resize")({});
     listener(view, "blur")({});
     expect(close).not.toHaveBeenCalled();
     // Its first box is kept as a placed one: the same spot, at the height it opened with.
     resize();
     expect(panel.style).toMatchObject({ left: "200px", top: "132px", width: "700px", height: "360px" });
-    // A press outside or Escape still closes it, as they close a dragged panel.
-    listener(panel.ownerDocument, "pointerdown")({ target: OUTSIDE });
+    listener(panel.ownerDocument, "keydown")({ key: "Escape", preventDefault: vi.fn(), stopPropagation: vi.fn() });
     expect(close).toHaveBeenCalledOnce();
     release();
   });

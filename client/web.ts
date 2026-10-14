@@ -286,7 +286,9 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   onFrame?(sync: () => void): void;
   /**
    * Opened as a window (a pop-out button): it keeps the box it opens in, as a
-   * placed one does, so the timeline scrolling under it does not close it.
+   * placed one does, and stays up while the reader goes on with the timeline
+   * under it, which scrolls and takes presses as usual. Its close button or
+   * Escape closes it.
    */
   floating?: boolean;
 } = {}): () => void {
@@ -442,10 +444,12 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
       if (!scrollsWithin(target, panel, event.deltaX, event.deltaY)) event.preventDefault();
       return;
     }
+    if (options.floating) return;
     event.preventDefault();
     if (!floating()) close();
   };
   const onPointerDown = (event: PointerEvent) => {
+    if (options.floating) return;
     if (!panel.contains(event.target as Node) && !onSelectionBar(event.target)) close();
   };
   // Caught on the way down: the reply box, which holds focus while the reader
