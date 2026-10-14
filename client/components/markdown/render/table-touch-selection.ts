@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Platform, type GestureResponderEvent, type ViewProps } from "react-native";
+import { useScrollDismiss } from "../../../ui/scroll-anchor";
 
 const DOUBLE_TAP_MS = 300;
 const TAP_MS = 250;
@@ -13,6 +14,7 @@ export function useTableTouchSelection(source: string) {
   const started = useRef<Tap | null>(null);
   const previous = useRef<Tap | null>(null);
   const dismiss = () => setSelected(null);
+  useScrollDismiss(selected !== null, dismiss);
   const cancel = () => { started.current = null; previous.current = null; };
   useEffect(() => { cancel(); dismiss(); }, [source]);
 

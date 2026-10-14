@@ -7,6 +7,7 @@ import { resolveLanguage, type SettingsLanguagePreference } from "./settings-str
 
 const ZH: Readonly<Record<string, string>> = {
   Copy: "复制",
+  "Copy selected": "复制选中",
   Copied: "已复制",
   "Copied instead": "已复制到剪贴板",
   "Add to chat": "添加到对话",
