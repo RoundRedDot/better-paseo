@@ -156,6 +156,19 @@ afterEach(() => {
 });
 
 describe("Markdown table copy menu", () => {
+  it("binds cell selection to the frame and marks only header and body cells", () => {
+    render();
+    const cells = renderer!.root.findAll((node) => String(node.type) === "Text"
+      && node.props.testID === "markdown-table-cell");
+    expect(cells.map((node) => node.children.join(""))).toEqual(["A", "B", "one", "two"]);
+    expect(cells.every((node) => node.props.selectable)).toBe(true);
+    const frames = nodes.filter((node) => node.listeners.get("dblclick")?.size);
+    expect(frames).toHaveLength(1);
+    act(() => renderer!.unmount());
+    renderer = undefined;
+    expect(frames[0]!.listeners.get("dblclick")?.size).toBe(0);
+  });
+
   it("is a rounded square until hovered, then widens into a rounded rectangle of two named entries", () => {
     render();
     const frame = () => renderer!.root.findAll((node) => String(node.type) === "View"
