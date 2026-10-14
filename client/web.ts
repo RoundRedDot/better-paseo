@@ -135,8 +135,8 @@ export function bindPreviewPaging(node: unknown, step: (direction: -1 | 1) => vo
 const FRAME_CONTROL = 'button, [role="button"], a, input, textarea, select, [contenteditable]:not([contenteditable="false"])';
 
 function isFrameControl(target: EventTarget | null): boolean {
-  const closest = (target as { closest?: (selector: string) => unknown } | null)?.closest;
-  return Boolean(closest?.(FRAME_CONTROL));
+  // Called on the element: a DOM `closest` taken off it throws "Illegal invocation".
+  return Boolean((target as Element | null)?.closest?.(FRAME_CONTROL));
 }
 
 function boxFrom(panel: HTMLElement): PreviewBox {

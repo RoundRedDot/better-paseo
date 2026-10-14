@@ -345,8 +345,18 @@ describe("moving and resizing a hover preview", () => {
       children: [] as unknown[], natural: 600, style: { width: "", maxWidth: "", flexGrow: "" },
       getBoundingClientRect() { return { width: this.style.width === "max-content" ? this.natural : 600 }; },
     };
-    const title = { closest: () => null };
-    const button = { closest: (selector: string) => selector.includes("button") ? button : null };
+    // A DOM `closest` throws "Illegal invocation" when it is called without its element.
+    const element = (matches: (selector: string) => boolean) => {
+      const node = {
+        closest(this: unknown, selector: string) {
+          if (this !== node) throw new TypeError("Illegal invocation");
+          return matches(selector) ? node : null;
+        },
+      };
+      return node;
+    };
+    const title = element(() => false);
+    const button = element((selector) => selector.includes("button"));
     const toolbar = { contains: (node: unknown) => node === title || node === toolbar };
     const content = { getBoundingClientRect: () => ({ left: 200, right: 900 }) };
     const viewport = { getBoundingClientRect: () => ({ top: 64, bottom: 800, left: 0, right: 1600 }) };
