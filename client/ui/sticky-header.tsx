@@ -81,7 +81,7 @@ interface StickyCardProps {
  */
 export function StickyCard({ tokens, compact, header, children }: StickyCardProps) {
   const useHostStickyHeader = HOST_STICKY_HOOK as StickyHeaderHook;
-  const headerHeight = compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop;
+  const headerHeight = compact ? tokens.typography.block.rowHeight.compact : tokens.typography.block.rowHeight.desktop;
   const { height: viewportHeight } = useWindowDimensions();
   const bodyHeight = useRef(0);
   const [tall, setTall] = useState(false);

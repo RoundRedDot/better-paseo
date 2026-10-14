@@ -124,6 +124,12 @@ const en = {
   fontPreview: "Font preview",
 
   sectionTools: "Tool calls",
+  blockSizeTitle: "Block text size",
+  blockSizeDescription: (min: number, max: number) =>
+    `${min}–${max}px for tool rows, thoughts, checklists and notices. Text inside those blocks grows with it. Code, diffs and terminal output keep the code font size.`,
+  blockSizeSmaller: "Smaller block text",
+  blockSizeLarger: "Larger block text",
+  blockSizeValue: (size: number) => `Block text size ${size} pixels`,
   rowLabelsTitle: "Row icons and labels",
   rowLabelsDescription:
     "What a tool or thought row starts with: an icon, a name such as Bash or Read, or both. Icon only leaves the most room for the command or path.",
@@ -272,6 +278,12 @@ const zh: SettingsStrings = {
   fontPreview: "字体预览",
 
   sectionTools: "工具调用",
+  blockSizeTitle: "块字号",
+  blockSizeDescription: (min: number, max: number) =>
+    `${min}–${max}px，用于工具行、思考、待办和提示。这些块里的文字一起变化。代码、diff 和终端输出仍用代码字号。`,
+  blockSizeSmaller: "减小块字号",
+  blockSizeLarger: "增大块字号",
+  blockSizeValue: (size: number) => `块字号 ${size} 像素`,
   rowLabelsTitle: "行首标识",
   rowLabelsDescription: "工具行和思考行开头显示图标、名称（如 Bash、Read），或两者都显示。只显示图标时，命令和路径能占用最多宽度。",
   rowLabelsIcon: "图标",

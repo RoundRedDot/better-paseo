@@ -10,7 +10,6 @@ import { codeSurface } from "./host-font-escape";
 import { openLink } from "./open-link";
 import type { GitHubToolData } from "../../shared/contracts";
 import { FadeIn } from "../ui/fade-in";
-import { UI_SCALE } from "../ui/tokens/typography";
 
 interface GitHubBodyProps {
   data: GitHubToolData | undefined;
@@ -43,15 +42,15 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
         },
         label: {
           fontFamily: tokens.fontMono,
-          fontSize: UI_SCALE.base,
+          fontSize: tokens.typography.block.meta.size,
           color: tokens.foreground,
           flexShrink: 1,
           minWidth: 0,
         },
-        value: { fontFamily: tokens.fontUi, fontSize: UI_SCALE.base, color: tokens.foregroundMuted },
+        value: { fontFamily: tokens.fontUi, fontSize: tokens.typography.block.meta.size, color: tokens.foregroundMuted },
         okValue: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
+          fontSize: tokens.typography.block.meta.size,
           color: tokens.success,
           backgroundColor: tokens.successBg,
           paddingHorizontal: 6,
@@ -60,7 +59,7 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
         },
         badValue: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
+          fontSize: tokens.typography.block.meta.size,
           color: tokens.danger,
           backgroundColor: tokens.dangerBg,
           paddingHorizontal: 6,
@@ -70,7 +69,7 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
         spacer: { flex: 1, minWidth: 8 },
         link: {
           fontFamily: tokens.fontMono,
-          fontSize: UI_SCALE.base,
+          fontSize: tokens.typography.block.meta.size,
           color: tokens.accent,
           textDecorationLine: "underline",
         },
@@ -87,7 +86,7 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
           lineHeight: tokens.typography.mono.lineHeight,
           color: tokens.foregroundMuted,
         },
-        note: { fontFamily: tokens.fontUi, fontSize: UI_SCALE.base, color: tokens.foregroundMuted },
+        note: { fontFamily: tokens.fontUi, fontSize: tokens.typography.block.meta.size, color: tokens.foregroundMuted },
         toggle: {
           flexDirection: "row",
           alignItems: "center",
@@ -100,7 +99,7 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
         },
         toggleLabel: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
+          fontSize: tokens.typography.block.meta.size,
           color: tokens.foregroundMuted,
           ...unselectable,
         },

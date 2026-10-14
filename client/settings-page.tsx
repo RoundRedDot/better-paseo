@@ -12,6 +12,8 @@ import {
   ACCENT_PRESETS,
   CODE_FONT_SIZE_MAX,
   CODE_FONT_SIZE_MIN,
+  BLOCK_FONT_SIZE_MAX,
+  BLOCK_FONT_SIZE_MIN,
   HOVER_DELAY_MAX,
   HOVER_DELAY_MIN,
   clampHoverDelay,
@@ -590,6 +592,41 @@ function CodeSizeControl({ value, look }: { value: number | null; look: PageLook
   );
 }
 
+/** 12–20px for tool rows, thoughts, checklists and notices. */
+function BlockSizeControl({ value, look }: { value: number; look: PageLook }) {
+  const { tokens, t } = look;
+  const set = (next: number) =>
+    updateEnhancerPreferences({
+      blockFontSize: Math.min(BLOCK_FONT_SIZE_MAX, Math.max(BLOCK_FONT_SIZE_MIN, next)),
+    });
+  return (
+    <View style={styles.stepper}>
+      <PlainButton
+        label="−"
+        accessibilityLabel={t.blockSizeSmaller}
+        disabled={value <= BLOCK_FONT_SIZE_MIN}
+        onPress={() => set(value - 1)}
+        look={look}
+        square
+      />
+      <Text
+        accessibilityLabel={t.blockSizeValue(value)}
+        style={[styles.stepperValue, { color: tokens.foreground, fontFamily: tokens.fontMono }]}
+      >
+        {`${value}px`}
+      </Text>
+      <PlainButton
+        label="+"
+        accessibilityLabel={t.blockSizeLarger}
+        disabled={value >= BLOCK_FONT_SIZE_MAX}
+        onPress={() => set(value + 1)}
+        look={look}
+        square
+      />
+    </View>
+  );
+}
+
 /** "Host" and the four presets: round swatches, the selected one ringed. */
 function AccentControl({ value, hostAccent, look }: { value: AccentPreset; hostAccent: string; look: PageLook }) {
   const { tokens, t } = look;
@@ -966,6 +1003,14 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
 
       <Section title={t.sectionTools} look={look}>
         <SettingRow
+          title={t.blockSizeTitle}
+          description={t.blockSizeDescription(BLOCK_FONT_SIZE_MIN, BLOCK_FONT_SIZE_MAX)}
+          control={<BlockSizeControl value={preferences.blockFontSize} look={look} />}
+          look={look}
+          first
+          stacked
+        />
+        <SettingRow
           title={t.rowLabelsTitle}
           description={t.rowLabelsDescription}
           control={
@@ -982,7 +1027,6 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
             />
           }
           look={look}
-          first
           stacked
         />
         <SettingRow

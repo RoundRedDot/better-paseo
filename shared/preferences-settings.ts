@@ -40,6 +40,18 @@ export function clampCodeFontSize(value: number): number {
   return Math.min(CODE_FONT_SIZE_MAX, Math.max(CODE_FONT_SIZE_MIN, Math.round(value)));
 }
 
+/**
+ * Text in tool rows, thoughts, checklists and notices. 13 is the built-in
+ * row label; nothing in a row is drawn below 12.
+ */
+export const BLOCK_FONT_SIZE_MIN = 12;
+export const BLOCK_FONT_SIZE_MAX = 20;
+export const BLOCK_FONT_SIZE_DEFAULT = 13;
+
+export function clampBlockFontSize(value: number): number {
+  return Math.min(BLOCK_FONT_SIZE_MAX, Math.max(BLOCK_FONT_SIZE_MIN, Math.round(value)));
+}
+
 /** A delay within 0-10 s, to a tenth of a second. */
 export function clampHoverDelay(seconds: number): number {
   return Math.min(HOVER_DELAY_MAX, Math.max(HOVER_DELAY_MIN, Math.round(seconds * 10) / 10));
@@ -84,6 +96,11 @@ export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrate
     .transform(clampCodeFontSize)
     .nullable()
     .catch(null),
+  blockFontSize: z
+    .number()
+    .refine((value) => Number.isFinite(value))
+    .transform(clampBlockFontSize)
+    .catch(BLOCK_FONT_SIZE_DEFAULT),
   toolDetail: z.enum(TOOL_DETAILS).catch("collapsed"),
   pathDisplay: z.enum(PATH_DISPLAYS).catch("relative"),
   hoverPreview: flag(true),

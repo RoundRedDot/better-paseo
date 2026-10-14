@@ -8,7 +8,6 @@ import { selectionSurface } from "./selection-actions";
 import { DisclosureHeader, RowIcon, RowText } from "../ui/disclosure-header";
 import { FadeIn } from "../ui/fade-in";
 import { contentTextProps, contentTextStyle } from "../ui/content-text";
-import { TYPE } from "../ui/tokens/typography";
 import type { SystemEnvelope, SystemEnvelopeKind } from "../system-envelope";
 
 interface SystemCardProps {
@@ -66,8 +65,8 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
           flex: 1,
           minWidth: 0,
           fontFamily: tokens.fontUi,
-          fontSize: TYPE.label.size,
-          lineHeight: TYPE.label.lineHeight,
+          fontSize: tokens.typography.block.label.size,
+          lineHeight: tokens.typography.block.label.lineHeight,
           ...unselectable,
         },
         body: {
@@ -84,8 +83,8 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
         },
         prose: {
           fontFamily: tokens.fontUi,
-          fontSize: tokens.typography.content.size - 1,
-          lineHeight: TYPE.label.lineHeight + 2,
+          fontSize: tokens.typography.content.size - 1 + tokens.typography.block.delta,
+          lineHeight: tokens.typography.block.label.lineHeight + 2,
           color: tokens.foreground,
         },
       }),

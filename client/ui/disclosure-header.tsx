@@ -285,9 +285,10 @@ export function DisclosureHeader({
   const hasTarget = target !== undefined && target !== null && target !== "";
   const showVerb = rowLabelStyle !== "icon" || !hasTarget;
   const showIcon = rowLabelStyle !== "label" || iconIsStatus;
-  const height = compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop;
+  const block = tokens.typography.block;
+  const height = compact ? block.rowHeight.compact : block.rowHeight.desktop;
   const slop = capabilities.touch ? Math.max(0, (DISCLOSURE_HEADER.hit - height) / 2) : 0;
-  const targetType = compact ? DISCLOSURE_HEADER.target.compact : DISCLOSURE_HEADER.target.desktop;
+  const targetType = block.target;
   const textSelect = inert ? selectableTextStyle : unselectable;
 
   const persistentActions =
@@ -345,7 +346,7 @@ export function DisclosureHeader({
         style={[
           styles.metaText,
           unselectable,
-          { color: palette.meta, fontFamily: tokens.fontMono },
+          { color: palette.meta, fontFamily: tokens.fontMono, fontSize: block.meta.size, lineHeight: block.meta.lineHeight },
           target === undefined && metaLead === undefined ? styles.pushRight : null,
         ]}
       >
@@ -405,7 +406,16 @@ export function DisclosureHeader({
                   {...((inert ? selectionSurface : {}) as object)}
                   selectable={inert}
                   numberOfLines={1}
-                  style={[styles.verb, textSelect, { color: palette.target, fontFamily: tokens.fontUi }]}
+                  style={[
+                    styles.verb,
+                    textSelect,
+                    {
+                      color: palette.target,
+                      fontFamily: tokens.fontUi,
+                      fontSize: block.label.size,
+                      lineHeight: block.label.lineHeight,
+                    },
+                  ]}
                 >
                   {verb}
                 </Text>
