@@ -159,3 +159,61 @@ export function bindPreviewTail(
     stop();
   };
 }
+
+/** Where a phone body's follow scrolls: an offset, or the end before the viewport is known. */
+export type PreviewTailScroll = (offset: number | "end", animated: boolean) => void;
+
+/**
+ * The same follow for a phone body, driven by its ScrollView's events. Growth
+ * glides with the platform's own animated scroll, which runs on the UI thread;
+ * the first output and reduced motion jump.
+ *
+ * The glide's scroll events report offsets short of the tail on their way
+ * there; they are not the reader leaving. A drag is: it ends the glide, and
+ * the scroll events after it decide as before.
+ */
+export function nativePreviewTail(scroll: PreviewTailScroll) {
+  let pinned = true;
+  let opened = false;
+  let gliding: number | null = null;
+  return {
+    get pinned() { return pinned; },
+    reset() {
+      pinned = true;
+      opened = false;
+      gliding = null;
+    },
+    grow(viewport: number, content: number, offset: number, still: boolean) {
+      if (!pinned) return;
+      if (!(viewport > 0)) {
+        scroll("end", false);
+        return;
+      }
+      const top = previewTailOffset(viewport, content);
+      if (top - offset <= 1) {
+        opened = true;
+        return;
+      }
+      if (!opened || still) {
+        opened = true;
+        gliding = null;
+        scroll(top, false);
+        return;
+      }
+      // More than a screen behind: the skipped part could not be read at that speed.
+      if (top - offset > viewport) scroll(top - viewport, false);
+      gliding = top;
+      scroll(top, true);
+    },
+    scrolled(offset: number, viewport: number, content: number) {
+      if (gliding !== null) {
+        if (offset >= gliding - 1) gliding = null;
+        return;
+      }
+      pinned = previewFollowsTail(offset, viewport, content);
+    },
+    drag() {
+      gliding = null;
+    },
+  };
+}
