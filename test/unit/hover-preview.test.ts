@@ -254,6 +254,33 @@ describe("hover preview lifetime", () => {
     act(() => renderer.update(React.createElement(Probe, { enabled: false })));
     expect(preview.open).toBe(false);
   });
+  it("pops out as a pinned window, also where hover and long-press previews are off", () => {
+    updateEnhancerPreferences({ hoverPreview: false });
+    mount();
+    act(() => preview.pop!());
+    expect(preview.open).toBe(true);
+    expect(preview.popped).toBe(true);
+    act(() => preview.leave());
+    act(() => { vi.advanceTimersByTime(5000); });
+    expect(preview.open).toBe(true);
+    act(() => preview.close());
+    expect(preview.open).toBe(false);
+    expect(preview.popped).toBe(false);
+    act(() => renderer.unmount());
+    // A phone without its long-press preview still has the button.
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    mount();
+    expect(preview.press).toBeUndefined();
+    act(() => preview.pop!());
+    expect(preview.open).toBe(true);
+  });
+  it("offers no pop-out while disabled or inside another preview owner", () => {
+    mount(false);
+    expect(preview.pop).toBeUndefined();
+    act(() => renderer.unmount());
+    mount(true, true);
+    expect(preview.pop).toBeUndefined();
+  });
   it("does not open on touch-only web or inside another preview owner", () => {
     state.hover = false;
     mount();
@@ -384,6 +411,13 @@ describe("line wrap in the desktop preview", () => {
     expect(windowButton("Close preview")).toHaveLength(0);
     expect(state.layers.at(-1)).toMatchObject({ maximized: false, frame: box });
     expect(renderer.root.findAll((node) => node.props.accessibilityLabel === "Expanded preview")).toHaveLength(0);
+  });
+
+  it("opens a popped-out panel as a floating window on the layer", () => {
+    act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
+    expect(state.layers.at(-1)).toMatchObject({ floating: false });
+    act(() => own.pop!());
+    expect(state.layers.at(-1)).toMatchObject({ floating: true });
   });
 
   it("offers Maximize whatever the content's size, and Close once maximized", () => {
