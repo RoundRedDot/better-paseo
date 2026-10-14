@@ -35,6 +35,7 @@ await import("./helpers/quiet-renderer");
 const { default: TestRenderer, act } = await import("react-test-renderer");
 const { StyleSheet } = await import("./helpers/rn-mock");
 const { LiveTodoRenderer } = await import("../../client/live-renderers");
+const { noteRowGap, resetHostRowGap } = await import("../../client/host-row-gap");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 type Renderer = ReturnType<typeof TestRenderer.create>;
@@ -87,6 +88,28 @@ function rootMargins(renderer: Renderer) {
     .map((view) => (view ? StyleSheet.flatten(view.props.style)?.marginBottom : null));
 }
 
+function rootStyles(renderer: Renderer) {
+  return renderer.root.children
+    .map((child) => (typeof child === "string" ? null : child.findAll((node) => (node.type as unknown) === "View")[0]))
+    .map((view) => {
+      const style = view ? StyleSheet.flatten(view.props.style) : undefined;
+      return [style?.marginTop ?? 0, style?.marginBottom ?? 0];
+    });
+}
+
+/**
+ * Item roots drawn at these boxes, in mount order, as the web reads them. The
+ * drawing item's own box does not follow its margins here, which is what the
+ * renderer must not be fooled by.
+ */
+function drawnAt(...boxes: Array<{ top: number; height: number }>) {
+  let index = 0;
+  return () => {
+    const box = boxes[index++] ?? { top: 0, height: 0 };
+    return { getBoundingClientRect: () => ({ left: 0, width: 600, ...box }) };
+  };
+}
+
 describe("deriveTodoActivities", () => {
   it("reads a first list as created and later ones as added, started and completed", () => {
     expect(deriveTodoActivities(null, created)).toEqual([{ type: "created", count: 3 }]);
@@ -117,9 +140,83 @@ describe("live todo timeline", () => {
     expect(lists(renderer)).toHaveLength(1);
     expect(rows(renderer)).toHaveLength(0);
     // The sibling draws nothing. It cannot give back the gap the host hangs
-    // under it (no height to take a negative margin from), so it asks for none.
+    // under it (no height to take a negative margin from), so it asks for
+    // none; unmeasured, the checklist takes nothing back for it either.
     expect(rootMargins(renderer)).toEqual([undefined, undefined]);
     act(() => renderer.unmount());
+  });
+
+  it("takes back the gaps of empty siblings drawn under the checklist", () => {
+    // The web mounts top-down: the first item draws, its siblings hang below.
+    resetHostRowGap();
+    let renderer!: Renderer;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+        todo("below-agent", "u2-a", 2000, firstDone),
+        todo("below-agent", "u2-b", 2000, firstDone),
+        todo("below-agent", "u2-c", 2000, firstDone)),
+      { createNodeMock: drawnAt({ top: 100, height: 120 }, { top: 236, height: 0 }, { top: 252, height: 0 }) });
+    });
+    expect(lists(renderer)).toHaveLength(1);
+    expect(rootStyles(renderer)).toEqual([[0, -32], [0, 0], [0, 0]]);
+    act(() => renderer.unmount());
+  });
+
+  it("takes back the gaps of empty siblings drawn over the checklist", () => {
+    // An inverted list mounts bottom-up: the item that draws sits under them.
+    resetHostRowGap();
+    let renderer!: Renderer;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+        todo("above-agent", "u2-a", 2000, firstDone),
+        todo("above-agent", "u2-b", 2000, firstDone),
+        todo("above-agent", "u2-c", 2000, firstDone)),
+      { createNodeMock: drawnAt({ top: 300, height: 120 }, { top: 268, height: 0 }, { top: 284, height: 0 }) });
+    });
+    expect(rootStyles(renderer)).toEqual([[-32, 0], [0, 0], [0, 0]]);
+    act(() => renderer.unmount());
+  });
+
+  it("takes back no more than the row's own height", () => {
+    resetHostRowGap();
+    let renderer!: Renderer;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+        todo("short-agent", "u1", 1000, created),
+        todo("short-agent", "u2-a", 2000, firstDone),
+        todo("short-agent", "u2-b", 2000, firstDone),
+        todo("short-agent", "u2-c", 2000, firstDone),
+        todo("short-agent", "u3", 3000, secondDone)),
+      { createNodeMock: drawnAt(
+        { top: 0, height: 28 },
+        { top: 44, height: 28 }, { top: 88, height: 0 }, { top: 104, height: 0 },
+        { top: 120, height: 120 },
+      ) });
+    });
+    expect(rows(renderer)).toHaveLength(2);
+    expect(rootStyles(renderer)).toEqual([
+      [0, 0],
+      [0, -28],
+      [0, 0],
+      [0, 0],
+      [0, 0],
+    ]);
+    act(() => renderer.unmount());
+  });
+
+  it("takes nothing back on a host that stacks rows and hangs no gap under them", () => {
+    resetHostRowGap();
+    noteRowGap(0);
+    let renderer!: Renderer;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+        todo("stacked-agent", "u2-a", 2000, firstDone),
+        todo("stacked-agent", "u2-b", 2000, firstDone)),
+      { createNodeMock: drawnAt({ top: 100, height: 120 }, { top: 220, height: 0 }) });
+    });
+    expect(rootStyles(renderer)).toEqual([[0, 0], [0, 0]]);
+    act(() => renderer.unmount());
+    resetHostRowGap();
   });
 
   it("keeps the full checklist on the newest update and folds earlier ones to a row", () => {
