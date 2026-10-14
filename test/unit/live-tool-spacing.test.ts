@@ -139,7 +139,7 @@ describe("tool row spacing in replayed history", () => {
       return { measureInWindow: (callback: (x: number, y: number, w: number, h: number) => void) => callback(0, y, 300, 40) };
     };
     let renderer!: ReturnType<typeof TestRenderer.create>;
-    const forget = registerTimelineEntry("tool-spacing-agent", 9500, "thought", "between", () => 0);
+    const forget = registerTimelineEntry("tool-spacing-agent", 9500, "thought", "between", () => ({ left: 0, top: 0, width: 300, height: 0 }));
     act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
       tool("ending-1", 9500, "completed"), tool("ending-2", 9500, "completed")), { createNodeMock }); });
     expect(margins(renderer)).toEqual([-12, undefined]);

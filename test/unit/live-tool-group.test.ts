@@ -90,7 +90,7 @@ describe("live tool groups", () => {
       tool("first", 1000), tool("second", 1001))); });
     expect(cards(renderer)).toHaveLength(1);
     expect(cards(renderer)[0]!.props.groupCalls.map((call: { callId: string }) => call.callId)).toEqual(["first", "second"]);
-    expect(margins(renderer)).toEqual([undefined, -16]);
+    expect(margins(renderer)).toEqual([undefined, undefined]);
     act(() => { renderer.update(React.createElement(React.Fragment, null,
       tool("first", 1005, "completed"), tool("second", 1001))); });
     expect(cards(renderer)).toHaveLength(1);
@@ -148,7 +148,7 @@ describe("live tool groups", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
       tool("first", 4000), tool("second", 4000), tool("next", 4000, "running", "src/b.ts")), { createNodeMock }); });
-    expect(margins(renderer)).toEqual([-12, -16, undefined]);
+    expect(margins(renderer)).toEqual([-12, undefined, undefined]);
     act(() => renderer.unmount());
   });
 
@@ -237,7 +237,7 @@ describe("live tool groups", () => {
     act(() => { renderer.update(React.createElement(React.Fragment, null, tool("r1", 9000, "completed"), second)); });
     expect(cards(renderer)).toHaveLength(1);
     expect(cards(renderer)[0]!.props.groupCalls.map((call: { callId: string }) => call.callId)).toEqual(["r1", "r2"]);
-    expect(margins(renderer)).toEqual([undefined, -16]);
+    expect(margins(renderer)).toEqual([undefined, undefined]);
     act(() => renderer.unmount());
   });
 
@@ -245,12 +245,12 @@ describe("live tool groups", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
       tool("t1", 10_000, "completed"), tool("t2", 10_001, "completed"))); });
-    expect(margins(renderer)).toEqual([undefined, -16]);
+    expect(margins(renderer)).toEqual([undefined, undefined]);
     let forget!: () => void;
     act(() => { forget = timeline.registerTimelineEntry("group-agent", 10_002, "reply"); });
-    expect(margins(renderer)).toEqual([-12, -16]);
+    expect(margins(renderer)).toEqual([-12, undefined]);
     act(() => forget());
-    expect(margins(renderer)).toEqual([undefined, -16]);
+    expect(margins(renderer)).toEqual([undefined, undefined]);
     act(() => renderer.unmount());
   });
 });

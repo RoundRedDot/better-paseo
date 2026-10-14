@@ -34,6 +34,7 @@ import { SystemCard } from "./components/system-card";
 import { parseSystemEnvelope } from "./system-envelope";
 import { useIsTimelineTail, useTextItemTailKey } from "./timeline-tail";
 import { useHasEntryAfter, useNextEntryIsRow, useTimelineEntry, useTimelineToolGroup } from "./timeline-order";
+import { useHostStacksRows } from "./host-row-gap";
 import type { TaskListData, TaskItemData, NoticeCalloutData } from "../shared/contracts";
 import { revealPathRpc } from "../shared/file-rpc";
 import { isImagePath, useImageFile } from "./image-file";
@@ -93,14 +94,26 @@ export interface LiveNoticePayload {
  * A reply can take the same 12 back, but only above a row and only by choice
  * (`compactReplySpacing`, `timeline-order.ts`): Paseo's own reply keeps 16pt
  * there.
+ *
+ * A host that stacks rows itself (`host-row-gap.ts`) leaves no gap between two
+ * rows, so a row takes nothing back above another row, only above a reply or
+ * a prompt, where the 16pt stays.
+ *
+ * An empty slot (a member a merged row draws, an earlier checklist) cannot
+ * take its gap back: a negative margin on a view with no height leaves the
+ * host's wrapper at zero, not below it, so the 16pt under it stays on a host
+ * that spaces rows.
  */
 export const ROW_GAP_COMPENSATION = 12;
 
 const rowGapStyles = StyleSheet.create({
   compensated: { marginBottom: -ROW_GAP_COMPENSATION },
-  // Empty plugin slots still carry the host's full 16pt bottom margin.
-  grouped: { marginBottom: -16 },
 });
+
+/** Whether a row with something below it takes back the gap under it. */
+function compensatesRow(compactRowSpacing: boolean, anythingBelow: boolean, rowBelow: boolean, hostStacks: boolean): boolean {
+  return compactRowSpacing && anythingBelow && !(hostStacks && rowBelow);
+}
 
 function LiveToolCallRendererBody({
   agentId,
@@ -134,7 +147,8 @@ function LiveToolCallRendererBody({
   // below it kept its gap as if it were the newest row. A call already
   // finished as its row mounts is replayed history (see `timeline-order.ts`).
   const rootRef = useRef<View>(null);
-  const { group, anythingBelow } = useTimelineToolGroup(agentId, at, view, data.phase === "complete", rootRef);
+  const { group, anythingBelow, rowBelow } = useTimelineToolGroup(agentId, at, view, data.phase === "complete", rootRef);
+  const hostStacks = useHostStacksRows();
   const groupFailed = group?.some((call) => call.status === "failed") ?? false;
 
   // The daemon side owns the shell, so revealing a file is one RPC. Paths
@@ -189,7 +203,7 @@ function LiveToolCallRendererBody({
       ref={rootRef}
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       {...probe.viewProps}
-      style={group === null ? rowGapStyles.grouped : preferences.compactRowSpacing && anythingBelow ? rowGapStyles.compensated : undefined}
+      style={group !== null && compensatesRow(preferences.compactRowSpacing, anythingBelow, rowBelow, hostStacks) ? rowGapStyles.compensated : undefined}
     >
       {group !== null ? (
         <>
@@ -241,6 +255,8 @@ function LiveReasoningRendererBody({
   const rootRef = useRef<View>(null);
   useTimelineEntry(agentId, timestamp.getTime(), "thought", settledKey, rootRef);
   const anythingBelow = useHasEntryAfter(agentId, timestamp.getTime(), "thought", settledKey);
+  const rowBelow = useNextEntryIsRow(agentId, timestamp.getTime(), "thought");
+  const hostStacks = useHostStacksRows();
 
   // Collapsed by default, streaming or not (plan §3.4 item 3); the reader's
   // choice survives the remount into history through the disclosure store.
@@ -276,7 +292,7 @@ function LiveReasoningRendererBody({
       ref={rootRef}
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       {...probe.viewProps}
-      style={preferences.compactRowSpacing && anythingBelow ? rowGapStyles.compensated : undefined}
+      style={compensatesRow(preferences.compactRowSpacing, anythingBelow, rowBelow, hostStacks) ? rowGapStyles.compensated : undefined}
     >
       {probe.node}
       <PreferenceSyncSlot />
@@ -338,7 +354,7 @@ function LiveTodoRendererBody({
   }, [items]);
 
   // Empty plugin slots still carry the host's 16pt gap.
-  if (role === "hidden") return <View style={rowGapStyles.grouped} />;
+  if (role === "hidden") return <View />;
 
   return (
     <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}>

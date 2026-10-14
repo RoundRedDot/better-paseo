@@ -116,8 +116,9 @@ describe("live todo timeline", () => {
     });
     expect(lists(renderer)).toHaveLength(1);
     expect(rows(renderer)).toHaveLength(0);
-    // The sibling draws nothing and gives back the gap the host hangs under it.
-    expect(rootMargins(renderer)).toEqual([undefined, -16]);
+    // The sibling draws nothing. It cannot give back the gap the host hangs
+    // under it (no height to take a negative margin from), so it asks for none.
+    expect(rootMargins(renderer)).toEqual([undefined, undefined]);
     act(() => renderer.unmount());
   });
 
