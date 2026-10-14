@@ -303,6 +303,15 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   // Set once the reader drags or resizes. Until then the panel follows its row.
   let frame: PreviewBox | null = options.frame ?? null;
   let holding = false;
+  // Where a resting panel stays once the timeline scrolls under it on its
+  // own: the host moves a finished call into its history and follows the
+  // newest reply. The reader is still reading, so the panel neither closes
+  // nor follows its row away from the pointer.
+  let settled: number | null = null;
+  // When a key that scrolls the page last went down outside the panel. A
+  // scroll right after it is the reader's; a wheel or a press outside closes
+  // the panel on its own.
+  let scrollKeyAt = Number.NEGATIVE_INFINITY;
   const screen = (): PreviewSize => ({ width: view.innerWidth, height: view.innerHeight });
   const floating = () => frame !== null || Boolean(options.maximized);
   const applyFrame = (box: PreviewBox) => {
@@ -347,6 +356,11 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
       return;
     }
     panel.style.height = "";
+    if (settled !== null) {
+      panel.style.maxHeight = `${Math.max(0, Math.min(PREVIEW_LIMIT.maxHeight, view.innerHeight - settled - PREVIEW_LIMIT.margin))}px`;
+      panel.style.top = `${settled}px`;
+      return;
+    }
     const rect = row.getBoundingClientRect();
     const room = view.innerHeight - rect.bottom - 14;
     const above = rect.top - 14;
@@ -405,7 +419,11 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     // Scrolling the preview must not dismiss it or scroll the timeline.
     // A frame the reader has placed stays, the way a maximized one does.
     if (floating() || panel.contains(event.target as Node)) return;
-    close();
+    if (Date.now() - scrollKeyAt < SCROLL_KEY_MS) {
+      close();
+      return;
+    }
+    settled ??= Number.parseFloat(panel.style.top) || 0;
   };
   // While the panel is up the wheel never moves what lies under it. Inside the
   // panel it scrolls the panel's own scrollers and stops at their ends instead
@@ -426,6 +444,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   };
   const onKey = (event: KeyboardEvent) => {
     if (event.key === "Escape") close();
+    else if (SCROLL_KEYS.has(event.key) && !panel.contains(event.target as Node) && !editable(event.target)) scrollKeyAt = Date.now();
   };
   const onResize = () => { if (floating()) measure(); else close(); };
   const onBlur = () => { if (!floating()) close(); };
@@ -449,6 +468,17 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     if (!options.maximized) hoverRects.set(panel, panel.getBoundingClientRect());
     panel.hidePopover();
   };
+}
+
+/** Keys that scroll the page when focus is not in a field. */
+const SCROLL_KEYS = new Set(["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "]);
+/** How long after such a key a scroll still counts as the reader's: key repeat and a smooth scroll both land inside it. */
+const SCROLL_KEY_MS = 1000;
+
+function editable(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null;
+  if (!element || typeof element.closest !== "function") return false;
+  return element.isContentEditable || element.closest("input, textarea, select, [contenteditable='true']") !== null;
 }
 
 /** The hover panel's entrance: opacity and transform only, so the compositor plays it without a layout or a render. */
