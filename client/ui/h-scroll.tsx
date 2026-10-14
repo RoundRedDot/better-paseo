@@ -7,6 +7,7 @@ import {
   type LayoutChangeEvent,
   type StyleProp,
   type ViewStyle,
+  type ScrollViewProps,
 } from "react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 
@@ -24,6 +25,7 @@ interface HScrollProps {
   trackStyle?: StyleProp<ViewStyle>;
   /** False while a gesture inside holds the content still. */
   scrollEnabled?: boolean;
+  onScrollBeginDrag?: ScrollViewProps["onScrollBeginDrag"];
 }
 
 /**
@@ -38,7 +40,7 @@ interface HScrollProps {
  * and one content-size callback; the indicator is mounted only while the
  * content overflows, so a table that fits costs the scroller alone.
  */
-export function HScroll({ tokens, children, style, contentContainerStyle, trackStyle, scrollEnabled }: HScrollProps) {
+export function HScroll({ tokens, children, style, contentContainerStyle, trackStyle, scrollEnabled, onScrollBeginDrag }: HScrollProps) {
   const [viewport, setViewport] = useState(0);
   const [content, setContent] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -85,6 +87,7 @@ export function HScroll({ tokens, children, style, contentContainerStyle, trackS
         onLayout={onLayout}
         onContentSizeChange={onContentSizeChange}
         onScroll={onScroll}
+        onScrollBeginDrag={onScrollBeginDrag}
         scrollEventThrottle={16}
         scrollEnabled={scrollEnabled}
         style={style}

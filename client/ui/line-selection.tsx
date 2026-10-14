@@ -301,12 +301,11 @@ function menuTop(band: { top: number; height: number }, bottom: number): number 
 }
 
 /** The phone's Copy for a gutter range, drawn like the web selection bar, icon and all. */
-export function LineSelectionMenu({ top, text, tokens, dismiss, accessibilityLabel = "Copy selected lines" }: {
+export function LineSelectionMenu({ top, text, tokens, dismiss }: {
   top: number;
   text: string;
   tokens: ExtendedThemeTokens;
   dismiss(): void;
-  accessibilityLabel?: string;
 }) {
   const { copy } = useCopy();
   const { language } = useEnhancerPreferences();
@@ -317,7 +316,7 @@ export function LineSelectionMenu({ top, text, tokens, dismiss, accessibilityLab
         borderColor: tokens.v2.border,
       }]}>
         <View style={styles.raise}>
-          <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel}
+          <Pressable accessibilityRole="button" accessibilityLabel="Copy selected lines"
             onPress={() => { void copy(text, { feedback: "toast" }).then((ok) => { if (ok) dismiss(); }); }}
             style={({ pressed }) => [styles.button, pressed && { backgroundColor: floatPressed(tokens) }]}>
             <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />

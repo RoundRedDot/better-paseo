@@ -5,7 +5,11 @@ const { copyText, toastShow } = vi.hoisted(() => ({
   copyText: vi.fn(async (_text: string) => {}),
   toastShow: vi.fn(),
 }));
-vi.mock("react-native", () => import("./helpers/rn-mock"));
+function listContext() {
+  const store = globalThis as { __tableListContext?: React.Context<{ getScrollMetrics(): { offset: number } } | null> };
+  return store.__tableListContext ??= React.createContext<{ getScrollMetrics(): { offset: number } } | null>(null);
+}
+vi.mock("react-native", async () => ({ ...await import("./helpers/rn-mock"), VirtualizedList: { contextType: listContext() } }));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return {
@@ -48,9 +52,11 @@ const tokens = buildThemeTokens({
 });
 let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 
-function render(text: string, streaming = false, variant: "document" | "compact" | "terminal" = "document") {
+function render(text: string, streaming = false, variant: "document" | "compact" | "terminal" = "document", offset?: { current: number }) {
   act(() => {
-    const view = React.createElement(MarkdownView, { text, tokens, variant, streaming });
+    const markdown = React.createElement(MarkdownView, { text, tokens, variant, streaming });
+    const view = offset ? React.createElement(listContext().Provider,
+      { value: { getScrollMetrics: () => ({ offset: offset.current }) } }, markdown) : markdown;
     if (renderer) renderer.update(view);
     else renderer = TestRenderer.create(view);
   });
@@ -68,6 +74,7 @@ afterEach(() => {
   copyText.mockClear();
   toastShow.mockClear();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe("Markdown table copy", () => {
@@ -92,9 +99,61 @@ describe("Markdown table copy", () => {
     tap(index, 230);
     expect(selectedCopy()).toHaveLength(1);
     expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).toBe(tokens.accentBg);
+    const menu = selectedCopy()[0]!;
+    let corner = menu.parent!;
+    while (StyleSheet.flatten(corner.props.style).position !== "absolute") corner = corner.parent!;
+    expect(StyleSheet.flatten(corner.props.style)).toMatchObject({ top: 0, left: 0 });
+    expect(menu.findAll((node) => String(node.type) === "Icon")[0]!.props.name).toBe("Copy");
     await act(async () => selectedCopy()[0]!.props.onPress());
     expect(copyText).toHaveBeenCalledExactlyOnceWith(index === 0 ? "Header words" : "bold and code");
     expect(selectedCopy()).toHaveLength(0);
+    expect(buttons()).toHaveLength(1);
+    expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).not.toBe(tokens.accentBg);
+  });
+
+  it("expands the corner into Copy selected without adding any content below the table", () => {
+    const previousLanguage = getEnhancerPreferences().language;
+    updateEnhancerPreferences({ language: "zh" });
+    try {
+      render("| A | B |\n| --- | --- |\n| one | two |");
+      const outer = () => renderer!.root.findAll((node) => String(node.type) === "View"
+        && StyleSheet.flatten(node.props.style).position === "relative")[0]!;
+      const childCount = outer().children.length;
+      tap(2, 100);
+      tap(2, 230);
+      expect(outer().children).toHaveLength(childCount);
+      expect(selectedCopy()[0]!.findAll((node) => String(node.type) === "Text")[0]!.children).toEqual(["复制选中"]);
+      expect(StyleSheet.flatten(selectedCopy()[0]!.props.style)).toMatchObject({ height: 30, flexDirection: "row" });
+    } finally { act(() => { updateEnhancerPreferences({ language: previousLanguage }); }); }
+  });
+
+  it("restores the corner icon when the native page scrolls and stops observing once closed", () => {
+    const frames = new Map<number, () => void>();
+    let next = 0;
+    vi.stubGlobal("requestAnimationFrame", (callback: () => void) => { frames.set(++next, callback); return next; });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
+    const offset = { current: 100 };
+    render("| A | B |\n| --- | --- |\n| one | two |", false, "document", offset);
+    expect(frames.size).toBe(0);
+    tap(2, 100);
+    tap(2, 230);
+    expect(selectedCopy()).toHaveLength(1);
+    expect(frames.size).toBe(1);
+    offset.current = 120;
+    act(() => { const [id, callback] = [...frames.entries()][0]!; frames.delete(id); callback(); });
+    expect(selectedCopy()).toHaveLength(0);
+    expect(buttons()).toHaveLength(1);
+    expect(frames.size).toBe(0);
+  });
+
+  it("restores the corner icon when the table starts scrolling sideways", () => {
+    render("| A | B |\n| --- | --- |\n| one | two |");
+    tap(2, 100);
+    tap(2, 230);
+    const scroller = renderer!.root.findAll((node) => String(node.type) === "Animated.ScrollView")[0]!;
+    act(() => scroller.props.onScrollBeginDrag());
+    expect(selectedCopy()).toHaveLength(0);
+    expect(buttons()).toHaveLength(1);
   });
 
   it("on iOS does not combine taps on different cells, delayed taps, holds, or scrolling gestures", () => {
