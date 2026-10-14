@@ -6,7 +6,7 @@
 
 ## 提交身份（commit 与 PR）
 
-推到 GitHub 的提交一律用 `luke <luopeihuan@gmail.com>`，并把 RoundRedDot 署为公共共同作者。范围包括本仓库，以及从 RoundRedDot/paseo、luoph/paseo 发往上游 getpaseo/paseo 的 PR。
+推到 GitHub 的提交一律用 `luke <luopeihuan@gmail.com>`，并把 RoundRedDot 署为公共共同作者。范围包括本仓库，以及从 RoundRedDot/paseo 发往上游 getpaseo/paseo 的 PR。
 
 - author 与 committer：`luke <luopeihuan@gmail.com>`
 - 每个提交信息末尾加 trailer：`Co-authored-by: RoundRedDot <roundreddot@gmail.com>`，原有的 Co-authored-by 行保留
@@ -18,12 +18,19 @@ git -c user.name=luke -c user.email=luopeihuan@gmail.com \
   commit --trailer "Co-authored-by: RoundRedDot <roundreddot@gmail.com>"
 ```
 
-同步上游时，在本地 rebase 到 `origin/main` 再推送。GitHub 的「Update branch」生成的 merge commit 署点击者的账号、不带 RoundRedDot trailer，换个账号点就多出一个参与者。
+发往 getpaseo/paseo 的 PR 一律从 RoundRedDot/paseo 开。本地 checkout 是 `/Users/luopeihuan/workspace/rrd/paseo`，推送 remote 是 `fork`。先 rebase 到 `origin/main`，再推送并创建 PR：
+
+```bash
+git push -u fork HEAD
+gh pr create --repo getpaseo/paseo --head RoundRedDot:<branch>
+```
+
+已经开在 luoph/paseo 上的 PR 留在原仓库。GitHub 的「Update branch」生成的 merge commit 署点击者的账号、不带 RoundRedDot trailer，换个账号点就多出一个参与者。
 
 ### 修正已推送的提交
 
 1. 在独立的 detached worktree 里检出 PR head，记下原 tree：`git rev-parse HEAD^{tree}`。
 2. 用上面的身份把 PR 自己的提交重放到 `git merge-base HEAD origin/main` 上：`rebase --exec 'git -c user.name=luke -c user.email=luopeihuan@gmail.com commit --amend --no-edit --reset-author --no-verify --trailer "Co-authored-by: RoundRedDot <roundreddot@gmail.com>"'`。rebase 会把 merge commit 拍平。
 3. 新旧 tree 必须完全一致，不一致就停下排查，不要推送。
-4. 推送：`git push --force-with-lease="refs/heads/${ref}:${old}" "$remote" "${new}:refs/heads/${ref}"`。在 zsh 里变量要加花括号，`$new:refs` 会被当成 `:r` 修饰符。
+4. 推送到 RoundRedDot/paseo（remote `fork`）：`git push --force-with-lease="refs/heads/${ref}:${old}" fork "${new}:refs/heads/${ref}"`。在 zsh 里变量要加花括号，`$new:refs` 会被当成 `:r` 修饰符。
 5. 验收：`gh api repos/getpaseo/paseo/pulls/<n>/commits` 里每条提交的 author 与 committer 都是 `luke <luopeihuan@gmail.com>`。
