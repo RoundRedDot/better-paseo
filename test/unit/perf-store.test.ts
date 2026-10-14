@@ -70,6 +70,14 @@ describe("PerfStore", () => {
     expect(store.snapshot().highlightRpc).toEqual({ count: 3, byLanguage: { ts: 2, "(none)": 1 } });
   });
 
+  it("counts image RPC calls and in-flight duplicates", () => {
+    const store = createPerfStore();
+    store.imageRpc(false);
+    store.imageRpc(true);
+    store.imageRpc(false);
+    expect(store.snapshot().imageRpc).toEqual({ count: 3, duplicatesInFlight: 1 });
+  });
+
   it("tracks mounted animations with a peak", () => {
     const store = createPerfStore();
     store.animationMount("PulseDot");

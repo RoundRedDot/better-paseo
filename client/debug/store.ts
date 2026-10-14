@@ -109,6 +109,7 @@ export interface PerfStore {
   /** @param streaming null when the caller cannot tell. */
   height(key: string, height: number, streaming: boolean | null): void;
   highlightRpc(language: string | undefined): void;
+  imageRpc(duplicateInFlight: boolean): void;
   animationMount(name: string): void;
   animationUnmount(name: string): void;
   animationsMounted(): number;
@@ -143,6 +144,8 @@ function createCounters() {
     heightEvents: [] as HeightEvent[],
     highlightByLanguage: new Map<string, number>(),
     highlightCalls: 0,
+    imageCalls: 0,
+    imageDuplicatesInFlight: 0,
     animMounted: new Map<string, number>(),
     animMountsTotal: 0,
     animPeak: 0,
@@ -218,6 +221,11 @@ export function createPerfStore(): PerfStore {
       bump(c.highlightByLanguage, language || "(none)");
     },
 
+    imageRpc(duplicateInFlight) {
+      c.imageCalls += 1;
+      if (duplicateInFlight) c.imageDuplicatesInFlight += 1;
+    },
+
     animationMount(name) {
       bump(c.animMounted, name);
       c.animMountsTotal += 1;
@@ -283,6 +291,10 @@ export function createPerfStore(): PerfStore {
           count: c.highlightCalls,
           byLanguage: toRecord(c.highlightByLanguage),
         },
+        imageRpc: {
+          count: c.imageCalls,
+          duplicatesInFlight: c.imageDuplicatesInFlight,
+        },
         animations: {
           mounted: animationsMounted(),
           peak: c.animPeak,
@@ -329,6 +341,7 @@ export interface PerfSnapshot {
     events: HeightEvent[];
   };
   highlightRpc: { count: number; byLanguage: Record<string, number> };
+  imageRpc: { count: number; duplicatesInFlight: number };
   animations: { mounted: number; peak: number; mountsTotal: number; byName: Record<string, number> };
   frames: {
     count: number;
