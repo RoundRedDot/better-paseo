@@ -23,7 +23,7 @@ import { HoverPreviewHeader } from "../../client/ui/hover-preview";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { classifyTool, type ToolKind } from "../../client/tools/classify";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
-import { sourceLineTops } from "../../client/ui/preview-lines";
+import { layoutBottom, placeLineTops, PreviewLines, sameLineTops, sourceLineTops } from "../../client/ui/preview-lines";
 import { SyntaxHighlightBlock } from "../../client/components/syntax-highlight";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -453,15 +453,64 @@ describe("preview line numbers and shading", () => {
 
   it("moves numbers and bands to where a wrapped line pushes the lines below it", () => {
     updateEnhancerPreferences({ previewLineNumbers: true });
-    const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "a long line\nb\nc" } });
+    const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "a long line\nb\nc\nd wraps" } });
     const drawn = previewLines(React.createElement(ToolCallout, { data, tokens }), (body) => {
       const text = body.root.find((node) => (node.type as unknown) === "Text" && typeof node.props.onTextLayout === "function");
-      // iOS reports each laid-out line's text only: the first source line takes two.
-      text.props.onTextLayout({ nativeEvent: { lines: ["a long ", "line\n", "b\n", "c"] } });
-      body.root.findByProps({ testID: "preview-lines" }).findAll((node) => typeof node.props.onLayout === "function")[0]!
-        .props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 300, height: 4 * line } } });
+      // iOS reports each laid-out line's text only: the first and last source lines take two.
+      text.props.onTextLayout({ nativeEvent: { lines: ["a long ", "line\n", "b\n", "c\n", "d ", "wraps"] } });
     });
-    expect(drawn).toMatchObject({ numbers: [["1", 0], ["2", 2 * line], ["3", 3 * line]], stripes: [[2 * line, line]] });
+    // The bottom comes from the same layout, so the last band covers both of its rows.
+    expect(drawn).toMatchObject({
+      numbers: [["1", 0], ["2", 2 * line], ["3", 3 * line], ["4", 4 * line]],
+      stripes: [[2 * line, line], [4 * line, 2 * line]],
+    });
+  });
+
+  it("places streamed lines below the last laid-out one before the text reports them", () => {
+    updateEnhancerPreferences({ previewLineNumbers: true });
+    const call = (output: string) => classifyTool({ name: "Bash", status: "running", detail: { type: "shell", command: "make", output } });
+    let row!: ReturnType<typeof TestRenderer.create>;
+    let body!: ReturnType<typeof TestRenderer.create>;
+    let commits = 0;
+    const content = () => React.createElement(React.Profiler, { id: "body", onRender: () => { commits++; } },
+      row.root.findByType(DisclosureHeader).props.previewContent());
+    act(() => { row = TestRenderer.create(React.createElement(ToolCallout, { data: call("a long line\nb\n"), tokens })); });
+    act(() => { body = TestRenderer.create(content()); });
+    const text = () => body.root.find((node) => (node.type as unknown) === "Text" && typeof node.props.onTextLayout === "function");
+    act(() => text().props.onTextLayout({ nativeEvent: { lines: ["a long ", "line\n", "b"] } }));
+    act(() => { row.update(React.createElement(ToolCallout, { data: call("a long line\nb\nc\nd\n"), tokens })); });
+    act(() => { body.update(content()); });
+    const lines = findJson(body.toJSON(), (node) => node.props.testID === "preview-lines")!;
+    const gutter = findJson(lines, (node) => node.props.testID === "preview-line-numbers")!;
+    expect((gutter.children as JsonNode[]).map((node) => styleOf(node).top)).toEqual([0, 2 * line, 3 * line, 4 * line]);
+    const stripes = findJson(lines, (node) => node.props.testID === "preview-line-stripes")!;
+    expect((stripes.children as JsonNode[]).map((node) => [styleOf(node).top, styleOf(node).height])).toEqual([[2 * line, line], [4 * line, line]]);
+    // The layout that follows says the same, and draws nothing again.
+    const before = commits;
+    act(() => text().props.onTextLayout({ nativeEvent: { lines: ["a long ", "line\n", "b\n", "c\n", "d"] } }));
+    expect(commits).toBe(before);
+    act(() => text().props.onTextLayout({ nativeEvent: { lines: ["a long ", "line\n", "b\n", "c is now long\n", "d"] } }));
+    expect(commits).toBe(before);
+    act(() => text().props.onTextLayout({ nativeEvent: { lines: ["a long ", "line\n", "b\n", "c is now ", "long\n", "d"] } }));
+    expect(commits).toBe(before + 1);
+    act(() => { row.unmount(); body.unmount(); });
+  });
+
+  it("draws again only the lines a streamed chunk changed", () => {
+    const renderLine = vi.fn((text: string) => text);
+    const draw = (lines: string[]) => React.createElement(PreviewLines, { text: lines.join("\n"), lines, style: {}, tokens, renderLine });
+    let view!: ReturnType<typeof TestRenderer.create>;
+    act(() => { view = TestRenderer.create(draw(["a", "b"])); });
+    expect(renderLine).toHaveBeenCalledTimes(2);
+    // The old last line gains its newline, and the new one is drawn.
+    renderLine.mockClear();
+    act(() => view.update(draw(["a", "b", "c"])));
+    expect(renderLine.mock.calls.map(([line]) => line)).toEqual(["b", "c"]);
+    renderLine.mockClear();
+    act(() => view.update(draw(["a", "b", "c d"])));
+    expect(renderLine.mock.calls.map(([line]) => line)).toEqual(["c d"]);
+    expect(textOf(view.toJSON())).toContain("a\nb\nc d");
+    act(() => view.unmount());
   });
 
   it("draws the content as one text, with nothing placed, when both are off", () => {
@@ -477,6 +526,20 @@ describe("preview line numbers and shading", () => {
 });
 
 describe("source line tops", () => {
+  it("finds the bottom of the last laid-out line", () => {
+    expect(layoutBottom([{ text: "a\n" }, { text: "b" }], 10)).toBe(20);
+    expect(layoutBottom([{ text: "a\n", y: 0, height: 19 }, { text: "b", y: 19, height: 19 }], 10)).toBe(38);
+    expect(layoutBottom([], 10)).toBe(0);
+  });
+  it("places lines past the last layout a line apart below it", () => {
+    expect(placeLineTops(null, 3, 10)).toEqual([0, 10, 20]);
+    expect(placeLineTops([0, 20], 4, 10)).toEqual([0, 20, 30, 40]);
+    expect(placeLineTops([0, 20, 30], 2, 10)).toEqual([0, 20]);
+    expect(sameLineTops([0, 20], [0, 20.2])).toBe(true);
+    expect(sameLineTops([0, 20], [0, 21])).toBe(false);
+    expect(sameLineTops([0, 20], [0])).toBe(false);
+    expect(sameLineTops([0], null)).toBe(false);
+  });
   it("starts a source line after each laid-out line that ends one", () => {
     expect(sourceLineTops([{ text: "ab" }, { text: "c\n" }, { text: "\n" }, { text: "d" }], 10, 3)).toEqual([0, 20, 30]);
   });
