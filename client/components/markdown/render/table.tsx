@@ -1,12 +1,14 @@
 import React, { useLayoutEffect, useRef } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View, type TextProps, type ViewProps } from "react-native";
 import type { Tokens } from "../../../vendor/marked";
 import type { RenderContext } from "./context";
-import { inlineWidth, renderInline } from "./inline";
+import { inlineText, inlineWidth, renderInline } from "./inline";
 import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
 import { HScroll } from "../../../ui/h-scroll";
 import { TableCopyMenu } from "./table-copy-menu";
 import { bindTableCellSelection, TABLE_CELL_TEST_ID } from "./table-selection";
+import { useTableTouchSelection } from "./table-touch-selection";
+import { LineSelectionMenu } from "../../../ui/line-selection";
 import { FLOAT } from "../../../ui/tokens/float";
 import {
   ALIGN_KEYS,
@@ -88,6 +90,7 @@ export function MdTable({
   const widest = useRef<number[]>([]);
   const frameRef = useRef<View>(null);
   useLayoutEffect(() => bindTableCellSelection(frameRef.current), []);
+  const selection = useTableTouchSelection(token.raw);
   let widths = measured;
   if (open) {
     widths = measured.map((width, column) => Math.max(width, widest.current[column] ?? 0));
@@ -113,20 +116,22 @@ export function MdTable({
               {token.header.map((cell, column) => {
                 const cellKey = `${keyPrefix}h${column}`;
                 return (
-                  <Text
+                  <TableCell
                     key={cellKey}
                     testID={TABLE_CELL_TEST_ID}
                     selectable
                     {...contentTextProps()}
+                    touchProps={selection.cellProps(cellKey, () => inlineText(cell.tokens))}
                     style={[
                       styles.tableHeaderCell,
                       align(column),
                       ...frame(column),
                       contentTextStyle(),
+                      selection.selected?.key === cellKey && { backgroundColor: context.tokens.accentBg },
                     ]}
                   >
                     {renderInline(cell.tokens, context, cellKey)}
-                  </Text>
+                  </TableCell>
                 );
               })}
             </View>
@@ -138,20 +143,22 @@ export function MdTable({
                 {row.map((cell, column) => {
                   const cellKey = `${keyPrefix}r${rowIndex}c${column}`;
                   return (
-                    <Text
+                    <TableCell
                       key={cellKey}
                       testID={TABLE_CELL_TEST_ID}
                       selectable
                       {...contentTextProps()}
+                      touchProps={selection.cellProps(cellKey, () => inlineText(cell.tokens))}
                       style={[
                         styles.tableCell,
                         align(column),
                         ...frame(column),
                         contentTextStyle(),
+                        selection.selected?.key === cellKey && { backgroundColor: context.tokens.accentBg },
                       ]}
                     >
                       {renderInline(cell.tokens, context, cellKey)}
-                    </Text>
+                    </TableCell>
                   );
                 })}
               </View>
@@ -164,11 +171,27 @@ export function MdTable({
       <View style={[copyStyles.corner, { backgroundColor: context.tokens.surface0 }]}>
         <TableCopyMenu source={() => token.raw} frame={frameRef} tokens={context.tokens} />
       </View>
+      {selection.selected ? (
+        <View style={copyStyles.selectionMenu}>
+          <LineSelectionMenu top={0} text={selection.selected.text} tokens={context.tokens}
+            dismiss={selection.dismiss} accessibilityLabel="Copy selected cell" />
+        </View>
+      ) : null}
     </View>
   );
 }
 
+/** View owns raw touches on iOS; Text keeps its layout and rich inline runs. */
+function TableCell({ touchProps, ...props }: TextProps & { touchProps: ViewProps }) {
+  const text = <Text {...props} />;
+  return Platform.OS === "ios"
+    ? <View testID="markdown-table-touch-cell" style={copyStyles.touchCell} {...touchProps}>{text}</View>
+    : text;
+}
+
 const copyStyles = StyleSheet.create({
+  touchCell: { flexDirection: "row" },
+  selectionMenu: { height: 40, marginTop: 6 },
   outer: { position: "relative" },
   // Room for the corner control outside the columns: half its side, so its
   // centre sits on the table's corner.
