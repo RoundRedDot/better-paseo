@@ -300,7 +300,8 @@ export interface ReasoningCardProps {
 /**
  * A thought as one line that opens into its sections (plan §3.4, §3.6).
  * Collapsed it is a bare `DisclosureHeader` row — no border, no fill — whose
- * preview follows the stream; expanded it gains a 1px frame on `surface0`
+ * preview follows the stream (a pulsing dot in the title bar, the newest
+ * text in the body); expanded it gains a 1px frame on `surface0`
  * with a divider under the header. The body is not mounted while collapsed.
  *
  * The only motion is the `RunningDot`, mounted while thinking, and the body's
@@ -373,13 +374,13 @@ export function ReasoningCard({
       accessibilityLabel={label.preview ? `${label.verb}: ${label.preview}` : label.verb}
       previewContent={() => (
         <>
-          <HoverPreviewHeader tokens={tokens}>
+          <HoverPreviewHeader tokens={tokens} streaming={streaming}>
             <View style={styles.previewActions}>
               <ToolbarCopyButton text={copySource} tokens={tokens} label="Copy thought" />
             </View>
           </HoverPreviewHeader>
-          <HoverPreviewBody>
-            <MarkdownView text={reasoningText(segmentation)} tokens={tokens} variant="compact" quiet />
+          <HoverPreviewBody streaming={streaming}>
+            <MarkdownView text={reasoningText(segmentation)} tokens={tokens} variant="compact" quiet streaming={streaming} />
           </HoverPreviewBody>
         </>
       )}
