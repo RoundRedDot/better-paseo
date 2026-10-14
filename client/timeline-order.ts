@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useSyncExternalStore, type RefObject } from "react";
 import type { ToolCallView } from "./tools/classify";
 import { groupAdjacentTools, toolGroupKey } from "./tools/group";
+import { hostStacksRows, noteRowGap } from "./host-row-gap";
 
 /**
  * What kind of plugin item sits where in the timeline.
@@ -76,8 +77,8 @@ interface Entry {
   settledKey?: string;
   /** A call's id. Two calls in one millisecond are unordered, finished or not. */
   callId?: string;
-  /** Where the item is drawn: its centre's y in the window, null when unknown. */
-  locate?: () => number | null;
+  /** Where the item is drawn, in the window; null when unknown. */
+  measure?: () => ViewBox | null;
   tool?: ToolCallView;
   /** Subscribers to this tool row's group (`useTimelineToolGroup`). */
   groupListeners?: Set<() => void>;
@@ -93,6 +94,8 @@ interface ToolRun {
   members: Entry[];
   viewers: Entry[];
   anythingBelow: boolean;
+  /** Whether the first item below the run's last member is a row (`nextEntryIsRow`). */
+  rowBelow: boolean;
 }
 
 interface ToolSlot {
@@ -153,7 +156,8 @@ function lowestTiedKey(timeline: AgentTimeline, at: number): string | null {
   for (const entry of timeline.entries) {
     const own = tieKey(entry);
     if (entry.at !== at || own === undefined) continue;
-    const y = entry.locate?.() ?? null;
+    const box = entry.measure?.() ?? null;
+    const y = box === null ? null : box.top + box.height / 2;
     if (y === null) {
       unplaced.add(own);
       continue;
@@ -170,28 +174,67 @@ function lowestTiedKey(timeline: AgentTimeline, at: number): string | null {
   return key;
 }
 
+export interface ViewBox {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 /**
- * The centre of a mounted view, read at once. Fabric measures from the
- * committed tree in the call, transforms included, so the inverted list reads
- * as drawn; the web view is a DOM element. Anything that answers later (the
- * old architecture), or a view in a hidden pane (no size), leaves the item
+ * The box of a mounted view, read at once. Fabric measures from the committed
+ * tree in the call, transforms included, so the inverted list reads as drawn;
+ * the web view is a DOM element. Anything that answers later (the old
+ * architecture), or a view in a hidden pane (no size), leaves the item
  * unplaced.
  */
-export function viewCentre(view: unknown): number | null {
+export function viewBox(view: unknown): ViewBox | null {
   const node = view as {
-    getBoundingClientRect?: () => { top: number; width: number; height: number };
+    getBoundingClientRect?: () => { left?: number; top: number; width: number; height: number };
     measureInWindow?: (callback: (x: number, y: number, width: number, height: number) => void) => void;
   } | null;
   if (!node) return null;
   if (typeof node.getBoundingClientRect === "function") {
     const box = node.getBoundingClientRect();
-    return box.width === 0 && box.height === 0 ? null : box.top + box.height / 2;
+    if (box.width === 0 && box.height === 0) return null;
+    return { left: box.left ?? 0, top: box.top, width: box.width, height: box.height };
   }
-  let centre: number | null = null;
-  node.measureInWindow?.((_x, y, width, height) => {
-    if (width !== 0 || height !== 0) centre = y + height / 2;
+  let measured: ViewBox | null = null;
+  node.measureInWindow?.((left, top, width, height) => {
+    if (width !== 0 || height !== 0) measured = { left, top, width, height };
   });
-  return centre;
+  return measured;
+}
+
+/** The centre's y of `viewBox`. */
+export function viewCentre(view: unknown): number | null {
+  const box = viewBox(view);
+  return box === null ? null : box.top + box.height / 2;
+}
+
+/**
+ * Measures the space between this agent's rows until the host's row gap is
+ * known (`host-row-gap.ts`). Rows are paired as drawn, one under the other in
+ * the same column, so a chat in two panes pairs each pane's rows, and a
+ * member a merged row draws (no height) pairs with nothing.
+ */
+export function probeRowGap(agentId: string): void {
+  if (hostStacksRows() !== null) return;
+  const boxes: ViewBox[] = [];
+  for (const entry of timelines.get(agentId)?.entries ?? []) {
+    if (!entry.row) continue;
+    const box = entry.measure?.() ?? null;
+    if (box !== null && box.height > 0) boxes.push(box);
+  }
+  if (boxes.length < 2) return;
+  boxes.sort((a, b) => a.left - b.left || a.width - b.width || a.top - b.top);
+  for (let index = 1; index < boxes.length; index++) {
+    const above = boxes[index - 1]!;
+    const below = boxes[index]!;
+    if (Math.abs(above.left - below.left) > 1 || Math.abs(above.width - below.width) > 1) continue;
+    noteRowGap(below.top - (above.top + above.height));
+    if (hostStacksRows() !== null) return;
+  }
 }
 
 /**
@@ -250,6 +293,7 @@ function toolSlots(timeline: AgentTimeline): Map<Entry, ToolSlot> {
       const key = lowestTiedKey(timeline, lowest.at);
       run.anythingBelow = key === null || ![...own].some((entry) => tieKey(entry) === key);
     }
+    run.rowBelow = firstAfterIsRow(timeline.entries, lowest);
     const head = run.members[0]!;
     const previous = timeline.slots.get(head)?.run.calls;
     if (previous && previous.length === run.calls.length && run.calls.every((call, index) => call === previous[index])) {
@@ -262,7 +306,7 @@ function toolSlots(timeline: AgentTimeline): Map<Entry, ToolSlot> {
     if (calls === undefined) continue;
     if (calls !== null) {
       close();
-      run = { calls, members: [], viewers: [], anythingBelow: false };
+      run = { calls, members: [], viewers: [], anythingBelow: false, rowBelow: false };
     }
     slots.set(entry, { run: run!, index: run!.members.length });
     run!.members.push(entry);
@@ -299,10 +343,10 @@ export function registerTimelineEntry(
   at: number,
   kind: TimelineEntryKind,
   settledKey?: string,
-  locate?: () => number | null,
+  measure?: () => ViewBox | null,
   callId?: string,
 ): () => void {
-  const entry: Entry = { at, order: KIND_ORDER[kind], row: isRow(kind), sequence: sequence++, settledKey, callId, locate };
+  const entry: Entry = { at, order: KIND_ORDER[kind], row: isRow(kind), sequence: sequence++, settledKey, callId, measure };
   return addEntry(agentId, entry);
 }
 
@@ -357,8 +401,9 @@ function updateTool(agentId: string, entry: Entry, previous: ToolCallView | unde
  * Keep the original slot while results update; hidden members stay registered.
  * Grouping follows the mounted timeline window and recomputes as history mounts.
  *
- * `group` is null for a member drawn by the row above it, and `anythingBelow`
- * is whether something of this agent's sits below the run's last member.
+ * `group` is null for a member drawn by the row above it, `anythingBelow`
+ * is whether something of this agent's sits below the run's last member, and
+ * `rowBelow` whether the first thing there is a row.
  * `settled` is whether the call was complete as its row mounted: replayed
  * history, not a call the reader watched start. `view` is the row's root,
  * which places it among calls that share its millisecond.
@@ -369,7 +414,7 @@ export function useTimelineToolGroup(
   tool: ToolCallView,
   settled = false,
   view?: RefObject<unknown>,
-): { group: readonly ToolCallView[] | null; anythingBelow: boolean } {
+): { group: readonly ToolCallView[] | null; anythingBelow: boolean; rowBelow: boolean } {
   const entry = useMemo<Entry>(() => ({
     at,
     order: KIND_ORDER.tool,
@@ -378,10 +423,11 @@ export function useTimelineToolGroup(
     tool,
     settledKey: settled ? tool.callId : undefined,
     callId: tool.callId,
-    locate: view ? () => viewCentre(view.current) : undefined,
+    measure: view ? () => viewBox(view.current) : undefined,
   }), [agentId, at]);
   const single = useMemo(() => [tool], [tool]);
   useLayoutEffect(() => addEntry(agentId, entry), [agentId, entry]);
+  useLayoutEffect(() => probeRowGap(agentId), [agentId, entry]);
   useLayoutEffect(() => {
     if (entry.tool === tool) return;
     const previous = entry.tool;
@@ -409,9 +455,15 @@ export function useTimelineToolGroup(
     if (slot) return slot.index === 0 && slot.run.anythingBelow;
     return hasEntryAfter(agentId, at, "tool", entry.settledKey, entry.callId);
   }, [slotOf, agentId, at, entry]);
+  const getRowBelow = useCallback(() => {
+    const slot = slotOf();
+    if (slot) return slot.index === 0 && slot.run.rowBelow;
+    return nextEntryIsRow(agentId, at, "tool");
+  }, [slotOf, agentId, at]);
   const group = useSyncExternalStore(subscribe, getGroup, getGroup);
   const anythingBelow = useSyncExternalStore(subscribe, getBelow, getBelow);
-  return { group, anythingBelow };
+  const rowBelow = useSyncExternalStore(subscribe, getRowBelow, getRowBelow);
+  return { group, anythingBelow, rowBelow };
 }
 
 /**
@@ -422,10 +474,13 @@ export function useTimelineToolGroup(
  * gap stays.
  */
 export function nextEntryIsRow(agentId: string, at: number, kind: TimelineEntryKind): boolean {
-  const self = { at, order: KIND_ORDER[kind] };
+  return firstAfterIsRow(timelines.get(agentId)?.entries ?? [], { at, order: KIND_ORDER[kind] });
+}
+
+function firstAfterIsRow(entries: Iterable<Entry>, self: { at: number; order: number }): boolean {
   let next: Entry | null = null;
   let allRows = false;
-  for (const entry of timelines.get(agentId)?.entries ?? []) {
+  for (const entry of entries) {
     if (compare(entry, self) <= 0) continue;
     const versusNext = next ? compare(entry, next) : -1;
     if (versusNext > 0) continue;
@@ -487,9 +542,12 @@ export function useTimelineEntry(
   // Before paint, so a reply that loses its gap to a row arriving below it
   // does not show the gap for a frame first.
   useLayoutEffect(
-    () => registerTimelineEntry(agentId, at, kind, settledKey, view ? () => viewCentre(view.current) : undefined),
+    () => registerTimelineEntry(agentId, at, kind, settledKey, view ? () => viewBox(view.current) : undefined),
     [agentId, at, kind, settledKey, view],
   );
+  useLayoutEffect(() => {
+    if (isRow(kind)) probeRowGap(agentId);
+  }, [agentId, at, kind, settledKey, view]);
 }
 
 /** `nextEntryIsRow`, kept current as rows mount and unmount. */

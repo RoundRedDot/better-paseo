@@ -181,7 +181,7 @@ describe("the newest moment of replayed history, ordered by where items sit", ()
   // Only the newest moment needs it: an older moment has a later one below.
   // Its lowest settled item keeps its gap, so the last row of a history that
   // ends on a call does not sink into the list's bottom padding.
-  const at = (y: number) => () => y;
+  const at = (y: number) => () => ({ left: 0, top: y, width: 300, height: 0 });
 
   it("keeps the gap under the lowest item, whatever its kind", () => {
     const time = nextAt();
