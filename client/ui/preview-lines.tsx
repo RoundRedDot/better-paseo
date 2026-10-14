@@ -20,10 +20,11 @@ import { usePreviewWraps } from "./hover-preview";
 import { SelectableSpan, SelectableText } from "./prose-text";
 import { LineSelectionMenu, useLineSelection } from "./line-selection";
 
-/** A line as laid out: its text, ending in `\n` where a source line ends, and its top where the platform says. */
+/** A line as laid out: its text, ending in `\n` where a source line ends, and its box where the platform says. */
 export interface VisualLine {
   text: string;
   y?: number;
+  height?: number;
 }
 
 /**
@@ -42,6 +43,34 @@ export function sourceLineTops(visual: readonly VisualLine[], lineHeight: number
     starts = line.text.endsWith("\n");
   });
   return tops.length === count ? tops : null;
+}
+
+/** The bottom of the last laid-out line: where the platform puts it, or a line height below its top. */
+export function layoutBottom(visual: readonly VisualLine[], lineHeight: number): number {
+  const last = visual[visual.length - 1];
+  if (!last) return 0;
+  return (last.y ?? (visual.length - 1) * lineHeight) + (last.height ?? lineHeight);
+}
+
+/**
+ * The top of each of `count` lines: where the last layout put them, then a
+ * line height apart below the last one it saw. Output grows at its end, so a
+ * line that just arrived has its place before the text reports its layout,
+ * and a report that says the same can be dropped.
+ */
+export function placeLineTops(measured: readonly number[] | null, count: number, lineHeight: number): number[] {
+  const known = measured ? Math.min(measured.length, count) : 0;
+  const tops = measured ? measured.slice(0, known) : [];
+  const from = known > 0 ? tops[known - 1]! : -lineHeight;
+  for (let index = known; index < count; index++) tops.push(from + (index - known + 1) * lineHeight);
+  return tops;
+}
+
+/** Whether two placements put every line within half a pixel of each other. */
+export function sameLineTops(a: readonly number[], b: readonly number[] | null): boolean {
+  if (!b || a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index++) if (!(Math.abs(a[index]! - b[index]!) < 0.5)) return false;
+  return true;
 }
 
 /**
@@ -76,14 +105,7 @@ function measureWebTops(root: HTMLElement, lineHeight: number, count: number): n
   return tops;
 }
 
-/**
- * A file, a diff or a command's output in a preview panel, numbered and
- * shaded every other line as the reader set them (Preview panel settings).
- * The content stays one text, so a selection runs across lines on a phone
- * too. The shading is drawn behind it and the numbers in a column of their
- * own beside it, both placed from where the text laid each line out.
- */
-export function PreviewLines({ text, lines, style, tokens, renderLine, diff = false, firstLine = 1, numbered = true }: {
+interface PreviewLinesProps {
   /** The content as one text, drawn as is when there is nothing to place. */
   text: string;
   lines: readonly string[];
@@ -98,7 +120,16 @@ export function PreviewLines({ text, lines, style, tokens, renderLine, diff = fa
   firstLine?: number;
   /** False for lines that are no file's lines, which get no number column. */
   numbered?: boolean;
-}) {
+}
+
+/**
+ * A file, a diff or a command's output in a preview panel, numbered and
+ * shaded every other line as the reader set them (Preview panel settings).
+ * The content stays one text, so a selection runs across lines on a phone
+ * too. The shading is drawn behind it and the numbers in a column of their
+ * own beside it, both placed from where the text laid each line out.
+ */
+export function PreviewLines({ text, lines, style, tokens, renderLine, diff = false, firstLine = 1, numbered = true }: PreviewLinesProps) {
   const { previewLineNumbers, previewStripes } = useEnhancerPreferences();
   const wraps = usePreviewWraps();
   const lineHeight = tokens.typography.mono.lineHeight;
@@ -107,41 +138,74 @@ export function PreviewLines({ text, lines, style, tokens, renderLine, diff = fa
     () => (!previewLineNumbers || !numbered ? null : diff ? diffLineNumbers(lines) : lines.map((_, index) => firstLine + index)),
     [previewLineNumbers, numbered, diff, lines, firstLine],
   );
+  // Streamed output grows at its end: a line drawn before is drawn again only
+  // when it changed, so a chunk costs its own lines, not the whole output's.
+  const drawn = useRef<{ renderLine: PreviewLinesProps["renderLine"]; lines: readonly string[]; nodes: ReactNode[] } | null>(null);
   const content = useMemo(
-    () => renderLine
-      ? lines.map((line, index) => (
+    () => {
+      if (!renderLine) return placed ? lines.join("\n") : text;
+      const before = drawn.current?.renderLine === renderLine ? drawn.current : null;
+      const nodes = lines.map((line, index) => {
+        const last = index === lines.length - 1;
+        if (before && before.lines[index] === line && (index === before.lines.length - 1) === last) return before.nodes[index];
         // The newline is a run of its own: on iOS the text view takes its
         // text from runs, and a bare string beside them never reaches it.
-        <Fragment key={index}>{renderLine(line, index)}{index < lines.length - 1 ? <SelectableSpan>{"\n"}</SelectableSpan> : null}</Fragment>
-      ))
-      : placed ? lines.join("\n") : text,
+        return <Fragment key={index}>{renderLine(line, index)}{last ? null : <SelectableSpan>{"\n"}</SelectableSpan>}</Fragment>;
+      });
+      drawn.current = { renderLine, lines, nodes };
+      return nodes;
+    },
     [renderLine, lines, placed, text],
   );
 
-  // Until the text reports its layout, every line is taken to fit on one.
-  const [measured, setMeasured] = useState<number[] | null>(null);
+  // Lines the text has not laid out yet each take one line below the last it
+  // did, so a streamed line is placed in the commit that brings it. A layout
+  // that agrees with that costs no second commit. On a phone the text's own
+  // layout gives the bottom too, so a layout costs one commit, not two; web
+  // reads it from the box.
+  const [measured, setMeasured] = useState<{ tops: number[]; bottom: number | null } | null>(null);
   const [height, setHeight] = useState<number | null>(null);
-  const tops = measured ?? lines.map((_, index) => index * lineHeight);
-  const bottom = height ?? lines.length * lineHeight;
+  const tops = useMemo(() => placeLineTops(measured?.tops ?? null, lines.length, lineHeight), [measured, lines.length, lineHeight]);
+  const bottom = Math.max(measured?.bottom ?? height ?? 0, (tops[tops.length - 1] ?? -lineHeight) + lineHeight);
+  const shown = useRef({ tops, bottom });
+  shown.current = { tops, bottom };
   const contentRef = useRef<View>(null);
   const selection = useLineSelection({ enabled: previewLineNumbers && numbered, lines, tops, bottom, contentRef });
+  // A layout of other lines than these (`null`) is stale: the last one stands.
+  const place = useCallback((next: number[] | null, nextBottom: number | null) => {
+    if (!next) return;
+    if (sameLineTops(shown.current.tops, next) && (nextBottom === null || Math.abs(nextBottom - shown.current.bottom) < 0.5)) return;
+    setMeasured({ tops: next, bottom: nextBottom });
+  }, []);
   const onTextLayout = useCallback((event: NativeSyntheticEvent<TextLayoutEventData>) => {
     const visual = (event.nativeEvent.lines as ReadonlyArray<VisualLine | string>)
       .map((line) => (typeof line === "string" ? { text: line } : line));
-    setMeasured(sourceLineTops(visual, lineHeight, lines.length));
-  }, [lineHeight, lines.length]);
-  const onLayout = useCallback((event: LayoutChangeEvent) => setHeight(event.nativeEvent.layout.height), []);
+    place(sourceLineTops(visual, lineHeight, lines.length), layoutBottom(visual, lineHeight));
+  }, [place, lineHeight, lines.length]);
+  const onLayout = useCallback((event: LayoutChangeEvent) => {
+    const next = event.nativeEvent.layout.height;
+    const tops = shown.current.tops;
+    if (Math.abs(Math.max(next, (tops[tops.length - 1] ?? -lineHeight) + lineHeight) - shown.current.bottom) < 0.5) return;
+    setHeight(next);
+  }, [lineHeight]);
   useLayoutEffect(() => {
     if (!placed || Platform.OS !== "web") return;
     const root = contentRef.current as unknown as HTMLElement | null;
     if (!root?.ownerDocument?.defaultView) return;
-    const measure = () => setMeasured(measureWebTops(root, lineHeight, lines.length));
+    const measure = () => place(measureWebTops(root, lineHeight, lines.length), null);
     measure();
     // A new width rewraps the lines; fonts settling move them too.
     const observer = new root.ownerDocument.defaultView.ResizeObserver(measure);
     observer.observe(root);
     return () => observer.disconnect();
-  }, [placed, lineHeight, lines.length, content]);
+  }, [placed, place, lineHeight, lines.length, content]);
+  // A commit that only moves the numbers or the shading keeps this element,
+  // so the text, hundreds of lines in one view, is not laid out again.
+  const textStyle = useMemo(() => [style, styles.clear], [style]);
+  const body = useMemo(
+    () => <SelectableText {...selectionCodeText} style={textStyle} onTextLayout={onTextLayout}>{content}</SelectableText>,
+    [textStyle, onTextLayout, content],
+  );
 
   if (!placed) {
     return <SelectableText {...selectionCodeText} style={style}>{content}</SelectableText>;
@@ -170,7 +234,7 @@ export function PreviewLines({ text, lines, style, tokens, renderLine, diff = fa
           ))}
         </View>
       ) : null}
-      <View ref={contentRef} onLayout={onLayout}
+      <View ref={contentRef} onLayout={Platform.OS === "web" ? onLayout : undefined}
         onTouchStart={Platform.OS !== "web" ? selection.dismiss : undefined}
         style={wraps ? styles.wrapped : styles.unwrapped}>
         {previewStripes ? (
@@ -189,7 +253,7 @@ export function PreviewLines({ text, lines, style, tokens, renderLine, diff = fa
             styles.stripe, selection.selectionStyle, { backgroundColor: tokens.accentBg },
           ]} />
         ) : null}
-        <SelectableText {...selectionCodeText} style={[style, styles.clear]} onTextLayout={onTextLayout}>{content}</SelectableText>
+        {body}
       </View>
       {selection.menuTop !== null ? (
         <LineSelectionMenu top={selection.menuTop} text={selection.selectedText} tokens={tokens} dismiss={selection.dismiss} />
