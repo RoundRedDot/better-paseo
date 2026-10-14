@@ -21,7 +21,8 @@ import { PreviewScrollerContext, type PreviewScroller } from "./preview-scroller
 import { ToolbarButton, ToolbarIcon, TooltipAlignContext } from "./toolbar-button";
 import { Glyph } from "../components/glyph";
 import { RunningDot } from "./running-dot";
-import { bindPreviewTail, previewFollowsTail } from "./preview-tail";
+import { bindPreviewTail, nativePreviewTail } from "./preview-tail";
+import { useReducedMotion } from "./use-reduced-motion";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
@@ -625,8 +626,13 @@ function usePreviewScroller(streaming: boolean) {
   const state = useRef({ held: false, offset: 0, viewport: 0, content: 0 });
   const streamingRef = useRef(streaming);
   streamingRef.current = streaming;
-  const pinned = useRef(true);
-  if (!streaming) pinned.current = true;
+  const still = useRef(false);
+  still.current = useReducedMotion();
+  const [tail] = useState(() => nativePreviewTail((offset, animated) => {
+    if (offset === "end") ref.current?.scrollToEnd({ animated });
+    else ref.current?.scrollTo({ y: offset, animated });
+  }));
+  if (!streaming) tail.reset();
   const value = useMemo<PreviewScroller>(() => ({
     hold(on) {
       state.current.held = on;
@@ -651,20 +657,21 @@ function usePreviewScroller(streaming: boolean) {
       const native = event.nativeEvent;
       if (!state.current.held) state.current.offset = native.contentOffset.y;
       if (!streamingRef.current) return;
-      pinned.current = previewFollowsTail(
+      tail.scrolled(
         native.contentOffset.y,
         native.layoutMeasurement?.height ?? state.current.viewport,
         native.contentSize?.height ?? state.current.content,
       );
     },
+    onScrollBeginDrag() { tail.drag(); },
     onLayout(event: LayoutChangeEvent) { state.current.viewport = event.nativeEvent.layout.height; },
     onContentSizeChange(_width: number, height: number) {
       state.current.content = height;
       // The phone preview is a ScrollView. Web scrolls the body element.
-      if (Platform.OS === "web" || state.current.held || !streamingRef.current || !pinned.current) return;
-      ref.current?.scrollToEnd({ animated: false });
+      if (Platform.OS === "web" || state.current.held || !streamingRef.current) return;
+      tail.grow(state.current.viewport, height, state.current.offset, still.current);
     },
-  }), []);
+  }), [tail]);
   return { ref, held, value, props };
 }
 

@@ -4,7 +4,7 @@
  * the body this binds to.
  */
 import { describe, expect, it } from "vitest";
-import { bindPreviewTail, previewFollowsTail, previewGlideStep, previewTailOffset } from "../../client/ui/preview-tail";
+import { bindPreviewTail, nativePreviewTail, previewFollowsTail, previewGlideStep, previewTailOffset } from "../../client/ui/preview-tail";
 
 describe("preview tail", () => {
   it("measures the end, and treats a fitting or unmeasured body as already there", () => {
@@ -158,6 +158,63 @@ describe("preview tail", () => {
     harness.mutate();
     expect(harness.node.scrollTop).toBe(900);
     expect(harness.pending()).toBe(false);
+  });
+});
+
+describe("phone preview tail", () => {
+  const follower = () => {
+    const calls: Array<[number | "end", boolean]> = [];
+    return { calls, tail: nativePreviewTail((offset, animated) => calls.push([offset, animated])) };
+  };
+
+  it("jumps to the first output, then glides to growth and ignores the glide's own scroll events", () => {
+    const { calls, tail } = follower();
+    tail.grow(0, 500, 0, false);
+    expect(calls).toEqual([["end", false]]);
+    tail.grow(200, 500, 0, false);
+    expect(calls.at(-1)).toEqual([300, false]);
+    tail.scrolled(300, 200, 500);
+    tail.grow(200, 600, 300, false);
+    expect(calls.at(-1)).toEqual([400, true]);
+    // On the way there, far from the tail.
+    tail.scrolled(330, 200, 600);
+    expect(tail.pinned).toBe(true);
+    tail.grow(200, 700, 330, false);
+    expect(calls.at(-1)).toEqual([500, true]);
+    tail.scrolled(500, 200, 700);
+    expect(tail.pinned).toBe(true);
+  });
+
+  it("lets a drag leave the tail, and follows again from the tail", () => {
+    const { calls, tail } = follower();
+    tail.grow(200, 500, 0, false);
+    tail.grow(200, 600, 300, false);
+    tail.drag();
+    tail.scrolled(100, 200, 600);
+    expect(tail.pinned).toBe(false);
+    const made = calls.length;
+    tail.grow(200, 800, 100, false);
+    expect(calls).toHaveLength(made);
+    tail.scrolled(600, 200, 800);
+    expect(tail.pinned).toBe(true);
+    tail.grow(200, 900, 600, false);
+    expect(calls.at(-1)).toEqual([700, true]);
+    tail.reset();
+    expect(tail.pinned).toBe(true);
+  });
+
+  it("skips to a screen short of a far tail, and jumps under reduced motion", () => {
+    const { calls, tail } = follower();
+    tail.grow(200, 500, 0, false);
+    tail.grow(200, 1500, 300, false);
+    expect(calls.slice(-2)).toEqual([[1100, false], [1300, true]]);
+    tail.scrolled(1300, 200, 1500);
+    tail.grow(200, 1600, 1300, true);
+    expect(calls.at(-1)).toEqual([1400, false]);
+    // Content that still fits, or a tail already reached, scrolls nowhere.
+    const made = calls.length;
+    tail.grow(200, 1600, 1400, false);
+    expect(calls).toHaveLength(made);
   });
 });
 
