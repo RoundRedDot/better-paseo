@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { StyleSheet } from "react-native";
 import type { ExtendedThemeTokens } from "./theme-tokens";
-import { TaskList } from "./task-list";
+import { TaskList, TaskListPreview } from "./task-list";
 import { DisclosureHeader, RowIcon } from "../ui/disclosure-header";
 import { FadeIn } from "../ui/fade-in";
 import type { TodoActivity } from "../state/todo-timeline";
@@ -45,8 +45,9 @@ const styles = StyleSheet.create({
  * An earlier checklist update, folded to one row the way Paseo draws every
  * one: the change it made ("Completed Fix the bug"), a `+1` when it made more
  * than one, and the list's progress. Opened, it shows the list as it stood
- * after that update. Only the newest update draws its checklist open
- * (`state/todo-timeline.ts`).
+ * after that update; hovered on web or long-pressed on a phone, it previews
+ * that list the way a tool row previews its output. Only the newest update
+ * draws its checklist open (`state/todo-timeline.ts`).
  */
 export function TaskActivityRow({ activities, data, tokens, compact = false }: TaskActivityRowProps) {
   const [expanded, setExpanded] = useState(false);
@@ -71,6 +72,8 @@ export function TaskActivityRow({ activities, data, tokens, compact = false }: T
         target={target}
         meta={meta}
         accessibilityLabel={label || `Tasks ${done}/${data.tasks.length}`}
+        previewContent={() => <TaskListPreview data={data} tokens={tokens} compact={compact} />}
+        previewWraps={false}
       />
       {expanded ? (
         <FadeIn style={styles.body}>

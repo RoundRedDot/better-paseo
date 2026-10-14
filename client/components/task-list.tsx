@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
+import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { space } from "./theme-tokens";
 import { selectableSurface, unselectable } from "./selection";
@@ -16,6 +16,12 @@ import { RunningDot } from "../ui/running-dot";
 import { ProgressRing } from "../ui/progress-ring";
 import { FadeIn } from "../ui/fade-in";
 import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
+import { HoverPreview, HoverPreviewBody, HoverPreviewHeader, useHoverPreview } from "../ui/hover-preview";
+import { ToolbarButton, TooltipAlignContext, TooltipSideContext } from "../ui/toolbar-button";
+import { bindPreviewPointer } from "../web";
+
+/** The checklist's floating panel: the row preview's own (`useHoverPreview`). */
+export type TaskListPanelControl = ReturnType<typeof useHoverPreview>;
 
 interface TaskListProps {
   data: TaskListData;
@@ -23,6 +29,19 @@ interface TaskListProps {
   /** `layout.compact`: 32pt rows. */
   compact?: boolean;
   onToggleTask?: (taskId: string, newStatus: TaskStatus) => void;
+  /**
+   * A panel owned by a caller it must outlive: the live checklist folds to a
+   * row when the next update arrives, and its panel stays open on the newest
+   * list (`live-renderers.tsx`). That caller places the panel's anchor; the
+   * header here still opens it. Without one the list owns its panel,
+   * anchored on its header.
+   */
+  panel?: TaskListPanelControl;
+  /**
+   * The list as the panel draws it: no header (the panel's title bar says
+   * "Tasks"), every title in full, and nothing to press.
+   */
+  full?: boolean;
 }
 
 /** The static progress ring in the header: as wide as the status icons. */
@@ -30,6 +49,8 @@ const PROGRESS_SIZE = DISCLOSURE_HEADER.icon;
 const PROGRESS_STROKE = 2;
 /** The pending ring. */
 const RING = 10;
+
+const NO_EXPANDED: ReadonlySet<string> = new Set();
 
 const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
   pending: "in_progress",
@@ -45,15 +66,38 @@ const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
  * around it. No frame, no fill. The only motion is the `RunningDot` of the
  * task in progress; the progress ring jumps to its value.
  *
+ * A title is one line until it is tapped, then wraps in full; another tap
+ * folds it again. The whole list opens in the row preview's floating panel:
+ * a long press on any row on iOS and Android, a pointer resting on the
+ * header on web, and everywhere the header's window button. The button is
+ * on phones too: a long press is found by chance, it is off with the
+ * reader's hover previews, and a screen reader needs a control to reach.
+ *
  * Four views per task: the row, its status button, the status mark and the
- * title, which takes the same press.
+ * title.
  */
-export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskListProps) {
+export function TaskList({ data, tokens, compact = false, onToggleTask, panel: shared, full = false }: TaskListProps) {
   // The host's list is the source of truth and is re-read on every update; a
   // tap only overrides a task until the host reports a new status for it.
   const [overrides, setOverrides] = useState<TaskOverrides>(NO_OVERRIDES);
   const tasks = useMemo(() => applyTaskOverrides(data.tasks, overrides), [data.tasks, overrides]);
   const [expandedBlockedId, setExpandedBlockedId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(NO_EXPANDED);
+  const own = useTaskListPanel(!shared && !full);
+  const panel = shared ?? own;
+  const longPress = full ? undefined : panel.press;
+  const headerRef = useRef<View | null>(null);
+  const ownAnchor = own.anchorRef;
+  const setHeader = useCallback((node: View | null) => {
+    headerRef.current = node;
+    if (!shared) ownAnchor.current = node;
+  }, [shared, ownAnchor]);
+  // A shared panel is anchored elsewhere, so the header binds its hover here.
+  const sharedEnter = shared?.enter;
+  const sharedLeave = shared?.leave;
+  useEffect(() => {
+    if (sharedEnter && sharedLeave) return bindPreviewPointer(headerRef.current, sharedEnter, sharedLeave);
+  }, [sharedEnter, sharedLeave]);
 
   const completedCount = tasks.filter((t) => t.status === "completed").length;
   const totalCount = tasks.length;
@@ -68,12 +112,21 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
           ...selectableSurface,
         },
         row: {
-          height: rowHeight,
           flexDirection: "row",
           alignItems: "center",
           gap: DISCLOSURE_HEADER.gap,
           paddingHorizontal: DISCLOSURE_HEADER.paddingX,
           marginHorizontal: -DISCLOSURE_HEADER.bleed,
+        },
+        rowClosed: {
+          height: rowHeight,
+        },
+        // A wrapped title grows the row; its first line sits where a closed
+        // row's one line does, and the icon and meta stay on that line.
+        rowOpen: {
+          minHeight: rowHeight,
+          alignItems: "flex-start",
+          paddingVertical: (rowHeight - block.label.lineHeight) / 2,
         },
         slot: {
           width: DISCLOSURE_HEADER.iconSlot,
@@ -81,6 +134,13 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
           alignSelf: "stretch",
           alignItems: "center",
           justifyContent: "center",
+        },
+        slotOpen: {
+          alignSelf: "flex-start",
+          height: block.label.lineHeight,
+        },
+        firstLine: {
+          marginTop: (block.label.lineHeight - block.meta.lineHeight) / 2,
         },
         headerTitle: {
           fontFamily: tokens.fontUi,
@@ -129,6 +189,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
         meta: {
           fontFamily: tokens.fontMono,
           fontSize: block.meta.size,
+          lineHeight: block.meta.lineHeight,
           fontVariant: ["tabular-nums"],
           color: tokens.foregroundMuted,
         },
@@ -161,72 +222,118 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
     onToggleTask?.(task.id, nextStatus);
   };
 
+  const toggleExpanded = (taskId: string) => {
+    if (selectingText()) return;
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(taskId)) next.add(taskId);
+      return next;
+    });
+  };
+
   // A live checklist always arrives as "Checklist Progress"; only a named
   // phase says something the header does not.
   const phase = data.phaseName && data.phaseName !== "Checklist Progress" ? data.phaseName : null;
 
-  return (
-    <View {...selectionSurface} style={styles.container}>
-      <View style={styles.row}>
-        <View style={styles.slot}>
-          <Icon
-            name={allDone ? "CircleCheck" : "ListChecks"}
-            size={DISCLOSURE_HEADER.icon}
-            color={allDone ? tokens.success : tokens.foregroundMuted}
-          />
-        </View>
-        <Text selectable={false} style={styles.headerTitle}>
-          Tasks
-        </Text>
-        <Text selectable={false} style={styles.headerCount}>
-          {`${completedCount}/${totalCount}`}
-        </Text>
-        {phase ? (
-          <Text selectable={false} numberOfLines={1} style={styles.phase}>
-            {phase}
-          </Text>
-        ) : (
-          <View style={styles.spacer} />
-        )}
-        <ProgressRing
-          value={completedCount}
-          max={totalCount}
-          size={PROGRESS_SIZE}
-          stroke={PROGRESS_STROKE}
-          color={tokens.accent}
-          trackColor={tokens.v2.surface2}
+  const header = (
+    <>
+      <View style={styles.slot}>
+        <Icon
+          name={allDone ? "CircleCheck" : "ListChecks"}
+          size={DISCLOSURE_HEADER.icon}
+          color={allDone ? tokens.success : tokens.foregroundMuted}
         />
       </View>
+      <Text selectable={false} style={styles.headerTitle}>
+        Tasks
+      </Text>
+      <Text selectable={false} style={styles.headerCount}>
+        {`${completedCount}/${totalCount}`}
+      </Text>
+      {phase ? (
+        <Text selectable={false} numberOfLines={1} style={styles.phase}>
+          {phase}
+        </Text>
+      ) : (
+        <View style={styles.spacer} />
+      )}
+      <ProgressRing
+        value={completedCount}
+        max={totalCount}
+        size={PROGRESS_SIZE}
+        stroke={PROGRESS_STROKE}
+        color={tokens.accent}
+        trackColor={tokens.v2.surface2}
+      />
+      {panel.pop ? (
+        // At the row's end, in the timeline: its name opens above and leftwards.
+        <TooltipSideContext.Provider value="auto">
+          <TooltipAlignContext.Provider value="end">
+            <ToolbarButton icon="PictureInPicture2" label="Open tasks in a window" onPress={panel.pop} tokens={tokens} />
+          </TooltipAlignContext.Provider>
+        </TooltipSideContext.Provider>
+      ) : null}
+    </>
+  );
+
+  return (
+    <View {...selectionSurface} style={styles.container}>
+      {full ? null : longPress ? (
+        <Pressable ref={setHeader} accessible={false} onLongPress={longPress} style={[styles.row, styles.rowClosed]}>
+          {header}
+        </Pressable>
+      ) : (
+        <View ref={setHeader} style={[styles.row, styles.rowClosed]}>
+          {header}
+        </View>
+      )}
 
       {tasks.map((task) => {
         const isDone = task.status === "completed";
         const isActive = task.status === "in_progress";
         const isBlocked = task.status === "blocked";
         const isBlockedOpen = expandedBlockedId === task.id;
+        const isOpen = full || expanded.has(task.id);
+        const mark = isActive ? (
+          <RunningDot color={tokens.accent} accessibilityLabel="In progress" />
+        ) : isDone ? (
+          <Icon name="Check" size={DISCLOSURE_HEADER.icon} color={tokens.success} />
+        ) : isBlocked ? (
+          <Icon name="TriangleAlert" size={DISCLOSURE_HEADER.icon} color={tokens.warning} />
+        ) : (
+          <View style={styles.ring} />
+        );
 
         return (
           <React.Fragment key={task.id}>
-            <View style={styles.row}>
-              <Pressable
-                accessibilityLabel={`Set ${task.title} status`}
-                hitSlop={compact ? 6 : 0}
-                onPress={() => toggleStatus(task)}
-                style={styles.slot}
-              >
-                {isActive ? (
-                  <RunningDot color={tokens.accent} accessibilityLabel="In progress" />
-                ) : isDone ? (
-                  <Icon name="Check" size={DISCLOSURE_HEADER.icon} color={tokens.success} />
-                ) : isBlocked ? (
-                  <Icon name="TriangleAlert" size={DISCLOSURE_HEADER.icon} color={tokens.warning} />
-                ) : (
-                  <View style={styles.ring} />
-                )}
-              </Pressable>
+            <View style={[styles.row, isOpen ? styles.rowOpen : styles.rowClosed]}>
+              {full ? (
+                <View style={[styles.slot, styles.slotOpen]}>{mark}</View>
+              ) : (
+                <Pressable
+                  accessibilityLabel={`Set ${task.title} status`}
+                  hitSlop={compact ? 6 : 0}
+                  onPress={() => toggleStatus(task)}
+                  onLongPress={longPress}
+                  style={[styles.slot, isOpen && styles.slotOpen]}
+                >
+                  {mark}
+                </Pressable>
+              )}
               <Text
-                selectable
-                numberOfLines={1}
-                onPress={() => toggleStatus(task)}
+                // A long press opens the panel, where the titles are selectable.
+                selectable={!longPress}
+                numberOfLines={isOpen ? 0 : 1}
+                {...(full
+                  ? null
+                  : {
+                      accessibilityRole: "button" as const,
+                      accessibilityState: { expanded: isOpen },
+                      // React Native Web reads the ARIA prop, not `accessibilityState`.
+                      "aria-expanded": isOpen,
+                      onPress: () => toggleExpanded(task.id),
+                      onLongPress: longPress,
+                    })}
                 style={[styles.title, isDone && styles.titleDone]}
               >
                 {task.title}
@@ -237,13 +344,13 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
                   accessibilityRole="button"
                   accessibilityState={{ expanded: isBlockedOpen }}
                   onPress={() => setExpandedBlockedId(isBlockedOpen ? null : task.id)}
-                  style={styles.blocked}
+                  style={[styles.blocked, isOpen && styles.firstLine]}
                 >
                   Blocked
                 </Text>
               ) : null}
               {task.duration ? (
-                <Text selectable style={styles.meta}>
+                <Text selectable style={[styles.meta, isOpen && styles.firstLine]}>
                   {task.duration}
                 </Text>
               ) : null}
@@ -258,6 +365,67 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
           </React.Fragment>
         );
       })}
+      {shared || full ? null : <TaskListPanel panel={own} data={data} tokens={tokens} compact={compact} />}
     </View>
+  );
+}
+
+/** A drag across a title selects its text on web; the click ending it must not also fold the row. */
+function selectingText(): boolean {
+  if (Platform.OS !== "web") return false;
+  const selection = (globalThis as { getSelection?: () => Selection | null }).getSelection?.();
+  return Boolean(selection && !selection.isCollapsed);
+}
+
+/** The checklist's panel, for a list or for a caller that keeps it past the list (`TaskList` `panel`). */
+export function useTaskListPanel(enabled = true): TaskListPanelControl {
+  return useHoverPreview(enabled);
+}
+
+/** The panel while it is open: `TaskListPreview` on the row preview's layer. */
+export function TaskListPanel({ panel, data, tokens, compact = false }: {
+  panel: TaskListPanelControl;
+  data: TaskListData;
+  tokens: ExtendedThemeTokens;
+  compact?: boolean;
+}) {
+  if (!panel.open) return null;
+  return (
+    <HoverPreview preview={panel} tokens={tokens} wraps={false}>
+      <TaskListPreview data={data} tokens={tokens} compact={compact} />
+    </HoverPreview>
+  );
+}
+
+/**
+ * The whole list as a preview draws it: "Tasks 3/5" in the title bar, then
+ * every task with its title in full. The body scrolls when it is long.
+ */
+export function TaskListPreview({ data, tokens, compact = false }: {
+  data: TaskListData;
+  tokens: ExtendedThemeTokens;
+  compact?: boolean;
+}) {
+  const done = data.tasks.filter((task) => task.status === "completed").length;
+  return (
+    <>
+      <HoverPreviewHeader
+        tokens={tokens}
+        icon={<Icon name="ListChecks" size={14} color={tokens.foregroundMuted} />}
+        center={
+          <Text
+            testID="task-list-preview-title"
+            selectable={false}
+            numberOfLines={1}
+            style={[unselectable, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: tokens.typography.ui.scale.base }]}
+          >
+            {`Tasks ${done}/${data.tasks.length}`}
+          </Text>
+        }
+      />
+      <HoverPreviewBody>
+        <TaskList data={data} tokens={tokens} compact={compact} full />
+      </HoverPreviewBody>
+    </>
   );
 }
