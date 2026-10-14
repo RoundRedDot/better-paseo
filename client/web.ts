@@ -525,11 +525,22 @@ export function scrollsWithin(target: Node, root: HTMLElement, deltaX: number, d
 export function linesFit(body: HTMLElement): boolean {
   const { width, maxWidth } = body.style;
   const fitted = body.getBoundingClientRect().width;
+  // The wider layout is shorter, and a code block in it as wide as its lines,
+  // so the browser clamps their offsets; nothing gives them back. This runs on
+  // every change to the content: a streaming body went back to its top each
+  // time, under the reader's scroll and the tail that follows the newest output.
+  const scrolled = [body, ...Array.from(body.querySelectorAll<HTMLElement>("*"))]
+    .filter((element) => element.scrollTop !== 0 || element.scrollLeft !== 0)
+    .map((element) => ({ element, top: element.scrollTop, left: element.scrollLeft }));
   body.style.width = "max-content";
   body.style.maxWidth = "none";
   const natural = body.getBoundingClientRect().width;
   body.style.width = width;
   body.style.maxWidth = maxWidth;
+  for (const { element, top, left } of scrolled) {
+    if (element.scrollTop !== top) element.scrollTop = top;
+    if (element.scrollLeft !== left) element.scrollLeft = left;
+  }
   return natural <= fitted + 0.5;
 }
 
