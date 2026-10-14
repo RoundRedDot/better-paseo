@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import { Platform } from "react-native";
 import { viewBox, type ViewBox } from "../timeline-order";
 
 /**
@@ -14,10 +15,11 @@ import { viewBox, type ViewBox } from "../timeline-order";
  * identical lists, and every update added another.
  *
  * So each mounted todo records its agent, timestamp and list here. Items with
- * the same timestamp and the same list are one update: the first mounted
- * draws it and the rest draw nothing. The newest update draws the checklist;
- * an earlier one folds to a row naming what changed, read off the list before
- * it (`deriveTodoActivities`, the host's own rule).
+ * the same timestamp and the same list are one update: the one highest on
+ * screen draws it and the rest draw nothing (`drawsBefore`). The newest
+ * update draws the checklist; an earlier one folds to a row naming what
+ * changed, read off the list before it (`deriveTodoActivities`, the host's
+ * own rule).
  *
  * Updates are remembered after their item unmounts, so a list scrolled out of
  * a virtualised timeline still counts as newest and still names the changes
@@ -27,7 +29,8 @@ import { viewBox, type ViewBox } from "../timeline-order";
  * its 16pt under it: an update split five ways left 64pt of blank space by its
  * checklist. With no height the empty slot cannot give that back (a negative
  * margin leaves the host's wrapper at zero), so the item that draws the update
- * does, on the side its siblings sit (`EmptyGapTakeBack`).
+ * does, on the side its siblings sit (`EmptyGapTakeBack`). Drawn highest, it
+ * has them under it, and its bottom slides over their slots.
  */
 
 /** A task as the host sends it (`AgentTaskItem`). */
@@ -157,6 +160,22 @@ function subscribe(listener: () => void): () => void {
 }
 
 /**
+ * Which of two items of one update draws it: the one higher on screen. The
+ * web lists top-down and mounts in that order; the native list is inverted
+ * and mounts bottom-up, so there the last mounted is the highest.
+ *
+ * On iOS each cell of the inverted list lies over the cells below it on
+ * screen. When the lowest item drew and took back the gaps above it, its top
+ * slid under the empty slots of its siblings, and they took every touch
+ * there: the header's window button, its long press and the first rows' taps
+ * did nothing. Drawn by the highest item, the checklist overlaps only slots
+ * under it, and they stay behind it.
+ */
+function drawsBefore(other: Entry, self: Entry): boolean {
+  return Platform.OS === "web" ? other.sequence < self.sequence : other.sequence > self.sequence;
+}
+
+/**
  * How the item `self` draws the update at `at` with list `key`. Before it
  * mounts (its first render) it is weighed as if it had.
  */
@@ -165,7 +184,7 @@ function todoRole(agentId: string, self: Entry, at: number, key: string): TodoRo
   let newest = at;
   if (agent) {
     for (const other of agent.mounted) {
-      if (other !== self && other.at === at && other.key === key && other.sequence < self.sequence) {
+      if (other !== self && other.at === at && other.key === key && drawsBefore(other, self)) {
         return "hidden";
       }
     }

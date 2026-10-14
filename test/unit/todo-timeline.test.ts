@@ -145,6 +145,10 @@ describe("deriveTodoActivities", () => {
 });
 
 describe("live todo timeline", () => {
+  afterEach(() => {
+    delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+  });
+
   it("draws one checklist for an update the host split in two", () => {
     let renderer!: Renderer;
     act(() => {
@@ -163,6 +167,7 @@ describe("live todo timeline", () => {
 
   it("takes back the gaps of empty siblings drawn under the checklist", () => {
     // The web mounts top-down: the first item draws, its siblings hang below.
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     resetHostRowGap();
     let renderer!: Renderer;
     act(() => {
@@ -177,22 +182,28 @@ describe("live todo timeline", () => {
     act(() => renderer.unmount());
   });
 
-  it("takes back the gaps of empty siblings drawn over the checklist", () => {
-    // An inverted list mounts bottom-up: the item that draws sits under them.
+  it("draws a split update in its highest item on an inverted native list", () => {
+    // The native list mounts bottom-up and each cell lies over the ones below
+    // it. Drawn by the lowest item, the checklist's top slid under its
+    // siblings' empty slots and they took the header's touches; the highest
+    // item draws, so they sit under it and its bottom takes their gaps back.
     resetHostRowGap();
     let renderer!: Renderer;
     act(() => {
       renderer = TestRenderer.create(React.createElement(React.Fragment, null,
-        todo("above-agent", "u2-a", 2000, firstDone),
-        todo("above-agent", "u2-b", 2000, firstDone),
-        todo("above-agent", "u2-c", 2000, firstDone)),
-      { createNodeMock: drawnAt({ top: 300, height: 120 }, { top: 268, height: 0 }, { top: 284, height: 0 }) });
+        todo("inverted-agent", "u2-a", 2000, firstDone),
+        todo("inverted-agent", "u2-b", 2000, firstDone),
+        todo("inverted-agent", "u2-c", 2000, firstDone)),
+      { createNodeMock: drawnAt({ top: 300, height: 0 }, { top: 284, height: 0 }, { top: 148, height: 120 }) });
     });
-    expect(rootStyles(renderer)).toEqual([[-32, 0], [0, 0], [0, 0]]);
+    expect(lists(renderer)).toHaveLength(1);
+    // The last mounted, highest item draws; nothing is pulled up over the items above.
+    expect(rootStyles(renderer)).toEqual([[0, 0], [0, 0], [0, -32]]);
     act(() => renderer.unmount());
   });
 
   it("takes back no more than the row's own height", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     resetHostRowGap();
     let renderer!: Renderer;
     act(() => {

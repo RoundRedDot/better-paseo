@@ -378,7 +378,7 @@ function LiveTodoRendererBody({
   const panel = useTaskListPanel(role !== "hidden");
   const latest = useLatestTodoItems(agentId, panel.open);
   const panelData = useMemo(() => (latest && latest !== items ? todoTaskListData(latest) : taskListData), [latest, items, taskListData]);
-  const transient = Platform.OS === "web" && !panel.popped && !panel.placed && !panel.maximized;
+  const transient = panel.open && Platform.OS === "web" && !panel.popped && !panel.placed && !panel.maximized;
   const transientRef = useRef(transient);
   transientRef.current = transient;
   const { close: closePanel } = panel;
