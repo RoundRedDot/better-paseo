@@ -102,6 +102,8 @@ export function useHoverPreview(enabled: boolean) {
     cancel();
     pinned.current = true;
     setPlaced(true);
+    // A drag on the maximized window leaves that layout: the button can maximize again.
+    setMaximized(false);
   }, [cancel]);
   const maximize = useCallback(() => {
     cancel();
@@ -189,6 +191,8 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
 }) {
   const panelRef = useRef<View>(null);
   const frameSync = useRef<(() => void) | null>(null);
+  // The box from the last drag. Maximize drops it; leaving maximize opens here again.
+  const placedFrame = useRef<PreviewBox | null>(null);
   // Keep the toggle's slot even when wrapping would make no visible difference.
   const [linesFit, setLinesFit] = useState(false);
   // Kept across Maximize, which re-renders this panel rather than remounting it.
@@ -197,9 +201,13 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
     const unbind = bindPreviewPointer(panelRef.current, preview.enter, preview.leave);
     const release = openPreviewLayer(panelRef.current, preview.anchorRef.current, preview.close, {
       maximized: preview.maximized,
+      frame: preview.maximized ? null : placedFrame.current,
       onLinesFit: setLinesFit,
       onHold: preview.hold,
-      onPlace: preview.place,
+      onPlace(box) {
+        placedFrame.current = box;
+        preview.place();
+      },
       onLeave: preview.leave,
       onFrame(sync) { frameSync.current = sync; },
     });
