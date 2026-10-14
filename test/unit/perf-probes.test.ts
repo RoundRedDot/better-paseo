@@ -7,6 +7,7 @@ import {
   probeAnimationLoop,
   probeCard,
   probeHighlightRpc,
+  probeImageRpc,
   probeMarkdown,
   textItemKey,
   resetPerf,
@@ -37,10 +38,12 @@ describe("perf probes while disabled", () => {
     expect(calls).toBe(1);
     expect(blocks).toHaveLength(1);
     probeHighlightRpc("ts");
+    probeImageRpc("/workspace", "image.png", Promise.resolve());
     probeAnimationLoop("Glow")();
     const snap = perfSnapshot();
     expect(snap.markdown.parses).toBe(0);
     expect(snap.highlightRpc.count).toBe(0);
+    expect(snap.imageRpc).toEqual({ count: 0, duplicatesInFlight: 0 });
     expect(snap.animations.mountsTotal).toBe(0);
   });
 });
@@ -73,6 +76,63 @@ describe("perf probes while enabled", () => {
   it("exposes the handle on globalThis", () => {
     const handle = (globalThis as { __bcPerf?: { enabled(): boolean } }).__bcPerf;
     expect(handle?.enabled()).toBe(false);
+  });
+
+  it("counts an image RPC and a repeated in-flight cwd/path pair", async () => {
+    enablePerf();
+    let resolve!: () => void;
+    const pending = new Promise<void>((done) => {
+      resolve = done;
+    });
+    probeImageRpc("/workspace", "same.png", pending);
+    probeImageRpc("/workspace", "same.png", pending);
+    expect(perfSnapshot().imageRpc).toEqual({ count: 2, duplicatesInFlight: 1 });
+
+    resolve();
+    await pending;
+    await Promise.resolve();
+    probeImageRpc("/workspace", "same.png", Promise.resolve());
+    await Promise.resolve();
+    expect(perfSnapshot().imageRpc).toEqual({ count: 3, duplicatesInFlight: 1 });
+  });
+
+  it("does not merge image requests with a different cwd or path", async () => {
+    enablePerf();
+    let resolveFirst!: () => void;
+    let resolveSecond!: () => void;
+    let resolveThird!: () => void;
+    const first = new Promise<void>((done) => { resolveFirst = done; });
+    const second = new Promise<void>((done) => { resolveSecond = done; });
+    const third = new Promise<void>((done) => { resolveThird = done; });
+    probeImageRpc("/workspace-a", "same.png", first);
+    probeImageRpc("/workspace-b", "same.png", second);
+    probeImageRpc("/workspace-a", "other.png", third);
+    expect(perfSnapshot().imageRpc).toEqual({ count: 3, duplicatesInFlight: 0 });
+
+    resolveFirst();
+    resolveSecond();
+    resolveThird();
+    await Promise.all([first, second, third]);
+  });
+
+  it("handles a rejected image promise without an unhandled rejection", async () => {
+    enablePerf();
+    const unhandled: unknown[] = [];
+    const listener = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", listener);
+    try {
+      let reject!: (error: unknown) => void;
+      const pending = new Promise<void>((_resolve, no) => {
+        reject = no;
+      });
+      probeImageRpc("/workspace", "reject.png", pending);
+      reject(new Error("read failed"));
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(unhandled).toEqual([]);
+      expect(perfSnapshot().imageRpc).toEqual({ count: 1, duplicatesInFlight: 0 });
+    } finally {
+      process.off("unhandledRejection", listener);
+    }
   });
 });
 
