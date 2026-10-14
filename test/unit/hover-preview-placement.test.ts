@@ -44,7 +44,7 @@ function layer(contentLeft: number, contentWidth: number, viewportWidth = 1600, 
     },
   };
   // 600 wide; `natural` is how wide its lines are unwrapped.
-  const body = { children: [], natural: 600, style: { width: "", maxWidth: "" },
+  const body = { children: [], natural: 600, style: { width: "", maxWidth: "" }, scrollTop: 0, scrollLeft: 0, querySelectorAll: () => [],
     getBoundingClientRect() { return { width: this.style.width === "max-content" ? this.natural : 600 }; } };
   const closeButton = { focus: vi.fn() };
   const content = { getBoundingClientRect: () => ({ left: contentLeft, right: contentLeft + contentWidth }) };
@@ -342,7 +342,7 @@ describe("moving and resizing a hover preview", () => {
     };
     const ownerDocument = Object.assign(docEvents, { defaultView: view, documentElement });
     const body = {
-      children: [] as unknown[], natural: 600, style: { width: "", maxWidth: "", flexGrow: "" },
+      children: [] as unknown[], natural: 600, style: { width: "", maxWidth: "", flexGrow: "" }, scrollTop: 0, scrollLeft: 0, querySelectorAll: () => [],
       getBoundingClientRect() { return { width: this.style.width === "max-content" ? this.natural : 600 }; },
     };
     // A DOM `closest` throws "Illegal invocation" when it is called without its element.
@@ -513,7 +513,10 @@ describe("linesFit", () => {
   /** A body `width` wide whose content is `natural` wide unwrapped. */
   function body(width: number, natural: number) {
     const style = { width: "", maxWidth: "" };
-    return { style, getBoundingClientRect: () => ({ width: style.width === "max-content" ? natural : width }) } as unknown as HTMLElement;
+    return {
+      style, scrollTop: 0, scrollLeft: 0, querySelectorAll: () => [],
+      getBoundingClientRect: () => ({ width: style.width === "max-content" ? natural : width }),
+    } as unknown as HTMLElement;
   }
 
   it("is true only when the unwrapped content is no wider than the body, and leaves the body's style as it was", () => {
@@ -523,6 +526,30 @@ describe("linesFit", () => {
     expect(fits.style.maxWidth).toBe("");
     expect(linesFit(body(600, 600))).toBe(true);
     expect(linesFit(body(600, 1800))).toBe(false);
+  });
+
+  it("puts back the scroll offsets the wider layout clamped, in the body and in scrollers inside it", () => {
+    // Unwrapped, the body is shorter and the code block as wide as its lines:
+    // laying that out pulls both offsets to 0, as a browser does.
+    const style = { width: "", maxWidth: "" };
+    const code = { scrollTop: 0, scrollLeft: 90 };
+    const fake = {
+      style,
+      scrollTop: 400,
+      scrollLeft: 0,
+      querySelectorAll: () => [code, { scrollTop: 0, scrollLeft: 0 }],
+      getBoundingClientRect() {
+        if (style.width === "max-content") {
+          fake.scrollTop = 0;
+          code.scrollLeft = 0;
+          return { width: 1800 };
+        }
+        return { width: 600 };
+      },
+    };
+    expect(linesFit(fake as unknown as HTMLElement)).toBe(false);
+    expect(fake.scrollTop).toBe(400);
+    expect(code.scrollLeft).toBe(90);
   });
 });
 
