@@ -30,11 +30,11 @@ import {
 import { plainInline, reasoningHeaderText } from "../reasoning/preview";
 import { fitsRow } from "../tools/detail";
 import { CLAMPED_LINES, splitBodyRuns, type BodyRun } from "../reasoning/paragraphs";
-import { TYPE, UI_SCALE } from "../ui/tokens/typography";
+import { TYPE, blockProseBase } from "../ui/tokens/typography";
 
-/** Four lines of a thought's body: the quiet compact Markdown at the host's size. */
+/** Four lines of a thought's body: quiet compact Markdown at the block's size. */
 function clampHeight(tokens: ExtendedThemeTokens): number {
-  return variantMetrics("compact", tokens.typography.content.size, false, true).bodyLineHeight * CLAMPED_LINES;
+  return variantMetrics("compact", blockProseBase(tokens.typography), false, true).bodyLineHeight * CLAMPED_LINES;
 }
 
 function copyTextOf(text: string): string {
@@ -69,7 +69,7 @@ function LongParagraph({ text, tokens, storeKey, live }: LongParagraphProps) {
   return (
     <View>
       <View style={open ? null : { maxHeight: clampHeight(tokens), overflow: "hidden" }}>
-        <MarkdownView text={text} tokens={tokens} variant="compact" collapseCode quiet />
+        <MarkdownView text={text} tokens={tokens} variant="compact" collapseCode quiet size={blockProseBase(tokens.typography)} />
       </View>
       <Pressable
         accessibilityRole="button"
@@ -82,7 +82,12 @@ function LongParagraph({ text, tokens, storeKey, live }: LongParagraphProps) {
           style={[
             styles.moreText,
             unselectable,
-            { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
+            {
+              color: tokens.foregroundMuted,
+              fontFamily: tokens.fontUi,
+              fontSize: tokens.typography.block.button.size,
+              lineHeight: tokens.typography.block.button.lineHeight,
+            },
           ]}
         >
           {open ? "Show less" : "Show more"}
@@ -102,7 +107,7 @@ interface BodyRunViewProps {
 const BodyRunView = memo(
   function BodyRunView({ run, tokens, storeKey, live }: BodyRunViewProps) {
     // Fenced code starts folded as `ts · 24 lines ›` (plan §3.4 item 4).
-    if (!run.long) return <MarkdownView text={run.text} tokens={tokens} variant="compact" collapseCode quiet />;
+    if (!run.long) return <MarkdownView text={run.text} tokens={tokens} variant="compact" collapseCode quiet size={blockProseBase(tokens.typography)} />;
     return <LongParagraph text={run.text} tokens={tokens} storeKey={storeKey} live={live} />;
   },
   (a, b) =>
@@ -174,7 +179,15 @@ function SectionViewBody({ section, tokens, compact, storeKey, live }: SectionVi
       <Pressable accessible={false} focusable={false} {...hoverProps} style={styles.sectionTitleRow}>
         <Text
           selectable
-          style={[styles.sectionTitle, { color: tokens.foreground, fontFamily: tokens.fontUi }]}
+          style={[
+            styles.sectionTitle,
+            {
+              color: tokens.foreground,
+              fontFamily: tokens.fontUi,
+              fontSize: tokens.typography.block.label.size,
+              lineHeight: tokens.typography.block.label.lineHeight,
+            },
+          ]}
         >
           {section.title}
         </Text>
@@ -362,7 +375,15 @@ export function ReasoningCard({
             part="target"
             selectable={false}
             numberOfLines={1}
-            style={[styles.preview, unselectable, { fontFamily: tokens.fontUi }]}
+            style={[
+              styles.preview,
+              unselectable,
+              {
+                fontFamily: tokens.fontUi,
+                fontSize: tokens.typography.block.label.size,
+                lineHeight: tokens.typography.block.label.lineHeight,
+              },
+            ]}
           >
             {label.preview}
           </RowText>
@@ -380,7 +401,7 @@ export function ReasoningCard({
             </View>
           </HoverPreviewHeader>
           <HoverPreviewBody streaming={streaming}>
-            <MarkdownView text={reasoningText(segmentation)} tokens={tokens} variant="compact" quiet streaming={streaming} />
+            <MarkdownView text={reasoningText(segmentation)} tokens={tokens} variant="compact" quiet streaming={streaming} size={blockProseBase(tokens.typography)} />
           </HoverPreviewBody>
         </>
       )}

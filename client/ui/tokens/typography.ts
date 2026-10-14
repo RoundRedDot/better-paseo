@@ -15,6 +15,11 @@
  *   to CSS, so it gets a real stack with CJK fallbacks at the end.
  */
 
+import {
+  BLOCK_FONT_SIZE_DEFAULT,
+  BLOCK_FONT_SIZE_MIN,
+  clampBlockFontSize,
+} from "../../../shared/preferences-settings";
 import { appearanceMonoStack, type HostAppearance } from "./host-appearance-shim";
 import { SETTINGS_STRINGS, type SettingsStrings } from "../../i18n/settings-strings";
 
@@ -46,6 +51,8 @@ export interface TypographyPreferences {
   monoFont: "host" | "custom";
   customMonoFont: string;
   codeFontSize: number | null;
+  /** Omitted means the built-in block size (13). */
+  blockFontSize?: number;
 }
 
 export interface Typography {
@@ -63,6 +70,8 @@ export interface Typography {
     /** Where "Follow Paseo" found the family and size (plan D10). */
     source: MonoSource;
   };
+  /** Tool rows, thoughts, checklists and notices. The default matches `TYPE`. */
+  block: BlockMetrics;
   /** Whether host typography (H1) was present and used. */
   fromHost: boolean;
 }
@@ -149,6 +158,59 @@ export function proseScale(b: number): ProseScale {
 }
 
 export const CODE_SIZE = { default: 12, min: 10, max: 22 } as const;
+
+/**
+ * Sizes for a tool row, a thought, a checklist or a notice, from the reader's
+ * block text size. At 13 every step matches `TYPE` and the row stays 26 / 28
+ * tall, so a stored default changes nothing. A step that was 12 stays at
+ * least 12.
+ */
+export interface BlockMetrics {
+  /** The chosen size; 13 is the built-in row label. */
+  size: number;
+  /** `size` minus 13. Zero leaves every block at its built-in size. */
+  delta: number;
+  /** Row verb, thought preview, checklist and notice text. */
+  label: TypeStep;
+  /** A row's path or command. */
+  target: TypeStep;
+  /** Row meta (`exit 0`), captions, quieter body text. */
+  meta: TypeStep;
+  caption: TypeStep;
+  /** Copy, Show more. */
+  button: TypeStep;
+  /** Header row height. Desktop is the label's line height plus 8; touch plus 10. */
+  rowHeight: { desktop: number; compact: number };
+}
+
+export function blockMetrics(size: number): BlockMetrics {
+  const labelSize = clampBlockFontSize(size);
+  const secondary = Math.max(BLOCK_FONT_SIZE_MIN, labelSize - 1);
+  const label = { size: labelSize, lineHeight: even((labelSize * TYPE.label.lineHeight) / TYPE.label.size) };
+  const target = {
+    size: secondary,
+    lineHeight: even((secondary * TYPE.target.desktop.lineHeight) / TYPE.target.desktop.size),
+  };
+  const meta = { size: secondary, lineHeight: even((secondary * TYPE.meta.lineHeight) / TYPE.meta.size) };
+  return {
+    size: labelSize,
+    delta: labelSize - BLOCK_FONT_SIZE_DEFAULT,
+    label,
+    target,
+    meta,
+    caption: meta,
+    button: label,
+    rowHeight: {
+      desktop: label.lineHeight + (26 - TYPE.label.lineHeight),
+      compact: label.lineHeight + (28 - TYPE.label.lineHeight),
+    },
+  };
+}
+
+/** The metrics base for prose drawn inside a tool, thought or similar block. */
+export function blockProseBase(typography: Pick<Typography, "content" | "block">): number {
+  return typography.content.size + typography.block.delta;
+}
 
 /** Paseo's own content size defaults (`use-settings/storage.ts`). */
 const CONTENT_SIZE = { web: 15, native: 16 } as const;
@@ -330,6 +392,7 @@ export function resolveTypography(
     ui: { family: uiFamily, scale: UI_SCALE },
     content: { size: contentSize, lineHeight: lineHeightFor(contentSize) },
     mono: { family, size: codeSize, lineHeight: codeLineHeight, source: monoSource(host, paseoAppearance) },
+    block: blockMetrics(prefs.blockFontSize ?? BLOCK_FONT_SIZE_DEFAULT),
     fromHost: host !== null,
   };
 }

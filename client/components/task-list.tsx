@@ -15,7 +15,6 @@ import {
 import { RunningDot } from "../ui/running-dot";
 import { FadeIn } from "../ui/fade-in";
 import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
-import { TYPE } from "../ui/tokens/typography";
 
 interface TaskListProps {
   data: TaskListData;
@@ -59,7 +58,8 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
   const totalCount = tasks.length;
   const allDone = totalCount > 0 && completedCount === totalCount;
   const progress = totalCount > 0 ? completedCount / totalCount : 0;
-  const rowHeight = compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop;
+  const rowHeight = compact ? tokens.typography.block.rowHeight.compact : tokens.typography.block.rowHeight.desktop;
+  const block = tokens.typography.block;
 
   const styles = useMemo(
     () =>
@@ -84,16 +84,16 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
         },
         headerTitle: {
           fontFamily: tokens.fontUi,
-          fontSize: TYPE.label.size,
-          lineHeight: TYPE.label.lineHeight,
+          fontSize: block.label.size,
+          lineHeight: block.label.lineHeight,
           fontWeight: "500",
           color: tokens.foreground,
           ...unselectable,
         },
         headerCount: {
           fontFamily: tokens.fontMono,
-          fontSize: TYPE.meta.size,
-          lineHeight: TYPE.meta.lineHeight,
+          fontSize: block.meta.size,
+          lineHeight: block.meta.lineHeight,
           fontVariant: ["tabular-nums"],
           color: tokens.foregroundMuted,
           ...unselectable,
@@ -103,7 +103,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
           minWidth: 0,
           textAlign: "right",
           fontFamily: tokens.fontUi,
-          fontSize: TYPE.caption.size,
+          fontSize: block.caption.size,
           color: tokens.foregroundMuted,
           ...unselectable,
         },
@@ -127,8 +127,8 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
           flex: 1,
           minWidth: 0,
           fontFamily: tokens.fontUi,
-          fontSize: TYPE.label.size,
-          lineHeight: TYPE.label.lineHeight,
+          fontSize: block.label.size,
+          lineHeight: block.label.lineHeight,
           color: tokens.foreground,
         },
         titleDone: {
@@ -136,14 +136,14 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
         },
         meta: {
           fontFamily: tokens.fontMono,
-          fontSize: TYPE.meta.size,
+          fontSize: block.meta.size,
           fontVariant: ["tabular-nums"],
           color: tokens.foregroundMuted,
         },
         blocked: {
           fontFamily: tokens.fontUi,
-          fontSize: TYPE.caption.size,
-          lineHeight: TYPE.caption.lineHeight,
+          fontSize: block.caption.size,
+          lineHeight: block.caption.lineHeight,
           color: tokens.warning,
           ...unselectable,
         },
@@ -154,8 +154,8 @@ export function TaskList({ data, tokens, compact = false, onToggleTask }: TaskLi
         },
         reasonText: {
           fontFamily: tokens.fontUi,
-          fontSize: TYPE.settingNote.size,
-          lineHeight: TYPE.settingNote.lineHeight,
+          fontSize: block.label.size,
+          lineHeight: block.label.lineHeight,
           color: tokens.foregroundMuted,
         },
       }),

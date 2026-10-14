@@ -34,7 +34,7 @@ import { FadeIn } from "../ui/fade-in";
 import { SelectableSpan, SelectableText } from "../ui/prose-text";
 import { formatPath } from "../paths/format-path";
 import { lineRangeLabel, summarizeTool } from "../tools/summarize";
-import { TYPE, UI_SCALE } from "../ui/tokens/typography";
+import { TYPE, UI_SCALE, blockProseBase } from "../ui/tokens/typography";
 import { codeSurface } from "./host-font-escape";
 import { toolCopyPlan, type ResolvePath } from "../tools/copy";
 import type { CopyAction, CopyActionId, CopyPlan } from "../copy/content";
@@ -216,7 +216,10 @@ export function ToolCallout({
         copyOnHover={false}
         fit={!groupCalls}
         grow={!groupCalls}
-        style={compact ? TARGET_STYLE.compact : TARGET_STYLE.desktop}
+        style={{
+          fontSize: tokens.typography.block.target.size,
+          lineHeight: tokens.typography.block.target.lineHeight,
+        }}
       />
     ) : (
       summary.target
@@ -358,7 +361,15 @@ export function ToolCallout({
           {...(surfaceProps(selectionSurface, codeSurface) as object)}
           selectable
           numberOfLines={1}
-          style={[styles.errorLine, { color: tokens.row.meta, fontFamily: tokens.fontMono }]}
+          style={[
+            styles.errorLine,
+            {
+              color: tokens.row.meta,
+              fontFamily: tokens.fontMono,
+              fontSize: tokens.typography.block.meta.size,
+              lineHeight: tokens.typography.block.target.lineHeight,
+            },
+          ]}
         >
           {summary.errorLine}
         </Text>
@@ -484,7 +495,7 @@ function GroupPager({ index, count, onChange, tokens }: {
     <View ref={pagerRef} style={styles.pager}>
       <ToolbarButton icon="ChevronLeft" label="Previous operation" disabled={index === 0}
         onPress={() => onChange(index - 1)} tokens={tokens} />
-      <Text selectable={false} style={[styles.pagerLabel, unselectable, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+      <Text selectable={false} style={[styles.pagerLabel, unselectable, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: tokens.typography.block.caption.size }]}>
         {`${index + 1} / ${count}`}
       </Text>
       <ToolbarButton icon="ChevronRight" label="Next operation" disabled={index === count - 1}
@@ -577,14 +588,7 @@ function ToolPreviewActions({ call, resolvePath, tokens, pager, meta, streaming 
   );
 }
 
-/** A path target takes the row's target type (S7 design spec §2.3). */
-const TARGET_STYLE = {
-  compact: { fontSize: TYPE.target.compact.size, lineHeight: TYPE.target.compact.lineHeight },
-  desktop: { fontSize: TYPE.target.desktop.size, lineHeight: TYPE.target.desktop.lineHeight },
-} as const;
-
-/**
- * A path among the header's meta (a shell's cwd, a worktree's directory).
+/** A path among the header's meta (a shell's cwd, a worktree's directory).
  * Shown only for a directory inside a known root: the root itself says
  * nothing, and an absolute path outside every root would crowd out the
  * command on a phone-width row.
@@ -611,7 +615,7 @@ function MetaPath({
       compact={compact}
       copyOnHover={false}
       budget={compact ? 20 : 32}
-      style={{ fontSize: TYPE.meta.size, color: palette?.meta ?? tokens.foregroundMuted }}
+      style={{ fontSize: tokens.typography.block.meta.size, color: palette?.meta ?? tokens.foregroundMuted }}
     />
   );
 }
@@ -698,13 +702,21 @@ function CodeHeaderPath({
         tokens={tokens}
         compact={compact}
         onReveal={onReveal ? () => onReveal() : undefined}
-        style={{ fontSize: UI_SCALE.base }}
+        style={{ fontSize: tokens.typography.block.meta.size }}
       />
       {suffix ? (
         <Text
           {...(codeSurface as object)}
           selectable={false}
-          style={[codeHeaderStyles.suffix, unselectable, { color: tokens.foregroundMuted, fontFamily: tokens.fontMono }]}
+          style={[
+            codeHeaderStyles.suffix,
+            unselectable,
+            {
+              color: tokens.foregroundMuted,
+              fontFamily: tokens.fontMono,
+              fontSize: tokens.typography.block.meta.size,
+            },
+          ]}
         >
           {suffix}
         </Text>
@@ -854,7 +866,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
       {data.tool === "github" && <GitHubBody data={data.github} tokens={tokens} running={isRunning} />}
 
       {data.tool === "thinking" && (
-        preview ? <MarkdownView text={data.thinking?.text || data.code || data.output || ""} tokens={tokens} variant="compact" quiet streaming={isRunning} /> :
+        preview ? <MarkdownView text={data.thinking?.text || data.code || data.output || ""} tokens={tokens} variant="compact" quiet streaming={isRunning} size={blockProseBase(tokens.typography)} /> :
         <ReasoningSections
           text={data.thinking?.text || data.code || data.output || ""}
           tokens={tokens}
@@ -956,7 +968,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             <View>
               {data.search.files.slice(0, MAX_FILE_ROWS).map((file, index) => (
                 <View key={`${index}:${file}`} style={styles.fileRow}>
-                  <PathText path={file} tokens={tokens} compact={compact} style={{ fontSize: UI_SCALE.base }} fit />
+                  <PathText path={file} tokens={tokens} compact={compact} style={{ fontSize: tokens.typography.block.meta.size }} fit />
                 </View>
               ))}
               {data.search.files.length > MAX_FILE_ROWS ? (
@@ -978,7 +990,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
           ))}
           {/* A web search's own answer: markdown prose, drawn as a fetch's result is. */}
           {data.search.annotations ? (
-            <MarkdownView text={data.search.annotations.join("\n\n")} tokens={tokens} variant="compact" streaming={preview && isRunning} />
+            <MarkdownView text={data.search.annotations.join("\n\n")} tokens={tokens} variant="compact" streaming={preview && isRunning} size={blockProseBase(tokens.typography)} />
           ) : null}
           {data.search.content ? (
             <View style={styles.terminalWindow}>
@@ -1004,7 +1016,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             </SelectableText>
           ) : null}
           {data.fetch.result ? (
-            <MarkdownView text={data.fetch.result} tokens={tokens} variant="compact" streaming={preview && isRunning} />
+            <MarkdownView text={data.fetch.result} tokens={tokens} variant="compact" streaming={preview && isRunning} size={blockProseBase(tokens.typography)} />
           ) : (
             <Text style={styles.silentText}>{isRunning ? "Fetching…" : "No content returned."}</Text>
           )}
@@ -1014,7 +1026,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
       {data.tool === "worktree_setup" && data.worktree && (
         <View style={styles.section}>
           {data.worktree.worktreePath ? (
-            <PathText path={data.worktree.worktreePath} tokens={tokens} compact={compact} fit />
+            <PathText path={data.worktree.worktreePath} tokens={tokens} compact={compact} fit style={{ fontSize: tokens.typography.block.label.size }} />
           ) : null}
           {data.worktree.branchName ? (
             <SelectableText {...(codeSurface as object)} style={[styles.monoText, styles.mutedColor]}>
@@ -1060,7 +1072,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
           ) : null}
           {/* The full brief the parent wrote: often markdown, so drawn as a plan is. */}
           {data.subAgent.prompt ? (
-            <MarkdownView text={data.subAgent.prompt} tokens={tokens} variant="compact" streaming={preview && isRunning} />
+            <MarkdownView text={data.subAgent.prompt} tokens={tokens} variant="compact" streaming={preview && isRunning} size={blockProseBase(tokens.typography)} />
           ) : null}
           {data.subAgent.actions?.map((action) => (
             <View key={action.index} style={styles.inlineRow}>
@@ -1090,7 +1102,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
         <View style={styles.section}>
           {data.planOutcome ? <Text style={styles.sectionTitle}>{PLAN_OUTCOME_TITLE[data.planOutcome]}</Text> : null}
           {data.text ? (
-            <MarkdownView text={data.text} tokens={tokens} variant="compact" streaming={preview && isRunning} />
+            <MarkdownView text={data.text} tokens={tokens} variant="compact" streaming={preview && isRunning} size={blockProseBase(tokens.typography)} />
           ) : (
             <Text style={styles.silentText}>The plan is empty.</Text>
           )}
@@ -1202,28 +1214,28 @@ function useBodyStyles(tokens: ExtendedThemeTokens, compact: boolean): BodyStyle
         clear: { backgroundColor: "transparent" },
         silentText: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
+          fontSize: tokens.typography.block.meta.size,
           color: tokens.foregroundMuted,
           fontStyle: "italic",
           ...unselectable,
         },
         sectionTitle: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
+          fontSize: tokens.typography.block.meta.size,
           fontWeight: "500",
           color: tokens.foregroundMuted,
           ...unselectable,
         },
         plainText: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.md,
-          lineHeight: 19,
+          fontSize: tokens.typography.block.label.size,
+          lineHeight: tokens.typography.block.delta === 0 ? 19 : tokens.typography.block.label.lineHeight,
           color: tokens.foreground,
         },
         mutedText: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
-          lineHeight: 17,
+          fontSize: tokens.typography.block.meta.size,
+          lineHeight: tokens.typography.block.delta === 0 ? 17 : tokens.typography.block.meta.lineHeight,
           color: tokens.foregroundMuted,
         },
         monoText: {
@@ -1235,7 +1247,7 @@ function useBodyStyles(tokens: ExtendedThemeTokens, compact: boolean): BodyStyle
         promptColor: { color: tokens.row.meta },
         metaText: {
           fontFamily: tokens.fontUi,
-          fontSize: UI_SCALE.base,
+          fontSize: tokens.typography.block.meta.size,
           color: tokens.foregroundMuted,
           fontVariant: ["tabular-nums"],
           ...unselectable,
