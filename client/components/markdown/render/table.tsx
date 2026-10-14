@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useLayoutEffect, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { Tokens } from "../../../vendor/marked";
 import type { RenderContext } from "./context";
@@ -6,6 +6,7 @@ import { inlineWidth, renderInline } from "./inline";
 import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
 import { HScroll } from "../../../ui/h-scroll";
 import { TableCopyMenu } from "./table-copy-menu";
+import { bindTableCellSelection, TABLE_CELL_TEST_ID } from "./table-selection";
 import { FLOAT } from "../../../ui/tokens/float";
 import {
   ALIGN_KEYS,
@@ -86,6 +87,7 @@ export function MdTable({
   const measured = columnWidths(token, metrics);
   const widest = useRef<number[]>([]);
   const frameRef = useRef<View>(null);
+  useLayoutEffect(() => bindTableCellSelection(frameRef.current), []);
   let widths = measured;
   if (open) {
     widths = measured.map((width, column) => Math.max(width, widest.current[column] ?? 0));
@@ -113,6 +115,7 @@ export function MdTable({
                 return (
                   <Text
                     key={cellKey}
+                    testID={TABLE_CELL_TEST_ID}
                     selectable
                     {...contentTextProps()}
                     style={[
@@ -137,6 +140,7 @@ export function MdTable({
                   return (
                     <Text
                       key={cellKey}
+                      testID={TABLE_CELL_TEST_ID}
                       selectable
                       {...contentTextProps()}
                       style={[
