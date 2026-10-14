@@ -2,7 +2,7 @@
 
 [English](README.md) | **简体中文**
 
-一个 [Paseo](https://paseo.sh) 插件，重新绘制 Paseo 中所有 agent 的聊天时间线，不论背后是哪家服务（Claude Code、Codex、Oh My Pi 等）：工具调用、思考、回复、提问、待办和错误都画成紧凑、按类型区分、带语法高亮的行，配色跟随当前的 Paseo 主题；整条时间线的渲染比 Paseo 自己画还快。
+一个 [Paseo](https://paseo.sh) 插件，重新绘制 Paseo 中所有 agent 的聊天时间线，不论背后是哪家服务（Claude Code、Codex、Oh My Pi 等）：工具调用、思考、回复、提问、待办和错误都画成紧凑、按类型区分、带语法高亮的行，配色跟随当前的 Paseo 主题；在 Web 生产构建上，整条时间线的渲染比 Paseo 自己画还快。
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/hero-devices-dark.png">
@@ -13,8 +13,8 @@
 
 ## 亮点
 
-- **比不开插件还快。** Web 生产构建上，11 个回放场景里每一个的主线程时间都不超过 Paseo 自己的时间线（其中 1 个持平），比 Beautiful Chat 少 34–85%。见下方[性能对比](#性能对比)。
-- **内存占用接近不开插件。** Web 生产构建上，强制 GC 后的 JS 堆和不开插件相差 0–4MB，长回复还少用 41MB；Beautiful Chat 在工具输出场景里达到 239–266MB。见下方[内存对比](#内存对比)。
+- **比不开插件还快。** Web 生产构建上，11 个回放场景里有 10 个主线程时间短于 Paseo 自己的时间线，少 14–38%，大 diff 持平；比 Beautiful Chat 少 12–91%。见下方[性能对比](#性能对比)。
+- **内存占用接近不开插件。** Web 生产构建上，强制 GC 后的 JS 堆和不开插件相差 −1.4 到 +4.0MB，长回复少用 40.8MB；Beautiful Chat 在大 diff、100 轮历史和读 20 个文件上达到 213.6–242.6MB。见下方[内存对比](#内存对比)。
 - **一个工具调用一行。** 调用默认折叠成 26pt 的一行，摘要按类型生成，点一下展开；完成、滚进历史、重新挂载后，展开状态都不会丢。
 - **流式输出不跳动。** 回复按块增量解析，写到一半的代码围栏或表格不会先画成别的格式再跳回来；长回复流式时的布局偏移为 0。
 - **不展开也能看内容。** 桌面上悬停折叠行或路径、手机上长按，就能在可滚动的面板里预览内容；图片可以打开全屏查看器。
@@ -36,61 +36,77 @@ paseo plugin update better-paseo
 
 ## 性能对比
 
-三种模式在同一次会话里轮流回放：**不开插件**（Paseo 0.11.2 自己画时间线）、**Beautiful Chat** `42b61d8`、**Better Paseo**。探针装在宿主上，套在每一行外面，原生行和插件行用的是同一个外壳，所以三方口径一致。每格是 Web 生产构建 3 次运行的中位数；11 个脚本化场景覆盖流式回复、代码、表格、思考、大 diff、终端日志和 100 轮历史。
+三种模式在同一次会话里轮流回放：**不开插件**（Paseo 0.11.2 自己画时间线）、**Beautiful Chat** `42b61d8`、**Better Paseo**。探针装在宿主上，套在每一行外面，原生行和插件行用的是同一个外壳，所以三方口径一致。Web 每格是生产构建 3 次运行的中位数，测于 2026-10-14。11 个脚本化场景覆盖流式回复、代码、表格、思考、大 diff、终端日志和 100 轮历史。只有这一轮内部的模式可以互相比较。
 
 ![各场景的 Web 主线程时间：不开插件、Beautiful Chat、Better Paseo](docs/perf/readme/web-cpu.zh.svg)
 
-- **对比不开插件**：11 个场景里 10 个更短，少 15–61%；大 diff 持平（整段回放 0.38 秒对 0.37 秒）。
-- **对比 Beautiful Chat**：11 个场景全部更短，少 34–85%。Beautiful Chat 默认展开运行中的工具，读 20 个文件要挂 56,158 个 DOM 节点、耗时 3.72 秒；Better Paseo 是 1,488 个节点、0.70 秒。
-- 流式文本收益最大：长回复从 7.07 秒（不开插件）和 8.42 秒（Beautiful Chat）降到 3.67 秒。
+- **对比不开插件**：11 个场景里 10 个更短，少 14–38%。大 diff 持平（整段回放 0.41 秒对 0.31 秒，两边都不到半秒）。
+- **对比 Beautiful Chat**：11 个场景全部更短，少 12–91%。Beautiful Chat 默认展开运行中的工具，读 20 个文件要挂 56,471 个 DOM 节点、耗时 3.45 秒；Better Paseo 是 2,026 个节点、0.99 秒。
+- 对比不开插件，流式文本仍省得最多：长回复从 8.72 秒降到 5.62 秒（Beautiful Chat 是 8.62 秒）。对比 Beautiful Chat，差距最大的是 100 轮历史，从 7.03 秒降到 0.63 秒。
 
 流式过程中的累计布局偏移（越低越好）：
 
 | 场景 | 不开插件 | Beautiful Chat | Better Paseo | 对比不开插件 | 对比 Beautiful Chat |
 | --- | ---: | ---: | ---: | :--- | :--- |
-| 长回复 | 0.157 | 0.644 | **0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;100% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;100% |
-| 代码块 | 0.039 | 0.127 | **0.012** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;69% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;91% |
-| 表格 | 0.049 | 0.040 | **0.011** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;78% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;73% |
-| 100 轮历史 | 0 | 0.478 | **0** | 持平 | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;100% |
+| 长回复 | 0.218 | 0.648 | **0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;100% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;100% |
+| 代码块 | 0.042 | 0.129 | **0.012** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;72% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;91% |
+| 表格 | 0.046 | 0.040 | **0.011** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;77% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;73% |
+| 100 轮历史 | 0 | 0.226 | **0** | 持平 | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;100% |
 
 ### iOS
 
-![iOS 单次提交渲染耗时 p95：不开插件与 Better Paseo](docs/perf/readme/ios-commit.zh.svg)
+![iOS 每次回放的行渲染总量：不开插件、Beautiful Chat、Better Paseo](docs/perf/readme/ios-commit.zh.svg)
 
-iOS 模拟器开发版上（每次运行前冷启动），单次提交里所有行的渲染耗时在 11 个场景里有 8 个更低，降 15–86%，2 个持平。大段终端的 p95 高 23%，但渲染总量相当（23ms 对 21ms）：Better Paseo 把工具完成那一刻的重渲染集中在一次提交里，Paseo 则分散到几次。开发版的毫秒数只适合相互比较。
+同一套宿主探针现在在 iOS 模拟器上测量三种模式（开发版，每次运行前冷启动）。早前的卡片内部探针表不再沿用：那套探针不在 Beautiful Chat 里。开发版的毫秒数只适合这一轮内部比较。
 
-在 iOS 上对比 Beautiful Chat，用的是早前几轮的卡片内部探针（`mixed-turn`，同一模拟器会话，各 4 次，p95，单位毫秒）：
+图和表都是每个场景的行渲染总量。超过 2000 ms 的条被截断，旁边的数字是真实总量。不到一成算持平。这里是毫秒，Web 图上的半秒条款不用。
 
-| 卡片 | Beautiful Chat | Better Paseo | 变化 |
-| --- | ---: | ---: | :--- |
-| 提问 | 25.3 | 13.3 | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;47% |
-| 回复 | 108.2 | 21.6 | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;80% |
-| 思考 | 94.4 | 21.5 | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;77% |
-| 工具 | 122.6 | 27.0 | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;78% |
-| 待办 | 137.9 | 40.8 | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;70% |
+图上没有单次提交的 p95。最大速度回放时，三种模式把行打进提交的方式差很多：不开插件 50 次行渲染落在 5 次提交里，Beautiful Chat 182 次落在 125 次提交里，Better Paseo 90 次落在 17 次提交里。Beautiful Chat 的单次提交 p95（4.5ms）看起来最低，只是因为大约一行一次提交。100 轮历史的总量是 200.1ms、230.6ms、202.9ms。对比不开插件，Better Paseo 在 11 个场景里有 5 个更短（15–64%），大 diff 和 100 轮历史持平，4 个更长（18–63%：读 20 个文件、两段思考、展开的工具）。这 4 个都是每种模式 2 次运行，两次的总量互不重叠：读 20 个文件，不开插件 274.2 / 287.9 ms，Better Paseo 321.2 / 341.0 ms；思考散文 264.1 / 276.4 对 333.5 / 336.9；思考分节 227.9 / 232.0 对 278.0 / 283.1；展开的工具 152.7 / 167.6 对 249.2 / 271.6。对比 Beautiful Chat，11 个都更短，少 12–99%。
 
-<img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升"> 绿色表示比基线好，<img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="倒退"> 红色表示比基线差。相差不到一成，或两边整段回放都不到半秒，记为持平。
+另外两处批大小不同，单次提交 p95 和总量方向相反：大段终端的 p95 高 21%（17.4ms 对 14.3ms），总量少 15%（43.0ms 对 50.8ms）；大 diff 的 p95 高 43%（20.0ms 对 14.0ms），总量持平（51.5ms 对 54.4ms）。长回复上，不开插件每次提交大约包进行 1.9 行，Better Paseo 大约 1.0 行，所以 p95 的降幅（88%）大于总量（64%），两边都是 Better Paseo 更短。除此之外没有哪一格的「每提交行数」差到 100 轮历史这种程度。Beautiful Chat 的大 diff 行渲染总量是 5541.4ms，单次提交 p95 是 2877.7ms；探针留下的最长帧是 139.3ms，因为超过 1 秒的帧间隔不计。
+
+| 场景 | 不开插件 | Beautiful Chat | Better Paseo | 对比不开插件 | 对比 Beautiful Chat |
+| --- | ---: | ---: | ---: | :--- | :--- |
+| 代码块流式 | 2301.1 | 4532.1 | **965.4** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;58% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;79% |
+| 大 diff | 54.4 | 5541.4 | **51.5** | 持平 | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;99% |
+| 100 轮历史 | 200.1 | 230.6 | **202.9** | 持平 | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;12% |
+| 长回复 | 5075.3 | 13393.2 | **1833.4** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;64% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;86% |
+| 混合一轮 | 299.7 | 633.5 | **242.2** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;19% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;62% |
+| 读 20 个文件 | 281.0 | 2652.9 | **331.1** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="倒退">&ensp;18% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;88% |
+| 思考散文 | 270.3 | 1472.6 | **335.2** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="倒退">&ensp;24% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;77% |
+| 思考分节 | 229.9 | 2459.0 | **280.6** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="倒退">&ensp;22% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;89% |
+| 大段终端 | 50.8 | 355.4 | **43.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;15% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;88% |
+| 表格流式 | 993.0 | 1169.4 | **549.4** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;45% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;53% |
+| 展开的工具 | 160.1 | 3025.9 | **260.4** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="倒退">&ensp;63% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升">&ensp;91% |
+
+<img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="提升"> 绿色表示比基线好，<img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="倒退"> 红色表示比基线差。相差不到一成，或两边整段回放都不到半秒，记为持平。半秒这条只用于 Web 的整段回放。iOS 表是毫秒级的行渲染总量，只套用「不到一成」。
 
 <details>
 <summary>Web 全部数字（主线程时间，秒）</summary>
 
 | 场景 | 不开插件 | Beautiful Chat | Better Paseo |
 | --- | ---: | ---: | ---: |
-| 代码块流式 | 3.81 | 3.45 | **1.70** |
-| 大 diff | 0.38 | 2.41 | **0.37** |
-| 100 轮历史 | 2.92 | 8.49 | **2.14** |
-| 长回复 | 7.07 | 8.42 | **3.67** |
-| 混合一轮 | 1.20 | 2.95 | **1.02** |
-| 读 20 个文件 | 0.96 | 3.72 | **0.70** |
-| 思考散文 | 2.06 | 3.57 | **1.27** |
-| 思考分节 | 1.97 | 3.92 | **1.02** |
-| 大段终端 | 0.88 | 1.60 | **0.64** |
-| 表格流式 | 2.77 | 1.64 | **1.08** |
-| 展开的工具 | 1.49 | 3.26 | **0.97** |
+| 代码块流式 | 3.96 | 3.50 | **2.51** |
+| 大 diff | 0.41 | 1.81 | **0.31** |
+| 100 轮历史 | 0.73 | 7.03 | **0.63** |
+| 长回复 | 8.72 | 8.62 | **5.62** |
+| 混合一轮 | 1.61 | 3.68 | **1.21** |
+| 读 20 个文件 | 1.15 | 3.45 | **0.99** |
+| 思考散文 | 2.75 | 4.01 | **1.79** |
+| 思考分节 | 2.50 | 3.73 | **1.55** |
+| 大段终端 | 1.00 | 2.30 | **0.66** |
+| 表格流式 | 3.01 | 2.12 | **1.85** |
+| 展开的工具 | 1.85 | 4.46 | **1.41** |
 
 </details>
 
-**测量方法。** 给 Paseo 打了一个只用于测量的补丁，把时间线的每一行都套进同一个 `React.Profiler`；Playwright 在每段回放前后读取 Chrome DevTools Protocol 的指标（任务时间、堆、DOM 节点），读内存前先强制 GC。测量时机器上还有其他任务在跑，所以三种模式交替运行、取中位数。方法、工具和全部原始数据见 [`docs/bench/native-vs-fork`](docs/bench/native-vs-fork/README.md)；和 Beautiful Chat 的逐项差异及每轮测量的来龙去脉见 [`docs/fork-vs-upstream.md`](docs/fork-vs-upstream.md)。图表由 `node docs/perf/readme-charts.mjs` 从原始数据生成。
+**测量方法。** 2026-10-14，机器是 rrd-mac-studio（Apple M5 Max，18 核，64 GB，macOS 27.0.1）。1 分钟负载大约 0.8–1.7。早前几轮跑在一台共享的、负载很高的 M5 Pro 笔记本上；只有这一轮内部的模式可以互相比较。
+
+给 Paseo 0.11.2（`759532509`，`tools/paseo-host-probe.patch`）打了一个只用于测量的补丁，把时间线的每一行都套进同一个 `React.Profiler`。Web 用的是和 10 月 12–13 日同一份带探针的生产构建（主 JS 的 sha256 前缀 `9dd7eab4521434bc`），headless Chrome 155.0.8059.40，1280×900。Playwright 在每段回放前后读取 Chrome DevTools Protocol 的指标（任务时间、堆、DOM 节点），读内存前先强制 GC。iOS 是 iPhone 16 Pro 模拟器，iOS 18.6，开发版 `sh.paseo.debug`，Metro 提供带探针的 JS，每次运行前冷启动。
+
+Better Paseo 是提交 `9f270c6`。私有 daemon，插件设置都是默认值，三种模式轮流先跑。每次运行都核对了当时生效的是哪一版。Web 上 Better Paseo 有 `imageRpc`，Beautiful Chat 有 `#beautiful-chat-frosted`，不开插件两者都没有。iOS 用 `tools/ios-identity.mjs` 核对。Web：11 个场景 × 3 种模式 × 3 次 = 99，页面错误 0。iOS：11 × 3 × 2，其中 `history-100` 和 `shell-log-large` 每种模式 6 次，共 90 次。
+
+方法、工具和全部原始数据见 [`docs/bench/native-vs-fork`](docs/bench/native-vs-fork/README.md)（`raw/web-2026-10-14`、`raw/ios-2026-10-14`）；和 Beautiful Chat 的逐项差异及每轮测量的来龙去脉见 [`docs/fork-vs-upstream.md`](docs/fork-vs-upstream.md)。图表由 `node docs/perf/readme-charts.mjs` 从这批原始数据生成。百分比在舍入之前用中位数计算。
 
 ### 时间省在哪里
 
@@ -106,27 +122,27 @@ iOS 模拟器开发版上（每次运行前冷启动），单次提交里所有�
 
 ## 内存对比
 
-Web 生产构建，测量于 2026-10-13：每格是强制 GC 后 3 次运行的中位数。表格统计 JS 堆占用，不代表整个应用或进程的总内存。差值为 Better Paseo 减去对应基线，按未舍入数据计算，负数表示更省内存；单位均为 MB。
+Web 生产构建，测量于 2026-10-14：每格是强制 GC 后 3 次运行的中位数。表格统计 JS 堆占用，不代表整个应用或进程的总内存。差值为 Better Paseo 减去对应基线，按未舍入数据计算，负数表示更省内存；单位均为 MB。
 
 ![强制 GC 后的 JS 堆与 DOM 节点](docs/perf/readme/web-memory.zh.svg)
 
-对比不开插件，长回复少用 41.1MB，其余场景的差值为 −2.5 到 +3.7MB。对比 Beautiful Chat，大 diff、100 轮历史和读 20 个文件少用 105.0–126.9MB。Beautiful Chat 默认展开运行中的工具，Better Paseo 默认保持折叠。
+对比不开插件，长回复少用 40.8MB，其余场景的差值为 −1.4 到 +4.0MB。对比 Beautiful Chat，大 diff、100 轮历史和读 20 个文件少用 102.9–126.0MB，其余场景的差值为 −13.6 到 +1.0MB。Beautiful Chat 默认展开运行中的工具，Better Paseo 默认保持折叠。
 
 | 场景 | 不开插件 | Beautiful Chat | Better Paseo | 对比不开插件 | 对比 Beautiful Chat |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 代码块流式 | 139.1 | 138.3 | **136.6** | -2.5 | -1.7 |
-| 大 diff | 131.6 | 239.5 | **134.5** | +2.9 | -105.0 |
-| 100 轮历史 | 140.3 | 264.7 | **141.9** | +1.6 | -122.8 |
-| 长回复 | 180.8 | 141.4 | **139.8** | -41.1 | -1.6 |
-| 混合一轮 | 136.8 | 146.0 | **137.1** | +0.3 | -8.9 |
-| 读 20 个文件 | 136.0 | 265.9 | **139.0** | +3.1 | -126.9 |
-| 思考散文 | 133.9 | 137.3 | **135.7** | +1.9 | -1.6 |
-| 思考分节 | 133.0 | 136.7 | **136.7** | +3.7 | 0.0 |
-| 大段终端 | 133.1 | 151.6 | **135.4** | +2.3 | -16.2 |
-| 表格流式 | 136.7 | 137.0 | **136.7** | 0.0 | -0.3 |
-| 展开的工具 | 135.2 | 147.2 | **137.8** | +2.6 | -9.4 |
+| 代码块流式 | 113.9 | 113.0 | **112.4** | -1.4 | -0.5 |
+| 大 diff | 106.9 | 213.6 | **110.8** | +3.9 | -102.9 |
+| 100 轮历史 | 114.7 | 242.6 | **117.7** | +3.0 | -124.9 |
+| 长回复 | 156.2 | 114.4 | **115.4** | -40.8 | +1.0 |
+| 混合一轮 | 111.5 | 120.8 | **112.6** | +1.1 | -8.2 |
+| 读 20 个文件 | 111.2 | 241.2 | **115.2** | +4.0 | -126.0 |
+| 思考散文 | 108.5 | 112.2 | **111.8** | +3.2 | -0.4 |
+| 思考分节 | 108.5 | 112.3 | **111.8** | +3.2 | -0.6 |
+| 大段终端 | 108.4 | 125.3 | **111.7** | +3.3 | -13.6 |
+| 表格流式 | 111.9 | 112.7 | **113.3** | +1.4 | +0.6 |
+| 展开的工具 | 111.0 | 122.7 | **114.0** | +3.0 | -8.7 |
 
-原始数据见 [`docs/bench/native-vs-fork/raw/web-2026-10-13`](docs/bench/native-vs-fork/raw/web-2026-10-13)。
+原始数据见 [`docs/bench/native-vs-fork/raw/web-2026-10-14`](docs/bench/native-vs-fork/raw/web-2026-10-14)。
 
 ---
 

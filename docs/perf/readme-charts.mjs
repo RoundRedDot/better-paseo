@@ -1,9 +1,11 @@
 // Charts for README.md and README-zh.md, one English and one Chinese copy of each.
 //   node docs/perf/readme-charts.mjs
 // Reads the raw runs under docs/bench/native-vs-fork/raw and writes docs/perf/readme/*.svg:
-//   web-cpu.<lang>.svg     Web main-thread task time, no plugin / Beautiful Chat 42b61d8 / this fork
+//   web-cpu.<lang>.svg     Web main-thread task time, no plugin / Beautiful Chat 42b61d8 / Better Paseo
 //   web-memory.<lang>.svg  JS heap and DOM nodes after a forced GC, the scenarios that differ most
-//   ios-commit.<lang>.svg  iOS per-commit row total p95, no plugin / this fork
+//   ios-commit.<lang>.svg  iOS total row-render time (median of allRows.sum), no plugin / Beautiful Chat 42b61d8 / Better Paseo
+// The iOS axis is clipped so no-plugin and Better Paseo stay readable. Beautiful Chat's
+// multi-second totals, and a long reply, keep the real number as the bar label.
 // Every figure is the median of the runs of one mode. The charts carry their own white card,
 // so they stay legible on GitHub's dark theme.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -28,6 +30,11 @@ const SCENARIOS = [
   ["tool-expanded-streaming", "Expanded tool", "展开的工具"],
 ];
 const MEMORY_SCENARIOS = ["diff-large", "history-100", "markdown-long", "reads-20", "shell-log-large", "tool-expanded-streaming"];
+// Above this, an iOS bar is clipped and the label keeps the real total. 2,000 ms keeps
+// every Better Paseo bar on scale (the long reply is 1,833 ms) and every no-plugin bar
+// except the code block (2,301 ms) and the long reply (5,075 ms). Those two stay longer
+// than the Better Paseo bar; the label is the real total.
+const IOS_AXIS_MS = 2000;
 
 const TEXT = {
   en: {
@@ -39,13 +46,16 @@ const TEXT = {
     vsUpstream: "vs Beautiful Chat",
     even: "even",
     cpuTitle: "Web: main-thread time for a whole replay (seconds, lower is better)",
-    cpuNote: "Web production build, same session, 3 runs per mode, median, 2026-10-13. Green ⬆ is better than the baseline, red ⬇ is worse.",
+    cpuNote: "Web production build, same session, 3 runs per mode, median, 2026-10-14. Green ⬆ is better than the baseline, red ⬇ is worse.",
     memTitle: "Web: memory after a forced GC (lower is better)",
-    memNote: "Same runs as the main-thread chart. DOM nodes on a log scale.",
+    memNote: "Same runs as the main-thread chart, 2026-10-14. DOM nodes on a log scale.",
     heap: "JS heap (MB)",
     dom: "DOM nodes",
-    iosTitle: "iOS: per-commit render time of all rows, p95 (ms, lower is better)",
-    iosNote: "iOS simulator, development build, cold start each run, 2-6 runs per mode, median, 2026-10-12. Green ⬆ better, red ⬇ worse.",
+    iosTitle: "iOS: total row-render time per replay (ms, lower is better)",
+    iosNote: [
+      "iOS 18.6 simulator, development build, cold start, median, 2026-10-14. 2 runs; 6 for history and the large shell log.",
+      `Total row-render time. Bars past ${IOS_AXIS_MS.toLocaleString("en-US")} ms are clipped; the label is the real total. Green ⬆ better, red ⬇ worse.`,
+    ],
   },
   zh: {
     font: "'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif",
@@ -56,13 +66,16 @@ const TEXT = {
     vsUpstream: "对比 Beautiful Chat",
     even: "持平",
     cpuTitle: "Web：整段回放的主线程时间（秒，越短越好）",
-    cpuNote: "Web 生产构建，同一次会话交替运行，每种模式 3 次取中位数，2026-10-13。绿色 ⬆ 表示比基线好，红色 ⬇ 表示比基线差。",
+    cpuNote: "Web 生产构建，同一次会话交替运行，每种模式 3 次取中位数，2026-10-14。绿色 ⬆ 表示比基线好，红色 ⬇ 表示比基线差。",
     memTitle: "Web：强制 GC 后的内存（越低越好）",
-    memNote: "与主线程时间同一批跑次。DOM 节点为对数刻度。",
+    memNote: "与主线程时间同一批跑次，2026-10-14。DOM 节点为对数刻度。",
     heap: "JS 堆（MB）",
     dom: "DOM 节点",
-    iosTitle: "iOS：单次提交里所有行的渲染耗时 p95（毫秒，越短越好）",
-    iosNote: "iOS 模拟器开发版，每次冷启动，每种模式 2–6 次取中位数，2026-10-12。绿色 ⬆ 表示更好，红色 ⬇ 表示更差。",
+    iosTitle: "iOS：每次回放的行渲染总量（毫秒，越短越好）",
+    iosNote: [
+      "iOS 18.6 模拟器开发版，每次冷启动，中位数，2026-10-14。多数 2 次，100 轮历史和大段终端 6 次。",
+      `行渲染总量。超过 ${IOS_AXIS_MS} ms 的条被截断，数字是真实总量。绿色 ⬆ 更好，红色 ⬇ 更差。`,
+    ],
   },
 };
 
@@ -96,12 +109,12 @@ function load(dirs) {
   };
 }
 
-const web = load(["web-2026-10-13"]);
-const ios = load(["ios", "ios-hist"]);
+const web = load(["web-2026-10-14"]);
+const ios = load(["ios-2026-10-14"]);
 const task = (run) => run.cdp.delta.TaskDuration;
 const heap = (run) => run.cdp.jsHeapUsedMB;
 const nodes = (run) => run.cdp.nodes;
-const commitP95 = (run) => (run.probe ?? run).perCommit.p95;
+const rowSum = (run) => (run.probe ?? run).allRows.sum;
 
 const escape = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const textEl = (x, y, content, { size = 12, fill = INK, anchor = "start", weight = 400, font }) =>
@@ -165,17 +178,19 @@ function groupedChart({ t, lang, modes, get, max, ticks, unit, digits, title, no
   const X0 = 180;
   const PLOT = deltas.length === 2 ? 470 : 560;
   const ROW = modes.length * (bar + 2) + 14;
-  const TOP = 88;
+  const noteLines = Array.isArray(note) ? note : [note];
+  const legendY = 58 + noteLines.length * 16;
+  const TOP = legendY + 14;
   const height = TOP + SCENARIOS.length * ROW + 40;
   const x = (v) => X0 + (Math.min(v, max) / max) * PLOT;
   const font = t.font;
   const body = [
     textEl(24, 32, title, { size: 15, weight: 600, font }),
-    textEl(24, 52, note, { size: 11.5, fill: MUTED, font }),
-    ...legend(24, 74, modes.map((mode) => [mode, t[mode]]), font),
+    ...noteLines.map((line, index) => textEl(24, 52 + index * 16, line, { size: 11.5, fill: MUTED, font })),
+    ...legend(24, legendY, modes.map((mode) => [mode, t[mode]]), font),
   ];
   const columns = deltas.map((_, index) => WIDTH - 24 - (deltas.length - 1 - index) * 116);
-  deltas.forEach(([, label], index) => body.push(textEl(columns[index], 74, label, { size: 11, fill: MUTED, anchor: "end", font })));
+  deltas.forEach(([, label], index) => body.push(textEl(columns[index], legendY, label, { size: 11, fill: MUTED, anchor: "end", font })));
   const bottom = TOP + SCENARIOS.length * ROW - 6;
   for (const tick of ticks) {
     body.push(`<line x1="${x(tick).toFixed(1)}" y1="${TOP - 6}" x2="${x(tick).toFixed(1)}" y2="${bottom}" stroke="${GRID}" stroke-width="1"/>`);
@@ -291,16 +306,16 @@ for (const lang of ["en", "zh"]) {
     "ios-commit": groupedChart({
       t,
       lang,
-      modes: ["native", "fork"],
-      get: (fixture, mode) => ios(fixture, mode, commitP95),
-      max: 90,
-      ticks: [0, 30, 60, 90],
+      modes: ["native", "upstream", "fork"],
+      get: (fixture, mode) => ios(fixture, mode, rowSum),
+      max: IOS_AXIS_MS,
+      ticks: [0, 500, 1000, 1500, IOS_AXIS_MS],
       unit: "ms",
       digits: 1,
       title: t.iosTitle,
       note: t.iosNote,
-      deltas: [["native", t.vsNative]],
-      bar: 10,
+      deltas: [["native", t.vsNative], ["upstream", t.vsUpstream]],
+      // Millisecond totals: only the 10% clause. The Web chart's half-second floor stays off.
     }),
   };
   for (const [name, chart] of Object.entries(charts)) {
