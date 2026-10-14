@@ -182,7 +182,8 @@ describe("parsePreferences", () => {
     expect(parsePreferences({ codeFontSize: null }).codeFontSize).toBeNull();
     expect(parsePreferences({ codeFontSize: Number.NaN }).codeFontSize).toBeNull();
     expect(parsePreferences({}).blockFontSize).toBe(13);
-    expect(parsePreferences({ blockFontSize: 9 }).blockFontSize).toBe(12);
+    expect(parsePreferences({ blockFontSize: 9 }).blockFontSize).toBe(9);
+    expect(parsePreferences({ blockFontSize: 8 }).blockFontSize).toBe(9);
     expect(parsePreferences({ blockFontSize: 40 }).blockFontSize).toBe(20);
     expect(parsePreferences({ blockFontSize: 15.6 }).blockFontSize).toBe(16);
     expect(parsePreferences({ blockFontSize: "big" }).blockFontSize).toBe(13);

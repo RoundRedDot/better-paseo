@@ -592,7 +592,7 @@ function CodeSizeControl({ value, look }: { value: number | null; look: PageLook
   );
 }
 
-/** 12–20px for tool rows, thoughts, checklists and notices. */
+/** 9–20px for tool rows, thoughts, checklists and notices. */
 function BlockSizeControl({ value, look }: { value: number; look: PageLook }) {
   const { tokens, t } = look;
   const set = (next: number) =>
