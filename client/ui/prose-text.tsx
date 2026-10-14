@@ -148,6 +148,13 @@ function fragments(children: ReactNode, run: Run): ReactNode[] {
 export function ProseText({ style, children, ...rest }: TextProps) {
   const native = nativeProse();
   const run = useMemo<Run>(() => ({ style: fragmentStyle(null, style) }), [style]);
+  // UITextView starts on the system background, black in dark mode, and the
+  // root only repaints when its fill prop changes: give it one, as
+  // react-native-uitextview's own `flattenStyles` does.
+  const rootStyle = useMemo(
+    () => ({ ...(StyleSheet.flatten(style) ?? {}), backgroundColor: run.style.backgroundColor }),
+    [style, run],
+  );
   if (!native) {
     return (
       <Text selectable style={[style, contentTextStyle()]} {...rest} {...contentTextProps()}>
@@ -165,7 +172,7 @@ export function ProseText({ style, children, ...rest }: TextProps) {
         accessibilityLabel={rest.accessibilityLabel}
         // The root reports each laid-out line's text (no geometry).
         onTextLayout={rest.onTextLayout}
-        style={style}
+        style={rootStyle}
       >
         {fragments(children, run)}
       </ROOT>
