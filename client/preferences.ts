@@ -118,7 +118,8 @@ export interface EnhancerPreferences {
    * Paseo up to 0.11.2 spaces a plugin item like any other item, 16pt under
    * each, where its own tool rows sit flush. On, tool and thought rows take
    * most of that back (`ROW_GAP_COMPENSATION`). A host that stacks plugin rows
-   * itself needs it off, or the rows overlap.
+   * itself is detected from where the rows are drawn (`host-row-gap.ts`), and
+   * a row then takes nothing back above another row.
    */
   compactRowSpacing: boolean;
   /**
