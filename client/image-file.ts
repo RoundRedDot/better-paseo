@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRpc } from "@getpaseo/plugin/client";
 import { imageRpc } from "../shared/image-rpc";
+import { probeImageRpc } from "./debug/perf";
 
 /** What the daemon side could tell the client about one image file. */
 export interface ImageFile {
@@ -73,7 +74,9 @@ export function useImageFile(path: string | undefined, cwd: string | null): Imag
     }
     let cancelled = false;
     setFile(null);
-    load({ cwd: cwd ?? "", path })
+    const requestCwd = cwd ?? "";
+    const request = load({ cwd: requestCwd, path });
+    request
       .then((result) => {
         if (cancelled) return;
         setFile({
@@ -94,6 +97,7 @@ export function useImageFile(path: string | undefined, cwd: string | null): Imag
           error: error instanceof Error ? error.message : String(error),
         });
       });
+    probeImageRpc(requestCwd, path, request);
     return () => {
       cancelled = true;
     };

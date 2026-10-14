@@ -24,6 +24,7 @@ const EXPECTED_FRAME_MS = 1000 / 60;
 
 let on = false;
 const store = createPerfStore();
+const imageRpcInFlight = new Map<string, number>();
 
 const now: () => number =
   typeof performance !== "undefined" && typeof performance.now === "function"
@@ -155,6 +156,22 @@ export function probeHighlightRpc(language: string | undefined): void {
   store.highlightRpc(language);
 }
 
+/** Counts image RPCs and repeated cwd/path pairs while a prior call is pending. */
+export function probeImageRpc(cwd: string, path: string, request: Promise<unknown>): void {
+  if (!on) return;
+  const key = JSON.stringify([cwd, path]);
+  const inFlight = imageRpcInFlight.get(key) ?? 0;
+  store.imageRpc(inFlight > 0);
+  imageRpcInFlight.set(key, inFlight + 1);
+
+  const settled = (): void => {
+    const remaining = (imageRpcInFlight.get(key) ?? 1) - 1;
+    if (remaining === 0) imageRpcInFlight.delete(key);
+    else imageRpcInFlight.set(key, remaining);
+  };
+  void request.then(settled, settled);
+}
+
 // --- Named counters --------------------------------------------------------
 
 /** Adds `by` to the counter `name` (e.g. `md.finalRerender`). One test while off. */
@@ -261,6 +278,8 @@ export function reportPerf(): PerfSnapshot {
     "format flips": snap.markdown.formatFlips,
     "height decreases (streaming)": `${snap.heightDecreases.count} (${snap.heightDecreases.whileStreaming})`,
     "highlight RPCs": snap.highlightRpc.count,
+    "image RPCs": snap.imageRpc.count,
+    "image RPCs repeated in flight": snap.imageRpc.duplicatesInFlight,
     "animations mounted (peak)": `${snap.animations.mounted} (${snap.animations.peak})`,
     "dropped frame ratio": snap.frames.droppedRatio,
     "longest frame ms": snap.frames.longestMs,
