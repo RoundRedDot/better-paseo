@@ -146,6 +146,35 @@ describe("hover preview content bounds", () => {
   });
 });
 
+describe("hover preview and timeline scrolls", () => {
+  it("stays open and in place when the timeline scrolls on its own, as when a streamed call finishes", () => {
+    const { panel, view, close, resize, release } = layer(200, 700);
+    const top = panel.style.top;
+    listener(view, "scroll")({ target: OUTSIDE });
+    expect(close).not.toHaveBeenCalled();
+    // The row has moved up the timeline; growing content no longer follows it.
+    anchorTop = 400;
+    resize();
+    expect(panel.style.top).toBe(top);
+    expect(top).toBe("132px");
+    expect(panel.style.maxHeight).toBe("360px");
+    // Arrow keys in a field move its caret, not the page.
+    const key = listener(panel.ownerDocument, "keydown");
+    key({ key: "ArrowDown", target: { closest: () => ({}) } });
+    listener(view, "scroll")({ target: OUTSIDE });
+    expect(close).not.toHaveBeenCalled();
+    release();
+  });
+
+  it("closes on a scroll the reader started from the keyboard", () => {
+    const { panel, view, close, release } = layer(200, 700);
+    listener(panel.ownerDocument, "keydown")({ key: "PageDown", target: OUTSIDE });
+    listener(view, "scroll")({ target: OUTSIDE });
+    expect(close).toHaveBeenCalledOnce();
+    release();
+  });
+});
+
 describe("hover preview entrance", () => {
   it("fades in on the compositor, sliding down from a row above it", () => {
     const { panel, view, release } = layer(200, 700);
