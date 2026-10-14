@@ -1,7 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRpc } from "@getpaseo/plugin/client";
+import type { output as ZodOutput } from "zod";
 import { imageRpc } from "../shared/image-rpc";
 import { probeImageRpc } from "./debug/perf";
+
+type ImageRpcResult = ZodOutput<typeof imageRpc.output>;
+
+// This module-level map is connection-local only because Paseo evaluates this
+// client bundle once per serverId/pluginId; verified for v0.8.0–v0.11.2.
+const imageReadsInFlight = new Map<string, Promise<ImageRpcResult>>();
+const newlyStartedImageReads = new WeakSet<Promise<unknown>>();
 
 /** What the daemon side could tell the client about one image file. */
 export interface ImageFile {
@@ -63,7 +71,24 @@ function endsInImageExtension(path: string): boolean {
  * card instead of taking the timeline down.
  */
 export function useImageFile(path: string | undefined, cwd: string | null): ImageFile | null {
-  const load = useRpc(imageRpc);
+  const rpcLoad = useRpc(imageRpc);
+  const load = useCallback<typeof rpcLoad>(
+    (input) => {
+      const key = JSON.stringify([input.cwd, input.path]);
+      const pending = imageReadsInFlight.get(key);
+      if (pending) return pending;
+
+      const request = rpcLoad(input);
+      imageReadsInFlight.set(key, request);
+      newlyStartedImageReads.add(request);
+      const clear = () => {
+        if (imageReadsInFlight.get(key) === request) imageReadsInFlight.delete(key);
+      };
+      void request.then(clear, clear);
+      return request;
+    },
+    [rpcLoad],
+  );
   const [file, setFile] = useState<ImageFile | null>(null);
   const wanted = path !== undefined && isImagePath(path);
 
@@ -97,7 +122,8 @@ export function useImageFile(path: string | undefined, cwd: string | null): Imag
           error: error instanceof Error ? error.message : String(error),
         });
       });
-    probeImageRpc(requestCwd, path, request);
+    // Count this request only when this consumer started the actual RPC.
+    if (newlyStartedImageReads.delete(request)) probeImageRpc(requestCwd, path, request);
     return () => {
       cancelled = true;
     };
