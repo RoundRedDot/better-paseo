@@ -270,7 +270,12 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   /** The pointer is down on the frame, so leaving must not start the close timer. */
   onHold?(holding: boolean): void;
   /** The reader moved or resized the frame: pin it and stop following the row. */
-  onPlace?(): void;
+  onPlace?(box: PreviewBox): void;
+  /**
+   * A box the reader already placed. The layer opens there, without the
+   * entrance, instead of following the row or filling the viewport.
+   */
+  frame?: PreviewBox | null;
   /** A press ended without a drag and the pointer is no longer over the frame. */
   onLeave?(): void;
   /** Reapplies a placed frame after React commits, which rewrites the panel's style. */
@@ -292,7 +297,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
 
   let below = true;
   // Set once the reader drags or resizes. Until then the panel follows its row.
-  let frame: PreviewBox | null = null;
+  let frame: PreviewBox | null = options.frame ?? null;
   let holding = false;
   const screen = (): PreviewSize => ({ width: view.innerWidth, height: view.innerHeight });
   const floating = () => frame !== null || Boolean(options.maximized);
@@ -353,8 +358,11 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     if (body && options.onLinesFit) options.onLinesFit(linesFit(body));
   };
   measure();
-  if (options.maximized) grow(panel, hoverRects.get(panel));
-  else reveal(panel, below);
+  // A box carried over from a drag is already in place, so it does not fade or grow again.
+  if (!options.frame) {
+    if (options.maximized) grow(panel, hoverRects.get(panel));
+    else reveal(panel, below);
+  }
   hoverRects.delete(panel);
   // Content can grow while streaming or after syntax highlighting/fonts settle.
   const resizeObserver = new view.ResizeObserver(measure);
@@ -384,7 +392,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
     place() {
       if (frame) applyFrame(frame);
       if (body && options.onLinesFit) options.onLinesFit(linesFit(body));
-      options.onPlace?.();
+      if (frame) options.onPlace?.(frame);
     },
     leave() { options.onLeave?.(); },
     bounds: screen,

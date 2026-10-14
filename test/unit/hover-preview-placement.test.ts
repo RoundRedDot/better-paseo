@@ -323,7 +323,7 @@ describe("moving and resizing a hover preview", () => {
     };
   }
 
-  function movable() {
+  function movable(options: { maximized?: boolean; frame?: { x: number; y: number; width: number; height: number } } = {}) {
     const panelEvents = emitter();
     const docEvents = emitter();
     const viewEvents = emitter();
@@ -349,8 +349,9 @@ describe("moving and resizing a hover preview", () => {
     const button = { closest: (selector: string) => selector.includes("button") ? button : null };
     const toolbar = { contains: (node: unknown) => node === title || node === toolbar };
     const content = { getBoundingClientRect: () => ({ left: 200, right: 900 }) };
+    const viewport = { getBoundingClientRect: () => ({ top: 64, bottom: 800, left: 0, right: 1600 }) };
     const anchor = {
-      closest: vi.fn(() => content),
+      closest: vi.fn((selector: string) => selector === "[data-window-content]" ? viewport : content),
       getBoundingClientRect: () => ({ left: 192, right: 216, top: 100, bottom: 126 }),
     };
     const panel = Object.assign(panelEvents, {
@@ -377,7 +378,7 @@ describe("moving and resizing a hover preview", () => {
       },
       animate: vi.fn(),
     });
-    const release = openPreviewLayer(panel, anchor, close, { onPlace, onHold, onLeave });
+    const release = openPreviewLayer(panel, anchor, close, { onPlace, onHold, onLeave, ...options });
     const pointer = (target: unknown, point: { x: number; y: number }, extra: Record<string, unknown> = {}) => ({
       button: 0, pointerId: 1, pointerType: "mouse", clientX: point.x, clientY: point.y, target,
       defaultPrevented: false, preventDefault: vi.fn(), stopPropagation: vi.fn(), ...extra,
@@ -409,6 +410,27 @@ describe("moving and resizing a hover preview", () => {
     expect(panel.style.left).toBe("8px");
     expect(panel.style.width).toBe("384px");
     release();
+  });
+
+  it("keeps the box dragged out of a maximized window, without playing the entrance again", () => {
+    const { panel, docEvents, onPlace, title, release, pointer } = movable({ maximized: true });
+    expect(panel.style.top).toBe("80px");
+    expect(panel.style.height).toBe("704px");
+    panel.emit("pointerdown", pointer(title, { x: 400, y: 120 }));
+    docEvents.emit("pointermove", pointer(title, { x: 480, y: 180 }));
+    docEvents.emit("pointerup", pointer(title, { x: 480, y: 180 }));
+    const box = onPlace.mock.calls[0]![0] as { x: number; y: number; width: number; height: number };
+    expect(box).toEqual({ x: 280, y: 140, width: 700, height: 704 });
+    expect(panel.style.left).toBe("280px");
+    release();
+
+    const restored = movable({ frame: box });
+    expect(restored.panel.animate).not.toHaveBeenCalled();
+    expect(restored.panel.style.left).toBe("280px");
+    expect(restored.panel.style.top).toBe("140px");
+    expect(restored.panel.style.width).toBe("700px");
+    expect(restored.panel.style.height).toBe("704px");
+    restored.release();
   });
 
   it("resizes from an edge and ignores a drag that starts on a button", () => {

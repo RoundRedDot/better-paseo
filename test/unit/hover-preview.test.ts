@@ -8,6 +8,12 @@ vi.mock("@getpaseo/plugin/client/react-native", () => ({ Icon: "Icon" }));
 const state = vi.hoisted(() => ({
   hover: true,
   onLinesFit: undefined as ((fits: boolean) => void) | undefined,
+  layers: [] as Array<{
+    maximized?: boolean;
+    frame?: { x: number; y: number; width: number; height: number } | null;
+    onLinesFit?: (fits: boolean) => void;
+    onPlace?: (box: { x: number; y: number; width: number; height: number }) => void;
+  }>,
   bindRowHover: vi.fn(() => () => {}),
   bindPreviewMaximize: vi.fn((_node: unknown, _maximize: () => void) => vi.fn()),
   dropSelectionIn: vi.fn(),
@@ -21,7 +27,13 @@ vi.mock("../../client/web", () => ({
   bindPreviewMaximize: state.bindPreviewMaximize,
   dropSelectionIn: state.dropSelectionIn,
   bindPreviewPointer: () => () => {},
-  openPreviewLayer: (_node: unknown, _anchor: unknown, _close: unknown, options: { onLinesFit(fits: boolean): void }) => {
+  openPreviewLayer: (_node: unknown, _anchor: unknown, _close: unknown, options: {
+    maximized?: boolean;
+    frame?: { x: number; y: number; width: number; height: number } | null;
+    onLinesFit?: (fits: boolean) => void;
+    onPlace?: (box: { x: number; y: number; width: number; height: number }) => void;
+  }) => {
+    state.layers.push(options);
     state.onLinesFit = options.onLinesFit;
     return () => {};
   },
@@ -49,6 +61,7 @@ beforeEach(() => {
   resetEnhancerPreferences();
   state.hover = true;
   state.onLinesFit = undefined;
+  state.layers = [];
   state.bindRowHover.mockClear();
   state.bindPreviewMaximize.mockClear();
   state.dropSelectionIn.mockClear();
@@ -178,6 +191,12 @@ describe("hover preview lifetime", () => {
     act(() => preview.leave());
     act(() => { vi.advanceTimersByTime(PREVIEW_CLOSE_MS); });
     expect(preview.open).toBe(true);
+    expect(preview.placed).toBe(true);
+    act(() => preview.maximize());
+    expect(preview.maximized).toBe(true);
+    act(() => preview.place());
+    expect(preview.open).toBe(true);
+    expect(preview.maximized).toBe(false);
     expect(preview.placed).toBe(true);
     act(() => preview.close());
     expect(preview.placed).toBe(false);
@@ -349,6 +368,22 @@ describe("line wrap in the desktop preview", () => {
     expect(sideways()).toHaveLength(0);
     // The setting is the default for the next panel, not changed by the button.
     expect(getEnhancerPreferences().previewWrap).toBe(false);
+  });
+
+  it("returns Maximize after a drag and reopens the layer at that box", () => {
+    act(() => { renderer = TestRenderer.create(React.createElement(Panel)); });
+    const windowButton = (label: string) => renderer.root.findAll((node) =>
+      (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === label);
+    act(() => windowButton("Maximize preview")[0]!.props.onPress());
+    expect(own.maximized).toBe(true);
+    const box = { x: 40, y: 80, width: 500, height: 300 };
+    act(() => state.layers.at(-1)!.onPlace!(box));
+    expect(own.maximized).toBe(false);
+    expect(own.placed).toBe(true);
+    expect(windowButton("Maximize preview")).toHaveLength(1);
+    expect(windowButton("Close preview")).toHaveLength(0);
+    expect(state.layers.at(-1)).toMatchObject({ maximized: false, frame: box });
+    expect(renderer.root.findAll((node) => node.props.accessibilityLabel === "Expanded preview")).toHaveLength(0);
   });
 
   it("offers Maximize whatever the content's size, and Close once maximized", () => {
