@@ -20,6 +20,7 @@ import { ToolCallout } from "../../client/components/tool-callouts";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { DisclosureHeader, RowIcon } from "../../client/ui/disclosure-header";
 import { HoverPreviewHeader } from "../../client/ui/hover-preview";
+import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { classifyTool, type ToolKind } from "../../client/tools/classify";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { sourceLineTops } from "../../client/ui/preview-lines";
@@ -256,6 +257,85 @@ describe("full hover preview content", () => {
       streaming: false, durationMs: null, expanded: false, onToggle() {}, tokens, storeKey: "preview", copyText: thought }));
     expect(text).toContain("FINAL_SENTENCE");
     expect(text).not.toContain("Show more");
+  });
+
+  it("keeps a streaming dot in the title bar's centre, beside a name when there is one", () => {
+    let header!: ReturnType<typeof TestRenderer.create>;
+    act(() => { header = TestRenderer.create(React.createElement(HoverPreviewHeader, { tokens, streaming: true })); });
+    const center = header.root.findByProps({ testID: "hover-preview-center" });
+    const dot = center.findByProps({ testID: "hover-preview-streaming" }).findByProps({ accessibilityRole: "progressbar" });
+    expect(dot.props.accessibilityLabel).toBe("Streaming");
+    expect(center.findAllByProps({ testID: "hover-preview-tool-name" })).toHaveLength(0);
+    act(() => header.update(React.createElement(HoverPreviewHeader, {
+      tokens, streaming: true, icon: "Image", iconLabel: "Read", center: React.createElement("ImageMeta", null, "640 × 480"),
+    })));
+    const named = header.root.findByProps({ testID: "hover-preview-center" });
+    expect(named.findByProps({ testID: "hover-preview-streaming" })).toBeDefined();
+    expect(named.findAll((node) => (node.type as unknown) === "ImageMeta")).toHaveLength(1);
+    expect(named.findAllByProps({ testID: "hover-preview-tool-name" })).toHaveLength(0);
+    act(() => header.update(React.createElement(HoverPreviewHeader, { tokens })));
+    expect(header.root.findAllByProps({ testID: "hover-preview-streaming" })).toHaveLength(0);
+    act(() => header.unmount());
+  });
+
+  it("shows a streaming thought's dot and its latest text in the hover and maximized preview", () => {
+    const card = (body: string, streaming: boolean) => React.createElement(ReasoningCard, {
+      segmentation: { kind: "prose", body }, streaming, durationMs: null, expanded: false, onToggle() {},
+      tokens, storeKey: "preview-live", copyText: body,
+    });
+    let row!: ReturnType<typeof TestRenderer.create>;
+    let preview!: ReturnType<typeof TestRenderer.create>;
+    act(() => { row = TestRenderer.create(card("first paragraph", true)); });
+    const open = () => row.root.findByType(DisclosureHeader).props.previewContent();
+    act(() => { preview = TestRenderer.create(open()); });
+    expect(preview.root.findByProps({ testID: "hover-preview-center" }).findByProps({ testID: "hover-preview-streaming" })).toBeDefined();
+    expect(preview.root.findByType(MarkdownView).props.streaming).toBe(true);
+    expect(textOf(preview.toJSON())).toContain("first paragraph");
+    act(() => { row.update(card("first paragraph\n\nLATEST_OUTPUT", true)); });
+    act(() => { preview.update(open()); });
+    expect(textOf(preview.toJSON())).toContain("LATEST_OUTPUT");
+    expect(preview.root.findByType(MarkdownView).props.streaming).toBe(true);
+    act(() => { row.update(card("first paragraph\n\nLATEST_OUTPUT", false)); });
+    act(() => { preview.update(open()); });
+    expect(preview.root.findAllByProps({ testID: "hover-preview-streaming" })).toHaveLength(0);
+    expect(preview.root.findByType(MarkdownView).props.streaming).toBe(false);
+    act(() => { row.unmount(); preview.unmount(); });
+  });
+
+  it("shows a running command's dot and replaces the preview with its latest output", () => {
+    const data = (output: string, status: "running" | "completed" = "running") => classifyTool({
+      name: "Bash", status, detail: { type: "shell", command: "make", output },
+    });
+    let row!: ReturnType<typeof TestRenderer.create>;
+    let preview!: ReturnType<typeof TestRenderer.create>;
+    act(() => { row = TestRenderer.create(React.createElement(ToolCallout, { data: data("line-1"), tokens })); });
+    const open = () => row.root.findByType(DisclosureHeader).props.previewContent();
+    act(() => { preview = TestRenderer.create(open()); });
+    const center = () => preview.root.findByProps({ testID: "hover-preview-center" });
+    expect(center().findByProps({ testID: "hover-preview-streaming" })).toBeDefined();
+    expect(textOf(center())).toContain("Bash");
+    expect(textOf(preview.toJSON())).toContain("line-1");
+    act(() => { row.update(React.createElement(ToolCallout, { data: data("line-1\nline-2"), tokens })); });
+    act(() => { preview.update(open()); });
+    expect(textOf(preview.toJSON())).toContain("line-2");
+    act(() => { row.update(React.createElement(ToolCallout, { data: data("line-1\nline-2", "completed"), tokens })); });
+    act(() => { preview.update(open()); });
+    expect(preview.root.findAllByProps({ testID: "hover-preview-streaming" })).toHaveLength(0);
+    expect(textOf(preview.toJSON())).toContain("line-2");
+    act(() => { row.unmount(); preview.unmount(); });
+  });
+
+  it("marks only the grouped call that is still running", async () => {
+    const calls = [
+      classifyTool({ callId: "0", name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "done" } }),
+      classifyTool({ callId: "1", name: "Bash", status: "running", detail: { type: "shell", command: "make", output: "so far" } }),
+    ];
+    await exercisePreview(React.createElement(ToolCallout, { data: calls[0]!, groupCalls: calls, tokens }), async (body) => {
+      expect(body.root.findAllByProps({ testID: "hover-preview-streaming" })).toHaveLength(0);
+      await press(body, "Next operation");
+      expect(body.root.findByProps({ testID: "hover-preview-streaming" })).toBeDefined();
+      expect(textOf(body.toJSON())).toContain("so far");
+    });
   });
 });
 

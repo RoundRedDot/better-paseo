@@ -410,11 +410,12 @@ export function ToolPreviewContent({ data, resolvePath, drawsImage = false, ...r
   drawsImage?: boolean;
 }) {
   const { tokens, imageFile } = rest;
+  const streaming = data.status === "running";
   return (
     <>
-      <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens}
+      <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens} streaming={streaming}
         meta={drawsImage ? <ImageMeta file={imageFile ?? null} tokens={tokens} /> : undefined} />
-      <HoverPreviewBody>
+      <HoverPreviewBody streaming={streaming}>
         {data.filePath ? <PreviewPath path={resolvePath(data.filePath)} tokens={tokens} /> : null}
         <ToolBody data={data} {...rest} preview />
         {data.error ? <PreviewError text={data.error} tokens={tokens} /> : null}
@@ -432,13 +433,14 @@ function GroupedPreview({ calls, resolvePath, path, onViewImage, ...rest }: Grou
   const [index, setIndex] = useGroupPage(calls.length);
   const { tokens, imageFile } = rest;
   const call = calls[index]!;
+  const streaming = call.status === "running";
   const drawsImage = (call.tool === "read" || call.tool === "write") && imageFile !== undefined && isImagePath(call.filePath);
   return (
     <>
-      <ToolPreviewActions call={call} resolvePath={resolvePath} tokens={tokens}
+      <ToolPreviewActions call={call} resolvePath={resolvePath} tokens={tokens} streaming={streaming}
         pager={<GroupPager index={index} count={calls.length} onChange={setIndex} tokens={tokens} />}
         meta={drawsImage ? <ImageMeta file={imageFile ?? null} tokens={tokens} /> : undefined} />
-      <HoverPreviewBody>
+      <HoverPreviewBody streaming={streaming}>
         {path ? <PreviewPath path={path} tokens={tokens} /> : null}
         <GroupedCallBody key={calls[index]!.callId} call={calls[index]!} {...rest} preview onViewImage={onViewImage} />
       </HoverPreviewBody>
@@ -553,7 +555,7 @@ function ToolCopyButtons({ call, resolvePath, tokens }: {
  * The preview's toolbar: a merged row's pager at the left, the tool's icon
  * and name or picture size in the middle, and copies at the right.
  */
-function ToolPreviewActions({ call, resolvePath, tokens, pager, meta }: {
+function ToolPreviewActions({ call, resolvePath, tokens, pager, meta, streaming = false }: {
   call: ToolCallView;
   resolvePath: ResolvePath;
   tokens: ExtendedThemeTokens;
@@ -561,9 +563,11 @@ function ToolPreviewActions({ call, resolvePath, tokens, pager, meta }: {
   pager?: React.ReactNode;
   /** A picture's size and weight, centred in the toolbar. */
   meta?: React.ReactNode;
+  /** The call on view is still writing. */
+  streaming?: boolean;
 }) {
   return (
-    <HoverPreviewHeader tokens={tokens} icon={meta ? "Image" : <RowIcon name={toolIconName(call.tool)} color={tokens.foregroundMuted} />}
+    <HoverPreviewHeader tokens={tokens} streaming={streaming} icon={meta ? "Image" : <RowIcon name={toolIconName(call.tool)} color={tokens.foregroundMuted} />}
       iconLabel={summarizeTool(call).verb}
       left={pager} center={meta}>
       <View style={styles.previewActions}>
@@ -850,7 +854,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
       {data.tool === "github" && <GitHubBody data={data.github} tokens={tokens} running={isRunning} />}
 
       {data.tool === "thinking" && (
-        preview ? <MarkdownView text={data.thinking?.text || data.code || data.output || ""} tokens={tokens} variant="compact" quiet /> :
+        preview ? <MarkdownView text={data.thinking?.text || data.code || data.output || ""} tokens={tokens} variant="compact" quiet streaming={isRunning} /> :
         <ReasoningSections
           text={data.thinking?.text || data.code || data.output || ""}
           tokens={tokens}
@@ -974,7 +978,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
           ))}
           {/* A web search's own answer: markdown prose, drawn as a fetch's result is. */}
           {data.search.annotations ? (
-            <MarkdownView text={data.search.annotations.join("\n\n")} tokens={tokens} variant="compact" />
+            <MarkdownView text={data.search.annotations.join("\n\n")} tokens={tokens} variant="compact" streaming={preview && isRunning} />
           ) : null}
           {data.search.content ? (
             <View style={styles.terminalWindow}>
@@ -1000,7 +1004,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             </SelectableText>
           ) : null}
           {data.fetch.result ? (
-            <MarkdownView text={data.fetch.result} tokens={tokens} variant="compact" />
+            <MarkdownView text={data.fetch.result} tokens={tokens} variant="compact" streaming={preview && isRunning} />
           ) : (
             <Text style={styles.silentText}>{isRunning ? "Fetching…" : "No content returned."}</Text>
           )}
@@ -1056,7 +1060,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
           ) : null}
           {/* The full brief the parent wrote: often markdown, so drawn as a plan is. */}
           {data.subAgent.prompt ? (
-            <MarkdownView text={data.subAgent.prompt} tokens={tokens} variant="compact" />
+            <MarkdownView text={data.subAgent.prompt} tokens={tokens} variant="compact" streaming={preview && isRunning} />
           ) : null}
           {data.subAgent.actions?.map((action) => (
             <View key={action.index} style={styles.inlineRow}>
@@ -1086,7 +1090,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
         <View style={styles.section}>
           {data.planOutcome ? <Text style={styles.sectionTitle}>{PLAN_OUTCOME_TITLE[data.planOutcome]}</Text> : null}
           {data.text ? (
-            <MarkdownView text={data.text} tokens={tokens} variant="compact" />
+            <MarkdownView text={data.text} tokens={tokens} variant="compact" streaming={preview && isRunning} />
           ) : (
             <Text style={styles.silentText}>The plan is empty.</Text>
           )}
