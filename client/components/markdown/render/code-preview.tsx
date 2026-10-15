@@ -1,12 +1,11 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { View } from "react-native";
 import { SyntaxHighlightBlock } from "../../syntax-highlight";
 import { MarkdownView } from "../markdown-view";
 import type { RenderContext } from "./context";
 import { HoverPreview, HoverPreviewBody, HoverPreviewHeader, useHoverPreview } from "../../../ui/hover-preview";
 import { ToolbarButton, ToolbarCopyButton } from "../../../ui/toolbar-button";
-import { SelectableText } from "../../../ui/prose-text";
-import { codeSurface } from "../../host-font-escape";
+import { PreviewLines } from "../../../ui/preview-lines";
 
 /** A code block owns its window; the window never opens another preview. */
 export function MarkdownCodePreview({ code, language, context, closed, showLineNumbers }: {
@@ -19,6 +18,7 @@ export function MarkdownCodePreview({ code, language, context, closed, showLineN
   const { tokens, metrics, variant, onRevealPath } = context;
   const preview = useHoverPreview(true, undefined, { windowOnly: true });
   const [raw, setRaw] = useState(false);
+  const lines = useMemo(() => code.split("\n"), [code]);
   const open = preview.pop ? () => {
     setRaw(false);
     preview.pop!();
@@ -30,7 +30,7 @@ export function MarkdownCodePreview({ code, language, context, closed, showLineN
         compact={metrics.codeCompact} showLineNumbers={showLineNumbers} highlight={closed} scrollX
         onOpenPreview={open} />
       {preview.open ? (
-        <HoverPreview preview={preview} tokens={tokens} wraps={raw}>
+        <HoverPreview preview={preview} tokens={tokens} wrapDisabled={!raw}>
           <HoverPreviewHeader tokens={tokens} icon="FileText" streaming={!closed} left={
             <ToolbarButton icon={raw ? "FileText" : "Code"} label={raw ? "Render Markdown" : "Show raw text"}
               onPress={() => setRaw((value) => !value)} tokens={tokens} />
@@ -39,11 +39,9 @@ export function MarkdownCodePreview({ code, language, context, closed, showLineN
           </HoverPreviewHeader>
           <HoverPreviewBody key={raw ? "raw" : "markdown"}>
             {raw ? (
-              <SelectableText {...(codeSurface as object)} testID="markdown-preview-source"
+              <PreviewLines text={code} lines={lines} tokens={tokens}
                 style={{ color: tokens.foreground, fontFamily: tokens.fontMono,
-                  fontSize: tokens.typography.mono.size, lineHeight: tokens.typography.mono.lineHeight }}>
-                {code}
-              </SelectableText>
+                  fontSize: tokens.typography.mono.size, lineHeight: tokens.typography.mono.lineHeight }} />
             ) : (
               <MarkdownView text={code} tokens={tokens} variant={variant} streaming={!closed}
                 size={metrics.bodySize} onRevealPath={onRevealPath} />
