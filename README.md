@@ -56,13 +56,24 @@ paseo plugin update better-paseo
 
 ## Performance
 
-Three configurations are compared: **no plugin** (Paseo 0.11.2 draws the timeline), **Beautiful Chat** `42b61d8`, and **Better Paseo**. The same host probe wraps each timeline row, so native and plugin rows use the same measurement boundary. Measurements ran on 2026-10-15 on rrd-mac-studio (Apple M5 Max, 18 cores, 64 GB, macOS 27.0.1), across 11 scripted scenarios. The source matrix contains 132 Web runs and 120 iOS runs; each displayed Web value is a median of 3 runs, and iOS values are medians of 2 runs except 6 each for 100-turn history and large shell log. Only results from this round are comparable. Details and raw reports are in the [benchmark report](docs/bench/native-vs-fork/README.md).
+Three configurations are compared: **no plugin** (Paseo 0.11.2 draws the timeline), **Beautiful
+Chat** `42b61d8`, and **Better Paseo**. The same host probe wraps each timeline row, so native and
+plugin rows use the same measurement boundary. Measurements ran on 2026-10-15 on rrd-mac-studio
+(Apple M5 Max, 18 cores, 64 GB, macOS 27.0.1), across 11 scripted scenarios. The source matrix
+contains 132 Web runs and 120 iOS runs; each displayed Web value is a median of 3 runs, and iOS
+values are medians of 2 runs except 6 each for 100-turn history and large shell log. Only results
+from this round are comparable. Details and raw reports are in the [benchmark
+report](docs/bench/native-vs-fork/README.md).
 
 ![Web main-thread time per scenario: no plugin, Beautiful Chat and Better Paseo](docs/perf/readme/web-cpu.en.svg)
 
-The chart shows whole-replay main-thread Task time. Against no plugin, Better Paseo is shorter in 9 of 11 scenarios; 100-turn history is 15% longer (0.854 s vs 0.745 s), while the large diff is even because both whole replays are under 0.5 s (0.42 s vs 0.35 s). Against Beautiful Chat, 10 scenarios are shorter and table streaming is even (1.96 s vs 2.17 s, under 10%).
+The chart shows whole-replay main-thread Task time. Against no plugin, Better Paseo is shorter in 9
+of 11 scenarios; 100-turn history is 15% longer (0.854 s vs 0.745 s), while the large diff is even
+because both whole replays are under 0.5 s (0.42 s vs 0.35 s). Against Beautiful Chat, 10 scenarios
+are shorter and table streaming is even (1.96 s vs 2.17 s, under 10%).
 
-The primary render metric is total row-render work, allRows.sum for one replay. Lower is better. Per-commit p95 depends on how rows are batched into commits and is not a measure of total work.
+The primary render metric is total row-render work, allRows.sum for one replay. Lower is better.
+Per-commit p95 depends on how rows are batched into commits and is not a measure of total work.
 
 | Scenario | No plugin | Beautiful Chat | Better Paseo | vs no plugin | vs Beautiful Chat |
 | --- | ---: | ---: | ---: | :--- | :--- |
@@ -78,7 +89,9 @@ The primary render metric is total row-render work, allRows.sum for one replay. 
 | Table streaming | 1,134.0 | 416.8 | **263.9** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;77% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;37% |
 | Expanded tool | 60.3 | 932.2 | **109.1** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;81% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;88% |
 
-Against no plugin, Better Paseo has lower total row-render work in 9 scenarios and higher totals for 100-turn history (+41%) and the expanded tool (+81%). Against Beautiful Chat, totals are lower in all 11 scenarios.
+Against no plugin, Better Paseo has lower total row-render work in 9 scenarios and higher totals for
+100-turn history (+41%) and the expanded tool (+81%). Against Beautiful Chat, totals are lower in
+all 11 scenarios.
 
 Cumulative layout shift while streaming (lower is better):
 
@@ -87,15 +100,22 @@ Cumulative layout shift while streaming (lower is better):
 | Long reply | 0.181 | 0.648 | **0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
 | Code block | 0.043 | 0.127 | **0.012** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;73% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;91% |
 | Table | 0.051 | 0.040 | **0.011** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;79% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;73% |
-| 100-turn history | 0.000015 | 0.208462 | **0.000316** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;+0.0003 | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
+| 100-turn history | 0 | 0.208 | **0** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
 
 ### iOS
 
 ![iOS total row-render time per replay: no plugin, Beautiful Chat and Better Paseo](docs/perf/readme/ios-commit.en.svg)
 
-The chart and table use total row-render work (allRows.sum) per replay, in milliseconds. The iOS simulator runs used a development build with a cold start before each run. Most scenario/mode cells have 2 runs; 100-turn history and large shell log have 6. The 100-turn history set includes parallel-simulator load exposure: total row work shifted about 3% upward in every mode, so treat its small differences cautiously. The benchmark report describes the exposure and sample ranges.
+The chart and table use total row-render work (allRows.sum) per replay, in milliseconds. The iOS
+simulator runs used a development build with a cold start before each run. Most scenario/mode cells
+have 2 runs; 100-turn history and large shell log have 6. The 100-turn history set includes
+parallel-simulator load exposure: total row work shifted about 3% upward in every mode, so treat its
+small differences cautiously. The benchmark report describes the exposure and sample ranges.
 
-A difference under 10% is even. Against no plugin, Better Paseo is lower in 5 scenarios, even in 2 (large diff and 100-turn history), and higher in 4 (20 file reads, both reasoning replays and the expanded tool). Against Beautiful Chat it is lower in all 11. Per-commit p95 is omitted here because commit sizes differ; it is not a total-work metric.
+A difference under 10% is even. Against no plugin, Better Paseo is lower in 5 scenarios, even in 2
+(large diff and 100-turn history), and higher in 4 (20 file reads, both reasoning replays and the
+expanded tool). Against Beautiful Chat it is lower in all 11. Per-commit p95 is omitted here because
+commit sizes differ; it is not a total-work metric.
 
 | Scenario | No plugin | Beautiful Chat | Better Paseo | vs no plugin | vs Beautiful Chat |
 | --- | ---: | ---: | ---: | :--- | :--- |
@@ -111,7 +131,23 @@ A difference under 10% is even. Against no plugin, Better Paseo is lower in 5 sc
 | Table streaming | 972.1 | 1,164.0 | **563.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;42% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;52% |
 | Expanded tool | 165.8 | 3,032.6 | **256.6** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;55% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;92% |
 
-<img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp; Green means lower/better; <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp; red means higher/worse. A difference under 10% is even. The additional under-0.5-second rule applies only when comparing whole Web Task replays; iOS uses the 10% rule. See the [benchmark report](docs/bench/native-vs-fork/README.md) for methods, identity checks and raw runs.
+<img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp; Green means lower/better; <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp; red means higher/worse. A difference under 10% is even. The additional under-0.5-second rule applies only when comparing whole Web Task replays; iOS uses the 10% rule.
+
+**How it was measured.** A measurement-only patch to Paseo 0.11.2 (`759532509`,
+`docs/bench/native-vs-fork/tools/paseo-host-probe.patch`) wraps every timeline row in the same
+`React.Profiler`. Web used an instrumented production export (main JS sha256 prefix
+`9dd7eab4521434bc`) in headless Chrome 155.0.8059.40 at 1280×900; Playwright reads Chrome DevTools
+Protocol metrics around each replay and forces a GC before memory is read. iOS is an iOS 18.6
+simulator running the development build `sh.paseo.debug`, cold-launched before every run. Better
+Paseo was commit `37bfb60`. Each mode ran against a private daemon with default plugin settings, in
+rotating order, and every run asserted which build was on screen. Web: 11 fixtures × 3 modes × 3
+runs with 0 page errors. Part of the iOS runs used three simulators at once; the benchmark report
+lists which, and the ~3% upward shift that load caused on the 100-turn history. Method, tools and
+raw runs: [`docs/bench/native-vs-fork`](docs/bench/native-vs-fork/README.md) (`raw/web-2026-10-15b`,
+`raw/ios-2026-10-15b`). Every difference from Beautiful Chat:
+[`docs/fork-vs-upstream.md`](docs/fork-vs-upstream.md) (Chinese). The charts are generated from
+these runs by `node docs/perf/readme-charts.mjs`; percentages are taken from the medians before
+rounding.
 
 ### Where the time goes
 
@@ -126,7 +162,8 @@ A difference under 10% is even. Against no plugin, Better Paseo is lower in 5 sc
   highlighting; Shiki runs on the daemon (`highlight.tokens`). Collapsed rows do not mount their
   body, so 20 file reads make 0 highlight requests instead of 48.
 - **Large output arrives in batches.** Code and terminal panels draw 400 lines, then add the rest in
-  batches with a **Show all** control. A 5,000-line diff on iOS went from 2.2 s to 19.8 ms (tool card
+  batches with a **Show all** control. A 5,000-line diff on iOS went from 2.2 s to 19.8 ms (tool
+card
   p50).
 - **No decorative loops.** Shadows, frosted glass, glow and breathing animations are gone. Only the
   running dot remains; on Web it is a CSS animation, so it no longer commits its row every frame
@@ -143,25 +180,31 @@ A difference under 10% is even. Against no plugin, Better Paseo is lower in 5 sc
 
 ## Memory comparison
 
-Web production build on 2026-10-15. Each value is the median of 3 runs after a forced GC. This is JS heap usage, not total app or process memory. Differences under 10% count as even.
+Web production build, measured on 2026-10-15: each value is the median of 3 runs after a forced GC.
+The table reports JS heap usage, not total app or process memory. Differences are Better Paseo minus
+the other mode, calculated before rounding; negative means less memory. All values are in MB.
 
 ![JS heap and DOM nodes after a forced GC](docs/perf/readme/web-memory.en.svg)
 
-Compared with no plugin, only the long reply uses clearly less memory (41.1 MB, 26%); the other scenarios are within 10%. Compared with Beautiful Chat, the large diff, 100-turn history, 20 file reads and large shell log use 13.2–124.5 MB less. The other scenarios are within 10%, including the slightly higher long-reply and table readings. Beautiful Chat expands running tools by default; Better Paseo keeps them collapsed.
+Compared with no plugin, a long reply uses 41.1 MB less; the other scenarios differ by −2.0 to +5.8
+MB, mostly a few MB more, which is the plugin's own resident cost. Compared with Beautiful Chat, the
+large diff, the 100-turn history and 20 file reads use 103.6–124.5 MB less, the large shell log 13.2
+MB less, and the other scenarios differ by −7.6 to +0.8 MB. Beautiful Chat expands running tools by
+default; Better Paseo keeps them collapsed.
 
 | Scenario | No plugin | Beautiful Chat | Better Paseo | vs no plugin | vs Beautiful Chat |
-| --- | ---: | ---: | ---: | :--- | :--- |
-| Code block streaming | 115.9 | 115.4 | **113.9** | even | even |
-| Large diff | 108.5 | 216.6 | **113.0** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;103.6 MB |
-| 100-turn history | 116.0 | 239.1 | **120.9** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;118.1 MB |
-| Long reply | 158.4 | 116.7 | **117.3** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;41.1 MB | even |
-| Mixed turn | 113.6 | 123.3 | **115.7** | even | even |
-| 20 file reads | 113.0 | 242.5 | **118.0** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;124.5 MB |
-| Reasoning, prose | 110.6 | 114.2 | **113.9** | even | even |
-| Reasoning, sections | 110.4 | 114.3 | **114.2** | even | even |
-| Large shell log | 110.3 | 127.4 | **114.2** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;13.2 MB |
-| Table streaming | 114.7 | 114.6 | **115.4** | even | even |
-| Expanded tool | 112.6 | 124.4 | **118.4** | even | even |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Code block streaming | 115.9 | 115.4 | **113.9** | -2.0 | -1.5 |
+| Large diff | 108.5 | 216.6 | **113.0** | +4.5 | -103.6 |
+| 100-turn history | 116.0 | 239.1 | **120.9** | +4.9 | -118.1 |
+| Long reply | 158.4 | 116.7 | **117.3** | -41.1 | +0.6 |
+| Mixed turn | 113.6 | 123.3 | **115.7** | +2.2 | -7.6 |
+| 20 file reads | 113.0 | 242.5 | **118.0** | +5.0 | -124.5 |
+| Reasoning, prose | 110.6 | 114.2 | **113.9** | +3.3 | -0.3 |
+| Reasoning, sections | 110.4 | 114.3 | **114.2** | +3.8 | -0.2 |
+| Large shell log | 110.3 | 127.4 | **114.2** | +3.9 | -13.2 |
+| Table streaming | 114.7 | 114.6 | **115.4** | +0.7 | +0.8 |
+| Expanded tool | 112.6 | 124.4 | **118.4** | +5.8 | -6.0 |
 
 Raw measurements: [Web runs](docs/bench/native-vs-fork/raw/web-2026-10-15b).
 
