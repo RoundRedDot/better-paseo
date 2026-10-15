@@ -89,12 +89,12 @@ export const PREVIEW_CLOSE_MS = 150;
  * thought as a new row; a preview open then is opened again by that row as the
  * reader left it, so only the reader closes it (`preview-memory.ts`).
  */
-export function useHoverPreview(enabled: boolean, memoryKey?: string) {
+export function useHoverPreview(enabled: boolean, memoryKey?: string, options?: { windowOnly?: boolean }) {
   const parentPreview = useContext(HoverPreviewContext);
   const capabilities = useInputCapabilities();
   const preferences = useEnhancerPreferences();
   const delay = Math.round(preferences.hoverDelaySeconds * 1000);
-  const allowed = enabled && preferences.hoverPreview && !parentPreview;
+  const allowed = enabled && !options?.windowOnly && preferences.hoverPreview && !parentPreview;
   const hoverActive = allowed && Platform.OS === "web" && capabilities.hover;
   const pressActive = allowed && capabilities.native === true;
   const active = hoverActive || pressActive;
@@ -451,7 +451,11 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
   }, []);
   const frame = rowWidth !== null && stage ? pressPreviewFrame(stage, rowWidth, Platform.OS) : null;
   frameReady.current = frame !== null;
-  const shown = box ?? (natural && stage ? pressPreviewOrigin(stage, natural, Platform.OS) : null);
+  const maximizedBox = preview.maximized && stage ? pressPreviewOrigin(stage, {
+    width: Math.max(0, stage.width - 2 * PREVIEW_LIMIT.margin),
+    height: pressPreviewFrame(stage, stage.width, Platform.OS).maxHeight,
+  }, Platform.OS) : null;
+  const shown = maximizedBox ?? box ?? (natural && stage ? pressPreviewOrigin(stage, natural, Platform.OS) : null);
   boxRef.current = shown;
   if (stage) boundsRef.current = stage;
   const drag = useRef<FrameDrag>(null!);
@@ -487,15 +491,15 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
           <HoverPreviewContext.Provider value>
             <PreviewActionsContext.Provider value={{
               maximizable: false,
-              maximized: false,
+              maximized: preview.maximized,
               maximize: preview.maximize,
               close,
-              fill: box !== null,
+              fill: preview.maximized || box !== null,
               wrap: wraps ? { on: wrapOn, toggle: toggleWrap, tokens } : undefined,
               memoryKey,
               remembered,
             }}>
-              <PreviewDragContext.Provider value={gestures.toolbar}>
+              <PreviewDragContext.Provider value={preview.maximized ? null : gestures.toolbar}>
                 <View
                   {...selectionSurface}
                   testID="hover-preview"
@@ -513,7 +517,7 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
                   ]}
                 >
                   {children}
-                  {shown ? <PreviewEdges edges={gestures.edges} /> : null}
+                  {shown && !preview.maximized ? <PreviewEdges edges={gestures.edges} /> : null}
                 </View>
               </PreviewDragContext.Provider>
             </PreviewActionsContext.Provider>

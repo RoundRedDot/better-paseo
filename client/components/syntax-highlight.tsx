@@ -12,6 +12,7 @@ import { selectionCodeSurface, selectionSurface } from "./selection-actions";
 import { useHighlightedLines } from "../highlight";
 import { perfCount } from "../debug/perf";
 import { CopyButton } from "../ui/copy-button";
+import { ToolbarButton } from "../ui/toolbar-button";
 import { SelectableSpan } from "../ui/prose-text";
 import type { HighlightLine, HighlightToken } from "../../shared/highlight-rpc";
 
@@ -49,6 +50,8 @@ interface SyntaxHighlightProps {
    * radius or margin of its own, and the header and lines start at its edge.
    */
   bare?: boolean;
+  /** Opens this Markdown code block in the preview window. */
+  onOpenPreview?: () => void;
 }
 
 /** A block longer than this mounts its first rows only, then appends on request. */
@@ -527,6 +530,7 @@ export function SyntaxHighlightBlock({
   scrollX = false,
   initialLines,
   bare = false,
+  onOpenPreview,
 }: SyntaxHighlightProps) {
   const lines = useMemo(() => code.trimEnd().split("\n"), [code]);
   const total = lines.length;
@@ -628,7 +632,7 @@ export function SyntaxHighlightBlock({
         // A fixed slot: Wrap and Copy fill it once the fence closes, and the
         // filename never re-truncates when they appear.
         actions: {
-          width: ACTION_SLOT,
+          width: ACTION_SLOT + (onOpenPreview ? COPY_BOX + space.xs : 0),
           flexShrink: 0,
           flexDirection: "row",
           alignItems: "center",
@@ -648,12 +652,14 @@ export function SyntaxHighlightBlock({
           paddingHorizontal: bare ? 0 : space.md,
           // Reserved whether or not Copy is drawn yet, so the lines do not
           // reflow when the fence closes.
-          paddingRight: !hasHeader && !bare ? FLOATING_COPY_SLOT : bare ? 0 : space.md,
+          paddingRight: !hasHeader && !bare ? FLOATING_COPY_SLOT + (onOpenPreview ? COPY_BOX + space.xs : 0) : bare ? 0 : space.md,
           paddingTop: hasHeader ? 2 : bare ? 0 : space.sm,
           paddingBottom: bare ? 0 : space.sm,
         },
         // Centred on the first line, so a one-line block holds it in its middle.
         floatingCopy: {
+          flexDirection: "row",
+          gap: space.xs,
           position: "absolute",
           top: Math.max(space.xs, space.sm + mono.lineHeight / 2 - COPY_BOX / 2),
           right: space.xs,
@@ -680,7 +686,7 @@ export function SyntaxHighlightBlock({
           color: tokens.foreground,
         },
       }),
-    [tokens, compact, hasHeader, bare],
+    [tokens, compact, hasHeader, bare, Boolean(onOpenPreview)],
   );
 
   const largestLineNumber = useMemo(() => {
@@ -807,6 +813,7 @@ export function SyntaxHighlightBlock({
                     tokens={tokens}
                   />
                 ) : null}
+                {onOpenPreview ? <ToolbarButton icon="Maximize2" label="Open Markdown in a window" onPress={onOpenPreview} tokens={tokens} /> : null}
                 <CopyButton text={code} tokens={tokens} label="Copy code" />
               </>
             ) : null}
@@ -825,6 +832,7 @@ export function SyntaxHighlightBlock({
       </View>
       {floatingCopy ? (
         <View style={styles.floatingCopy}>
+          {onOpenPreview ? <ToolbarButton icon="Maximize2" label="Open Markdown in a window" onPress={onOpenPreview} tokens={tokens} /> : null}
           <CopyButton text={code} tokens={tokens} label="Copy code" />
         </View>
       ) : null}
