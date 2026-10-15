@@ -95,6 +95,18 @@ paseo plugin update better-paseo
 
 **测量方法。** 只用于测量的 Paseo 0.11.2 补丁（`759532509`，`docs/bench/native-vs-fork/tools/paseo-host-probe.patch`）给时间线的每一行套上同一个 `React.Profiler`。Web 使用带探针的生产导出（主 JS sha256 前缀 `9dd7eab4521434bc`），在无界面 Chrome 155.0.8059.40、1280×900 下运行；Playwright 在每次回放前后读取 Chrome DevTools Protocol 指标，读内存前先强制 GC。iOS 为 iOS 18.6 模拟器上的开发版 `sh.paseo.debug`，每次运行前冷启动。Better Paseo 为提交 `37bfb60`。各模式使用同一个私有 daemon 和默认插件设置，轮换顺序运行，每次都核对屏幕上加载的是哪个版本。Web：11 个场景 × 3 种模式 × 3 次，页面错误为 0。iOS 有一部分样本是三台模拟器同时运行的，基准文档列出了具体样本，以及这种负载让 100 轮历史整体上浮约 3% 的情况。方法、工具和原始数据见 [`docs/bench/native-vs-fork`](docs/bench/native-vs-fork/README.md)（`raw/web-2026-10-15b`、`raw/ios-2026-10-15b`）；与 Beautiful Chat 的每一处差异见 [`docs/fork-vs-upstream.md`](docs/fork-vs-upstream.md)。图表由 `node docs/perf/readme-charts.mjs` 根据这些数据生成；百分比按舍入前的中位数计算。
 
+### 长会话加载：下轮必测
+
+下轮性能对比新增脱敏合成夹具 `history-long-load`：810 条投影记录、一条 59,427 字符的回复，以及跨历史交叠的工具生命周期更新。它测的是已存在会话的加载，不是流式吞吐；上方已有图表尚未包含这项。
+
+| 测试项 | 不开插件 | Beautiful Chat | Better Paseo |
+| --- | --- | --- | --- |
+| 冷启动打开长会话 | 待测 | 待测 | 待测 |
+| 向上滚动加载更早记录 | 待测 | 待测 | 待测 |
+| 滚离后重新挂载长回复 | 待测 | 待测 | 待测 |
+
+[夹具、步骤和指标](docs/bench/long-history-load/README.md)已准备，下轮运行后再补结果；目前不宣称这些测试的性能收益。
+
 ### 时间省在哪里
 
 - **没变的卡片不再重渲染。** Paseo 每来一个流式 chunk，都会给每一行传入新的 `theme` 和 `data` 对象。按语义比较的 `React.memo` 让没变化的卡片直接跳过渲染；只有最新一条提问跟着 agent 状态更新。100 轮历史回放里，整页渲染次数从 172,327 降到 1,319。

@@ -10,6 +10,7 @@ import { getEnhancerPreferences } from "./client/preferences";
 import { followPreference } from "./client/state/follow-preference";
 import { perfSlashCommand } from "./client/debug/perf-command";
 import { transformToolCall } from "./client/tools/transform";
+import { assistantRows } from "./client/assistant-transform";
 import { embeddedFontsRpc } from "./shared/font-rpc";
 import { markBitmapsRpc } from "./shared/mark-rpc";
 import { setMarkLoader } from "./client/components/marks";
@@ -201,18 +202,7 @@ export default function contribute(client: PluginClientContext) {
         if (item.type !== "assistant_message") return undefined;
         if (!getEnhancerPreferences().assistantMarkdown) return undefined;
         if (!item.text.trim()) return undefined;
-        return {
-          items: [
-            {
-              type: "plugin" as const,
-              kind: "omp-assistant",
-              version: 1,
-              // The phase tells the renderer the reply is still being written,
-              // which is what turns on tail repair and the reveal.
-              data: { text: item.text, phase },
-            },
-          ],
-        };
+        return { items: assistantRows(item.text, phase) };
       },
     }),
   );
@@ -220,7 +210,9 @@ export default function contribute(client: PluginClientContext) {
   const removeAssistantRenderer = client.addTimelineRenderer({
     kind: "omp-assistant",
     version: 1,
-    schema: z.object({ text: z.string(), phase: z.string().optional() }),
+    schema: z.object({ text: z.string(), phase: z.string().optional(),
+      blockIndex: z.number().int().nonnegative().optional(), messageText: z.string().optional(),
+      listContinuation: z.boolean().optional() }),
     Component: LiveAssistantRenderer,
   });
 

@@ -114,6 +114,8 @@ interface AgentTimeline {
 
 const timelines = new Map<string, AgentTimeline>();
 const listeners = new Set<() => void>();
+const pendingTimelines = new Set<AgentTimeline>();
+let notificationPending = false;
 let sequence = 0;
 
 /** Negative when `a` sits above `b`, zero when their order is unknown. */
@@ -243,6 +245,9 @@ export function probeRowGap(agentId: string): void {
  * run in place (`updateTool`).
  */
 function toolSlots(timeline: AgentTimeline): Map<Entry, ToolSlot> {
+  // A commit may add/remove a whole page. Snapshots keep the previous groups
+  // until all its layout effects have finished, then rebuild once.
+  if (pendingTimelines.has(timeline)) return timeline.slots;
   if (!timeline.stale) return timeline.slots;
   const ordered = [...timeline.entries].sort((a, b) => compare(a, b) || a.sequence - b.sequence);
   const position = new Map<Entry, number>();
@@ -326,15 +331,14 @@ function notifyGroup(entry: Entry): void {
 }
 
 /**
- * Marks an agent's groups for rebuilding and tells its tool rows to look again.
- * A listener reads its snapshot as it is told, and that read rebuilds; still
- * stale means nobody has looked since the last call, so a commit mounting a
- * whole page of rows rebuilds once, on the first read after it.
+ * Marks an agent's groups for rebuilding. Notifications are delivered after
+ * the current commit's registrations finish, so subscribers read one complete
+ * membership snapshot instead of rebuilding after every mounted/unmounted row.
  */
 function invalidate(timeline: AgentTimeline): void {
-  if (timeline.stale) return;
   timeline.stale = true;
-  for (const entry of timeline.entries) notifyGroup(entry);
+  pendingTimelines.add(timeline);
+  publish();
 }
 
 /** Records a mounted item; the returned function forgets it. */
@@ -373,7 +377,17 @@ function addEntry(agentId: string, entry: Entry): () => void {
 
 /** Rows' order changed: every `nextEntryIsRow` and `hasEntryAfter` may differ. */
 function publish(): void {
-  for (const listener of listeners) listener();
+  if (notificationPending) return;
+  notificationPending = true;
+  void Promise.resolve().then(() => {
+    notificationPending = false;
+    const changed = [...pendingTimelines];
+    pendingTimelines.clear();
+    for (const timeline of changed) {
+      for (const entry of timeline.entries) notifyGroup(entry);
+    }
+    for (const listener of listeners) listener();
+  });
 }
 
 /**

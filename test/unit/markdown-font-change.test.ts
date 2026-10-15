@@ -111,3 +111,26 @@ describe("a Paseo appearance font change", () => {
     act(() => renderer.unmount());
   });
 });
+
+describe("virtualized Markdown row spacing", () => {
+  it("restores the block gap between rows and uses the item gap within a continued list", () => {
+    const tokens = buildThemeTokens(colors, DEFAULT_PREFERENCES, { platform: "ios", theme: { colors } });
+    const view = (firstBlock: boolean, listContinuation = false) => React.createElement(MarkdownView, {
+      text: "- Item\n", tokens, variant: "document", compact: true, firstBlock, listContinuation,
+    });
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    const topPadding = () => {
+      const root = renderer.root.findAll((node) => (node.type as unknown) === "View")[0]!;
+      return Object.assign({}, ...[root.props.style].flat(Infinity).filter(Boolean)).paddingTop;
+    };
+    act(() => { renderer = TestRenderer.create(view(true)); });
+    try {
+      expect(topPadding()).toBeUndefined();
+      act(() => renderer.update(view(false)));
+      expect(topPadding()).toBe(16);
+      act(() => renderer.update(view(false, true)));
+      expect(topPadding()).toBeGreaterThan(0);
+      expect(topPadding()).toBeLessThan(16);
+    } finally { act(() => renderer.unmount()); }
+  });
+});

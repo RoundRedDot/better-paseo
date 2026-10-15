@@ -1,6 +1,6 @@
 /**
- * Old engine vs new, on everything the showcase draws and every assistant and
- * reasoning text in the stream fixtures (plan §3.1 test 3). The old engine's
+ * Old engine vs new, on the showcase and the fixture corpus captured when
+ * the old engine was removed (plan §3.1 test 3). The old engine's
  * output was recorded before `parse.ts` was deleted
  * (`.showcase/md-compare/old-engine.json`); both sides are compared in the
  * old block-tree shape. Every difference is listed below with its reason;
@@ -19,7 +19,11 @@ const OLD = JSON.parse(
 
 const documents: Array<[string, string]> = [];
 for (const [name, text] of Object.entries(corpus)) documents.push([`showcase:${name}`, text]);
-for (const fixture of fixtureNames()) {
+// New fixtures have no historical output from the deleted engine. Their
+// incremental/full parsing is covered by markdown-blocks and stream-reuse.
+const recordedFixtures = new Set(Object.keys(OLD).filter((id) => !id.startsWith("showcase:"))
+  .map((id) => id.split(":")[0]!));
+for (const fixture of fixtureNames().filter((name) => recordedFixtures.has(name))) {
   for (const item of streamTexts(fixture)) {
     if (item.text.trim() !== "") documents.push([`${fixture}:${item.kind}:${item.index}`, item.text]);
   }
@@ -59,8 +63,8 @@ const KNOWN: Record<string, (old: NBlock[]) => NBlock[]> = {
 };
 
 describe("old engine vs marked", () => {
-  it("covers the showcase and the fixtures", () => {
-    expect(documents.length).toBe(Object.keys(OLD).length);
+  it("covers every document in the historical snapshot", () => {
+    expect(documents.map(([id]) => id).sort()).toEqual(Object.keys(OLD).sort());
   });
 
   it("draws the same tree for every document, except the listed differences", () => {
