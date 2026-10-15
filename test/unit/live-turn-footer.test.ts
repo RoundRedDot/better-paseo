@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import type { PaseoAgentTimelineHandle, PaseoProviderModelsResult } from "@getpaseo/client";
 import "./helpers/quiet-renderer";
-import { timelineEntry as entry, timelinePage as page } from "./helpers/turn-timeline";
+import { timelineEntry as entry, timelinePage as page, type TimelinePage } from "./helpers/turn-timeline";
 
 const runtime = vi.hoisted(() => ({
   agent: { status: "idle", cwd: "/workspace", provider: "codex", model: "sol", thinkingOptionId: "medium" },
@@ -42,6 +42,7 @@ vi.mock("../../client/components/markdown/markdown-view", async () => {
 import { LiveAssistantRenderer, type LiveAssistantPayload } from "../../client/live-renderers";
 import { AssistantFooter } from "../../client/components/turn-footer";
 import { assistantRows } from "../../client/assistant-transform";
+import { formatFullStamp } from "../../client/ui/time";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -54,6 +55,34 @@ beforeEach(() => { vi.clearAllMocks(); runtime.agent.status = "idle"; });
 afterEach(() => { expect(runtime.listeners.size).toBe(0); });
 
 describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform) => {
+  it("shows the turn end time while matching the reply by its original timestamp", async () => {
+    const startedAt = new Date(2026, 9, 16, 9, 1, 0).getTime();
+    const replyAt = startedAt + 10000;
+    const endedAt = startedAt + 82000;
+    const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(async () => page([
+      entry({ type: "user_message", text: "prompt" }, 1, startedAt, "one"),
+      entry({ type: "assistant_message", text: "answer" }, 2, replyAt, "one"),
+      entry({ type: "reasoning", text: "later activity" }, 3, endedAt, "one"),
+    ]));
+    const release = Object.assign(vi.fn(), { ready: Promise.resolve(), subscriptionId: "s", release: async () => {} });
+    runtime.api = { agents: { ref: () => ({ timeline: { refetch, subscribe: () => release } }) },
+      providers: { listModels: async () => catalog } };
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, {
+      agentId: "end-time", theme, host: { id: "local", label: "Local" }, layout: { platform, compact: platform !== "web" },
+      timestamp: new Date(replyAt), item: { type: "plugin", kind: "omp-assistant", version: 1,
+        data: { text: "answer", phase: "complete" } },
+    } satisfies PluginTimelineItemProps<LiveAssistantPayload>)); });
+    try {
+      const footer = renderer.root.findByType(AssistantFooter);
+      expect(footer.props.at.getTime()).toBe(endedAt);
+      expect(footer.props.startedAt).toBe(startedAt);
+      expect(footer.props.durationMs).toBe(82000);
+      expect(footer.findByProps({ accessibilityLabel: formatFullStamp(new Date(endedAt)) })).toBeDefined();
+      expect(refetch).toHaveBeenCalledTimes(1);
+    } finally { act(() => renderer.unmount()); }
+  });
+
   it("keeps one full-message copy and timing footer after a long streaming reply splits into rows", async () => {
     const text = Array.from({ length: 60 }, (_, index) => `## Part ${index}\n\n${"Paragraph. ".repeat(40)}\n\n`).join("");
     const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(async () => page([
@@ -81,11 +110,14 @@ describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform
     } finally { await act(async () => renderer.unmount()); }
   });
 
-  it("observes the first streaming turn without fetching per chunk and forwards its final usage", async () => {
+  it.each([true, false])("forwards final usage without fetching per chunk (completion carries usage=%s)", async (completionUsage) => {
     runtime.agent.status = "running";
     const entries = [entry({ type: "user_message", text: "first" }, 1, 1000, "one"),
       entry({ type: "assistant_message", text: "answer" }, 2, 2000, "one")];
-    const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(async () => page(entries));
+    const usage = { inputTokens: 12000, cachedInputTokens: 0, outputTokens: 345 };
+    const snapshot = { status: "idle", activeTurn: null, lastUserMessageAt: new Date(1000).toISOString(),
+      lastUsage: usage } as NonNullable<TimelinePage["agent"]>;
+    const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(async () => page(entries, { agent: snapshot }));
     let onEvent!: Parameters<PaseoAgentTimelineHandle["subscribe"]>[0];
     const release = Object.assign(vi.fn(), { ready: Promise.resolve(), subscriptionId: "s", release: async () => {} });
     const subscribe = vi.fn<PaseoAgentTimelineHandle["subscribe"]>((handler) => { onEvent = handler; return release; });
@@ -101,10 +133,9 @@ describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform
       expect(renderer.root.findAllByType(AssistantFooter)).toHaveLength(0);
       expect(refetch).not.toHaveBeenCalled();
       expect(subscribe).toHaveBeenCalledTimes(1);
-      const usage = { inputTokens: 12000, cachedInputTokens: 0, outputTokens: 345 };
       await act(async () => {
         onEvent({ agentId: "a", timestamp: new Date(2000).toISOString(),
-          event: { type: "turn_completed", provider: "codex", turnId: "one", usage } });
+          event: { type: "turn_completed", provider: "codex", turnId: "one", ...(completionUsage ? { usage } : {}) } });
         runtime.agent.status = "idle";
         for (const listener of runtime.listeners) listener();
         renderer.update(row("answer", "complete"));

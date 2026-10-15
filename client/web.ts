@@ -631,10 +631,11 @@ export function linesFit(body: HTMLElement): boolean {
 
 /**
  * Closes a control a long press opened once the reader scrolls anything (the
- * chat list, the table's own scroller) or touches outside it. Bound only
- * while it is open. Web only.
+ * chat list, the table's own scroller) or touches outside it. Interactive
+ * details can opt to keep their own scrolling region open. Bound only while
+ * it is open. Web only.
  */
-export function bindTouchDismiss(node: unknown, close: () => void): () => void {
+export function bindTouchDismiss(node: unknown, close: () => void, options: { allowInsideScroll?: boolean } = {}): () => void {
   if (Platform.OS !== "web") return () => {};
   const element = node as HTMLElement | null;
   if (!element) return () => {};
@@ -643,10 +644,14 @@ export function bindTouchDismiss(node: unknown, close: () => void): () => void {
   const outside = (event: Event) => {
     if (!element.contains(event.target as Node)) close();
   };
-  view.addEventListener("scroll", close, true);
+  const scroll = (event: Event) => {
+    if (options.allowInsideScroll && element.contains(event.target as Node)) return;
+    close();
+  };
+  view.addEventListener("scroll", scroll, true);
   doc.addEventListener("pointerdown", outside, true);
   return () => {
-    view.removeEventListener("scroll", close, true);
+    view.removeEventListener("scroll", scroll, true);
     doc.removeEventListener("pointerdown", outside, true);
   };
 }
