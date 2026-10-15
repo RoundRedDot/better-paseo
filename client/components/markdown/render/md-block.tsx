@@ -1,7 +1,9 @@
 import React, { memo, useEffect, useRef } from "react";
 import { perfCount, perfOn } from "../../../debug/perf";
+import type { Token } from "../../../vendor/marked";
 import { lexBlock } from "../lex";
 import { renderBlocks } from "./blocks";
+import { nextReuse, type NodeReuse } from "./reuse";
 import type { RenderContext } from "./context";
 
 export interface MdBlockProps {
@@ -33,7 +35,19 @@ function MdBlockBody({ raw, open, first, context, id }: MdBlockProps) {
   });
 
   const tokens = lexBlock(raw, open);
-  return <>{renderBlocks(tokens, context, id, { first, open })}</>;
+  // While the block is the open tail, the parts a chunk left alone keep what
+  // was drawn for them. A link definition or a footnote changes how text
+  // before it reads, so a block holding one is drawn whole every time.
+  const drawn = useRef<{ context: RenderContext; nodes: NodeReuse["next"] } | null>(null);
+  const reuse = nextReuse(drawn, context, open && !hasReferences(tokens, raw));
+  return <>{renderBlocks(tokens, context, id, { first, open, reuse })}</>;
+}
+
+/** marked keeps the block's link definitions beside its tokens, wherever they sit. */
+function hasReferences(tokens: readonly Token[], raw: string): boolean {
+  const links = (tokens as { links?: Record<string, unknown> }).links;
+  if (links) for (const _ in links) return true;
+  return raw.includes("[^");
 }
 
 function sameBlock(prev: MdBlockProps, next: MdBlockProps): boolean {
