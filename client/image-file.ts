@@ -1,14 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRpc } from "@getpaseo/plugin/client";
 import type { output as ZodOutput } from "zod";
 import { imageRpc } from "../shared/image-rpc";
 import { probeImageRpc } from "./debug/perf";
 
 type ImageRpcResult = ZodOutput<typeof imageRpc.output>;
+interface ImageRead {
+  request: Promise<ImageRpcResult>;
+  committed: Promise<void>;
+}
 
 // This module-level map is connection-local only because Paseo evaluates this
 // client bundle once per serverId/pluginId; verified for v0.8.0–v0.11.2.
-const imageReadsInFlight = new Map<string, Promise<ImageRpcResult>>();
+const imageReadsInFlight = new Map<string, ImageRead>();
 const newlyStartedImageReads = new WeakSet<Promise<unknown>>();
 
 /** What the daemon side could tell the client about one image file. */
@@ -72,24 +76,37 @@ function endsInImageExtension(path: string): boolean {
  */
 export function useImageFile(path: string | undefined, cwd: string | null): ImageFile | null {
   const rpcLoad = useRpc(imageRpc);
-  const load = useCallback<typeof rpcLoad>(
-    (input) => {
+  const load = useCallback(
+    (input: Parameters<typeof rpcLoad>[0]) => {
       const key = JSON.stringify([input.cwd, input.path]);
       const pending = imageReadsInFlight.get(key);
-      if (pending) return pending;
+      let commit!: () => void;
+      const committed = new Promise<void>((resolve) => { commit = resolve; });
+      if (pending) {
+        const afterCommit = pending.committed;
+        pending.committed = committed;
+        return { request: pending.request, afterCommit, commit };
+      }
 
       const request = rpcLoad(input);
-      imageReadsInFlight.set(key, request);
+      const entry = { request, committed };
+      imageReadsInFlight.set(key, entry);
       newlyStartedImageReads.add(request);
       const clear = () => {
-        if (imageReadsInFlight.get(key) === request) imageReadsInFlight.delete(key);
+        if (imageReadsInFlight.get(key) === entry) imageReadsInFlight.delete(key);
       };
       void request.then(clear, clear);
-      return request;
+      return { request, afterCommit: null, commit };
     },
     [rpcLoad],
   );
   const [file, setFile] = useState<ImageFile | null>(null);
+  const deliveryCommit = useRef<(() => void) | null>(null);
+  useLayoutEffect(() => {
+    const commit = deliveryCommit.current;
+    deliveryCommit.current = null;
+    commit?.();
+  }, [file]);
   const wanted = path !== undefined && isImagePath(path);
 
   useEffect(() => {
@@ -98,13 +115,30 @@ export function useImageFile(path: string | undefined, cwd: string | null): Imag
       return;
     }
     let cancelled = false;
+    let frame: number | null = null;
     setFile(null);
     const requestCwd = cwd ?? "";
-    const request = load({ cwd: requestCwd, path });
+    const { request, afterCommit, commit } = load({ cwd: requestCwd, path });
+    // One growing card per commit: batching shared consumers raised history
+    // CLS from 0.257 to 0.583 and made that commit heavier. The starter stays
+    // immediate; each joiner waits for the previous commit, then one frame.
+    // rAF alone can race React's pending commit and batch two cards again.
+    const deliver = (next: ImageFile) => {
+      const apply = () => {
+        frame = null;
+        if (cancelled) return;
+        deliveryCommit.current = commit;
+        setFile(next);
+      };
+      if (afterCommit === null) apply();
+      else void afterCommit.then(() => {
+        if (!cancelled) frame = requestAnimationFrame(apply);
+      });
+    };
     request
       .then((result) => {
         if (cancelled) return;
-        setFile({
+        deliver({
           dataUri: result.dataUri,
           width: result.width,
           height: result.height,
@@ -114,7 +148,7 @@ export function useImageFile(path: string | undefined, cwd: string | null): Imag
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        setFile({
+        deliver({
           dataUri: null,
           width: null,
           height: null,
@@ -126,6 +160,11 @@ export function useImageFile(path: string | undefined, cwd: string | null): Imag
     if (newlyStartedImageReads.delete(request)) probeImageRpc(requestCwd, path, request);
     return () => {
       cancelled = true;
+      if (frame !== null) cancelAnimationFrame(frame);
+      if (deliveryCommit.current === commit) deliveryCommit.current = null;
+      // A cancelled slot still releases later joiners, after its predecessor.
+      if (afterCommit === null) commit();
+      else void afterCommit.then(commit);
     };
   }, [load, path, cwd, wanted]);
 

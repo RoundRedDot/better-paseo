@@ -1,6 +1,6 @@
 import React from "react";
 import TestRenderer, { act, type ReactTestRenderer } from "react-test-renderer";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ImageFile } from "../../client/image-file";
 
 type ImageRpcInput = { cwd: string; path: string };
@@ -123,15 +123,196 @@ async function flushResolvedReads(): Promise<void> {
   });
 }
 
+let frames = new Map<number, FrameRequestCallback>();
+let nextFrame = 0;
+
+beforeEach(() => {
+  frames = new Map();
+  nextFrame = 0;
+  vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
+    const id = ++nextFrame;
+    frames.set(id, callback);
+    return id;
+  }));
+  vi.stubGlobal("cancelAnimationFrame", vi.fn((id: number) => frames.delete(id)));
+});
+
+async function advanceFrame(): Promise<void> {
+  const callbacks = [...frames.values()];
+  frames.clear();
+  await act(async () => callbacks.forEach((callback) => callback(nextFrame * 16)));
+}
+
 afterEach(() => {
   for (const renderer of renderers) act(() => renderer.unmount());
   renderers = new Set();
   mockLoad.mockReset();
   disablePerf();
   resetPerf();
+  vi.unstubAllGlobals();
 });
 
 describe("useImageFile", () => {
+  it("waits for the preceding consumer's React commit before scheduling its frame", async () => {
+    const pending = deferred<ImageRpcOutput>();
+    mockLoad.mockReturnValue(pending.promise);
+    const renderer = mount(["starter", "second"].map((id) => ({ id, path: "shot.png", cwd: "/workspace" })));
+    await act(async () => {
+      pending.resolve(firstResult);
+      await pending.promise;
+      await Promise.resolve();
+      // React has not flushed this async act yet. Scheduling now lets rAF
+      // race that commit and batch the starter with the second consumer.
+      expect(frames.size).toBe(0);
+    });
+    expect(fileFor(renderer, "starter")).toEqual(firstFile);
+    expect(fileFor(renderer, "second")).toBeNull();
+    expect(frames.size).toBe(1);
+    await advanceFrame();
+    expect(fileFor(renderer, "second")).toEqual(firstFile);
+  });
+
+  it("delivers to the starter immediately and to later joiners one frame apart in join order", async () => {
+    const pending = deferred<ImageRpcOutput>();
+    mockLoad.mockReturnValue(pending.promise);
+    const received: string[] = [];
+    const consumer = (id: string): ConsumerProps => ({
+      id, path: "shot.png", cwd: "/workspace",
+      onRender: (file) => { if (file) received.push(id); },
+    });
+    const renderer = mount([consumer("starter"), consumer("second")]);
+    update(renderer, [consumer("starter"), consumer("second"), consumer("third")]);
+
+    await act(async () => {
+      pending.resolve(firstResult);
+      await pending.promise;
+    });
+    expect(mockLoad).toHaveBeenCalledTimes(1);
+    expect(received).toEqual(["starter"]);
+    expect(fileFor(renderer, "second")).toBeNull();
+    expect(fileFor(renderer, "third")).toBeNull();
+
+    await advanceFrame();
+    expect(received).toEqual(["starter", "second"]);
+    expect(fileFor(renderer, "third")).toBeNull();
+    await advanceFrame();
+    expect(received).toEqual(["starter", "second", "third"]);
+    expect(frames.size).toBe(0);
+  });
+
+  it.each(["reject", "error-result"])("delivers a shared %s in the same frame order", async (kind) => {
+    const pending = deferred<ImageRpcOutput>();
+    mockLoad.mockReturnValue(pending.promise);
+    const renderer = mount(["starter", "second", "third"].map((id) => ({
+      id, path: "shot.png", cwd: "/workspace",
+    })));
+    const failure = new Error("ENOENT: shot.png");
+    await act(async () => {
+      if (kind === "reject") pending.reject(failure);
+      else pending.resolve({ ...firstResult, dataUri: null, error: failure.message });
+      await pending.promise.catch(() => undefined);
+    });
+    expect(fileFor(renderer, "starter")?.error).toBe(failure.message);
+    expect(fileFor(renderer, "second")).toBeNull();
+    expect(fileFor(renderer, "third")).toBeNull();
+    await advanceFrame();
+    expect(fileFor(renderer, "second")?.error).toBe(failure.message);
+    expect(fileFor(renderer, "third")).toBeNull();
+    await advanceFrame();
+    expect(fileFor(renderer, "third")?.error).toBe(failure.message);
+    expect(mockLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels a joiner's pending frame on unmount without updating it", async () => {
+    const pending = deferred<ImageRpcOutput>();
+    const render = vi.fn();
+    mockLoad.mockReturnValue(pending.promise);
+    const starter: ConsumerProps = { id: "starter", path: "shot.png", cwd: "/workspace" };
+    const renderer = mount([starter, { ...starter, id: "removed", onRender: render }]);
+    await act(async () => { pending.resolve(firstResult); await pending.promise; });
+    const [id, callback] = [...frames.entries()][0]!;
+    const rendersBeforeUnmount = render.mock.calls.length;
+
+    update(renderer, [starter]);
+    expect(cancelAnimationFrame).toHaveBeenCalledWith(id);
+    expect(frames.size).toBe(0);
+    await advanceFrame();
+    // An already queued callback also respects the per-consumer guard.
+    act(() => callback(0));
+    expect(render).toHaveBeenCalledTimes(rendersBeforeUnmount);
+  });
+
+  it("cancels an old path's delivery frame and reads the new path immediately", async () => {
+    const oldRead = deferred<ImageRpcOutput>();
+    const newRead = deferred<ImageRpcOutput>();
+    mockLoad.mockReturnValueOnce(oldRead.promise).mockReturnValueOnce(newRead.promise);
+    const starter: ConsumerProps = { id: "starter", path: "shot.png", cwd: "/workspace" };
+    const renderer = mount([starter, { ...starter, id: "changed" }]);
+    await act(async () => { oldRead.resolve(firstResult); await oldRead.promise; });
+    const [id, callback] = [...frames.entries()][0]!;
+
+    update(renderer, [starter, { ...starter, id: "changed", path: "new.png" }]);
+    expect(cancelAnimationFrame).toHaveBeenCalledWith(id);
+    expect(fileFor(renderer, "changed")).toBeNull();
+    await act(async () => { newRead.resolve(secondResult); await newRead.promise; });
+    expect(fileFor(renderer, "changed")).toEqual(secondFile);
+    act(() => callback(0));
+    await advanceFrame();
+    expect(fileFor(renderer, "changed")).toEqual(secondFile);
+    expect(mockLoad).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips a cancelled joiner without letting later joiners race the starter's commit", async () => {
+    const pending = deferred<ImageRpcOutput>();
+    mockLoad.mockReturnValue(pending.promise);
+    const items = ["starter", "removed", "third"].map((id) => ({
+      id, path: "shot.png", cwd: "/workspace",
+    }));
+    const renderer = mount(items);
+    update(renderer, [items[0]!, items[2]!]);
+    await act(async () => {
+      pending.resolve(firstResult);
+      await pending.promise;
+      await Promise.resolve();
+      expect(frames.size).toBe(0);
+    });
+    expect(fileFor(renderer, "starter")).toEqual(firstFile);
+    expect(fileFor(renderer, "third")).toBeNull();
+    expect(frames.size).toBe(1);
+    await advanceFrame();
+    expect(fileFor(renderer, "third")).toEqual(firstFile);
+    expect(frames.size).toBe(0);
+  });
+
+  it("drops the settled read even while an earlier joiner is waiting for its frame", async () => {
+    const pending = deferred<ImageRpcOutput>();
+    mockLoad.mockReturnValueOnce(pending.promise).mockResolvedValueOnce(secondResult);
+    const first = mount(["starter", "waiting"].map((id) => ({
+      id, path: "shot.png", cwd: "/workspace",
+    })));
+    await act(async () => { pending.resolve(firstResult); await pending.promise; });
+    expect(fileFor(first, "waiting")).toBeNull();
+
+    const later = mount([{ id: "later", path: "shot.png", cwd: "/workspace" }]);
+    await flushResolvedReads();
+    expect(mockLoad).toHaveBeenCalledTimes(2);
+    expect(fileFor(later, "later")).toEqual(secondFile);
+    await advanceFrame();
+    expect(fileFor(first, "waiting")).toEqual(firstFile);
+  });
+
+  it("clears an already loaded file before reading a changed path", async () => {
+    const next = deferred<ImageRpcOutput>();
+    mockLoad.mockResolvedValueOnce(firstResult).mockReturnValueOnce(next.promise);
+    const renderer = mount([{ id: "image", path: "old.png", cwd: "/workspace" }]);
+    await flushResolvedReads();
+    expect(fileFor(renderer, "image")).toEqual(firstFile);
+    update(renderer, [{ id: "image", path: "new.png", cwd: "/workspace" }]);
+    expect(fileFor(renderer, "image")).toBeNull();
+    await act(async () => { next.resolve(secondResult); await next.promise; });
+    expect(fileFor(renderer, "image")).toEqual(secondFile);
+  });
+
   it("shares one in-flight read between same-key consumers and probes only the real RPC", async () => {
     enablePerf();
     const pending = deferred<ImageRpcOutput>();
@@ -152,6 +333,7 @@ describe("useImageFile", () => {
       await Promise.all([pending.promise, secondPending.promise]);
     });
     expect(fileFor(renderer, "first")).toEqual(firstFile);
+    await advanceFrame();
     expect(fileFor(renderer, "second")).toEqual(firstFile);
   });
 
@@ -214,6 +396,7 @@ describe("useImageFile", () => {
     });
     const failedFile: ImageFile = { dataUri: null, width: null, height: null, bytes: null, error: failure.message };
     expect(fileFor(renderer, "first")).toEqual(failedFile);
+    await advanceFrame();
     expect(fileFor(renderer, "second")).toEqual(failedFile);
     unmount(renderer);
 
@@ -242,6 +425,7 @@ describe("useImageFile", () => {
       await pending.promise;
     });
 
+    await advanceFrame();
     expect(fileFor(renderer, "remaining")).toEqual(firstFile);
     expect(removedConsumerRender).toHaveBeenCalledTimes(1);
   });
