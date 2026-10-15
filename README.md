@@ -267,13 +267,18 @@ data, it gets a question transcript; otherwise it stays a generic text card.
 - Rows keep the time they first appeared, so parallel reads no longer reorder or change spacing
   when one finishes first.
 - Row heads show an icon, a label or both. Long code and terminal output fold to 12 lines.
-- Paseo's own tools carry the Paseo mark, and a created agent its provider's mark.
+- **Block text size** changes prose in tool, thought, checklist and notice rows; code, diffs and
+  terminal output keep their code font size.
+- Paseo's own tools carry the Paseo mark; agent cards and reply footers use the agent's provider
+  mark, independently of the selected model.
 - Every op of Oh My Pi's `hub` tool has a card: processes, messages and job snapshots. The cards
   report; they carry no buttons, since a plugin cannot restart or cancel anything.
 - Across agents, recognized question calls with structured `questions` data render as paginated
   transcripts with choices, recorded answers and status. **Show raw data** reveals the payload;
   the transcript is read-only, and Paseo still handles answers. Questions stay wrapped in previews
   for readability.
+
+![Structured question transcript with recorded answers](docs/images/questions.png)
 
 | Shell and Git | Read |
 | --- | --- |
@@ -298,11 +303,14 @@ data, it gets a question transcript; otherwise it stays a generic text card.
   collapsed by default, and while it streams the row previews the current heading.
 - Durations are shown only when this client actually watched the reasoning stream; nothing is
   estimated.
-- Checklists show the phase, per-task status, durations, and a blocked task with its reason. The
-  header's window button opens the live checklist in a panel that follows the newest list; long titles can wrap there.
+- Checklists show the phase, per-task status, durations, and a blocked task with its reason. A
+  progress ring tracks completed tasks and becomes a check when all are done. The header's window
+  button opens the live checklist in a panel that stays open as you use the timeline and follows the
+  newest list; long titles can wrap there.
 
 ![Reasoning trace](docs/images/reasoning.png)
 ![Checklist](docs/images/tasks.png)
+![Live checklist in a floating window](docs/images/checklist-window.png)
 
 ### Replies
 
@@ -310,6 +318,7 @@ data, it gets a question transcript; otherwise it stays a generic text card.
   and local images. Three styles: **Document**, **Compact** and **Terminal**.
 - Unlabelled, Markdown and plain-text code fences can open a maximized preview window. Switch
   between rendered Markdown and raw text, copy the source, and use **Wrap lines** in raw-text mode.
+  The window stays separate from the compact reply.
 - Tables have column rules, a header fill and a rounded frame; cells are a size smaller with tighter
   lines, and column widths account for tabular digits and CJK width.
 - Every table has a copy control at its top-left corner. On web and desktop, hovering it (or a
@@ -320,13 +329,18 @@ data, it gets a question transcript; otherwise it stays a generic text card.
   composer capability.
 - Each completed turn has a separate footer under its final reply with Copy and its time, plus the
   provider mark, model, thinking level and observed duration when available. The model name copies
-  when pressed, and completed-turn footers remain during a later run. Turn
+  when pressed and confirms with a toast; completed-turn footers remain during a later run. Turn
   **Plugin markdown for replies** off to restore Paseo's full footer, including its Fork action.
 - Every local image in a reply is drawn, not only the first.
 - Turn **Plugin markdown for replies** off to hand replies back to Paseo, which draws mermaid
   diagrams and its own images and file links.
 
+| Table copy menu | Selected cell actions |
+| --- | --- |
+| ![Table copy menu](docs/images/table-copy-menu.png) | ![Selected table cell actions](docs/images/table-selection.png) |
+
 ![Document, Compact and Terminal markdown styles](docs/images/markdown-styles.png)
+![Maximized Markdown code preview in raw-text mode](docs/images/markdown-preview-window.png)
 
 ### Images
 
@@ -338,13 +352,18 @@ data, it gets a question transcript; otherwise it stays a generic text card.
 - Bytes come from the daemon (`file.image`) the first time a row is opened, previewed or
   long-pressed. PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG are recognised; files over 3 MB report
   their size instead of inlining.
+- When multiple read cards point to the same image, each card displays it.
+
+![Two read cards displaying the same image](docs/images/shared-image-cards.png)
 
 ### Hover previews
 
 On desktop, resting the pointer on a collapsed tool row, thought row, image or path opens a
 scrollable preview after a delay you set (0–10 s). It can wrap lines, show line numbers and
-alternating shading, and can be moved, resized, maximised or popped out as a floating window. On a
-phone, long-press a collapsed row to open the same preview without covering the top bar or composer.
+alternating shading, and can be moved, resized or maximized. A checklist can open its live list in a
+floating window, and a Markdown code block can open its own maximized preview. When a preview is
+following live output, it glides along as the content grows. On a phone, long-press a collapsed row
+to open the same preview without covering the top bar or composer.
 
 ### Paths, copying and selection
 
@@ -356,6 +375,8 @@ phone, long-press a collapsed row to open the same preview without covering the 
 - Selecting text in a card on web or desktop raises **Copy** and **Add to chat**, which quotes the
   selection in the composer, fenced when it came from code. The bar closes on scroll; if no composer
   is visible, **Add to chat** copies the selection instead.
+
+![Selected text with Copy and Add to chat actions](docs/images/selection-actions.png)
 
 ### Prompt bubble
 
@@ -387,6 +408,7 @@ turn at phone width with iOS styling and the inline-code colour you picked.
 Options whose parent is off are dimmed, and **Reset** asks for a second press.
 
 ![Settings page with its live preview](docs/images/settings.png)
+![Block text size setting with its live preview](docs/images/settings-tools.png)
 
 | Group | Setting | Default | Effect |
 | --- | --- | --- | --- |
