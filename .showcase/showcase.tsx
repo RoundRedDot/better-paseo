@@ -38,6 +38,7 @@ import { PathContext, PathText, type PathContextValue } from "../client/ui/path-
 import { RunningDot } from "../client/ui/running-dot";
 import { Glyph } from "../client/components/glyph";
 import { classifyTool, type ToolCallPayload, type ToolCallView } from "../client/tools/classify";
+import { useSelectionActions } from "../client/components/selection-actions";
 import { S7_GROUPS } from "./s7-groups";
 import { pluginRoot } from "../client/components/focus-ring";
 import { DEFAULT_WEB_MONO_STACK } from "../client/ui/tokens/typography";
@@ -159,21 +160,23 @@ const readImage: ToolCalloutData = {
   filePath: "images/hero.png",
   code: "// [Image file: 1175x1150]",
 };
+const readImageAgain: ToolCalloutData = { ...readImage, id: "read-image-again", title: "Read hero.png again" };
 
-/**
- * The bytes for the image card.
- *
- * In the app these arrive from the plugin's daemon-side RPC, which a capture
- * cannot reach. The capture script therefore sets `__bcImageUri` before the
- * bundle evaluates; without it the panel still renders, reporting that the
- * file could not be read, which is the honest offline state.
- */
+/** The image bytes normally arrive from the daemon; the offline scene uses an SVG file fixture. */
+const sampleImageSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1175" height="1150" viewBox="0 0 1175 1150">
+  <defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#d9e8fa"/><stop offset="1" stop-color="#fff1d6"/></linearGradient></defs>
+  <rect width="1175" height="1150" fill="url(#sky)"/>
+  <circle cx="860" cy="290" r="118" fill="#f3b765"/>
+  <path d="M0 690 250 390l174 208 191-299 330 392 110-137 120 137v459H0z" fill="#a7c7bb"/>
+  <path d="m0 835 245-214 188 185 220-246 270 266 127-118 125 122v320H0z" fill="#628f80"/>
+  <path d="M0 936c206-72 320-48 478 3s307 44 697-23v234H0z" fill="#477764"/>
+</svg>`;
 const sampleImage = {
-  dataUri: (globalThis as { __bcImageUri?: string }).__bcImageUri ?? null,
+  dataUri: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sampleImageSvg)}`,
   width: 1175,
   height: 1150,
-  bytes: 122632,
-  error: "No daemon in the offline showcase",
+  bytes: new TextEncoder().encode(sampleImageSvg).length,
+  error: null,
 };
 
 const githubCalls: ToolCalloutData[] = [
@@ -520,6 +523,89 @@ const tasks = {
   ],
 };
 
+const questionChoices = [
+  {
+    id: "target",
+    header: "Target",
+    question: "Which preview should the docs show?",
+    options: [
+      { label: "Code window", description: "Show the rendered Markdown and raw text toggle" },
+      { label: "Checklist", description: "Show the live task panel" },
+    ],
+  },
+  {
+    id: "coverage",
+    header: "Coverage",
+    question: "Which compatibility note should stay visible?",
+    options: [{ label: "Keep iOS device acceptance open" }],
+    multiSelect: true,
+  },
+];
+
+const questionChoiceCall: ToolCallView = classifyTool({
+  name: "request_user_input_async",
+  callId: "showcase-question-1",
+  status: "completed",
+  questionData: {
+    status: "completed",
+    questions: questionChoices,
+    result: {
+      answers: [
+        { question: questionChoices[0]!.question, selectedOptions: ["Code window"] },
+        { question: questionChoices[1]!.question, selectedOptions: ["Keep iOS device acceptance open"], customInput: "and list the Web evidence" },
+      ],
+    },
+  },
+});
+
+const questionSummaryCall: ToolCallView = {
+  ...classifyTool({
+    name: "ask",
+    callId: "showcase-question-2",
+    status: "completed",
+    detail: { type: "plain_text", label: "ask" },
+    questionData: {
+      status: "completed",
+      questions: [{
+        header: "Locale",
+        question: "Which screenshot locale?",
+        options: [{ label: "en-US" }, { label: "zh-CN" }],
+      }],
+    },
+  }),
+  output: `User has answered your questions: "Which screenshot locale?"="en-US". You can now continue with these answers in mind.`,
+};
+
+const TABLE_SHOT = [
+  "### Weekly rollout",
+  "",
+  "| Feature | State | Notes |",
+  "| --- | --- | --- |",
+  "| Code preview | Ready | Rendered / raw toggle |",
+  "| Cell selection | Ready | Copy or add to chat |",
+  "| Checklist | Live | Follows the newest list |",
+].join("\n");
+
+const CODE_PREVIEW_SHOT = [
+  "# Preview controls",
+  "",
+  "The window keeps Markdown readable while the original reply stays compact.",
+  "",
+  "## What changes",
+  "",
+  "- Render headings, tables, lists and links in the window.",
+  "- Switch to the source when you need to copy the Markdown.",
+  "- Keep long lines wrapped in raw text when the preference is on.",
+  "",
+  "| View | Use it for |",
+  "| --- | --- |",
+  "| Rendered | Reading a long reply |",
+  "| Raw text | Copying the original source |",
+  "",
+  "> The reply remains compact while the window is open.",
+].join("\n");
+const CODE_PREVIEW_SHOT_SOURCE = "```md\n" + CODE_PREVIEW_SHOT + "\n```";
+
 function Shot({
   id,
   width = 900,
@@ -581,7 +667,8 @@ function Thread() {
       />
       <View>
         <MarkdownView text={REPLY} tokens={tokens} variant="document" />
-        <AssistantFooter text={REPLY} at={new Date("2026-09-15T22:47:12Z")} tokens={tokens} />
+        <AssistantFooter text={REPLY} at={new Date("2026-09-15T22:47:12Z")} agentName="claude"
+          modelName="Grok 4" thinkingLabel="High" durationMs={12_400} tokens={tokens} />
       </View>
     </View>
   );
@@ -607,7 +694,8 @@ function Hero() {
       {envelope ? <SystemCard envelope={envelope} tokens={tokens} /> : null}
       <View>
         <MarkdownView text={HERO_REPLY} tokens={tokens} variant="document" />
-        <AssistantFooter text={HERO_REPLY} at={new Date("2026-09-15T22:47:12Z")} tokens={tokens} />
+        <AssistantFooter text={HERO_REPLY} at={new Date("2026-09-15T22:47:12Z")} agentName="claude"
+          modelName="Grok 4" thinkingLabel="High" durationMs={12_400} tokens={tokens} />
       </View>
     </View>
   );
@@ -703,7 +791,8 @@ function DesktopTimeline() {
       {envelope ? <SystemCard envelope={envelope} tokens={t} /> : null}
       <View>
         <MarkdownView text={HERO_REPLY} tokens={t} variant="document" />
-        <AssistantFooter text={HERO_REPLY} at={new Date("2026-09-15T22:47:12Z")} tokens={t} />
+        <AssistantFooter text={HERO_REPLY} at={new Date("2026-09-15T22:47:12Z")} agentName="claude"
+          modelName="Grok 4" thinkingLabel="High" durationMs={12_400} tokens={t} />
       </View>
     </View>
   );
@@ -810,7 +899,8 @@ function PhoneTimeline() {
       <HubCallout data={hubMessage} tokens={t} />
       <View>
         <MarkdownView text={MOBILE_REPLY} tokens={t} variant="document" />
-        <AssistantFooter text={MOBILE_REPLY} at={new Date("2026-09-15T22:58:40Z")} tokens={t} />
+        <AssistantFooter text={MOBILE_REPLY} at={new Date("2026-09-15T22:58:40Z")} agentName="claude"
+          modelName="Grok 4" thinkingLabel="High" durationMs={12_400} tokens={t} />
       </View>
     </View>
   );
@@ -1225,7 +1315,7 @@ function Primitives({ tokens }: { tokens: ExtendedThemeTokens }) {
 
 function Showcase() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24, backgroundColor: "#000" }}>
+    <div data-showcase-scenes style={{ display: "flex", flexDirection: "column", gap: 24, backgroundColor: "#000" }}>
       <HeroDevices />
       <Shot id="shot-hero">
         <Hero />
@@ -1248,6 +1338,10 @@ function Showcase() {
           imageFile={sampleImage}
           defaultExpanded
         />
+      </Shot>
+      <Shot id="shot-shared-image-cards">
+        <ToolCallout data={readImage} tokens={tokens} onRevealPath={() => {}} imageFile={sampleImage} defaultExpanded />
+        <ToolCallout data={readImageAgain} tokens={tokens} onRevealPath={() => {}} imageFile={sampleImage} defaultExpanded />
       </Shot>
       <Shot id="shot-tool-github">
         {githubCalls.map((call) => (
@@ -1306,6 +1400,27 @@ function Showcase() {
       <Shot id="shot-tasks">
         <TaskList data={tasks} tokens={tokens} />
       </Shot>
+      <Shot id="shot-checklist-window" width={1000}>
+        <TaskList data={tasks} tokens={tokens} />
+      </Shot>
+      <Shot id="shot-questions" width={1000}>
+        <ToolCallout data={questionChoiceCall} tokens={tokens} defaultExpanded />
+        <ToolCallout data={questionSummaryCall} tokens={tokens} defaultExpanded />
+      </Shot>
+      <Shot id="shot-table-copy-menu">
+        <MarkdownView text={TABLE_SHOT} tokens={tokens} variant="document" />
+      </Shot>
+      <Shot id="shot-table-selection">
+        <MarkdownView text={TABLE_SHOT} tokens={tokens} variant="document" />
+      </Shot>
+      <Shot id="shot-selection-actions">
+        <SelectionActionsSample />
+      </Shot>
+      <div data-window-content style={{ width: 1280, height: 560, overflow: "hidden", backgroundColor: BASE.surface0 }}>
+        <Shot id="shot-markdown-preview-window" width={1200}>
+          <MarkdownView text={CODE_PREVIEW_SHOT_SOURCE} tokens={tokens} variant="document" />
+        </Shot>
+      </div>
       <Shot id="shot-user">
         <UserMessage
           text="Open the file explorer from a tool call, and keep the prompt bubble on theme."
@@ -1324,6 +1439,21 @@ function Showcase() {
           onRevealFile={() => {}}
         />
       </Shot>
+      <div
+        id="shot-markdown-styles"
+        style={{ width: 2320, height: 880, padding: 20, boxSizing: "border-box", backgroundColor: LIGHT.surface0 }}
+      >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 20 }}>
+          {MARKDOWN_VARIANTS.map((variant) => (
+            <View key={variant} style={{ gap: 10, minWidth: 0 }}>
+              <Text style={{ color: LIGHT.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 14, fontWeight: "600" }}>
+                {variant === "document" ? "Document" : variant === "compact" ? "Compact" : "Terminal"}
+              </Text>
+              <MarkdownView text={MD_SAMPLER} tokens={v2Light} variant={variant} />
+            </View>
+          ))}
+        </div>
+      </div>
       <Shot id="shot-reasoning-dark" width={720}>
         <ReasoningStates tokens={v2Dark} />
       </Shot>
@@ -1403,6 +1533,17 @@ function Showcase() {
           </View>
         </div>
       </div>
+      <div id="shot-settings-block-size" style={{ width: 1240, height: 890, overflowY: "auto", backgroundColor: BASE.surface0 }}>
+        <div style={{ maxWidth: 720, width: "100%", margin: "0 auto", padding: 16, paddingTop: 8, boxSizing: "border-box" }}>
+          <View {...pluginRoot}>
+            <BetterPaseoSettingsPage
+              theme={{ colors: BASE }}
+              host={{ id: "local", label: "Local" }}
+              layout={{ compact: false, platform: "web" }}
+            />
+          </View>
+        </div>
+      </div>
       {S7_GROUPS.map((group) => (
         <Shot key={group.id} id={`shot-s7-${group.id}`}>
           {group.render(s7Tokens, COMPACT)}
@@ -1423,6 +1564,18 @@ function Showcase() {
         />
       </Shot>
     </div>
+  );
+}
+
+function SelectionActionsSample() {
+  useSelectionActions(tokens, true);
+  return (
+    <UserMessage
+      text="Selecting text in a card shows Copy and Add to chat. Add to chat quotes prose or fences code, then the bar closes on scroll."
+      timestamp={new Date("2026-10-12T10:00:00Z")}
+      tokens={tokens}
+      usage={{ inputTokens: 1200, outputTokens: 96 }}
+    />
   );
 }
 
