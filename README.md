@@ -31,8 +31,8 @@ than Paseo does on its own.
   press, and stay open or closed across completion, history and remounts.
 - **Streaming that does not jump.** Replies are parsed block by block; a half-written code fence
   or table never flips format, and the layout shift of a long streaming reply is 0.
-- **Previews without opening.** Hover a collapsed row or a path on desktop, or long-press it on a
-  phone, to read its content in a scrollable panel. Images open in a full-screen viewer.
+- **Previews without opening.** Hover a collapsed row or a path on desktop, or long-press a
+  collapsed row on a phone, to read its content in a scrollable panel. Images open in a full-screen viewer.
 - **Follows Paseo.** Fonts, sizes and colours follow the host by default; settings are stored on
   the daemon and shared by desktop, web, iOS and Android. The settings page is in English and
   Simplified Chinese.
@@ -261,7 +261,8 @@ text and its `task` as a sub-agent item, so those get the plain-text and sub-age
 - The open or closed state is kept per call (`agentId:callId`) outside the component, so it
   survives completion, scrolling into history and remounts. On iOS the header stays where it was
   pressed and the content opens below it.
-- A failed call shows a one-line error; **Open failed calls** opens it automatically.
+- A failed call shows a one-line error; with **Open failed calls** on, it starts expanded unless
+  the reader has already chosen its open or closed state.
 - Rows keep the time they first appeared, so parallel reads no longer reorder or change spacing
   when one finishes first.
 - Row heads show an icon, a label or both. Long code and terminal output fold to 12 lines.
@@ -292,7 +293,8 @@ text and its `task` as a sub-agent item, so those get the plain-text and sub-age
   collapsed by default, and while it streams the row previews the current heading.
 - Durations are shown only when this client actually watched the reasoning stream; nothing is
   estimated.
-- Checklists show the phase, per-task status, durations, and a blocked task with its reason.
+- Checklists show the phase, per-task status, durations, and a blocked task with its reason. The
+  header's window button opens the live checklist in a panel that follows the newest list; long titles can wrap there.
 
 ![Reasoning trace](docs/images/reasoning.png)
 ![Checklist](docs/images/tasks.png)
@@ -306,6 +308,8 @@ text and its `task` as a sub-agent item, so those get the plain-text and sub-age
 - Every table has a copy control at its top-left corner. On web and desktop, hovering it (or a
   long press on a touch screen) opens **Copy as Markdown** and **Copy as image**, a picture of the
   table as drawn; a plain press copies the Markdown. On iOS and Android it copies the Markdown.
+- On web and desktop, double-click a cell to select its text. On iOS, double-tap a cell to select
+  it, then use the table's corner control to copy the selected cell text.
 - Every local image in a reply is drawn, not only the first.
 - Turn **Plugin markdown for replies** off to hand replies back to Paseo, which draws mermaid
   diagrams and its own images and file links.
@@ -327,8 +331,8 @@ text and its `task` as a sub-agent item, so those get the plain-text and sub-age
 
 On desktop, resting the pointer on a collapsed tool row, thought row, image or path opens a
 scrollable preview after a delay you set (0–10 s). It can wrap lines, show line numbers and
-alternating shading, and maximise. On a phone a long press opens the same preview without covering
-the top bar or the composer.
+alternating shading, and can be moved, resized, maximised or popped out as a floating window. On a
+phone, long-press a collapsed row to open the same preview without covering the top bar or composer.
 
 ### Paths, copying and selection
 
@@ -343,8 +347,9 @@ the top bar or the composer.
 ### Prompt bubble
 
 Paseo draws the prompt by default, keeping pasted images and its rewind menu. **Enhanced prompt
-bubble** switches to the plugin's bubble: an always-visible copy button and the turn's token usage.
-It cannot show pasted images; rewind stays wherever the running Paseo provides it.
+bubble** switches eligible prompts to the plugin's bubble: an always-visible copy button and the
+turn's token usage. It draws images when it can extract a supported image source; a prompt with an
+unrenderable attachment stays with Paseo. Rewind stays wherever the running Paseo provides it.
 
 ![Prompt bubble](docs/images/user.png)
 
@@ -365,7 +370,7 @@ Permission requests are not redrawn: Paseo draws them and owns the approve and d
 **Settings → Plugins → Better Paseo.** A sample turn drawn with the timeline's own components follows
 every change: beside the options on a wide desktop window, above them elsewhere. The Read row's
 hover preview is drawn open in it. On web and desktop a **Desktop / Mobile** switch draws the same
-turn as iOS does: a phone's width, the system monospace, and inline code in the colour you picked.
+turn at phone width with iOS styling and the inline-code colour you picked.
 Options whose parent is off are dimmed, and **Reset** asks for a second press.
 
 ![Settings page with its live preview](docs/images/settings.png)
@@ -376,21 +381,24 @@ Options whose parent is off are dimmed, and **Reset** asks for a second press.
 | Appearance | Accent colour | Theme | Follow the Paseo theme, or Jade, Violet, Amber or Rose. Only the accent changes. |
 | Appearance | Inline code on mobile | Dark grey | Text colour of inline code on iOS and Android: Dark grey, Blue, Violet, Green or Coral. Web keeps its grey chip. |
 | Appearance | Interface font | Follow Paseo | Paseo's interface font, Inter (web only, fetched from the daemon) or the system face. |
-| Code font | Monospace font | Follow Paseo | Follow Paseo or a custom family. Follow Paseo uses, in order: the host's font settings once Paseo shares them; on web and desktop, the monospace font and size from Paseo's Appearance settings; otherwise Paseo's default monospace. On iOS and Android, Custom lists faces the platform ships. |
+| Code font | Monospace font | Follow Paseo | Choose Follow Paseo or Custom. Follow Paseo uses, in order: the host's font settings once Paseo shares them; on web and desktop, the monospace font and size from Paseo's Appearance settings; otherwise Paseo's default monospace. On iOS and Android, Custom lists faces the platform ships. |
+| Code font | Custom monospace family | Empty | Only used when Monospace font is Custom. Web accepts a family name up to 200 characters and falls back through the monospace stack if unavailable; iOS and Android offer only platform families. |
 | Code font | Code font size | Follow Paseo | Or 10–22px; lines are 1.5× the size. Applies to code, diffs, terminals and paths. |
 | Tool calls | Block text size | 13px | 9–20px for tool rows, thoughts, checklists and notices. Text inside those blocks grows with it. Code, diffs and terminal output keep the code font size. |
 | Tool calls | Row icons and labels | Icon | Icon, label (Bash, Read…) or both at the start of tool and thought rows. |
-| Tool calls | Open failed calls | Off | On, a failed call opens to show its error. |
+| Tool calls | Open failed calls | Off | On, a failed call opens to show its error. A call you opened or closed yourself keeps your choice. |
 | Tool calls | File paths | Relative | Relative to the workspace, or absolute. Copying always gives the absolute path. |
-| Spacing | Tight rows | On | Closes the 16pt gap Paseo 0.11 leaves under each plugin row to 4pt. Turn off if rows overlap. |
-| Spacing | Tight reply | On | A reply sitting on a tool, thought or checklist row uses 4pt instead of 16pt. |
-| Messages | Enhanced prompt bubble | Off | The plugin's bubble with token usage and a visible copy button, without pasted images. |
+| Spacing | Tight rows | On | Reduces the gap under a plugin row from 16pt to 4pt when another row follows. Rows Paseo already stacks are left alone. Turn off if rows overlap. |
+| Spacing | Tight reply | On | Reduces the gap from 16pt to 4pt when a finished reply is followed by a plugin row, including a checklist. Turn off if they overlap. |
+| Messages | Enhanced prompt bubble | Off | Shows the turn's token usage and keeps Copy visible. Readable pasted images are drawn; prompts with other attachments stay with Paseo. Changing it updates existing prompts too. Rewind stays wherever Paseo provides it. |
 | Messages | Plugin markdown for replies | On | Off hands replies to Paseo, for mermaid, host images and Paseo's file links. |
 | Messages | Markdown style | Document | Document, Compact or Terminal (body in the code font). |
 | Messages | Selection toolbar | On | Web and desktop: Copy and Add to chat on selected text. |
-| Hover previews | Hover previews | On | Preview collapsed rows and paths on hover (desktop) or long press (phone). |
-| Hover previews | Delay | 1 s | 0–10 s before the desktop preview opens. |
-| Hover previews | Wrap lines / Line numbers / Alternating line shading | On / Off / On | How the preview draws its content. |
+| Hover previews | Hover previews | On | Preview collapsed rows and paths on desktop hover; long-press a collapsed row on a phone. |
+| Hover previews | Delay | 1 s | 0–10 s, saved to tenths of a second, before the desktop preview opens. |
+| Hover previews | Wrap lines | On | Wrap long lines in preview panels; turn off to scroll them horizontally. |
+| Hover previews | Line numbers | Off | Show line numbers beside files, diffs and command output; diffs use the file's own line numbers. |
+| Hover previews | Alternating line shading | On | Shade every other line in preview panels. |
 
 **Where settings live.** Preferences are stored by the daemon through the SDK's host-scoped settings
 (record `presentation` in `shared/preferences-settings.ts`), so **every client connected to one
@@ -400,8 +408,10 @@ platform monospace on iOS and Android; Inter becomes the system face). On web, `
 only a fast-start cache. Until the settings arrive, cards draw with cached or default values and
 switch once.
 
-**Settings apply to new items.** Paseo caches each transformed item, so a change reaches messages
-that arrive afterwards; reload the chat to redraw existing ones.
+**Settings apply immediately.** Already displayed plugin items re-render as soon as local preference
+state changes. The daemon stores the value and syncs it to other connected clients; reloading the chat
+is not needed. **Open failed calls** uses the saved per-call choice when there is one, and otherwise
+sets the call's initial state.
 
 ---
 
@@ -432,9 +442,8 @@ open the daemon machine's file manager.
 | --- | --- |
 | Rows overlap, or a reply overlaps the row below | Turn off **Tight rows** or **Tight reply**. |
 | A reply needs a mermaid diagram, a host image or Paseo's file links | Turn off **Plugin markdown for replies**. |
-| Pasted images are missing from prompts | Turn off **Enhanced prompt bubble**; plugins never receive pasted images. |
+| A prompt with an attachment should use Paseo's renderer | Turn off **Enhanced prompt bubble**. Attachments the plugin cannot render stay with Paseo automatically. |
 | Ctrl/Cmd+F misses old messages | Scroll up to load them, or hand replies back to Paseo as above. |
-| A settings change does not affect earlier messages | Reload the chat; transformed items are cached. |
 | Token figures are missing on an old turn | Usage is not stored on timeline items, so only turns this client watched live show it. |
 | Nothing changed after pushing a fix | Run `paseo plugin update better-paseo`; Paseo runs the GitHub version. |
 
@@ -455,7 +464,7 @@ Better Paseo works on released Paseo and probes for newer host abilities, fallin
 absent. These host changes are verified in a Paseo fork but not yet released:
 
 - Plugin tool rows spaced like native ones (about 46pt down to 30pt; native is 32pt). Until then
-  **Tight rows** takes back the extra 16pt.
+  **Tight rows** reduces the gap from 16pt to 4pt where applicable.
 - Paseo sharing its font settings with plugins, so a change in Appearance applies live. Until then
   web and desktop read Paseo's locally stored Appearance settings.
 - Lowering `class` syntax before the bundle runs on Hermes.
