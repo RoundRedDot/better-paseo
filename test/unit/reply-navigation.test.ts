@@ -78,7 +78,7 @@ describe("reply navigation", () => {
     const render = (count = 3) => React.createElement(listContext().Provider, { value: list },
       nodes.slice(0, count).map((replyRef, index) => React.createElement(AssistantFooter, {
         key: index, agentId: "native-agent", replyRef: replyRef as never,
-        text: `Reply ${index}`, at: new Date(2026, 9, 16, 10, index), modelName: `Model ${index}`,
+        text: `Reply ${index}`, at: new Date(2026, 9, 16, 10, index), modelName: `Model ${index}`, turnNumber: index + 1, turnCount: 3,
         usage: { inputTokens: 100 + index }, tokens, compact: true,
       })));
     let renderer!: ReturnType<typeof TestRenderer.create>;
@@ -88,17 +88,22 @@ describe("reply navigation", () => {
         .filter((node) => node.props.accessibilityLabel === label);
       const model = () => renderer.root.findAllByType("View" as never)
         .find((node) => node.props.testID === "footer-detail-Model name")!;
+      const title = () => renderer.root.findAllByType("Text" as never)
+        .find((node) => node.props.accessibilityRole === "header")!.props.children;
       act(() => buttons("Copy model name")[0]!.props.onLongPress());
+      expect(title()).toBe("Turn 1/3 details");
       expect(buttons("Previous reply")[0]!.props.disabled).toBe(true);
       act(() => buttons("Next reply")[0]!.props.onPress());
       expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: inverted ? 556 : 1444, animated: false });
       expect(renderer.root.findAllByType("Modal" as never)).toHaveLength(1);
+      expect(title()).toBe("Turn 2/3 details");
       expect(model().findAllByType("Text" as never).map((node) => node.props.children)).toContain("Model 1");
       expect(buttons("Previous reply")[0]!.props.disabled).toBe(false);
       const copy = model().findByType("Pressable" as never);
       await act(async () => { copy.props.onPress(); });
       expect(clipboard).toHaveBeenLastCalledWith("Model 1");
       act(() => buttons("Next reply")[0]!.props.onPress());
+      expect(title()).toBe("Turn 3/3 details");
       expect(buttons("Next reply")[0]!.props.disabled).toBe(true);
       act(() => buttons("Previous reply")[0]!.props.onPress());
       act(() => renderer.update(render(2)));

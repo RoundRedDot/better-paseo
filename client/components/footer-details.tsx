@@ -1,10 +1,10 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { ProviderLogo } from "./provider-logo";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { useEnhancerPreferences } from "../preferences";
-import { toolbarLabel } from "../i18n/toolbar-strings";
+import { toolbarLabel, turnDetailsTitle } from "../i18n/toolbar-strings";
 import { resolveLanguage } from "../i18n/settings-strings";
 import type { SettingsLanguagePreference } from "../i18n/settings-strings";
 import { CopyButton } from "../ui/copy-button";
@@ -25,6 +25,9 @@ export interface FooterDetailsProps {
   usage?: TurnUsage | null;
   tokens: ExtendedThemeTokens;
   replyTarget?: ReplyTarget;
+  turnNumber?: number;
+  turnCount?: number;
+  observeTurnNumber?: () => () => void;
   close(): void;
 }
 
@@ -46,8 +49,9 @@ export function useFooterDetailsWidth(): number {
 /**
  * Two columns: a plain label, then its toolbar icon, value and inline copy action.
  */
-export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, completedAt, durationMs, usage, tokens, replyTarget, close }: FooterDetailsProps) {
+export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, completedAt, durationMs, usage, tokens, replyTarget, turnNumber, turnCount, observeTurnNumber, close }: FooterDetailsProps) {
   const { language } = useEnhancerPreferences();
+  useEffect(() => observeTurnNumber?.(), [observeTurnNumber]);
   const { previous: onPrevious, next: onNext } = useReplyNavigation(replyTarget, close);
   const rows: Array<{ label: string; icon: string; provider?: string | null; value: string; copyLabel?: string }> = [];
   if (agentName) rows.push({ label: "Agent", icon: "Bot", provider: agentName, value: agentName, copyLabel: "Copy agent" });
@@ -72,7 +76,7 @@ export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, 
         <ToolbarButton icon="ChevronLeft" label="Previous reply" tokens={tokens} disabled={!onPrevious}
           onPress={() => onPrevious?.()} />
         <Text accessibilityRole="header" style={[textStyle, styles.title, { color: tokens.foreground }]}>
-          {toolbarLabel("Turn details", language)}
+          {turnDetailsTitle(turnNumber, turnCount, language)}
         </Text>
         <ToolbarButton icon="ChevronRight" label="Next reply" tokens={tokens} disabled={!onNext}
           onPress={() => onNext?.()} />

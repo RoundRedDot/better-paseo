@@ -83,6 +83,12 @@ export function toolbarLabel(label: string, preference: SettingsLanguagePreferen
   return ZH[label] ?? label;
 }
 
+/** Numbering waits for canonical history, rather than counting mounted rows. */
+export function turnDetailsTitle(turnNumber: number | undefined, turnCount: number | undefined, preference: SettingsLanguagePreference): string {
+  const position = `${turnNumber ?? "…"}/${turnCount ?? "…"}`;
+  return resolveLanguage(preference) === "zh" ? `${position} 轮详情` : `Turn ${position} details`;
+}
+
 /**
  * The toast for a copy, from its button's label: "Copy path" says "Copied
  * path" (已复制路径). A menu entry's "2. " prefix is dropped; a label that

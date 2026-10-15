@@ -242,7 +242,7 @@ describe("assistant footer", () => {
       expect(details()).toHaveLength(1);
       const title = renderer.root.findAllByType("Text" as never)
         .find((node) => node.props.accessibilityRole === "header")!;
-      expect(title.props.children).toBe("轮次详情");
+      expect(title.props.children).toBe("…/… 轮详情");
       expect(StyleSheet.flatten(title.props.style).textAlign).toBe("center");
       const bubble = renderer.root.findAllByType("View" as never)
         .map((node) => StyleSheet.flatten(node.props.style))
