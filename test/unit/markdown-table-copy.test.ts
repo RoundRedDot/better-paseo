@@ -157,6 +157,39 @@ describe("Markdown table copy", () => {
     expect(copyButtonLayer().props.accessibilityElementsHidden).toBe(hidden);
   };
 
+  it("does not leave an expanded background behind the shrinking native menu", () => {
+    const runs = captureAnimations();
+    render("| A | B |\n| --- | --- |\n| one | two |");
+    tap(2, 100); tap(2, 230);
+    act(() => selectedCopy()[0]!.props.onLayout({ nativeEvent: { layout: { width: 96 } } }));
+    act(() => renderer!.root.findAll((node) => String(node.type) === "Animated.ScrollView")[0]!.props.onScrollBeginDrag());
+    const menu = animatedMenu()[0]!;
+    const frame = StyleSheet.flatten(menu.props.style);
+    const width = frame.width as { setValue(value: number): void; __value: number };
+    act(() => width.setValue(60));
+    expect(width.__value).toBe(60);
+    expect(frame.backgroundColor).toBe(tokens.surface0);
+    // The hit target stays expanded until exit ends, but must not paint it.
+    let ancestor = menu.parent!;
+    while (ancestor !== renderer!.root) {
+      if (String(ancestor.type) === "View") {
+        const style = StyleSheet.flatten(ancestor.props.style);
+        expect(style.backgroundColor).toBeUndefined();
+        if (style.position === "relative") break;
+      }
+      ancestor = ancestor.parent!;
+    }
+    const backing = () => renderer!.root.findAll((node) => String(node.type) === "View"
+      && StyleSheet.flatten(node.props.style).backgroundColor === tokens.surface0
+      && StyleSheet.flatten(node.props.style).width === 30
+      && StyleSheet.flatten(node.props.style).height === 30);
+    expect(backing()).toHaveLength(1);
+    expect(backing()[0]!.props.pointerEvents).toBe("none");
+    act(() => runs.at(-2)!.finish!({ finished: true }));
+    expect(animatedMenu()).toHaveLength(0);
+    expect(backing()).toHaveLength(1);
+  });
+
   it("keeps the underlying copy button hidden until the shrinking frame has finished", () => {
     const runs = captureAnimations();
     render("| A | B |\n| --- | --- |\n| one | two |");
