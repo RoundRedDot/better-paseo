@@ -42,7 +42,7 @@ describe("assistant footer", () => {
         .map((node) => [node.props.children].flat().join(""));
       expect(labels).toEqual(["Copy", "GPT-6.1-Sol", "Medium", "2026-10-15 15:05:03", "2分18秒"]);
       expect(renderer.root.findAllByType("Icon" as never).map((node) => node.props.name))
-        .toEqual(["Copy", "ChevronDown", "Brain", "ChevronDown", "Timer"]);
+        .toEqual(["Copy", "Brain", "Timer"]);
       const image = renderer.root.findByType("Image" as never);
       expect(image.props.accessibilityLabel).toBe("Codex");
       expect(StyleSheet.flatten(image.props.style).tintColor).toBe(tokens.foregroundMuted);
