@@ -442,9 +442,15 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   const onPointerDown = (event: PointerEvent) => {
     if (!panel.contains(event.target as Node) && !onSelectionBar(event.target)) close();
   };
+  // Caught on the way down: the reply box, which holds focus while the reader
+  // watches a stream, stops Escape before it bubbles to the document. One
+  // Escape closes the panel and goes no further.
   const onKey = (event: KeyboardEvent) => {
-    if (event.key === "Escape") close();
-    else if (SCROLL_KEYS.has(event.key) && !panel.contains(event.target as Node) && !editable(event.target)) scrollKeyAt = Date.now();
+    if (event.key === "Escape" && !event.isComposing) {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    } else if (SCROLL_KEYS.has(event.key) && !panel.contains(event.target as Node) && !editable(event.target)) scrollKeyAt = Date.now();
   };
   const onResize = () => { if (floating()) measure(); else close(); };
   const onBlur = () => { if (!floating()) close(); };
@@ -453,14 +459,14 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   view.addEventListener("resize", onResize);
   view.addEventListener("blur", onBlur);
   panel.ownerDocument.addEventListener("pointerdown", onPointerDown, true);
-  panel.ownerDocument.addEventListener("keydown", onKey);
+  panel.ownerDocument.addEventListener("keydown", onKey, true);
   return () => {
     view.removeEventListener("scroll", onScroll, true);
     view.removeEventListener("wheel", onWheel, true);
     view.removeEventListener("resize", onResize);
     view.removeEventListener("blur", onBlur);
     panel.ownerDocument.removeEventListener("pointerdown", onPointerDown, true);
-    panel.ownerDocument.removeEventListener("keydown", onKey);
+    panel.ownerDocument.removeEventListener("keydown", onKey, true);
     resizeObserver.disconnect();
     mutationObserver.disconnect();
     unbindFrame();
