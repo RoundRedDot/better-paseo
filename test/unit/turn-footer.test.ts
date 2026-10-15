@@ -13,6 +13,7 @@ vi.mock("@getpaseo/plugin/client/react-native", () => ({
 vi.mock("../../client/ui/disclosure-header", () => ({ DISCLOSURE_HEADER: { icon: 14 } }));
 
 import { AssistantFooter } from "../../client/components/turn-footer";
+import { ProviderLogo } from "../../client/components/provider-logo";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { StyleSheet } from "./helpers/rn-mock";
 import { seedMarkBitmaps } from "../../client/components/marks";
@@ -90,6 +91,8 @@ describe("assistant footer", () => {
     }
   });
   it.each([false, true])("copies the displayed model name independently of the reply (compact=%s)", async (compact) => {
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     updateEnhancerPreferences({ language: "zh" });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
@@ -103,11 +106,16 @@ describe("assistant footer", () => {
       expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("GPT-6.1-Sol");
       expect(clipboard.show).toHaveBeenCalledExactlyOnceWith("已复制模型名称：GPT-6.1-Sol");
       expect(renderer.root.findByProps({ accessibilityLabel: "Model name copied" })).toBeDefined();
-      expect(button.findAllByType("Icon" as never)).toHaveLength(0);
+      expect(button.findAllByType("Image" as never)).toHaveLength(0);
+      expect(button.findByType("Icon" as never).props).toMatchObject({ name: "Check", size: 14, color: tokens.success });
       expect(renderer.root.findAllByType("Text" as never).map((node) => node.props.children))
         .toEqual(labelsBeforeCopy);
       await act(async () => { renderer.root.findByProps({ accessibilityLabel: "Copy reply" }).props.onPress(); });
       expect(clipboard.copyText).toHaveBeenLastCalledWith(text);
+      await act(async () => { vi.advanceTimersByTime(1200); });
+      expect(button.findByType(ProviderLogo).props.provider).toBe("codex");
+      expect(button.findAllByType("Icon" as never)).toHaveLength(0);
+      expect(button.findByType("Text" as never).props.children).toBe("GPT-6.1-Sol");
     } finally {
       act(() => renderer.unmount());
     }
