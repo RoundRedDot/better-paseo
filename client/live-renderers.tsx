@@ -25,6 +25,7 @@ import { NoticeCallout } from "./components/notice-callout";
 import { useEnhancerPreferences } from "./preferences";
 import { PreferenceSyncSlot } from "./state/preference-sync-slot";
 import { useIsLatestPrompt } from "./state/latest-prompt";
+import { loadReplyTurnDuration } from "./state/turn-duration";
 import { HOST_REWIND_MENU } from "./ui/host-rewind";
 import { publishHubSnapshot } from "./hub-activity";
 import { MarkdownView } from "./components/markdown/markdown-view";
@@ -558,8 +559,9 @@ function LiveAssistantRendererBody({
  * of a turn is the tail only until the next tool call arrives, and a footer
  * that appeared there and vanished moved everything below it twice. The
  * agent subscription lives here, mounted under the tail reply alone, and its
- * selector returns a boolean, so an agent update reaches this row only when
- * the agent starts or stops (F2, D3).
+ * selectors return primitives, so streamed activity does not rebuild the row.
+ * Completed timing comes from persisted timeline entries, fetched once when
+ * the displayed reply settles, rather than from wall time since mounting.
  */
 const TailFooter = memo(function TailFooter({
   agentId,
@@ -575,8 +577,28 @@ const TailFooter = memo(function TailFooter({
   compact: boolean;
 }) {
   const running = useAgent(agentId, (agent) => agent.status === "running");
+  const agentName = useAgent(agentId, (agent) => agent.provider);
+  const modelName = useAgent(agentId, (agent) => agent.model);
+  const paseo = usePaseo();
+  const atMs = at.getTime();
+  const [timing, setTiming] = useState<{ at: number; text: string; durationMs: number | null } | null>(null);
+  useEffect(() => {
+    if (running !== false) return;
+    let cancelled = false;
+    loadReplyTurnDuration(paseo.agents.ref(agentId).timeline, atMs, text, () => cancelled)
+      .then((durationMs) => {
+        if (!cancelled) setTiming({ at: atMs, text, durationMs });
+      })
+      .catch(() => {
+        // Missing timeline data must not invent an elapsed time.
+        if (!cancelled) setTiming(null);
+      });
+    return () => { cancelled = true; };
+  }, [paseo, agentId, atMs, text, running]);
   if (running === true) return null;
-  return <AssistantFooter text={text} at={at} tokens={tokens} compact={compact} />;
+  const durationMs = timing?.at === atMs && timing.text === text ? timing.durationMs : null;
+  return <AssistantFooter text={text} at={at} agentName={agentName} modelName={modelName}
+    durationMs={durationMs} tokens={tokens} compact={compact} />;
 });
 
 /**
