@@ -477,8 +477,8 @@ export function claimSelectionBar(next: { dispose(): void }, scope: object = glo
 }
 
 function startController(): Controller {
-  // Set once a press is done, until the selection changes: a copy keeps the
-  // highlight, and a scroll must not bring the bar back over it.
+  // Set after an action or scroll, until the selection changes: keep the
+  // highlight without letting a queued update bring the bar back over it.
   let dismissed = false;
   const bar = createBar(() => {
     dismissed = true;
@@ -519,13 +519,17 @@ function startController(): Controller {
     dismissed = false;
     schedule();
   };
+  const onScroll = () => {
+    dismissed = true;
+    bar.hide();
+  };
 
   document.addEventListener("selectionchange", onSelectionChange);
   document.addEventListener("pointerdown", onPointerDown, true);
   document.addEventListener("keydown", onKeyDown, true);
-  // A scrolled selection keeps its document position but changes its viewport
-  // position, so the bar follows it rather than floating over stale pixels.
-  window.addEventListener("scroll", schedule, true);
+  // The top-layer bar escapes a preview's clipping boundary. Dismiss it on
+  // scroll rather than following a selection outside its visible container.
+  window.addEventListener("scroll", onScroll, true);
   window.addEventListener("resize", schedule);
 
   const started: Controller = {
@@ -537,7 +541,7 @@ function startController(): Controller {
       document.removeEventListener("selectionchange", onSelectionChange);
       document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("keydown", onKeyDown, true);
-      window.removeEventListener("scroll", schedule, true);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", schedule);
       bar.dispose();
     },
