@@ -49,7 +49,16 @@ const PreviewActionsContext = createContext<{
   fill: boolean;
   /** The preview's line wrap, on until the reader turns it off. */
   wrap?: { on: boolean; disabled?: boolean; toggle(): void; tokens: ExtendedThemeTokens };
+  /** Question transcripts always wrap, including their toolbar title. */
+  alwaysWrap?: boolean;
 } | null>(null);
+
+/** Keep question transcripts wrapped regardless of the saved panel preference. */
+export function AlwaysWrapPreview({ children }: { children: ReactNode }) {
+  const actions = useContext(PreviewActionsContext);
+  const wrapped = useMemo(() => actions ? { ...actions, wrap: undefined, alwaysWrap: true } : null, [actions]);
+  return <PreviewActionsContext.Provider value={wrapped}>{children}</PreviewActionsContext.Provider>;
+}
 /** The phone toolbar's drag. Web moves the panel from pointer events on the popover. */
 const PreviewDragContext = createContext<ReturnType<typeof toolbarResponder> | null>(null);
 
@@ -636,7 +645,7 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, stre
               <Text
                 testID="hover-preview-tool-name"
                 selectable={false}
-                numberOfLines={1}
+                numberOfLines={actions?.alwaysWrap ? undefined : 1}
                 style={[{ color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: tokens.typography.ui.scale.base },
                   fitControls && { flexShrink: 1 }]}
               >
