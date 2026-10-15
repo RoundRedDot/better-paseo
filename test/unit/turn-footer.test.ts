@@ -38,16 +38,21 @@ afterEach(() => {
 });
 
 describe("assistant footer", () => {
-  it.each(["cursor", "grok", "opencode"])("shows the Grok mark for a Grok model served through %s", (agentName) => {
-    seedMarkBitmaps({ "lobe:grok": "data:image/png;base64,grok" });
+  it.each([
+    { agentName: "cursor", label: "Cursor", mark: "provider:cursor" },
+    { agentName: "grok", label: "Grok", mark: "lobe:grok" },
+    { agentName: "opencode", label: "OpenCode", mark: "lobe:opencode" },
+  ])("shows the $label provider mark when serving a Grok model", ({ agentName, label, mark }) => {
+    const uri = `data:image/png;base64,${agentName}`;
+    seedMarkBitmaps({ [mark]: uri });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
       text, at, tokens, agentName, modelName: "Grok 4.7",
     })); });
     try {
       const image = renderer.root.findByType("Image" as never);
-      expect(image.props.accessibilityLabel).toBe("Grok");
-      expect(image.props.source.uri).toBe("data:image/png;base64,grok");
+      expect(image.props.accessibilityLabel).toBe(label);
+      expect(image.props.source.uri).toBe(uri);
       expect(StyleSheet.flatten(image.props.style).tintColor).toBe(tokens.foregroundMuted);
     } finally {
       act(() => renderer.unmount());
