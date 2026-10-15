@@ -52,9 +52,9 @@ export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, 
   if (completedAt != null) rows.push({ label: "End time", icon: "Clock", value: formatFullStamp(new Date(completedAt)), copyLabel: "Copy end time" });
   if (durationMs != null) rows.push({ label: "Elapsed time", icon: "Hourglass", value: formatDuration(durationMs) });
   for (const [label, icon, count] of [
-    ["Input", "ArrowDownToLine", usage?.inputTokens],
+    ["Input", "LogIn", usage?.inputTokens],
     ["Cached", "Database", usage?.cachedInputTokens],
-    ["Output", "ArrowUpFromLine", usage?.outputTokens],
+    ["Output", "LogOut", usage?.outputTokens],
   ] as const) {
     if (typeof count !== "number" || !Number.isFinite(count) || count < 0) continue;
     rows.push({ label, icon, value: count.toLocaleString(resolveLanguage(language) === "zh" ? "zh-CN" : "en-US") });

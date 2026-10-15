@@ -65,6 +65,9 @@ describe("assistant footer", () => {
         expect(renderer.root.findAllByType("View" as never).some((node) =>
           node.props.testID === `footer-detail-${label}`)).toBe(true);
       }
+      const output = renderer.root.findAllByType("View" as never)
+        .find((node) => node.props.testID === "footer-detail-Output")!;
+      expect(output.findByType("Icon" as never).props.name).toBe("LogOut");
     } finally {
       act(() => renderer.unmount());
       globals.__rnMockOS = previousPlatform;
@@ -86,7 +89,7 @@ describe("assistant footer", () => {
         ? [["输入", "123,456"], ["缓存", "0"]]
         : [["Input", "123,456"], ["Cached", "0"]]);
       expect(renderer.root.findAllByProps({ testID: "footer-detail-Output" })).toHaveLength(0);
-      expect(rows.map((row) => row.findByType("Icon" as never).props.name)).toEqual(["ArrowDownToLine", "Database"]);
+      expect(rows.map((row) => row.findByType("Icon" as never).props.name)).toEqual(["LogIn", "Database"]);
       expect(rows.flatMap((row) => row.findAllByType("Pressable" as never))).toHaveLength(0);
     } finally { act(() => renderer.unmount()); }
   });
