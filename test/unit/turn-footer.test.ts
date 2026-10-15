@@ -41,6 +41,48 @@ afterEach(() => {
 
 describe("assistant footer", () => {
   it.each([
+    ["web", "en", "Thinking level", "Elapsed time"],
+    ["web", "zh", "思考强度", "耗时"],
+    ["ios", "en", "Thinking level", "Elapsed time"],
+    ["ios", "zh", "思考强度", "耗时"],
+  ] as const)("shows passive metadata hints on %s in %s with a full timestamp", (platform, language, thinkingHint, durationHint) => {
+    const globals = globalThis as { __rnMockOS?: string };
+    const previousPlatform = globals.__rnMockOS;
+    globals.__rnMockOS = platform;
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    vi.setSystemTime(new Date(2026, 9, 15, 16));
+    updateEnhancerPreferences({ language });
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
+      text, at: new Date(2026, 9, 15, 15, 5, 3), tokens, thinkingLabel: "High", durationMs: 16000,
+    })); });
+    const labels = () => renderer.root.findAllByType("Text" as never).map((node) => node.props.children);
+    try {
+      const metadata = renderer.root.findAllByType("Pressable" as never).filter((node) => node.props.accessibilityRole === "image");
+      expect(metadata).toHaveLength(3);
+      expect(labels()).toEqual(["Copy", "High", "15:05:03", "16秒"]);
+      for (const [index, hint] of [thinkingHint, "2026-10-15 15:05:03", durationHint].entries()) {
+        const item = metadata[index]!;
+        expect(item.props.onPress).toBeUndefined();
+        expect(item.props.focusable).toBe(false);
+        expect(StyleSheet.flatten(item.props.style).cursor).toBeUndefined();
+        act(() => { item.props.onHoverIn(); });
+        act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS - 1); });
+        expect(labels()).not.toContain(hint);
+        act(() => { vi.advanceTimersByTime(1); });
+        expect(labels()).toContain(hint);
+        act(() => { item.props.onHoverOut(); });
+        expect(labels()).not.toContain(hint);
+      }
+      expect(clipboard.copyText).not.toHaveBeenCalled();
+    } finally {
+      act(() => renderer.unmount());
+      globals.__rnMockOS = previousPlatform;
+    }
+  });
+
+  it.each([
     ["en", "Copy reply", "Copy model name", "Copied"],
     ["zh", "复制回复", "复制模型名称", "已复制"],
   ] as const)("shows delayed copy hints in %s and clears them on exit", async (language, replyHint, modelHint, copiedHint) => {
@@ -53,7 +95,7 @@ describe("assistant footer", () => {
     })); });
     const labels = () => renderer.root.findAllByType("Text" as never).map((node) => node.props.children);
     try {
-      const buttons = renderer.root.findAllByType("Pressable" as never);
+      const buttons = renderer.root.findAllByType("Pressable" as never).filter((node) => node.props.accessibilityRole === "button");
       expect(buttons).toHaveLength(2);
       expect(labels()).not.toContain(replyHint);
       act(() => { buttons[0]!.props.onHoverIn(); });
@@ -184,7 +226,7 @@ describe("assistant footer", () => {
     act(() => { renderer = TestRenderer.create(footer(true)); });
     try {
       const container = renderer.root.findAllByType("View" as never)[0]!;
-      const button = renderer.root.findByType("Pressable" as never);
+      const button = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.accessibilityRole === "button")!;
       const style = StyleSheet.flatten(container.props.style);
       expect(style.minHeight).toBe(24);
       expect(style.flexWrap).toBe("wrap");
@@ -203,10 +245,10 @@ describe("assistant footer", () => {
     try {
       const container = renderer.root.findAllByType("View" as never)[0]!;
       expect(StyleSheet.flatten(container.props.style).marginBottom).toBe(16);
-      expect(renderer.root.findByType("Pressable" as never).props.hitSlop).toBe(compact ? 10 : 0);
+      expect(renderer.root.findAllByType("Pressable" as never).find((node) => node.props.accessibilityRole === "button")!.props.hitSlop).toBe(compact ? 10 : 0);
       act(() => renderer.update(footer(!compact)));
       expect(StyleSheet.flatten(container.props.style).marginBottom).toBe(16);
-      expect(renderer.root.findByType("Pressable" as never).props.hitSlop).toBe(compact ? 0 : 10);
+      expect(renderer.root.findAllByType("Pressable" as never).find((node) => node.props.accessibilityRole === "button")!.props.hitSlop).toBe(compact ? 0 : 10);
     } finally {
       act(() => renderer.unmount());
     }
@@ -216,10 +258,10 @@ describe("assistant footer", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(footer(compact)); });
     try {
-      await act(async () => { renderer.root.findByType("Pressable" as never).props.onPress(); });
+      await act(async () => { renderer.root.findAllByType("Pressable" as never).find((node) => node.props.accessibilityRole === "button")!.props.onPress(); });
       expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith(text);
-      expect(renderer.root.findByType("Pressable" as never).props.accessibilityLabel).toBe("Reply copied");
-      const button = renderer.root.findByType("Pressable" as never);
+      expect(renderer.root.findAllByType("Pressable" as never).find((node) => node.props.accessibilityRole === "button")!.props.accessibilityLabel).toBe("Reply copied");
+      const button = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.accessibilityRole === "button")!;
       expect(button.findByType("Icon" as never).props.name).toBe("Check");
       expect(button.findByType("Text" as never).props.children).toBe("Copy");
     } finally {

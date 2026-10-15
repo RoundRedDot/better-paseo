@@ -35,6 +35,8 @@ const ZH: Readonly<Record<string, string>> = {
   "Copy section": "复制段落",
   "Copy reply": "复制回复",
   "Copy model name": "复制模型名称",
+  "Thinking level": "思考强度",
+  "Elapsed time": "耗时",
   "Copy prompt": "复制提问",
   "Previous operation": "上一次操作",
   "Next operation": "下一次操作",
