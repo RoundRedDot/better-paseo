@@ -27,6 +27,32 @@ const footer = (compact: boolean) => React.createElement(AssistantFooter, { text
 beforeEach(() => vi.clearAllMocks());
 
 describe("assistant footer", () => {
+  it("shows agent, model, full local timestamp and duration after Copy in order", () => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
+      text, at: new Date(2026, 9, 15, 15, 5, 3), tokens,
+      agentName: "codex", modelName: "gpt-6.1-sol", durationMs: 138000,
+    })); });
+    try {
+      const labels = renderer.root.findAllByType("Text" as never)
+        .map((node) => [node.props.children].flat().join(""));
+      expect(labels).toEqual(["Copy", "codex", "gpt-6.1-sol", "2026-10-15 15:05:03", "耗时 2分18秒"]);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it("omits unavailable metadata and retains a measured zero duration", () => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(footer(false)); });
+    try {
+      expect(renderer.root.findAllByType("Text" as never)).toHaveLength(2);
+      act(() => { renderer.update(React.createElement(AssistantFooter, { text, at, tokens, durationMs: 0 })); });
+      expect(renderer.root.findAllByType("Text" as never).at(-1)!.props.children.join("")).toBe("耗时 0秒");
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
   it("leaves 16pt below the compact Copy row, beyond its touch extension", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(footer(true)); });
@@ -34,7 +60,8 @@ describe("assistant footer", () => {
       const container = renderer.root.findByType("View" as never);
       const button = renderer.root.findByType("Pressable" as never);
       const style = StyleSheet.flatten(container.props.style);
-      expect(style.height).toBe(24);
+      expect(style.minHeight).toBe(24);
+      expect(style.flexWrap).toBe("wrap");
       expect(style.marginBottom).toBe(16);
       expect(button.props.hitSlop).toBe(10);
       expect(style.marginBottom).toBeGreaterThan(button.props.hitSlop);
