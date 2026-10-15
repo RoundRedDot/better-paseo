@@ -20,7 +20,7 @@ const SOURCES: CopySource[] = [
 const TOOLBAR = ["Copied", "Couldn't copy", "Copy thought", "Copy section", "Copy reply", "Copy prompt", "Previous operation", "Next operation", "Wrap lines",
   "Do not wrap lines", "Maximize preview", "Close preview", "Open tasks in a window", "Copy Markdown table", "Copy as Markdown", "Copy as image",
   // The selection bar's buttons and what they turn into after a press.
-  "Copy", "Add to chat", "Added", "Copied instead", "Copy model name", "Thinking level", "Elapsed time"];
+  "Copy", "Add to chat", "Added", "Copied instead", "Copy model name", "Thinking level", "Elapsed time", "Previous reply", "Next reply"];
 
 describe("toolbar hover names", () => {
   it("includes the copied model name without changing its spelling", () => {
