@@ -3,6 +3,27 @@ export type TooltipPlacement = "above" | "below";
 /** Room a wrapped full path needs above its row: three lines and the padding. */
 export const TOOLTIP_ROOM = 64;
 
+export interface WindowBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Convert the pressed control's window bounds into its modal's local coordinates. */
+export function anchoredTooltipOrigin(anchor: WindowBox, stage: WindowBox, panel: { width: number; height: number }) {
+  const margin = 8;
+  const gap = 4;
+  const x = anchor.x - stage.x;
+  const y = anchor.y - stage.y;
+  const above = y - panel.height - gap;
+  return {
+    left: Math.max(margin, Math.min(x, stage.width - panel.width - margin)),
+    top: Math.max(margin, Math.min(above >= margin ? above : y + anchor.height + gap,
+      stage.height - panel.height - margin)),
+  };
+}
+
 /**
  * Which side of the path the full-path tooltip opens on.
  *

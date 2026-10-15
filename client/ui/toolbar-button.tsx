@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Modal, Platform, Pressable, StyleSheet, Text, View, type ViewStyle, type StyleProp } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
@@ -11,9 +11,10 @@ import { cssShadow } from "./tokens/css-shadow";
 import { FLOAT } from "./tokens/float";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
-import { liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement } from "./tooltip-placement";
+import { anchoredTooltipOrigin, liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement, type WindowBox } from "./tooltip-placement";
 import { bindTouchDismiss, suppressTouchCallout } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
+import { SafeInset } from "./safe-inset";
 
 /** How long a pointer rests on a button before its name shows. */
 export const TOOLBAR_TOOLTIP_MS = 400;
@@ -159,7 +160,7 @@ export function ToolbarItem({
   return (
     // Every web View is its own stacking context (`z-index: 0`), so the name
     // can only rise over the buttons after this one if the button does.
-    <View ref={anchorRef} style={[styles.anchor, open && styles.raised]}>
+    <View ref={anchorRef} collapsable={details ? false : undefined} style={[styles.anchor, open && styles.raised]}>
       <Pressable
         accessibilityRole={onPress ? "button" : "image"}
         accessibilityLabel={accessibilityLabel}
@@ -189,13 +190,7 @@ export function ToolbarItem({
         {children}
       </Pressable>
       {pressedOpen && Platform.OS !== "web" ? (
-        <Modal visible transparent animationType="fade" onRequestClose={closeDetails}>
-          <View style={styles.detailsStage}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close preview"
-              onPress={closeDetails} style={StyleSheet.absoluteFill} />
-            <View accessibilityViewIsModal style={{ maxWidth: "100%" }}>{bubble}</View>
-          </View>
-        </Modal>
+        <AnchoredToolbarDetails anchor={anchorRef} close={closeDetails}>{bubble}</AnchoredToolbarDetails>
       ) : open ? (
         <View pointerEvents={details ? "box-none" : "none"}
           style={[styles.tooltipSlot, side === "above" ? styles.above : styles.below, ALIGN[align]]}>
@@ -210,6 +205,48 @@ export function ToolbarItem({
         </View>
       ) : null}
     </View>
+  );
+}
+
+/** The modal avoids clipping by native timeline rows; its panel stays by the pressed control. */
+function AnchoredToolbarDetails({ anchor, close, children }: {
+  anchor: RefObject<View | null>;
+  close(): void;
+  children: ReactNode;
+}) {
+  const stageRef = useRef<View>(null);
+  const [bounds, setBounds] = useState<{ anchor: WindowBox; stage: WindowBox } | null>(null);
+  const [panel, setPanel] = useState<{ width: number; height: number } | null>(null);
+  const measure = useCallback(() => {
+    stageRef.current?.measureInWindow((x, y, width, height) => {
+      if (width <= 0 || height <= 0) return;
+      const stage = { x, y, width, height };
+      anchor.current?.measureInWindow((x, y, width, height) => {
+        setBounds({ stage, anchor: { x, y, width, height } });
+      });
+    });
+  }, [anchor]);
+  const origin = bounds && panel ? anchoredTooltipOrigin(bounds.anchor, bounds.stage, panel) : null;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={close} onShow={measure} statusBarTranslucent>
+      <Pressable accessibilityRole="button" accessibilityLabel="Close preview"
+        onPress={close} style={StyleSheet.absoluteFill} />
+      <SafeInset pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+        <View ref={stageRef} collapsable={false} testID="toolbar-details-stage" pointerEvents="box-none"
+          onLayout={measure} style={{ flex: 1 }}>
+          <View testID="toolbar-details-panel" accessibilityViewIsModal
+            pointerEvents={origin ? "auto" : "none"} accessibilityElementsHidden={!origin}
+            onLayout={(event) => {
+              const { width, height } = event.nativeEvent.layout;
+              setPanel((previous) => previous?.width === width && previous.height === height ? previous : { width, height });
+            }}
+            style={{ position: "absolute", width: bounds ? Math.min(TOOLTIP_SLOT, bounds.stage.width - 16) : TOOLTIP_SLOT,
+              maxWidth: "100%", opacity: origin ? 1 : 0, left: origin?.left ?? 0, top: origin?.top ?? 0 }}>
+            {children}
+          </View>
+        </View>
+      </SafeInset>
+    </Modal>
   );
 }
 
@@ -285,7 +322,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     zIndex: 10,
   },
-  detailsStage: { flex: 1, justifyContent: "center", alignItems: "center", padding: space.lg },
   below: { top: "100%", marginTop: space.xs },
   above: { bottom: "100%", marginBottom: space.xs },
   tooltip: {
