@@ -31,6 +31,9 @@ import type { TurnUsage } from "./user-message";
 interface AssistantFooterProps {
   agentId?: string;
   replyRef?: RefObject<View | null>;
+  turnNumber?: number;
+  turnCount?: number;
+  observeTurnNumber?: () => () => void;
   /** The reply, copied verbatim — the same text the host would copy. */
   text: string;
   /** The completed turn's end time; source reply identity is resolved before rendering. */
@@ -46,7 +49,7 @@ interface AssistantFooterProps {
   compact?: boolean;
 }
 
-export function AssistantFooter({ agentId, replyRef, text, at, agentName, modelName, thinkingLabel, durationMs, startedAt, usage, tokens, compact = false }: AssistantFooterProps) {
+export function AssistantFooter({ agentId, replyRef, turnNumber, turnCount, observeTurnNumber, text, at, agentName, modelName, thinkingLabel, durationMs, startedAt, usage, tokens, compact = false }: AssistantFooterProps) {
   // The shared copy path (plan §3.8): a check for 1.2 s on success, a toast
   // on failure, and no timer left running after unmount.
   const { copied, copy } = useCopy();
@@ -63,7 +66,7 @@ export function AssistantFooter({ agentId, replyRef, text, at, agentName, modelN
   const visibleDurationMs = agentName === "grok" || agentName === "cursor" ? null : durationMs;
   const details = (close: () => void) => <FooterDetails agentName={agentName} modelName={modelName} thinkingLabel={thinkingLabel}
     startedAt={startedAt} completedAt={at.getTime()} durationMs={visibleDurationMs} usage={usage} tokens={tokens}
-    replyTarget={replyTarget} close={close} />;
+    replyTarget={replyTarget} turnNumber={turnNumber} turnCount={turnCount} observeTurnNumber={observeTurnNumber} close={close} />;
   const copyModel = useCallback(() => {
     if (modelName) void modelCopy.copy(modelName, { label: `Copy model name: ${modelName}` });
   }, [modelName, modelCopy.copy]);

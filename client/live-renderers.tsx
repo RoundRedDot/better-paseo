@@ -610,10 +610,11 @@ const TurnFooter = memo(function TurnFooter({
   const timing = useTurnFooter(paseo, agentId, at.getTime(), text, running, streaming);
   if (!timing) return null;
   return <CompletedReplyFooter agentId={agentId} replyRef={replyRef} text={text} at={new Date(timing.completedAt)} tokens={tokens}
-    compact={compact} durationMs={timing.durationMs} startedAt={timing.startedAt} usage={timing.usage} />;
+    compact={compact} durationMs={timing.durationMs} startedAt={timing.startedAt} usage={timing.usage}
+    turnNumber={timing.turnNumber} turnCount={timing.turnCount} observeTurnNumber={timing.observeTurnNumber} />;
 });
 
-function CompletedReplyFooter({ agentId, replyRef, text, at, tokens, compact, durationMs, startedAt, usage }: {
+function CompletedReplyFooter({ agentId, replyRef, text, at, tokens, compact, durationMs, startedAt, usage, turnNumber, turnCount, observeTurnNumber }: {
   agentId: string;
   replyRef: RefObject<View | null>;
   text: string;
@@ -623,6 +624,9 @@ function CompletedReplyFooter({ agentId, replyRef, text, at, tokens, compact, du
   durationMs: number | null;
   startedAt: number | null;
   usage?: TurnUsage;
+  turnNumber?: number;
+  turnCount?: number;
+  observeTurnNumber: () => () => void;
 }) {
   const agentName = useAgent(agentId, (agent) => agent.provider);
   const modelName = useAgent(agentId, (agent) => agent.model);
@@ -631,6 +635,7 @@ function CompletedReplyFooter({ agentId, replyRef, text, at, tokens, compact, du
   const paseo = usePaseo();
   const model = useFooterModel(paseo, agentName, modelName, thinkingOptionId, cwd);
   return <AssistantFooter agentId={agentId} replyRef={replyRef} text={text} at={at} agentName={agentName} modelName={model.modelName}
+    turnNumber={turnNumber} turnCount={turnCount} observeTurnNumber={observeTurnNumber}
     thinkingLabel={model.thinkingLabel}
     durationMs={durationMs} startedAt={startedAt} usage={usage} tokens={tokens} compact={compact} />;
 }

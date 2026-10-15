@@ -55,6 +55,44 @@ beforeEach(() => { vi.clearAllMocks(); runtime.agent.status = "idle"; });
 afterEach(() => { expect(runtime.listeners.size).toBe(0); });
 
 describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform) => {
+  it("loads canonical numbering when details open and keeps it on reopening", async () => {
+    const tail = page([
+      entry({ type: "user_message", text: "second prompt" }, 4, 4000, "two"),
+      entry({ type: "assistant_message", text: "second answer" }, 5, 5000, "two"),
+      entry({ type: "reasoning", text: "later activity" }, 6, 6000, "two"),
+    ], { hasOlder: true });
+    const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(async (request) => request?.direction === "before"
+      ? page([entry({ type: "user_message", text: "first prompt" }, 1, 1000, "one"),
+        entry({ type: "assistant_message", text: "first answer" }, 3, 3000, "one")]) : tail);
+    const release = Object.assign(vi.fn(), { ready: Promise.resolve(), subscriptionId: "s", release: async () => {} });
+    runtime.api = { agents: { ref: () => ({ timeline: { refetch, subscribe: () => release } }) },
+      providers: { listModels: async () => catalog } };
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, {
+      agentId: "numbering", theme, host: { id: "local", label: "Local" }, layout: { platform, compact: true },
+      timestamp: new Date(5000), item: { type: "plugin", kind: "omp-assistant", version: 1,
+        data: { text: "second answer", phase: "complete" } },
+    } satisfies PluginTimelineItemProps<LiveAssistantPayload>)); });
+    try {
+      const toolbar = () => renderer.root.findAllByType("Pressable" as never)
+        .find((node) => node.props.testID === "footer-toolbar")!;
+      const title = () => renderer.root.findAllByType("Text" as never)
+        .find((node) => node.props.accessibilityRole === "header")!.props.children;
+      expect(refetch).toHaveBeenCalledTimes(1);
+      expect(renderer.root.findByType(AssistantFooter).props.turnNumber).toBeUndefined();
+      await act(async () => { toolbar().props.onLongPress(); });
+      expect(title()).toBe("Turn 2/2 details");
+      expect(renderer.root.findByType(AssistantFooter).props.at.getTime()).toBe(6000);
+      expect(refetch).toHaveBeenCalledTimes(3);
+      const close = renderer.root.findAllByType("Pressable" as never)
+        .find((node) => node.props.accessibilityLabel === "Close preview")!;
+      act(() => close.props.onPress());
+      await act(async () => { toolbar().props.onLongPress(); });
+      expect(title()).toBe("Turn 2/2 details");
+      expect(refetch).toHaveBeenCalledTimes(3);
+    } finally { act(() => renderer.unmount()); }
+  });
+
   it("shows the turn end time while matching the reply by its original timestamp", async () => {
     const startedAt = new Date(2026, 9, 16, 9, 1, 0).getTime();
     const replyAt = startedAt + 10000;

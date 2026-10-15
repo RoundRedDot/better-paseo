@@ -9,6 +9,8 @@ export function continuesTurn(previous: Entry, next: Entry): boolean {
 }
 
 export interface CompletedTurnFooter {
+  turnNumber?: number;
+  turnCount?: number;
   turnId?: string;
   usage?: NonNullable<PaseoAgent["lastUsage"]>;
   at: number;
