@@ -470,7 +470,7 @@ open the daemon machine's file manager.
 | A prompt with an attachment should use Paseo's renderer | Turn off **Enhanced prompt bubble**. Attachments the plugin cannot render stay with Paseo automatically. |
 | Ctrl/Cmd+F misses old messages | Scroll up to load them, or hand replies back to Paseo as above. |
 | Token figures are missing on an old turn | Usage is not stored on timeline items, so only turns this client watched live show it. |
-| Grok has no elapsed time in the Copy toolbar or turn details | Upstream tool issue: Grok's ACP history replay does not preserve reliable per-message timestamps. Replayed records can share the same timestamp or differ by only 1 ms, producing a misleading `0s`. Better Paseo hides elapsed time for the `grok` provider until upstream supplies reliable timing; Grok models served through other providers are unaffected. |
+| Grok and Cursor have no elapsed time in the Copy toolbar or turn details | Upstream tool issue: historical timelines from Grok and Cursor lack reliable per-message timestamps. Replayed records can share the same timestamp or differ by only 1 ms, producing a misleading `0s`. Better Paseo hides elapsed time for the `grok` and `cursor` providers until upstream supplies reliable timing. This is based on the provider, not the model name. |
 | Nothing changed after pushing a fix | Run `paseo plugin update better-paseo`; Paseo runs the GitHub version. |
 
 ## Compatibility
