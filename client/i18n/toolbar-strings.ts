@@ -37,6 +37,7 @@ const ZH: Readonly<Record<string, string>> = {
   "Copy model name": "复制模型名称",
   "Agent": "Agent",
   "Model name": "模型名称",
+  "Turn details": "轮次详情",
   "Start time": "开始时间",
   "Copy agent": "复制 Agent",
   "Copy thinking level": "复制思考等级",
