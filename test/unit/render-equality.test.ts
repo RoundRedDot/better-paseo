@@ -51,6 +51,12 @@ describe("themeKey", () => {
 
 describe("toolPropsEqual", () => {
   const done = { name: "read", status: "completed", callId: "c1", detail: { out: "x" }, phase: "streaming" };
+  it("renders a later async answer even while status and timestamp stay completed", () => {
+    const pending = { ...done, name: "request_user_input_async", questionData: { questions: [{ question: "Q" }], status: "pending" } };
+    expect(toolPropsEqual(props(pending), props(pending))).toBe(true);
+    expect(toolPropsEqual(props(pending), props({ ...pending, questionData: { ...pending.questionData, status: "answered", answers: { "0": ["A"] } } }))).toBe(false);
+    expect(toolPropsEqual(props(pending), props({ ...pending, questionData: { ...pending.questionData, status: "dismissed" } }))).toBe(false);
+  });
 
   it("skips a completed card re-sent with fresh objects", () => {
     expect(toolPropsEqual(props(done), props(done))).toBe(true);

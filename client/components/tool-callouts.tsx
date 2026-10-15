@@ -433,7 +433,7 @@ export function ToolPreviewContent({ data, resolvePath, drawsImage = false, ...r
     return <UserQuestions key={data.callId ?? data.id} questions={questions} tokens={tokens}
       rawBody={<ToolBody data={data} {...rest} preview raw />}
       renderHeader={(controls) => <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens}
-        streaming={streaming} pager={controls} fitControls />}>
+        title={data.name ?? "Questions"} streaming={streaming} pager={controls} fitControls />}>
       {data.error ? <PreviewError text={data.error} tokens={tokens} /> : null}
     </UserQuestions>;
   }
@@ -552,10 +552,12 @@ function ToolCopyButtons({ call, resolvePath, tokens }: {
  * The preview's toolbar: a merged row's pager at the left, the tool's icon
  * and name or picture size in the middle, and copies at the right.
  */
-function ToolPreviewActions({ call, resolvePath, tokens, pager, meta, streaming = false, fitControls = false }: {
+function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, streaming = false, fitControls = false }: {
   call: ToolCallView;
   resolvePath: ResolvePath;
   tokens: ExtendedThemeTokens;
+  /** Question text belongs in the body, so question previews use the tool name. */
+  title?: string;
   /** A merged row's pager, after the line-wrap button at the left. */
   pager?: React.ReactNode;
   /** A picture's size and weight, centred in the toolbar. */
@@ -566,7 +568,7 @@ function ToolPreviewActions({ call, resolvePath, tokens, pager, meta, streaming 
 }) {
   return (
     <HoverPreviewHeader tokens={tokens} streaming={streaming} icon={meta ? "Image" : <RowIcon name={toolIconName(call.tool)} color={tokens.foregroundMuted} />}
-      iconLabel={summarizeTool(call).verb}
+      iconLabel={title ?? summarizeTool(call).verb}
       left={pager} center={meta} fitControls={fitControls}>
       <View style={styles.previewActions}>
         <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />
@@ -757,6 +759,9 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
   if (questions) {
     return <UserQuestions key={data.callId ?? data.id} questions={questions} tokens={tokens}
       rawBody={<ToolBody data={data} tokens={tokens} compact={compact} preview={preview} raw />} />;
+  }
+  if (raw && data.questionData) {
+    return <SyntaxHighlightBlock code={stringifyValue(data.questionData) ?? ""} language="json" tokens={tokens} compact bare />;
   }
 
   // Every branch below needs a payload. A tool that carries none — a hub op

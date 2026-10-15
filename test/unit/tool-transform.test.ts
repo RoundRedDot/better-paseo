@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import { transformToolCall } from "../../client/tools/transform";
+import { classifyTool, type ToolCallPayload } from "../../client/tools/classify";
+import { readUserQuestions } from "../../client/tools/user-questions";
 
 function item(extra: Partial<ToolCallTimelineItem> = {}): ToolCallTimelineItem {
   return {
@@ -19,6 +21,15 @@ function data(input: ToolCallTimelineItem, phase: "streaming" | "complete" = "co
 }
 
 describe("tool_call transformer", () => {
+  it("keeps structured Codex questions through transformation and classification", () => {
+    const questions = [{ id: "scope", header: "Scope", question: "Which platforms?", multiSelect: true,
+      options: [{ label: "iOS" }, { label: "Web" }] }];
+    const payload = data(item({ name: "request_user_input", detail: { type: "plain_text", text: "Questions and answers" },
+      metadata: { questions, answers: { scope: ["iOS", "Web"] }, sessionId: "private-session" },
+    })) as unknown as ToolCallPayload;
+    expect(readUserQuestions(classifyTool(payload))).toMatchObject({ questions: [{ question: "Which platforms?", answer: "iOS, Web" }] });
+    expect(JSON.stringify(payload)).not.toContain("private-session");
+  });
   it("carries a plan's verdict, and no other metadata", () => {
     expect(data(item({ metadata: { approved: false, sessionId: "s", big: { x: 1 } } }))).toEqual({
       name: "plan_approval",

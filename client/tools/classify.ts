@@ -227,6 +227,7 @@ export interface ToolCallPayload {
   phase?: string;
   /** The host's `metadata.approved`: the verdict on a plan. */
   approved?: boolean;
+  questionData?: Record<string, unknown>;
 }
 
 export interface SearchToolData {
@@ -287,6 +288,7 @@ export interface SubAgentToolData {
  * the showcase's hand-written cards still type-check.
  */
 export interface ToolCallView extends Omit<ToolCalloutData, "tool"> {
+  questionData?: Record<string, unknown>;
   tool: ToolKind;
   /** The tool's own name as the host reported it ("Read", "mcp__x__y"). */
   name?: string;
@@ -682,6 +684,7 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
     paseo,
     github,
     input: toolKind === "unknown" ? unknownInput : Object.keys(input).length > 0 ? input : undefined,
+    questionData: payload.questionData,
     ...extra,
   };
 }
