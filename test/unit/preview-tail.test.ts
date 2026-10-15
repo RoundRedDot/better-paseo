@@ -4,7 +4,7 @@
  * the body this binds to.
  */
 import { describe, expect, it } from "vitest";
-import { bindPreviewTail, nativePreviewTail, previewFollowsTail, previewGlideStep, previewTailOffset } from "../../client/ui/preview-tail";
+import { bindPreviewTail, nativePreviewTail, PREVIEW_SETTLE_MS, previewFollowsTail, previewGlideStep, previewTailOffset } from "../../client/ui/preview-tail";
 
 describe("preview tail", () => {
   it("measures the end, and treats a fitting or unmeasured body as already there", () => {
@@ -201,6 +201,39 @@ describe("phone preview tail", () => {
     expect(calls.at(-1)).toEqual([700, true]);
     tail.reset();
     expect(tail.pinned).toBe(true);
+  });
+
+  it("follows the output that lands with the end of the stream once, if the reader was on the tail", () => {
+    let clock = 0;
+    const following = () => {
+      const calls: Array<[number | "end", boolean]> = [];
+      const tail = nativePreviewTail((offset, animated) => calls.push([offset, animated]), () => clock);
+      tail.grow(200, 500, 0, false);
+      tail.scrolled(300, 200, 500);
+      calls.length = 0;
+      return { calls, tail };
+    };
+    const on = following();
+    on.tail.end();
+    on.tail.reset();
+    on.tail.settle(200, 640, 300, false);
+    expect(on.calls).toEqual([[440, true]]);
+    // Once only: later growth, such as a wrap toggle, stays where the reader is.
+    on.tail.settle(200, 900, 440, false);
+    expect(on.calls).toHaveLength(1);
+
+    const late = following();
+    late.tail.end();
+    clock += PREVIEW_SETTLE_MS + 1;
+    late.tail.settle(200, 640, 300, false);
+    expect(late.calls).toEqual([]);
+
+    const away = following();
+    away.tail.drag();
+    away.tail.scrolled(0, 200, 500);
+    away.tail.end();
+    away.tail.settle(200, 640, 0, false);
+    expect(away.calls).toEqual([]);
   });
 
   it("skips to a screen short of a far tail, and jumps under reduced motion", () => {
