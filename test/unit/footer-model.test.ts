@@ -31,11 +31,10 @@ describe("footer model metadata", () => {
   });
 });
 
-it("reads provider labels for this workspace and discards an obsolete request", async () => {
+it("shares the workspace catalog read and applies the latest thinking selection", async () => {
   let finishFirst!: (result: PaseoProviderModelsResult) => void;
   const listModels = vi.fn<Parameters<typeof useFooterModel>[0]["providers"]["listModels"]>()
-    .mockImplementationOnce(() => new Promise((resolve) => { finishFirst = resolve; }))
-    .mockResolvedValueOnce(catalog);
+    .mockImplementationOnce(() => new Promise((resolve) => { finishFirst = resolve; }));
   const paseo = { providers: { listModels } };
   let labels!: ReturnType<typeof useFooterModel>;
   function Probe({ level }: { level: string }) {
@@ -47,9 +46,10 @@ it("reads provider labels for this workspace and discards an obsolete request", 
   try {
     expect(labels.modelName).toBeNull();
     await act(async () => { renderer.update(React.createElement(Probe, { level: "high" })); });
-    expect(labels).toEqual({ modelName: "GPT-6.1-Sol", thinkingLabel: "High" });
+    expect(labels.modelName).toBeNull();
     await act(async () => { finishFirst(catalog); });
     expect(labels.thinkingLabel).toBe("High");
+    expect(listModels).toHaveBeenCalledTimes(1);
     expect(listModels).toHaveBeenCalledWith("codex", { cwd: "/workspace" });
   } finally {
     act(() => renderer.unmount());

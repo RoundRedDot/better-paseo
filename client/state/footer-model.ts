@@ -6,6 +6,23 @@ interface FooterModel {
   thinkingLabel: string | null;
 }
 
+// Historical footers mount together. Share their catalog read without retaining
+// catalogs after completion or adding a request for every reply on screen.
+const catalogReads = new WeakMap<object, Map<string, Promise<PaseoProviderModelsResult>>>();
+
+function readCatalog(providers: Pick<PaseoApi["providers"], "listModels">, provider: string, cwd: string) {
+  let reads = catalogReads.get(providers);
+  if (!reads) catalogReads.set(providers, reads = new Map());
+  const key = JSON.stringify([provider, cwd]);
+  const existing = reads.get(key);
+  if (existing) return existing;
+  const request = Promise.resolve().then(() => providers.listModels(provider, { cwd }));
+  reads.set(key, request);
+  const clear = () => { if (reads.get(key) === request) reads.delete(key); };
+  void request.then(clear, clear);
+  return request;
+}
+
 /** Use the same provider labels and default thinking option as the model picker. */
 export function footerModel(
   catalog: PaseoProviderModelsResult,
@@ -32,7 +49,7 @@ export function useFooterModel(
   useEffect(() => {
     if (!provider || !modelId || cwd === null) return;
     let cancelled = false;
-    paseo.providers.listModels(provider, { cwd }).then((catalog) => {
+    readCatalog(paseo.providers, provider, cwd).then((catalog) => {
       if (!cancelled) setResult({ key, value: footerModel(catalog, modelId, thinkingOptionId) });
     }).catch(() => {
       if (!cancelled) setResult(null);

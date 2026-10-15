@@ -25,7 +25,7 @@ import { NoticeCallout } from "./components/notice-callout";
 import { useEnhancerPreferences } from "./preferences";
 import { PreferenceSyncSlot } from "./state/preference-sync-slot";
 import { useIsLatestPrompt } from "./state/latest-prompt";
-import { loadReplyTurnDuration } from "./state/turn-duration";
+import { useTurnFooter } from "./state/turn-footers";
 import { useFooterModel } from "./state/footer-model";
 import { HOST_REWIND_MENU } from "./ui/host-rewind";
 import { publishHubSnapshot } from "./hub-activity";
@@ -34,7 +34,7 @@ import { TimelineTailHub } from "./components/hub-live";
 import { AssistantFooter } from "./components/turn-footer";
 import { SystemCard } from "./components/system-card";
 import { parseSystemEnvelope } from "./system-envelope";
-import { useIsTimelineTail, useTextItemTailKey } from "./timeline-tail";
+import { useTextItemTailKey } from "./timeline-tail";
 import { useHasEntryAfter, useNextEntryIsRow, useTimelineEntry, useTimelineToolGroup } from "./timeline-order";
 import { useHostStacksRows } from "./host-row-gap";
 import type { TaskListData, TaskItemData, NoticeCalloutData } from "../shared/contracts";
@@ -466,13 +466,9 @@ function LiveAssistantRendererBody({
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
 
-  // Replacing the reply costs the host's footer, which the stream layout hangs
-  // off an `assistant_message` item that no longer exists. Rebuild it where the
-  // host puts it: under the newest message, once, not under every reply.
-  // The timestamp alone is shared by replies that arrive in the same
-  // millisecond; the key adds the reply's opening (see `textItemTailKey`).
+  // The jobs hub still follows the conversation tail. Completed-turn footers
+  // are independent: each turn keeps one under its last model reply.
   const itemKey = useTextItemTailKey(agentId, "assistant", timestamp.getTime(), item.data.text);
-  const isTail = useIsTimelineTail(agentId, itemKey);
 
   // Paseo's own reply sits 16pt above the tool row that follows it (its 12pt
   // padding plus a 4pt gap), the same 16pt the host hangs under a plugin item.
@@ -534,8 +530,8 @@ function LiveAssistantRendererBody({
           finished turn. Under a streaming reply it is only pushed down by
           every chunk (S7 replay: that move was the whole layout-shift
           increase), and Copy would copy half a reply. */}
-      {isTail && !envelope && !streaming ? (
-        <TailFooter
+      {!envelope && !streaming ? (
+        <TurnFooter
           agentId={agentId}
           text={item.data.text}
           at={timestamp}
@@ -555,16 +551,11 @@ function LiveAssistantRendererBody({
 }
 
 /**
- * The footer under the newest reply, shown once the agent has stopped, the
- * way the host shows its own only for a completed turn. A reply in the middle
- * of a turn is the tail only until the next tool call arrives, and a footer
- * that appeared there and vanished moved everything below it twice. The
- * agent subscription lives here, mounted under the tail reply alone, and its
- * selectors return primitives, so streamed activity does not rebuild the row.
- * Completed timing comes from persisted timeline entries, fetched once when
- * the displayed reply settles, rather than from wall time since mounting.
+ * One footer per completed turn, including history while another turn runs.
+ * Timeline reads and completion subscriptions are shared by the agent's rows.
+ * Only a row selected as its turn's final reply mounts the metadata hooks.
  */
-const TailFooter = memo(function TailFooter({
+const TurnFooter = memo(function TurnFooter({
   agentId,
   text,
   at,
@@ -578,33 +569,31 @@ const TailFooter = memo(function TailFooter({
   compact: boolean;
 }) {
   const running = useAgent(agentId, (agent) => agent.status === "running");
+  const paseo = usePaseo();
+  const timing = useTurnFooter(paseo, agentId, at.getTime(), text, running);
+  if (!timing) return null;
+  return <CompletedReplyFooter agentId={agentId} text={text} at={at} tokens={tokens}
+    compact={compact} durationMs={timing.durationMs} />;
+});
+
+function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs }: {
+  agentId: string;
+  text: string;
+  at: Date;
+  tokens: ReturnType<typeof useThemeTokens>;
+  compact: boolean;
+  durationMs: number | null;
+}) {
   const agentName = useAgent(agentId, (agent) => agent.provider);
   const modelName = useAgent(agentId, (agent) => agent.model);
   const thinkingOptionId = useAgent(agentId, (agent) => agent.thinkingOptionId);
   const cwd = useAgent(agentId, (agent) => agent.cwd);
   const paseo = usePaseo();
   const model = useFooterModel(paseo, agentName, modelName, thinkingOptionId, cwd);
-  const atMs = at.getTime();
-  const [timing, setTiming] = useState<{ at: number; text: string; durationMs: number | null } | null>(null);
-  useEffect(() => {
-    if (running !== false) return;
-    let cancelled = false;
-    loadReplyTurnDuration(paseo.agents.ref(agentId).timeline, atMs, text, () => cancelled)
-      .then((durationMs) => {
-        if (!cancelled) setTiming({ at: atMs, text, durationMs });
-      })
-      .catch(() => {
-        // Missing timeline data must not invent an elapsed time.
-        if (!cancelled) setTiming(null);
-      });
-    return () => { cancelled = true; };
-  }, [paseo, agentId, atMs, text, running]);
-  if (running === true) return null;
-  const durationMs = timing?.at === atMs && timing.text === text ? timing.durationMs : null;
   return <AssistantFooter text={text} at={at} agentName={agentName} modelName={model.modelName}
     thinkingLabel={model.thinkingLabel}
     durationMs={durationMs} tokens={tokens} compact={compact} />;
-});
+}
 
 /**
  * The host draws a `notification` or `error` item as bare text with an icon,
