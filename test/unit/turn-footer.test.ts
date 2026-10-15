@@ -168,6 +168,9 @@ describe("assistant footer", () => {
       await act(async () => { renderer.root.findByType("Pressable" as never).props.onPress(); });
       expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith(text);
       expect(renderer.root.findByType("Pressable" as never).props.accessibilityLabel).toBe("Reply copied");
+      const button = renderer.root.findByType("Pressable" as never);
+      expect(button.findByType("Icon" as never).props.name).toBe("Check");
+      expect(button.findByType("Text" as never).props.children).toBe("Copy");
     } finally {
       act(() => renderer.unmount());
     }
