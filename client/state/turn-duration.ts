@@ -1,10 +1,64 @@
 import type { PaseoAgentTimelineHandle } from "@getpaseo/client";
+import { parseSystemEnvelope } from "../system-envelope";
 
-type Entry = Awaited<ReturnType<PaseoAgentTimelineHandle["refetch"]>>["entries"][number];
+export type Entry = Awaited<ReturnType<PaseoAgentTimelineHandle["refetch"]>>["entries"][number];
 
-function continuesTurn(previous: Entry, next: Entry): boolean {
+export function continuesTurn(previous: Entry, next: Entry): boolean {
   if (previous.turnId !== undefined && next.turnId !== undefined) return previous.turnId === next.turnId;
   return next.item.type !== "user_message";
+}
+
+export interface CompletedTurnFooter {
+  at: number;
+  text: string;
+  completedAt: number;
+  durationMs: number | null;
+}
+
+/** Entries arrive in canonical sequence order, including equal timestamps. */
+export function completedTurnFooters(
+  entries: readonly Entry[],
+  running: boolean,
+  activeTurnId: string | null,
+): CompletedTurnFooter[] {
+  const result: CompletedTurnFooter[] = [];
+  const identities = new Map<number, Map<string, number>>();
+  for (const entry of entries) {
+    if (entry.item.type !== "assistant_message") continue;
+    const at = Date.parse(entry.timestamp);
+    let texts = identities.get(at);
+    if (!texts) identities.set(at, texts = new Map());
+    texts.set(entry.item.text, (texts.get(entry.item.text) ?? 0) + 1);
+  }
+  let start = 0;
+  const close = (end: number) => {
+    const first = entries[start]!;
+    const turnId = first.turnId;
+    const active = running && (activeTurnId && turnId ? activeTurnId === turnId : end === entries.length - 1);
+    if (active) return;
+    let reply: Entry | undefined;
+    for (let index = start; index <= end; index++) {
+      const entry = entries[index]!;
+      if (entry.item.type === "assistant_message" && entry.item.text.trim() && !parseSystemEnvelope(entry.item.text)) reply = entry;
+    }
+    if (!reply || reply.item.type !== "assistant_message") return;
+    const at = Date.parse(reply.timestamp);
+    const completedAt = Date.parse(entries[end]!.timestamp);
+    if (!Number.isFinite(at) || !Number.isFinite(completedAt)) return;
+    const duration = first.item.type === "user_message" ? completedAt - Date.parse(first.timestamp) : NaN;
+    result.push({ at, text: reply.item.text, completedAt,
+      durationMs: Number.isFinite(duration) && duration >= 0 ? duration : null });
+  };
+  for (let index = 1; index < entries.length; index++) {
+    if (!continuesTurn(entries[index - 1]!, entries[index]!)) {
+      close(index - 1);
+      start = index;
+    }
+  }
+  if (entries.length) close(entries.length - 1);
+  // A host without source IDs cannot distinguish identical text at the same
+  // timestamp. Do not attach one turn's footer to two indistinguishable rows.
+  return result.filter((footer) => identities.get(footer.at)?.get(footer.text) === 1);
 }
 
 /** Match the displayed reply before attributing a prompt's time to it. */
