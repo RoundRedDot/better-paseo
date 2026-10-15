@@ -39,7 +39,6 @@ interface ScrollMetrics {
 
 interface ListRef {
   props?: { inverted?: boolean | null };
-  getScrollRef?(): unknown;
   scrollToOffset?(params: { offset: number; animated?: boolean }): void;
 }
 
@@ -63,11 +62,6 @@ function resolveListContext(): Context<ListContextValue | null> {
   }
   listContext = found ?? NO_LIST;
   return listContext;
-}
-
-/** The current timeline list; shared by native scroll affordances. */
-export function useTimelineList() {
-  return useContext(resolveListContext());
 }
 
 /** A move under this many points is layout noise, not a jump. */

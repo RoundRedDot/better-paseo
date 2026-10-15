@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { copyPlan, type CopySource } from "../../client/copy/content";
-import { copiedToast, toolbarLabel, turnDetailsTitle } from "../../client/i18n/toolbar-strings";
+import { copiedToast, toolbarLabel } from "../../client/i18n/toolbar-strings";
 
 // Every copy a preview toolbar can offer, each source filled in so no entry is dropped.
 const SOURCES: CopySource[] = [
@@ -20,15 +20,9 @@ const SOURCES: CopySource[] = [
 const TOOLBAR = ["Copied", "Couldn't copy", "Copy thought", "Copy section", "Copy reply", "Copy prompt", "Previous operation", "Next operation", "Wrap lines",
   "Do not wrap lines", "Maximize preview", "Close preview", "Open tasks in a window", "Copy Markdown table", "Copy as Markdown", "Copy as image",
   // The selection bar's buttons and what they turn into after a press.
-  "Copy", "Add to chat", "Added", "Copied instead", "Copy model name", "Thinking level", "Elapsed time", "Previous reply", "Next reply"];
+  "Copy", "Add to chat", "Added", "Copied instead", "Copy model name", "Thinking level", "Elapsed time"];
 
 describe("toolbar hover names", () => {
-  it("formats numbered turn details in both languages without inventing an unknown number", () => {
-    expect(turnDetailsTitle(7, 17, "zh")).toBe("7/17 轮详情");
-    expect(turnDetailsTitle(7, 17, "en")).toBe("Turn 7/17 details");
-    expect(turnDetailsTitle(undefined, undefined, "zh")).toBe("…/… 轮详情");
-    expect(turnDetailsTitle(undefined, undefined, "en")).toBe("Turn …/… details");
-  });
   it("includes the copied model name without changing its spelling", () => {
     const label = "Copy model name: GPT-6.1-Sol";
     expect(copiedToast(label, "zh")).toBe("已复制模型名称：GPT-6.1-Sol");

@@ -9,10 +9,10 @@ import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
 import { formatFooterStamp, formatFullStamp, formatDuration } from "../ui/time";
 import { TYPE } from "../ui/tokens/typography";
 import { ProviderLogo } from "./provider-logo";
-import { CenteredToolbarDetails, ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
+import { AnchoredToolbarDetails, ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
 import { FooterDetails, useFooterDetailsWidth } from "./footer-details";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
-import { useReplyTarget } from "./reply-navigation";
+import { useScrollDismiss } from "../ui/scroll-anchor";
 import type { TurnUsage } from "./user-message";
 
 /**
@@ -29,11 +29,6 @@ import type { TurnUsage } from "./user-message";
  * back to the host, which brings the full footer with it.
  */
 interface AssistantFooterProps {
-  agentId?: string;
-  replyRef?: RefObject<View | null>;
-  turnNumber?: number;
-  turnCount?: number;
-  observeTurnNumber?: () => () => void;
   /** The reply, copied verbatim — the same text the host would copy. */
   text: string;
   /** The completed turn's end time; source reply identity is resolved before rendering. */
@@ -49,24 +44,23 @@ interface AssistantFooterProps {
   compact?: boolean;
 }
 
-export function AssistantFooter({ agentId, replyRef, turnNumber, turnCount, observeTurnNumber, text, at, agentName, modelName, thinkingLabel, durationMs, startedAt, usage, tokens, compact = false }: AssistantFooterProps) {
+export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel, durationMs, startedAt, usage, tokens, compact = false }: AssistantFooterProps) {
   // The shared copy path (plan §3.8): a check for 1.2 s on success, a toast
   // on failure, and no timer left running after unmount.
   const { copied, copy } = useCopy();
   const modelCopy = useCopy();
   const capabilities = useInputCapabilities(compact);
   const footerRef = useRef<View>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const showDetails = useCallback(() => setDetailsOpen(true), []);
-  const closeDetails = useCallback(() => setDetailsOpen(false), []);
-  const replyTarget = useReplyTarget(agentId, replyRef ?? footerRef, showDetails);
+  const [pressedAnchor, setPressedAnchor] = useState<RefObject<View | null> | null>(null);
+  const showDetails = useCallback((anchor: RefObject<View | null>) => setPressedAnchor(anchor), []);
+  const closeDetails = useCallback(() => setPressedAnchor(null), []);
+  useScrollDismiss(pressedAnchor !== null, closeDetails);
   const longPress = capabilities.touch ? showDetails : undefined;
   const detailsWidth = useFooterDetailsWidth();
   // Grok and Cursor upstream history replays lack reliable per-message timestamps.
   const visibleDurationMs = agentName === "grok" || agentName === "cursor" ? null : durationMs;
-  const details = (close: () => void) => <FooterDetails agentName={agentName} modelName={modelName} thinkingLabel={thinkingLabel}
-    startedAt={startedAt} completedAt={at.getTime()} durationMs={visibleDurationMs} usage={usage} tokens={tokens}
-    replyTarget={replyTarget} turnNumber={turnNumber} turnCount={turnCount} observeTurnNumber={observeTurnNumber} close={close} />;
+  const details = <FooterDetails agentName={agentName} modelName={modelName} thinkingLabel={thinkingLabel}
+    startedAt={startedAt} completedAt={at.getTime()} durationMs={visibleDurationMs} usage={usage} tokens={tokens} />;
   const copyModel = useCallback(() => {
     if (modelName) void modelCopy.copy(modelName, { label: `Copy model name: ${modelName}` });
   }, [modelName, modelCopy.copy]);
@@ -132,7 +126,7 @@ export function AssistantFooter({ agentId, replyRef, turnNumber, turnCount, obse
   return (
     <TooltipSideContext.Provider value="auto">
       <Pressable ref={footerRef} testID="footer-toolbar" accessible={false} focusable={false}
-        onLongPress={longPress} style={styles.container}>
+        onLongPress={longPress ? () => longPress(footerRef) : undefined} style={styles.container}>
         <ToolbarItem
           label={copied ? "Copied" : "Copy reply"}
           tokens={tokens}
@@ -184,10 +178,10 @@ export function AssistantFooter({ agentId, replyRef, turnNumber, turnCount, obse
           </ToolbarItem>
         ) : null}
       </Pressable>
-      {detailsOpen ? (
-        <CenteredToolbarDetails close={closeDetails} width={detailsWidth} tokens={tokens}>
-          {details(closeDetails)}
-        </CenteredToolbarDetails>
+      {pressedAnchor ? (
+        <AnchoredToolbarDetails anchor={pressedAnchor} close={closeDetails} width={detailsWidth} tokens={tokens}>
+          {details}
+        </AnchoredToolbarDetails>
       ) : null}
     </TooltipSideContext.Provider>
   );

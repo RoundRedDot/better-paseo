@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useAgent, usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { useRevealedText } from "@getpaseo/plugin/client/react-native";
@@ -564,7 +564,6 @@ function LiveAssistantMessageRenderer({
       {!envelope ? (
         <TurnFooter
           agentId={agentId}
-          replyRef={rootRef}
           text={messageText}
           at={timestamp}
           tokens={tokens}
@@ -590,7 +589,6 @@ function LiveAssistantMessageRenderer({
  */
 const TurnFooter = memo(function TurnFooter({
   agentId,
-  replyRef,
   text,
   at,
   tokens,
@@ -598,7 +596,6 @@ const TurnFooter = memo(function TurnFooter({
   streaming,
 }: {
   agentId: string;
-  replyRef: RefObject<View | null>;
   text: string;
   at: Date;
   tokens: ReturnType<typeof useThemeTokens>;
@@ -609,14 +606,12 @@ const TurnFooter = memo(function TurnFooter({
   const paseo = usePaseo();
   const timing = useTurnFooter(paseo, agentId, at.getTime(), text, running, streaming);
   if (!timing) return null;
-  return <CompletedReplyFooter agentId={agentId} replyRef={replyRef} text={text} at={new Date(timing.completedAt)} tokens={tokens}
-    compact={compact} durationMs={timing.durationMs} startedAt={timing.startedAt} usage={timing.usage}
-    turnNumber={timing.turnNumber} turnCount={timing.turnCount} observeTurnNumber={timing.observeTurnNumber} />;
+  return <CompletedReplyFooter agentId={agentId} text={text} at={new Date(timing.completedAt)} tokens={tokens}
+    compact={compact} durationMs={timing.durationMs} startedAt={timing.startedAt} usage={timing.usage} />;
 });
 
-function CompletedReplyFooter({ agentId, replyRef, text, at, tokens, compact, durationMs, startedAt, usage, turnNumber, turnCount, observeTurnNumber }: {
+function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs, startedAt, usage }: {
   agentId: string;
-  replyRef: RefObject<View | null>;
   text: string;
   at: Date;
   tokens: ReturnType<typeof useThemeTokens>;
@@ -624,9 +619,6 @@ function CompletedReplyFooter({ agentId, replyRef, text, at, tokens, compact, du
   durationMs: number | null;
   startedAt: number | null;
   usage?: TurnUsage;
-  turnNumber?: number;
-  turnCount?: number;
-  observeTurnNumber: () => () => void;
 }) {
   const agentName = useAgent(agentId, (agent) => agent.provider);
   const modelName = useAgent(agentId, (agent) => agent.model);
@@ -634,8 +626,7 @@ function CompletedReplyFooter({ agentId, replyRef, text, at, tokens, compact, du
   const cwd = useAgent(agentId, (agent) => agent.cwd);
   const paseo = usePaseo();
   const model = useFooterModel(paseo, agentName, modelName, thinkingOptionId, cwd);
-  return <AssistantFooter agentId={agentId} replyRef={replyRef} text={text} at={at} agentName={agentName} modelName={model.modelName}
-    turnNumber={turnNumber} turnCount={turnCount} observeTurnNumber={observeTurnNumber}
+  return <AssistantFooter text={text} at={at} agentName={agentName} modelName={model.modelName}
     thinkingLabel={model.thinkingLabel}
     durationMs={durationMs} startedAt={startedAt} usage={usage} tokens={tokens} compact={compact} />;
 }
