@@ -12,6 +12,8 @@ import { formatFullStamp, formatDuration } from "../ui/time";
 import { TYPE } from "../ui/tokens/typography";
 import { unselectable } from "./selection";
 import type { TurnUsage } from "./user-message";
+import { ToolbarButton } from "../ui/toolbar-button";
+import { useReplyNavigation, type ReplyTarget } from "./reply-navigation";
 
 export interface FooterDetailsProps {
   agentName?: string | null;
@@ -22,6 +24,8 @@ export interface FooterDetailsProps {
   durationMs?: number | null;
   usage?: TurnUsage | null;
   tokens: ExtendedThemeTokens;
+  replyTarget?: ReplyTarget;
+  close(): void;
 }
 
 /** The label column fits the longest label: four CJK characters, or "Thinking level". */
@@ -42,8 +46,9 @@ export function useFooterDetailsWidth(): number {
 /**
  * Two columns: a plain label, then its toolbar icon, value and inline copy action.
  */
-export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, completedAt, durationMs, usage, tokens }: FooterDetailsProps) {
+export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, completedAt, durationMs, usage, tokens, replyTarget, close }: FooterDetailsProps) {
   const { language } = useEnhancerPreferences();
+  const { previous: onPrevious, next: onNext } = useReplyNavigation(replyTarget, close);
   const rows: Array<{ label: string; icon: string; provider?: string | null; value: string; copyLabel?: string }> = [];
   if (agentName) rows.push({ label: "Agent", icon: "Bot", provider: agentName, value: agentName, copyLabel: "Copy agent" });
   if (modelName) rows.push({ label: "Model name", icon: "Copy", provider: agentName, value: modelName, copyLabel: "Copy model name" });
@@ -64,9 +69,13 @@ export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, 
     <View>
       <View testID="footer-panel-titlebar" style={[styles.titlebar,
         { backgroundColor: tokens.v2.surface1, borderBottomColor: tokens.v2.borderSubtle }]}>
+        <ToolbarButton icon="ChevronLeft" label="Previous reply" tokens={tokens} disabled={!onPrevious}
+          onPress={() => onPrevious?.()} />
         <Text accessibilityRole="header" style={[textStyle, styles.title, { color: tokens.foreground }]}>
           {toolbarLabel("Turn details", language)}
         </Text>
+        <ToolbarButton icon="ChevronRight" label="Next reply" tokens={tokens} disabled={!onNext}
+          onPress={() => onNext?.()} />
       </View>
       <View testID="footer-details-table" style={{ padding: TABLE_INSET }}>
         {rows.map((row, index) => (
@@ -93,9 +102,9 @@ export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, 
 }
 
 const styles = StyleSheet.create({
-  titlebar: { minHeight: 32, justifyContent: "center", paddingHorizontal: TABLE_INSET + 8,
+  titlebar: { minHeight: 32, flexDirection: "row", alignItems: "center", paddingHorizontal: TABLE_INSET + 8,
     paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
-  title: { fontWeight: "500", textAlign: "center" },
+  title: { flex: 1, fontWeight: "500", textAlign: "center" },
   // 32: the copy button's 24pt box plus 4 above and below; its hitSlop keeps a 32pt target.
   row: { flexDirection: "row", alignItems: "stretch", minHeight: 32 },
   type: { flexShrink: 0, flexDirection: "row", alignItems: "center",
