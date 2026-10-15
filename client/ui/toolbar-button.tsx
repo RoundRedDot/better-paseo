@@ -8,7 +8,7 @@ import { useCopy } from "./use-copy";
 import { useHover } from "./use-hover";
 import { UI_SCALE } from "./tokens/typography";
 import { cssShadow } from "./tokens/css-shadow";
-import { FLOAT } from "./tokens/float";
+import { FLOAT, floatShadow } from "./tokens/float";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { anchoredTooltipOrigin, liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement, type WindowBox } from "./tooltip-placement";
@@ -149,7 +149,11 @@ export function ToolbarItem({
     return liftStackingRow(anchorRef.current as unknown as DomBox | null);
   }, [open, sideMode, side]);
   const bubble = (
-    <View style={[styles.tooltip, tooltipLook(tokens)]}>
+    <View style={[styles.tooltip, tooltipLook(tokens), details ? {
+      borderRadius: FLOAT.radius,
+      borderWidth: 1,
+      boxShadow: floatShadow(tokens),
+    } : null]}>
       <Text selectable={false} numberOfLines={1}
         style={[styles.tooltipText, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
         {toolbarLabel(label, preferences.language)}

@@ -19,6 +19,7 @@ import { StyleSheet } from "./helpers/rn-mock";
 import { seedMarkBitmaps } from "../../client/components/marks";
 import { updateEnhancerPreferences } from "../../client/preferences";
 import { TOOLBAR_TOOLTIP_MS } from "../../client/ui/toolbar-button";
+import { FLOAT, floatShadow } from "../../client/ui/tokens/float";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -96,6 +97,11 @@ describe("assistant footer", () => {
       act(() => { trigger.props.onLongPress(); });
       expect(clipboard.copyText).not.toHaveBeenCalled();
       expect(details()).toHaveLength(1);
+      const bubble = renderer.root.findAllByType("View" as never)
+        .map((node) => StyleSheet.flatten(node.props.style))
+        .find((style) => style.boxShadow);
+      expect(bubble).toMatchObject({ borderRadius: FLOAT.radius, borderWidth: 1,
+        backgroundColor: tokens.surface0, borderColor: tokens.v2.border, boxShadow: floatShadow(tokens) });
       expect(details()[0]!.findAllByType("Text" as never)
         .map((node) => [node.props.children].flat().join(""))).toEqual(["Opus 5.5", "思考强度: High"]);
       const copyButton = details()[0]!.findByType("Pressable" as never);
