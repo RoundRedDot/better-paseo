@@ -23,6 +23,12 @@ const TOOLBAR = ["Copied", "Couldn't copy", "Copy thought", "Copy section", "Cop
   "Copy", "Add to chat", "Added", "Copied instead"];
 
 describe("toolbar hover names", () => {
+  it("includes the copied model name without changing its spelling", () => {
+    const label = "Copy model name: GPT-6.1-Sol";
+    expect(copiedToast(label, "zh")).toBe("已复制模型名称：GPT-6.1-Sol");
+    expect(copiedToast(label, "en")).toBe("Copied model name: GPT-6.1-Sol");
+    expect(copiedToast(label, "system", "zh-CN")).toBe("已复制模型名称：GPT-6.1-Sol");
+  });
   it("has a Chinese name for every copy and toolbar button", () => {
     const labels = [...new Set([...SOURCES.flatMap((source) => {
       const plan = copyPlan(source);

@@ -57,6 +57,10 @@ export function toolbarLabel(label: string, preference: SettingsLanguagePreferen
  */
 export function copiedToast(label: string, preference: SettingsLanguagePreference, locale?: string | null): string {
   const base = label.replace(/^\d+\.\s*/, "");
+  if (base.startsWith("Copy model name: ")) {
+    const name = base.slice("Copy model name: ".length);
+    return resolveLanguage(preference, locale) === "zh" ? `已复制模型名称：${name}` : `Copied model name: ${name}`;
+  }
   if (resolveLanguage(preference, locale) === "zh") {
     const zh = ZH[base];
     return zh?.startsWith("复制") ? `已${zh}` : "已复制";

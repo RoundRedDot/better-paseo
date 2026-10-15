@@ -112,7 +112,7 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={modelCopy.copied ? "Model name copied" : "Copy model name"}
-          onPress={() => void modelCopy.copy(modelName)}
+          onPress={() => void modelCopy.copy(modelName, { label: `Copy model name: ${modelName}` })}
           hitSlop={compact ? (44 - FOOTER_HEIGHT) / 2 : 0}
           style={({ pressed }) => [styles.metadata, pressed && { backgroundColor: tokens.v2.surface2 }]}
         >

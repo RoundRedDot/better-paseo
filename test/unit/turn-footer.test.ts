@@ -16,6 +16,7 @@ import { AssistantFooter } from "../../client/components/turn-footer";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { StyleSheet } from "./helpers/rn-mock";
 import { seedMarkBitmaps } from "../../client/components/marks";
+import { updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -31,7 +32,10 @@ beforeEach(() => {
   vi.setSystemTime(new Date(2026, 9, 15, 16));
   seedMarkBitmaps({ "lobe:codex": "data:image/png;base64,codex" });
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  updateEnhancerPreferences({ language: "system" });
+});
 
 describe("assistant footer", () => {
   it("shows agent, model, today's time and duration after Copy in order", () => {
@@ -66,6 +70,7 @@ describe("assistant footer", () => {
     }
   });
   it.each([false, true])("copies the displayed model name independently of the reply (compact=%s)", async (compact) => {
+    updateEnhancerPreferences({ language: "zh" });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
       text, at, tokens, compact, agentName: "codex", modelName: "GPT-6.1-Sol", thinkingLabel: "Medium",
@@ -75,6 +80,7 @@ describe("assistant footer", () => {
       expect(button.props.hitSlop).toBe(compact ? 10 : 0);
       await act(async () => { button.props.onPress(); });
       expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("GPT-6.1-Sol");
+      expect(clipboard.show).toHaveBeenCalledExactlyOnceWith("已复制模型名称：GPT-6.1-Sol");
       expect(renderer.root.findByProps({ accessibilityLabel: "Model name copied" })).toBeDefined();
       await act(async () => { renderer.root.findByProps({ accessibilityLabel: "Copy reply" }).props.onPress(); });
       expect(clipboard.copyText).toHaveBeenLastCalledWith(text);
@@ -92,6 +98,7 @@ describe("assistant footer", () => {
     try {
       await act(async () => { renderer.root.findByProps({ accessibilityLabel: "Copy model name" }).props.onPress(); });
       expect(clipboard.error).toHaveBeenCalledOnce();
+      expect(clipboard.show).not.toHaveBeenCalled();
       expect(renderer.root.findAllByProps({ accessibilityLabel: "Model name copied" })).toHaveLength(0);
     } finally {
       act(() => renderer.unmount());
