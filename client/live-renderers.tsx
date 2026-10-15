@@ -574,10 +574,10 @@ const TurnFooter = memo(function TurnFooter({
   const timing = useTurnFooter(paseo, agentId, at.getTime(), text, running);
   if (!timing) return null;
   return <CompletedReplyFooter agentId={agentId} text={text} at={at} tokens={tokens}
-    compact={compact} durationMs={timing.durationMs} startedAt={timing.startedAt} completedAt={timing.completedAt} />;
+    compact={compact} durationMs={timing.durationMs} startedAt={timing.startedAt} />;
 });
 
-function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs, startedAt, completedAt }: {
+function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs, startedAt }: {
   agentId: string;
   text: string;
   at: Date;
@@ -585,7 +585,6 @@ function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs, 
   compact: boolean;
   durationMs: number | null;
   startedAt: number | null;
-  completedAt: number;
 }) {
   const agentName = useAgent(agentId, (agent) => agent.provider);
   const modelName = useAgent(agentId, (agent) => agent.model);
@@ -595,7 +594,7 @@ function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs, 
   const model = useFooterModel(paseo, agentName, modelName, thinkingOptionId, cwd);
   return <AssistantFooter text={text} at={at} agentName={agentName} modelName={model.modelName}
     thinkingLabel={model.thinkingLabel}
-    durationMs={durationMs} startedAt={startedAt} completedAt={completedAt} tokens={tokens} compact={compact} />;
+    durationMs={durationMs} startedAt={startedAt} tokens={tokens} compact={compact} />;
 }
 
 /**

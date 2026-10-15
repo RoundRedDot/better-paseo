@@ -51,7 +51,7 @@ describe("assistant footer", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
       text, at, tokens, compact: true, agentName: "codex", modelName: "GPT-6.1-Sol", thinkingLabel: "High",
-      startedAt: 1000, completedAt: 4000, durationMs: 3000,
+      startedAt: 1000, durationMs: 3000,
     })); });
     try {
       const labels = { toolbar: undefined, reply: "Copy reply", model: "Copy model name",
@@ -61,7 +61,7 @@ describe("assistant footer", () => {
       act(() => { trigger.props.onLongPress(); });
       expect(clipboard.copyText).not.toHaveBeenCalled();
       const table = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-details-table")!;
-      expect(table.findAllByType("View" as never).filter((node) => node.props.testID?.startsWith("footer-detail-"))).toHaveLength(6);
+      expect(table.findAllByType("View" as never).filter((node) => node.props.testID?.startsWith("footer-detail-"))).toHaveLength(5);
       const close = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.accessibilityLabel === "Close preview")!;
       act(() => { close.props.onPress(); });
       expect(renderer.root.findAllByType("Modal" as never)).toHaveLength(0);
@@ -75,14 +75,13 @@ describe("assistant footer", () => {
     }
   });
 
-  it("copies each available metadata value, including full timestamps, and leaves duration read-only", async () => {
+  it("copies each available metadata value, including the full start time, and leaves duration read-only", async () => {
     const startedAt = new Date(2026, 9, 15, 21, 2, 3).getTime();
-    const completedAt = new Date(2026, 9, 15, 21, 3, 25).getTime();
     updateEnhancerPreferences({ language: "zh" });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
       text, at, tokens, agentName: "codex", modelName: "GPT-6.1-Sol", thinkingLabel: "High",
-      startedAt, completedAt, durationMs: 82000,
+      startedAt, durationMs: 82000,
     })); });
     try {
       const toolbar = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.testID === "footer-toolbar")!;
@@ -90,11 +89,11 @@ describe("assistant footer", () => {
       const table = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-details-table")!;
       expect(table.findAllByType("Text" as never).map((node) => node.props.children))
         .toEqual(["Agent", "codex", "模型名称", "GPT-6.1-Sol", "思考强度", "High", "开始时间", "2026-10-15 21:02:03",
-          "结束时间", "2026-10-15 21:03:25", "耗时", "1分22秒"]);
+          "耗时", "1分22秒"]);
       const buttons = table.findAllByType("Pressable" as never);
       expect(buttons.map((node) => node.props.accessibilityLabel))
-        .toEqual(["Copy agent", "Copy model name", "Copy thinking level", "Copy start time", "Copy end time"]);
-      for (const [index, value] of ["codex", "GPT-6.1-Sol", "High", "2026-10-15 21:02:03", "2026-10-15 21:03:25"].entries()) {
+        .toEqual(["Copy agent", "Copy model name", "Copy thinking level", "Copy start time"]);
+      for (const [index, value] of ["codex", "GPT-6.1-Sol", "High", "2026-10-15 21:02:03"].entries()) {
         await act(async () => { buttons[index]!.props.onPress(); });
         expect(clipboard.copyText).toHaveBeenLastCalledWith(value);
         expect(buttons[index]!.findByType("Icon" as never).props.name).toBe("Check");
@@ -102,9 +101,13 @@ describe("assistant footer", () => {
       const duration = table.findAllByType("View" as never).find((node) => node.props.testID === "footer-detail-Elapsed time")!;
       expect(duration.findAllByType("Pressable" as never)).toHaveLength(0);
       const rows = table.findAllByType("View" as never).filter((node) => node.props.testID?.startsWith("footer-detail-"));
+      // Icons stay in the toolbar: the table's only icons are its copy buttons.
+      expect(table.findAllByType("Icon" as never)).toHaveLength(buttons.length);
       for (const row of rows) {
-        expect(StyleSheet.flatten(row.props.style).backgroundColor).toBeUndefined();
-        expect(row.findAllByType("View" as never).some((node) => StyleSheet.flatten(node.props.style).width === 128)).toBe(true);
+        const style = StyleSheet.flatten(row.props.style);
+        expect(style.backgroundColor).toBeUndefined();
+        expect(style.minHeight).toBe(32);
+        expect(row.findAllByType("View" as never).some((node) => StyleSheet.flatten(node.props.style).width === 72)).toBe(true);
       }
     } finally { act(() => renderer.unmount()); }
   });
@@ -112,15 +115,14 @@ describe("assistant footer", () => {
   it("shows known timing even without a model and does not invent missing start or duration", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
-      text, at, tokens, completedAt: 4000, durationMs: 0,
+      text, at, tokens, durationMs: 0,
     })); });
     try {
       const toolbar = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.testID === "footer-toolbar")!;
       act(() => { toolbar.props.onLongPress(); });
       const table = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-details-table")!;
       const rowIds = table.findAllByType("View" as never).map((node) => node.props.testID).filter(Boolean);
-      expect(rowIds).toContain("footer-detail-End time");
-      expect(rowIds).toContain("footer-detail-Elapsed time");
+      expect(rowIds).toEqual(["footer-details-table", "footer-detail-Elapsed time"]);
       expect(rowIds).not.toContain("footer-detail-Start time");
       expect(rowIds).not.toContain("footer-detail-Model name");
       expect(table.findAllByType("Text" as never).map((node) => node.props.children)).toContain("0秒");
@@ -194,12 +196,12 @@ describe("assistant footer", () => {
         .map((node) => [node.props.children].flat().join(""))).toEqual(["模型名称", "Opus 5.5", "思考强度", "High"]);
       const copyButton = details()[0]!.findAllByType("Pressable" as never)
         .find((node) => node.props.accessibilityLabel === "Copy model name")!;
-      const slots = details()[0]!.findAllByType("View" as never)
-        .filter((node) => StyleSheet.flatten(node.props.style).width === 20);
-      expect(slots).toHaveLength(2);
-      expect(slots.map((node) => StyleSheet.flatten(node.props.style)))
-        .toEqual([expect.objectContaining({ width: 20, height: 20, alignItems: "center", justifyContent: "center" }),
-          expect.objectContaining({ width: 20, height: 20, alignItems: "center", justifyContent: "center" })]);
+      // Labels carry no icon slot; the panel is sized to the table, not a 380pt sheet.
+      expect(details()[0]!.findAllByType("View" as never)
+        .filter((node) => StyleSheet.flatten(node.props.style).width === 20)).toHaveLength(0);
+      const panel = renderer.root.findAllByType("View" as never)
+        .find((node) => node.props.testID === "toolbar-details-panel" || StyleSheet.flatten(node.props.style).boxShadow)!;
+      expect(StyleSheet.flatten(panel.props.style).width).toBe(264);
       await act(async () => { copyButton.props.onPress(); });
       expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("Opus 5.5");
       expect(copyButton.props.accessibilityLabel).toBe("Copied");

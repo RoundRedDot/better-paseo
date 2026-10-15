@@ -10,7 +10,7 @@ import { formatFooterStamp, formatFullStamp, formatDuration } from "../ui/time";
 import { TYPE } from "../ui/tokens/typography";
 import { ProviderLogo } from "./provider-logo";
 import { AnchoredToolbarDetails, ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
-import { FooterDetails } from "./footer-details";
+import { FooterDetails, useFooterDetailsWidth } from "./footer-details";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { useScrollDismiss } from "../ui/scroll-anchor";
 
@@ -36,13 +36,12 @@ interface AssistantFooterProps {
   thinkingLabel?: string | null;
   durationMs?: number | null;
   startedAt?: number | null;
-  completedAt?: number | null;
   tokens: ExtendedThemeTokens;
   /** `layout.compact`: a 44pt touch target for Copy. */
   compact?: boolean;
 }
 
-export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel, durationMs, startedAt, completedAt, tokens, compact = false }: AssistantFooterProps) {
+export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel, durationMs, startedAt, tokens, compact = false }: AssistantFooterProps) {
   // The shared copy path (plan §3.8): a check for 1.2 s on success, a toast
   // on failure, and no timer left running after unmount.
   const { copied, copy } = useCopy();
@@ -54,8 +53,9 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
   const closeDetails = useCallback(() => setPressedAnchor(null), []);
   useScrollDismiss(pressedAnchor !== null, closeDetails);
   const longPress = capabilities.touch ? showDetails : undefined;
+  const detailsWidth = useFooterDetailsWidth();
   const details = <FooterDetails agentName={agentName} modelName={modelName} thinkingLabel={thinkingLabel}
-    startedAt={startedAt} completedAt={completedAt} durationMs={durationMs} tokens={tokens} />;
+    startedAt={startedAt} durationMs={durationMs} tokens={tokens} />;
   const copyModel = useCallback(() => {
     if (modelName) void modelCopy.copy(modelName, { label: `Copy model name: ${modelName}` });
   }, [modelName, modelCopy.copy]);
@@ -150,7 +150,7 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
             hitSlop={compact ? (44 - FOOTER_HEIGHT) / 2 : 0}
             buttonStyle={[styles.metadata, styles.modelButton]}
             details={details}
-            detailsWidth={380}
+            detailsWidth={detailsWidth}
           >
             {modelCopy.copied ? (
               <Icon name="Check" size={DISCLOSURE_HEADER.icon} color={tokens.success} />
@@ -174,7 +174,7 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
         ) : null}
       </Pressable>
       {pressedAnchor ? (
-        <AnchoredToolbarDetails anchor={pressedAnchor} close={closeDetails} width={380} tokens={tokens}>
+        <AnchoredToolbarDetails anchor={pressedAnchor} close={closeDetails} width={detailsWidth} tokens={tokens}>
           {details}
         </AnchoredToolbarDetails>
       ) : null}
