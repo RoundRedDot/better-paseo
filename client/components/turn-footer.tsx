@@ -56,8 +56,8 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
   useScrollDismiss(pressedAnchor !== null, closeDetails);
   const longPress = capabilities.touch ? showDetails : undefined;
   const detailsWidth = useFooterDetailsWidth();
-  // Grok's upstream ACP history replays lack reliable per-message timestamps.
-  const visibleDurationMs = agentName === "grok" ? null : durationMs;
+  // Grok and Cursor upstream history replays lack reliable per-message timestamps.
+  const visibleDurationMs = agentName === "grok" || agentName === "cursor" ? null : durationMs;
   const details = <FooterDetails agentName={agentName} modelName={modelName} thinkingLabel={thinkingLabel}
     startedAt={startedAt} durationMs={visibleDurationMs} usage={usage} tokens={tokens} />;
   const copyModel = useCallback(() => {

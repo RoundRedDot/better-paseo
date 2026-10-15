@@ -44,7 +44,7 @@ afterEach(() => {
 describe("assistant footer", () => {
   it.each(["ios", "web"].flatMap((platform) => [0, 82000].flatMap((durationMs) =>
     ["grok", "cursor", "codex"].map((agentName) => ({ platform, durationMs, agentName })))))
-  ("hides upstream Grok timing only: $platform $agentName $durationMs", ({ platform, agentName, durationMs }) => {
+  ("hides unreliable Grok and Cursor timing: $platform $agentName $durationMs", ({ platform, agentName, durationMs }) => {
     const globals = globalThis as { __rnMockOS?: string };
     const previousPlatform = globals.__rnMockOS;
     globals.__rnMockOS = platform;
@@ -54,7 +54,7 @@ describe("assistant footer", () => {
       startedAt: 1000, usage: { outputTokens: 42 },
     })); });
     try {
-      const visible = agentName !== "grok";
+      const visible = agentName !== "grok" && agentName !== "cursor";
       expect(renderer.root.findAllByType("Pressable" as never).some((node) =>
         node.props.accessibilityLabel?.startsWith("Elapsed time:"))).toBe(visible);
       const toolbar = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.testID === "footer-toolbar")!;
