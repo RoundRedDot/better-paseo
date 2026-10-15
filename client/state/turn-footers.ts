@@ -59,7 +59,8 @@ export function createTurnFooterStore(source: () => Timeline) {
     for (const footer of completedTurnFooters(items, snapshot ? snapshot.status === "running" : running === true,
       snapshot?.activeTurn?.turnId ?? null)) {
       const previous = get(footer.at, footer.text);
-      const value = previous?.completedAt === footer.completedAt && previous.durationMs === footer.durationMs ? previous : footer;
+      const value = previous?.completedAt === footer.completedAt && previous.startedAt === footer.startedAt &&
+        previous.durationMs === footer.durationMs ? previous : footer;
       let at = next.get(footer.at);
       if (!at) next.set(footer.at, at = new Map());
       at.set(footer.text, value);
