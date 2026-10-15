@@ -53,6 +53,39 @@ beforeEach(() => { vi.clearAllMocks(); runtime.agent.status = "idle"; });
 afterEach(() => { expect(runtime.listeners.size).toBe(0); });
 
 describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform) => {
+  it("observes the first streaming turn without fetching per chunk and forwards its final usage", async () => {
+    runtime.agent.status = "running";
+    const entries = [entry({ type: "user_message", text: "first" }, 1, 1000, "one"),
+      entry({ type: "assistant_message", text: "answer" }, 2, 2000, "one")];
+    const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(async () => page(entries));
+    let onEvent!: Parameters<PaseoAgentTimelineHandle["subscribe"]>[0];
+    const release = Object.assign(vi.fn(), { ready: Promise.resolve(), subscriptionId: "s", release: async () => {} });
+    const subscribe = vi.fn<PaseoAgentTimelineHandle["subscribe"]>((handler) => { onEvent = handler; return release; });
+    runtime.api = { agents: { ref: () => ({ timeline: { refetch, subscribe } }) }, providers: { listModels: async () => catalog } };
+    const row = (text: string, phase: string, at = 2000) => React.createElement(LiveAssistantRenderer, {
+      agentId: "a", theme, host: { id: "local", label: "Local" }, layout: { platform, compact: platform !== "web" },
+      timestamp: new Date(at), item: { type: "plugin", kind: "omp-assistant", version: 1, data: { text, phase } },
+    } satisfies PluginTimelineItemProps<LiveAssistantPayload>);
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { renderer = TestRenderer.create(row("a", "streaming")); });
+    try {
+      await act(async () => { renderer.update(row("ans", "streaming", 2500)); });
+      expect(renderer.root.findAllByType(AssistantFooter)).toHaveLength(0);
+      expect(refetch).not.toHaveBeenCalled();
+      expect(subscribe).toHaveBeenCalledTimes(1);
+      const usage = { inputTokens: 12000, cachedInputTokens: 0, outputTokens: 345 };
+      await act(async () => {
+        onEvent({ agentId: "a", timestamp: new Date(2000).toISOString(),
+          event: { type: "turn_completed", provider: "codex", turnId: "one", usage } });
+        runtime.agent.status = "idle";
+        for (const listener of runtime.listeners) listener();
+        renderer.update(row("answer", "complete"));
+      });
+      expect(renderer.root.findByType(AssistantFooter).props.usage).toEqual(usage);
+      expect(refetch).toHaveBeenCalledTimes(1);
+    } finally { act(() => renderer.unmount()); }
+  });
+
   it("keeps historical toolbars during the next turn and adds only its final reply on completion", async () => {
     let entries = [entry({ type: "user_message", text: "one" }, 1, 1000, "one"),
       entry({ type: "assistant_message", text: "intermediate" }, 2, 2000, "one"),

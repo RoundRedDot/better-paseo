@@ -1,4 +1,4 @@
-import type { PaseoAgentTimelineHandle } from "@getpaseo/client";
+import type { PaseoAgent, PaseoAgentTimelineHandle } from "@getpaseo/client";
 import { parseSystemEnvelope } from "../system-envelope";
 
 export type Entry = Awaited<ReturnType<PaseoAgentTimelineHandle["refetch"]>>["entries"][number];
@@ -9,6 +9,8 @@ export function continuesTurn(previous: Entry, next: Entry): boolean {
 }
 
 export interface CompletedTurnFooter {
+  turnId?: string;
+  usage?: NonNullable<PaseoAgent["lastUsage"]>;
   at: number;
   text: string;
   completedAt: number;
@@ -48,7 +50,7 @@ export function completedTurnFooters(
     if (!Number.isFinite(at) || !Number.isFinite(completedAt)) return;
     const startedAt = first.item.type === "user_message" ? Date.parse(first.timestamp) : NaN;
     const duration = completedAt - startedAt;
-    result.push({ at, text: reply.item.text, completedAt,
+    result.push({ ...(turnId ? { turnId } : {}), at, text: reply.item.text, completedAt,
       startedAt: Number.isFinite(duration) && duration >= 0 ? startedAt : null,
       durationMs: Number.isFinite(duration) && duration >= 0 ? duration : null });
   };

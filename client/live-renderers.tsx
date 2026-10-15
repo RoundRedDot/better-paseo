@@ -527,17 +527,16 @@ function LiveAssistantRendererBody({
           probeId={`assistant:${timestamp.getTime()}`}
         />
       )}
-      {/* As the host does (`CompletedTurnFooter`): the footer belongs to a
-          finished turn. Under a streaming reply it is only pushed down by
-          every chunk (S7 replay: that move was the whole layout-shift
-          increase), and Copy would copy half a reply. */}
-      {!envelope && !streaming ? (
+      {/* A streaming row only observes completion usage; the visible footer
+          still belongs exclusively to the final reply of a completed turn. */}
+      {!envelope ? (
         <TurnFooter
           agentId={agentId}
           text={item.data.text}
           at={timestamp}
           tokens={tokens}
           compact={layout.compact}
+          streaming={streaming}
         />
       ) : null}
       <TimelineTailHub
@@ -562,22 +561,24 @@ const TurnFooter = memo(function TurnFooter({
   at,
   tokens,
   compact,
+  streaming,
 }: {
   agentId: string;
   text: string;
   at: Date;
   tokens: ReturnType<typeof useThemeTokens>;
   compact: boolean;
+  streaming: boolean;
 }) {
   const running = useAgent(agentId, (agent) => agent.status === "running");
   const paseo = usePaseo();
-  const timing = useTurnFooter(paseo, agentId, at.getTime(), text, running);
+  const timing = useTurnFooter(paseo, agentId, at.getTime(), text, running, streaming);
   if (!timing) return null;
   return <CompletedReplyFooter agentId={agentId} text={text} at={at} tokens={tokens}
-    compact={compact} durationMs={timing.durationMs} startedAt={timing.startedAt} />;
+    compact={compact} durationMs={timing.durationMs} startedAt={timing.startedAt} usage={timing.usage} />;
 });
 
-function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs, startedAt }: {
+function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs, startedAt, usage }: {
   agentId: string;
   text: string;
   at: Date;
@@ -585,6 +586,7 @@ function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs, 
   compact: boolean;
   durationMs: number | null;
   startedAt: number | null;
+  usage?: TurnUsage;
 }) {
   const agentName = useAgent(agentId, (agent) => agent.provider);
   const modelName = useAgent(agentId, (agent) => agent.model);
@@ -594,7 +596,7 @@ function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs, 
   const model = useFooterModel(paseo, agentName, modelName, thinkingOptionId, cwd);
   return <AssistantFooter text={text} at={at} agentName={agentName} modelName={model.modelName}
     thinkingLabel={model.thinkingLabel}
-    durationMs={durationMs} startedAt={startedAt} tokens={tokens} compact={compact} />;
+    durationMs={durationMs} startedAt={startedAt} usage={usage} tokens={tokens} compact={compact} />;
 }
 
 /**

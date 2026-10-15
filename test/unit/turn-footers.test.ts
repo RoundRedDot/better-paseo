@@ -60,6 +60,53 @@ describe("completed turn footers", () => {
 });
 
 describe("shared turn footer timeline", () => {
+  it("captures completion usage before the first streaming reply settles without reading on chunks", async () => {
+    const { store, refetch, emit } = setup([prompt(1, "one"), reply(3, "first", "one")]);
+    store.setRunning(true);
+    const stopObserving = store.observe();
+    const usage = { inputTokens: 12345, cachedInputTokens: 0, outputTokens: 678 };
+    emit({ type: "timeline", provider: "codex", item: { type: "assistant_message", text: "streaming" } });
+    await Promise.resolve();
+    expect(refetch).not.toHaveBeenCalled();
+    emit({ type: "turn_completed", provider: "codex", turnId: "one", usage });
+    await store.refresh();
+    stopObserving();
+    store.setRunning(false);
+    const stop = store.retain(3000, "first");
+    await store.refresh();
+    expect(store.get(3000, "first")?.usage).toEqual(usage);
+    stop();
+  });
+
+  it("keeps usage tied to turn IDs, preserves it on remount, and clears it on replacement", async () => {
+    const { store, emit, replace } = setup();
+    store.setRunning(false);
+    let stop = store.retain(3000, "first");
+    await store.refresh();
+    expect(store.get(3000, "first")?.usage).toBeUndefined();
+    emit({ type: "turn_completed", provider: "codex", turnId: "one", usage: { outputTokens: 7 } });
+    emit({ type: "turn_completed", provider: "codex", turnId: "two", usage: { outputTokens: 9 } });
+    // Events without a turn ID must never be assigned to the latest reply.
+    emit({ type: "turn_completed", provider: "codex", usage: { outputTokens: 999 } });
+    await store.refresh();
+    expect(store.get(3000, "first")?.usage).toEqual({ outputTokens: 7 });
+    expect(store.get(5000, "second")?.usage).toEqual({ outputTokens: 9 });
+    const first = store.get(3000, "first");
+    replace([...turns(), prompt(6, "three"), reply(7, "third", "three")]);
+    emit({ type: "turn_completed", provider: "codex", turnId: "three", usage: { outputTokens: 11 } });
+    await store.refresh();
+    expect(store.get(3000, "first")).toBe(first);
+    expect(store.get(7000, "third")?.usage).toEqual({ outputTokens: 11 });
+    stop();
+    stop = store.retain(3000, "first");
+    await store.refresh();
+    expect(store.get(3000, "first")?.usage).toEqual({ outputTokens: 7 });
+    emit({ type: "replacement", epoch: "new" });
+    await store.refresh();
+    expect(store.get(3000, "first")?.usage).toBeUndefined();
+    stop();
+  });
+
   it("shares one read and subscription, preserves historical snapshots and ignores streamed chunks", async () => {
     const { store, refetch, subscribe, release, replace, emit } = setup();
     store.setRunning(false);

@@ -42,6 +42,25 @@ afterEach(() => {
 });
 
 describe("assistant footer", () => {
+  it.each(["en", "zh"] as const)("shows exact token counts, zero and missing values in %s without copy actions", (language) => {
+    updateEnhancerPreferences({ language });
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
+      text, at, tokens, usage: { inputTokens: 123456, cachedInputTokens: 0 },
+    })); });
+    try {
+      const toolbar = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.testID === "footer-toolbar")!;
+      act(() => { toolbar.props.onLongPress(); });
+      const rows = ["Input tokens", "Cached tokens", "Output tokens"].map((label) =>
+        renderer.root.findAllByType("View" as never).find((node) => node.props.testID === `footer-detail-${label}`)!);
+      expect(rows.map((row) => row.findAllByType("Text" as never).map((node) => node.props.children))).toEqual(language === "zh"
+        ? [["输入 Token", "123,456"], ["缓存 Token", "0"], ["输出 Token", "未记录"]]
+        : [["Input tokens", "123,456"], ["Cached tokens", "0"], ["Output tokens", "Not recorded"]]);
+      expect(rows.map((row) => row.findByType("Icon" as never).props.name)).toEqual(["ArrowDown", "Database", "ArrowUp"]);
+      expect(rows.flatMap((row) => row.findAllByType("Pressable" as never))).toHaveLength(0);
+    } finally { act(() => renderer.unmount()); }
+  });
+
   it.each(["ios", "android", "web"].flatMap((platform) =>
     ["toolbar", "reply", "model", "time", "duration"].map((target) => [platform, target] as const)))
   ("opens complete turn details by long-pressing %s %s without copying", (platform, target) => {
@@ -61,7 +80,7 @@ describe("assistant footer", () => {
       act(() => { trigger.props.onLongPress(); });
       expect(clipboard.copyText).not.toHaveBeenCalled();
       const table = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-details-table")!;
-      expect(table.findAllByType("View" as never).filter((node) => node.props.testID?.startsWith("footer-detail-"))).toHaveLength(5);
+      expect(table.findAllByType("View" as never).filter((node) => node.props.testID?.startsWith("footer-detail-"))).toHaveLength(8);
       const close = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.accessibilityLabel === "Close preview")!;
       act(() => { close.props.onPress(); });
       expect(renderer.root.findAllByType("Modal" as never)).toHaveLength(0);
@@ -89,7 +108,7 @@ describe("assistant footer", () => {
       const table = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-details-table")!;
       expect(table.findAllByType("Text" as never).map((node) => node.props.children))
         .toEqual(["Agent", "codex", "模型名称", "GPT-6.1-Sol", "思考强度", "High", "开始时间", "2026-10-15 21:02:03",
-          "耗时", "1分22秒"]);
+          "耗时", "1分22秒", "输入 Token", "未记录", "缓存 Token", "未记录", "输出 Token", "未记录"]);
       const buttons = table.findAllByType("Pressable" as never);
       expect(buttons.map((node) => node.props.accessibilityLabel))
         .toEqual(["Copy agent", "Copy model name", "Copy thinking level", "Copy start time"]);
@@ -103,7 +122,7 @@ describe("assistant footer", () => {
       const rows = table.findAllByType("View" as never).filter((node) => node.props.testID?.startsWith("footer-detail-"));
       expect(table.findAllByType(ProviderLogo).map((node) => node.props.provider)).toEqual(["codex", "codex"]);
       expect(table.findAllByType("Icon" as never).map((node) => node.props.name))
-        .toEqual(["Check", "Check", "Brain", "Check", "Clock", "Check", "Hourglass"]);
+        .toEqual(["Check", "Check", "Brain", "Check", "Clock", "Check", "Hourglass", "ArrowDown", "Database", "ArrowUp"]);
       for (const [index, row] of rows.entries()) {
         const slot = row.findAllByType("View" as never).find((node) => node.props.testID === "footer-value-icon")!;
         const valueCell = row.findAllByType("View" as never)
@@ -129,7 +148,8 @@ describe("assistant footer", () => {
       const table = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-details-table")!;
       const rowIds = table.findAllByType("View" as never).map((node) => node.props.testID)
         .filter((id) => id?.startsWith("footer-detail"));
-      expect(rowIds).toEqual(["footer-details-table", "footer-detail-Elapsed time"]);
+      expect(rowIds).toEqual(["footer-details-table", "footer-detail-Elapsed time",
+        "footer-detail-Input tokens", "footer-detail-Cached tokens", "footer-detail-Output tokens"]);
       expect(rowIds).not.toContain("footer-detail-Start time");
       expect(rowIds).not.toContain("footer-detail-Model name");
       expect(table.findAllByType("Text" as never).map((node) => node.props.children)).toContain("0秒");
@@ -204,12 +224,13 @@ describe("assistant footer", () => {
       expect(renderer.root.findAllByType("Text" as never).map((node) => node.props.children))
         .not.toContain("复制模型名称");
       expect(details()[0]!.findAllByType("Text" as never)
-        .map((node) => [node.props.children].flat().join(""))).toEqual(["模型名称", "Opus 5.5", "思考强度", "High"]);
+        .map((node) => [node.props.children].flat().join(""))).toEqual(["模型名称", "Opus 5.5", "思考强度", "High",
+          "输入 Token", "未记录", "缓存 Token", "未记录", "输出 Token", "未记录"]);
       const copyButton = details()[0]!.findAllByType("Pressable" as never)
         .find((node) => node.props.accessibilityLabel === "Copy model name")!;
       // Labels stay plain; toolbar icons are rendered in the value column.
       expect(details()[0]!.findAllByType("View" as never)
-        .filter((node) => node.props.testID === "footer-value-icon")).toHaveLength(2);
+        .filter((node) => node.props.testID === "footer-value-icon")).toHaveLength(5);
       expect(details()[0]!.findAllByType("View" as never)
         .filter((node) => StyleSheet.flatten(node.props.style).width === 20)).toHaveLength(0);
       const panel = renderer.root.findAllByType("View" as never)
