@@ -48,6 +48,7 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
       StyleSheet.create({
         container: {
           minHeight: FOOTER_HEIGHT,
+          marginTop: space.sm,
           // Keep Copy clear of the composer in both desktop and compact layouts.
           marginBottom: space.lg,
           flexDirection: "row",
