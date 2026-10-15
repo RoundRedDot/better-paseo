@@ -16,7 +16,7 @@ import { RunningDot } from "../ui/running-dot";
 import { ProgressRing } from "../ui/progress-ring";
 import { FadeIn } from "../ui/fade-in";
 import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
-import { HoverPreview, HoverPreviewBody, HoverPreviewHeader, useHoverPreview } from "../ui/hover-preview";
+import { HoverPreview, HoverPreviewBody, HoverPreviewHeader, useHoverPreview, usePreviewWraps } from "../ui/hover-preview";
 import { ToolbarButton, TooltipAlignContext, TooltipSideContext } from "../ui/toolbar-button";
 import { bindPreviewPointer } from "../web";
 
@@ -39,7 +39,8 @@ interface TaskListProps {
   panel?: TaskListPanelControl;
   /**
    * The list as the panel draws it: no header (the panel's title bar says
-   * "Tasks"), every title in full, and nothing to press.
+   * "Tasks"), every title in full, and nothing to press. With the panel's
+   * line wrap off each title stays on one line and the body scrolls sideways.
    */
   full?: boolean;
 }
@@ -83,6 +84,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
   const tasks = useMemo(() => applyTaskOverrides(data.tasks, overrides), [data.tasks, overrides]);
   const [expandedBlockedId, setExpandedBlockedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(NO_EXPANDED);
+  const unwrapped = full && !usePreviewWraps();
   const own = useTaskListPanel(!shared && !full);
   const panel = shared ?? own;
   const longPress = full ? undefined : panel.press;
@@ -176,12 +178,22 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
           borderColor: tokens.foregroundSubtle,
         },
         title: {
-          flex: 1,
-          minWidth: 0,
           fontFamily: tokens.fontUi,
           fontSize: block.label.size,
           lineHeight: block.label.lineHeight,
           color: tokens.foreground,
+        },
+        titleFill: {
+          flex: 1,
+          minWidth: 0,
+        },
+        // In the panel's sideways scroller a title sizes to its one line:
+        // `flex: 1` would map to a zero basis on web and wrap every word. A
+        // phone caps the scroller's width (`MAX_UNWRAPPED_WIDTH`).
+        titleUnwrapped: {
+          flexGrow: 1,
+          flexShrink: Platform.OS === "web" ? 0 : 1,
+          minWidth: 0,
         },
         titleDone: {
           color: tokens.foregroundMuted,
@@ -334,7 +346,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
                       onPress: () => toggleExpanded(task.id),
                       onLongPress: longPress,
                     })}
-                style={[styles.title, isDone && styles.titleDone]}
+                style={[styles.title, unwrapped ? styles.titleUnwrapped : styles.titleFill, isDone && styles.titleDone]}
               >
                 {task.title}
               </Text>
@@ -391,7 +403,7 @@ export function TaskListPanel({ panel, data, tokens, compact = false }: {
 }) {
   if (!panel.open) return null;
   return (
-    <HoverPreview preview={panel} tokens={tokens} wraps={false}>
+    <HoverPreview preview={panel} tokens={tokens}>
       <TaskListPreview data={data} tokens={tokens} compact={compact} />
     </HoverPreview>
   );
