@@ -38,6 +38,21 @@ afterEach(() => {
 });
 
 describe("assistant footer", () => {
+  it.each(["cursor", "grok", "opencode"])("shows the Grok mark for a Grok model served through %s", (agentName) => {
+    seedMarkBitmaps({ "lobe:grok": "data:image/png;base64,grok" });
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
+      text, at, tokens, agentName, modelName: "Grok 4.7",
+    })); });
+    try {
+      const image = renderer.root.findByType("Image" as never);
+      expect(image.props.accessibilityLabel).toBe("Grok");
+      expect(image.props.source.uri).toBe("data:image/png;base64,grok");
+      expect(StyleSheet.flatten(image.props.style).tintColor).toBe(tokens.foregroundMuted);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
   it("shows agent, model, today's time and duration after Copy in order", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
