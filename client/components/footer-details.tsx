@@ -50,9 +50,9 @@ export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, 
   if (startedAt != null) rows.push({ label: "Start time", icon: "Clock", value: formatFullStamp(new Date(startedAt)), copyLabel: "Copy start time" });
   if (durationMs != null) rows.push({ label: "Elapsed time", icon: "Hourglass", value: formatDuration(durationMs) });
   for (const [label, icon, count] of [
-    ["Input tokens", "ArrowDown", usage?.inputTokens],
+    ["Input tokens", "ArrowDownToLine", usage?.inputTokens],
     ["Cached tokens", "Database", usage?.cachedInputTokens],
-    ["Output tokens", "ArrowUp", usage?.outputTokens],
+    ["Output tokens", "ArrowUpFromLine", usage?.outputTokens],
   ] as const) {
     rows.push({ label, icon, value: typeof count === "number" && Number.isFinite(count) && count >= 0
       ? count.toLocaleString(resolveLanguage(language) === "zh" ? "zh-CN" : "en-US")

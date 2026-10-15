@@ -56,7 +56,7 @@ describe("assistant footer", () => {
       expect(rows.map((row) => row.findAllByType("Text" as never).map((node) => node.props.children))).toEqual(language === "zh"
         ? [["输入 Token", "123,456"], ["缓存 Token", "0"], ["输出 Token", "未记录"]]
         : [["Input tokens", "123,456"], ["Cached tokens", "0"], ["Output tokens", "Not recorded"]]);
-      expect(rows.map((row) => row.findByType("Icon" as never).props.name)).toEqual(["ArrowDown", "Database", "ArrowUp"]);
+      expect(rows.map((row) => row.findByType("Icon" as never).props.name)).toEqual(["ArrowDownToLine", "Database", "ArrowUpFromLine"]);
       expect(rows.flatMap((row) => row.findAllByType("Pressable" as never))).toHaveLength(0);
     } finally { act(() => renderer.unmount()); }
   });
@@ -122,7 +122,7 @@ describe("assistant footer", () => {
       const rows = table.findAllByType("View" as never).filter((node) => node.props.testID?.startsWith("footer-detail-"));
       expect(table.findAllByType(ProviderLogo).map((node) => node.props.provider)).toEqual(["codex", "codex"]);
       expect(table.findAllByType("Icon" as never).map((node) => node.props.name))
-        .toEqual(["Check", "Check", "Brain", "Check", "Clock", "Check", "Hourglass", "ArrowDown", "Database", "ArrowUp"]);
+        .toEqual(["Check", "Check", "Brain", "Check", "Clock", "Check", "Hourglass", "ArrowDownToLine", "Database", "ArrowUpFromLine"]);
       for (const [index, row] of rows.entries()) {
         const slot = row.findAllByType("View" as never).find((node) => node.props.testID === "footer-value-icon")!;
         const valueCell = row.findAllByType("View" as never)
