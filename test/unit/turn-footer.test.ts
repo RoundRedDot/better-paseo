@@ -1,5 +1,5 @@
 import React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
@@ -27,11 +27,14 @@ const footer = (compact: boolean) => React.createElement(AssistantFooter, { text
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2026, 9, 15, 16));
   seedMarkBitmaps({ "lobe:codex": "data:image/png;base64,codex" });
 });
+afterEach(() => vi.useRealTimers());
 
 describe("assistant footer", () => {
-  it("shows agent, model, full local timestamp and duration after Copy in order", () => {
+  it("shows agent, model, today's time and duration after Copy in order", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
       text, at: new Date(2026, 9, 15, 15, 5, 3), tokens,
@@ -40,7 +43,7 @@ describe("assistant footer", () => {
     try {
       const labels = renderer.root.findAllByType("Text" as never)
         .map((node) => [node.props.children].flat().join(""));
-      expect(labels).toEqual(["Copy", "GPT-6.1-Sol", "Medium", "2026-10-15 15:05:03", "2分18秒"]);
+      expect(labels).toEqual(["Copy", "GPT-6.1-Sol", "Medium", "15:05:03", "2分18秒"]);
       expect(renderer.root.findAllByType("Icon" as never).map((node) => node.props.name))
         .toEqual(["Copy", "Brain", "Timer"]);
       const image = renderer.root.findByType("Image" as never);
