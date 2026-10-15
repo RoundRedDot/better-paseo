@@ -6,7 +6,7 @@ import { radiusV2, space } from "./theme-tokens";
 import { useCopy } from "../ui/use-copy";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
-import { formatFooterStamp, formatDuration } from "../ui/time";
+import { formatFooterStamp, formatFullStamp, formatDuration } from "../ui/time";
 import { TYPE } from "../ui/tokens/typography";
 import { ProviderLogo } from "./provider-logo";
 import { ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
@@ -77,6 +77,7 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
           ...unselectable,
         },
         metadata: {
+          width: "auto",
           minHeight: FOOTER_HEIGHT,
           flexDirection: "row",
           alignItems: "center",
@@ -140,20 +141,20 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
           </ToolbarItem>
         ) : null}
         {thinkingLabel ? (
-          <View style={styles.metadata} accessibilityLabel={`Thinking level: ${thinkingLabel}`}>
+          <ToolbarItem label="Thinking level" accessibilityLabel={`Thinking level: ${thinkingLabel}`} tokens={tokens} align="start" buttonStyle={styles.metadata}>
             <Icon name="Brain" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
             <Text style={styles.time}>{thinkingLabel}</Text>
-          </View>
+          </ToolbarItem>
         ) : null}
-        <View style={styles.metadata}>
+        <ToolbarItem label={formatFullStamp(at)} tokens={tokens} align="start" buttonStyle={styles.metadata}>
           <Icon name="Clock" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
           <Text style={styles.time}>{formatFooterStamp(at)}</Text>
-        </View>
+        </ToolbarItem>
         {durationMs != null ? (
-          <View style={styles.metadata} accessibilityLabel={`Elapsed time: ${formatDuration(durationMs)}`}>
+          <ToolbarItem label="Elapsed time" accessibilityLabel={`Elapsed time: ${formatDuration(durationMs)}`} tokens={tokens} align="end" buttonStyle={styles.metadata}>
             <Icon name="Hourglass" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
             <Text style={styles.time}>{formatDuration(durationMs)}</Text>
-          </View>
+          </ToolbarItem>
         ) : null}
       </View>
     </TooltipSideContext.Provider>

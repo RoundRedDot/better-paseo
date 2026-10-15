@@ -130,7 +130,7 @@ export function ToolbarItem({
         {...hoverProps}
         style={({ pressed }) => [
           styles.button,
-          Platform.OS === "web" && styles.pointer,
+          Platform.OS === "web" && onPress && styles.pointer,
           outlined && styles.outlined,
           outlined && { borderColor: tokens.v2.border },
           buttonStyle,
