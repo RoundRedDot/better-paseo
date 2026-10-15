@@ -1,8 +1,9 @@
 import React, { useLayoutEffect, useRef } from "react";
-import { Platform, StyleSheet, Text, View, type TextProps, type ViewProps } from "react-native";
+import { Platform, StyleSheet, Text, View, type TextProps, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
 import type { Tokens } from "../../../vendor/marked";
 import type { RenderContext } from "./context";
 import { inlineText, inlineWidth, renderInline } from "./inline";
+import { nextReuse, reuseNode, type NodeReuse } from "./reuse";
 import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
 import { HScroll } from "../../../ui/h-scroll";
 import { TableCopyMenu } from "./table-copy-menu";
@@ -99,12 +100,57 @@ export function MdTable({
   }
   // A column the author left unaligned is right-aligned when every cell is a
   // figure, so digits line up (S7 §3.7).
-  const align = (column: number) =>
-    styles[ALIGN_KEYS[token.align[column] ?? (numericColumn(token, column) ? "right" : "left")]];
+  const aligns = token.header.map(
+    (_, column) => token.align[column] ?? (numericColumn(token, column) ? "right" : "left"),
+  );
+  const align = (column: number) => styles[ALIGN_KEYS[aligns[column] ?? "left"]];
   const frame = (column: number) => [
     column === 0 ? null : styles.tableDivider,
     { width: widths[column] ?? metrics.columnMin },
   ];
+  // While the table is written, a chunk lands in its last row: a row whose
+  // cells, columns and selection are as they were keeps its element.
+  const drawn = useRef<{ context: RenderContext; nodes: NodeReuse["next"] } | null>(null);
+  const reuse = nextReuse(drawn, context, open);
+  const columns = `${widths.join(",")}|${aligns.join(",")}`;
+  const rowSource = (key: string, cells: readonly Tokens.TableCell[], last: boolean) => {
+    const selected = selection.selected?.key;
+    const marked = selected !== undefined && selected.startsWith(key) ? selected : "";
+    return `${columns}|${last ? 1 : 0}|${marked}|${JSON.stringify(cells.map((cell) => cell.text))}`;
+  };
+  const cellTokens = (cells: readonly Tokens.TableCell[]) => () => cells.map((cell) => cell.tokens);
+  const drawRow = (
+    key: string | undefined,
+    cellPrefix: string,
+    cells: readonly Tokens.TableCell[],
+    rowStyle: ViewStyle,
+    cellStyle: TextStyle,
+    last: boolean,
+  ) => (
+    <View key={key} style={[rowStyle, last && styles.tableRowLast]}>
+      {cells.map((cell, column) => {
+        const cellKey = `${cellPrefix}${column}`;
+        return (
+          <TableCell
+            key={cellKey}
+            testID={TABLE_CELL_TEST_ID}
+            selectable
+            {...contentTextProps()}
+            touchProps={selection.cellProps(cellKey, () => inlineText(cell.tokens))}
+            style={[
+              cellStyle,
+              align(column),
+              ...frame(column),
+              contentTextStyle(),
+              selection.selected?.key === cellKey && { backgroundColor: context.tokens.accentBg },
+            ]}
+          >
+            {renderInline(cell.tokens, context, cellKey)}
+          </TableCell>
+        );
+      })}
+    </View>
+  );
 
   return (
     <View style={copyStyles.outer}>
@@ -112,57 +158,15 @@ export function MdTable({
         onScrollBeginDrag={selection.selected ? selection.dismiss : undefined}>
         <View style={copyStyles.container}>
           <View ref={frameRef} style={styles.tableFrame}>
-            <View style={[styles.tableHeaderRow, token.rows.length === 0 && styles.tableRowLast]}>
-              {token.header.map((cell, column) => {
-                const cellKey = `${keyPrefix}h${column}`;
-                return (
-                  <TableCell
-                    key={cellKey}
-                    testID={TABLE_CELL_TEST_ID}
-                    selectable
-                    {...contentTextProps()}
-                    touchProps={selection.cellProps(cellKey, () => inlineText(cell.tokens))}
-                    style={[
-                      styles.tableHeaderCell,
-                      align(column),
-                      ...frame(column),
-                      contentTextStyle(),
-                      selection.selected?.key === cellKey && { backgroundColor: context.tokens.accentBg },
-                    ]}
-                  >
-                    {renderInline(cell.tokens, context, cellKey)}
-                  </TableCell>
-                );
-              })}
-            </View>
-            {token.rows.map((row, rowIndex) => (
-              <View
-                key={`${keyPrefix}r${rowIndex}`}
-                style={[styles.tableRow, rowIndex === token.rows.length - 1 && styles.tableRowLast]}
-              >
-                {row.map((cell, column) => {
-                  const cellKey = `${keyPrefix}r${rowIndex}c${column}`;
-                  return (
-                    <TableCell
-                      key={cellKey}
-                      testID={TABLE_CELL_TEST_ID}
-                      selectable
-                      {...contentTextProps()}
-                      touchProps={selection.cellProps(cellKey, () => inlineText(cell.tokens))}
-                      style={[
-                        styles.tableCell,
-                        align(column),
-                        ...frame(column),
-                        contentTextStyle(),
-                        selection.selected?.key === cellKey && { backgroundColor: context.tokens.accentBg },
-                      ]}
-                    >
-                      {renderInline(cell.tokens, context, cellKey)}
-                    </TableCell>
-                  );
-                })}
-              </View>
-            ))}
+            {reuseNode(reuse, `${keyPrefix}h`, rowSource(`${keyPrefix}h`, token.header, token.rows.length === 0),
+              cellTokens(token.header), () => drawRow(undefined, `${keyPrefix}h`, token.header, styles.tableHeaderRow,
+                styles.tableHeaderCell, token.rows.length === 0))}
+            {token.rows.map((row, rowIndex) => {
+              const rowKey = `${keyPrefix}r${rowIndex}`;
+              const last = rowIndex === token.rows.length - 1;
+              return reuseNode(reuse, rowKey, rowSource(`${rowKey}c`, row, last), cellTokens(row),
+                () => drawRow(rowKey, `${rowKey}c`, row, styles.tableRow, styles.tableCell, last));
+            })}
           </View>
         </View>
       </HScroll>

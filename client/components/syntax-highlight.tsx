@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useState, useMemo, type ReactNode } from "react";
+import React, { memo, useCallback, useEffect, useRef, useState, useMemo, type ReactNode } from "react";
 import { Platform, View, Text, Pressable, StyleSheet } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { StyleProp, TextProps, TextStyle } from "react-native";
@@ -694,7 +694,7 @@ export function SyntaxHighlightBlock({
   );
   // One row, as a stable function of the block's inputs: the chunks below are
   // memoised on it, so appending rows never re-renders the rows already shown.
-  const row = useCallback(
+  const draw = useCallback(
     (line: string, idx: number) => {
       const shikiLine = shikiLines?.[idx];
       // The patched file's tokens, and only for a line the file owns. A
@@ -746,6 +746,27 @@ export function SyntaxHighlightBlock({
       codeLanguage,
     ],
   );
+  // A streaming fence grows at its end, and every chunk brings new `lines`, so
+  // `draw` changes and every chunk below draws again. A row whose own inputs
+  // match the last draw, under the same block-wide inputs, keeps its element
+  // instead: a chunk costs the lines it changed, not the whole block.
+  const drawnRows = useRef<DrawnRows | null>(null);
+  const row = useMemo(() => {
+    const shared = [shikiLines, diffBodyLines, isDiff, tokens, styles, showLineNumbers, numberWidth, scroll, language, codeLanguage];
+    const before = drawnRows.current && sameItems(drawnRows.current.shared, shared) ? drawnRows.current : null;
+    const current: DrawnRows = { shared, lines, dialects: lineDialects, numbers, nodes: [] };
+    drawnRows.current = current;
+    const unchanged = (drawn: DrawnRows, line: string, idx: number) =>
+      drawn.lines[idx] === line
+      && drawn.dialects[idx] === lineDialects[idx]
+      && (drawn.numbers?.[idx] ?? null) === (numbers?.[idx] ?? null);
+    return (line: string, idx: number) => {
+      const previous = before?.nodes[idx];
+      const node = before && previous !== undefined && unchanged(before, line, idx) ? previous : draw(line, idx);
+      current.nodes[idx] = node;
+      return node;
+    };
+  }, [draw, shikiLines, diffBodyLines, isDiff, tokens, styles, showLineNumbers, numberWidth, scroll, language, codeLanguage, lines, lineDialects, numbers]);
 
   const rows = chunkRows(shown, (from, to) => (
     <CodeRows key={from} from={from} to={to} lines={lines} row={row} />
@@ -1019,6 +1040,21 @@ export function useBatchedRows(
   const showAll = useCallback(() => setLimit(shown + APPEND_BATCH), [shown]);
   const showLess = useCallback(() => setLimit(null), []);
   return { shown, expanding: limit !== null && shown < total, expanded: limit !== null, showAll, showLess };
+}
+
+/** The rows a code block drew last, and the block-wide inputs they were drawn under. */
+interface DrawnRows {
+  shared: readonly unknown[];
+  lines: readonly string[];
+  dialects: readonly string[];
+  numbers: readonly (number | null)[] | null;
+  nodes: ReactNode[];
+}
+
+function sameItems(a: readonly unknown[], b: readonly unknown[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index++) if (a[index] !== b[index]) return false;
+  return true;
 }
 
 /** Rows per memoised chunk: appending a batch mounts new chunks only. */

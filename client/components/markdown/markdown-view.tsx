@@ -130,7 +130,30 @@ export function MarkdownView({
     [styles, tokens, metrics, variant, collapseCode, onRevealPath],
   );
 
-  const last = blocks.length - 1;
+  // A streamed chunk changes the tail and leaves every block before it as it
+  // was: those keep the element drawn before, so a chunk costs the blocks it
+  // changed, not one element and one memo check per block of the reply.
+  const drawn = useRef<DrawnBlocks | null>(null);
+  const nodes = useMemo(() => {
+    const before = drawn.current?.context === context ? drawn.current.blocks : null;
+    const last = blocks.length - 1;
+    const next = blocks.map((block, index): DrawnBlock => {
+      const raw = index === last ? tail : block;
+      const open = streaming && index === last;
+      const previous = before?.[index];
+      if (previous && previous.raw === raw && previous.open === open) return previous;
+      return {
+        raw,
+        open,
+        node: (
+          <MdBlock key={`b${index}`} id={`b${index}`} raw={raw} open={open} first={index === 0} context={context} />
+        ),
+      };
+    });
+    drawn.current = { context, blocks: next };
+    return next.map((block) => block.node);
+  }, [blocks, tail, streaming, context]);
+
   return (
     // The terminal variant sets the whole body in the mono face, so the whole
     // reply is a code surface the host's UI font rule must skip.
@@ -138,16 +161,18 @@ export function MarkdownView({
       {...(metrics.mono ? surfaceProps(selectionSurface, codeSurface) : selectionSurface)}
       style={styles.root}
     >
-      {blocks.map((raw, index) => (
-        <MdBlock
-          key={`b${index}`}
-          id={`b${index}`}
-          raw={index === last ? tail : raw}
-          open={streaming && index === last}
-          first={index === 0}
-          context={context}
-        />
-      ))}
+      {nodes}
     </View>
   );
+}
+
+interface DrawnBlock {
+  raw: string;
+  open: boolean;
+  node: React.ReactNode;
+}
+
+interface DrawnBlocks {
+  context: RenderContext;
+  blocks: DrawnBlock[];
 }
