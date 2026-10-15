@@ -43,6 +43,7 @@ await import("./helpers/quiet-renderer");
 const { default: TestRenderer, act } = await import("react-test-renderer");
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
 const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
+const { ChatComposerContext } = await import("../../client/ui/chat-composer");
 const { getEnhancerPreferences, updateEnhancerPreferences } = await import("../../client/preferences");
 const { StyleSheet, Animated } = await import("./helpers/rn-mock");
 const { floatShadow } = await import("../../client/ui/tokens/float");
@@ -61,10 +62,11 @@ let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 type TestInstance = ReturnType<typeof TestRenderer.create>["root"];
 let previousLanguage = getEnhancerPreferences().language;
 
-function render(text = SOURCE) {
+function render(text = SOURCE, composer?: { appendText(text: string): boolean }) {
   act(() => {
     renderer = TestRenderer.create(
-      React.createElement(MarkdownView, { text, tokens, variant: "document" }),
+      React.createElement(ChatComposerContext.Provider, { value: composer },
+        React.createElement(MarkdownView, { text, tokens, variant: "document" })),
       { createNodeMock: (element) => domNode((element.props as { style?: unknown }).style) },
     );
   });
@@ -156,6 +158,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+const selectionRow = () => renderer!.root.findAll((node) => String(node.type) === "View"
+  && node.props.testID === "table-selection-menu-row")[0]!;
+
 describe("Markdown table copy menu", () => {
   it("binds cell selection to the frame and marks only header and body cells", () => {
     render();
@@ -193,6 +198,26 @@ describe("Markdown table copy menu", () => {
     && node.props.testID === "markdown-table-cell"
     && StyleSheet.flatten(node.props.style).backgroundColor === tokens.accentBg);
 
+  it("adds a double-clicked cell through its host composer with an icon and translated label", () => {
+    const appendText = vi.fn(() => true);
+    render(SOURCE, { appendText });
+    doubleClick(2);
+    const add = renderer!.root.findAll((node) => String(node.type) === "Pressable"
+      && node.props.accessibilityLabel === "Add to chat")[0]!;
+    expect(add.findAll((node) => String(node.type) === "Text")[0]!.children).toEqual(["添加到对话"]);
+    expect(add.findAll((node) => String(node.type) === "Icon")[0]!.props.name).toBe("MessageSquarePlus");
+    act(() => add.props.onPress());
+    expect(appendText).toHaveBeenCalledExactlyOnceWith("> one\n\n");
+    expect(copyText).not.toHaveBeenCalled();
+    expect(selectedCells()).toHaveLength(0);
+  });
+
+  it("exposes only copy when the host has no composer capability", () => {
+    render();
+    doubleClick(2);
+    expect(renderer!.root.findAll((node) => node.props.accessibilityLabel === "Add to chat")).toHaveLength(0);
+  });
+
   it.each([0, 2])("double-clicks cell %s with the native highlight and animated copy menu", async (index) => {
     const runs: Array<{ toValue: number; duration: number }> = [];
     vi.spyOn(Animated, "timing").mockImplementation((...args: unknown[]) => {
@@ -203,7 +228,7 @@ describe("Markdown table copy menu", () => {
     doubleClick(index);
     expect(selectedCells()).toHaveLength(1);
     expect(selectedCells()[0]!.props.dataSet.tableCellText).toBe(index === 0 ? "Header words" : "bold and code");
-    act(() => selectedCopy().props.onLayout({ nativeEvent: { layout: { width: 96 } } }));
+    act(() => selectionRow().props.onLayout({ nativeEvent: { layout: { width: 96 } } }));
     expect(runs.at(-2)).toMatchObject({ toValue: 98, duration: 180 });
     expect(runs.at(-1)).toMatchObject({ toValue: 1, duration: 140 });
     await act(async () => selectedCopy().props.onPress());

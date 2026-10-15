@@ -8,7 +8,7 @@ const MOVE_SLOP = 8;
 
 interface Tap { key: string; time: number; x: number; y: number }
 
-/** Shared cell state; iOS recognises double taps here and web binds double clicks. */
+/** Shared cell state; native recognises double taps here and web binds double clicks. */
 export function useTableTouchSelection(source: string) {
   const [selected, setSelected] = useState<{ key: string; text: string } | null>(null);
   const started = useRef<Tap | null>(null);
@@ -27,7 +27,7 @@ export function useTableTouchSelection(source: string) {
   });
   const near = (a: Tap, b: Tap) => Math.hypot(a.x - b.x, a.y - b.y) <= MOVE_SLOP;
   const cellProps = (key: string, content: () => string): Pick<ViewProps,
-    "onTouchStart" | "onTouchMove" | "onTouchEnd" | "onTouchCancel"> => Platform.OS !== "ios" ? {} : {
+    "onTouchStart" | "onTouchMove" | "onTouchEnd" | "onTouchCancel"> => Platform.OS === "web" ? {} : {
     onTouchStart: (event) => {
       dismiss();
       if (event.nativeEvent.touches.length !== 1) return cancel();
