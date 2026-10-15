@@ -11,6 +11,10 @@ import { stringifyValue, type ToolCallView } from "./classify";
 export type ResolvePath = (path: string) => string;
 
 export function toolCopyPlan(view: ToolCallView, resolve: ResolvePath): CopyPlan {
+  if (view.questionData) {
+    return copyPlan({ kind: "mcp", args: { questions: view.questionData.questions },
+      result: view.text ?? view.output ?? stringifyValue(view.questionData.answers ?? view.questionData.result) });
+  }
   switch (view.tool) {
     case "bash":
     case "shell":

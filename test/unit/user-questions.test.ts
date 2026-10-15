@@ -25,6 +25,8 @@ import { toolbarLabel } from "../../client/i18n/toolbar-strings";
 import { PreviewPanelSample } from "../../client/ui/hover-preview";
 import { HScroll } from "../../client/ui/h-scroll";
 import { ToolbarButton } from "../../client/ui/toolbar-button";
+import { toolCopyPlan } from "../../client/tools/copy";
+import { toolHasDetail } from "../../client/tools/detail";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -49,6 +51,52 @@ function button(root: ReactTestInstance, label: string) {
 }
 
 describe("AskUserQuestion transcript data", () => {
+  it.each(["request_user_input", "request_user_input_async", "ask", "ask_user_question", "question", "custom-agent-form"])("reads provider-independent metadata for %s", (name) => {
+    const data = classifyTool({ name, status: "completed", detail: { type: "plain_text", text: "Short" },
+      questionData: { questions: [{ id: "scope", question: "Which platforms?", options: ["iOS", "Web"], multiSelect: true }],
+        answers: { scope: { answers: ["iOS", "Web"] } } } });
+    expect(readUserQuestions(data)).toMatchObject({ questions: [{ answer: "iOS, Web", selected: ["iOS", "Web"], multiSelect: true }] });
+    expect(toolHasDetail(data, 72)).toBe(true);
+    expect(toolCopyPlan(data, (p) => p).menu.some((action) => action.id === "args")).toBe(true);
+  });
+  it("reads OMP multi-select results and custom answers without splitting option commas", () => {
+    const data = classifyTool({ name: "ask", status: "completed", questionData: {
+      questions: [{ question: "Pick?", multi: true, options: [{ label: "Red, Blue" }, { label: "Green" }] }],
+      result: { results: [{ question: "Pick?", selectedOptions: ["Red, Blue"], customInput: "A custom answer" }] },
+    } });
+    expect(readUserQuestions(data)!.questions[0]).toMatchObject({ answer: "Red, Blue, A custom answer", selected: ["Red, Blue"], multiSelect: true });
+  });
+  it("reads Pi results after the host turns them into a plain-text card", () => {
+    const data = classifyTool({ name: "ask_user_question", status: "completed", detail: { type: "plain_text", text: "Selected" }, questionData: {
+      questions, result: { answers: [{ question: questions[1]!.question, kind: "multi", selected: ["iOS", "Web"], answer: null }] },
+    } });
+    expect(readUserQuestions(data)!.questions[1]!.answer).toBe("iOS, Web");
+  });
+  it("maps a single answer-only result and preserves an unfamiliar provider response", () => {
+    const data = classifyTool({ name: "ask_user", status: "completed", detail: { type: "plain_text", text: "Provider response" },
+      questionData: { questions: [{ question: "Pick?", options: ["A", "B"] }], result: { answer: "B" } } });
+    expect(readUserQuestions(data)!.questions[0]!.answer).toBe("B");
+    expect(readUserQuestions({ ...data, questionData: { ...data.questionData, result: { unfamiliar: true } } })!.response).toBe("Provider response");
+  });
+  it("reads OpenCode positional metadata answers and its multiple flag", () => {
+    const data = classifyTool({ name: "question", status: "completed", questionData: {
+      questions: [{ question: "Pick?", multiple: true, options: [{ label: "Red, Blue" }, { label: "Green" }] }],
+      answers: [["Red, Blue", "Green"]],
+    } });
+    expect(readUserQuestions(data)!.questions[0]).toMatchObject({ answer: "Red, Blue, Green", selected: ["Red, Blue", "Green"], multiSelect: true });
+  });
+  it("reads the OpenCode tool's documented text result when structured input is available", () => {
+    const data = classifyTool({ name: "question", status: "completed", detail: { type: "unknown", input: { questions },
+      output: `User has answered your questions: "${questions[0]!.question}"="Codex". You can now continue with the user's answers in mind.` } });
+    expect(readUserQuestions(data)!.questions[0]!.answer).toBe("Codex");
+  });
+  it("keeps async questions pending despite their completed tool status and distinguishes dismissal", () => {
+    const data = classifyTool({ name: "request_user_input_async", status: "completed", questionData: {
+      questions: [{ id: "0", question: "Your feedback?" }], status: "pending",
+    } });
+    expect(readUserQuestions(data)).toMatchObject({ running: true, dismissed: false, questions: [{ question: "Your feedback?", options: [] }] });
+    expect(readUserQuestions({ ...data, questionData: { ...data.questionData, status: "dismissed" } })).toMatchObject({ running: false, dismissed: true });
+  });
   it("reads the screenshot's JSON-wrapped summary and preserves quotes and commas", () => {
     const data = readUserQuestions(call({ questions }, { output: summary(['A "custom", answer', "iOS, Web"]) }))!;
     expect(data.questions.map((q) => q.answer)).toEqual(['A "custom", answer', "iOS, Web"]);
@@ -79,6 +127,58 @@ describe("AskUserQuestion transcript data", () => {
 });
 
 describe("AskUserQuestion presentation", () => {
+  it.each(["ask", "ask_user_question", "request_user_input_async", "question"])("keeps the question title in the body and the %s name in the toolbar", (name) => {
+    updateEnhancerPreferences({ language: "en" });
+    const question = "需要验证哪些平台？这是用于检查窄窗口自动折行的较长问题标题。";
+    const data = classifyTool({ name, status: "completed", detail: { type: "plain_text", label: question, text: "iOS" },
+      questionData: { questions: [{ question, options: ["iOS", "Web"] }, { question: "Any feedback?" }] } });
+    let view!: ReturnType<typeof TestRenderer.create>;
+    act(() => { view = TestRenderer.create(React.createElement(PreviewPanelSample, { tokens,
+      children: React.createElement(ToolPreviewContent, { data, tokens, compact: false, resolvePath: (p) => p }),
+    })); });
+    try {
+      const title = () => text(view.root.findByProps({ testID: "hover-preview-tool-name" }));
+      expect(title()).toBe(name);
+      expect(text(view.root.findByProps({ testID: "user-question" }))).toContain(question);
+      act(() => button(view.root, "Next question").props.onPress());
+      expect(title()).toBe(name);
+      expect(text(view.root.findByProps({ testID: "user-question" }))).toContain("Any feedback?");
+      act(() => button(view.root, "Show raw data").props.onPress());
+      expect(title()).toBe(name);
+      act(() => button(view.root, "Show questions").props.onPress());
+      expect(title()).toBe(name);
+    } finally {
+      act(() => view.unmount());
+      resetEnhancerPreferences();
+    }
+  });
+  it("keeps highlighting multi-select answers stored as a comma-joined string", () => {
+    const data = classifyTool({ name: "request_user_input", status: "completed", questionData: {
+      questions: [questions[1]], answers: { Platforms: "iOS, Web" },
+    } });
+    let view!: ReturnType<typeof TestRenderer.create>;
+    act(() => { view = TestRenderer.create(React.createElement(ToolCallout, { data, tokens, defaultExpanded: true })); });
+    const options = view.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "user-question-option");
+    expect(options.map((node) => node.props.accessibilityState.selected)).toEqual([true, true, false]);
+    act(() => view.unmount());
+  });
+  it("uses the same pager, JSON toggle and free-text layout for Codex async questions", () => {
+    updateEnhancerPreferences({ language: "en" });
+    const data = classifyTool({ name: "request_user_input_async", callId: "async-1", status: "completed", detail: { type: "plain_text", text: "Short" },
+      questionData: { questions: [{ id: "0", question: "Choose?", options: ["A", "B"] }, { id: "1", question: "Your feedback?" }], answers: { "0": ["B"], "1": ["Works well"] } } });
+    let view!: ReturnType<typeof TestRenderer.create>;
+    act(() => { view = TestRenderer.create(React.createElement(ToolCallout, { data, tokens, defaultExpanded: true })); });
+    try {
+      expect(text(view.root)).toContain("1 / 2");
+      act(() => button(view.root, "Next question").props.onPress());
+      expect(text(view.root)).toContain("Free text");
+      expect(text(view.root)).toContain("Works well");
+      act(() => button(view.root, "Show raw data").props.onPress());
+      expect(view.root.findByType(SyntaxHighlightBlock).props.code).toBe(JSON.stringify(data.questionData, null, 2));
+      act(() => button(view.root, "Show questions").props.onPress());
+      expect(text(view.root)).toContain("2 / 2");
+    } finally { act(() => view.unmount()); }
+  });
   it.each(["ios", "web"])("always wraps questions and raw data without a wrap toggle on %s", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     updateEnhancerPreferences({ previewWrap: false });

@@ -73,6 +73,7 @@ export default function contribute(client: PluginClientContext) {
       error: z.string().nullable().optional(),
       phase: z.string().optional(),
       approved: z.boolean().optional(),
+      questionData: z.record(z.string(), z.unknown()).optional(),
     }),
     Component: LiveToolCallRenderer,
   });

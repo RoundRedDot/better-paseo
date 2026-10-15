@@ -42,6 +42,8 @@ const ZH: Readonly<Record<string, string>> = {
   "Show raw data": "显示原始数据",
   "Show questions": "显示问答",
   "Select one": "单选",
+  "Free text": "自由回答",
+  Dismissed: "已取消回答",
   "Select multiple": "多选",
   Answer: "回答",
   Response: "返回内容",

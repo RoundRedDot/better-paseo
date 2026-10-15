@@ -39,13 +39,13 @@ export function UserQuestions({ questions: data, tokens, rawBody, renderHeader, 
     {raw ? rawBody : <View testID="user-question" style={styles.question}>
       <View style={styles.heading}>
         {question.header ? <Text style={[meta, styles.header]}>{question.header}</Text> : null}
-        <Text style={meta}>{label(question.multiSelect ? "Select multiple" : "Select one")}</Text>
+        <Text style={meta}>{label(question.options.length === 0 ? "Free text" : question.multiSelect ? "Select multiple" : "Select one")}</Text>
       </View>
       <SelectableText style={[prose, styles.title]}>{question.question}</SelectableText>
       <View style={styles.options}>
         {question.options.map((option, i) => {
-          const selected = question.answer === option.label || (question.multiSelect &&
-            question.answer?.split(", ").includes(option.label)) === true;
+          const selected = question.selected ? question.selected.includes(option.label) :
+            question.answer === option.label || (question.multiSelect && question.answer?.split(", ").includes(option.label)) === true;
           return <View key={i} testID="user-question-option" accessibilityLabel={option.label}
             accessibilityState={{ selected }}
             style={[styles.option, { borderColor: selected ? tokens.accent : tokens.v2.borderSubtle,
@@ -64,7 +64,7 @@ export function UserQuestions({ questions: data, tokens, rawBody, renderHeader, 
       <View style={[styles.answer, { borderTopColor: tokens.v2.borderSubtle }]}>
         <Text style={meta}>{label("Answer")}</Text>
         <SelectableText style={question.answer !== undefined ? prose : meta}>
-          {question.answer ?? label(data.running ? "Waiting for answer…" : "No answer recorded")}
+          {question.answer ?? label(data.dismissed ? "Dismissed" : data.running ? "Waiting for answer…" : "No answer recorded")}
         </SelectableText>
       </View>
       {data.response ? <View style={styles.options}>
