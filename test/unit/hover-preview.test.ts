@@ -7,6 +7,7 @@ vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/react-native", () => ({ Icon: "Icon" }));
 const state = vi.hoisted(() => ({
   hover: true,
+  anchors: [] as unknown[],
   onLinesFit: undefined as ((fits: boolean) => void) | undefined,
   layers: [] as Array<{
     maximized?: boolean;
@@ -43,6 +44,7 @@ vi.mock("../../client/web", () => ({
     onLinesFit?: (fits: boolean) => void;
     onPlace?: (box: { x: number; y: number; width: number; height: number }) => void;
   }) => {
+    state.anchors.push(_anchor);
     state.layers.push(options);
     state.onLinesFit = options.onLinesFit;
     return () => {};
@@ -51,7 +53,7 @@ vi.mock("../../client/web", () => ({
 import { HoverPreview, HoverPreviewBody, HoverPreviewContext, HoverPreviewHeader, PREVIEW_CLOSE_MS, PREVIEW_OPEN_MS, useHoverPreview } from "../../client/ui/hover-preview";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { TOOLBAR_TOOLTIP_MS } from "../../client/ui/toolbar-button";
-import { StyleSheet } from "./helpers/rn-mock";
+import { StyleSheet, View } from "./helpers/rn-mock";
 import { getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { PREVIEW_HANDOVER_MS } from "../../client/ui/preview-memory";
 
@@ -77,6 +79,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   resetEnhancerPreferences();
   state.hover = true;
+  state.anchors = [];
   state.onLinesFit = undefined;
   state.layers = [];
   state.outside = [];
@@ -118,6 +121,39 @@ describe("hover preview after the reader closes it", () => {
 });
 
 describe("hover preview across a remount", () => {
+  it.each(["hover", "maximized", "popped"])("attaches the ancestor anchor before restoring a %s panel", (kind) => {
+    const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
+      foreground: "#111", foregroundMuted: "#666", accent: "#00f", accentForeground: "#fff",
+      statusSuccess: "#198754", statusWarning: "#a36a00", statusDanger: "#d92d20" });
+    function Row() {
+      preview = useHoverPreview(true, `agent:anchor:${kind}`);
+      return React.createElement(View, { ref: preview.anchorRef }, preview.open
+        ? React.createElement(HoverPreview, { preview, tokens, children: "Markdown preview" }) : null);
+    }
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(Row, { key: "live" }), {
+        createNodeMock: () => ({ addEventListener() {}, removeEventListener() {} }),
+      });
+    });
+    if (kind === "popped") act(() => preview.pop!());
+    else {
+      act(() => preview.enter());
+      act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+    }
+    if (kind === "maximized") act(() => preview.maximize());
+    expect(state.anchors.every((anchor) => anchor !== null)).toBe(true);
+    state.anchors = [];
+
+    act(() => renderer.update(React.createElement(Row, { key: "history" })));
+    expect(preview).toMatchObject({ open: true, quiet: true, maximized: kind === "maximized" });
+    expect(state.anchors.length).toBeGreaterThan(0);
+    for (const anchor of state.anchors) expect(anchor).toBe(preview.anchorRef.current);
+    expect(preview.anchorRef.current).not.toBeNull();
+    act(() => preview.close());
+    act(() => renderer.update(React.createElement(Row, { key: "closed" })));
+    expect(preview.open).toBe(false);
+  });
+
   it("reopens a hover preview on the row the host draws in its place, and closes it on the first move away", () => {
     act(() => { renderer = TestRenderer.create(keyedRow("live")); });
     act(() => preview.enter());
