@@ -24,6 +24,7 @@ interface ProviderLogoProps {
   provider: string;
   size?: number;
   showLabel?: boolean;
+  color?: string;
 }
 
 export function normalizeProvider(provider: string): KnownProvider {
@@ -70,13 +71,14 @@ function markId(provider: KnownProvider): string | undefined {
   return undefined;
 }
 
-export function ProviderLogo({ provider, size = 14, showLabel = false }: ProviderLogoProps) {
+export function ProviderLogo({ provider, size = 14, showLabel = false, color }: ProviderLogoProps) {
   const normalized = normalizeProvider(provider);
   const config = PROVIDER_CONFIGS[normalized];
   const id = useMemo(() => markId(normalized), [normalized]);
   const uri = useMarkBitmap(id);
+  const foreground = color ?? config.brandColor;
   // A monochrome mark is rasterised white, so the brand hue arrives as a tint.
-  const tint = id && MONO_MARKS.has(id) ? config.brandColor : undefined;
+  const tint = color ?? (id && MONO_MARKS.has(id) ? config.brandColor : undefined);
 
   return (
     <View style={styles.row}>
@@ -94,12 +96,12 @@ export function ProviderLogo({ provider, size = 14, showLabel = false }: Provide
         <View style={{ width: size, height: size }} />
       ) : (
         <View
-          style={[styles.fallback, { width: size, height: size, borderColor: config.brandColor }]}
+          style={[styles.fallback, { width: size, height: size, borderColor: foreground }]}
         >
           <Text
             style={[
               styles.fallbackLabel,
-              { fontSize: size * 0.6, color: config.brandColor },
+              { fontSize: size * 0.6, color: foreground },
               unselectable,
             ]}
           >
@@ -108,7 +110,7 @@ export function ProviderLogo({ provider, size = 14, showLabel = false }: Provide
         </View>
       )}
       {showLabel ? (
-        <Text style={[styles.label, { color: config.brandColor }, unselectable]}>
+        <Text style={[styles.label, { color: foreground }, unselectable]}>
           {config.displayName}
         </Text>
       ) : null}
