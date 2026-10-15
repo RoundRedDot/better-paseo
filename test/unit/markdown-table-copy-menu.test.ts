@@ -156,10 +156,34 @@ afterEach(() => {
   toastError.mockClear();
   copyElementImage.mockReset();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const selectionRow = () => renderer!.root.findAll((node) => String(node.type) === "View"
   && node.props.testID === "table-selection-menu-row")[0]!;
+
+/** The same textarea setter and input event boundary the host composer uses. */
+function desktopComposer(available = true) {
+  class TextArea extends EventTarget {
+    private text = "Existing draft";
+    selectionStart = this.text.length;
+    selectionEnd = this.text.length;
+    get value() { return this.text; }
+    set value(text: string) { this.text = text; }
+    focus = vi.fn();
+    setSelectionRange(start: number, end: number) { this.selectionStart = start; this.selectionEnd = end; }
+    getClientRects() { return [{}]; }
+  }
+  vi.stubGlobal("HTMLTextAreaElement", TextArea);
+  vi.stubGlobal("HTMLInputElement", class {});
+  vi.stubGlobal("document", { execCommand: vi.fn(() => false) });
+  const input = new TextArea();
+  const published = vi.fn();
+  input.addEventListener("input", () => published(input.value));
+  const scope = { parentElement: null, querySelectorAll: () => available ? [input] : [] };
+  for (const node of nodes) Object.assign(node, { querySelectorAll: () => [], parentElement: scope });
+  return { input, published };
+}
 
 describe("Markdown table copy menu", () => {
   it("binds cell selection to the frame and marks only header and body cells", () => {
@@ -198,24 +222,45 @@ describe("Markdown table copy menu", () => {
     && node.props.testID === "markdown-table-cell"
     && StyleSheet.flatten(node.props.style).backgroundColor === tokens.accentBg);
 
-  it("adds a double-clicked cell through its host composer with an icon and translated label", () => {
+  it("adds a double-clicked cell through the desktop input with an icon and translated label", () => {
     const appendText = vi.fn(() => true);
     render(SOURCE, { appendText });
     doubleClick(2);
+    const { input, published } = desktopComposer();
     const add = renderer!.root.findAll((node) => String(node.type) === "Pressable"
       && node.props.accessibilityLabel === "Add to chat")[0]!;
     expect(add.findAll((node) => String(node.type) === "Text")[0]!.children).toEqual(["添加到对话"]);
     expect(add.findAll((node) => String(node.type) === "Icon")[0]!.props.name).toBe("MessageSquarePlus");
     act(() => add.props.onPress());
-    expect(appendText).toHaveBeenCalledExactlyOnceWith("> one\n\n");
+    expect(input.value).toBe("Existing draft\n\n> one\n\n");
+    expect(published).toHaveBeenCalledExactlyOnceWith(input.value);
+    expect(input.focus).toHaveBeenCalledOnce();
+    expect(appendText).not.toHaveBeenCalled();
     expect(copyText).not.toHaveBeenCalled();
     expect(selectedCells()).toHaveLength(0);
   });
 
-  it("exposes only copy when the host has no composer capability", () => {
+  it("shows both actions on desktop without the unreleased host composer capability", () => {
     render();
     doubleClick(2);
-    expect(renderer!.root.findAll((node) => node.props.accessibilityLabel === "Add to chat")).toHaveLength(0);
+    const { input, published } = desktopComposer();
+    const add = renderer!.root.findAll((node) => String(node.type) === "Pressable"
+      && node.props.accessibilityLabel === "Add to chat");
+    expect(add).toHaveLength(1);
+    act(() => add[0]!.props.onPress());
+    expect(input.value).toBe("Existing draft\n\n> one\n\n");
+    expect(published).toHaveBeenCalledExactlyOnceWith(input.value);
+    expect(selectedCells()).toHaveLength(0);
+  });
+
+  it("keeps the desktop selection when no composer is available without copying instead", () => {
+    render();
+    doubleClick(2);
+    desktopComposer(false);
+    act(() => renderer!.root.findAll((node) => String(node.type) === "Pressable"
+      && node.props.accessibilityLabel === "Add to chat")[0]!.props.onPress());
+    expect(selectedCells()).toHaveLength(1);
+    expect(copyText).not.toHaveBeenCalled();
   });
 
   it.each([0, 2])("double-clicks cell %s with the native highlight and animated copy menu", async (index) => {

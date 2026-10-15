@@ -156,7 +156,7 @@ export function nearestComposer(from: Element | null): Field | null {
  * send stays behind — hence the native setter plus a bubbling `input` event as
  * the fallback, and a value check before either path claims success.
  */
-function insertIntoComposer(snippet: string, from: Element | null): boolean {
+export function insertIntoComposer(snippet: string, from: Element | null): boolean {
   const input = nearestComposer(from);
   if (!input) return false;
 
