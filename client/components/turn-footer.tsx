@@ -81,9 +81,8 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
         },
         copyButton: {
           width: "auto",
-          // The button's own padding is pulled back, so its icon starts on the
-          // text column, the way the host footer does.
-          marginLeft: -space.xs,
+          // Exclude hit-area padding from the visible spacing between items.
+          marginHorizontal: -space.xs,
           height: FOOTER_HEIGHT,
           flexDirection: "row",
           alignItems: "center",
@@ -108,6 +107,7 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
         },
         modelButton: {
           width: "auto",
+          marginHorizontal: -space.xs,
           paddingHorizontal: space.xs,
           paddingVertical: space.xs / 2,
         },
