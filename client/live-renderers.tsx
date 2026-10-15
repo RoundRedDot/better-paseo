@@ -185,8 +185,9 @@ function LiveToolCallRendererBody({
   // Open state lives in the disclosure store, keyed by call id, so the
   // reader's choice survives the card moving from the live head into
   // history (a remount) and the call completing (plan §3.3 item 1).
+  const disclosureKey = toolDisclosureKey(agentId, view);
   const [expanded, setExpanded] = useDisclosure(
-    toolDisclosureKey(agentId, view),
+    disclosureKey,
     defaultToolExpanded(groupFailed ? { ...view, status: "failed" } : view, preferences.toolDetail),
   );
 
@@ -216,6 +217,7 @@ function LiveToolCallRendererBody({
           <PathContext.Provider value={pathContext}>
             <ToolCallout
               data={view}
+              previewKey={`${disclosureKey}:preview`}
               groupCalls={group.length > 1 ? group : undefined}
               tokens={tokens}
               compact={layout.compact}

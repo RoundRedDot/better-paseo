@@ -84,6 +84,26 @@ export function bindPreviewPointer(node: unknown, enter: () => void, leave: () =
 }
 
 /**
+ * Calls `leave` on the pointer's first move outside `anchor` and every hover
+ * preview panel, then stops; a first move inside either hands over to the
+ * usual enter and leave events and stops too.
+ */
+export function watchPointerOutside(anchor: unknown, leave: () => void): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const row = anchor as HTMLElement | null;
+  const doc = row?.ownerDocument;
+  if (!row || !doc) return () => {};
+  const onMove = (event: PointerEvent) => {
+    const target = event.target as Element | null;
+    const inside = Boolean(target && (row.contains(target) || target.closest?.('[data-testid="hover-preview"]')));
+    doc.removeEventListener("pointermove", onMove, true);
+    if (!inside) leave();
+  };
+  doc.addEventListener("pointermove", onMove, true);
+  return () => doc.removeEventListener("pointermove", onMove, true);
+}
+
+/**
  * A selection inside a closing preview goes with it. The selection bar follows
  * the page's selection, and a panel taken off screen leaves its selection in
  * place without a `selectionchange`, so the bar would stay up over nothing.
@@ -291,6 +311,8 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
    * Escape closes it.
    */
   floating?: boolean;
+  /** Reopened for a row the host remounted: it was already on screen, so no entrance. */
+  quiet?: boolean;
 } = {}): () => void {
   if (Platform.OS !== "web") return () => {};
   const panel = node as HTMLElement;
@@ -385,7 +407,7 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   measure();
   if (options.floating && !frame && !options.maximized) frame = boxFrom(panel);
   // A box carried over from a drag is already in place, so it does not fade or grow again.
-  if (!options.frame) {
+  if (!options.frame && !options.quiet) {
     if (options.maximized) grow(panel, hoverRects.get(panel));
     else reveal(panel, below);
   }

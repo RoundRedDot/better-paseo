@@ -6,7 +6,7 @@ import {
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space, withAlpha } from "../components/theme-tokens";
 import { selectionSurface } from "../components/selection-actions";
-import { bindPreviewMaximize, bindPreviewPointer, dropSelectionIn, openPreviewLayer } from "../web";
+import { bindPreviewMaximize, bindPreviewPointer, watchPointerOutside, dropSelectionIn, openPreviewLayer } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { cssShadow } from "./tokens/css-shadow";
 import { floatShadow } from "./tokens/float";
@@ -21,7 +21,8 @@ import { PreviewScrollerContext, type PreviewScroller } from "./preview-scroller
 import { ToolbarButton, ToolbarIcon, TooltipAlignContext } from "./toolbar-button";
 import { Glyph } from "../components/glyph";
 import { RunningDot } from "./running-dot";
-import { bindPreviewTail, nativePreviewTail } from "./preview-tail";
+import { bindPreviewTail, nativePreviewTail, previewFollowsTail } from "./preview-tail";
+import { forgetPreview, holdPreview, recallPreview, rememberPreview, type PreviewMemory } from "./preview-memory";
 import { useReducedMotion } from "./use-reduced-motion";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
@@ -40,6 +41,10 @@ const PreviewActionsContext = createContext<{
   close(): void;
   /** Opened as a window (`pop`): it stays up until closed, so it has a close button. */
   popped?: boolean;
+  /** Where the preview keeps its state across its row's remount. */
+  memoryKey?: string;
+  /** What the row this preview took over from left, scroll offset included. */
+  remembered?: PreviewMemory | null;
   /** The body fills a fixed height: the maximized window, or one the reader has sized. */
   fill: boolean;
   /** The preview's line wrap, on until the reader turns it off. */
@@ -70,8 +75,15 @@ export const PREVIEW_CLOSE_MS = 150;
  * press opens it (`press`), pinned until the reader dismisses it. A button can
  * open it as a window (`pop`): pinned, and shown even where hover and
  * long-press previews are turned off.
+ *
+ * `memoryKey` names the row across remounts. The host draws a finished
+ * thought as a new row; on web a preview open then is opened again by that
+ * row as the reader left it, so only the reader closes it
+ * (`preview-memory.ts`). A phone's long-press preview is a modal that this
+ * does not carry over yet.
  */
-export function useHoverPreview(enabled: boolean) {
+export function useHoverPreview(enabled: boolean, rowKey?: string) {
+  const memoryKey = Platform.OS === "web" ? rowKey : undefined;
   const parentPreview = useContext(HoverPreviewContext);
   const capabilities = useInputCapabilities();
   const preferences = useEnhancerPreferences();
@@ -81,13 +93,17 @@ export function useHoverPreview(enabled: boolean) {
   const pressActive = allowed && capabilities.native === true;
   const active = hoverActive || pressActive;
   const anchorRef = useRef<View>(null);
-  const [open, setOpen] = useState(false);
-  const [maximized, setMaximized] = useState(false);
-  const [placed, setPlaced] = useState(false);
-  const [popped, setPopped] = useState(false);
+  // Taken over from the row this one replaced.
+  const [restored] = useState(() => (memoryKey ? recallPreview(memoryKey) : null));
+  // Reopened without an entrance, until the reader closes it.
+  const [quiet, setQuiet] = useState(restored !== null);
+  const [open, setOpen] = useState(restored !== null);
+  const [maximized, setMaximized] = useState(restored?.maximized ?? false);
+  const [placed, setPlaced] = useState(restored?.placed ?? false);
+  const [popped, setPopped] = useState(restored?.popped ?? false);
   const poppedRef = useRef(false);
   poppedRef.current = popped;
-  const pinned = useRef(false);
+  const pinned = useRef(restored?.pinned ?? false);
   const interacting = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancel = useCallback(() => {
@@ -96,13 +112,15 @@ export function useHoverPreview(enabled: boolean) {
   }, []);
   const close = useCallback(() => {
     cancel();
+    if (memoryKey) forgetPreview(memoryKey);
+    setQuiet(false);
     pinned.current = false;
     interacting.current = false;
     setPlaced(false);
     setPopped(false);
     setMaximized(false);
     setOpen(false);
-  }, [cancel]);
+  }, [cancel, memoryKey]);
   const hold = useCallback((on: boolean) => {
     interacting.current = on;
     if (on) cancel();
@@ -145,10 +163,24 @@ export function useHoverPreview(enabled: boolean) {
     if (!hoverActive || pinned.current || interacting.current) return;
     timer.current = setTimeout(() => {
       timer.current = null;
+      if (memoryKey) forgetPreview(memoryKey);
+      setQuiet(false);
       setOpen(false);
     }, PREVIEW_CLOSE_MS);
-  }, [cancel, hoverActive]);
+  }, [cancel, hoverActive, memoryKey]);
 
+  const shown = (active || popped) && open;
+  useEffect(() => (memoryKey && shown ? holdPreview(memoryKey) : undefined), [memoryKey, shown]);
+  useEffect(() => {
+    if (memoryKey && shown) rememberPreview(memoryKey, { pinned: pinned.current, maximized, placed, popped });
+  }, [memoryKey, shown, maximized, placed, popped]);
+  // A row drawn under a resting pointer never sees it enter, so it would never
+  // see it leave either. A hover preview it took over closes on the pointer's
+  // first move outside the row and the panel, as a leave would.
+  useEffect(() => {
+    if (!hoverActive || !quiet || pinned.current || !open) return;
+    return watchPointerOutside(anchorRef.current, leave);
+  }, [hoverActive, quiet, open, leave]);
   useEffect(() => {
     if (!active) {
       if (!poppedRef.current) close();
@@ -159,7 +191,13 @@ export function useHoverPreview(enabled: boolean) {
   useEffect(() => cancel, [cancel]);
   return {
     anchorRef,
-    open: (active || popped) && open,
+    open: shown,
+    /** The key this preview keeps its state under while it is open. */
+    memoryKey: shown ? memoryKey : undefined,
+    /** What the row this one replaced left; null for a preview opened here. */
+    restored,
+    /** Reopened for a remounted row: no entrance. */
+    quiet,
     maximized,
     /** Opened by `pop`, as a window. */
     popped,
@@ -184,10 +222,16 @@ export function useHoverPreview(enabled: boolean) {
  * A panel's line wrap: the reader's setting when it opens (Preview panel
  * settings), then this panel's own toggle until it closes.
  */
-function usePanelWrap(): [boolean, () => void] {
+function usePanelWrap(remembered: boolean | null = null): [boolean, () => void] {
   const { previewWrap } = useEnhancerPreferences();
-  const [on, setOn] = useState(previewWrap);
-  useEffect(() => setOn(previewWrap), [previewWrap]);
+  const [on, setOn] = useState(remembered ?? previewWrap);
+  // A change to the setting applies; mounting does not undo a remembered toggle.
+  const setting = useRef(previewWrap);
+  useEffect(() => {
+    if (setting.current === previewWrap) return;
+    setting.current = previewWrap;
+    setOn(previewWrap);
+  }, [previewWrap]);
   const toggle = useCallback(() => setOn((value) => !value), []);
   return [on, toggle];
 }
@@ -210,12 +254,21 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
 }) {
   const panelRef = useRef<View>(null);
   const frameSync = useRef<(() => void) | null>(null);
+  const { memoryKey } = preview;
+  const [remembered] = useState(() => (preview.quiet ? preview.restored : null));
   // The box from the last drag. Maximize drops it; leaving maximize opens here again.
-  const placedFrame = useRef<PreviewBox | null>(null);
+  const placedFrame = useRef<PreviewBox | null>(remembered?.box ?? null);
   // Keep the toggle's slot even when wrapping would make no visible difference.
   const [linesFit, setLinesFit] = useState(false);
   // Kept across Maximize, which re-renders this panel rather than remounting it.
-  const [wrapOn, toggleWrap] = usePanelWrap();
+  const [wrapOn, toggleWrap] = usePanelWrap(remembered?.wrap ?? null);
+  useEffect(() => {
+    if (memoryKey) rememberPreview(memoryKey, { wrap: wrapOn });
+  }, [memoryKey, wrapOn]);
+  const memoryKeyRef = useRef(memoryKey);
+  memoryKeyRef.current = memoryKey;
+  const quiet = useRef(preview.quiet);
+  quiet.current = preview.quiet;
   useLayoutEffect(() => {
     const unbind = bindPreviewPointer(panelRef.current, preview.enter, preview.leave);
     const release = openPreviewLayer(panelRef.current, preview.anchorRef.current, preview.close, {
@@ -225,11 +278,13 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
       onHold: preview.hold,
       onPlace(box) {
         placedFrame.current = box;
+        if (memoryKeyRef.current) rememberPreview(memoryKeyRef.current, { box });
         preview.place();
       },
       onLeave: preview.leave,
       onFrame(sync) { frameSync.current = sync; },
       floating: preview.popped,
+      quiet: quiet.current,
     });
     return () => {
       frameSync.current = null;
@@ -256,6 +311,8 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
         popped: preview.popped,
         fill: preview.maximized || preview.placed,
         wrap: wraps ? { on: wrapOn, disabled: linesFit, toggle: toggleWrap, tokens } : undefined,
+        memoryKey,
+        remembered,
       }}>
         <View
           ref={panelRef}
@@ -585,9 +642,12 @@ export function HoverPreviewBody({ children, streaming = false }: { children: Re
   const actions = useContext(PreviewActionsContext);
   const wrap = actions?.wrap;
   const fill = actions?.fill ?? false;
+  const memoryKey = actions?.memoryKey;
+  const remembered = actions?.remembered ?? null;
   const scroller = usePreviewScroller(streaming);
   const webBody = useRef<View>(null);
-  useStreamingTail(streaming, webBody);
+  const following = useStreamingTail(streaming, webBody);
+  useWebScrollMemory(webBody, memoryKey, remembered, streaming, following);
   // Lines keep their length; the body scrolls sideways, with a track under it
   // only while it is wider than the panel. The track keeps clear of the last
   // line's descenders and sits down in the body's bottom padding, near the
@@ -638,6 +698,49 @@ function useStreamingTail(streaming: boolean, ref: RefObject<View | null>) {
   useLayoutEffect(() => {
     if (streaming) follow.current?.();
   });
+  return pinned;
+}
+
+/**
+ * The web body's offset, kept under `memoryKey` while the preview is open.
+ * A body that takes over a remounted row's preview starts where that one was,
+ * or on the newest output if it was there. While streaming, the follow knows
+ * that better than the offset, which trails the tail during a glide.
+ */
+function useWebScrollMemory(
+  ref: RefObject<View | null>,
+  memoryKey: string | undefined,
+  remembered: PreviewMemory | null,
+  streaming: boolean,
+  following: RefObject<boolean>,
+) {
+  const key = useRef(memoryKey);
+  key.current = memoryKey;
+  const live = useRef(streaming);
+  live.current = streaming;
+  useLayoutEffect(() => {
+    if (Platform.OS !== "web") return;
+    const node = ref.current as unknown as HTMLElement | null;
+    if (!node || typeof node.addEventListener !== "function") return;
+    const view = node.ownerDocument?.defaultView;
+    let frame = 0;
+    if (remembered) {
+      const place = () => { node.scrollTop = remembered.tail ? node.scrollHeight : remembered.offset; };
+      place();
+      // The layer sizes the panel after this effect, so place it again then.
+      frame = view?.requestAnimationFrame?.(place) ?? 0;
+    }
+    const onScroll = () => {
+      if (!key.current) return;
+      const tail = live.current ? following.current : previewFollowsTail(node.scrollTop, node.clientHeight, node.scrollHeight);
+      rememberPreview(key.current, { offset: node.scrollTop, tail });
+    };
+    node.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      node.removeEventListener("scroll", onScroll);
+      if (frame) view?.cancelAnimationFrame?.(frame);
+    };
+  }, [ref, remembered, following]);
 }
 
 /**
