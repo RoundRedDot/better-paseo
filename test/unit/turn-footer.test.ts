@@ -102,9 +102,23 @@ describe("assistant footer", () => {
         .find((style) => style.boxShadow);
       expect(bubble).toMatchObject({ borderRadius: FLOAT.radius, borderWidth: 1,
         backgroundColor: tokens.surface0, borderColor: tokens.v2.border, boxShadow: floatShadow(tokens) });
+      expect(renderer.root.findAllByType("Text" as never).map((node) => node.props.children))
+        .not.toContain("复制模型名称");
       expect(details()[0]!.findAllByType("Text" as never)
         .map((node) => [node.props.children].flat().join(""))).toEqual(["Opus 5.5", "思考强度: High"]);
       const copyButton = details()[0]!.findByType("Pressable" as never);
+      const thinkingRow = details()[0]!.findAllByType("View" as never)
+        .find((node) => node.props.accessibilityLabel === "Thinking level: High")!;
+      const rowStyle = StyleSheet.flatten(copyButton.props.style);
+      expect(rowStyle).toMatchObject({ minHeight: 44, paddingHorizontal: 8, paddingVertical: 8, gap: 8 });
+      const { backgroundColor: _background, ...modelRowStyle } = rowStyle;
+      expect(StyleSheet.flatten(thinkingRow.props.style)).toEqual(modelRowStyle);
+      const slots = details()[0]!.findAllByType("View" as never)
+        .filter((node) => StyleSheet.flatten(node.props.style).width === 20);
+      expect(slots).toHaveLength(2);
+      expect(slots.map((node) => StyleSheet.flatten(node.props.style)))
+        .toEqual([expect.objectContaining({ width: 20, height: 20, alignItems: "center", justifyContent: "center" }),
+          expect.objectContaining({ width: 20, height: 20, alignItems: "center", justifyContent: "center" })]);
       await act(async () => { copyButton.props.onPress(); });
       expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("Opus 5.5");
       expect(copyButton.props.accessibilityLabel).toBe("Model name copied");
@@ -231,9 +245,10 @@ describe("assistant footer", () => {
       expect(labels()).not.toContain(copiedHint);
       act(() => { buttons[1]!.props.onHoverIn(); });
       act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
-      expect(labels()).toContain(modelHint);
+      expect(labels()).not.toContain(modelHint);
       await act(async () => { buttons[1]!.props.onPress(); });
-      expect(labels()).toContain(copiedHint);
+      expect(renderer.root.findAllByType("Pressable" as never)
+        .filter((node) => node.props.accessibilityLabel === "Model name copied")).toHaveLength(2);
       expect(clipboard.copyText).toHaveBeenLastCalledWith("Opus 5.5");
       act(() => { buttons[1]!.props.onHoverOut(); });
       act(() => { vi.advanceTimersByTime(120); });
