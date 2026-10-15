@@ -10,6 +10,8 @@ type Footers = Map<number, Map<string, CompletedTurnFooter>>;
 export function createTurnFooterStore(source: () => Timeline) {
   const targets = new Set<Target>();
   const listeners = new Set<() => void>();
+  const usageByTurn = new Map<string, NonNullable<CompletedTurnFooter["usage"]>>();
+  let observers = 0;
   let footers: Footers = new Map();
   let entries: Entry[] = [];
   let running: boolean | null = null;
@@ -58,9 +60,11 @@ export function createTurnFooterStore(source: () => Timeline) {
     const next: Footers = new Map();
     for (const footer of completedTurnFooters(items, snapshot ? snapshot.status === "running" : running === true,
       snapshot?.activeTurn?.turnId ?? null)) {
+      if (footer.turnId) footer.usage = usageByTurn.get(footer.turnId);
       const previous = get(footer.at, footer.text);
       const value = previous?.completedAt === footer.completedAt && previous.startedAt === footer.startedAt &&
-        previous.durationMs === footer.durationMs ? previous : footer;
+        previous.durationMs === footer.durationMs && previous.turnId === footer.turnId &&
+        previous.usage === footer.usage ? previous : footer;
       let at = next.get(footer.at);
       if (!at) next.set(footer.at, at = new Map());
       at.set(footer.text, value);
@@ -96,6 +100,37 @@ export function createTurnFooterStore(source: () => Timeline) {
     return request();
   }
 
+  function connect() {
+    if (unsubscribe) return;
+    unsubscribe = source().subscribe(({ event }) => {
+      if (event.type === "replacement" || event.type === "subscription_restored") {
+        entries = [];
+        footers = new Map();
+        if (event.type === "replacement") usageByTurn.clear();
+        publish();
+        if (targets.size) void refresh();
+      } else if (event.type === "turn_started" || event.type === "turn_completed" ||
+        event.type === "turn_failed" || event.type === "turn_canceled") {
+        // Only a provider-reported turn ID can attribute usage to history.
+        if (event.type === "turn_completed" && event.turnId && event.usage) {
+          usageByTurn.set(event.turnId, { ...event.usage });
+        }
+        if (targets.size) void refresh();
+      }
+    });
+    void unsubscribe.ready.catch(() => {});
+  }
+
+  function disconnect() {
+    if (targets.size || observers) return;
+    generation++;
+    dirty = false;
+    unsubscribe?.();
+    unsubscribe = null;
+    entries = [];
+    footers = new Map();
+  }
+
   return {
     get,
     refresh,
@@ -108,32 +143,19 @@ export function createTurnFooterStore(source: () => Timeline) {
       running = next;
       if (targets.size) void refresh();
     },
+    observe() {
+      observers++;
+      connect();
+      return () => { observers--; disconnect(); };
+    },
     retain(at: number, text: string) {
       const target = { at, text };
       targets.add(target);
-      if (!unsubscribe) {
-        unsubscribe = source().subscribe(({ event }) => {
-          if (event.type === "replacement" || event.type === "subscription_restored") {
-            entries = [];
-            footers = new Map();
-            publish();
-            void refresh();
-          } else if (event.type === "turn_started" || event.type === "turn_completed" ||
-            event.type === "turn_failed" || event.type === "turn_canceled") void refresh();
-        });
-        void unsubscribe.ready.catch(() => {});
-      }
+      connect();
       if (!entries.length || needsOlder(entries)) void request();
       return () => {
         targets.delete(target);
-        if (!targets.size) {
-          generation++;
-          dirty = false;
-          unsubscribe?.();
-          unsubscribe = null;
-          entries = [];
-          footers = new Map();
-        }
+        disconnect();
       };
     },
   };
@@ -141,7 +163,8 @@ export function createTurnFooterStore(source: () => Timeline) {
 
 const stores = new WeakMap<PaseoApi, Map<string, ReturnType<typeof createTurnFooterStore>>>();
 
-export function useTurnFooter(paseo: PaseoApi, agentId: string, at: number, text: string, running: boolean | null) {
+export function useTurnFooter(paseo: PaseoApi, agentId: string, at: number, text: string, running: boolean | null,
+  observeOnly = false) {
   const store = useMemo(() => {
     let agents = stores.get(paseo);
     if (!agents) stores.set(paseo, agents = new Map());
@@ -150,10 +173,13 @@ export function useTurnFooter(paseo: PaseoApi, agentId: string, at: number, text
     return store;
   }, [paseo, agentId]);
   const enabled = typeof running === "boolean";
+  const targetAt = observeOnly ? 0 : at;
+  const targetText = observeOnly ? "" : text;
   useLayoutEffect(() => { if (enabled) store.setRunning(running); }, [store, enabled, running]);
   useLayoutEffect(() => {
-    if (enabled) return store.retain(at, text);
-  }, [store, enabled, at, text]);
-  const getSnapshot = useCallback(() => enabled ? store.get(at, text) : null, [store, enabled, at, text]);
+    if (enabled) return observeOnly ? store.observe() : store.retain(targetAt, targetText);
+  }, [store, enabled, targetAt, targetText, observeOnly]);
+  const getSnapshot = useCallback(() => enabled && !observeOnly ? store.get(targetAt, targetText) : null,
+    [store, enabled, observeOnly, targetAt, targetText]);
   return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 }

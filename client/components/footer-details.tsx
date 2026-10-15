@@ -11,6 +11,7 @@ import { CopyButton } from "../ui/copy-button";
 import { formatFullStamp, formatDuration } from "../ui/time";
 import { TYPE } from "../ui/tokens/typography";
 import { unselectable } from "./selection";
+import type { TurnUsage } from "./user-message";
 
 export interface FooterDetailsProps {
   agentName?: string | null;
@@ -18,6 +19,7 @@ export interface FooterDetailsProps {
   thinkingLabel?: string | null;
   startedAt?: number | null;
   durationMs?: number | null;
+  usage?: TurnUsage | null;
   tokens: ExtendedThemeTokens;
 }
 
@@ -39,7 +41,7 @@ export function useFooterDetailsWidth(): number {
 /**
  * Two columns: a plain label, then its toolbar icon, value and inline copy action.
  */
-export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, durationMs, tokens }: FooterDetailsProps) {
+export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, durationMs, usage, tokens }: FooterDetailsProps) {
   const { language } = useEnhancerPreferences();
   const rows: Array<{ label: string; icon: string; provider?: string | null; value: string; copyLabel?: string }> = [];
   if (agentName) rows.push({ label: "Agent", icon: "Bot", provider: agentName, value: agentName, copyLabel: "Copy agent" });
@@ -47,6 +49,15 @@ export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, 
   if (thinkingLabel) rows.push({ label: "Thinking level", icon: "Brain", value: thinkingLabel, copyLabel: "Copy thinking level" });
   if (startedAt != null) rows.push({ label: "Start time", icon: "Clock", value: formatFullStamp(new Date(startedAt)), copyLabel: "Copy start time" });
   if (durationMs != null) rows.push({ label: "Elapsed time", icon: "Hourglass", value: formatDuration(durationMs) });
+  for (const [label, icon, count] of [
+    ["Input tokens", "ArrowDown", usage?.inputTokens],
+    ["Cached tokens", "Database", usage?.cachedInputTokens],
+    ["Output tokens", "ArrowUp", usage?.outputTokens],
+  ] as const) {
+    rows.push({ label, icon, value: typeof count === "number" && Number.isFinite(count) && count >= 0
+      ? count.toLocaleString(resolveLanguage(language) === "zh" ? "zh-CN" : "en-US")
+      : toolbarLabel("Not recorded", language) });
+  }
   const textStyle = [styles.text, unselectable, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }];
   return (
     <View>
