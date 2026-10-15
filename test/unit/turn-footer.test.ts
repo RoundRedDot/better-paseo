@@ -210,7 +210,7 @@ describe("assistant footer", () => {
         .filter((node) => StyleSheet.flatten(node.props.style).width === 20)).toHaveLength(0);
       const panel = renderer.root.findAllByType("View" as never)
         .find((node) => node.props.testID === "toolbar-details-panel" || StyleSheet.flatten(node.props.style).boxShadow)!;
-      expect(StyleSheet.flatten(panel.props.style).width).toBe(282);
+      expect(StyleSheet.flatten(panel.props.style).width).toBe(294);
       await act(async () => { copyButton.props.onPress(); });
       expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("Opus 5.5");
       expect(copyButton.props.accessibilityLabel).toBe("Copied");
