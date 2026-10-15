@@ -43,7 +43,7 @@ const { default: TestRenderer, act } = await import("react-test-renderer");
 const { TaskList, TaskListPreview, useTaskListPanel } = await import("../../client/components/task-list");
 const { TaskActivityRow } = await import("../../client/components/task-activity-row");
 const { DisclosureHeader } = await import("../../client/ui/disclosure-header");
-const { HoverPreviewContext } = await import("../../client/ui/hover-preview");
+const { HoverPreview, HoverPreviewContext, useHoverPreview } = await import("../../client/ui/hover-preview");
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
 const { resetEnhancerPreferences, updateEnhancerPreferences } = await import("../../client/preferences");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -82,6 +82,16 @@ function title(root: Node, text: string) {
 }
 function popOut(root: Node) {
   return root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Open tasks in a window");
+}
+function wrapToggle(root: Node) {
+  return root.findAll((node) => (node.type as unknown) === "Pressable" &&
+    ["Do not wrap lines", "Wrap lines"].includes(node.props.accessibilityLabel))[0];
+}
+function sideways(root: Node) {
+  return root.findAll((node) => (node.type as unknown) === "Animated.ScrollView" && node.props.horizontal === true);
+}
+function flat(style: unknown): Record<string, unknown> {
+  return Object.assign({}, ...[style].flat(3).filter(Boolean));
 }
 function panels(root: Node) {
   return root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "hover-preview");
@@ -228,6 +238,37 @@ describe("the checklist's floating panel", () => {
     expect(panels(root)).toHaveLength(0);
   });
 
+  it("has the panel's line-wrap toggle at the top left of its title bar", () => {
+    const root = mount(React.createElement(TaskList, { data, tokens })).root;
+    act(() => popOut(root)[0]!.props.onPress());
+    const start = panels(root)[0]!.find((node) => node.props.testID === "hover-preview-start");
+    expect(wrapToggle(start)!.props.accessibilityLabel).toBe("Do not wrap lines");
+    // Wrapped (the default): every title in full, wrapping in the panel's width.
+    expect(sideways(root)).toHaveLength(0);
+    expect(titles(panels(root)[0]!).every((node) => flat(node.props.style).flex === 1)).toBe(true);
+  });
+
+  it("puts each title on one untruncated line in a sideways scroller once wrap is off", () => {
+    const root = mount(React.createElement(TaskList, { data, tokens })).root;
+    act(() => popOut(root)[0]!.props.onPress());
+    act(() => wrapToggle(root)!.props.onPress());
+    expect(wrapToggle(root)!.props.accessibilityLabel).toBe("Wrap lines");
+    const scroller = sideways(root);
+    expect(scroller).toHaveLength(1);
+    const inScroller = titles(scroller[0]!);
+    expect(inScroller).toHaveLength(3);
+    for (const node of inScroller) {
+      // No ellipsis, and the title sizes to its line instead of the panel's width.
+      expect(node.props.numberOfLines).toBe(0);
+      const style = flat(node.props.style);
+      expect(style.flex).toBeUndefined();
+      expect(style).toMatchObject({ flexGrow: 1, flexShrink: 0 });
+    }
+    // Status marks stay in their slot, on the title's line.
+    const row = inScroller[0]!.parent!.parent!;
+    expect(row.findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "Check").length).toBeGreaterThan(0);
+  });
+
   it("has no hover, long press or window inside another preview", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     const root = mount(React.createElement(HoverPreviewContext.Provider, { value: true },
@@ -245,9 +286,28 @@ describe("an earlier checklist update", () => {
       tokens,
     })).root;
     const header = root.findByType(DisclosureHeader);
-    expect(header.props.previewWraps).toBe(false);
+    // The preview keeps its line-wrap toggle, as the live list's panel does.
+    expect(header.props.previewWraps).not.toBe(false);
     const content = header.props.previewContent();
     expect(content.type).toBe(TaskListPreview);
     expect(content.props.data).toBe(data);
+  });
+
+  it("draws the wrap toggle at the top left of its preview, and the list follows it", () => {
+    const row = mount(React.createElement(TaskActivityRow, {
+      activities: [{ type: "completed", task: "Read the code" }],
+      data,
+      tokens,
+    })).root;
+    const { previewContent, previewWraps } = row.findByType(DisclosureHeader).props;
+    act(() => renderer!.unmount());
+    function Preview() {
+      const preview = useHoverPreview(true);
+      return React.createElement(HoverPreview, { preview: { ...preview, open: true }, tokens, wraps: previewWraps, children: previewContent() });
+    }
+    const root = mount(React.createElement(Preview)).root;
+    act(() => wrapToggle(root)!.props.onPress());
+    expect(wrapToggle(root)!.props.accessibilityLabel).toBe("Wrap lines");
+    expect(titles(sideways(root)[0]!).map((node) => node.props.numberOfLines)).toEqual([0, 0, 0]);
   });
 });

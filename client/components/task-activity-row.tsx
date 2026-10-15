@@ -73,7 +73,6 @@ export function TaskActivityRow({ activities, data, tokens, compact = false }: T
         meta={meta}
         accessibilityLabel={label || `Tasks ${done}/${data.tasks.length}`}
         previewContent={() => <TaskListPreview data={data} tokens={tokens} compact={compact} />}
-        previewWraps={false}
       />
       {expanded ? (
         <FadeIn style={styles.body}>
