@@ -41,6 +41,7 @@ vi.mock("../../client/components/markdown/markdown-view", async () => {
 
 import { LiveAssistantRenderer, type LiveAssistantPayload } from "../../client/live-renderers";
 import { AssistantFooter } from "../../client/components/turn-footer";
+import { assistantRows } from "../../client/assistant-transform";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -53,6 +54,33 @@ beforeEach(() => { vi.clearAllMocks(); runtime.agent.status = "idle"; });
 afterEach(() => { expect(runtime.listeners.size).toBe(0); });
 
 describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform) => {
+  it("keeps one full-message copy and timing footer after a long streaming reply splits into rows", async () => {
+    const text = Array.from({ length: 60 }, (_, index) => `## Part ${index}\n\n${"Paragraph. ".repeat(40)}\n\n`).join("");
+    const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(async () => page([
+      entry({ type: "user_message", text: "prompt" }, 1, 1000, "long"),
+      entry({ type: "assistant_message", text }, 2, 2000, "long"),
+    ]));
+    const release = Object.assign(vi.fn(), { ready: Promise.resolve(), subscriptionId: "s", release: async () => {} });
+    runtime.api = { agents: { ref: () => ({ timeline: { refetch, subscribe: () => release } }) },
+      providers: { listModels: async () => catalog } };
+    const render = (phase: string) => React.createElement(React.Fragment, null,
+      ...assistantRows(text, phase).map((item, index) => React.createElement(LiveAssistantRenderer, {
+        key: index, agentId: "long", theme, host: { id: "local", label: "Local" },
+        layout: { platform, compact: platform !== "web" }, timestamp: new Date(2000), item,
+      })));
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { renderer = TestRenderer.create(render("streaming")); });
+    try {
+      await act(async () => renderer.update(render("complete")));
+      const footers = renderer.root.findAllByType(AssistantFooter);
+      expect(footers).toHaveLength(1);
+      expect(footers[0]!.props).toMatchObject({ text, durationMs: 1000 });
+      expect(refetch).toHaveBeenCalledTimes(1);
+      await act(async () => footers[0]!.findByProps({ accessibilityLabel: "Copy reply" }).props.onPress());
+      expect(runtime.copyText).toHaveBeenCalledExactlyOnceWith(text);
+    } finally { await act(async () => renderer.unmount()); }
+  });
+
   it("observes the first streaming turn without fetching per chunk and forwards its final usage", async () => {
     runtime.agent.status = "running";
     const entries = [entry({ type: "user_message", text: "first" }, 1, 1000, "one"),

@@ -79,74 +79,74 @@ function thought(platform: "ios" | "android" | "web", text = "Allocating an ID",
 }
 
 describe("mobile streaming thought spacing", () => {
-  it.each(["ios", "android"] as const)("reserves space above a %s thought across chunks, then releases it on completion", (platform) => {
+  it.each(["ios", "android"] as const)("reserves space above a %s thought across chunks, then releases it on completion", async (platform) => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     const render = (text: string, phase = "streaming") => React.createElement(React.Fragment, null,
       tool("before-thought", 1000, "completed"), thought(platform, text, phase));
     const thoughtStyle = () => StyleSheet.flatten(
       renderer.root.findAll((node) => (node.type as unknown) === "View")[1]!.props.style,
     );
-    act(() => { renderer = TestRenderer.create(render("Allocating an ID")); });
+    await act(async () => { renderer = TestRenderer.create(render("Allocating an ID")); });
     try {
       expect(thoughtStyle().paddingTop).toBe(8);
       expect(margins(renderer)).toEqual([-12, undefined]);
-      act(() => { renderer.update(render("Allocating an ID for the block")); });
+      await act(async () => { renderer.update(render("Allocating an ID for the block")); });
       expect(thoughtStyle().paddingTop).toBe(8);
-      act(() => { renderer.update(render("Allocating an ID for the block", "complete")); });
+      await act(async () => { renderer.update(render("Allocating an ID for the block", "complete")); });
       expect(thoughtStyle().paddingTop).toBeUndefined();
       expect(margins(renderer)).toEqual([-12, undefined]);
     } finally {
-      act(() => renderer.unmount());
+      await act(async () => renderer.unmount());
     }
   });
 
-  it("keeps web thought spacing unchanged even in a compact layout", () => {
+  it("keeps web thought spacing unchanged even in a compact layout", async () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
-    act(() => { renderer = TestRenderer.create(thought("web")); });
+    await act(async () => { renderer = TestRenderer.create(thought("web")); });
     try {
       const root = renderer.root.findByType("View" as never);
       expect(StyleSheet.flatten(root.props.style).paddingTop).toBeUndefined();
     } finally {
-      act(() => renderer.unmount());
+      await act(async () => renderer.unmount());
     }
   });
 });
 
 describe("tool row spacing during streaming", () => {
-  it("keeps the first Read compact when its completion timestamp passes the next Read", () => {
+  it("keeps the first Read compact when its completion timestamp passes the next Read", async () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
-    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
       tool("pd-current-drawer", 1000), tool("pd-golden-drawer", 1001))); });
     expect(margins(renderer)).toEqual([-12, undefined]);
-    act(() => { renderer.update(React.createElement(React.Fragment, null,
+    await act(async () => { renderer.update(React.createElement(React.Fragment, null,
       tool("pd-current-drawer", 1002, "completed"), tool("pd-golden-drawer", 1001))); });
     expect(margins(renderer)).toEqual([-12, undefined]);
-    act(() => { renderer.update(React.createElement(React.Fragment, null,
+    await act(async () => { renderer.update(React.createElement(React.Fragment, null,
       tool("pd-current-drawer", 1002, "completed"), tool("pd-golden-drawer", 1003, "completed"))); });
     expect(margins(renderer)).toEqual([-12, undefined]);
-    act(() => renderer.unmount());
+    await act(async () => renderer.unmount());
   });
 
-  it("keeps the newest call's bottom spacing through completion and until another call arrives", () => {
+  it("keeps the newest call's bottom spacing through completion and until another call arrives", async () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
-    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
       tool("newest", 1000))); });
     expect(margins(renderer)).toEqual([undefined]);
-    act(() => { renderer.update(React.createElement(React.Fragment, null,
+    await act(async () => { renderer.update(React.createElement(React.Fragment, null,
       tool("newest", 1002, "completed"))); });
     expect(margins(renderer)).toEqual([undefined]);
-    act(() => { renderer.update(React.createElement(React.Fragment, null,
+    await act(async () => { renderer.update(React.createElement(React.Fragment, null,
       tool("newest", 1002, "completed"), tool("next", 1003))); });
     expect(margins(renderer)).toEqual([-12, undefined]);
-    act(() => { renderer.update(React.createElement(React.Fragment, null,
+    await act(async () => { renderer.update(React.createElement(React.Fragment, null,
       tool("newest", 1002, "completed"))); });
     expect(margins(renderer)).toEqual([undefined]);
-    act(() => renderer.unmount());
+    await act(async () => renderer.unmount());
   });
 });
 
 describe("calls sent together in one message", () => {
-  it("gives back the gap of every running call but the lowest of one millisecond", () => {
+  it("gives back the gap of every running call but the lowest of one millisecond", async () => {
     // Parallel calls leave the daemon in one burst and share a stamp; their
     // kind cannot order them, so where each is drawn does.
     let created = 0;
@@ -155,29 +155,29 @@ describe("calls sent together in one message", () => {
       return { measureInWindow: (callback: (x: number, y: number, w: number, h: number) => void) => callback(0, y, 300, 40) };
     };
     let renderer!: ReturnType<typeof TestRenderer.create>;
-    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
       tool("parallel-1", 8000), tool("parallel-2", 8000)), { createNodeMock }); });
     expect(margins(renderer)).toEqual([-12, undefined]);
-    act(() => { renderer.update(React.createElement(React.Fragment, null,
+    await act(async () => { renderer.update(React.createElement(React.Fragment, null,
       tool("parallel-1", 8003, "completed"), tool("parallel-2", 8000))); });
     expect(margins(renderer)).toEqual([-12, undefined]);
-    act(() => renderer.unmount());
+    await act(async () => renderer.unmount());
   });
 });
 
 describe("tool row spacing in replayed history", () => {
-  it("compensates every finished call when the whole history shares one millisecond", () => {
+  it("compensates every finished call when the whole history shares one millisecond", async () => {
     // Grok's history after the daemon reloads it: no provider times, so
     // calls and the thoughts between them carry the same stamp.
     let renderer!: ReturnType<typeof TestRenderer.create>;
     const forget = registerTimelineEntry("tool-spacing-agent", 9000, "thought", "between");
-    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
       tool("replayed-1", 9000, "completed"), tool("replayed-2", 9000, "completed"))); });
     expect(margins(renderer)).toEqual([-12, -12]);
-    act(() => { renderer.unmount(); forget(); });
+    await act(async () => { renderer.unmount(); forget(); });
   });
 
-  it("keeps the gap under the call a replayed history ends on", () => {
+  it("keeps the gap under the call a replayed history ends on", async () => {
     // Each row's root is the only view it draws here, so views are placed in
     // the order they are created: the second call is the lowest item.
     let created = 0;
@@ -187,9 +187,9 @@ describe("tool row spacing in replayed history", () => {
     };
     let renderer!: ReturnType<typeof TestRenderer.create>;
     const forget = registerTimelineEntry("tool-spacing-agent", 9500, "thought", "between", () => ({ left: 0, top: 0, width: 300, height: 0 }));
-    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
       tool("ending-1", 9500, "completed"), tool("ending-2", 9500, "completed")), { createNodeMock }); });
     expect(margins(renderer)).toEqual([-12, undefined]);
-    act(() => { renderer.unmount(); forget(); });
+    await act(async () => { renderer.unmount(); forget(); });
   });
 });

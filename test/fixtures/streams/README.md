@@ -11,6 +11,11 @@ Two consumers read them:
 
 The fixtures are **generated**: do not edit the `.jsonl` files by hand.
 
+The additional `history-long-load` loading regression has its own deterministic generator:
+`node test/fixtures/streams/generate-history-long-load.mts [--check]`. Its cold-open, older-history
+and remount phases are specified in [the loading benchmark](../../../docs/bench/long-history-load/README.md);
+replaying it as a stream alone is not that benchmark.
+
 ```bash
 node test/fixtures/streams/generate.mts            # (re)write every fixture
 node test/fixtures/streams/generate.mts --check    # exit 1 if a committed file drifted

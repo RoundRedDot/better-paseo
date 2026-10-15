@@ -60,6 +60,23 @@ describe("completed turn footers", () => {
 });
 
 describe("shared turn footer timeline", () => {
+  it("does not rescan loaded timeline entries when replies remount", async () => {
+    const rows = turns();
+    const readItem = vi.fn();
+    for (const row of rows) {
+      const item = row.item;
+      Object.defineProperty(row, "item", { get: () => { readItem(); return item; } });
+    }
+    const { store } = setup(rows);
+    store.setRunning(false);
+    const stops = [store.retain(3000, "first")];
+    await store.refresh();
+    readItem.mockClear();
+    for (let index = 0; index < 100; index++) stops.push(store.retain(5000, "second"));
+    expect(readItem).not.toHaveBeenCalled();
+    stops.forEach((stop) => stop());
+  });
+
   it("captures completion usage before the first streaming reply settles without reading on chunks", async () => {
     const { store, refetch, emit } = setup([prompt(1, "one"), reply(3, "first", "one")]);
     store.setRunning(true);
