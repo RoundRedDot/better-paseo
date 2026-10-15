@@ -264,14 +264,14 @@ export function HoverPreview(props: {
   tokens: ExtendedThemeTokens;
   /** False for content with no lines to wrap, such as a picture: no wrap toggle. */
   wraps?: boolean;
-  /** Keep the wrap control visible but disabled, with content forced to wrap. */
+  /** Override automatic disabling: true forces wrapping; false keeps the control enabled. */
   wrapDisabled?: boolean;
   children: ReactNode;
 }) {
   return Platform.OS === "web" ? <WebPreview {...props} /> : <PressPreview {...props} />;
 }
 
-function WebPreview({ preview, tokens, wraps = true, wrapDisabled = false, children }: {
+function WebPreview({ preview, tokens, wraps = true, wrapDisabled, children }: {
   preview: ReturnType<typeof useHoverPreview>;
   tokens: ExtendedThemeTokens;
   wraps?: boolean;
@@ -336,7 +336,7 @@ function WebPreview({ preview, tokens, wraps = true, wrapDisabled = false, child
         close: preview.close,
         popped: preview.popped,
         fill: preview.maximized || preview.placed,
-        wrap: wraps ? { on: wrapDisabled || wrapOn, disabled: wrapDisabled || linesFit, toggle: toggleWrap, tokens } : undefined,
+        wrap: wraps ? { on: wrapDisabled || wrapOn, disabled: wrapDisabled ?? linesFit, toggle: toggleWrap, tokens } : undefined,
         memoryKey,
         remembered,
       }}>
