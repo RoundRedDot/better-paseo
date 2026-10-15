@@ -9,7 +9,7 @@ import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
 import { formatFooterStamp, formatFullStamp, formatDuration } from "../ui/time";
 import { TYPE } from "../ui/tokens/typography";
 import { ProviderLogo } from "./provider-logo";
-import { AnchoredToolbarDetails, ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
+import { CenteredToolbarDetails, ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
 import { FooterDetails, useFooterDetailsWidth } from "./footer-details";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { useScrollDismiss } from "../ui/scroll-anchor";
@@ -179,9 +179,9 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
         ) : null}
       </Pressable>
       {pressedAnchor ? (
-        <AnchoredToolbarDetails anchor={pressedAnchor} close={closeDetails} width={detailsWidth} tokens={tokens}>
+        <CenteredToolbarDetails close={closeDetails} width={detailsWidth} tokens={tokens}>
           {details}
-        </AnchoredToolbarDetails>
+        </CenteredToolbarDetails>
       ) : null}
     </TooltipSideContext.Provider>
   );

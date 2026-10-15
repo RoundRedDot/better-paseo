@@ -661,3 +661,18 @@ export function suppressTouchCallout(node: unknown): void {
   if (Platform.OS !== "web") return;
   (node as HTMLElement | null)?.style.setProperty("-webkit-touch-callout", "none");
 }
+
+/** Handle Escape before the host composer consumes it. */
+export function bindDetailsEscape(node: unknown, close: () => void): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const doc = (node as HTMLElement | null)?.ownerDocument;
+  if (!doc) return () => {};
+  const keydown = (event: KeyboardEvent) => {
+    if (event.key !== "Escape" || event.isComposing) return;
+    event.preventDefault();
+    event.stopPropagation();
+    close();
+  };
+  doc.addEventListener("keydown", keydown, true);
+  return () => doc.removeEventListener("keydown", keydown, true);
+}
