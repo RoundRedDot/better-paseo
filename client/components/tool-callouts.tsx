@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { Glyph } from "./glyph";
@@ -26,8 +26,10 @@ import { RunningDot } from "../ui/running-dot";
 import { exitMark, parseExitMeta } from "../ui/exit-mark";
 import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
-import { HoverPreviewBody, HoverPreviewHeader, usePreviewPanel } from "../ui/hover-preview";
-import { bindPreviewPaging } from "../web";
+import { HoverPreviewBody, HoverPreviewHeader } from "../ui/hover-preview";
+import { ToolPager } from "../ui/tool-pager";
+import { readUserQuestions } from "../tools/user-questions";
+import { UserQuestions } from "./user-questions";
 import { PreviewLines } from "../ui/preview-lines";
 import { CommandBand, PreviewPath } from "../ui/command-band";
 import { FadeIn } from "../ui/fade-in";
@@ -408,7 +410,7 @@ function GroupedToolDetails({ calls, ...rest }: GroupedBodyProps) {
     <>
       {/* At the body's left edge: names open rightwards. */}
       <TooltipAlignContext.Provider value="start">
-        <GroupPager index={index} count={calls.length} onChange={setIndex} tokens={rest.tokens} />
+        <ToolPager index={index} count={calls.length} onChange={setIndex} tokens={rest.tokens} />
       </TooltipAlignContext.Provider>
       <GroupedCallBody key={calls[index]!.callId} call={calls[index]!} {...rest} />
     </>
@@ -426,6 +428,15 @@ export function ToolPreviewContent({ data, resolvePath, drawsImage = false, ...r
 }) {
   const { tokens, imageFile } = rest;
   const streaming = data.status === "running";
+  const questions = useMemo(() => readUserQuestions(data), [data]);
+  if (questions) {
+    return <UserQuestions key={data.callId ?? data.id} questions={questions} tokens={tokens}
+      rawBody={<ToolBody data={data} {...rest} preview raw />}
+      renderHeader={(controls) => <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens}
+        streaming={streaming} pager={controls} fitControls />}>
+      {data.error ? <PreviewError text={data.error} tokens={tokens} /> : null}
+    </UserQuestions>;
+  }
   return (
     <>
       <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens} streaming={streaming}
@@ -453,7 +464,7 @@ function GroupedPreview({ calls, resolvePath, path, onViewImage, ...rest }: Grou
   return (
     <>
       <ToolPreviewActions call={call} resolvePath={resolvePath} tokens={tokens} streaming={streaming}
-        pager={<GroupPager index={index} count={calls.length} onChange={setIndex} tokens={tokens} />}
+        pager={<ToolPager index={index} count={calls.length} onChange={setIndex} tokens={tokens} />}
         meta={drawsImage ? <ImageMeta file={imageFile ?? null} tokens={tokens} /> : undefined} />
       <HoverPreviewBody streaming={streaming}>
         {path ? <PreviewPath path={path} tokens={tokens} /> : null}
@@ -476,35 +487,6 @@ function GroupedCallBody({ call, preview, onViewImage, ...rest }: Omit<GroupedBo
       {errorLine ? preview ? <PreviewError text={call.error ?? errorLine} tokens={rest.tokens} /> :
         <CallError text={call.error ?? errorLine} tokens={rest.tokens} /> : null}
     </>
-  );
-}
-
-/** `‹ 2 / 3 ›`: steps through a merged row's calls; an arrow at either end is dimmed and inert. */
-function GroupPager({ index, count, onChange, tokens }: {
-  index: number;
-  count: number;
-  onChange(index: number): void;
-  tokens: ExtendedThemeTokens;
-}) {
-  const pagerRef = useRef<View>(null);
-  const maximized = usePreviewPanel()?.maximized ?? false;
-  useEffect(() => {
-    if (!maximized) return;
-    return bindPreviewPaging(pagerRef.current, (direction) => {
-      const next = index + direction;
-      if (next >= 0 && next < count) onChange(next);
-    });
-  }, [maximized, index, count, onChange]);
-  return (
-    <View ref={pagerRef} style={styles.pager}>
-      <ToolbarButton icon="ChevronLeft" label="Previous operation" disabled={index === 0}
-        onPress={() => onChange(index - 1)} tokens={tokens} />
-      <Text selectable={false} style={[styles.pagerLabel, unselectable, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: tokens.typography.block.caption.size }]}>
-        {`${index + 1} / ${count}`}
-      </Text>
-      <ToolbarButton icon="ChevronRight" label="Next operation" disabled={index === count - 1}
-        onPress={() => onChange(index + 1)} tokens={tokens} />
-    </View>
   );
 }
 
@@ -570,7 +552,7 @@ function ToolCopyButtons({ call, resolvePath, tokens }: {
  * The preview's toolbar: a merged row's pager at the left, the tool's icon
  * and name or picture size in the middle, and copies at the right.
  */
-function ToolPreviewActions({ call, resolvePath, tokens, pager, meta, streaming = false }: {
+function ToolPreviewActions({ call, resolvePath, tokens, pager, meta, streaming = false, fitControls = false }: {
   call: ToolCallView;
   resolvePath: ResolvePath;
   tokens: ExtendedThemeTokens;
@@ -580,11 +562,12 @@ function ToolPreviewActions({ call, resolvePath, tokens, pager, meta, streaming 
   meta?: React.ReactNode;
   /** The call on view is still writing. */
   streaming?: boolean;
+  fitControls?: boolean;
 }) {
   return (
     <HoverPreviewHeader tokens={tokens} streaming={streaming} icon={meta ? "Image" : <RowIcon name={toolIconName(call.tool)} color={tokens.foregroundMuted} />}
       iconLabel={summarizeTool(call).verb}
-      left={pager} center={meta}>
+      left={pager} center={meta} fitControls={fitControls}>
       <View style={styles.previewActions}>
         <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />
       </View>
@@ -625,9 +608,6 @@ function MetaPath({
 }
 
 const styles = StyleSheet.create({
-  // Above the body after it, so a button's name hangs over the code header.
-  pager: { flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-start", zIndex: 1 },
-  pagerLabel: { fontSize: TYPE.caption.size, minWidth: 36, textAlign: "center", fontVariant: ["tabular-nums"] },
   previewActions: {
     flexDirection: "row",
     justifyContent: "flex-end",
@@ -670,6 +650,8 @@ interface ToolBodyProps {
   /** `filePath` relative to the workspace. */
   displayPath?: string;
   preview?: boolean;
+  /** Keeps the existing tool body for the raw-data view. */
+  raw?: boolean;
   /** Opens the full-screen viewer for an image drawn in a preview panel. */
   onViewImage?: () => void;
 }
@@ -768,9 +750,14 @@ function PreviewError({ text, tokens }: { text: string; tokens: ExtendedThemeTok
   return <PreviewLines text={text} lines={lines} style={style} tokens={tokens} />;
 }
 
-function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, preview = false, onViewImage }: ToolBodyProps) {
+function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, preview = false, raw = false, onViewImage }: ToolBodyProps) {
   const styles = useBodyStyles(tokens, compact);
   const isRunning = data.status === "running";
+  const questions = useMemo(() => raw ? undefined : readUserQuestions(data), [data, raw]);
+  if (questions) {
+    return <UserQuestions key={data.callId ?? data.id} questions={questions} tokens={tokens}
+      rawBody={<ToolBody data={data} tokens={tokens} compact={compact} preview={preview} raw />} />;
+  }
 
   // Every branch below needs a payload. A tool that carries none — a hub op
   // with no parsed record — would otherwise draw an empty panel, so the raw
