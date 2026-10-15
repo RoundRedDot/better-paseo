@@ -252,8 +252,9 @@ call: reads, writes, edits, shell and Git commands, searches, fetches, sub-agent
 Paseo's own tools. Calls Paseo passes as plain text get a label-and-text card.
 
 Oh My Pi's `hub` tool and its GitHub device calls are matched by name and have cards of their
-own; no other agent sends them. Paseo 0.11 hands Oh My Pi's `eval` and `ask` to plugins as plain
-text and its `task` as a sub-agent item, so those get the plain-text and sub-agent cards.
+own; no other agent sends them. On Paseo 0.11, Oh My Pi's `eval` and `ask` calls reach plugins as
+plain text and `task` arrives as a sub-agent item. If `ask` also carries structured `questions`
+data, it gets a question transcript; otherwise it stays a generic text card.
 
 - Every call starts as one borderless row, 26pt on desktop and 28pt on touch, with a summary built
   for its type: the command, the path and line range, `+4 −2` for an edit, the exit code and
@@ -269,6 +270,10 @@ text and its `task` as a sub-agent item, so those get the plain-text and sub-age
 - Paseo's own tools carry the Paseo mark, and a created agent its provider's mark.
 - Every op of Oh My Pi's `hub` tool has a card: processes, messages and job snapshots. The cards
   report; they carry no buttons, since a plugin cannot restart or cancel anything.
+- Across agents, recognized question calls with structured `questions` data render as paginated
+  transcripts with choices, recorded answers and status. **Show raw data** reveals the payload;
+  the transcript is read-only, and Paseo still handles answers. Questions stay wrapped in previews
+  for readability.
 
 | Shell and Git | Read |
 | --- | --- |
@@ -303,13 +308,20 @@ text and its `task` as a sub-agent item, so those get the plain-text and sub-age
 
 - Markdown is drawn by the plugin with headings, lists, task lists, quotes, highlighted code blocks
   and local images. Three styles: **Document**, **Compact** and **Terminal**.
+- Unlabelled, Markdown and plain-text code fences can open a maximized preview window. Switch
+  between rendered Markdown and raw text, copy the source, and use **Wrap lines** in raw-text mode.
 - Tables have column rules, a header fill and a rounded frame; cells are a size smaller with tighter
   lines, and column widths account for tabular digits and CJK width.
 - Every table has a copy control at its top-left corner. On web and desktop, hovering it (or a
   long press on a touch screen) opens **Copy as Markdown** and **Copy as image**, a picture of the
   table as drawn; a plain press copies the Markdown. On iOS and Android it copies the Markdown.
-- On web and desktop, double-click a cell to select its text. On iOS, double-tap a cell to select
-  it, then use the table's corner control to copy the selected cell text.
+- On web and desktop, double-click a cell to select its text. On iOS and Android, double-tap a cell;
+  the corner menu always offers **Copy selected** and offers **Add to chat** when Paseo provides its
+  composer capability.
+- Each completed turn has a separate footer under its final reply with Copy and its time, plus the
+  provider mark, model, thinking level and observed duration when available. The model name copies
+  when pressed, and completed-turn footers remain during a later run. Turn
+  **Plugin markdown for replies** off to restore Paseo's full footer, including its Fork action.
 - Every local image in a reply is drawn, not only the first.
 - Turn **Plugin markdown for replies** off to hand replies back to Paseo, which draws mermaid
   diagrams and its own images and file links.
@@ -342,7 +354,8 @@ phone, long-press a collapsed row to open the same preview without covering the 
   desktop, long press on touch, or the `⋯` menu. Plain-text code blocks can wrap and have a copy
   button. On iOS a long press in a reply places a cursor and lets you drag a selection.
 - Selecting text in a card on web or desktop raises **Copy** and **Add to chat**, which quotes the
-  selection in the composer, fenced when it came from code.
+  selection in the composer, fenced when it came from code. The bar closes on scroll; if no composer
+  is visible, **Add to chat** copies the selection instead.
 
 ### Prompt bubble
 
@@ -391,12 +404,12 @@ Options whose parent is off are dimmed, and **Reset** asks for a second press.
 | Spacing | Tight rows | On | Reduces the gap under a plugin row from 16pt to 4pt when another row follows. Rows Paseo already stacks are left alone. Turn off if rows overlap. |
 | Spacing | Tight reply | On | Reduces the gap from 16pt to 4pt when a finished reply is followed by a plugin row, including a checklist. Turn off if they overlap. |
 | Messages | Enhanced prompt bubble | Off | Shows the turn's token usage and keeps Copy visible. Readable pasted images are drawn; prompts with other attachments stay with Paseo. Changing it updates existing prompts too. Rewind stays wherever Paseo provides it. |
-| Messages | Plugin markdown for replies | On | Off hands replies to Paseo, for mermaid, host images and Paseo's file links. |
+| Messages | Plugin markdown for replies | On | Off hands replies to Paseo, restoring its full footer and enabling mermaid, host images and Paseo's file links. |
 | Messages | Markdown style | Document | Document, Compact or Terminal (body in the code font). |
-| Messages | Selection toolbar | On | Web and desktop: Copy and Add to chat on selected text. |
+| Messages | Selection toolbar | On | Web and desktop: Copy and Add to chat on selected text; the bar closes on scroll. |
 | Hover previews | Hover previews | On | Preview collapsed rows and paths on desktop hover; long-press a collapsed row on a phone. |
 | Hover previews | Delay | 1 s | 0–10 s, saved to tenths of a second, before the desktop preview opens. |
-| Hover previews | Wrap lines | On | Wrap long lines in preview panels; turn off to scroll them horizontally. |
+| Hover previews | Wrap lines | On | Wrap long lines in preview panels, including raw text in maximized code previews; turn off to scroll horizontally. |
 | Hover previews | Line numbers | Off | Show line numbers beside files, diffs and command output; diffs use the file's own line numbers. |
 | Hover previews | Alternating line shading | On | Shade every other line in preview panels. |
 
@@ -419,7 +432,8 @@ sets the call's initial state.
 
 Paseo's chat find (Ctrl/Cmd+F) cannot reveal a row a plugin draws, because the transformed row
 carries a different id. Better Paseo therefore takes Ctrl/Cmd+F on desktop and web and opens its own
-find bar over the chat. It searches everything rendered, including tool cards: Enter for the next
+find bar over the chat. It searches everything rendered, including tool cards and structured
+question transcripts: Enter for the next
 match, Shift+Enter for the previous, Escape to close. It only sees loaded messages; scroll up to
 include older history.
 
@@ -442,6 +456,7 @@ open the daemon machine's file manager.
 | --- | --- |
 | Rows overlap, or a reply overlaps the row below | Turn off **Tight rows** or **Tight reply**. |
 | A reply needs a mermaid diagram, a host image or Paseo's file links | Turn off **Plugin markdown for replies**. |
+| A selected table cell has no **Add to chat** action on a phone | Paseo must provide its optional composer capability; **Copy selected** is always available. |
 | A prompt with an attachment should use Paseo's renderer | Turn off **Enhanced prompt bubble**. Attachments the plugin cannot render stay with Paseo automatically. |
 | Ctrl/Cmd+F misses old messages | Scroll up to load them, or hand replies back to Paseo as above. |
 | Token figures are missing on an old turn | Usage is not stored on timeline items, so only turns this client watched live show it. |
@@ -452,11 +467,11 @@ open the daemon machine's file manager.
 Better Paseo targets Paseo 0.11 and later. It installs and draws the timeline on Paseo 0.8–0.10,
 with these known issues:
 
-- Oh My Pi's `eval` and `ask` calls reach plugins under their own names there, not as the plain
-  text Paseo 0.11 sends, and Better Paseo has no card for them. They show as a generic card: the
-  tool name, its raw arguments and its raw result.
-- Where a host ability is missing, the plugin falls back as described under
-  [Waiting on Paseo](#waiting-on-paseo); the fallbacks were measured on 0.11.2 only.
+- Oh My Pi's `eval` and `ask` calls reach plugins under their own names there, not through Paseo
+  0.11's plain-text mapping. `eval` stays generic; `ask` gets a question transcript only when its
+  input contains a structured `questions` array, and otherwise stays generic too.
+- Some features depend on host abilities; see [Waiting on Paseo](#waiting-on-paseo). Host capability
+  checks have been verified with 0.11.2.
 
 ## Waiting on Paseo
 
@@ -467,6 +482,8 @@ absent. These host changes are verified in a Paseo fork but not yet released:
   **Tight rows** reduces the gap from 16pt to 4pt where applicable.
 - Paseo sharing its font settings with plugins, so a change in Appearance applies live. Until then
   web and desktop read Paseo's locally stored Appearance settings.
+- An optional composer capability for touch table selection, so **Add to chat** can be offered
+  beside **Copy selected**. Until then, the corner menu still copies the selected cell.
 - Lowering `class` syntax before the bundle runs on Hermes.
 - A sticky current prompt and sticky headers on open cards; the plugin side is wired up.
 
