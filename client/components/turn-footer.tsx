@@ -137,7 +137,7 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
       </View>
       {durationMs != null ? (
         <View style={styles.metadata} accessibilityLabel={`Elapsed time: ${formatDuration(durationMs)}`}>
-          <Icon name="Timer" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+          <Icon name="Hourglass" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
           <Text style={styles.time}>{formatDuration(durationMs)}</Text>
         </View>
       ) : null}
