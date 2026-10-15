@@ -137,7 +137,7 @@ const en = {
   rowLabelsLabel: "Label",
   rowLabelsBoth: "Both",
   toolDetailTitle: "Open failed calls",
-  toolDetailDescription: "Calls start as one row. On, a failed call opens to show its error.",
+  toolDetailDescription: "On, a failed call opens to show its error. A call you opened or closed yourself keeps your choice.",
   pathsTitle: "File paths",
   pathsDescription:
     "Relative paths start at the workspace; a worktree's main repository is shown by name. Copying always gives the absolute path.",
@@ -147,15 +147,15 @@ const en = {
   sectionSpacing: "Spacing",
   rowSpacingTitle: "Tight rows",
   rowSpacingDescription:
-    "Closes the gap between tool and thought rows from 16pt to 4pt, as Paseo spaces its own tool rows. Turn it off if rows overlap.",
+    "Reduces the gap under a plugin row from 16pt to 4pt when another row follows. Rows Paseo already stacks are left alone. Turn it off if rows overlap.",
   replySpacingTitle: "Tight reply",
   replySpacingDescription:
-    "Closes the gap between a reply and the tool or thought row under it from 16pt to 4pt. Turn it off if a reply overlaps the row below.",
+    "Reduces the gap from 16pt to 4pt when a finished reply is followed by a plugin row, including a checklist. Turn it off if they overlap.",
 
   sectionMessages: "Messages",
   bubbleTitle: "Enhanced prompt bubble",
   bubbleDescription:
-    "Shows the turn's token usage and keeps Copy visible. It cannot show pasted images; rewind stays wherever this Paseo provides it. Applies to prompts sent after the change.",
+    "Shows the turn's token usage and keeps Copy visible. Pasted images it can read are drawn; prompts with other attachments stay with Paseo. Changing it updates existing prompts too. Rewind stays wherever this Paseo provides it.",
   markdownTitle: "Plugin markdown for replies",
   markdownDescription:
     "Headings, lists and highlighted code blocks drawn by the plugin. It has no mermaid diagrams, images or Paseo's file-path links; turn it off when a reply needs them.",
@@ -290,7 +290,7 @@ const zh: SettingsStrings = {
   rowLabelsLabel: "名称",
   rowLabelsBoth: "两者",
   toolDetailTitle: "自动展开失败的调用",
-  toolDetailDescription: "工具调用默认折叠为一行。开启后，失败的调用会自动展开，直接显示错误。",
+  toolDetailDescription: "开启后，失败的调用会自动展开并显示错误；你手动展开或折叠过的调用保持原样。",
   pathsTitle: "文件路径",
   pathsDescription: "相对路径从工作区算起，worktree 的主仓库以名称显示。复制时总是得到绝对路径。",
   pathsRelative: "相对",
@@ -298,13 +298,13 @@ const zh: SettingsStrings = {
 
   sectionSpacing: "间距",
   rowSpacingTitle: "紧凑行距",
-  rowSpacingDescription: "工具行、思考行之间的空隙从 16pt 收紧到 4pt，与 Paseo 自己的工具行一致。行与行重叠时请关闭。",
+  rowSpacingDescription: "插件行后面还有一行时，下方间距从 16pt 缩到 4pt；Paseo 已经把插件行紧挨着排好时，不再额外收紧。行间重叠时请关闭。",
   replySpacingTitle: "紧凑回复间距",
-  replySpacingDescription: "回复与下方紧跟的工具行、思考行之间从 16pt 收紧到 4pt。回复与下一行重叠时请关闭。",
+  replySpacingDescription: "已完成的回复后紧跟插件行（包括待办行）时，把间距从 16pt 缩到 4pt。重叠时请关闭。",
 
   sectionMessages: "消息",
   bubbleTitle: "增强提问气泡",
-  bubbleDescription: "显示本轮 token 用量，复制按钮常驻。代价是看不到粘贴的图片；回退菜单在 Paseo 支持时保留。只对之后发送的消息生效。",
+  bubbleDescription: "显示本轮 token 用量，复制按钮常驻；能读取的粘贴图片会一并显示，其他附件仍交给 Paseo。切换后已有的提问也会更新。回退菜单按当前 Paseo 提供的方式显示。",
   markdownTitle: "回复使用插件 Markdown",
   markdownDescription: "由插件绘制标题、列表和语法高亮代码块。不支持 mermaid 图表、图片和 Paseo 的文件路径链接，需要时请关闭。",
   markdownStyleTitle: "Markdown 样式",
