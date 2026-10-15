@@ -54,9 +54,8 @@ export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, 
     ["Cached tokens", "Database", usage?.cachedInputTokens],
     ["Output tokens", "ArrowUpFromLine", usage?.outputTokens],
   ] as const) {
-    rows.push({ label, icon, value: typeof count === "number" && Number.isFinite(count) && count >= 0
-      ? count.toLocaleString(resolveLanguage(language) === "zh" ? "zh-CN" : "en-US")
-      : toolbarLabel("Not recorded", language) });
+    if (typeof count !== "number" || !Number.isFinite(count) || count < 0) continue;
+    rows.push({ label, icon, value: count.toLocaleString(resolveLanguage(language) === "zh" ? "zh-CN" : "en-US") });
   }
   const textStyle = [styles.text, unselectable, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }];
   return (
