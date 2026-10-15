@@ -121,7 +121,13 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
           hitSlop={compact ? (44 - FOOTER_HEIGHT) / 2 : 0}
           style={({ pressed }) => [styles.metadata, styles.modelButton, pressed && { backgroundColor: tokens.v2.surface2 }]}
         >
-          {agentName ? <ProviderLogo provider={agentName} size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} /> : null}
+          {modelCopy.copied ? (
+            <Icon name="Check" size={DISCLOSURE_HEADER.icon} color={tokens.success} />
+          ) : agentName ? (
+            <ProviderLogo provider={agentName} size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+          ) : (
+            <Icon name="Copy" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+          )}
           <Text style={styles.time}>{modelName}</Text>
         </Pressable>
       ) : null}
