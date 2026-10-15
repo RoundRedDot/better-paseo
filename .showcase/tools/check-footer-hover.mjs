@@ -127,6 +127,20 @@ try {
     await page.getByRole("button", { name: "Copy reply", exact: true }).click();
     await page.getByRole("button", { name: "Copy model name", exact: true }).click();
     await checkSpacing(page);
+    const row = await page.getByTestId("footer-toolbar").boundingBox();
+    await page.mouse.move(row.x + 8, row.y + 8);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    const center = page.getByTestId("footer-details-center");
+    await center.waitFor({ state: "visible" });
+    const frame = await page.getByTestId("toolbar-details-frame").boundingBox();
+    assert(Math.abs(frame.x + frame.width / 2 - width / 2) < 1);
+    assert(Math.abs(frame.y + frame.height / 2 - 844 / 2) < 1);
+    assert.equal(await page.getByRole("button", { name: "Previous reply", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Next reply", exact: true }).count(), 0);
+    await page.keyboard.press("Escape");
+    await center.waitFor({ state: "hidden" });
     await page.close();
     console.log(`${width}px compact: 14px icons, 4px label gaps, 8px item gaps and wrapped alignment OK`);
   }

@@ -188,36 +188,26 @@ describe("assistant footer", () => {
     } finally { act(() => renderer.unmount()); }
   });
 
-  it.each(["ios", "android"])("anchors the long-press panel to the model on %s", (platform) => {
+  it.each(["ios", "android", "web"])("centers long-press details independently of the pressed position on %s", (platform) => {
     const globals = globalThis as { __rnMockOS?: string };
     const previousPlatform = globals.__rnMockOS;
     globals.__rnMockOS = platform;
-    let anchor = { x: 60, y: 600, width: 160, height: 24 };
-    const stage = { x: 0, y: 44, width: 390, height: 760 };
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
       text, at, tokens, compact: true, modelName: "Opus 5.5", thinkingLabel: "High",
-    }), { createNodeMock: (element) => ({
-      measureInWindow(callback: (x: number, y: number, width: number, height: number) => void) {
-        const box = (element.props as { testID?: string }).testID === "toolbar-details-stage" ? stage : anchor;
-        callback(box.x, box.y, box.width, box.height);
-      },
-    }) }); });
+    })); });
     try {
       const trigger = renderer.root.findAllByType("Pressable" as never)
         .find((node) => node.props.accessibilityLabel === "Copy model name")!;
       act(() => { trigger.props.onLongPress(); });
+      const center = renderer.root.findAllByType("View" as never)
+        .find((node) => node.props.testID === "footer-details-center")!;
+      expect(StyleSheet.flatten(center.props.style)).toMatchObject({ alignItems: "center", justifyContent: "center" });
+      expect(renderer.root.findByType("Modal" as never).props.animationType).toBe("none");
       const panel = renderer.root.findAllByType("View" as never)
         .find((node) => node.props.testID === "toolbar-details-panel")!;
-      expect(StyleSheet.flatten(panel.props.style).opacity).toBe(0);
-      act(() => { renderer.root.findByType("Modal" as never).props.onShow(); });
-      act(() => { panel.props.onLayout({ nativeEvent: { layout: { width: 374, height: 90 } } }); });
-      expect(StyleSheet.flatten(panel.props.style)).toMatchObject({ left: 8, top: 462, opacity: 1 });
-      anchor = { x: 330, y: 60, width: 40, height: 24 };
-      const stageView = renderer.root.findAllByType("View" as never)
-        .find((node) => node.props.testID === "toolbar-details-stage")!;
-      act(() => { stageView.props.onLayout(); });
-      expect(StyleSheet.flatten(panel.props.style)).toMatchObject({ left: 8, top: 44 });
+      expect(StyleSheet.flatten(panel.props.style)).not.toHaveProperty("top");
+      expect(StyleSheet.flatten(panel.props.style)).not.toHaveProperty("left");
       expect(clipboard.copyText).not.toHaveBeenCalled();
     } finally {
       act(() => renderer.unmount());
