@@ -171,6 +171,25 @@ describe("a tapped task title", () => {
   });
 });
 
+describe("the header's progress mark", () => {
+  function progress(root: Node) {
+    const ring = root.findAll((node) => (node.type as unknown) === "View" && node.props.accessibilityRole === "progressbar");
+    const checks = root.findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "CircleCheck");
+    return { ring: ring.length, checks: checks.map((node) => node.props.color) };
+  }
+
+  it("is a ring while tasks remain", () => {
+    const root = mount(React.createElement(TaskList, { data, tokens })).root;
+    expect(progress(root)).toEqual({ ring: 1, checks: [] });
+  });
+
+  it("turns into a checked circle once every task is done, beside the header's own", () => {
+    const done = { ...data, tasks: data.tasks.map((task) => ({ ...task, status: "completed" as const })) };
+    const root = mount(React.createElement(TaskList, { data: done, tokens })).root;
+    expect(progress(root)).toEqual({ ring: 0, checks: [tokens.success, tokens.success] });
+  });
+});
+
 describe("the checklist's floating panel", () => {
   it("draws every task in full under a 'Tasks n/m' title bar", () => {
     const root = mount(React.createElement(TaskListPreview, { data, tokens })).root;
