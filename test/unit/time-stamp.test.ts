@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatStamp, formatFooterStamp, formatDuration } from "../../client/ui/time";
+import { formatStamp, formatFooterStamp, formatFullStamp, formatDuration } from "../../client/ui/time";
+
+it("always includes the full local date in timestamp hints", () => {
+  expect(formatFullStamp(new Date(2026, 9, 15, 3, 4, 5))).toBe("2026-10-15 03:04:05");
+  expect(formatFullStamp(new Date(2025, 0, 2, 0, 0, 0))).toBe("2025-01-02 00:00:00");
+});
 
 it("formats footer dates in local time with seconds and zero padding across years", () => {
   const now = new Date(2026, 9, 15, 15, 30);
