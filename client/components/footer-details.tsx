@@ -1,5 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { Icon } from "@getpaseo/plugin/client/react-native";
+import { ProviderLogo } from "./provider-logo";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
@@ -21,8 +23,8 @@ export interface FooterDetailsProps {
 
 /** The label column fits the longest label: four CJK characters, or "Thinking level". */
 const LABEL_WIDTH = { zh: 72, en: 104 } as const;
-/** Room for a full timestamp and its copy action. */
-const VALUE_WIDTH = 192;
+/** Room for a toolbar icon, full timestamp and copy action. */
+const VALUE_WIDTH = 210;
 
 function labelWidth(language: SettingsLanguagePreference): number {
   return resolveLanguage(language) === "zh" ? LABEL_WIDTH.zh : LABEL_WIDTH.en;
@@ -34,17 +36,16 @@ export function useFooterDetailsWidth(): number {
 }
 
 /**
- * Two columns: a plain label, then its value with an inline copy action. The
- * icons stay on the toolbar, beside the values they mark.
+ * Two columns: a plain label, then its toolbar icon, value and inline copy action.
  */
 export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, durationMs, tokens }: FooterDetailsProps) {
   const { language } = useEnhancerPreferences();
-  const rows: Array<{ label: string; value: string; copyLabel?: string }> = [];
-  if (agentName) rows.push({ label: "Agent", value: agentName, copyLabel: "Copy agent" });
-  if (modelName) rows.push({ label: "Model name", value: modelName, copyLabel: "Copy model name" });
-  if (thinkingLabel) rows.push({ label: "Thinking level", value: thinkingLabel, copyLabel: "Copy thinking level" });
-  if (startedAt != null) rows.push({ label: "Start time", value: formatFullStamp(new Date(startedAt)), copyLabel: "Copy start time" });
-  if (durationMs != null) rows.push({ label: "Elapsed time", value: formatDuration(durationMs) });
+  const rows: Array<{ label: string; icon: string; provider?: string | null; value: string; copyLabel?: string }> = [];
+  if (agentName) rows.push({ label: "Agent", icon: "Bot", provider: agentName, value: agentName, copyLabel: "Copy agent" });
+  if (modelName) rows.push({ label: "Model name", icon: "Copy", provider: agentName, value: modelName, copyLabel: "Copy model name" });
+  if (thinkingLabel) rows.push({ label: "Thinking level", icon: "Brain", value: thinkingLabel, copyLabel: "Copy thinking level" });
+  if (startedAt != null) rows.push({ label: "Start time", icon: "Clock", value: formatFullStamp(new Date(startedAt)), copyLabel: "Copy start time" });
+  if (durationMs != null) rows.push({ label: "Elapsed time", icon: "Hourglass", value: formatDuration(durationMs) });
   const textStyle = [styles.text, unselectable, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }];
   return (
     <View testID="footer-details-table">
@@ -55,6 +56,11 @@ export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, 
             <Text style={textStyle}>{toolbarLabel(row.label, language)}</Text>
           </View>
           <View style={styles.value}>
+            <View testID="footer-value-icon" style={styles.icon}>
+              {row.provider
+                ? <ProviderLogo provider={row.provider} size={14} color={tokens.foregroundMuted} />
+                : <Icon name={row.icon} size={14} color={tokens.foregroundMuted} />}
+            </View>
             <Text style={[textStyle, { color: tokens.foreground }]}>{row.value}</Text>
             {row.copyLabel ? <CopyButton text={row.value} label={row.copyLabel} tokens={tokens} /> : null}
           </View>
@@ -71,5 +77,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 4, borderRightWidth: StyleSheet.hairlineWidth },
   value: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 8, paddingVertical: 4 },
+  icon: { width: 14, height: 14, flexShrink: 0, alignItems: "center", justifyContent: "center" },
   text: { fontSize: TYPE.button.size, lineHeight: TYPE.button.lineHeight, flexShrink: 1 },
 });
