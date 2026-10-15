@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, type GestureResponderEvent, type ViewProps } from "react-native";
 import { useScrollDismiss } from "../../../ui/scroll-anchor";
 
@@ -8,12 +8,15 @@ const MOVE_SLOP = 8;
 
 interface Tap { key: string; time: number; x: number; y: number }
 
-/** iOS plugins cannot set a native Text selection; use the table's own range and Copy menu. */
+/** Shared cell state; iOS recognises double taps here and web binds double clicks. */
 export function useTableTouchSelection(source: string) {
   const [selected, setSelected] = useState<{ key: string; text: string } | null>(null);
   const started = useRef<Tap | null>(null);
   const previous = useRef<Tap | null>(null);
-  const dismiss = () => setSelected(null);
+  const dismiss = useCallback(() => setSelected(null), []);
+  const select = useCallback((key: string, text: string) => {
+    if (text) setSelected({ key, text });
+  }, []);
   useScrollDismiss(selected !== null, dismiss);
   const cancel = () => { started.current = null; previous.current = null; };
   useEffect(() => { cancel(); dismiss(); }, [source]);
@@ -43,9 +46,9 @@ export function useTableTouchSelection(source: string) {
       if (last?.key === key && end.time - last.time <= DOUBLE_TAP_MS && near(last, end)) {
         previous.current = null;
         const text = content();
-        if (text) setSelected({ key, text });
+        select(key, text);
       } else previous.current = end;
     },
   };
-  return { selected, cellProps, dismiss };
+  return { selected, cellProps, dismiss, select };
 }

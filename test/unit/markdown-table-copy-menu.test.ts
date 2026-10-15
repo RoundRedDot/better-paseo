@@ -44,7 +44,7 @@ const { default: TestRenderer, act } = await import("react-test-renderer");
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
 const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
 const { getEnhancerPreferences, updateEnhancerPreferences } = await import("../../client/preferences");
-const { StyleSheet } = await import("./helpers/rn-mock");
+const { StyleSheet, Animated } = await import("./helpers/rn-mock");
 const { floatShadow } = await import("../../client/ui/tokens/float");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -153,6 +153,7 @@ afterEach(() => {
   toastShow.mockClear();
   toastError.mockClear();
   copyElementImage.mockReset();
+  vi.restoreAllMocks();
 });
 
 describe("Markdown table copy menu", () => {
@@ -167,6 +168,105 @@ describe("Markdown table copy menu", () => {
     act(() => renderer!.unmount());
     renderer = undefined;
     expect(frames[0]!.listeners.get("dblclick")?.size).toBe(0);
+  });
+
+  function doubleClick(index: number) {
+    const frame = nodes.find((node) => node.listeners.get("dblclick")?.size)!;
+    const props = renderer!.root.findAll((node) => String(node.type) === "Text"
+      && node.props.testID === "markdown-table-cell")[index]!.props;
+    const cell = { getAttribute: (name: string) => name === "data-table-cell-key"
+      ? props.dataSet.tableCellKey : props.dataSet.tableCellText };
+    frame.contains = (other) => other === cell;
+    const removeAllRanges = vi.fn();
+    Object.assign(frame.ownerDocument.defaultView, { getSelection: () => ({ removeAllRanges }) });
+    const event = {
+      target: { closest: () => cell },
+      button: 0, defaultPrevented: false, preventDefault: vi.fn(), stopPropagation: vi.fn(),
+    };
+    act(() => { for (const listener of frame.listeners.get("dblclick")!) listener(event); });
+    expect(removeAllRanges).toHaveBeenCalledOnce();
+    return cell;
+  }
+
+  const selectedCopy = () => entry("Copy selected cell");
+  const selectedCells = () => renderer!.root.findAll((node) => String(node.type) === "Text"
+    && node.props.testID === "markdown-table-cell"
+    && StyleSheet.flatten(node.props.style).backgroundColor === tokens.accentBg);
+
+  it.each([0, 2])("double-clicks cell %s with the native highlight and animated copy menu", async (index) => {
+    const runs: Array<{ toValue: number; duration: number }> = [];
+    vi.spyOn(Animated, "timing").mockImplementation((...args: unknown[]) => {
+      runs.push(args[1] as (typeof runs)[number]);
+      return { start() {}, stop() {}, reset() {} };
+    });
+    render("| Header words | B |\n| --- | --- |\n| **bold** and `code` | two |");
+    doubleClick(index);
+    expect(selectedCells()).toHaveLength(1);
+    expect(selectedCells()[0]!.props.dataSet.tableCellText).toBe(index === 0 ? "Header words" : "bold and code");
+    act(() => selectedCopy().props.onLayout({ nativeEvent: { layout: { width: 96 } } }));
+    expect(runs.at(-2)).toMatchObject({ toValue: 98, duration: 180 });
+    expect(runs.at(-1)).toMatchObject({ toValue: 1, duration: 140 });
+    await act(async () => selectedCopy().props.onPress());
+    expect(copyText).toHaveBeenCalledExactlyOnceWith(index === 0 ? "Header words" : "bold and code");
+    expect(selectedCells()).toHaveLength(0);
+    expect(runs.at(-2)).toMatchObject({ toValue: 30, duration: 160 });
+    expect(runs.at(-1)).toMatchObject({ toValue: 0, duration: 80 });
+  });
+
+  it("clears the highlight when the page scrolls or the reader clicks elsewhere", () => {
+    render();
+    doubleClick(2);
+    expect(selectedCells()).toHaveLength(1);
+    act(() => fire("window", "scroll"));
+    expect(selectedCells()).toHaveLength(0);
+    doubleClick(3);
+    expect(selectedCells()).toHaveLength(1);
+    act(() => fire("document", "pointerdown"));
+    expect(selectedCells()).toHaveLength(0);
+  });
+
+  it("keeps the selection when copying fails", async () => {
+    copyText.mockRejectedValueOnce(new Error("denied"));
+    render();
+    doubleClick(2);
+    await act(async () => selectedCopy().props.onPress());
+    expect(selectedCells()).toHaveLength(1);
+    expect(selectedCopy()).toBeDefined();
+    expect(toastError).toHaveBeenCalledExactlyOnceWith("复制失败");
+  });
+
+  it("copies with Cmd/Ctrl+C, leaves editable targets alone, and dismisses with Escape", async () => {
+    render();
+    doubleClick(2);
+    const keydown = async (key: string, metaKey = false, ctrlKey = false, editable = false) => {
+      const event = { key, metaKey, ctrlKey, altKey: false, defaultPrevented: false,
+        target: { closest: () => editable ? {} : null }, preventDefault: vi.fn() };
+      await act(async () => {
+        for (const node of nodes) {
+          for (const listener of [...(node.ownerDocument.listeners.get("keydown") ?? [])]) listener(event);
+        }
+      });
+      return event;
+    };
+    await keydown("c", true);
+    await keydown("c", false, true);
+    expect(copyText.mock.calls).toEqual([["one"], ["one"]]);
+    const editable = await keydown("c", true, false, true);
+    expect(copyText).toHaveBeenCalledTimes(2);
+    expect(editable.preventDefault).not.toHaveBeenCalled();
+    await keydown("Escape");
+    expect(selectedCells()).toHaveLength(0);
+    expect(nodes.every((node) => !node.ownerDocument.listeners.get("keydown")?.size)).toBe(true);
+  });
+
+  it("clears a selected cell when streaming changes the table source", () => {
+    render();
+    doubleClick(2);
+    act(() => renderer!.update(React.createElement(MarkdownView, {
+      text: SOURCE + "\n| three | four |", tokens, variant: "document",
+    })));
+    expect(selectedCells()).toHaveLength(0);
+    expect(selectedCopy()).toBeUndefined();
   });
 
   it("is a rounded square until hovered, then widens into a rounded rectangle of two named entries", () => {
