@@ -198,9 +198,11 @@ export function ToolbarItem({
       ) : open ? (
         <View pointerEvents={details ? "box-none" : "none"}
           style={[styles.tooltipSlot, side === "above" ? styles.above : styles.below, ALIGN[align],
-            details ? { width: detailsWidth } : null]}>
+            details ? { width: detailsWidth, marginTop: 0, marginBottom: 0 } : null]}>
           {details ? (
             <Pressable accessible={false} focusable={false}
+              // Padding keeps the visible gap inside the panel's hover target.
+              style={side === "above" ? styles.detailsAbove : styles.detailsBelow}
               onFocus={capabilities.hover ? () => setFocused(true) : undefined}
               onBlur={() => setFocused(false)}
               onHoverIn={() => setInsideDetails(true)} onHoverOut={() => setInsideDetails(false)}>
@@ -343,6 +345,8 @@ const styles = StyleSheet.create({
   },
   below: { top: "100%", marginTop: space.xs },
   above: { bottom: "100%", marginBottom: space.xs },
+  detailsAbove: { paddingBottom: space.xs },
+  detailsBelow: { paddingTop: space.xs },
   tooltip: {
     paddingHorizontal: 6,
     paddingVertical: 4,
