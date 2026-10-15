@@ -55,6 +55,8 @@ function NativeCopyMenu({ source, selected, tokens }: {
   const windowWidth = useWindowDimensions().width;
   const open = selected !== undefined;
   const [shown, setShown] = useState(open);
+  // Keep the underlying border hidden until the shrinking frame is removed.
+  const buttonHidden = open || shown;
   const [measured, setMeasured] = useState<number | null>(null);
   const width = useRef(new Animated.Value(FLOAT.control)).current;
   const reveal = useRef(new Animated.Value(0)).current;
@@ -87,8 +89,8 @@ function NativeCopyMenu({ source, selected, tokens }: {
   }, [open, shown, measured, reducedMotion, width, reveal]);
   return (
     <View testID="table-native-copy-slot" style={[styles.nativeSlot, { width: shown ? measured ?? FLOAT.control : FLOAT.control }]}>
-      <View pointerEvents={open ? "none" : "auto"} accessibilityElementsHidden={open}
-        style={{ opacity: open ? 0 : 1 }}>
+      <View pointerEvents={buttonHidden ? "none" : "auto"} accessibilityElementsHidden={buttonHidden}
+        style={{ opacity: buttonHidden ? 0 : 1 }}>
         <ToolbarCopyButton text={source} tokens={tokens} label="Copy Markdown table" align="start" outlined />
       </View>
       {shown ? (
