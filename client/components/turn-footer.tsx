@@ -95,6 +95,22 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
           paddingHorizontal: space.xs,
           paddingVertical: space.xs / 2,
         },
+        detailRow: {
+          minHeight: 44,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: space.sm,
+          paddingHorizontal: space.sm,
+          paddingVertical: space.sm,
+          borderRadius: radiusV2.block,
+        },
+        detailIcon: {
+          width: 20,
+          height: 20,
+          flexShrink: 0,
+          alignItems: "center",
+          justifyContent: "center",
+        },
         time: {
           fontFamily: tokens.fontUi,
           fontSize: TYPE.button.size,
@@ -140,16 +156,20 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
                 <Pressable accessibilityRole="button"
                   accessibilityLabel={modelCopy.copied ? "Model name copied" : "Copy model name"}
                   onPress={copyModel}
-                  style={({ pressed }) => [styles.metadata, styles.modelButton,
-                    { minHeight: 44, backgroundColor: pressed ? tokens.v2.surface2 : "transparent" }]}>
-                  <Icon name={modelCopy.copied ? "Check" : "Copy"} size={DISCLOSURE_HEADER.icon}
-                    color={modelCopy.copied ? tokens.success : tokens.foregroundMuted} />
+                  style={({ pressed }) => [styles.detailRow,
+                    { backgroundColor: pressed ? tokens.v2.surface2 : "transparent" }]}>
+                  <View style={styles.detailIcon}>
+                    <Icon name={modelCopy.copied ? "Check" : "Copy"} size={DISCLOSURE_HEADER.icon}
+                      color={modelCopy.copied ? tokens.success : tokens.foregroundMuted} />
+                  </View>
                   <Text style={[styles.time, { flexShrink: 1 }]}>{modelName}</Text>
                 </Pressable>
                 {thinkingLabel ? (
-                  <View accessibilityLabel={`Thinking level: ${thinkingLabel}`} style={styles.metadata}>
-                    <Icon name="Brain" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-                    <Text style={styles.time}>{toolbarLabel("Thinking level", language)}: {thinkingLabel}</Text>
+                  <View accessibilityLabel={`Thinking level: ${thinkingLabel}`} style={styles.detailRow}>
+                    <View style={styles.detailIcon}>
+                      <Icon name="Brain" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+                    </View>
+                    <Text style={[styles.time, { flexShrink: 1 }]}>{toolbarLabel("Thinking level", language)}: {thinkingLabel}</Text>
                   </View>
                 ) : null}
               </View>

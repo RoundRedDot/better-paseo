@@ -154,11 +154,10 @@ export function ToolbarItem({
       borderWidth: 1,
       boxShadow: floatShadow(tokens),
     } : null]}>
-      <Text selectable={false} numberOfLines={1}
+      {details ?? <Text selectable={false} numberOfLines={1}
         style={[styles.tooltipText, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
         {toolbarLabel(label, preferences.language)}
-      </Text>
-      {details}
+      </Text>}
     </View>
   );
   return (
