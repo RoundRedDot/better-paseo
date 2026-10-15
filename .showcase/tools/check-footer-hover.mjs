@@ -1,4 +1,4 @@
-// Real pointer regression: crossing the gap and hovering nested actions must keep details open.
+// Real layout and pointer regression for footer spacing and interactive details.
 // Run from the repository root: node .showcase/tools/check-footer-hover.mjs
 import { build } from "esbuild";
 import { chromium } from "playwright-core";
@@ -13,6 +13,28 @@ const show = path.join(root, ".showcase");
 const out = mkdtempSync(path.join(tmpdir(), "footer-hover-"));
 let browser;
 let server;
+
+async function checkSpacing(page) {
+  const items = await page.getByTestId("footer-toolbar").evaluate((toolbar) =>
+    [...toolbar.querySelectorAll('[role="button"], [role="img"]')].map((button) => {
+      const icon = button.children[0].getBoundingClientRect();
+      const text = button.children[1].getBoundingClientRect();
+      return { left: icon.left, top: icon.top, iconWidth: icon.width,
+        gap: text.left - icon.right, right: text.right };
+    }));
+  assert.equal(items.length, 4);
+  for (const [index, item] of items.entries()) {
+    assert.equal(item.iconWidth, 14);
+    assert.equal(item.gap, 4, "icon-to-text spacing");
+    const previous = items[index - 1];
+    if (previous && previous.top === item.top) {
+      assert.equal(item.left - previous.right, 8, "spacing between visible items");
+    } else {
+      assert.equal(item.left, items[0].left, "wrapped rows align with the text column");
+    }
+  }
+}
+
 try {
   await build({
     stdin: { contents: `
@@ -25,7 +47,7 @@ try {
         statusSuccess:"#198754", statusWarning:"#a36a00", statusDanger:"#d92d20"});
       createRoot(document.getElementById("root")).render(
         <div style={{ marginLeft: 80, marginTop: location.search.includes("below") ? 20 : 500 }}>
-          <AssistantFooter text="Reply" at={new Date(2026,9,15,21,3,25)} tokens={tokens}
+          <AssistantFooter text="Reply" at={new Date(2026,9,15,21,3,25)} tokens={tokens} compact={location.search.includes("compact")}
             agentName="claude" modelName="Opus 5.5" thinkingLabel="High" startedAt={new Date(2026,9,15,21,2,3).getTime()} durationMs={82000}
             usage={{ inputTokens: 123456, cachedInputTokens: 0, outputTokens: 6789 }}/>
         </div>);`, resolveDir: root, loader: "tsx" },
@@ -53,6 +75,7 @@ try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 844 } });
     await page.goto(`http://127.0.0.1:${server.address().port}/?${side}`);
     await page.waitForLoadState("networkidle");
+    await checkSpacing(page);
     const trigger = page.getByRole("button", { name: "Copy model name", exact: true });
     await trigger.hover();
     const table = page.getByTestId("footer-details-table");
@@ -92,8 +115,20 @@ try {
     assert(await table.isVisible(), `${side}: scrolling the details dismissed the panel`);
     await page.mouse.move(1100, 100);
     await table.waitFor({ state: "hidden" });
+    await checkSpacing(page);
     await page.close();
     console.log(`${side}: slow gap crossing, nested copy dwell, clicks, inner scroll and leave OK`);
+  }
+  for (const width of [390, 320]) {
+    const page = await browser.newPage({ viewport: { width, height: 844 }, hasTouch: true });
+    await page.goto(`http://127.0.0.1:${server.address().port}/?below&compact`);
+    await page.waitForLoadState("networkidle");
+    await checkSpacing(page);
+    await page.getByRole("button", { name: "Copy reply", exact: true }).click();
+    await page.getByRole("button", { name: "Copy model name", exact: true }).click();
+    await checkSpacing(page);
+    await page.close();
+    console.log(`${width}px compact: 14px icons, 4px label gaps, 8px item gaps and wrapped alignment OK`);
   }
 } finally {
   await browser?.close();
