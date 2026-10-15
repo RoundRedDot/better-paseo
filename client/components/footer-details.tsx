@@ -59,6 +59,7 @@ export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, 
       <View testID="footer-details-table" style={{ padding: TABLE_INSET }}>
         {rows.map((row, index) => (
           <View key={row.label} testID={`footer-detail-${row.label}`} style={[styles.row,
+            { backgroundColor: index % 2 === 0 ? tokens.surface0 : tokens.v2.surface1 },
             index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.v2.borderSubtle }]}>
             <View style={[styles.type, { width: labelWidth(language), borderRightColor: tokens.v2.borderSubtle }]}>
               <Text style={textStyle}>{toolbarLabel(row.label, language)}</Text>
@@ -82,7 +83,7 @@ export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, 
 const styles = StyleSheet.create({
   titlebar: { minHeight: 32, justifyContent: "center", paddingHorizontal: TABLE_INSET + 8,
     paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
-  title: { fontWeight: "500" },
+  title: { fontWeight: "500", textAlign: "center" },
   // 32: the copy button's 24pt box plus 4 above and below; its hitSlop keeps a 32pt target.
   row: { flexDirection: "row", alignItems: "stretch", minHeight: 32 },
   type: { flexShrink: 0, flexDirection: "row", alignItems: "center",
