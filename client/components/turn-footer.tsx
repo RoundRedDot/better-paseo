@@ -81,6 +81,10 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
           gap: space.xs,
           borderRadius: radiusV2.block,
         },
+        modelButton: {
+          paddingHorizontal: space.xs,
+          paddingVertical: space.xs / 2,
+        },
         time: {
           fontFamily: tokens.fontUi,
           fontSize: TYPE.button.size,
@@ -115,7 +119,7 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
           accessibilityLabel={modelCopy.copied ? "Model name copied" : "Copy model name"}
           onPress={() => void modelCopy.copy(modelName, { label: `Copy model name: ${modelName}` })}
           hitSlop={compact ? (44 - FOOTER_HEIGHT) / 2 : 0}
-          style={({ pressed }) => [styles.metadata, pressed && { backgroundColor: tokens.v2.surface2 }]}
+          style={({ pressed }) => [styles.metadata, styles.modelButton, pressed && { backgroundColor: tokens.v2.surface2 }]}
         >
           {agentName ? <ProviderLogo provider={agentName} size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} /> : null}
           <Text style={styles.time}>{modelName}</Text>
