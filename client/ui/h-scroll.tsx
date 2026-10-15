@@ -41,18 +41,28 @@ interface HScrollProps {
  * content overflows, so a table that fits costs the scroller alone.
  */
 export function HScroll({ tokens, children, style, contentContainerStyle, trackStyle, scrollEnabled, onScrollBeginDrag }: HScrollProps) {
-  const [viewport, setViewport] = useState(0);
-  const [content, setContent] = useState(0);
+  const [{ viewport, content }, setWidths] = useState(NO_WIDTHS);
   const scrollX = useRef(new Animated.Value(0)).current;
 
+  // A streamed table or code line widens the content with every chunk. Only
+  // a change the indicator shows is committed: while the content fits before
+  // and after, nothing drawn depends on the widths, so they are kept here.
+  const measured = useRef(NO_WIDTHS);
+  const drawn = useRef(NO_WIDTHS);
+  drawn.current = { viewport, content };
+  const report = useCallback((next: Widths) => {
+    measured.current = next;
+    const shown = drawn.current;
+    if (next.viewport === shown.viewport && next.content === shown.content) return;
+    if (!overflows(next) && !overflows(shown)) return;
+    setWidths(next);
+  }, []);
   const onLayout = useCallback((event: LayoutChangeEvent) => {
-    const width = Math.round(event.nativeEvent.layout.width);
-    setViewport((previous) => (previous === width ? previous : width));
-  }, []);
+    report({ ...measured.current, viewport: Math.round(event.nativeEvent.layout.width) });
+  }, [report]);
   const onContentSizeChange = useCallback((width: number) => {
-    const rounded = Math.round(width);
-    setContent((previous) => (previous === rounded ? previous : rounded));
-  }, []);
+    report({ ...measured.current, content: Math.round(width) });
+  }, [report]);
   const onScroll = useMemo(
     () =>
       Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
@@ -61,7 +71,7 @@ export function HScroll({ tokens, children, style, contentContainerStyle, trackS
     [scrollX],
   );
 
-  const overflow = viewport > 0 && content > viewport + 1;
+  const overflow = overflows({ viewport, content });
   const thumb = overflow ? Math.max(24, Math.round((viewport * viewport) / content)) : 0;
   // Offset 0..(content - viewport) maps to thumb 0..(viewport - thumb).
   const ratio = overflow ? (viewport - thumb) / (content - viewport) : 0;
@@ -107,6 +117,17 @@ export function HScroll({ tokens, children, style, contentContainerStyle, trackS
       ) : null}
     </View>
   );
+}
+
+interface Widths {
+  viewport: number;
+  content: number;
+}
+
+const NO_WIDTHS: Widths = { viewport: 0, content: 0 };
+
+function overflows({ viewport, content }: Widths): boolean {
+  return viewport > 0 && content > viewport + 1;
 }
 
 const styles = StyleSheet.create({
