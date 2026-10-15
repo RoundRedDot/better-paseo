@@ -8,7 +8,7 @@ import type { ExtendedThemeTokens } from "./theme-tokens";
 import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
 import { formatFooterStamp, formatDuration } from "../ui/time";
 import { TYPE } from "../ui/tokens/typography";
-import { normalizeProvider, ProviderLogo } from "./provider-logo";
+import { ProviderLogo } from "./provider-logo";
 
 /**
  * The host's own reply footer — copy, fork and the turn's time — is drawn by
@@ -37,7 +37,6 @@ interface AssistantFooterProps {
 }
 
 export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel, durationMs, tokens, compact = false }: AssistantFooterProps) {
-  const logoProvider = modelName && normalizeProvider(modelName) === "grok" ? "grok" : agentName;
   // The shared copy path (plan §3.8): a check for 1.2 s on success, a toast
   // on failure, and no timer left running after unmount.
   const { copied, copy } = useCopy();
@@ -118,7 +117,7 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
           hitSlop={compact ? (44 - FOOTER_HEIGHT) / 2 : 0}
           style={({ pressed }) => [styles.metadata, pressed && { backgroundColor: tokens.v2.surface2 }]}
         >
-          {logoProvider ? <ProviderLogo provider={logoProvider} size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} /> : null}
+          {agentName ? <ProviderLogo provider={agentName} size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} /> : null}
           <Text style={styles.time}>{modelName}</Text>
           {modelCopy.copied ? <Icon name="Check" size={DISCLOSURE_HEADER.icon} color={tokens.success} /> : null}
         </Pressable>
