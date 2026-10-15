@@ -16,6 +16,7 @@ import { useEnhancerPreferences } from "../../../preferences";
 import { toolbarLabel } from "../../../i18n/toolbar-strings";
 import { bindTouchDismiss, suppressTouchCallout } from "../../../web";
 import { ChatComposerContext, quoteCell } from "../../../ui/chat-composer";
+import { insertIntoComposer } from "../../selection-actions";
 
 export const COPY_MARKDOWN_LABEL = "Copy as Markdown";
 export const COPY_IMAGE_LABEL = "Copy as image";
@@ -138,13 +139,18 @@ function SelectionCopyMenu({ children, selected, tokens }: {
                   </Text>
                 </Animated.View>
               </Pressable>
-              {composer ? (
+              {Platform.OS === "web" || composer ? (
                 <Animated.View style={{ opacity: reveal,
                   transform: [{ translateX: reveal.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}>
                   <Pressable accessibilityRole="button" accessible={open} focusable={open}
                     accessibilityLabel={open ? "Add to chat" : undefined}
                     onPress={() => {
-                      if (selected && composer.appendText(quoteCell(selected.text))) selected.dismiss();
+                      if (!selected) return;
+                      const snippet = quoteCell(selected.text);
+                      const added = Platform.OS === "web"
+                        ? insertIntoComposer(snippet, anchorRef.current as unknown as Element | null)
+                        : composer!.appendText(snippet);
+                      if (added) selected.dismiss();
                     }}
                     style={({ pressed }) => [styles.selected, { backgroundColor: pressed ? floatPressed(tokens) : tokens.surface0 }]}>
                     <Icon name="MessageSquarePlus" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
