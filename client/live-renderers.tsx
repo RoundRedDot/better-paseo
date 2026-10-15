@@ -27,6 +27,7 @@ import { PreferenceSyncSlot } from "./state/preference-sync-slot";
 import { useIsLatestPrompt } from "./state/latest-prompt";
 import { useTurnFooter } from "./state/turn-footers";
 import { useFooterModel } from "./state/footer-model";
+import type { AssistantRowData } from "./assistant-transform";
 import { HOST_REWIND_MENU } from "./ui/host-rewind";
 import { publishHubSnapshot } from "./hub-activity";
 import { MarkdownView } from "./components/markdown/markdown-view";
@@ -425,11 +426,7 @@ const todoStyles = StyleSheet.create({
   anchor: { position: "absolute", top: 0, left: 0, right: 0 },
 });
 
-export interface LiveAssistantPayload {
-  text: string;
-  /** The host's phase for the item; absent from transformers before S2. */
-  phase?: string;
-}
+export interface LiveAssistantPayload extends AssistantRowData {}
 
 /**
  * Whether a streamed reply reveals at the host's own cadence
@@ -450,13 +447,46 @@ const ASSISTANT_REVEAL = { web: false, native: true } as const;
  * images, its own file-path links — so `assistantMarkdown` exists to hand the
  * turn back when a reply needs any of that.
  */
-function LiveAssistantRendererBody({
+function LiveAssistantRendererBody(props: PluginTimelineItemProps<LiveAssistantPayload>) {
+  return props.item.data.blockIndex !== undefined && props.item.data.messageText === undefined
+    ? <AssistantBlockRenderer {...props} /> : <LiveAssistantMessageRenderer {...props} />;
+}
+
+/** Interior blocks have no message footer, tail registration or timing reads. */
+function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp }: PluginTimelineItemProps<LiveAssistantPayload>) {
+  const preferences = useEnhancerPreferences();
+  const tokens = useThemeTokens(theme, preferences, layout.platform);
+  useSelectionActions(tokens, preferences.selectionActions);
+  const revealPath = useRpc(revealPathRpc);
+  const cwd = useAgent(agentId, (agent) => agent.cwd);
+  const onRevealPath = useCallback((path: string) => {
+    void revealPath({ cwd: cwd ?? "", path }).catch(() => {});
+  }, [cwd, revealPath]);
+  const probe = probeCard("assistant", textItemKey("assistant", item.data.text), false);
+  return <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}
+    style={assistantBlockStyles.continuation}>
+    {probe.node}
+    <PreferenceSyncSlot />
+    <MarkdownView text={item.data.text} tokens={tokens} variant={preferences.markdownVariant}
+      compact={layout.compact} firstBlock={item.data.blockIndex === 0} onRevealPath={onRevealPath}
+      listContinuation={item.data.listContinuation}
+      probeId={`assistant:${timestamp.getTime()}:${item.data.blockIndex}`} />
+  </View>;
+}
+
+const assistantBlockStyles = StyleSheet.create({
+  // The next block supplies the Markdown gap; cancel the host's item gap.
+  continuation: { marginBottom: -16 },
+});
+
+function LiveAssistantMessageRenderer({
   agentId,
   item,
   theme,
   layout,
   timestamp,
 }: PluginTimelineItemProps<LiveAssistantPayload>) {
+  const messageText = item.data.messageText ?? item.data.text;
   const streaming = item.data.phase === "streaming";
   const probe = probeCard(
     "assistant",
@@ -469,14 +499,14 @@ function LiveAssistantRendererBody({
 
   // The jobs hub still follows the conversation tail. Completed-turn footers
   // are independent: each turn keeps one under its last model reply.
-  const itemKey = useTextItemTailKey(agentId, "assistant", timestamp.getTime(), item.data.text);
+  const itemKey = useTextItemTailKey(agentId, "assistant", timestamp.getTime(), messageText);
 
   // Paseo's own reply sits 16pt above the tool row that follows it (its 12pt
   // padding plus a 4pt gap), the same 16pt the host hangs under a plugin item.
   // `compactReplySpacing` takes 12 of it back when a row is next, as a tool
   // row does. Above a prompt or another reply the 16 stays.
   const rootRef = useRef<View>(null);
-  useTimelineEntry(agentId, timestamp.getTime(), "reply", streaming ? undefined : `reply:${item.data.text}`, rootRef);
+  useTimelineEntry(agentId, timestamp.getTime(), "reply", streaming ? undefined : `reply:${messageText}`, rootRef);
   const rowBelow = useNextEntryIsRow(agentId, timestamp.getTime(), "reply");
 
   // Job results, IRC relays and reminders arrive as replies because the host
@@ -519,6 +549,8 @@ function LiveAssistantRendererBody({
       ) : (
         <MarkdownView
           text={revealed}
+          firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0}
+          listContinuation={item.data.listContinuation}
           tokens={tokens}
           variant={preferences.markdownVariant}
           compact={layout.compact}
@@ -532,7 +564,7 @@ function LiveAssistantRendererBody({
       {!envelope ? (
         <TurnFooter
           agentId={agentId}
-          text={item.data.text}
+          text={messageText}
           at={timestamp}
           tokens={tokens}
           compact={layout.compact}

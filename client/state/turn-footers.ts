@@ -19,21 +19,38 @@ export function createTurnFooterStore(source: () => Timeline) {
   let generation = 0;
   let dirty = false;
   let pending: Promise<void> | null = null;
+  const coverage = new WeakMap<Entry[], Map<number, Map<string, boolean>>>();
   const publish = () => { for (const listener of listeners) listener(); };
   const get = (at: number, text: string) => footers.get(at)?.get(text) ?? null;
 
   function needsOlder(items: Entry[]): boolean {
+    let indexed = coverage.get(items);
+    if (!indexed) {
+      indexed = new Map();
+      let start = 0;
+      for (let index = 0; index < items.length; index++) {
+        if (index > 0 && !continuesTurn(items[index - 1]!, items[index]!)) start = index;
+        const entry = items[index]!;
+        if (entry.item.type !== "assistant_message") continue;
+        const at = Date.parse(entry.timestamp);
+        let texts = indexed.get(at);
+        if (!texts) indexed.set(at, texts = new Map());
+        // Match the first source occurrence, as the original findIndex did.
+        if (!texts.has(entry.item.text)) texts.set(entry.item.text,
+          start > 0 || items[0]!.item.type === "user_message");
+      }
+      coverage.set(items, indexed);
+    }
+    const lastAt = items.length ? Date.parse(items[items.length - 1]!.timestamp) : NaN;
     for (const target of targets) {
-      let index = items.findIndex((entry) => entry.item.type === "assistant_message" &&
-        entry.item.text === target.text && Date.parse(entry.timestamp) === target.at);
-      if (index < 0) {
+      const complete = indexed.get(target.at)?.get(target.text);
+      if (complete === undefined) {
         // New replies in the active turn wait for its terminal event. They
         // must not fetch history again for each intermediate model message.
-        if (running && items.length && target.at >= Date.parse(items[items.length - 1]!.timestamp)) continue;
+        if (running && target.at >= lastAt) continue;
         return true;
       }
-      while (index > 0 && continuesTurn(items[index - 1]!, items[index]!)) index--;
-      if (index === 0 && items[index]!.item.type !== "user_message") return true;
+      if (!complete) return true;
     }
     return false;
   }

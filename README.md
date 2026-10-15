@@ -149,6 +149,21 @@ raw runs: [`docs/bench/native-vs-fork`](docs/bench/native-vs-fork/README.md) (`r
 these runs by `node docs/perf/readme-charts.mjs`; percentages are taken from the medians before
 rounding.
 
+### Long-history loading: required next comparison
+
+The next comparison also includes the synthetic `history-long-load` fixture: 810 projected
+items, a 59,427-character reply and overlapping tool lifecycle updates. This tests loading
+existing history rather than streaming throughput. The existing charts above do not include it.
+
+| Test | No plugin | Beautiful Chat | Better Paseo |
+| --- | --- | --- | --- |
+| Cold-open long history | Pending | Pending | Pending |
+| Scroll upward to load older history | Pending | Pending | Pending |
+| Remount the long reply after scrolling away | Pending | Pending | Pending |
+
+The [fixture, procedure and metrics](docs/bench/long-history-load/README.md) are ready for the
+next run. Results will be added after the comparison; no speedup is claimed for these tests yet.
+
 ### Where the time goes
 
 - **Cards that did not change stop rendering.** Paseo hands every row new `theme` and `data`

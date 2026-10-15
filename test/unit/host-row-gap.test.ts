@@ -78,7 +78,7 @@ function drawnAt(...tops: number[]) {
 }
 
 describe("the host's gap between rows", () => {
-  it("reads a stacking host off a row pulled into the one above, and a spacing host off the 4pt left", () => {
+  it("reads a stacking host off a row pulled into the one above, and a spacing host off the 4pt left", async () => {
     expect(classifyRowGap(-12)).toBe(true);
     expect(classifyRowGap(0)).toBe(true);
     expect(classifyRowGap(4)).toBe(false);
@@ -87,62 +87,62 @@ describe("the host's gap between rows", () => {
     expect(classifyRowGap(8)).toBeNull();
   });
 
-  it("stops taking a row's gap back above another row once the host is seen stacking them", () => {
+  it("stops taking a row's gap back above another row once the host is seen stacking them", async () => {
     resetHostRowGap();
     let renderer!: ReturnType<typeof TestRenderer.create>;
-    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
       tool("stack-1", 1000), tool("stack-2", 1001)), { createNodeMock: drawnAt(100, 128) }); });
     expect(hostStacksRows()).toBe(true);
     expect(margins(renderer)).toEqual([undefined, undefined]);
-    act(() => renderer.unmount());
+    await act(async () => renderer.unmount());
   });
 
-  it("keeps taking it back on a host that spaces plugin items", () => {
+  it("keeps taking it back on a host that spaces plugin items", async () => {
     resetHostRowGap();
     let renderer!: ReturnType<typeof TestRenderer.create>;
-    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
       tool("space-1", 2000), tool("space-2", 2001)), { createNodeMock: drawnAt(100, 144) }); });
     expect(hostStacksRows()).toBe(false);
     expect(margins(renderer)).toEqual([-12, undefined]);
-    act(() => renderer.unmount());
+    await act(async () => renderer.unmount());
   });
 
-  it("decides nothing from rows a native item or a long gap separates", () => {
+  it("decides nothing from rows a native item or a long gap separates", async () => {
     resetHostRowGap();
     let renderer!: ReturnType<typeof TestRenderer.create>;
-    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
       tool("apart-1", 3000), tool("apart-2", 3001)), { createNodeMock: drawnAt(100, 200) }); });
     expect(hostStacksRows()).toBeNull();
     expect(margins(renderer)).toEqual([-12, undefined]);
-    act(() => renderer.unmount());
+    await act(async () => renderer.unmount());
   });
 
-  it("still takes the gap back above a reply on a stacking host, where the host keeps 16pt", () => {
+  it("still takes the gap back above a reply on a stacking host, where the host keeps 16pt", async () => {
     resetHostRowGap();
     noteRowGap(0);
     let renderer!: ReturnType<typeof TestRenderer.create>;
-    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
       tool("reply-1", 4000), tool("reply-2", 4001))); });
     expect(margins(renderer)).toEqual([undefined, undefined]);
     let forget!: () => void;
-    act(() => { forget = registerTimelineEntry(AGENT, 4002, "reply"); });
+    await act(async () => { forget = registerTimelineEntry(AGENT, 4002, "reply"); });
     expect(margins(renderer)).toEqual([undefined, -12]);
-    act(() => { renderer.unmount(); forget(); });
+    await act(async () => { renderer.unmount(); forget(); });
   });
 
-  it("gives a merged row's gap back by what follows its last member on a stacking host", () => {
+  it("gives a merged row's gap back by what follows its last member on a stacking host", async () => {
     resetHostRowGap();
     noteRowGap(0);
     let renderer!: ReturnType<typeof TestRenderer.create>;
-    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
       tool("merged-1", 5000, "/tmp/same.ts"), tool("merged-2", 5001, "/tmp/same.ts"), tool("after", 5002))); });
     expect(margins(renderer)).toEqual([undefined, undefined, undefined]);
-    act(() => renderer.update(React.createElement(React.Fragment, null,
+    await act(async () => renderer.update(React.createElement(React.Fragment, null,
       tool("merged-1", 5000, "/tmp/same.ts"), tool("merged-2", 5001, "/tmp/same.ts"))));
     let forget!: () => void;
-    act(() => { forget = registerTimelineEntry(AGENT, 5003, "reply"); });
+    await act(async () => { forget = registerTimelineEntry(AGENT, 5003, "reply"); });
     expect(margins(renderer)).toEqual([-12, undefined]);
-    act(() => { renderer.unmount(); forget(); });
+    await act(async () => { renderer.unmount(); forget(); });
     resetHostRowGap();
   });
 });

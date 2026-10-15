@@ -16,6 +16,10 @@ export { MARKDOWN_VARIANTS, type MarkdownVariant } from "./render/styles";
 
 export interface MarkdownViewProps {
   text: string;
+  /** False for a continuation row of the same reply. */
+  firstBlock?: boolean;
+  /** A new list row continues the preceding tight list's item spacing. */
+  listContinuation?: boolean;
   tokens: ExtendedThemeTokens;
   variant: MarkdownVariant;
   /**
@@ -68,6 +72,8 @@ function split(text: string, cache: BlockCache, streaming: boolean): Split {
  */
 export function MarkdownView({
   text,
+  firstBlock = true,
+  listContinuation = false,
   tokens,
   variant,
   streaming = false,
@@ -135,7 +141,7 @@ export function MarkdownView({
   // changed, not one element and one memo check per block of the reply.
   const drawn = useRef<DrawnBlocks | null>(null);
   const nodes = useMemo(() => {
-    const before = drawn.current?.context === context ? drawn.current.blocks : null;
+    const before = drawn.current?.context === context && drawn.current.firstBlock === firstBlock ? drawn.current.blocks : null;
     const last = blocks.length - 1;
     const next = blocks.map((block, index): DrawnBlock => {
       const raw = index === last ? tail : block;
@@ -146,20 +152,20 @@ export function MarkdownView({
         raw,
         open,
         node: (
-          <MdBlock key={`b${index}`} id={`b${index}`} raw={raw} open={open} first={index === 0} context={context} />
+          <MdBlock key={`b${index}`} id={`b${index}`} raw={raw} open={open} first={firstBlock && index === 0} context={context} />
         ),
       };
     });
-    drawn.current = { context, blocks: next };
+    drawn.current = { context, firstBlock, blocks: next };
     return next.map((block) => block.node);
-  }, [blocks, tail, streaming, context]);
+  }, [blocks, tail, streaming, context, firstBlock]);
 
   return (
     // The terminal variant sets the whole body in the mono face, so the whole
     // reply is a code surface the host's UI font rule must skip.
     <View
       {...(metrics.mono ? surfaceProps(selectionSurface, codeSurface) : selectionSurface)}
-      style={styles.root}
+      style={[styles.root, !firstBlock && { paddingTop: listContinuation ? metrics.itemGap : metrics.blockGap }]}
     >
       {nodes}
     </View>
@@ -174,5 +180,6 @@ interface DrawnBlock {
 
 interface DrawnBlocks {
   context: RenderContext;
+  firstBlock: boolean;
   blocks: DrawnBlock[];
 }
