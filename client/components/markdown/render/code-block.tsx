@@ -7,6 +7,7 @@ import type { RenderContext } from "./context";
 import { FadeIn } from "../../../ui/fade-in";
 import { codeSurface } from "../../host-font-escape";
 import { codeLanguage, fenceClosed } from "./text";
+import { MarkdownCodePreview } from "./code-preview";
 
 function lineCount(code: string): number {
   let count = 1;
@@ -59,7 +60,10 @@ export function CodeBlock({
   const Frame = collapseCode && variant === "compact" ? FadeIn : View;
   return (
     <Frame style={styles.codeBlock}>
-      <SyntaxHighlightBlock
+      {["", "md", "markdown", "text", "txt", "plaintext"].includes(lang.toLowerCase()) ? (
+        <MarkdownCodePreview code={token.text} language={language} context={context} closed={closed}
+          showLineNumbers={metrics.codeLineNumbersFrom > 0 && lines >= metrics.codeLineNumbersFrom} />
+      ) : <SyntaxHighlightBlock
         code={token.text}
         language={language}
         tokens={tokens}
@@ -67,7 +71,7 @@ export function CodeBlock({
         showLineNumbers={metrics.codeLineNumbersFrom > 0 && lines >= metrics.codeLineNumbersFrom}
         highlight={closed}
         scrollX
-      />
+      />}
     </Frame>
   );
 }

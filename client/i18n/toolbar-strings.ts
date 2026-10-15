@@ -52,6 +52,9 @@ const ZH: Readonly<Record<string, string>> = {
   "Maximize preview": "最大化预览",
   "Close preview": "关闭预览",
   "Open tasks in a window": "在窗口中打开任务",
+  "Open Markdown in a window": "在窗口中打开 Markdown",
+  "Render Markdown": "渲染 Markdown",
+  "Show raw text": "显示原始文本",
 };
 
 /** A button's English label as the reader's chosen language shows it; an unknown label stays English. */
