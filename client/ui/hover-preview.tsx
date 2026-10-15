@@ -258,15 +258,18 @@ export function HoverPreview(props: {
   tokens: ExtendedThemeTokens;
   /** False for content with no lines to wrap, such as a picture: no wrap toggle. */
   wraps?: boolean;
+  /** Keep the wrap control visible but disabled, with content forced to wrap. */
+  wrapDisabled?: boolean;
   children: ReactNode;
 }) {
   return Platform.OS === "web" ? <WebPreview {...props} /> : <PressPreview {...props} />;
 }
 
-function WebPreview({ preview, tokens, wraps = true, children }: {
+function WebPreview({ preview, tokens, wraps = true, wrapDisabled = false, children }: {
   preview: ReturnType<typeof useHoverPreview>;
   tokens: ExtendedThemeTokens;
   wraps?: boolean;
+  wrapDisabled?: boolean;
   children: ReactNode;
 }) {
   const panelRef = useRef<View>(null);
@@ -327,7 +330,7 @@ function WebPreview({ preview, tokens, wraps = true, children }: {
         close: preview.close,
         popped: preview.popped,
         fill: preview.maximized || preview.placed,
-        wrap: wraps ? { on: wrapOn, disabled: linesFit, toggle: toggleWrap, tokens } : undefined,
+        wrap: wraps ? { on: wrapDisabled || wrapOn, disabled: wrapDisabled || linesFit, toggle: toggleWrap, tokens } : undefined,
         memoryKey,
         remembered,
       }}>
@@ -411,10 +414,11 @@ function pressLook(tokens: ExtendedThemeTokens) {
  * panel or Android's back button closes it. The panel stays hidden until the
  * row and the safe area are measured, so it never flashes at the wrong size.
  */
-function PressPreview({ preview, tokens, wraps = true, children }: {
+function PressPreview({ preview, tokens, wraps = true, wrapDisabled = false, children }: {
   preview: ReturnType<typeof useHoverPreview>;
   tokens: ExtendedThemeTokens;
   wraps?: boolean;
+  wrapDisabled?: boolean;
   children: ReactNode;
 }) {
   const [rowWidth, setRowWidth] = useState<number | null>(null);
@@ -495,7 +499,7 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
               maximize: preview.maximize,
               close,
               fill: preview.maximized || box !== null,
-              wrap: wraps ? { on: wrapOn, toggle: toggleWrap, tokens } : undefined,
+              wrap: wraps ? { on: wrapDisabled || wrapOn, disabled: wrapDisabled, toggle: toggleWrap, tokens } : undefined,
               memoryKey,
               remembered,
             }}>

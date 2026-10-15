@@ -17,6 +17,7 @@ vi.mock("@getpaseo/plugin/client", () => ({
 }));
 vi.mock("../../client/web", async (original) => ({
   ...await original<typeof import("../../client/web")>(),
+  bindRowHover: () => () => {},
   openPreviewLayer: (_node: unknown, _anchor: unknown, _close: unknown, options: { maximized?: boolean }) => {
     state.layers.push(options);
     return () => {};
@@ -26,6 +27,7 @@ import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { updateEnhancerPreferences, resetEnhancerPreferences } from "../../client/preferences";
 import { StyleSheet } from "./helpers/rn-mock";
+import { PreviewLines } from "../../client/ui/preview-lines";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const platform = globalThis as { __rnMockOS?: string };
@@ -71,14 +73,20 @@ describe("Markdown code window", () => {
     }
     const header = hosts("hover-preview-start")[0]!;
     expect(header.findAll((node) => String(node.type) === "Pressable").map((node) => node.props.accessibilityLabel))
-      .toEqual(["Show raw text"]);
+      .toEqual(["Do not wrap lines", "Show raw text"]);
+    const wrapButton = buttons("Do not wrap lines")[0]!;
+    expect(wrapButton.props.disabled).toBe(true);
+    expect(StyleSheet.flatten(wrapButton.props.style).opacity).toBeLessThan(1);
     expect(buttons("Show raw text")[0]!.find((node) => String(node.type) === "Icon").props.name).toBe("Code");
     const body = hosts("hover-preview")[0]!;
     expect(body.findByType(MarkdownView).props.text).toBe(source);
     expect(buttons("Open Markdown in a window")).toHaveLength(1);
     press("Show raw text");
-    const raw = renderer.root.findAll((node) => String(node.type) === "Text" && node.props.testID === "markdown-preview-source")[0]!;
-    expect(raw.children).toEqual([source]);
+    expect(buttons("Do not wrap lines")[0]!.props.disabled).toBe(false);
+    press("Do not wrap lines");
+    expect(header.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Wrap lines")).toHaveLength(1);
+    expect(body.findByType(PreviewLines).props.text).toBe(source);
+    expect(body.findAll((node) => String(node.type) === "Text" && node.children.length === 1 && node.children[0] === source)).toHaveLength(1);
     expect(buttons("Show raw text")).toHaveLength(0);
     expect(buttons("Render Markdown")).toHaveLength(1);
     expect(buttons("Render Markdown")[0]!.find((node) => String(node.type) === "Icon").props.name).toBe("FileText");
@@ -87,9 +95,16 @@ describe("Markdown code window", () => {
     });
     expect(state.copy).toHaveBeenCalledWith(source);
     press("Render Markdown");
+    expect(buttons("Do not wrap lines")[0]!.props.disabled).toBe(true);
+    expect(header.findAll((node) => String(node.type) === "Pressable").map((node) => node.props.accessibilityLabel))
+      .toEqual(["Do not wrap lines", "Show raw text"]);
     expect(body.findByType(MarkdownView).props.text).toBe(source);
     expect(buttons("Render Markdown")).toHaveLength(0);
     expect(buttons("Show raw text")).toHaveLength(1);
+    press("Show raw text");
+    expect(header.find((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Wrap lines").props.disabled).toBe(false);
+    expect(header.findAll((node) => String(node.type) === "Pressable").map((node) => node.props.accessibilityLabel))
+      .toEqual(["Wrap lines", "Render Markdown"]);
     press("Close preview");
     expect(hosts("hover-preview")).toHaveLength(0);
   });
@@ -98,6 +113,32 @@ describe("Markdown code window", () => {
     platform.__rnMockOS = "web";
     render(language);
     expect(buttons("Open Markdown in a window")).toHaveLength(1);
+  });
+
+  it.each([
+    [false, false], [true, false], [false, true], [true, true],
+  ])("uses preview settings for raw text (numbers: %s, stripes: %s)", (previewLineNumbers, previewStripes) => {
+    platform.__rnMockOS = "web";
+    updateEnhancerPreferences({ previewLineNumbers, previewStripes, previewWrap: false });
+    const text = "# Heading\n\n**raw** &amp;\n";
+    render("markdown", text);
+    press("Open Markdown in a window");
+    press("Show raw text");
+    expect(hosts("preview-line-numbers")).toHaveLength(previewLineNumbers ? 1 : 0);
+    expect(hosts("preview-line-stripes")).toHaveLength(previewStripes ? 1 : 0);
+    const body = hosts("hover-preview")[0]!;
+    const raw = body.findByType(PreviewLines);
+    expect(raw.props.text).toBe(text);
+    expect(raw.props.lines).toEqual(["# Heading", "", "**raw** &amp;", ""]);
+    expect(body.findAll((node) => String(node.type) === "Text" && node.children.length === 1 && node.children[0] === text)).toHaveLength(1);
+    const header = hosts("hover-preview-start")[0]!;
+    const wrap = header.find((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Wrap lines");
+    expect(wrap.props.disabled).toBe(false);
+    act(() => wrap.props.onPress());
+    expect(header.find((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Do not wrap lines").props.disabled).toBe(false);
+    act(() => updateEnhancerPreferences({ previewLineNumbers: !previewLineNumbers, previewStripes: !previewStripes }));
+    expect(hosts("preview-line-numbers")).toHaveLength(previewLineNumbers ? 0 : 1);
+    expect(hosts("preview-line-stripes")).toHaveLength(previewStripes ? 0 : 1);
   });
 
   it("keeps other languages and unfinished fences without the window button", () => {
