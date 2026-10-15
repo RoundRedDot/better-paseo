@@ -61,7 +61,7 @@ describe("assistant footer", () => {
       act(() => { toolbar.props.onLongPress(); });
       expect(renderer.root.findAllByType("View" as never).some((node) =>
         node.props.testID === "footer-detail-Elapsed time")).toBe(visible);
-      for (const label of ["Agent", "Model name", "Start time", "End time", "Output tokens"]) {
+      for (const label of ["Agent", "Model name", "Start time", "End time", "Output"]) {
         expect(renderer.root.findAllByType("View" as never).some((node) =>
           node.props.testID === `footer-detail-${label}`)).toBe(true);
       }
@@ -80,12 +80,12 @@ describe("assistant footer", () => {
     try {
       const toolbar = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.testID === "footer-toolbar")!;
       act(() => { toolbar.props.onLongPress(); });
-      const rows = ["Input tokens", "Cached tokens"].map((label) =>
+      const rows = ["Input", "Cached"].map((label) =>
         renderer.root.findAllByType("View" as never).find((node) => node.props.testID === `footer-detail-${label}`)!);
       expect(rows.map((row) => row.findAllByType("Text" as never).map((node) => node.props.children))).toEqual(language === "zh"
-        ? [["输入 Token", "123,456"], ["缓存 Token", "0"]]
-        : [["Input tokens", "123,456"], ["Cached tokens", "0"]]);
-      expect(renderer.root.findAllByProps({ testID: "footer-detail-Output tokens" })).toHaveLength(0);
+        ? [["输入", "123,456"], ["缓存", "0"]]
+        : [["Input", "123,456"], ["Cached", "0"]]);
+      expect(renderer.root.findAllByProps({ testID: "footer-detail-Output" })).toHaveLength(0);
       expect(rows.map((row) => row.findByType("Icon" as never).props.name)).toEqual(["ArrowDownToLine", "Database"]);
       expect(rows.flatMap((row) => row.findAllByType("Pressable" as never))).toHaveLength(0);
     } finally { act(() => renderer.unmount()); }
