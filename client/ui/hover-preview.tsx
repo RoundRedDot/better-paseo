@@ -21,7 +21,7 @@ import { PreviewScrollerContext, type PreviewScroller } from "./preview-scroller
 import { ToolbarButton, ToolbarIcon, TooltipAlignContext } from "./toolbar-button";
 import { Glyph } from "../components/glyph";
 import { RunningDot } from "./running-dot";
-import { bindPreviewTail, nativePreviewTail, previewFollowsTail } from "./preview-tail";
+import { bindPreviewTail, nativePreviewTail, PREVIEW_SETTLE_MS, previewFollowsTail } from "./preview-tail";
 import { forgetPreview, holdPreview, recallPreview, rememberPreview, type PreviewMemory } from "./preview-memory";
 import { useReducedMotion } from "./use-reduced-motion";
 
@@ -77,13 +77,10 @@ export const PREVIEW_CLOSE_MS = 150;
  * long-press previews are turned off.
  *
  * `memoryKey` names the row across remounts. The host draws a finished
- * thought as a new row; on web a preview open then is opened again by that
- * row as the reader left it, so only the reader closes it
- * (`preview-memory.ts`). A phone's long-press preview is a modal that this
- * does not carry over yet.
+ * thought as a new row; a preview open then is opened again by that row as the
+ * reader left it, so only the reader closes it (`preview-memory.ts`).
  */
-export function useHoverPreview(enabled: boolean, rowKey?: string) {
-  const memoryKey = Platform.OS === "web" ? rowKey : undefined;
+export function useHoverPreview(enabled: boolean, memoryKey?: string) {
   const parentPreview = useContext(HoverPreviewContext);
   const capabilities = useInputCapabilities();
   const preferences = useEnhancerPreferences();
@@ -403,9 +400,16 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
   const [rowWidth, setRowWidth] = useState<number | null>(null);
   const [stage, setStage] = useState<{ width: number; height: number } | null>(null);
   const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
-  const [box, setBox] = useState<PreviewBox | null>(null);
-  const [wrapOn, toggleWrap] = usePanelWrap();
-  const { anchorRef, close } = preview;
+  const { anchorRef, close, memoryKey } = preview;
+  // What the row this one replaced left: the reader's box, wrap and offset.
+  const [remembered] = useState(() => (preview.quiet ? preview.restored : null));
+  const [box, setBox] = useState<PreviewBox | null>(remembered?.box ?? null);
+  const [wrapOn, toggleWrap] = usePanelWrap(remembered?.wrap ?? null);
+  const memoryKeyRef = useRef(memoryKey);
+  memoryKeyRef.current = memoryKey;
+  useEffect(() => {
+    if (memoryKey) rememberPreview(memoryKey, { wrap: wrapOn });
+  }, [memoryKey, wrapOn]);
   const measured = useRef(false);
   const boxRef = useRef<PreviewBox | null>(null);
   const boundsRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
@@ -441,6 +445,7 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
         const current = boxRef.current;
         if (current && current.x === next.x && current.y === next.y && current.width === next.width && current.height === next.height) return;
         boxRef.current = next;
+        if (memoryKeyRef.current) rememberPreview(memoryKeyRef.current, { box: next });
         setBox(next);
       },
     };
@@ -450,7 +455,7 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
     edges: previewEdgeResponders(drag.current),
   }), []);
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={close} statusBarTranslucent>
+    <Modal visible transparent animationType={preview.quiet ? "none" : "fade"} onRequestClose={close} statusBarTranslucent>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Close preview"
@@ -467,6 +472,8 @@ function PressPreview({ preview, tokens, wraps = true, children }: {
               close,
               fill: box !== null,
               wrap: wraps ? { on: wrapOn, toggle: toggleWrap, tokens } : undefined,
+              memoryKey,
+              remembered,
             }}>
               <PreviewDragContext.Provider value={gestures.toolbar}>
                 <View
@@ -644,7 +651,7 @@ export function HoverPreviewBody({ children, streaming = false }: { children: Re
   const fill = actions?.fill ?? false;
   const memoryKey = actions?.memoryKey;
   const remembered = actions?.remembered ?? null;
-  const scroller = usePreviewScroller(streaming);
+  const scroller = usePreviewScroller(streaming, memoryKey, remembered);
   const webBody = useRef<View>(null);
   const following = useStreamingTail(streaming, webBody);
   useWebScrollMemory(webBody, memoryKey, remembered, streaming, following);
@@ -747,9 +754,18 @@ function useWebScrollMemory(
  * The phone body's scroller as a gesture inside it sees it. A held body
  * scrolls only by `scrollBy`, so its offset is kept here and the scroll
  * events still on their way from before the hold are ignored.
+ *
+ * Its offset goes to `memoryKey` as the reader scrolls; a body that takes
+ * over a remounted row's preview starts where that one was, or on the newest
+ * output if it was there.
  */
-function usePreviewScroller(streaming: boolean) {
+function usePreviewScroller(streaming: boolean, memoryKey?: string, remembered: PreviewMemory | null = null) {
   const ref = useRef<ScrollView>(null);
+  const memoryKeyRef = useRef(memoryKey);
+  memoryKeyRef.current = memoryKey;
+  // Applied again while the taken-over text settles its layout, which grows
+  // the content a few times after the first size; the reader's drag ends it.
+  const restore = useRef(remembered ? { offset: remembered.offset, tail: remembered.tail, until: Date.now() + PREVIEW_SETTLE_MS } : null);
   const [held, setHeld] = useState(false);
   const state = useRef({ held: false, offset: 0, viewport: 0, content: 0 });
   const streamingRef = useRef(streaming);
@@ -786,20 +802,34 @@ function usePreviewScroller(streaming: boolean) {
   const props = useMemo(() => ({
     onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
       const native = event.nativeEvent;
-      if (!state.current.held) state.current.offset = native.contentOffset.y;
-      if (!streamingRef.current) return;
-      tail.scrolled(
-        native.contentOffset.y,
-        native.layoutMeasurement?.height ?? state.current.viewport,
-        native.contentSize?.height ?? state.current.content,
-      );
+      const offset = native.contentOffset.y;
+      const viewport = native.layoutMeasurement?.height ?? state.current.viewport;
+      const content = native.contentSize?.height ?? state.current.content;
+      if (!state.current.held) state.current.offset = offset;
+      if (streamingRef.current) tail.scrolled(offset, viewport, content);
+      const key = memoryKeyRef.current;
+      if (key && !state.current.held) {
+        rememberPreview(key, { offset, tail: streamingRef.current ? tail.pinned : previewFollowsTail(offset, viewport, content) });
+      }
     },
-    onScrollBeginDrag() { tail.drag(); },
+    onScrollBeginDrag() {
+      restore.current = null;
+      tail.drag();
+    },
     onLayout(event: LayoutChangeEvent) { state.current.viewport = event.nativeEvent.layout.height; },
     onContentSizeChange(_width: number, height: number) {
       state.current.content = height;
       // The phone preview is a ScrollView. Web scrolls the body element.
       if (Platform.OS === "web" || state.current.held) return;
+      const pending = restore.current;
+      if (pending && height > 0) {
+        if (Date.now() > pending.until) restore.current = null;
+        else {
+          if (pending.tail) ref.current?.scrollToEnd({ animated: false });
+          else ref.current?.scrollTo({ y: pending.offset, animated: false });
+          return;
+        }
+      }
       if (!streamingRef.current) {
         tail.settle(state.current.viewport, height, state.current.offset, still.current);
         return;

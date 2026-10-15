@@ -114,13 +114,12 @@ describe("hover preview across a remount", () => {
     act(() => renderer.update(keyedRow("again")));
     expect(preview.open).toBe(false);
   });
-  it.each(["ios", "android"])("leaves a long-pressed modal on %s to its own row", (os) => {
+  it.each(["ios", "android"])("reopens a long-pressed preview on %s", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => { renderer = TestRenderer.create(keyedRow("live", `agent:${os}:preview`)); });
     act(() => preview.press!());
-    expect(preview.memoryKey).toBeUndefined();
     act(() => renderer.update(keyedRow("history", `agent:${os}:preview`)));
-    expect(preview.open).toBe(false);
+    expect(preview).toMatchObject({ open: true, quiet: true });
   });
   it("does not reopen a preview for a row that mounts long after the last one let go", () => {
     act(() => { renderer = TestRenderer.create(keyedRow("live", "agent:late:preview")); });
