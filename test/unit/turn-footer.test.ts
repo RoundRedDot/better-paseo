@@ -43,22 +43,24 @@ describe("assistant footer", () => {
     }
   });
 
-  it("removes the extra space when switching to the desktop layout", () => {
+  it.each([false, true])("keeps 16pt below Copy across layout changes (compact=%s)", (compact) => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
-    act(() => { renderer = TestRenderer.create(footer(true)); });
+    act(() => { renderer = TestRenderer.create(footer(compact)); });
     try {
-      act(() => renderer.update(footer(false)));
       const container = renderer.root.findByType("View" as never);
-      expect(StyleSheet.flatten(container.props.style).marginBottom ?? 0).toBe(0);
-      expect(renderer.root.findByType("Pressable" as never).props.hitSlop).toBe(0);
+      expect(StyleSheet.flatten(container.props.style).marginBottom).toBe(16);
+      expect(renderer.root.findByType("Pressable" as never).props.hitSlop).toBe(compact ? 10 : 0);
+      act(() => renderer.update(footer(!compact)));
+      expect(StyleSheet.flatten(container.props.style).marginBottom).toBe(16);
+      expect(renderer.root.findByType("Pressable" as never).props.hitSlop).toBe(compact ? 0 : 10);
     } finally {
       act(() => renderer.unmount());
     }
   });
 
-  it("copies the full reply and confirms success in the compact layout", async () => {
+  it.each([false, true])("copies the full reply and confirms success (compact=%s)", async (compact) => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
-    act(() => { renderer = TestRenderer.create(footer(true)); });
+    act(() => { renderer = TestRenderer.create(footer(compact)); });
     try {
       await act(async () => { renderer.root.findByType("Pressable" as never).props.onPress(); });
       expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith(text);
