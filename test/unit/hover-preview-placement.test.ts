@@ -140,8 +140,15 @@ describe("hover preview content bounds", () => {
     expect(panel.style.top).toBe("96px");
     expect(panel.style.height).toBe("588px");
     const key = panel.ownerDocument.addEventListener.mock.calls.find(([name]) => name === "keydown")!;
-    (key[1] as (event: unknown) => void)({ key: "Escape" });
+    // Caught on the way down, before the focused reply box can stop it.
+    expect(key[2]).toBe(true);
+    // An Escape that ends an IME composition belongs to the field.
+    (key[1] as (event: unknown) => void)({ key: "Escape", isComposing: true, preventDefault: vi.fn(), stopPropagation: vi.fn() });
+    expect(close).not.toHaveBeenCalled();
+    const escape = { key: "Escape", preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    (key[1] as (event: unknown) => void)(escape);
     expect(close).toHaveBeenCalledOnce();
+    expect(escape.stopPropagation).toHaveBeenCalledOnce();
     release();
   });
 });
