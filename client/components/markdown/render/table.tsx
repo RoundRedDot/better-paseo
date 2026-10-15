@@ -184,10 +184,10 @@ export function MdTable({
   );
 }
 
-/** View owns raw touches on iOS; Text keeps its layout and rich inline runs. */
+/** View owns native raw touches; Text keeps its layout and rich inline runs. */
 function TableCell({ touchProps, ...props }: TextProps & { touchProps: ViewProps }) {
   const text = <Text {...props} />;
-  return Platform.OS === "ios"
+  return Platform.OS !== "web"
     ? <View testID="markdown-table-touch-cell" style={copyStyles.touchCell} {...touchProps}>{text}</View>
     : text;
 }
