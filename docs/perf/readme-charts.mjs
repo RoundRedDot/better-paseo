@@ -1,6 +1,6 @@
 // Charts for README.md and README-zh.md, one English and one Chinese copy of each.
 //   node docs/perf/readme-charts.mjs
-// Reads the raw runs under docs/bench/native-vs-fork/raw and writes docs/perf/readme/*.svg:
+// Reads the October 15 raw runs under docs/bench/native-vs-fork/raw and writes docs/perf/readme/*.svg:
 //   web-cpu.<lang>.svg     Web main-thread task time, no plugin / Beautiful Chat 42b61d8 / Better Paseo
 //   web-memory.<lang>.svg  JS heap and DOM nodes after a forced GC, the scenarios that differ most
 //   ios-commit.<lang>.svg  iOS total row-render time (median of allRows.sum), no plugin / Beautiful Chat 42b61d8 / Better Paseo
@@ -31,8 +31,8 @@ const SCENARIOS = [
 ];
 const MEMORY_SCENARIOS = ["diff-large", "history-100", "markdown-long", "reads-20", "shell-log-large", "tool-expanded-streaming"];
 // Above this, an iOS bar is clipped and the label keeps the real total. 2,000 ms keeps
-// every Better Paseo bar on scale (the long reply is 1,833 ms) and every no-plugin bar
-// except the code block (2,301 ms) and the long reply (5,075 ms). Those two stay longer
+// every Better Paseo bar on scale (the long reply is 1,510 ms) and every no-plugin bar
+// except the code block (2,264.5 ms) and the long reply (5,076.6 ms). Those two stay longer
 // than the Better Paseo bar; the label is the real total.
 const IOS_AXIS_MS = 2000;
 
@@ -46,15 +46,16 @@ const TEXT = {
     vsUpstream: "vs Beautiful Chat",
     even: "even",
     cpuTitle: "Web: main-thread time for a whole replay (seconds, lower is better)",
-    cpuNote: "Web production build, same session, 3 runs per mode, median, 2026-10-14. Green ⬆ is better than the baseline, red ⬇ is worse.",
+    cpuNote: "Web production build, 3 runs per mode, median, 2026-10-15. Green ⬆ is better, red ⬇ is worse.",
     memTitle: "Web: memory after a forced GC (lower is better)",
-    memNote: "Same runs as the main-thread chart, 2026-10-14. DOM nodes on a log scale.",
+    memNote: "Same runs as the main-thread chart, 2026-10-15. DOM nodes on a log scale.",
     heap: "JS heap (MB)",
     dom: "DOM nodes",
     iosTitle: "iOS: total row-render time per replay (ms, lower is better)",
     iosNote: [
-      "iOS 18.6 simulator, development build, cold start, median, 2026-10-14. 2 runs; 6 for history and the large shell log.",
+      "iOS 18.6 simulator, development build, cold start, 2026-10-15. 2 runs; 6 for history and shell log.",
       `Total row-render time. Bars past ${IOS_AXIS_MS.toLocaleString("en-US")} ms are clipped; the label is the real total. Green ⬆ better, red ⬇ worse.`,
+      "History-100 includes parallel-simulator exposure; all modes shifted about +3% in total row work.",
     ],
   },
   zh: {
@@ -66,15 +67,16 @@ const TEXT = {
     vsUpstream: "对比 Beautiful Chat",
     even: "持平",
     cpuTitle: "Web：整段回放的主线程时间（秒，越短越好）",
-    cpuNote: "Web 生产构建，同一次会话交替运行，每种模式 3 次取中位数，2026-10-14。绿色 ⬆ 表示比基线好，红色 ⬇ 表示比基线差。",
+    cpuNote: "Web 生产构建，每种模式 3 次取中位数，2026-10-15。绿色 ⬆ 更好，红色 ⬇ 更差。",
     memTitle: "Web：强制 GC 后的内存（越低越好）",
-    memNote: "与主线程时间同一批跑次，2026-10-14。DOM 节点为对数刻度。",
+    memNote: "与主线程时间同一批跑次，2026-10-15。DOM 节点为对数刻度。",
     heap: "JS 堆（MB）",
     dom: "DOM 节点",
     iosTitle: "iOS：每次回放的行渲染总量（毫秒，越短越好）",
     iosNote: [
-      "iOS 18.6 模拟器开发版，每次冷启动，中位数，2026-10-14。多数 2 次，100 轮历史和大段终端 6 次。",
+      "iOS 18.6 模拟器开发版，每次冷启动，中位数，2026-10-15。多数 2 次，历史和终端各 6 次。",
       `行渲染总量。超过 ${IOS_AXIS_MS} ms 的条被截断，数字是真实总量。绿色 ⬆ 更好，红色 ⬇ 更差。`,
+      "100 轮历史含多模拟器并行负载；各模式总行渲染都约高 3%。",
     ],
   },
 };
@@ -96,7 +98,7 @@ function load(dirs) {
       .map((file) => {
         const [, mode, ...rest] = file.replace(/\.json$/, "").split("-");
         rest.pop();
-        return { mode, fixture: rest.join("-"), data: JSON.parse(readFileSync(path.join(RAW, dir, file), "utf8")) };
+        return { mode: mode === "latest" ? "fork" : mode, fixture: rest.join("-"), data: JSON.parse(readFileSync(path.join(RAW, dir, file), "utf8")) };
       });
     const replaced = new Set(next.map((run) => run.fixture));
     runs = [...runs.filter((run) => !replaced.has(run.fixture)), ...next];
@@ -109,8 +111,8 @@ function load(dirs) {
   };
 }
 
-const web = load(["web-2026-10-14"]);
-const ios = load(["ios-2026-10-14"]);
+const web = load(["web-2026-10-15b"]);
+const ios = load(["ios-2026-10-15b"]);
 const task = (run) => run.cdp.delta.TaskDuration;
 const heap = (run) => run.cdp.jsHeapUsedMB;
 const nodes = (run) => run.cdp.nodes;
@@ -293,8 +295,8 @@ for (const lang of ["en", "zh"]) {
       lang,
       modes: ["native", "upstream", "fork"],
       get: (fixture, mode) => web(fixture, mode, task),
-      max: 9,
-      ticks: [0, 3, 6, 9],
+      max: 10,
+      ticks: [0, 2, 4, 6, 8, 10],
       unit: "s",
       digits: 2,
       title: t.cpuTitle,
