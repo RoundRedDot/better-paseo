@@ -192,6 +192,9 @@ describe("assistant footer", () => {
       act(() => { trigger.props.onLongPress(); });
       expect(clipboard.copyText).not.toHaveBeenCalled();
       expect(details()).toHaveLength(1);
+      const title = renderer.root.findAllByType("Text" as never)
+        .find((node) => node.props.accessibilityRole === "header")!;
+      expect(title.props.children).toBe("轮次详情");
       const bubble = renderer.root.findAllByType("View" as never)
         .map((node) => StyleSheet.flatten(node.props.style))
         .find((style) => style.boxShadow);
