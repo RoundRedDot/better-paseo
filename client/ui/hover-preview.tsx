@@ -559,7 +559,7 @@ function measureWidth(node: unknown, done: (width: number) => void) {
  * middle, in front of the name when there is one. Hover and the maximized
  * window share this bar.
  */
-export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, streaming = false, children }: {
+export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, streaming = false, fitControls = false, children }: {
   tokens: ExtendedThemeTokens;
   /** A glyph name or the content's own icon, beside its name or size in the centre. */
   icon?: ReactNode;
@@ -570,6 +570,8 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, stre
   center?: ReactNode;
   /** The block is still writing. A pulsing dot joins the centre of the title bar. */
   streaming?: boolean;
+  /** Give wider question controls their own space before truncating the title. */
+  fitControls?: boolean;
   children?: ReactNode;
 }) {
   const actions = useContext(PreviewActionsContext);
@@ -598,7 +600,7 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, stre
       style={[styles.header, { backgroundColor: tokens.v2.surface1, borderBottomColor: tokens.v2.borderSubtle }]}
     >
       <View ref={toolbarRef} testID="hover-preview-toolbar" {...(toolbarDrag ?? {})} style={[styles.toolbar, Platform.OS === "web" && styles.grab]}>
-        <View testID="hover-preview-start" style={styles.toolbarStart}>
+        <View testID="hover-preview-start" style={[styles.toolbarStart, fitControls && styles.toolbarControls]}>
           {/* At the panel's left edge: its name opens rightwards. */}
           <TooltipAlignContext.Provider value="start">
             {actions?.wrap ? (
@@ -615,7 +617,7 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, stre
           </TooltipAlignContext.Provider>
         </View>
         {streaming || icon || center || iconLabel ? (
-          <View testID="hover-preview-center" style={styles.toolbarCenter}>
+          <View testID="hover-preview-center" style={[styles.toolbarCenter, fitControls && styles.toolbarFitTitle]}>
             {streaming ? (
               <View testID="hover-preview-streaming" style={styles.toolbarIcon}>
                 <RunningDot color={tokens.accent} accessibilityLabel="Streaming" />
@@ -635,14 +637,15 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, stre
                 testID="hover-preview-tool-name"
                 selectable={false}
                 numberOfLines={1}
-                style={{ color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: tokens.typography.ui.scale.base }}
+                style={[{ color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: tokens.typography.ui.scale.base },
+                  fitControls && { flexShrink: 1 }]}
               >
                 {iconLabel}
               </Text>
             ) : null)}
           </View>
         ) : null}
-        <View style={styles.toolbarEnd}>
+        <View style={[styles.toolbarEnd, fitControls && styles.toolbarControls]}>
           {/* The group ends at the panel's right edge: names open leftwards. */}
           <TooltipAlignContext.Provider value="end">
             {toolbar}
@@ -869,6 +872,8 @@ const styles = StyleSheet.create({
   // Equal flexible sides keep the centre slot in the middle of the panel.
   toolbarStart: { flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", gap: space.xs },
   toolbarCenter: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: space.xs },
+  toolbarControls: { flex: 0, flexBasis: "auto", flexShrink: 0 },
+  toolbarFitTitle: { flex: 1, flexShrink: 1, minWidth: 0, justifyContent: "center" },
   // The size of a toolbar button, so the glyph lines up with the buttons.
   toolbarIcon: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
   toolbarEnd: { flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: space.xs },
