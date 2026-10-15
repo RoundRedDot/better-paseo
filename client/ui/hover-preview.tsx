@@ -810,6 +810,18 @@ function usePreviewScroller(streaming: boolean, memoryKey?: string, remembered: 
       return moved;
     },
   }), []);
+  // Puts a taken-over body back where the reader left it; false once that is done.
+  const restoring = () => {
+    const pending = restore.current;
+    if (!pending) return false;
+    if (Date.now() > pending.until) {
+      restore.current = null;
+      return false;
+    }
+    if (pending.tail) ref.current?.scrollToEnd({ animated: false });
+    else ref.current?.scrollTo({ y: pending.offset, animated: false });
+    return true;
+  };
   const props = useMemo(() => ({
     onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
       const native = event.nativeEvent;
@@ -827,20 +839,16 @@ function usePreviewScroller(streaming: boolean, memoryKey?: string, remembered: 
       restore.current = null;
       tail.drag();
     },
-    onLayout(event: LayoutChangeEvent) { state.current.viewport = event.nativeEvent.layout.height; },
+    onLayout(event: LayoutChangeEvent) {
+      state.current.viewport = event.nativeEvent.layout.height;
+      // Android sizes the body after its content: the end moves without a new content size.
+      if (Platform.OS !== "web" && state.current.content > 0) restoring();
+    },
     onContentSizeChange(_width: number, height: number) {
       state.current.content = height;
       // The phone preview is a ScrollView. Web scrolls the body element.
       if (Platform.OS === "web" || state.current.held) return;
-      const pending = restore.current;
-      if (pending && height > 0) {
-        if (Date.now() > pending.until) restore.current = null;
-        else {
-          if (pending.tail) ref.current?.scrollToEnd({ animated: false });
-          else ref.current?.scrollTo({ y: pending.offset, animated: false });
-          return;
-        }
-      }
+      if (height > 0 && restoring()) return;
       if (!streamingRef.current) {
         tail.settle(state.current.viewport, height, state.current.offset, still.current);
         return;
