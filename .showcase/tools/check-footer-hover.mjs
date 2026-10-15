@@ -80,9 +80,9 @@ try {
     await trigger.hover();
     const table = page.getByTestId("footer-details-table");
     await table.waitFor({ state: "visible" });
-    assert.match(await page.getByTestId("footer-detail-Input tokens").textContent(), /123,456/);
-    assert.match(await page.getByTestId("footer-detail-Cached tokens").textContent(), /0/);
-    assert.match(await page.getByTestId("footer-detail-Output tokens").textContent(), /6,789/);
+    assert.match(await page.getByTestId("footer-detail-Input").textContent(), /123,456/);
+    assert.match(await page.getByTestId("footer-detail-Cached").textContent(), /0/);
+    assert.match(await page.getByTestId("footer-detail-Output").textContent(), /6,789/);
     assert.match(await page.getByTestId("footer-detail-Start time").textContent(), /2026-10-15 21:02:03/);
     assert.match(await page.getByTestId("footer-detail-End time").textContent(), /2026-10-15 21:03:25/);
     const button = await trigger.first().boundingBox();
@@ -110,7 +110,7 @@ try {
       await copy.click();
       await page.waitForFunction((element) => element.getAttribute("aria-label") === "Copied", button);
     }
-    await page.getByTestId("footer-detail-Output tokens").scrollIntoViewIfNeeded();
+    await page.getByTestId("footer-detail-Output").scrollIntoViewIfNeeded();
     await page.waitForTimeout(300);
     assert(await table.isVisible(), `${side}: scrolling the details dismissed the panel`);
     await page.mouse.move(1100, 100);
