@@ -7,7 +7,7 @@ import type { UserQuestionData } from "../tools/user-questions";
 import { SelectableText } from "../ui/prose-text";
 import { ToolbarButton, TooltipAlignContext } from "../ui/toolbar-button";
 import { ToolPager } from "../ui/tool-pager";
-import { HoverPreviewBody } from "../ui/hover-preview";
+import { AlwaysWrapPreview, HoverPreviewBody } from "../ui/hover-preview";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 
@@ -30,7 +30,7 @@ export function UserQuestions({ questions: data, tokens, rawBody, renderHeader, 
   const meta = { fontFamily: tokens.fontUi, fontSize: tokens.typography.block.meta.size,
     lineHeight: tokens.typography.block.meta.lineHeight, color: tokens.foregroundMuted };
   const controls = <View style={styles.controls}>
-    <ToolbarButton icon={raw ? "MessagesSquare" : "Braces"} label={raw ? "Show questions" : "Show raw data"}
+    <ToolbarButton icon={raw ? "MessagesSquare" : "FileJson"} label={raw ? "Show questions" : "Show raw data"}
       checked={raw} onPress={() => setRaw((value) => !value)} tokens={tokens} />
     {!raw && data.questions.length > 1 ? <ToolPager subject="question" index={index}
       count={data.questions.length} onChange={setPage} tokens={tokens} /> : null}
@@ -74,17 +74,17 @@ export function UserQuestions({ questions: data, tokens, rawBody, renderHeader, 
     </View>}
     {children}
   </>;
-  return <>
+  return <AlwaysWrapPreview>
     {renderHeader ? renderHeader(controls) : <TooltipAlignContext.Provider value="start">{controls}</TooltipAlignContext.Provider>}
     {renderHeader ? <HoverPreviewBody streaming={data.running}>{body}</HoverPreviewBody> : body}
-  </>;
+  </AlwaysWrapPreview>;
 }
 
 const styles = StyleSheet.create({
   controls: { flexDirection: "row", alignItems: "center", gap: space.xs },
   question: { gap: space.md, minWidth: 0 },
   heading: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.sm },
-  header: { fontWeight: "600" },
+  header: { fontWeight: "600", flexShrink: 1 },
   title: { fontWeight: "600" },
   options: { gap: space.xs },
   option: { flexDirection: "row", alignItems: "flex-start", gap: space.sm, padding: space.sm,

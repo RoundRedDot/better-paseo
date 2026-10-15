@@ -20,8 +20,11 @@ import { readUserQuestions } from "../../client/tools/user-questions";
 import { ToolCallout, ToolPreviewContent } from "../../client/components/tool-callouts";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { SyntaxHighlightBlock } from "../../client/components/syntax-highlight";
-import { updateEnhancerPreferences } from "../../client/preferences";
+import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { toolbarLabel } from "../../client/i18n/toolbar-strings";
+import { PreviewPanelSample } from "../../client/ui/hover-preview";
+import { HScroll } from "../../client/ui/h-scroll";
+import { ToolbarButton } from "../../client/ui/toolbar-button";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -76,6 +79,42 @@ describe("AskUserQuestion transcript data", () => {
 });
 
 describe("AskUserQuestion presentation", () => {
+  it.each(["ios", "web"])("always wraps questions and raw data without a wrap toggle on %s", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    updateEnhancerPreferences({ previewWrap: false });
+    const long = "Long question and answer text. ".repeat(50);
+    const data = call({ questions: [{ ...questions[0]!, header: long, question: long }], answers: { [long]: long } });
+    const draw = (data: ReturnType<typeof call>) => React.createElement(PreviewPanelSample, { tokens,
+      children: React.createElement(ToolPreviewContent, { data, tokens, compact: false, resolvePath: (p: string) => p }),
+    });
+    let view!: ReturnType<typeof TestRenderer.create>;
+    act(() => { view = TestRenderer.create(draw(data)); });
+    try {
+      const assertWrapped = () => {
+        expect(view.root.findAllByType(HScroll)).toHaveLength(0);
+        expect(view.root.findAllByType(ToolbarButton).filter((node) =>
+          ["Wrap lines", "Do not wrap lines"].includes(node.props.label))).toHaveLength(0);
+        expect(view.root.findByProps({ testID: "hover-preview-tool-name" }).props.numberOfLines).toBeUndefined();
+      };
+      assertWrapped();
+      expect(text(view.root)).toContain(long);
+      expect(view.root.findAllByType(ToolbarButton).find((node) => node.props.label === "Show raw data")!.props.icon).toBe("FileJson");
+      expect(view.root.findAllByType(ToolbarButton).find((node) => node.props.label === "Copy arguments")!.props.icon).toBe("Braces");
+      act(() => button(view.root, "Show raw data").props.onPress());
+      assertWrapped();
+      act(() => button(view.root, "Show questions").props.onPress());
+      assertWrapped();
+      // Other tool previews still honor the reader's saved wrap preference.
+      act(() => view.update(draw(classifyTool({ name: "Bash", status: "completed", detail: { type: "shell", command: "echo hi", output: "hi" } }))));
+      expect(button(view.root, "Wrap lines")).toBeDefined();
+      expect(view.root.findByProps({ testID: "hover-preview-tool-name" }).props.numberOfLines).toBe(1);
+    } finally {
+      act(() => view.unmount());
+      resetEnhancerPreferences();
+      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+    }
+  });
+
   it.each(["ios", "web"])("defaults to questions, pages and keeps the page across raw toggles on %s", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const data = call({ questions }, { output: summary(["Codex", "iOS, Web"]) });
