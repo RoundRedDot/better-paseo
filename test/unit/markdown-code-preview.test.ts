@@ -4,7 +4,7 @@ import TestRenderer, { act } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-const state = vi.hoisted(() => ({ layers: [] as Array<{ maximized?: boolean }>, copy: vi.fn(async (_text: string) => {}) }));
+const state = vi.hoisted(() => ({ layers: [] as Array<{ maximized?: boolean; onLinesFit?(fits: boolean): void }>, copy: vi.fn(async (_text: string) => {}) }));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: "Icon", TextInput: rn.TextInput, ScrollView: rn.ScrollView,
@@ -18,7 +18,7 @@ vi.mock("@getpaseo/plugin/client", () => ({
 vi.mock("../../client/web", async (original) => ({
   ...await original<typeof import("../../client/web")>(),
   bindRowHover: () => () => {},
-  openPreviewLayer: (_node: unknown, _anchor: unknown, _close: unknown, options: { maximized?: boolean }) => {
+  openPreviewLayer: (_node: unknown, _anchor: unknown, _close: unknown, options: { maximized?: boolean; onLinesFit?(fits: boolean): void }) => {
     state.layers.push(options);
     return () => {};
   },
@@ -59,6 +59,21 @@ afterEach(() => {
 });
 
 describe("Markdown code window", () => {
+  it("keeps raw text wrapping available after the desktop layer reports fitting lines", () => {
+    platform.__rnMockOS = "web";
+    render("markdown");
+    press("Open Markdown in a window");
+    act(() => state.layers.at(-1)!.onLinesFit!(true));
+    expect(buttons("Do not wrap lines")[0]!.props.disabled).toBe(true);
+    press("Show raw text");
+    const header = hosts("hover-preview-start")[0]!;
+    const wrap = header.find((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Do not wrap lines");
+    expect(wrap.props.disabled).toBe(false);
+    act(() => wrap.props.onPress());
+    expect(header.find((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Wrap lines").props.disabled).toBe(false);
+    press("Render Markdown");
+    expect(buttons("Do not wrap lines")[0]!.props.disabled).toBe(true);
+  });
   it.each(["web", "ios", "android"])("opens maximized, switches the complete source and closes on %s", async (os) => {
     platform.__rnMockOS = os;
     updateEnhancerPreferences({ hoverPreview: false });
