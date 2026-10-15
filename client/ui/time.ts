@@ -10,9 +10,12 @@ function pad(value: number): string {
   return value < 10 ? `0${value}` : String(value);
 }
 
-/** Full local timestamp for the assistant footer. */
-export function formatFooterStamp(date: Date): string {
-  return `${String(date.getFullYear()).padStart(4, "0")}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+/** Local timestamp with seconds; the date is omitted for today. */
+export function formatFooterStamp(date: Date, now: Date = new Date()): string {
+  const clock = `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  const sameDay = date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+  return sameDay ? clock : `${String(date.getFullYear()).padStart(4, "0")}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${clock}`;
 }
 
 export function formatDuration(durationMs: number): string {
