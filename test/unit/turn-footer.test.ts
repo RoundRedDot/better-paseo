@@ -104,14 +104,14 @@ describe("assistant footer", () => {
       expect(table.findAllByType(ProviderLogo).map((node) => node.props.provider)).toEqual(["codex", "codex"]);
       expect(table.findAllByType("Icon" as never).map((node) => node.props.name))
         .toEqual(["Check", "Check", "Brain", "Check", "Clock", "Check", "Hourglass"]);
-      for (const row of rows) {
+      for (const [index, row] of rows.entries()) {
         const slot = row.findAllByType("View" as never).find((node) => node.props.testID === "footer-value-icon")!;
         const valueCell = row.findAllByType("View" as never)
           .find((node) => StyleSheet.flatten(node.props.style).flex === 1)!;
         expect(valueCell.findAllByType("View" as never)).toContain(slot);
         expect(StyleSheet.flatten(slot.props.style)).toMatchObject({ width: 14, height: 14, flexShrink: 0 });
         const style = StyleSheet.flatten(row.props.style);
-        expect(style.backgroundColor).toBeUndefined();
+        expect(style.backgroundColor).toBe(index % 2 === 0 ? tokens.surface0 : tokens.v2.surface1);
         expect(style.minHeight).toBe(32);
         expect(row.findAllByType("View" as never).some((node) => StyleSheet.flatten(node.props.style).width === 72)).toBe(true);
       }
@@ -195,6 +195,7 @@ describe("assistant footer", () => {
       const title = renderer.root.findAllByType("Text" as never)
         .find((node) => node.props.accessibilityRole === "header")!;
       expect(title.props.children).toBe("轮次详情");
+      expect(StyleSheet.flatten(title.props.style).textAlign).toBe("center");
       const bubble = renderer.root.findAllByType("View" as never)
         .map((node) => StyleSheet.flatten(node.props.style))
         .find((style) => style.boxShadow);
