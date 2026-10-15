@@ -172,7 +172,10 @@ export function MdTable({
       </HScroll>
       {/* Over the scroller rather than in it: a scroller clips what passes its
           edges, and the open menu's border and shadow reach past the left one. */}
-      <View style={[copyStyles.corner, { backgroundColor: context.tokens.surface0 }]}>
+      <View style={copyStyles.corner}>
+        {/* Only the closed icon needs a static backing; the menu paints its
+            own expanding frame so no full-width fill remains during exit. */}
+        <View pointerEvents="none" style={[copyStyles.corner, copyStyles.backing, { backgroundColor: context.tokens.surface0 }]} />
         <TableCopyMenu source={() => token.raw} frame={frameRef} tokens={context.tokens}
           selected={selection.selected ? { text: selection.selected.text, dismiss: selection.dismiss } : undefined} />
       </View>
@@ -204,4 +207,5 @@ const copyStyles = StyleSheet.create({
     left: 0,
     borderRadius: FLOAT.radius,
   },
+  backing: { width: FLOAT.control, height: FLOAT.control },
 });
