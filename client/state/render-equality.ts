@@ -50,6 +50,7 @@ interface ToolData {
   phase?: string;
   error?: string | null;
   approved?: boolean;
+  questionData?: Record<string, unknown>;
 }
 
 export function toolPropsEqual<T extends ToolData>(prev: Props<T>, next: Props<T>): boolean {
@@ -61,6 +62,8 @@ export function toolPropsEqual<T extends ToolData>(prev: Props<T>, next: Props<T
   if (!a.callId || a.callId !== b.callId) return false;
   // A running call is the live one: its output is what is changing.
   if (a.status === "running" || a.status !== b.status) return false;
+  // Async questions stay `completed` while their answer arrives later.
+  if (JSON.stringify(a.questionData) !== JSON.stringify(b.questionData)) return false;
   return a.phase === b.phase && (a.error ?? null) === (b.error ?? null) && a.approved === b.approved;
 }
 

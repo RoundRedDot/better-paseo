@@ -23,10 +23,17 @@ export function transformToolCall({ item, phase }: {
   // "Message from X" or "X finished".
   if (item.name === "agent_message") return undefined;
   // The status rides as the host sent it, `canceled` included. Of the
-  // metadata only a plan's verdict is kept: Claude reports a rejected plan
+  // metadata a plan's verdict and structured questions are kept: Claude reports a rejected plan
   // as `completed` with `approved: false`, so the status alone cannot tell.
   // The rest can be large and no row reads it.
   const approved = item.metadata?.approved;
+  const metadata = item.metadata;
+  const questionData = Array.isArray(metadata?.questions) ? {
+    questions: metadata.questions,
+    ...(metadata.answers !== undefined ? { answers: metadata.answers } : {}),
+    ...(metadata.questionResult !== undefined ? { result: metadata.questionResult } : {}),
+    ...(metadata.questionStatus !== undefined ? { status: metadata.questionStatus } : {}),
+  } : undefined;
   return {
     items: [
       {
@@ -41,6 +48,7 @@ export function transformToolCall({ item, phase }: {
           error: toolErrorText(item.error),
           phase,
           ...(typeof approved === "boolean" ? { approved } : {}),
+          ...(questionData ? { questionData: toJsonValue(questionData) } : {}),
         },
       },
     ],
