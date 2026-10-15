@@ -39,6 +39,7 @@ vi.mock("../../client/web", () => ({
     return () => {};
   },
   openPreviewLayer: () => () => {},
+  watchNextPointerMove: () => () => {},
 }));
 vi.mock("../../client/components/image-viewer", async () => {
   const { createElement } = await import("react");
