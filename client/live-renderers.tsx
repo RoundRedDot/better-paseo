@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "
 import { Platform, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useAgent, usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { useRevealedText } from "@getpaseo/plugin/client/react-native";
-import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
+import { ChatComposerContext, type ComposerTimelineItemProps as PluginTimelineItemProps } from "./ui/chat-composer";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useThemeTokens } from "./components/theme-tokens";
 import { ToolCallout } from "./components/tool-callouts";
@@ -67,6 +67,7 @@ export interface LiveToolCallPayload {
   error?: string | null;
   phase?: string;
   approved?: boolean;
+  questionData?: Record<string, unknown>;
 }
 
 export interface LiveReasoningPayload {
@@ -791,25 +792,25 @@ const NoticeMemo = memo(LiveNoticeRendererBody, noticePropsEqual);
 const UserMessageMemo = memo(LiveUserMessageRendererBody, userMessagePropsEqual);
 
 export function LiveToolCallRenderer(props: PluginTimelineItemProps<LiveToolCallPayload>) {
-  return <ToolCallMemo {...props} />;
+  return <ChatComposerContext.Provider value={props.composer}><ToolCallMemo {...props} /></ChatComposerContext.Provider>;
 }
 
 export function LiveReasoningRenderer(props: PluginTimelineItemProps<LiveReasoningPayload>) {
-  return <ReasoningMemo {...props} />;
+  return <ChatComposerContext.Provider value={props.composer}><ReasoningMemo {...props} /></ChatComposerContext.Provider>;
 }
 
 export function LiveTodoRenderer(props: PluginTimelineItemProps<LiveTodoPayload>) {
-  return <TodoMemo {...props} />;
+  return <ChatComposerContext.Provider value={props.composer}><TodoMemo {...props} /></ChatComposerContext.Provider>;
 }
 
 export function LiveAssistantRenderer(props: PluginTimelineItemProps<LiveAssistantPayload>) {
-  return <AssistantMemo {...props} />;
+  return <ChatComposerContext.Provider value={props.composer}><AssistantMemo {...props} /></ChatComposerContext.Provider>;
 }
 
 export function LiveNoticeRenderer(props: PluginTimelineItemProps<LiveNoticePayload>) {
-  return <NoticeMemo {...props} />;
+  return <ChatComposerContext.Provider value={props.composer}><NoticeMemo {...props} /></ChatComposerContext.Provider>;
 }
 
 export function LiveUserMessageRenderer(props: PluginTimelineItemProps<LiveUserMessagePayload>) {
-  return <UserMessageMemo {...props} />;
+  return <ChatComposerContext.Provider value={props.composer}><UserMessageMemo {...props} /></ChatComposerContext.Provider>;
 }

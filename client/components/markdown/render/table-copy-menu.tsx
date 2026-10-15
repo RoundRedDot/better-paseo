@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import React, { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../../theme-tokens";
@@ -15,6 +15,7 @@ import { UI_SCALE } from "../../../ui/tokens/typography";
 import { useEnhancerPreferences } from "../../../preferences";
 import { toolbarLabel } from "../../../i18n/toolbar-strings";
 import { bindTouchDismiss, suppressTouchCallout } from "../../../web";
+import { ChatComposerContext, quoteCell } from "../../../ui/chat-composer";
 
 export const COPY_MARKDOWN_LABEL = "Copy as Markdown";
 export const COPY_IMAGE_LABEL = "Copy as image";
@@ -49,6 +50,7 @@ function SelectionCopyMenu({ children, selected, tokens }: {
   tokens: ExtendedThemeTokens;
 }) {
   const { copy } = useCopy();
+  const composer = useContext(ChatComposerContext);
   const { language } = useEnhancerPreferences();
   const reducedMotion = useReducedMotion();
   const windowWidth = useWindowDimensions().width;
@@ -119,22 +121,41 @@ function SelectionCopyMenu({ children, selected, tokens }: {
           aria-hidden={!open}
           style={[styles.frame, styles.nativeFrame, { width, backgroundColor: tokens.surface0, borderColor: tokens.v2.border }]}>
           <View style={{ width: windowWidth }}>
-            <Pressable accessibilityRole="button" accessible={open} focusable={open} accessibilityLabel={open ? "Copy selected cell" : undefined}
-              onLayout={(event) => setMeasured(Math.ceil(event.nativeEvent.layout.width) + BORDER * 2)}
-              onPress={() => {
-                if (selected) void copy(selected.text, { feedback: "toast", label: "Copy selected" })
-                  .then((ok) => { if (ok) selected.dismiss(); });
-              }}
-              style={({ pressed }) => [styles.selected, { backgroundColor: pressed ? floatPressed(tokens) : tokens.surface0 }]}>
-              <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
-              <Animated.View style={{ opacity: reveal,
-                transform: [{ translateX: reveal.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}>
-                <Text selectable={false} numberOfLines={1}
-                  style={[styles.label, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
-                  {toolbarLabel("Copy selected", language)}
-                </Text>
-              </Animated.View>
-            </Pressable>
+            <View testID="table-selection-menu-row" style={styles.selectedRow}
+              onLayout={(event) => setMeasured(Math.ceil(event.nativeEvent.layout.width) + BORDER * 2)}>
+              <Pressable accessibilityRole="button" accessible={open} focusable={open} accessibilityLabel={open ? "Copy selected cell" : undefined}
+                onPress={() => {
+                  if (selected) void copy(selected.text, { feedback: "toast", label: "Copy selected" })
+                    .then((ok) => { if (ok) selected.dismiss(); });
+                }}
+                style={({ pressed }) => [styles.selected, { backgroundColor: pressed ? floatPressed(tokens) : tokens.surface0 }]}>
+                <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
+                <Animated.View style={{ opacity: reveal,
+                  transform: [{ translateX: reveal.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}>
+                  <Text selectable={false} numberOfLines={1}
+                    style={[styles.label, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+                    {toolbarLabel("Copy selected", language)}
+                  </Text>
+                </Animated.View>
+              </Pressable>
+              {composer ? (
+                <Animated.View style={{ opacity: reveal,
+                  transform: [{ translateX: reveal.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}>
+                  <Pressable accessibilityRole="button" accessible={open} focusable={open}
+                    accessibilityLabel={open ? "Add to chat" : undefined}
+                    onPress={() => {
+                      if (selected && composer.appendText(quoteCell(selected.text))) selected.dismiss();
+                    }}
+                    style={({ pressed }) => [styles.selected, { backgroundColor: pressed ? floatPressed(tokens) : tokens.surface0 }]}>
+                    <Icon name="MessageSquarePlus" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
+                    <Text selectable={false} numberOfLines={1}
+                      style={[styles.label, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+                      {toolbarLabel("Add to chat", language)}
+                    </Text>
+                  </Pressable>
+                </Animated.View>
+              ) : null}
+            </View>
           </View>
         </Animated.View>
       ) : null}
@@ -344,6 +365,7 @@ const BORDER = 1;
 const styles = StyleSheet.create({
   nativeSlot: { width: FLOAT.control, height: FLOAT.control },
   nativeFrame: { position: "absolute", top: 0, left: 0 },
+  selectedRow: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center" },
   selected: { alignSelf: "flex-start", height: FLOAT.control - BORDER * 2, flexDirection: "row", alignItems: "center", gap: FLOAT.iconText, paddingLeft: 7, paddingRight: 10 },
   // A rounded square while closed; open, the same frame is a wider rounded rectangle.
   frame: {
