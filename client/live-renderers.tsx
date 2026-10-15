@@ -26,6 +26,7 @@ import { useEnhancerPreferences } from "./preferences";
 import { PreferenceSyncSlot } from "./state/preference-sync-slot";
 import { useIsLatestPrompt } from "./state/latest-prompt";
 import { loadReplyTurnDuration } from "./state/turn-duration";
+import { useFooterModel } from "./state/footer-model";
 import { HOST_REWIND_MENU } from "./ui/host-rewind";
 import { publishHubSnapshot } from "./hub-activity";
 import { MarkdownView } from "./components/markdown/markdown-view";
@@ -579,7 +580,10 @@ const TailFooter = memo(function TailFooter({
   const running = useAgent(agentId, (agent) => agent.status === "running");
   const agentName = useAgent(agentId, (agent) => agent.provider);
   const modelName = useAgent(agentId, (agent) => agent.model);
+  const thinkingOptionId = useAgent(agentId, (agent) => agent.thinkingOptionId);
+  const cwd = useAgent(agentId, (agent) => agent.cwd);
   const paseo = usePaseo();
+  const model = useFooterModel(paseo, agentName, modelName, thinkingOptionId, cwd);
   const atMs = at.getTime();
   const [timing, setTiming] = useState<{ at: number; text: string; durationMs: number | null } | null>(null);
   useEffect(() => {
@@ -597,7 +601,8 @@ const TailFooter = memo(function TailFooter({
   }, [paseo, agentId, atMs, text, running]);
   if (running === true) return null;
   const durationMs = timing?.at === atMs && timing.text === text ? timing.durationMs : null;
-  return <AssistantFooter text={text} at={at} agentName={agentName} modelName={modelName}
+  return <AssistantFooter text={text} at={at} agentName={agentName} modelName={model.modelName}
+    thinkingLabel={model.thinkingLabel}
     durationMs={durationMs} tokens={tokens} compact={compact} />;
 });
 
