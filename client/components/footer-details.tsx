@@ -49,29 +49,40 @@ export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, 
   if (durationMs != null) rows.push({ label: "Elapsed time", icon: "Hourglass", value: formatDuration(durationMs) });
   const textStyle = [styles.text, unselectable, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }];
   return (
-    <View testID="footer-details-table" style={{ padding: TABLE_INSET }}>
-      {rows.map((row, index) => (
-        <View key={row.label} testID={`footer-detail-${row.label}`} style={[styles.row,
-          index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.v2.borderSubtle }]}>
-          <View style={[styles.type, { width: labelWidth(language), borderRightColor: tokens.v2.borderSubtle }]}>
-            <Text style={textStyle}>{toolbarLabel(row.label, language)}</Text>
-          </View>
-          <View style={styles.value}>
-            <View testID="footer-value-icon" style={styles.icon}>
-              {row.provider
-                ? <ProviderLogo provider={row.provider} size={14} color={tokens.foregroundMuted} />
-                : <Icon name={row.icon} size={14} color={tokens.foregroundMuted} />}
+    <View>
+      <View testID="footer-panel-titlebar" style={[styles.titlebar,
+        { backgroundColor: tokens.v2.surface1, borderBottomColor: tokens.v2.borderSubtle }]}>
+        <Text accessibilityRole="header" style={[textStyle, styles.title, { color: tokens.foreground }]}>
+          {toolbarLabel("Turn details", language)}
+        </Text>
+      </View>
+      <View testID="footer-details-table" style={{ padding: TABLE_INSET }}>
+        {rows.map((row, index) => (
+          <View key={row.label} testID={`footer-detail-${row.label}`} style={[styles.row,
+            index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.v2.borderSubtle }]}>
+            <View style={[styles.type, { width: labelWidth(language), borderRightColor: tokens.v2.borderSubtle }]}>
+              <Text style={textStyle}>{toolbarLabel(row.label, language)}</Text>
             </View>
-            <Text style={[textStyle, { color: tokens.foreground }]}>{row.value}</Text>
-            {row.copyLabel ? <CopyButton text={row.value} label={row.copyLabel} tokens={tokens} /> : null}
+            <View style={styles.value}>
+              <View testID="footer-value-icon" style={styles.icon}>
+                {row.provider
+                  ? <ProviderLogo provider={row.provider} size={14} color={tokens.foregroundMuted} />
+                  : <Icon name={row.icon} size={14} color={tokens.foregroundMuted} />}
+              </View>
+              <Text style={[textStyle, { color: tokens.foreground }]}>{row.value}</Text>
+              {row.copyLabel ? <CopyButton text={row.value} label={row.copyLabel} tokens={tokens} /> : null}
+            </View>
           </View>
-        </View>
-      ))}
+        ))}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  titlebar: { minHeight: 32, justifyContent: "center", paddingHorizontal: TABLE_INSET + 8,
+    paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  title: { fontWeight: "500" },
   // 32: the copy button's 24pt box plus 4 above and below; its hitSlop keeps a 32pt target.
   row: { flexDirection: "row", alignItems: "stretch", minHeight: 32 },
   type: { flexShrink: 0, flexDirection: "row", alignItems: "center",
