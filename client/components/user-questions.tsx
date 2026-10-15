@@ -67,10 +67,6 @@ export function UserQuestions({ questions: data, tokens, rawBody, renderHeader, 
           {question.answer ?? label(data.dismissed ? "Dismissed" : data.running ? "Waiting for answer…" : "No answer recorded")}
         </SelectableText>
       </View>
-      {data.response ? <View style={styles.options}>
-        <Text style={meta}>{label("Response")}</Text>
-        <SelectableText style={prose}>{data.response}</SelectableText>
-      </View> : null}
     </View>}
     {children}
   </>;
