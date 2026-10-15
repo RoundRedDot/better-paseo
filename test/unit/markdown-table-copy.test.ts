@@ -145,6 +145,36 @@ describe("Markdown table copy", () => {
     return runs;
   }
 
+  const copyButtonLayer = () => {
+    let node = buttons()[0]!.parent!;
+    while (String(node.type) !== "View" || node.props.accessibilityElementsHidden === undefined) node = node.parent!;
+    return node;
+  };
+
+  const expectCopyButtonHidden = (hidden: boolean) => {
+    expect(StyleSheet.flatten(copyButtonLayer().props.style).opacity).toBe(hidden ? 0 : 1);
+    expect(copyButtonLayer().props.pointerEvents).toBe(hidden ? "none" : "auto");
+    expect(copyButtonLayer().props.accessibilityElementsHidden).toBe(hidden);
+  };
+
+  it("keeps the underlying copy button hidden until the shrinking frame has finished", () => {
+    const runs = captureAnimations();
+    render("| A | B |\n| --- | --- |\n| one | two |");
+    expectCopyButtonHidden(false);
+    tap(2, 100); tap(2, 230);
+    act(() => selectedCopy()[0]!.props.onLayout({ nativeEvent: { layout: { width: 96 } } }));
+    expectCopyButtonHidden(true);
+    act(() => renderer!.root.findAll((node) => String(node.type) === "Animated.ScrollView")[0]!.props.onScrollBeginDrag());
+    expect(animatedMenu()).toHaveLength(1);
+    expectCopyButtonHidden(true);
+    const exit = runs.at(-2)!;
+    act(() => exit.finish!({ finished: false }));
+    expectCopyButtonHidden(true);
+    act(() => exit.finish!({ finished: true }));
+    expect(animatedMenu()).toHaveLength(0);
+    expectCopyButtonHidden(false);
+  });
+
   it("animates the measured frame and label, retaining the menu until its exit finishes", () => {
     const runs = captureAnimations();
     render("| A | B |\n| --- | --- |\n| one | two |");
@@ -182,6 +212,7 @@ describe("Markdown table copy", () => {
     expect(selectedCopy()).toHaveLength(1);
     expect(animatedMenu()).toHaveLength(1);
     expect(runs.at(-2)!.config.toValue).toBe(98);
+    expectCopyButtonHidden(true);
   });
 
   it("switches instantly when reduced motion is enabled", () => {
@@ -192,8 +223,10 @@ describe("Markdown table copy", () => {
     act(() => selectedCopy()[0]!.props.onLayout({ nativeEvent: { layout: { width: 96 } } }));
     expect(runs).toHaveLength(0);
     expect((StyleSheet.flatten(animatedMenu()[0]!.props.style).width as { __value: number }).__value).toBe(98);
+    expectCopyButtonHidden(true);
     act(() => renderer!.root.findAll((node) => String(node.type) === "Animated.ScrollView")[0]!.props.onScrollBeginDrag());
     expect(animatedMenu()).toHaveLength(0);
+    expectCopyButtonHidden(false);
   });
 
   it("restores the corner icon when the native page scrolls and stops observing once closed", () => {
