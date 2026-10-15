@@ -119,7 +119,6 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
         >
           {agentName ? <ProviderLogo provider={agentName} size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} /> : null}
           <Text style={styles.time}>{modelName}</Text>
-          {modelCopy.copied ? <Icon name="Check" size={DISCLOSURE_HEADER.icon} color={tokens.success} /> : null}
         </Pressable>
       ) : null}
       {thinkingLabel ? (

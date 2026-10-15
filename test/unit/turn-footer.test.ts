@@ -97,11 +97,15 @@ describe("assistant footer", () => {
     })); });
     try {
       const button = renderer.root.findByProps({ accessibilityLabel: "Copy model name" });
+      const labelsBeforeCopy = renderer.root.findAllByType("Text" as never).map((node) => node.props.children);
       expect(button.props.hitSlop).toBe(compact ? 10 : 0);
       await act(async () => { button.props.onPress(); });
       expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("GPT-6.1-Sol");
       expect(clipboard.show).toHaveBeenCalledExactlyOnceWith("已复制模型名称：GPT-6.1-Sol");
       expect(renderer.root.findByProps({ accessibilityLabel: "Model name copied" })).toBeDefined();
+      expect(button.findAllByType("Icon" as never)).toHaveLength(0);
+      expect(renderer.root.findAllByType("Text" as never).map((node) => node.props.children))
+        .toEqual(labelsBeforeCopy);
       await act(async () => { renderer.root.findByProps({ accessibilityLabel: "Copy reply" }).props.onPress(); });
       expect(clipboard.copyText).toHaveBeenLastCalledWith(text);
     } finally {
