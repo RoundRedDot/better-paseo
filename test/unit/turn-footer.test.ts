@@ -40,12 +40,91 @@ afterEach(() => {
 });
 
 describe("assistant footer", () => {
+  it.each(["ios", "android", "web"])("reveals model details on long press and copies from the panel on %s", async (platform) => {
+    const globals = globalThis as { __rnMockOS?: string };
+    const previousPlatform = globals.__rnMockOS;
+    globals.__rnMockOS = platform;
+    updateEnhancerPreferences({ language: "zh" });
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
+      text, at, tokens, compact: true, modelName: "Opus 5.5", thinkingLabel: "High",
+    })); });
+    const details = () => renderer.root.findAllByProps({ testID: "footer-model-details" })
+      .filter((node) => (node.type as unknown) === "View");
+    try {
+      expect(details()).toHaveLength(0);
+      const trigger = renderer.root.findAllByType("Pressable" as never)
+        .find((node) => node.props.accessibilityLabel === "Copy model name")!;
+      expect(trigger.props.onFocus).toBeUndefined();
+      act(() => { trigger.props.onLongPress(); });
+      expect(clipboard.copyText).not.toHaveBeenCalled();
+      expect(details()).toHaveLength(1);
+      expect(details()[0]!.findAllByType("Text" as never)
+        .map((node) => [node.props.children].flat().join(""))).toEqual(["Opus 5.5", "思考强度: High"]);
+      const copyButton = details()[0]!.findByType("Pressable" as never);
+      await act(async () => { copyButton.props.onPress(); });
+      expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("Opus 5.5");
+      expect(copyButton.props.accessibilityLabel).toBe("Model name copied");
+      if (platform !== "web") {
+        const modal = renderer.root.findByType("Modal" as never);
+        act(() => { modal.props.onRequestClose(); });
+        expect(details()).toHaveLength(0);
+        act(() => { trigger.props.onLongPress(); });
+        const close = renderer.root.findAllByType("Pressable" as never)
+          .find((node) => node.props.accessibilityLabel === "Close preview")!;
+        act(() => { close.props.onPress(); });
+        expect(details()).toHaveLength(0);
+      }
+    } finally {
+      act(() => renderer.unmount());
+      globals.__rnMockOS = previousPlatform;
+    }
+  });
+
+  it("keeps hover details clickable while crossing from the model and closes after leaving", async () => {
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
+      text, at, tokens, modelName: "Opus 5.5", thinkingLabel: "High",
+    })); });
+    const details = () => renderer.root.findAllByProps({ testID: "footer-model-details" })
+      .filter((node) => (node.type as unknown) === "View");
+    try {
+      const trigger = renderer.root.findAllByType("Pressable" as never)
+        .find((node) => node.props.accessibilityLabel === "Copy model name")!;
+      act(() => { trigger.props.onHoverIn(); });
+      act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS - 1); });
+      expect(details()).toHaveLength(0);
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(details()).toHaveLength(1);
+      act(() => { trigger.props.onHoverOut(); });
+      act(() => { vi.advanceTimersByTime(60); });
+      const panel = renderer.root.findAllByType("Pressable" as never)
+        .find((node) => node.props.accessible === false && node.props.onHoverIn)!;
+      act(() => { panel.props.onHoverIn(); });
+      act(() => { vi.advanceTimersByTime(500); });
+      expect(details()).toHaveLength(1);
+      await act(async () => { details()[0]!.findByType("Pressable" as never).props.onPress(); });
+      expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("Opus 5.5");
+      act(() => { panel.props.onHoverOut(); });
+      act(() => { vi.advanceTimersByTime(120); });
+      expect(details()).toHaveLength(0);
+      act(() => { trigger.props.onHoverIn(); });
+      act(() => { vi.advanceTimersByTime(100); trigger.props.onHoverOut(); });
+      act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
+      expect(details()).toHaveLength(0);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
   it.each([
-    ["web", "en", "Thinking level", "Elapsed time"],
-    ["web", "zh", "思考强度", "耗时"],
-    ["ios", "en", "Thinking level", "Elapsed time"],
-    ["ios", "zh", "思考强度", "耗时"],
-  ] as const)("shows passive metadata hints on %s in %s with a full timestamp", (platform, language, thinkingHint, durationHint) => {
+    ["web", "en", "Elapsed time"],
+    ["web", "zh", "耗时"],
+    ["ios", "en", "Elapsed time"],
+    ["ios", "zh", "耗时"],
+  ] as const)("shows passive metadata hints on %s in %s with a full timestamp", (platform, language, durationHint) => {
     const globals = globalThis as { __rnMockOS?: string };
     const previousPlatform = globals.__rnMockOS;
     globals.__rnMockOS = platform;
@@ -60,9 +139,9 @@ describe("assistant footer", () => {
     const labels = () => renderer.root.findAllByType("Text" as never).map((node) => node.props.children);
     try {
       const metadata = renderer.root.findAllByType("Pressable" as never).filter((node) => node.props.accessibilityRole === "image");
-      expect(metadata).toHaveLength(3);
-      expect(labels()).toEqual(["Copy", "High", "15:05:03", "16秒"]);
-      for (const [index, hint] of [thinkingHint, "2026-10-15 15:05:03", durationHint].entries()) {
+      expect(metadata).toHaveLength(2);
+      expect(labels()).toEqual(["Copy", "15:05", "16秒"]);
+      for (const [index, hint] of ["2026-10-15 15:05:03", durationHint].entries()) {
         const item = metadata[index]!;
         expect(item.props.onPress).toBeUndefined();
         expect(item.props.focusable).toBe(false);
@@ -114,10 +193,12 @@ describe("assistant footer", () => {
       expect(labels()).toContain(copiedHint);
       expect(clipboard.copyText).toHaveBeenLastCalledWith("Opus 5.5");
       act(() => { buttons[1]!.props.onHoverOut(); });
+      act(() => { vi.advanceTimersByTime(120); });
       expect(labels()).not.toContain(copiedHint);
       act(() => { buttons[1]!.props.onHoverIn(); });
       act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS - 1); });
-      act(() => { buttons[1]!.props.onHoverOut(); vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
+      act(() => { buttons[1]!.props.onHoverOut(); });
+      act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
       expect(labels()).not.toContain(copiedHint);
     } finally {
       act(() => renderer.unmount());
@@ -153,9 +234,9 @@ describe("assistant footer", () => {
     try {
       const labels = renderer.root.findAllByType("Text" as never)
         .map((node) => [node.props.children].flat().join(""));
-      expect(labels).toEqual(["Copy", "GPT-6.1-Sol", "Medium", "15:05:03", "2分18秒"]);
+      expect(labels).toEqual(["Copy", "GPT-6.1-Sol", "15:05", "2分18秒"]);
       expect(renderer.root.findAllByType("Icon" as never).map((node) => node.props.name))
-        .toEqual(["Copy", "Brain", "Clock", "Hourglass"]);
+        .toEqual(["Copy", "Clock", "Hourglass"]);
       const image = renderer.root.findByType("Image" as never);
       expect(image.props.accessibilityLabel).toBe("Codex");
       expect(StyleSheet.flatten(image.props.style).tintColor).toBe(tokens.foregroundMuted);

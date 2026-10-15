@@ -15,6 +15,11 @@ describe("path tooltip placement", () => {
     expect(tooltipPlacement("ios", 400, 0)).toBe("below");
     expect(tooltipPlacement("web", null, 0)).toBe("below");
   });
+
+  it("reserves more space above for an interactive model details panel", () => {
+    expect(tooltipPlacement("web", 160, 60, 128)).toBe("below");
+    expect(tooltipPlacement("web", 188, 60, 128)).toBe("above");
+  });
 });
 
 describe("liftStackingRow", () => {

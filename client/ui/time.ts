@@ -10,15 +10,16 @@ function pad(value: number): string {
   return value < 10 ? `0${value}` : String(value);
 }
 
-/** Local timestamp with seconds; the date is omitted for today. */
+/** Local timestamp to the minute; omit today's date and the current year. */
 export function formatFooterStamp(date: Date, now: Date = new Date()): string {
   const sameDay = date.getFullYear() === now.getFullYear() &&
     date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
-  const stamp = formatFullStamp(date);
-  return sameDay ? stamp.slice(11) : stamp;
+  const stamp = formatFullStamp(date).slice(0, -3);
+  if (sameDay) return stamp.slice(11);
+  return date.getFullYear() === now.getFullYear() ? stamp.slice(5) : stamp;
 }
 
-/** Complete local timestamp for hover hints, including today's date. */
+/** Complete local timestamp for hover hints, including the full date and seconds. */
 export function formatFullStamp(date: Date): string {
   const clock = `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   return `${String(date.getFullYear()).padStart(4, "0")}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${clock}`;
