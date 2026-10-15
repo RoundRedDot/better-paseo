@@ -42,6 +42,35 @@ afterEach(() => {
 });
 
 describe("assistant footer", () => {
+  it.each(["ios", "web"].flatMap((platform) => [0, 82000].flatMap((durationMs) =>
+    ["grok", "cursor", "codex"].map((agentName) => ({ platform, durationMs, agentName })))))
+  ("hides upstream Grok timing only: $platform $agentName $durationMs", ({ platform, agentName, durationMs }) => {
+    const globals = globalThis as { __rnMockOS?: string };
+    const previousPlatform = globals.__rnMockOS;
+    globals.__rnMockOS = platform;
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
+      text, at, tokens, agentName, modelName: agentName === "codex" ? "GPT-6.1-Sol" : "Grok 4.7", durationMs,
+      startedAt: 1000, usage: { outputTokens: 42 },
+    })); });
+    try {
+      const visible = agentName !== "grok";
+      expect(renderer.root.findAllByType("Pressable" as never).some((node) =>
+        node.props.accessibilityLabel?.startsWith("Elapsed time:"))).toBe(visible);
+      const toolbar = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.testID === "footer-toolbar")!;
+      act(() => { toolbar.props.onLongPress(); });
+      expect(renderer.root.findAllByType("View" as never).some((node) =>
+        node.props.testID === "footer-detail-Elapsed time")).toBe(visible);
+      for (const label of ["Agent", "Model name", "Start time", "Output tokens"]) {
+        expect(renderer.root.findAllByType("View" as never).some((node) =>
+          node.props.testID === `footer-detail-${label}`)).toBe(true);
+      }
+    } finally {
+      act(() => renderer.unmount());
+      globals.__rnMockOS = previousPlatform;
+    }
+  });
+
   it.each(["en", "zh"] as const)("shows recorded token counts and zero, and hides missing values in %s", (language) => {
     updateEnhancerPreferences({ language });
     let renderer!: ReturnType<typeof TestRenderer.create>;
