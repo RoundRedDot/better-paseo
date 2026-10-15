@@ -6,7 +6,7 @@ import { radiusV2, space } from "./theme-tokens";
 import { useCopy } from "../ui/use-copy";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
-import { formatStamp } from "../ui/time";
+import { formatFooterStamp, formatDuration } from "../ui/time";
 import { TYPE } from "../ui/tokens/typography";
 
 /**
@@ -26,12 +26,15 @@ interface AssistantFooterProps {
   /** The reply, copied verbatim — the same text the host would copy. */
   text: string;
   at: Date;
+  agentName?: string | null;
+  modelName?: string | null;
+  durationMs?: number | null;
   tokens: ExtendedThemeTokens;
   /** `layout.compact`: a 44pt touch target for Copy. */
   compact?: boolean;
 }
 
-export function AssistantFooter({ text, at, tokens, compact = false }: AssistantFooterProps) {
+export function AssistantFooter({ text, at, agentName, modelName, durationMs, tokens, compact = false }: AssistantFooterProps) {
   // The shared copy path (plan §3.8): a check for 1.2 s on success, a toast
   // on failure, and no timer left running after unmount.
   const { copied, copy } = useCopy();
@@ -41,10 +44,11 @@ export function AssistantFooter({ text, at, tokens, compact = false }: Assistant
     () =>
       StyleSheet.create({
         container: {
-          height: FOOTER_HEIGHT,
+          minHeight: FOOTER_HEIGHT,
           // Keep Copy clear of the composer in both desktop and compact layouts.
           marginBottom: space.lg,
           flexDirection: "row",
+          flexWrap: "wrap",
           alignItems: "center",
           gap: space.md,
         },
@@ -94,13 +98,16 @@ export function AssistantFooter({ text, at, tokens, compact = false }: Assistant
         />
         <Text style={styles.copyLabel}>{copied ? "Copied" : "Copy"}</Text>
       </Pressable>
-      <Text style={styles.time}>{formatStamp(at)}</Text>
+      {agentName ? <Text style={styles.time}>{agentName}</Text> : null}
+      {modelName ? <Text style={styles.time}>{modelName}</Text> : null}
+      <Text style={styles.time}>{formatFooterStamp(at)}</Text>
+      {durationMs != null ? <Text style={styles.time}>耗时 {formatDuration(durationMs)}</Text> : null}
     </View>
   );
 }
 
 /**
- * The footer row: 24 tall (the mockup's 32 less the padding; it sits under
+ * The footer row: at least 24 tall, wrapping metadata on narrow screens (it sits under
  * the last reply, where every extra point moves the turn below), a 44pt Copy
  * on touch through hitSlop.
  */

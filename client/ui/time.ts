@@ -10,6 +10,19 @@ function pad(value: number): string {
   return value < 10 ? `0${value}` : String(value);
 }
 
+/** Full local timestamp for the assistant footer. */
+export function formatFooterStamp(date: Date): string {
+  return `${String(date.getFullYear()).padStart(4, "0")}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+export function formatDuration(durationMs: number): string {
+  const seconds = Math.floor(durationMs / 1000);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor(seconds / 60) % 60;
+  const rest = seconds % 60;
+  return `${hours > 0 ? `${hours}小时` : ""}${hours > 0 || minutes > 0 ? `${minutes}分` : ""}${rest}秒`;
+}
+
 export function formatStamp(date: Date, now: Date = new Date()): string {
   const clock = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
   const sameDay =
