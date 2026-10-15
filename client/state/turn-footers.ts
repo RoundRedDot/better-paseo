@@ -11,8 +11,6 @@ export function createTurnFooterStore(source: () => Timeline) {
   const targets = new Set<Target>();
   const listeners = new Set<() => void>();
   const usageByTurn = new Map<string, NonNullable<CompletedTurnFooter["usage"]>>();
-  const turnNumbers = new Map<number, Map<string, number>>();
-  let numberObservers = 0;
   let observers = 0;
   let footers: Footers = new Map();
   let entries: Entry[] = [];
@@ -24,9 +22,6 @@ export function createTurnFooterStore(source: () => Timeline) {
   const coverage = new WeakMap<Entry[], Map<number, Map<string, boolean>>>();
   const publish = () => { for (const listener of listeners) listener(); };
   const get = (at: number, text: string) => footers.get(at)?.get(text) ?? null;
-  const knownNumber = (at: number, text: string) => turnNumbers.get(at)?.get(text);
-  const hasNumberAnchor = (items: Entry[]) => items.some((entry) => entry.item.type === "assistant_message" &&
-    knownNumber(Date.parse(entry.timestamp), entry.item.text) !== undefined);
 
   function needsOlder(items: Entry[]): boolean {
     let indexed = coverage.get(items);
@@ -69,7 +64,7 @@ export function createTurnFooterStore(source: () => Timeline) {
     let items = page.entries;
     while (ticket === generation && targets.size) {
       if (page.error || page.staleCursor || page.gap || page.epoch !== epoch) throw new Error("Incomplete turn footer timeline");
-      if (!page.hasOlder || (!needsOlder(items) && (!numberObservers || hasNumberAnchor(items)))) break;
+      if (!page.hasOlder || !needsOlder(items)) break;
       const cursor = page.startCursor;
       if (!cursor) throw new Error("Missing turn footer timeline cursor");
       page = await timeline.refetch({ direction: "before", cursor, projection: "projected", limit: 200 });
@@ -83,16 +78,6 @@ export function createTurnFooterStore(source: () => Timeline) {
     const next: Footers = new Map();
     const completed = completedTurnFooters(items, snapshot ? snapshot.status === "running" : running === true,
       snapshot?.activeTurn?.turnId ?? null);
-    const anchorIndex = completed.findIndex((footer) => knownNumber(footer.at, footer.text) !== undefined);
-    const firstNumber = !page.hasOlder ? 1 : anchorIndex >= 0
-      ? knownNumber(completed[anchorIndex]!.at, completed[anchorIndex]!.text)! - anchorIndex : undefined;
-    if (firstNumber !== undefined) {
-      for (const [index, footer] of completed.entries()) {
-        let texts = turnNumbers.get(footer.at);
-        if (!texts) turnNumbers.set(footer.at, texts = new Map());
-        texts.set(footer.text, firstNumber + index);
-      }
-    }
     const latest = completed[completed.length - 1];
     // The daemon retains the latest usage even when a window missed completion.
     // Attach it only to the settled tail turn whose prompt matches its snapshot.
@@ -105,14 +90,11 @@ export function createTurnFooterStore(source: () => Timeline) {
       if (latest.turnId && latest.usage) usageByTurn.set(latest.turnId, latest.usage);
     }
     for (const footer of completed) {
-      footer.turnNumber = knownNumber(footer.at, footer.text);
-      footer.turnCount = firstNumber !== undefined && !hasNewer ? firstNumber + completed.length - 1 : undefined;
       if (footer.turnId) footer.usage = usageByTurn.get(footer.turnId);
       const previous = get(footer.at, footer.text);
       const value = previous?.completedAt === footer.completedAt && previous.startedAt === footer.startedAt &&
         previous.durationMs === footer.durationMs && previous.turnId === footer.turnId &&
-        previous.usage === footer.usage && previous.turnNumber === footer.turnNumber &&
-        previous.turnCount === footer.turnCount ? previous : footer;
+        previous.usage === footer.usage ? previous : footer;
       let at = next.get(footer.at);
       if (!at) next.set(footer.at, at = new Map());
       at.set(footer.text, value);
@@ -154,7 +136,7 @@ export function createTurnFooterStore(source: () => Timeline) {
       if (event.type === "replacement" || event.type === "subscription_restored") {
         entries = [];
         footers = new Map();
-        if (event.type === "replacement") { usageByTurn.clear(); turnNumbers.clear(); }
+        if (event.type === "replacement") usageByTurn.clear();
         publish();
         if (targets.size) void refresh();
       } else if (event.type === "turn_started" || event.type === "turn_completed" ||
@@ -206,12 +188,6 @@ export function createTurnFooterStore(source: () => Timeline) {
         disconnect();
       };
     },
-    observeTurnNumber(at: number, text: string) {
-      numberObservers++;
-      const footer = get(at, text);
-      if (footer?.turnNumber === undefined || footer.turnCount === undefined) void request();
-      return () => { numberObservers--; };
-    },
   };
 }
 
@@ -235,7 +211,5 @@ export function useTurnFooter(paseo: PaseoApi, agentId: string, at: number, text
   }, [store, enabled, targetAt, targetText, observeOnly]);
   const getSnapshot = useCallback(() => enabled && !observeOnly ? store.get(targetAt, targetText) : null,
     [store, enabled, observeOnly, targetAt, targetText]);
-  const footer = useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
-  const observeTurnNumber = useCallback(() => store.observeTurnNumber(targetAt, targetText), [store, targetAt, targetText]);
-  return useMemo(() => footer ? { ...footer, observeTurnNumber } : null, [footer, observeTurnNumber]);
+  return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 }
