@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
     onPlace?: (box: { x: number; y: number; width: number; height: number }) => void;
   }>,
   bindRowHover: vi.fn(() => () => {}),
+  outside: [] as Array<() => void>,
   bindPreviewMaximize: vi.fn((_node: unknown, _maximize: () => void) => vi.fn()),
   dropSelectionIn: vi.fn(),
 }));
@@ -27,6 +28,10 @@ vi.mock("../../client/web", () => ({
   bindPreviewMaximize: state.bindPreviewMaximize,
   dropSelectionIn: state.dropSelectionIn,
   bindPreviewPointer: () => () => {},
+  watchPointerOutside: (_anchor: unknown, leave: () => void) => {
+    state.outside.push(leave);
+    return () => { state.outside = state.outside.filter((entry) => entry !== leave); };
+  },
   openPreviewLayer: (_node: unknown, _anchor: unknown, _close: unknown, options: {
     maximized?: boolean;
     frame?: { x: number; y: number; width: number; height: number } | null;
@@ -43,6 +48,7 @@ import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { TOOLBAR_TOOLTIP_MS } from "../../client/ui/toolbar-button";
 import { StyleSheet } from "./helpers/rn-mock";
 import { getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import { PREVIEW_HANDOVER_MS } from "../../client/ui/preview-memory";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let preview!: ReturnType<typeof useHoverPreview>;
@@ -51,6 +57,12 @@ function Probe({ enabled = true }: { enabled?: boolean }) {
   preview = useHoverPreview(enabled);
   return null;
 }
+function KeyedProbe({ memoryKey }: { memoryKey: string }) {
+  preview = useHoverPreview(true, memoryKey);
+  return null;
+}
+/** The same call drawn as a new row: a remount with the same key. */
+const keyedRow = (place: string, memoryKey = "agent:thought:preview") => React.createElement(KeyedProbe, { key: place, memoryKey });
 function mount(enabled = true, nested = false) {
   act(() => {
     renderer = TestRenderer.create(React.createElement(HoverPreviewContext.Provider, { value: nested }, React.createElement(Probe, { enabled })));
@@ -62,6 +74,7 @@ beforeEach(() => {
   state.hover = true;
   state.onLinesFit = undefined;
   state.layers = [];
+  state.outside = [];
   state.bindRowHover.mockClear();
   state.bindPreviewMaximize.mockClear();
   state.dropSelectionIn.mockClear();
@@ -71,6 +84,53 @@ afterEach(() => {
   act(() => renderer?.unmount());
   vi.useRealTimers();
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+});
+
+describe("hover preview across a remount", () => {
+  it("reopens a hover preview on the row the host draws in its place, and closes it on the first move away", () => {
+    act(() => { renderer = TestRenderer.create(keyedRow("live")); });
+    act(() => preview.enter());
+    act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+    expect(preview.quiet).toBe(false);
+    act(() => renderer.update(keyedRow("history")));
+    expect(preview.open).toBe(true);
+    expect(preview.quiet).toBe(true);
+    expect(state.outside).toHaveLength(1);
+    act(() => state.outside[0]!());
+    act(() => { vi.advanceTimersByTime(PREVIEW_CLOSE_MS); });
+    expect(preview.open).toBe(false);
+    act(() => renderer.update(keyedRow("again")));
+    expect(preview.open).toBe(false);
+  });
+  it("keeps a maximized preview maximized and a closed one closed", () => {
+    act(() => { renderer = TestRenderer.create(keyedRow("live")); });
+    act(() => preview.enter());
+    act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+    act(() => preview.maximize());
+    act(() => renderer.update(keyedRow("history")));
+    expect(preview).toMatchObject({ open: true, maximized: true, quiet: true });
+    expect(state.outside).toHaveLength(0);
+    act(() => preview.close());
+    act(() => renderer.update(keyedRow("again")));
+    expect(preview.open).toBe(false);
+  });
+  it.each(["ios", "android"])("leaves a long-pressed modal on %s to its own row", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(keyedRow("live", `agent:${os}:preview`)); });
+    act(() => preview.press!());
+    expect(preview.memoryKey).toBeUndefined();
+    act(() => renderer.update(keyedRow("history", `agent:${os}:preview`)));
+    expect(preview.open).toBe(false);
+  });
+  it("does not reopen a preview for a row that mounts long after the last one let go", () => {
+    act(() => { renderer = TestRenderer.create(keyedRow("live", "agent:late:preview")); });
+    act(() => preview.enter());
+    act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+    act(() => renderer.unmount());
+    act(() => { vi.advanceTimersByTime(PREVIEW_HANDOVER_MS + 1); });
+    act(() => { renderer = TestRenderer.create(keyedRow("history", "agent:late:preview")); });
+    expect(preview.open).toBe(false);
+  });
 });
 
 describe("hover preview lifetime", () => {

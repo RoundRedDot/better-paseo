@@ -117,6 +117,8 @@ function diffCountSpans(entry: string): React.ReactNode {
 
 interface ToolCalloutProps {
   data: ToolCallView;
+  /** The call's name across remounts (its disclosure key), for its preview. */
+  previewKey?: string;
   /** Consecutive calls sharing this file-operation header, in timeline order. */
   groupCalls?: readonly ToolCallView[];
   tokens: ExtendedThemeTokens;
@@ -157,6 +159,7 @@ interface ToolCalloutProps {
  */
 export function ToolCallout({
   data,
+  previewKey,
   groupCalls,
   tokens,
   compact = false,
@@ -308,6 +311,7 @@ export function ToolCallout({
       onPreviewOpen={requestImage}
       previewWraps={!drawsImage}
       pressPreview={!viewsImage}
+      previewKey={previewKey}
       previewContent={() => (
         groupCalls ? (
           <GroupedPreview calls={groupCalls} resolvePath={resolvePath} tokens={tokens} compact={compact} imageFile={imageFile}
