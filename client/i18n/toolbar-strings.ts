@@ -38,6 +38,8 @@ const ZH: Readonly<Record<string, string>> = {
   "Agent": "Agent",
   "Model name": "模型名称",
   "Turn details": "轮次详情",
+  "Previous reply": "上一个回复",
+  "Next reply": "下一个回复",
   "Start time": "开始时间",
   "End time": "结束时间",
   "Copy agent": "复制 Agent",

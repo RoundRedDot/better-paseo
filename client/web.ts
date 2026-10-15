@@ -661,3 +661,37 @@ export function suppressTouchCallout(node: unknown): void {
   if (Platform.OS !== "web") return;
   (node as HTMLElement | null)?.style.setProperty("-webkit-touch-callout", "none");
 }
+
+/** The nearest viewport owns reply navigation, including when an agent is open in two panes. */
+export function replyScrollViewport(node: unknown): HTMLElement | null {
+  if (Platform.OS !== "web") return null;
+  const element = node as HTMLElement | null;
+  const view = element?.ownerDocument?.defaultView;
+  if (!element || !view) return null;
+  for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+    if (/^(auto|scroll|overlay)$/.test(view.getComputedStyle(parent).overflowY)) return parent;
+  }
+  return element.ownerDocument.scrollingElement as HTMLElement | null;
+}
+
+/** Scroll only this timeline, leaving any outer page or sibling pane alone. */
+export function scrollReplyViewport(viewport: unknown, top: number): void {
+  const element = viewport as HTMLElement;
+  const viewportTop = element === element.ownerDocument.scrollingElement ? 0 : element.getBoundingClientRect().top;
+  element.scrollTop += top - viewportTop - 16;
+}
+
+/** Handle Escape before the host composer or a transferred modal's focus trap consumes it. */
+export function bindDetailsEscape(node: unknown, close: () => void): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const doc = (node as HTMLElement | null)?.ownerDocument;
+  if (!doc) return () => {};
+  const keydown = (event: KeyboardEvent) => {
+    if (event.key !== "Escape" || event.isComposing) return;
+    event.preventDefault();
+    event.stopPropagation();
+    close();
+  };
+  doc.addEventListener("keydown", keydown, true);
+  return () => doc.removeEventListener("keydown", keydown, true);
+}
