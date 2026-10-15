@@ -127,6 +127,38 @@ describe("AskUserQuestion transcript data", () => {
 });
 
 describe("AskUserQuestion presentation", () => {
+  it.each(["统一规则：回 0 再开流 (Recommended)", "先记录日志，稍后再处理"])("maps the screenshot's answer to an option or custom content: %s", (answer) => {
+    updateEnhancerPreferences({ language: "en" });
+    const question = "未掉线时点「继续」、戒指回「不在暂停态」（StateConflict）怎么处理?";
+    const label = "统一规则：回 0 再开流 (Recommended)";
+    const output = `Your questions have been answered: "${question}"="${answer}". You can now continue with these answers in mind.`;
+    const data = call({ questions: [{ header: "问题2", question, options: [{ label }, { label: "保持直接失败" }] }] }, { output });
+    let view!: ReturnType<typeof TestRenderer.create>;
+    act(() => { view = TestRenderer.create(React.createElement(ToolPreviewContent, { data, tokens, compact: false, resolvePath: (p) => p })); });
+    try {
+      expect(readUserQuestions(data)!.questions[0]!.answer).toBe(answer);
+      const options = view.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "user-question-option");
+      expect(options.map((node) => node.props.accessibilityState.selected)).toEqual([answer === label, false]);
+      expect(text(view.root)).toContain(answer);
+      expect(text(view.root)).not.toContain("No answer recorded");
+      expect(text(view.root)).not.toContain("Your questions have been answered");
+      act(() => button(view.root, "Show raw data").props.onPress());
+      expect(text(view.root)).toContain(data.output!);
+    } finally { act(() => view.unmount()); resetEnhancerPreferences(); }
+  });
+  it("keeps an unrecognized provider response in raw data only", () => {
+    updateEnhancerPreferences({ language: "en" });
+    const output = "Provider-specific raw response";
+    let view!: ReturnType<typeof TestRenderer.create>;
+    act(() => { view = TestRenderer.create(React.createElement(ToolPreviewContent, {
+      data: call({ questions }, { output }), tokens, compact: false, resolvePath: (p) => p,
+    })); });
+    try {
+      expect(text(view.root)).not.toContain(output);
+      act(() => button(view.root, "Show raw data").props.onPress());
+      expect(text(view.root)).toContain(output);
+    } finally { act(() => view.unmount()); resetEnhancerPreferences(); }
+  });
   it.each(["ask", "ask_user_question", "request_user_input_async", "question"])("keeps the question title in the body and the %s name in the toolbar", (name) => {
     updateEnhancerPreferences({ language: "en" });
     const question = "需要验证哪些平台？这是用于检查窄窗口自动折行的较长问题标题。";
