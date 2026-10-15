@@ -1,0 +1,80 @@
+// Real pointer regression: a slow crossing of the gap must keep details open.
+// Run from the repository root: node .showcase/tools/check-footer-hover.mjs
+import { build } from "esbuild";
+import { chromium } from "playwright-core";
+import http from "node:http";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import assert from "node:assert/strict";
+
+const root = path.resolve(import.meta.dirname, "../..");
+const show = path.join(root, ".showcase");
+const out = mkdtempSync(path.join(tmpdir(), "footer-hover-"));
+let browser;
+let server;
+try {
+  await build({
+    stdin: { contents: `
+      import React from "react";
+      import { createRoot } from "${show}/node_modules/react-dom/client.js";
+      import { AssistantFooter } from "${root}/client/components/turn-footer";
+      import { buildThemeTokens } from "${root}/client/components/theme-tokens";
+      const tokens = buildThemeTokens({surface0:"#fff", surface1:"#eee", surface2:"#ddd", border:"#ccc",
+        foreground:"#111", foregroundMuted:"#666", accent:"#00f", accentForeground:"#fff",
+        statusSuccess:"#198754", statusWarning:"#a36a00", statusDanger:"#d92d20"});
+      createRoot(document.getElementById("root")).render(
+        <div style={{ marginLeft: 80, marginTop: location.search.includes("below") ? 20 : 500 }}>
+          <AssistantFooter text="Reply" at={new Date(2026,9,15,21,3,25)} tokens={tokens}
+            modelName="Opus 5.5" thinkingLabel="High" startedAt={new Date(2026,9,15,21,2,3).getTime()} durationMs={82000}/>
+        </div>);`, resolveDir: root, loader: "tsx" },
+    outfile: path.join(out, "app.js"), bundle: true, jsx: "automatic", format: "iife",
+    define: { global: "globalThis", "process.env.NODE_ENV": '"production"', __DEV__: "false" },
+    alias: {
+      "react-native": path.join(show, "node_modules/react-native-web"),
+      "@getpaseo/plugin/client/react-native": path.join(show, "shims/plugin-react-native.tsx"),
+      "@getpaseo/plugin/client": path.join(show, "shims/plugin-client.tsx"),
+    }, logLevel: "warning",
+  });
+  server = http.createServer((request, response) => {
+    const js = request.url === "/app.js";
+    response.setHeader("content-type", js ? "text/javascript" : "text/html");
+    response.end(js ? readFileSync(path.join(out, "app.js"))
+      : '<!doctype html><div id="root"></div><script src="/app.js"></script>');
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  browser = await chromium.launch({
+    executablePath: process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    headless: true,
+    args: ["--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4"],
+  });
+  for (const side of ["above", "below"]) {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 844 } });
+    await page.goto(`http://127.0.0.1:${server.address().port}/?${side}`);
+    await page.waitForLoadState("networkidle");
+    const trigger = page.getByRole("button", { name: "Copy model name", exact: true });
+    await trigger.hover();
+    const table = page.getByTestId("footer-details-table");
+    await table.waitFor({ state: "visible" });
+    const button = await trigger.first().boundingBox();
+    const panel = await table.boundingBox();
+    assert(side === "above" ? panel.y + panel.height < button.y : panel.y > button.y + button.height);
+    const x = button.x + button.width / 2;
+    await page.mouse.move(x, side === "above" ? button.y - 2 : button.y + button.height + 2);
+    await page.waitForTimeout(250);
+    assert(await table.isVisible(), `${side}: details closed while crossing the hover gap`);
+    await page.mouse.move(x, side === "above" ? panel.y + panel.height - 12 : panel.y + 8);
+    await page.waitForTimeout(800);
+    assert(await table.isVisible(), `${side}: details closed while the pointer was inside`);
+    await table.getByRole("button", { name: "Copy start time", exact: true }).click();
+    assert.equal(await table.getByRole("button", { name: "Copied", exact: true }).count(), 1);
+    await page.mouse.move(1100, 100);
+    await table.waitFor({ state: "hidden" });
+    await page.close();
+    console.log(`${side}: slow gap crossing, dwell, copy and leave OK`);
+  }
+} finally {
+  await browser?.close();
+  if (server) await new Promise((resolve) => server.close(resolve));
+  rmSync(out, { recursive: true, force: true });
+}
