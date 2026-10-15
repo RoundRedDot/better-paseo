@@ -169,6 +169,8 @@ export interface DisclosureHeaderProps {
    * disclosure state.
    */
   previewContent?(): ReactNode;
+  /** The row's name across remounts, so a preview open as the host redraws the row stays open. */
+  previewKey?: string;
   /** The preview opened, for content that is fetched only when it is shown. */
   onPreviewOpen?(): void;
   /** False when the preview holds no text to wrap, so it has no wrap toggle. */
@@ -241,6 +243,7 @@ export function DisclosureHeader({
   onLongPress,
   accessibilityLabel,
   previewContent,
+  previewKey,
   onPreviewOpen,
   previewWraps = true,
   pressPreview = true,
@@ -249,7 +252,7 @@ export function DisclosureHeader({
   inert = false,
 }: DisclosureHeaderProps) {
   const previewOwner = useContext(HoverPreviewContext);
-  const preview = useHoverPreview(Boolean(previewContent) && !expanded && !actionsActive && !inert);
+  const preview = useHoverPreview(Boolean(previewContent) && !expanded && !actionsActive && !inert, previewKey);
   useEffect(() => {
     if (preview.open) onPreviewOpen?.();
   }, [preview.open, onPreviewOpen]);

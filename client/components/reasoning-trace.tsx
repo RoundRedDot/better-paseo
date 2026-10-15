@@ -356,6 +356,7 @@ export function ReasoningCard({
       expanded={expanded}
       onToggle={onToggle}
       scrollAnchor={scrollAnchor}
+      previewKey={`${storeKey}:preview`}
       tokens={tokens}
       compact={compact}
       inert={inert}
