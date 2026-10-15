@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../../theme-tokens";
@@ -25,7 +25,7 @@ export const COPY_IMAGE_LABEL = "Copy as image";
  * source and a picture of the table as drawn: under a pointer while hovered,
  * on a touch screen after a long press. The first entry sits where the icon
  * was, so a click or a tap without a pause still copies the Markdown. Native
- * keeps the single button, expanding it to Copy selected for a selected cell.
+ * keeps the single button. Every platform expands to Copy selected for a selected cell.
  */
 export function TableCopyMenu({ source, frame, tokens, selected }: {
   /** The table's Markdown, read when pressed so a streaming table copies its latest rows. */
@@ -36,16 +36,15 @@ export function TableCopyMenu({ source, frame, tokens, selected }: {
   selected?: { text: string; dismiss(): void };
 }) {
   const { hover } = useInputCapabilities();
-  if (Platform.OS !== "web") return <NativeCopyMenu source={source} selected={selected} tokens={tokens} />;
-  if (!canCopyImage()) {
-    return <ToolbarCopyButton text={source} tokens={tokens} label="Copy Markdown table" align="start" outlined />;
-  }
-  return <ExpandingMenu source={source} frame={frame} tokens={tokens} trigger={hover ? "hover" : "longPress"} />;
+  const control = Platform.OS === "web" && canCopyImage()
+    ? <ExpandingMenu source={source} frame={frame} tokens={tokens} trigger={hover ? "hover" : "longPress"} />
+    : <ToolbarCopyButton text={source} tokens={tokens} label="Copy Markdown table" align="start" outlined />;
+  return <SelectionCopyMenu selected={selected} tokens={tokens}>{control}</SelectionCopyMenu>;
 }
 
 /** The fixed corner slot keeps its menu mounted through an interruptible exit. */
-function NativeCopyMenu({ source, selected, tokens }: {
-  source: () => string;
+function SelectionCopyMenu({ children, selected, tokens }: {
+  children: ReactNode;
   selected?: { text: string; dismiss(): void };
   tokens: ExtendedThemeTokens;
 }) {
@@ -54,6 +53,26 @@ function NativeCopyMenu({ source, selected, tokens }: {
   const reducedMotion = useReducedMotion();
   const windowWidth = useWindowDimensions().width;
   const open = selected !== undefined;
+  const anchorRef = useRef<View>(null);
+  const dismiss = selected?.dismiss;
+  const selectedText = selected?.text;
+  useEffect(() => {
+    if (!dismiss || Platform.OS !== "web") return;
+    const release = bindTouchDismiss(anchorRef.current, dismiss);
+    const doc = (anchorRef.current as unknown as HTMLElement | null)?.ownerDocument;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.key === "Escape") dismiss();
+      // Cell selection no longer uses a browser range; keep the copy shortcut.
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "c"
+        && !(event.target as Element | null)?.closest?.("input, textarea, [contenteditable=true]")) {
+        event.preventDefault();
+        if (selectedText) void copy(selectedText, { feedback: "toast", label: "Copy selected" });
+      }
+    };
+    doc?.addEventListener("keydown", onKeyDown);
+    return () => { release(); doc?.removeEventListener("keydown", onKeyDown); };
+  }, [dismiss, selectedText, copy]);
   const [shown, setShown] = useState(open);
   // Keep the underlying border hidden until the shrinking frame is removed.
   const buttonHidden = open || shown;
@@ -79,7 +98,7 @@ function NativeCopyMenu({ source, selected, tokens }: {
       toValue: target, duration: open ? 180 : 160, easing: easing.out, useNativeDriver: false,
     });
     const labelAnimation = Animated.timing(reveal, {
-      toValue: visible, duration: open ? 140 : 80, easing: easing.out, useNativeDriver: true,
+      toValue: visible, duration: open ? 140 : 80, easing: easing.out, useNativeDriver: Platform.OS !== "web",
     });
     frameAnimation.start(({ finished }) => {
       if (finished && !latestOpen.current) setShown(false);
@@ -88,17 +107,19 @@ function NativeCopyMenu({ source, selected, tokens }: {
     return () => { frameAnimation.stop(); labelAnimation.stop(); };
   }, [open, shown, measured, reducedMotion, width, reveal]);
   return (
-    <View testID="table-native-copy-slot" style={[styles.nativeSlot, { width: shown ? measured ?? FLOAT.control : FLOAT.control }]}>
+    <View ref={anchorRef} testID="table-native-copy-slot" style={[styles.nativeSlot, { width: shown ? measured ?? FLOAT.control : FLOAT.control }]}>
       <View pointerEvents={buttonHidden ? "none" : "auto"} accessibilityElementsHidden={buttonHidden}
-        style={{ opacity: buttonHidden ? 0 : 1 }}>
-        <ToolbarCopyButton text={source} tokens={tokens} label="Copy Markdown table" align="start" outlined />
+        aria-hidden={buttonHidden}
+        style={{ opacity: buttonHidden ? 0 : 1, ...(Platform.OS === "web" && buttonHidden ? { display: "none" } : {}) }}>
+        {children}
       </View>
       {shown ? (
         <Animated.View testID="table-selection-menu-animation" pointerEvents={open ? "auto" : "none"}
           accessibilityElementsHidden={!open}
+          aria-hidden={!open}
           style={[styles.frame, styles.nativeFrame, { width, backgroundColor: tokens.surface0, borderColor: tokens.v2.border }]}>
           <View style={{ width: windowWidth }}>
-            <Pressable accessibilityRole="button" accessible={open} accessibilityLabel={open ? "Copy selected cell" : undefined}
+            <Pressable accessibilityRole="button" accessible={open} focusable={open} accessibilityLabel={open ? "Copy selected cell" : undefined}
               onLayout={(event) => setMeasured(Math.ceil(event.nativeEvent.layout.width) + BORDER * 2)}
               onPress={() => {
                 if (selected) void copy(selected.text, { feedback: "toast", label: "Copy selected" })

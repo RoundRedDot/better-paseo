@@ -89,8 +89,8 @@ export function MdTable({
   const measured = columnWidths(token, metrics);
   const widest = useRef<number[]>([]);
   const frameRef = useRef<View>(null);
-  useLayoutEffect(() => bindTableCellSelection(frameRef.current), []);
   const selection = useTableTouchSelection(token.raw);
+  useLayoutEffect(() => bindTableCellSelection(frameRef.current, selection.select), [selection.select]);
   let widths = measured;
   if (open) {
     widths = measured.map((width, column) => Math.max(width, widest.current[column] ?? 0));
@@ -136,6 +136,7 @@ export function MdTable({
             testID={TABLE_CELL_TEST_ID}
             selectable
             {...contentTextProps()}
+            {...(Platform.OS === "web" ? { dataSet: { tableCellKey: cellKey, tableCellText: inlineText(cell.tokens) } } : {})}
             touchProps={selection.cellProps(cellKey, () => inlineText(cell.tokens))}
             style={[
               cellStyle,
