@@ -8,6 +8,7 @@ import type { ExtendedThemeTokens } from "./theme-tokens";
 import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
 import { formatFooterStamp, formatDuration } from "../ui/time";
 import { TYPE } from "../ui/tokens/typography";
+import { ProviderLogo } from "./provider-logo";
 
 /**
  * The host's own reply footer — copy, fork and the turn's time — is drawn by
@@ -28,16 +29,18 @@ interface AssistantFooterProps {
   at: Date;
   agentName?: string | null;
   modelName?: string | null;
+  thinkingLabel?: string | null;
   durationMs?: number | null;
   tokens: ExtendedThemeTokens;
   /** `layout.compact`: a 44pt touch target for Copy. */
   compact?: boolean;
 }
 
-export function AssistantFooter({ text, at, agentName, modelName, durationMs, tokens, compact = false }: AssistantFooterProps) {
+export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel, durationMs, tokens, compact = false }: AssistantFooterProps) {
   // The shared copy path (plan §3.8): a check for 1.2 s on success, a toast
   // on failure, and no timer left running after unmount.
   const { copied, copy } = useCopy();
+  const modelCopy = useCopy();
   const handleCopy = useCallback(() => void copy(text, { label: "Copy reply" }), [copy, text]);
 
   const styles = useMemo(
@@ -70,6 +73,13 @@ export function AssistantFooter({ text, at, agentName, modelName, durationMs, to
           color: tokens.foregroundMuted,
           ...unselectable,
         },
+        metadata: {
+          minHeight: FOOTER_HEIGHT,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: space.xs,
+          borderRadius: radiusV2.block,
+        },
         time: {
           fontFamily: tokens.fontUi,
           fontSize: TYPE.button.size,
@@ -98,10 +108,34 @@ export function AssistantFooter({ text, at, agentName, modelName, durationMs, to
         />
         <Text style={styles.copyLabel}>{copied ? "Copied" : "Copy"}</Text>
       </Pressable>
-      {agentName ? <Text style={styles.time}>{agentName}</Text> : null}
-      {modelName ? <Text style={styles.time}>{modelName}</Text> : null}
+      {modelName ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={modelCopy.copied ? "Model name copied" : "Copy model name"}
+          onPress={() => void modelCopy.copy(modelName)}
+          hitSlop={compact ? (44 - FOOTER_HEIGHT) / 2 : 0}
+          style={({ pressed }) => [styles.metadata, pressed && { backgroundColor: tokens.v2.surface2 }]}
+        >
+          {agentName ? <ProviderLogo provider={agentName} size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} /> : null}
+          <Text style={styles.time}>{modelName}</Text>
+          <Icon name={modelCopy.copied ? "Check" : "ChevronDown"} size={DISCLOSURE_HEADER.icon}
+            color={modelCopy.copied ? tokens.success : tokens.foregroundMuted} />
+        </Pressable>
+      ) : null}
+      {thinkingLabel ? (
+        <View style={styles.metadata} accessibilityLabel={`Thinking level: ${thinkingLabel}`}>
+          <Icon name="Brain" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+          <Text style={styles.time}>{thinkingLabel}</Text>
+          <Icon name="ChevronDown" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+        </View>
+      ) : null}
       <Text style={styles.time}>{formatFooterStamp(at)}</Text>
-      {durationMs != null ? <Text style={styles.time}>耗时 {formatDuration(durationMs)}</Text> : null}
+      {durationMs != null ? (
+        <View style={styles.metadata} accessibilityLabel={`Elapsed time: ${formatDuration(durationMs)}`}>
+          <Icon name="Timer" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+          <Text style={styles.time}>{formatDuration(durationMs)}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
