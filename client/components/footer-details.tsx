@@ -25,6 +25,7 @@ export interface FooterDetailsProps {
 const LABEL_WIDTH = { zh: 72, en: 104 } as const;
 /** Room for a toolbar icon, full timestamp and copy action. */
 const VALUE_WIDTH = 210;
+const TABLE_INSET = 6;
 
 function labelWidth(language: SettingsLanguagePreference): number {
   return resolveLanguage(language) === "zh" ? LABEL_WIDTH.zh : LABEL_WIDTH.en;
@@ -32,7 +33,7 @@ function labelWidth(language: SettingsLanguagePreference): number {
 
 /** The panel width the table needs, so it opens no wider than its content. */
 export function useFooterDetailsWidth(): number {
-  return labelWidth(useEnhancerPreferences().language) + VALUE_WIDTH;
+  return labelWidth(useEnhancerPreferences().language) + VALUE_WIDTH + TABLE_INSET * 2;
 }
 
 /**
@@ -48,7 +49,7 @@ export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, 
   if (durationMs != null) rows.push({ label: "Elapsed time", icon: "Hourglass", value: formatDuration(durationMs) });
   const textStyle = [styles.text, unselectable, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }];
   return (
-    <View testID="footer-details-table">
+    <View testID="footer-details-table" style={{ padding: TABLE_INSET }}>
       {rows.map((row, index) => (
         <View key={row.label} testID={`footer-detail-${row.label}`} style={[styles.row,
           index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.v2.borderSubtle }]}>
