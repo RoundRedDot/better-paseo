@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { TOOLTIP_ROOM, liftStackingRow, tooltipPlacement } from "../../client/ui/tooltip-placement";
+import { TOOLTIP_ROOM, anchoredTooltipOrigin, liftStackingRow, tooltipPlacement } from "../../client/ui/tooltip-placement";
+
+describe("native toolbar details placement", () => {
+  const stage = { x: 0, y: 44, width: 390, height: 760 };
+  const panel = { width: 240, height: 90 };
+  it("opens above the pressed control using modal-local coordinates", () => {
+    expect(anchoredTooltipOrigin({ x: 60, y: 600, width: 160, height: 24 }, stage, panel))
+      .toEqual({ left: 60, top: 462 });
+  });
+  it("opens below a control near the top and stays within the right edge", () => {
+    expect(anchoredTooltipOrigin({ x: 330, y: 60, width: 40, height: 24 }, stage, panel))
+      .toEqual({ left: 142, top: 44 });
+  });
+  it("keeps the panel clear of the left and bottom edges", () => {
+    expect(anchoredTooltipOrigin({ x: -10, y: 850, width: 160, height: 24 }, stage, panel))
+      .toEqual({ left: 8, top: 662 });
+  });
+});
 
 describe("path tooltip placement", () => {
   it("opens above on web, where later rows paint over the one below", () => {
