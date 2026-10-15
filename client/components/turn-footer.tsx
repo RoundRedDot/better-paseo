@@ -56,8 +56,10 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
   useScrollDismiss(pressedAnchor !== null, closeDetails);
   const longPress = capabilities.touch ? showDetails : undefined;
   const detailsWidth = useFooterDetailsWidth();
+  // Grok's upstream ACP history replays lack reliable per-message timestamps.
+  const visibleDurationMs = agentName === "grok" ? null : durationMs;
   const details = <FooterDetails agentName={agentName} modelName={modelName} thinkingLabel={thinkingLabel}
-    startedAt={startedAt} durationMs={durationMs} usage={usage} tokens={tokens} />;
+    startedAt={startedAt} durationMs={visibleDurationMs} usage={usage} tokens={tokens} />;
   const copyModel = useCallback(() => {
     if (modelName) void modelCopy.copy(modelName, { label: `Copy model name: ${modelName}` });
   }, [modelName, modelCopy.copy]);
@@ -168,10 +170,10 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
           <Icon name="Clock" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
           <Text style={styles.time}>{formatFooterStamp(at)}</Text>
         </ToolbarItem>
-        {durationMs != null ? (
-          <ToolbarItem label="Elapsed time" accessibilityLabel={`Elapsed time: ${formatDuration(durationMs)}`} tokens={tokens} align="end" buttonStyle={styles.metadata} onLongPress={longPress}>
+        {visibleDurationMs != null ? (
+          <ToolbarItem label="Elapsed time" accessibilityLabel={`Elapsed time: ${formatDuration(visibleDurationMs)}`} tokens={tokens} align="end" buttonStyle={styles.metadata} onLongPress={longPress}>
             <Icon name="Hourglass" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-            <Text style={styles.time}>{formatDuration(durationMs)}</Text>
+            <Text style={styles.time}>{formatDuration(visibleDurationMs)}</Text>
           </ToolbarItem>
         ) : null}
       </Pressable>
