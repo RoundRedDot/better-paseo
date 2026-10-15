@@ -6,7 +6,7 @@ import {
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space, withAlpha } from "../components/theme-tokens";
 import { selectionSurface } from "../components/selection-actions";
-import { bindPreviewMaximize, bindPreviewPointer, watchPointerOutside, dropSelectionIn, openPreviewLayer } from "../web";
+import { bindPreviewMaximize, bindPreviewPointer, watchNextPointerMove, watchPointerOutside, dropSelectionIn, openPreviewLayer } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { cssShadow } from "./tokens/css-shadow";
 import { floatShadow } from "./tokens/float";
@@ -103,12 +103,20 @@ export function useHoverPreview(enabled: boolean, memoryKey?: string) {
   const pinned = useRef(restored?.pinned ?? false);
   const interacting = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A preview the reader closed stays closed while the pointer rests: the
+  // timeline can scroll its row back under it. The pointer's next real move
+  // lets hover open it again.
+  const rested = useRef<(() => void) | null>(null);
   const cancel = useCallback(() => {
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = null;
   }, []);
   const close = useCallback(() => {
     cancel();
+    rested.current?.();
+    rested.current = hoverActive
+      ? watchNextPointerMove(anchorRef.current, () => { rested.current = null; })
+      : null;
     if (memoryKey) forgetPreview(memoryKey);
     setQuiet(false);
     pinned.current = false;
@@ -117,7 +125,7 @@ export function useHoverPreview(enabled: boolean, memoryKey?: string) {
     setPopped(false);
     setMaximized(false);
     setOpen(false);
-  }, [cancel, memoryKey]);
+  }, [cancel, memoryKey, hoverActive]);
   const hold = useCallback((on: boolean) => {
     interacting.current = on;
     if (on) cancel();
@@ -147,7 +155,7 @@ export function useHoverPreview(enabled: boolean, memoryKey?: string) {
   }, [cancel]);
   const enter = useCallback(() => {
     cancel();
-    if (!hoverActive) return;
+    if (!hoverActive || rested.current) return;
     if (!open) {
       timer.current = setTimeout(() => {
         timer.current = null;
@@ -185,7 +193,10 @@ export function useHoverPreview(enabled: boolean, memoryKey?: string) {
     }
     return hoverActive ? bindPreviewPointer(anchorRef.current, enter, leave) : undefined;
   }, [active, hoverActive, enter, leave, close]);
-  useEffect(() => cancel, [cancel]);
+  useEffect(() => () => {
+    cancel();
+    rested.current?.();
+  }, [cancel]);
   return {
     anchorRef,
     open: shown,

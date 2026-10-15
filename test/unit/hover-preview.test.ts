@@ -16,6 +16,7 @@ const state = vi.hoisted(() => ({
   }>,
   bindRowHover: vi.fn(() => () => {}),
   outside: [] as Array<() => void>,
+  moves: [] as Array<() => void>,
   bindPreviewMaximize: vi.fn((_node: unknown, _maximize: () => void) => vi.fn()),
   dropSelectionIn: vi.fn(),
 }));
@@ -28,6 +29,10 @@ vi.mock("../../client/web", () => ({
   bindPreviewMaximize: state.bindPreviewMaximize,
   dropSelectionIn: state.dropSelectionIn,
   bindPreviewPointer: () => () => {},
+  watchNextPointerMove: (_anchor: unknown, moved: () => void) => {
+    state.moves.push(moved);
+    return () => { state.moves = state.moves.filter((entry) => entry !== moved); };
+  },
   watchPointerOutside: (_anchor: unknown, leave: () => void) => {
     state.outside.push(leave);
     return () => { state.outside = state.outside.filter((entry) => entry !== leave); };
@@ -75,6 +80,7 @@ beforeEach(() => {
   state.onLinesFit = undefined;
   state.layers = [];
   state.outside = [];
+  state.moves = [];
   state.bindRowHover.mockClear();
   state.bindPreviewMaximize.mockClear();
   state.dropSelectionIn.mockClear();
@@ -84,6 +90,31 @@ afterEach(() => {
   act(() => renderer?.unmount());
   vi.useRealTimers();
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+});
+
+describe("hover preview after the reader closes it", () => {
+  it("stays closed while the pointer rests, though its row scrolls back under it", () => {
+    mount();
+    act(() => preview.enter());
+    act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+    act(() => preview.close());
+    expect(state.moves).toHaveLength(1);
+    act(() => preview.enter());
+    act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS * 2); });
+    expect(preview.open).toBe(false);
+    // The pointer moves: hovering opens it again.
+    act(() => state.moves[0]!());
+    act(() => preview.enter());
+    act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+    expect(preview.open).toBe(true);
+  });
+  it("watches nothing on a phone, where a long press opens it", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    mount();
+    act(() => preview.press!());
+    act(() => preview.close());
+    expect(state.moves).toHaveLength(0);
+  });
 });
 
 describe("hover preview across a remount", () => {
@@ -517,7 +548,8 @@ describe("line wrap in the desktop preview", () => {
     expect(own.open).toBe(false);
     expect(own.maximized).toBe(false);
     expect(vi.getTimerCount()).toBe(0);
-    // Closing clears the pin; the next hover has the normal lifetime.
+    // Closing clears the pin; once the pointer moves, the next hover has the normal lifetime.
+    act(() => state.moves.at(-1)!());
     act(() => own.enter());
     act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
     expect(own.open).toBe(true);

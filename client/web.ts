@@ -84,6 +84,23 @@ export function bindPreviewPointer(node: unknown, enter: () => void, leave: () =
 }
 
 /**
+ * Calls `moved` on the pointer's first real move after now, then stops.
+ * Scrolling content under a resting pointer sends it no movement.
+ */
+export function watchNextPointerMove(anchor: unknown, moved: () => void): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const doc = (anchor as HTMLElement | null)?.ownerDocument;
+  if (!doc) return () => {};
+  const onMove = (event: PointerEvent) => {
+    if (event.movementX === 0 && event.movementY === 0) return;
+    doc.removeEventListener("pointermove", onMove, true);
+    moved();
+  };
+  doc.addEventListener("pointermove", onMove, true);
+  return () => doc.removeEventListener("pointermove", onMove, true);
+}
+
+/**
  * Calls `leave` on the pointer's first move outside `anchor` and every hover
  * preview panel, then stops; a first move inside either hands over to the
  * usual enter and leave events and stops too.
