@@ -657,6 +657,9 @@ function usePreviewScroller(streaming: boolean) {
     if (offset === "end") ref.current?.scrollToEnd({ animated });
     else ref.current?.scrollTo({ y: offset, animated });
   }));
+  const wasStreaming = useRef(streaming);
+  if (wasStreaming.current && !streaming) tail.end();
+  wasStreaming.current = streaming;
   if (!streaming) tail.reset();
   const value = useMemo<PreviewScroller>(() => ({
     hold(on) {
@@ -693,7 +696,11 @@ function usePreviewScroller(streaming: boolean) {
     onContentSizeChange(_width: number, height: number) {
       state.current.content = height;
       // The phone preview is a ScrollView. Web scrolls the body element.
-      if (Platform.OS === "web" || state.current.held || !streamingRef.current) return;
+      if (Platform.OS === "web" || state.current.held) return;
+      if (!streamingRef.current) {
+        tail.settle(state.current.viewport, height, state.current.offset, still.current);
+        return;
+      }
       tail.grow(state.current.viewport, height, state.current.offset, still.current);
     },
   }), [tail]);

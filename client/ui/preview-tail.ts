@@ -160,6 +160,9 @@ export function bindPreviewTail(
   };
 }
 
+/** How long after a stream ends its last output is still followed on a phone. */
+export const PREVIEW_SETTLE_MS = 1000;
+
 /** Where a phone body's follow scrolls: an offset, or the end before the viewport is known. */
 export type PreviewTailScroll = (offset: number | "end", animated: boolean) => void;
 
@@ -171,13 +174,29 @@ export type PreviewTailScroll = (offset: number | "end", animated: boolean) => v
  * The glide's scroll events report offsets short of the tail on their way
  * there; they are not the reader leaving. A drag is: it ends the glide, and
  * the scroll events after it decide as before.
+ *
+ * The last output can land in the same update that ends the stream. `end`
+ * marks that moment; the growth `settle` sees within `PREVIEW_SETTLE_MS` of
+ * it is followed once more, if the reader was on the tail.
  */
-export function nativePreviewTail(scroll: PreviewTailScroll) {
+export function nativePreviewTail(scroll: PreviewTailScroll, now: () => number = Date.now) {
   let pinned = true;
   let opened = false;
   let gliding: number | null = null;
+  let ended: number | null = null;
   return {
     get pinned() { return pinned; },
+    end() {
+      ended = pinned && opened ? now() : null;
+    },
+    settle(viewport: number, content: number, offset: number, still: boolean) {
+      if (ended === null) return;
+      const late = now() - ended > PREVIEW_SETTLE_MS;
+      ended = null;
+      if (late || !(viewport > 0)) return;
+      const top = previewTailOffset(viewport, content);
+      if (top - offset > 1) scroll(top, !still);
+    },
     reset() {
       pinned = true;
       opened = false;
@@ -214,6 +233,7 @@ export function nativePreviewTail(scroll: PreviewTailScroll) {
     },
     drag() {
       gliding = null;
+      ended = null;
     },
   };
 }
