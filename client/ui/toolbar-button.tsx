@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle, type StyleProp } from "react-native";
+import { Modal, Platform, Pressable, StyleSheet, Text, View, type ViewStyle, type StyleProp } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
@@ -12,6 +12,8 @@ import { FLOAT } from "./tokens/float";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement } from "./tooltip-placement";
+import { bindTouchDismiss, suppressTouchCallout } from "../web";
+import { useInputCapabilities } from "./use-input-capabilities";
 
 /** How long a pointer rests on a button before its name shows. */
 export const TOOLBAR_TOOLTIP_MS = 400;
@@ -84,41 +86,80 @@ export function ToolbarItem({
   buttonStyle,
   hitSlop = 4,
   accessibilityLabel = label,
+  details,
 }: Omit<ToolbarButtonProps, "icon" | "color" | "onPress"> & {
   children: ReactNode;
   onPress?: () => void;
   buttonStyle?: StyleProp<ViewStyle>;
   hitSlop?: number;
   accessibilityLabel?: string;
+  /** Interactive hover content; a long press opens it on touch screens. */
+  details?: ReactNode;
 }) {
   const groupAlign = useContext(TooltipAlignContext);
   const sideMode = useContext(TooltipSideContext);
   const anchorRef = useRef<View>(null);
   const [side, setSide] = useState<TooltipPlacement>("below");
   const preferences = useEnhancerPreferences();
+  const capabilities = useInputCapabilities();
   const align = alignProp ?? groupAlign;
   // A disabled Pressable suppresses hover; its outer slot still receives it.
   const { hovered, hoverProps } = useHover(disabled ? anchorRef : undefined);
   const [named, setNamed] = useState(false);
+  const [insideDetails, setInsideDetails] = useState(false);
+  const [pressedOpen, setPressedOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const closeDetails = useCallback(() => {
+    setPressedOpen(false);
+    setNamed(false);
+    setInsideDetails(false);
+    setFocused(false);
+  }, []);
+  const open = named || pressedOpen;
   useEffect(() => {
-    if (!hovered) {
+    if (details) suppressTouchCallout(anchorRef.current);
+  }, [details]);
+  useEffect(() => {
+    if (!details || !open || Platform.OS !== "web") return;
+    const release = bindTouchDismiss(anchorRef.current, closeDetails);
+    const doc = (anchorRef.current as unknown as HTMLElement | null)?.ownerDocument;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") closeDetails(); };
+    doc?.addEventListener("keydown", onKeyDown);
+    return () => { release(); doc?.removeEventListener("keydown", onKeyDown); };
+  }, [details, open, closeDetails]);
+  useEffect(() => {
+    if (!hovered && !insideDetails && !focused) {
+      // Leave time to cross from the trigger into the interactive bubble.
+      if (details) {
+        const timer = setTimeout(() => setNamed(false), 120);
+        return () => clearTimeout(timer);
+      }
       setNamed(false);
       return;
     }
     const timer = setTimeout(() => {
-      setSide(sideMode === "auto" ? placeTooltipNear(anchorRef.current, Platform.OS) : "below");
+      setSide(sideMode === "auto" ? placeTooltipNear(anchorRef.current, Platform.OS, details ? 128 : undefined) : "below");
       setNamed(true);
     }, TOOLBAR_TOOLTIP_MS);
     return () => clearTimeout(timer);
-  }, [hovered, sideMode]);
+  }, [hovered, insideDetails, focused, details, sideMode]);
   useEffect(() => {
-    if (!named || sideMode !== "auto" || side !== "below" || Platform.OS !== "web") return;
+    if (!open || sideMode !== "auto" || side !== "below" || Platform.OS !== "web") return;
     return liftStackingRow(anchorRef.current as unknown as DomBox | null);
-  }, [named, sideMode, side]);
+  }, [open, sideMode, side]);
+  const bubble = (
+    <View style={[styles.tooltip, tooltipLook(tokens)]}>
+      <Text selectable={false} numberOfLines={1}
+        style={[styles.tooltipText, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+        {toolbarLabel(label, preferences.language)}
+      </Text>
+      {details}
+    </View>
+  );
   return (
     // Every web View is its own stacking context (`z-index: 0`), so the name
     // can only rise over the buttons after this one if the button does.
-    <View ref={anchorRef} style={[styles.anchor, named && styles.raised]}>
+    <View ref={anchorRef} style={[styles.anchor, open && styles.raised]}>
       <Pressable
         accessibilityRole={onPress ? "button" : "image"}
         accessibilityLabel={accessibilityLabel}
@@ -127,6 +168,12 @@ export function ToolbarItem({
         disabled={disabled}
         hitSlop={hitSlop}
         onPress={disabled ? undefined : onPress}
+        onLongPress={details && !disabled ? () => {
+          setSide(sideMode === "auto" ? placeTooltipNear(anchorRef.current, Platform.OS, 128) : "below");
+          setPressedOpen(true);
+        } : undefined}
+        onFocus={details && capabilities.hover ? () => setFocused(true) : undefined}
+        onBlur={details ? () => setFocused(false) : undefined}
         {...hoverProps}
         style={({ pressed }) => [
           styles.button,
@@ -141,17 +188,25 @@ export function ToolbarItem({
       >
         {children}
       </Pressable>
-      {named ? (
-        <View pointerEvents="none" style={[styles.tooltipSlot, side === "above" ? styles.above : styles.below, ALIGN[align]]}>
-          <View style={[styles.tooltip, tooltipLook(tokens)]}>
-            <Text
-              selectable={false}
-              numberOfLines={1}
-              style={[styles.tooltipText, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}
-            >
-              {toolbarLabel(label, preferences.language)}
-            </Text>
+      {pressedOpen && Platform.OS !== "web" ? (
+        <Modal visible transparent animationType="fade" onRequestClose={closeDetails}>
+          <View style={styles.detailsStage}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close preview"
+              onPress={closeDetails} style={StyleSheet.absoluteFill} />
+            <View accessibilityViewIsModal style={{ maxWidth: "100%" }}>{bubble}</View>
           </View>
+        </Modal>
+      ) : open ? (
+        <View pointerEvents={details ? "box-none" : "none"}
+          style={[styles.tooltipSlot, side === "above" ? styles.above : styles.below, ALIGN[align]]}>
+          {details ? (
+            <Pressable accessible={false} focusable={false}
+              onFocus={capabilities.hover ? () => setFocused(true) : undefined}
+              onBlur={() => setFocused(false)}
+              onHoverIn={() => setInsideDetails(true)} onHoverOut={() => setInsideDetails(false)}>
+              {bubble}
+            </Pressable>
+          ) : bubble}
         </View>
       ) : null}
     </View>
@@ -230,6 +285,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     zIndex: 10,
   },
+  detailsStage: { flex: 1, justifyContent: "center", alignItems: "center", padding: space.lg },
   below: { top: "100%", marginTop: space.xs },
   above: { bottom: "100%", marginBottom: space.xs },
   tooltip: {

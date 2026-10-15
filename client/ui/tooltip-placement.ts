@@ -18,17 +18,18 @@ export function tooltipPlacement(
   platform: string,
   rowTop: number | null,
   viewportTop: number,
+  room = TOOLTIP_ROOM,
 ): TooltipPlacement {
   if (platform !== "web" || rowTop === null) return "below";
-  return rowTop - viewportTop < TOOLTIP_ROOM ? "below" : "above";
+  return rowTop - viewportTop < room ? "below" : "above";
 }
 
 /** Where a tooltip for `node` (a web DOM node, a native ref) opens, by the room above it. */
-export function placeTooltipNear(node: unknown, platform: string): TooltipPlacement {
+export function placeTooltipNear(node: unknown, platform: string, room = TOOLTIP_ROOM): TooltipPlacement {
   if (platform !== "web") return "below";
   const box = node as DomBox | null;
   const top = box?.getBoundingClientRect?.().top ?? null;
-  return tooltipPlacement("web", top, box ? scrollTop(box) : 0);
+  return tooltipPlacement("web", top, box ? scrollTop(box) : 0, room);
 }
 
 export interface DomBox {
