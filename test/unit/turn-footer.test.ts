@@ -101,9 +101,15 @@ describe("assistant footer", () => {
       const duration = table.findAllByType("View" as never).find((node) => node.props.testID === "footer-detail-Elapsed time")!;
       expect(duration.findAllByType("Pressable" as never)).toHaveLength(0);
       const rows = table.findAllByType("View" as never).filter((node) => node.props.testID?.startsWith("footer-detail-"));
-      // Icons stay in the toolbar: the table's only icons are its copy buttons.
-      expect(table.findAllByType("Icon" as never)).toHaveLength(buttons.length);
+      expect(table.findAllByType(ProviderLogo).map((node) => node.props.provider)).toEqual(["codex", "codex"]);
+      expect(table.findAllByType("Icon" as never).map((node) => node.props.name))
+        .toEqual(["Check", "Check", "Brain", "Check", "Clock", "Check", "Hourglass"]);
       for (const row of rows) {
+        const slot = row.findAllByType("View" as never).find((node) => node.props.testID === "footer-value-icon")!;
+        const valueCell = row.findAllByType("View" as never)
+          .find((node) => StyleSheet.flatten(node.props.style).flex === 1)!;
+        expect(valueCell.findAllByType("View" as never)).toContain(slot);
+        expect(StyleSheet.flatten(slot.props.style)).toMatchObject({ width: 14, height: 14, flexShrink: 0 });
         const style = StyleSheet.flatten(row.props.style);
         expect(style.backgroundColor).toBeUndefined();
         expect(style.minHeight).toBe(32);
@@ -121,7 +127,8 @@ describe("assistant footer", () => {
       const toolbar = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.testID === "footer-toolbar")!;
       act(() => { toolbar.props.onLongPress(); });
       const table = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-details-table")!;
-      const rowIds = table.findAllByType("View" as never).map((node) => node.props.testID).filter(Boolean);
+      const rowIds = table.findAllByType("View" as never).map((node) => node.props.testID)
+        .filter((id) => id?.startsWith("footer-detail"));
       expect(rowIds).toEqual(["footer-details-table", "footer-detail-Elapsed time"]);
       expect(rowIds).not.toContain("footer-detail-Start time");
       expect(rowIds).not.toContain("footer-detail-Model name");
@@ -196,12 +203,14 @@ describe("assistant footer", () => {
         .map((node) => [node.props.children].flat().join(""))).toEqual(["模型名称", "Opus 5.5", "思考强度", "High"]);
       const copyButton = details()[0]!.findAllByType("Pressable" as never)
         .find((node) => node.props.accessibilityLabel === "Copy model name")!;
-      // Labels carry no icon slot; the panel is sized to the table, not a 380pt sheet.
+      // Labels stay plain; toolbar icons are rendered in the value column.
+      expect(details()[0]!.findAllByType("View" as never)
+        .filter((node) => node.props.testID === "footer-value-icon")).toHaveLength(2);
       expect(details()[0]!.findAllByType("View" as never)
         .filter((node) => StyleSheet.flatten(node.props.style).width === 20)).toHaveLength(0);
       const panel = renderer.root.findAllByType("View" as never)
         .find((node) => node.props.testID === "toolbar-details-panel" || StyleSheet.flatten(node.props.style).boxShadow)!;
-      expect(StyleSheet.flatten(panel.props.style).width).toBe(264);
+      expect(StyleSheet.flatten(panel.props.style).width).toBe(282);
       await act(async () => { copyButton.props.onPress(); });
       expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("Opus 5.5");
       expect(copyButton.props.accessibilityLabel).toBe("Copied");
