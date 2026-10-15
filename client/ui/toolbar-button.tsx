@@ -133,7 +133,7 @@ export function ToolbarItem({
   }, [details]);
   useEffect(() => {
     if (!details || !open || Platform.OS !== "web") return;
-    const release = bindTouchDismiss(anchorRef.current, closeDetails);
+    const release = bindTouchDismiss(anchorRef.current, closeDetails, { allowInsideScroll: true });
     const doc = (anchorRef.current as unknown as HTMLElement | null)?.ownerDocument;
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") closeDetails(); };
     doc?.addEventListener("keydown", onKeyDown);
@@ -273,7 +273,7 @@ export function AnchoredToolbarDetails({ anchor, close, children, tokens, width 
 export function ToolbarDetailsFrame({ tokens, children, maxHeight = 320 }: {
   tokens: ExtendedThemeTokens; children: ReactNode; maxHeight?: number;
 }) {
-  return <View style={{ backgroundColor: tokens.surface0, borderColor: tokens.v2.border,
+  return <View testID="toolbar-details-frame" style={{ backgroundColor: tokens.surface0, borderColor: tokens.v2.border,
     borderWidth: 1, borderRadius: FLOAT.radius, boxShadow: floatShadow(tokens) }}>
     <ScrollView bounces={false} style={{ maxHeight: maxHeight - 2, borderRadius: FLOAT.radius - 1 }}>{children}</ScrollView>
   </View>;

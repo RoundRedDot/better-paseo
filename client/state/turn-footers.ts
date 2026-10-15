@@ -59,6 +59,7 @@ export function createTurnFooterStore(source: () => Timeline) {
     const timeline = source();
     let page = await timeline.refetch({ direction: "tail", projection: "projected", limit: 200 });
     const snapshot = page.agent;
+    const hasNewer = page.hasNewer;
     const epoch = page.epoch;
     let items = page.entries;
     while (ticket === generation && targets.size) {
@@ -75,8 +76,20 @@ export function createTurnFooterStore(source: () => Timeline) {
     if (ticket !== generation || !targets.size) return;
     entries = items;
     const next: Footers = new Map();
-    for (const footer of completedTurnFooters(items, snapshot ? snapshot.status === "running" : running === true,
-      snapshot?.activeTurn?.turnId ?? null)) {
+    const completed = completedTurnFooters(items, snapshot ? snapshot.status === "running" : running === true,
+      snapshot?.activeTurn?.turnId ?? null);
+    const latest = completed[completed.length - 1];
+    // The daemon retains the latest usage even when a window missed completion.
+    // Attach it only to the settled tail turn whose prompt matches its snapshot.
+    if (latest && !hasNewer && snapshot?.status === "idle" && !snapshot.activeTurn && snapshot.lastUsage &&
+      snapshot.lastUserMessageAt && latest.startedAt === Date.parse(snapshot.lastUserMessageAt) &&
+      latest.completedAt === Date.parse(items[items.length - 1]!.timestamp)) {
+      const previousUsage = latest.turnId ? usageByTurn.get(latest.turnId) : get(latest.at, latest.text)?.usage;
+      latest.usage = JSON.stringify(previousUsage) === JSON.stringify(snapshot.lastUsage)
+        ? previousUsage : { ...snapshot.lastUsage };
+      if (latest.turnId && latest.usage) usageByTurn.set(latest.turnId, latest.usage);
+    }
+    for (const footer of completed) {
       if (footer.turnId) footer.usage = usageByTurn.get(footer.turnId);
       const previous = get(footer.at, footer.text);
       const value = previous?.completedAt === footer.completedAt && previous.startedAt === footer.startedAt &&

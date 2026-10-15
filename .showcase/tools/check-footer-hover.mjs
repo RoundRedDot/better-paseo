@@ -26,7 +26,7 @@ try {
       createRoot(document.getElementById("root")).render(
         <div style={{ marginLeft: 80, marginTop: location.search.includes("below") ? 20 : 500 }}>
           <AssistantFooter text="Reply" at={new Date(2026,9,15,21,3,25)} tokens={tokens}
-            modelName="Opus 5.5" thinkingLabel="High" startedAt={new Date(2026,9,15,21,2,3).getTime()} durationMs={82000}
+            agentName="claude" modelName="Opus 5.5" thinkingLabel="High" startedAt={new Date(2026,9,15,21,2,3).getTime()} durationMs={82000}
             usage={{ inputTokens: 123456, cachedInputTokens: 0, outputTokens: 6789 }}/>
         </div>);`, resolveDir: root, loader: "tsx" },
     outfile: path.join(out, "app.js"), bundle: true, jsx: "automatic", format: "iife",
@@ -60,8 +60,10 @@ try {
     assert.match(await page.getByTestId("footer-detail-Input tokens").textContent(), /123,456/);
     assert.match(await page.getByTestId("footer-detail-Cached tokens").textContent(), /0/);
     assert.match(await page.getByTestId("footer-detail-Output tokens").textContent(), /6,789/);
+    assert.match(await page.getByTestId("footer-detail-Start time").textContent(), /2026-10-15 21:02:03/);
+    assert.match(await page.getByTestId("footer-detail-End time").textContent(), /2026-10-15 21:03:25/);
     const button = await trigger.first().boundingBox();
-    const panel = await table.boundingBox();
+    const panel = await page.getByTestId("toolbar-details-frame").boundingBox();
     assert(side === "above" ? panel.y + panel.height < button.y : panel.y > button.y + button.height);
     const x = button.x + button.width / 2;
     await page.mouse.move(x, side === "above" ? button.y - 2 : button.y + button.height + 2);
@@ -76,7 +78,7 @@ try {
     assert(await table.isVisible(), `${side}: details closed while hovering a nested copy button`);
     await copyStart.click();
     assert.equal(await table.getByRole("button", { name: "Copied", exact: true }).count(), 1);
-    for (const label of ["Copy model name", "Copy thinking level"]) {
+    for (const label of ["Copy model name", "Copy thinking level", "Copy end time"]) {
       const copy = table.getByRole("button", { name: label, exact: true });
       await copy.hover();
       await page.waitForTimeout(800);
@@ -85,10 +87,13 @@ try {
       await copy.click();
       await page.waitForFunction((element) => element.getAttribute("aria-label") === "Copied", button);
     }
+    await page.getByTestId("footer-detail-Output tokens").scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    assert(await table.isVisible(), `${side}: scrolling the details dismissed the panel`);
     await page.mouse.move(1100, 100);
     await table.waitFor({ state: "hidden" });
     await page.close();
-    console.log(`${side}: slow gap crossing, nested copy dwell, clicks and leave OK`);
+    console.log(`${side}: slow gap crossing, nested copy dwell, clicks, inner scroll and leave OK`);
   }
 } finally {
   await browser?.close();

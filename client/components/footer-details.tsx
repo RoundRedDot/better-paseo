@@ -18,6 +18,7 @@ export interface FooterDetailsProps {
   modelName?: string | null;
   thinkingLabel?: string | null;
   startedAt?: number | null;
+  completedAt?: number | null;
   durationMs?: number | null;
   usage?: TurnUsage | null;
   tokens: ExtendedThemeTokens;
@@ -41,13 +42,14 @@ export function useFooterDetailsWidth(): number {
 /**
  * Two columns: a plain label, then its toolbar icon, value and inline copy action.
  */
-export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, durationMs, usage, tokens }: FooterDetailsProps) {
+export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, completedAt, durationMs, usage, tokens }: FooterDetailsProps) {
   const { language } = useEnhancerPreferences();
   const rows: Array<{ label: string; icon: string; provider?: string | null; value: string; copyLabel?: string }> = [];
   if (agentName) rows.push({ label: "Agent", icon: "Bot", provider: agentName, value: agentName, copyLabel: "Copy agent" });
   if (modelName) rows.push({ label: "Model name", icon: "Copy", provider: agentName, value: modelName, copyLabel: "Copy model name" });
   if (thinkingLabel) rows.push({ label: "Thinking level", icon: "Brain", value: thinkingLabel, copyLabel: "Copy thinking level" });
   if (startedAt != null) rows.push({ label: "Start time", icon: "Clock", value: formatFullStamp(new Date(startedAt)), copyLabel: "Copy start time" });
+  if (completedAt != null) rows.push({ label: "End time", icon: "Clock", value: formatFullStamp(new Date(completedAt)), copyLabel: "Copy end time" });
   if (durationMs != null) rows.push({ label: "Elapsed time", icon: "Hourglass", value: formatDuration(durationMs) });
   for (const [label, icon, count] of [
     ["Input tokens", "ArrowDownToLine", usage?.inputTokens],
