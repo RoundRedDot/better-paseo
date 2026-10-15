@@ -69,7 +69,7 @@ describe("assistant footer", () => {
         .map((node) => [node.props.children].flat().join(""));
       expect(labels).toEqual(["Copy", "GPT-6.1-Sol", "Medium", "15:05:03", "2分18秒"]);
       expect(renderer.root.findAllByType("Icon" as never).map((node) => node.props.name))
-        .toEqual(["Copy", "Brain", "Timer"]);
+        .toEqual(["Copy", "Brain", "Clock", "Timer"]);
       const image = renderer.root.findByType("Image" as never);
       expect(image.props.accessibilityLabel).toBe("Codex");
       expect(StyleSheet.flatten(image.props.style).tintColor).toBe(tokens.foregroundMuted);
@@ -132,11 +132,12 @@ describe("assistant footer", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(footer(true)); });
     try {
-      const container = renderer.root.findByType("View" as never);
+      const container = renderer.root.findAllByType("View" as never)[0]!;
       const button = renderer.root.findByType("Pressable" as never);
       const style = StyleSheet.flatten(container.props.style);
       expect(style.minHeight).toBe(24);
       expect(style.flexWrap).toBe("wrap");
+      expect(style.gap).toBe(8);
       expect(style.marginBottom).toBe(16);
       expect(button.props.hitSlop).toBe(10);
       expect(style.marginBottom).toBeGreaterThan(button.props.hitSlop);
@@ -149,7 +150,7 @@ describe("assistant footer", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(footer(compact)); });
     try {
-      const container = renderer.root.findByType("View" as never);
+      const container = renderer.root.findAllByType("View" as never)[0]!;
       expect(StyleSheet.flatten(container.props.style).marginBottom).toBe(16);
       expect(renderer.root.findByType("Pressable" as never).props.hitSlop).toBe(compact ? 10 : 0);
       act(() => renderer.update(footer(!compact)));
