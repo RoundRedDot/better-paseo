@@ -42,13 +42,15 @@ try {
       import { createRoot } from "${show}/node_modules/react-dom/client.js";
       import { AssistantFooter } from "${root}/client/components/turn-footer";
       import { buildThemeTokens } from "${root}/client/components/theme-tokens";
+      import { updateEnhancerPreferences } from "${root}/client/preferences";
+      updateEnhancerPreferences({language:location.search.includes("zh")?"zh":"en"});
       const tokens = buildThemeTokens({surface0:"#fff", surface1:"#eee", surface2:"#ddd", border:"#ccc",
         foreground:"#111", foregroundMuted:"#666", accent:"#00f", accentForeground:"#fff",
         statusSuccess:"#198754", statusWarning:"#a36a00", statusDanger:"#d92d20"});
       function Reply({index, pane}) {
         const ref = useRef(null);
         return <div ref={ref} style={{height:260,paddingTop:24}}>
-          <AssistantFooter agentId="same-agent" replyRef={ref} text={"Reply "+index}
+          <AssistantFooter agentId="same-agent" replyRef={ref} text={"Reply "+index} turnNumber={index+1} turnCount={3}
             at={new Date(2026,9,15,21,index,25)} tokens={tokens} compact={location.search.includes("compact")}
             modelName={pane+" model "+index} thinkingLabel={"Level "+index} usage={{inputTokens:100+index}}/>
         </div>;
@@ -145,7 +147,7 @@ try {
   }
   for (const compact of [false, true]) {
     const page = await browser.newPage({ viewport: { width: compact ? 390 : 1280, height: 844 }, hasTouch: compact });
-    await page.goto(`http://127.0.0.1:${server.address().port}/?navigation${compact ? "&compact" : ""}`);
+    await page.goto(`http://127.0.0.1:${server.address().port}/?navigation${compact ? "&compact&zh" : ""}`);
     await page.waitForLoadState("networkidle");
     const trigger = page.getByTestId("Main").getByRole("button", { name: "Copy model name", exact: true }).first();
     if (compact) {
@@ -161,6 +163,8 @@ try {
     if (compact) await page.getByTestId("footer-details-center").waitFor({ state: "visible" });
     assert(await previous.isDisabled());
     assert(await next.isEnabled());
+    const title = (number) => compact ? `${number}/3 轮详情` : `Turn ${number}/3 details`;
+    assert.equal(await page.getByRole("heading").textContent(), title(1));
     const before = await page.getByTestId("Main").evaluate(el => el.scrollTop);
     await next.click();
     const center = page.getByTestId("footer-details-center");
@@ -174,6 +178,7 @@ try {
     };
     await checkCentered();
     assert.match(await page.getByTestId("footer-detail-Model name").textContent(), /Main model 1/);
+    assert.equal(await page.getByRole("heading").textContent(), title(2));
     assert.match(await page.getByTestId("footer-detail-Input").textContent(), /101/);
     assert((await page.getByTestId("Main").evaluate(el => el.scrollTop)) > before);
     assert.equal(await page.getByTestId("Other").evaluate(el => el.scrollTop), 0);
@@ -181,10 +186,12 @@ try {
     assert.equal(await page.getByRole("button", { name: "Copied", exact: true }).count(), 1);
     await next.click();
     assert.match(await page.getByTestId("footer-detail-Model name").textContent(), /Main model 2/);
+    assert.equal(await page.getByRole("heading").textContent(), title(3));
     assert(await next.isDisabled());
     await previous.click();
     await previous.click();
     assert.match(await page.getByTestId("footer-detail-Model name").textContent(), /Main model 0/);
+    assert.equal(await page.getByRole("heading").textContent(), title(1));
     assert(await previous.isDisabled());
     await checkCentered();
     await page.keyboard.press("Escape");

@@ -60,6 +60,55 @@ describe("completed turn footers", () => {
 });
 
 describe("shared turn footer timeline", () => {
+  it("loads absolute numbering only on demand, then reuses a known anchor for new replies", async () => {
+    const { store, refetch } = setup();
+    const tail = page([prompt(4, "two"), reply(5, "second", "two")], { hasOlder: true });
+    refetch.mockImplementation(async (request) => request?.direction === "before"
+      ? page([prompt(1, "one"), reply(3, "first", "one")]) : tail);
+    store.setRunning(false);
+    const stop = store.retain(5000, "second");
+    let stopNumbering = () => {};
+    try {
+      await store.refresh();
+      expect(refetch).toHaveBeenCalledTimes(1);
+      expect(store.get(5000, "second")?.turnNumber).toBeUndefined();
+      expect(store.get(5000, "second")?.turnCount).toBeUndefined();
+      stopNumbering = store.observeTurnNumber(5000, "second");
+      await store.refresh();
+      expect(refetch).toHaveBeenCalledTimes(3);
+      expect(store.get(3000, "first")?.turnNumber).toBe(1);
+      expect(store.get(5000, "second")?.turnNumber).toBe(2);
+      expect(store.get(5000, "second")?.turnCount).toBe(2);
+      const again = store.observeTurnNumber(5000, "second");
+      await Promise.resolve();
+      expect(refetch).toHaveBeenCalledTimes(3);
+      again();
+      refetch.mockImplementation(async () => page([prompt(4, "two"), reply(5, "second", "two"),
+        prompt(6, "three"), reply(7, "third", "three")], { hasOlder: true }));
+      await store.refresh();
+      expect(refetch).toHaveBeenCalledTimes(4);
+      expect(store.get(5000, "second")?.turnNumber).toBe(2);
+      expect(store.get(7000, "third")?.turnNumber).toBe(3);
+      expect(store.get(5000, "second")?.turnCount).toBe(3);
+      expect(store.get(7000, "third")?.turnCount).toBe(3);
+    } finally { stopNumbering(); stop(); }
+  });
+
+  it("numbers source order rather than timestamps or mounted rows, and clears numbering on replacement", async () => {
+    const rows = [prompt(1, "one"), reply(2, "first", "one", 10000),
+      prompt(3, "two"), reply(4, "second", "two", 10000)];
+    const { store, replace, emit } = setup(rows);
+    const stop = store.retain(10000, "second");
+    try {
+      await store.refresh();
+      expect(store.get(10000, "second")?.turnNumber).toBe(2);
+      replace([prompt(3, "two"), reply(4, "second", "two", 10000)]);
+      emit({ type: "replacement", epoch: "new" });
+      await store.refresh();
+      expect(store.get(10000, "second")?.turnNumber).toBe(1);
+    } finally { stop(); }
+  });
+
   it.each(["codex", "claude", "cursor", "grok"])("recovers the latest %s usage from the daemon snapshot after reopening", async (provider) => {
     const { store, refetch, emit } = setup();
     const usage = { inputTokens: 12345, cachedInputTokens: 0, outputTokens: 678 };
@@ -169,7 +218,8 @@ describe("shared turn footer timeline", () => {
     replace([...turns(), prompt(6, "three"), reply(7, "third", "three")]);
     emit({ type: "turn_completed", provider: "codex", turnId: "three", usage: { outputTokens: 11 } });
     await store.refresh();
-    expect(store.get(3000, "first")).toBe(first);
+    expect(store.get(3000, "first")).toEqual({ ...first, turnCount: 3 });
+    expect(store.get(3000, "first")?.usage).toBe(first?.usage);
     expect(store.get(7000, "third")?.usage).toEqual({ outputTokens: 11 });
     stop();
     stop = store.retain(3000, "first");
