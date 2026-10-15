@@ -1,4 +1,4 @@
-// Real pointer regression: a slow crossing of the gap must keep details open.
+// Real pointer regression: crossing the gap and hovering nested actions must keep details open.
 // Run from the repository root: node .showcase/tools/check-footer-hover.mjs
 import { build } from "esbuild";
 import { chromium } from "playwright-core";
@@ -66,12 +66,25 @@ try {
     await page.mouse.move(x, side === "above" ? panel.y + panel.height - 12 : panel.y + 8);
     await page.waitForTimeout(800);
     assert(await table.isVisible(), `${side}: details closed while the pointer was inside`);
-    await table.getByRole("button", { name: "Copy start time", exact: true }).click();
+    const copyStart = table.getByRole("button", { name: "Copy start time", exact: true });
+    await copyStart.hover();
+    await page.waitForTimeout(800);
+    assert(await table.isVisible(), `${side}: details closed while hovering a nested copy button`);
+    await copyStart.click();
     assert.equal(await table.getByRole("button", { name: "Copied", exact: true }).count(), 1);
+    for (const label of ["Copy model name", "Copy thinking level"]) {
+      const copy = table.getByRole("button", { name: label, exact: true });
+      await copy.hover();
+      await page.waitForTimeout(800);
+      assert(await table.isVisible(), `${side}: details closed while hovering ${label}`);
+      const button = await copy.elementHandle();
+      await copy.click();
+      await page.waitForFunction((element) => element.getAttribute("aria-label") === "Copied", button);
+    }
     await page.mouse.move(1100, 100);
     await table.waitFor({ state: "hidden" });
     await page.close();
-    console.log(`${side}: slow gap crossing, dwell, copy and leave OK`);
+    console.log(`${side}: slow gap crossing, nested copy dwell, clicks and leave OK`);
   }
 } finally {
   await browser?.close();

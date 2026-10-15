@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle, type StyleProp } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
@@ -12,7 +12,7 @@ import { FLOAT, floatShadow } from "./tokens/float";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { anchoredTooltipOrigin, liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement, type WindowBox } from "./tooltip-placement";
-import { bindTouchDismiss, suppressTouchCallout } from "../web";
+import { bindRowHover, bindTouchDismiss, suppressTouchCallout } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { SafeInset } from "./safe-inset";
 
@@ -104,6 +104,7 @@ export function ToolbarItem({
   const groupAlign = useContext(TooltipAlignContext);
   const sideMode = useContext(TooltipSideContext);
   const anchorRef = useRef<View>(null);
+  const detailsRef = useRef<View>(null);
   const [side, setSide] = useState<TooltipPlacement>("below");
   const preferences = useEnhancerPreferences();
   const capabilities = useInputCapabilities();
@@ -121,6 +122,12 @@ export function ToolbarItem({
     setFocused(false);
   }, []);
   const open = named || pressedOpen;
+  useLayoutEffect(() => {
+    if (!details || !open || Platform.OS !== "web") return;
+    // RNW Pressables end their parent's hover when a nested action takes it.
+    // Track the entire DOM region so copy buttons remain part of the panel.
+    return bindRowHover(detailsRef.current, () => setInsideDetails(true), () => setInsideDetails(false));
+  }, [Boolean(details), open]);
   useEffect(() => {
     if (details) suppressTouchCallout(anchorRef.current);
   }, [details]);
@@ -200,12 +207,13 @@ export function ToolbarItem({
           style={[styles.tooltipSlot, side === "above" ? styles.above : styles.below, ALIGN[align],
             details ? { width: detailsWidth, marginTop: 0, marginBottom: 0 } : null]}>
           {details ? (
-            <Pressable accessible={false} focusable={false}
+            <Pressable ref={detailsRef} accessible={false} focusable={false}
               // Padding keeps the visible gap inside the panel's hover target.
               style={side === "above" ? styles.detailsAbove : styles.detailsBelow}
               onFocus={capabilities.hover ? () => setFocused(true) : undefined}
               onBlur={() => setFocused(false)}
-              onHoverIn={() => setInsideDetails(true)} onHoverOut={() => setInsideDetails(false)}>
+              onHoverIn={Platform.OS !== "web" ? () => setInsideDetails(true) : undefined}
+              onHoverOut={Platform.OS !== "web" ? () => setInsideDetails(false) : undefined}>
               {bubble}
             </Pressable>
           ) : bubble}
