@@ -103,7 +103,13 @@ export function useHoverPreview(enabled: boolean, memoryKey?: string, options?: 
   const [restored] = useState(() => (memoryKey ? recallPreview(memoryKey) : null));
   // Reopened without an entrance, until the reader closes it.
   const [quiet, setQuiet] = useState(restored !== null);
-  const [open, setOpen] = useState(restored !== null);
+  const [open, setOpen] = useState(false);
+  // A restored panel must mount after the ancestor row's ref is attached.
+  // Its child's layout effect otherwise reads a null anchor; reopen from
+  // the owner's layout effect so positioning still finishes before paint.
+  useLayoutEffect(() => {
+    if (restored) setOpen(true);
+  }, [restored]);
   const [maximized, setMaximized] = useState(restored?.maximized ?? false);
   const [placed, setPlaced] = useState(restored?.placed ?? false);
   const [popped, setPopped] = useState(restored?.popped ?? false);
