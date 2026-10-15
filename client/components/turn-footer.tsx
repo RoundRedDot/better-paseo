@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { unselectable } from "./selection";
 import { radiusV2, space } from "./theme-tokens";
@@ -10,6 +10,8 @@ import { formatFooterStamp, formatFullStamp, formatDuration } from "../ui/time";
 import { TYPE } from "../ui/tokens/typography";
 import { ProviderLogo } from "./provider-logo";
 import { ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
+import { useEnhancerPreferences } from "../preferences";
+import { toolbarLabel } from "../i18n/toolbar-strings";
 
 /**
  * The host's own reply footer — copy, fork and the turn's time — is drawn by
@@ -42,6 +44,10 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
   // on failure, and no timer left running after unmount.
   const { copied, copy } = useCopy();
   const modelCopy = useCopy();
+  const { language } = useEnhancerPreferences();
+  const copyModel = useCallback(() => {
+    if (modelName) void modelCopy.copy(modelName, { label: `Copy model name: ${modelName}` });
+  }, [modelName, modelCopy.copy]);
   const handleCopy = useCallback(() => void copy(text, { label: "Copy reply" }), [copy, text]);
 
   const styles = useMemo(
@@ -126,9 +132,28 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
             tokens={tokens}
             align="start"
             accessibilityLabel={modelCopy.copied ? "Model name copied" : "Copy model name"}
-            onPress={() => void modelCopy.copy(modelName, { label: `Copy model name: ${modelName}` })}
+            onPress={copyModel}
             hitSlop={compact ? (44 - FOOTER_HEIGHT) / 2 : 0}
             buttonStyle={[styles.metadata, styles.modelButton]}
+            details={(
+              <View testID="footer-model-details">
+                <Pressable accessibilityRole="button"
+                  accessibilityLabel={modelCopy.copied ? "Model name copied" : "Copy model name"}
+                  onPress={copyModel}
+                  style={({ pressed }) => [styles.metadata, styles.modelButton,
+                    { minHeight: 44, backgroundColor: pressed ? tokens.v2.surface2 : "transparent" }]}>
+                  <Icon name={modelCopy.copied ? "Check" : "Copy"} size={DISCLOSURE_HEADER.icon}
+                    color={modelCopy.copied ? tokens.success : tokens.foregroundMuted} />
+                  <Text style={[styles.time, { flexShrink: 1 }]}>{modelName}</Text>
+                </Pressable>
+                {thinkingLabel ? (
+                  <View accessibilityLabel={`Thinking level: ${thinkingLabel}`} style={styles.metadata}>
+                    <Icon name="Brain" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+                    <Text style={styles.time}>{toolbarLabel("Thinking level", language)}: {thinkingLabel}</Text>
+                  </View>
+                ) : null}
+              </View>
+            )}
           >
             {modelCopy.copied ? (
               <Icon name="Check" size={DISCLOSURE_HEADER.icon} color={tokens.success} />
@@ -138,12 +163,6 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
               <Icon name="Copy" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
             )}
             <Text style={styles.time}>{modelName}</Text>
-          </ToolbarItem>
-        ) : null}
-        {thinkingLabel ? (
-          <ToolbarItem label="Thinking level" accessibilityLabel={`Thinking level: ${thinkingLabel}`} tokens={tokens} align="start" buttonStyle={styles.metadata}>
-            <Icon name="Brain" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-            <Text style={styles.time}>{thinkingLabel}</Text>
           </ToolbarItem>
         ) : null}
         <ToolbarItem label={formatFullStamp(at)} tokens={tokens} align="start" buttonStyle={styles.metadata}>

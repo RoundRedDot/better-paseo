@@ -1,30 +1,31 @@
 import { describe, expect, it } from "vitest";
 import { formatStamp, formatFooterStamp, formatFullStamp, formatDuration } from "../../client/ui/time";
 
-it("always includes the full local date in timestamp hints", () => {
+it("always includes the full local date and seconds in timestamp hints", () => {
   expect(formatFullStamp(new Date(2026, 9, 15, 3, 4, 5))).toBe("2026-10-15 03:04:05");
   expect(formatFullStamp(new Date(2025, 0, 2, 0, 0, 0))).toBe("2025-01-02 00:00:00");
 });
 
-it("formats footer dates in local time with seconds and zero padding across years", () => {
+it("omits the current year and seconds with zero-padded local time", () => {
   const now = new Date(2026, 9, 15, 15, 30);
-  expect(formatFooterStamp(new Date(2026, 0, 2, 3, 4, 5), now)).toBe("2026-01-02 03:04:05");
-  expect(formatFooterStamp(new Date(2025, 11, 31, 23, 59, 59), now)).toBe("2025-12-31 23:59:59");
+  expect(formatFooterStamp(new Date(2026, 0, 2, 3, 4, 5), now)).toBe("01-02 03:04");
+  expect(formatFooterStamp(new Date(2025, 11, 31, 23, 59, 59), now)).toBe("2025-12-31 23:59");
+  expect(formatFooterStamp(new Date(2027, 0, 2, 3, 4, 5), now)).toBe("2027-01-02 03:04");
 });
 
-it("omits today's date and keeps zero-padded seconds", () => {
+it("omits today's date and seconds with zero-padded hours and minutes", () => {
   const now = new Date(2026, 9, 15, 15, 30);
-  expect(formatFooterStamp(new Date(2026, 9, 15, 3, 4, 5), now)).toBe("03:04:05");
-  expect(formatFooterStamp(new Date(2026, 9, 15, 0, 0, 0), now)).toBe("00:00:00");
+  expect(formatFooterStamp(new Date(2026, 9, 15, 3, 4, 5), now)).toBe("03:04");
+  expect(formatFooterStamp(new Date(2026, 9, 15, 0, 0, 0), now)).toBe("00:00");
 });
 
 it("compares the full local calendar date across midnight, month and year boundaries", () => {
   expect(formatFooterStamp(new Date(2026, 9, 15, 23, 59, 59), new Date(2026, 9, 16)))
-    .toBe("2026-10-15 23:59:59");
+    .toBe("10-15 23:59");
   expect(formatFooterStamp(new Date(2026, 8, 15, 3, 4, 5), new Date(2026, 9, 15)))
-    .toBe("2026-09-15 03:04:05");
+    .toBe("09-15 03:04");
   expect(formatFooterStamp(new Date(2025, 9, 15, 3, 4, 5), new Date(2026, 9, 15)))
-    .toBe("2025-10-15 03:04:05");
+    .toBe("2025-10-15 03:04");
 });
 
 it.each([[0, "0秒"], [999, "0秒"], [59000, "59秒"], [60000, "1分0秒"],
