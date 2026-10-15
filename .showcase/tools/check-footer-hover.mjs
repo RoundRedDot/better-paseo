@@ -26,7 +26,8 @@ try {
       createRoot(document.getElementById("root")).render(
         <div style={{ marginLeft: 80, marginTop: location.search.includes("below") ? 20 : 500 }}>
           <AssistantFooter text="Reply" at={new Date(2026,9,15,21,3,25)} tokens={tokens}
-            modelName="Opus 5.5" thinkingLabel="High" startedAt={new Date(2026,9,15,21,2,3).getTime()} durationMs={82000}/>
+            modelName="Opus 5.5" thinkingLabel="High" startedAt={new Date(2026,9,15,21,2,3).getTime()} durationMs={82000}
+            usage={{ inputTokens: 123456, cachedInputTokens: 0, outputTokens: 6789 }}/>
         </div>);`, resolveDir: root, loader: "tsx" },
     outfile: path.join(out, "app.js"), bundle: true, jsx: "automatic", format: "iife",
     define: { global: "globalThis", "process.env.NODE_ENV": '"production"', __DEV__: "false" },
@@ -56,6 +57,9 @@ try {
     await trigger.hover();
     const table = page.getByTestId("footer-details-table");
     await table.waitFor({ state: "visible" });
+    assert.match(await page.getByTestId("footer-detail-Input tokens").textContent(), /123,456/);
+    assert.match(await page.getByTestId("footer-detail-Cached tokens").textContent(), /0/);
+    assert.match(await page.getByTestId("footer-detail-Output tokens").textContent(), /6,789/);
     const button = await trigger.first().boundingBox();
     const panel = await table.boundingBox();
     assert(side === "above" ? panel.y + panel.height < button.y : panel.y > button.y + button.height);

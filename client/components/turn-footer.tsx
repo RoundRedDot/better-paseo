@@ -13,6 +13,7 @@ import { AnchoredToolbarDetails, ToolbarItem, TooltipSideContext } from "../ui/t
 import { FooterDetails, useFooterDetailsWidth } from "./footer-details";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { useScrollDismiss } from "../ui/scroll-anchor";
+import type { TurnUsage } from "./user-message";
 
 /**
  * The host's own reply footer — copy, fork and the turn's time — is drawn by
@@ -36,12 +37,13 @@ interface AssistantFooterProps {
   thinkingLabel?: string | null;
   durationMs?: number | null;
   startedAt?: number | null;
+  usage?: TurnUsage | null;
   tokens: ExtendedThemeTokens;
   /** `layout.compact`: a 44pt touch target for Copy. */
   compact?: boolean;
 }
 
-export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel, durationMs, startedAt, tokens, compact = false }: AssistantFooterProps) {
+export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel, durationMs, startedAt, usage, tokens, compact = false }: AssistantFooterProps) {
   // The shared copy path (plan §3.8): a check for 1.2 s on success, a toast
   // on failure, and no timer left running after unmount.
   const { copied, copy } = useCopy();
@@ -55,7 +57,7 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
   const longPress = capabilities.touch ? showDetails : undefined;
   const detailsWidth = useFooterDetailsWidth();
   const details = <FooterDetails agentName={agentName} modelName={modelName} thinkingLabel={thinkingLabel}
-    startedAt={startedAt} durationMs={durationMs} tokens={tokens} />;
+    startedAt={startedAt} durationMs={durationMs} usage={usage} tokens={tokens} />;
   const copyModel = useCallback(() => {
     if (modelName) void modelCopy.copy(modelName, { label: `Copy model name: ${modelName}` });
   }, [modelName, modelCopy.copy]);
