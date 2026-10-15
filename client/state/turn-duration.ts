@@ -12,6 +12,7 @@ export interface CompletedTurnFooter {
   at: number;
   text: string;
   completedAt: number;
+  startedAt: number | null;
   durationMs: number | null;
 }
 
@@ -45,8 +46,10 @@ export function completedTurnFooters(
     const at = Date.parse(reply.timestamp);
     const completedAt = Date.parse(entries[end]!.timestamp);
     if (!Number.isFinite(at) || !Number.isFinite(completedAt)) return;
-    const duration = first.item.type === "user_message" ? completedAt - Date.parse(first.timestamp) : NaN;
+    const startedAt = first.item.type === "user_message" ? Date.parse(first.timestamp) : NaN;
+    const duration = completedAt - startedAt;
     result.push({ at, text: reply.item.text, completedAt,
+      startedAt: Number.isFinite(duration) && duration >= 0 ? startedAt : null,
       durationMs: Number.isFinite(duration) && duration >= 0 ? duration : null });
   };
   for (let index = 1; index < entries.length; index++) {

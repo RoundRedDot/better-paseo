@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Modal, Platform, Pressable, StyleSheet, Text, View, type ViewStyle, type StyleProp } from "react-native";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle, type StyleProp } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
@@ -88,6 +88,8 @@ export function ToolbarItem({
   hitSlop = 4,
   accessibilityLabel = label,
   details,
+  detailsWidth = TOOLTIP_SLOT,
+  onLongPress,
 }: Omit<ToolbarButtonProps, "icon" | "color" | "onPress"> & {
   children: ReactNode;
   onPress?: () => void;
@@ -96,6 +98,8 @@ export function ToolbarItem({
   accessibilityLabel?: string;
   /** Interactive hover content; a long press opens it on touch screens. */
   details?: ReactNode;
+  detailsWidth?: number;
+  onLongPress?: (anchor: RefObject<View | null>) => void;
 }) {
   const groupAlign = useContext(TooltipAlignContext);
   const sideMode = useContext(TooltipSideContext);
@@ -139,7 +143,7 @@ export function ToolbarItem({
       return;
     }
     const timer = setTimeout(() => {
-      setSide(sideMode === "auto" ? placeTooltipNear(anchorRef.current, Platform.OS, details ? 128 : undefined) : "below");
+      setSide(sideMode === "auto" ? placeTooltipNear(anchorRef.current, Platform.OS, details ? 320 : undefined) : "below");
       setNamed(true);
     }, TOOLBAR_TOOLTIP_MS);
     return () => clearTimeout(timer);
@@ -148,22 +152,18 @@ export function ToolbarItem({
     if (!open || sideMode !== "auto" || side !== "below" || Platform.OS !== "web") return;
     return liftStackingRow(anchorRef.current as unknown as DomBox | null);
   }, [open, sideMode, side]);
-  const bubble = (
-    <View style={[styles.tooltip, tooltipLook(tokens), details ? {
-      borderRadius: FLOAT.radius,
-      borderWidth: 1,
-      boxShadow: floatShadow(tokens),
-    } : null]}>
-      {details ?? <Text selectable={false} numberOfLines={1}
+  const bubble = details ? <ToolbarDetailsFrame tokens={tokens}>{details}</ToolbarDetailsFrame> : (
+    <View style={[styles.tooltip, tooltipLook(tokens)]}>
+      <Text selectable={false} numberOfLines={1}
         style={[styles.tooltipText, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
         {toolbarLabel(label, preferences.language)}
-      </Text>}
+      </Text>
     </View>
   );
   return (
     // Every web View is its own stacking context (`z-index: 0`), so the name
     // can only rise over the buttons after this one if the button does.
-    <View ref={anchorRef} collapsable={details ? false : undefined} style={[styles.anchor, open && styles.raised]}>
+    <View ref={anchorRef} collapsable={details || onLongPress ? false : undefined} style={[styles.anchor, open && styles.raised]}>
       <Pressable
         accessibilityRole={onPress ? "button" : "image"}
         accessibilityLabel={accessibilityLabel}
@@ -172,8 +172,9 @@ export function ToolbarItem({
         disabled={disabled}
         hitSlop={hitSlop}
         onPress={disabled ? undefined : onPress}
-        onLongPress={details && !disabled ? () => {
-          setSide(sideMode === "auto" ? placeTooltipNear(anchorRef.current, Platform.OS, 128) : "below");
+        onLongPress={!disabled && (details || onLongPress) ? () => {
+          if (onLongPress) return onLongPress(anchorRef);
+          setSide(sideMode === "auto" ? placeTooltipNear(anchorRef.current, Platform.OS, 320) : "below");
           setPressedOpen(true);
         } : undefined}
         onFocus={details && capabilities.hover ? () => setFocused(true) : undefined}
@@ -193,10 +194,11 @@ export function ToolbarItem({
         {children}
       </Pressable>
       {pressedOpen && Platform.OS !== "web" ? (
-        <AnchoredToolbarDetails anchor={anchorRef} close={closeDetails}>{bubble}</AnchoredToolbarDetails>
+        <AnchoredToolbarDetails anchor={anchorRef} close={closeDetails} width={detailsWidth} tokens={tokens}>{details}</AnchoredToolbarDetails>
       ) : open ? (
         <View pointerEvents={details ? "box-none" : "none"}
-          style={[styles.tooltipSlot, side === "above" ? styles.above : styles.below, ALIGN[align]]}>
+          style={[styles.tooltipSlot, side === "above" ? styles.above : styles.below, ALIGN[align],
+            details ? { width: detailsWidth } : null]}>
           {details ? (
             <Pressable accessible={false} focusable={false}
               onFocus={capabilities.hover ? () => setFocused(true) : undefined}
@@ -212,10 +214,12 @@ export function ToolbarItem({
 }
 
 /** The modal avoids clipping by native timeline rows; its panel stays by the pressed control. */
-function AnchoredToolbarDetails({ anchor, close, children }: {
+export function AnchoredToolbarDetails({ anchor, close, children, tokens, width = TOOLTIP_SLOT }: {
   anchor: RefObject<View | null>;
   close(): void;
   children: ReactNode;
+  width?: number;
+  tokens: ExtendedThemeTokens;
 }) {
   const stageRef = useRef<View>(null);
   const [bounds, setBounds] = useState<{ anchor: WindowBox; stage: WindowBox } | null>(null);
@@ -243,14 +247,26 @@ function AnchoredToolbarDetails({ anchor, close, children }: {
               const { width, height } = event.nativeEvent.layout;
               setPanel((previous) => previous?.width === width && previous.height === height ? previous : { width, height });
             }}
-            style={{ position: "absolute", width: bounds ? Math.min(TOOLTIP_SLOT, bounds.stage.width - 16) : TOOLTIP_SLOT,
+            style={{ position: "absolute", width: bounds ? Math.min(width, bounds.stage.width - 16) : width,
               maxWidth: "100%", opacity: origin ? 1 : 0, left: origin?.left ?? 0, top: origin?.top ?? 0 }}>
-            {children}
+            <ToolbarDetailsFrame tokens={tokens} maxHeight={bounds ? bounds.stage.height - 16 : undefined}>
+              {children}
+            </ToolbarDetailsFrame>
           </View>
         </View>
       </SafeInset>
     </Modal>
   );
+}
+
+/** Shared frame for pointer and long-press details. */
+export function ToolbarDetailsFrame({ tokens, children, maxHeight = 320 }: {
+  tokens: ExtendedThemeTokens; children: ReactNode; maxHeight?: number;
+}) {
+  return <View style={{ backgroundColor: tokens.surface0, borderColor: tokens.v2.border,
+    borderWidth: 1, borderRadius: FLOAT.radius, boxShadow: floatShadow(tokens) }}>
+    <ScrollView bounces={false} style={{ maxHeight: maxHeight - 2, borderRadius: FLOAT.radius - 1 }}>{children}</ScrollView>
+  </View>;
 }
 
 /** A toolbar button that copies; its icon turns into a check for 1.2 s once the text is on the clipboard. */

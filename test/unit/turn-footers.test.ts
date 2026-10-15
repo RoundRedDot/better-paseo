@@ -23,8 +23,8 @@ function setup(initial = turns()) {
 
 describe("completed turn footers", () => {
   it("selects one final AI reply per completed turn", () => {
-    expect(completedTurnFooters(turns(), false, null).map((row) => [row.text, row.durationMs]))
-      .toEqual([["first", 2000], ["second", 1000]]);
+    expect(completedTurnFooters(turns(), false, null).map((row) => [row.text, row.startedAt, row.completedAt, row.durationMs]))
+      .toEqual([["first", 1000, 3000, 2000], ["second", 4000, 5000, 1000]]);
   });
 
   it("keeps previous footers while a new turn runs, including before its first item arrives", () => {
@@ -39,12 +39,13 @@ describe("completed turn footers", () => {
       reply(4, "system turn without visible prompt", "system")];
     expect(completedTurnFooters(rows, false, null).map((row) => [row.text, row.durationMs]))
       .toEqual([["final", 1000], ["system turn without visible prompt", null]]);
+    expect(completedTurnFooters(rows, false, null).at(-1)?.startedAt).toBeNull();
   });
 
   it("excludes system envelopes and still uses the turn's final event for timing", () => {
     const rows = [prompt(1), reply(2, "answer"), entry({ type: "reasoning", text: "later" }, 3),
       reply(4, "<system-notice>Job finished</system-notice>")];
-    expect(completedTurnFooters(rows, false, null)).toEqual([{ at: 2000, text: "answer", completedAt: 4000, durationMs: 3000 }]);
+    expect(completedTurnFooters(rows, false, null)).toEqual([{ at: 2000, text: "answer", startedAt: 1000, completedAt: 4000, durationMs: 3000 }]);
   });
 
   it("retains prompt boundaries when canonical turn IDs are unavailable", () => {

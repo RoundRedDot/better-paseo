@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useRef, useState, type RefObject } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { unselectable } from "./selection";
@@ -9,9 +9,10 @@ import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
 import { formatFooterStamp, formatFullStamp, formatDuration } from "../ui/time";
 import { TYPE } from "../ui/tokens/typography";
 import { ProviderLogo } from "./provider-logo";
-import { ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
-import { useEnhancerPreferences } from "../preferences";
-import { toolbarLabel } from "../i18n/toolbar-strings";
+import { AnchoredToolbarDetails, ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
+import { FooterDetails } from "./footer-details";
+import { useInputCapabilities } from "../ui/use-input-capabilities";
+import { useScrollDismiss } from "../ui/scroll-anchor";
 
 /**
  * The host's own reply footer — copy, fork and the turn's time — is drawn by
@@ -34,17 +35,27 @@ interface AssistantFooterProps {
   modelName?: string | null;
   thinkingLabel?: string | null;
   durationMs?: number | null;
+  startedAt?: number | null;
+  completedAt?: number | null;
   tokens: ExtendedThemeTokens;
   /** `layout.compact`: a 44pt touch target for Copy. */
   compact?: boolean;
 }
 
-export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel, durationMs, tokens, compact = false }: AssistantFooterProps) {
+export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel, durationMs, startedAt, completedAt, tokens, compact = false }: AssistantFooterProps) {
   // The shared copy path (plan §3.8): a check for 1.2 s on success, a toast
   // on failure, and no timer left running after unmount.
   const { copied, copy } = useCopy();
   const modelCopy = useCopy();
-  const { language } = useEnhancerPreferences();
+  const capabilities = useInputCapabilities(compact);
+  const footerRef = useRef<View>(null);
+  const [pressedAnchor, setPressedAnchor] = useState<RefObject<View | null> | null>(null);
+  const showDetails = useCallback((anchor: RefObject<View | null>) => setPressedAnchor(anchor), []);
+  const closeDetails = useCallback(() => setPressedAnchor(null), []);
+  useScrollDismiss(pressedAnchor !== null, closeDetails);
+  const longPress = capabilities.touch ? showDetails : undefined;
+  const details = <FooterDetails agentName={agentName} modelName={modelName} thinkingLabel={thinkingLabel}
+    startedAt={startedAt} completedAt={completedAt} durationMs={durationMs} tokens={tokens} />;
   const copyModel = useCallback(() => {
     if (modelName) void modelCopy.copy(modelName, { label: `Copy model name: ${modelName}` });
   }, [modelName, modelCopy.copy]);
@@ -95,22 +106,6 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
           paddingHorizontal: space.xs,
           paddingVertical: space.xs / 2,
         },
-        detailRow: {
-          minHeight: 44,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: space.sm,
-          paddingHorizontal: space.sm,
-          paddingVertical: space.sm,
-          borderRadius: radiusV2.block,
-        },
-        detailIcon: {
-          width: 20,
-          height: 20,
-          flexShrink: 0,
-          alignItems: "center",
-          justifyContent: "center",
-        },
         time: {
           fontFamily: tokens.fontUi,
           fontSize: TYPE.button.size,
@@ -125,13 +120,15 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
 
   return (
     <TooltipSideContext.Provider value="auto">
-      <View style={styles.container}>
+      <Pressable ref={footerRef} testID="footer-toolbar" accessible={false} focusable={false}
+        onLongPress={longPress ? () => longPress(footerRef) : undefined} style={styles.container}>
         <ToolbarItem
           label={copied ? "Copied" : "Copy reply"}
           tokens={tokens}
           align="start"
           accessibilityLabel={copied ? "Reply copied" : "Copy reply"}
           onPress={handleCopy}
+          onLongPress={longPress}
           hitSlop={compact ? (44 - FOOTER_HEIGHT) / 2 : 0}
           buttonStyle={styles.copyButton}
         >
@@ -149,31 +146,11 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
             align="start"
             accessibilityLabel={modelCopy.copied ? "Model name copied" : "Copy model name"}
             onPress={copyModel}
+            onLongPress={longPress}
             hitSlop={compact ? (44 - FOOTER_HEIGHT) / 2 : 0}
             buttonStyle={[styles.metadata, styles.modelButton]}
-            details={(
-              <View testID="footer-model-details">
-                <Pressable accessibilityRole="button"
-                  accessibilityLabel={modelCopy.copied ? "Model name copied" : "Copy model name"}
-                  onPress={copyModel}
-                  style={({ pressed }) => [styles.detailRow,
-                    { backgroundColor: pressed ? tokens.v2.surface2 : "transparent" }]}>
-                  <View style={styles.detailIcon}>
-                    <Icon name={modelCopy.copied ? "Check" : "Copy"} size={DISCLOSURE_HEADER.icon}
-                      color={modelCopy.copied ? tokens.success : tokens.foregroundMuted} />
-                  </View>
-                  <Text style={[styles.time, { flexShrink: 1 }]}>{modelName}</Text>
-                </Pressable>
-                {thinkingLabel ? (
-                  <View accessibilityLabel={`Thinking level: ${thinkingLabel}`} style={styles.detailRow}>
-                    <View style={styles.detailIcon}>
-                      <Icon name="Brain" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-                    </View>
-                    <Text style={[styles.time, { flexShrink: 1 }]}>{toolbarLabel("Thinking level", language)}: {thinkingLabel}</Text>
-                  </View>
-                ) : null}
-              </View>
-            )}
+            details={details}
+            detailsWidth={380}
           >
             {modelCopy.copied ? (
               <Icon name="Check" size={DISCLOSURE_HEADER.icon} color={tokens.success} />
@@ -185,17 +162,22 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
             <Text style={styles.time}>{modelName}</Text>
           </ToolbarItem>
         ) : null}
-        <ToolbarItem label={formatFullStamp(at)} tokens={tokens} align="start" buttonStyle={styles.metadata}>
+        <ToolbarItem label={formatFullStamp(at)} tokens={tokens} align="start" buttonStyle={styles.metadata} onLongPress={longPress}>
           <Icon name="Clock" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
           <Text style={styles.time}>{formatFooterStamp(at)}</Text>
         </ToolbarItem>
         {durationMs != null ? (
-          <ToolbarItem label="Elapsed time" accessibilityLabel={`Elapsed time: ${formatDuration(durationMs)}`} tokens={tokens} align="end" buttonStyle={styles.metadata}>
+          <ToolbarItem label="Elapsed time" accessibilityLabel={`Elapsed time: ${formatDuration(durationMs)}`} tokens={tokens} align="end" buttonStyle={styles.metadata} onLongPress={longPress}>
             <Icon name="Hourglass" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
             <Text style={styles.time}>{formatDuration(durationMs)}</Text>
           </ToolbarItem>
         ) : null}
-      </View>
+      </Pressable>
+      {pressedAnchor ? (
+        <AnchoredToolbarDetails anchor={pressedAnchor} close={closeDetails} width={380} tokens={tokens}>
+          {details}
+        </AnchoredToolbarDetails>
+      ) : null}
     </TooltipSideContext.Provider>
   );
 }
