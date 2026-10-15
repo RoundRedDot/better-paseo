@@ -22,6 +22,7 @@ import {
   type VariantMetrics,
 } from "./styles";
 import { MdTable } from "./table";
+import { reuseNode, type NodeReuse } from "./reuse";
 
 export interface BlockOptions {
   /** The first block of the message: a heading there takes no top margin. */
@@ -30,6 +31,12 @@ export interface BlockOptions {
   open: boolean;
   /** Inside a quote: paragraphs take the quote's text style. */
   inQuote?: boolean;
+  /** The open tail's parts as drawn last, for the parts a chunk left alone. */
+  reuse?: NodeReuse;
+}
+
+function optionSource(options: BlockOptions): string {
+  return `${options.first ? 1 : 0}${options.open ? 1 : 0}${options.inQuote ? 1 : 0}`;
 }
 
 /** Block tokens as React Native nodes; `space` and link definitions draw nothing. */
@@ -42,7 +49,15 @@ export function renderBlocks(
   const out: React.ReactNode[] = [];
   let first = options.first;
   tokens.forEach((token, index) => {
-    const node = renderBlock(token, context, `${keyPrefix}.${index}`, { ...options, first });
+    const key = `${keyPrefix}.${index}`;
+    const blockOptions = { ...options, first };
+    const node = reuseNode(
+      options.reuse,
+      key,
+      `${optionSource(blockOptions)}${token.type}:${token.raw}`,
+      () => token,
+      () => renderBlock(token, context, key, blockOptions),
+    );
     if (node !== null) {
       out.push(node);
       first = false;
@@ -226,13 +241,14 @@ function collectRows(
     // A marker with no body is not a row: drawing a bullet beside nothing
     // reads as a rendering fault.
     if (body.length > 0) {
+      const row = { item, depth, ordered: list.ordered, number: start + index, numberWidth };
       out.push(
-        renderRow(
-          { item, depth, ordered: list.ordered, number: start + index, numberWidth },
-          body,
-          context,
+        reuseNode(
+          options.reuse,
           itemKey,
-          options,
+          `${optionSource(options)}${depth}:${list.ordered ? 1 : 0}:${row.number}:${numberWidth}:${item.raw}`,
+          () => body,
+          () => renderRow(row, body, context, itemKey, options),
         ),
       );
     }
