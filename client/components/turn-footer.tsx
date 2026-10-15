@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { unselectable } from "./selection";
 import { radiusV2, space } from "./theme-tokens";
@@ -9,6 +9,7 @@ import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
 import { formatFooterStamp, formatDuration } from "../ui/time";
 import { TYPE } from "../ui/tokens/typography";
 import { ProviderLogo } from "./provider-logo";
+import { ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
 
 /**
  * The host's own reply footer — copy, fork and the turn's time — is drawn by
@@ -57,6 +58,7 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
           gap: space.sm,
         },
         copyButton: {
+          width: "auto",
           // The button's own padding is pulled back, so its icon starts on the
           // text column, the way the host footer does.
           marginLeft: -space.xs,
@@ -82,6 +84,7 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
           borderRadius: radiusV2.block,
         },
         modelButton: {
+          width: "auto",
           paddingHorizontal: space.xs,
           paddingVertical: space.xs / 2,
         },
@@ -98,56 +101,62 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
   );
 
   return (
-    <View style={styles.container}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={copied ? "Reply copied" : "Copy reply"}
-        onPress={handleCopy}
-        hitSlop={compact ? (44 - FOOTER_HEIGHT) / 2 : 0}
-        style={({ pressed }) => [styles.copyButton, pressed && { backgroundColor: tokens.v2.surface2 }]}
-      >
-        <Icon
-          name={copied ? "Check" : "Copy"}
-          size={DISCLOSURE_HEADER.icon}
-          color={copied ? tokens.success : tokens.foregroundMuted}
-        />
-        <Text style={styles.copyLabel}>Copy</Text>
-      </Pressable>
-      {modelName ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={modelCopy.copied ? "Model name copied" : "Copy model name"}
-          onPress={() => void modelCopy.copy(modelName, { label: `Copy model name: ${modelName}` })}
+    <TooltipSideContext.Provider value="auto">
+      <View style={styles.container}>
+        <ToolbarItem
+          label={copied ? "Copied" : "Copy reply"}
+          tokens={tokens}
+          align="start"
+          accessibilityLabel={copied ? "Reply copied" : "Copy reply"}
+          onPress={handleCopy}
           hitSlop={compact ? (44 - FOOTER_HEIGHT) / 2 : 0}
-          style={({ pressed }) => [styles.metadata, styles.modelButton, pressed && { backgroundColor: tokens.v2.surface2 }]}
+          buttonStyle={styles.copyButton}
         >
-          {modelCopy.copied ? (
-            <Icon name="Check" size={DISCLOSURE_HEADER.icon} color={tokens.success} />
-          ) : agentName ? (
-            <ProviderLogo provider={agentName} size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-          ) : (
-            <Icon name="Copy" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-          )}
-          <Text style={styles.time}>{modelName}</Text>
-        </Pressable>
-      ) : null}
-      {thinkingLabel ? (
-        <View style={styles.metadata} accessibilityLabel={`Thinking level: ${thinkingLabel}`}>
-          <Icon name="Brain" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-          <Text style={styles.time}>{thinkingLabel}</Text>
+          <Icon
+            name={copied ? "Check" : "Copy"}
+            size={DISCLOSURE_HEADER.icon}
+            color={copied ? tokens.success : tokens.foregroundMuted}
+          />
+          <Text style={styles.copyLabel}>Copy</Text>
+        </ToolbarItem>
+        {modelName ? (
+          <ToolbarItem
+            label={modelCopy.copied ? "Copied" : "Copy model name"}
+            tokens={tokens}
+            align="start"
+            accessibilityLabel={modelCopy.copied ? "Model name copied" : "Copy model name"}
+            onPress={() => void modelCopy.copy(modelName, { label: `Copy model name: ${modelName}` })}
+            hitSlop={compact ? (44 - FOOTER_HEIGHT) / 2 : 0}
+            buttonStyle={[styles.metadata, styles.modelButton]}
+          >
+            {modelCopy.copied ? (
+              <Icon name="Check" size={DISCLOSURE_HEADER.icon} color={tokens.success} />
+            ) : agentName ? (
+              <ProviderLogo provider={agentName} size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+            ) : (
+              <Icon name="Copy" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+            )}
+            <Text style={styles.time}>{modelName}</Text>
+          </ToolbarItem>
+        ) : null}
+        {thinkingLabel ? (
+          <View style={styles.metadata} accessibilityLabel={`Thinking level: ${thinkingLabel}`}>
+            <Icon name="Brain" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+            <Text style={styles.time}>{thinkingLabel}</Text>
+          </View>
+        ) : null}
+        <View style={styles.metadata}>
+          <Icon name="Clock" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+          <Text style={styles.time}>{formatFooterStamp(at)}</Text>
         </View>
-      ) : null}
-      <View style={styles.metadata}>
-        <Icon name="Clock" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-        <Text style={styles.time}>{formatFooterStamp(at)}</Text>
+        {durationMs != null ? (
+          <View style={styles.metadata} accessibilityLabel={`Elapsed time: ${formatDuration(durationMs)}`}>
+            <Icon name="Hourglass" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+            <Text style={styles.time}>{formatDuration(durationMs)}</Text>
+          </View>
+        ) : null}
       </View>
-      {durationMs != null ? (
-        <View style={styles.metadata} accessibilityLabel={`Elapsed time: ${formatDuration(durationMs)}`}>
-          <Icon name="Hourglass" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-          <Text style={styles.time}>{formatDuration(durationMs)}</Text>
-        </View>
-      ) : null}
-    </View>
+    </TooltipSideContext.Provider>
   );
 }
 

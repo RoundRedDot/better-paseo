@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle, type StyleProp } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
@@ -71,7 +71,8 @@ export function ToolbarIcon({ children, ...props }: {
   return <ToolbarItem {...props}>{children}</ToolbarItem>;
 }
 
-function ToolbarItem({
+/** A labelled action using the toolbar's shared hover hint and placement. */
+export function ToolbarItem({
   children,
   label,
   onPress,
@@ -80,7 +81,16 @@ function ToolbarItem({
   checked,
   align: alignProp,
   outlined = false,
-}: Omit<ToolbarButtonProps, "icon" | "color" | "onPress"> & { children: ReactNode; onPress?: () => void }) {
+  buttonStyle,
+  hitSlop = 4,
+  accessibilityLabel = label,
+}: Omit<ToolbarButtonProps, "icon" | "color" | "onPress"> & {
+  children: ReactNode;
+  onPress?: () => void;
+  buttonStyle?: StyleProp<ViewStyle>;
+  hitSlop?: number;
+  accessibilityLabel?: string;
+}) {
   const groupAlign = useContext(TooltipAlignContext);
   const sideMode = useContext(TooltipSideContext);
   const anchorRef = useRef<View>(null);
@@ -111,11 +121,11 @@ function ToolbarItem({
     <View ref={anchorRef} style={[styles.anchor, named && styles.raised]}>
       <Pressable
         accessibilityRole={onPress ? "button" : "image"}
-        accessibilityLabel={label}
+        accessibilityLabel={accessibilityLabel}
         accessibilityState={onPress ? checked === undefined ? { disabled } : { disabled, checked } : undefined}
         focusable={onPress ? undefined : false}
         disabled={disabled}
-        hitSlop={4}
+        hitSlop={hitSlop}
         onPress={disabled ? undefined : onPress}
         {...hoverProps}
         style={({ pressed }) => [
@@ -123,6 +133,7 @@ function ToolbarItem({
           Platform.OS === "web" && styles.pointer,
           outlined && styles.outlined,
           outlined && { borderColor: tokens.v2.border },
+          buttonStyle,
           disabled && styles.disabled,
           onPress && !disabled && hovered && { backgroundColor: tokens.v2.surface2 },
           onPress && !disabled && pressed && { backgroundColor: tokens.v2.surface2 },

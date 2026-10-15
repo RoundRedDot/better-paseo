@@ -18,6 +18,7 @@ import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { StyleSheet } from "./helpers/rn-mock";
 import { seedMarkBitmaps } from "../../client/components/marks";
 import { updateEnhancerPreferences } from "../../client/preferences";
+import { TOOLBAR_TOOLTIP_MS } from "../../client/ui/toolbar-button";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -39,6 +40,48 @@ afterEach(() => {
 });
 
 describe("assistant footer", () => {
+  it.each([
+    ["en", "Copy reply", "Copy model name", "Copied"],
+    ["zh", "复制回复", "复制模型名称", "已复制"],
+  ] as const)("shows delayed copy hints in %s and clears them on exit", async (language, replyHint, modelHint, copiedHint) => {
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    updateEnhancerPreferences({ language });
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
+      text, at, tokens, modelName: "Opus 5.5", thinkingLabel: "High",
+    })); });
+    const labels = () => renderer.root.findAllByType("Text" as never).map((node) => node.props.children);
+    try {
+      const buttons = renderer.root.findAllByType("Pressable" as never);
+      expect(buttons).toHaveLength(2);
+      expect(labels()).not.toContain(replyHint);
+      act(() => { buttons[0]!.props.onHoverIn(); });
+      act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS - 1); });
+      expect(labels()).not.toContain(replyHint);
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(labels()).toContain(replyHint);
+      await act(async () => { buttons[0]!.props.onPress(); });
+      expect(labels()).toContain(copiedHint);
+      act(() => { buttons[0]!.props.onHoverOut(); });
+      expect(labels()).not.toContain(copiedHint);
+      act(() => { buttons[1]!.props.onHoverIn(); });
+      act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
+      expect(labels()).toContain(modelHint);
+      await act(async () => { buttons[1]!.props.onPress(); });
+      expect(labels()).toContain(copiedHint);
+      expect(clipboard.copyText).toHaveBeenLastCalledWith("Opus 5.5");
+      act(() => { buttons[1]!.props.onHoverOut(); });
+      expect(labels()).not.toContain(copiedHint);
+      act(() => { buttons[1]!.props.onHoverIn(); });
+      act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS - 1); });
+      act(() => { buttons[1]!.props.onHoverOut(); vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
+      expect(labels()).not.toContain(copiedHint);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
   it.each([
     { agentName: "cursor", label: "Cursor", mark: "provider:cursor" },
     { agentName: "grok", label: "Grok", mark: "lobe:grok" },
