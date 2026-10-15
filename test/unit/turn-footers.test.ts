@@ -60,6 +60,63 @@ describe("completed turn footers", () => {
 });
 
 describe("shared turn footer timeline", () => {
+  it.each(["codex", "claude", "cursor", "grok"])("recovers the latest %s usage from the daemon snapshot after reopening", async (provider) => {
+    const { store, refetch, emit } = setup();
+    const usage = { inputTokens: 12345, cachedInputTokens: 0, outputTokens: 678 };
+    const snapshot = { provider, status: "idle", activeTurn: null, lastUserMessageAt: new Date(4000).toISOString(),
+      lastUsage: usage } as NonNullable<TimelinePage["agent"]>;
+    refetch.mockImplementation(async () => page(turns(), { agent: snapshot }));
+    store.setRunning(false);
+    const stop = store.retain(5000, "second");
+    try {
+      await store.refresh();
+      expect(store.get(5000, "second")?.usage).toEqual(usage);
+      expect(store.get(3000, "first")?.usage).toBeUndefined();
+      const second = store.get(5000, "second");
+      await store.refresh();
+      expect(store.get(5000, "second")).toBe(second);
+      emit({ type: "subscription_restored" });
+      await store.refresh();
+      expect(store.get(5000, "second")?.usage).toEqual(usage);
+    } finally { stop(); }
+  });
+
+  it("reads final daemon usage when a new completion event omits usage", async () => {
+    const { store, refetch, emit } = setup();
+    const usage = { inputTokens: 100, cachedInputTokens: 20, outputTokens: 30 };
+    const snapshot = { status: "running", activeTurn: { turnId: "two", startedAt: new Date(4000).toISOString() },
+      lastUserMessageAt: new Date(4000).toISOString(), lastUsage: usage } as NonNullable<TimelinePage["agent"]>;
+    refetch.mockImplementation(async () => page(turns(), { agent: snapshot }));
+    store.setRunning(true);
+    const stop = store.retain(5000, "second");
+    try {
+      await store.refresh();
+      expect(store.get(5000, "second")).toBeNull();
+      snapshot.status = "idle";
+      snapshot.activeTurn = null;
+      emit({ type: "turn_completed", provider: "codex", turnId: "two" });
+      await store.refresh();
+      expect(store.get(5000, "second")?.usage).toEqual(usage);
+    } finally { stop(); }
+  });
+
+  it.each(["running", "mismatched prompt", "missing prompt", "trailing turn", "newer page"])
+  ("does not attribute snapshot usage from a %s to historical replies", async (caseName) => {
+    const { store, refetch } = setup();
+    const snapshot = { status: caseName === "running" ? "running" : "idle", activeTurn: null,
+      lastUserMessageAt: caseName === "missing prompt" ? null : new Date(caseName === "mismatched prompt" ? 6000 : 4000).toISOString(),
+      lastUsage: { inputTokens: 999 } } as NonNullable<TimelinePage["agent"]>;
+    const rows = caseName === "trailing turn" ? [...turns(), reply(6, "system", "system")] : turns();
+    refetch.mockImplementation(async () => page(rows, { agent: snapshot, hasNewer: caseName === "newer page" }));
+    store.setRunning(false);
+    const stop = store.retain(5000, "second");
+    try {
+      await store.refresh();
+      expect(store.get(3000, "first")?.usage).toBeUndefined();
+      expect(store.get(5000, "second")?.usage).toBeUndefined();
+    } finally { stop(); }
+  });
+
   it("does not rescan loaded timeline entries when replies remount", async () => {
     const rows = turns();
     const readItem = vi.fn();

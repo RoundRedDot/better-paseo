@@ -31,6 +31,7 @@ import type { TurnUsage } from "./user-message";
 interface AssistantFooterProps {
   /** The reply, copied verbatim — the same text the host would copy. */
   text: string;
+  /** The completed turn's end time; source reply identity is resolved before rendering. */
   at: Date;
   agentName?: string | null;
   modelName?: string | null;
@@ -59,7 +60,7 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
   // Grok and Cursor upstream history replays lack reliable per-message timestamps.
   const visibleDurationMs = agentName === "grok" || agentName === "cursor" ? null : durationMs;
   const details = <FooterDetails agentName={agentName} modelName={modelName} thinkingLabel={thinkingLabel}
-    startedAt={startedAt} durationMs={visibleDurationMs} usage={usage} tokens={tokens} />;
+    startedAt={startedAt} completedAt={at.getTime()} durationMs={visibleDurationMs} usage={usage} tokens={tokens} />;
   const copyModel = useCallback(() => {
     if (modelName) void modelCopy.copy(modelName, { label: `Copy model name: ${modelName}` });
   }, [modelName, modelCopy.copy]);

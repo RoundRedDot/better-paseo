@@ -606,7 +606,7 @@ const TurnFooter = memo(function TurnFooter({
   const paseo = usePaseo();
   const timing = useTurnFooter(paseo, agentId, at.getTime(), text, running, streaming);
   if (!timing) return null;
-  return <CompletedReplyFooter agentId={agentId} text={text} at={at} tokens={tokens}
+  return <CompletedReplyFooter agentId={agentId} text={text} at={new Date(timing.completedAt)} tokens={tokens}
     compact={compact} durationMs={timing.durationMs} startedAt={timing.startedAt} usage={timing.usage} />;
 });
 

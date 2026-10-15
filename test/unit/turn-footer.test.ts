@@ -61,7 +61,7 @@ describe("assistant footer", () => {
       act(() => { toolbar.props.onLongPress(); });
       expect(renderer.root.findAllByType("View" as never).some((node) =>
         node.props.testID === "footer-detail-Elapsed time")).toBe(visible);
-      for (const label of ["Agent", "Model name", "Start time", "Output tokens"]) {
+      for (const label of ["Agent", "Model name", "Start time", "End time", "Output tokens"]) {
         expect(renderer.root.findAllByType("View" as never).some((node) =>
           node.props.testID === `footer-detail-${label}`)).toBe(true);
       }
@@ -110,7 +110,7 @@ describe("assistant footer", () => {
       act(() => { trigger.props.onLongPress(); });
       expect(clipboard.copyText).not.toHaveBeenCalled();
       const table = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-details-table")!;
-      expect(table.findAllByType("View" as never).filter((node) => node.props.testID?.startsWith("footer-detail-"))).toHaveLength(5);
+      expect(table.findAllByType("View" as never).filter((node) => node.props.testID?.startsWith("footer-detail-"))).toHaveLength(6);
       const close = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.accessibilityLabel === "Close preview")!;
       act(() => { close.props.onPress(); });
       expect(renderer.root.findAllByType("Modal" as never)).toHaveLength(0);
@@ -129,7 +129,7 @@ describe("assistant footer", () => {
     updateEnhancerPreferences({ language: "zh" });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
-      text, at, tokens, agentName: "codex", modelName: "GPT-6.1-Sol", thinkingLabel: "High",
+      text, at: new Date(startedAt + 82000), tokens, agentName: "codex", modelName: "GPT-6.1-Sol", thinkingLabel: "High",
       startedAt, durationMs: 82000,
     })); });
     try {
@@ -138,11 +138,11 @@ describe("assistant footer", () => {
       const table = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-details-table")!;
       expect(table.findAllByType("Text" as never).map((node) => node.props.children))
         .toEqual(["Agent", "codex", "模型名称", "GPT-6.1-Sol", "思考强度", "High", "开始时间", "2026-10-15 21:02:03",
-          "耗时", "1分22秒"]);
+          "结束时间", "2026-10-15 21:03:25", "耗时", "1分22秒"]);
       const buttons = table.findAllByType("Pressable" as never);
       expect(buttons.map((node) => node.props.accessibilityLabel))
-        .toEqual(["Copy agent", "Copy model name", "Copy thinking level", "Copy start time"]);
-      for (const [index, value] of ["codex", "GPT-6.1-Sol", "High", "2026-10-15 21:02:03"].entries()) {
+        .toEqual(["Copy agent", "Copy model name", "Copy thinking level", "Copy start time", "Copy end time"]);
+      for (const [index, value] of ["codex", "GPT-6.1-Sol", "High", "2026-10-15 21:02:03", "2026-10-15 21:03:25"].entries()) {
         await act(async () => { buttons[index]!.props.onPress(); });
         expect(clipboard.copyText).toHaveBeenLastCalledWith(value);
         expect(buttons[index]!.findByType("Icon" as never).props.name).toBe("Check");
@@ -152,7 +152,7 @@ describe("assistant footer", () => {
       const rows = table.findAllByType("View" as never).filter((node) => node.props.testID?.startsWith("footer-detail-"));
       expect(table.findAllByType(ProviderLogo).map((node) => node.props.provider)).toEqual(["codex", "codex"]);
       expect(table.findAllByType("Icon" as never).map((node) => node.props.name))
-        .toEqual(["Check", "Check", "Brain", "Check", "Clock", "Check", "Hourglass"]);
+        .toEqual(["Check", "Check", "Brain", "Check", "Clock", "Check", "Clock", "Check", "Hourglass"]);
       for (const [index, row] of rows.entries()) {
         const slot = row.findAllByType("View" as never).find((node) => node.props.testID === "footer-value-icon")!;
         const valueCell = row.findAllByType("View" as never)
@@ -178,7 +178,7 @@ describe("assistant footer", () => {
       const table = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-details-table")!;
       const rowIds = table.findAllByType("View" as never).map((node) => node.props.testID)
         .filter((id) => id?.startsWith("footer-detail"));
-      expect(rowIds).toEqual(["footer-details-table", "footer-detail-Elapsed time"]);
+      expect(rowIds).toEqual(["footer-details-table", "footer-detail-End time", "footer-detail-Elapsed time"]);
       expect(rowIds).not.toContain("footer-detail-Start time");
       expect(rowIds).not.toContain("footer-detail-Model name");
       expect(table.findAllByType("Text" as never).map((node) => node.props.children)).toContain("0秒");
@@ -253,12 +253,13 @@ describe("assistant footer", () => {
       expect(renderer.root.findAllByType("Text" as never).map((node) => node.props.children))
         .not.toContain("复制模型名称");
       expect(details()[0]!.findAllByType("Text" as never)
-        .map((node) => [node.props.children].flat().join(""))).toEqual(["模型名称", "Opus 5.5", "思考强度", "High"]);
+        .map((node) => [node.props.children].flat().join(""))).toEqual(["模型名称", "Opus 5.5", "思考强度", "High",
+          "结束时间", formatFullStamp(at)]);
       const copyButton = details()[0]!.findAllByType("Pressable" as never)
         .find((node) => node.props.accessibilityLabel === "Copy model name")!;
       // Labels stay plain; toolbar icons are rendered in the value column.
       expect(details()[0]!.findAllByType("View" as never)
-        .filter((node) => node.props.testID === "footer-value-icon")).toHaveLength(2);
+        .filter((node) => node.props.testID === "footer-value-icon")).toHaveLength(3);
       expect(details()[0]!.findAllByType("View" as never)
         .filter((node) => StyleSheet.flatten(node.props.style).width === 20)).toHaveLength(0);
       const panel = renderer.root.findAllByType("View" as never)
