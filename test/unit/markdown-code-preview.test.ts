@@ -71,21 +71,25 @@ describe("Markdown code window", () => {
     }
     const header = hosts("hover-preview-start")[0]!;
     expect(header.findAll((node) => String(node.type) === "Pressable").map((node) => node.props.accessibilityLabel))
-      .toEqual(["Render Markdown", "Show raw text"]);
-    expect(buttons("Render Markdown")[0]!.props.accessibilityState.checked).toBe(true);
+      .toEqual(["Show raw text"]);
+    expect(buttons("Show raw text")[0]!.find((node) => String(node.type) === "Icon").props.name).toBe("Code");
     const body = hosts("hover-preview")[0]!;
     expect(body.findByType(MarkdownView).props.text).toBe(source);
     expect(buttons("Open Markdown in a window")).toHaveLength(1);
     press("Show raw text");
     const raw = renderer.root.findAll((node) => String(node.type) === "Text" && node.props.testID === "markdown-preview-source")[0]!;
     expect(raw.children).toEqual([source]);
-    expect(buttons("Show raw text")[0]!.props.accessibilityState.checked).toBe(true);
+    expect(buttons("Show raw text")).toHaveLength(0);
+    expect(buttons("Render Markdown")).toHaveLength(1);
+    expect(buttons("Render Markdown")[0]!.find((node) => String(node.type) === "Icon").props.name).toBe("FileText");
     await act(async () => {
       body.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Copy code")[0]!.props.onPress();
     });
     expect(state.copy).toHaveBeenCalledWith(source);
     press("Render Markdown");
     expect(body.findByType(MarkdownView).props.text).toBe(source);
+    expect(buttons("Render Markdown")).toHaveLength(0);
+    expect(buttons("Show raw text")).toHaveLength(1);
     press("Close preview");
     expect(hosts("hover-preview")).toHaveLength(0);
   });

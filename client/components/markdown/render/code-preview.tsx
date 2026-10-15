@@ -31,10 +31,10 @@ export function MarkdownCodePreview({ code, language, context, closed, showLineN
         onOpenPreview={open} />
       {preview.open ? (
         <HoverPreview preview={preview} tokens={tokens} wraps={raw}>
-          <HoverPreviewHeader tokens={tokens} icon="FileText" streaming={!closed} left={<>
-            <ToolbarButton icon="FileText" label="Render Markdown" checked={!raw} onPress={() => setRaw(false)} tokens={tokens} />
-            <ToolbarButton icon="Code" label="Show raw text" checked={raw} onPress={() => setRaw(true)} tokens={tokens} />
-          </>}>
+          <HoverPreviewHeader tokens={tokens} icon="FileText" streaming={!closed} left={
+            <ToolbarButton icon={raw ? "FileText" : "Code"} label={raw ? "Render Markdown" : "Show raw text"}
+              onPress={() => setRaw((value) => !value)} tokens={tokens} />
+          }>
             <ToolbarCopyButton text={code} label="Copy code" tokens={tokens} />
           </HoverPreviewHeader>
           <HoverPreviewBody key={raw ? "raw" : "markdown"}>
