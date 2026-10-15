@@ -65,7 +65,8 @@ const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
  * `Tasks 1/4` and a static progress ring — then one row per task in the
  * same status slot as a tool's icon, so a checklist lines up with the calls
  * around it. No frame, no fill. The only motion is the `RunningDot` of the
- * task in progress; the progress ring jumps to its value.
+ * task in progress; the progress ring jumps to its value, and a finished
+ * list trades it for a checked circle.
  *
  * A title is one line until it is tapped, then wraps in full; another tap
  * folds it again. The whole list opens in the row preview's floating panel:
@@ -269,14 +270,18 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
       ) : (
         <View style={styles.spacer} />
       )}
-      <ProgressRing
-        value={completedCount}
-        max={totalCount}
-        size={PROGRESS_SIZE}
-        stroke={PROGRESS_STROKE}
-        color={tokens.accent}
-        trackColor={tokens.v2.surface2}
-      />
+      {allDone ? (
+        <Icon name="CircleCheck" size={PROGRESS_SIZE} color={tokens.success} />
+      ) : (
+        <ProgressRing
+          value={completedCount}
+          max={totalCount}
+          size={PROGRESS_SIZE}
+          stroke={PROGRESS_STROKE}
+          color={tokens.accent}
+          trackColor={tokens.v2.surface2}
+        />
+      )}
       {panel.pop ? (
         // At the row's end, in the timeline: its name opens above and leftwards.
         <TooltipSideContext.Provider value="auto">
