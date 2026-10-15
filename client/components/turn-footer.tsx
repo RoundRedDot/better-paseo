@@ -54,7 +54,7 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
           flexDirection: "row",
           flexWrap: "wrap",
           alignItems: "center",
-          gap: space.md,
+          gap: space.sm,
         },
         copyButton: {
           // The button's own padding is pulled back, so its icon starts on the
@@ -131,7 +131,10 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
           <Text style={styles.time}>{thinkingLabel}</Text>
         </View>
       ) : null}
-      <Text style={styles.time}>{formatFooterStamp(at)}</Text>
+      <View style={styles.metadata}>
+        <Icon name="Clock" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+        <Text style={styles.time}>{formatFooterStamp(at)}</Text>
+      </View>
       {durationMs != null ? (
         <View style={styles.metadata} accessibilityLabel={`Elapsed time: ${formatDuration(durationMs)}`}>
           <Icon name="Timer" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
