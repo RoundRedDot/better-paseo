@@ -12,7 +12,7 @@ import { FLOAT, floatShadow } from "./tokens/float";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { anchoredTooltipOrigin, liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement, type WindowBox } from "./tooltip-placement";
-import { bindDetailsEscape, bindRowHover, bindTouchDismiss, suppressTouchCallout } from "../web";
+import { bindDetailsEscape, bindRowHover, bindTouchDismiss, openToolbarDetailsLayer, suppressTouchCallout } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { SafeInset } from "./safe-inset";
 
@@ -126,8 +126,10 @@ export function ToolbarItem({
     if (!details || !open || Platform.OS !== "web") return;
     // RNW Pressables end their parent's hover when a nested action takes it.
     // Track the entire DOM region so copy buttons remain part of the panel.
-    return bindRowHover(detailsRef.current, () => setInsideDetails(true), () => setInsideDetails(false));
-  }, [Boolean(details), open]);
+    const releaseLayer = openToolbarDetailsLayer(detailsRef.current, anchorRef.current, side);
+    const releaseHover = bindRowHover(detailsRef.current, () => setInsideDetails(true), () => setInsideDetails(false));
+    return () => { releaseHover(); releaseLayer(); };
+  }, [Boolean(details), open, side]);
   useEffect(() => {
     if (details) suppressTouchCallout(anchorRef.current);
   }, [details]);
@@ -156,9 +158,9 @@ export function ToolbarItem({
     return () => clearTimeout(timer);
   }, [hovered, insideDetails, focused, details, sideMode]);
   useEffect(() => {
-    if (!open || sideMode !== "auto" || side !== "below" || Platform.OS !== "web") return;
+    if (details || !open || sideMode !== "auto" || side !== "below" || Platform.OS !== "web") return;
     return liftStackingRow(anchorRef.current as unknown as DomBox | null);
-  }, [open, sideMode, side]);
+  }, [Boolean(details), open, sideMode, side]);
   const bubble = details ? <ToolbarDetailsFrame tokens={tokens}>{details}</ToolbarDetailsFrame> : (
     <View style={[styles.tooltip, tooltipLook(tokens)]}>
       <Text selectable={false} numberOfLines={1}
