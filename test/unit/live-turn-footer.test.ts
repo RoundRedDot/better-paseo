@@ -79,6 +79,9 @@ describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform
       expect(footer.props.startedAt).toBe(startedAt);
       expect(footer.props.durationMs).toBe(82000);
       expect(footer.findByProps({ accessibilityLabel: formatFullStamp(new Date(endedAt)) })).toBeDefined();
+      expect(footer.props.modelName).toBe("GPT-6.1-Sol");
+      await act(async () => footer.findByProps({ accessibilityLabel: "Copy model name" }).props.onPress());
+      expect(runtime.copyText).toHaveBeenCalledExactlyOnceWith("sol");
       expect(refetch).toHaveBeenCalledTimes(1);
     } finally { act(() => renderer.unmount()); }
   });

@@ -621,12 +621,12 @@ function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs, 
   usage?: TurnUsage;
 }) {
   const agentName = useAgent(agentId, (agent) => agent.provider);
-  const modelName = useAgent(agentId, (agent) => agent.model);
+  const modelId = useAgent(agentId, (agent) => agent.model);
   const thinkingOptionId = useAgent(agentId, (agent) => agent.thinkingOptionId);
   const cwd = useAgent(agentId, (agent) => agent.cwd);
   const paseo = usePaseo();
-  const model = useFooterModel(paseo, agentName, modelName, thinkingOptionId, cwd);
-  return <AssistantFooter text={text} at={at} agentName={agentName} modelName={model.modelName}
+  const model = useFooterModel(paseo, agentName, modelId, thinkingOptionId, cwd);
+  return <AssistantFooter text={text} at={at} agentName={agentName} modelId={modelId} modelName={model.modelName}
     thinkingLabel={model.thinkingLabel}
     durationMs={durationMs} startedAt={startedAt} usage={usage} tokens={tokens} compact={compact} />;
 }

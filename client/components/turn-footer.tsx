@@ -34,6 +34,8 @@ interface AssistantFooterProps {
   /** The completed turn's end time; source reply identity is resolved before rendering. */
   at: Date;
   agentName?: string | null;
+  /** The raw model name from the agent, used for clipboard writes. */
+  modelId?: string | null;
   modelName?: string | null;
   thinkingLabel?: string | null;
   durationMs?: number | null;
@@ -44,7 +46,7 @@ interface AssistantFooterProps {
   compact?: boolean;
 }
 
-export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel, durationMs, startedAt, usage, tokens, compact = false }: AssistantFooterProps) {
+export function AssistantFooter({ text, at, agentName, modelId, modelName, thinkingLabel, durationMs, startedAt, usage, tokens, compact = false }: AssistantFooterProps) {
   // The shared copy path (plan §3.8): a check for 1.2 s on success, a toast
   // on failure, and no timer left running after unmount.
   const { copied, copy } = useCopy();
@@ -62,8 +64,8 @@ export function AssistantFooter({ text, at, agentName, modelName, thinkingLabel,
   const details = <FooterDetails agentName={agentName} modelName={modelName} thinkingLabel={thinkingLabel}
     startedAt={startedAt} completedAt={at.getTime()} durationMs={visibleDurationMs} usage={usage} tokens={tokens} />;
   const copyModel = useCallback(() => {
-    if (modelName) void modelCopy.copy(modelName, { label: `Copy model name: ${modelName}` });
-  }, [modelName, modelCopy.copy]);
+    if (modelId) void modelCopy.copy(modelId, { label: "Copy model name" });
+  }, [modelId, modelCopy.copy]);
   const handleCopy = useCallback(() => void copy(text, { label: "Copy reply" }), [copy, text]);
 
   const styles = useMemo(
