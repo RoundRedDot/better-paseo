@@ -46,10 +46,17 @@ try {
         foreground:"#111", foregroundMuted:"#666", accent:"#00f", accentForeground:"#fff",
         statusSuccess:"#198754", statusWarning:"#a36a00", statusDanger:"#d92d20"});
       createRoot(document.getElementById("root")).render(
-        <div style={{ marginLeft: 80, marginTop: location.search.includes("below") ? 20 : 500 }}>
+        <div style={{ marginLeft: 80, marginTop: location.search.includes("below") ? 20 : 500,
+          position: "relative", isolation: "isolate" }}>
+          <div style={{ position: "relative", zIndex: 0 }}>
+          <div style={{ transform: "translateY(0px)" }}>
           <AssistantFooter text="Reply" at={new Date(2026,9,15,21,3,25)} tokens={tokens} compact={location.search.includes("compact")}
             agentName="claude" modelName="Opus 5.5" thinkingLabel="High" startedAt={new Date(2026,9,15,21,2,3).getTime()} durationMs={82000}
             usage={{ inputTokens: 123456, cachedInputTokens: 0, outputTokens: 6789 }}/>
+          </div></div>
+          <div data-testid="later-message" style={{ position: "absolute", zIndex: 1,
+            top: location.search.includes("below") ? 150 : -150, width: 700, height: 80,
+            background: "white" }}>Later message must stay behind the details</div>
         </div>);`, resolveDir: root, loader: "tsx" },
     outfile: path.join(out, "app.js"), bundle: true, jsx: "automatic", format: "iife",
     define: { global: "globalThis", "process.env.NODE_ENV": '"production"', __DEV__: "false" },
@@ -88,6 +95,17 @@ try {
     const button = await trigger.first().boundingBox();
     const panel = await page.getByTestId("toolbar-details-frame").boundingBox();
     assert(side === "above" ? panel.y + panel.height < button.y : panel.y > button.y + button.height);
+    const overlap = await page.getByTestId("later-message").boundingBox();
+    const hitX = panel.x + 20;
+    const hitY = overlap.y + 20;
+    assert(hitY > panel.y && hitY < panel.y + panel.height, "fixture must overlap the panel");
+    assert(await page.getByTestId("toolbar-details-frame").evaluate((frame, point) =>
+      frame.contains(document.elementFromPoint(point.x, point.y)), { x: hitX, y: hitY }),
+      `${side}: later message paints over the details panel`);
+    assert(await page.getByTestId("toolbar-details-frame").evaluate((frame) =>
+      [...frame.querySelectorAll("*")].every((node) =>
+        node.scrollHeight <= node.clientHeight + 1 && node.scrollWidth <= node.clientWidth + 1)),
+      `${side}: details must expand fully without internal scrolling`);
     const x = button.x + button.width / 2;
     await page.mouse.move(x, side === "above" ? button.y - 2 : button.y + button.height + 2);
     await page.waitForTimeout(250);
