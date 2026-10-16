@@ -1,6 +1,6 @@
 // Charts for README.md and README-zh.md, one English and one Chinese copy of each.
 //   node docs/perf/readme-charts.mjs
-// Reads the October 15 raw runs under docs/bench/native-vs-fork/raw and writes docs/perf/readme/*.svg:
+// Reads the October 16 raw runs under docs/bench/2026-10-16-readme/raw and writes docs/perf/readme/*.svg:
 //   web-cpu.<lang>.svg     Web main-thread task time, no plugin / Beautiful Chat 42b61d8 / Better Paseo
 //   web-memory.<lang>.svg  JS heap and DOM nodes after a forced GC, the scenarios that differ most
 //   ios-commit.<lang>.svg  iOS total row-render time (median of allRows.sum), no plugin / Beautiful Chat 42b61d8 / Better Paseo
@@ -11,15 +11,16 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { gunzipSync } from "node:zlib";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const RAW = path.join(HERE, "../bench/native-vs-fork/raw");
+const RAW = path.join(HERE, "../bench/2026-10-16-readme/raw");
 const OUT = path.join(HERE, "readme");
 
 const SCENARIOS = [
   ["codeblock-streaming", "Code block streaming", "代码块流式"],
   ["diff-large", "Large diff", "大 diff"],
-  ["history-100", "100-turn history", "100 轮历史"],
+  ["history-100", "History replay", "历史回放"],
   ["markdown-long", "Long reply", "长回复"],
   ["mixed-turn", "Mixed turn", "混合一轮"],
   ["reads-20", "20 file reads", "读 20 个文件"],
@@ -27,13 +28,10 @@ const SCENARIOS = [
   ["reasoning-long-sections", "Reasoning, sections", "思考分节"],
   ["shell-log-large", "Large shell log", "大段终端"],
   ["table-streaming", "Table streaming", "表格流式"],
-  ["tool-expanded-streaming", "Expanded tool", "展开的工具"],
+  ["tool-expanded-streaming", "Growing tool log", "工具日志增长"],
 ];
 const MEMORY_SCENARIOS = ["diff-large", "history-100", "markdown-long", "reads-20", "shell-log-large", "tool-expanded-streaming"];
-// Above this, an iOS bar is clipped and the label keeps the real total. 2,000 ms keeps
-// every Better Paseo bar on scale (the long reply is 1,510 ms) and every no-plugin bar
-// except the code block (2,264.5 ms) and the long reply (5,076.6 ms). Those two stay longer
-// than the Better Paseo bar; the label is the real total.
+// Above this, an iOS bar is clipped and its label retains the real measured total.
 const IOS_AXIS_MS = 2000;
 
 const TEXT = {
@@ -41,42 +39,42 @@ const TEXT = {
     font: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
     native: "No plugin (Paseo 0.11.2)",
     upstream: "Beautiful Chat 42b61d8",
-    fork: "Better Paseo",
+    fork: "Better Paseo 48a6646",
     vsNative: "vs no plugin",
     vsUpstream: "vs Beautiful Chat",
     even: "even",
     cpuTitle: "Web: main-thread time for a whole replay (seconds, lower is better)",
-    cpuNote: "Web production build, 3 runs per mode, median, 2026-10-15. Green ⬆ is better, red ⬇ is worse.",
+    cpuNote: "Historical 48a6646: Web production build, 5 runs per mode, median, 2026-10-16. Green ⬆ better, red ⬇ worse.",
     memTitle: "Web: memory after a forced GC (lower is better)",
-    memNote: "Same runs as the main-thread chart, 2026-10-15. DOM nodes on a log scale.",
+    memNote: "Same runs as the main-thread chart, 2026-10-16. DOM nodes on a log scale.",
     heap: "JS heap (MB)",
     dom: "DOM nodes",
     iosTitle: "iOS: total row-render time per replay (ms, lower is better)",
     iosNote: [
-      "iOS 18.6 simulator, development build, cold start, 2026-10-15. 2 runs; 6 for history and shell log.",
+      "iOS 18.6 simulator, development build, cold start, 2026-10-16. 5 serial runs per mode.",
       `Total row-render time. Bars past ${IOS_AXIS_MS.toLocaleString("en-US")} ms are clipped; the label is the real total. Green ⬆ better, red ⬇ worse.`,
-      "History-100 includes parallel-simulator exposure; all modes shifted about +3% in total row work.",
+      "One benchmark simulator at a time. Simulator results do not establish physical iPhone performance.",
     ],
   },
   zh: {
     font: "'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif",
     native: "不开插件（Paseo 0.11.2）",
     upstream: "Beautiful Chat 42b61d8",
-    fork: "Better Paseo",
+    fork: "Better Paseo 48a6646",
     vsNative: "对比不开插件",
     vsUpstream: "对比 Beautiful Chat",
     even: "持平",
     cpuTitle: "Web：整段回放的主线程时间（秒，越短越好）",
-    cpuNote: "Web 生产构建，每种模式 3 次取中位数，2026-10-15。绿色 ⬆ 更好，红色 ⬇ 更差。",
+    cpuNote: "历史版本 48a6646：Web 生产构建，每模式 5 次取中位数，2026-10-16。绿色 ⬆ 更好，红色 ⬇ 更差。",
     memTitle: "Web：强制 GC 后的内存（越低越好）",
-    memNote: "与主线程时间同一批跑次，2026-10-15。DOM 节点为对数刻度。",
+    memNote: "与主线程时间同一批跑次，2026-10-16。DOM 节点为对数刻度。",
     heap: "JS 堆（MB）",
     dom: "DOM 节点",
     iosTitle: "iOS：每次回放的行渲染总量（毫秒，越短越好）",
     iosNote: [
-      "iOS 18.6 模拟器开发版，每次冷启动，中位数，2026-10-15。多数 2 次，历史和终端各 6 次。",
+      "iOS 18.6 模拟器开发版，每次冷启动，中位数，2026-10-16。每种模式串行 5 次。",
       `行渲染总量。超过 ${IOS_AXIS_MS} ms 的条被截断，数字是真实总量。绿色 ⬆ 更好，红色 ⬇ 更差。`,
-      "100 轮历史含多模拟器并行负载；各模式总行渲染都约高 3%。",
+      "同一时刻只运行一台测试模拟器；模拟器结果不代表 iPhone 真机性能。",
     ],
   },
 };
@@ -94,25 +92,29 @@ function load(dirs) {
   let runs = [];
   for (const dir of dirs) {
     const next = readdirSync(path.join(RAW, dir))
-      .filter((file) => file.endsWith(".json"))
+      .filter((file) => /\.json(?:\.gz)?$/.test(file))
       .map((file) => {
-        const [, mode, ...rest] = file.replace(/\.json$/, "").split("-");
+        const [, mode, ...rest] = file.replace(/\.json(?:\.gz)?$/, "").split("-");
         rest.pop();
-        return { mode: mode === "latest" ? "fork" : mode, fixture: rest.join("-"), data: JSON.parse(readFileSync(path.join(RAW, dir, file), "utf8")) };
+        const bytes = readFileSync(path.join(RAW, dir, file));
+        return { mode: mode === "latest" ? "fork" : mode, fixture: rest.join("-"), data: JSON.parse(file.endsWith('.gz') ? gunzipSync(bytes) : bytes) };
       });
     const replaced = new Set(next.map((run) => run.fixture));
     runs = [...runs.filter((run) => !replaced.has(run.fixture)), ...next];
   }
   return (fixture, mode, get) => {
-    const values = runs.filter((run) => run.fixture === fixture && run.mode === mode).map((run) => get(run.data)).sort((a, b) => a - b);
+    const selected = runs.filter((run) => run.fixture === fixture && run.mode === mode);
+    if (selected.length !== 5 || selected.some(run => !run.data.completed || run.data.error)) throw new Error(`incomplete group ${mode} ${fixture}`);
+    if (selected.some(run => run.data.displayErrors?.length || run.data.comparisonEligible === false)) return null;
+    const values = selected.map((run) => get(run.data)).sort((a, b) => a - b);
     if (values.length === 0) throw new Error(`no runs for ${mode} ${fixture}`);
     const mid = Math.floor(values.length / 2);
     return values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
   };
 }
 
-const web = load(["web-2026-10-15b"]);
-const ios = load(["ios-2026-10-15b"]);
+const web = load(["web"]);
+const ios = load(["ios"]);
 const task = (run) => run.cdp.delta.TaskDuration;
 const heap = (run) => run.cdp.jsHeapUsedMB;
 const nodes = (run) => run.cdp.nodes;
@@ -149,6 +151,9 @@ function legend(x, y, entries, font) {
 // under half a second on both sides, is even. A green up-arrow is a saving, a red
 // down-arrow a regression.
 function delta(base, fork, t, { floor = 0 } = {}) {
+  if (base === null || fork === null) return { label: "N/A", fill: MUTED, arrow: null };
+  if (base === fork) return { label: t.even, fill: MUTED, arrow: null };
+  if (base === 0) return { label: "+", fill: BAD, arrow: "down" };
   const change = (base - fork) / base;
   if (Math.abs(change) < 0.1 || Math.max(base, fork) < floor) return { label: t.even, fill: MUTED, arrow: null };
   const label = `${Math.round(Math.abs(change) * 100)}%`;
@@ -207,6 +212,10 @@ function groupedChart({ t, lang, modes, get, max, ticks, unit, digits, title, no
     modes.forEach((mode, slot) => {
       const y = top + slot * (bar + 2);
       const value = values[mode];
+      if (value === null) {
+        body.push(textEl(X0 + 5, top + slot * (bar + 2) + bar, "N/A", { size: 10, fill: MUTED, font }));
+        return;
+      }
       body.push(rect(X0, y, x(value) - X0, bar, COLOUR[mode]));
       const isFork = mode === "fork";
       body.push(textEl(x(value) + 5, y + bar - 0.5, value.toFixed(digits), { size: isFork ? 10.5 : 10, fill: isFork ? COLOUR.fork : MUTED, weight: isFork ? 600 : 400, font }));
@@ -215,7 +224,7 @@ function groupedChart({ t, lang, modes, get, max, ticks, unit, digits, title, no
       const d = delta(values[base], values.fork, t, { floor });
       body.push(deltaEl(columns[col], middle + 4.5, d, font));
     });
-    rows.push([fixture, ...modes.map((mode) => values[mode].toFixed(digits))].join("\t"));
+    rows.push([fixture, ...modes.map((mode) => values[mode]?.toFixed(digits) ?? "N/A")].join("\t"));
   });
   return { svg: card(WIDTH, height, body, title), rows };
 }
@@ -267,6 +276,7 @@ function memoryChart(t) {
       modes.forEach((mode, slot) => {
         const y = top + slot * (bar + 2);
         const value = web(fixture, mode, panel.get);
+        if (value === null) { body.push(textEl(panel.x0 + 5, y + bar, "N/A", { font })); line.push("N/A"); return; }
         const w = Math.max(0, Math.min(1, panel.scale(value))) * panel.width;
         body.push(rect(panel.x0, y, w, bar, COLOUR[mode]));
         const isFork = mode === "fork";

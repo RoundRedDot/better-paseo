@@ -82,12 +82,24 @@ What must not reach client code, including client dependencies:
 
 ```bash
 (cd .showcase && npm install)
-node .showcase/tools/shots.mjs . /tmp/shots dark
+SHOT_SCALE=1 node .showcase/tools/shots.mjs . /tmp/shots light dark
+SHOT_SCALE=1 SHOT_LOCALE=zh-CN SHOT_ONLY=shot-settings-wide,shot-settings-block-size \
+  node .showcase/tools/shots.mjs . /tmp/shots light dark
+SHOT_SCALE=2 SHOT_ONLY=shot-hero-devices \
+  node .showcase/tools/shots.mjs . /tmp/hero-shots light dark
+node .showcase/tools/publish-readme-shots.mjs /tmp/shots /tmp/hero-shots
+node --test .showcase/tools/readme-shots.test.mjs
 ```
 
-The tool writes `/tmp/shots/dark/shot-*.png`. The headless browser takes the system language, so the
-settings page comes out in Chinese on a Chinese system; `docs/images/settings.png` is the English
-capture and `docs/images/settings-zh.png` the Chinese one.
+The capture tool defaults to `en-US`; `SHOT_LOCALE=zh-CN` selects Chinese settings.
+It writes `/tmp/shots/<theme>/shot-*.png` and `/tmp/shots/zh-CN/<theme>/shot-*.png`.
+The publisher validates all 52 captures before copying the README assets and records their
+source revision, dimensions and hashes in `docs/images/screenshots.json`. Run it from the same
+checkout used to capture, with no tracked changes to the production component source.
+Local showcase changes are recorded separately, along with the capture source hashes.
+Both READMEs use `<picture>`: the `<img>` loads `*-light.png` by default, and
+`<source media="(prefers-color-scheme: dark)">` selects `*-dark.png` for dark readers,
+including images inside tables. These fixture screenshots do not establish native device acceptance.
 
 ## Benchmark charts
 

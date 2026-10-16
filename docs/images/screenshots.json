@@ -1,0 +1,548 @@
+{
+  "capturedAt": "2026-10-16",
+  "sourceSha": "722238de2fcc1ade46d542a7a540868932d9dc89",
+  "surface": "Offline React Native Web showcase with fixture data; not native device acceptance",
+  "defaultTheme": "light",
+  "darkMedia": "(prefers-color-scheme: dark)",
+  "productionSourcePaths": [
+    "client",
+    "server",
+    "shared",
+    "index.client.tsx",
+    "index.server.ts"
+  ],
+  "sourceTrackedChanges": [],
+  "showcaseDiff": "diff --git a/.showcase/showcase.tsx b/.showcase/showcase.tsx\nindex d08a596..0c4a9e2 100644\n--- a/.showcase/showcase.tsx\n+++ b/.showcase/showcase.tsx\n@@ -1441,15 +1441,15 @@ function Showcase() {\n       </Shot>\n       <div\n         id=\"shot-markdown-styles\"\n-        style={{ width: 2320, height: 880, padding: 20, boxSizing: \"border-box\", backgroundColor: LIGHT.surface0 }}\n+        style={{ width: 2320, height: 880, padding: 20, boxSizing: \"border-box\", backgroundColor: BASE.surface0 }}\n       >\n         <div style={{ display: \"grid\", gridTemplateColumns: \"repeat(3, minmax(0, 1fr))\", gap: 20 }}>\n           {MARKDOWN_VARIANTS.map((variant) => (\n             <View key={variant} style={{ gap: 10, minWidth: 0 }}>\n-              <Text style={{ color: LIGHT.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 14, fontWeight: \"600\" }}>\n+              <Text style={{ color: BASE.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 14, fontWeight: \"600\" }}>\n                 {variant === \"document\" ? \"Document\" : variant === \"compact\" ? \"Compact\" : \"Terminal\"}\n               </Text>\n-              <MarkdownView text={MD_SAMPLER} tokens={v2Light} variant={variant} />\n+              <MarkdownView text={MD_SAMPLER} tokens={tokens} variant={variant} />\n             </View>\n           ))}\n         </div>",
+  "captureSources": [
+    {
+      "path": ".showcase/showcase.tsx",
+      "sha256": "1cfe368a19d004cbedac59d9b6203e726317521b0b19488d0f7a0e2c106e6f2c"
+    },
+    {
+      "path": ".showcase/tools/shots.mjs",
+      "sha256": "223613f19871332d3527a57b23af16c5c87c74898b9fc58a00ffac062ab9f64a"
+    }
+  ],
+  "assets": [
+    {
+      "path": "images/hero-devices-light.png",
+      "scene": "shot-hero-devices",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 2,
+      "width": 3720,
+      "height": 2628,
+      "sha256": "cf5b3a58aeee2c7d6b22e2a6621f140f11ad64956ee348d7b3addb11daa7aeca"
+    },
+    {
+      "path": "images/thread-light.png",
+      "scene": "shot-thread",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 1683,
+      "sha256": "db054715c9894dca9db7a6a61747a8b4e5e0fccdba533bf1c0b6894e222eed84"
+    },
+    {
+      "path": "docs/images/questions-light.png",
+      "scene": "shot-questions",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1040,
+      "height": 657,
+      "sha256": "6344b3ba88859b1cec09d0595495115a25a04353b47038f5b2004a00f994fd6d"
+    },
+    {
+      "path": "docs/images/tool-bash-light.png",
+      "scene": "shot-tool-bash",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 346,
+      "sha256": "fb3a0f88bfba72e0b0281b34d45846d5ea12dd1dfa475ec149a8564efc402657"
+    },
+    {
+      "path": "docs/images/tool-read-light.png",
+      "scene": "shot-tool-read",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 276,
+      "sha256": "bec607f72aa5a754b65f336f37ee8ecfd2a9c7690e0e580bdf585d4f907a4c43"
+    },
+    {
+      "path": "docs/images/tool-edit-light.png",
+      "scene": "shot-tool-edit",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 331,
+      "sha256": "06fcafe0192d64d185748e7cc94ecc94715f1051d029e1711da1de6dab28a50b"
+    },
+    {
+      "path": "docs/images/hub-light.png",
+      "scene": "shot-hub",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 817,
+      "sha256": "87f265d137c244aedcadffd5ecb34a0c3e7934e4c031694833e331502f7da1d9"
+    },
+    {
+      "path": "docs/images/tool-mcp-light.png",
+      "scene": "shot-tool-mcp",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 360,
+      "sha256": "4dd1098b6dde3126a7720b5bfc2d7c01b65bd1155ff3f98c1aa3bbd6fd1c92e4"
+    },
+    {
+      "path": "docs/images/paseo-light.png",
+      "scene": "shot-paseo",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 215,
+      "sha256": "c97679ec3521f1cdd85988048817b1fb29611fa4b3bb988a46d516a3e5a40bc6"
+    },
+    {
+      "path": "docs/images/tool-thinking-light.png",
+      "scene": "shot-tool-thinking",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 137,
+      "sha256": "1192bd0abcb71ab43ede2955be3ebba959b0eaf80925700095b0e1dcd1ff6280"
+    },
+    {
+      "path": "docs/images/tool-image-light.png",
+      "scene": "shot-tool-image",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 624,
+      "sha256": "f038f8a484f868719f4aa8c97a3e98d3408ce006b47fbc4a4ae88ba2974df715"
+    },
+    {
+      "path": "docs/images/syntax-light.png",
+      "scene": "shot-syntax",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 187,
+      "sha256": "4afdddc547904c7853d4148da07e94ad66d9e32d7da976a0dd1330eb594ce8c1"
+    },
+    {
+      "path": "docs/images/reasoning-light.png",
+      "scene": "shot-reasoning",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 281,
+      "sha256": "b9689ff564384dbaaaeb17149b027ac0f30487be93ebafb64472e0788113079b"
+    },
+    {
+      "path": "docs/images/tasks-light.png",
+      "scene": "shot-tasks",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 171,
+      "sha256": "6bf800547f724fb91f20f9bdf7454a712baf6e6fb2370ab12c47c4cfeb342798"
+    },
+    {
+      "path": "docs/images/checklist-window-light.png",
+      "scene": "shot-checklist-window",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1112,
+      "height": 247,
+      "sha256": "67f3680176c445684dacc576bf63d0ed27271a0f16e7846603c6fbeaf5f540c5"
+    },
+    {
+      "path": "docs/images/table-copy-menu-light.png",
+      "scene": "shot-table-copy-menu",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 214,
+      "sha256": "824ccf7fa64722af79def58c5f9ee6391eed17f66ce67893edb7be4104f253cb"
+    },
+    {
+      "path": "docs/images/table-selection-light.png",
+      "scene": "shot-table-selection",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 214,
+      "sha256": "657e757335aecfe4b935d1581a1d6eddeb4a389bb561a098e3d3177c257e7cc8"
+    },
+    {
+      "path": "docs/images/markdown-styles-light.png",
+      "scene": "shot-markdown-styles",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 2320,
+      "height": 881,
+      "sha256": "fcecbdff7c75580b78100138d7b0b438f8cd80a7e856e2cf22fb1c9b651b75c8"
+    },
+    {
+      "path": "docs/images/markdown-preview-window-light.png",
+      "scene": "shot-markdown-preview-window",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1240,
+      "height": 544,
+      "sha256": "ffad61024069446bc868eee712aabb69e09c9c069f73de65bc517ece33d9c90f"
+    },
+    {
+      "path": "docs/images/shared-image-cards-light.png",
+      "scene": "shot-shared-image-cards",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 1219,
+      "sha256": "d3b54f87da5cf834cee6f2c970dcbdb3751a2261de5374f2a9dfa35031c7e584"
+    },
+    {
+      "path": "docs/images/selection-actions-light.png",
+      "scene": "shot-selection-actions",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 142,
+      "sha256": "c1dcacddb2c67a2ba284614bd661c6a41ad2ffda221f4ca7be7b021fb37206cb"
+    },
+    {
+      "path": "docs/images/user-light.png",
+      "scene": "shot-user",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 122,
+      "sha256": "d47e396dc5732485d90d67370e636fc484378e2c7300f8efb474b846061ca85c"
+    },
+    {
+      "path": "docs/images/settings-light.png",
+      "scene": "shot-settings-wide",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1240,
+      "height": 891,
+      "sha256": "9d9abe5d9ca3e460941669d512ec715e7db3e857eca904be3723602380476b6e"
+    },
+    {
+      "path": "docs/images/settings-tools-light.png",
+      "scene": "shot-settings-block-size",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1240,
+      "height": 891,
+      "sha256": "1ceb264797c171bb9153f15ed955ec416c03b673e9fcb4e47e4e0f8144c18a03"
+    },
+    {
+      "path": "docs/images/settings-zh-light.png",
+      "scene": "shot-settings-wide",
+      "theme": "light",
+      "locale": "zh-CN",
+      "scale": 1,
+      "width": 1240,
+      "height": 891,
+      "sha256": "ed6a3fb075972f1135e1ff232d027108906a9bb7bad9ff83a1a3cddf95bb18fa"
+    },
+    {
+      "path": "docs/images/settings-tools-zh-light.png",
+      "scene": "shot-settings-block-size",
+      "theme": "light",
+      "locale": "zh-CN",
+      "scale": 1,
+      "width": 1240,
+      "height": 891,
+      "sha256": "9e9330827475da946c380e2e24834e7350d513c8c5635fc55f0f6b90d939b4b6"
+    },
+    {
+      "path": "images/hero-devices-dark.png",
+      "scene": "shot-hero-devices",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 2,
+      "width": 3720,
+      "height": 2628,
+      "sha256": "034812a1dcbec0738bf06f0d2dd20acf901a9732b325516123acb6f900ecdd74"
+    },
+    {
+      "path": "images/thread-dark.png",
+      "scene": "shot-thread",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 1683,
+      "sha256": "0eb06f4bae536187dc48bd357603a03883091dfe268879bbb00cbefd34f9eaf8"
+    },
+    {
+      "path": "docs/images/questions-dark.png",
+      "scene": "shot-questions",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1040,
+      "height": 657,
+      "sha256": "d936077676582d1e12a406aa54865954125c74668572d41d1654ba7b7bd66447"
+    },
+    {
+      "path": "docs/images/tool-bash-dark.png",
+      "scene": "shot-tool-bash",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 346,
+      "sha256": "5e70056d6d50613199b710f4062f439913d1231b58a1374e7e84f9e964b9fa4b"
+    },
+    {
+      "path": "docs/images/tool-read-dark.png",
+      "scene": "shot-tool-read",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 276,
+      "sha256": "6a85f522140091481df6ea1682591531c1c66c85bd9f47d80cd559b77ec5636b"
+    },
+    {
+      "path": "docs/images/tool-edit-dark.png",
+      "scene": "shot-tool-edit",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 331,
+      "sha256": "7b8c35b2b4f059a8fde5e4af988f88ebedec75314fe87d7b48e95b41f3707718"
+    },
+    {
+      "path": "docs/images/hub-dark.png",
+      "scene": "shot-hub",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 817,
+      "sha256": "17387006b0b0b3258f4475fb00d838d3fb32c5f8fa481d090752ef4aec6e84ec"
+    },
+    {
+      "path": "docs/images/tool-mcp-dark.png",
+      "scene": "shot-tool-mcp",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 360,
+      "sha256": "0c2767772030fe73c7b0655494529e22d4cb8f9dceb460c0a00a67b94f16b2ff"
+    },
+    {
+      "path": "docs/images/paseo-dark.png",
+      "scene": "shot-paseo",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 215,
+      "sha256": "0548e16bc5c1cfd3c6ccfa9f9e8fc637938b328750ec9415d9f0ac9bef4fe533"
+    },
+    {
+      "path": "docs/images/tool-thinking-dark.png",
+      "scene": "shot-tool-thinking",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 137,
+      "sha256": "65ecf909425604fb6b7f40ef12e674608aac7bd76167e82a1a954083a4e2819e"
+    },
+    {
+      "path": "docs/images/tool-image-dark.png",
+      "scene": "shot-tool-image",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 624,
+      "sha256": "d268b485780535be5edbbf56a5b64f386895cf267adf9010166936f1f995371a"
+    },
+    {
+      "path": "docs/images/syntax-dark.png",
+      "scene": "shot-syntax",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 187,
+      "sha256": "5fc3bcadbb65c21d75caafa8983db528309dfde18dad8e7b333bf8bc4d38ccec"
+    },
+    {
+      "path": "docs/images/reasoning-dark.png",
+      "scene": "shot-reasoning",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 281,
+      "sha256": "a1ac5418e1f7151f095622e826b56993db785215f6b34ae21bbc79572ad7ca2b"
+    },
+    {
+      "path": "docs/images/tasks-dark.png",
+      "scene": "shot-tasks",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 171,
+      "sha256": "7831699cc7794e46446ba8d5f7b2e009d4afc450bd9263be14747b44a2d1e08f"
+    },
+    {
+      "path": "docs/images/checklist-window-dark.png",
+      "scene": "shot-checklist-window",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1112,
+      "height": 247,
+      "sha256": "843a335830c85b6a4c219fff3d3e8ed932ddf0f7886a710ce241aa425e3319ce"
+    },
+    {
+      "path": "docs/images/table-copy-menu-dark.png",
+      "scene": "shot-table-copy-menu",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 214,
+      "sha256": "f07e111f0390bb054f5a7a1f0094fec7b306af185fa5d42877cec50426017a66"
+    },
+    {
+      "path": "docs/images/table-selection-dark.png",
+      "scene": "shot-table-selection",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 214,
+      "sha256": "fcc98d976d076e03ef11600dbd8fe23d1f90d8f3ce301409df16c8c9e601b545"
+    },
+    {
+      "path": "docs/images/markdown-styles-dark.png",
+      "scene": "shot-markdown-styles",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 2320,
+      "height": 881,
+      "sha256": "c36c2c338a0d634151c1afc2ed7cf1e8addc5469eecd75c691d71cd6df08f302"
+    },
+    {
+      "path": "docs/images/markdown-preview-window-dark.png",
+      "scene": "shot-markdown-preview-window",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1240,
+      "height": 544,
+      "sha256": "619d00fb8d8d10d4edd07f551404381ac1a06dc8db8ce9899e09e811e1a8833e"
+    },
+    {
+      "path": "docs/images/shared-image-cards-dark.png",
+      "scene": "shot-shared-image-cards",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 1219,
+      "sha256": "086cb15462bb92496294b1492ce593b3c80ab4ca0c370686436c4d02ba394e66"
+    },
+    {
+      "path": "docs/images/selection-actions-dark.png",
+      "scene": "shot-selection-actions",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 142,
+      "sha256": "2fc913c709c6a0d14e2496d9a0897a8010c936e5bf5ce0e6e5f3ca3ffd440e1d"
+    },
+    {
+      "path": "docs/images/user-dark.png",
+      "scene": "shot-user",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 940,
+      "height": 122,
+      "sha256": "917996be00796ae7c86fd75292103a344b5347d6704ab23c4680337e5501ea02"
+    },
+    {
+      "path": "docs/images/settings-dark.png",
+      "scene": "shot-settings-wide",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1240,
+      "height": 891,
+      "sha256": "aafc83d7a44aabd729f6f1b10f9f4b8db8dfc81a221dfa4cff6a9c3db15d63b0"
+    },
+    {
+      "path": "docs/images/settings-tools-dark.png",
+      "scene": "shot-settings-block-size",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1240,
+      "height": 891,
+      "sha256": "a838e80f0f71a3ae82971cfe96aab0371df93f6a475cb6fa390a6387bdecf9f8"
+    },
+    {
+      "path": "docs/images/settings-zh-dark.png",
+      "scene": "shot-settings-wide",
+      "theme": "dark",
+      "locale": "zh-CN",
+      "scale": 1,
+      "width": 1240,
+      "height": 891,
+      "sha256": "356c787e67e9999ec471b25c131ea1028513b7ff98b2609b7666bff9cf2e3004"
+    },
+    {
+      "path": "docs/images/settings-tools-zh-dark.png",
+      "scene": "shot-settings-block-size",
+      "theme": "dark",
+      "locale": "zh-CN",
+      "scale": 1,
+      "width": 1240,
+      "height": 891,
+      "sha256": "241bb720fac9b027d2b2dbb43fa0985f37b163d1622c67609cb07183b7e9dbec"
+    }
+  ]
+}

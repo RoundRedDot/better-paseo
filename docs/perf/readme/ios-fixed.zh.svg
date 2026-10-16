@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 560" role="img"><title>已部署修复：iOS 行渲染总耗时</title><rect width="980" height="560" rx="10" fill="white" stroke="#d8e1e5"/>
+<text x="24" y="30" font-family="Arial, PingFang SC, sans-serif" font-size="17">已部署修复：iOS 行渲染总耗时 (ms)</text>
+<text x="24" y="52" font-family="Arial, PingFang SC, sans-serif" font-size="12" fill="#61727a">7f01b2d → 722238d · iOS 18.6 development simulator · concurrent-max4</text>
+<text x="24" y="107" font-family="Arial, PingFang SC, sans-serif" font-size="13">大 diff</text>
+<text x="193" y="93" font-family="Arial, PingFang SC, sans-serif" font-size="11">原生</text><rect x="275" y="82" width="59.9" height="12" fill="#9fadb3"/><text x="339.9" y="93" font-family="Arial, PingFang SC, sans-serif" font-size="11">48.6</text>
+<text x="193" y="111" font-family="Arial, PingFang SC, sans-serif" font-size="11">修复前</text><rect x="275" y="100" width="64.6" height="12" fill="#d99a2b"/><text x="344.6" y="111" font-family="Arial, PingFang SC, sans-serif" font-size="11">52.4</text>
+<text x="193" y="129" font-family="Arial, PingFang SC, sans-serif" font-size="11">已部署修复</text><rect x="275" y="118" width="69.2" height="12" fill="#b75545"/><text x="349.2" y="129" font-family="Arial, PingFang SC, sans-serif" font-size="11">56.1</text>
+<text x="790" y="107" font-family="Arial, PingFang SC, sans-serif" font-size="12" fill="#a33e32">对原生 +15.45%</text><text x="790" y="126" font-family="Arial, PingFang SC, sans-serif" font-size="11" fill="#61727a">A/A &gt;10%: 2/5</text>
+<text x="24" y="191" font-family="Arial, PingFang SC, sans-serif" font-size="13">读 20 个文件</text>
+<text x="193" y="177" font-family="Arial, PingFang SC, sans-serif" font-size="11">原生</text><rect x="275" y="166" width="342.7" height="12" fill="#9fadb3"/><text x="622.7" y="177" font-family="Arial, PingFang SC, sans-serif" font-size="11">278.0</text>
+<text x="193" y="195" font-family="Arial, PingFang SC, sans-serif" font-size="11">修复前</text><rect x="275" y="184" width="408.7" height="12" fill="#d99a2b"/><text x="688.7" y="195" font-family="Arial, PingFang SC, sans-serif" font-size="11">331.5</text>
+<text x="193" y="213" font-family="Arial, PingFang SC, sans-serif" font-size="11">已部署修复</text><rect x="275" y="202" width="340.0" height="12" fill="#1e6b57"/><text x="620.0" y="213" font-family="Arial, PingFang SC, sans-serif" font-size="11">275.7</text>
+<text x="790" y="191" font-family="Arial, PingFang SC, sans-serif" font-size="12" fill="#384b53">对原生 -0.79%</text><text x="790" y="210" font-family="Arial, PingFang SC, sans-serif" font-size="11" fill="#61727a">A/A &gt;10%: 2/5</text>
+<text x="24" y="275" font-family="Arial, PingFang SC, sans-serif" font-size="13">思考散文</text>
+<text x="193" y="261" font-family="Arial, PingFang SC, sans-serif" font-size="11">原生</text><rect x="275" y="250" width="307.3" height="12" fill="#9fadb3"/><text x="587.3" y="261" font-family="Arial, PingFang SC, sans-serif" font-size="11">249.3</text>
+<text x="193" y="279" font-family="Arial, PingFang SC, sans-serif" font-size="11">修复前</text><rect x="275" y="268" width="400.3" height="12" fill="#d99a2b"/><text x="680.3" y="279" font-family="Arial, PingFang SC, sans-serif" font-size="11">324.6</text>
+<text x="193" y="297" font-family="Arial, PingFang SC, sans-serif" font-size="11">已部署修复</text><rect x="275" y="286" width="307.8" height="12" fill="#1e6b57"/><text x="587.8" y="297" font-family="Arial, PingFang SC, sans-serif" font-size="11">249.6</text>
+<text x="790" y="275" font-family="Arial, PingFang SC, sans-serif" font-size="12" fill="#384b53">对原生 +0.16%</text><text x="790" y="294" font-family="Arial, PingFang SC, sans-serif" font-size="11" fill="#61727a">A/A &gt;10%: 0/5</text>
+<text x="24" y="359" font-family="Arial, PingFang SC, sans-serif" font-size="13">思考分节</text>
+<text x="193" y="345" font-family="Arial, PingFang SC, sans-serif" font-size="11">原生</text><rect x="275" y="334" width="295.3" height="12" fill="#9fadb3"/><text x="575.3" y="345" font-family="Arial, PingFang SC, sans-serif" font-size="11">239.5</text>
+<text x="193" y="363" font-family="Arial, PingFang SC, sans-serif" font-size="11">修复前</text><rect x="275" y="352" width="360.2" height="12" fill="#d99a2b"/><text x="640.2" y="363" font-family="Arial, PingFang SC, sans-serif" font-size="11">292.1</text>
+<text x="193" y="381" font-family="Arial, PingFang SC, sans-serif" font-size="11">已部署修复</text><rect x="275" y="370" width="275.5" height="12" fill="#1e6b57"/><text x="555.5" y="381" font-family="Arial, PingFang SC, sans-serif" font-size="11">223.5</text>
+<text x="790" y="359" font-family="Arial, PingFang SC, sans-serif" font-size="12" fill="#384b53">对原生 -6.71%</text><text x="790" y="378" font-family="Arial, PingFang SC, sans-serif" font-size="11" fill="#61727a">A/A &gt;10%: 2/5</text>
+<text x="24" y="443" font-family="Arial, PingFang SC, sans-serif" font-size="13">工具日志（默认）</text>
+<text x="193" y="429" font-family="Arial, PingFang SC, sans-serif" font-size="11">原生</text><rect x="275" y="418" width="191.1" height="12" fill="#9fadb3"/><text x="471.1" y="429" font-family="Arial, PingFang SC, sans-serif" font-size="11">155.0</text>
+<text x="193" y="447" font-family="Arial, PingFang SC, sans-serif" font-size="11">修复前</text><rect x="275" y="436" width="313.7" height="12" fill="#d99a2b"/><text x="593.7" y="447" font-family="Arial, PingFang SC, sans-serif" font-size="11">254.4</text>
+<text x="193" y="465" font-family="Arial, PingFang SC, sans-serif" font-size="11">已部署修复</text><rect x="275" y="454" width="225.6" height="12" fill="#b75545"/><text x="505.6" y="465" font-family="Arial, PingFang SC, sans-serif" font-size="11">182.9</text>
+<text x="790" y="443" font-family="Arial, PingFang SC, sans-serif" font-size="12" fill="#a33e32">对原生 +18.04%</text><text x="790" y="462" font-family="Arial, PingFang SC, sans-serif" font-size="11" fill="#61727a">A/A &gt;10%: 2/5</text>
+<text x="24" y="526" font-family="Arial, PingFang SC, sans-serif" font-size="12" fill="#a33e32">两项仍高于原生；8/25 对 A/A 波动超过 10%，不代表稳定提升或真机验收</text>
+<text x="24" y="546" font-family="Arial, PingFang SC, sans-serif" font-size="11" fill="#61727a">原生/修复前各 n=5，修复合并 n=10；行渲染总量不是帧率、首屏时间或整机 CPU</text>
+</svg>

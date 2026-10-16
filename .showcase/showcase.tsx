@@ -1441,15 +1441,15 @@ function Showcase() {
       </Shot>
       <div
         id="shot-markdown-styles"
-        style={{ width: 2320, height: 880, padding: 20, boxSizing: "border-box", backgroundColor: LIGHT.surface0 }}
+        style={{ width: 2320, height: 880, padding: 20, boxSizing: "border-box", backgroundColor: BASE.surface0 }}
       >
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 20 }}>
           {MARKDOWN_VARIANTS.map((variant) => (
             <View key={variant} style={{ gap: 10, minWidth: 0 }}>
-              <Text style={{ color: LIGHT.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 14, fontWeight: "600" }}>
+              <Text style={{ color: BASE.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 14, fontWeight: "600" }}>
                 {variant === "document" ? "Document" : variant === "compact" ? "Compact" : "Terminal"}
               </Text>
-              <MarkdownView text={MD_SAMPLER} tokens={v2Light} variant={variant} />
+              <MarkdownView text={MD_SAMPLER} tokens={tokens} variant={variant} />
             </View>
           ))}
         </div>
