@@ -461,6 +461,10 @@ export function useTimelineToolGroup(
   const getGroup = useCallback(() => {
     const slot = slotOf();
     if (!slot) return single;
+    // A singleton already received its current tool through props. Returning
+    // the store's previous array adds an echo render when the layout effect
+    // publishes that same result. Merged headers still follow their members.
+    if (slot.index === 0 && slot.run.calls.length === 1) return single;
     return slot.index === 0 ? slot.run.calls : null;
   }, [slotOf, single]);
   // Not mounted yet (the first render): below is whatever sorts after this slot.
