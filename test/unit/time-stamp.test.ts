@@ -33,6 +33,19 @@ it.each([[0, "0秒"], [999, "0秒"], [59000, "59秒"], [60000, "1分0秒"],
   "formats %i milliseconds as %s", (ms, expected) => expect(formatDuration(ms)).toBe(expected),
 );
 
+it.each([
+  [0, "0 秒", "0 s"],
+  [999, "0 秒", "0 s"],
+  [59000, "59 秒", "59 s"],
+  [60000, "1 分 0 秒", "1 min 0 s"],
+  [236999, "3 分 56 秒", "3 min 56 s"],
+  [3600000, "1 小时 0 分 0 秒", "1 h 0 min 0 s"],
+  [3661000, "1 小时 1 分 1 秒", "1 h 1 min 1 s"],
+] as const)("formats %i milliseconds for localized hover hints", (ms, zh, en) => {
+  expect(formatDuration(ms, "zh")).toBe(zh);
+  expect(formatDuration(ms, "en")).toBe(en);
+});
+
 describe("formatStamp", () => {
   const now = new Date(2026, 9, 11, 21, 30);
   it("shows HH:mm today, zero-padded", () => {

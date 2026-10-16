@@ -107,7 +107,7 @@ describe("assistant footer", () => {
     })); });
     try {
       const labels = { toolbar: undefined, reply: "Copy reply", model: "Copy model name",
-        time: formatFullStamp(at), duration: "Elapsed time: 3秒" };
+        time: `Start time ${formatFullStamp(new Date(1000))}`, duration: "Elapsed time: 3秒" };
       const trigger = renderer.root.findAllByType("Pressable" as never).find((node) => target === "toolbar"
         ? node.props.testID === "footer-toolbar" : node.props.accessibilityLabel === labels[target as keyof typeof labels])!;
       act(() => { trigger.props.onLongPress(); });
@@ -316,12 +316,15 @@ describe("assistant footer", () => {
     }
   });
 
-  it.each([
-    ["web", "en", "Elapsed time"],
-    ["web", "zh", "耗时"],
-    ["ios", "en", "Elapsed time"],
-    ["ios", "zh", "耗时"],
-  ] as const)("shows passive metadata hints on %s in %s with a full timestamp", (platform, language, durationHint) => {
+  it.each(([
+    ["web", "en", "Elapsed time: 3 min 56 s"],
+    ["web", "zh", "耗时： 3 分 56 秒"],
+    ["ios", "en", "Elapsed time: 3 min 56 s"],
+    ["ios", "zh", "耗时： 3 分 56 秒"],
+  ] as const).flatMap(([platform, language, durationHint]) =>
+    [null, new Date(2026, 9, 14, 17, 50, 13).getTime(), 0].map((startedAt) =>
+      ({ platform, language, durationHint, startedAt }))))(
+    "shows passive metadata hints on $platform in $language (startedAt=$startedAt)", ({ platform, language, durationHint, startedAt }) => {
     const globals = globalThis as { __rnMockOS?: string };
     const previousPlatform = globals.__rnMockOS;
     globals.__rnMockOS = platform;
@@ -331,14 +334,17 @@ describe("assistant footer", () => {
     updateEnhancerPreferences({ language });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
-      text, at: new Date(2026, 9, 15, 15, 5, 3), tokens, thinkingLabel: "High", durationMs: 16000,
+      text, at: new Date(2026, 9, 15, 15, 5, 3), tokens, thinkingLabel: "High", durationMs: 236000, startedAt,
     })); });
     const labels = () => renderer.root.findAllByType("Text" as never).map((node) => node.props.children);
     try {
       const metadata = renderer.root.findAllByType("Pressable" as never).filter((node) => node.props.accessibilityRole === "image");
       expect(metadata).toHaveLength(2);
-      expect(labels()).toEqual(["Copy", "15:05", "16秒"]);
-      for (const [index, hint] of ["2026-10-15 15:05:03", durationHint].entries()) {
+      expect(labels()).toEqual(["Copy", "15:05", "3分56秒"]);
+      const timeLabel = startedAt != null ? (language === "zh" ? "开始时间" : "Start time")
+        : (language === "zh" ? "结束时间" : "End time");
+      const timeStamp = startedAt != null ? formatFullStamp(new Date(startedAt)) : "2026-10-15 15:05:03";
+      for (const [index, hint] of [`${timeLabel} ${timeStamp}`, durationHint].entries()) {
         const item = metadata[index]!;
         expect(item.props.onPress).toBeUndefined();
         expect(item.props.focusable).toBe(false);
