@@ -25,12 +25,17 @@ export function formatFullStamp(date: Date): string {
   return `${String(date.getFullYear()).padStart(4, "0")}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${clock}`;
 }
 
-export function formatDuration(durationMs: number): string {
+/** Compact footer text by default; spaced, localized units for hover hints. */
+export function formatDuration(durationMs: number, style: "compact" | "zh" | "en" = "compact"): string {
   const seconds = Math.floor(durationMs / 1000);
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor(seconds / 60) % 60;
   const rest = seconds % 60;
-  return `${hours > 0 ? `${hours}小时` : ""}${hours > 0 || minutes > 0 ? `${minutes}分` : ""}${rest}秒`;
+  const units = style === "en" ? ["h", "min", "s"] : ["小时", "分", "秒"];
+  const gap = style === "compact" ? "" : " ";
+  return [hours > 0 ? `${hours}${gap}${units[0]}` : null,
+    hours > 0 || minutes > 0 ? `${minutes}${gap}${units[1]}` : null,
+    `${rest}${gap}${units[2]}`].filter((part) => part !== null).join(gap);
 }
 
 export function formatStamp(date: Date, now: Date = new Date()): string {

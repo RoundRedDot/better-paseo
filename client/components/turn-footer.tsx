@@ -14,6 +14,9 @@ import { FooterDetails, useFooterDetailsWidth } from "./footer-details";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { useScrollDismiss } from "../ui/scroll-anchor";
 import type { TurnUsage } from "./user-message";
+import { useEnhancerPreferences } from "../preferences";
+import { resolveLanguage } from "../i18n/settings-strings";
+import { toolbarLabel } from "../i18n/toolbar-strings";
 
 /**
  * The host's own reply footer — copy, fork and the turn's time — is drawn by
@@ -52,6 +55,10 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
   const { copied, copy } = useCopy();
   const modelCopy = useCopy();
   const capabilities = useInputCapabilities(compact);
+  const { language } = useEnhancerPreferences();
+  const hintLanguage = resolveLanguage(language);
+  const timeLabel = startedAt != null ? "Start time" : "End time";
+  const timeStamp = formatFullStamp(startedAt != null ? new Date(startedAt) : at);
   const footerRef = useRef<View>(null);
   const [pressedAnchor, setPressedAnchor] = useState<RefObject<View | null> | null>(null);
   const showDetails = useCallback((anchor: RefObject<View | null>) => setPressedAnchor(anchor), []);
@@ -169,12 +176,12 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
             <Text style={styles.time}>{modelName}</Text>
           </ToolbarItem>
         ) : null}
-        <ToolbarItem label={formatFullStamp(at)} tokens={tokens} align="start" buttonStyle={styles.metadata} onLongPress={longPress}>
+        <ToolbarItem label={`${toolbarLabel(timeLabel, language)} ${timeStamp}`} accessibilityLabel={`${timeLabel} ${timeStamp}`} tokens={tokens} align="start" buttonStyle={styles.metadata} onLongPress={longPress}>
           <Icon name="Clock" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
           <Text style={styles.time}>{formatFooterStamp(at)}</Text>
         </ToolbarItem>
         {visibleDurationMs != null ? (
-          <ToolbarItem label="Elapsed time" accessibilityLabel={`Elapsed time: ${formatDuration(visibleDurationMs)}`} tokens={tokens} align="end" buttonStyle={styles.metadata} onLongPress={longPress}>
+          <ToolbarItem label={`${toolbarLabel("Elapsed time", language)}${hintLanguage === "zh" ? "：" : ":"} ${formatDuration(visibleDurationMs, hintLanguage)}`} accessibilityLabel={`Elapsed time: ${formatDuration(visibleDurationMs)}`} tokens={tokens} align="end" buttonStyle={styles.metadata} onLongPress={longPress}>
             <Icon name="Hourglass" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
             <Text style={styles.time}>{formatDuration(visibleDurationMs)}</Text>
           </ToolbarItem>
