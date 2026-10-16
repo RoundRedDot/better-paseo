@@ -13,7 +13,9 @@ import React from "react";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-async function load(os: "web" | "ios") {
+async function load(os: "web" | "ios", settleInEffect = false) {
+  const revealCalls: Array<{ text: string; phase: string }> = [];
+  const reasoningRenders: unknown[] = [];
   (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
   vi.resetModules();
   vi.doMock("react-native", () => import("./helpers/rn-mock"));
@@ -27,7 +29,23 @@ async function load(os: "web" | "ios") {
       Modal: rn.View,
       copyText: () => Promise.resolve(true),
       useToast: () => ({ show() {}, error() {}, success() {} }),
-      useRevealedText: () => "STALE",
+      useRevealedText: (text: string, phase: string) => {
+        revealCalls.push({ text, phase });
+        // The pinned host begins fully revealed, retargets without advancing,
+        // and force-renders in a passive effect only when completing a backlog.
+        const position = React.useRef({ target: text, revealed: text.length });
+        const [, forceRender] = React.useState(0);
+        if (position.current.target !== text) {
+          position.current = { target: text, revealed: Math.min(position.current.revealed, text.length) };
+        }
+        React.useEffect(() => {
+          if (settleInEffect && phase !== "streaming" && position.current.revealed < position.current.target.length) {
+            position.current = { ...position.current, revealed: position.current.target.length };
+            forceRender((n) => n + 1);
+          }
+        }, [text, phase]);
+        return settleInEffect ? position.current.target.slice(0, position.current.revealed) : "STALE";
+      },
     };
   });
   vi.doMock("@getpaseo/plugin/client", () => ({
@@ -37,11 +55,18 @@ async function load(os: "web" | "ios") {
     usePaseo: () => ({ agents: { ref: () => ({ refresh: () => Promise.resolve(null) }) } }),
     useSettings: () => ({ data: undefined, status: "loading" }),
   }));
+  vi.doMock("../../client/components/reasoning-trace", async () => {
+    const actual = await vi.importActual<typeof import("../../client/components/reasoning-trace")>("../../client/components/reasoning-trace");
+    return { ...actual, ReasoningCard: (props: React.ComponentProps<typeof actual.ReasoningCard>) => {
+      reasoningRenders.push(props);
+      return React.createElement(actual.ReasoningCard, props);
+    } };
+  });
   await import("./helpers/quiet-renderer");
   const TestRenderer = (await import("react-test-renderer")).default;
   const { act } = await import("react-test-renderer");
   const renderers = await import("../../client/live-renderers");
-  return { TestRenderer, act, renderers };
+  return { TestRenderer, act, renderers, revealCalls, reasoningRenders };
 }
 
 const theme = {
@@ -90,6 +115,34 @@ afterEach(() => {
 });
 
 describe("reveal and the commit that brings the text", () => {
+  it.each(["ios", "web"] as const)("does not redraw a collapsed %s card for reveal settlement and opens its current text whole", async (os) => {
+    const { TestRenderer, act, renderers, revealCalls, reasoningRenders } = await load(os, true);
+    const props = (text: string) => ({
+      agentId: `collapsed-reveal-${os}`, theme, host: { id: "h", label: "h" },
+      layout: { compact: os !== "web", platform: os }, timestamp: new Date(1000),
+      item: { type: "plugin", kind: "omp-reasoning", version: 1, data: { text, phase: "streaming" } },
+    } as never);
+    const first = "The first sentence is complete. ";
+    const latest = `${first}The newest sentence has arrived.`;
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(renderers.LiveReasoningRenderer, props(first))); });
+    try {
+      revealCalls.length = 0;
+      reasoningRenders.length = 0;
+      await act(async () => { renderer.update(React.createElement(renderers.LiveReasoningRenderer, props(latest))); });
+      expect(JSON.stringify(renderer.toJSON())).toContain("The newest sentence has arrived.");
+      expect(reasoningRenders).toHaveLength(1);
+      const header = renderer.root.findAll((node) => node.props.accessibilityLabel === "Thinking: The newest sentence has arrived." && typeof node.props.onPress === "function")[0]!;
+      await act(async () => { header.props.onPress(); });
+      expect(revealCalls.some((call) => call.text === latest && call.phase === "streaming")).toBe(true);
+      expect(JSON.stringify(renderer.toJSON())).toContain("The first sentence is complete.");
+      const copy = renderer.root.findAll((node) => node.props.label === "Copy thought" && typeof node.props.text === "function")[0]!;
+      expect(copy.props.text()).toBe(latest);
+    } finally {
+      await act(async () => renderer.unmount());
+    }
+  });
+
   it("draws a streaming reply on web as it arrived", async () => {
     const out = await renderedText("web", "assistant", "Fresh words from the stream");
     expect(out).toContain("Fresh words from the stream");
