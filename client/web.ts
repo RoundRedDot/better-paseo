@@ -62,6 +62,51 @@ export function bindRowHover(node: unknown, enter: () => void, leave: () => void
 }
 
 
+/** Keep interactive toolbar details above timeline stacking contexts without moving their React tree. */
+export function openToolbarDetailsLayer(node: unknown, anchor: unknown, side: "above" | "below"): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const panel = node as HTMLElement | null;
+  const trigger = anchor as HTMLElement | null;
+  if (!panel || !trigger) return () => {};
+  const view = panel.ownerDocument.defaultView!;
+  const originalStyle = panel.style.cssText;
+  const originalPopover = panel.getAttribute("popover");
+  const initial = panel.getBoundingClientRect();
+  const offset = initial.left - trigger.getBoundingClientRect().left;
+  panel.setAttribute("popover", "manual");
+  Object.assign(panel.style, {
+    position: "fixed", inset: "auto", margin: "0", border: "0", background: "transparent",
+    overflow: "visible", width: `${initial.width}px`, maxWidth: "calc(100vw - 16px)",
+  });
+  panel.showPopover();
+  const position = () => {
+    const rect = trigger.getBoundingClientRect();
+    const { width, height } = panel.getBoundingClientRect();
+    const above = rect.top - height;
+    const below = rect.bottom;
+    const fitsAbove = above >= 8;
+    const fitsBelow = below + height <= view.innerHeight - 8;
+    const top = side === "above"
+      ? (fitsAbove || !fitsBelow ? above : below)
+      : (fitsBelow || !fitsAbove ? below : above);
+    panel.style.left = `${Math.max(8, Math.min(rect.left + offset, view.innerWidth - width - 8))}px`;
+    panel.style.top = `${Math.max(8, Math.min(top, view.innerHeight - height - 8))}px`;
+  };
+  position();
+  const observer = new view.ResizeObserver(position);
+  observer.observe(panel);
+  observer.observe(trigger);
+  view.addEventListener("resize", position);
+  return () => {
+    observer.disconnect();
+    view.removeEventListener("resize", position);
+    if (panel.matches(":popover-open")) panel.hidePopover();
+    if (originalPopover === null) panel.removeAttribute("popover");
+    else panel.setAttribute("popover", originalPopover);
+    panel.style.cssText = originalStyle;
+  };
+}
+
 /** Web-only pointer binding; native renderers never inspect a DOM node. */
 export function bindPreviewPointer(node: unknown, enter: () => void, leave: () => void): () => void {
   if (Platform.OS !== "web") return () => {};
