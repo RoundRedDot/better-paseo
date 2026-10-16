@@ -2,15 +2,15 @@
 <title>iOS：每次回放的行渲染总量（毫秒，越短越好）</title>
 <rect x="0.5" y="0.5" width="899" height="643" rx="10" fill="#ffffff" stroke="#d8e1e5"/>
 <text x="24.0" y="32.0" text-anchor="start" fill="#1f2a2e" font-size="15" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">iOS：每次回放的行渲染总量（毫秒，越短越好）</text>
-<text x="24.0" y="52.0" text-anchor="start" fill="#61727a" font-size="11.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">iOS 18.6 模拟器开发版，每次冷启动，中位数，2026-10-15。多数 2 次，历史和终端各 6 次。</text>
+<text x="24.0" y="52.0" text-anchor="start" fill="#61727a" font-size="11.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">iOS 18.6 模拟器开发版，每次冷启动，中位数，2026-10-16。每种模式串行 5 次。</text>
 <text x="24.0" y="68.0" text-anchor="start" fill="#61727a" font-size="11.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">行渲染总量。超过 2000 ms 的条被截断，数字是真实总量。绿色 ⬆ 更好，红色 ⬇ 更差。</text>
-<text x="24.0" y="84.0" text-anchor="start" fill="#61727a" font-size="11.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">100 轮历史含多模拟器并行负载；各模式总行渲染都约高 3%。</text>
+<text x="24.0" y="84.0" text-anchor="start" fill="#61727a" font-size="11.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">同一时刻只运行一台测试模拟器；模拟器结果不代表 iPhone 真机性能。</text>
 <rect x="24.0" y="97.0" width="12.0" height="10" rx="2" fill="#9fadb3"/>
 <text x="42.0" y="106.0" text-anchor="start" fill="#1f2a2e" font-size="12" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">不开插件（Paseo 0.11.2）</text>
 <rect x="270.0" y="97.0" width="12.0" height="10" rx="2" fill="#d99a2b"/>
 <text x="288.0" y="106.0" text-anchor="start" fill="#1f2a2e" font-size="12" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">Beautiful Chat 42b61d8</text>
 <rect x="445.2" y="97.0" width="12.0" height="10" rx="2" fill="#1e6b57"/>
-<text x="463.2" y="106.0" text-anchor="start" fill="#1f2a2e" font-size="12" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">Better Paseo</text>
+<text x="463.2" y="106.0" text-anchor="start" fill="#1f2a2e" font-size="12" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">Better Paseo 48a6646</text>
 <text x="760.0" y="106.0" text-anchor="end" fill="#61727a" font-size="11" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">对比不开插件</text>
 <text x="876.0" y="106.0" text-anchor="end" fill="#61727a" font-size="11" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">对比 Beautiful Chat</text>
 <line x1="180.0" y1="114" x2="180.0" y2="598" stroke="#e3eaed" stroke-width="1"/>
@@ -25,101 +25,101 @@
 <text x="650.0" y="616.0" text-anchor="middle" fill="#61727a" font-size="11" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">2000ms</text>
 <text x="170.0" y="138.5" text-anchor="end" fill="#1f2a2e" font-size="12.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">代码块流式</text>
 <rect x="180.0" y="120.0" width="470.0" height="8" rx="2" fill="#9fadb3"/>
-<text x="655.0" y="127.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">2264.5</text>
+<text x="655.0" y="127.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">2227.5</text>
 <rect x="180.0" y="130.0" width="470.0" height="8" rx="2" fill="#d99a2b"/>
-<text x="655.0" y="137.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">4503.2</text>
-<rect x="180.0" y="140.0" width="166.8" height="8" rx="2" fill="#1e6b57"/>
-<text x="351.8" y="147.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">709.6</text>
-<path fill="#1e6b57" d="M715.5,127.5 L721.0,134.0 L717.5,134.0 L717.5,140.5 L713.5,140.5 L713.5,134.0 L710.0,134.0 Z"/><text x="727.0" y="138.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">69%</text>
-<path fill="#1e6b57" d="M831.5,127.5 L837.0,134.0 L833.5,134.0 L833.5,140.5 L829.5,140.5 L829.5,134.0 L826.0,134.0 Z"/><text x="843.0" y="138.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">84%</text>
+<text x="655.0" y="137.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">4536.3</text>
+<rect x="180.0" y="140.0" width="177.1" height="8" rx="2" fill="#1e6b57"/>
+<text x="362.1" y="147.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">753.5</text>
+<path fill="#1e6b57" d="M715.5,127.5 L721.0,134.0 L717.5,134.0 L717.5,140.5 L713.5,140.5 L713.5,134.0 L710.0,134.0 Z"/><text x="727.0" y="138.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">66%</text>
+<path fill="#1e6b57" d="M831.5,127.5 L837.0,134.0 L833.5,134.0 L833.5,140.5 L829.5,140.5 L829.5,134.0 L826.0,134.0 Z"/><text x="843.0" y="138.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">83%</text>
 <text x="170.0" y="182.5" text-anchor="end" fill="#1f2a2e" font-size="12.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">大 diff</text>
-<rect x="180.0" y="164.0" width="13.7" height="8" rx="2" fill="#9fadb3"/>
-<text x="198.7" y="171.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">58.2</text>
+<rect x="180.0" y="164.0" width="12.4" height="8" rx="2" fill="#9fadb3"/>
+<text x="197.4" y="171.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">52.9</text>
 <rect x="180.0" y="174.0" width="470.0" height="8" rx="2" fill="#d99a2b"/>
-<text x="655.0" y="181.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">5562.7</text>
-<rect x="180.0" y="184.0" width="10.9" height="8" rx="2" fill="#1e6b57"/>
-<text x="195.9" y="191.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">46.2</text>
-<path fill="#1e6b57" d="M715.5,171.5 L721.0,178.0 L717.5,178.0 L717.5,184.5 L713.5,184.5 L713.5,178.0 L710.0,178.0 Z"/><text x="727.0" y="182.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">21%</text>
-<path fill="#1e6b57" d="M831.5,171.5 L837.0,178.0 L833.5,178.0 L833.5,184.5 L829.5,184.5 L829.5,178.0 L826.0,178.0 Z"/><text x="843.0" y="182.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">99%</text>
-<text x="170.0" y="226.5" text-anchor="end" fill="#1f2a2e" font-size="12.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">100 轮历史</text>
-<rect x="180.0" y="208.0" width="45.1" height="8" rx="2" fill="#9fadb3"/>
-<text x="230.1" y="215.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">191.9</text>
-<rect x="180.0" y="218.0" width="52.8" height="8" rx="2" fill="#d99a2b"/>
-<text x="237.8" y="225.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">224.6</text>
-<rect x="180.0" y="228.0" width="47.5" height="8" rx="2" fill="#1e6b57"/>
-<text x="232.5" y="235.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">202.1</text>
+<text x="655.0" y="181.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">2878.8</text>
+<rect x="180.0" y="184.0" width="14.8" height="8" rx="2" fill="#1e6b57"/>
+<text x="199.8" y="191.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">62.8</text>
+<path fill="#b0392f" d="M715.5,184.5 L721.0,178.0 L717.5,178.0 L717.5,171.5 L713.5,171.5 L713.5,178.0 L710.0,178.0 Z"/><text x="727.0" y="182.5" text-anchor="start" fill="#b0392f" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">19%</text>
+<path fill="#1e6b57" d="M831.5,171.5 L837.0,178.0 L833.5,178.0 L833.5,184.5 L829.5,184.5 L829.5,178.0 L826.0,178.0 Z"/><text x="843.0" y="182.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">98%</text>
+<text x="170.0" y="226.5" text-anchor="end" fill="#1f2a2e" font-size="12.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">历史回放</text>
+<rect x="180.0" y="208.0" width="48.7" height="8" rx="2" fill="#9fadb3"/>
+<text x="233.7" y="215.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">207.1</text>
+<rect x="180.0" y="218.0" width="53.2" height="8" rx="2" fill="#d99a2b"/>
+<text x="238.2" y="225.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">226.3</text>
+<rect x="180.0" y="228.0" width="50.1" height="8" rx="2" fill="#1e6b57"/>
+<text x="235.1" y="235.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">213.0</text>
 <text x="710.0" y="226.5" text-anchor="start" fill="#61727a" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">持平</text>
-<path fill="#1e6b57" d="M831.5,215.5 L837.0,222.0 L833.5,222.0 L833.5,228.5 L829.5,228.5 L829.5,222.0 L826.0,222.0 Z"/><text x="843.0" y="226.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">10%</text>
+<text x="826.0" y="226.5" text-anchor="start" fill="#61727a" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">持平</text>
 <text x="170.0" y="270.5" text-anchor="end" fill="#1f2a2e" font-size="12.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">长回复</text>
 <rect x="180.0" y="252.0" width="470.0" height="8" rx="2" fill="#9fadb3"/>
-<text x="655.0" y="259.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">5076.6</text>
+<text x="655.0" y="259.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">4971.2</text>
 <rect x="180.0" y="262.0" width="470.0" height="8" rx="2" fill="#d99a2b"/>
-<text x="655.0" y="269.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">13397.1</text>
-<rect x="180.0" y="272.0" width="354.9" height="8" rx="2" fill="#1e6b57"/>
-<text x="539.9" y="279.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">1510.0</text>
-<path fill="#1e6b57" d="M715.5,259.5 L721.0,266.0 L717.5,266.0 L717.5,272.5 L713.5,272.5 L713.5,266.0 L710.0,266.0 Z"/><text x="727.0" y="270.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">70%</text>
+<text x="655.0" y="269.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">13421.2</text>
+<rect x="180.0" y="272.0" width="361.4" height="8" rx="2" fill="#1e6b57"/>
+<text x="546.4" y="279.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">1537.8</text>
+<path fill="#1e6b57" d="M715.5,259.5 L721.0,266.0 L717.5,266.0 L717.5,272.5 L713.5,272.5 L713.5,266.0 L710.0,266.0 Z"/><text x="727.0" y="270.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">69%</text>
 <path fill="#1e6b57" d="M831.5,259.5 L837.0,266.0 L833.5,266.0 L833.5,272.5 L829.5,272.5 L829.5,266.0 L826.0,266.0 Z"/><text x="843.0" y="270.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">89%</text>
 <text x="170.0" y="314.5" text-anchor="end" fill="#1f2a2e" font-size="12.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">混合一轮</text>
-<rect x="180.0" y="296.0" width="66.5" height="8" rx="2" fill="#9fadb3"/>
-<text x="251.5" y="303.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">282.9</text>
-<rect x="180.0" y="306.0" width="146.8" height="8" rx="2" fill="#d99a2b"/>
-<text x="331.8" y="313.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">624.8</text>
-<rect x="180.0" y="316.0" width="58.1" height="8" rx="2" fill="#1e6b57"/>
-<text x="243.1" y="323.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">247.2</text>
-<path fill="#1e6b57" d="M715.5,303.5 L721.0,310.0 L717.5,310.0 L717.5,316.5 L713.5,316.5 L713.5,310.0 L710.0,310.0 Z"/><text x="727.0" y="314.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">13%</text>
-<path fill="#1e6b57" d="M831.5,303.5 L837.0,310.0 L833.5,310.0 L833.5,316.5 L829.5,316.5 L829.5,310.0 L826.0,310.0 Z"/><text x="843.0" y="314.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">60%</text>
+<rect x="180.0" y="296.0" width="77.5" height="8" rx="2" fill="#9fadb3"/>
+<text x="262.5" y="303.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">329.6</text>
+<rect x="180.0" y="306.0" width="156.2" height="8" rx="2" fill="#d99a2b"/>
+<text x="341.2" y="313.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">664.8</text>
+<rect x="180.0" y="316.0" width="72.4" height="8" rx="2" fill="#1e6b57"/>
+<text x="257.4" y="323.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">308.0</text>
+<text x="710.0" y="314.5" text-anchor="start" fill="#61727a" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">持平</text>
+<path fill="#1e6b57" d="M831.5,303.5 L837.0,310.0 L833.5,310.0 L833.5,316.5 L829.5,316.5 L829.5,310.0 L826.0,310.0 Z"/><text x="843.0" y="314.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">54%</text>
 <text x="170.0" y="358.5" text-anchor="end" fill="#1f2a2e" font-size="12.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">读 20 个文件</text>
-<rect x="180.0" y="340.0" width="64.9" height="8" rx="2" fill="#9fadb3"/>
-<text x="249.9" y="347.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">276.1</text>
+<rect x="180.0" y="340.0" width="67.2" height="8" rx="2" fill="#9fadb3"/>
+<text x="252.2" y="347.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">286.0</text>
 <rect x="180.0" y="350.0" width="470.0" height="8" rx="2" fill="#d99a2b"/>
-<text x="655.0" y="357.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">2622.2</text>
-<rect x="180.0" y="360.0" width="71.9" height="8" rx="2" fill="#1e6b57"/>
-<text x="256.9" y="367.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">305.8</text>
-<path fill="#b0392f" d="M715.5,360.5 L721.0,354.0 L717.5,354.0 L717.5,347.5 L713.5,347.5 L713.5,354.0 L710.0,354.0 Z"/><text x="727.0" y="358.5" text-anchor="start" fill="#b0392f" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">11%</text>
-<path fill="#1e6b57" d="M831.5,347.5 L837.0,354.0 L833.5,354.0 L833.5,360.5 L829.5,360.5 L829.5,354.0 L826.0,354.0 Z"/><text x="843.0" y="358.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">88%</text>
+<text x="655.0" y="357.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">2722.9</text>
+<rect x="180.0" y="360.0" width="80.3" height="8" rx="2" fill="#1e6b57"/>
+<text x="265.3" y="367.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">341.8</text>
+<path fill="#b0392f" d="M715.5,360.5 L721.0,354.0 L717.5,354.0 L717.5,347.5 L713.5,347.5 L713.5,354.0 L710.0,354.0 Z"/><text x="727.0" y="358.5" text-anchor="start" fill="#b0392f" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">20%</text>
+<path fill="#1e6b57" d="M831.5,347.5 L837.0,354.0 L833.5,354.0 L833.5,360.5 L829.5,360.5 L829.5,354.0 L826.0,354.0 Z"/><text x="843.0" y="358.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">87%</text>
 <text x="170.0" y="402.5" text-anchor="end" fill="#1f2a2e" font-size="12.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">思考散文</text>
-<rect x="180.0" y="384.0" width="61.7" height="8" rx="2" fill="#9fadb3"/>
-<text x="246.7" y="391.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">262.4</text>
-<rect x="180.0" y="394.0" width="344.4" height="8" rx="2" fill="#d99a2b"/>
-<text x="529.4" y="401.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">1465.5</text>
-<rect x="180.0" y="404.0" width="75.5" height="8" rx="2" fill="#1e6b57"/>
-<text x="260.5" y="411.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">321.3</text>
-<path fill="#b0392f" d="M715.5,404.5 L721.0,398.0 L717.5,398.0 L717.5,391.5 L713.5,391.5 L713.5,398.0 L710.0,398.0 Z"/><text x="727.0" y="402.5" text-anchor="start" fill="#b0392f" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">22%</text>
-<path fill="#1e6b57" d="M831.5,391.5 L837.0,398.0 L833.5,398.0 L833.5,404.5 L829.5,404.5 L829.5,398.0 L826.0,398.0 Z"/><text x="843.0" y="402.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">78%</text>
+<rect x="180.0" y="384.0" width="67.3" height="8" rx="2" fill="#9fadb3"/>
+<text x="252.3" y="391.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">286.6</text>
+<rect x="180.0" y="394.0" width="353.5" height="8" rx="2" fill="#d99a2b"/>
+<text x="538.5" y="401.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">1504.2</text>
+<rect x="180.0" y="404.0" width="90.9" height="8" rx="2" fill="#1e6b57"/>
+<text x="275.9" y="411.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">386.7</text>
+<path fill="#b0392f" d="M715.5,404.5 L721.0,398.0 L717.5,398.0 L717.5,391.5 L713.5,391.5 L713.5,398.0 L710.0,398.0 Z"/><text x="727.0" y="402.5" text-anchor="start" fill="#b0392f" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">35%</text>
+<path fill="#1e6b57" d="M831.5,391.5 L837.0,398.0 L833.5,398.0 L833.5,404.5 L829.5,404.5 L829.5,398.0 L826.0,398.0 Z"/><text x="843.0" y="402.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">74%</text>
 <text x="170.0" y="446.5" text-anchor="end" fill="#1f2a2e" font-size="12.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">思考分节</text>
-<rect x="180.0" y="428.0" width="57.5" height="8" rx="2" fill="#9fadb3"/>
-<text x="242.5" y="435.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">244.5</text>
+<rect x="180.0" y="428.0" width="61.9" height="8" rx="2" fill="#9fadb3"/>
+<text x="246.9" y="435.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">263.5</text>
 <rect x="180.0" y="438.0" width="470.0" height="8" rx="2" fill="#d99a2b"/>
-<text x="655.0" y="445.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">2438.8</text>
-<rect x="180.0" y="448.0" width="66.6" height="8" rx="2" fill="#1e6b57"/>
-<text x="251.6" y="455.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">283.5</text>
-<path fill="#b0392f" d="M715.5,448.5 L721.0,442.0 L717.5,442.0 L717.5,435.5 L713.5,435.5 L713.5,442.0 L710.0,442.0 Z"/><text x="727.0" y="446.5" text-anchor="start" fill="#b0392f" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">16%</text>
-<path fill="#1e6b57" d="M831.5,435.5 L837.0,442.0 L833.5,442.0 L833.5,448.5 L829.5,448.5 L829.5,442.0 L826.0,442.0 Z"/><text x="843.0" y="446.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">88%</text>
+<text x="655.0" y="445.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">2419.4</text>
+<rect x="180.0" y="448.0" width="77.0" height="8" rx="2" fill="#1e6b57"/>
+<text x="262.0" y="455.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">327.7</text>
+<path fill="#b0392f" d="M715.5,448.5 L721.0,442.0 L717.5,442.0 L717.5,435.5 L713.5,435.5 L713.5,442.0 L710.0,442.0 Z"/><text x="727.0" y="446.5" text-anchor="start" fill="#b0392f" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">24%</text>
+<path fill="#1e6b57" d="M831.5,435.5 L837.0,442.0 L833.5,442.0 L833.5,448.5 L829.5,448.5 L829.5,442.0 L826.0,442.0 Z"/><text x="843.0" y="446.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">86%</text>
 <text x="170.0" y="490.5" text-anchor="end" fill="#1f2a2e" font-size="12.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">大段终端</text>
-<rect x="180.0" y="472.0" width="11.3" height="8" rx="2" fill="#9fadb3"/>
-<text x="196.3" y="479.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">48.1</text>
-<rect x="180.0" y="482.0" width="85.3" height="8" rx="2" fill="#d99a2b"/>
-<text x="270.3" y="489.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">362.8</text>
-<rect x="180.0" y="492.0" width="10.6" height="8" rx="2" fill="#1e6b57"/>
-<text x="195.6" y="499.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">45.1</text>
+<rect x="180.0" y="472.0" width="12.6" height="8" rx="2" fill="#9fadb3"/>
+<text x="197.6" y="479.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">53.8</text>
+<rect x="180.0" y="482.0" width="82.1" height="8" rx="2" fill="#d99a2b"/>
+<text x="267.1" y="489.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">349.5</text>
+<rect x="180.0" y="492.0" width="13.4" height="8" rx="2" fill="#1e6b57"/>
+<text x="198.4" y="499.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">57.0</text>
 <text x="710.0" y="490.5" text-anchor="start" fill="#61727a" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">持平</text>
-<path fill="#1e6b57" d="M831.5,479.5 L837.0,486.0 L833.5,486.0 L833.5,492.5 L829.5,492.5 L829.5,486.0 L826.0,486.0 Z"/><text x="843.0" y="490.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">88%</text>
+<path fill="#1e6b57" d="M831.5,479.5 L837.0,486.0 L833.5,486.0 L833.5,492.5 L829.5,492.5 L829.5,486.0 L826.0,486.0 Z"/><text x="843.0" y="490.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">84%</text>
 <text x="170.0" y="534.5" text-anchor="end" fill="#1f2a2e" font-size="12.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">表格流式</text>
-<rect x="180.0" y="516.0" width="228.4" height="8" rx="2" fill="#9fadb3"/>
-<text x="413.4" y="523.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">972.1</text>
-<rect x="180.0" y="526.0" width="273.5" height="8" rx="2" fill="#d99a2b"/>
-<text x="458.5" y="533.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">1164.0</text>
-<rect x="180.0" y="536.0" width="132.3" height="8" rx="2" fill="#1e6b57"/>
-<text x="317.3" y="543.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">563.0</text>
-<path fill="#1e6b57" d="M715.5,523.5 L721.0,530.0 L717.5,530.0 L717.5,536.5 L713.5,536.5 L713.5,530.0 L710.0,530.0 Z"/><text x="727.0" y="534.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">42%</text>
-<path fill="#1e6b57" d="M831.5,523.5 L837.0,530.0 L833.5,530.0 L833.5,536.5 L829.5,536.5 L829.5,530.0 L826.0,530.0 Z"/><text x="843.0" y="534.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">52%</text>
-<text x="170.0" y="578.5" text-anchor="end" fill="#1f2a2e" font-size="12.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">展开的工具</text>
-<rect x="180.0" y="560.0" width="39.0" height="8" rx="2" fill="#9fadb3"/>
-<text x="224.0" y="567.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">165.8</text>
+<rect x="180.0" y="516.0" width="227.5" height="8" rx="2" fill="#9fadb3"/>
+<text x="412.5" y="523.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">968.1</text>
+<rect x="180.0" y="526.0" width="265.2" height="8" rx="2" fill="#d99a2b"/>
+<text x="450.2" y="533.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">1128.4</text>
+<rect x="180.0" y="536.0" width="137.4" height="8" rx="2" fill="#1e6b57"/>
+<text x="322.4" y="543.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">584.6</text>
+<path fill="#1e6b57" d="M715.5,523.5 L721.0,530.0 L717.5,530.0 L717.5,536.5 L713.5,536.5 L713.5,530.0 L710.0,530.0 Z"/><text x="727.0" y="534.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">40%</text>
+<path fill="#1e6b57" d="M831.5,523.5 L837.0,530.0 L833.5,530.0 L833.5,536.5 L829.5,536.5 L829.5,530.0 L826.0,530.0 Z"/><text x="843.0" y="534.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">48%</text>
+<text x="170.0" y="578.5" text-anchor="end" fill="#1f2a2e" font-size="12.5" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">工具日志增长</text>
+<rect x="180.0" y="560.0" width="45.7" height="8" rx="2" fill="#9fadb3"/>
+<text x="230.7" y="567.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">194.5</text>
 <rect x="180.0" y="570.0" width="470.0" height="8" rx="2" fill="#d99a2b"/>
-<text x="655.0" y="577.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">3032.6</text>
-<rect x="180.0" y="580.0" width="60.3" height="8" rx="2" fill="#1e6b57"/>
-<text x="245.3" y="587.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">256.6</text>
-<path fill="#b0392f" d="M715.5,580.5 L721.0,574.0 L717.5,574.0 L717.5,567.5 L713.5,567.5 L713.5,574.0 L710.0,574.0 Z"/><text x="727.0" y="578.5" text-anchor="start" fill="#b0392f" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">55%</text>
-<path fill="#1e6b57" d="M831.5,567.5 L837.0,574.0 L833.5,574.0 L833.5,580.5 L829.5,580.5 L829.5,574.0 L826.0,574.0 Z"/><text x="843.0" y="578.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">92%</text>
+<text x="655.0" y="577.5" text-anchor="start" fill="#61727a" font-size="10" font-weight="400" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">3051.3</text>
+<rect x="180.0" y="580.0" width="73.1" height="8" rx="2" fill="#1e6b57"/>
+<text x="258.1" y="587.5" text-anchor="start" fill="#1e6b57" font-size="10.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">310.9</text>
+<path fill="#b0392f" d="M715.5,580.5 L721.0,574.0 L717.5,574.0 L717.5,567.5 L713.5,567.5 L713.5,574.0 L710.0,574.0 Z"/><text x="727.0" y="578.5" text-anchor="start" fill="#b0392f" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">60%</text>
+<path fill="#1e6b57" d="M831.5,567.5 L837.0,574.0 L833.5,574.0 L833.5,580.5 L829.5,580.5 L829.5,574.0 L826.0,574.0 Z"/><text x="843.0" y="578.5" text-anchor="start" fill="#1e6b57" font-size="12.5" font-weight="600" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif">90%</text>
 </svg>
