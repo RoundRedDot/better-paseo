@@ -102,7 +102,7 @@ describe("assistant footer", () => {
     globals.__rnMockOS = platform;
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
-      text, at, tokens, compact: true, agentName: "codex", modelName: "GPT-6.1-Sol", thinkingLabel: "High",
+      text, at, tokens, compact: true, agentName: "codex", modelId: "gpt-6.1-sol", modelName: "GPT-6.1-Sol", thinkingLabel: "High",
       startedAt: 1000, durationMs: 3000,
     })); });
     try {
@@ -119,7 +119,7 @@ describe("assistant footer", () => {
       expect(renderer.root.findAllByType("Modal" as never)).toHaveLength(0);
       if (target === "reply" || target === "model") {
         act(() => { trigger.props.onPress(); });
-        expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith(target === "reply" ? text : "GPT-6.1-Sol");
+        expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith(target === "reply" ? text : "gpt-6.1-sol");
       }
     } finally {
       act(() => renderer.unmount());
@@ -132,7 +132,7 @@ describe("assistant footer", () => {
     updateEnhancerPreferences({ language: "zh" });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
-      text, at: new Date(startedAt + 82000), tokens, agentName: "codex", modelName: "GPT-6.1-Sol", thinkingLabel: "High",
+      text, at: new Date(startedAt + 82000), tokens, agentName: "codex", modelId: "gpt-6.1-sol", modelName: "GPT-6.1-Sol", thinkingLabel: "High",
       startedAt, durationMs: 82000,
     })); });
     try {
@@ -194,7 +194,7 @@ describe("assistant footer", () => {
     globals.__rnMockOS = platform;
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
-      text, at, tokens, compact: true, modelName: "Opus 5.5", thinkingLabel: "High",
+      text, at, tokens, compact: true, modelId: "opus", modelName: "Opus 5.5", thinkingLabel: "High",
     })); });
     try {
       const trigger = renderer.root.findAllByType("Pressable" as never)
@@ -222,7 +222,7 @@ describe("assistant footer", () => {
     updateEnhancerPreferences({ language: "zh" });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
-      text, at, tokens, compact: true, modelName: "Opus 5.5", thinkingLabel: "High",
+      text, at, tokens, compact: true, modelId: "opus", modelName: "Opus 5.5", thinkingLabel: "High",
     })); });
     const details = () => renderer.root.findAllByProps({ testID: "footer-details-table" })
       .filter((node) => (node.type as unknown) === "View");
@@ -282,7 +282,7 @@ describe("assistant footer", () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
-      text, at, tokens, modelName: "Opus 5.5", thinkingLabel: "High",
+      text, at, tokens, modelId: "opus", modelName: "Opus 5.5", thinkingLabel: "High",
     })); });
     const details = () => renderer.root.findAllByProps({ testID: "footer-details-table" })
       .filter((node) => (node.type as unknown) === "View");
@@ -367,7 +367,7 @@ describe("assistant footer", () => {
     updateEnhancerPreferences({ language });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
-      text, at, tokens, modelName: "Opus 5.5", thinkingLabel: "High",
+      text, at, tokens, modelId: "opus", modelName: "Opus 5.5", thinkingLabel: "High",
     })); });
     const labels = () => renderer.root.findAllByType("Text" as never).map((node) => node.props.children);
     try {
@@ -389,7 +389,7 @@ describe("assistant footer", () => {
       await act(async () => { buttons[1]!.props.onPress(); });
       expect(renderer.root.findAllByType("Pressable" as never)
         .filter((node) => node.props.accessibilityLabel === "Model name copied")).toHaveLength(1);
-      expect(clipboard.copyText).toHaveBeenLastCalledWith("Opus 5.5");
+      expect(clipboard.copyText).toHaveBeenLastCalledWith("opus");
       act(() => { buttons[1]!.props.onHoverOut(); });
       act(() => { vi.advanceTimersByTime(120); });
       expect(labels()).not.toContain(copiedHint);
@@ -427,7 +427,7 @@ describe("assistant footer", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
       text, at: new Date(2026, 9, 15, 15, 5, 3), tokens,
-      agentName: "codex", modelName: "GPT-6.1-Sol", thinkingLabel: "Medium", durationMs: 138000,
+      agentName: "codex", modelId: "gpt-6.1-sol", modelName: "GPT-6.1-Sol", thinkingLabel: "Medium", durationMs: 138000,
     })); });
     try {
       const labels = renderer.root.findAllByType("Text" as never)
@@ -454,21 +454,21 @@ describe("assistant footer", () => {
       act(() => renderer.unmount());
     }
   });
-  it.each([false, true])("copies the displayed model name independently of the reply (compact=%s)", async (compact) => {
+  it.each([false, true])("copies the raw model name independently of the reply (compact=%s)", async (compact) => {
     vi.useRealTimers();
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     updateEnhancerPreferences({ language: "zh" });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
-      text, at, tokens, compact, agentName: "codex", modelName: "GPT-6.1-Sol", thinkingLabel: "Medium",
+      text, at, tokens, compact, agentName: "codex", modelId: "gpt-6.1-sol", modelName: "GPT-6.1-Sol", thinkingLabel: "Medium",
     })); });
     try {
       const button = renderer.root.findByProps({ accessibilityLabel: "Copy model name" });
       const labelsBeforeCopy = renderer.root.findAllByType("Text" as never).map((node) => node.props.children);
       expect(button.props.hitSlop).toBe(compact ? 10 : 0);
       await act(async () => { button.props.onPress(); });
-      expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("GPT-6.1-Sol");
-      expect(clipboard.show).toHaveBeenCalledExactlyOnceWith("已复制模型名称：GPT-6.1-Sol");
+      expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("gpt-6.1-sol");
+      expect(clipboard.show).toHaveBeenCalledExactlyOnceWith("已复制模型名称");
       expect(renderer.root.findByProps({ accessibilityLabel: "Model name copied" })).toBeDefined();
       expect(button.findAllByType("Image" as never)).toHaveLength(0);
       expect(button.findByType("Icon" as never).props).toMatchObject({ name: "Check", size: 14, color: tokens.success });
@@ -489,7 +489,7 @@ describe("assistant footer", () => {
     clipboard.copyText.mockRejectedValueOnce(new Error("Clipboard unavailable"));
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
-      text, at, tokens, modelName: "GPT-6.1-Sol",
+      text, at, tokens, modelId: "gpt-6.1-sol", modelName: "GPT-6.1-Sol",
     })); });
     try {
       await act(async () => { renderer.root.findByProps({ accessibilityLabel: "Copy model name" }).props.onPress(); });
