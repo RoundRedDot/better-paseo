@@ -84,6 +84,30 @@ function cards(renderer: ReturnType<typeof TestRenderer.create>) {
 }
 
 describe("live tool groups", () => {
+  it.each([1, 2])("renders each current singleton result once across %i panes", async (panes) => {
+    const renders = ((globalThis as { toolRenders?: Map<string, number> }).toolRenders ??= new Map());
+    const frame = (at: number, diff?: string) => React.createElement(React.Fragment, null,
+      ...Array.from({ length: panes }, (_, index) => React.createElement(React.Fragment, { key: index },
+        tool("single-result", at, "running", "src/single.ts", "singleton-agent", diff))));
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { renderer = TestRenderer.create(frame(11000)); });
+    try {
+      const diff = "@@ -1 +1 @@\n-old\n+latest";
+      await act(async () => { renderer.update(frame(11001, diff)); });
+      renders.clear();
+      const latest = `${diff}\n+newest`;
+      await act(async () => { renderer.update(frame(11002, latest)); });
+      expect(cards(renderer)).toHaveLength(panes);
+      for (const card of cards(renderer)) {
+        expect(card.props.data.diff).toBe(latest);
+        expect(card.props.groupCalls).toBeUndefined();
+      }
+      expect(Object.fromEntries(renders)).toEqual({ "single-result": panes });
+    } finally {
+      await act(async () => renderer.unmount());
+    }
+  });
+
   it("rebuilds a batch of historical tool rows once after mounting and unmounting", async () => {
     const rows = Array.from({ length: 100 }, (_, index) =>
       tool(`batch-${index}`, 100_000 + index, "completed", `src/${index}.ts`, "batch-agent"));

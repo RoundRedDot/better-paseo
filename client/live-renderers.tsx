@@ -118,6 +118,11 @@ const rowGapStyles = StyleSheet.create({
   mobileStreamingThought: { paddingTop: 8 },
 });
 
+// The host reveal hook settles collapsed text in a second parent render.
+// Its card props are unchanged then; keep that commit out of the native subtree
+// while still tracking the full text for a card opened in the middle of a stream.
+const ReasoningCardMemo = memo(ReasoningCard);
+
 /** Whether a row with something below it takes back the gap under it. */
 function compensatesRow(compactRowSpacing: boolean, anythingBelow: boolean, rowBelow: boolean, hostStacks: boolean): boolean {
   return compactRowSpacing && anythingBelow && !(hostStacks && rowBelow);
@@ -309,7 +314,7 @@ function LiveReasoningRendererBody({
     >
       {probe.node}
       <PreferenceSyncSlot />
-      <ReasoningCard
+      <ReasoningCardMemo
         segmentation={segmentation}
         streaming={streaming}
         durationMs={durationMs}
