@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" role="img"><title>新夹具：整体会话返回行渲染总量</title><rect width="900" height="420" rx="10" fill="white" stroke="#d8e1e5"/>
+<text x="24" y="30" font-family="Arial, PingFang SC, sans-serif" font-size="16">新夹具：整体会话返回行渲染总量（毫秒，越低越好）</text>
+<text x="24" y="52" font-family="Arial, PingFang SC, sans-serif" font-size="12" fill="#61727a">2026-10-16 · history-complete-v1 · c4c9f3f · 默认配置；不与旧夹具混比</text>
+<text x="24" y="112" font-family="Arial, PingFang SC, sans-serif" font-size="13">Web 810 / 1</text>
+<text x="155" y="99" font-family="Arial, PingFang SC, sans-serif" font-size="11">不开插件</text><rect x="260" y="88" width="30.4" height="12" fill="#9fadb3"/><text x="295.4" y="99" font-family="Arial, PingFang SC, sans-serif" font-size="11">157.4</text>
+<text x="155" y="117" font-family="Arial, PingFang SC, sans-serif" font-size="11">Beautiful Chat</text><rect x="260" y="106" width="418.5" height="12" fill="#d99a2b"/><text x="683.5" y="117" font-family="Arial, PingFang SC, sans-serif" font-size="11">2164.8</text>
+<text x="155" y="135" font-family="Arial, PingFang SC, sans-serif" font-size="11">Better Paseo</text><rect x="260" y="124" width="12.4" height="12" fill="#1e6b57"/><text x="277.4" y="135" font-family="Arial, PingFang SC, sans-serif" font-size="11">64.1</text>
+<text x="24" y="190" font-family="Arial, PingFang SC, sans-serif" font-size="13">Web 832 / 12</text>
+<text x="155" y="177" font-family="Arial, PingFang SC, sans-serif" font-size="11">不开插件</text><rect x="260" y="166" width="30.5" height="12" fill="#9fadb3"/><text x="295.5" y="177" font-family="Arial, PingFang SC, sans-serif" font-size="11">158.0</text>
+<text x="155" y="195" font-family="Arial, PingFang SC, sans-serif" font-size="11">Beautiful Chat</text><rect x="260" y="184" width="425.0" height="12" fill="#d99a2b"/><text x="690.0" y="195" font-family="Arial, PingFang SC, sans-serif" font-size="11">2198.2</text>
+<text x="155" y="213" font-family="Arial, PingFang SC, sans-serif" font-size="11">Better Paseo</text><rect x="260" y="202" width="12.7" height="12" fill="#1e6b57"/><text x="277.7" y="213" font-family="Arial, PingFang SC, sans-serif" font-size="11">65.8</text>
+<text x="24" y="268" font-family="Arial, PingFang SC, sans-serif" font-size="13">iOS 810 / 1</text>
+<text x="155" y="255" font-family="Arial, PingFang SC, sans-serif" font-size="11">不开插件</text><rect x="260" y="244" width="48.7" height="12" fill="#9fadb3"/><text x="313.7" y="255" font-family="Arial, PingFang SC, sans-serif" font-size="11">251.6</text>
+<text x="155" y="273" font-family="Arial, PingFang SC, sans-serif" font-size="11">Beautiful Chat</text><rect x="260" y="262" width="68.8" height="12" fill="#d99a2b"/><text x="333.8" y="273" font-family="Arial, PingFang SC, sans-serif" font-size="11">355.9</text>
+<text x="155" y="291" font-family="Arial, PingFang SC, sans-serif" font-size="11">Better Paseo</text><rect x="260" y="280" width="19.2" height="12" fill="#1e6b57"/><text x="284.2" y="291" font-family="Arial, PingFang SC, sans-serif" font-size="11">99.1</text>
+<text x="24" y="346" font-family="Arial, PingFang SC, sans-serif" font-size="13">iOS 832 / 12</text>
+<text x="155" y="333" font-family="Arial, PingFang SC, sans-serif" font-size="11">不开插件</text><rect x="260" y="322" width="56.1" height="12" fill="#9fadb3"/><text x="321.1" y="333" font-family="Arial, PingFang SC, sans-serif" font-size="11">290.0</text>
+<text x="155" y="351" font-family="Arial, PingFang SC, sans-serif" font-size="11">Beautiful Chat</text><rect x="260" y="340" width="77.1" height="12" fill="#d99a2b"/><text x="342.1" y="351" font-family="Arial, PingFang SC, sans-serif" font-size="11">398.6</text>
+<text x="155" y="369" font-family="Arial, PingFang SC, sans-serif" font-size="11">Better Paseo</text><rect x="260" y="358" width="20.4" height="12" fill="#1e6b57"/><text x="285.4" y="369" font-family="Arial, PingFang SC, sans-serif" font-size="11">105.3</text>
+<text x="24" y="404" font-family="Arial, PingFang SC, sans-serif" font-size="11" fill="#61727a">Web 串行；iOS 混合并发条件，仅作描述性汇总</text>
+</svg>

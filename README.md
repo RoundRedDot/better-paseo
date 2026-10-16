@@ -5,8 +5,7 @@
 A [Paseo](https://paseo.sh) plugin that redraws the chat timeline of every agent Paseo runs,
 whichever provider is behind it (Claude Code, Codex, Oh My Pi and the rest): tool calls, reasoning,
 replies, prompts, checklists and errors become compact, typed, syntax-aware rows that follow the
-active Paseo theme, and on the Web production build the whole timeline renders faster
-than Paseo does on its own.
+active Paseo theme. The performance section compares it with Paseo’s own timeline.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/hero-devices-dark.png">
@@ -20,17 +19,11 @@ than Paseo does on its own.
 
 ## Highlights
 
-- **Faster than no plugin at all.** On the Web production build, 10 of the 11 replay scenarios
-  use less main-thread time than Paseo's own timeline, by 14–38%; the large diff is even. All 11
-  use 12–91% less than Beautiful Chat. [Charts below](#performance).
-- **Memory close to no plugin.** On the Web production build, after a forced GC, the JS heap
-  differs from no plugin by −1.4 to +4.0 MB, and a long reply uses 40.8 MB less. Beautiful Chat
-  reaches 213.6–242.6 MB on the large diff, the 100-turn history and 20 file reads.
-  [Memory comparison below](#memory-comparison).
+- **Measured performance.** The deployed revision has 220 independent validation runs; remaining gaps, sample variability and historical revisions are disclosed in [Performance](#performance).
+- **Measured memory.** The same round records post-GC JS heap and signed MB differences against no plugin. [Memory comparison](#memory-comparison).
 - **One row per tool call.** Calls start collapsed to a 26pt row with a typed summary, open on a
   press, and stay open or closed across completion, history and remounts.
-- **Streaming that does not jump.** Replies are parsed block by block; a half-written code fence
-  or table never flips format, and the layout shift of a long streaming reply is 0.
+- **Block-by-block streaming replies.** Finished Markdown blocks are cached while growing code and tables are repaired. This round’s layout-shift readings are in the [performance comparison](#performance).
 - **Previews without opening.** Hover a collapsed row or a path on desktop, or long-press a
   collapsed row on a phone, to read its content in a scrollable panel. Images open in a full-screen viewer.
 - **Follows Paseo.** Fonts, sizes and colours follow the host by default; settings are stored on
@@ -56,181 +49,210 @@ paseo plugin update better-paseo
 
 ## Performance
 
-Three configurations are compared: **no plugin** (Paseo 0.11.2 draws the timeline), **Beautiful
-Chat** `42b61d8`, and **Better Paseo**. The same host probe wraps each timeline row, so native and
-plugin rows use the same measurement boundary. Measurements ran on 2026-10-15 on rrd-mac-studio
-(Apple M5 Max, 18 cores, 64 GB, macOS 27.0.1), across 11 scripted scenarios. The source matrix
-contains 132 Web runs and 120 iOS runs; each displayed Web value is a median of 3 runs, and iOS
-values are medians of 2 runs except 6 each for 100-turn history and large shell log. Only results
-from this round are comparable. Details and raw reports are in the [benchmark
-report](docs/bench/native-vs-fork/README.md).
+<!-- deployed-fix:start -->
+### Latest deployed revision: 220 independent runs
 
-![Web main-thread time per scenario: no plugin, Beautiful Chat and Better Paseo](docs/perf/readme/web-cpu.en.svg)
+Deployed `722238d`, compared directly with parent `7f01b2d`. This independent batch has **220 runs**: 100 core, 60 remaining iOS regressions and 60 Web regressions, with zero collection/audit failures or exclusions. Mac Studio, iPhone 16 Pro / iOS 18.6 development simulator, up to four groups with varying actual overlap. Keep it separate from the historical `48a6646` full matrix and `c4c9f3f` history runs below.
 
-The chart shows whole-replay main-thread Task time. Against no plugin, Better Paseo is shorter in 9
-of 11 scenarios; 100-turn history is 15% longer (0.854 s vs 0.745 s), while the large diff is even
-because both whole replays are under 0.5 s (0.42 s vs 0.35 s). Against Beautiful Chat, 10 scenarios
-are shorter and table streaming is even (1.96 s vs 2.17 s, under 10%).
+![Deployed fix: total iOS row-render work](docs/perf/readme/ios-fixed.en.svg)
 
-The primary render metric is total row-render work, allRows.sum for one replay. Lower is better.
-Per-commit p95 depends on how rows are batched into commits and is not a measure of total work.
+| Scenario | Native ms | Parent ms | Fixed ms | vs native | A/A over 10% |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Large diff | 48.6 | 52.4 | 56.1 | +15.45% | 2/5 |
+| 20 reads | 278.0 | 331.5 | 275.7 | -0.79% | 2/5 |
+| Reasoning prose | 249.3 | 324.6 | 249.6 | +0.16% | 0/5 |
+| Reasoning sections | 239.5 | 292.1 | 223.5 | -6.71% | 2/5 |
+| Growing log (defaults) | 155.0 | 254.4 | 182.9 | +18.04% | 2/5 |
+
+**All-five parity has not been achieved.** Large diff and the default growing log remain 15.45% and 18.04% above native; the other three observed medians are within 10%. Eight of 25 A/A pairs exceed 10% (maximum 31.31%), so lower medians do not prove stable improvements. The remaining iOS/Web checks observed no new median regression above 10%.
+
+#### Remaining iOS regressions (60 runs)
+
+Five runs per revision, showing median total row-render work. This phase compares parent and fixed only; do not splice in native or Beautiful Chat values from older rounds.
+
+| Scenario | Parent ms | Fixed ms | vs parent |
+| --- | ---: | ---: | ---: |
+| Mixed turn | 256.8 | 226.4 | -11.84% |
+| History replay | 213.3 | 194.7 | -8.69% |
+| Large shell log | 52.7 | 49.1 | -6.72% |
+| Table streaming | 563.2 | 531.9 | -5.55% |
+| Code block streaming | 747.5 | 759.0 | +1.53% |
+| Long reply | 1463.5 | 1471.5 | +0.55% |
+
+#### Web regressions (60 runs)
+
+Five runs per revision, showing median total row-render work. This phase compares parent and fixed only; do not splice in native or Beautiful Chat values from older rounds.
+
+| Scenario | Parent ms | Fixed ms | vs parent |
+| --- | ---: | ---: | ---: |
+| Large diff | 5.2 | 5.0 | -3.85% |
+| 20 reads | 17.5 | 13.7 | -21.71% |
+| Reasoning prose | 5.6 | 5.0 | -10.71% |
+| Reasoning sections | 4.9 | 4.3 | -12.24% |
+| Growing log (defaults) | 6.2 | 5.2 | -16.13% |
+| Mixed turn | 14.8 | 14.6 | -1.35% |
+
+The metric is host Profiler `allRows.sum`, not whole-app CPU or first-visible time. Core native/parent have five runs each and fixed pools ten; risk phases have five per revision. The Web process filter missed absolute-path Node runners; actual overlap was reconstructed separately from intervals. Empty process lists do not mean no concurrency. **This is not iPhone 15 Pro Release acceptance.**
+
+[Full results, ranges, diagnosis and evidence](docs/bench/2026-10-16-ios-five/parallel/README.md)
+
+### Historical three-mode full matrix (48a6646)
+
+<!-- deployed-fix:end -->
+
+Three configurations: **no plugin** (Paseo 0.11.2), **Beautiful Chat** `42b61d8`, and **Better Paseo** `48a6646`. Rerun on 2026-10-16 on Mac Studio (Apple M5 Max, 18 cores, 64 GB, macOS 27.0.1): 11 scenarios × 3 modes × 5 runs on each of Web and iOS, **330 replay runs**. Modes rotate and measurements run serially; every cell is a median. Only this round is comparable. Groups with display errors are N/A. [Raw data, ranges and validation](docs/bench/2026-10-16-readme/README.md).
+
+![Web main-thread time](docs/perf/readme/web-cpu.en.svg)
+
+Whole-replay main-thread Task time: vs no plugin, 9 lower, 1 even and 1 higher; vs Beautiful Chat, 10 lower, 1 even and 0 higher. A difference under 10%, or both whole Web Task replays below 0.5 seconds, is even.
+
+The table measures total row-render work (allRows.sum, milliseconds), using the same host React.Profiler boundary. Per-commit p95 is not total work. Vs no plugin: 9 lower, 0 even and 2 higher.
 
 | Scenario | No plugin | Beautiful Chat | Better Paseo | vs no plugin | vs Beautiful Chat |
 | --- | ---: | ---: | ---: | :--- | :--- |
-| Code block streaming | 1,284.0 | 1,304.1 | **280.5** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;78% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;78% |
-| Large diff | 33.6 | 562.9 | **21.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;38% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;96% |
-| 100-turn history | 155.7 | 4,454.5 | **218.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;41% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;95% |
-| Long reply | 2,044.0 | 3,241.1 | **457.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;78% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;86% |
-| Mixed turn | 220.7 | 577.0 | **97.8** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;56% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;83% |
-| 20 file reads | 148.1 | 957.1 | **109.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;26% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;89% |
-| Reasoning, prose | 550.5 | 1,031.4 | **154.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;72% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;85% |
-| Reasoning, sections | 496.2 | 1,342.8 | **135.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;73% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;90% |
-| Large shell log | 38.5 | 266.9 | **19.5** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;49% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;93% |
-| Table streaming | 1,134.0 | 416.8 | **263.9** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;77% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;37% |
-| Expanded tool | 60.3 | 932.2 | **109.1** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;81% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;88% |
+| Code block streaming | 1,274.8 | 1,295.5 | **297.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;77% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;77% |
+| Large diff | 36.0 | 581.7 | **21.4** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;41% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;96% |
+| History replay | 157.8 | 4,468.5 | **214.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;36% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;95% |
+| Long reply | 2,040.9 | 3,239.6 | **499.8** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;76% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;85% |
+| Mixed turn | 210.3 | 571.8 | **97.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;54% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;83% |
+| 20 file reads | 140.8 | 966.1 | **110.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;22% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;89% |
+| Reasoning, prose | 532.6 | 1,016.2 | **157.9** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;70% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;84% |
+| Reasoning, sections | 487.4 | 1,309.9 | **138.8** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;72% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;89% |
+| Large shell log | 36.2 | 263.0 | **20.7** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;43% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;92% |
+| Table streaming | 1,129.7 | 413.6 | **256.3** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;77% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;38% |
+| Growing tool log (defaults) | 58.7 | 920.3 | **108.8** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;85% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;88% |
 
-Against no plugin, Better Paseo has lower total row-render work in 9 scenarios and higher totals for
-100-turn history (+41%) and the expanded tool (+81%). Against Beautiful Chat, totals are lower in
-all 11 scenarios.
+Modes retain their default disclosure behaviour: Beautiful Chat opens running tools, while Better Paseo keeps them collapsed. Despite its historical name, `tool-expanded-streaming` performs no expand action; “Growing tool log (defaults)” does not establish expanded-body performance.
 
-Cumulative layout shift while streaming (lower is better):
+### Streaming layout shift
+
+Cumulative layout shift (CLS, lower is better), from the same Web runs. The Task-time 0.5-second rule does not apply. Six decimals keep tiny baselines visible; percentages can magnify small absolute differences.
 
 | Scenario | No plugin | Beautiful Chat | Better Paseo | vs no plugin | vs Beautiful Chat |
 | --- | ---: | ---: | ---: | :--- | :--- |
-| Long reply | 0.181 | 0.648 | **0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
-| Code block | 0.043 | 0.127 | **0.012** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;73% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;91% |
-| Table | 0.051 | 0.040 | **0.011** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;79% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;73% |
-| 100-turn history | 0 | 0.208 | **0** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
+| Code block streaming | 0.047734 | 0.133573 | **0.011550** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;76% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;91% |
+| Large diff | 0.000015 | 0.024003 | **0.000015** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
+| History replay | 0.000015 | 0.309520 | **0.000015** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
+| Long reply | 0.171551 | 0.646352 | **0.000015** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
+| Mixed turn | 0.004936 | 0.092814 | **0.026648** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;440% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;71% |
+| 20 file reads | 0.001963 | 0.299145 | **0.000777** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;60% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
+| Reasoning, prose | 0.000015 | 0.098468 | **0.000777** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5230% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;99% |
+| Reasoning, sections | 0.000015 | 0.145948 | **0.000777** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5230% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;99% |
+| Large shell log | 0.000015 | 0.005080 | **0.000015** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
+| Table streaming | 0.047770 | 0.039745 | **0.010534** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;78% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;73% |
+| Growing tool log (defaults) | 0.000015 | 0.014097 | **0.000015** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
 
 ### iOS
 
-![iOS total row-render time per replay: no plugin, Beautiful Chat and Better Paseo](docs/perf/readme/ios-commit.en.svg)
+![iOS total row-render work](docs/perf/readme/ios-commit.en.svg)
 
-The chart and table use total row-render work (allRows.sum) per replay, in milliseconds. The iOS
-simulator runs used a development build with a cold start before each run. Most scenario/mode cells
-have 2 runs; 100-turn history and large shell log have 6. The 100-turn history set includes
-parallel-simulator load exposure: total row work shifted about 3% upward in every mode, so treat its
-small differences cautiously. The benchmark report describes the exposure and sample ranges.
-
-A difference under 10% is even. Against no plugin, Better Paseo is lower in 5 scenarios, even in 2
-(large diff and 100-turn history), and higher in 4 (20 file reads, both reasoning replays and the
-expanded tool). Against Beautiful Chat it is lower in all 11. Per-commit p95 is omitted here because
-commit sizes differ; it is not a total-work metric.
+iPhone 16 Pro / iOS 18.6 simulator, Paseo 0.11.2 development Hermes build, cold-launched per run. One benchmark simulator; Web and iOS measurements do not overlap. Total row-render work is in milliseconds; under 10% is even. Vs no plugin: 3 lower, 3 even and 5 higher; vs Beautiful Chat: 10 lower, 1 even and 0 higher. These are not hardware frame-rate or Release measurements.
 
 | Scenario | No plugin | Beautiful Chat | Better Paseo | vs no plugin | vs Beautiful Chat |
 | --- | ---: | ---: | ---: | :--- | :--- |
-| Code block streaming | 2,264.5 | 4,503.2 | **709.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;69% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;84% |
-| Large diff | 58.2 | 5,562.7 | **46.2** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;21% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;99% |
-| 100-turn history | 191.9 | 224.6 | **202.1** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;10% |
-| Long reply | 5,076.6 | 13,397.1 | **1,510.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;70% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;89% |
-| Mixed turn | 282.9 | 624.8 | **247.2** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;13% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;60% |
-| 20 file reads | 276.1 | 2,622.2 | **305.8** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;11% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;88% |
-| Reasoning, prose | 262.4 | 1,465.5 | **321.3** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;22% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;78% |
-| Reasoning, sections | 244.5 | 2,438.8 | **283.5** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;16% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;88% |
-| Large shell log | 48.1 | 362.8 | **45.1** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;88% |
-| Table streaming | 972.1 | 1,164.0 | **563.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;42% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;52% |
-| Expanded tool | 165.8 | 3,032.6 | **256.6** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;55% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;92% |
+| Code block streaming | 2,227.5 | 4,536.3 | **753.5** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;66% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;83% |
+| Large diff | 52.9 | 2,878.8 | **62.8** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;19% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;98% |
+| History replay | 207.1 | 226.3 | **213.0** | even | even |
+| Long reply | 4,971.2 | 13,421.2 | **1,537.8** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;69% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;89% |
+| Mixed turn | 329.6 | 664.8 | **308.0** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;54% |
+| 20 file reads | 286.0 | 2,722.9 | **341.8** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;20% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;87% |
+| Reasoning, prose | 286.6 | 1,504.2 | **386.7** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;35% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;74% |
+| Reasoning, sections | 263.5 | 2,419.4 | **327.7** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;24% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;86% |
+| Large shell log | 53.8 | 349.5 | **57.0** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;84% |
+| Table streaming | 968.1 | 1,128.4 | **584.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;40% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;48% |
+| Growing tool log (defaults) | 194.5 | 3,051.3 | **310.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;60% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;90% |
 
-<img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp; Green means lower/better; <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp; red means higher/worse. A difference under 10% is even. The additional under-0.5-second rule applies only when comparing whole Web Task replays; iOS uses the 10% rule.
+Green ⬆ is lower; red ⬇ is higher. Percentages use medians before rounding. `history-100` is a fixture name, not 100 actual provider turns; it is labelled “History replay” here.
 
-**How it was measured.** A measurement-only patch to Paseo 0.11.2 (`759532509`,
-`docs/bench/native-vs-fork/tools/paseo-host-probe.patch`) wraps every timeline row in the same
-`React.Profiler`. Web used an instrumented production export (main JS sha256 prefix
-`9dd7eab4521434bc`) in headless Chrome 155.0.8059.40 at 1280×900; Playwright reads Chrome DevTools
-Protocol metrics around each replay and forces a GC before memory is read. iOS is an iOS 18.6
-simulator running the development build `sh.paseo.debug`, cold-launched before every run. Better
-Paseo was commit `37bfb60`. Each mode ran against a private daemon with default plugin settings, in
-rotating order, and every run asserted which build was on screen. Web: 11 fixtures × 3 modes × 3
-runs with 0 page errors. Part of the iOS runs used three simulators at once; the benchmark report
-lists which, and the ~3% upward shift that load caused on the 100-turn history. Method, tools and
-raw runs: [`docs/bench/native-vs-fork`](docs/bench/native-vs-fork/README.md) (`raw/web-2026-10-15b`,
-`raw/ios-2026-10-15b`). Every difference from Beautiful Chat:
-[`docs/fork-vs-upstream.md`](docs/fork-vs-upstream.md) (Chinese). The charts are generated from
-these runs by `node docs/perf/readme-charts.mjs`; percentages are taken from the medians before
-rounding.
+**Method.** Fixed host `759532509`, identical host row probes for native/plugin renderers. Web uses a newly exported production profiling build (main JS SHA256 prefix `c38ec6413ace0974`), Chrome 155.0.8059.40 at 1280×900; CDP reads main-thread time and forces GC before heap/DOM readings. iOS uses a development simulator build, not Release. Private daemon 6871, asserted mode per run, default feature settings with measurement counters enabled on the candidate. [Scripts, host patch and source verification](docs/bench/2026-10-16-readme/README.md). Generate charts with `node docs/perf/readme-charts.mjs`.
 
-### Long-history loading: required next comparison
+### Long-history loading
 
-The next comparison also includes the synthetic `history-long-load` fixture: 810 projected
-items, a 59,427-character reply and overlapping tool lifecycle updates. This tests loading
-existing history rather than streaming throughput. The existing charts above do not include it.
+This is an **independent Mac Studio rerun** using `history-complete-v1`, Better Paseo `c4c9f3f` and Beautiful Chat `42b61d8`, with default settings. Web and iOS have 40 runs each, **80 total**: five candidate A/A pairs and five runs per control for each scenario/platform. iOS uses an iPhone 16 Pro / iOS 18.6 development simulator, not iPhone 15 Pro Release acceptance.
 
-| Test | No plugin | Beautiful Chat | Better Paseo |
-| --- | --- | --- | --- |
-| Cold-open long history | Pending | Pending | Pending |
-| Scroll upward to load older history | Pending | Pending | Pending |
-| Remount the long reply after scrolling away | Pending | Pending | Pending |
+**Execution changed:** Web finished serially; during iOS collection the user requested up to four parallel groups. Some earlier-gate samples may also overlap environment preparation; see the report for intervals. These tables descriptively summarize the captured round, **not a controlled speedup under uniform serial or fixed-concurrency conditions**. Later samples record CPU idle and memory pressure; the separate five-fix concurrent matrix is not merged here.
 
-The [fixture, procedure and metrics](docs/bench/long-history-load/README.md) are ready for the
-next run. Results will be added after the comparison; no speedup is claimed for these tests yet.
+The new fixture retains 810 entries / one actual provider turn, the exact 59,427-character tail reply and overlapping tool lifecycles. Its 260 reasoning items receive distinct equal-length synthetic tags to avoid identical text ID seeds across page boundaries. A second scenario has 832 entries / 12 actual turns. **This is a new input, not a fix or acceptance of the original duplicate-key case; do not mix the rounds.**
+
+![New-fixture cold-open row work](docs/perf/readme/history-complete-open.en.svg)
+
+#### Web
+
+| Scenario / phase | No plugin | Beautiful Chat | Better Paseo |
+| --- | ---: | ---: | ---: |
+| 810 entries / 1 turn — Cold-open row work | 89.3 | 1,995.1 | 45.4 |
+| 810 entries / 1 turn — First older reveal row work | 15.9 | 527.8 | 12.5 |
+| 810 entries / 1 turn — Whole-session return row work | 157.4 | 2,164.8 | 64.1 |
+| 832 entries / 12 turns — Cold-open row work | 85.4 | 2,022.0 | 46.6 |
+| 832 entries / 12 turns — First older reveal row work | 21.4 | 540.0 | 12.7 |
+| 832 entries / 12 turns — Whole-session return row work | 158.0 | 2,198.2 | 65.8 |
+
+#### iOS
+
+| Scenario / phase | No plugin | Beautiful Chat | Better Paseo |
+| --- | ---: | ---: | ---: |
+| 810 entries / 1 turn — Cold-open row work | 137.3 | 190.8 | 61.8 |
+| 810 entries / 1 turn — First older reveal row work | 183.3 | 11.9 | 174.1 |
+| 810 entries / 1 turn — Whole-session return row work | 251.6 | 355.9 | 99.1 |
+| 832 entries / 12 turns — Cold-open row work | 150.0 | 187.0 | 68.7 |
+| 832 entries / 12 turns — First older reveal row work | 191.1 | 49.4 | 182.5 |
+| 832 entries / 12 turns — Whole-session return row work | 290.0 | 398.6 | 105.3 |
+
+![Whole-session return row work](docs/perf/readme/history-complete-return.en.svg)
+
+Values are milliseconds. The third phase switches the host pane away from the session, proves the target timeline actually unmounted, then returns to the same agent without archiving it. It measures whole-view remount, **not independent Markdown-block remount during scrolling**. All 36 cells must have valid measurements before publication; old errors and inapplicable phases remain in the historical report.
+
+Row-render work excludes native layout and whole-app CPU; JS-ready proxies are not proven first-usable viewport times. Reveal and return can render different row sets; interpret totals with ranges, A/A spread, RPCs and content-integrity gates.
+
+[Full follow-up report and raw evidence](docs/bench/2026-10-16-history-complete/README.md) · [Historical fixture report](docs/bench/2026-10-16-readme/README.md)
 
 ### Where the time goes
 
-- **Cards that did not change stop rendering.** Paseo hands every row new `theme` and `data`
-  objects on each streamed chunk. Semantic `React.memo` comparisons let unchanged cards skip the
-  render; only the newest prompt follows the agent's status. In the 100-turn replay whole-page
-  renders fell from 172,327 to 1,319.
-- **Replies are parsed incrementally.** `marked` with `remend` lexes block by block; each reply
-  caches its finished blocks and repairs only the block still growing. Format flips and height
-  regressions while streaming are 0 offline, on Web and on iOS.
-- **Code is highlighted once, and only when it is complete.** An unclosed code block requests no
-  highlighting; Shiki runs on the daemon (`highlight.tokens`). Collapsed rows do not mount their
-  body, so 20 file reads make 0 highlight requests instead of 48.
-- **Large output arrives in batches.** Code and terminal panels draw 400 lines, then add the rest in
-  batches with a **Show all** control. A 5,000-line diff on iOS went from 2.2 s to 19.8 ms (tool
-card
-  p50).
-- **No decorative loops.** Shadows, frosted glass, glow and breathing animations are gone. Only the
-  running dot remains; on Web it is a CSS animation, so it no longer commits its row every frame
-  (row commits in a mixed turn: 1,518 → 196). Reduced Motion stills it.
-- **No late growth.** A reply that is not revealed word by word draws its text in the same commit
-  that delivers it, so Paseo's stick-to-bottom keeps up and the reply does not push the footer
-  after the fact.
-- **A small client bundle.** Paseo sends the whole client bundle again on every reconnect. Brand
-  marks and the Inter face are served by the daemon on demand (`marks.bitmaps`, `fonts.embedded`),
-  the embedded Iosevka faces are gone, and the bundle is kept ASCII so Hermes stores it as one-byte
-  text.
+- **Skip unchanged rows.** Semantic theme/data comparisons let unchanged cards skip rendering.
+- **Parse replies incrementally.** Finished Markdown blocks are cached; only the growing tail is repaired. Long replies split into blocks that the native host can virtualize; Copy retains the full source.
+- **Draw tool bodies on demand.** Collapsed rows do not mount their bodies. Completed code requests daemon highlighting; large code and terminal output render in batches with a Show all control.
+- **Reduce continuous animation work.** The Web running dot uses CSS and stops for Reduced Motion; decorative shadows, blur and breathing loops are removed.
+- **Send less on reconnect.** Brand marks and Inter are delivered on demand; the client source stays ASCII for Hermes one-byte strings.
+
 
 ---
 
 ## Memory comparison
 
-Web production build, measured on 2026-10-15: each value is the median of 3 runs after a forced GC.
-The table reports JS heap usage, not total app or process memory. Differences are Better Paseo minus
-the other mode, calculated before rounding; negative means less memory. All values are in MB.
+<!-- historical-memory:start -->
+**Historical memory baseline: `48a6646`.** The latest `722238d` Web regression phase did not remeasure JS heap; this table is not memory acceptance for that deployed revision.
+<!-- historical-memory:end -->
 
-![JS heap and DOM nodes after a forced GC](docs/perf/readme/web-memory.en.svg)
+Web production profiling build, 2026-10-16, same runs as the CPU chart, median of 5 readings after forced GC. This is JS heap, not total process/app memory. Differences are Better Paseo minus the control, in MB with signs; the 10% even rule does not apply.
 
-Compared with no plugin, a long reply uses 41.1 MB less; the other scenarios differ by −2.0 to +5.8
-MB, mostly a few MB more, which is the plugin's own resident cost. Compared with Beautiful Chat, the
-large diff, the 100-turn history and 20 file reads use 103.6–124.5 MB less, the large shell log 13.2
-MB less, and the other scenarios differ by −7.6 to +0.8 MB. Beautiful Chat expands running tools by
-default; Better Paseo keeps them collapsed.
+![JS heap and DOM nodes](docs/perf/readme/web-memory.en.svg)
 
 | Scenario | No plugin | Beautiful Chat | Better Paseo | vs no plugin | vs Beautiful Chat |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Code block streaming | 115.9 | 115.4 | **113.9** | -2.0 | -1.5 |
-| Large diff | 108.5 | 216.6 | **113.0** | +4.5 | -103.6 |
-| 100-turn history | 116.0 | 239.1 | **120.9** | +4.9 | -118.1 |
-| Long reply | 158.4 | 116.7 | **117.3** | -41.1 | +0.6 |
-| Mixed turn | 113.6 | 123.3 | **115.7** | +2.2 | -7.6 |
-| 20 file reads | 113.0 | 242.5 | **118.0** | +5.0 | -124.5 |
-| Reasoning, prose | 110.6 | 114.2 | **113.9** | +3.3 | -0.3 |
-| Reasoning, sections | 110.4 | 114.3 | **114.2** | +3.8 | -0.2 |
-| Large shell log | 110.3 | 127.4 | **114.2** | +3.9 | -13.2 |
-| Table streaming | 114.7 | 114.6 | **115.4** | +0.7 | +0.8 |
-| Expanded tool | 112.6 | 124.4 | **118.4** | +5.8 | -6.0 |
+| --- | ---: | ---: | ---: | :--- | :--- |
+| Code block streaming | 117.4 | 116.8 | **116.1** | -1.3 | -0.7 |
+| Large diff | 111.1 | 215.8 | **114.1** | +3.0 | -101.7 |
+| History replay | 117.9 | 241.5 | **122.3** | +4.4 | -119.3 |
+| Long reply | 159.3 | 118.2 | **125.2** | -34.0 | +7.0 |
+| Mixed turn | 114.8 | 124.5 | **117.7** | +3.0 | -6.8 |
+| 20 file reads | 114.1 | 244.3 | **119.3** | +5.3 | -124.9 |
+| Reasoning, prose | 112.3 | 115.6 | **115.4** | +3.1 | -0.2 |
+| Reasoning, sections | 111.3 | 115.8 | **115.4** | +4.0 | -0.4 |
+| Large shell log | 111.5 | 128.3 | **115.8** | +4.3 | -12.5 |
+| Table streaming | 114.9 | 116.2 | **117.2** | +2.3 | +1.0 |
+| Growing tool log (defaults) | 113.9 | 125.4 | **120.0** | +6.1 | -5.4 |
 
-Raw measurements: [Web runs](docs/bench/native-vs-fork/raw/web-2026-10-15b).
+Raw samples: [Web](docs/bench/2026-10-16-readme/raw/web).
 
 ---
 
 ## Features
 
+Screenshots refreshed on 2026-10-16 from `722238d` using the offline Web showcase. All product screenshots default to light and automatically switch to dark with the reader’s theme; the phone frame is illustrative. Performance versions are identified separately above. [Capture manifest](docs/images/screenshots.json).
+
 Everything below is on top of what Beautiful Chat already drew: typed tool cards, Shiki
 highlighting, image reads, file reveal and the plugin's own find bar.
 
-![One whole turn, top to bottom](images/thread.png)
+<picture><source media="(prefers-color-scheme: dark)" srcset="images/thread-dark.png"><img alt="One whole turn, top to bottom" src="images/thread-light.png"></picture>
 
 ### Tool rows
 
@@ -266,22 +288,22 @@ data, it gets a question transcript; otherwise it stays a generic text card.
   the transcript is read-only, and Paseo still handles answers. Questions stay wrapped in previews
   for readability.
 
-![Structured question transcript with recorded answers](docs/images/questions.png)
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/questions-dark.png"><img alt="Structured question transcript with recorded answers" src="docs/images/questions-light.png"></picture>
 
 | Shell and Git | Read |
 | --- | --- |
-| ![Shell and Git tool calls](docs/images/tool-bash.png) | ![Read tool call](docs/images/tool-read.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/tool-bash-dark.png"><img alt="Shell and Git tool calls" src="docs/images/tool-bash-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/tool-read-dark.png"><img alt="Read tool call" src="docs/images/tool-read-light.png"></picture> |
 | **Edit** | **Hub** (Oh My Pi) |
-| ![Edit tool call](docs/images/tool-edit.png) | ![Hub tool calls](docs/images/hub.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/tool-edit-dark.png"><img alt="Edit tool call" src="docs/images/tool-edit-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/hub-dark.png"><img alt="Hub tool calls" src="docs/images/hub-light.png"></picture> |
 
 <details>
 <summary>More cards: MCP, Paseo tools, image read, syntax block, a <code>thinking</code> tool</summary>
 
-![MCP tool call](docs/images/tool-mcp.png)
-![Paseo tool call](docs/images/paseo.png)
-![Thinking tool call](docs/images/tool-thinking.png)
-![Image read](docs/images/tool-image.png)
-![Syntax block](docs/images/syntax.png)
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/tool-mcp-dark.png"><img alt="MCP tool call" src="docs/images/tool-mcp-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/paseo-dark.png"><img alt="Paseo tool call" src="docs/images/paseo-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/tool-thinking-dark.png"><img alt="Thinking tool call" src="docs/images/tool-thinking-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/tool-image-dark.png"><img alt="Image read" src="docs/images/tool-image-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/syntax-dark.png"><img alt="Syntax block" src="docs/images/syntax-light.png"></picture>
 
 </details>
 
@@ -296,9 +318,9 @@ data, it gets a question transcript; otherwise it stays a generic text card.
   button opens the live checklist in a panel that stays open as you use the timeline and follows the
   newest list; long titles can wrap there.
 
-![Reasoning trace](docs/images/reasoning.png)
-![Checklist](docs/images/tasks.png)
-![Live checklist in a floating window](docs/images/checklist-window.png)
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/reasoning-dark.png"><img alt="Reasoning trace" src="docs/images/reasoning-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/tasks-dark.png"><img alt="Checklist" src="docs/images/tasks-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/checklist-window-dark.png"><img alt="Live checklist in a floating window" src="docs/images/checklist-window-light.png"></picture>
 
 ### Replies
 
@@ -325,10 +347,10 @@ data, it gets a question transcript; otherwise it stays a generic text card.
 
 | Table copy menu | Selected cell actions |
 | --- | --- |
-| ![Table copy menu](docs/images/table-copy-menu.png) | ![Selected table cell actions](docs/images/table-selection.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/table-copy-menu-dark.png"><img alt="Table copy menu" src="docs/images/table-copy-menu-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/table-selection-dark.png"><img alt="Selected table cell actions" src="docs/images/table-selection-light.png"></picture> |
 
-![Document, Compact and Terminal markdown styles](docs/images/markdown-styles.png)
-![Maximized Markdown code preview in raw-text mode](docs/images/markdown-preview-window.png)
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/markdown-styles-dark.png"><img alt="Document, Compact and Terminal markdown styles" src="docs/images/markdown-styles-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/markdown-preview-window-dark.png"><img alt="Maximized Markdown code preview in raw-text mode" src="docs/images/markdown-preview-window-light.png"></picture>
 
 ### Images
 
@@ -342,7 +364,7 @@ data, it gets a question transcript; otherwise it stays a generic text card.
   their size instead of inlining.
 - When multiple read cards point to the same image, each card displays it.
 
-![Two read cards displaying the same image](docs/images/shared-image-cards.png)
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/shared-image-cards-dark.png"><img alt="Two read cards displaying the same image" src="docs/images/shared-image-cards-light.png"></picture>
 
 ### Hover previews
 
@@ -364,7 +386,7 @@ to open the same preview without covering the top bar or composer.
   selection in the composer, fenced when it came from code. The bar closes on scroll; if no composer
   is visible, **Add to chat** copies the selection instead.
 
-![Selected text with Copy and Add to chat actions](docs/images/selection-actions.png)
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/selection-actions-dark.png"><img alt="Selected text with Copy and Add to chat actions" src="docs/images/selection-actions-light.png"></picture>
 
 ### Prompt bubble
 
@@ -373,7 +395,7 @@ bubble** switches eligible prompts to the plugin's bubble: an always-visible cop
 turn's token usage. It draws images when it can extract a supported image source; a prompt with an
 unrenderable attachment stays with Paseo. Rewind stays wherever the running Paseo provides it.
 
-![Prompt bubble](docs/images/user.png)
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/user-dark.png"><img alt="Prompt bubble" src="docs/images/user-light.png"></picture>
 
 ### Errors and system messages
 
@@ -395,8 +417,8 @@ hover preview is drawn open in it. On web and desktop a **Desktop / Mobile** swi
 turn at phone width with iOS styling and the inline-code colour you picked.
 Options whose parent is off are dimmed, and **Reset** asks for a second press.
 
-![Settings page with its live preview](docs/images/settings.png)
-![Block text size setting with its live preview](docs/images/settings-tools.png)
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-dark.png"><img alt="Settings page with its live preview" src="docs/images/settings-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-tools-dark.png"><img alt="Block text size setting with its live preview" src="docs/images/settings-tools-light.png"></picture>
 
 | Group | Setting | Default | Effect |
 | --- | --- | --- | --- |
