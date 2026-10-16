@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle, type StyleProp } from "react-native";
+import { Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle, type StyleProp } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
@@ -231,7 +231,6 @@ export function CenteredToolbarDetails({ close, children, tokens, width = TOOLTI
   tokens: ExtendedThemeTokens;
 }) {
   const window = useWindowDimensions();
-  const [height, setHeight] = useState(window.height);
   const panelRef = useRef<View>(null);
   useEffect(() => bindDetailsEscape(panelRef.current, close), [close]);
   return <Modal visible transparent animationType="none" onRequestClose={close}>
@@ -239,11 +238,10 @@ export function CenteredToolbarDetails({ close, children, tokens, width = TOOLTI
       onPress={close} style={StyleSheet.absoluteFill} />
     <SafeInset pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       <View testID="footer-details-center" pointerEvents="box-none"
-        onLayout={(event) => setHeight(event.nativeEvent.layout.height)}
         style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 8 }}>
         <View ref={panelRef} testID="toolbar-details-panel" accessibilityViewIsModal
           style={{ width: Math.min(width, window.width - 16), maxWidth: "100%" }}>
-          <ToolbarDetailsFrame tokens={tokens} maxHeight={Math.max(0, height - 16)}>{children}</ToolbarDetailsFrame>
+          <ToolbarDetailsFrame tokens={tokens}>{children}</ToolbarDetailsFrame>
         </View>
       </View>
     </SafeInset>
@@ -286,7 +284,7 @@ export function AnchoredToolbarDetails({ anchor, close, children, tokens, width 
             }}
             style={{ position: "absolute", width: bounds ? Math.min(width, bounds.stage.width - 16) : width,
               maxWidth: "100%", opacity: origin ? 1 : 0, left: origin?.left ?? 0, top: origin?.top ?? 0 }}>
-            <ToolbarDetailsFrame tokens={tokens} maxHeight={bounds ? bounds.stage.height - 16 : undefined}>
+            <ToolbarDetailsFrame tokens={tokens}>
               {children}
             </ToolbarDetailsFrame>
           </View>
@@ -297,12 +295,12 @@ export function AnchoredToolbarDetails({ anchor, close, children, tokens, width 
 }
 
 /** Shared frame for pointer and long-press details. */
-export function ToolbarDetailsFrame({ tokens, children, maxHeight = 320 }: {
-  tokens: ExtendedThemeTokens; children: ReactNode; maxHeight?: number;
+export function ToolbarDetailsFrame({ tokens, children }: {
+  tokens: ExtendedThemeTokens; children: ReactNode;
 }) {
   return <View testID="toolbar-details-frame" style={{ backgroundColor: tokens.surface0, borderColor: tokens.v2.border,
     borderWidth: 1, borderRadius: FLOAT.radius, boxShadow: floatShadow(tokens) }}>
-    <ScrollView bounces={false} style={{ maxHeight: maxHeight - 2, borderRadius: FLOAT.radius - 1 }}>{children}</ScrollView>
+    <View style={{ borderRadius: FLOAT.radius - 1, overflow: "hidden" }}>{children}</View>
   </View>;
 }
 
