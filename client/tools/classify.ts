@@ -142,7 +142,9 @@ export function buildPaseoData(
 ): PaseoToolData | undefined {
   if (rawName !== "create_agent") return undefined;
   const provider = asString(input.provider) ?? "agent";
-  const [providerId, model] = provider.split("/");
+  const [providerId, ...modelParts] = provider.split("/");
+  const model = modelParts.join("/");
+  const settings = asRecord(input.settings);
   return {
     id: `paseo-${rawName}`,
     tool: "create_agent",
@@ -150,7 +152,9 @@ export function buildPaseoData(
     createAgent: {
       title: asString(input.title) ?? "New agent",
       provider: providerId ?? provider,
-      model: model ?? asString(input.model),
+      model: asString(model) ?? asString(input.model),
+      modeId: asString(settings?.modeId),
+      thinkingOptionId: asString(settings?.thinkingOptionId),
       initialPrompt: asString(input.initialPrompt) ?? "",
       agentId: outputText?.match(/[0-9a-f]{8}-[0-9a-f-]{27}/i)?.[0],
       status: "created",
