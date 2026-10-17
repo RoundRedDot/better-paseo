@@ -23,6 +23,8 @@ interface HScrollProps {
   contentContainerStyle?: StyleProp<ViewStyle>;
   /** The indicator's own style, to move it off the default 4pt under the content. */
   trackStyle?: StyleProp<ViewStyle>;
+  /** Use the platform indicator during scrolling instead of the persistent track. */
+  indicatorOnScroll?: boolean;
   /** False while a gesture inside holds the content still. */
   scrollEnabled?: boolean;
   onScrollBeginDrag?: ScrollViewProps["onScrollBeginDrag"];
@@ -30,17 +32,16 @@ interface HScrollProps {
 
 /**
  * Content wider than its column — a table, an unwrapped code line — scrolls
- * sideways, and a 2px indicator under it says so. React Native draws its own
- * indicator only while a scroll is in progress, so at rest a wide table looked
- * clipped (S7 iOS screenshots: "What i…").
+ * sideways. The default 2px indicator stays visible for code lines and previews;
+ * tables use the platform indicator, which appears during scrolling.
  *
  * The thumb is an `Animated.View` translated by the scroll offset through
  * `Animated.event`, on the native driver where there is one, so scrolling
  * never re-renders anything. The two widths it needs arrive from one layout
  * and one content-size callback; the indicator is mounted only while the
- * content overflows, so a table that fits costs the scroller alone.
+ * content overflows, so a fitting code line costs the scroller alone.
  */
-export function HScroll({ tokens, children, style, contentContainerStyle, trackStyle, scrollEnabled, onScrollBeginDrag }: HScrollProps) {
+export function HScroll({ tokens, children, style, contentContainerStyle, trackStyle, indicatorOnScroll = false, scrollEnabled, onScrollBeginDrag }: HScrollProps) {
   const [{ viewport, content }, setWidths] = useState(NO_WIDTHS);
   const scrollX = useRef(new Animated.Value(0)).current;
 
@@ -71,7 +72,7 @@ export function HScroll({ tokens, children, style, contentContainerStyle, trackS
     [scrollX],
   );
 
-  const overflow = overflows({ viewport, content });
+  const overflow = !indicatorOnScroll && overflows({ viewport, content });
   const thumb = overflow ? Math.max(24, Math.round((viewport * viewport) / content)) : 0;
   // Offset 0..(content - viewport) maps to thumb 0..(viewport - thumb).
   const ratio = overflow ? (viewport - thumb) / (content - viewport) : 0;
@@ -93,10 +94,10 @@ export function HScroll({ tokens, children, style, contentContainerStyle, trackS
     <View>
       <Animated.ScrollView
         horizontal
-        showsHorizontalScrollIndicator={false}
-        onLayout={onLayout}
-        onContentSizeChange={onContentSizeChange}
-        onScroll={onScroll}
+        showsHorizontalScrollIndicator={indicatorOnScroll}
+        onLayout={indicatorOnScroll ? undefined : onLayout}
+        onContentSizeChange={indicatorOnScroll ? undefined : onContentSizeChange}
+        onScroll={indicatorOnScroll ? undefined : onScroll}
         onScrollBeginDrag={onScrollBeginDrag}
         scrollEventThrottle={16}
         scrollEnabled={scrollEnabled}
