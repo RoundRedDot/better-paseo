@@ -53,10 +53,12 @@ const PreviewActionsContext = createContext<{
   alwaysWrap?: boolean;
 } | null>(null);
 
-/** Keep question transcripts wrapped regardless of the saved panel preference. */
-export function AlwaysWrapPreview({ children }: { children: ReactNode }) {
+/** Keep prose wrapped; optionally leave the wrap control visible and disabled. */
+export function AlwaysWrapPreview({ children, keepControl = false }: { children: ReactNode; keepControl?: boolean }) {
   const actions = useContext(PreviewActionsContext);
-  const wrapped = useMemo(() => actions ? { ...actions, wrap: undefined, alwaysWrap: true } : null, [actions]);
+  const wrapped = useMemo(() => actions ? { ...actions,
+    wrap: keepControl && actions.wrap ? { ...actions.wrap, on: true, disabled: true } : undefined,
+    alwaysWrap: true } : null, [actions, keepControl]);
   return <PreviewActionsContext.Provider value={wrapped}>{children}</PreviewActionsContext.Provider>;
 }
 /** The phone toolbar's drag. Web moves the panel from pointer events on the popover. */
