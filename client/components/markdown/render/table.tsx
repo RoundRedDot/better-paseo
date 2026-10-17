@@ -67,12 +67,10 @@ export function numericColumn(token: Tokens.Table, column: number): boolean {
 
 /**
  * A table keeps its own columns and scrolls sideways when the widest row beats
- * the card, with a 2px indicator under it while it overflows: clipping would
- * hide the cell that carries the answer, and an unmarked scroller looks
- * clipped (S7 iOS screenshots). While the table is still being written its
- * columns only widen, so a short cell arriving in a new row never pulls the
- * layout back; once it is complete the widths are measured once more from the
- * final cells.
+ * the card. Its indicator appears only during scrolling. While the table is
+ * still being written its columns only widen, so a short cell arriving in a
+ * new row never pulls the layout back; once it is complete the widths are
+ * measured once more from the final cells.
  */
 export function MdTable({
   token,
@@ -155,7 +153,7 @@ export function MdTable({
 
   return (
     <View style={copyStyles.outer}>
-      <HScroll tokens={context.tokens} style={styles.tableScroll} contentContainerStyle={styles.tableContent}
+      <HScroll tokens={context.tokens} indicatorOnScroll style={styles.tableScroll} contentContainerStyle={styles.tableContent}
         onScrollBeginDrag={selection.selected ? selection.dismiss : undefined}>
         <View style={copyStyles.container}>
           <View ref={frameRef} style={styles.tableFrame}>

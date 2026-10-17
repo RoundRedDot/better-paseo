@@ -326,6 +326,7 @@ describe("Markdown table copy", () => {
     tap(2, 100);
     tap(2, 230);
     const scroller = renderer!.root.findAll((node) => String(node.type) === "Animated.ScrollView")[0]!;
+    expect(scroller.props.showsHorizontalScrollIndicator).toBe(true);
     act(() => scroller.props.onScrollBeginDrag());
     expect(selectedCopy()).toHaveLength(0);
     expect(buttons()).toHaveLength(1);
