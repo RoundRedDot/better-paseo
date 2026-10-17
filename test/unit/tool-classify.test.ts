@@ -156,6 +156,23 @@ describe("classifyTool", () => {
     },
   );
 
+  it("reads explicit create-agent thinking and permission settings and keeps the complete model ID", () => {
+    const agent = classifyTool(call("paseo.create_agent", { type: "unknown", input: {
+      provider: "codex/vendor/model-name", settings: { thinkingOptionId: "max", modeId: "full-access" },
+    } })).paseo?.createAgent;
+    expect(agent).toMatchObject({ provider: "codex", model: "vendor/model-name",
+      thinkingOptionId: "max", modeId: "full-access" });
+  });
+
+  it.each([undefined, null, [], "max", {}, { thinkingOptionId: 7, modeId: false },
+    { thinkingOptionId: "", modeId: "" }])("leaves absent or invalid create-agent settings unspecified: %j", (settings) => {
+    const agent = classifyTool(call("paseo.create_agent", { type: "unknown", input: {
+      provider: "codex/gpt-6-luna", settings, initialPrompt: "Use Max thinking and full-access permissions.",
+    } })).paseo?.createAgent;
+    expect(agent?.thinkingOptionId).toBeUndefined();
+    expect(agent?.modeId).toBeUndefined();
+  });
+
   it("keeps a Paseo-server tool this plugin has no card for as an MCP call", () => {
     const view = classifyTool(call("mcp__paseo__list_worktrees", { type: "unknown", input: {}, output: "" }));
     expect(view.tool).toBe("mcp");

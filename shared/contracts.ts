@@ -280,6 +280,7 @@ export interface PaseoCreateAgentData {
   provider: string;
   model?: string;
   modeId?: string;
+  thinkingOptionId?: string;
   initialPrompt: string;
   agentId?: string;
   status: "created" | "running" | "failed";

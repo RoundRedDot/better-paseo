@@ -18,7 +18,8 @@ vi.mock("@getpaseo/plugin/client", () => ({
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { ToolPreviewContent } from "../../client/components/tool-callouts";
 import { HoverPreviewHeader, PreviewPanelSample } from "../../client/ui/hover-preview";
-import { ToolbarButton } from "../../client/ui/toolbar-button";
+import { ToolbarButton, ToolbarItem, TOOLBAR_TOOLTIP_MS } from "../../client/ui/toolbar-button";
+import { FooterDetails } from "../../client/components/footer-details";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { classifyTool } from "../../client/tools/classify";
 import { resetEnhancerPreferences } from "../../client/preferences";
@@ -36,9 +37,9 @@ const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: 
 
 const agentId = "db43c484-e0ea-4ae2-94f9-6f5261234567";
 const prompt = "# Review\n\n**Read only**\n\n" + Array.from({ length: 80 }, (_, i) => `Line ${i}`).join("\n");
-function agentView(theme = tokens, title = "Review") {
+function agentView(theme = tokens, title = "Review", settings?: Record<string, unknown>) {
   const data = classifyTool({ callId: "create", name: "paseo.create_agent", status: "completed", detail: {
-    type: "unknown", input: { title, provider: "cursor/grok-4.7", initialPrompt: prompt }, output: agentId,
+    type: "unknown", input: { title, provider: "cursor/grok-4.7", initialPrompt: prompt, settings }, output: agentId,
   } });
   return React.createElement(PreviewPanelSample, { tokens: theme,
     children: React.createElement(ToolPreviewContent, { data, tokens: theme, compact: false, resolvePath: (path) => path }),
@@ -63,6 +64,7 @@ afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
   vi.restoreAllMocks();
+  vi.useRealTimers();
   resetEnhancerPreferences();
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
 });
@@ -91,6 +93,77 @@ describe("create_agent preview", () => {
     await press("Render Markdown");
     expect(root.findByType(MarkdownView).props.text).toBe(prompt);
     expect(root.findAllByType(ToolbarButton).filter((node) => node.props.label === "Show raw text")).toHaveLength(1);
+  });
+
+  it.each(["web", "ios", "android"])("shows thinking and permissions and copies only the model in either mode on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(agentView(tokens, "Review", { thinkingOptionId: "max", modeId: "full-access" })); });
+    const verify = () => {
+      const text = textOf(renderer!.toJSON());
+      expect(text).not.toContain("思考");
+      expect(text).not.toContain("max");
+      expect(text).toContain("full-access");
+      expect(text).not.toContain("权限：");
+      const item = renderer!.root.findAllByType(ToolbarItem).find((node) => node.props.accessibilityLabel === "Copy model name")!;
+      expect(item.props.details.type).toBe(FooterDetails);
+      expect(item.props.details.props.thinkingLabel).toBe("max");
+      const permissions = renderer!.root.findByProps({ testID: "create-agent-permissions" });
+      expect(permissions.findAllByProps({ name: "Shield" }).length).toBeGreaterThan(0);
+    };
+    verify();
+    await press("Copy model name");
+    expect(clipboard.copyText).toHaveBeenLastCalledWith("grok-4.7");
+    await press("Show raw text");
+    verify();
+    await press("Copy model name");
+    expect(clipboard.copyText).toHaveBeenLastCalledWith("grok-4.7");
+    await press(`Copy agent ID ${agentId}`);
+    expect(clipboard.copyText).toHaveBeenLastCalledWith(agentId);
+    await press("Copy prompt");
+    expect(clipboard.copyText).toHaveBeenLastCalledWith(prompt);
+    await press("Render Markdown");
+    verify();
+  });
+
+  it("shows missing settings explicitly without inferring values from the prompt", () => {
+    act(() => { renderer = TestRenderer.create(agentView()); });
+    expect(textOf(renderer!.toJSON())).not.toContain("思考");
+    expect(textOf(renderer!.toJSON())).toContain("未指定");
+    const item = renderer!.root.findAllByType(ToolbarItem).find((node) => node.props.accessibilityLabel === "Copy model name")!;
+    expect(item.props.details.props.thinkingLabel).toBe("未指定");
+  });
+
+  it("shows thinking details on model hover using the Copy toolbar interaction", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(input, "useInputCapabilities").mockReturnValue({ native: false, hover: true, touch: false, compact: false });
+    act(() => { renderer = TestRenderer.create(agentView(tokens, "Review", { thinkingOptionId: "max", modeId: "full-access" })); });
+    const root = renderer!.root;
+    const model = root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Copy model name")[0]!;
+    expect(root.findAllByType(FooterDetails)).toHaveLength(0);
+    act(() => model.props.onHoverIn());
+    act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
+    expect(root.findByType(FooterDetails).props.thinkingLabel).toBe("max");
+    await act(async () => model.props.onPress());
+    expect(clipboard.copyText).toHaveBeenLastCalledWith("grok-4.7");
+  });
+
+  it.each(["ios", "android"])("opens thinking details on model long press on %s", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(agentView(tokens, "Review", { thinkingOptionId: "max" })); });
+    const root = renderer!.root;
+    const model = root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Copy model name")[0]!;
+    expect(root.findAllByType(FooterDetails)).toHaveLength(0);
+    act(() => model.props.onLongPress());
+    expect(root.findByType(FooterDetails).props.thinkingLabel).toBe("max");
+    expect(clipboard.copyText).not.toHaveBeenCalled();
+  });
+
+  it("reports a rejected model copy without showing success", async () => {
+    clipboard.copyText.mockRejectedValueOnce(new Error("clipboard denied"));
+    act(() => { renderer = TestRenderer.create(agentView()); });
+    await press("Copy model name");
+    expect(clipboard.error).toHaveBeenCalled();
+    expect(clipboard.show).not.toHaveBeenCalled();
   });
 
   it.each(["web", "ios", "android"])("keeps a full task heading above metadata in both modes on %s", async (os) => {
