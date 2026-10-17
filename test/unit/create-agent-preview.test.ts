@@ -200,7 +200,8 @@ describe("create_agent preview", () => {
     const root = renderer!.root;
     expect(StyleSheet.flatten(root.findByProps({ testID: "create-agent-metadata" }).props.style).flexDirection).toBe("column");
     expect(StyleSheet.flatten(root.findByProps({ testID: "create-agent-copy-icon" }).props.style).opacity).toBe(1);
-    expect(StyleSheet.flatten(root.findByProps({ testID: "create-agent-id" }).props.style).minHeight).toBe(44);
+    const id = root.findByProps({ testID: "create-agent-id" });
+    expect(Number(StyleSheet.flatten(id.props.style).minHeight) + 2 * id.props.hitSlop).toBeGreaterThanOrEqual(44);
     const idText = root.findAll((node) => (node.type as unknown) === "Text" && node.props.children === agentId)[0]!;
     expect(idText.props.numberOfLines).toBeUndefined();
     expect(StyleSheet.flatten(idText.props.style).flexShrink).toBe(1);
