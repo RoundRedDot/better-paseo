@@ -118,6 +118,9 @@ const pendingTimelines = new Set<AgentTimeline>();
 let notificationPending = false;
 let sequence = 0;
 
+/** The snapshot of a `rowBelow` the row does not follow. */
+const notFollowed = () => false;
+
 /** Negative when `a` sits above `b`, zero when their order is unknown. */
 function compare(a: { at: number; order: number }, b: { at: number; order: number }): number {
   return a.at - b.at || a.order - b.order;
@@ -421,6 +424,10 @@ function updateTool(agentId: string, entry: Entry, previous: ToolCallView | unde
  * `settled` is whether the call was complete as its row mounted: replayed
  * history, not a call the reader watched start. `view` is the row's root,
  * which places it among calls that share its millisecond.
+ *
+ * `followRowBelow` false pins `rowBelow` to false: a row whose layout does not
+ * depend on it is not drawn again each time the list mounts or unmounts the
+ * item below it while scrolling. The hooks stay the same either way.
  */
 export function useTimelineToolGroup(
   agentId: string,
@@ -428,6 +435,7 @@ export function useTimelineToolGroup(
   tool: ToolCallView,
   settled = false,
   view?: RefObject<unknown>,
+  followRowBelow = true,
 ): { group: readonly ToolCallView[] | null; anythingBelow: boolean; rowBelow: boolean } {
   const entry = useMemo<Entry>(() => ({
     at,
@@ -480,7 +488,8 @@ export function useTimelineToolGroup(
   }, [slotOf, agentId, at]);
   const group = useSyncExternalStore(subscribe, getGroup, getGroup);
   const anythingBelow = useSyncExternalStore(subscribe, getBelow, getBelow);
-  const rowBelow = useSyncExternalStore(subscribe, getRowBelow, getRowBelow);
+  const rowSnapshot = followRowBelow ? getRowBelow : notFollowed;
+  const rowBelow = useSyncExternalStore(subscribe, rowSnapshot, rowSnapshot);
   return { group, anythingBelow, rowBelow };
 }
 
@@ -568,10 +577,11 @@ export function useTimelineEntry(
   }, [agentId, at, kind, settledKey, view]);
 }
 
-/** `nextEntryIsRow`, kept current as rows mount and unmount. */
-export function useNextEntryIsRow(agentId: string, at: number, kind: TimelineEntryKind): boolean {
+/** `nextEntryIsRow`, kept current as rows mount and unmount; pinned to false unless `follow`. */
+export function useNextEntryIsRow(agentId: string, at: number, kind: TimelineEntryKind, follow = true): boolean {
   const getSnapshot = useCallback(() => nextEntryIsRow(agentId, at, kind), [agentId, at, kind]);
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const snapshot = follow ? getSnapshot : notFollowed;
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
 /** `hasEntryAfter`, kept current as items mount and unmount. */
