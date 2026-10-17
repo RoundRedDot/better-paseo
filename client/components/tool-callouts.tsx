@@ -433,7 +433,8 @@ export function ToolPreviewContent({ data, resolvePath, drawsImage = false, page
 }) {
   const { tokens, imageFile } = rest;
   const [raw, setRaw] = useState(false);
-  const markdown = isMarkdownWrite(data);
+  const createAgent = data.tool === "paseo" && data.paseo?.tool === "create_agent" && Boolean(data.paseo.createAgent);
+  const markdown = isMarkdownWrite(data) || createAgent;
   const streaming = data.status === "running";
   const questions = useMemo(() => readUserQuestions(data), [data]);
   if (questions) {
@@ -446,13 +447,14 @@ export function ToolPreviewContent({ data, resolvePath, drawsImage = false, page
   }
   const content = (
     <>
-      <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens} streaming={streaming}
+      <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens} streaming={streaming} fitControls={createAgent}
         pager={<>{pager}{markdown ? <ToolbarButton icon={raw ? "FileText" : "Code"}
           label={raw ? "Render Markdown" : "Show raw text"} onPress={() => setRaw((value) => !value)} tokens={tokens} /> : null}</>}
         meta={drawsImage ? <ImageMeta file={imageFile ?? null} tokens={tokens} /> : undefined} />
       <HoverPreviewBody key={markdown && !raw ? "markdown" : "raw"} streaming={streaming}>
         {data.filePath ? <PreviewPath path={resolvePath(data.filePath)} tokens={tokens} /> : null}
-        {markdown && !raw ? <MarkdownView text={data.code!} tokens={tokens} variant="document"
+        {createAgent ? <PaseoToolCallout data={data.paseo!} tokens={tokens} raw={raw} compact={rest.compact} /> :
+          markdown && !raw ? <MarkdownView text={data.code!} tokens={tokens} variant="document"
           streaming={streaming} size={blockProseBase(tokens.typography)} /> : <ToolBody data={data} {...rest} preview />}
         {data.error ? <PreviewError text={data.error} tokens={tokens} /> : null}
       </HoverPreviewBody>
@@ -587,7 +589,9 @@ function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, str
       iconLabel={title ?? summarizeTool(call).verb}
       left={pager} center={meta} fitControls={fitControls}>
       <View style={styles.previewActions}>
-        <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />
+        {call.tool === "paseo" && call.paseo?.createAgent ?
+          <ToolbarCopyButton text={call.paseo.createAgent.initialPrompt} label="Copy prompt" tokens={tokens} /> :
+          <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />}
       </View>
     </HoverPreviewHeader>
   );
@@ -972,7 +976,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
       )}
 
       {data.tool === "hub" && data.hub && <HubCallout data={data.hub} tokens={tokens} embedded />}
-      {data.tool === "paseo" && data.paseo && <PaseoToolCallout data={data.paseo} tokens={tokens} />}
+      {data.tool === "paseo" && data.paseo && <PaseoToolCallout data={data.paseo} tokens={tokens} compact={compact} />}
 
       {data.tool === "search" && data.search && (
         <View style={styles.section}>
