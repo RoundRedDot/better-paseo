@@ -31,6 +31,19 @@ const tokens = buildThemeTokens({
 });
 
 describe("HScroll", () => {
+  it("uses the platform indicator without a persistent track when requested", () => {
+    let view!: ReturnType<typeof TestRenderer.create>;
+    act(() => {
+      view = TestRenderer.create(React.createElement(HScroll,
+        { tokens, indicatorOnScroll: true, children: React.createElement("Content") }));
+    });
+    const scroller = view.root.find((node) => (node.type as unknown) === "Animated.ScrollView");
+    expect(scroller.props.showsHorizontalScrollIndicator).toBe(true);
+    expect(scroller.props.onLayout).toBeUndefined();
+    expect(view.root.findAll((node) => (node.type as unknown) === "Animated.View")).toHaveLength(0);
+    act(() => view.unmount());
+  });
+
   it("commits a width only when the indicator shows it", () => {
     let commits = 0;
     let view!: ReturnType<typeof TestRenderer.create>;
