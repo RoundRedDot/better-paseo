@@ -36,9 +36,9 @@ const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: 
 
 const agentId = "db43c484-e0ea-4ae2-94f9-6f5261234567";
 const prompt = "# Review\n\n**Read only**\n\n" + Array.from({ length: 80 }, (_, i) => `Line ${i}`).join("\n");
-function agentView(theme = tokens) {
+function agentView(theme = tokens, title = "Review") {
   const data = classifyTool({ callId: "create", name: "paseo.create_agent", status: "completed", detail: {
-    type: "unknown", input: { title: "Review", provider: "cursor/grok-4.7", initialPrompt: prompt }, output: agentId,
+    type: "unknown", input: { title, provider: "cursor/grok-4.7", initialPrompt: prompt }, output: agentId,
   } });
   return React.createElement(PreviewPanelSample, { tokens: theme,
     children: React.createElement(ToolPreviewContent, { data, tokens: theme, compact: false, resolvePath: (path) => path }),
@@ -91,6 +91,33 @@ describe("create_agent preview", () => {
     await press("Render Markdown");
     expect(root.findByType(MarkdownView).props.text).toBe(prompt);
     expect(root.findAllByType(ToolbarButton).filter((node) => node.props.label === "Show raw text")).toHaveLength(1);
+  });
+
+  it.each(["web", "ios", "android"])("keeps a full task heading above metadata in both modes on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const title = "[实施 A] 平台余额采集器：验证多平台额度采集、缓存有效期与失败状态的完整展示";
+    act(() => { renderer = TestRenderer.create(agentView(tokens, title)); });
+    const heading = () => renderer!.root.findAll((node) =>
+      (node.type as unknown) === "Text" && node.props.testID === "create-agent-title");
+    const verify = () => {
+      expect(heading()).toHaveLength(1);
+      const node = heading()[0]!;
+      expect(node.props.children).toBe(title);
+      expect(node.props.accessibilityRole).toBe("header");
+      expect(node.props.selectable).toBe(true);
+      expect(node.props.numberOfLines).toBeUndefined();
+      expect(StyleSheet.flatten(node.props.style).color).toBe(tokens.foreground);
+      const text = textOf(renderer!.toJSON());
+      expect(text.indexOf(title)).toBeLessThan(text.indexOf("Cursor"));
+      expect(text.indexOf(title)).toBeLessThan(text.indexOf(agentId));
+    };
+    verify();
+    await press("Show raw text");
+    verify();
+    await press("Copy prompt");
+    expect(clipboard.copyText).toHaveBeenLastCalledWith(prompt);
+    await press("Render Markdown");
+    verify();
   });
 
   it.each(["ios", "android", "web"])("puts ID on its own row with a visible copy affordance on mobile %s", (os) => {
