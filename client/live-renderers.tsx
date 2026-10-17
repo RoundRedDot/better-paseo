@@ -160,8 +160,11 @@ function LiveToolCallRendererBody({
   // below it kept its gap as if it were the newest row. A call already
   // finished as its row mounts is replayed history (see `timeline-order.ts`).
   const rootRef = useRef<View>(null);
-  const { group, anythingBelow, rowBelow } = useTimelineToolGroup(agentId, at, view, data.phase === "complete", rootRef);
+  // Only a stacking host's compensation depends on whether a row comes next.
   const hostStacks = useHostStacksRows();
+  const { group, anythingBelow, rowBelow } = useTimelineToolGroup(
+    agentId, at, view, data.phase === "complete", rootRef, hostStacks && preferences.compactRowSpacing,
+  );
   const groupFailed = group?.some((call) => call.status === "failed") ?? false;
 
   // The daemon side owns the shell, so revealing a file is one RPC. Paths
@@ -270,8 +273,8 @@ function LiveReasoningRendererBody({
   const rootRef = useRef<View>(null);
   useTimelineEntry(agentId, timestamp.getTime(), "thought", settledKey, rootRef);
   const anythingBelow = useHasEntryAfter(agentId, timestamp.getTime(), "thought", settledKey);
-  const rowBelow = useNextEntryIsRow(agentId, timestamp.getTime(), "thought");
   const hostStacks = useHostStacksRows();
+  const rowBelow = useNextEntryIsRow(agentId, timestamp.getTime(), "thought", hostStacks && preferences.compactRowSpacing);
 
   // Collapsed by default, streaming or not (plan §3.4 item 3); the reader's
   // choice survives the remount into history through the disclosure store.
