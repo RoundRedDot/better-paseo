@@ -70,6 +70,10 @@ function CreateAgentView({ data, tokens, raw, compact }: {
   const lines = useMemo(() => data.initialPrompt.split("\n"), [data.initialPrompt]);
   return (
     <View style={{ gap: space.sm, minWidth: 0 }}>
+      <Text testID="create-agent-title" selectable accessibilityRole="header" style={{
+        fontFamily: tokens.fontUi, fontSize: mobile ? 18 : 20, lineHeight: mobile ? 26 : 28,
+        fontWeight: "600", color: tokens.foreground, minWidth: 0, flexShrink: 1, marginBottom: 4,
+      }}>{data.title}</Text>
       <View testID="create-agent-metadata" style={{
         flexDirection: mobile ? "column" : "row", alignItems: mobile ? "stretch" : "center",
         justifyContent: "space-between", flexWrap: "wrap", gap: space.sm, minWidth: 0,
