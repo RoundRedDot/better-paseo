@@ -72,19 +72,19 @@ function CreateAgentView({ data, tokens, raw, compact }: {
   const mobile = capabilities.native || width < 600;
   const lines = useMemo(() => data.initialPrompt.split("\n"), [data.initialPrompt]);
   return (
-    <View style={{ gap: space.sm, minWidth: 0 }}>
+    <View style={{ gap: mobile ? space.xs : space.sm, minWidth: 0 }}>
       <Text testID="create-agent-title" selectable accessibilityRole="header" style={{
         fontFamily: tokens.fontUi, fontSize: mobile ? 18 : 20, lineHeight: mobile ? 26 : 28,
-        fontWeight: "600", color: tokens.foreground, minWidth: 0, flexShrink: 1, marginBottom: 4,
+        fontWeight: "600", color: tokens.foreground, minWidth: 0, flexShrink: 1, marginBottom: mobile ? 0 : 4,
       }}>{data.title}</Text>
       <View testID="create-agent-metadata" style={{
         flexDirection: mobile ? "column" : "row", alignItems: mobile ? "stretch" : "center",
-        justifyContent: "space-between", flexWrap: "wrap", gap: space.sm, minWidth: 0,
+        justifyContent: "space-between", flexWrap: "wrap", gap: mobile ? space.xs : space.sm, minWidth: 0,
       }}>
         <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.sm, minWidth: 0, flexShrink: 1 }}>
           <ProviderLogo provider={data.provider} size={16} showLabel
             color={normalizeProvider(data.provider) === "cursor" ? (tokens.isDark ? "#FFFFFF" : "#000000") : undefined} />
-          {data.model ? <ModelName model={data.model} thinkingOptionId={data.thinkingOptionId} tokens={tokens} /> : null}
+          {data.model ? <ModelName model={data.model} thinkingOptionId={data.thinkingOptionId} tokens={tokens} mobile={mobile} /> : null}
           <View testID="create-agent-permissions" accessibilityLabel={`Permissions: ${data.modeId ?? "未指定"}`}
             style={{ flexDirection: "row", alignItems: "center", gap: space.xs, minWidth: 0, maxWidth: "100%", flexShrink: 1 }}>
             <Icon name="Shield" size={14} color={tokens.foregroundMuted} />
@@ -94,7 +94,7 @@ function CreateAgentView({ data, tokens, raw, compact }: {
             </Text>
           </View>
         </View>
-        <AgentId agentId={data.agentId} tokens={tokens} />
+        <AgentId agentId={data.agentId} tokens={tokens} mobile={mobile} />
       </View>
       {raw ? <PreviewLines text={data.initialPrompt} lines={lines} tokens={tokens}
         style={{ color: tokens.foreground, fontFamily: tokens.fontMono,
@@ -106,10 +106,11 @@ function CreateAgentView({ data, tokens, raw, compact }: {
 }
 
 /** Copies the model ID exactly as requested, without provider or metadata. */
-function ModelName({ model, thinkingOptionId, tokens }: {
+function ModelName({ model, thinkingOptionId, tokens, mobile }: {
   model: string;
   thinkingOptionId?: string;
   tokens: ExtendedThemeTokens;
+  mobile: boolean;
 }) {
   const { copied, copy } = useCopy();
   const capabilities = useInputCapabilities();
@@ -119,8 +120,8 @@ function ModelName({ model, thinkingOptionId, tokens }: {
       <ToolbarItem label={copied ? "Copied" : "Copy model name"} accessibilityLabel="Copy model name"
         tokens={tokens} align="start" onPress={() => { void copy(model, { label: "Copy model name" }); }}
         details={<FooterDetails modelName={model} thinkingLabel={thinkingOptionId ?? "未指定"} tokens={tokens} />}
-        detailsWidth={detailsWidth}
-        buttonStyle={{ width: "auto", height: "auto", minHeight: capabilities.touch ? 44 : 24,
+        detailsWidth={detailsWidth} hitSlop={mobile ? 10 : 4}
+        buttonStyle={{ width: "auto", height: "auto", minHeight: mobile ? 24 : capabilities.touch ? 44 : 24,
           flexDirection: "row", gap: space.xs, minWidth: 0, maxWidth: "100%" }}>
         <Text style={{ fontSize: tokens.typography.block.meta.size, fontFamily: tokens.fontUi,
           color: tokens.foregroundMuted, flexShrink: 1, minWidth: 0 }}>{model}</Text>
@@ -131,7 +132,7 @@ function ModelName({ model, thinkingOptionId, tokens }: {
 }
 
 /** The entire ID is one copy target; touch keeps its affordance visible. */
-function AgentId({ agentId, tokens }: { agentId?: string; tokens: ExtendedThemeTokens }) {
+function AgentId({ agentId, tokens, mobile }: { agentId?: string; tokens: ExtendedThemeTokens; mobile: boolean }) {
   const { copied, copy } = useCopy();
   const { hovered, hoverProps } = useHover();
   const [focused, setFocused] = useState(false);
@@ -140,11 +141,11 @@ function AgentId({ agentId, tokens }: { agentId?: string; tokens: ExtendedThemeT
   return (
     <Pressable testID="create-agent-id" accessibilityRole={agentId ? "button" : undefined}
       accessibilityLabel={agentId ? `Copy agent ID ${agentId}` : "running"}
-      disabled={!agentId} {...hoverProps}
+      disabled={!agentId} hitSlop={mobile ? 10 : 0} {...hoverProps}
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
       onPress={() => { if (agentId) void copy(agentId, { label: "Copy agent ID" }); }}
       style={{ flexDirection: "row", alignItems: "center", gap: space.xs, maxWidth: "100%", minWidth: 0,
-        minHeight: capabilities.touch ? 44 : 24, paddingVertical: 3, borderRadius: radiusV2.block }}>
+        minHeight: mobile ? 24 : capabilities.touch ? 44 : 24, paddingVertical: 3, borderRadius: radiusV2.block }}>
       <Glyph name="CheckCircle" size={11} color={tokens.success} />
       <Text style={{ fontSize: tokens.typography.block.meta.size, fontFamily: tokens.fontUi,
         color: tokens.success, fontWeight: "600", flexShrink: 1, minWidth: 0 }}>{agentId ?? "running"}</Text>
