@@ -1,11 +1,14 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { Glyph } from "./glyph";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import { surfaceProps } from "./view-props";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { MarkdownView } from "./markdown/markdown-view";
 import { PreviewLines } from "../ui/preview-lines";
+import { ToolbarItem } from "../ui/toolbar-button";
+import { FooterDetails, useFooterDetailsWidth } from "./footer-details";
 import { useCopy } from "../ui/use-copy";
 import { useHover } from "../ui/use-hover";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
@@ -81,11 +84,15 @@ function CreateAgentView({ data, tokens, raw, compact }: {
         <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.sm, minWidth: 0, flexShrink: 1 }}>
           <ProviderLogo provider={data.provider} size={16} showLabel
             color={normalizeProvider(data.provider) === "cursor" ? (tokens.isDark ? "#FFFFFF" : "#000000") : undefined} />
-          {data.model ? <Text selectable style={{ fontSize: tokens.typography.block.meta.size,
-            fontFamily: tokens.fontUi, color: tokens.foregroundMuted, flexShrink: 1 }}>{data.model}</Text> : null}
-          {data.modeId ? <Text selectable style={{ fontSize: tokens.typography.block.meta.size,
-            fontWeight: "600", color: tokens.accent, paddingHorizontal: 6, paddingVertical: 2,
-            borderRadius: radiusV2.block }}>{data.modeId} mode</Text> : null}
+          {data.model ? <ModelName model={data.model} thinkingOptionId={data.thinkingOptionId} tokens={tokens} /> : null}
+          <View testID="create-agent-permissions" accessibilityLabel={`Permissions: ${data.modeId ?? "未指定"}`}
+            style={{ flexDirection: "row", alignItems: "center", gap: space.xs, minWidth: 0, maxWidth: "100%", flexShrink: 1 }}>
+            <Icon name="Shield" size={14} color={tokens.foregroundMuted} />
+            <Text selectable style={{ fontSize: tokens.typography.block.meta.size,
+              fontFamily: tokens.fontUi, color: tokens.foregroundMuted, flexShrink: 1 }}>
+              {data.modeId ?? "未指定"}
+            </Text>
+          </View>
         </View>
         <AgentId agentId={data.agentId} tokens={tokens} />
       </View>
@@ -94,6 +101,31 @@ function CreateAgentView({ data, tokens, raw, compact }: {
           fontSize: tokens.typography.mono.size, lineHeight: tokens.typography.mono.lineHeight }} /> :
         <MarkdownView text={data.initialPrompt} tokens={tokens} variant="document" compact={mobile}
           size={blockProseBase(tokens.typography)} />}
+    </View>
+  );
+}
+
+/** Copies the model ID exactly as requested, without provider or metadata. */
+function ModelName({ model, thinkingOptionId, tokens }: {
+  model: string;
+  thinkingOptionId?: string;
+  tokens: ExtendedThemeTokens;
+}) {
+  const { copied, copy } = useCopy();
+  const capabilities = useInputCapabilities();
+  const detailsWidth = useFooterDetailsWidth();
+  return (
+    <View testID="create-agent-model" style={{ minWidth: 0, maxWidth: "100%", flexShrink: 1 }}>
+      <ToolbarItem label={copied ? "Copied" : "Copy model name"} accessibilityLabel="Copy model name"
+        tokens={tokens} align="start" onPress={() => { void copy(model, { label: "Copy model name" }); }}
+        details={<FooterDetails modelName={model} thinkingLabel={thinkingOptionId ?? "未指定"} tokens={tokens} />}
+        detailsWidth={detailsWidth}
+        buttonStyle={{ width: "auto", height: "auto", minHeight: capabilities.touch ? 44 : 24,
+          flexDirection: "row", gap: space.xs, minWidth: 0, maxWidth: "100%" }}>
+        <Text style={{ fontSize: tokens.typography.block.meta.size, fontFamily: tokens.fontUi,
+          color: tokens.foregroundMuted, flexShrink: 1, minWidth: 0 }}>{model}</Text>
+        <Glyph name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : tokens.foregroundMuted} />
+      </ToolbarItem>
     </View>
   );
 }
