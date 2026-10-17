@@ -19,7 +19,7 @@ active Paseo theme. The performance section compares it with Paseo’s own timel
 
 ## Highlights
 
-- **Measured performance.** The deployed revision has 220 independent validation runs; remaining gaps, sample variability and historical revisions are disclosed in [Performance](#performance).
+- **Measured performance.** Latest main `b9dfae6` has 630 fresh samples; comparisons and A/A variability are disclosed in [Performance](#performance).
 - **Measured memory.** The same round records post-GC JS heap and signed MB differences against no plugin. [Memory comparison](#memory-comparison).
 - **One row per tool call.** Calls start collapsed to a 26pt row with a typed summary, open on a
   press, and stay open or closed across completion, history and remounts.
@@ -49,162 +49,145 @@ paseo plugin update better-paseo
 
 ## Performance
 
-<!-- deployed-fix:start -->
-### Latest deployed revision: 220 independent runs
+### Latest main: 630 fresh samples
 
-Deployed `722238d`, compared directly with parent `7f01b2d`. This independent batch has **220 runs**: 100 core, 60 remaining iOS regressions and 60 Web regressions, with zero collection/audit failures or exclusions. Mac Studio, iPhone 16 Pro / iOS 18.6 development simulator, up to four groups with varying actual overlap. Keep it separate from the historical `48a6646` full matrix and `c4c9f3f` history runs below.
-
-![Deployed fix: total iOS row-render work](docs/perf/readme/ios-fixed.en.svg)
-
-| Scenario | Native ms | Parent ms | Fixed ms | vs native | A/A over 10% |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Large diff | 48.6 | 52.4 | 56.1 | +15.45% | 2/5 |
-| 20 reads | 278.0 | 331.5 | 275.7 | -0.79% | 2/5 |
-| Reasoning prose | 249.3 | 324.6 | 249.6 | +0.16% | 0/5 |
-| Reasoning sections | 239.5 | 292.1 | 223.5 | -6.71% | 2/5 |
-| Growing log (defaults) | 155.0 | 254.4 | 182.9 | +18.04% | 2/5 |
-
-**All-five parity has not been achieved.** Large diff and the default growing log remain 15.45% and 18.04% above native; the other three observed medians are within 10%. Eight of 25 A/A pairs exceed 10% (maximum 31.31%), so lower medians do not prove stable improvements. The remaining iOS/Web checks observed no new median regression above 10%.
-
-#### Remaining iOS regressions (60 runs)
-
-Five runs per revision, showing median total row-render work. This phase compares parent and fixed only; do not splice in native or Beautiful Chat values from older rounds.
-
-| Scenario | Parent ms | Fixed ms | vs parent |
-| --- | ---: | ---: | ---: |
-| Mixed turn | 256.8 | 226.4 | -11.84% |
-| History replay | 213.3 | 194.7 | -8.69% |
-| Large shell log | 52.7 | 49.1 | -6.72% |
-| Table streaming | 563.2 | 531.9 | -5.55% |
-| Code block streaming | 747.5 | 759.0 | +1.53% |
-| Long reply | 1463.5 | 1471.5 | +0.55% |
-
-#### Web regressions (60 runs)
-
-Five runs per revision, showing median total row-render work. This phase compares parent and fixed only; do not splice in native or Beautiful Chat values from older rounds.
-
-| Scenario | Parent ms | Fixed ms | vs parent |
-| --- | ---: | ---: | ---: |
-| Large diff | 5.2 | 5.0 | -3.85% |
-| 20 reads | 17.5 | 13.7 | -21.71% |
-| Reasoning prose | 5.6 | 5.0 | -10.71% |
-| Reasoning sections | 4.9 | 4.3 | -12.24% |
-| Growing log (defaults) | 6.2 | 5.2 | -16.13% |
-| Mixed turn | 14.8 | 14.6 | -1.35% |
-
-The metric is host Profiler `allRows.sum`, not whole-app CPU or first-visible time. Core native/parent have five runs each and fixed pools ten; risk phases have five per revision. The Web process filter missed absolute-path Node runners; actual overlap was reconstructed separately from intervals. Empty process lists do not mean no concurrency. **This is not iPhone 15 Pro Release acceptance.**
-
-[Full results, ranges, diagnosis and evidence](docs/bench/2026-10-16-ios-five/parallel/README.md)
-
-### Historical three-mode full matrix (48a6646)
-
-<!-- deployed-fix:end -->
-
-Three configurations: **no plugin** (Paseo 0.11.2), **Beautiful Chat** `42b61d8`, and **Better Paseo** `48a6646`. Rerun on 2026-10-16 on Mac Studio (Apple M5 Max, 18 cores, 64 GB, macOS 27.0.1): 11 scenarios × 3 modes × 5 runs on each of Web and iOS, **330 replay runs**. Modes rotate and measurements run serially; every cell is a median. Only this round is comparable. Groups with display errors are N/A. [Raw data, ranges and validation](docs/bench/2026-10-16-readme/README.md).
+Rerun on Mac Studio (Apple M5 Max, 18 cores, 64 GB, macOS 27.0.1) on 2026-10-17, pinned to the latest `main`, **`b9dfae6`**. Web/iOS each run 11 scenarios × 5 configurations × 5 repetitions: **550 replays**, plus **80 long-history samples**. Configurations are no plugin, Beautiful Chat `42b61d8`, current main, an independent current-main A/A repeat and parent `2fc6476`. Up to four isolated groups run concurrently, rotating lane placement and configuration order by scenario and repetition; three-mode tables use medians of five primary runs per cell. Display-error groups are N/A. [Full ranges, failures and evidence](docs/bench/2026-10-17-readme/README.md).
 
 ![Web main-thread time](docs/perf/readme/web-cpu.en.svg)
 
-Whole-replay main-thread Task time: vs no plugin, 9 lower, 1 even and 1 higher; vs Beautiful Chat, 10 lower, 1 even and 0 higher. A difference under 10%, or both whole Web Task replays below 0.5 seconds, is even.
+Whole-replay main-thread Task time vs no plugin: 9 lower, 2 even, 0 higher; vs Beautiful Chat: 10 lower, 1 even, 0 higher. Under 10%, or both whole Task replays below 0.5 seconds, is even.
 
-The table measures total row-render work (allRows.sum, milliseconds), using the same host React.Profiler boundary. Per-commit p95 is not total work. Vs no plugin: 9 lower, 0 even and 2 higher.
+The table measures cumulative row-render work (host Profiler allRows.sum, milliseconds), not per-commit p95. Vs no plugin: 9 lower, 0 even, 2 higher.
 
 | Scenario | No plugin | Beautiful Chat | Better Paseo | vs no plugin | vs Beautiful Chat |
 | --- | ---: | ---: | ---: | :--- | :--- |
-| Code block streaming | 1,274.8 | 1,295.5 | **297.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;77% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;77% |
-| Large diff | 36.0 | 581.7 | **21.4** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;41% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;96% |
-| History replay | 157.8 | 4,468.5 | **214.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;36% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;95% |
-| Long reply | 2,040.9 | 3,239.6 | **499.8** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;76% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;85% |
-| Mixed turn | 210.3 | 571.8 | **97.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;54% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;83% |
-| 20 file reads | 140.8 | 966.1 | **110.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;22% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;89% |
-| Reasoning, prose | 532.6 | 1,016.2 | **157.9** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;70% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;84% |
-| Reasoning, sections | 487.4 | 1,309.9 | **138.8** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;72% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;89% |
-| Large shell log | 36.2 | 263.0 | **20.7** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;43% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;92% |
-| Table streaming | 1,129.7 | 413.6 | **256.3** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;77% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;38% |
-| Growing tool log (defaults) | 58.7 | 920.3 | **108.8** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;85% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;88% |
+| Code block streaming | 827.8 | 802.4 | **147.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;82% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;82% |
+| Large diff | 21.9 | 549.8 | **15.9** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;27% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;97% |
+| History replay | 164.2 | 4,562.6 | **218.3** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;33% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;95% |
+| Long reply | 1,133.3 | 2,093.6 | **236.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;79% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;89% |
+| Mixed turn | 121.3 | 326.3 | **53.2** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;56% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;84% |
+| 20 file reads | 92.2 | 786.6 | **52.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;43% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;93% |
+| Reasoning, prose | 276.2 | 647.1 | **63.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;77% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;90% |
+| Reasoning, sections | 281.8 | 989.0 | **60.5** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;79% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;94% |
+| Large shell log | 23.7 | 185.8 | **13.7** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;42% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;93% |
+| Table streaming | 686.2 | 232.0 | **156.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;77% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;33% |
+| Growing tool log (defaults) | 37.4 | 559.2 | **51.1** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;37% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;91% |
 
-Modes retain their default disclosure behaviour: Beautiful Chat opens running tools, while Better Paseo keeps them collapsed. Despite its historical name, `tool-expanded-streaming` performs no expand action; “Growing tool log (defaults)” does not establish expanded-body performance.
+Modes retain default disclosure: Beautiful Chat opens running tools; Better Paseo keeps them collapsed. `tool-expanded-streaming` performs no expand action and is labelled “Growing tool log (defaults)”; this does not establish expanded-body performance.
 
 ### Streaming layout shift
 
-Cumulative layout shift (CLS, lower is better), from the same Web runs. The Task-time 0.5-second rule does not apply. Six decimals keep tiny baselines visible; percentages can magnify small absolute differences.
+Cumulative layout shift (CLS, lower is better) from the same Web runs, with six decimals. The Task-time 0.5-second rule does not apply; percentages can magnify tiny absolute differences.
 
 | Scenario | No plugin | Beautiful Chat | Better Paseo | vs no plugin | vs Beautiful Chat |
 | --- | ---: | ---: | ---: | :--- | :--- |
-| Code block streaming | 0.047734 | 0.133573 | **0.011550** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;76% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;91% |
+| Code block streaming | 0.041921 | 0.127708 | **0.011655** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;72% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;91% |
 | Large diff | 0.000015 | 0.024003 | **0.000015** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
-| History replay | 0.000015 | 0.309520 | **0.000015** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
-| Long reply | 0.171551 | 0.646352 | **0.000015** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
-| Mixed turn | 0.004936 | 0.092814 | **0.026648** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;440% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;71% |
-| 20 file reads | 0.001963 | 0.299145 | **0.000777** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;60% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
-| Reasoning, prose | 0.000015 | 0.098468 | **0.000777** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5230% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;99% |
-| Reasoning, sections | 0.000015 | 0.145948 | **0.000777** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5230% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;99% |
-| Large shell log | 0.000015 | 0.005080 | **0.000015** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
-| Table streaming | 0.047770 | 0.039745 | **0.010534** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;78% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;73% |
+| History replay | 0.240602 | 0.088614 | **0.000015** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
+| Long reply | 0.183334 | 0.646989 | **0.000015** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
+| Mixed turn | 0.004936 | 0.092846 | **0.026648** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;440% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;71% |
+| 20 file reads | 0.001990 | 0.678542 | **0.000777** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;61% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
+| Reasoning, prose | 0.000015 | 0.098084 | **0.000777** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5230% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;99% |
+| Reasoning, sections | 0.000015 | 0.147581 | **0.000777** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5230% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;99% |
+| Large shell log | 0.000015 | 0.021574 | **0.000015** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
+| Table streaming | 0.045675 | 0.039717 | **0.010534** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;77% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;73% |
 | Growing tool log (defaults) | 0.000015 | 0.014097 | **0.000015** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
 
 ### iOS
 
 ![iOS total row-render work](docs/perf/readme/ios-commit.en.svg)
 
-iPhone 16 Pro / iOS 18.6 simulator, Paseo 0.11.2 development Hermes build, cold-launched per run. One benchmark simulator; Web and iOS measurements do not overlap. Total row-render work is in milliseconds; under 10% is even. Vs no plugin: 3 lower, 3 even and 5 higher; vs Beautiful Chat: 10 lower, 1 even and 0 higher. These are not hardware frame-rate or Release measurements.
+iPhone 16 Pro / iOS 18.6 development Hermes simulator, cold-launched per sample. Four isolated benchmark simulators, up to four concurrent groups; all Web work completes before iOS starts. Row-render totals are milliseconds; under 10% is even. Vs no plugin: 1 lower, 3 even, 1 higher, 6 unavailable; vs Beautiful Chat: 5 lower, 0 even, 0 higher, 6 unavailable. These are not physical-device frame rates or Release performance.
 
 | Scenario | No plugin | Beautiful Chat | Better Paseo | vs no plugin | vs Beautiful Chat |
 | --- | ---: | ---: | ---: | :--- | :--- |
-| Code block streaming | 2,227.5 | 4,536.3 | **753.5** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;66% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;83% |
-| Large diff | 52.9 | 2,878.8 | **62.8** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;19% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;98% |
-| History replay | 207.1 | 226.3 | **213.0** | even | even |
-| Long reply | 4,971.2 | 13,421.2 | **1,537.8** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;69% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;89% |
-| Mixed turn | 329.6 | 664.8 | **308.0** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;54% |
-| 20 file reads | 286.0 | 2,722.9 | **341.8** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;20% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;87% |
-| Reasoning, prose | 286.6 | 1,504.2 | **386.7** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;35% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;74% |
-| Reasoning, sections | 263.5 | 2,419.4 | **327.7** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;24% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;86% |
-| Large shell log | 53.8 | 349.5 | **57.0** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;84% |
-| Table streaming | 968.1 | 1,128.4 | **584.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;40% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;48% |
-| Growing tool log (defaults) | 194.5 | 3,051.3 | **310.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;60% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;90% |
+| Code block streaming | 2,321.7 | 4,802.1 | **754.4** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;68% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;84% |
+| Large diff | 46.9 | 3,151.1 | **N/A** | N/A | N/A |
+| History replay | 198.9 | 260.7 | **N/A** | N/A | N/A |
+| Long reply | 5,113.1 | 13,914.4 | **N/A** | N/A | N/A |
+| Mixed turn | 267.1 | 647.5 | **N/A** | N/A | N/A |
+| 20 file reads | 278.4 | 2,640.9 | **265.8** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;90% |
+| Reasoning, prose | 262.3 | 1,477.3 | **259.5** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;82% |
+| Reasoning, sections | 241.4 | 2,536.1 | **N/A** | N/A | N/A |
+| Large shell log | 47.8 | 369.9 | **55.1** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;15% | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;85% |
+| Table streaming | 937.3 | 1,107.7 | **N/A** | N/A | N/A |
+| Growing tool log (defaults) | 165.9 | 3,155.4 | **171.9** | even | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;95% |
 
-Green ⬆ is lower; red ⬇ is higher. Percentages use medians before rounding. `history-100` is a fixture name, not 100 actual provider turns; it is labelled “History replay” here.
+Green ⬆ is lower; red ⬇ is higher. Percentages use unrounded medians. `history-100` is a fixture name, not 100 actual provider turns; it is labelled “History replay”.
 
-**Method.** Fixed host `759532509`, identical host row probes for native/plugin renderers. Web uses a newly exported production profiling build (main JS SHA256 prefix `c38ec6413ace0974`), Chrome 155.0.8059.40 at 1280×900; CDP reads main-thread time and forces GC before heap/DOM readings. iOS uses a development simulator build, not Release. Private daemon 6871, asserted mode per run, default feature settings with measurement counters enabled on the candidate. [Scripts, host patch and source verification](docs/bench/2026-10-16-readme/README.md). Generate charts with `node docs/perf/readme-charts.mjs`.
+**Method and limits.** Fixed Paseo 0.11.2 / `759532509` with identical host row probes; each lane has a freshly exported production profiling Web build with a recorded hash. Chrome 155.0.8059.40, 1280×900; CDP measures main-thread time, with forced-GC heap/DOM readings after timing. Default feature settings; current-version measurement counters are enabled. Row work excludes whole native layout and app CPU. Raw data records load, CPU idle and memory pressure; admission requires CPU idle ≥15%, memory free ≥10% and pressure level 1; load is recorded without a load-average cutoff. End-resource excursions remain flagged. Actual overlap varies: these are observed medians under this protocol, not fixed-concurrency throughput or stable-speedup claims.
+
+### Parent comparison and A/A variability
+
+Parent is `2fc6476`; current main is `b9dfae6`. Each cell uses five runs and total row-render work in milliseconds. A/A counts the five additional current-version runs whose paired relative difference exceeds 10%; these runs are not pooled into the main table. All unstable pairs are retained; lower medians do not establish stable improvements.
+
+#### Web
+
+| Scenario | Parent ms | Main ms | vs parent | A/A over 10% | Max A/A difference |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Code block streaming | 148.0 | 147.1 | -0.61% | 1/5 | 25.97% |
+| Large diff | 12.2 | 15.9 | +30.33% | 4/5 | 33.96% |
+| History replay | 220.5 | 218.3 | -1.00% | 4/5 | 27.78% |
+| Long reply | 243.5 | 236.6 | -2.83% | 3/5 | 24.70% |
+| Mixed turn | 58.1 | 53.2 | -8.43% | 3/5 | 34.30% |
+| 20 file reads | 60.2 | 52.1 | -13.46% | 5/5 | 36.11% |
+| Reasoning, prose | 67.1 | 63.6 | -5.22% | 2/5 | 22.29% |
+| Reasoning, sections | 65.6 | 60.5 | -7.77% | 3/5 | 19.36% |
+| Large shell log | 11.4 | 13.7 | +20.18% | 2/5 | 57.39% |
+| Table streaming | 138.9 | 156.0 | +12.31% | 4/5 | 32.67% |
+| Growing tool log (defaults) | 48.2 | 51.1 | +6.02% | 3/5 | 23.44% |
+
+#### iOS
+
+| Scenario | Parent ms | Main ms | vs parent | A/A over 10% | Max A/A difference |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Code block streaming | N/A | 754.4 | N/A | N/A | N/A |
+| Large diff | 54.1 | N/A | N/A | N/A | N/A |
+| History replay | 208.5 | N/A | N/A | N/A | N/A |
+| Long reply | 1,490.0 | N/A | N/A | N/A | N/A |
+| Mixed turn | 219.8 | N/A | N/A | N/A | N/A |
+| 20 file reads | 276.7 | 265.8 | -3.94% | N/A | N/A |
+| Reasoning, prose | N/A | 259.5 | N/A | N/A | N/A |
+| Reasoning, sections | 222.0 | N/A | N/A | N/A | N/A |
+| Large shell log | 50.2 | 55.1 | +9.76% | 3/5 | 20.14% |
+| Table streaming | N/A | N/A | N/A | N/A | N/A |
+| Growing tool log (defaults) | N/A | 171.9 | N/A | N/A | N/A |
+
 
 ### Long-history loading
 
-This is an **independent Mac Studio rerun** using `history-complete-v1`, Better Paseo `c4c9f3f` and Beautiful Chat `42b61d8`, with default settings. Web and iOS have 40 runs each, **80 total**: five candidate A/A pairs and five runs per control for each scenario/platform. iOS uses an iPhone 16 Pro / iOS 18.6 development simulator, not iPhone 15 Pro Release acceptance.
+The same concurrent-max4 campaign reruns `history-complete-v1`: 40 Web and 40 iOS samples, **80 total**. Each scenario/platform has five current-version A/A pairs and five runs per control. Sources are `b9dfae6` and Beautiful Chat `42b61d8`, with default settings. Both the 810-entry / one-provider-turn and 832-entry / 12-turn inputs retain the 59,427-character reply. The 260 reasoning items use distinct equal-length synthetic tags; this does not establish a fix for the old duplicate-key input.
 
-**Execution changed:** Web finished serially; during iOS collection the user requested up to four parallel groups. Some earlier-gate samples may also overlap environment preparation; see the report for intervals. These tables descriptively summarize the captured round, **not a controlled speedup under uniform serial or fixed-concurrency conditions**. Later samples record CPU idle and memory pressure; the separate five-fix concurrent matrix is not merged here.
-
-The new fixture retains 810 entries / one actual provider turn, the exact 59,427-character tail reply and overlapping tool lifecycles. Its 260 reasoning items receive distinct equal-length synthetic tags to avoid identical text ID seeds across page boundaries. A second scenario has 832 entries / 12 actual turns. **This is a new input, not a fix or acceptance of the original duplicate-key case; do not mix the rounds.**
-
-![New-fixture cold-open row work](docs/perf/readme/history-complete-open.en.svg)
+![Long-history cold-open row work](docs/perf/readme/history-complete-open.en.svg)
 
 #### Web
 
 | Scenario / phase | No plugin | Beautiful Chat | Better Paseo |
 | --- | ---: | ---: | ---: |
-| 810 entries / 1 turn — Cold-open row work | 89.3 | 1,995.1 | 45.4 |
-| 810 entries / 1 turn — First older reveal row work | 15.9 | 527.8 | 12.5 |
-| 810 entries / 1 turn — Whole-session return row work | 157.4 | 2,164.8 | 64.1 |
-| 832 entries / 12 turns — Cold-open row work | 85.4 | 2,022.0 | 46.6 |
-| 832 entries / 12 turns — First older reveal row work | 21.4 | 540.0 | 12.7 |
-| 832 entries / 12 turns — Whole-session return row work | 158.0 | 2,198.2 | 65.8 |
+| 810 entries / 1 turn — Cold-open row work | 98.4 | 1,808.8 | 137.7 |
+| 810 entries / 1 turn — First older reveal row work | 11.9 | 531.2 | 10.7 |
+| 810 entries / 1 turn — Whole-session return row work | 160.9 | 2,155.7 | 63.8 |
+| 832 entries / 12 turns — Cold-open row work | 111.4 | 1,841.7 | 129.7 |
+| 832 entries / 12 turns — First older reveal row work | 12.4 | 526.3 | 15.0 |
+| 832 entries / 12 turns — Whole-session return row work | 156.1 | 2,167.2 | 63.2 |
 
 #### iOS
 
 | Scenario / phase | No plugin | Beautiful Chat | Better Paseo |
 | --- | ---: | ---: | ---: |
-| 810 entries / 1 turn — Cold-open row work | 137.3 | 190.8 | 61.8 |
-| 810 entries / 1 turn — First older reveal row work | 183.3 | 11.9 | 174.1 |
-| 810 entries / 1 turn — Whole-session return row work | 251.6 | 355.9 | 99.1 |
-| 832 entries / 12 turns — Cold-open row work | 150.0 | 187.0 | 68.7 |
-| 832 entries / 12 turns — First older reveal row work | 191.1 | 49.4 | 182.5 |
-| 832 entries / 12 turns — Whole-session return row work | 290.0 | 398.6 | 105.3 |
+| 810 entries / 1 turn — Cold-open row work | 173.6 | 212.9 | N/A |
+| 810 entries / 1 turn — First older reveal row work | 182.4 | 13.7 | N/A |
+| 810 entries / 1 turn — Whole-session return row work | 315.8 | 402.5 | N/A |
+| 832 entries / 12 turns — Cold-open row work | 161.4 | 198.6 | 127.3 |
+| 832 entries / 12 turns — First older reveal row work | 182.0 | 47.7 | 160.1 |
+| 832 entries / 12 turns — Whole-session return row work | 295.4 | 356.1 | 106.5 |
 
 ![Whole-session return row work](docs/perf/readme/history-complete-return.en.svg)
 
-Values are milliseconds. The third phase switches the host pane away from the session, proves the target timeline actually unmounted, then returns to the same agent without archiving it. It measures whole-view remount, **not independent Markdown-block remount during scrolling**. All 36 cells must have valid measurements before publication; old errors and inapplicable phases remain in the historical report.
+Values are milliseconds. Web older reveal uses a full-height physical wheel from the tail, with no untimed pre-scroll; iOS records preparation before a measured HID drag. Whole-session return proves target unmount before returning through the host pane; it is not independent Markdown-block remount during scrolling. Numeric current-version groups require exact copying before reveal and after return. Any failed attempt makes every phase of its scenario/configuration group N/A; no successful subset is substituted. JS-ready proxies are not first-usable viewport times; reveal/return may render different row sets, so interpret totals with ranges and A/A spread.
 
-Row-render work excludes native layout and whole-app CPU; JS-ready proxies are not proven first-usable viewport times. Reveal and return can render different row sets; interpret totals with ranges, A/A spread, RPCs and content-integrity gates.
+[History ranges, A/A and raw evidence](docs/bench/2026-10-17-readme/parallel-v2/history/RESULTS.md)
 
-[Full follow-up report and raw evidence](docs/bench/2026-10-16-history-complete/README.md) · [Historical fixture report](docs/bench/2026-10-16-readme/README.md)
 
 ### Where the time goes
 
@@ -219,35 +202,31 @@ Row-render work excludes native layout and whole-app CPU; JS-ready proxies are n
 
 ## Memory comparison
 
-<!-- historical-memory:start -->
-**Historical memory baseline: `48a6646`.** The latest `722238d` Web regression phase did not remeasure JS heap; this table is not memory acceptance for that deployed revision.
-<!-- historical-memory:end -->
-
-Web production profiling build, 2026-10-16, same runs as the CPU chart, median of 5 readings after forced GC. This is JS heap, not total process/app memory. Differences are Better Paseo minus the control, in MB with signs; the 10% even rule does not apply.
+2026-10-17, the same Web production profiling runs, median of five primary post-GC readings. This is JS heap, not total process/app memory. Differences are Better Paseo minus each control, in MB; the 10% even rule does not apply.
 
 ![JS heap and DOM nodes](docs/perf/readme/web-memory.en.svg)
 
 | Scenario | No plugin | Beautiful Chat | Better Paseo | vs no plugin | vs Beautiful Chat |
 | --- | ---: | ---: | ---: | :--- | :--- |
-| Code block streaming | 117.4 | 116.8 | **116.1** | -1.3 | -0.7 |
-| Large diff | 111.1 | 215.8 | **114.1** | +3.0 | -101.7 |
-| History replay | 117.9 | 241.5 | **122.3** | +4.4 | -119.3 |
-| Long reply | 159.3 | 118.2 | **125.2** | -34.0 | +7.0 |
-| Mixed turn | 114.8 | 124.5 | **117.7** | +3.0 | -6.8 |
-| 20 file reads | 114.1 | 244.3 | **119.3** | +5.3 | -124.9 |
-| Reasoning, prose | 112.3 | 115.6 | **115.4** | +3.1 | -0.2 |
-| Reasoning, sections | 111.3 | 115.8 | **115.4** | +4.0 | -0.4 |
-| Large shell log | 111.5 | 128.3 | **115.8** | +4.3 | -12.5 |
-| Table streaming | 114.9 | 116.2 | **117.2** | +2.3 | +1.0 |
-| Growing tool log (defaults) | 113.9 | 125.4 | **120.0** | +6.1 | -5.4 |
+| Code block streaming | 107.5 | 106.5 | **106.1** | -1.4 | -0.4 |
+| Large diff | 98.8 | 204.8 | **103.4** | +4.6 | -101.4 |
+| History replay | 105.0 | 232.1 | **109.8** | +4.9 | -122.3 |
+| Long reply | 148.9 | 108.1 | **115.7** | -33.2 | +7.6 |
+| Mixed turn | 103.9 | 113.8 | **106.2** | +2.4 | -7.5 |
+| 20 file reads | 102.6 | 231.7 | **108.2** | +5.5 | -123.5 |
+| Reasoning, prose | 98.6 | 102.0 | **102.5** | +3.9 | +0.5 |
+| Reasoning, sections | 100.2 | 103.0 | **104.0** | +3.7 | +0.9 |
+| Large shell log | 100.4 | 116.5 | **103.9** | +3.6 | -12.6 |
+| Table streaming | 103.6 | 104.4 | **105.1** | +1.5 | +0.7 |
+| Growing tool log (defaults) | 100.6 | 111.6 | **106.2** | +5.7 | -5.3 |
 
-Raw samples: [Web](docs/bench/2026-10-16-readme/raw/web).
+[Raw Web samples](docs/bench/2026-10-17-readme/parallel-v2/raw/web)
 
 ---
 
 ## Features
 
-Screenshots refreshed on 2026-10-16 from `722238d` using the offline Web showcase. All product screenshots default to light and automatically switch to dark with the reader’s theme; the phone frame is illustrative. Performance versions are identified separately above. [Capture manifest](docs/images/screenshots.json).
+Screenshots refreshed on 2026-10-17 from b9dfae6 using the offline Web showcase. All product screenshots default to light and switch to dark with the reader’s theme; the phone frame is illustrative. Performance versions and conditions are identified above. [Capture manifest](docs/images/screenshots.json).
 
 Everything below is on top of what Beautiful Chat already drew: typed tool cards, Shiki
 highlighting, image reads, file reveal and the plugin's own find bar.
