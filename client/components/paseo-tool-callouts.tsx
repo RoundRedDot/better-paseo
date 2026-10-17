@@ -1,11 +1,16 @@
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React, { useMemo, useState } from "react";
+import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { Glyph } from "./glyph";
 import { surfaceProps } from "./view-props";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
-import { ProviderLogo } from "./provider-logo";
-import { SyntaxHighlightBlock } from "./syntax-highlight";
+import { MarkdownView } from "./markdown/markdown-view";
+import { PreviewLines } from "../ui/preview-lines";
+import { useCopy } from "../ui/use-copy";
+import { useHover } from "../ui/use-hover";
+import { useInputCapabilities } from "../ui/use-input-capabilities";
+import { blockProseBase } from "../ui/tokens/typography";
+import { ProviderLogo, normalizeProvider } from "./provider-logo";
 import { selectableSurface } from "./selection";
 import { selectionSurface } from "./selection-actions";
 import type {
@@ -20,6 +25,8 @@ import type {
 interface PaseoToolCalloutProps {
   data: PaseoToolData;
   tokens: ExtendedThemeTokens;
+  raw?: boolean;
+  compact?: boolean;
 }
 
 /**
@@ -28,11 +35,11 @@ interface PaseoToolCalloutProps {
  * whose header already names the call and whose open state decides whether
  * this is mounted at all.
  */
-export function PaseoToolCallout({ data, tokens }: PaseoToolCalloutProps) {
+export function PaseoToolCallout({ data, tokens, raw = false, compact = false }: PaseoToolCalloutProps) {
   return (
     <View {...surfaceProps(selectionSurface)} style={styles.body}>
       {data.tool === "create_agent" && data.createAgent && (
-        <CreateAgentView data={data.createAgent} tokens={tokens} />
+        <CreateAgentView data={data.createAgent} tokens={tokens} raw={raw} compact={compact} />
       )}
       {data.tool === "list_providers" && data.providers && (
         <ListProvidersView data={data.providers} tokens={tokens} />
@@ -51,99 +58,64 @@ const styles = StyleSheet.create({
   body: { gap: 10, ...selectableSurface },
 });
 
-function CreateAgentView({
-  data,
-  tokens,
-}: {
+function CreateAgentView({ data, tokens, raw, compact }: {
   data: PaseoCreateAgentData;
   tokens: ExtendedThemeTokens;
+  raw: boolean;
+  compact: boolean;
 }) {
+  const capabilities = useInputCapabilities(compact);
+  const { width } = useWindowDimensions();
+  const mobile = capabilities.native || width < 600;
+  const lines = useMemo(() => data.initialPrompt.split("\n"), [data.initialPrompt]);
   return (
-    <View style={{ gap: space.sm }}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 6,
-        }}
-      >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-          <ProviderLogo provider={data.provider} size={16} showLabel />
-          {data.model && (
-            <Text
-              selectable
-              style={{
-                fontSize: tokens.typography.block.meta.size,
-                fontFamily: tokens.fontUi,
-                color: tokens.foregroundMuted,
-              }}
-            >
-              {data.model}
-            </Text>
-          )}
-          {data.modeId && (
-            <Text
-              selectable
-              style={{
-                fontSize: tokens.typography.block.meta.size,
-                fontWeight: "600",
-                color: tokens.accent,
-                paddingHorizontal: 6,
-                paddingVertical: 2,
-                borderRadius: radiusV2.block,
-              }}
-            >
-              {data.modeId} mode
-            </Text>
-          )}
+    <View style={{ gap: space.sm, minWidth: 0 }}>
+      <View testID="create-agent-metadata" style={{
+        flexDirection: mobile ? "column" : "row", alignItems: mobile ? "stretch" : "center",
+        justifyContent: "space-between", flexWrap: "wrap", gap: space.sm, minWidth: 0,
+      }}>
+        <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.sm, minWidth: 0, flexShrink: 1 }}>
+          <ProviderLogo provider={data.provider} size={16} showLabel
+            color={normalizeProvider(data.provider) === "cursor" ? (tokens.isDark ? "#FFFFFF" : "#000000") : undefined} />
+          {data.model ? <Text selectable style={{ fontSize: tokens.typography.block.meta.size,
+            fontFamily: tokens.fontUi, color: tokens.foregroundMuted, flexShrink: 1 }}>{data.model}</Text> : null}
+          {data.modeId ? <Text selectable style={{ fontSize: tokens.typography.block.meta.size,
+            fontWeight: "600", color: tokens.accent, paddingHorizontal: 6, paddingVertical: 2,
+            borderRadius: radiusV2.block }}>{data.modeId} mode</Text> : null}
         </View>
-
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: space.xs,
-            paddingHorizontal: space.sm,
-            paddingVertical: 3,
-            borderRadius: radiusV2.block,
-          }}
-        >
-          <Glyph name="CheckCircle" size={11} color={tokens.success} />
-          <Text
-            selectable
-            style={{
-              fontSize: tokens.typography.block.meta.size,
-              fontFamily: tokens.fontUi,
-              color: tokens.success,
-              fontWeight: "600",
-            }}
-          >
-            {data.agentId ? `${data.agentId.slice(0, 12)}…` : "running"}
-          </Text>
-        </View>
+        <AgentId agentId={data.agentId} tokens={tokens} />
       </View>
-
-      <View style={{ gap: space.xs }}>
-        <Text
-          selectable
-          style={{
-            fontSize: tokens.typography.block.meta.size,
-            fontWeight: "500",
-            color: tokens.foregroundMuted,
-          }}
-        >
-          Initial task prompt
-        </Text>
-        <SyntaxHighlightBlock
-          code={data.initialPrompt}
-          language="markdown"
-          tokens={tokens}
-          compact
-        />
-      </View>
+      {raw ? <PreviewLines text={data.initialPrompt} lines={lines} tokens={tokens}
+        style={{ color: tokens.foreground, fontFamily: tokens.fontMono,
+          fontSize: tokens.typography.mono.size, lineHeight: tokens.typography.mono.lineHeight }} /> :
+        <MarkdownView text={data.initialPrompt} tokens={tokens} variant="document" compact={mobile}
+          size={blockProseBase(tokens.typography)} />}
     </View>
+  );
+}
+
+/** The entire ID is one copy target; touch keeps its affordance visible. */
+function AgentId({ agentId, tokens }: { agentId?: string; tokens: ExtendedThemeTokens }) {
+  const { copied, copy } = useCopy();
+  const { hovered, hoverProps } = useHover();
+  const [focused, setFocused] = useState(false);
+  const capabilities = useInputCapabilities();
+  const showCopy = !capabilities.hover || hovered || focused || copied;
+  return (
+    <Pressable testID="create-agent-id" accessibilityRole={agentId ? "button" : undefined}
+      accessibilityLabel={agentId ? `Copy agent ID ${agentId}` : "running"}
+      disabled={!agentId} {...hoverProps}
+      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+      onPress={() => { if (agentId) void copy(agentId, { label: "Copy agent ID" }); }}
+      style={{ flexDirection: "row", alignItems: "center", gap: space.xs, maxWidth: "100%", minWidth: 0,
+        minHeight: capabilities.touch ? 44 : 24, paddingVertical: 3, borderRadius: radiusV2.block }}>
+      <Glyph name="CheckCircle" size={11} color={tokens.success} />
+      <Text style={{ fontSize: tokens.typography.block.meta.size, fontFamily: tokens.fontUi,
+        color: tokens.success, fontWeight: "600", flexShrink: 1, minWidth: 0 }}>{agentId ?? "running"}</Text>
+      {agentId ? <View testID="create-agent-copy-icon" style={{ opacity: showCopy ? 1 : 0 }}>
+        <Glyph name={copied ? "Check" : "Copy"} size={14} color={tokens.success} />
+      </View> : null}
+    </Pressable>
   );
 }
 
