@@ -1,6 +1,6 @@
 // Charts for README.md and README-zh.md, one English and one Chinese copy of each.
 //   node docs/perf/readme-charts.mjs
-// Reads the October 16 raw runs under docs/bench/2026-10-16-readme/raw and writes docs/perf/readme/*.svg:
+// Reads the October 17 raw runs under docs/bench/2026-10-17-readme/parallel-v2/raw and writes docs/perf/readme/*.svg:
 //   web-cpu.<lang>.svg     Web main-thread task time, no plugin / Beautiful Chat 42b61d8 / Better Paseo
 //   web-memory.<lang>.svg  JS heap and DOM nodes after a forced GC, the scenarios that differ most
 //   ios-commit.<lang>.svg  iOS total row-render time (median of allRows.sum), no plugin / Beautiful Chat 42b61d8 / Better Paseo
@@ -14,8 +14,10 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const RAW = path.join(HERE, "../bench/2026-10-16-readme/raw");
+const RAW = path.join(HERE, "../bench/2026-10-17-readme/parallel-v2/raw");
 const OUT = path.join(HERE, "readme");
+const audit = JSON.parse(readFileSync(path.join(RAW, "summary.json")));
+if (audit.collected !== 550 || audit.failures.length) throw new Error("complete audited current-main matrix required");
 
 const SCENARIOS = [
   ["codeblock-streaming", "Code block streaming", "代码块流式"],
@@ -39,42 +41,42 @@ const TEXT = {
     font: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
     native: "No plugin (Paseo 0.11.2)",
     upstream: "Beautiful Chat 42b61d8",
-    fork: "Better Paseo 48a6646",
+    fork: "Better Paseo b9dfae6",
     vsNative: "vs no plugin",
     vsUpstream: "vs Beautiful Chat",
     even: "even",
     cpuTitle: "Web: main-thread time for a whole replay (seconds, lower is better)",
-    cpuNote: "Historical 48a6646: Web production build, 5 runs per mode, median, 2026-10-16. Green ⬆ better, red ⬇ worse.",
+    cpuNote: "Main b9dfae6: Web profiling, 5 runs/mode, median, up to 4 groups, 2026-10-17. Green ⬆ better, red ⬇ worse.",
     memTitle: "Web: memory after a forced GC (lower is better)",
-    memNote: "Same runs as the main-thread chart, 2026-10-16. DOM nodes on a log scale.",
+    memNote: "Same runs as the main-thread chart, 2026-10-17. DOM nodes on a log scale.",
     heap: "JS heap (MB)",
     dom: "DOM nodes",
     iosTitle: "iOS: total row-render time per replay (ms, lower is better)",
     iosNote: [
-      "iOS 18.6 simulator, development build, cold start, 2026-10-16. 5 serial runs per mode.",
+      "iOS 18.6 simulator, development build, cold start, 2026-10-17. 5 runs per mode, up to 4 groups.",
       `Total row-render time. Bars past ${IOS_AXIS_MS.toLocaleString("en-US")} ms are clipped; the label is the real total. Green ⬆ better, red ⬇ worse.`,
-      "One benchmark simulator at a time. Simulator results do not establish physical iPhone performance.",
+      "Four isolated benchmark simulators; actual overlap varies. No physical iPhone performance claim.",
     ],
   },
   zh: {
     font: "'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif",
     native: "不开插件（Paseo 0.11.2）",
     upstream: "Beautiful Chat 42b61d8",
-    fork: "Better Paseo 48a6646",
+    fork: "Better Paseo b9dfae6",
     vsNative: "对比不开插件",
     vsUpstream: "对比 Beautiful Chat",
     even: "持平",
     cpuTitle: "Web：整段回放的主线程时间（秒，越短越好）",
-    cpuNote: "历史版本 48a6646：Web 生产构建，每模式 5 次取中位数，2026-10-16。绿色 ⬆ 更好，红色 ⬇ 更差。",
+    cpuNote: "b9dfae6：Web profiling，每模式 5 次中位数，最多 4 组并行，2026-10-17。绿色 ⬆ 更好，红色 ⬇ 更差。",
     memTitle: "Web：强制 GC 后的内存（越低越好）",
-    memNote: "与主线程时间同一批跑次，2026-10-16。DOM 节点为对数刻度。",
+    memNote: "与主线程时间同一批跑次，2026-10-17。DOM 节点为对数刻度。",
     heap: "JS 堆（MB）",
     dom: "DOM 节点",
     iosTitle: "iOS：每次回放的行渲染总量（毫秒，越短越好）",
     iosNote: [
-      "iOS 18.6 模拟器开发版，每次冷启动，中位数，2026-10-16。每种模式串行 5 次。",
+      "iOS 18.6 模拟器开发版，每次冷启动，中位数，2026-10-17。每种模式 5 次，最多 4 组并行。",
       `行渲染总量。超过 ${IOS_AXIS_MS} ms 的条被截断，数字是真实总量。绿色 ⬆ 更好，红色 ⬇ 更差。`,
-      "同一时刻只运行一台测试模拟器；模拟器结果不代表 iPhone 真机性能。",
+      "4 台隔离测试模拟器，实际并发有变化；模拟器结果不代表 iPhone 真机性能。",
     ],
   },
 };
@@ -104,8 +106,9 @@ function load(dirs) {
   }
   return (fixture, mode, get) => {
     const selected = runs.filter((run) => run.fixture === fixture && run.mode === mode);
-    if (selected.length !== 5 || selected.some(run => !run.data.completed || run.data.error)) throw new Error(`incomplete group ${mode} ${fixture}`);
+    if (selected.length !== 5) throw new Error(`incomplete group ${mode} ${fixture}`);
     if (selected.some(run => run.data.displayErrors?.length || run.data.comparisonEligible === false)) return null;
+    if (selected.some(run => !run.data.completed || run.data.error)) throw new Error(`incomplete group ${mode} ${fixture}`);
     const values = selected.map((run) => get(run.data)).sort((a, b) => a - b);
     if (values.length === 0) throw new Error(`no runs for ${mode} ${fixture}`);
     const mid = Math.floor(values.length / 2);
