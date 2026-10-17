@@ -26,7 +26,7 @@ import { RunningDot } from "../ui/running-dot";
 import { exitMark, parseExitMeta } from "../ui/exit-mark";
 import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
-import { HoverPreviewBody, HoverPreviewHeader } from "../ui/hover-preview";
+import { AlwaysWrapPreview, HoverPreviewBody, HoverPreviewHeader } from "../ui/hover-preview";
 import { ToolPager } from "../ui/tool-pager";
 import { readUserQuestions } from "../tools/user-questions";
 import { UserQuestions } from "./user-questions";
@@ -319,7 +319,7 @@ export function ToolCallout({
           <GroupedPreview calls={groupCalls} resolvePath={resolvePath} tokens={tokens} compact={compact} imageFile={imageFile}
             path={filePath ? resolvePath(filePath) : undefined} revealFile={revealFile} displayPath={displayPath} onViewImage={openViewer} />
         ) : (
-          <ToolPreviewContent data={data} resolvePath={resolvePath} tokens={tokens} compact={compact}
+          <ToolPreviewContent key={data.callId ?? data.id} data={data} resolvePath={resolvePath} tokens={tokens} compact={compact}
             imageFile={imageFile} drawsImage={drawsImage} revealFile={revealFile} displayPath={displayPath}
             onViewImage={openViewer} />
         )
@@ -417,16 +417,23 @@ function GroupedToolDetails({ calls, ...rest }: GroupedBodyProps) {
   );
 }
 
+function isMarkdownWrite(data: ToolCallView): boolean {
+  return data.tool === "write" && data.language === "markdown" && Boolean(data.code) && !data.diff;
+}
+
 /**
  * What a single call's preview panel holds: the toolbar, then the path, the
  * body and the error. Also drawn outside a panel's layer by the settings page
  * (`PreviewPanelSample`), so a reader sees the panel options take effect.
  */
-export function ToolPreviewContent({ data, resolvePath, drawsImage = false, ...rest }: Omit<ToolBodyProps, "preview"> & {
+export function ToolPreviewContent({ data, resolvePath, drawsImage = false, pager, ...rest }: Omit<ToolBodyProps, "preview"> & {
   resolvePath: ResolvePath;
   drawsImage?: boolean;
+  pager?: React.ReactNode;
 }) {
   const { tokens, imageFile } = rest;
+  const [raw, setRaw] = useState(false);
+  const markdown = isMarkdownWrite(data);
   const streaming = data.status === "running";
   const questions = useMemo(() => readUserQuestions(data), [data]);
   if (questions) {
@@ -437,17 +444,21 @@ export function ToolPreviewContent({ data, resolvePath, drawsImage = false, ...r
       {data.error ? <PreviewError text={data.error} tokens={tokens} /> : null}
     </UserQuestions>;
   }
-  return (
+  const content = (
     <>
       <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens} streaming={streaming}
+        pager={<>{pager}{markdown ? <ToolbarButton icon={raw ? "FileText" : "Code"}
+          label={raw ? "Render Markdown" : "Show raw text"} onPress={() => setRaw((value) => !value)} tokens={tokens} /> : null}</>}
         meta={drawsImage ? <ImageMeta file={imageFile ?? null} tokens={tokens} /> : undefined} />
-      <HoverPreviewBody streaming={streaming}>
+      <HoverPreviewBody key={markdown && !raw ? "markdown" : "raw"} streaming={streaming}>
         {data.filePath ? <PreviewPath path={resolvePath(data.filePath)} tokens={tokens} /> : null}
-        <ToolBody data={data} {...rest} preview />
+        {markdown && !raw ? <MarkdownView text={data.code!} tokens={tokens} variant="document"
+          streaming={streaming} size={blockProseBase(tokens.typography)} /> : <ToolBody data={data} {...rest} preview />}
         {data.error ? <PreviewError text={data.error} tokens={tokens} /> : null}
       </HoverPreviewBody>
     </>
   );
+  return markdown && !raw ? <AlwaysWrapPreview keepControl>{content}</AlwaysWrapPreview> : content;
 }
 
 /** A merged row's preview: the pager sits in the panel's toolbar, so it stays put while the body scrolls. */
@@ -461,6 +472,11 @@ function GroupedPreview({ calls, resolvePath, path, onViewImage, ...rest }: Grou
   const call = calls[index]!;
   const streaming = call.status === "running";
   const drawsImage = (call.tool === "read" || call.tool === "write") && imageFile !== undefined && isImagePath(call.filePath);
+  if (isMarkdownWrite(call)) {
+    return <ToolPreviewContent key={call.callId ?? call.id} data={call} resolvePath={resolvePath} {...rest}
+      onViewImage={onViewImage}
+      pager={<ToolPager index={index} count={calls.length} onChange={setIndex} tokens={tokens} />} />;
+  }
   return (
     <>
       <ToolPreviewActions call={call} resolvePath={resolvePath} tokens={tokens} streaming={streaming}

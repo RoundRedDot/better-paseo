@@ -16,10 +16,11 @@ vi.mock("@getpaseo/plugin/client", () => ({
   useSettings: () => ({ status: "loading" }),
 }));
 import { buildThemeTokens } from "../../client/components/theme-tokens";
-import { ToolCallout } from "../../client/components/tool-callouts";
+import { ToolCallout, ToolPreviewContent } from "../../client/components/tool-callouts";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { DisclosureHeader, RowIcon } from "../../client/ui/disclosure-header";
-import { HoverPreviewHeader } from "../../client/ui/hover-preview";
+import { AlwaysWrapPreview, HoverPreviewHeader, PreviewPanelSample } from "../../client/ui/hover-preview";
+import { ToolbarButton } from "../../client/ui/toolbar-button";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { classifyTool, type ToolKind } from "../../client/tools/classify";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
@@ -70,6 +71,129 @@ function previewOf(element: React.ReactElement) {
   return text;
 }
 describe("full hover preview content", () => {
+  it.each(["md", "markdown", "MD"])("toggles a Write .%s preview with one button and copies the source in both modes", async (extension) => {
+    const content = "# Title\n\n**bold**\n\n| A | B |\n| --- | --- |\n| one | two |";
+    const data = classifyTool({ name: "Write", status: "completed", detail: {
+      type: "write", filePath: `/w/notes.${extension}`, content,
+    } });
+    updateEnhancerPreferences({ previewLineNumbers: true, previewStripes: true });
+    try {
+      await exercisePreview(React.createElement(ToolCallout, { data, tokens }), async (body) => {
+        expect(body.root.findByType(MarkdownView).props.text).toBe(content);
+        expect(body.root.findByType(AlwaysWrapPreview).props.keepControl).toBe(true);
+        const toggle = () => body.root.findAllByType(ToolbarButton).filter((node) =>
+          node.props.label === "Show raw text" || node.props.label === "Render Markdown");
+        expect(toggle()).toHaveLength(1);
+        expect(toggle()[0]!.props.icon).toBe("Code");
+        await press(body, "Copy file content");
+        expect(clipboard.copyText).toHaveBeenLastCalledWith(content);
+        await press(body, "Show raw text");
+        expect(toggle()).toHaveLength(1);
+        expect(toggle()[0]!.props.icon).toBe("FileText");
+        expect(body.root.findAllByType(MarkdownView)).toHaveLength(0);
+        expect(body.root.findByType(PreviewLines).props.text).toBe(content);
+        expect(body.root.findByProps({ testID: "preview-line-numbers" })).toBeDefined();
+        expect(body.root.findByProps({ testID: "preview-line-stripes" })).toBeDefined();
+        await press(body, "Copy file content");
+        expect(clipboard.copyText).toHaveBeenLastCalledWith(content);
+        await press(body, "Render Markdown");
+        expect(body.root.findByType(MarkdownView).props.text).toBe(content);
+        expect(textOf(body.toJSON())).toContain(`/w/notes.${extension}`);
+      });
+    } finally {
+      resetEnhancerPreferences();
+    }
+  });
+
+  it.each(["web", "ios", "android"])("keeps the wrap slot disabled for Markdown and restores raw wrapping on %s", async (os) => {
+    const platform = globalThis as { __rnMockOS?: string };
+    platform.__rnMockOS = os;
+    updateEnhancerPreferences({ previewWrap: false });
+    const data = classifyTool({ callId: "write", name: "Write", status: "completed", detail: {
+      type: "write", filePath: "/w/a.md", content: "# Title\n\n**bold**",
+    } });
+    let body!: ReturnType<typeof TestRenderer.create>;
+    try {
+      act(() => { body = TestRenderer.create(React.createElement(PreviewPanelSample, { tokens,
+        children: React.createElement(ToolPreviewContent, { data, tokens, compact: false, resolvePath: (path) => path }),
+      })); });
+      const start = () => body.root.findByProps({ testID: "hover-preview-start" });
+      const controls = () => start().findAll((node) => (node.type as unknown) === "Pressable");
+      expect(controls().map((node) => node.props.accessibilityLabel)).toEqual(["Do not wrap lines", "Show raw text"]);
+      expect(controls()[0]!.props.disabled).toBe(true);
+      await press(body, "Show raw text");
+      expect(controls().map((node) => node.props.accessibilityLabel)).toEqual(["Wrap lines", "Render Markdown"]);
+      expect(controls()[0]!.props.disabled).toBe(false);
+      await press(body, "Wrap lines");
+      expect(controls()[0]!.props.accessibilityLabel).toBe("Do not wrap lines");
+      await press(body, "Render Markdown");
+      expect(controls()[0]!.props.disabled).toBe(true);
+      await press(body, "Show raw text");
+      expect(controls()[0]!.props.accessibilityLabel).toBe("Do not wrap lines");
+      expect(controls()[0]!.props.disabled).toBe(false);
+    } finally {
+      act(() => body?.unmount());
+      delete platform.__rnMockOS;
+      resetEnhancerPreferences();
+    }
+  });
+
+  it("updates a streaming Markdown write in either mode and settles when completed", async () => {
+    const view = (content: string, status: "running" | "completed") => React.createElement(ToolPreviewContent, {
+      data: classifyTool({ callId: "write", name: "Write", status, detail: { type: "write", filePath: "/w/a.md", content } }),
+      tokens, compact: false, resolvePath: (path: string) => path,
+    });
+    let body!: ReturnType<typeof TestRenderer.create>;
+    act(() => { body = TestRenderer.create(view("# First", "running")); });
+    try {
+      expect(body.root.findByType(MarkdownView).props.streaming).toBe(true);
+      act(() => body.update(view("# First\n\n**latest**", "running")));
+      expect(body.root.findByType(MarkdownView).props.text).toContain("**latest**");
+      await press(body, "Show raw text");
+      act(() => body.update(view("# First\n\n**latest**\nTail", "running")));
+      expect(body.root.findByType(PreviewLines).props.text).toContain("Tail");
+      act(() => body.update(view("# First\n\n**latest**\nTail", "completed")));
+      expect(body.root.findAllByProps({ testID: "hover-preview-streaming" })).toHaveLength(0);
+      await press(body, "Render Markdown");
+      expect(body.root.findByType(MarkdownView).props).toMatchObject({ streaming: false, text: "# First\n\n**latest**\nTail" });
+    } finally {
+      act(() => body.unmount());
+    }
+  });
+
+  it.each([
+    ["Write", "/w/a.ts", "const x = 1;", undefined],
+    ["Read", "/w/a.md", "# Title", undefined],
+    ["Edit", "/w/a.md", "# Title", "-old\n+new"],
+    ["Write", "/w/empty.md", "", undefined],
+    ["Write", "/w/diff.md", "# Title", "-old\n+new"],
+  ])("keeps %s %s on its existing file view", async (name, filePath, content, unifiedDiff) => {
+    const data = classifyTool({ name, status: "completed", detail: { type: name.toLowerCase(), filePath, content, unifiedDiff } });
+    await exercisePreview(React.createElement(ToolCallout, { data, tokens }), async (body) => {
+      expect(body.root.findAllByType(MarkdownView)).toHaveLength(0);
+      expect(body.root.findAllByType(ToolbarButton).filter((node) => node.props.label === "Show raw text")).toHaveLength(0);
+    });
+  });
+
+  it("resets Markdown mode when paging between writes and preserves edit diffs", async () => {
+    const calls = [
+      classifyTool({ callId: "w1", name: "Write", status: "completed", detail: { type: "write", filePath: "/w/a.md", content: "# First" } }),
+      classifyTool({ callId: "w2", name: "Write", status: "running", detail: { type: "write", filePath: "/w/a.md", content: "# Second" } }),
+      classifyTool({ callId: "e1", name: "Edit", status: "completed", detail: { type: "edit", filePath: "/w/a.md", unifiedDiff: "-old\n+new" } }),
+    ];
+    await exercisePreview(React.createElement(ToolCallout, { data: calls[0]!, groupCalls: calls, tokens }), async (body) => {
+      await press(body, "Show raw text");
+      expect(body.root.findByType(PreviewLines).props.text).toBe("# First");
+      await press(body, "Next operation");
+      expect(body.root.findByType(MarkdownView).props).toMatchObject({ text: "# Second", streaming: true });
+      await press(body, "Next operation");
+      expect(body.root.findAllByType(MarkdownView)).toHaveLength(0);
+      expect(body.root.findByType(PreviewLines).props.text).toBe("-old\n+new");
+      await press(body, "Previous operation");
+      expect(body.root.findByType(MarkdownView).props.text).toBe("# Second");
+    });
+  });
+
   it.each(["Bash", "Read"])("centres the tool name in a single %s preview", async (name) => {
     const data = classifyTool({ name, status: "completed", detail: name === "Bash"
       ? { type: "shell", command: "printf hello", output: "hello" }
