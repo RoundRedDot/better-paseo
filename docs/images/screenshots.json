@@ -1,6 +1,6 @@
 {
-  "capturedAt": "2026-10-16",
-  "sourceSha": "722238de2fcc1ade46d542a7a540868932d9dc89",
+  "capturedAt": "2026-10-17",
+  "sourceSha": "b9dfae6e31453b962d90f7d3c7ca972c0e523cb3",
   "surface": "Offline React Native Web showcase with fixture data; not native device acceptance",
   "defaultTheme": "light",
   "darkMedia": "(prefers-color-scheme: dark)",
@@ -12,7 +12,7 @@
     "index.server.ts"
   ],
   "sourceTrackedChanges": [],
-  "showcaseDiff": "diff --git a/.showcase/showcase.tsx b/.showcase/showcase.tsx\nindex d08a596..0c4a9e2 100644\n--- a/.showcase/showcase.tsx\n+++ b/.showcase/showcase.tsx\n@@ -1441,15 +1441,15 @@ function Showcase() {\n       </Shot>\n       <div\n         id=\"shot-markdown-styles\"\n-        style={{ width: 2320, height: 880, padding: 20, boxSizing: \"border-box\", backgroundColor: LIGHT.surface0 }}\n+        style={{ width: 2320, height: 880, padding: 20, boxSizing: \"border-box\", backgroundColor: BASE.surface0 }}\n       >\n         <div style={{ display: \"grid\", gridTemplateColumns: \"repeat(3, minmax(0, 1fr))\", gap: 20 }}>\n           {MARKDOWN_VARIANTS.map((variant) => (\n             <View key={variant} style={{ gap: 10, minWidth: 0 }}>\n-              <Text style={{ color: LIGHT.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 14, fontWeight: \"600\" }}>\n+              <Text style={{ color: BASE.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 14, fontWeight: \"600\" }}>\n                 {variant === \"document\" ? \"Document\" : variant === \"compact\" ? \"Compact\" : \"Terminal\"}\n               </Text>\n-              <MarkdownView text={MD_SAMPLER} tokens={v2Light} variant={variant} />\n+              <MarkdownView text={MD_SAMPLER} tokens={tokens} variant={variant} />\n             </View>\n           ))}\n         </div>",
+  "showcaseDiff": "",
   "captureSources": [
     {
       "path": ".showcase/showcase.tsx",
@@ -92,7 +92,7 @@
       "scale": 1,
       "width": 940,
       "height": 817,
-      "sha256": "87f265d137c244aedcadffd5ecb34a0c3e7934e4c031694833e331502f7da1d9"
+      "sha256": "c73f85fe7c861983bb63d33aeb9bc1a744263c6831917036c2ccfddef7242562"
     },
     {
       "path": "docs/images/tool-mcp-light.png",
