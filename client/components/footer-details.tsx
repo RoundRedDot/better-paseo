@@ -28,8 +28,8 @@ export interface FooterDetailsProps {
 
 /** The label column fits the longest label: four CJK characters, or "Thinking level". */
 const LABEL_WIDTH = { zh: 72, en: 104 } as const;
-/** Room for a toolbar icon, full timestamp and copy action. */
-const VALUE_WIDTH = 210;
+/** Room for a toolbar icon, a full timestamp, a long model name and the copy action. */
+const VALUE_WIDTH = 240;
 const TABLE_INSET = 6;
 
 function labelWidth(language: SettingsLanguagePreference): number {
@@ -84,7 +84,9 @@ export function FooterDetails({ agentName, modelId, modelName, thinkingLabel, st
                   ? <ProviderLogo provider={row.provider} size={14} color={tokens.foregroundMuted} />
                   : <Icon name={row.icon} size={14} color={tokens.foregroundMuted} />}
               </View>
-              <Text style={[textStyle, { color: tokens.foreground }]}>{row.value}</Text>
+              {/* One line always: a long model name shrinks to an ellipsis rather than
+                  pushing the copy action aside and making the row taller. */}
+              <Text numberOfLines={1} style={[textStyle, { color: tokens.foreground }]}>{row.value}</Text>
               {row.copyLabel ? <CopyButton text={row.copyText || row.value} label={row.copyLabel} tokens={tokens} /> : null}
             </View>
           </View>
