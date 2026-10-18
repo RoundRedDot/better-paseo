@@ -33,6 +33,7 @@ import { readUserQuestions } from "../tools/user-questions";
 import { UserQuestions } from "./user-questions";
 import { PreviewLines } from "../ui/preview-lines";
 import { CommandBand, PreviewPath } from "../ui/command-band";
+import { CommandFontProbe } from "../debug/font-probe";
 import { FadeIn } from "../ui/fade-in";
 import { SelectableSpan, SelectableText } from "../ui/prose-text";
 import { formatPath } from "../paths/format-path";
@@ -836,6 +837,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
                 <SelectableSpan style={styles.promptColor}>{"$ "}</SelectableSpan>
                 {command}
               </SelectableText>
+              <CommandFontProbe tokens={tokens} style={[styles.commandLine, styles.clear]} />
             </CommandBand>
           ) : null}
           {data.shell?.stdout ? (
