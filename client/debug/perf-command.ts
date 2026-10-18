@@ -8,6 +8,7 @@ import { Dimensions, Platform } from "react-native";
 import type { PluginClientSlashCommandContribution } from "@getpaseo/plugin/client";
 import { perfDumpRpc } from "../../shared/perf-rpc";
 import { disablePerf, enablePerf, perfOn, perfSnapshot, resetPerf } from "./perf";
+import { fontProbeSnapshot } from "./font-probe-store";
 
 function heapBytes(): number | null {
   const memory = (globalThis.performance as { memory?: { usedJSHeapSize: number } } | undefined)
@@ -46,6 +47,7 @@ export const perfSlashCommand: PluginClientSlashCommandContribution = {
             userAgent: typeof navigator !== "undefined" ? navigator.userAgent : null,
             agent: { id: context.agent.id },
             heapBytes: heapBytes(),
+            commandFont: fontProbeSnapshot(),
             snapshot: perfSnapshot(),
           },
         });

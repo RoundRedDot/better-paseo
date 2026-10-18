@@ -19,6 +19,7 @@ import { createElement, useLayoutEffect, type ReactElement } from "react";
 import type { LayoutChangeEvent } from "react-native";
 import { getEnhancerPreferences, updateEnhancerPreferences } from "../preferences";
 import { createPerfStore, type PerfSnapshot } from "./store";
+import { resetFontProbe } from "./font-probe-store";
 
 const EXPECTED_FRAME_MS = 1000 / 60;
 
@@ -265,6 +266,7 @@ export function perfSnapshot(): PerfSnapshot {
 
 export function resetPerf(): void {
   store.reset();
+  resetFontProbe();
   textKeys.clear();
 }
 
