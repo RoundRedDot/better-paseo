@@ -4,6 +4,8 @@ import TestRenderer, { act } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
+const motion = vi.hoisted(() => ({ reduced: false }));
+vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motion.reduced }));
 const clipboard = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => {}), show: vi.fn(), error: vi.fn() }));
 vi.mock("@getpaseo/plugin/client/react-native", () => ({
   Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
@@ -15,7 +17,7 @@ vi.mock("../../client/ui/disclosure-header", () => ({ DISCLOSURE_HEADER: { icon:
 import { AssistantFooter } from "../../client/components/turn-footer";
 import { ProviderLogo } from "../../client/components/provider-logo";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
-import { StatusBar, StyleSheet } from "./helpers/rn-mock";
+import { Animated, StatusBar, StyleSheet } from "./helpers/rn-mock";
 import { seedMarkBitmaps } from "../../client/components/marks";
 import { updateEnhancerPreferences } from "../../client/preferences";
 import { TOOLBAR_TOOLTIP_MS } from "../../client/ui/toolbar-button";
@@ -32,6 +34,7 @@ const footer = (compact: boolean) => React.createElement(AssistantFooter, { text
 
 beforeEach(() => {
   vi.clearAllMocks();
+  motion.reduced = false;
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(2026, 9, 15, 16));
   seedMarkBitmaps({ "lobe:codex": "data:image/png;base64,codex" });
@@ -571,6 +574,70 @@ describe("assistant footer", () => {
       expect(button.findByType("Text" as never).props.children).toBe("Copy");
     } finally {
       act(() => renderer.unmount());
+    }
+  });
+});
+
+describe("assistant footer details motion", () => {
+  it.each([
+    { platform: "ios", entry: "longPress" },
+    { platform: "android", entry: "longPress" },
+    { platform: "web", entry: "longPress" },
+    { platform: "web", entry: "hover" },
+  ].flatMap((scenario) => [false, true].map((reduced) => ({ ...scenario, reduced }))))
+  ("fades details on $platform $entry and respects reduced motion ($reduced)", ({ platform, entry, reduced }) => {
+    const globals = globalThis as { __rnMockOS?: string };
+    const previousPlatform = globals.__rnMockOS;
+    globals.__rnMockOS = platform;
+    motion.reduced = reduced;
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    const timing = vi.spyOn(Animated, "timing");
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
+      text, at, tokens, modelId: "opus", modelName: "Opus 5.5",
+    })); });
+    try {
+      const trigger = renderer.root.findAllByType("Pressable" as never)
+        .find((node) => node.props.accessibilityLabel === "Copy model name")!;
+      expect(timing).not.toHaveBeenCalled();
+      const open = () => {
+        if (entry === "hover") {
+          act(() => { trigger.props.onHoverIn(); });
+          act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
+        } else {
+          act(() => { trigger.props.onLongPress(); });
+        }
+      };
+      open();
+      const animated = renderer.root.findByType("Animated.View" as never);
+      expect(animated.findAllByType("View" as never)
+        .filter((node) => node.props.testID === "toolbar-details-frame")).toHaveLength(1);
+      const opacity = StyleSheet.flatten(animated.props.style).opacity;
+      expect(opacity).toMatchObject({ __value: reduced ? 1 : 0 });
+      if (reduced) {
+        expect(timing).not.toHaveBeenCalled();
+      } else {
+        expect(timing).toHaveBeenCalledExactlyOnceWith(opacity, expect.objectContaining({
+          toValue: 1, duration: 120, useNativeDriver: platform !== "web",
+        }));
+      }
+      if (entry === "hover") {
+        act(() => { trigger.props.onHoverOut(); });
+        act(() => { vi.advanceTimersByTime(120); });
+      } else {
+        act(() => { renderer.root.findAllByType("Pressable" as never)
+          .find((node) => node.props.accessibilityLabel === "Close preview")!.props.onPress(); });
+      }
+      expect(renderer.root.findAllByType("Animated.View" as never)).toHaveLength(0);
+      open();
+      expect(renderer.root.findAllByType("Animated.View" as never)).toHaveLength(1);
+      expect(timing).toHaveBeenCalledTimes(reduced ? 0 : 2);
+    } finally {
+      act(() => renderer.unmount());
+      timing.mockRestore();
+      globals.__rnMockOS = previousPlatform;
+      motion.reduced = false;
     }
   });
 });
