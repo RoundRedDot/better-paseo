@@ -6,7 +6,7 @@ import { surfaceProps } from "./view-props";
 import { radiusV2, space, type ExtendedThemeTokens } from "./theme-tokens";
 import { TYPE } from "../ui/tokens/typography";
 import { HScroll } from "../ui/h-scroll";
-import { diffLineNumbers } from "./diff-lines";
+import { diffHunk, diffRows, type DiffRow } from "./diff-lines";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeSurface, selectionSurface } from "./selection-actions";
 import { useHighlightedLines } from "../highlight";
@@ -162,18 +162,6 @@ function dialectFor(isDiff: boolean, language: string, filename?: string): strin
   return "typescript";
 }
 
-/**
- * Which tint a diff row carries, or null for context rows, hunk headers and
- * every non-diff block. Reading it for the neighbouring rows is what lets a
- * run of changes render as one shape instead of a stack of them.
- */
-function diffTint(line: string | undefined, isDiff: boolean): "add" | "remove" | null {
-  if (!isDiff || line === undefined) return null;
-  if (line.startsWith("+")) return "add";
-  if (line.startsWith("-")) return "remove";
-  return null;
-}
-
 /** The lower-case extension of a path's last segment, or "" when it has none. */
 function fileExtension(filename?: string): string {
   const base = (filename || "").toLowerCase().split(/[/\\]/).pop() || "";
@@ -228,8 +216,6 @@ function patchedFileIsCode(filename?: string): boolean {
   return ext !== "" && CODE_FILE_EXTENSIONS[ext] === true;
 }
 
-/** A unified hunk header, which no source file opens a line with. */
-const HUNK_HEADER_RE = /^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/;
 /** How far into a block a diff must announce itself before it reads as code. */
 const DIFF_SCAN_LINES = 8;
 
@@ -242,29 +228,11 @@ function looksLikeUnifiedDiff(lines: string[]): boolean {
   const limit = Math.min(lines.length, DIFF_SCAN_LINES);
   for (let idx = 0; idx < limit; idx += 1) {
     const line = lines[idx] ?? "";
-    if (HUNK_HEADER_RE.test(line)) return true;
-    if (line.startsWith("diff --git ")) return true;
+    if (diffHunk(line)) return true;
+    if (/^diff --(?:git|cc|combined) /.test(line)) return true;
     if (line.startsWith("--- ") && (lines[idx + 1] ?? "").startsWith("+++ ")) return true;
   }
   return false;
-}
-
-/** The two file headers open with a marker, so they are matched by shape. */
-const DIFF_FILE_HEADER_RE = /^(?:---|\+\+\+)(?:\s|$)/;
-
-/**
- * Whether the diff format owns this line rather than the patched file.
- *
- * Every body line of a unified diff opens with `+`, `-` or a space, so anything
- * else is chrome by construction: `@@`, `diff --git`, `index`, the mode lines
- * and `\ No newline at end of file`. The file headers are the exception, and
- * they are the reason this is not a bare first-character test.
- */
-function isDiffChrome(line: string): boolean {
-  if (line === "") return false;
-  const head = line[0];
-  if (head !== "+" && head !== "-" && head !== " ") return true;
-  return DIFF_FILE_HEADER_RE.test(line);
 }
 
 /**
@@ -274,12 +242,8 @@ function isDiffChrome(line: string): boolean {
  * on: a chrome line contributes an empty line instead of disappearing, which
  * keeps every later line on its own number.
  */
-function strippedDiffCode(lines: string[]): string {
-  const stripped: string[] = [];
-  for (const line of lines) {
-    stripped.push(isDiffChrome(line) ? "" : line.slice(1));
-  }
-  return stripped.join("\n");
+export function strippedDiffCode(lines: readonly string[]): string {
+  return diffRows(lines).map((row, index) => row.markers ? lines[index]!.slice(row.markers.length) : "").join("\n");
 }
 
 /** A tag opening or closing marks the text as markup. */
@@ -341,6 +305,7 @@ function renderWithInterpolation(
   line: string,
   tokens: ExtendedThemeTokens,
   renderPart: (text: string) => React.ReactNode,
+  Span: React.ElementType<TextProps> = Text,
 ): React.ReactNode {
   INTERPOLATION_RE.lastIndex = 0;
   const parts: React.ReactNode[] = [];
@@ -350,9 +315,9 @@ function renderWithInterpolation(
   // Each literal run is wrapped so its own token array keeps a stable key.
   const pushLiteral = (text: string, index: number) => {
     parts.push(
-      <Text key={`l${index}`} selectable>
+      <Span key={`l${index}`} selectable>
         {renderPart(text)}
-      </Text>,
+      </Span>,
     );
   };
 
@@ -361,9 +326,9 @@ function renderWithInterpolation(
       pushLiteral(line.slice(lastIndex, match.index), lastIndex);
     }
     parts.push(
-      <Text key={`i${match.index}`} selectable style={{ color: tokens.accent }}>
+      <Span key={`i${match.index}`} selectable style={{ color: tokens.accent }}>
         {match[0]}
-      </Text>,
+      </Span>,
     );
     lastIndex = match.index + match[0].length;
   }
@@ -379,6 +344,7 @@ function renderHtmlTokens(
   text: string,
   tokens: ExtendedThemeTokens,
   keyPrefix: string,
+  Span: React.ElementType<TextProps> = Text,
 ): React.ReactNode {
   HTML_TOKEN_RE.lastIndex = 0;
   const parts: React.ReactNode[] = [];
@@ -394,34 +360,34 @@ function renderHtmlTokens(
 
     if (token.startsWith("<!--")) {
       parts.push(
-        <Text key={key} selectable style={{ color: tokens.syntax.comment }}>
+        <Span key={key} selectable style={{ color: tokens.syntax.comment }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (token.startsWith("<") || token === ">" || token === "/>") {
       parts.push(
-        <Text key={key} selectable style={{ color: tokens.syntax.keyword, fontWeight: "600" }}>
+        <Span key={key} selectable style={{ color: tokens.syntax.keyword, fontWeight: "600" }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (token.startsWith('"') || token.startsWith("'")) {
       parts.push(
-        <Text key={key} selectable style={{ color: tokens.syntax.string }}>
+        <Span key={key} selectable style={{ color: tokens.syntax.string }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (token === "=") {
       parts.push(
-        <Text key={key} selectable style={{ color: tokens.foregroundMuted }}>
+        <Span key={key} selectable style={{ color: tokens.foregroundMuted }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else {
       // An attribute name, matched by its lookahead to `=`.
       parts.push(
-        <Text key={key} selectable style={{ color: tokens.syntax.property }}>
+        <Span key={key} selectable style={{ color: tokens.syntax.property }}>
           {token}
-        </Text>,
+        </Span>,
       );
     }
 
@@ -439,6 +405,7 @@ function renderCssTokens(
   text: string,
   tokens: ExtendedThemeTokens,
   keyPrefix: string,
+  Span: React.ElementType<TextProps> = Text,
 ): React.ReactNode {
   CSS_TOKEN_RE.lastIndex = 0;
   const parts: React.ReactNode[] = [];
@@ -454,59 +421,59 @@ function renderCssTokens(
 
     if (token.startsWith("/*")) {
       parts.push(
-        <Text key={key} selectable style={{ color: tokens.syntax.comment }}>
+        <Span key={key} selectable style={{ color: tokens.syntax.comment }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (token === ":") {
       inValue = true;
       parts.push(
-        <Text key={key} selectable style={{ color: tokens.foregroundMuted }}>
+        <Span key={key} selectable style={{ color: tokens.foregroundMuted }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (token === ";" || token === "{" || token === "}") {
       inValue = false;
       parts.push(
-        <Text key={key} selectable style={{ color: tokens.foregroundMuted }}>
+        <Span key={key} selectable style={{ color: tokens.foregroundMuted }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (token.startsWith("#") && /^#[0-9a-fA-F]{3,8}$/.test(token)) {
       parts.push(
-        <Text key={key} selectable style={{ color: tokens.syntax.number }}>
+        <Span key={key} selectable style={{ color: tokens.syntax.number }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (/^-?\d/.test(token)) {
       parts.push(
-        <Text key={key} selectable style={{ color: tokens.syntax.number }}>
+        <Span key={key} selectable style={{ color: tokens.syntax.number }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (token.startsWith('"') || token.startsWith("'")) {
       parts.push(
-        <Text key={key} selectable style={{ color: tokens.syntax.string }}>
+        <Span key={key} selectable style={{ color: tokens.syntax.string }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (inValue) {
       parts.push(
-        <Text key={key} selectable style={{ color: tokens.syntax.string }}>
+        <Span key={key} selectable style={{ color: tokens.syntax.string }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (token.startsWith("@") || token.startsWith(".") || token.startsWith("#")) {
       parts.push(
-        <Text key={key} selectable style={{ color: tokens.syntax.keyword, fontWeight: "600" }}>
+        <Span key={key} selectable style={{ color: tokens.syntax.keyword, fontWeight: "600" }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else {
       parts.push(
-        <Text key={key} selectable style={{ color: tokens.syntax.property }}>
+        <Span key={key} selectable style={{ color: tokens.syntax.property }}>
           {token}
-        </Text>,
+        </Span>,
       );
     }
 
@@ -542,6 +509,7 @@ export function SyntaxHighlightBlock({
     () => language === "diff" || looksLikeUnifiedDiff(lines),
     [language, lines],
   );
+  const parsedDiff = useMemo(() => isDiff ? diffRows(lines) : null, [isDiff, lines]);
   const codeLanguage = useMemo(
     () => dialectFor(isDiff, language, filename),
     [isDiff, language, filename],
@@ -553,8 +521,8 @@ export function SyntaxHighlightBlock({
   );
   // A diff row carries the file's own line number, not its position.
   const numbers = useMemo(
-    () => (showLineNumbers && isDiff ? diffLineNumbers(lines) : null),
-    [showLineNumbers, isDiff, lines],
+    () => (showLineNumbers && parsedDiff ? parsedDiff.map((row) => row.number) : null),
+    [showLineNumbers, parsedDiff],
   );
   // Grammar-accurate colours arrive from the daemon one round trip late, and
   // never for a language it has no grammar for. Until then, and after a failed
@@ -705,8 +673,8 @@ export function SyntaxHighlightBlock({
       const shikiLine = shikiLines?.[idx];
       // The patched file's tokens, and only for a line the file owns. A
       // chrome line keeps the diff rendering it has today.
-      const bodyLine = isDiff && !isDiffChrome(line) ? diffBodyLines?.[idx] : undefined;
-      const kind = diffTint(lines[idx], isDiff);
+      const bodyLine = parsedDiff?.[idx]?.markers ? diffBodyLines?.[idx] : undefined;
+      const kind = parsedDiff?.[idx]?.kind;
       const lineBg =
         kind === "add"
           ? tokens.syntax.diffAddBg
@@ -721,17 +689,11 @@ export function SyntaxHighlightBlock({
             <Text style={[styles.lineNumber, { width: numberWidth }]}>{number ?? ""}</Text>
           )}
           <Text selectable style={scroll ? styles.lineNoWrap : styles.lineContent}>
-            {bodyLine
-              ? renderDiffBodyLine(line, bodyLine, tokens)
+            {isDiff
+              ? renderDiffLine(line, parsedDiff![idx]!, tokens, filename, bodyLine, shikiLine)
               : shikiLine
                 ? renderShikiLine(shikiLine, tokens)
-                : renderSyntaxLine(
-                    line,
-                    isDiff,
-                    language,
-                    lineDialects[idx] ?? codeLanguage,
-                    tokens,
-                  )}
+                : renderSyntaxLine(line, language, lineDialects[idx] ?? codeLanguage, tokens)}
           </Text>
         </View>
       );
@@ -739,6 +701,8 @@ export function SyntaxHighlightBlock({
     [
       shikiLines,
       diffBodyLines,
+      parsedDiff,
+      filename,
       isDiff,
       lines,
       numbers,
@@ -758,13 +722,14 @@ export function SyntaxHighlightBlock({
   // instead: a chunk costs the lines it changed, not the whole block.
   const drawnRows = useRef<DrawnRows | null>(null);
   const row = useMemo(() => {
-    const shared = [shikiLines, diffBodyLines, isDiff, tokens, styles, showLineNumbers, numberWidth, scroll, language, codeLanguage];
+    const shared = [shikiLines, diffBodyLines, filename, isDiff, tokens, styles, showLineNumbers, numberWidth, scroll, language, codeLanguage];
     const before = drawnRows.current && sameItems(drawnRows.current.shared, shared) ? drawnRows.current : null;
-    const current: DrawnRows = { shared, lines, dialects: lineDialects, numbers, nodes: [] };
+    const current: DrawnRows = { shared, lines, dialects: lineDialects, diffRows: parsedDiff, numbers, nodes: [] };
     drawnRows.current = current;
     const unchanged = (drawn: DrawnRows, line: string, idx: number) =>
       drawn.lines[idx] === line
       && drawn.dialects[idx] === lineDialects[idx]
+      && drawn.diffRows?.[idx]?.markers === parsedDiff?.[idx]?.markers
       && (drawn.numbers?.[idx] ?? null) === (numbers?.[idx] ?? null);
     return (line: string, idx: number) => {
       const previous = before?.nodes[idx];
@@ -772,7 +737,7 @@ export function SyntaxHighlightBlock({
       current.nodes[idx] = node;
       return node;
     };
-  }, [draw, shikiLines, diffBodyLines, isDiff, tokens, styles, showLineNumbers, numberWidth, scroll, language, codeLanguage, lines, lineDialects, numbers]);
+  }, [draw, shikiLines, diffBodyLines, isDiff, tokens, styles, showLineNumbers, numberWidth, scroll, language, codeLanguage, lines, lineDialects, numbers, parsedDiff, filename]);
 
   const rows = chunkRows(shown, (from, to) => (
     <CodeRows key={from} from={from} to={to} lines={lines} row={row} />
@@ -1056,6 +1021,7 @@ interface DrawnRows {
   lines: readonly string[];
   dialects: readonly string[];
   numbers: readonly (number | null)[] | null;
+  diffRows: readonly DiffRow[] | null;
   nodes: ReactNode[];
 }
 
@@ -1137,9 +1103,9 @@ function consolidateTokens(tokens: HighlightToken[]): HighlightToken[] {
   return result;
 }
 
-function renderShikiLine(line: HighlightLine, tokens: ExtendedThemeTokens): React.ReactNode {
+function renderShikiLine(line: HighlightLine, tokens: ExtendedThemeTokens, Span: React.ElementType<TextProps> = Text): React.ReactNode {
   return consolidateTokens(line).map((token, idx) => (
-    <Text
+    <Span
       key={idx}
       selectable
       style={{
@@ -1149,81 +1115,39 @@ function renderShikiLine(line: HighlightLine, tokens: ExtendedThemeTokens): Reac
       }}
     >
       {token.text}
-    </Text>
+    </Span>
   ));
 }
 
-/**
- * The marker column of a diff row. Rendering it the same way on both paths is
- * what keeps the arriving tokens from shifting the code sideways. A marker that
- * is neither add nor remove is the context row's own space: it is text, not
- * chrome, so it keeps its width and takes the body colour.
- */
-function renderDiffMarker(marker: string, tokens: ExtendedThemeTokens): React.ReactNode {
-  if (marker !== "+" && marker !== "-") return marker;
-  return (
-    <Text
-      selectable
-      style={{
-        color: marker === "+" ? tokens.syntax.diffAddMarker : tokens.syntax.diffRemoveMarker,
-        fontWeight: "600",
-      }}
-    >
-      {marker}
-    </Text>
-  );
-}
-
-/**
- * One diff body row: its marker in the diff's colours, then the code as the
- * patched file's own grammar tokenised it. The diff grammar cannot do this —
- * it paints a row one colour from its marker — so the body was tokenised
- * separately, without the markers in the way.
- */
-function renderDiffBodyLine(
+/** Shared row renderer for code blocks and selectable preview text. */
+export function renderDiffLine(
   line: string,
-  body: HighlightLine,
+  row: DiffRow,
   tokens: ExtendedThemeTokens,
+  filename?: string,
+  body?: HighlightLine,
+  chrome?: HighlightLine,
+  nativeSelection = false,
 ): React.ReactNode {
-  return (
-    <>
-      {renderDiffMarker(line.slice(0, 1), tokens)}
-      {renderShikiLine(body, tokens)}
-    </>
-  );
+  const Span = nativeSelection ? SelectableSpan : Text;
+  if (!row.markers) {
+    return chrome ? renderShikiLine(chrome, tokens, Span) : <Span style={{ color: tokens.syntax.comment }}>{line}</Span>;
+  }
+  return <Span>
+    {Array.from(row.markers, (marker, index) => <Span key={index} style={marker === "+" || marker === "-" ? {
+      color: marker === "+" ? tokens.syntax.diffAddMarker : tokens.syntax.diffRemoveMarker,
+      fontWeight: "600",
+    } : undefined}>{marker}</Span>)}
+    {body ? renderShikiLine(body, tokens, Span) : renderDialectLine(line.slice(row.markers.length), dialectFor(true, "diff", filename), tokens, Span)}
+  </Span>;
 }
 
 function renderSyntaxLine(
   line: string,
-  isDiff: boolean,
   language: string,
   lineDialect: string,
   tokens: ExtendedThemeTokens,
 ): React.ReactNode {
-  if (isDiff) {
-    // Hunk headers are metadata, not code.
-    if (line.startsWith("@@")) {
-      return (
-        <Text selectable style={{ color: tokens.syntax.comment }}>
-          {line}
-        </Text>
-      );
-    }
-
-    // The body of a diff line is real code, so it gets the same tokens as
-    // the file it came from. Only the marker carries the add/remove colour;
-    // the row behind it is already tinted.
-    const marker = line.startsWith("+") || line.startsWith("-") ? line.slice(0, 1) : "";
-    const body = marker ? line.slice(1) : line;
-
-    return (
-      <>
-        {marker ? renderDiffMarker(marker, tokens) : null}
-        {renderDialectLine(body, lineDialect, tokens)}
-      </>
-    );
-  }
-
   if (language === "bash") return renderBashTokens(line, tokens);
   return renderDialectLine(line, lineDialect, tokens);
 }
@@ -1233,37 +1157,39 @@ function renderDialectLine(
   line: string,
   dialect: string,
   tokens: ExtendedThemeTokens,
+  Span: React.ElementType<TextProps> = Text,
 ): React.ReactNode {
-  if (dialect === "bash") return renderBashTokens(line, tokens);
+  if (dialect === "bash") return renderBashTokens(line, tokens, Span);
 
   if (dialect === "html") {
-    return renderWithInterpolation(line, tokens, (text) => renderHtmlTokens(text, tokens, ""));
+    return renderWithInterpolation(line, tokens, (text) => renderHtmlTokens(text, tokens, "", Span), Span);
   }
 
   if (dialect === "css") {
-    return renderWithInterpolation(line, tokens, (text) => renderCssTokens(text, tokens, ""));
+    return renderWithInterpolation(line, tokens, (text) => renderCssTokens(text, tokens, "", Span), Span);
   }
 
   const commentMark = dialect === "python" ? "#" : "//";
   const commentIndex = line.indexOf(commentMark);
   if (commentIndex !== -1) {
     return (
-      <>
-        {renderCodeTokens(line.slice(0, commentIndex), dialect, tokens)}
-        <Text selectable style={{ color: tokens.syntax.comment }}>
+      <Span>
+        {renderCodeTokens(line.slice(0, commentIndex), dialect, tokens, Span)}
+        <Span selectable style={{ color: tokens.syntax.comment }}>
           {line.slice(commentIndex)}
-        </Text>
-      </>
+        </Span>
+      </Span>
     );
   }
 
-  return renderCodeTokens(line, dialect, tokens);
+  return renderCodeTokens(line, dialect, tokens, Span);
 }
 
 function renderCodeTokens(
   text: string,
   language: string,
   tokens: ExtendedThemeTokens,
+  Span: React.ElementType<TextProps> = Text,
 ): React.ReactNode {
   const keywords = keywordsFor(language);
   const tokenRegex = CODE_TOKEN_RE;
@@ -1291,25 +1217,25 @@ function renderCodeTokens(
     const token = match[0];
     if (token.startsWith('"') || token.startsWith("'") || token.startsWith("`")) {
       parts.push(
-        <Text key={match.index} selectable style={{ color: tokens.syntax.string }}>
+        <Span key={match.index} selectable style={{ color: tokens.syntax.string }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (keywords[token]) {
       parts.push(
-        <Text
+        <Span
           key={match.index}
           selectable
           style={{ color: tokens.syntax.keyword, fontWeight: "600" }}
         >
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (/^\d+$/.test(token)) {
       parts.push(
-        <Text key={match.index} selectable style={{ color: tokens.syntax.number }}>
+        <Span key={match.index} selectable style={{ color: tokens.syntax.number }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else {
       pushPlain(token);
@@ -1382,12 +1308,12 @@ const BASH_SUBCOMMANDS: Record<string, true> = {
   restart: true,
 };
 
-function renderBashTokens(line: string, tokens: ExtendedThemeTokens): React.ReactNode {
+function renderBashTokens(line: string, tokens: ExtendedThemeTokens, Span: React.ElementType<TextProps> = Text): React.ReactNode {
   if (line.startsWith("#")) {
     return (
-      <Text selectable style={{ color: tokens.syntax.comment }}>
+      <Span selectable style={{ color: tokens.syntax.comment }}>
         {line}
-      </Text>
+      </Span>
     );
   }
 
@@ -1433,44 +1359,44 @@ function renderBashTokens(line: string, tokens: ExtendedThemeTokens): React.Reac
     ) {
       isFirstWord = true;
       parts.push(
-        <Text
+        <Span
           key={match.index}
           selectable
           style={{ color: tokens.syntax.keyword, fontWeight: "600" }}
         >
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (token.startsWith("-")) {
       parts.push(
-        <Text key={match.index} selectable style={{ color: tokens.syntax.property }}>
+        <Span key={match.index} selectable style={{ color: tokens.syntax.property }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (token.startsWith('"') || token.startsWith("'")) {
       parts.push(
-        <Text key={match.index} selectable style={{ color: tokens.syntax.string }}>
+        <Span key={match.index} selectable style={{ color: tokens.syntax.string }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (/^\d+$/.test(token)) {
       parts.push(
-        <Text key={match.index} selectable style={{ color: tokens.syntax.number }}>
+        <Span key={match.index} selectable style={{ color: tokens.syntax.number }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (isFirstWord || BASH_COMMANDS[token]) {
       isFirstWord = false;
       parts.push(
-        <Text key={match.index} selectable style={{ color: tokens.accent, fontWeight: "600" }}>
+        <Span key={match.index} selectable style={{ color: tokens.accent, fontWeight: "600" }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else if (BASH_SUBCOMMANDS[token]) {
       parts.push(
-        <Text key={match.index} selectable style={{ color: tokens.syntax.function }}>
+        <Span key={match.index} selectable style={{ color: tokens.syntax.function }}>
           {token}
-        </Text>,
+        </Span>,
       );
     } else {
       pushPlain(token);
@@ -1483,14 +1409,14 @@ function renderBashTokens(line: string, tokens: ExtendedThemeTokens): React.Reac
     pushPlain(commandStr.slice(lastIndex));
   }
   return (
-    <>
+    <Span>
       {promptPrefix ? (
-        <Text selectable style={{ color: tokens.foregroundMuted, fontWeight: "600" }}>
+        <Span selectable style={{ color: tokens.foregroundMuted, fontWeight: "600" }}>
           {promptPrefix}
-        </Text>
+        </Span>
       ) : null}
       {parts}
-    </>
+    </Span>
   );
 }
 
