@@ -148,7 +148,9 @@ describe("assistant footer", () => {
       const buttons = table.findAllByType("Pressable" as never);
       expect(buttons.map((node) => node.props.accessibilityLabel))
         .toEqual(["Copy agent", "Copy model name", "Copy thinking level", "Copy start time", "Copy end time"]);
-      for (const [index, value] of ["codex", "GPT-6.1-Sol", "High", "2026-10-15 21:02:03", "2026-10-15 21:03:25"].entries()) {
+      // The model row shows its display label but copies the configured model name.
+      const copied = ["codex", "gpt-6.1-sol", "High", "2026-10-15 21:02:03", "2026-10-15 21:03:25"];
+      for (const [index, value] of copied.entries()) {
         await act(async () => { buttons[index]!.props.onPress(); });
         expect(clipboard.copyText).toHaveBeenLastCalledWith(value);
         expect(buttons[index]!.findByType("Icon" as never).props.name).toBe("Check");
@@ -170,6 +172,22 @@ describe("assistant footer", () => {
         expect(style.minHeight).toBe(32);
         expect(row.findAllByType("View" as never).some((node) => StyleSheet.flatten(node.props.style).width === 72)).toBe(true);
       }
+    } finally { act(() => renderer.unmount()); }
+  });
+
+  it("falls back to the model label when the agent has no configured model name", async () => {
+    updateEnhancerPreferences({ language: "en" });
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
+      text, at, tokens, modelName: "Opus 5.5", thinkingLabel: "High",
+    })); });
+    try {
+      const toolbar = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.testID === "footer-toolbar")!;
+      act(() => { toolbar.props.onLongPress(); });
+      const table = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-details-table")!;
+      await act(async () => { table.findAllByType("Pressable" as never)
+        .find((node) => node.props.accessibilityLabel === "Copy model name")!.props.onPress(); });
+      expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("Opus 5.5");
     } finally { act(() => renderer.unmount()); }
   });
 
@@ -282,7 +300,8 @@ describe("assistant footer", () => {
         .find((node) => node.props.testID === "toolbar-details-panel" || StyleSheet.flatten(node.props.style).boxShadow)!;
       expect(StyleSheet.flatten(panel.props.style).width).toBe(294);
       await act(async () => { copyButton.props.onPress(); });
-      expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("Opus 5.5");
+      expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("opus");
+      expect(clipboard.show).toHaveBeenCalledExactlyOnceWith("已复制模型名称");
       expect(copyButton.props.accessibilityLabel).toBe("Copied");
       if (platform !== "web") {
         const modal = renderer.root.findByType("Modal" as never);
@@ -326,7 +345,7 @@ describe("assistant footer", () => {
       expect(details()).toHaveLength(1);
       await act(async () => { details()[0]!.findAllByType("Pressable" as never)
         .find((node) => node.props.accessibilityLabel === "Copy model name")!.props.onPress(); });
-      expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("Opus 5.5");
+      expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("opus");
       act(() => { panel.props.onHoverOut(); });
       act(() => { vi.advanceTimersByTime(120); });
       expect(details()).toHaveLength(0);

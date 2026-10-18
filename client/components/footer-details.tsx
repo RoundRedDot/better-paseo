@@ -15,6 +15,8 @@ import type { TurnUsage } from "./user-message";
 
 export interface FooterDetailsProps {
   agentName?: string | null;
+  /** The model as configured, copied verbatim; `modelName` is only its display label. */
+  modelId?: string | null;
   modelName?: string | null;
   thinkingLabel?: string | null;
   startedAt?: number | null;
@@ -42,11 +44,11 @@ export function useFooterDetailsWidth(): number {
 /**
  * Two columns: a plain label, then its toolbar icon, value and inline copy action.
  */
-export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, completedAt, durationMs, usage, tokens }: FooterDetailsProps) {
+export function FooterDetails({ agentName, modelId, modelName, thinkingLabel, startedAt, completedAt, durationMs, usage, tokens }: FooterDetailsProps) {
   const { language } = useEnhancerPreferences();
-  const rows: Array<{ label: string; icon: string; provider?: string | null; value: string; copyLabel?: string }> = [];
+  const rows: Array<{ label: string; icon: string; provider?: string | null; value: string; copyText?: string; copyLabel?: string }> = [];
   if (agentName) rows.push({ label: "Agent", icon: "Bot", provider: agentName, value: agentName, copyLabel: "Copy agent" });
-  if (modelName) rows.push({ label: "Model name", icon: "Copy", provider: agentName, value: modelName, copyLabel: "Copy model name" });
+  if (modelName) rows.push({ label: "Model name", icon: "Copy", provider: agentName, value: modelName, copyText: modelId ?? undefined, copyLabel: "Copy model name" });
   if (thinkingLabel) rows.push({ label: "Thinking level", icon: "Brain", value: thinkingLabel, copyLabel: "Copy thinking level" });
   if (startedAt != null) rows.push({ label: "Start time", icon: "Clock", value: formatFullStamp(new Date(startedAt)), copyLabel: "Copy start time" });
   if (completedAt != null) rows.push({ label: "End time", icon: "Clock", value: formatFullStamp(new Date(completedAt)), copyLabel: "Copy end time" });
@@ -83,7 +85,7 @@ export function FooterDetails({ agentName, modelName, thinkingLabel, startedAt, 
                   : <Icon name={row.icon} size={14} color={tokens.foregroundMuted} />}
               </View>
               <Text style={[textStyle, { color: tokens.foreground }]}>{row.value}</Text>
-              {row.copyLabel ? <CopyButton text={row.value} label={row.copyLabel} tokens={tokens} /> : null}
+              {row.copyLabel ? <CopyButton text={row.copyText || row.value} label={row.copyLabel} tokens={tokens} /> : null}
             </View>
           </View>
         ))}
