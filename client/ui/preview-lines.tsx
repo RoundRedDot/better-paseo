@@ -116,6 +116,8 @@ interface PreviewLinesProps {
   renderLine?(line: string, index: number): ReactNode;
   /** A diff is numbered with the file's own lines, its chrome left blank. */
   diff?: boolean;
+  /** Semantic row fills take precedence over alternating preview stripes. */
+  lineBackgrounds?: readonly (string | undefined)[];
   /** The number of the first line, for a read of part of a file. */
   firstLine?: number;
   /** False for lines that are no file's lines, which get no number column. */
@@ -129,11 +131,11 @@ interface PreviewLinesProps {
  * too. The shading is drawn behind it and the numbers in a column of their
  * own beside it, both placed from where the text laid each line out.
  */
-export function PreviewLines({ text, lines, style, tokens, renderLine, diff = false, firstLine = 1, numbered = true }: PreviewLinesProps) {
+export function PreviewLines({ text, lines, style, tokens, renderLine, diff = false, lineBackgrounds, firstLine = 1, numbered = true }: PreviewLinesProps) {
   const { previewLineNumbers, previewStripes } = useEnhancerPreferences();
   const wraps = usePreviewWraps();
   const lineHeight = tokens.typography.mono.lineHeight;
-  const placed = previewLineNumbers || previewStripes;
+  const placed = previewLineNumbers || previewStripes || Boolean(lineBackgrounds);
   const numbers = useMemo(
     () => (!previewLineNumbers || !numbered ? null : diff ? diffLineNumbers(lines) : lines.map((_, index) => firstLine + index)),
     [previewLineNumbers, numbered, diff, lines, firstLine],
@@ -237,15 +239,16 @@ export function PreviewLines({ text, lines, style, tokens, renderLine, diff = fa
       <View ref={contentRef} onLayout={Platform.OS === "web" ? onLayout : undefined}
         onTouchStart={Platform.OS !== "web" ? selection.dismiss : undefined}
         style={wraps ? styles.wrapped : styles.unwrapped}>
-        {previewStripes ? (
+        {previewStripes || lineBackgrounds ? (
           <View testID="preview-line-stripes" pointerEvents="none" style={StyleSheet.absoluteFill}>
-            {tops.map((top, index) => index % 2 === 1 ? (
-              <View key={index} style={[styles.stripe, {
+            {tops.map((top, index) => {
+              const backgroundColor = lineBackgrounds?.[index] ?? (previewStripes && index % 2 === 1 ? tokens.v2.surface1 : undefined);
+              return backgroundColor ? <View key={index} style={[styles.stripe, {
                 top,
                 height: (tops[index + 1] ?? bottom) - top,
-                backgroundColor: tokens.v2.surface1,
-              }]} />
-            ) : null)}
+                backgroundColor,
+              }]} /> : null;
+            })}
           </View>
         ) : null}
         {selection.selectionStyle ? (

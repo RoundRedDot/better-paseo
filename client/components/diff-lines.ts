@@ -7,49 +7,120 @@
  * — a bare `+`/`-` list with no header — fall back to their position.
  */
 
-const HUNK_RE = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
+/** Unified and combined hunks carry one range per parent, then the result. */
+export function diffHunk(line: string): { starts: number[]; counts: number[] } | null {
+  const match = /^(@{2,}) ((?:-\d+(?:,\d+)? )+)\+(\d+)(?:,(\d+))? \1(?:\s|$)/.exec(line);
+  if (!match) return null;
+  const parents = [...match[2]!.matchAll(/-(\d+)(?:,(\d+))?/g)];
+  if (parents.length !== match[1]!.length - 1) return null;
+  return {
+    starts: [...parents.map((range) => Number(range[1])), Number(match[3])],
+    counts: [...parents.map((range) => Number(range[2] ?? 1)), Number(match[4] ?? 1)],
+  };
+}
+
+export interface DiffRow {
+  number: number | null;
+  markers: string;
+  kind: "add" | "remove" | null;
+}
+
+/** Columns consumed by a body row: combined deletions exist only in marked parents. */
+function consumedColumns(markers: string): boolean[] {
+  const removed = markers.includes("-");
+  return [...Array.from(markers, (marker) => removed ? marker === "-" : marker !== "+"), !removed];
+}
+
+export function diffRows(lines: readonly string[]): DiffRow[] {
+  let positions: number[] | null = null;
+  let parents = 1;
+  let remaining: number[] | null = null;
+  return lines.map((line, index) => {
+    const hunk = diffHunk(line);
+    if (hunk) {
+      positions = hunk.starts;
+      remaining = hunk.counts;
+      parents = positions.length - 1;
+      return { number: null, markers: "", kind: null };
+    }
+    const inBody = remaining?.some((count) => count > 0) && /^[ +\-]+$/.test(line.slice(0, parents));
+    if (!inBody && /^(?:diff |index |---(?: |$)|\+\+\+(?: |$)|\\|new file |deleted file |old mode |new mode |mode |similarity |dissimilarity |rename |copy |Binary |GIT binary)/.test(line)) {
+      if (line.startsWith("diff ")) { positions = null; parents = 1; }
+      return { number: null, markers: "", kind: null };
+    }
+    const markers = line.slice(0, parents);
+    if (markers.length !== parents || !/^[ +\-]+$/.test(markers)) {
+      return { number: positions ? null : index + 1, markers: "", kind: null };
+    }
+    const consumed = consumedColumns(markers);
+    const removed = markers.includes("-");
+    const number = positions
+      ? positions[removed ? consumed.indexOf(true) : parents] ?? null
+      : index + 1;
+    positions?.forEach((_, column) => {
+      if (consumed[column]) { positions![column]! += 1; if (remaining) remaining[column]! -= 1; }
+    });
+    return { number, markers, kind: removed ? "remove" : markers.includes("+") ? "add" : null };
+  });
+}
 
 export function diffLineNumbers(lines: readonly string[]): Array<number | null> {
-  const out: Array<number | null> = [];
-  let oldLine = 0;
-  let newLine = 0;
-  let inHunk = false;
+  return diffRows(lines).map((row) => row.number);
+}
+
+export interface OutputSection {
+  text: string;
+  diff: boolean;
+  filename?: string;
+}
+
+/** Split patches from subsequent command output using the hunk's declared ranges. */
+export function splitDiffOutput(text: string): OutputSection[] {
+  const lines = text.replace(/\r\n/g, "\n").replace(/\n+$/, "").split("\n");
+  const sections: OutputSection[] = [];
+  let current: OutputSection | undefined;
+  let remaining: number[] | null = null;
+  let binary = false;
+  const append = (line: string, diff: boolean, start = false) => {
+    if (!current || current.diff !== diff || start) {
+      current = { text: line, diff };
+      sections.push(current);
+    } else current.text += `\n${line}`;
+  };
   for (let index = 0; index < lines.length; index++) {
-    const line = lines[index] ?? "";
-    const hunk = HUNK_RE.exec(line);
-    if (hunk) {
-      oldLine = Number(hunk[1]);
-      newLine = Number(hunk[2]);
-      inHunk = true;
-      out.push(null);
-      continue;
+    const line = lines[index]!;
+    const file = /^diff --(?:git|cc|combined) /.test(line);
+    const pair = line.startsWith("--- ") && (lines[index + 1] ?? "").startsWith("+++ ");
+    const hunk = diffHunk(line);
+    // Inside a hunk, source text can itself resemble a file header.
+    if (remaining?.some((count) => count > 0) && !hunk && !file && !line.startsWith("\\")) {
+      const markers = line.slice(0, remaining.length - 1);
+      if (markers.length === remaining.length - 1 && /^[ +\-]+$/.test(markers)) {
+        append(line, true);
+        consumedColumns(markers).forEach((consumed, column) => { if (consumed) remaining![column]! -= 1; });
+        continue;
+      }
     }
-    if (!inHunk) {
-      const chrome =
-        line.startsWith("--- ") ||
-        line.startsWith("+++ ") ||
-        line === "---" ||
-        line === "+++" ||
-        line.startsWith("diff ") ||
-        line.startsWith("index ");
-      out.push(chrome ? null : index + 1);
-      continue;
-    }
-    if (line.startsWith("\\")) {
-      out.push(null);
-    } else if (line.startsWith("-")) {
-      out.push(oldLine);
-      oldLine += 1;
-    } else if (line.startsWith("+")) {
-      out.push(newLine);
-      newLine += 1;
+    if (file || pair || hunk) {
+      append(line, true, file || (pair && (!current?.diff || remaining !== null)));
+      remaining = hunk?.counts ?? null;
+      binary = false;
+    } else if (current?.diff && (/^(?:index |--- |\+\+\+ |\\ No newline|new file mode |deleted file mode |old mode |new mode |mode |similarity index |dissimilarity index |rename from |rename to |copy from |copy to |Binary files |GIT binary patch)/.test(line)
+      || (binary && line !== ""))) {
+      append(line, true);
+      if (line === "GIT binary patch") binary = true;
     } else {
-      out.push(newLine);
-      oldLine += 1;
-      newLine += 1;
+      append(line, false);
+      remaining = null;
+      binary = false;
+    }
+    if (current?.diff && /^(?:---|\+\+\+) /.test(line) && !line.endsWith(" /dev/null")) {
+      const path = line.slice(4).split("\t")[0]!;
+      // Quoted Git paths may contain C escapes; do not guess their decoding.
+      if (!path.startsWith('"')) current.filename = path.replace(/^[ab]\//, "");
     }
   }
-  return out;
+  return sections;
 }
 
 /** Beyond this many line pairs the changed middle is not aligned, only replaced. */

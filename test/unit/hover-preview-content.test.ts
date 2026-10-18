@@ -674,3 +674,56 @@ describe("source line tops", () => {
     expect(sourceLineTops([{ text: "a\n" }, { text: "b" }], 18, 3)).toBeNull();
   });
 });
+
+
+describe("Git diff output rendering", () => {
+  beforeEach(() => resetEnhancerPreferences());
+  const patch = "diff --cc x.ts\nindex 1,2..3\n--- a/x.ts\n+++ b/x.ts\n@@@ -10,2 -20,2 +30,2 @@@\n  const keep = 1;\n--const old = 2;\n++const next = 3;";
+
+  it("renders combined markers, file line numbers and change fills with stripes disabled", async () => {
+    updateEnhancerPreferences({ previewLineNumbers: true, previewStripes: false });
+    const data = classifyTool({ name: "Bash", status: "completed", detail: {
+      type: "shell", command: "git diff --cc; wc -l x.ts", output: `${patch}\n  99 x.ts`,
+    } });
+    await exercisePreview(React.createElement(ToolCallout, { data, tokens }), async (body) => {
+      const previews = body.root.findAllByType(PreviewLines);
+      expect(previews).toHaveLength(2);
+      expect(previews[0]!.props).toMatchObject({ text: patch, diff: true });
+      expect(previews[0]!.props.lineBackgrounds.slice(-3)).toEqual([undefined, tokens.syntax.diffRemoveBg, tokens.syntax.diffAddBg]);
+      expect(previews[1]!.props.text).toBe("  99 x.ts");
+      const gutter = previews[0]!.find((node) => (node.type as unknown) === "View" && node.props.testID === "preview-line-numbers");
+      expect(gutter.children.map(textOf)).toEqual(["", "", "", "", "", "30", "11", "31"]);
+      expect(textOf(body.toJSON())).toContain("--const old = 2;\n++const next = 3;");
+      const copies = body.root.findByType(HoverPreviewHeader).findAllByType(ToolbarButton)
+        .filter((node) => node.props.label.startsWith("Copy"));
+      expect(copies.map((node) => [node.props.label, node.props.icon])).toEqual([
+        ["Copy command", "SquareTerminal"], ["Copy output", "FileOutput"], ["Copy command and output", "ClipboardCopy"],
+      ]);
+      await press(body, "Copy output");
+      expect(clipboard.copyText).toHaveBeenLastCalledWith(`${patch}\n  99 x.ts`);
+    });
+  });
+
+  it("uses the diff code component in the expanded card", () => {
+    const data = classifyTool({ name: "Bash", status: "completed", detail: {
+      type: "shell", command: "git diff --cc", output: patch,
+    } });
+    let row!: ReturnType<typeof TestRenderer.create>;
+    act(() => { row = TestRenderer.create(React.createElement(ToolCallout, { data, tokens, expanded: true })); });
+    expect(row.root.findByType(SyntaxHighlightBlock).props).toMatchObject({ code: patch, language: "diff", filename: "x.ts", showLineNumbers: true });
+    act(() => row.unmount());
+  });
+
+  it("updates a streaming combined hunk without losing the new markers", async () => {
+    const data = (output: string) => classifyTool({ name: "Bash", status: "running", detail: {
+      type: "shell", command: "git diff --cc", output,
+    } });
+    let body!: ReturnType<typeof TestRenderer.create>;
+    const draw = (output: string) => React.createElement(ToolPreviewContent, { data: data(output), tokens, compact: false, resolvePath: (path: string) => path });
+    await act(async () => { body = TestRenderer.create(draw(patch.slice(0, -5))); });
+    await act(async () => { body.update(draw(patch)); });
+    expect(textOf(body.toJSON())).toContain("++const next = 3;");
+    expect(body.root.findByType(PreviewLines).props.lineBackgrounds.at(-1)).toBe(tokens.syntax.diffAddBg);
+    act(() => body.unmount());
+  });
+});

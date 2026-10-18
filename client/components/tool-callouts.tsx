@@ -7,7 +7,8 @@ import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { HubCallout } from "./hub-callout";
 import { PaseoToolCallout } from "./paseo-tool-callouts";
-import { SyntaxHighlightBlock, TerminalOutput, renderTerminalLine, renderTerminalOutput, terminalLines } from "./syntax-highlight";
+import { SyntaxHighlightBlock, renderTerminalOutput, terminalLines } from "./syntax-highlight";
+import { ToolOutput, DiffPreview } from "./tool-output";
 import { ImageMeta, ImagePreview } from "./image-preview";
 import { ImageViewer } from "./image-viewer";
 import { GitHubBody } from "./github-body";
@@ -513,7 +514,7 @@ const COPY_ICON: Record<CopyActionId, string> = {
   path: "Link",
   url: "Link",
   command: "SquareTerminal",
-  "command-output": "ClipboardList",
+  "command-output": "ClipboardCopy",
   query: "Search",
   summary: "MessageSquareText",
   files: "List",
@@ -523,10 +524,10 @@ const COPY_ICON: Record<CopyActionId, string> = {
   log: "ScrollText",
   description: "MessageSquareText",
   prompt: "FileText",
-  // The body itself: what the reader most often wants, under the plain copy icon.
+  // File and text bodies use Copy; command output has its own document icon.
   content: "Copy",
   "new-content": "Copy",
-  output: "Copy",
+  output: "FileOutput",
   result: "Copy",
   text: "Copy",
 };
@@ -744,13 +745,6 @@ function PreviewFile({ text, ...rest }: Omit<React.ComponentProps<typeof Preview
   return <PreviewLines text={text} lines={lines} {...rest} />;
 }
 
-/** A command's output in a preview, coloured as `renderTerminalOutput` colours it. */
-function PreviewOutput({ text, style, tokens }: { text: string; style: TextStyle; tokens: ExtendedThemeTokens }) {
-  const lines = useMemo(() => terminalLines(text), [text]);
-  const renderLine = useCallback((line: string, index: number) => renderTerminalLine(line, index, tokens), [tokens]);
-  return <PreviewLines text={text} lines={lines} style={style} tokens={tokens} renderLine={renderLine} />;
-}
-
 function useErrorStyle(tokens: ExtendedThemeTokens): TextStyle {
   return useMemo<TextStyle>(() => ({
     fontFamily: tokens.fontMono,
@@ -823,6 +817,8 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
         {isRunning ? "Waiting for content…" : "No content."}
       </SelectableText>;
     }
+    if (data.diff) return <DiffPreview text={content} filename={displayPath} style={styles.commandLine} tokens={tokens}
+      numbered={!data.diffFromText} running={isRunning} />;
     return <PreviewFile text={content} diff={Boolean(data.diff)} numbered={!data.diffFromText}
       firstLine={data.tool === "read" && data.offset !== undefined && data.offset > 0 ? Math.floor(data.offset) : 1}
       style={styles.commandLine} tokens={tokens} />;
@@ -843,13 +839,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             </CommandBand>
           ) : null}
           {data.shell?.stdout ? (
-            preview ? <PreviewOutput text={data.shell.stdout} style={styles.terminalOutput} tokens={tokens} /> :
-            <TerminalOutput
-              text={data.shell.stdout}
-              tokens={tokens}
-              textProps={selectionCodeText}
-              style={styles.terminalOutput}
-            />
+            <ToolOutput text={data.shell.stdout} style={styles.terminalOutput} tokens={tokens} preview={preview} running={isRunning} />
           ) : null}
           {data.shell?.stderr ? (
             preview ? <PreviewError text={data.shell.stderr} tokens={tokens} /> :
@@ -858,13 +848,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             </SelectableText>
           ) : null}
           {data.output && !data.shell?.stdout ? (
-            preview ? <PreviewOutput text={data.output} style={styles.terminalOutput} tokens={tokens} /> :
-            <TerminalOutput
-              text={data.output}
-              tokens={tokens}
-              textProps={selectionCodeText}
-              style={styles.terminalOutput}
-            />
+            <ToolOutput text={data.output} style={styles.terminalOutput} tokens={tokens} preview={preview} running={isRunning} />
           ) : null}
           {/* A failed call's error follows the body; it is not "no output". */}
           {!data.shell?.stdout && !data.shell?.stderr && !data.output && !(data.error && !isRunning) ? (
