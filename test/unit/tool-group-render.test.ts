@@ -4,10 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 // contrast on hover, press or when opened (docs/prototypes/quiet-tool-rows.md).
 
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
-const paging = vi.hoisted(() => ({ maximized: false, bind: vi.fn(), release: vi.fn() }));
+const paging = vi.hoisted(() => ({ maximized: false, bind: vi.fn(), release: vi.fn(), previewPointer: vi.fn() }));
 vi.mock("../../client/web", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../client/web")>(),
   bindPreviewPaging: paging.bind,
+  bindPreviewPointer: paging.previewPointer,
+  openPreviewLayer: () => () => {},
 }));
 vi.mock("../../client/ui/hover-preview", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../client/ui/hover-preview")>(),
@@ -31,7 +33,8 @@ const { default: TestRenderer, act } = await import("react-test-renderer");
 const { StyleSheet } = await import("./helpers/rn-mock");
 const { ToolCallout, previewCopyActions } = await import("../../client/components/tool-callouts");
 const { ToolbarButton, TOOLBAR_TOOLTIP_MS } = await import("../../client/ui/toolbar-button");
-const { HoverPreviewHeader } = await import("../../client/ui/hover-preview");
+const { HoverPreviewHeader, PREVIEW_OPEN_MS, PREVIEW_CLOSE_MS } = await import("../../client/ui/hover-preview");
+const inputCapabilities = await import("../../client/ui/use-input-capabilities");
 const { updateEnhancerPreferences } = await import("../../client/preferences");
 const { classifyTool } = await import("../../client/tools/classify");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -46,6 +49,51 @@ const calls = ["first", "second"].map((callId, index) => classifyTool({
   callId, name: "Edit", status: index ? "failed" : "completed", error: index ? "Permission denied" : null,
   detail: { type: "edit", filePath: "src/a.ts", unifiedDiff: "@@ -1 +1 @@\n-old\n+" + callId },
 }));
+
+describe("title-only sub-agent interaction", () => {
+  it("opens a hover preview and toggles its body on press", () => {
+    vi.useFakeTimers();
+    const platform = globalThis as { __rnMockOS?: string };
+    const previousOS = platform.__rnMockOS;
+    platform.__rnMockOS = "web";
+    const capabilities = vi.spyOn(inputCapabilities, "useInputCapabilities").mockReturnValue({
+      hover: true, touch: false, compact: false, native: false,
+    });
+    paging.previewPointer.mockReset().mockReturnValue(() => {});
+    const description = "修复 RRD-10663 Watch 录音";
+    const data = classifyTool({ name: "Agent", callId: "child", status: "completed",
+      detail: { type: "sub_agent", description, log: "", actions: [] } });
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    try {
+      act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, { data, tokens })); });
+      const header = renderer.root.findByType(DisclosureHeader);
+      expect(header.props.inert).toBe(false);
+      const row = () => renderer.root.find((node) => (node.type as unknown) === "Pressable"
+        && node.props.accessibilityLabel === `Agent ${description}`);
+      expect(row().props.disabled).toBe(false);
+      expect(shown(renderer.root)).toEqual([]);
+      expect(paging.previewPointer).toHaveBeenCalled();
+      act(() => paging.previewPointer.mock.calls.at(-1)![1]());
+      act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+      expect(shown(renderer.root)).toEqual(["child"]);
+      expect(texts(renderer.root)).toContain(description);
+      // Leaving closes the preview; clicking then opens the inline body.
+      act(() => paging.previewPointer.mock.calls.at(-1)![2]());
+      act(() => { vi.advanceTimersByTime(PREVIEW_CLOSE_MS); });
+      expect(shown(renderer.root)).toEqual([]);
+      act(() => row().props.onPress());
+      expect(renderer.root.findByType(DisclosureHeader).props.expanded).toBe(true);
+      expect(shown(renderer.root)).toEqual(["child"]);
+      act(() => row().props.onPress());
+      expect(shown(renderer.root)).toEqual([]);
+    } finally {
+      act(() => renderer?.unmount());
+      capabilities.mockRestore();
+      platform.__rnMockOS = previousOS;
+      vi.useRealTimers();
+    }
+  });
+});
 
 describe("grouped tool card presentation", () => {
   it("enables arrow paging only when maximized, keeps pages in range, and releases the binding", () => {
