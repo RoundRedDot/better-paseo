@@ -235,7 +235,8 @@ export function CenteredToolbarDetails({ close, children, tokens, width = TOOLTI
   const window = useWindowDimensions();
   const panelRef = useRef<View>(null);
   useEffect(() => bindDetailsEscape(panelRef.current, close), [close]);
-  return <Modal visible transparent animationType="none" onRequestClose={close}>
+  // SafeInset owns the status-bar spacing, matching the other native previews.
+  return <Modal visible transparent animationType="none" onRequestClose={close} statusBarTranslucent>
     <Pressable accessibilityRole="button" accessibilityLabel="Close preview"
       onPress={close} style={StyleSheet.absoluteFill} />
     <SafeInset pointerEvents="box-none" style={StyleSheet.absoluteFill}>
