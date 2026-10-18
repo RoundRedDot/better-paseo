@@ -9,16 +9,9 @@ function view(detail: Record<string, unknown>, extra: Partial<ToolCallPayload> =
 }
 
 describe("toolHasDetail", () => {
-  it.each(["修复 RRD-10663 Watch 录音", "修复 RRD-10929 实时字幕", "修复 RRD-10939 文件夹归属同步",
-    "修复 RRD-10934 备注弹窗", "修复 RRD-10940 转写失败按钮"])("keeps a title-only sub-agent interactive: %s", (description) => {
-    const agent = view({ type: "sub_agent", description, log: "", actions: [] }, { name: "Agent" });
-    expect(toolHasDetail(agent, BUDGET)).toBe(true);
-    expect(toolHasDetail(agent, 28)).toBe(true);
-  });
-
-  it("has none for an empty sub-agent card", () => {
-    expect(toolHasDetail(view({ type: "sub_agent", log: "", actions: [] }), BUDGET)).toBe(false);
-    expect(toolHasDetail(view({ type: "sub_agent", description: "  ", log: "" }), BUDGET)).toBe(false);
+  it("has none for a sub-agent whose only payload is its one-line description", () => {
+    const agent = view({ type: "sub_agent", description: "截图并读取界面", log: "" });
+    expect(toolHasDetail(agent, BUDGET)).toBe(false);
   });
 
   it("has detail once a sub-agent logs, acts, or describes past one line", () => {
@@ -29,8 +22,8 @@ describe("toolHasDetail", () => {
 
   it("has detail once a sub-agent carries a prompt beyond its description", () => {
     expect(toolHasDetail(view({ type: "sub_agent", description: "截图并读取界面", log: "", prompt: "打开模拟器，截图后读出界面上的文字。" }), BUDGET)).toBe(true);
-    expect(toolHasDetail(view({ type: "sub_agent", description: "截图并读取界面", log: "", prompt: "截图并读取界面" }), BUDGET)).toBe(true);
-    expect(toolHasDetail(view({ type: "sub_agent", description: "截图并读取界面", log: "", prompt: " " }), BUDGET)).toBe(true);
+    expect(toolHasDetail(view({ type: "sub_agent", description: "截图并读取界面", log: "", prompt: "截图并读取界面" }), BUDGET)).toBe(false);
+    expect(toolHasDetail(view({ type: "sub_agent", description: "截图并读取界面", log: "", prompt: " " }), BUDGET)).toBe(false);
   });
 
   it("has detail for a web search that brought back only its text summary", () => {
