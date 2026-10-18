@@ -7,7 +7,10 @@ import {
 } from "./ui/preview-frame";
 import { SELECTION_BAR_SELECTOR } from "./components/selection-actions";
 import { FLOAT_EASE } from "./ui/tokens/float";
+import { PREVIEW_REVEAL } from "./ui/tokens/motion";
 import { radiusV2 } from "./components/theme-tokens";
+
+export { PREVIEW_REVEAL } from "./ui/tokens/motion";
 
 /** The selection bar floats outside a preview but acts on its text, so it counts as part of it. */
 function onSelectionBar(target: EventTarget | null): boolean {
@@ -580,9 +583,6 @@ function editable(target: EventTarget | null): boolean {
   if (!element || typeof element.closest !== "function") return false;
   return element.isContentEditable || element.closest("input, textarea, select, [contenteditable='true']") !== null;
 }
-
-/** The hover panel's entrance: opacity and transform only, so the compositor plays it without a layout or a render. */
-export const PREVIEW_REVEAL = { ms: 140, shift: 4 } as const;
 
 /**
  * Fades the panel in while it slides `PREVIEW_REVEAL.shift` px away from its

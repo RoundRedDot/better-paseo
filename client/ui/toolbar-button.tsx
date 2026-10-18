@@ -12,11 +12,11 @@ import { FLOAT, floatShadow } from "./tokens/float";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { anchoredTooltipOrigin, liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement, type WindowBox } from "./tooltip-placement";
-import { bindDetailsEscape, bindRowHover, bindTouchDismiss, openToolbarDetailsLayer, PREVIEW_REVEAL, suppressTouchCallout } from "../web";
+import { bindDetailsEscape, bindRowHover, bindTouchDismiss, openToolbarDetailsLayer, suppressTouchCallout } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { SafeInset } from "./safe-inset";
-import { useReducedMotion } from "./use-reduced-motion";
-import { easing } from "./tokens/motion";
+import { usePreviewEntrance } from "./use-preview-entrance";
+import { PREVIEW_REVEAL } from "./tokens/motion";
 
 /** How long a pointer rests on a button before its name shows. */
 export const TOOLBAR_TOOLTIP_MS = 400;
@@ -236,17 +236,22 @@ export function CenteredToolbarDetails({ close, children, tokens, width = TOOLTI
 }) {
   const window = useWindowDimensions();
   const panelRef = useRef<View>(null);
+  const [shown, setShown] = useState(Platform.OS === "web");
+  const [laidOut, setLaidOut] = useState(false);
   useEffect(() => bindDetailsEscape(panelRef.current, close), [close]);
   // SafeInset owns the status-bar spacing, matching the other native previews.
-  return <Modal visible transparent animationType="none" onRequestClose={close} statusBarTranslucent>
+  return <Modal visible transparent animationType="none" onShow={() => setShown(true)} onRequestClose={close} statusBarTranslucent>
     <Pressable accessibilityRole="button" accessibilityLabel="Close preview"
       onPress={close} style={StyleSheet.absoluteFill} />
     <SafeInset pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       <View testID="footer-details-center" pointerEvents="box-none"
         style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 8 }}>
         <View ref={panelRef} testID="toolbar-details-panel" accessibilityViewIsModal
+          onLayout={({ nativeEvent: { layout } }) => {
+            if (layout.width > 0 && layout.height > 0) setLaidOut(true);
+          }}
           style={{ width: Math.min(width, window.width - 16), maxWidth: "100%" }}>
-          <ToolbarDetailsFrame tokens={tokens}>{children}</ToolbarDetailsFrame>
+          <ToolbarDetailsFrame tokens={tokens} ready={shown && laidOut}>{children}</ToolbarDetailsFrame>
         </View>
       </View>
     </SafeInset>
@@ -264,6 +269,7 @@ export function AnchoredToolbarDetails({ anchor, close, children, tokens, width 
   const stageRef = useRef<View>(null);
   const [bounds, setBounds] = useState<{ anchor: WindowBox; stage: WindowBox } | null>(null);
   const [panel, setPanel] = useState<{ width: number; height: number } | null>(null);
+  const [shown, setShown] = useState(false);
   const measure = useCallback(() => {
     stageRef.current?.measureInWindow((x, y, width, height) => {
       if (width <= 0 || height <= 0) return;
@@ -275,7 +281,7 @@ export function AnchoredToolbarDetails({ anchor, close, children, tokens, width 
   }, [anchor]);
   const origin = bounds && panel ? anchoredTooltipOrigin(bounds.anchor, bounds.stage, panel) : null;
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={close} onShow={measure} statusBarTranslucent>
+    <Modal visible transparent animationType="none" onRequestClose={close} onShow={() => { setShown(true); measure(); }} statusBarTranslucent>
       <Pressable accessibilityRole="button" accessibilityLabel="Close preview"
         onPress={close} style={StyleSheet.absoluteFill} />
       <SafeInset pointerEvents="box-none" style={StyleSheet.absoluteFill}>
@@ -289,7 +295,7 @@ export function AnchoredToolbarDetails({ anchor, close, children, tokens, width 
             }}
             style={{ position: "absolute", width: bounds ? Math.min(width, bounds.stage.width - 16) : width,
               maxWidth: "100%", opacity: origin ? 1 : 0, left: origin?.left ?? 0, top: origin?.top ?? 0 }}>
-            <ToolbarDetailsFrame tokens={tokens}>
+            <ToolbarDetailsFrame tokens={tokens} ready={shown && origin !== null}>
               {children}
             </ToolbarDetailsFrame>
           </View>
@@ -300,28 +306,11 @@ export function AnchoredToolbarDetails({ anchor, close, children, tokens, width 
 }
 
 /** Shared frame; the entrance matches the hover preview without changing its measured bounds. */
-export function ToolbarDetailsFrame({ tokens, children, side = "above" }: {
-  tokens: ExtendedThemeTokens; children: ReactNode; side?: TooltipPlacement;
+export function ToolbarDetailsFrame({ tokens, children, side = "above", ready = true }: {
+  tokens: ExtendedThemeTokens; children: ReactNode; side?: TooltipPlacement; ready?: boolean;
 }) {
-  const reducedMotion = useReducedMotion();
-  const progress = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
-  useEffect(() => {
-    if (reducedMotion) {
-      progress.setValue(1);
-      return;
-    }
-    const animation = Animated.timing(progress, {
-      toValue: 1,
-      duration: PREVIEW_REVEAL.ms,
-      easing: easing.out,
-      useNativeDriver: Platform.OS !== "web",
-    });
-    animation.start();
-    return () => animation.stop();
-  }, [progress, reducedMotion]);
-  return <Animated.View style={{ opacity: progress, transform: [{ translateY: reducedMotion ? 0 : progress.interpolate({
-    inputRange: [0, 1], outputRange: [side === "below" ? -PREVIEW_REVEAL.shift : PREVIEW_REVEAL.shift, 0],
-  }) }] }}>
+  const entrance = usePreviewEntrance({ ready, from: side === "below" ? -PREVIEW_REVEAL.shift : PREVIEW_REVEAL.shift });
+  return <Animated.View style={entrance}>
     <View testID="toolbar-details-frame" style={{ backgroundColor: tokens.surface0, borderColor: tokens.v2.border,
       borderWidth: 1, borderRadius: FLOAT.radius, boxShadow: floatShadow(tokens) }}>
       <View style={{ borderRadius: FLOAT.radius - 1, overflow: "hidden" }}>{children}</View>
