@@ -15,6 +15,7 @@ import { anchoredTooltipOrigin, liftStackingRow, placeTooltipNear, type DomBox, 
 import { bindDetailsEscape, bindRowHover, bindTouchDismiss, openToolbarDetailsLayer, suppressTouchCallout } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { SafeInset } from "./safe-inset";
+import { FadeIn } from "./fade-in";
 
 /** How long a pointer rests on a button before its name shows. */
 export const TOOLBAR_TOOLTIP_MS = 400;
@@ -301,10 +302,12 @@ export function AnchoredToolbarDetails({ anchor, close, children, tokens, width 
 export function ToolbarDetailsFrame({ tokens, children }: {
   tokens: ExtendedThemeTokens; children: ReactNode;
 }) {
-  return <View testID="toolbar-details-frame" style={{ backgroundColor: tokens.surface0, borderColor: tokens.v2.border,
-    borderWidth: 1, borderRadius: FLOAT.radius, boxShadow: floatShadow(tokens) }}>
-    <View style={{ borderRadius: FLOAT.radius - 1, overflow: "hidden" }}>{children}</View>
-  </View>;
+  return <FadeIn>
+    <View testID="toolbar-details-frame" style={{ backgroundColor: tokens.surface0, borderColor: tokens.v2.border,
+      borderWidth: 1, borderRadius: FLOAT.radius, boxShadow: floatShadow(tokens) }}>
+      <View style={{ borderRadius: FLOAT.radius - 1, overflow: "hidden" }}>{children}</View>
+    </View>
+  </FadeIn>;
 }
 
 /** A toolbar button that copies; its icon turns into a check for 1.2 s once the text is on the clipboard. */
