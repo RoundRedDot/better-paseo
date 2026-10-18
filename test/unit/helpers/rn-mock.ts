@@ -123,6 +123,10 @@ export const Dimensions = {
   addEventListener: () => ({ remove() {} }),
 };
 
+export const PixelRatio = {
+  get: () => Dimensions.get().scale,
+};
+
 export const Linking = { openURL: () => Promise.resolve() };
 
 export const NativeModules: Record<string, unknown> = {};
@@ -149,6 +153,7 @@ export default {
   Pressable,
   StyleSheet,
   Platform,
+  PixelRatio,
   Animated,
   AccessibilityInfo,
   Dimensions,
