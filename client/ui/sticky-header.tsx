@@ -10,6 +10,7 @@ import {
 // that predates it injects a module object without the key.
 import * as PluginReactNative from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
+import { hairline } from "./tokens/platform";
 import { DISCLOSURE_HEADER } from "./disclosure-header";
 
 /** The host's `useTimelineStickyHeader` (Paseo H2b, `bc/sticky`). */
@@ -124,7 +125,7 @@ export function StickyCard({ tokens, compact, header, children }: StickyCardProp
         {header}
         <Animated.View
           pointerEvents="none"
-          style={[styles.rule, { backgroundColor: tokens.v2.border, opacity: ruleOpacity }]}
+          style={[styles.rule, hairline(tokens.platform, "bottom"), { backgroundColor: tokens.v2.border, opacity: ruleOpacity }]}
         />
       </Animated.View>
       <View onLayout={onBodyLayout}>{children}</View>
@@ -145,6 +146,5 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: StyleSheet.hairlineWidth,
   },
 });
