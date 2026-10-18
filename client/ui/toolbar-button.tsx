@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle, type StyleProp } from "react-native";
+import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle, type StyleProp } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
@@ -12,10 +12,11 @@ import { FLOAT, floatShadow } from "./tokens/float";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { anchoredTooltipOrigin, liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement, type WindowBox } from "./tooltip-placement";
-import { bindDetailsEscape, bindRowHover, bindTouchDismiss, openToolbarDetailsLayer, suppressTouchCallout } from "../web";
+import { bindDetailsEscape, bindRowHover, bindTouchDismiss, openToolbarDetailsLayer, PREVIEW_REVEAL, suppressTouchCallout } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { SafeInset } from "./safe-inset";
-import { FadeIn } from "./fade-in";
+import { useReducedMotion } from "./use-reduced-motion";
+import { easing } from "./tokens/motion";
 
 /** How long a pointer rests on a button before its name shows. */
 export const TOOLBAR_TOOLTIP_MS = 400;
@@ -162,7 +163,7 @@ export function ToolbarItem({
     if (details || !open || sideMode !== "auto" || side !== "below" || Platform.OS !== "web") return;
     return liftStackingRow(anchorRef.current as unknown as DomBox | null);
   }, [Boolean(details), open, sideMode, side]);
-  const bubble = details ? <ToolbarDetailsFrame tokens={tokens}>{details}</ToolbarDetailsFrame> : (
+  const bubble = details ? <ToolbarDetailsFrame tokens={tokens} side={side}>{details}</ToolbarDetailsFrame> : (
     <View style={[styles.tooltip, tooltipLook(tokens)]}>
       <Text selectable={false} numberOfLines={1}
         style={[styles.tooltipText, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
@@ -298,16 +299,34 @@ export function AnchoredToolbarDetails({ anchor, close, children, tokens, width 
   );
 }
 
-/** Shared frame for pointer and long-press details. */
-export function ToolbarDetailsFrame({ tokens, children }: {
-  tokens: ExtendedThemeTokens; children: ReactNode;
+/** Shared frame; the entrance matches the hover preview without changing its measured bounds. */
+export function ToolbarDetailsFrame({ tokens, children, side = "above" }: {
+  tokens: ExtendedThemeTokens; children: ReactNode; side?: TooltipPlacement;
 }) {
-  return <FadeIn>
+  const reducedMotion = useReducedMotion();
+  const progress = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  useEffect(() => {
+    if (reducedMotion) {
+      progress.setValue(1);
+      return;
+    }
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration: PREVIEW_REVEAL.ms,
+      easing: easing.out,
+      useNativeDriver: Platform.OS !== "web",
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [progress, reducedMotion]);
+  return <Animated.View style={{ opacity: progress, transform: [{ translateY: reducedMotion ? 0 : progress.interpolate({
+    inputRange: [0, 1], outputRange: [side === "below" ? -PREVIEW_REVEAL.shift : PREVIEW_REVEAL.shift, 0],
+  }) }] }}>
     <View testID="toolbar-details-frame" style={{ backgroundColor: tokens.surface0, borderColor: tokens.v2.border,
       borderWidth: 1, borderRadius: FLOAT.radius, boxShadow: floatShadow(tokens) }}>
       <View style={{ borderRadius: FLOAT.radius - 1, overflow: "hidden" }}>{children}</View>
     </View>
-  </FadeIn>;
+  </Animated.View>;
 }
 
 /** A toolbar button that copies; its icon turns into a check for 1.2 s once the text is on the clipboard. */
