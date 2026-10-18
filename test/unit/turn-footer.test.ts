@@ -585,7 +585,7 @@ describe("assistant footer details motion", () => {
     { platform: "web", entry: "longPress" },
     { platform: "web", entry: "hover" },
   ].flatMap((scenario) => [false, true].map((reduced) => ({ ...scenario, reduced }))))
-  ("fades details on $platform $entry and respects reduced motion ($reduced)", ({ platform, entry, reduced }) => {
+  ("gently reveals details on $platform $entry and respects reduced motion ($reduced)", ({ platform, entry, reduced }) => {
     const globals = globalThis as { __rnMockOS?: string };
     const previousPlatform = globals.__rnMockOS;
     globals.__rnMockOS = platform;
@@ -617,10 +617,19 @@ describe("assistant footer details motion", () => {
       expect(opacity).toMatchObject({ __value: reduced ? 1 : 0 });
       if (reduced) {
         expect(timing).not.toHaveBeenCalled();
+        expect(StyleSheet.flatten(animated.props.style).transform).toEqual([{ translateY: 0 }]);
       } else {
         expect(timing).toHaveBeenCalledExactlyOnceWith(opacity, expect.objectContaining({
-          toValue: 1, duration: 120, useNativeDriver: platform !== "web",
+          toValue: 1, duration: 140, useNativeDriver: platform !== "web",
         }));
+        const interpolate = vi.spyOn(opacity as InstanceType<typeof Animated.Value>, "interpolate");
+        act(() => { renderer.update(React.createElement(AssistantFooter, {
+          text, at, tokens, modelId: "opus", modelName: "Opus 5.5", durationMs: 1000,
+        })); });
+        expect(interpolate).toHaveBeenCalledWith({ inputRange: [0, 1], outputRange: [entry === "hover" ? -4 : 4, 0] });
+        // Updating the details must not replay their entrance.
+        expect(timing).toHaveBeenCalledTimes(1);
+        interpolate.mockRestore();
       }
       if (entry === "hover") {
         act(() => { trigger.props.onHoverOut(); });
