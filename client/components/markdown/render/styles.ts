@@ -424,7 +424,7 @@ export function buildStyles(
     },
     codeBlock: {},
     rule: {
-      height: 1,
+      height: StyleSheet.hairlineWidth,
       backgroundColor: tokens.v2.border,
     },
     tableScroll: {
