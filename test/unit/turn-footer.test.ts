@@ -175,6 +175,21 @@ describe("assistant footer", () => {
     } finally { act(() => renderer.unmount()); }
   });
 
+  it("keeps a long model name on one line in the details panel", () => {
+    // The panel's value column has to hold the longest names the providers use.
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
+      text, at, tokens, compact: true, modelId: "deepseek-chat", modelName: "DeepSeek V4.1 Flash Free", thinkingLabel: "High",
+    })); });
+    try {
+      const toolbar = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.testID === "footer-toolbar")!;
+      act(() => { toolbar.props.onLongPress(); });
+      const row = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-detail-Model name")!;
+      const value = row.findAllByType("Text" as never).find((node) => node.props.children === "DeepSeek V4.1 Flash Free")!;
+      expect(value.props.numberOfLines).toBe(1);
+    } finally { act(() => renderer.unmount()); }
+  });
+
   it("falls back to the model label when the agent has no configured model name", async () => {
     updateEnhancerPreferences({ language: "en" });
     let renderer!: ReturnType<typeof TestRenderer.create>;
@@ -298,7 +313,7 @@ describe("assistant footer", () => {
         .filter((node) => StyleSheet.flatten(node.props.style).width === 20)).toHaveLength(0);
       const panel = renderer.root.findAllByType("View" as never)
         .find((node) => node.props.testID === "toolbar-details-panel" || StyleSheet.flatten(node.props.style).boxShadow)!;
-      expect(StyleSheet.flatten(panel.props.style).width).toBe(294);
+      expect(StyleSheet.flatten(panel.props.style).width).toBe(324);
       await act(async () => { copyButton.props.onPress(); });
       expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith("opus");
       expect(clipboard.show).toHaveBeenCalledExactlyOnceWith("已复制模型名称");
