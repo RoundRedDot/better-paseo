@@ -1,8 +1,9 @@
 /**
  * Whether opening a tool row would show anything its header does not
- * already say. Named sub-agent cards remain interactive even when the host
- * sends only their description. Other rows without detail neither open nor
- * preview: a shell call that printed nothing, a read that returned no content.
+ * already say. A row without detail neither opens nor previews: a sub-agent
+ * whose only payload is its one-line description (no prompt, log or
+ * actions), a shell call that printed nothing, a read that returned no
+ * content.
  */
 import { isImagePath } from "../image-file";
 import { stringifyValue, type ToolCallView } from "./classify";
@@ -57,10 +58,7 @@ function bodyDetail(view: ToolCallView, budget: number): boolean {
       return !fitsRow(view.text, budget);
     case "sub_agent": {
       const agent = view.subAgent;
-      // The host can project a child into a title-only parent card, clearing
-      // its log/actions and omitting the prompt. Keep its preview and press
-      // affordances instead of treating a short title as an empty tool call.
-      return Boolean(agent?.description?.trim() || agent?.prompt || agent?.actions?.length || agent?.log);
+      return Boolean(agent?.prompt || agent?.actions?.length || agent?.log) || !fitsRow(agent?.description, budget);
     }
     case "search": {
       const search = view.search;
@@ -93,7 +91,7 @@ function bodyDetail(view: ToolCallView, budget: number): boolean {
 /**
  * `budget` is the header's target budget in cells. A row whose text is cut
  * there, or that carries output, an error beyond its first line, or a typed
- * record, has detail. A named sub-agent also keeps its description preview.
+ * record, has detail.
  */
 export function toolHasDetail(view: ToolCallView, budget: number): boolean {
   if (Array.isArray(view.questionData?.questions) && view.questionData.questions.length > 0) return true;
