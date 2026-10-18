@@ -68,7 +68,7 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
   const detailsWidth = useFooterDetailsWidth();
   // Grok and Cursor upstream history replays lack reliable per-message timestamps.
   const visibleDurationMs = agentName === "grok" || agentName === "cursor" ? null : durationMs;
-  const details = <FooterDetails agentName={agentName} modelName={modelName} thinkingLabel={thinkingLabel}
+  const details = <FooterDetails agentName={agentName} modelId={modelId} modelName={modelName} thinkingLabel={thinkingLabel}
     startedAt={startedAt} completedAt={at.getTime()} durationMs={visibleDurationMs} usage={usage} tokens={tokens} />;
   const copyModel = useCallback(() => {
     if (modelId) void modelCopy.copy(modelId, { label: "Copy model name" });
