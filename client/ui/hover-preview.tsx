@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import {
-  Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View,
+  Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View,
   type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle,
 } from "react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
@@ -24,6 +24,7 @@ import { RunningDot } from "./running-dot";
 import { bindPreviewTail, nativePreviewTail, PREVIEW_SETTLE_MS, previewFollowsTail } from "./preview-tail";
 import { forgetPreview, holdPreview, recallPreview, rememberPreview, type PreviewMemory } from "./preview-memory";
 import { useReducedMotion } from "./use-reduced-motion";
+import { usePreviewEntrance } from "./use-preview-entrance";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
@@ -429,6 +430,7 @@ function PressPreview({ preview, tokens, wraps = true, wrapDisabled = false, chi
   wrapDisabled?: boolean;
   children: ReactNode;
 }) {
+  const [modalShown, setModalShown] = useState(false);
   const [rowWidth, setRowWidth] = useState<number | null>(null);
   const [stage, setStage] = useState<{ width: number; height: number } | null>(null);
   const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
@@ -468,6 +470,7 @@ function PressPreview({ preview, tokens, wraps = true, wrapDisabled = false, chi
     height: pressPreviewFrame(stage, stage.width, Platform.OS).maxHeight,
   }, Platform.OS) : null;
   const shown = maximizedBox ?? box ?? (natural && stage ? pressPreviewOrigin(stage, natural, Platform.OS) : null);
+  const entrance = usePreviewEntrance({ ready: modalShown && shown !== null, quiet: preview.quiet });
   boxRef.current = shown;
   if (stage) boundsRef.current = stage;
   const drag = useRef<FrameDrag>(null!);
@@ -491,51 +494,53 @@ function PressPreview({ preview, tokens, wraps = true, wrapDisabled = false, chi
     edges: previewEdgeResponders(drag.current),
   }), []);
   return (
-    <Modal visible transparent animationType={preview.quiet ? "none" : "fade"} onRequestClose={close} statusBarTranslucent>
+    <Modal visible transparent animationType="none" onShow={() => setModalShown(true)} onRequestClose={close} statusBarTranslucent>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Close preview"
         onPress={close}
         style={[StyleSheet.absoluteFill, styles.backdrop]}
       />
-      <SafeInset pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-        <View testID="hover-preview-stage" onLayout={onStageLayout} pointerEvents="box-none" style={[styles.stage, stagePadding()]}>
-          <HoverPreviewContext.Provider value>
-            <PreviewActionsContext.Provider value={{
-              maximizable: false,
-              maximized: preview.maximized,
-              maximize: preview.maximize,
-              close,
-              fill: preview.maximized || box !== null,
-              wrap: wraps ? { on: wrapDisabled || wrapOn, disabled: wrapDisabled, toggle: toggleWrap, tokens } : undefined,
-              memoryKey,
-              remembered,
-            }}>
-              <PreviewDragContext.Provider value={preview.maximized ? null : gestures.toolbar}>
-                <View
-                  {...selectionSurface}
-                  testID="hover-preview"
-                  accessibilityViewIsModal
-                  onLayout={onPanelLayout}
-                  style={[
-                    styles.panel, styles.pressPanel, pressLook(tokens),
-                    // Centred in the band until its own height is known; then the same
-                    // spot, absolutely, so a drag can move it without a jump.
-                    shown
-                      ? { position: "absolute", left: shown.x, top: shown.y, width: shown.width, height: shown.height }
-                      : frame
-                        ? { width: frame.width, maxHeight: frame.maxHeight }
-                        : styles.hidden,
-                  ]}
-                >
-                  {children}
-                  {shown && !preview.maximized ? <PreviewEdges edges={gestures.edges} /> : null}
-                </View>
-              </PreviewDragContext.Provider>
-            </PreviewActionsContext.Provider>
-          </HoverPreviewContext.Provider>
-        </View>
-      </SafeInset>
+      <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, entrance]}>
+        <SafeInset pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+          <View testID="hover-preview-stage" onLayout={onStageLayout} pointerEvents="box-none" style={[styles.stage, stagePadding()]}>
+            <HoverPreviewContext.Provider value>
+              <PreviewActionsContext.Provider value={{
+                maximizable: false,
+                maximized: preview.maximized,
+                maximize: preview.maximize,
+                close,
+                fill: preview.maximized || box !== null,
+                wrap: wraps ? { on: wrapDisabled || wrapOn, disabled: wrapDisabled, toggle: toggleWrap, tokens } : undefined,
+                memoryKey,
+                remembered,
+              }}>
+                <PreviewDragContext.Provider value={preview.maximized ? null : gestures.toolbar}>
+                  <View
+                    {...selectionSurface}
+                    testID="hover-preview"
+                    accessibilityViewIsModal
+                    onLayout={onPanelLayout}
+                    style={[
+                      styles.panel, styles.pressPanel, pressLook(tokens),
+                      // Centred in the band until its own height is known; then the same
+                      // spot, absolutely, so a drag can move it without a jump.
+                      shown
+                        ? { position: "absolute", left: shown.x, top: shown.y, width: shown.width, height: shown.height }
+                        : frame
+                          ? { width: frame.width, maxHeight: frame.maxHeight }
+                          : styles.hidden,
+                    ]}
+                  >
+                    {children}
+                    {shown && !preview.maximized ? <PreviewEdges edges={gestures.edges} /> : null}
+                  </View>
+                </PreviewDragContext.Provider>
+              </PreviewActionsContext.Provider>
+            </HoverPreviewContext.Provider>
+          </View>
+        </SafeInset>
+      </Animated.View>
     </Modal>
   );
 }

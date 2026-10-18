@@ -13,6 +13,8 @@ vi.mock("react-native", async () => ({
   UIManager: { hasViewManagerConfig: (name: string) => name === "RNUITextView" },
 }));
 const clipboard = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => {}), show: vi.fn(), error: vi.fn() }));
+const motion = vi.hoisted(() => ({ reduced: false }));
+vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motion.reduced }));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: rn.View, ScrollView: rn.ScrollView, TextInput: rn.TextInput,
@@ -45,6 +47,7 @@ import { classifyTool } from "../../client/tools/classify";
 import { pressPreviewFrame, pressPreviewOrigin } from "../../client/ui/press-preview-placement";
 import { MAX_UNWRAPPED_WIDTH } from "../../client/ui/hover-preview";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import { Animated } from "./helpers/rn-mock";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -53,6 +56,7 @@ const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  motion.reduced = false;
   resetEnhancerPreferences();
   (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
 });
@@ -227,6 +231,36 @@ describe("long-pressing a collapsed row on a phone", () => {
 });
 
 describe("where the long-press preview goes", () => {
+  it.each(["ios", "android"].flatMap((os) => [false, true].map((reduced) => ({ os, reduced }))))
+  ("starts the new entrance only after the modal and final layout are ready on $os (reduced=$reduced)", ({ os, reduced }) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    motion.reduced = reduced;
+    const timing = vi.spyOn(Animated, "timing");
+    const renderer = render(React.createElement(ToolCallout, { data: shell, tokens, compact: true }));
+    try {
+      act(() => row(renderer).props.onLongPress());
+      const modal = renderer.root.findByType("Modal" as never);
+      expect(modal.props.animationType).toBe("none");
+      expect(timing).not.toHaveBeenCalled();
+      const stage = renderer.root.findByProps({ testID: "hover-preview-stage" });
+      act(() => stage.props.onLayout({ nativeEvent: { layout: { width: 390, height: 700 } } }));
+      act(() => panel(renderer).props.onLayout({ nativeEvent: { layout: { width: 374, height: 280 } } }));
+      expect(timing).not.toHaveBeenCalled();
+      act(() => modal.props.onShow());
+      if (reduced) expect(timing).not.toHaveBeenCalled();
+      else expect(timing).toHaveBeenCalledExactlyOnceWith(expect.anything(), expect.objectContaining({
+        duration: 140, toValue: 1, useNativeDriver: true,
+      }));
+      // Repeated layout and content updates must not restart the entrance.
+      act(() => stage.props.onLayout({ nativeEvent: { layout: { width: 390, height: 700 } } }));
+      expect(timing).toHaveBeenCalledTimes(reduced ? 0 : 1);
+    } finally {
+      act(() => renderer.unmount());
+      timing.mockRestore();
+      motion.reduced = false;
+    }
+  });
+
   it("sits between the header and the composer, as wide as the row", () => {
     const renderer = render(React.createElement(ToolCallout, { data: shell, tokens, compact: true }));
     act(() => row(renderer).props.onLongPress());

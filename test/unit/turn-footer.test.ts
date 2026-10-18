@@ -602,11 +602,19 @@ describe("assistant footer details motion", () => {
         .find((node) => node.props.accessibilityLabel === "Copy model name")!;
       expect(timing).not.toHaveBeenCalled();
       const open = () => {
+        const previousAnimations = timing.mock.calls.length;
         if (entry === "hover") {
           act(() => { trigger.props.onHoverIn(); });
           act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
         } else {
           act(() => { trigger.props.onLongPress(); });
+          expect(StyleSheet.flatten(renderer.root.findByType("Animated.View" as never).props.style).opacity).toBe(0);
+          const modal = renderer.root.findByType("Modal" as never);
+          const panel = renderer.root.findAllByType("View" as never)
+            .find((node) => node.props.testID === "toolbar-details-panel")!;
+          act(() => { panel.props.onLayout({ nativeEvent: { layout: { width: 294, height: 180 } } }); });
+          if (platform !== "web") expect(timing).toHaveBeenCalledTimes(previousAnimations);
+          act(() => { modal.props.onShow(); });
         }
       };
       open();
@@ -626,7 +634,7 @@ describe("assistant footer details motion", () => {
         act(() => { renderer.update(React.createElement(AssistantFooter, {
           text, at, tokens, modelId: "opus", modelName: "Opus 5.5", durationMs: 1000,
         })); });
-        expect(interpolate).toHaveBeenCalledWith({ inputRange: [0, 1], outputRange: [entry === "hover" ? -4 : 4, 0] });
+        expect(interpolate).not.toHaveBeenCalled();
         // Updating the details must not replay their entrance.
         expect(timing).toHaveBeenCalledTimes(1);
         interpolate.mockRestore();
