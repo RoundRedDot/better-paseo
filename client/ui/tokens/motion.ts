@@ -17,6 +17,9 @@ export const duration = {
   fast: 120,
 } as const;
 
+/** Shared native and web preview entrance, applied after positioning. */
+export const PREVIEW_REVEAL = { ms: 140, shift: 4 } as const;
+
 /** Decelerating cubic: `1 - (1 - t)^3`. */
 export function outCubic(t: number): number {
   const inverse = 1 - t;
