@@ -15,7 +15,7 @@ vi.mock("../../client/ui/disclosure-header", () => ({ DISCLOSURE_HEADER: { icon:
 import { AssistantFooter } from "../../client/components/turn-footer";
 import { ProviderLogo } from "../../client/components/provider-logo";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
-import { StyleSheet } from "./helpers/rn-mock";
+import { StatusBar, StyleSheet } from "./helpers/rn-mock";
 import { seedMarkBitmaps } from "../../client/components/marks";
 import { updateEnhancerPreferences } from "../../client/preferences";
 import { TOOLBAR_TOOLTIP_MS } from "../../client/ui/toolbar-button";
@@ -188,10 +188,14 @@ describe("assistant footer", () => {
     } finally { act(() => renderer.unmount()); }
   });
 
-  it.each(["ios", "android", "web"])("centers long-press details independently of the pressed position on %s", (platform) => {
+  it.each(["ios", "android", "web"].flatMap((platform) =>
+    [0, 28].map((statusBarHeight) => ({ platform, statusBarHeight }))))
+  ("centers long-press details with one safe-area inset on $platform (status bar=$statusBarHeight)", ({ platform, statusBarHeight }) => {
     const globals = globalThis as { __rnMockOS?: string };
     const previousPlatform = globals.__rnMockOS;
+    const previousStatusBarHeight = StatusBar.currentHeight;
     globals.__rnMockOS = platform;
+    StatusBar.currentHeight = statusBarHeight;
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
       text, at, tokens, compact: true, modelId: "opus", modelName: "Opus 5.5", thinkingLabel: "High",
@@ -203,7 +207,22 @@ describe("assistant footer", () => {
       const center = renderer.root.findAllByType("View" as never)
         .find((node) => node.props.testID === "footer-details-center")!;
       expect(StyleSheet.flatten(center.props.style)).toMatchObject({ alignItems: "center", justifyContent: "center" });
-      expect(renderer.root.findByType("Modal" as never).props.animationType).toBe("none");
+      const modal = renderer.root.findByType("Modal" as never);
+      expect(modal.props.animationType).toBe("none");
+      if (platform === "android") {
+        // SafeInset owns the status-bar spacing; the native dialog must not add it again.
+        expect(modal.props.statusBarTranslucent).toBe(true);
+      }
+      let safe = center.parent!;
+      while (typeof safe.type !== "string") safe = safe.parent!;
+      if (platform === "ios") {
+        expect(safe.type).toBe("SafeAreaView");
+        expect(StyleSheet.flatten(safe.props.style)).not.toHaveProperty("paddingTop");
+      } else {
+        expect(safe.type).toBe("View");
+        expect(StyleSheet.flatten(safe.props.style).paddingTop ?? 0)
+          .toBe(platform === "android" ? statusBarHeight : 0);
+      }
       const panel = renderer.root.findAllByType("View" as never)
         .find((node) => node.props.testID === "toolbar-details-panel")!;
       expect(StyleSheet.flatten(panel.props.style)).not.toHaveProperty("top");
@@ -212,6 +231,7 @@ describe("assistant footer", () => {
     } finally {
       act(() => renderer.unmount());
       globals.__rnMockOS = previousPlatform;
+      StatusBar.currentHeight = previousStatusBarHeight;
     }
   });
 
