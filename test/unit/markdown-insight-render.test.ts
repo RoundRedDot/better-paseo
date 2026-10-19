@@ -1,10 +1,13 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
+const clipboard = vi.hoisted(() => vi.fn(async (_text: string) => {}));
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/react-native", () => ({
   Icon: (props: object) => React.createElement("Icon", props),
   useRevealedText: (text: string) => text,
+  copyText: clipboard,
+  useToast: () => ({ show() {}, error() {} }),
 }));
 vi.mock("@getpaseo/plugin/client", () => ({ useSettings: () => ({ data: undefined }) }));
 
@@ -36,7 +39,7 @@ describe("Insight rendering", () => {
       for (let end = 1; end <= source.length; end++) {
         let fresh!: ReturnType<typeof TestRenderer.create>;
         act(() => { renderer.update(view(source.slice(0, end))); fresh = TestRenderer.create(view(source.slice(0, end))); });
-        expect(renderer.toJSON(), `prefix ${end}`).toEqual(fresh.toJSON());
+        expect(JSON.stringify(renderer.toJSON()), `prefix ${end}`).toBe(JSON.stringify(fresh.toJSON()));
         act(() => fresh.unmount());
       }
     } finally { act(() => renderer.unmount()); }
@@ -44,7 +47,7 @@ describe("Insight rendering", () => {
 
   for (const platform of ["web", "ios", "android"] as const) {
     for (const dark of [false, true]) {
-      it(`${platform}, ${dark ? "dark" : "light"}: draws a themed card with selectable Markdown`, () => {
+      it(`${platform}, ${dark ? "dark" : "light"}: draws a flat card and copies its Markdown body`, async () => {
         const colors = {
           surface0: dark ? "#18181b" : "#ffffff", surface1: dark ? "#27272a" : "#f6f6f7",
           surface2: dark ? "#303034" : "#ececee", border: dark ? "#444449" : "#e2e2e6",
@@ -62,13 +65,29 @@ describe("Insight rendering", () => {
           try {
             const card = () => renderer.root.findAll((node) =>
               (node.type as unknown) === "View" &&
-              StyleSheet.flatten(node.props.style)?.borderLeftWidth === 2,
+              StyleSheet.flatten(node.props.style)?.borderWidth === 1,
             );
             expect(card()).toHaveLength(1);
             const style = StyleSheet.flatten(card()[0]!.props.style);
             expect(style.backgroundColor).toBe(tokens.v2.surface1);
-            expect(style.borderLeftColor).toBe(tokens.v2.border);
+            expect(style.borderColor).toBe(tokens.v2.border);
+            expect(style.borderLeftWidth).toBeUndefined();
+            expect(style.boxShadow).toBeUndefined();
+            expect(style.shadowOpacity).toBeUndefined();
+            expect(style.elevation).toBeUndefined();
             expect(style.width).toBeUndefined();
+            const button = () => card()[0]!.find((node) =>
+              (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "button",
+            );
+            expect(button().props.accessibilityLabel).toBe("Copy section");
+            // Header actions stay in one row, with the copy control at the end.
+            const headerRow = card()[0]!.find((node) => (node.type as unknown) === "View" &&
+              StyleSheet.flatten(node.props.style)?.justifyContent === "space-between");
+            expect(StyleSheet.flatten(headerRow.props.style).flexDirection).toBe("row");
+            expect(headerRow.findAll((node) => node === button())).toHaveLength(1);
+            await act(async () => { button().props.onPress(); });
+            expect(clipboard).toHaveBeenLastCalledWith(body.trim());
+            expect(button().props.accessibilityLabel).toBe("Copied");
             act(() => renderer.update(view(header + body + footer + "\n\nAfter", false)));
             expect(card()).toHaveLength(1);
             const texts = renderer.root.findAll((node) => (node.type as unknown) === "Text");
@@ -81,6 +100,8 @@ describe("Insight rendering", () => {
               (node.type as unknown) === "View" && StyleSheet.flatten(node.props.style)?.gap === 8,
             );
             expect(lists.length).toBeGreaterThan(0);
+            await act(async () => { button().props.onPress(); });
+            expect(clipboard).toHaveBeenLastCalledWith(body.trim());
           } finally { act(() => renderer.unmount()); }
         }
       });
