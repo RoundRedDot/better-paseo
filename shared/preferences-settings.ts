@@ -110,7 +110,7 @@ export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrate
     .transform(clampHoverDelay)
     .catch(HOVER_DELAY_DEFAULT),
   previewWrap: flag(true),
-  previewLineNumbers: flag(false),
+  previewLineNumbers: flag(true),
   previewStripes: flag(true),
   enhancedUserBubble: flag(false),
   selectionActions: flag(true),

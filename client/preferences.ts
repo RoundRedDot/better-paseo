@@ -200,7 +200,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   hoverPreview: true,
   hoverDelaySeconds: HOVER_DELAY_DEFAULT,
   previewWrap: true,
-  previewLineNumbers: false,
+  previewLineNumbers: true,
   previewStripes: true,
   enhancedUserBubble: false,
   selectionActions: true,

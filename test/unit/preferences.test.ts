@@ -66,17 +66,18 @@ describe("preferences v2 defaults", () => {
     // A record that already has the typed value ignores a leftover step.
     expect(parsePreferences({ hoverDelay: "2s", hoverDelaySeconds: 0.4 }).hoverDelaySeconds).toBe(0.4);
   });
-  it("starts previews wrapped and shaded without line numbers and keeps an explicit choice", () => {
+  it("starts previews wrapped, numbered and shaded and keeps an explicit choice", () => {
     expect(DEFAULT_PREFERENCES.previewWrap).toBe(true);
-    expect(DEFAULT_PREFERENCES.previewLineNumbers).toBe(false);
+    expect(DEFAULT_PREFERENCES.previewLineNumbers).toBe(true);
     expect(DEFAULT_PREFERENCES.previewStripes).toBe(true);
     const { previewWrap: _wrap, previewLineNumbers: _numbers, previewStripes: _stripes, ...older } = storedPart(DEFAULT_PREFERENCES);
-    expect(parsePreferences(older)).toMatchObject({ previewWrap: true, previewLineNumbers: false, previewStripes: true });
+    expect(parsePreferences(older)).toMatchObject({ previewWrap: true, previewLineNumbers: true, previewStripes: true });
     expect(parsePreferences({ previewWrap: false }).previewWrap).toBe(false);
     expect(parsePreferences({ previewLineNumbers: true, previewStripes: false }))
       .toMatchObject({ previewLineNumbers: true, previewStripes: false });
+    expect(parsePreferences({ previewLineNumbers: false }).previewLineNumbers).toBe(false);
     expect(parsePreferences({ previewLineNumbers: "yes", previewStripes: 0 }))
-      .toMatchObject({ previewLineNumbers: false, previewStripes: true });
+      .toMatchObject({ previewLineNumbers: true, previewStripes: true });
   });
   it("follows Paseo for fonts and starts tools collapsed", () => {
     expect(DEFAULT_PREFERENCES).toMatchObject({
