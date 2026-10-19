@@ -9,6 +9,7 @@ import type { RenderContext } from "./context";
 import { codeSurface } from "../../host-font-escape";
 import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
 import { ProseSpan, ProseText } from "../../../ui/prose-text";
+import { CopyButton } from "../../../ui/copy-button";
 import { renderInline } from "./inline";
 import { LocalImage } from "./local-image";
 import { splitLocalImages } from "./local-path";
@@ -83,7 +84,10 @@ function renderBlock(
     };
     return (
       <View key={key} style={styles.insight}>
-        <ProseText style={styles.insightTitle}>✦ Insight</ProseText>
+        <View style={styles.insightHeader}>
+          <ProseText style={styles.insightTitle}>✦ Insight</ProseText>
+          <CopyButton text={insight.text.trim()} tokens={context.tokens} label="Copy section" />
+        </View>
         {renderBlocks(insight.tokens, insightContext, `${key}i`, {
           ...options, first: true, open: options.open && !insight.closed,
         })}
