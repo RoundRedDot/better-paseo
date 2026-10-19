@@ -4,10 +4,7 @@
 
 一个 [Paseo](https://paseo.sh) 插件，重新绘制 Paseo 中所有 agent 的聊天时间线，不论背后是哪家服务（Claude Code、Codex、Oh My Pi 等）：工具调用、思考、回复、提问、待办和错误都画成紧凑、按类型区分、带语法高亮的行，配色跟随当前的 Paseo 主题。下方实测对比它和 Paseo 原生时间线的开销。
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="images/hero-devices-dark.png">
-  <img alt="Better Paseo 的桌面端与移动端：折叠读文件行的悬停预览、思考、Shell、读文件、编辑 diff、MCP、待办、Paseo 与 hub 调用、后台任务和回复" src="images/hero-devices-light.png">
-</picture>
+<img alt="Better Paseo，一个 Paseo 插件：桌面窗口和手机上的清晰、快速聊天时间线" src="images/hero-cover.png">
 
 > Better Paseo fork 自 [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat)，从 `42b61d8`（2026-09-23）接着开发。除 Eval、Ask、Task 和审批卡片外，Beautiful Chat 原有的卡片都还在；当前的 Paseo 不会把这几类内容交给插件（见[兼容性](#兼容性)）。本文介绍这个 fork 新增的功能和它的性能表现。
 
@@ -207,7 +204,7 @@ iPhone 16 Pro / iOS 18.6 开发版 Hermes 模拟器，每次冷启动；使用 4
 | 表格流式 | 103.6 | 104.4 | **105.1** | +1.5 | +0.7 |
 | 工具日志增长（默认状态） | 100.6 | 111.6 | **106.2** | +5.7 | -5.3 |
 
-[原始 Web 样本](docs/bench/2026-10-17-readme/parallel-v2/raw/web)
+本轮原始 Web 样本留在本地 `docs/bench` 归档中，不进入 git。
 
 ---
 

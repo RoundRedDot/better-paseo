@@ -25,16 +25,6 @@
   ],
   "assets": [
     {
-      "path": "images/hero-devices-light.png",
-      "scene": "shot-hero-devices",
-      "theme": "light",
-      "locale": "en-US",
-      "scale": 2,
-      "width": 3720,
-      "height": 2628,
-      "sha256": "118b988aa97cc588ef527aff80e521b503d8a3d05b11df8a2d4f95f2128961fe"
-    },
-    {
       "path": "images/thread-light.png",
       "scene": "shot-thread",
       "theme": "light",
@@ -283,16 +273,6 @@
       "width": 1240,
       "height": 891,
       "sha256": "b774df427c08d22ca85953323b938f93882ef31eb8520417097a2b90521e67bf"
-    },
-    {
-      "path": "images/hero-devices-dark.png",
-      "scene": "shot-hero-devices",
-      "theme": "dark",
-      "locale": "en-US",
-      "scale": 2,
-      "width": 3720,
-      "height": 2628,
-      "sha256": "699a2ddaae84180d42082108bfe712291a5cf3cf8c6ce490c91e3c7d76d5f35a"
     },
     {
       "path": "images/thread-dark.png",
