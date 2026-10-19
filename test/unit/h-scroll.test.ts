@@ -11,7 +11,8 @@ vi.mock("react-native", () => import("./helpers/rn-mock"));
 await import("./helpers/quiet-renderer");
 const TestRenderer = (await import("react-test-renderer")).default;
 const { act } = await import("react-test-renderer");
-const { HScroll } = await import("../../client/ui/h-scroll");
+const { HScroll, TRACK_HOLD_MS } = await import("../../client/ui/h-scroll");
+const { Animated } = await import("./helpers/rn-mock");
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -54,7 +55,11 @@ describe("HScroll", () => {
       );
     });
     const scroller = () => view.root.find((node) => (node.type as unknown) === "Animated.ScrollView");
+    // The wrapper and its thumb are both animated; the thumb is the inner one,
+    // and the width the indicator reads is its own.
     const track = () => view.root.findAll((node) => (node.type as unknown) === "Animated.View");
+    const thumbWidth = () => (track().at(-1)!.props.style as Array<{ width?: number }>)
+      .find((part) => part?.width !== undefined)?.width;
     const layout = (width: number) => act(() => scroller().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 40 } } }));
     const contentSize = (width: number) => act(() => scroller().props.onContentSizeChange(width, 40));
 
@@ -69,11 +74,10 @@ describe("HScroll", () => {
     // Past the column, the indicator appears and follows the width.
     contentSize(600);
     expect(commits).toBe(fitted + 1);
-    expect(track()).toHaveLength(1);
+    expect(track()).toHaveLength(2);
     contentSize(900);
     expect(commits).toBe(fitted + 2);
-    const thumb = track()[0]!;
-    expect((thumb.props.style as Array<{ width?: number }>).find((part) => part?.width !== undefined)?.width).toBe(100);
+    expect(thumbWidth()).toBe(100);
 
     // A wider column that fits it again takes the indicator away.
     layout(1000);
@@ -81,7 +85,47 @@ describe("HScroll", () => {
     // A width reported while it fitted is the one used once it overflows.
     contentSize(950);
     layout(500);
-    expect((track()[0]!.props.style as Array<{ width?: number }>).find((part) => part?.width !== undefined)?.width).toBe(263);
+    expect(thumbWidth()).toBe(263);
     act(() => view.unmount());
+  });
+
+  it("holds a scroll-only track out of sight until the content is scrolled", () => {
+    const runs: Array<{ toValue: number; duration: number }> = [];
+    // The mock's `timing` is a stub that ignores its arguments, so the fades
+    // the component starts are read back through the config it was handed.
+    const stub = (_value: unknown, config: { toValue: number; duration: number }) => {
+      runs.push(config);
+      return { start() {}, stop() {}, reset() {} };
+    };
+    const timing = vi.spyOn(Animated, "timing").mockImplementation(stub as unknown as typeof Animated.timing);
+    let view!: ReturnType<typeof TestRenderer.create>;
+    try {
+      vi.useFakeTimers();
+      act(() => {
+        view = TestRenderer.create(React.createElement(HScroll,
+          { tokens, trackOnScroll: true, children: React.createElement("Content") }));
+      });
+      const scroller = () => view.root.find((node) => (node.type as unknown) === "Animated.ScrollView");
+      const track = () => view.root.findAll((node) => (node.type as unknown) === "Animated.View");
+      act(() => scroller().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 300, height: 40 } } }));
+      act(() => scroller().props.onContentSizeChange(600, 40));
+      // Mounted with the overflow, but faded out until a scroll asks for it.
+      expect(track()).toHaveLength(2);
+      expect(runs).toHaveLength(0);
+
+      act(() => scroller().props.onScroll({ nativeEvent: { contentOffset: { x: 40 } } }));
+      expect(runs.at(-1)).toMatchObject({ toValue: 1 });
+      // Scrolling again restarts the wait instead of hiding it under the gesture.
+      act(() => { vi.advanceTimersByTime(600); });
+      act(() => scroller().props.onScroll({ nativeEvent: { contentOffset: { x: 80 } } }));
+      act(() => { vi.advanceTimersByTime(600); });
+      expect(runs.at(-1)).toMatchObject({ toValue: 1 });
+      act(() => { vi.advanceTimersByTime(TRACK_HOLD_MS); });
+      expect(runs.at(-1)).toMatchObject({ toValue: 0 });
+    } finally {
+      timing.mockRestore();
+      act(() => view.unmount());
+      vi.useRealTimers();
+    }
   });
 });
