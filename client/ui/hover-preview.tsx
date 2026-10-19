@@ -701,10 +701,12 @@ export function HoverPreviewBody({ children, streaming = false }: { children: Re
   useWebScrollMemory(webBody, memoryKey, remembered, streaming, following);
   // Lines keep their length; the body scrolls sideways, with a track under it
   // only while it is wider than the panel. The track keeps clear of the last
-  // line's descenders and sits down in the body's bottom padding, near the
-  // panel's edge.
+  // line's descenders, sits down near the panel's bottom edge, and is up only
+  // while the reader scrolls: a long body must be read to its end before the
+  // track would otherwise come into view.
   const content = wrap && !wrap.on ? (
-    <HScroll tokens={wrap.tokens} trackStyle={styles.track} contentContainerStyle={styles.unwrappedScroll} scrollEnabled={!scroller.held}>
+    <HScroll tokens={wrap.tokens} trackStyle={previewTrack()} contentContainerStyle={styles.unwrappedScroll}
+      trackOnScroll scrollEnabled={!scroller.held}>
       <View style={[styles.unwrapped, Platform.OS !== "web" && styles.unwrappedNative]}>{children}</View>
     </HScroll>
   ) : children;
@@ -725,6 +727,20 @@ export function HoverPreviewBody({ children, streaming = false }: { children: Re
       {content}
     </View>
   );
+}
+
+/**
+ * The body's sideways track: 4pt above the panel's bottom edge and out of the
+ * last line's descenders. On web it is pinned there, since the body scrolls
+ * down under it and a long body would otherwise push its track out of reach.
+ * The scrollport the track sticks to ends where the body's 12pt bottom padding
+ * begins, so the offset reaches through that padding (`space.xs - space.md`).
+ * On a phone there is no sticky box to pin it to, and the track stays under
+ * the content, where the panel's scroller keeps it.
+ */
+function previewTrack(): ViewStyle {
+  if (Platform.OS !== "web") return { marginTop: space.sm, marginBottom: space.xs - space.md };
+  return { position: "sticky", bottom: space.xs - space.md, marginTop: space.sm, zIndex: 1 } as unknown as ViewStyle;
 }
 
 /**
@@ -939,8 +955,6 @@ const styles = StyleSheet.create({
   // texture (16384px, 5461pt at 3x) draws nothing: a minified JSON line
   // left the whole output blank. Lines past this width wrap here instead.
   unwrappedNative: { maxWidth: MAX_UNWRAPPED_WIDTH },
-  // 4pt from the panel's edge, out of the body's 12pt bottom padding.
-  track: { marginTop: space.sm, marginBottom: space.xs - space.md },
   // Raised over the body, so a button's name can hang down across it.
   header: {
     flexShrink: 0,
