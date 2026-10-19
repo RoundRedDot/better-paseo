@@ -108,7 +108,9 @@ export const Animated = {
   loop: () => idleAnimation,
   sequence: () => idleAnimation,
   parallel: () => idleAnimation,
-  event: () => () => {},
+  event: (_mapping?: unknown, config?: { listener?: (event: unknown) => void }) => (event: unknown) => {
+    config?.listener?.(event);
+  },
   multiply: (a: unknown) => a,
   add: (a: unknown) => a,
 };
