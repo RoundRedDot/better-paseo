@@ -104,7 +104,9 @@ including images inside tables. These fixture screenshots do not establish nativ
 ## Benchmark charts
 
 The README charts use the audited latest-main campaign under
-`docs/bench/2026-10-17-readme/parallel-v2/`. Serial diagnostic samples and the invalid first
+`docs/bench/2026-10-17-readme/parallel-v2/`. Captures and raw samples in that tree
+(`png`, `jpg`, `gz`, `json`, `jsonl`, `log`) stay on disk and are gitignored.
+Serial diagnostic samples and the invalid first
 parallel transport attempt remain separate and are excluded from publication:
 
 ```bash

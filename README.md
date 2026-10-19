@@ -7,10 +7,7 @@ whichever provider is behind it (Claude Code, Codex, Oh My Pi and the rest): too
 replies, prompts, checklists and errors become compact, typed, syntax-aware rows that follow the
 active Paseo theme. The performance section compares it with Paseo’s own timeline.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="images/hero-devices-dark.png">
-  <img alt="Better Paseo on desktop and on a phone: a hover preview of a collapsed read, reasoning, shell, read, edit diff, MCP, checklist, Paseo and hub calls, a background job and the reply" src="images/hero-devices-light.png">
-</picture>
+<img alt="Better Paseo, a Paseo plugin: a clear, fast chat timeline on a desktop window and a phone" src="images/hero-cover.png">
 
 > Better Paseo is a fork of [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat),
 > continued from `42b61d8` (2026-09-23). It keeps Beautiful Chat's cards except the Eval, Ask,
@@ -220,7 +217,7 @@ Values are milliseconds. Web older reveal uses a full-height physical wheel from
 | Table streaming | 103.6 | 104.4 | **105.1** | +1.5 | +0.7 |
 | Growing tool log (defaults) | 100.6 | 111.6 | **106.2** | +5.7 | -5.3 |
 
-[Raw Web samples](docs/bench/2026-10-17-readme/parallel-v2/raw/web)
+Raw Web samples from this round stay in the local `docs/bench` archive and are not stored in git.
 
 ---
 
