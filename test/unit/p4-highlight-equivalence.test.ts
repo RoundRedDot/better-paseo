@@ -17,7 +17,7 @@ let actual: Baseline;
 beforeAll(() => {
   // In-process plugin contribution, in a fresh offline Node child. Only highlight.tokens is invoked.
   // The observer sees the real core; it does not replace grammar registration or tokenisation.
-  actual = JSON.parse(execFileSync(process.execPath, ["docs/bench/2026-10-14-p4/baseline.mjs"], {
+  actual = JSON.parse(execFileSync(process.execPath, ["test/fixtures/p4-highlight/baseline.mjs"], {
     cwd: root, encoding: "utf8", maxBuffer: 8 * 1024 * 1024,
   }));
 }, 30_000);
