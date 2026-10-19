@@ -1,73 +1,117 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Better Paseo">
   <title>Better Paseo</title>
-  <!-- Layered glass icon in the Paseo icon palette: near-black tile, white row heads.
-       Depth comes from a rim gradient, an inner thickness line, a specular corner, a bounce
-       along the bottom, a pool of light behind the mark, and a drop shadow lifting the bars
-       off the glass. Regenerate the PNG at 4x and downscale so the gradients stay smooth. -->
+  <!-- Liquid glass: a smoked lens, refracted perimeter, and floating milky glass rows.
+       Render at 2048px and downsample to 512px to preserve smooth optical gradients. -->
   <defs>
-    <linearGradient id="bpc-base" x1="0.1" y1="0" x2="0.45" y2="1">
-      <stop offset="0" stop-color="#1B2227" />
-      <stop offset="0.45" stop-color="#070A0D" />
-      <stop offset="1" stop-color="#000000" />
+    <linearGradient id="bpc-base" x1="0" y1="0" x2="0.8" y2="1">
+      <stop stop-color="#333D43" />
+      <stop offset="0.35" stop-color="#11191F" />
+      <stop offset="0.72" stop-color="#080C10" />
+      <stop offset="1" stop-color="#1B252D" />
     </linearGradient>
-    <linearGradient id="bpc-gloss" x1="0" y1="0" x2="0.12" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16" />
-      <stop offset="0.28" stop-color="#ffffff" stop-opacity="0.05" />
-      <stop offset="0.58" stop-color="#ffffff" stop-opacity="0" />
-    </linearGradient>
-    <radialGradient id="bpc-specular" cx="0.26" cy="0.06" r="0.8">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16" />
-      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.04" />
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+    <radialGradient id="bpc-light" cx="0.08" cy="0.02" r="0.95">
+      <stop stop-color="#E4F4FA" stop-opacity="0.28" />
+      <stop offset="0.45" stop-color="#A0B8C7" stop-opacity="0.06" />
+      <stop offset="1" stop-color="#8195AA" stop-opacity="0" />
     </radialGradient>
-    <radialGradient id="bpc-bounce" cx="0.24" cy="1" r="0.75">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.07" />
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+    <radialGradient id="bpc-bottom" cx="0.85" cy="1.1" r="0.8">
+      <stop stop-color="#B2C4D0" stop-opacity="0.24" />
+      <stop offset="0.6" stop-color="#93B2C8" stop-opacity="0.04" />
+      <stop offset="1" stop-color="#93B2C8" stop-opacity="0" />
     </radialGradient>
-    <linearGradient id="bpc-rim" x1="0.15" y1="0" x2="0.4" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.75" />
-      <stop offset="0.2" stop-color="#ffffff" stop-opacity="0.26" />
-      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.1" />
-      <stop offset="0.9" stop-color="#ffffff" stop-opacity="0.07" />
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0.26" />
+    <linearGradient id="bpc-rim" x1="0.08" y1="0" x2="0.85" y2="1">
+      <stop stop-color="#FFFFFF" stop-opacity="0.95" />
+      <stop offset="0.24" stop-color="#DAE8EF" stop-opacity="0.46" />
+      <stop offset="0.48" stop-color="#B9CEDD" stop-opacity="0.08" />
+      <stop offset="0.74" stop-color="#BCD0DE" stop-opacity="0.28" />
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.8" />
     </linearGradient>
-    <linearGradient id="bpc-seat" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#000000" stop-opacity="0" />
-      <stop offset="1" stop-color="#000000" stop-opacity="0.22" />
+    <linearGradient id="bpc-inner-rim" x1="0" y1="0" x2="0.9" y2="1">
+      <stop stop-color="#DDECF2" stop-opacity="0.35" />
+      <stop offset="0.35" stop-color="#FFFFFF" stop-opacity="0.03" />
+      <stop offset="0.7" stop-color="#FFFFFF" stop-opacity="0.05" />
+      <stop offset="1" stop-color="#F1F8FF" stop-opacity="0.4" />
     </linearGradient>
-    <linearGradient id="bpc-bar" x1="0.12" y1="0" x2="0.3" y2="1">
-      <stop offset="0" stop-color="#ffffff" />
-      <stop offset="0.62" stop-color="#ffffff" />
-      <stop offset="1" stop-color="#EFF3F2" />
+    <linearGradient id="bpc-sweep" x1="0" y1="0" x2="0.25" y2="1">
+      <stop stop-color="#FFFFFF" stop-opacity="0.19" />
+      <stop offset="0.75" stop-color="#FFFFFF" stop-opacity="0.02" />
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0" />
     </linearGradient>
-    <filter id="bpc-pool" x="-70%" y="-70%" width="240%" height="240%">
-      <feGaussianBlur stdDeviation="42" />
+    <linearGradient id="bpc-glass" x1="0" y1="0" x2="0.04" y2="1">
+      <stop stop-color="#FFFFFF" stop-opacity="0.98" />
+      <stop offset="0.14" stop-color="#EDF5FA" stop-opacity="0.94" />
+      <stop offset="0.45" stop-color="#D9E4ED" stop-opacity="0.78" />
+      <stop offset="0.67" stop-color="#E4EFF6" stop-opacity="0.82" />
+      <stop offset="0.87" stop-color="#F6FBFF" stop-opacity="0.97" />
+      <stop offset="1" stop-color="#BDD0DE" stop-opacity="0.88" />
+    </linearGradient>
+    <radialGradient id="bpc-bead" cx="0.32" cy="0.2" r="0.85">
+      <stop stop-color="#FFFFFF" />
+      <stop offset="0.35" stop-color="#F0F7FC" stop-opacity="0.95" />
+      <stop offset="0.72" stop-color="#CCDFEA" stop-opacity="0.82" />
+      <stop offset="0.9" stop-color="#F3FAFF" stop-opacity="0.98" />
+      <stop offset="1" stop-color="#ACBFCD" />
+    </radialGradient>
+    <linearGradient id="bpc-edge" x1="0" y1="0" x2="0.1" y2="1">
+      <stop stop-color="#FFFFFF" />
+      <stop offset="0.4" stop-color="#FFFFFF" stop-opacity="0.14" />
+      <stop offset="0.75" stop-color="#FFFFFF" stop-opacity="0.1" />
+      <stop offset="1" stop-color="#E5F4FF" stop-opacity="0.8" />
+    </linearGradient>
+    <linearGradient id="bpc-stem" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#C9DEE9" stop-opacity="0.48" />
+      <stop offset="0.4" stop-color="#F6FBFF" stop-opacity="0.8" />
+      <stop offset="1" stop-color="#ACBFCC" stop-opacity="0.48" />
+    </linearGradient>
+    <linearGradient id="bpc-shine" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#FFFFFF" stop-opacity="0" />
+      <stop offset="0.25" stop-color="#FFFFFF" stop-opacity="0.95" />
+      <stop offset="0.7" stop-color="#FFFFFF" stop-opacity="0.55" />
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+    <filter id="bpc-lift" x="-40%" y="-40%" width="190%" height="210%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="16" stdDeviation="12" flood-color="#000000" flood-opacity="0.65" />
+      <feDropShadow dx="0" dy="3" stdDeviation="2" flood-color="#000000" flood-opacity="0.35" />
     </filter>
-    <filter id="bpc-lift" x="-60%" y="-60%" width="220%" height="220%">
-      <feDropShadow dx="0" dy="12" stdDeviation="15" flood-color="#000000" flood-opacity="0.6" />
+    <filter id="bpc-soft" x="-50%" y="-100%" width="200%" height="300%">
+      <feGaussianBlur stdDeviation="6" />
     </filter>
     <clipPath id="bpc-tile">
-      <rect width="512" height="512" rx="112" />
+      <rect x="2" y="2" width="508" height="508" rx="110" />
     </clipPath>
   </defs>
-
   <g clip-path="url(#bpc-tile)">
     <rect width="512" height="512" fill="url(#bpc-base)" />
-    <rect width="512" height="512" fill="url(#bpc-specular)" />
-    <rect width="512" height="512" fill="url(#bpc-bounce)" />
-    <rect width="512" height="512" fill="url(#bpc-gloss)" />
-    <rect width="512" height="512" fill="url(#bpc-seat)" />
-    <rect x="104" y="146" width="312" height="254" rx="70" fill="#ffffff" opacity="0.17" filter="url(#bpc-pool)" />
-    <rect x="13" y="13" width="486" height="486" rx="101" fill="none" stroke="url(#bpc-rim)" stroke-opacity="0.7" stroke-width="2.5" />
-    <g transform="translate(256 256) scale(1.15) translate(-256 -256)" fill="url(#bpc-bar)" filter="url(#bpc-lift)">
-      <rect x="126" y="156" width="24" height="204" rx="12" />
-      <circle cx="138" cy="176" r="27" />
-      <circle cx="138" cy="258" r="27" />
-      <circle cx="138" cy="340" r="27" />
-      <rect x="190" y="152" width="210" height="48" rx="24" />
-      <rect x="190" y="234" width="150" height="48" rx="24" />
-      <rect x="190" y="316" width="186" height="48" rx="24" />
+    <rect width="512" height="512" fill="url(#bpc-light)" />
+    <rect width="512" height="512" fill="url(#bpc-bottom)" />
+    <path d="M0 0H512V78C377 54 279 184 0 205Z" fill="url(#bpc-sweep)" />
+    <path d="M32 431C149 497 351 505 481 387" fill="none" stroke="#D6EBF8" stroke-opacity="0.09" stroke-width="14" filter="url(#bpc-soft)" />
+    <rect x="8" y="8" width="496" height="496" rx="105" fill="none" stroke="#000000" stroke-opacity="0.46" stroke-width="9" />
+    <rect x="12" y="12" width="488" height="488" rx="102" fill="none" stroke="url(#bpc-inner-rim)" stroke-width="1.5" />
+    <g transform="translate(256 256) scale(1.15) translate(-256 -256)" filter="url(#bpc-lift)">
+      <rect x="126" y="165" width="24" height="182" rx="12" fill="url(#bpc-stem)" />
+      <g fill="url(#bpc-bead)" stroke="url(#bpc-edge)" stroke-width="1.5">
+        <circle cx="138" cy="176" r="27" />
+        <circle cx="138" cy="258" r="27" />
+        <circle cx="138" cy="340" r="27" />
+      </g>
+      <g fill="url(#bpc-glass)" stroke="url(#bpc-edge)" stroke-width="1.5">
+        <rect x="190" y="152" width="210" height="48" rx="24" />
+        <rect x="190" y="234" width="150" height="48" rx="24" />
+        <rect x="190" y="316" width="186" height="48" rx="24" />
+      </g>
+      <g fill="none" stroke="url(#bpc-shine)" stroke-width="2.4" stroke-linecap="round">
+        <path d="M198 168Q202 156 218 156H371Q385 156 391 166" />
+        <path d="M198 250Q202 238 218 238H311Q325 238 331 248" />
+        <path d="M198 332Q202 320 218 320H347Q361 320 367 330" />
+      </g>
+      <g fill="none" stroke="#FFFFFF" stroke-opacity="0.7" stroke-width="1.5" stroke-linecap="round">
+        <path d="M118 169A21 21 0 0 1 145 156" />
+        <path d="M118 251A21 21 0 0 1 145 238" />
+        <path d="M118 333A21 21 0 0 1 145 320" />
+      </g>
     </g>
   </g>
-  <rect x="3" y="3" width="506" height="506" rx="109" fill="none" stroke="url(#bpc-rim)" stroke-width="6" />
+  <rect x="3" y="3" width="506" height="506" rx="109" fill="none" stroke="url(#bpc-rim)" stroke-width="4" />
+  <path d="M18 81C29 32 62 7 113 6H266" fill="none" stroke="url(#bpc-shine)" stroke-width="2" stroke-linecap="round" />
 </svg>
