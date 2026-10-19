@@ -232,8 +232,10 @@ for (const theme of themes) {
     await scene.screenshot({ path: path.join(themeDir, `${id}.png`), animations: "disabled" });
     if (hover) {
       await page.mouse.move(0, 0);
-      const off = Object.fromEntries(Object.keys(hover.preferences).map((key) => [key, false]));
-      await page.evaluate((p) => globalThis.setShowcasePreferences(p), off);
+      // The override above writes a module-level store, so it would otherwise
+      // stay in force for every later capture of this page. Reload to drop it.
+      await page.goto(`http://127.0.0.1:${server.address().port}/index.html?theme=${theme}`);
+      await page.waitForTimeout(1500);
     }
   }
 }
