@@ -421,7 +421,7 @@ Options whose parent is off are dimmed, and **Reset** asks for a second press.
 | Hover previews | Hover previews | On | Preview collapsed rows and paths on desktop hover; long-press a collapsed row on a phone. |
 | Hover previews | Delay | 1 s | 0–10 s, saved to tenths of a second, before the desktop preview opens. |
 | Hover previews | Wrap lines | On | Wrap long lines in preview panels, including raw text in maximized code previews; turn off to scroll horizontally. |
-| Hover previews | Line numbers | Off | Show line numbers beside files, diffs and command output; diffs use the file's own line numbers. |
+| Hover previews | Line numbers | On | Show line numbers beside files, diffs and command output; diffs use the file's own line numbers. |
 | Hover previews | Alternating line shading | On | Shade every other line in preview panels. |
 
 **Where settings live.** Preferences are stored by the daemon through the SDK's host-scoped settings
