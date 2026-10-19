@@ -1,6 +1,8 @@
 {
   "id": "better-paseo",
   "name": "Better Paseo",
+  "description": "Redraws every agent's chat timeline as compact, typed rows for tool calls, reasoning, replies, prompts and tasks.",
+  "icon": "assets/icon.png",
   "requirements": {
     "paseo": ">=0.8.0"
   },
