@@ -196,6 +196,9 @@ export const TABLE_DIVIDER_WIDTH = 1;
 /** Every style the renderer draws with, so callers never infer it from the builder. */
 export interface MarkdownStyles {
   root: ViewStyle;
+  insight: ViewStyle;
+  insightTitle: TextStyle;
+  insightList: ViewStyle;
   headingBlock: ViewStyle;
   /** h3 and deeper: less space above than h1 and h2. */
   headingBlockMinor: ViewStyle;
@@ -303,6 +306,25 @@ export function buildStyles(
       ...selectableSurface,
       width: "100%",
       gap: metrics.blockGap,
+    },
+    insight: {
+      minWidth: 0,
+      borderLeftWidth: 2,
+      borderLeftColor: tokens.v2.border,
+      borderRadius: radiusV2.block,
+      backgroundColor: tokens.v2.surface1,
+      padding: space.md,
+      gap: space.sm,
+    },
+    insightTitle: {
+      fontFamily: bodyFont,
+      fontSize: metrics.bodySize,
+      lineHeight: metrics.bodyLineHeight,
+      fontWeight: "600",
+      color: quiet ? tokens.foregroundMuted : tokens.foreground,
+    },
+    insightList: {
+      gap: Math.max(space.sm, metrics.itemGap),
     },
     headingBlock: {
       marginTop: metrics.headingGap[0],

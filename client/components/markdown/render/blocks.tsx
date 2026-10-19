@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 import type { MarkedToken, Token, Tokens } from "../../../vendor/marked";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { MathToken } from "../lex";
+import type { InsightToken } from "../insight";
 import { CodeBlock } from "./code-block";
 import type { RenderContext } from "./context";
 import { codeSurface } from "../../host-font-escape";
@@ -73,6 +74,22 @@ function renderBlock(
   options: BlockOptions,
 ): React.ReactNode {
   const { styles, metrics } = context;
+
+  if (generic.type === "insight") {
+    const insight = generic as unknown as InsightToken;
+    const insightContext = {
+      ...context,
+      styles: { ...styles, listBlock: styles.insightList },
+    };
+    return (
+      <View key={key} style={styles.insight}>
+        <ProseText style={styles.insightTitle}>✦ Insight</ProseText>
+        {renderBlocks(insight.tokens, insightContext, `${key}i`, {
+          ...options, first: true, open: options.open && !insight.closed,
+        })}
+      </View>
+    );
+  }
 
   if (generic.type === "math") {
     // TeX source on the code face (plan D6): readable, and copyable as TeX.

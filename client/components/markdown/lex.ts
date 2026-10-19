@@ -8,6 +8,7 @@
  */
 import { Lexer, type MarkedOptions, type Token } from "../../vendor/marked";
 import { perfCount, perfOn } from "../../debug/perf";
+import { insightStart, insightTokenizer } from "./insight";
 
 /**
  * `$$ … $$` on its own lines: TeX shown as source (plan D6, no KaTeX). An
@@ -53,8 +54,8 @@ export const LEXER_OPTIONS: MarkedOptions = {
   extensions: {
     renderers: {},
     childTokens: {},
-    block: [mathTokenizer as never],
-    startBlock: [mathStart],
+    block: [mathTokenizer as never, insightTokenizer],
+    startBlock: [mathStart, insightStart],
   },
 };
 
