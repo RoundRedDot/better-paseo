@@ -1,6 +1,6 @@
 {
   "capturedAt": "2026-10-19",
-  "sourceSha": "1ed0a1211accd00d107efa331cb679142e624d35",
+  "sourceSha": "323152f84ed9bb95b000c68d184cf87c11dcd944",
   "surface": "Offline React Native Web showcase with fixture data; not native device acceptance",
   "defaultTheme": "light",
   "darkMedia": "(prefers-color-scheme: dark)",
@@ -12,15 +12,15 @@
     "index.server.ts"
   ],
   "sourceTrackedChanges": [],
-  "showcaseDiff": "",
+  "showcaseDiff": "diff --git a/.showcase/showcase.tsx b/.showcase/showcase.tsx\nindex 0c4a9e2..1d982e4 100644\n--- a/.showcase/showcase.tsx\n+++ b/.showcase/showcase.tsx\n@@ -440,6 +440,7 @@ const paseoTool = {\n     title: \"Screenshot builder\",\n     provider: \"claude\",\n     model: \"claude-opus-5\",\n+    modeId: \"acceptEdits\",\n     initialPrompt: \"Capture every component of the Better Paseo plugin.\",\n     agentId: \"agent-8f21\",\n     status: \"running\" as const,",
   "captureSources": [
     {
       "path": ".showcase/showcase.tsx",
-      "sha256": "1cfe368a19d004cbedac59d9b6203e726317521b0b19488d0f7a0e2c106e6f2c"
+      "sha256": "1bbbb0ae4a62a207b96f13083435b396a615f09776a213acd18c341f2ea225d2"
     },
     {
       "path": ".showcase/tools/shots.mjs",
-      "sha256": "223613f19871332d3527a57b23af16c5c87c74898b9fc58a00ffac062ab9f64a"
+      "sha256": "ea57b466cb4851ba27dbc8791847482997e3643ac25ba8ca3cf83f7e3b50af0b"
     }
   ],
   "assets": [
@@ -32,7 +32,7 @@
       "scale": 2,
       "width": 3720,
       "height": 2628,
-      "sha256": "3fd2b58fb059c6408c798916b2683352c23d454eb7692db472f3f45f9797db5d"
+      "sha256": "118b988aa97cc588ef527aff80e521b503d8a3d05b11df8a2d4f95f2128961fe"
     },
     {
       "path": "images/thread-light.png",
@@ -92,7 +92,7 @@
       "scale": 1,
       "width": 940,
       "height": 817,
-      "sha256": "87f265d137c244aedcadffd5ecb34a0c3e7934e4c031694833e331502f7da1d9"
+      "sha256": "c73f85fe7c861983bb63d33aeb9bc1a744263c6831917036c2ccfddef7242562"
     },
     {
       "path": "docs/images/tool-mcp-light.png",
@@ -112,7 +112,7 @@
       "scale": 1,
       "width": 940,
       "height": 195,
-      "sha256": "0d65e3c6fa150f1c2ac65633d8a10a5e15e70e5083be769f4291d7bbd1e5b6c1"
+      "sha256": "2aa7bff1ddba022f085c7c081c703ea33383c46b3599b8682d4cc4350b1a6d87"
     },
     {
       "path": "docs/images/tool-thinking-light.png",
@@ -212,7 +212,7 @@
       "scale": 1,
       "width": 1240,
       "height": 544,
-      "sha256": "ffad61024069446bc868eee712aabb69e09c9c069f73de65bc517ece33d9c90f"
+      "sha256": "c33b7f609f389ed14b6ebd0c41e3db99c1ad25303313acc3c5b6e94bb35bc088"
     },
     {
       "path": "docs/images/shared-image-cards-light.png",
@@ -252,7 +252,7 @@
       "scale": 1,
       "width": 1240,
       "height": 891,
-      "sha256": "f52830763c376e0e644e75cf14700a8f46c1a03dffad34995bfabfabc93fbf94"
+      "sha256": "c6973894be542bc16f980276f3049c1f5fbb32a5e0433015382403374181acdc"
     },
     {
       "path": "docs/images/settings-tools-light.png",
@@ -262,7 +262,7 @@
       "scale": 1,
       "width": 1240,
       "height": 891,
-      "sha256": "1ceb264797c171bb9153f15ed955ec416c03b673e9fcb4e47e4e0f8144c18a03"
+      "sha256": "e8059bc573859d5cda85c9bd09ed9ca126c9063203e23e9725404172692d0917"
     },
     {
       "path": "docs/images/settings-zh-light.png",
@@ -292,7 +292,7 @@
       "scale": 2,
       "width": 3720,
       "height": 2628,
-      "sha256": "b9f5fb2e46f980deb9bd3f184e52d05329295265b719f12bc35f9bd9a022771f"
+      "sha256": "699a2ddaae84180d42082108bfe712291a5cf3cf8c6ce490c91e3c7d76d5f35a"
     },
     {
       "path": "images/thread-dark.png",
@@ -372,7 +372,7 @@
       "scale": 1,
       "width": 940,
       "height": 195,
-      "sha256": "79b106a59ae4f1afb0aaf7b90939b7ba11d4bcaf2b293cb5a51c94314f321b29"
+      "sha256": "e995d2108b502594329c53de42d1354d1855d058f0e0832195200953d5a2b674"
     },
     {
       "path": "docs/images/tool-thinking-dark.png",
@@ -472,7 +472,7 @@
       "scale": 1,
       "width": 1240,
       "height": 544,
-      "sha256": "619d00fb8d8d10d4edd07f551404381ac1a06dc8db8ce9899e09e811e1a8833e"
+      "sha256": "fad73a25108463bdc1380f83ca859edec2a30116d47147a17cdacfc92fdf538d"
     },
     {
       "path": "docs/images/shared-image-cards-dark.png",
@@ -512,7 +512,7 @@
       "scale": 1,
       "width": 1240,
       "height": 891,
-      "sha256": "aafc83d7a44aabd729f6f1b10f9f4b8db8dfc81a221dfa4cff6a9c3db15d63b0"
+      "sha256": "2289c83098fb98f4b070c91b09afda27b609f09c59bcbe360b2237cb302ff670"
     },
     {
       "path": "docs/images/settings-tools-dark.png",
@@ -522,7 +522,7 @@
       "scale": 1,
       "width": 1240,
       "height": 891,
-      "sha256": "a838e80f0f71a3ae82971cfe96aab0371df93f6a475cb6fa390a6387bdecf9f8"
+      "sha256": "88911155962fbf7c67c5f308af442a27ac8750327c79bbd9ea4110f99b088150"
     },
     {
       "path": "docs/images/settings-zh-dark.png",

@@ -440,6 +440,7 @@ const paseoTool = {
     title: "Screenshot builder",
     provider: "claude",
     model: "claude-opus-5",
+    modeId: "acceptEdits",
     initialPrompt: "Capture every component of the Better Paseo plugin.",
     agentId: "agent-8f21",
     status: "running" as const,
