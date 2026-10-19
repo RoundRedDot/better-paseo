@@ -8,3 +8,12 @@ dist/
 .showcase/out/
 .agents/
 
+# Benchmark captures and raw samples. Reports and tools under docs/bench stay tracked.
+docs/bench/**/*.png
+docs/bench/**/*.jpg
+docs/bench/**/*.jpeg
+docs/bench/**/*.gz
+docs/bench/**/*.json
+docs/bench/**/*.jsonl
+docs/bench/**/*.log
+
