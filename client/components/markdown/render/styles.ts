@@ -197,6 +197,7 @@ export const TABLE_DIVIDER_WIDTH = 1;
 export interface MarkdownStyles {
   root: ViewStyle;
   insight: ViewStyle;
+  insightHeader: ViewStyle;
   insightTitle: TextStyle;
   insightList: ViewStyle;
   headingBlock: ViewStyle;
@@ -309,14 +310,21 @@ export function buildStyles(
     },
     insight: {
       minWidth: 0,
-      borderLeftWidth: 2,
-      borderLeftColor: tokens.v2.border,
+      borderWidth: 1,
+      borderColor: tokens.v2.border,
       borderRadius: radiusV2.block,
       backgroundColor: tokens.v2.surface1,
       padding: space.md,
       gap: space.sm,
     },
+    insightHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: space.sm,
+    },
     insightTitle: {
+      flexShrink: 1,
       fontFamily: bodyFont,
       fontSize: metrics.bodySize,
       lineHeight: metrics.bodyLineHeight,
