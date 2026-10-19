@@ -104,10 +104,9 @@ including images inside tables. These fixture screenshots do not establish nativ
 ## Benchmark charts
 
 The README charts use the audited latest-main campaign under
-`docs/bench/2026-10-17-readme/parallel-v2/`. Captures and raw samples in that tree
-(`png`, `jpg`, `gz`, `json`, `jsonl`, `log`) stay on disk and are gitignored.
-Serial diagnostic samples and the invalid first
-parallel transport attempt remain separate and are excluded from publication:
+`docs/bench/2026-10-17-readme/parallel-v2/`. The whole `docs/bench` tree, including
+reports and tools, stays on disk and is gitignored. Serial diagnostic samples and the
+invalid first parallel transport attempt remain separate and are excluded from publication:
 
 ```bash
 node docs/bench/2026-10-17-readme/tools/update-readme.mjs .
@@ -117,4 +116,4 @@ node docs/bench/2026-10-17-readme/tools/history-charts.mjs .
 
 It writes `docs/perf/readme/*.{en,zh}.svg` and prints the medians it drew, so they can be checked
 against the bilingual README tables. The protocol, source pins, ranges, A/A variability and
-raw evidence are in [`docs/bench/2026-10-17-readme`](bench/2026-10-17-readme/README.md).
+raw evidence stay in the local `docs/bench/2026-10-17-readme` archive and are not stored in git.

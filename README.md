@@ -48,7 +48,7 @@ paseo plugin update better-paseo
 
 ### Latest main: 630 fresh samples
 
-Rerun on Mac Studio (Apple M5 Max, 18 cores, 64 GB, macOS 27.0.1) on 2026-10-17, pinned to the latest `main`, **`b9dfae6`**. Web/iOS each run 11 scenarios × 5 configurations × 5 repetitions: **550 replays**, plus **80 long-history samples**. Configurations are no plugin, Beautiful Chat `42b61d8`, current main, an independent current-main A/A repeat and parent `2fc6476`. Up to four isolated groups run concurrently, rotating lane placement and configuration order by scenario and repetition; three-mode tables use medians of five primary runs per cell. Display-error groups are N/A. [Full ranges, failures and evidence](docs/bench/2026-10-17-readme/README.md).
+Rerun on Mac Studio (Apple M5 Max, 18 cores, 64 GB, macOS 27.0.1) on 2026-10-17, pinned to the latest `main`, **`b9dfae6`**. Web/iOS each run 11 scenarios × 5 configurations × 5 repetitions: **550 replays**, plus **80 long-history samples**. Configurations are no plugin, Beautiful Chat `42b61d8`, current main, an independent current-main A/A repeat and parent `2fc6476`. Up to four isolated groups run concurrently, rotating lane placement and configuration order by scenario and repetition; three-mode tables use medians of five primary runs per cell. Display-error groups are N/A. Full ranges, failures and evidence stay in the local `docs/bench/2026-10-17-readme` archive and are not stored in git.
 
 ![Web main-thread time](docs/perf/readme/web-cpu.en.svg)
 
@@ -183,7 +183,7 @@ The same concurrent-max4 campaign reruns `history-complete-v1`: 40 Web and 40 iO
 
 Values are milliseconds. Web older reveal uses a full-height physical wheel from the tail, with no untimed pre-scroll; iOS records preparation before a measured HID drag. Whole-session return proves target unmount before returning through the host pane; it is not independent Markdown-block remount during scrolling. Numeric current-version groups require exact copying before reveal and after return. Any failed attempt makes every phase of its scenario/configuration group N/A; no successful subset is substituted. JS-ready proxies are not first-usable viewport times; reveal/return may render different row sets, so interpret totals with ranges and A/A spread.
 
-[History ranges, A/A and raw evidence](docs/bench/2026-10-17-readme/parallel-v2/history/RESULTS.md)
+History ranges, A/A and raw evidence stay in the local `docs/bench/2026-10-17-readme/parallel-v2/history` archive and are not stored in git.
 
 
 ### Where the time goes
