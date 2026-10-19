@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Better Paseo">
+  <title>Better Paseo</title>
+  <!-- Layered glass icon in the Paseo icon palette: near-black tile, white row heads.
+       Depth comes from a rim gradient, an inner thickness line, a specular corner, a bounce
+       along the bottom, a pool of light behind the mark, and a drop shadow lifting the bars
+       off the glass. Regenerate the PNG at 4x and downscale so the gradients stay smooth. -->
+  <defs>
+    <linearGradient id="bpc-base" x1="0.1" y1="0" x2="0.45" y2="1">
+      <stop offset="0" stop-color="#1B2227" />
+      <stop offset="0.45" stop-color="#070A0D" />
+      <stop offset="1" stop-color="#000000" />
+    </linearGradient>
+    <linearGradient id="bpc-gloss" x1="0" y1="0" x2="0.12" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16" />
+      <stop offset="0.28" stop-color="#ffffff" stop-opacity="0.05" />
+      <stop offset="0.58" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+    <radialGradient id="bpc-specular" cx="0.26" cy="0.06" r="0.8">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16" />
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.04" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="bpc-bounce" cx="0.24" cy="1" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.07" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="bpc-rim" x1="0.15" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.75" />
+      <stop offset="0.2" stop-color="#ffffff" stop-opacity="0.26" />
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.1" />
+      <stop offset="0.9" stop-color="#ffffff" stop-opacity="0.07" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.26" />
+    </linearGradient>
+    <linearGradient id="bpc-seat" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000000" stop-opacity="0" />
+      <stop offset="1" stop-color="#000000" stop-opacity="0.22" />
+    </linearGradient>
+    <linearGradient id="bpc-bar" x1="0.12" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#ffffff" />
+      <stop offset="0.62" stop-color="#ffffff" />
+      <stop offset="1" stop-color="#EFF3F2" />
+    </linearGradient>
+    <filter id="bpc-pool" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur stdDeviation="42" />
+    </filter>
+    <filter id="bpc-lift" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="12" stdDeviation="15" flood-color="#000000" flood-opacity="0.6" />
+    </filter>
+    <clipPath id="bpc-tile">
+      <rect width="512" height="512" rx="112" />
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#bpc-tile)">
+    <rect width="512" height="512" fill="url(#bpc-base)" />
+    <rect width="512" height="512" fill="url(#bpc-specular)" />
+    <rect width="512" height="512" fill="url(#bpc-bounce)" />
+    <rect width="512" height="512" fill="url(#bpc-gloss)" />
+    <rect width="512" height="512" fill="url(#bpc-seat)" />
+    <rect x="104" y="146" width="312" height="254" rx="70" fill="#ffffff" opacity="0.17" filter="url(#bpc-pool)" />
+    <rect x="13" y="13" width="486" height="486" rx="101" fill="none" stroke="url(#bpc-rim)" stroke-opacity="0.7" stroke-width="2.5" />
+    <g transform="translate(256 256) scale(1.15) translate(-256 -256)" fill="url(#bpc-bar)" filter="url(#bpc-lift)">
+      <rect x="126" y="156" width="24" height="204" rx="12" />
+      <circle cx="138" cy="176" r="27" />
+      <circle cx="138" cy="258" r="27" />
+      <circle cx="138" cy="340" r="27" />
+      <rect x="190" y="152" width="210" height="48" rx="24" />
+      <rect x="190" y="234" width="150" height="48" rx="24" />
+      <rect x="190" y="316" width="186" height="48" rx="24" />
+    </g>
+  </g>
+  <rect x="3" y="3" width="506" height="506" rx="109" fill="none" stroke="url(#bpc-rim)" stroke-width="6" />
+</svg>
