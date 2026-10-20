@@ -34,5 +34,6 @@ export {
   type ContextTone,
 } from "./format";
 export { cardStrings, subtaskSummary } from "./strings";
+export { BrandMark, PiMark, brandTint } from "./brand-mark";
 export { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
 export { ProjectIcon, identityColor, projectIconRadius, projectInitial, projectViewKey } from "./project-icon";

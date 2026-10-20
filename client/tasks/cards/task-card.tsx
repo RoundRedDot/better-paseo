@@ -3,7 +3,6 @@ import { Platform, Pressable, StyleSheet, Text, View, type TextStyle, type ViewS
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
-import { ProviderLogo, providerBrand } from "../../components/provider-logo";
 import { useHover } from "../../ui/use-hover";
 import type { PermissionButton, StopPhase } from "../actions";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
@@ -18,6 +17,7 @@ import {
   tildePath,
 } from "./format";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
+import { BrandMark, brandTint } from "./brand-mark";
 import { THINKING_ICON } from "./mode-icons";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
@@ -278,23 +278,6 @@ function activeChildren(card: TaskCard): number {
 
 /** The subtasks pill's groups, most urgent first. */
 const SUBTASK_ORDER: readonly StatusKind[] = ["needs_input", "running", "failed", "unread", "done"];
-
-/** A coloured brand tints its pill with its hue; a monochrome mark's pill is neutral. */
-export function brandTint(provider: string): string | null {
-  const brand = providerBrand(provider);
-  return brand.monochrome ? null : brand.color;
-}
-
-/**
- * A provider's mark on a theme-following surface: coloured brands keep their
- * hue; monochrome marks (Pi, Cursor, Grok, Ollama, Paseo) take the theme's
- * foreground, where their configured near-white or indigo would vanish or
- * mislead.
- */
-export function BrandMark(props: { provider: string; size: number; tokens: TaskTokens }) {
-  const brand = providerBrand(props.provider);
-  return <ProviderLogo provider={props.provider} size={props.size} color={brand.monochrome ? props.tokens.foreground : undefined} />;
-}
 
 /** A status's colour for a tint: the StatusIcon band for running, the theme's status roles otherwise. */
 function statusTint(kind: StatusKind, tokens: TaskTokens): string | null {
@@ -1066,12 +1049,22 @@ function ActionButton(props: {
   const { button, tokens, compact } = props;
   const look = tokens.card;
   const { hovered, hoverProps } = useControlHover(props.report);
-  const primary = button.variant === "primary";
-  const danger = button.variant === "danger";
-  const color = primary ? tokens.accent : danger ? tokens.danger : tokens.foreground;
+  const answer = button.kind === "open";
+  const primary = button.variant === "primary" && !answer;
+  const danger = button.variant === "danger" && !answer;
+  // "Answer" opens the tab for a question: it wears the needs-input icon's
+  // amber (the statusDot band), tinted, with a hairline of the same hue.
+  const amber = tokens.status.warning;
+  let color = primary ? tokens.accent : danger ? tokens.danger : tokens.foreground;
   let fill = hovered ? look.controlHover : "transparent";
-  if (primary) fill = hovered ? look.primaryFillHover : look.primaryFill;
-  if (danger) fill = hovered ? look.dangerFillHover : look.dangerFill;
+  let border = look.pillBorder;
+  if (primary) fill = border = hovered ? look.primaryFillHover : look.primaryFill;
+  if (danger) fill = border = hovered ? look.dangerFillHover : look.dangerFill;
+  if (answer) {
+    color = amber;
+    fill = mix(look.background, amber, (tokens.isDark ? 0.18 : 0.12) + (hovered ? 0.08 : 0));
+    border = mix(look.background, amber, tokens.isDark ? 0.45 : 0.4);
+  }
   const icon = button.kind === "open" ? null : button.action.behavior === "allow" ? "Check" : "X";
   const size = compact ? 16 : 13;
   return (
@@ -1085,8 +1078,8 @@ function ActionButton(props: {
         flex: compact ? 1 : undefined,
         paddingHorizontal: compact ? 14 : 10,
         borderRadius: compact ? 8 : 6,
-        borderWidth: 1,
-        borderColor: primary || danger ? fill : look.pillBorder,
+        borderWidth: answer ? StyleSheet.hairlineWidth : 1,
+        borderColor: border,
         backgroundColor: fill,
         flexDirection: "row",
         alignItems: "center",
@@ -1097,9 +1090,10 @@ function ActionButton(props: {
     >
       {icon ? <Icon name={icon} size={size} color={color} /> : null}
       <Text numberOfLines={1} style={{ fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
-        {button.label}
+        {answer ? button.label.replace(/\s*\u2197\s*$/, "") : button.label}
       </Text>
-      {button.kind === "open" ? <Icon name="ArrowUpRight" size={size} color={color} /> : null}
+      {/* The one arrow: a label that still ends in its own is trimmed above. */}
+      {answer ? <Icon name="ArrowUpRight" size={size} color={color} /> : null}
     </Pressable>
   );
 }
