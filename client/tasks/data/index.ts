@@ -15,6 +15,7 @@ import { footerModel } from "../../state/footer-model";
 import { MARK_IDS } from "../../components/marks";
 import { normalizeProvider } from "../../components/provider-logo";
 import { classifyAgent } from "../agent-state-bucket";
+import { resolveTasksLanguage } from "../i18n";
 import { LANE_ORDER, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel } from "../model";
 
 export interface WorkspaceOption {
@@ -270,7 +271,7 @@ function buildBaseCard(
 
   return {
     id: agent.id,
-    title: agent.title?.trim() || "Untitled",
+    title: agent.title?.trim() || (resolveTasksLanguage() === "zh" ? "未命名" : "Untitled"),
     lane: classification.lane,
     status: classification.status,
     provider: agent.provider,
