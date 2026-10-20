@@ -255,7 +255,7 @@ function MenuButton(props: { icon: string; label: string; open: boolean; onPress
 
 function ToggleChip(props: { icon: string; label: string; hint?: string; on: boolean; onPress(): void; theme: PluginTheme }) {
   const colors = props.theme.colors;
-  const tint = props.on ? colors.accent : colors.foreground;
+  const tint = props.on ? taskTokens(props.theme).accentText : colors.foreground;
   return (
     <HoverPressable
       accessibilityRole="switch"

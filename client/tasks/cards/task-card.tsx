@@ -1080,7 +1080,7 @@ function ActionButton(props: {
   // "Answer" opens the tab for a question: it wears the needs-input icon's
   // amber (the statusDot band), tinted, with a hairline of the same hue.
   const amber = tokens.status.warning;
-  let color = primary ? tokens.accent : danger ? tokens.danger : tokens.foreground;
+  let color = primary ? look.primaryText : danger ? tokens.danger : tokens.foreground;
   let fill = hovered ? look.controlHover : "transparent";
   let border = look.pillBorder;
   if (primary) fill = border = hovered ? look.primaryFillHover : look.primaryFill;

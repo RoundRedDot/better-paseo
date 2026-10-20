@@ -1031,6 +1031,31 @@ describe("model, thinking and brand marks", () => {
     }
   });
 
+  it("draws accent text (Allow, Open tab, selected chips) at 4.5:1 on every palette, unchanged where the accent already reads", async () => {
+    for (const palette of Object.values(PALETTES)) {
+      const tokens = buildTaskTokens(palette);
+      for (const ground of [tokens.card.primaryFill, tokens.card.primaryFillHover]) {
+        expect(contrastRatio(tokens.card.primaryText, ground)).toBeGreaterThanOrEqual(4.5);
+      }
+      for (const ground of [tokens.card.background, tokens.card.primaryFill, palette.surface0, palette.surface1, palette.surface2, tokens.accentSoft]) {
+        expect(contrastRatio(tokens.accentText, ground)).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+    // Paseo's light theme keeps its accent; on the dark one #20744a read about 2.2:1 and is lifted.
+    const light = buildTaskTokens(PALETTES.paseoLight);
+    expect(light.card.primaryText).toBe(PALETTES.paseoLight.accent);
+    const dark = buildTaskTokens(PALETTES.paseoDark);
+    expect(contrastRatio(PALETTES.paseoDark.accent, dark.card.primaryFill)).toBeLessThan(3);
+    expect(dark.card.primaryText).not.toBe(PALETTES.paseoDark.accent);
+    // The Allow button wears it.
+    const card = sample("sample-input");
+    const tree = await render(cardElement(card, { theme: { colors: PALETTES.paseoDark }, permissionButtons: permissionButtons(card.permission!, "en"), language: "en" }));
+    const allow = byLabel(tree.root, "Allow");
+    expect(flat(allow.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(dark.card.primaryText);
+    await act(async () => tree.unmount());
+    renderer = null;
+  });
+
   it("tints the branch pill with the theme accent, readable on every palette", async () => {
     for (const palette of Object.values(PALETTES)) {
       const tokens = buildTaskTokens(palette);

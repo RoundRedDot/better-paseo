@@ -146,7 +146,7 @@ function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void
       }}
     >
       {props.leading}
-      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 14, color: on ? colors.accent : colors.foreground }}>
+      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 14, color: on ? taskTokens(props.theme).accentText : colors.foreground }}>
         {props.option.label}
       </Text>
       {props.hideCount ? null : (
