@@ -203,8 +203,11 @@ describe("Markdown table copy menu", () => {
     const frame = nodes.find((node) => node.listeners.get("dblclick")?.size)!;
     const props = renderer!.root.findAll((node) => String(node.type) === "Text"
       && node.props.testID === "markdown-table-cell")[index]!.props;
-    const cell = { getAttribute: (name: string) => name === "data-table-cell-key"
-      ? props.dataSet.tableCellKey : props.dataSet.tableCellText };
+    const cell = {
+      getAttribute: (name: string) => name === "data-table-cell-row" ? String(props.dataSet.tableCellRow)
+        : name === "data-table-cell-column" ? String(props.dataSet.tableCellColumn) : null,
+      textContent: "text",
+    };
     frame.contains = (other) => other === cell;
     const removeAllRanges = vi.fn();
     Object.assign(frame.ownerDocument.defaultView, { getSelection: () => ({ removeAllRanges }) });
@@ -272,7 +275,8 @@ describe("Markdown table copy menu", () => {
     render("| Header words | B |\n| --- | --- |\n| **bold** and `code` | two |");
     doubleClick(index);
     expect(selectedCells()).toHaveLength(1);
-    expect(selectedCells()[0]!.props.dataSet.tableCellText).toBe(index === 0 ? "Header words" : "bold and code");
+    expect(selectedCells()[0]!.props.dataSet).toEqual(index === 0 ? { tableCellRow: 0, tableCellColumn: 0 }
+      : { tableCellRow: 1, tableCellColumn: 0 });
     act(() => selectionRow().props.onLayout({ nativeEvent: { layout: { width: 96 } } }));
     expect(runs.at(-2)).toMatchObject({ toValue: 98, duration: 180 });
     expect(runs.at(-1)).toMatchObject({ toValue: 1, duration: 140 });

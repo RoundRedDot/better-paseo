@@ -37,7 +37,7 @@ const { default: TestRenderer, act } = await import("react-test-renderer");
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
 const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
 const { ChatComposerContext, quoteCell } = await import("../../client/ui/chat-composer");
-const { StyleSheet, Animated } = await import("./helpers/rn-mock");
+const { StyleSheet, Animated, TurboModuleRegistry } = await import("./helpers/rn-mock");
 const { columnWidths } = await import("../../client/components/markdown/render/table");
 const { TOOLBAR_TOOLTIP_MS } = await import("../../client/ui/toolbar-button");
 const { variantMetrics, TABLE_DIVIDER_WIDTH } = await import("../../client/components/markdown/render/styles");
@@ -347,6 +347,69 @@ describe("Markdown table copy", () => {
     act(() => touchCell(3).props.onTouchStart(touch(1000)));
     act(() => touchCell(3).props.onTouchEnd(touch(1400)));
     tap(3, 1500);
+    expect(selectedCopy()).toHaveLength(0);
+  });
+
+  it.each(["ios", "android"])("on %s holds a cell, drags a range across rows and columns, then offers to copy it", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    vi.useFakeTimers();
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    const setNativeProps = vi.fn();
+    const handleSetJSResponder = vi.fn();
+    const flushOperations = vi.fn();
+    vi.spyOn(TurboModuleRegistry, "get").mockImplementation(((name: string) =>
+      name === "RNGestureHandlerModule" ? { handleSetJSResponder, flushOperations } : null) as typeof TurboModuleRegistry.get);
+    const list = { getScrollMetrics: () => ({ offset: 0 }),
+      getOutermostParentListRef: () => ({ getScrollRef: () => ({ getNativeScrollRef: () => ({ setNativeProps }) }) }) };
+    // The frame sits at (0, 100) on the page; its rows, measured in order, are 30 tall.
+    let row = 0;
+    const createNodeMock = () => ({
+      measure: (done: (...args: number[]) => void) => { row = 0; done(0, 0, 300, 90, 0, 100); },
+      measureLayout: (_node: unknown, done: (left: number, top: number) => void) => done(1, row++ * 30),
+    });
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(listContext().Provider, { value: list },
+        React.createElement(MarkdownView, { text: "| A | B |\n| --- | --- |\n| one | two |\n| three | four |", tokens,
+          variant: "document", streaming: false })), { createNodeMock });
+    });
+    const highlighted = () => renderer!.root.findAll((node) => String(node.type) === "Text"
+      && node.props.testID === "markdown-table-cell"
+      && StyleSheet.flatten(node.props.style).backgroundColor === tokens.accentBg).map((node) => node.children.join(""));
+    const scroller = () => renderer!.root.findAll((node) => node.props.horizontal === true)[0]!;
+    expect(touchCell(0).props.onMoveShouldSetResponder()).toBe(false);
+    act(() => touchCell(2).props.onTouchStart(touch(0, 5, 140)));
+    act(() => { vi.advanceTimersByTime(350); });
+    expect(highlighted()).toEqual(["one"]);
+    expect(setNativeProps).toHaveBeenLastCalledWith({ scrollEnabled: false });
+    expect(handleSetJSResponder).toHaveBeenCalledExactlyOnceWith(-1, true);
+    expect(flushOperations).toHaveBeenCalledAfter(handleSetJSResponder);
+    expect(scroller().props.scrollEnabled).toBe(false);
+    expect(touchCell(2).props.onMoveShouldSetResponder()).toBe(true);
+    expect(touchCell(2).props.onResponderTerminationRequest()).toBe(false);
+    expect(selectedCopy()).toHaveLength(0);
+    act(() => touchCell(2).props.onTouchMove(touch(400, 2000, 165)));
+    expect(highlighted()).toEqual(["one", "two", "three", "four"]);
+    expect(selectedCopy()).toHaveLength(0);
+    act(() => touchCell(2).props.onTouchEnd(touch(500, 2000, 165)));
+    expect(setNativeProps).toHaveBeenLastCalledWith({ scrollEnabled: true });
+    expect(scroller().props.scrollEnabled).toBe(true);
+    expect(touchCell(2).props.onMoveShouldSetResponder()).toBe(false);
+    expect(selectedCopy()).toHaveLength(1);
+    vi.useRealTimers();
+    await act(async () => selectedCopy()[0]!.props.onPress());
+    expect(copyText).toHaveBeenCalledExactlyOnceWith("| A | B |\n| --- | --- |\n| one | two |\n| three | four |");
+    expect(highlighted()).toEqual([]);
+  });
+
+  it("on iOS lets a held finger that drifts before the hold scroll instead", () => {
+    vi.useFakeTimers();
+    render("| A | B |\n| --- | --- |\n| one | two |");
+    act(() => touchCell(2).props.onTouchStart(touch(0)));
+    act(() => touchCell(2).props.onTouchMove(touch(100, 10, 40)));
+    act(() => { vi.advanceTimersByTime(350); });
+    expect(touchCell(2).props.onMoveShouldSetResponder()).toBe(false);
+    act(() => touchCell(2).props.onTouchEnd(touch(500, 10, 40)));
     expect(selectedCopy()).toHaveLength(0);
   });
 
