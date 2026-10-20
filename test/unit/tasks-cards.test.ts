@@ -63,6 +63,7 @@ import {
   type TaskCardViewProps,
 } from "../../client/tasks/cards";
 import { statusRingHolders } from "../../client/tasks/cards/status-icon";
+import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
 
 const LIGHT = {
   colors: {
@@ -153,6 +154,23 @@ function hasTextAncestor(node: ReactTestInstance): boolean {
 /** Host elements only: rn-mock's primitives are function components carrying the same props. */
 function hostByTestId(root: ReactTestInstance, testID: string): ReactTestInstance {
   return root.find((node) => typeof node.type === "string" && node.props.testID === testID);
+}
+
+/** The test ids of a card's rows, in order. */
+function rows(root: ReactTestInstance, id: string): string[] {
+  const card = hostByTestId(root, `task-card-${id}`);
+  const hosts = (node: ReactTestInstance): ReactTestInstance[] =>
+    node.children.flatMap((child) =>
+      typeof child === "string" ? [] : typeof child.type === "string" ? [child] : hosts(child),
+    );
+  return hosts(card).map((node) => String(node.props.testID));
+}
+
+/** Every pill's test id and first text, in order. */
+function pills(root: ReactTestInstance): Array<[string, string]> {
+  return root
+    .findAll((node) => typeof node.type === "string" && String(node.props.testID ?? "").startsWith("pill-"))
+    .map((node) => [String(node.props.testID), texts(node)[0] ?? ""]);
 }
 
 function icons(root: ReactTestInstance): string[] {
@@ -283,43 +301,78 @@ describe("StatusIcon", () => {
 });
 
 describe("TaskCardView rows", () => {
-  it("draws the standard card's groups", async () => {
+  it("lays the card out as Linear does: meta, title, pills, footer, then the lane blocks", async () => {
     const tree = await render(cardElement(sample("sample-running")));
-    const all = texts(tree.root);
-    expect(all).toContain("Port the status ring to React Native");
-    expect(all).toContain("Codex · GPT-5.5 Codex · Medium");
-    expect(all).toContain("better-paseo › tasks-board");
-    expect(all).toContain("feat/tasks-board");
-    expect(all).toContain("12m 30s");
-    expect(all).toContain("上下文 86%");
-    expect(all).toContain("3 个子任务：2 运行中 · 1 已完成");
-    expect(all).toContain("frontend");
-    expect(all).toContain("+1");
-    expect(all.some((text) => text.includes("未提交"))).toBe(false);
+    expect(rows(tree.root, "sample-running")).toEqual([
+      "task-card-meta",
+      "task-card-title-row",
+      "task-card-pills",
+      "task-card-footer",
+    ]);
+    // The project's letter avatar (`projectIcon` is on at standard), then project › workspace.
+    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["B", "better-paseo › tasks-board"]);
+    const title = hostByTestId(tree.root, "task-card-title");
+    expect(title.props.numberOfLines).toBe(2);
+    expect(title.props.ellipsizeMode).toBe("tail");
+    expect(flat(title.props.style)).toMatchObject({ fontSize: 13, fontWeight: "500" });
+    expect(pills(tree.root)).toEqual([
+      ["pill-agent", "GPT-5.5 Codex · Medium"],
+      ["pill-branch", "feat/tasks-board"],
+      ["pill-label-frontend", "frontend"],
+      ["pill-label-p1", "p1"],
+      ["pill-labels-more", "+1"],
+      ["pill-context", "86%"],
+      ["pill-subtasks", "1/3"],
+    ]);
+    expect(texts(hostByTestId(tree.root, "task-card-footer"))).toEqual(["12m 30s"]);
+    expect(texts(tree.root).some((text) => text.includes("未提交"))).toBe(false);
   });
 
-  it("keeps only the header and the timer at minimal", async () => {
+  it("draws pills fully rounded and outlined, with label dots in the label colour", async () => {
+    const tree = await render(cardElement(sample("sample-running"), { fields: fields("standard", { labelLimit: "all" }) }));
+    for (const [id] of pills(tree.root)) {
+      expect(flat(hostByTestId(tree.root, id).props.style)).toMatchObject({ height: 24, borderRadius: 12, borderWidth: 1, borderColor: "#dadade" });
+    }
+    const dot = (name: string) =>
+      flat((hostByTestId(tree.root, `pill-label-${name}`).findAll((node) => typeof node.type === "string" && flat(node.props.style).width === 8)[0])!.props.style)
+        .backgroundColor;
+    expect(dot("frontend")).toBe("#8b5cf6");
+    expect(dot("p1")).toBe("#ef4444");
+    // No colour: a neutral grey dot.
+    expect(dot("board")).toBe("#6b6b75");
+  });
+
+  it("keeps the title row, the agent pill and the footer at minimal", async () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: fields("minimal") }));
-    const all = texts(tree.root);
-    expect(all).toEqual(["Port the status ring to React Native", "Codex · GPT-5.5 Codex · Medium", "12m 30s"]);
-    expect(icons(tree.root)).not.toContain("GitBranch");
-    expect(icons(tree.root)).not.toContain("Gauge");
+    expect(rows(tree.root, "sample-running")).toEqual(["task-card-title-row", "task-card-pills", "task-card-footer"]);
+    expect(pills(tree.root)).toEqual([["pill-agent", "GPT-5.5 Codex · Medium"]]);
+    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex · Medium", "12m 30s"]);
+    // With no meta row, the jump button moves up to the title row, which then holds the overlays.
+    expect(icons(hostByTestId(tree.root, "task-card-title-row"))).toContain("ArrowUpRight");
+    expect(flat(hostByTestId(tree.root, "task-card-title-row").props.style).zIndex).toBe(OVERLAY_ROW_Z);
   });
 
-  it("collapses the location group and the footer when their fields are off", async () => {
-    const off = fields("minimal", { project: false, timer: false });
+  it("collapses the pill row and the footer when their fields are off", async () => {
+    const off = fields("minimal", { model: false, thinking: false, timer: false });
     const tree = await render(cardElement(sample("sample-running"), { fields: off }));
-    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "Codex · GPT-5.5 Codex · Medium"]);
+    expect(rows(tree.root, "sample-running")).toEqual(["task-card-title-row"]);
+    expect(texts(tree.root)).toEqual(["Port the status ring to React Native"]);
+  });
+
+  it("names the provider in the agent pill when the model and thinking are off", async () => {
+    const tree = await render(cardElement(sample("sample-done"), { fields: fields("standard", { model: false, thinking: false }) }));
+    expect(pills(tree.root)[0]).toEqual(["pill-agent", "Claude"]);
   });
 
   it("adds git status, the full path and the PR at full", async () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: fields("full") }));
-    const all = texts(tree.root);
-    expect(all).toContain("未提交 ↑3 ↓0");
-    expect(all).toContain("/Users/dev/code/better-paseo/.worktrees/tasks-board");
-    expect(all).toContain("#42 feat: Tasks board");
-    expect(all).not.toContain("+1");
-    expect(icons(tree.root)).toEqual(expect.arrayContaining(["GitBranch", "FolderOpen", "GitPullRequest"]));
+    const ids = pills(tree.root).map(([id]) => id);
+    expect(ids).toEqual(expect.arrayContaining(["pill-branch", "pill-path", "pill-pr"]));
+    expect(texts(hostByTestId(tree.root, "pill-branch"))).toEqual(["feat/tasks-board", "未提交 ↑3 ↓0"]);
+    expect(texts(hostByTestId(tree.root, "pill-path"))).toEqual(["/Users/dev/code/better-paseo/.worktrees/tasks-board"]);
+    expect(texts(hostByTestId(tree.root, "pill-pr"))).toEqual(["#42"]);
+    expect(ids).not.toContain("pill-labels-more");
+    expect(hostByTestId(tree.root, "task-card-meta").findAll((node) => (node.type as unknown) === "View" && flat(node.props.style).width === 12)).toHaveLength(1);
   });
 
   it("folds labels past the limit into +N", async () => {
@@ -332,25 +385,27 @@ describe("TaskCardView rows", () => {
     }
   });
 
-  it("leads the second row with the workspace kind when there is no branch", async () => {
+  it("draws the folder as a pill when there is no branch", async () => {
     const tree = await render(cardElement(sample("sample-done")));
-    expect(texts(tree.root)).toContain("scratch");
+    expect(texts(hostByTestId(tree.root, "pill-folder"))).toEqual(["scratch"]);
     expect(icons(tree.root)).not.toContain("GitBranch");
-    expect(icons(tree.root)).toContain("Folder");
-    const layout = cardLayout(sample("sample-failed"), fields("standard"), false);
-    expect(layout.branch).toBe(true);
+    expect(cardLayout(sample("sample-failed"), fields("standard"), false).branch).toBe(true);
   });
 
-  it("shows the parent link and reveals the parent", async () => {
+  it("appends the parent link to the meta row and reveals the parent", async () => {
     const onReveal = vi.fn();
     const tree = await render(cardElement(sample("sample-child-1"), { onReveal }));
-    expect(texts(tree.root)[0]).toBe("Port the status ring to React Native");
+    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual([
+      "B",
+      "better-paseo › tasks-board",
+      " › ↳ Port the status ring to React Native",
+    ]);
     byLabel(tree.root, "定位到父任务").props.onPress();
     expect(onReveal).toHaveBeenCalledWith("sample-running");
 
     const orphan = { ...sample("sample-child-1"), parent: { id: "gone", title: null, missing: true } };
-    await act(async () => tree.update(cardElement(orphan, { onReveal })));
-    expect(texts(tree.root)[0]).toBe("父任务（已归档）");
+    await act(async () => tree.update(cardElement(orphan, { onReveal, fields: fields("minimal") })));
+    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["↳ 父任务（已归档）"]);
   });
 
   it("draws the failure reason in the danger colour", async () => {
@@ -399,28 +454,35 @@ describe("TaskCardView rows", () => {
   });
 });
 
-describe("TaskCardView context bar", () => {
+describe("TaskCardView context pill", () => {
   const withContext = (used: number) => ({ ...sample("sample-running"), context: { usedTokens: used, maxTokens: 100 } });
-  const label = (tree: ReactTestRenderer) =>
-    tree.root.findAll((node) => (node.type as unknown) === "Text" && texts(node)[0]?.startsWith("上下文") === true);
+  const pill = (tree: ReactTestRenderer) =>
+    tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "pill-context");
 
   it("turns warning above 80% and danger above 90%", async () => {
     expect([contextTone(0.8), contextTone(0.81), contextTone(0.9), contextTone(0.91)]).toEqual(["normal", "warning", "warning", "danger"]);
     for (const [used, color] of [[46, "#6b6b75"], [85, "#a36a00"], [95, "#d93636"]] as const) {
       const tree = await render(cardElement(withContext(used)));
-      expect(flat(label(tree)[0]!.props.style).color).toBe(color);
+      const [node] = pill(tree);
+      const label = node!.find((child) => (child.type as unknown) === "Text");
+      expect(label.props.children).toBe(`${used}%`);
+      expect(flat(label.props.style).color).toBe(color);
+      expect(node!.findByType("Icon" as never).props).toMatchObject({ name: "Gauge", color });
+      expect(node!.props.accessibilityLabel).toBe(`上下文 ${used}%`);
       await act(async () => tree.unmount());
       renderer = null;
     }
   });
 
-  it("hides when the context is unknown, and on a phone until 80%", async () => {
-    let tree = await render(cardElement({ ...sample("sample-running"), context: null }));
-    expect(label(tree)).toHaveLength(0);
+  it("hides when the context is unknown, off the running lane, and on a phone until 80%", async () => {
+    const tree = await render(cardElement({ ...sample("sample-running"), context: null }));
+    expect(pill(tree)).toHaveLength(0);
+    await act(async () => tree.update(cardElement({ ...withContext(86), lane: "review" })));
+    expect(pill(tree)).toHaveLength(0);
     await act(async () => tree.update(cardElement(withContext(46), { compact: true })));
-    expect(label(tree)).toHaveLength(0);
+    expect(pill(tree)).toHaveLength(0);
     await act(async () => tree.update(cardElement(withContext(86), { compact: true })));
-    expect(label(tree)).toHaveLength(1);
+    expect(pill(tree)).toHaveLength(1);
   });
 });
 
@@ -432,12 +494,20 @@ describe("TaskCardView compact tiers", () => {
     };
     const tree = await render(cardElement(card, { compact: true, fields: fields("full", { provider: false, model: false, timer: false }) }));
     const all = texts(tree.root);
-    expect(all).toContain("Codex · GPT-5.5 Codex · Medium");
+    expect(pills(tree.root)).toEqual([
+      ["pill-agent", "GPT-5.5 Codex · Medium"],
+      ["pill-branch", "feat/tasks-board"],
+      ["pill-label-frontend", "frontend"],
+      ["pill-labels-more", "+2"],
+      ["pill-context", "86%"],
+      ["pill-subtasks", "1/3"],
+    ]);
+    // The brand stays on a phone even with the provider switched off.
+    expect(hostByTestId(tree.root, "pill-agent").findAll((node) => (node.type as unknown) === "Image" || (node.type as unknown) === "View").length).toBeGreaterThan(0);
+    expect(flat(hostByTestId(tree.root, "pill-agent").props.style)).toMatchObject({ height: 28, borderRadius: 14 });
+    expect(flat(hostByTestId(tree.root, "task-card-title").props.style)).toMatchObject({ fontSize: 16 });
     expect(all).toContain("better-paseo › tasks-board");
-    expect(all).toContain("feat/tasks-board");
     expect(all).toContain("12m 30s");
-    expect(all).toContain("frontend");
-    expect(all).toContain("+2");
     expect(all.some((text) => text.includes("/Users/dev"))).toBe(false);
     expect(all.some((text) => text.includes("#42"))).toBe(false);
     expect(all.some((text) => text.includes("未提交"))).toBe(false);
