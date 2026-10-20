@@ -420,6 +420,13 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       const update = { kind: "remove", projectId };
       for (const observer of projectSubs) observer(update);
     },
+    reconnectAgentSubscription(index = 0) {
+      const sub = [...agentSubs][index];
+      if (!sub) return;
+      sub.members = new Set([...agents.values()].filter((agent) => matches(agent, sub.options)).map((agent) => agent.id));
+      const snapshot = { ...(sub.snapshot() as object), subscriptionId: sub.id };
+      for (const observer of sub.observers) observer.snapshot(snapshot);
+    },
     reconnectSubscriptions() {
       for (const sub of agentSubs) {
         if ("members" in sub) sub.members = new Set([...agents.values()].filter((agent) => matches(agent, sub.options)).map((agent) => agent.id));

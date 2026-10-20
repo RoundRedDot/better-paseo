@@ -6,6 +6,30 @@ import { filterLanes, useTaskCounts, useTasks, type TasksHandle } from "../../cl
 import { at, createFakePaseo, makeAgent, makeWorkspace } from "./helpers/fake-paseo";
 import "./helpers/quiet-renderer";
 
+const storeNotificationProbe = vi.hoisted(() => ({ enabled: false, count: 0 }));
+vi.mock("react", async (importOriginal) => {
+  const react = await importOriginal<typeof import("react")>();
+  const wrappedSubscriptions = new WeakMap<object, unknown>();
+  return {
+    ...react,
+    useSyncExternalStore: (
+      subscribe: Parameters<typeof react.useSyncExternalStore>[0],
+      getSnapshot: Parameters<typeof react.useSyncExternalStore>[1],
+      getServerSnapshot?: Parameters<typeof react.useSyncExternalStore>[2],
+    ) => {
+      let wrapped = wrappedSubscriptions.get(subscribe) as typeof subscribe | undefined;
+      if (!wrapped) {
+        wrapped = (onStoreChange) => subscribe(() => {
+          if (storeNotificationProbe.enabled) storeNotificationProbe.count += 1;
+          onStoreChange();
+        });
+        wrappedSubscriptions.set(subscribe, wrapped);
+      }
+      return react.useSyncExternalStore(wrapped, getSnapshot, getServerSnapshot);
+    },
+  };
+});
+
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -113,6 +137,49 @@ describe("Tasks data store", () => {
         openTabsOnly: false,
         hideSubtasks: false,
       }).running.cards.map((card) => card.id)).toEqual(["running-early", "running-late"]);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it.each(["feature/tasks", "feature-tasks"])("hides a workspace name that repeats branch %s", async (workspaceName) => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("a", { status: "running" })],
+      workspaces: [{ ...workspace(), title: workspaceName }],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(mounted.current.byId.get("a")?.location.workspaceName).toBeNull();
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("uses the raw provider id as the label for unknown providers", async () => {
+    const fake = createFakePaseo({ agents: [activeAgent("a", { status: "running", provider: "bc-bench" })] });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(mounted.current.byId.get("a")?.providerLabel).toBe("bc-bench");
+      expect(mounted.current.byId.get("a")?.provider).toBe("bc-bench");
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("notifies store listeners once for a multi-agent subscription snapshot", async () => {
+    const agents = Array.from({ length: 120 }, (_, index) => activeAgent(`snapshot-${index}`, { status: "running" }));
+    const fake = createFakePaseo({ agents });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      storeNotificationProbe.count = 0;
+      storeNotificationProbe.enabled = true;
+      try {
+        act(() => fake.reconnectAgentSubscription(0));
+      } finally {
+        storeNotificationProbe.enabled = false;
+      }
+      expect(storeNotificationProbe.count).toBe(1);
+      expect(mounted.current.lanes.running.cards).toHaveLength(120);
     } finally {
       mounted.unmount();
     }
