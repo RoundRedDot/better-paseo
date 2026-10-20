@@ -1099,7 +1099,8 @@ function ActionButton(props: {
       onPress={props.onPress}
       {...hoverProps}
       style={{
-        height: compact ? PHONE.buttonHeight : DESKTOP.buttonHeight,
+        // A phone's button grows with a large system font; its label wraps before it clips.
+        ...(compact ? { minHeight: PHONE.buttonHeight, paddingVertical: 4 } : { height: DESKTOP.buttonHeight }),
         flex: compact ? 1 : undefined,
         paddingHorizontal: compact ? 14 : 10,
         borderRadius: compact ? 8 : 6,
@@ -1114,7 +1115,7 @@ function ActionButton(props: {
       }}
     >
       {icon ? <Icon name={icon} size={size} color={color} /> : null}
-      <Text numberOfLines={1} style={{ fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
+      <Text numberOfLines={compact ? 2 : 1} style={{ flexShrink: 1, textAlign: "center", fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
         {answer ? button.label.replace(/\s*\u2197\s*$/, "") : button.label}
       </Text>
       {/* The one arrow: a label that still ends in its own is trimmed above. */}
@@ -1183,7 +1184,7 @@ function StopControl(props: StopControlProps) {
   const round = compact ? 8 : height / 2;
   const label = stopping ? strings.stopping : confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
   const segment: ViewStyle = {
-    height,
+    ...(compact ? { minHeight: height, paddingVertical: 4 } : { height }),
     borderWidth: 1,
     borderColor: tokens.danger,
     flexDirection: "row",
@@ -1195,7 +1196,9 @@ function StopControl(props: StopControlProps) {
     <View
       style={{
         flexDirection: "row",
-        flex: compact ? 1 : undefined,
+        // On a phone the armed pill takes two shares of the action bar, so
+        // "Confirm stop" fits beside Allow and Deny; at rest it takes one.
+        flex: compact ? (solid ? 2 : 1) : undefined,
         flexShrink: 0,
         marginVertical: compact ? 0 : (props.line - height) / 2,
         zIndex: 40,
@@ -1224,7 +1227,7 @@ function StopControl(props: StopControlProps) {
         ]}
       >
         <StopSquare compact={compact} color={color} />
-        <Text numberOfLines={1} style={{ fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
+        <Text numberOfLines={compact ? 2 : 1} style={{ flexShrink: 1, textAlign: "center", fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
           {label}
         </Text>
       </Pressable>
