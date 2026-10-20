@@ -20,6 +20,7 @@ import {
 import { StatusIcon } from "./status-icon";
 import { cardStrings, subtaskSummary } from "./strings";
 import { taskTokens, type TaskTokens } from "./tokens";
+import { mix, withAlpha } from "../../components/theme-tokens";
 
 export interface CardCallbacks {
   /** Jump to the agent's tab (`navigation.openAgent`). Absent on hosts without navigation: hide the jump button. */
@@ -73,6 +74,12 @@ const TOUCH = !WEB;
  */
 const CONTAINER_ROLE = WEB ? ({ role: "group" } as const) : ({ accessibilityRole: "button" } as const);
 const DETAILS_DELAY_MS = 450;
+const NBSP = "\u00a0";
+/** " > " between meta segments; non-breaking, since a web text box drops a leading space. */
+const SEPARATOR = `${NBSP}\u203a${NBSP}`;
+const PARENT_SHRINK = 1000;
+/** How far the jump button reaches past the row's end (its negative right margin), desktop and phone. */
+const JUMP_OVERHANG = [-4, -8] as const;
 const TOOLTIP_DELAY_MS = 400;
 
 // --- Geometry (Linear's issue card, measured on the desktop app) -------------
@@ -436,11 +443,15 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const metaParts: string[] = [];
   if (layout.project && location.projectName) metaParts.push(location.projectName);
   if (layout.workspace && location.workspaceName) metaParts.push(location.workspaceName);
-  const metaText = metaParts.join(" › ");
+  const metaText = metaParts.join(SEPARATOR);
   const hasMeta = metaText !== "" || card.parent !== null;
+  // On web Stop appears on hover, so it floats over the row's end (the card's
+  // fill behind it hides the text it covers) instead of taking room from the
+  // row: hovering must not move anything. Native shows it all the time, in flow.
+  const jumpSlot = props.onOpen ? m.jump + JUMP_OVERHANG[compact ? 1 : 0] + GAP : 0;
   const controlsFor = (line: number) => (
     <>
-      {showStop ? <StopControl {...stop} compact={false} line={line} /> : null}
+      {showStop && TOUCH ? <StopControl {...stop} compact={false} line={line} /> : null}
       {props.onOpen ? (
         <JumpButton
           report={reportControl}
@@ -450,6 +461,21 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           label={strings.openInWorkspace}
           onPress={() => props.onOpen?.(card.id)}
         />
+      ) : null}
+      {/* Last, so it adds nothing before an in-flow element. */}
+      {showStop && !TOUCH ? (
+        <View
+          style={{
+            position: "absolute",
+            right: jumpSlot,
+            top: (line - m.stopHeight) / 2,
+            paddingLeft: GAP,
+            backgroundColor: background,
+          }}
+          testID="task-card-stop-overlay"
+        >
+          <StopControl {...stop} compact={false} line={m.stopHeight} />
+        </View>
       ) : null}
     </>
   );
@@ -488,22 +514,26 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       ) : null}
       <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center" }}>
         {metaText ? (
-          <Text numberOfLines={1} style={[metaStyle, { flexShrink: 1 }]}>
+          <Text numberOfLines={1} style={[metaStyle, { flexShrink: 1, minWidth: 0 }]} testID="task-card-meta-location">
             {metaText}
           </Text>
         ) : null}
+        {metaText && parentLabel !== null ? (
+          <Text style={[metaStyle, { flexShrink: 0 }]}>{SEPARATOR}</Text>
+        ) : null}
         {parentLabel !== null ? (
+          // The parent link gives way first: it shrinks a thousand times faster
+          // than "project > workspace", which only truncates once the link is gone.
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={strings.revealParent}
             onPress={() => props.onReveal(card.parent!.id)}
             {...parentHover.hoverProps}
-            style={{ flexShrink: 1, minWidth: 0 }}
+            style={{ flexShrink: PARENT_SHRINK, minWidth: 0 }}
+            testID="task-card-meta-parent"
           >
             <Text numberOfLines={1} style={[metaStyle, parentHover.hovered ? { color: tokens.foreground } : null]}>
-              {metaText ? " › " : ""}
-              {"↳ "}
-              {parentLabel}
+              {`↳${NBSP}${parentLabel}`}
             </Text>
           </Pressable>
         ) : null}
@@ -973,25 +1003,29 @@ interface StopControlProps {
   report?: ControlHover;
 }
 
-/** Stop, its confirm state, and a parent's "only this / with subtasks" menu. */
+/**
+ * Stop, its confirm state, and a parent's "only this / with subtasks" menu:
+ * one red pill. At rest a danger tint with danger text and outline; armed, a
+ * solid danger fill with white text; the parent's chevron is the pill's end.
+ */
 function StopControl(props: StopControlProps) {
   const { tokens, strings, phase, compact } = props;
   const look = tokens.card;
   const confirming = phase === "confirming";
   const stopping = phase === "stopping";
+  const solid = confirming || stopping;
   const stopHover = useControlHover(props.report);
   const chevronHover = useControlHover(props.report);
-  const color = confirming ? tokens.danger : tokens.foreground;
-  const border = confirming ? tokens.danger : look.pillBorder;
+  const color = solid ? "#ffffff" : tokens.danger;
   const fill = (hovered: boolean) =>
-    confirming ? (hovered ? look.dangerFillHover : look.dangerFill) : hovered ? look.controlHover : look.background;
+    solid ? (hovered ? mix(tokens.danger, "#000000", 0.12) : tokens.danger) : hovered ? look.dangerFillHover : look.dangerFill;
   const height = compact ? PHONE.stopHeight : DESKTOP.stopHeight;
   const round = compact ? 8 : height / 2;
   const label = stopping ? strings.stopping : confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
   const segment: ViewStyle = {
     height,
     borderWidth: 1,
-    borderColor: border,
+    borderColor: tokens.danger,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -1006,6 +1040,7 @@ function StopControl(props: StopControlProps) {
         marginVertical: compact ? 0 : (props.line - height) / 2,
         zIndex: 40,
       }}
+      testID="task-card-stop"
     >
       <Pressable
         accessibilityRole="button"
@@ -1028,7 +1063,7 @@ function StopControl(props: StopControlProps) {
           },
         ]}
       >
-        <Icon name="Square" size={compact ? 13 : 10} color={color} />
+        <Icon name="CircleStop" size={compact ? 16 : 12} color={color} />
         <Text numberOfLines={1} style={{ fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
           {label}
         </Text>
@@ -1044,6 +1079,8 @@ function StopControl(props: StopControlProps) {
             segment,
             {
               width: compact ? 44 : 20,
+              borderLeftWidth: 1,
+              borderLeftColor: solid ? withAlpha("#ffffff", 0.4) : withAlpha(tokens.danger, 0.4),
               marginLeft: -1,
               backgroundColor: fill(chevronHover.hovered || props.menuOpen),
               borderTopRightRadius: round,
@@ -1073,7 +1110,7 @@ function StopControl(props: StopControlProps) {
             report={props.report}
             tokens={tokens}
             compact={compact}
-            icon="Square"
+            icon="CircleStop"
             label={strings.stopOnlyThis}
             onPress={() => props.onPick(false)}
           />
@@ -1153,7 +1190,7 @@ function JumpButton(props: {
       style={{
         flexShrink: 0,
         marginVertical: (props.line - size) / 2,
-        marginRight: compact ? -8 : -4,
+        marginRight: JUMP_OVERHANG[compact ? 1 : 0],
         zIndex: 45,
       }}
     >

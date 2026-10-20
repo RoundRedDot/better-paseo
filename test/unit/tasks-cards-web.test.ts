@@ -355,3 +355,51 @@ describe("TaskCardView details popover", () => {
     expect(onDetailsEnd).not.toHaveBeenCalled();
   });
 });
+
+describe("TaskCardView hover layout", () => {
+  const LAYOUT_KEYS = /^(width|height|min|max|padding|margin|flex|gap|rowGap|columnGap|position|top|left|right|bottom|border.*Width|alignItems|alignSelf|justifyContent)/;
+  const flat = (style: unknown) => Object.assign({}, ...[style].flat(Infinity).filter(Boolean)) as Record<string, unknown>;
+
+  /** Every in-flow host element's layout styles; absolutely positioned overlays and their content are skipped. */
+  function layout(root: ReactTestInstance): string[] {
+    const out: string[] = [];
+    const walk = (node: ReactTestInstance, path: string) => {
+      if (typeof node.type === "string") {
+        const style = flat(node.props.style);
+        if (style.position === "absolute") return;
+        const picked = Object.keys(style)
+          .filter((key) => LAYOUT_KEYS.test(key))
+          .sort()
+          .map((key) => `${key}=${JSON.stringify(style[key])}`);
+        out.push(`${path}${node.type}[${node.props.testID ?? ""}] ${picked.join(" ")}`);
+      }
+      node.children.forEach((child, index) => {
+        if (typeof child !== "string") walk(child, `${path}${index}/`);
+      });
+    };
+    walk(root, "");
+    return out;
+  }
+
+  it("moves nothing when the pointer enters a card, with or without a meta row", async () => {
+    for (const fields of [CARD_PRESETS.full, CARD_PRESETS.minimal]) {
+      for (const id of ["sample-running", "sample-child-1", "sample-input"]) {
+        const renderer = await render(
+          React.createElement(
+            TaskCardView,
+            props(id, { fields: { ...fields.fields, labelLimit: fields.labelLimit }, permissionButtons: BUTTONS }),
+          ),
+        );
+        const before = layout(renderer.root);
+        await act(async () => hovers.get(`task-card-${id}`)!.enter());
+        // Stop is on screen, floating over the row's end.
+        const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-stop-overlay");
+        expect(flat(overlay.props.style).position).toBe("absolute");
+        expect(layout(renderer.root)).toEqual(before);
+        await act(async () => hovers.get(`task-card-${id}`)!.leave());
+        expect(layout(renderer.root)).toEqual(before);
+        await act(async () => renderer.unmount());
+      }
+    }
+  });
+});

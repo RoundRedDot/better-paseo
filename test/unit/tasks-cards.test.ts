@@ -398,8 +398,18 @@ describe("TaskCardView rows", () => {
     expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual([
       "B",
       "better-paseo › tasks-board",
-      " › ↳ Port the status ring to React Native",
+      " › ",
+      "↳ Port the status ring to React Native",
     ]);
+    // Only the parent link gives way: "project > workspace" keeps its text while it fits.
+    const shrink = (id: string) => flat(hostByTestId(tree.root, id).props.style).flexShrink as number;
+    expect(shrink("task-card-meta-parent")).toBeGreaterThanOrEqual(1000 * shrink("task-card-meta-location"));
+    const separator = hostByTestId(tree.root, "task-card-meta").find(
+      (node) => (node.type as unknown) === "Text" && texts(node)[0] === " › ",
+    );
+    expect(flat(separator.props.style).flexShrink).toBe(0);
+    // Non-breaking spaces around the separator: a web text box drops a leading space.
+    expect(String(separator.props.children)).toBe("\u00a0\u203a\u00a0");
     byLabel(tree.root, "定位到父任务").props.onPress();
     expect(onReveal).toHaveBeenCalledWith("sample-running");
 
