@@ -163,11 +163,17 @@ function stillRunningMessage(count: number, language: TasksLanguage): string {
  * per `isActive`; one still there after STOP_VERIFY_MS gets an error toast
  * and loses its "Stopped manually" marker.
  */
-export function useStopControl(options: { confirmStop: boolean; isActive?: (agentId: string) => boolean }): StopControl {
+export function useStopControl(options: {
+  confirmStop: boolean;
+  isActive?: (agentId: string) => boolean;
+  /** Where the failures are said; the host's toast unless given (the phone board says them at its bottom). */
+  toast?: Pick<ReturnType<typeof useToast>, "error">;
+}): StopControl {
   const capabilitiesRpc = useRpc(tasksCapabilitiesRpc);
   const stopRpc = useRpc(tasksStopRpc);
   const stoppedRpc = useRpc(tasksStoppedRpc);
-  const toast = useToast();
+  const hostToast = useToast();
+  const toast = options.toast ?? hostToast;
   const language = useTasksLanguage();
 
   const [available, setAvailable] = useState(false);

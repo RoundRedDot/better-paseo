@@ -101,6 +101,7 @@ import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS } from "../../client/tasks/board/params";
+import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { BrandMark, PiMark, TaskCardView, TaskDetails, taskTokens } from "../../client/tasks/cards";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled } from "../../client/tasks/board/enabled";
@@ -741,6 +742,52 @@ describe("Tasks board, phone", () => {
     act(() => branch.props.onPress());
     const directions = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "sort-directions");
     expect(StyleSheet.flatten(directions.props.style).minHeight).toBe(512);
+  });
+
+  it("says the board's messages at its bottom, not in the host's toast over the header, and lets them go", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true, { agent: "claude" }));
+    });
+    act(() => pressable("Running 1").props.onPress());
+    const child = cards().find((card) => card.props.card.id === "sample-child-1")!;
+    act(() => child.props.onReveal("sample-running"));
+    expect(host.toast).not.toHaveBeenCalled();
+    const notice = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "phone-board-notice");
+    expect(notice()).toHaveLength(1);
+    expect(textOf(notice()[0]!)).toBe("Hidden by the current filters");
+    expect(StyleSheet.flatten(hostParentOf(notice()[0]!)!.props.style)).toMatchObject({ position: "absolute", bottom: 16 });
+    act(() => {
+      vi.advanceTimersByTime(NOTICE_MS);
+    });
+    expect(notice()).toHaveLength(0);
+    act(() => child.props.onReveal("sample-running"));
+    act(() => notice()[0]!.props.onPress());
+    expect(notice()).toHaveLength(0);
+  });
+
+  it("opens the filter sheet at the sort from the header's sort pill", () => {
+    const scrollTo = vi.fn();
+    act(() => {
+      renderer = TestRenderer.create(screen(true, { sort: "branch-desc" }), { createNodeMock: () => ({ scrollTo }) });
+    });
+    act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "phone-sort-hint").props.onPress());
+    const sort = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-sort");
+    act(() => sort.props.onLayout({ nativeEvent: { layout: { x: 0, y: 640, width: 360, height: 300 } } }));
+    expect(scrollTo).toHaveBeenCalledWith({ y: 632, animated: false });
+    // Laid out again (the drill-down), it stays where the user scrolled.
+    act(() => sort.props.onLayout({ nativeEvent: { layout: { x: 0, y: 640, width: 360, height: 512 } } }));
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the filter sheet at its top from the filters button", () => {
+    const scrollTo = vi.fn();
+    act(() => {
+      renderer = TestRenderer.create(screen(true), { createNodeMock: () => ({ scrollTo }) });
+    });
+    act(() => pressable("Filters").props.onPress());
+    const sort = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-sort");
+    act(() => sort.props.onLayout({ nativeEvent: { layout: { x: 0, y: 640, width: 360, height: 300 } } }));
+    expect(scrollTo).not.toHaveBeenCalled();
   });
 
   it("opens the details sheet on a card's long press", () => {
