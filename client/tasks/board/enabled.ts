@@ -4,11 +4,12 @@ import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, type TasksSettings } from "../.
 
 /**
  * Whether the Tasks board is on (`enabled` in the tasks settings), for what
- * lives outside React: the Command Center item is registered only while it
- * is. Null until something knows: the startup read in `contribute.tsx`, or
- * any mounted Tasks component that reads the settings (the sidebar entry is
- * always mounted, and its `useSettings` follows saves from every client).
- * Module state, so one per host bundle like the board's session store.
+ * lives outside React: `contribute.tsx` registers the board's screen,
+ * sidebar entry and Command Center item only while it is. Null until
+ * something knows: the one settings read at startup, the settings page,
+ * or, while the board is on, its mounted sidebar entry and screen (their
+ * `useSettings` follows saves from every client). Module state, so one per
+ * host bundle like the board's session store.
  */
 let enabled: boolean | null = null;
 const listeners = new Set<() => void>();
@@ -43,20 +44,8 @@ export function useTasksSettings(): TasksSettings | null {
   return values;
 }
 
-/** Opens Settings > Tasks; set by `contribute.tsx`, since screen props carry no way to open settings. */
-let settingsOpener: (() => void) | null = null;
-
-export function setTasksSettingsOpener(open: (() => void) | null): void {
-  settingsOpener = open;
-}
-
-export function tasksSettingsOpener(): (() => void) | null {
-  return settingsOpener;
-}
-
 /** Tests only. */
 export function resetTasksEnabled(): void {
   enabled = null;
-  settingsOpener = null;
   listeners.clear();
 }

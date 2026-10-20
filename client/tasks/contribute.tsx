@@ -1,49 +1,83 @@
-import type { PluginClientContext, PluginCommandCenterItemContribution } from "@getpaseo/plugin/client";
+import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { settingsRpc } from "@getpaseo/plugin";
 import { TASKS_SETTINGS, tasksSettingsSchema } from "../../shared/tasks-settings";
 import { TasksBoardScreen } from "./board/board-screen";
-import { setTasksEnabled, setTasksSettingsOpener, subscribeTasksEnabled, tasksEnabled } from "./board/enabled";
+import { setTasksEnabled, subscribeTasksEnabled, tasksEnabled } from "./board/enabled";
 import { encodeBoardParams, lastBoardParams } from "./board/params";
 import { TasksSidebarEntry } from "./board/sidebar-entry";
+import { BOARD_STRINGS } from "./board/strings";
+import { onTasksLanguageChange, resolveTasksLanguage } from "./i18n";
 import { TasksSettingsPage } from "./settings/settings-page";
 
 /** The board's screen id; `openScreen({ screenId: TASKS_SCREEN_ID })` opens it. */
 export const TASKS_SCREEN_ID = "tasks";
 
-const OPEN_TASKS: PluginCommandCenterItemContribution = {
-  id: "open-tasks",
-  title: "Open Tasks",
-  icon: "SquareKanban",
-  keywords: ["tasks", "board", "kanban", "agents", "看板", "任务"],
-  context: "global",
-  // The context names no host; this bundle runs per host, so the last board shown is this host's.
-  onSelect: (context) => context.openScreen({ screenId: TASKS_SCREEN_ID, params: encodeBoardParams(lastBoardParams()) }),
-};
+const KEYWORDS = ["tasks", "board", "kanban", "agents", "看板", "任务"];
 
 /**
- * Registers the Tasks board: the screen, its sidebar entry with the counts,
- * the board's settings page, and, while the board is enabled in its
- * settings, a Command Center item. The screen, sidebar entry and settings
- * page stay registered: the entry draws nothing while the board is off, and
- * the screen says it is off. Returns the cleanup.
+ * Registers the Tasks board. The board is opt-in (`enabled` in its
+ * settings): while it is off only the settings page is registered, and the
+ * only work is one settings read at startup. Turning it on registers the
+ * screen, the sidebar entry and the Command Center item; turning it off
+ * calls their cleanups, so nothing of the board stays mounted. The titles
+ * follow the host's language and are registered again when it changes.
+ * Returns the cleanup.
  */
 export function contributeTasks(client: PluginClientContext): () => void {
   let live = true;
-  let removeCommand: (() => void) | null = null;
+  let language = resolveTasksLanguage();
+
+  const registerSettings = () => {
+    const remove = client.addSettingsScreen({ id: "tasks", title: BOARD_STRINGS[language].name, icon: "SquareKanban", Component: TasksSettingsPage });
+    return () => void remove();
+  };
+  const registerBoard = () => {
+    const titles = BOARD_STRINGS[language];
+    const cleanups = [
+      client.addScreen({ id: TASKS_SCREEN_ID, title: titles.name, Component: TasksBoardScreen }),
+      client.addSidebarHeaderItem({ id: "tasks", title: titles.name, Component: TasksSidebarEntry }),
+      client.addCommandCenterItem({
+        id: "open-tasks",
+        title: titles.openBoard,
+        icon: "SquareKanban",
+        keywords: KEYWORDS,
+        context: "global",
+        // The context names no host; this bundle runs per host, so the last board shown is this host's.
+        onSelect: (context) => context.openScreen({ screenId: TASKS_SCREEN_ID, params: encodeBoardParams(lastBoardParams()) }),
+      }),
+    ];
+    return () => {
+      for (const cleanup of cleanups) void cleanup();
+    };
+  };
+
+  let removeSettings = registerSettings();
+  let removeBoard: (() => void) | null = null;
   const applyEnabled = () => {
     const on = live && tasksEnabled() === true;
-    if (on && !removeCommand) {
-      const remove = client.addCommandCenterItem(OPEN_TASKS);
-      removeCommand = () => void remove();
-    } else if (!on && removeCommand) {
-      removeCommand();
-      removeCommand = null;
+    if (on && !removeBoard) removeBoard = registerBoard();
+    else if (!on && removeBoard) {
+      removeBoard();
+      removeBoard = null;
     }
   };
-  const unsubscribe = subscribeTasksEnabled(applyEnabled);
+  const relabel = () => {
+    const next = resolveTasksLanguage();
+    if (!live || next === language) return;
+    language = next;
+    removeSettings();
+    removeSettings = registerSettings();
+    if (removeBoard) {
+      removeBoard();
+      removeBoard = registerBoard();
+    }
+  };
+  const unsubscribeEnabled = subscribeTasksEnabled(applyEnabled);
+  const unsubscribeLanguage = onTasksLanguageChange(relabel);
   applyEnabled();
-  setTasksSettingsOpener(() => client.openSettings("tasks"));
-  // One read at startup, so the Command Center knows before any Tasks component mounts.
+
+  // One read at startup; afterwards the settings page and the board's own
+  // settings readers keep the store in step.
   void Promise.resolve()
     .then(() => client.rpc(settingsRpc(TASKS_SETTINGS.id).read, {}))
     .then((result) => {
@@ -53,17 +87,12 @@ export function contributeTasks(client: PluginClientContext): () => void {
     })
     .catch(() => {});
 
-  const cleanups = [
-    client.addScreen({ id: TASKS_SCREEN_ID, title: "Tasks", Component: TasksBoardScreen }),
-    client.addSidebarHeaderItem({ id: "tasks", title: "Tasks", Component: TasksSidebarEntry }),
-    client.addSettingsScreen({ id: "tasks", title: "Tasks", icon: "SquareKanban", Component: TasksSettingsPage }),
-  ];
   return () => {
     live = false;
-    unsubscribe();
-    removeCommand?.();
-    removeCommand = null;
-    setTasksSettingsOpener(null);
-    for (const cleanup of cleanups) void cleanup();
+    unsubscribeEnabled();
+    unsubscribeLanguage();
+    removeBoard?.();
+    removeBoard = null;
+    removeSettings();
   };
 }

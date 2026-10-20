@@ -189,7 +189,7 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
         const requestId = card.permission?.requestId;
         if (!requestId) return;
         respondToPermission(latest.current.paseo, card.id, button, requestId).catch((error: unknown) =>
-          latest.current.toast.error(errorText(error)),
+          latest.current.toast.error(latest.current.strings.answerFailed(errorText(error))),
         );
       },
       onDetails: (card) => handlers.current?.details(card),
