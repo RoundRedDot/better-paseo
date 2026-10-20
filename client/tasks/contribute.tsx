@@ -1,5 +1,6 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { TasksBoardScreen } from "./board/board-screen";
+import { encodeBoardParams, lastBoardParams } from "./board/params";
 import { TasksSidebarEntry } from "./board/sidebar-entry";
 import { TasksSettingsPage } from "./settings/settings-page";
 
@@ -20,7 +21,8 @@ export function contributeTasks(client: PluginClientContext): () => void {
       icon: "SquareKanban",
       keywords: ["tasks", "board", "kanban", "agents", "看板", "任务"],
       context: "global",
-      onSelect: (context) => context.openScreen({ screenId: TASKS_SCREEN_ID }),
+      // The context names no host; this bundle runs per host, so the last board shown is this host's.
+      onSelect: (context) => context.openScreen({ screenId: TASKS_SCREEN_ID, params: encodeBoardParams(lastBoardParams()) }),
     }),
     client.addSettingsScreen({ id: "tasks", title: "Tasks", icon: "SquareKanban", Component: TasksSettingsPage }),
   ];

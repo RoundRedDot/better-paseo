@@ -1,0 +1,339 @@
+import React from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
+import "./helpers/quiet-renderer";
+
+vi.mock("react-native", async () => {
+  const rn = await import("./helpers/rn-mock");
+  const AppState = { currentState: "active", addEventListener: () => ({ remove() {} }) };
+  return { ...rn, AppState, default: { ...rn.default, AppState } };
+});
+vi.mock("@getpaseo/plugin/client/react-native", async () => {
+  const rn = await import("./helpers/rn-mock");
+  const React = await import("react");
+  type Props = Record<string, unknown> & { children?: React.ReactNode };
+  // Renders every item, header and footer in place: enough to count what a lane shows.
+  function FlatList(props: Props) {
+    const data = (props.data as unknown[]) ?? [];
+    const render = props.renderItem as (info: { item: unknown; index: number }) => React.ReactNode;
+    const key = props.keyExtractor as (item: unknown, index: number) => string;
+    const empty = props.ListEmptyComponent as React.ReactNode;
+    return React.createElement(
+      "FlatList",
+      { testID: props.testID },
+      data.length ? data.map((item, index) => React.createElement(React.Fragment, { key: key(item, index) }, render({ item, index }))) : empty,
+      props.ListFooterComponent as React.ReactNode,
+    );
+  }
+  function Modal(props: Props) {
+    return props.open ? React.createElement("Modal", { title: props.title }, props.children) : null;
+  }
+  Modal.Content = (props: Props) => React.createElement("ModalContent", null, props.children);
+  return {
+    Icon: (props: Props) => React.createElement("Icon", { name: props.name }),
+    FlatList,
+    Modal,
+    ScrollView: rn.ScrollView,
+    TextInput: rn.TextInput,
+    useToast: () => ({ show: host.toast, error: host.toast }),
+  };
+});
+const host = vi.hoisted(() => ({
+  toast: vi.fn(),
+  settings: null as Record<string, unknown> | null,
+}));
+vi.mock("@getpaseo/plugin/client", () => ({
+  usePaseo: () => ({}),
+  useRpc: () => () => Promise.resolve({ stop: false }),
+  useSettings: () => (host.settings ? { status: "ready", values: host.settings, revision: "1", saving: false, saveError: null } : { status: "loading" }),
+}));
+vi.mock("@getpaseo/plugin/client/ui", async () => {
+  const React = await import("react");
+  return {
+    SidebarRow: (props: Record<string, unknown> & { trailing?: React.ReactNode }) =>
+      React.createElement("SidebarRow", { label: props.label, active: props.active, onPress: props.onPress }, props.trailing),
+  };
+});
+// The data layer's real body needs a daemon; the board is tested against the samples.
+vi.mock("../../client/tasks/data", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../client/tasks/data")>();
+  const { sampleCards } = await import("../../client/tasks/sample-cards");
+  const { LANE_ORDER } = await import("../../client/tasks/model");
+  const cards = sampleCards(Date.parse("2026-10-20T12:00:00Z"));
+  const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: cards.filter((card) => card.lane === id), hasMore: id === "done", loading: false }]));
+  const handle = {
+    lanes,
+    counts: { needsInput: 1, running: 2, review: 2, done: 1 },
+    byId: new Map(cards.map((card) => [card.id, card])),
+    workspaces: [{ id: "wks_sample", name: "tasks-board", projectId: "prj_sample", projectName: "better-paseo" }],
+    providers: [
+      { id: "claude", label: "Claude" },
+      { id: "codex", label: "Codex" },
+    ],
+    labels: [{ name: "frontend", color: "#8b5cf6" }],
+    ready: true,
+    error: null,
+    loadMoreDone: vi.fn(),
+    resolveParent: vi.fn(),
+  };
+  return {
+    ...actual,
+    useTasks: () => handle,
+    useTaskCounts: () => ({ ...handle.counts, ready: true }),
+  };
+});
+
+import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
+import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
+import { contributeTasks } from "../../client/tasks/contribute";
+import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS } from "../../client/tasks/board/params";
+import { TaskCardView } from "../../client/tasks/cards";
+import { DEFAULT_TASKS_SETTINGS } from "../../shared/tasks-settings";
+import { resetEnhancerPreferences } from "../../client/preferences";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+const theme = {
+  colors: {
+    surface0: "#ffffff",
+    surface1: "#f4f4f5",
+    surface2: "#e4e4e7",
+    border: "#e2e2e6",
+    foreground: "#1b1b1f",
+    foregroundMuted: "#6b6b75",
+    accent: "#2563eb",
+    accentForeground: "#ffffff",
+    statusSuccess: "#198754",
+    statusWarning: "#a36a00",
+    statusDanger: "#d92d20",
+  },
+} as never;
+
+let renderer: ReturnType<typeof TestRenderer.create> | undefined;
+const openAgent = vi.fn();
+
+function screen(compact: boolean, params: Record<string, string> = {}) {
+  return React.createElement(TasksBoardScreen, {
+    theme,
+    host: { id: "host-1", label: "Local" },
+    layout: { compact, platform: compact ? "ios" : "web" },
+    navigation: { openAgent, openWorkspace: vi.fn() },
+    params,
+  });
+}
+
+function textOf(node: ReactTestInstance | string): string {
+  if (typeof node === "string") return node;
+  return node.children.map(textOf).join("");
+}
+
+function cards(): ReactTestInstance[] {
+  return renderer!.root.findAllByType(TaskCardView);
+}
+
+function pressable(label: string): ReactTestInstance {
+  return renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === label);
+}
+
+beforeEach(() => {
+  host.settings = { ...DEFAULT_TASKS_SETTINGS };
+  resetBoardSessions();
+  vi.useFakeTimers();
+});
+afterEach(() => {
+  act(() => renderer?.unmount());
+  renderer = undefined;
+  vi.useRealTimers();
+  vi.clearAllMocks();
+  resetEnhancerPreferences();
+  delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+});
+
+describe("Tasks board, desktop", () => {
+  beforeEach(() => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+  });
+
+  it("draws four lanes with their counts and every sample card", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    const text = textOf(renderer!.root);
+    for (const name of ["Needs input", "Running", "Review", "Done"]) expect(text).toContain(name);
+    expect(cards().map((card) => card.props.card.id)).toEqual(["sample-input", "sample-running", "sample-child-1", "sample-failed", "sample-unread", "sample-done"]);
+    expect(text).toContain("Load more");
+  });
+
+  it("applies the params it was opened with and remembers them for the sidebar", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false, { q: "ring", sub: "1" }));
+    });
+    // "ring" matches the parent; its child is hidden as a subtask.
+    expect(cards().map((card) => card.props.card.id)).toEqual(["sample-running"]);
+    expect(lastBoardParams("host-1")).toMatchObject({ query: "ring", hideSubtasks: true });
+    expect(textOf(renderer!.root)).toContain("Clear all");
+  });
+
+  it("falls back to the session's last filters when opened without params", () => {
+    rememberBoardParams("host-1", { ...EMPTY_PARAMS, providers: ["codex"] });
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    expect(cards().map((card) => card.props.card.id)).toEqual(["sample-running"]);
+  });
+
+  it("collapses a lane into a strip and expands it again", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    const collapse = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Collapse lane");
+    expect(collapse).toHaveLength(4);
+    act(() => collapse[1]!.props.onPress());
+    expect(cards().map((card) => card.props.card.id)).not.toContain("sample-running");
+    act(() => pressable("Expand lane: Running").props.onPress());
+    expect(cards().map((card) => card.props.card.id)).toContain("sample-running");
+  });
+
+  it("wires the cards: open jumps to the agent, a hidden parent toasts", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false, { agent: "claude" }));
+    });
+    const child = cards().find((card) => card.props.card.id === "sample-child-1")!;
+    act(() => child.props.onOpen("sample-child-1"));
+    expect(openAgent).toHaveBeenCalledWith({ agentId: "sample-child-1" });
+    act(() => child.props.onReveal("sample-running"));
+    expect(host.toast).toHaveBeenCalledWith("Hidden by the current filters");
+    expect(child.props.fields).toEqual(DEFAULT_TASKS_SETTINGS.card);
+    expect(child.props.compact).toBe(false);
+    // The host has no CLI to stop with (`tasks.capabilities`), so no card offers Stop.
+    expect(child.props.onStop).toBeUndefined();
+  });
+
+  it("hides the jump without navigation", () => {
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(TasksBoardScreen, { theme, host: { id: "host-1", label: "Local" }, layout: { compact: false, platform: "web" }, params: {} }),
+      );
+    });
+    expect(cards()[0]!.props.onOpen).toBeUndefined();
+  });
+});
+
+describe("Tasks board, phone", () => {
+  it("opens on needs-input, switches lanes by tab and remembers the pick", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    expect(cards().map((card) => card.props.card.id)).toEqual(["sample-input"]);
+    expect(cards()[0]!.props.compact).toBe(true);
+    act(() => pressable("Running 2").props.onPress());
+    const list = renderer!.root.find((node) => (node.type as unknown) === "FlatList");
+    expect(list.findAllByType(TaskCardView).map((card) => card.props.card.id)).toEqual(["sample-running", "sample-child-1"]);
+    // The old lane stays on top while it fades out (the mock's animations never finish).
+    expect(cards().map((card) => card.props.card.id)).toContain("sample-input");
+    act(() => renderer!.unmount());
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    expect(cards().map((card) => card.props.card.id)).toEqual(["sample-running", "sample-child-1"]);
+  });
+
+  it("uses the minimal card when mobile.compactCards is on", () => {
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, mobile: { compactCards: true } };
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    expect(cards()[0]!.props.fields.branch).toBe(false);
+  });
+
+  it("shows the filter badge and the filter sheet", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true, { agent: "claude,codex", tabs: "1" }));
+    });
+    const filters = pressable("Filters");
+    expect(textOf(filters)).toBe("3");
+    expect(renderer!.root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
+    act(() => filters.props.onPress());
+    const sheet = renderer!.root.find((node) => (node.type as unknown) === "Modal");
+    expect(sheet.props.title).toBe("Filters");
+    expect(textOf(sheet)).toContain("Paseo marks open tabs for subagents only");
+  });
+
+  it("shows an empty lane with a way out of the filters", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true, { q: "nothing matches" }));
+    });
+    const text = textOf(renderer!.root);
+    expect(text).toContain("No agents running");
+    expect(text).toContain("Clear filters");
+  });
+
+  it("opens the details sheet on a card's long press", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    act(() => cards()[0]!.props.onDetails(cards()[0]!.props.card));
+    const sheet = renderer!.root.find((node) => (node.type as unknown) === "Modal");
+    expect(sheet.props.title).toBe("Run the migration against the staging database");
+  });
+});
+
+describe("Tasks sidebar entry", () => {
+  function entry(screenId: string | null, openScreen = vi.fn()) {
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(TasksSidebarEntry, {
+          theme,
+          host: { id: "host-1", label: "Local" },
+          layout: { compact: false, platform: "web" },
+          currentScreen: screenId ? { screenId, params: {} } : null,
+          openScreen,
+          openPopover: vi.fn(),
+        }),
+      );
+    });
+    return renderer!.root.find((node) => (node.type as unknown) === "SidebarRow");
+  }
+
+  it.each([
+    ["running-and-input", "2 running, 1 need input", "21"],
+    ["input-only", "1 need input", "1"],
+    ["none", null, ""],
+  ] as const)("draws the counts for %s", (count, label, text) => {
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, sidebar: { count } };
+    const row = entry(null);
+    const counts = row.findAll((node) => node.props.accessibilityLabel !== undefined && (node.type as unknown) === "View");
+    expect(counts.map((node) => node.props.accessibilityLabel)).toEqual(label ? [label] : []);
+    expect(textOf(row)).toBe(text);
+  });
+
+  it("is active on the board and opens it with the session's filters", () => {
+    rememberBoardParams("host-1", { ...EMPTY_PARAMS, labels: ["frontend"], doneWindow: "7d" });
+    const openScreen = vi.fn();
+    const row = entry("tasks", openScreen);
+    expect(row.props.active).toBe(true);
+    act(() => row.props.onPress());
+    expect(openScreen).toHaveBeenCalledWith({ screenId: "tasks", params: { label: "frontend", win: "7d" } });
+  });
+});
+
+describe("Tasks Command Center item", () => {
+  it("opens the board with the last filters", () => {
+    const items: { onSelect(context: unknown): void }[] = [];
+    const noop = () => () => {};
+    const client = {
+      addScreen: noop,
+      addSidebarHeaderItem: noop,
+      addSettingsScreen: noop,
+      addCommandCenterItem: (item: { onSelect(context: unknown): void }) => {
+        items.push(item);
+        return () => {};
+      },
+    };
+    contributeTasks(client as never);
+    rememberBoardParams("host-1", { ...EMPTY_PARAMS, query: "ring" });
+    const openScreen = vi.fn();
+    items[0]!.onSelect({ context: "global", openScreen });
+    expect(openScreen).toHaveBeenCalledWith({ screenId: "tasks", params: { q: "ring" } });
+  });
+});
