@@ -84,3 +84,12 @@ export function contextRatio(context: { usedTokens: number; maxTokens: number } 
   if (!context || !(context.maxTokens > 0)) return null;
   return Math.min(1, Math.max(0, context.usedTokens / context.maxTokens));
 }
+
+/**
+ * A path with the home directory as "~": /Users/<name>/..., /home/<name>/...
+ * and C:\Users\<name>\... Other paths come back unchanged.
+ */
+export function tildePath(path: string): string {
+  const home = /^\/(?:Users|home)\/[^/]+(?=\/|$)/.exec(path) ?? /^[A-Za-z]:\\Users\\[^\\]+(?=\\|$)/i.exec(path);
+  return home ? `~${path.slice(home[0].length)}` : path;
+}
