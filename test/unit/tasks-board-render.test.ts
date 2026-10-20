@@ -218,6 +218,8 @@ describe("Tasks board, desktop", () => {
     expect(collapse).toHaveLength(4);
     act(() => collapse[1]!.props.onPress());
     expect(cards().map((card) => card.props.card.id)).not.toContain("sample-running");
+    // The collapsed strip is a 40-wide panel with Linear's corner.
+    expect(StyleSheet.flatten(pressable("Expand lane: Running").props.style)).toMatchObject({ width: 40, borderRadius: 5 });
     act(() => pressable("Expand lane: Running").props.onPress());
     expect(cards().map((card) => card.props.card.id)).toContain("sample-running");
   });
@@ -286,7 +288,7 @@ describe("Tasks board, host theme", () => {
     const panels = views.filter((node) => style(node).backgroundColor === panel);
     expect(panels).toHaveLength(4);
     for (const lane of panels) {
-      expect(style(lane)).toMatchObject({ borderRadius: 4 });
+      expect(style(lane)).toMatchObject({ borderRadius: 5 });
       expect(style(lane).borderWidth).toBeUndefined();
       expect(style(lane).boxShadow).toBeUndefined();
     }
