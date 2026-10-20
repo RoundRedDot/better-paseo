@@ -8,7 +8,7 @@ import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { TaskCardView, taskTokens, type CardCallbacks } from "../cards";
 import type { TaskCard } from "../model";
-import { MOTION } from "./board-style";
+import { GLYPH_LINE, HAIRLINE, MOTION } from "./board-style";
 import type { BoardStrings } from "./strings";
 import type { BoardController } from "./use-board";
 
@@ -48,7 +48,7 @@ export function Checkbox({ on, theme, size = 14 }: { on: boolean; theme: PluginT
         width: size,
         height: size,
         borderRadius: size > 16 ? 4 : 3,
-        borderWidth: 1,
+        borderWidth: GLYPH_LINE,
         borderColor: on ? colors.accent : taskTokens(theme).borderStrong,
         backgroundColor: on ? colors.accent : "transparent",
         alignItems: "center",
@@ -81,7 +81,7 @@ export function WindowSegments(props: {
         height: props.stretch ? 36 : outer,
         flexDirection: "row",
         padding: 2,
-        borderWidth: 1,
+        borderWidth: HAIRLINE,
         borderColor: colors.border,
         borderRadius: round(props.stretch ? 36 : outer),
         alignSelf: props.stretch ? "stretch" : "auto",
@@ -144,7 +144,7 @@ export function SkeletonCard({ theme, opacity, index }: { theme: PluginTheme; op
   const bar = { borderRadius: 2, backgroundColor: colors.surface2 };
   return (
     <Animated.View
-      style={{ opacity, padding: 10, gap: 9, borderWidth: 1, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.surface0 }}
+      style={{ opacity, padding: 10, gap: 9, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.surface0 }}
     >
       <View style={[bar, { height: 10, width: SKELETON_WIDTHS[index % SKELETON_WIDTHS.length] }]} />
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -180,7 +180,7 @@ export function LoadMoreRow(props: {
           height,
           paddingHorizontal: props.large ? 16 : 12,
           borderRadius: height / 2,
-          borderWidth: 1,
+          borderWidth: HAIRLINE,
           borderColor: colors.border,
           backgroundColor: hovered ? colors.surface1 : colors.surface0,
           flexDirection: "row",

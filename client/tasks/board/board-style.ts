@@ -1,3 +1,4 @@
+import { StyleSheet } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { mix } from "../../components/theme-tokens";
 import { themeKey } from "../../ui/tokens/theme-key";
@@ -8,8 +9,18 @@ import { themeKey } from "../../ui/tokens/theme-key";
  * rounded panel a small step off it. Paseo's light `surface1` (#fafafa)
  * is too close to white to read, so a light panel sits halfway between
  * `surface1` and `surface2` (#f7f7f8); a dark one is `surface1`. Cards keep
- * `surface0`.
+ * `surface0`. The hex values are calibration against Paseo's default light
+ * theme only: every colour here is derived from the host theme.
  */
+/** Every line the board draws (borders, dividers, pills) is one device pixel, as Linear's are. */
+export const HAIRLINE = StyleSheet.hairlineWidth;
+
+/** Checkbox and letter-avatar outlines are part of the glyph, not a divider: a full point keeps them legible. */
+export const GLYPH_LINE = 1;
+
+/** Linear's lane panel corner: about 8 device px at 2x. */
+export const PANEL_RADIUS = 4;
+
 export interface BoardPalette {
   page: string;
   panel: string;
@@ -20,10 +31,15 @@ export interface BoardPalette {
 const palettes = new Map<string, BoardPalette>();
 
 function isDark(color: string): boolean {
-  const hex = /^#([0-9a-f]{6})/i.exec(color.trim())?.[1];
-  if (!hex) return false;
-  const channel = (at: number) => Number.parseInt(hex.slice(at, at + 2), 16);
-  return (0.299 * channel(0) + 0.587 * channel(2) + 0.114 * channel(4)) / 255 < 0.5;
+  const value = color.trim();
+  const hex = /^#([0-9a-f]{6})/i.exec(value)?.[1];
+  let rgb: number[] | null = hex ? [0, 2, 4].map((at) => Number.parseInt(hex.slice(at, at + 2), 16)) : null;
+  if (!rgb) {
+    const match = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(value);
+    rgb = match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+  }
+  if (!rgb) return false;
+  return (0.299 * rgb[0]! + 0.587 * rgb[1]! + 0.114 * rgb[2]!) / 255 < 0.5;
 }
 
 export function boardPalette(theme: PluginTheme): BoardPalette {

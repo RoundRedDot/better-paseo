@@ -339,10 +339,29 @@ describe("lane widths", () => {
 
 describe("board palette", () => {
   const theme = (colors: Record<string, string>) => ({ colors }) as never;
-  it("steps the lane panel off the page in both of Paseo's themes", () => {
-    const light = boardPalette(theme({ surface0: "#ffffff", surface1: "#fafafa", surface2: "#f4f4f5", foreground: "#09090b", foregroundMuted: "#71717a", border: "#e4e4e7", accent: "#18181b" }));
+  const channels = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+  const PASEO_LIGHT = { surface0: "#ffffff", surface1: "#fafafa", surface2: "#f4f4f5", foreground: "#09090b", foregroundMuted: "#71717a", border: "#e4e4e7", accent: "#18181b" };
+  const PASEO_DARK = { surface0: "#181B1A", surface1: "#1E2120", surface2: "#272A29", foreground: "#fafafa", foregroundMuted: "#A1A5A4", border: "#252B2A", accent: "#fafafa" };
+  // Made-up themes: the palette must follow whatever the host hands over.
+  const SEPIA_LIGHT = { surface0: "#fbf6ec", surface1: "#f5eedf", surface2: "#ede3cf", foreground: "#3b2f20", foregroundMuted: "#7a6a55", border: "#e2d6bf", accent: "#a0522d" };
+  const BLUE_DARK = { surface0: "#0f1729", surface1: "#16203a", surface2: "#1e2a48", foreground: "#e6ecff", foregroundMuted: "#93a0c4", border: "#25324f", accent: "#5b8cff" };
+
+  it("lands near Linear's lane colour on Paseo's default light theme", () => {
+    const light = boardPalette(theme(PASEO_LIGHT));
     expect(light).toEqual({ page: "#ffffff", panel: "#f7f7f8", panelHover: "#f4f4f5" });
-    const dark = boardPalette(theme({ surface0: "#181B1A", surface1: "#1E2120", surface2: "#272A29", foreground: "#fafafa", foregroundMuted: "#A1A5A4", border: "#252B2A", accent: "#fafafa" }));
-    expect(dark).toEqual({ page: "#181B1A", panel: "#1E2120", panelHover: "#272A29" });
+    // Linear: lanes #f6f6f7. A calibration target, not a literal in the code.
+    const target = channels("#f6f6f7");
+    channels(light.panel).forEach((value, at) => expect(Math.abs(value - target[at]!)).toBeLessThanOrEqual(2));
+  });
+
+  it("uses surface1 for the panel on Paseo's dark theme", () => {
+    expect(boardPalette(theme(PASEO_DARK))).toEqual({ page: "#181B1A", panel: "#1E2120", panelHover: "#272A29" });
+  });
+
+  it("follows a non-default light and dark theme", () => {
+    expect(boardPalette(theme(SEPIA_LIGHT))).toEqual({ page: "#fbf6ec", panel: "#f1e9d7", panelHover: "#ede3cf" });
+    expect(boardPalette(theme(BLUE_DARK))).toEqual({ page: "#0f1729", panel: "#16203a", panelHover: "#1e2a48" });
+    // rgb() colours are read too, so a dark theme written that way still gets surface1.
+    expect(boardPalette(theme({ ...BLUE_DARK, surface0: "rgb(15, 23, 41)" })).panel).toBe("#16203a");
   });
 });
