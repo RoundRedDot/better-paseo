@@ -26,6 +26,12 @@ import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { classifyTool } from "../../client/tools/classify";
 import { resetEnhancerPreferences } from "../../client/preferences";
 import { PreviewLines } from "../../client/ui/preview-lines";
+import { ToolCallout } from "../../client/components/tool-callouts";
+import { AGENT_STATUS_LABEL, AGENT_STATUS_ICON, type AgentStatus } from "../../client/tools/agent-status";
+import * as web from "../../client/web";
+import { PREVIEW_OPEN_MS } from "../../client/ui/hover-preview";
+import { summarizeTool } from "../../client/tools/summarize";
+import type { AgentMessage } from "../../client/tools/agent-message";
 
 import { StyleSheet } from "react-native";
 import { Dimensions } from "./helpers/rn-mock";
@@ -39,8 +45,8 @@ const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: 
 
 const agentId = "db43c484-e0ea-4ae2-94f9-6f5261234567";
 const prompt = "# Review\n\n**Read only**\n\n" + Array.from({ length: 80 }, (_, i) => `Line ${i}`).join("\n");
-function agentView(theme = tokens, title = "Review", settings?: Record<string, unknown>, provider = "cursor/grok-4.7", output = agentId) {
-  const data = classifyTool({ callId: "create", name: "paseo.create_agent", status: "completed", detail: {
+function agentView(theme = tokens, title = "Review", settings?: Record<string, unknown>, provider = "cursor/grok-4.7", output = agentId, status = "completed") {
+  const data = classifyTool({ callId: "create", name: "paseo.create_agent", status, detail: {
     type: "unknown", input: { title, provider, initialPrompt: prompt, settings }, output,
   } });
   return React.createElement(PreviewPanelSample, { tokens: theme,
@@ -234,7 +240,7 @@ describe("create_agent preview", () => {
   it.each([390, 1280])("keeps running inline after permissions at width %s until the ID arrives", async (width) => {
     vi.spyOn(Dimensions, "get").mockReturnValue({ width, height: 800, scale: 1, fontScale: 1 });
     vi.spyOn(input, "useInputCapabilities").mockReturnValue({ native: false, hover: true, touch: false, compact: false });
-    act(() => { renderer = TestRenderer.create(agentView(tokens, "Review", undefined, "cursor/grok-4.7", "")); });
+    act(() => { renderer = TestRenderer.create(agentView(tokens, "Review", undefined, "cursor/grok-4.7", "", "running")); });
     const metadata = () => renderer!.root.findByProps({ testID: "create-agent-metadata" });
     const id = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "create-agent-id")[0]!;
     expect(StyleSheet.flatten(metadata().props.style)).toMatchObject({ flexDirection: "row", justifyContent: "flex-start", flexWrap: "wrap" });
@@ -305,5 +311,199 @@ describe("create_agent preview", () => {
       expect(clipboard.copyText).toHaveBeenLastCalledWith("grok-4.7");
     }
     expect(host.providers.listModels).toHaveBeenCalledWith("grok", { cwd: "/workspace" });
+  });
+});
+
+const statusBody = "# Result\n\n**Cursor OK**\n\n" + "Long response\n".repeat(80);
+const messageEvent: Record<AgentStatus, AgentMessage["event"]> = {
+  message: "message", finished: "finished", errored: "errored", "needs permission": "permission-required", "was closed": "closed", "was canceled": "errored",
+};
+function statusView(status: AgentStatus = "finished") {
+  const text = status === "message" ? statusBody : `Agent ${agentId} (卡片测试 · Cursor) ${status}.\n\n<agent-response>\n${statusBody}\n</agent-response>`;
+  return classifyTool({ name: "agent_message", callId: "paseo-agent-message:m1", status: "completed",
+    detail: { type: "plain_text", text }, agentMessage: { event: messageEvent[status],
+      sender: { id: agentId, title: "卡片测试 · Cursor" }, text } });
+}
+
+function preview(data: ReturnType<typeof classifyTool>, theme = tokens) {
+  return React.createElement(PreviewPanelSample, { tokens: theme,
+    children: React.createElement(ToolPreviewContent, { data, tokens: theme, compact: false, resolvePath: (path) => path }) });
+}
+
+describe("agent status card presentation", () => {
+  it.each(["web", "ios", "android"])("shows status, full title, ID and response in both modes on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    for (const status of Object.keys(AGENT_STATUS_LABEL) as AgentStatus[]) {
+      for (const isDark of [false, true]) {
+        const theme = { ...tokens, isDark };
+        act(() => { renderer = TestRenderer.create(preview(statusView(status), theme)); });
+        const root = renderer!.root;
+        expect(root.findByProps({ testID: "agent-status-title" }).props.children).toBe("卡片测试 · Cursor");
+        expect(root.findByProps({ testID: "agent-status-title" }).props.numberOfLines).toBeUndefined();
+        const state = root.findByProps({ testID: "agent-status-state" });
+        expect(state.props.accessibilityLabel).toBe(AGENT_STATUS_LABEL[status]);
+        const color = status === "errored" ? tokens.danger : status === "needs permission" ? tokens.warning :
+          status === "finished" ? tokens.success : tokens.foregroundMuted;
+        expect(state.findAllByProps({ name: AGENT_STATUS_ICON[status] })[0]!.props.color).toBe(color);
+        expect(root.findByType(MarkdownView).props.text).toBe(statusBody);
+        expect(textOf(renderer!.toJSON())).not.toContain("<agent-response>");
+        await press(`Copy agent ID ${agentId}`);
+        expect(clipboard.copyText).toHaveBeenLastCalledWith(agentId);
+        await press("Copy result");
+        expect(clipboard.copyText).toHaveBeenLastCalledWith(statusBody);
+        await press("Show raw text");
+        expect(root.findAllByType(MarkdownView)).toHaveLength(0);
+        expect(root.findByType(PreviewLines).props.text).toBe(statusBody);
+        expect(root.findByProps({ testID: "agent-status-title" }).props.children).toBe("卡片测试 · Cursor");
+        await press("Render Markdown");
+        act(() => renderer!.unmount());
+        renderer = undefined;
+      }
+    }
+  });
+
+  it("opens a status hover popup after the configured delay and keeps the row collapsed", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    vi.useFakeTimers();
+    vi.spyOn(input, "useInputCapabilities").mockReturnValue({ native: false, hover: true, touch: false, compact: false });
+    let enter: (() => void) | undefined;
+    vi.spyOn(web, "bindPreviewPointer").mockImplementation((_node, onEnter) => { enter = onEnter; return () => {}; });
+    vi.spyOn(web, "openPreviewLayer").mockImplementation(() => () => {});
+    act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, { data: statusView(), tokens, previewKey: "status-hover" })); });
+    expect(renderer!.root.findAllByType(MarkdownView)).toHaveLength(0);
+    expect(enter).toBeTypeOf("function");
+    act(() => enter!());
+    act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS - 1); });
+    expect(renderer!.root.findAllByType(MarkdownView)).toHaveLength(0);
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(renderer!.root.findByType(MarkdownView).props.text).toBe(statusBody);
+    expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" &&
+      node.props.accessibilityLabel === "Agent finished 卡片测试 · Cursor")[0]!.props.accessibilityState.expanded).toBe(false);
+  });
+
+  it.each(["ios", "android"])("opens a status preview on long press on %s", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, { data: statusView(), tokens })); });
+    const row = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" &&
+      node.props.accessibilityLabel === "Agent finished 卡片测试 · Cursor")[0]!;
+    act(() => row.props.onLongPress());
+    expect(renderer!.root.findByType(MarkdownView).props.text).toBe(statusBody);
+    expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: "agent-status-id" }).props.style).width).toBe("100%");
+  });
+
+  it("expands a status card using the same content as its preview", () => {
+    act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, { data: statusView(), tokens })); });
+    const row = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" &&
+      node.props.accessibilityLabel === "Agent finished 卡片测试 · Cursor")[0]!;
+    act(() => row.props.onPress());
+    expect(renderer!.root.findByProps({ testID: "agent-status-title" }).props.children).toBe("卡片测试 · Cursor");
+    expect(renderer!.root.findByType(MarkdownView).props.text).toBe(statusBody);
+  });
+
+  it.each(["failed", "mcp-error", "canceled"])("marks unsuccessful creation without inventing an agent ID: %s", async (failure) => {
+    const error = `Session could not be created (request ${agentId})`;
+    const data = classifyTool({ name: "paseo.create_agent", callId: "create", status: failure === "mcp-error" ? "completed" : failure,
+      error: failure === "failed" ? error : null,
+      detail: { type: "unknown", input: { title: "Review", initialPrompt: "# Task" },
+        output: failure === "mcp-error" ? { isError: true, content: [{ type: "text", text: error }] } : error } });
+    expect(data.paseo!.createAgent!.agentId).toBeUndefined();
+    act(() => { renderer = TestRenderer.create(preview(data)); });
+    const label = failure === "canceled" ? "Creation canceled" : "Creation failed";
+    expect(textOf(renderer!.toJSON())).toContain(label);
+    expect(textOf(renderer!.toJSON())).not.toContain("running");
+    expect(renderer!.root.findByProps({ testID: "create-agent-id" }).props.disabled).toBe(true);
+    expect(renderer!.root.findAllByProps({ testID: "create-agent-copy-icon" })).toHaveLength(0);
+    if (failure !== "canceled") {
+      expect(data.status).toBe("failed");
+      expect(summarizeTool(data).meta).toContain("failed");
+      expect(textOf(renderer!.toJSON())).toContain(error);
+    }
+    await press("Show raw text");
+    expect(textOf(renderer!.toJSON())).toContain(label);
+  });
+
+  it("shows missing ID explicitly once creation has settled", () => {
+    act(() => { renderer = TestRenderer.create(agentView(tokens, "Review", undefined, "cursor/grok-4.7", "")); });
+    expect(textOf(renderer!.toJSON())).toContain("Agent ID unavailable");
+    expect(textOf(renderer!.toJSON())).not.toContain("running");
+  });
+});
+
+function agentTool(name: string, result: unknown, status = "completed") {
+  return classifyTool({ name: `paseo.${name}`, status, callId: "agent-tool", detail: { type: "unknown",
+    input: { agentId, prompt: statusBody }, output: result } });
+}
+
+describe("unified agent tool card layout", () => {
+  it.each(["web", "ios", "android"])("renders the prompt and dispatch receipt and preserves all copy sources on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const receipt = { success: true, disposition: "turn_started", status: "running", guidance: "Wait for the finish notification." };
+    act(() => { renderer = TestRenderer.create(preview(agentTool("send_agent_prompt", receipt))); });
+    expect(textOf(renderer!.toJSON())).toContain("Prompt sent");
+    expect(textOf(renderer!.toJSON())).toContain("Turn started");
+    expect(textOf(renderer!.toJSON())).toContain("Agent: running");
+    expect(textOf(renderer!.toJSON())).toContain(receipt.guidance);
+    expect(renderer!.root.findByType(MarkdownView).props.text).toBe(statusBody);
+    await press("Copy prompt");
+    expect(clipboard.copyText).toHaveBeenLastCalledWith(statusBody);
+    await press(`Copy agent ID ${agentId}`);
+    expect(clipboard.copyText).toHaveBeenLastCalledWith(agentId);
+    await press("Copy result");
+    expect(clipboard.copyText).toHaveBeenLastCalledWith(JSON.stringify(receipt, null, 2));
+    await press("Copy arguments");
+    expect(clipboard.copyText).toHaveBeenLastCalledWith(JSON.stringify({ agentId, prompt: statusBody }, null, 2));
+    await press("Show raw text");
+    const source = renderer!.root.findByType(PreviewLines).props.text;
+    expect(JSON.parse(source)).toEqual({ arguments: { agentId, prompt: statusBody }, result: receipt });
+    await press("Render Markdown");
+    expect(renderer!.root.findByType(MarkdownView).props.text).toBe(statusBody);
+  });
+
+  it.each(["message", "send_agent_prompt", "get_agent_status", "get_agent_activity", "list_agents", "sub_agent"])(
+    "opens the unified %s card on hover without expanding its row", (kind) => {
+      (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+      vi.useFakeTimers();
+      vi.spyOn(input, "useInputCapabilities").mockReturnValue({ native: false, hover: true, touch: false, compact: false });
+      let enter: (() => void) | undefined;
+      vi.spyOn(web, "bindPreviewPointer").mockImplementation((_node, callback) => { enter = callback; return () => {}; });
+      vi.spyOn(web, "openPreviewLayer").mockImplementation(() => () => {});
+      const data = kind === "message" ? statusView("message") : kind === "sub_agent" ?
+        classifyTool({ name: "Task", status: "completed", detail: { type: "sub_agent", description: "Explore", log: "" } }) :
+        agentTool(kind, { success: true, status: "running", content: "# Activity", agents: [] });
+      act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, { data, tokens })); });
+      const row = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState)[0]!;
+      expect(row.props.accessibilityState.expanded).toBe(false);
+      act(() => enter!());
+      act(() => { vi.advanceTimersByTime(PREVIEW_OPEN_MS); });
+      expect(renderer!.root.findByProps({ testID: "hover-preview" })).toBeDefined();
+      expect(row.props.accessibilityState.expanded).toBe(false);
+    });
+
+  it.each([["running", null, "Sending prompt"], ["failed", "Provider unavailable", "Send failed"],
+    ["canceled", null, "Send canceled"], ["completed", null, "Dispatch not confirmed"]])(
+    "shows dispatch outcome without treating an unknown result as success (%s)", (status, result, label) => {
+      act(() => { renderer = TestRenderer.create(preview(agentTool("send_agent_prompt", result, status as string))); });
+      expect(textOf(renderer!.toJSON())).toContain(label);
+      expect(textOf(renderer!.toJSON())).not.toContain("Prompt sent");
+    });
+
+  it.each(["get_agent_status", "get_agent_activity", "list_agents", "cancel_agent", "archive_agent", "kill_agent", "update_agent", "set_agent_mode", "list_pending_permissions", "respond_to_permission"])(
+    "renders %s using the shared card and supports raw response inspection", async (name) => {
+      const result = { success: true, status: "idle", agents: [], content: "# Agent activity\n\n**Complete response**", updateCount: 2 };
+      act(() => { renderer = TestRenderer.create(preview(agentTool(name, result))); });
+      expect(renderer!.root.findByProps({ testID: "agent-operation-title" }).props.numberOfLines).toBeUndefined();
+      expect(textOf(renderer!.toJSON())).toContain("Request acknowledged");
+      expect(renderer!.root.findByType(MarkdownView).props.text).toBe(result.content);
+      await press("Show raw text");
+      expect(JSON.parse(renderer!.root.findByType(PreviewLines).props.text).result).toEqual(result);
+    });
+
+  it("keeps a provider-native agent task previewable with title and status", async () => {
+    const data = classifyTool({ name: "Task", status: "running", detail: { type: "sub_agent", description: "Explore the code", subAgentType: "Explore", log: "" } });
+    act(() => { renderer = TestRenderer.create(preview(data)); });
+    expect(renderer!.root.findByProps({ testID: "sub-agent-title" }).props.children).toBe("Explore the code");
+    expect(textOf(renderer!.toJSON())).toContain("Explore · running");
+    await press("Show raw text");
+    expect(JSON.parse(renderer!.root.findByType(PreviewLines).props.text).description).toBe("Explore the code");
   });
 });

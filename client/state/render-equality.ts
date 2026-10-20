@@ -21,6 +21,7 @@
  */
 import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import { themeKey } from "../ui/tokens/theme-key";
+import type { AgentMessage } from "../tools/agent-message";
 
 type Props<T> = Readonly<PluginTimelineItemProps<T>>;
 
@@ -45,6 +46,7 @@ function sameText(prev: string | undefined, next: string | undefined): boolean {
 }
 
 interface ToolData {
+  agentMessage?: AgentMessage;
   status: string;
   callId?: string;
   phase?: string;
@@ -64,6 +66,10 @@ export function toolPropsEqual<T extends ToolData>(prev: Props<T>, next: Props<T
   if (a.status === "running" || a.status !== b.status) return false;
   // Async questions stay `completed` while their answer arrives later.
   if (JSON.stringify(a.questionData) !== JSON.stringify(b.questionData)) return false;
+  if (a.agentMessage?.event !== b.agentMessage?.event ||
+    a.agentMessage?.sender.id !== b.agentMessage?.sender.id ||
+    a.agentMessage?.sender.title !== b.agentMessage?.sender.title ||
+    !sameText(a.agentMessage?.text, b.agentMessage?.text)) return false;
   return a.phase === b.phase && (a.error ?? null) === (b.error ?? null) && a.approved === b.approved;
 }
 

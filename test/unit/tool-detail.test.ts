@@ -9,9 +9,9 @@ function view(detail: Record<string, unknown>, extra: Partial<ToolCallPayload> =
 }
 
 describe("toolHasDetail", () => {
-  it("has none for a sub-agent whose only payload is its one-line description", () => {
+  it("keeps a sub-agent status card previewable even with a one-line description", () => {
     const agent = view({ type: "sub_agent", description: "截图并读取界面", log: "" });
-    expect(toolHasDetail(agent, BUDGET)).toBe(false);
+    expect(toolHasDetail(agent, BUDGET)).toBe(true);
   });
 
   it("has detail once a sub-agent logs, acts, or describes past one line", () => {
@@ -22,8 +22,8 @@ describe("toolHasDetail", () => {
 
   it("has detail once a sub-agent carries a prompt beyond its description", () => {
     expect(toolHasDetail(view({ type: "sub_agent", description: "截图并读取界面", log: "", prompt: "打开模拟器，截图后读出界面上的文字。" }), BUDGET)).toBe(true);
-    expect(toolHasDetail(view({ type: "sub_agent", description: "截图并读取界面", log: "", prompt: "截图并读取界面" }), BUDGET)).toBe(false);
-    expect(toolHasDetail(view({ type: "sub_agent", description: "截图并读取界面", log: "", prompt: " " }), BUDGET)).toBe(false);
+    expect(toolHasDetail(view({ type: "sub_agent", description: "截图并读取界面", log: "", prompt: "截图并读取界面" }), BUDGET)).toBe(true);
+    expect(toolHasDetail(view({ type: "sub_agent", description: "截图并读取界面", log: "", prompt: " " }), BUDGET)).toBe(true);
   });
 
   it("has detail for a web search that brought back only its text summary", () => {

@@ -1,7 +1,6 @@
-import React, { useMemo, useState } from "react";
-import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
+import React, { useMemo } from "react";
+import { View, Text, StyleSheet, useWindowDimensions } from "react-native";
 import { Glyph } from "./glyph";
-import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useAgent, usePaseo } from "@getpaseo/plugin/client";
 import { surfaceProps } from "./view-props";
 import { radiusV2, space } from "./theme-tokens";
@@ -11,7 +10,9 @@ import { PreviewLines } from "../ui/preview-lines";
 import { ToolbarItem } from "../ui/toolbar-button";
 import { FooterDetails, useFooterDetailsWidth } from "./footer-details";
 import { useCopy } from "../ui/use-copy";
-import { useHover } from "../ui/use-hover";
+import { AgentCardContent, AgentCardMetadataItem as MetadataItem } from "./agent-card-content";
+import { SendAgentPromptView, AgentOperationView } from "./agent-operation-views";
+import { AGENT_STATUS_LABEL, AGENT_STATUS_ICON, type AgentStatusData } from "../tools/agent-status";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { blockProseBase } from "../ui/tokens/typography";
 import { ProviderLogo } from "./provider-logo";
@@ -46,6 +47,8 @@ export function PaseoToolCallout({ data, tokens, raw = false, compact = false }:
       {data.tool === "create_agent" && data.createAgent && (
         <CreateAgentView data={data.createAgent} tokens={tokens} raw={raw} compact={compact} />
       )}
+      {data.sendAgentPrompt ? <SendAgentPromptView data={data.sendAgentPrompt} tokens={tokens} raw={raw} compact={compact} /> : null}
+      {data.agentOperation ? <AgentOperationView data={data.agentOperation} tokens={tokens} raw={raw} compact={compact} /> : null}
       {data.tool === "list_providers" && data.providers && (
         <ListProvidersView data={data.providers} tokens={tokens} />
       )}
@@ -80,15 +83,8 @@ function CreateAgentView({ data, tokens, raw, compact }: {
   const mode = useProviderMode(paseo, data.provider, data.modeId ?? null, cwd);
   const thinking = thinkingLabel ?? data.thinkingOptionId;
   return (
-    <View style={{ gap: mobile ? space.xs : space.sm, minWidth: 0 }}>
-      <Text testID="create-agent-title" selectable accessibilityRole="header" style={{
-        fontFamily: tokens.fontUi, fontSize: mobile ? 18 : 20, lineHeight: mobile ? 26 : 28,
-        fontWeight: "600", color: tokens.foreground, minWidth: 0, flexShrink: 1, marginBottom: mobile ? 0 : 4,
-      }}>{data.title}</Text>
-      <View testID="create-agent-metadata" style={{
-        flexDirection: "row", alignItems: "center", justifyContent: "flex-start",
-        flexWrap: "wrap", columnGap: space.lg, rowGap: space.xs, minWidth: 0,
-      }}>
+    <AgentCardContent title={data.title} agentId={data.agentId} state={data.status} tokens={tokens} mobile={mobile}
+      metadata={<>
           {data.model ? <ModelName provider={data.provider} model={data.model} modelName={modelName}
             thinkingLabel={thinking} tokens={tokens} mobile={mobile} /> :
             <ProviderLogo provider={data.provider} size={16} showLabel labelColor={tokens.foregroundMuted}
@@ -98,15 +94,40 @@ function CreateAgentView({ data, tokens, raw, compact }: {
           <MetadataItem testID="create-agent-permissions" accessibilityLabel={`Permissions: ${mode?.label ?? data.modeId ?? "未指定"}`}
             icon={mode?.icon ?? "Shield"} iconColor={modeColor(mode?.colorTier, tokens)}
             label={mode?.label ?? data.modeId ?? "未指定"} tokens={tokens} />
-        <AgentId agentId={data.agentId} tokens={tokens} mobile={mobile} />
-      </View>
+      </>}>
       {raw ? <PreviewLines text={data.initialPrompt} lines={lines} tokens={tokens}
         style={{ color: tokens.foreground, fontFamily: tokens.fontMono,
           fontSize: tokens.typography.mono.size, lineHeight: tokens.typography.mono.lineHeight }} /> :
         <MarkdownView text={data.initialPrompt} tokens={tokens} variant="document" compact={mobile}
           size={blockProseBase(tokens.typography)} />}
-    </View>
+    </AgentCardContent>
   );
+}
+
+/** The sender and event come from host provenance; the response never decides status. */
+export function agentStatusColor(data: AgentStatusData, tokens: ExtendedThemeTokens): string {
+  return data.status === "errored" ? tokens.danger : data.status === "needs permission" ? tokens.warning :
+    data.status === "finished" ? tokens.success : tokens.foregroundMuted;
+}
+
+export function AgentStatusView({ data, tokens, raw = false, compact = false }: {
+  data: AgentStatusData; tokens: ExtendedThemeTokens; raw?: boolean; compact?: boolean;
+}) {
+  const capabilities = useInputCapabilities(compact);
+  const { width } = useWindowDimensions();
+  const mobile = capabilities.native || width < 600;
+  const lines = useMemo(() => data.body.split("\n"), [data.body]);
+  const color = agentStatusColor(data, tokens);
+  return <AgentCardContent title={data.title} agentId={data.agentId} color={tokens.foregroundMuted}
+    testID="agent-status" tokens={tokens} mobile={mobile}
+    metadata={<MetadataItem testID="agent-status-state" accessibilityLabel={AGENT_STATUS_LABEL[data.status]}
+      icon={AGENT_STATUS_ICON[data.status]} iconColor={color} label={AGENT_STATUS_LABEL[data.status]} tokens={tokens} />}>
+    {raw ? <PreviewLines text={data.body} lines={lines} tokens={tokens}
+      style={{ color: tokens.foreground, fontFamily: tokens.fontMono,
+        fontSize: tokens.typography.mono.size, lineHeight: tokens.typography.mono.lineHeight }} /> :
+      <MarkdownView text={data.body} tokens={tokens} variant="document" compact={mobile}
+        size={blockProseBase(tokens.typography)} />}
+  </AgentCardContent>;
 }
 
 /** The composer's colour for each permission tier; text stays muted like the composer. */
@@ -118,27 +139,6 @@ function modeColor(tier: string | undefined, tokens: ExtendedThemeTokens): strin
     case "moderate": return tokens.accent;
     default: return tokens.foregroundMuted;
   }
-}
-
-/** One composer-style control, read-only: a coloured icon beside a muted label. */
-function MetadataItem({ testID, accessibilityLabel, icon, iconColor, label, tokens }: {
-  testID: string;
-  accessibilityLabel: string;
-  icon: string;
-  iconColor: string;
-  label: string;
-  tokens: ExtendedThemeTokens;
-}) {
-  return (
-    <View testID={testID} accessibilityLabel={accessibilityLabel}
-      style={{ flexDirection: "row", alignItems: "center", gap: space.xs, minWidth: 0, maxWidth: "100%", flexShrink: 1 }}>
-      <Icon name={icon} size={16} color={iconColor} />
-      <Text selectable style={{ fontSize: tokens.typography.block.meta.size,
-        fontFamily: tokens.fontUi, color: tokens.foregroundMuted, flexShrink: 1 }}>
-        {label}
-      </Text>
-    </View>
-  );
 }
 
 /** Copies the model ID exactly as requested, without provider or metadata. */
@@ -169,31 +169,6 @@ function ModelName({ provider, model, modelName, thinkingLabel, tokens, mobile }
   );
 }
 
-/** The entire ID is one copy target; touch keeps its affordance visible. */
-function AgentId({ agentId, tokens, mobile }: { agentId?: string; tokens: ExtendedThemeTokens; mobile: boolean }) {
-  const { copied, copy } = useCopy();
-  const { hovered, hoverProps } = useHover();
-  const [focused, setFocused] = useState(false);
-  const capabilities = useInputCapabilities();
-  const showCopy = !capabilities.hover || hovered || focused || copied;
-  return (
-    <Pressable testID="create-agent-id" accessibilityRole={agentId ? "button" : undefined}
-      accessibilityLabel={agentId ? `Copy agent ID ${agentId}` : "running"}
-      disabled={!agentId} hitSlop={mobile ? 10 : 0} {...hoverProps}
-      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-      onPress={() => { if (agentId) void copy(agentId, { label: "Copy agent ID" }); }}
-      style={{ flexDirection: "row", alignItems: "center", gap: space.xs, maxWidth: "100%", minWidth: 0,
-        width: mobile && agentId ? "100%" : undefined,
-        minHeight: mobile ? 24 : capabilities.touch ? 44 : 24, paddingVertical: 3, borderRadius: radiusV2.block }}>
-      <Glyph name="CheckCircle" size={11} color={tokens.success} />
-      <Text style={{ fontSize: tokens.typography.block.meta.size, fontFamily: tokens.fontUi,
-        color: tokens.success, fontWeight: "600", flexShrink: 1, minWidth: 0 }}>{agentId ?? "running"}</Text>
-      {agentId ? <View testID="create-agent-copy-icon" style={{ opacity: showCopy ? 1 : 0 }}>
-        <Glyph name={copied ? "Check" : "Copy"} size={14} color={tokens.success} />
-      </View> : null}
-    </Pressable>
-  );
-}
 
 function ListProvidersView({
   data,

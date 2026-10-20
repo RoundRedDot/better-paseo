@@ -50,6 +50,13 @@ describe("themeKey", () => {
 });
 
 describe("toolPropsEqual", () => {
+  it("refreshes received messages when provenance changes on a settled tool row", () => {
+    const message = { name: "agent_message", status: "completed", callId: "delivery", phase: "complete",
+      agentMessage: { event: "message" as const, sender: { id: "sender", title: "Reviewer" }, text: "First" } };
+    expect(toolPropsEqual(props(message), props(structuredClone(message)))).toBe(true);
+    expect(toolPropsEqual(props(message), props({ ...message, agentMessage: { ...message.agentMessage, text: "Other" } }))).toBe(false);
+    expect(toolPropsEqual(props(message), props({ ...message, agentMessage: { ...message.agentMessage, sender: { id: "sender", title: "New name" } } }))).toBe(false);
+  });
   const done = { name: "read", status: "completed", callId: "c1", detail: { out: "x" }, phase: "streaming" };
   it("renders a later async answer even while status and timestamp stay completed", () => {
     const pending = { ...done, name: "request_user_input_async", questionData: { questions: [{ question: "Q" }], status: "pending" } };
