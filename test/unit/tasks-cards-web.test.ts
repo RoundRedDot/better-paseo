@@ -14,6 +14,18 @@ vi.hoisted(() => {
 
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
 
+/** The DOM hover bindings the cards make, by the bound element's testID or label. */
+const hovers = vi.hoisted(() => new Map<string, { enter(): void; leave(): void }>());
+
+vi.mock("../../client/web", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  bindRowHover: (node: { props?: Record<string, unknown> } | null, enter: () => void, leave: () => void) => {
+    const key = String(node?.props?.testID ?? node?.props?.accessibilityLabel ?? "?");
+    hovers.set(key, { enter, leave });
+    return () => hovers.delete(key);
+  },
+}));
+
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const react = await import("react");
   return { Icon: (props: Record<string, unknown>) => react.createElement("Icon", props) };
@@ -51,6 +63,12 @@ const BUTTONS: PermissionButton[] = [
   { key: "allow", label: "允许", variant: "primary", kind: "respond", action: { behavior: "allow", id: null } },
   { key: "deny", label: "拒绝", variant: "secondary", kind: "respond", action: { behavior: "deny", id: null } },
 ];
+
+function texts(root: ReactTestInstance): string[] {
+  return root
+    .findAll((node) => (node.type as unknown) === "Text")
+    .flatMap((node) => node.children.filter((child): child is string => typeof child === "string"));
+}
 
 /** A host element that draws as a native interactive element on web. */
 function isButton(node: ReactTestInstance): boolean {
@@ -96,7 +114,8 @@ function props(id: string, overrides: Partial<TaskCardViewProps> = {}): TaskCard
 async function render(element: React.ReactElement) {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
-    renderer = TestRenderer.create(element);
+    // Host refs resolve to the element, so the hover mock can tell cards and rows apart.
+    renderer = TestRenderer.create(element, { createNodeMock: (node) => ({ props: node.props }) });
   });
   return renderer;
 }
@@ -149,6 +168,78 @@ describe("TaskCardView on web", () => {
     const card = sampleCards(NOW).find((candidate) => candidate.id === "sample-running")!;
     const renderer = await render(React.createElement(TaskDetails, { card, theme: THEME, now: NOW, onOpen: () => {}, language: "zh" }));
     expect(nestedButtons(renderer.root)).toEqual([]);
+    await act(async () => renderer.unmount());
+  });
+
+  it("keeps Stop while the pointer moves from the card onto it, and cancels on leaving the card", async () => {
+    const onStop = vi.fn();
+    const onCancelStop = vi.fn();
+    const card = sampleCards(NOW).find((candidate) => candidate.id === "sample-child-1")!;
+    const element = (overrides: Partial<TaskCardViewProps> = {}) =>
+      React.createElement(TaskCardView, props(card.id, { onStop, onCancelStop, ...overrides }));
+    const renderer = await render(element());
+    const root = renderer.root;
+    const stopButton = () =>
+      root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "停止")[0];
+    const surface = root.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.id}`);
+    expect(stopButton()).toBeUndefined();
+
+    // Pointer onto the card.
+    await act(async () => hovers.get(`task-card-${card.id}`)!.enter());
+    expect(stopButton()).toBeDefined();
+
+    // Pointer onto the stop button: RNW's Pressable would end the card's own hover
+    // here (hover:lock); the card does not listen to it on web, and the DOM hover
+    // still contains the button, so nothing leaves.
+    expect(surface.props.onHoverOut).toBeUndefined();
+    await act(async () => {
+      stopButton()!.props.onHoverIn?.();
+      surface.props.onHoverOut?.();
+    });
+    expect(stopButton()).toBeDefined();
+    await act(async () => stopButton()!.props.onPress());
+    expect(onStop).toHaveBeenCalledWith(card, { withChildren: false });
+
+    // Armed: the second press within the window stops.
+    await act(async () => renderer.update(element({ stopPhase: "confirming" })));
+    const confirm = root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "确认停止");
+    await act(async () => confirm.props.onPress());
+    expect(onStop).toHaveBeenCalledTimes(2);
+    expect(onCancelStop).not.toHaveBeenCalled();
+
+    // Leaving the card cancels the confirmation and hides Stop.
+    await act(async () => hovers.get(`task-card-${card.id}`)!.leave());
+    expect(onCancelStop).toHaveBeenCalledWith(card.id);
+    await act(async () => renderer.update(element({ stopPhase: "idle" })));
+    expect(stopButton()).toBeUndefined();
+    await act(async () => renderer.unmount());
+  });
+
+  it("keeps a parent's stop menu and a subtask row's jump button while they are hovered", async () => {
+    const onOpen = vi.fn();
+    const renderer = await render(React.createElement(TaskCardView, props("sample-running", { onOpen })));
+    const root = renderer.root;
+    await act(async () => hovers.get("task-card-sample-running")!.enter());
+    await act(async () =>
+      root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "停止选项").props.onPress(),
+    );
+    expect(texts(root)).toContain("连同子任务一起停止");
+
+    await act(async () =>
+      root.find((node) => typeof node.type === "string" && node.props.accessibilityState?.expanded === false).props.onPress(),
+    );
+    const jump = () =>
+      root
+        .find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Measure the sidebar ring")
+        .find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "在 workspace 中打开");
+    expect(jump().props.disabled).toBe(true);
+    await act(async () => hovers.get("Measure the sidebar ring")!.enter());
+    expect(jump().props.disabled).toBe(false);
+    expect(jump().props.style.opacity).toBe(1);
+    jump().props.onPress();
+    expect(onOpen).toHaveBeenCalledWith("sample-child-1");
+    // The menu is still open: the card never lost its hover.
+    expect(texts(root)).toContain("连同子任务一起停止");
     await act(async () => renderer.unmount());
   });
 });
