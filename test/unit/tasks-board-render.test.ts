@@ -41,6 +41,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 const host = vi.hoisted(() => ({
   toast: vi.fn(),
   settings: null as Record<string, unknown> | null,
+  counts: null as { running: number; needsInput: number; review: number; done: number } | null,
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   usePaseo: () => ({}),
@@ -81,7 +82,7 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
     ...actual,
     __handle: handle,
     useTasks: () => handle,
-    useTaskCounts: () => ({ ...handle.counts, ready: true }),
+    useTaskCounts: () => ({ ...(host.counts ?? handle.counts), ready: true }),
   };
 });
 
@@ -152,6 +153,7 @@ function pressable(label: string): ReactTestInstance {
 
 beforeEach(() => {
   host.settings = { ...DEFAULT_TASKS_SETTINGS };
+  host.counts = null;
   resetBoardSessions();
   vi.useFakeTimers();
 });
@@ -373,6 +375,21 @@ describe("Tasks sidebar entry", () => {
     const counts = row.findAll((node) => node.props.accessibilityLabel !== undefined && (node.type as unknown) === "View");
     expect(counts.map((node) => node.props.accessibilityLabel)).toEqual(label ? [label] : []);
     expect(textOf(row)).toBe(text);
+  });
+
+  it("draws a zero count muted and static next to a live one", () => {
+    host.counts = { running: 0, needsInput: 2, review: 0, done: 0 };
+    const row = entry(null);
+    expect(textOf(row)).toBe("02");
+    expect(row.findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "LoaderCircle")).toHaveLength(1);
+    expect(row.findAll((node) => node.props.kind === "needs_input").length).toBeGreaterThan(0);
+    // The zero running count draws no ring: only the count wrapper carries the kind.
+    expect(row.findAll((node) => node.props.kind === "running" && node.props.idleIcon === undefined)).toHaveLength(0);
+    const zero = row.findAll((node) => (node.type as unknown) === "Text" && node.props.children === 0)[0]!;
+    expect(zero.props.style.color).toBe("#6b6b75");
+    host.counts = { running: 0, needsInput: 0, review: 3, done: 1 };
+    act(() => renderer!.unmount());
+    expect(textOf(entry(null))).toBe("");
   });
 
   it("is active on the board and opens it with the session's filters", () => {
