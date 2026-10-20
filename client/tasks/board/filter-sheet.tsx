@@ -1,5 +1,5 @@
-import React, { useRef, useState, type ReactNode } from "react";
-import { Pressable, Text, View, type LayoutChangeEvent, type ScrollView as NativeScrollView } from "react-native";
+import React, { useState, type ReactNode } from "react";
+import { Pressable, Text, View } from "react-native";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { BrandMark, taskTokens } from "../cards";
@@ -22,31 +22,37 @@ export function FilterSheetBody(props: {
   theme: PluginTheme;
   options: FilterOptions;
   onDone(): void;
-  /** Opened from the header's sort pill: start scrolled to the sort. */
+  /**
+   * Opened from the header's sort pill: the sort comes first. (Scrolling
+   * there does not hold: the host's sheet opens half high and keeps its
+   * scroller at the top until it is dragged up.)
+   */
   focus?: "sort";
 }) {
   const { board, theme, options } = props;
-  const scrollRef = useRef<NativeScrollView | null>(null);
-  const focused = useRef(false);
-  const onSortLayout = (event: LayoutChangeEvent) => {
-    if (props.focus !== "sort" || focused.current) return;
-    focused.current = true;
-    scrollRef.current?.scrollTo?.({ y: Math.max(0, event.nativeEvent.layout.y - 8), animated: false });
-  };
+  const sortFirst = props.focus === "sort";
   const colors = theme.colors;
   const strings = board.strings;
   const { setParams, defaults } = board;
   const resolved = resolveBoardParams(board.params, defaults);
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
-      <ScrollView ref={scrollRef} style={{ flex: 1 }} keyboardShouldPersistTaps="handled" testID="filter-sheet-scroll">
+      <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" testID="filter-sheet-scroll">
         <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
           <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
             <Pressable accessibilityRole="button" onPress={() => setParams(clearedParams)} style={{ height: 36, paddingHorizontal: 4, justifyContent: "center" }}>
               <Text style={{ fontSize: 15, color: colors.foregroundMuted }}>{strings.reset}</Text>
             </Pressable>
           </View>
-          <SectionTitle text={strings.workspace} theme={theme} first />
+          {sortFirst ? (
+            <View testID="filter-sheet-sort" style={{ paddingBottom: 8 }}>
+              <View style={{ paddingBottom: 8 }}>
+                <SectionTitle text={strings.sort} theme={theme} first />
+              </View>
+              <SortDrillDown board={board} theme={theme} />
+            </View>
+          ) : null}
+          <SectionTitle text={strings.workspace} theme={theme} first={!sortFirst} />
           {options.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
           {options.workspaceGroups.map((group) => (
             <View key={group.projectId || "missing"}>
@@ -112,10 +118,12 @@ export function FilterSheetBody(props: {
           />
           <Text style={{ paddingTop: 12, paddingBottom: 8, fontSize: 12, fontWeight: "500", color: colors.foregroundMuted }}>{strings.doneRange}</Text>
           <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
-          <View onLayout={onSortLayout} testID="filter-sheet-sort">
-            <SectionTitle text={strings.sort} theme={theme} />
-            <SortDrillDown board={board} theme={theme} />
-          </View>
+          {sortFirst ? null : (
+            <View testID="filter-sheet-sort">
+              <SectionTitle text={strings.sort} theme={theme} />
+              <SortDrillDown board={board} theme={theme} />
+            </View>
+          )}
         </View>
       </ScrollView>
       <View testID="filter-sheet-footer" style={{ paddingTop: 12, paddingHorizontal: 16, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
