@@ -2,12 +2,12 @@
 
 - 来源：[Claude Design 项目「Paseo Tasks 泳道看板」](https://claude.ai/design/p/5f122bf6-c1af-43e3-9f28-eecb8d286e18?file=Paseo+Tasks+%E6%B3%B3%E9%81%93%E7%9C%8B%E6%9D%BF.dc.html)
 - 导出日期：2026-10-20
-- 原稿：`docs/prototypes/tasks-board.html`，由 Claude Design 的 Export HTML → Standalone HTML 导出，按字节原样保存，可离线打开，看板可交互。这是第五版（首轮 + 四轮追加修改）。文件 3.6 MB（内嵌 1.7 MB 的 SVG 和多套字体），**只留在本地、不进 Git**（见 `.gitignore`）；新 clone 里没有它，从上面的 Claude Design 项目再导出一份即可（重新导出的文件字节不一定与上面的 SHA-256 相同）。
-- 提示词：[tasks-board-prompt.md](tasks-board-prompt.md)，含首轮提示和四轮追加消息。首轮附两张图：`paseo-sidebar.png`（Paseo 侧边栏现状，红框标出新入口的位置）、`cloudflare-style.png`（cloudflare.com 定价区截图，作为细线风格参考）。
-- 原稿 SHA-256：`769f51ad279130ff16cfb37c0d3ee452cbc524a6478ba785c332771d9352e0e9`
+- 原稿：`docs/prototypes/tasks-board.html`，由 Claude Design 的 Export HTML → Standalone HTML 导出，按字节原样保存，可离线打开，看板可交互。这是第七版（首轮 + 六轮追加修改）。文件 3.7 MB（内嵌 1.7 MB 的 SVG 和多套字体），**只留在本地、不进 Git**（见 `.gitignore`）；新 clone 里没有它，从上面的 Claude Design 项目再导出一份即可（重新导出的文件字节不一定与上面的 SHA-256 相同）。
+- 提示词：[tasks-board-prompt.md](tasks-board-prompt.md)，含首轮提示和六轮追加消息（第六轮附用户截图 `crowded-card.png`）。首轮附两张图：`paseo-sidebar.png`（Paseo 侧边栏现状，红框标出新入口的位置）、`cloudflare-style.png`（cloudflare.com 定价区截图，作为细线风格参考）。
+- 原稿 SHA-256：`51aae278193aff55c741fa77d9732f6a8b0047dbe8b1d40ee7d1e83f29ca14ce`
 - 需求方案：[../tasks-board.md](../tasks-board.md)
 
-用户的要求：以 Linear 的泳道看板为结构模板，视觉用 Cloudflare 新版官网的简洁线条风格；每张卡片要有显式的「跳转到原 workspace 对应 tab」按钮；模型和思考等级不能被截断；移动端用 tab 切换泳道，一次只显示一个泳道；卡片要显示项目、workspace、分支、文件夹和标签。
+用户的要求：以 Linear 的泳道看板为结构模板，视觉用 Cloudflare 新版官网的简洁线条风格；每张卡片要有显式的「跳转到原 workspace 对应 tab」按钮；模型和思考等级不能被截断；移动端用 tab 切换泳道，一次只显示一个泳道；卡片要显示项目、workspace、分支、文件夹和标签，且不能挤、不能截断；卡片显示哪些字段可在插件设置里配置；状态用 Paseo 官方的状态图标；手机上一行放不下就换行，不必要的信息隐藏到长按详情。
 
 ## 画板
 
@@ -18,7 +18,8 @@
 | 03 侧边栏入口状态 | 无计数、有运行中、有待输入、选中 |
 | 04 窄屏 · 手机 | 390 × 844，浅色与深色各 7 屏：待输入（默认）、运行中、已完成、过滤 sheet、长按详情 sheet、空泳道、切换动效分解 |
 | 05 空状态与加载 | 全部为空、某列为空、已完成「加载更多」、首次加载骨架 |
-| 06 移植规格 | 6.1 颜色 token 与派生公式、6.2 元素规格、6.3 归列与状态切换规则、6.4 动效参数、6.5 Lucide 图标、6.6 移动端 |
+| 06 移植规格 | 6.1 颜色 token 与派生公式（含五种状态色）、6.2 元素规格、6.3 归列与状态切换规则、6.4 动效参数、6.5 Lucide 图标、6.6 移动端、6.7 设置项表 |
+| 07 插件设置 | 桌面浅色、深色和手机设置页：实时预览卡片、信息密度预设（精简 / 标准 / 完整 / 自定义）、各字段开关、手机、看板默认行为、恢复默认 |
 
 ## 原稿规格摘要
 
@@ -93,6 +94,8 @@
 3. 追加二：计时移到第二行后模型名被截断，改为三行结构，模型与思考等级独占第二行。
 4. 追加三：移动端改为细线 tab 切换泳道，一次一个泳道，加滑动手势、过滤 sheet、长按详情 sheet 和移动端规格。
 5. 追加四：卡片改为四行，加位置行（项目 / workspace）和 git 行（分支 · 文件夹 · 标签）；详情浮层补完整路径、领先落后、关联 PR；过滤栏加标签筛选，Workspace 下拉按项目分组。
+6. 追加五：新增画板 7 插件设置页，卡片字段可开关，信息密度预设，行收起规则，画板 6 加设置项表。
+7. 追加六：卡片不再截断，改为每条信息一行、最多折两行，agent 行写全 agent 名称；列最小宽 320、可横向滚动、可折叠；状态统一换成 Paseo 官方状态图标（运行中转圈的环、等待输入的实心感叹号、未看的绿点、失败的红点、完成的灰点）；手机卡片按「必须 / 默认 / 仅详情」三级显示，放不下就换行。
 
 ## 移植时要注意
 
@@ -101,4 +104,6 @@
 - scrim 是固定色，不随宿主主题变化。
 - 原稿里的品牌标识是位图占位，实现时复用 `server/mark-bitmaps.ts`。
 - 标签颜色和项目图标要等上游 [getpaseo/paseo#7482](https://github.com/getpaseo/paseo/pull/7482) 合入：它给插件的 `PaseoApi` 加了 `workspaces.listLabels()` 和 `projects.icon()`。标签颜色是协议里的颜色名（violet、red 等），按原稿的 tagDot 色值映射；项目有图标时用 `projects.icon()` 的图，没有时才用首字母头像。合入前，标签用中性色点、项目用首字母头像。
-- 原稿里的示例 PR 编号、领先落后提交数、路径和项目头像色是 Claude Design 编的。
+- 原稿里的示例 PR 编号（含 #218）、领先落后提交数、路径和项目头像色是 Claude Design 编的。
+- 状态图标照搬 Paseo 侧边栏（`packages/app/src/components/sidebar/sidebar-workspace-row-content.tsx`、`components/status-ring/`），颜色是 Paseo 内部的 statusDot 色带：运行中 `#268ae0` / `#5caaf6`、等待 `#b37824` / `#db932e`、未看 `#299f51` / `#35c264`、失败 `#f12e2f` / `#f7796d`。插件主题没有这组颜色，等待、失败、未看可用 `statusWarning`、`statusDanger`、`statusSuccess` 近似，运行中的蓝色只能按 surface0 明度内置常量。
+- 原稿里的 workspace 类型图标是按路径推断的，实现时读 workspace 描述里的 `workspaceKind`（`local_checkout` 用 Monitor，`worktree` 用 FolderGit2，其余用 Folder）。

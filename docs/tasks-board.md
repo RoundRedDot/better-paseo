@@ -41,6 +41,7 @@
 | 内容 | 第一版 | 后续 |
 | --- | --- | --- |
 | 侧边栏入口 + 计数 | 做 | |
+| 插件设置：卡片字段开关、信息密度预设、看板默认行为 | 做 | |
 | 四列泳道看板 + 过滤搜索 | 做 | |
 | 跳转到 tab | 做 | |
 | Paseo 层父子 agent 关联 | 做 | |
@@ -92,14 +93,16 @@
 
 ### 卡片
 
-每张卡片分四行固定内容：
+卡片不截断信息：每条信息一行，以图标开头，过长时最多折成两行。列最小宽 320，四列放不下时看板横向滚动；列头可以折叠成 40px 竖条。
 
-1. 标题（单行截断），标题行右侧是常驻的跳转按钮；运行中卡片悬停时还有「停止」。
-2. provider 图标 + 模型 + 思考等级，独占一行，思考等级永不截断。
-3. 位置行：项目头像 + 「项目 / workspace 名」（workspace 名与项目名或任务标题相同时只显示项目名）；右边是计时（运行中、待输入）或完成于多久前（待查看、已完成）。
-4. git 行：分支 · 文件夹，写法与侧边栏 workspace 行一致（非 git 项目只显示文件夹，文件夹名与 workspace 名或分支名相同时省略）；右边是 workspace 标签，最多 2 个，其余收成「+N」。
+1. 标题行：状态图标 + 标题 + 跳转按钮（运行中卡片悬停时还有「停止」）。
+2. agent 行：品牌标识 + agent 名称 + 模型 · 思考等级，如「Claude · Opus 5.5 · High」。
+3. 项目行：项目图标（没有时用首字母头像）+ 项目名。
+4. workspace 行：workspace 类型图标（`local_checkout` 用 Monitor，`worktree` 用 FolderGit2，其余用 Folder，与侧边栏一致）+ workspace 名；与项目名或任务标题相同时不显示。
+5. 分支行；文件夹单独一行，只在与项目名、workspace 名、分支名都不同时显示。
+6. 底部行：左边标签（最多 2 个，其余 +N），右边计时（运行中、待输入）或完成于多久前（待查看、已完成）。
 
-空间不够时先把标签收成 +N，再依次截断文件夹、workspace 名、分支、项目名；模型、思考等级和计时不被挤掉。
+状态图标照搬 Paseo 侧边栏 workspace 行的官方指示器：运行中是转圈的环（中心圆点 + 90° 弧，900ms 一圈，所有环同步），等待输入是实心 `CircleAlert`，跑完未看是绿点，失败是红点，已完成是 30% 透明的灰点。列头、卡片标题、手机 tab、侧边栏计数和子任务清单都用同一组图标。
 
 其余内容随泳道变化：
 
@@ -116,7 +119,50 @@
 
 - 每张卡片标题行右侧有一个常驻的跳转按钮（Lucide ArrowUpRight，悬停提示「在 workspace 中打开」），点它跳到对应 workspace 的 tab。点卡片主体或聚焦后按 Enter 也跳转；其余按钮区域单独响应，不触发跳转。子任务清单的每一行、悬停详情浮层底部也有同样的跳转入口。
 - 状态变化时卡片直接换列，只做淡入，不做跨列飞行动画。多张卡片同时变化时，飞行动画会很乱。
+- 窄屏（`layout.compact`）的卡片原则：一行放不下就折成多行，不截断；手机上不必要的信息隐藏，挪到长按详情 sheet。必须显示的是状态、标题、agent · 模型 · 思考等级、计时、操作、权限请求摘要和失败原因；默认显示项目、workspace、分支、第 1 个标签和子任务摘要；文件夹、完整路径、Git 状态、关联 PR、项目图标默认隐藏，上下文占用超过 80% 时才在卡片上提醒。
 - 窄屏（`layout.compact`）用顶部细线 tab 切换泳道，一次只显示一个泳道，左右滑动也能切换。有待输入任务时默认停在「待输入」，否则停在「运行中」；会话内记住上次选择。过滤收进底部 sheet，详情改为长按弹出底部 sheet。
+
+## 插件设置
+
+卡片上显示哪些信息由插件设置决定，入口在 Paseo「设置」里插件自己的一页（`addSettingsScreen`）。设置用 `defineSettings` 定义，按 host 保存（SDK 只支持 `scope: "host"`），同一个 daemon 下的桌面端和手机共用一份，所以手机单独给一个开关。
+
+设置页顶部是一张实时预览卡片，可切换运行中、待输入、已完成三种泳道；改任何开关，预览立即变化。
+
+### 信息密度
+
+「卡片信息密度」下拉提供四个选项：精简、标准（默认）、完整、自定义。选预设会一次性设置下面的开关，手动改过任何开关后自动变成「自定义」。
+
+| 字段 | 设置键 | 精简 | 标准 | 完整 |
+| --- | --- | --- | --- | --- |
+| agent 品牌标识 | `card.provider` | 关 | 开 | 开 |
+| 模型 | `card.model` | 开 | 开 | 开 |
+| 思考等级 | `card.thinking` | 开 | 开 | 开 |
+| 项目 | `card.project` | 开 | 开 | 开 |
+| 项目图标 | `card.projectIcon` | 关 | 开 | 开 |
+| workspace 名称 | `card.workspace` | 关 | 开 | 开 |
+| 分支 | `card.branch` | 关 | 开 | 开 |
+| Git 状态（未提交改动、领先 / 落后） | `card.gitStatus` | 关 | 关 | 开 |
+| 文件夹 | `card.folder` | 关 | 开 | 开 |
+| 完整路径（代替文件夹，中间省略） | `card.path` | 关 | 关 | 开 |
+| 标签 | `card.labels` + `card.labelLimit`（1 / 2 / 3 / 全部） | 关 | 开，2 | 开，全部 |
+| 关联 PR | `card.pullRequest` | 关 | 关 | 开 |
+| 计时 / 完成于 | `card.timer` | 开 | 开 | 开 |
+| 上下文占用条 | `card.context` | 关 | 开 | 开 |
+| 子任务摘要 | `card.subtasks` | 关 | 开 | 开 |
+
+标题和跳转按钮始终显示，不提供开关。某一行的字段全部关掉时整行收起，不留空行；位置行收起但计时开着时，计时移到模型行最右侧。
+
+### 其他设置
+
+| 设置 | 设置键 | 选项 | 默认 |
+| --- | --- | --- | --- |
+| 手机上使用精简卡片 | `mobile.compactCards` | 开 / 关 | 关（手机卡片已重排为可读的分行结构，默认与桌面同一密度） |
+| 已完成默认时间窗口 | `board.doneWindow` | 24 小时 / 7 天 / 全部 | 24 小时 |
+| 默认隐藏子任务 | `board.hideSubtasks` | 开 / 关 | 关 |
+| 停止前二次确认 | `board.confirmStop` | 开 / 关 | 开 |
+| 侧边栏入口计数 | `sidebar.count` | 运行中 · 待输入 / 只显示待输入 / 不显示 | 运行中 · 待输入 |
+
+页面底部有「恢复默认设置」。设置 schema 带 `version`，以后增删字段用 `migrate` 迁移旧值。
 
 ## 父子 agent 关联
 
@@ -213,6 +259,7 @@ flowchart LR
 | 侧边栏入口 + 计数 | `addSidebarHeaderItem`，用 `SidebarRow` 画，计数放 `trailing`；`currentScreen` 决定高亮 | 客户端 |
 | 看板页 | `addScreen({ id: "board", title: "Tasks" })`，过滤条件存在 screen params 里 | 客户端 |
 | 快捷入口 | `addCommandCenterItem`（global）「打开 Tasks」 | 客户端 |
+| 插件设置 | `defineSettings({ scope: "host", version, schema })`；`addSettingsScreen` 注册设置页，页面里用 `useSettings` 读写，组件用 `@getpaseo/plugin/client/ui` 的 `SettingsGroup` / `SettingsSwitch` / `SettingsSelect` | 客户端 |
 | 任务列表 + 实时更新 | `paseo.agents.list({ subscribe: {}, filter, sort, page })`，条目带 `project.workspaceName` | 客户端 |
 | 单张卡片的实时状态 | `useAgent(agentId, selector)` 读宿主已有的状态 | 客户端 |
 | 跳转 | `props.navigation.openAgent({ agentId })` | 客户端 |
@@ -260,6 +307,7 @@ agent 用两路请求，避免一次拉全 340 个 agent 的完整快照；works
 | 「待查看」何时清除由宿主决定 | 卡片可能在用户看过后仍停留 | 上线前实测打开 tab 后 `requiresAttention` 是否清零 |
 | 宿主会保留隐藏的页面不卸载 | 看板在后台仍在订阅和每秒计时 | 页面不可见时停掉每秒计时器 |
 | 窄屏放不下四列 | 手机上不可用 | `layout.compact` 时改为细线 tab 切换，一次一个泳道 |
+| 官方状态色拿不到：Paseo 的 statusDot 色带不在插件主题里 | 运行中的蓝色无法跟随宿主主题 | 等待、失败、未看用 `statusWarning`、`statusDanger`、`statusSuccess` 近似；运行中按 surface0 明度内置官方值 `#268ae0` / `#5caaf6` |
 | 标签颜色、项目图标依赖上游：`listWorkspaceLabels`、`getProjectIcon` 原本只在底层 `DaemonClient` 上 | PR 合入前，卡片上的标签与侧边栏颜色不一致 | 已提上游 PR [#7482](https://github.com/getpaseo/paseo/pull/7482)（Discussion [#7481](https://github.com/getpaseo/paseo/discussions/7481)），给 `PaseoApi` 加 `workspaces.listLabels()` 和 `projects.icon()`；合入前标签用中性色点、项目用首字母头像，按方法是否存在做特性检测 |
 
 ## 里程碑与验收标准
@@ -288,9 +336,9 @@ agent 用两路请求，避免一次拉全 340 个 agent 的完整快照；works
 
 ## 待决问题
 
-下面四个问题要在 M1 开工前定下来，第一个决定代码放在哪个仓库。
+下面的问题要在 M1 开工前定下来，第一个决定代码放在哪个仓库。
 
 - [ ] 放在 Better Paseo 里，还是单独做成 `paseo-tasks` 插件？建议单独做：Better Paseo 的定位是重画聊天时间线，README 写明不提供 surface 和 Command Center 条目，而且重连时会重发整个包。代价是品牌图标和主题工具要复制或抽成共用。
 - [ ] 「按 tab 过滤」的含义。本方案暂按「只看开着 tab 的 agent」实现（label `paseo.open-agent-tab.<clientId>` 为 `true`）。备选是按 tab 类型，或指定某一个 agent。
 - [ ] 「待查看」要不要单独成列，还是并入「已完成」并用未读圆点标出？本方案暂按单独成列。
-- [ ] 已完成列默认的时间窗口取 24 小时还是 7 天？
+- [x] 已完成列默认的时间窗口：做成设置项 `board.doneWindow`，默认 24 小时。
