@@ -81,6 +81,16 @@ function KeyHint({ text, theme, last }: { text: string; theme: PluginTheme; last
   return <Text style={{ fontSize: 11, color: theme.colors.foregroundMuted, marginRight: last ? 0 : 6 }}>{text}</Text>;
 }
 
+/**
+ * The narrowest the filters' group gets beside the done window and the sort:
+ * about two filter buttons. Below it the done window and the sort wrap to a
+ * line of their own, at its right end, rather than squeeze the filters into
+ * one column whose buttons overlap the window.
+ */
+const FILTERS_MIN_WIDTH = 240;
+/** A long sort ("Duration shortest first") ends in an ellipsis past this. */
+const SORT_LABEL_MAX_WIDTH = 160;
+
 export function DesktopFilterBar(props: {
   board: BoardController;
   theme: PluginTheme;
@@ -101,6 +111,7 @@ export function DesktopFilterBar(props: {
       style={{
         minHeight: 44,
         flexDirection: "row",
+        flexWrap: "wrap",
         alignItems: "flex-start",
         gap: 6,
         paddingHorizontal: 16,
@@ -109,8 +120,10 @@ export function DesktopFilterBar(props: {
       }}
     >
       {/* The filters and their chips wrap among themselves; the done window
-          and the sort keep the first row's right end. */}
-      <View style={{ flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
+          and the sort keep the first row's right end while the filters have
+          FILTERS_MIN_WIDTH beside them, and wrap below them, still at the
+          right, when they do not. */}
+      <View style={{ flex: 1, minWidth: FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
         <MenuButton icon="Folder" label={strings.workspace + count(params.workspaceIds)} open={menu === "workspace"} onPress={() => toggle("workspace")} theme={theme}>
           <CascadeMenu
             sections={workspaceMenuSections(options, theme, strings, (id) => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, id) })))}
@@ -166,10 +179,10 @@ export function DesktopFilterBar(props: {
             {chips.map((chip) => (
               <View
                 key={chip.key}
-                style={{ height: 28, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 10, paddingRight: 4, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 6 }}
+                style={{ height: 28, maxWidth: "100%", flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 10, paddingRight: 4, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 6 }}
               >
-                {chip.kind ? <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{chip.kind}</Text> : null}
-                <Text numberOfLines={1} style={{ fontSize: 13, color: colors.foreground, maxWidth: 220 }}>
+                {chip.kind ? <Text numberOfLines={1} style={{ fontSize: 13, color: colors.foregroundMuted }}>{chip.kind}</Text> : null}
+                <Text numberOfLines={1} style={{ fontSize: 13, color: colors.foreground, maxWidth: 220, flexShrink: 1 }}>
                   {chip.value}
                 </Text>
                 <HoverPressable
@@ -183,13 +196,13 @@ export function DesktopFilterBar(props: {
               </View>
             ))}
             <HoverPressable accessibilityRole="button" onPress={() => setParams(clearedParams)} style={() => ({ height: 28, paddingHorizontal: 4, justifyContent: "center" })}>
-              <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.clearAll}</Text>
+              <Text numberOfLines={1} style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.clearAll}</Text>
             </HoverPressable>
           </>
         ) : null}
       </View>
-      <View testID="filter-bar-end" style={{ flexShrink: 0, height: 28, flexDirection: "row", alignItems: "center", gap: 6, zIndex: menu === "sort" ? 2 : 1 }}>
-        <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.doneWindowLabel}</Text>
+      <View testID="filter-bar-end" style={{ flexShrink: 1, maxWidth: "100%", marginLeft: "auto", height: 28, flexDirection: "row", alignItems: "center", gap: 6, zIndex: menu === "sort" ? 2 : 1 }}>
+        <Text numberOfLines={1} style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.doneWindowLabel}</Text>
         <WindowSegments
           value={resolved.doneWindow}
           onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))}
@@ -200,6 +213,7 @@ export function DesktopFilterBar(props: {
         <MenuButton
           icon="ArrowUpDown"
           label={params.sort ? sortLabel(params.sort, strings) : strings.sort}
+          labelMaxWidth={SORT_LABEL_MAX_WIDTH}
           open={menu === "sort"}
           onPress={() => toggle("sort")}
           theme={theme}
@@ -226,16 +240,21 @@ function Divider({ theme }: { theme: PluginTheme }) {
 }
 
 
-function MenuButton(props: { icon: string; label: string; open: boolean; onPress(): void; theme: PluginTheme; children: ReactNode }) {
+/**
+ * A filter's menu button. Its label stays on one line and ends in an ellipsis
+ * rather than overflow the group it sits in, or past `labelMaxWidth`.
+ */
+function MenuButton(props: { icon: string; label: string; labelMaxWidth?: number; open: boolean; onPress(): void; theme: PluginTheme; children: ReactNode }) {
   const colors = props.theme.colors;
   return (
-    <View style={{ zIndex: props.open ? 20 : 0 }}>
+    <View style={{ zIndex: props.open ? 20 : 0, maxWidth: "100%", flexShrink: 1 }}>
       <HoverPressable
         accessibilityRole="button"
         accessibilityState={{ expanded: props.open }}
         onPress={props.onPress}
         style={(hovered) => ({
           height: 28,
+          maxWidth: "100%",
           paddingHorizontal: 10,
           borderRadius: 6,
           borderWidth: HAIRLINE,
@@ -247,7 +266,7 @@ function MenuButton(props: { icon: string; label: string; open: boolean; onPress
         })}
       >
         <Icon name={props.icon} size={13} color={colors.foregroundMuted} />
-        <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground }}>{props.label}</Text>
+        <Text numberOfLines={1} style={{ flexShrink: 1, maxWidth: props.labelMaxWidth, fontSize: 13, fontWeight: "500", color: colors.foreground }}>{props.label}</Text>
         <Icon name="ChevronDown" size={12} color={colors.foregroundMuted} />
       </HoverPressable>
       {props.open ? props.children : null}
@@ -268,6 +287,8 @@ function ToggleChip(props: { icon: string; label: string; hint?: string; on: boo
       onPress={props.onPress}
       style={(hovered) => ({
         height: 28,
+        maxWidth: "100%",
+        flexShrink: 1,
         paddingHorizontal: 10,
         borderRadius: 6,
         borderWidth: HAIRLINE,
@@ -279,7 +300,7 @@ function ToggleChip(props: { icon: string; label: string; hint?: string; on: boo
       })}
     >
       <Icon name={props.icon} size={13} color={tint} />
-      <Text style={{ fontSize: 13, fontWeight: "500", color: tint }}>{props.label}</Text>
+      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 13, fontWeight: "500", color: tint }}>{props.label}</Text>
     </HoverPressable>
   );
 }
