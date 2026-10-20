@@ -10,6 +10,7 @@ import { cardStrings } from "./strings";
 import { pillTint, taskTokens, type TaskTokens } from "./tokens";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { BrandMark } from "./brand-mark";
+import { panelChrome } from "./panel";
 
 export interface TaskDetailsProps {
   card: TaskCard;
@@ -98,11 +99,8 @@ export function TaskDetails(props: TaskDetailsProps) {
     ? {}
     : ({
         width: 288,
-        backgroundColor: tokens.card.background,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: tokens.card.border,
-        borderRadius: 8,
-        boxShadow: tokens.popoverShadow,
+        // The board's menu chrome: radius 12, hairline, the menu's shadow.
+        ...panelChrome(props.theme),
       } as ViewStyle);
 
   return (
