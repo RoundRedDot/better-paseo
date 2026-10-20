@@ -14,6 +14,7 @@ import { FlatList, Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/c
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { StatusIcon, TaskDetails, taskTokens, type CardCallbacks } from "../cards";
+import { panelChrome } from "../cards/panel";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
@@ -44,7 +45,7 @@ const SHEET_BODY = { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, gap
 // The filters bound their own scroll so their button stays pinned (FilterSheetBody).
 const SHEET_FILTER_BODY = { ...SHEET_BODY, flex: 1, minHeight: 0 } as const;
 
-type Sheet = { kind: "filters" } | { kind: "details"; id: string } | null;
+type Sheet = { kind: "filters"; focus?: "sort" } | { kind: "details"; id: string } | null;
 
 /** The phone board (prototype 04): one lane at a time behind a tab bar, swiped or tapped. */
 export function PhoneBoard(props: {
@@ -297,7 +298,7 @@ export function PhoneBoard(props: {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${strings.sort}: ${sortLabel(board.params.sort, strings)}`}
-            onPress={() => setSheet({ kind: "filters" })}
+            onPress={() => setSheet({ kind: "filters", focus: "sort" })}
             testID="phone-sort-hint"
             style={{
               flexShrink: 1,
@@ -475,9 +476,40 @@ export function PhoneBoard(props: {
           </Animated.View>
         ) : null}
       </View>
+      {board.notice ? (
+        // The board's messages sit at its bottom: the host's toast, at the
+        // top, covered the header's task count for seconds.
+        <View pointerEvents="box-none" style={{ position: "absolute", left: 12, right: 12, bottom: 16, alignItems: "center", zIndex: 30 }}>
+          <Pressable
+            key={board.notice.id}
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite"
+            onPress={board.dismissNotice}
+            testID="phone-board-notice"
+            style={{
+              ...panelChrome(theme),
+              elevation: 6,
+              maxWidth: 480,
+              minHeight: 44,
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <Icon
+              name={board.notice.tone === "error" ? "CircleAlert" : "Info"}
+              size={16}
+              color={board.notice.tone === "error" ? taskTokens(theme).danger : colors.foregroundMuted}
+            />
+            <Text style={{ flexShrink: 1, fontSize: 14, lineHeight: 20, color: colors.foreground }}>{board.notice.message}</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <Modal title={strings.filters} open={sheet?.kind === "filters"} onOpenChange={(open) => !open && setSheet(null)}>
         <Modal.Content contentContainerStyle={SHEET_FILTER_BODY} scrollable={false}>
-          {sheet?.kind === "filters" ? <FilterSheetBody board={board} theme={theme} options={options} onDone={() => setSheet(null)} /> : null}
+          {sheet?.kind === "filters" ? <FilterSheetBody board={board} theme={theme} options={options} focus={sheet.focus} onDone={() => setSheet(null)} /> : null}
         </Modal.Content>
       </Modal>
       <Modal title={strings.details} open={detailsCard !== undefined} onOpenChange={(open) => !open && setSheet(null)}>

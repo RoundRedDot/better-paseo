@@ -50,7 +50,23 @@ export interface BoardController {
   highlighted: string | null;
   highlight(agentId: string): void;
   toastMessage(message: string): void;
+  /**
+   * On a phone the board's own messages (a stop that failed, an answer that
+   * did not send, a card hidden by the filters) show at the board's bottom,
+   * not in the host's toast, which covers the header and its task count.
+   */
+  notice: BoardNotice | null;
+  dismissNotice(): void;
 }
+
+export interface BoardNotice {
+  id: number;
+  message: string;
+  tone: "info" | "error";
+}
+
+/** How long a phone notice stays. */
+export const NOTICE_MS = 4000;
 
 /** The layout's own answers to a parent link and a details request. */
 export interface BoardLayoutHandlers {
@@ -134,7 +150,28 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
   const language = useTasksLanguage();
   const strings = BOARD_STRINGS[language];
   const paseo = usePaseo();
-  const toast = useToast();
+  const hostToast = useToast();
+  const compact = props.layout.compact;
+  const [notice, setNotice] = useState<BoardNotice | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dismissNotice = useCallback(() => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = null;
+    setNotice(null);
+  }, []);
+  useEffect(() => dismissNotice, [dismissNotice]);
+  const toast = useMemo(() => {
+    if (!compact) return hostToast;
+    const post = (message: string, tone: BoardNotice["tone"]) => {
+      if (noticeTimer.current) clearTimeout(noticeTimer.current);
+      setNotice((was) => ({ id: (was?.id ?? 0) + 1, message, tone }));
+      noticeTimer.current = setTimeout(() => {
+        noticeTimer.current = null;
+        setNotice(null);
+      }, NOTICE_MS);
+    };
+    return { show: (message: string) => post(message, "info"), error: (message: string) => post(message, "error") };
+  }, [compact, hostToast]);
   const settingsState = useSettings(TASKS_SETTINGS);
   const settings = settingsState.status === "ready" ? settingsState.values : DEFAULT_TASKS_SETTINGS;
 
@@ -170,7 +207,7 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
     const card = byIdRef.current.get(agentId);
     return card !== undefined && (card.lane === "running" || card.lane === "needs_input");
   }, []);
-  const stop = useStopControl({ confirmStop: settings.board.confirmStop, isActive });
+  const stop = useStopControl({ confirmStop: settings.board.confirmStop, isActive, toast });
   const { stoppedManually, noteRunning, reconcile, restored } = stop;
   const stoppedIds = useMemo(() => restoredStops(stoppedManually, restored, tasks.byId), [stoppedManually, restored, tasks.byId]);
   const filtered = useMemo(
@@ -259,6 +296,8 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
     highlighted,
     highlight,
     toastMessage,
+    notice,
+    dismissNotice,
   };
 }
 
