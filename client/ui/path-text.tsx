@@ -23,6 +23,7 @@ import { liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement }
 import { HoverPreview, HoverPreviewBody, HoverPreviewHeader, RowLongPressContext, useHoverPreview } from "./hover-preview";
 import { ToolbarCopyButton } from "./toolbar-button";
 import { RowPaletteContext } from "./disclosure-header";
+import { useContainerButton } from "./container-button";
 
 /** Where paths are made relative to, for one renderer (plan §3.9 item 3). */
 export interface PathContextValue {
@@ -147,11 +148,15 @@ export function PathText({
 }: PathTextProps) {
   const context = useContext(PathContext);
   const capabilities = useInputCapabilities(compact);
-  const { hovered, hoverProps } = useHover();
   const { copied, copy } = useCopy();
   const [tooltip, setTooltip] = useState<TooltipPlacement | null>(null);
   const rowRef = useRef<View>(null);
   const preview = useHoverPreview(!inline);
+  // Web binds the path's whole DOM region, its copy icon included: RNW ends a
+  // Pressable's hover as the pointer moves onto a nested one, and the icon,
+  // pressable only while the path is hovered, went dead under the pointer.
+  const { hovered, hoverProps } = useHover(Platform.OS === "web" ? preview.anchorRef : undefined);
+  const button = useContainerButton(true, Platform.OS === "web" ? preview.anchorRef : rowRef);
   // In a collapsed row on a phone the long press opens the row's preview: the
   // path fills most of a Read row, so it would otherwise swallow every one.
   const rowLongPress = useContext(RowLongPressContext);
@@ -225,17 +230,15 @@ export function PathText({
   const pressable = (
     <>
       <Pressable
-        // A link, not a button: it sits inside a disclosure row's button and
-        // holds its own copy button, and React Native Web draws "button" as
-        // <button>, which may not nest ("button cannot contain a nested
-        // button", a hydration error on web).
-        accessibilityRole="link"
+        // It holds its own copy button and sits in a disclosure row, so on web
+        // it is a <div> with role="button" (see `useContainerButton`).
+        accessibilityRole={button.accessibilityRole}
         accessibilityLabel={formatted.absolutePath}
         accessibilityHint={touchFirst || !reveal ? "Copies the path" : "Reveals the file"}
         onPress={onPress}
         onLongPress={rowLongPress ?? (capabilities.touch ? copyAbsolute : undefined)}
-        {...hoverProps}
-        ref={Platform.OS === "web" ? preview.anchorRef : rowRef}
+        {...(Platform.OS === "web" ? null : hoverProps)}
+        ref={button.ref}
         style={styles.row}
       >
         <Text
