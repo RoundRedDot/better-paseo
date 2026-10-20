@@ -2,7 +2,7 @@ import type { PaseoApi } from "@getpaseo/client";
 import { useRpc } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { tasksCapabilitiesRpc, tasksStopRpc } from "../../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksStopRpc, tasksStoppedRpc } from "../../../shared/tasks-rpc";
 import type { TaskCard, TaskPermission, TaskPermissionAction } from "../model";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 
@@ -102,6 +102,12 @@ export interface StopControl {
   noteRunning(agentId: string): void;
   /** Ids stopped from the board, so their card can say "Stopped manually" until the next run. */
   stoppedManually: ReadonlySet<string>;
+  /**
+   * Stops made earlier through this host's plugin server (another client,
+   * before an app restart): agent id -> ISO time. The board decides which
+   * still apply (`restoredStops`).
+   */
+  restored: ReadonlyMap<string, string>;
 }
 
 const CONFIRMATION_MS = 3_000;
@@ -160,12 +166,16 @@ function stillRunningMessage(count: number, language: TasksLanguage): string {
 export function useStopControl(options: { confirmStop: boolean; isActive?: (agentId: string) => boolean }): StopControl {
   const capabilitiesRpc = useRpc(tasksCapabilitiesRpc);
   const stopRpc = useRpc(tasksStopRpc);
+  const stoppedRpc = useRpc(tasksStoppedRpc);
   const toast = useToast();
   const language = useTasksLanguage();
 
   const [available, setAvailable] = useState(false);
   const [phases, setPhases] = useState<Record<string, StopPhase>>({});
   const [stoppedManually, setStoppedManually] = useState<ReadonlySet<string>>(() => new Set());
+  const [restored, setRestored] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const stoppedRpcRef = useRef(stoppedRpc);
+  stoppedRpcRef.current = stoppedRpc;
   const phasesRef = useRef<Record<string, StopPhase>>({});
   const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const stoppedRef = useRef(new Set<string>());
@@ -222,6 +232,23 @@ export function useStopControl(options: { confirmStop: boolean; isActive?: (agen
         if (active) setAvailable(false);
       },
     );
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // The server's record of earlier stops, once per board. A server without
+  // the RPC (an older plugin) or a failed read leaves only this board's own.
+  useEffect(() => {
+    let active = true;
+    void Promise.resolve()
+      .then(() => stoppedRpcRef.current({}))
+      .then((result) => {
+        const stops = Array.isArray(result?.stops) ? result.stops : [];
+        if (!active || stops.length === 0) return;
+        setRestored(new Map(stops.filter((stop) => typeof stop?.agentId === "string" && typeof stop.stoppedAt === "string").map((stop) => [stop.agentId, stop.stoppedAt])));
+      })
+      .catch(() => {});
     return () => {
       active = false;
     };
@@ -336,5 +363,5 @@ export function useStopControl(options: { confirmStop: boolean; isActive?: (agen
     });
   }, [addStoppedIds, available, clearTimer, options.confirmStop, settle, updatePhase]);
 
-  return { available, phase, press, cancel, cancelAll, reconcile, noteRunning, stoppedManually };
+  return { available, phase, press, cancel, cancelAll, reconcile, noteRunning, stoppedManually, restored };
 }

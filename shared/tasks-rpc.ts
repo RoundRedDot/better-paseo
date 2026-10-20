@@ -35,3 +35,16 @@ export const tasksStopRpc = defineRpc({
   input: z.object({ agentIds: z.array(z.string().min(1)).min(1).max(50) }),
   output: z.object({ results: z.array(tasksStopResultSchema) }),
 });
+
+/**
+ * The agents stopped through `tasks.stop` since the plugin server started,
+ * with when, newest last, so a board opened later (another client, the app
+ * after a restart) can still say "Stopped manually". Held in the server's
+ * memory: a daemon restart or a plugin reload forgets them. Older servers
+ * lack it; the board then keeps only its own stops.
+ */
+export const tasksStoppedRpc = defineRpc({
+  name: "tasks.stopped",
+  input: z.object({}),
+  output: z.object({ stops: z.array(z.object({ agentId: z.string(), stoppedAt: z.string() })) }),
+});
