@@ -14,11 +14,12 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { StatusIcon, TaskDetails, taskTokens, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { HAIRLINE, MOTION, boardPalette } from "./board-style";
 import { CardCell, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
 import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
-import { defaultLane, laneAfter, swallowsTap, swipeStep } from "./navigation";
+import { claimsSwipe, defaultLane, laneAfter, swallowsTap, swipeStep } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
 import { LANE_EMPTY_ICON } from "./strings";
 import { sortsLoadedOnly } from "./sort";
@@ -104,35 +105,59 @@ export function PhoneBoard(props: {
     [board.lanes, chosen, hostId, reduced, enterOpacity, enterX, leaveOpacity, leaveX],
   );
 
-  // Swipes: a horizontal travel of 56 that beats 1.5× the vertical; taps right after one are swallowed.
+  // Swipes: a horizontal travel of 56 that beats 1.5x the vertical; taps right after one are swallowed.
+  // On iOS and Android the touch is claimed from the host's pans (the swipe
+  // that opens the agent list activates at 15) once it is clearly
+  // horizontal, and when a long press opens a card's details: the drag that
+  // follows must not open the drawer, nor switch the lane under the sheet.
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const swipedAt = useRef<number | null>(null);
+  const claimed = useRef<(() => void) | null>(null);
+  const heldForDetails = useRef(false);
+  const gridRef = useRef<View>(null);
   const latest = useRef({ lane, select });
   latest.current = { lane, select };
+  const claim = useCallback(() => {
+    if (Platform.OS === "web" || claimed.current) return;
+    claimed.current = holdHostGestures(gridRef.current);
+  }, []);
+  const release = useCallback(() => {
+    const letGo = claimed.current;
+    claimed.current = null;
+    letGo?.();
+  }, []);
+  useEffect(() => release, [release]);
   const onStart = useCallback((event: PointEvent) => {
     swipeStart.current = point(event);
+    heldForDetails.current = false;
   }, []);
   const onMove = useCallback((event: PointEvent) => {
     const start = swipeStart.current;
     if (!start) return;
     const at = point(event);
-    if (swipeStep(at.x - start.x, at.y - start.y) !== 0) swipedAt.current = Date.now();
-  }, []);
+    if (claimsSwipe(at.x - start.x, at.y - start.y)) claim();
+    if (!heldForDetails.current && swipeStep(at.x - start.x, at.y - start.y) !== 0) swipedAt.current = Date.now();
+  }, [claim]);
   const onEnd = useCallback((event: PointEvent) => {
     const start = swipeStart.current;
     swipeStart.current = null;
-    if (!start) return;
+    release();
+    if (!start || heldForDetails.current) return;
     const at = point(event);
     const step = swipeStep(at.x - start.x, at.y - start.y);
     if (step === 0) return;
     swipedAt.current = Date.now();
     const next = laneAfter(latest.current.lane, step);
     if (next) latest.current.select(next);
-  }, []);
+  }, [release]);
+  const onCancel = useCallback(() => {
+    swipeStart.current = null;
+    release();
+  }, [release]);
   const gesture =
     Platform.OS === "web"
-      ? { onPointerDown: onStart, onPointerMove: onMove, onPointerUp: onEnd, onPointerCancel: () => (swipeStart.current = null) }
-      : { onTouchStart: onStart, onTouchMove: onMove, onTouchEnd: onEnd, onTouchCancel: () => (swipeStart.current = null) };
+      ? { onPointerDown: onStart, onPointerMove: onMove, onPointerUp: onEnd, onPointerCancel: onCancel }
+      : { onTouchStart: onStart, onTouchMove: onMove, onTouchEnd: onEnd, onTouchCancel: onCancel };
 
   const callbacks = useMemo<CardCallbacks>(() => {
     const base = board.callbacks;
@@ -147,9 +172,16 @@ export function PhoneBoard(props: {
       onStop: guard(base.onStop),
       onCancelStop: base.onCancelStop,
       onPermission: guard(base.onPermission),
-      onDetails: guard(base.onDetails),
+      onDetails: guard((card: TaskCard) => {
+        // A long press: the finger is still down.
+        if (swipeStart.current) {
+          heldForDetails.current = true;
+          claim();
+        }
+        base.onDetails?.(card);
+      }),
     };
-  }, [board.callbacks]);
+  }, [board.callbacks, claim]);
 
   const listRef = useRef<NativeFlatList<TaskCard> | null>(null);
   props.handlers.current = {
@@ -179,7 +211,6 @@ export function PhoneBoard(props: {
     },
   };
 
-  const gridRef = useRef<View>(null);
   useLayoutEffect(() => {
     if (Platform.OS !== "web") return;
     const node = gridRef.current as unknown as HTMLElement | null;

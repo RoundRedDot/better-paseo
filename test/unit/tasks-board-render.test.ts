@@ -501,6 +501,92 @@ describe("Tasks board, phone", () => {
   });
 });
 
+describe("Tasks board, phone lane swipe and the host's pans", () => {
+  const shadow = { tag: "grid-shadow" };
+  const nodeMock = { createNodeMock: () => ({ __internalInstanceHandle: { stateNode: { node: shadow } } }) };
+  const touch = (x: number, y: number) => ({ nativeEvent: { pageX: x, pageY: y } });
+  const grid = () => renderer!.root.find((node) => (node.type as unknown) === "View" && typeof node.props.onTouchStart === "function");
+  const laneIds = () => renderer!.root.find((node) => (node.type as unknown) === "FlatList").findAllByType(TaskCardView).map((card) => card.props.card.id);
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("iOS: claims the touch through Gesture Handler once it is clearly horizontal, before the host's 15", async () => {
+    const { TurboModuleRegistry } = await import("react-native");
+    const handleSetJSResponder = vi.fn();
+    const flushOperations = vi.fn();
+    vi.spyOn(TurboModuleRegistry, "get").mockImplementation(((name: string) =>
+      name === "RNGestureHandlerModule" ? { handleSetJSResponder, flushOperations } : null) as typeof TurboModuleRegistry.get);
+    act(() => {
+      renderer = TestRenderer.create(screen(true), nodeMock);
+    });
+    // Needs input opens first; swipe right is "back", so start from Running.
+    act(() => pressable("Running 2").props.onPress());
+    act(() => grid().props.onTouchStart(touch(100, 300)));
+    act(() => grid().props.onTouchMove(touch(104, 301)));
+    expect(handleSetJSResponder).not.toHaveBeenCalled();
+    act(() => grid().props.onTouchMove(touch(108, 302)));
+    act(() => grid().props.onTouchMove(touch(130, 303)));
+    expect(handleSetJSResponder).toHaveBeenCalledTimes(1);
+    expect(flushOperations).toHaveBeenCalledTimes(1);
+    act(() => grid().props.onTouchEnd(touch(170, 304)));
+    expect(laneIds()).toEqual(["sample-input"]);
+  });
+
+  it("iOS: a vertical scroll is never claimed", async () => {
+    const { TurboModuleRegistry } = await import("react-native");
+    const handleSetJSResponder = vi.fn();
+    vi.spyOn(TurboModuleRegistry, "get").mockImplementation((() => ({ handleSetJSResponder, flushOperations() {} })) as typeof TurboModuleRegistry.get);
+    act(() => {
+      renderer = TestRenderer.create(screen(true), nodeMock);
+    });
+    act(() => grid().props.onTouchStart(touch(100, 300)));
+    act(() => grid().props.onTouchMove(touch(106, 320)));
+    act(() => grid().props.onTouchMove(touch(110, 400)));
+    act(() => grid().props.onTouchEnd(touch(110, 420)));
+    expect(handleSetJSResponder).not.toHaveBeenCalled();
+  });
+
+  it("Android: makes the lane the Fabric JS responder, never calls Gesture Handler, and lets go on release", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+    const { TurboModuleRegistry } = await import("react-native");
+    const handleSetJSResponder = vi.fn();
+    vi.spyOn(TurboModuleRegistry, "get").mockImplementation((() => ({ handleSetJSResponder, flushOperations() {} })) as typeof TurboModuleRegistry.get);
+    const setIsJSResponder = vi.fn();
+    vi.stubGlobal("nativeFabricUIManager", { setIsJSResponder });
+    act(() => {
+      renderer = TestRenderer.create(screen(true), nodeMock);
+    });
+    act(() => grid().props.onTouchStart(touch(200, 300)));
+    act(() => grid().props.onTouchMove(touch(192, 301)));
+    expect(setIsJSResponder).toHaveBeenCalledWith(shadow, true, true);
+    act(() => grid().props.onTouchCancel());
+    expect(setIsJSResponder).toHaveBeenLastCalledWith(shadow, false, false);
+    expect(handleSetJSResponder).not.toHaveBeenCalled();
+  });
+
+  it("a long press claims the touch, and the drag after it opens the details without switching the lane", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+    const setIsJSResponder = vi.fn();
+    vi.stubGlobal("nativeFabricUIManager", { setIsJSResponder });
+    act(() => {
+      renderer = TestRenderer.create(screen(true), nodeMock);
+    });
+    act(() => pressable("Running 2").props.onPress());
+    act(() => grid().props.onTouchStart(touch(100, 300)));
+    const card = renderer!.root.find((node) => (node.type as unknown) === "FlatList").findAllByType(TaskCardView)[0]!;
+    act(() => card.props.onDetails(card.props.card));
+    expect(setIsJSResponder).toHaveBeenCalledWith(shadow, true, true);
+    act(() => grid().props.onTouchMove(touch(180, 302)));
+    act(() => grid().props.onTouchEnd(touch(190, 302)));
+    expect(laneIds()).toEqual(["sample-running", "sample-child-1"]);
+    expect(renderer!.root.find((node) => (node.type as unknown) === "Modal").props.title).toBe("Details");
+    expect(setIsJSResponder).toHaveBeenLastCalledWith(shadow, false, false);
+  });
+});
+
 describe("Tasks sidebar entry", () => {
   function entry(screenId: string | null, openScreen = vi.fn()) {
     act(() => {
