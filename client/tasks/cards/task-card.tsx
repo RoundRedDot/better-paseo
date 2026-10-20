@@ -427,8 +427,9 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     paddingHorizontal: m.padH,
     paddingTop: m.padTop,
     paddingBottom: m.padBottom,
-    // Linear's card: radius 6, a hairline, and on hover only the fill and shadow change.
-    borderRadius: 6,
+    // Linear's card: radius 8 (measured: the arc settles 16 device px in at 2x), a hairline,
+    // and on hover only the fill and shadow change.
+    borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: props.focused || props.highlighted ? tokens.accent : look.border,
     backgroundColor: background,
