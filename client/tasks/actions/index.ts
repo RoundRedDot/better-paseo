@@ -91,6 +91,13 @@ export interface StopControl {
   press(card: TaskCard, options?: { withChildren?: boolean }): void;
   /** Esc, pointer leave or timeout. */
   cancel(agentId: string): void;
+  /** Esc anywhere on the board: disarms every armed stop. True when one was armed. */
+  cancelAll(): boolean;
+  /**
+   * The board's cards changed: a stop whose agents all left running and
+   * needs-input is done. Called by the board with every agent update.
+   */
+  reconcile(): void;
   /** Clear the manual-stop marker when a later run starts. */
   noteRunning(agentId: string): void;
   /** Ids stopped from the board, so their card can say "Stopped manually" until the next run. */
@@ -98,6 +105,10 @@ export interface StopControl {
 }
 
 const CONFIRMATION_MS = 3_000;
+/** A stop the daemon accepted must show in the agent's state within this long, or it did not take. */
+export const STOP_VERIFY_MS = 10_000;
+/** A stop RPC with no answer by then has failed. */
+export const STOP_RPC_TIMEOUT_MS = 30_000;
 
 function shortError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -114,8 +125,39 @@ function stopIds(card: TaskCard, withChildren: boolean): string[] {
   return [...new Set(ids)];
 }
 
-/** One stop controller for the whole board. */
-export function useStopControl(options: { confirmStop: boolean }): StopControl {
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+function stillRunningMessage(count: number, language: TasksLanguage): string {
+  if (language === "zh") return count === 1 ? "已发送停止，但任务仍在运行" : `已发送停止，但 ${count} 个任务仍在运行`;
+  return count === 1 ? "Stop was sent, but the task is still running" : `Stop was sent, but ${count} tasks are still running`;
+}
+
+/**
+ * One stop controller for the whole board.
+ *
+ * A stop is checked twice: the RPC's answer (a failure or no answer within
+ * STOP_RPC_TIMEOUT_MS is an error toast), and then the agents themselves.
+ * The daemon can accept a stop for an agent that keeps running (a stale
+ * "running" record with no process behind it), so the pill stays
+ * "Stopping" until every stopped agent has left running and needs-input,
+ * per `isActive`; one still there after STOP_VERIFY_MS gets an error toast
+ * and loses its "Stopped manually" marker.
+ */
+export function useStopControl(options: { confirmStop: boolean; isActive?: (agentId: string) => boolean }): StopControl {
   const capabilitiesRpc = useRpc(tasksCapabilitiesRpc);
   const stopRpc = useRpc(tasksStopRpc);
   const toast = useToast();
@@ -133,6 +175,10 @@ export function useStopControl(options: { confirmStop: boolean }): StopControl {
   const stopRpcRef = useRef(stopRpc);
   const toastRef = useRef(toast);
   const languageRef = useRef(language);
+  const isActiveRef = useRef(options.isActive);
+  isActiveRef.current = options.isActive;
+  /** Stops the daemon accepted, by the pressed card, until their agents settle. */
+  const verifyingRef = useRef(new Map<string, { ids: string[]; timer: ReturnType<typeof setTimeout> }>());
   capabilitiesRef.current = capabilitiesRpc;
   stopRpcRef.current = stopRpc;
   toastRef.current = toast;
@@ -158,6 +204,8 @@ export function useStopControl(options: { confirmStop: boolean }): StopControl {
       mountedRef.current = false;
       for (const timer of timersRef.current.values()) clearTimeout(timer);
       timersRef.current.clear();
+      for (const entry of verifyingRef.current.values()) clearTimeout(entry.timer);
+      verifyingRef.current.clear();
     };
   }, []);
 
@@ -194,7 +242,17 @@ export function useStopControl(options: { confirmStop: boolean }): StopControl {
     if (phasesRef.current[agentId] === "confirming") updatePhase(agentId, "idle");
   }, [clearTimer, updatePhase]);
 
+  const cancelAll = useCallback((): boolean => {
+    const armed = Object.keys(phasesRef.current).filter((agentId) => phasesRef.current[agentId] === "confirming");
+    for (const agentId of armed) cancel(agentId);
+    return armed.length > 0;
+  }, [cancel]);
+
+  const verifying = (agentId: string) => [...verifyingRef.current.values()].some((entry) => entry.ids.includes(agentId));
+
   const noteRunning = useCallback((agentId: string) => {
+    // Still running right after the stop: that is the check's to judge.
+    if (verifying(agentId)) return;
     cancel(agentId);
     if (!stoppedRef.current.has(agentId)) return;
     const next = new Set(stoppedRef.current);
@@ -202,6 +260,32 @@ export function useStopControl(options: { confirmStop: boolean }): StopControl {
     stoppedRef.current = next;
     setStoppedManually(next);
   }, [cancel]);
+
+  const activeOf = (ids: readonly string[]) => ids.filter((agentId) => isActiveRef.current?.(agentId) === true);
+
+  /** Ends the check of one press: agents still active did not stop. */
+  const settle = useCallback((pressed: string) => {
+    const entry = verifyingRef.current.get(pressed);
+    if (!entry) return;
+    clearTimeout(entry.timer);
+    verifyingRef.current.delete(pressed);
+    if (!mountedRef.current) return;
+    const stuck = activeOf(entry.ids);
+    if (stuck.length > 0) {
+      const next = new Set(stoppedRef.current);
+      for (const agentId of stuck) next.delete(agentId);
+      stoppedRef.current = next;
+      setStoppedManually(next);
+      toastRef.current.error(stillRunningMessage(stuck.length, languageRef.current));
+    }
+    updatePhase(pressed, "idle");
+  }, [updatePhase]);
+
+  const reconcile = useCallback(() => {
+    for (const [pressed, entry] of [...verifyingRef.current]) {
+      if (activeOf(entry.ids).length === 0) settle(pressed);
+    }
+  }, [settle]);
 
   const press = useCallback((card: TaskCard, stopOptions?: { withChildren?: boolean }) => {
     if (!available || !card.stoppable) return;
@@ -224,9 +308,11 @@ export function useStopControl(options: { confirmStop: boolean }): StopControl {
     updatePhase(agentId, "stopping");
     const agentIds = stopIds(card, stopOptions?.withChildren === true);
 
-    void Promise.resolve().then(() => stopRpcRef.current({ agentIds })).then((result) => {
+    const timeoutMessage = languageRef.current === "zh" ? "停止请求没有响应。" : "The stop request did not answer.";
+    void withTimeout(Promise.resolve().then(() => stopRpcRef.current({ agentIds })), STOP_RPC_TIMEOUT_MS, timeoutMessage).then((result) => {
       if (!mountedRef.current) return;
-      addStoppedIds(result.results.filter((item) => item.ok).map((item) => item.agentId));
+      const accepted = result.results.filter((item) => item.ok).map((item) => item.agentId);
+      addStoppedIds(accepted);
       const failures = result.results.filter((item) => !item.ok);
       if (failures.length > 0) {
         const detail = failures[0]?.error ?? (languageRef.current === "zh" ? "未知错误。" : "Unknown error.");
@@ -235,14 +321,20 @@ export function useStopControl(options: { confirmStop: boolean }): StopControl {
           : failures.length === 1 ? `Could not stop task: ${detail}` : `Could not stop ${failures.length} tasks: ${detail}`;
         toastRef.current.error(message);
       }
+      if (activeOf(accepted).length === 0) {
+        updatePhase(agentId, "idle");
+        return;
+      }
+      // Accepted, but the agents still show as running: wait for them.
+      const timer = setTimeout(() => settle(agentId), STOP_VERIFY_MS);
+      verifyingRef.current.set(agentId, { ids: accepted, timer });
     }).catch((error: unknown) => {
       if (!mountedRef.current) return;
       const detail = shortError(error);
       toastRef.current.error(languageRef.current === "zh" ? `停止任务失败：${detail}` : `Could not stop task: ${detail}`);
-    }).finally(() => {
-      if (mountedRef.current) updatePhase(agentId, "idle");
+      updatePhase(agentId, "idle");
     });
-  }, [addStoppedIds, available, clearTimer, options.confirmStop, updatePhase]);
+  }, [addStoppedIds, available, clearTimer, options.confirmStop, settle, updatePhase]);
 
-  return { available, phase, press, cancel, noteRunning, stoppedManually };
+  return { available, phase, press, cancel, cancelAll, reconcile, noteRunning, stoppedManually };
 }
