@@ -270,6 +270,31 @@ describe("filter options", () => {
     expect(options.labels.find((label) => label.id === "docs")).toMatchObject({ count: 1, color: "#0ea5e9" });
   });
 
+  it("tells same-named workspaces of a project apart by folder, else by id", () => {
+    const base = handle();
+    const tasks = {
+      ...base,
+      workspaces: [
+        { id: "wks_a00001", name: "fix/refund", projectId: "prj_pay", projectName: "payments-svc", folder: "payments-svc" },
+        { id: "wks_a00002", name: "fix/refund", projectId: "prj_pay", projectName: "payments-svc", folder: "payments-svc-2" },
+        { id: "wks_a00003", name: "fix/refund", projectId: "prj_pay", projectName: "payments-svc", folder: "payments-svc-2" },
+        { id: "wks_a00004", name: "main", projectId: "prj_pay", projectName: "payments-svc", folder: "payments-svc" },
+        { id: "wks_other", name: "fix/refund", projectId: "prj_other", projectName: "paseo", folder: "paseo" },
+      ],
+    };
+    const options = buildFilterOptions(tasks, EMPTY_PARAMS);
+    const pay = options.workspaceGroups.find((group) => group.projectId === "prj_pay")!;
+    expect(pay.items.map((item) => item.label)).toEqual([
+      "fix/refund \u00b7 payments-svc",
+      "fix/refund \u00b7 a00002",
+      "fix/refund \u00b7 a00003",
+      "main",
+    ]);
+    // The same name in another project is not a clash.
+    expect(options.workspaceGroups.find((group) => group.projectId === "prj_other")!.items[0]!.label).toBe("fix/refund");
+    expect(new Set(pay.items.map((item) => item.label)).size).toBe(pay.items.length);
+  });
+
   it("lists applied filters as chips that clear one at a time", () => {
     const params: BoardParams = { ...EMPTY_PARAMS, workspaceIds: ["wks_sample"], labels: ["docs"], query: "ring", doneWindow: "all", hideSubtasks: true };
     const options = buildFilterOptions(handle(), params);
