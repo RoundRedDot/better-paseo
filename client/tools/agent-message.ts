@@ -28,3 +28,26 @@ export function readAgentMessage(message: AgentMessage): AgentStatusData {
     body: wrapped ? notification.body : message.text,
   };
 }
+
+const EVENT: Record<AgentStatus, AgentMessage["event"] | undefined> = {
+  finished: "finished", errored: "errored", "needs permission": "permission-required", "was closed": "closed",
+  // The supervisor files a cancel under the errored event (agent-prompt.ts).
+  "was canceled": "errored", message: undefined,
+};
+
+/**
+ * Paseo 0.12 hands plugin transformers the tool call without its
+ * `agentMessage` (the app's `sourceToolCallTimelineItem` copies only call ID,
+ * name, detail, metadata, status and error). A supervisor notification still
+ * names its sender and event in its first line, so it is read back from the
+ * detail. A plain agent-to-agent message carries no sender there and stays
+ * with the host.
+ */
+export function agentMessageFromDetail(detail: unknown): AgentMessage | undefined {
+  const status = readAgentStatus(detail);
+  if (!status) return undefined;
+  const event = EVENT[status.status];
+  if (!event) return undefined;
+  const text = (detail as { text: string }).text;
+  return { event, sender: { id: status.agentId, title: status.title }, text };
+}
