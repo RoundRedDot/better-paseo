@@ -1,5 +1,6 @@
 import { useEffect, useState, type RefObject } from "react";
 import { AppState, Platform } from "react-native";
+import { createTaskClock, type TaskClock } from "../cards/clock";
 
 /**
  * Whether the board is on screen. The host keeps hidden panes and screens
@@ -47,14 +48,18 @@ function watchWeb(node: unknown, set: (visible: boolean) => void): (() => void) 
   };
 }
 
-/** The board's one clock: ticks once a second while visible, and catches up when shown again. */
-export function useBoardClock(visible: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
+/**
+ * The board's one clock: ticks once a second while visible, and catches up
+ * when shown again. The board holds it, never its time, so a tick re-renders
+ * only what reads the time (`useTime`), not the board, its lanes or lists.
+ */
+export function useBoardClock(visible: boolean): TaskClock {
+  const [clock] = useState(() => createTaskClock());
   useEffect(() => {
     if (!visible) return;
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    clock.tick();
+    const timer = setInterval(clock.tick, 1000);
     return () => clearInterval(timer);
-  }, [visible]);
-  return now;
+  }, [clock, visible]);
+  return clock;
 }

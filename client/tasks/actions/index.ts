@@ -1,7 +1,7 @@
 import type { PaseoApi } from "@getpaseo/client";
 import { useRpc } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { tasksCapabilitiesRpc, tasksStopRpc, tasksStoppedRpc } from "../../../shared/tasks-rpc";
 import type { TaskCard, TaskPermission, TaskPermissionAction } from "../model";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
@@ -363,5 +363,9 @@ export function useStopControl(options: { confirmStop: boolean; isActive?: (agen
     });
   }, [addStoppedIds, available, clearTimer, options.confirmStop, settle, updatePhase]);
 
-  return { available, phase, press, cancel, cancelAll, reconcile, noteRunning, stoppedManually, restored };
+  // One object until something in it changes: the lanes' lists take it as `extraData`.
+  return useMemo(
+    () => ({ available, phase, press, cancel, cancelAll, reconcile, noteRunning, stoppedManually, restored }),
+    [available, phase, press, cancel, cancelAll, reconcile, noteRunning, stoppedManually, restored],
+  );
 }

@@ -4,7 +4,7 @@ import { usePaseo, useSettings } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type TasksSettings } from "../../../shared/tasks-settings";
 import { permissionButtons, respondToPermission, useStopControl, type PermissionButton, type StopControl } from "../actions";
-import type { CardCallbacks } from "../cards";
+import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, useTasks, type TasksHandle } from "../data";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { LANE_ORDER, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
@@ -39,7 +39,8 @@ export interface BoardController {
   lanes: Record<LaneId, LaneModel>;
   total: number;
   fields: CardSettings;
-  now: number;
+  /** The 1 s clock for what shows the time; its identity holds across ticks. */
+  clock: TaskClock;
   visible: boolean;
   stop: StopControl;
   callbacks: CardCallbacks;
@@ -161,7 +162,7 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
   const fields = useMemo(() => effectiveCard(settings, props.layout.compact), [settings, props.layout.compact]);
 
   const visible = useBoardVisible(rootRef);
-  const now = useBoardClock(visible);
+  const clock = useBoardClock(visible);
   // Whether an agent still runs or waits, for the stop's check that it took.
   const byIdRef = useRef(tasks.byId);
   byIdRef.current = tasks.byId;
@@ -249,7 +250,7 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
     lanes,
     total,
     fields,
-    now,
+    clock,
     visible,
     stop,
     callbacks,

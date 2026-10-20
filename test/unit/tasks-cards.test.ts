@@ -59,6 +59,8 @@ import {
   formatWait,
   tildePath,
   sameCardProps,
+  createTaskClock,
+  useTime,
   statusMarkSize,
   subtaskSummary,
   type TaskCardViewProps,
@@ -885,6 +887,56 @@ describe("TaskCardView memo", () => {
     const quiet = { ...base(running, NOW), fields: fields("standard", { timer: false }) };
     expect(sameCardProps(quiet, { ...quiet, now: NOW + 5000 })).toBe(true);
     expect(sameCardProps(base(done, NOW), { ...base(done, NOW), highlighted: true })).toBe(false);
+  });
+
+  it("leaves a tick of the board's clock to the timer text", async () => {
+    let time = NOW;
+    const clock = createTaskClock(() => time);
+    const running = sample("sample-running");
+    const props: TaskCardViewProps = { ...base(running, NOW), now: undefined, clock, language: "en" };
+    // Same props across ticks: the memo never lets a tick through to the card.
+    expect(sameCardProps(props, { ...props })).toBe(true);
+    const tree = await render(React.createElement(TaskCardView, props));
+    expect(texts(tree.root)).toContain("12m 30s");
+    time = NOW + 1000;
+    act(() => clock.tick());
+    expect(texts(tree.root)).toContain("12m 31s");
+    expect(texts(tree.root)).not.toContain("12m 30s");
+  });
+});
+
+describe("useTime", () => {
+  it("re-renders a reader only when what it selects changes", async () => {
+    let time = NOW;
+    const clock = createTaskClock(() => time);
+    const seen: string[] = [];
+    function Minutes() {
+      const minutes = useTime({ clock }, (now) => String(Math.floor(now / 60_000)));
+      seen.push(minutes);
+      return null;
+    }
+    await render(React.createElement(Minutes));
+    for (let step = 1; step <= 59; step += 1) {
+      time = NOW + step * 1000;
+      act(() => clock.tick());
+    }
+    expect(seen).toHaveLength(1);
+    time = NOW + 60_000;
+    act(() => clock.tick());
+    expect(seen).toHaveLength(2);
+  });
+
+  it("holds a fixed instant, and the mount time without a clock", async () => {
+    const seen: number[] = [];
+    function Probe(props: { now?: number }) {
+      seen.push(useTime(props, (now) => now));
+      return null;
+    }
+    await render(React.createElement(Probe, { now: NOW }));
+    expect(seen.at(-1)).toBe(NOW);
+    await act(async () => renderer!.update(React.createElement(Probe, {})));
+    const mounted = seen.at(-1)!;
+    expect(Math.abs(mounted - Date.now())).toBeLessThan(1000);
   });
 });
 
