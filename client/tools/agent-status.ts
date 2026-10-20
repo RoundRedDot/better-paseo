@@ -100,7 +100,13 @@ export function readPermissionRequest(body: string): PermissionRequestView | und
   } catch {
     return undefined;
   }
-  const request = record(parsed.request) ?? {};
+  const rest = body.replace(match[0], "").split("\n")
+    .filter((line) => !/^Respond with `respond_to_permission`/.test(line.trim())).join("\n").trim();
+  return { ...readPermission(record(parsed.request) ?? {}, text(parsed.requestId)), rest };
+}
+
+/** One request record, as a notification or list_pending_permissions carries it. */
+export function readPermission(request: Record<string, unknown>, requestId?: string): Omit<PermissionRequestView, "rest"> {
   const input = record(request.input);
   const detail = record(request.detail);
   const kind = text(request.kind);
@@ -108,11 +114,9 @@ export function readPermissionRequest(body: string): PermissionRequestView | und
   const plan = kind === "plan" ? text(record(request.metadata)?.planText) ?? text(input?.plan) : undefined;
   const command = text(input?.command) ?? text(detail?.command) ??
     (questions || plan || !input || !Object.keys(input).length ? undefined : JSON.stringify(input, null, 2));
-  const rest = body.replace(match[0], "").split("\n")
-    .filter((line) => !/^Respond with `respond_to_permission`/.test(line.trim())).join("\n").trim();
-  return { requestId: text(parsed.requestId) ?? text(request.id), kind, name: text(request.name),
+  return { requestId: requestId ?? text(request.id), kind, name: text(request.name),
     title: text(request.title) ?? text(request.name), description: text(request.description), command, plan, questions,
-    actions: readActions(request.actions), input, rest };
+    actions: readActions(request.actions), input };
 }
 
 function readQuestions(input: Record<string, unknown> | undefined): PermissionQuestion[] | undefined {

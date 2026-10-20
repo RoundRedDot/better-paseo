@@ -37,6 +37,17 @@ export function agentStateColor(state: string | undefined, tokens: ExtendedTheme
   }
 }
 
+/** The composer's colour for each permission tier; text stays muted like the composer. */
+export function modeColor(tier: string | undefined, tokens: ExtendedThemeTokens): string {
+  switch (tier) {
+    case "safe": return tokens.success;
+    case "dangerous": return tokens.danger;
+    case "planning":
+    case "moderate": return tokens.accent;
+    default: return tokens.foregroundMuted;
+  }
+}
+
 /** The host's live view of an agent, one primitive per selector so no render returns a fresh object. */
 export function useLiveAgent(agentId: string | undefined) {
   const id = agentId ?? "";

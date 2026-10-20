@@ -9,7 +9,7 @@ import {
 import { space, withAlpha, type ExtendedThemeTokens } from "./theme-tokens";
 import { MarkdownView } from "./markdown/markdown-view";
 import { blockProseBase } from "../ui/tokens/typography";
-import { buildPermissionAnswers, isQuestionAnswered, type PermissionAction, type PermissionQuestion } from "../tools/agent-status";
+import { buildPermissionAnswers, isQuestionAnswered, readPermission, type PermissionAction, type PermissionQuestion } from "../tools/agent-status";
 import { shortAgentId } from "../tools/agent-row";
 import type { PaseoAgentOperationData, PaseoSendAgentPromptData } from "../../shared/contracts";
 import type { ToolCallView } from "../tools/classify";
@@ -58,7 +58,7 @@ export function AgentOperationView({ data, tokens, raw = false, compact = false,
       style={[styles.fact, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{entry.label}
       <Text style={{ color: tokens.foreground }}>{`  ${entry.value}`}</Text></Text>)}</View> : null}
     {data.agents ? <AgentList agents={data.agents} tokens={tokens} mobile={mobile} /> : null}
-    {data.permissions ? <PermissionList permissions={data.permissions} tokens={tokens} /> : null}
+    {data.permissions ? <PermissionList permissions={data.permissions} tokens={tokens} mobile={mobile} /> : null}
     {data.content ? <AgentSection label={updates ? `${updates} update${updates === "1" ? "" : "s"}` : undefined} tokens={tokens}>
       <AgentMarkdown text={data.content} tokens={tokens} mobile={mobile} /></AgentSection> : null}
     </>}
@@ -77,13 +77,24 @@ function AgentList({ agents, tokens, mobile }: { agents: NonNullable<PaseoAgentO
   </View>)}</View>;
 }
 
-function PermissionList({ permissions, tokens }: { permissions: NonNullable<PaseoAgentOperationData["permissions"]>; tokens: ExtendedThemeTokens }) {
+/** Each waiting request in full, answerable where it stands: a question as its form, anything else with its buttons. */
+function PermissionList({ permissions, tokens, mobile }: {
+  permissions: NonNullable<PaseoAgentOperationData["permissions"]>; tokens: ExtendedThemeTokens; mobile: boolean;
+}) {
   if (permissions.length === 0) return <Text style={[styles.empty, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>No pending permissions</Text>;
-  return <View style={{ gap: space.md }}>{permissions.map((request) => <View key={`${request.agentId}:${request.requestId}`} style={{ gap: 6 }}>
-    <PermissionRequest testID={`permission-${request.requestId}`} title={request.title} agentId={request.agentId}
-      description={request.description} tokens={tokens} />
-    <PermissionRequestId requestId={request.requestId} tokens={tokens} />
-  </View>)}</View>;
+  return <View>{permissions.map((entry, index) => {
+    const request = readPermission(entry.request ?? { title: entry.title, description: entry.description }, entry.requestId);
+    return <View key={`${entry.agentId}:${entry.requestId}`} style={[styles.pending,
+      index > 0 && { borderTopWidth: 1, borderTopColor: tokens.border }]}>
+      <PermissionRequest testID={`permission-${entry.requestId}`} title={request.title ?? entry.title} agentId={entry.agentId}
+        description={request.description} command={request.command} plan={request.plan} question={Boolean(request.questions)}
+        tokens={tokens} mobile={mobile} />
+      {request.questions ? <PermissionQuestionForm agentId={entry.agentId} requestId={entry.requestId} questions={request.questions}
+        input={request.input} tokens={tokens} mobile={mobile} /> :
+        <PermissionActions agentId={entry.agentId} requestId={entry.requestId} actions={request.actions} tokens={tokens} mobile={mobile} />}
+      <PermissionRequestId requestId={entry.requestId} tokens={tokens} />
+    </View>;
+  })}</View>;
 }
 
 type Decision = "allow" | "deny";
@@ -346,6 +357,7 @@ const styles = StyleSheet.create({
   listItem: { paddingVertical: 6, gap: 2 },
   listTitle: { fontSize: 13, lineHeight: 18, fontWeight: "500", flexShrink: 1 },
   request: { gap: 6, minWidth: 0 },
+  pending: { gap: space.sm, paddingVertical: space.sm, minWidth: 0 },
   permissionHead: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
   permissionTitle: { fontSize: 13, lineHeight: 18, fontWeight: "600", flexShrink: 1 },
   permissionAgent: { flex: 1, minWidth: 0, fontSize: 12, lineHeight: 18 },

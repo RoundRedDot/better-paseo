@@ -541,6 +541,30 @@ describe("needs-permission card", () => {
     expect(textOf(renderer!.toJSON())).toContain("Implement - by you");
   });
 
+  it("answers a question straight from list_pending_permissions", async () => {
+    host.agent = { status: "running", attentionReason: "permission" };
+    const view = classifyTool({ name: "paseo.list_pending_permissions", status: "completed", callId: "pending", detail: { type: "unknown",
+      input: {}, output: { permissions: [{ agentId, status: "pending", request: { id: "q9", kind: "question", name: "request_user_input_async",
+        title: "Question", input: { questions: [{ id: "0", header: "Question 1", question: "Merge now?", options: [{ label: "Merge" }] }] } } }] } } });
+    act(() => { renderer = TestRenderer.create(preview(view)); });
+    expect(textOf(renderer!.toJSON())).toContain("Merge now?");
+    act(() => renderer!.root.findByProps({ testID: "permission-option-0-0" }).props.onPress());
+    await act(async () => renderer!.root.findByProps({ testID: "permission-submit" }).props.onPress());
+    expect(host.respondToPermission).toHaveBeenLastCalledWith({ requestId: "q9", response: { behavior: "allow",
+      updatedInput: { questions: expect.any(Array), answers: { "Question 1": "Merge" } } } });
+  });
+
+  it("draws the provider catalog as rows, not JSON", () => {
+    const view = classifyTool({ name: "mcp__paseo__list_profiles", status: "completed", callId: "profiles", detail: { type: "unknown",
+      input: {}, output: { profiles: [{ id: "p1", name: "Opus · ui", icon: "palette", provider: "claude", model: "claude-opus-5-5", notes: "UI work" }] } } });
+    act(() => { renderer = TestRenderer.create(preview(view)); });
+    const text = textOf(renderer!.toJSON());
+    expect(text).toContain("Opus · ui");
+    expect(text).toContain("UI work");
+    expect(text).not.toContain('"profiles"');
+    expect(renderer!.root.findAllByProps({ name: "Palette" }).length).toBeGreaterThan(0);
+  });
+
   it("offers no buttons once the agent no longer waits", () => {
     host.agent = { status: "running", attentionReason: null };
     act(() => { renderer = TestRenderer.create(preview(permissionView())); });

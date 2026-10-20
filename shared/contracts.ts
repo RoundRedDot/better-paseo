@@ -281,7 +281,9 @@ export type PaseoToolKind =
   | "update_agent"
   | "set_agent_mode"
   | "list_pending_permissions"
-  | "respond_to_permission";
+  | "respond_to_permission"
+  | "list_profiles"
+  | "inspect_provider";
 
 export interface PaseoCreateAgentData {
   title: string;
@@ -292,17 +294,6 @@ export interface PaseoCreateAgentData {
   initialPrompt: string;
   agentId?: string;
   status: "created" | "running" | "failed" | "canceled";
-}
-
-export interface PaseoGetActivityData {
-  agentId: string;
-  provider: string;
-  activities: Array<{
-    kind: "tool" | "message" | "turn" | "thinking";
-    title: string;
-    elapsed?: string;
-    timestamp?: string;
-  }>;
 }
 
 export interface PaseoSendAgentPromptData {
@@ -329,31 +320,36 @@ export interface PaseoAgentOperationData {
   tone: "neutral" | "active" | "success" | "warning" | "danger";
   facts: Array<{ label: string; value: string }>;
   agents?: Array<{ id: string; title: string; status?: string; provider?: string; cwd?: string }>;
-  permissions?: Array<{ agentId: string; requestId: string; title: string; description?: string; status?: string }>;
+  permissions?: Array<{ agentId: string; requestId: string; title: string; description?: string; status?: string;
+    /** The whole request record, read again by the card for its command, plan or questions. */
+    request?: Record<string, unknown> }>;
   content?: string;
   arguments: Record<string, unknown>;
   result: unknown;
 }
 
-export interface PaseoListProvidersData {
-  providers: Array<{
-    id: string;
-    label: string;
-    description: string;
-    enabled: boolean;
-    status: "available" | "unavailable";
-    modes: string[];
-  }>;
+export interface PaseoCatalogMode {
+  id: string;
+  label: string;
+  description?: string;
+  /** A lucide name and the composer's colour tier for it. */
+  icon?: string;
+  colorTier?: string;
 }
 
-export interface PaseoListModelsData {
-  provider: string;
-  models: Array<{
-    id: string;
-    label: string;
-    contextTokens: string;
-    thinkingSupport: boolean;
-  }>;
+/** What list_providers, list_models, list_profiles and inspect_provider answer, read once. */
+export interface PaseoCatalogData {
+  kind: "providers" | "models" | "profiles" | "provider";
+  /** The provider list_models and inspect_provider were asked about. */
+  provider?: string;
+  providers?: Array<{ id: string; label: string; description?: string; available: boolean; modes: PaseoCatalogMode[] }>;
+  models?: Array<{ id: string; label: string; description?: string; isDefault: boolean; thinking: string[]; defaultThinking?: string }>;
+  profiles?: Array<{ id: string; name: string; icon?: string; provider: string; model?: string; modeId?: string;
+    thinkingOptionId?: string; notes?: string }>;
+  /** inspect_provider's feature settings: a label and its current value. */
+  features?: Array<{ label: string; value?: string }>;
+  arguments: Record<string, unknown>;
+  result: unknown;
 }
 
 export interface PaseoToolData {
@@ -363,9 +359,7 @@ export interface PaseoToolData {
   createAgent?: PaseoCreateAgentData;
   sendAgentPrompt?: PaseoSendAgentPromptData;
   agentOperation?: PaseoAgentOperationData;
-  activity?: PaseoGetActivityData;
-  providers?: PaseoListProvidersData;
-  models?: PaseoListModelsData;
+  catalog?: PaseoCatalogData;
 }
 /**
  * A `github` device call: one op, the arguments it was given, and whatever the
