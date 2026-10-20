@@ -1,7 +1,6 @@
 import React, { memo, useCallback, useLayoutEffect, useRef } from "react";
 import { Animated, Platform, View, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Icon } from "@getpaseo/plugin/client/react-native";
 import { probeAnimationLoop } from "../../debug/perf";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import type { StatusKind } from "../model";
@@ -36,8 +35,8 @@ export interface StatusIconProps {
   height?: number;
   theme: PluginTheme;
   /**
-   * The surface under the icon. The needs-input mark is Lucide's CircleAlert
-   * filled amber with its strokes in this colour, as the host draws it.
+   * The surface under the icon. The needs-input mark's "!" is knocked out of
+   * the amber disc in this colour, as the host's filled CircleAlert draws it.
    * Default `surface0`.
    */
   backdrop?: string;
@@ -201,23 +200,37 @@ export const StatusIcon = memo(function StatusIcon(props: StatusIconProps) {
   }
 
   if (props.kind === "needs_input") {
-    // Lucide's circle is r 10 of a 24 grid; the strokes in the backdrop colour
-    // knock the "!" and a 1 px rim out of the amber disc.
-    const disc = (mark * 20) / 24;
+    // The prototype's alert (StatusIcon.dc.html) on a 12 px mark: a 10 px
+    // amber disc, a 1.5 × 3 bar from y 3.5 and a 1.5 dot from y 7.5, both
+    // in the backdrop colour, which is how the host's filled CircleAlert
+    // reads. Everything sits in normal flow inside the disc: on web an
+    // absolutely positioned disc paints over an in-flow sibling whatever the
+    // order, which is what hid the Lucide glyph drawn over it.
+    const disc = 10 * scale;
+    const stroke = 1.5 * scale;
+    const knockout = props.backdrop ?? tokens.surface0;
     return (
       <View style={box} testID="status-needs_input" {...a11y}>
         <View
+          testID="status-needs_input-disc"
           style={{
-            position: "absolute",
-            left: (size - disc) / 2,
-            top: (height - disc) / 2,
             width: disc,
             height: disc,
             borderRadius: disc / 2,
             backgroundColor: tokens.status.warning,
+            alignItems: "center",
+            paddingTop: 2.5 * scale,
           }}
-        />
-        <Icon name="CircleAlert" size={mark} color={props.backdrop ?? tokens.surface0} />
+        >
+          <View
+            testID="status-needs_input-bar"
+            style={{ width: stroke, height: 3 * scale, borderRadius: stroke / 2, backgroundColor: knockout }}
+          />
+          <View
+            testID="status-needs_input-dot"
+            style={{ width: stroke, height: stroke, marginTop: scale, borderRadius: stroke / 2, backgroundColor: knockout }}
+          />
+        </View>
       </View>
     );
   }

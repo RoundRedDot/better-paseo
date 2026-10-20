@@ -203,13 +203,32 @@ describe("StatusIcon", () => {
     expect(flat(dot!.props.style)).toMatchObject({ width: 6, height: 6, backgroundColor: "#268ae0" });
 
     const alert = box("needs_input");
-    expect(icons(alert)).toEqual(["CircleAlert"]);
-    expect(alert.findByType("Icon" as never).props.color).toBe("#ffffff");
     expect(flat((alert.children[0] as ReactTestInstance).props.style)).toMatchObject({ width: 10, backgroundColor: "#b37824" });
 
     expect(flat((box("unread").children[0] as ReactTestInstance).props.style)).toMatchObject({ width: 6, backgroundColor: "#299f51", opacity: 1 });
     expect(flat((box("failed").children[0] as ReactTestInstance).props.style)).toMatchObject({ width: 8, backgroundColor: "#f12e2f" });
     expect(flat((box("done").children[0] as ReactTestInstance).props.style)).toMatchObject({ width: 6, backgroundColor: "#6b6b75", opacity: 0.3 });
+  });
+
+  it("draws the needs-input \"!\" inside the disc, in the backdrop colour, at 12, 16 and 20 px", async () => {
+    for (const [size, scale] of [[12, 0.75], [16, 1], [20, 14 / 12]] as const) {
+      const tree = await render(React.createElement(StatusIcon, { kind: "needs_input", size, theme: LIGHT, backdrop: "#f7f7f8" }));
+      const disc = hostByTestId(tree.root, "status-needs_input-disc");
+      expect(flat(disc.props.style)).toMatchObject({ width: 10 * scale, height: 10 * scale, backgroundColor: "#b37824" });
+      // The bar and the dot are the disc's children, so they paint over it on every platform.
+      const bar = hostByTestId(disc, "status-needs_input-bar");
+      const dot = hostByTestId(disc, "status-needs_input-dot");
+      expect(flat(bar.props.style)).toMatchObject({ width: 1.5 * scale, height: 3 * scale, backgroundColor: "#f7f7f8" });
+      expect(flat(dot.props.style)).toMatchObject({ width: 1.5 * scale, height: 1.5 * scale, backgroundColor: "#f7f7f8" });
+      // Nothing absolutely positioned: on web that would paint over its in-flow siblings.
+      const positioned = hostByTestId(tree.root, "status-needs_input").findAll(
+        (node) => typeof node.type === "string" && flat(node.props.style).position === "absolute",
+      );
+      expect(positioned).toHaveLength(0);
+      expect(icons(tree.root)).toEqual([]);
+      await act(async () => tree.unmount());
+      renderer = null;
+    }
   });
 
   it("takes the dark band on a dark surface", async () => {
