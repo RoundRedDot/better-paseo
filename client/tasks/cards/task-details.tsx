@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, Text, View, type TextStyle, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, View, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { ProviderLogo } from "../../components/provider-logo";
@@ -8,7 +8,7 @@ import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import type { TaskCard } from "../model";
 import { formatCost, formatRelative, formatTokens, since, tildePath } from "./format";
 import { cardStrings } from "./strings";
-import { taskTokens, type TaskTokens } from "./tokens";
+import { pillTint, taskTokens, type TaskTokens } from "./tokens";
 
 export interface TaskDetailsProps {
   card: TaskCard;
@@ -99,7 +99,7 @@ export function TaskDetails(props: TaskDetailsProps) {
     : ({
         width: 288,
         backgroundColor: tokens.card.background,
-        borderWidth: 1,
+        borderWidth: StyleSheet.hairlineWidth,
         borderColor: tokens.card.border,
         borderRadius: 8,
         boxShadow: tokens.popoverShadow,
@@ -134,8 +134,9 @@ export function TaskDetails(props: TaskDetailsProps) {
                     alignItems: "center",
                     gap: 5,
                     paddingHorizontal: 8,
-                    borderWidth: 1,
-                    borderColor: tokens.card.pillBorder,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: pillTint(tokens, tag.color).border,
+                    backgroundColor: pillTint(tokens, tag.color).background,
                     borderRadius: 10,
                   }}
                 >

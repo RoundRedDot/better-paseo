@@ -66,6 +66,8 @@ import {
 import { statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
 import { contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
+import { pillTint } from "../../client/tasks/cards/tokens";
+import { mix } from "../../client/components/theme-tokens";
 import { identityColor, projectIconRadius, projectInitial, projectViewKey } from "../../client/tasks/cards/project-icon";
 
 const LIGHT = {
@@ -333,8 +335,21 @@ describe("TaskCardView rows", () => {
   it("draws pills fully rounded and outlined, with label dots in the label colour", async () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: fields("standard", { labelLimit: "all" }) }));
     for (const [id] of pills(tree.root)) {
-      expect(flat(hostByTestId(tree.root, id).props.style)).toMatchObject({ height: 24, borderRadius: 12, borderWidth: 1, borderColor: "#dadade" });
+      // borderWidth is StyleSheet.hairlineWidth, which rn-mock reports as 1.
+      expect(flat(hostByTestId(tree.root, id).props.style)).toMatchObject({ height: 24, borderRadius: 12, borderWidth: 1 });
     }
+    // Tints: a label's colour at 10% over the card with a stronger hairline; neutral grey without one.
+    const tokens = buildTaskTokens(LIGHT.colors);
+    const pillColors = (id: string) => {
+      const style = flat(hostByTestId(tree.root, id).props.style);
+      return { background: style.backgroundColor, border: style.borderColor };
+    };
+    expect(pillColors("pill-label-frontend")).toEqual({ background: mix("#ffffff", "#8b5cf6", 0.1), border: mix("#ffffff", "#8b5cf6", 0.26) });
+    expect(pillColors("pill-label-board")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
+    expect(pillColors("pill-branch")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
+    // The agent pill takes the provider's brand (Codex green); the subtasks pill its dominant status (2 running).
+    expect(pillColors("pill-agent").background).toBe(mix("#ffffff", "#10a37f", 0.1));
+    expect(pillColors("pill-subtasks").background).toBe(mix("#ffffff", tokens.status.running, 0.1));
     const dot = (name: string) =>
       flat((hostByTestId(tree.root, `pill-label-${name}`).findAll((node) => typeof node.type === "string" && flat(node.props.style).width === 8)[0])!.props.style)
         .backgroundColor;
@@ -527,15 +542,18 @@ describe("TaskCardView context ring", () => {
     expect(formatSessionCost(null)).toBeNull();
   });
 
-  it("sits in the footer before the timer, coloured by the host's thresholds", async () => {
+  it("sits at the footer's far right, after the timer, coloured by the host's thresholds", async () => {
     for (const [used, color] of [[46, "#6b6b75"], [75, "#a36a00"], [95, "#d93636"]] as const) {
       const tree = await render(cardElement(withContext(used)));
       const footer = hostByTestId(tree.root, "task-card-footer");
       const meter = hostByTestId(footer, "task-card-context");
-      // The ring is the footer's first element, the timer after it.
-      const firstChild = (footer.children[0] as ReactTestInstance).findAll((node) => typeof node.type === "string")[0];
-      expect(firstChild?.props.testID).toBe("task-card-context");
-      expect(texts(footer)).toEqual(["12m 30s"]);
+      // The timer first, then the ring pushed to the far right.
+      const hosts = (node: ReactTestInstance): ReactTestInstance[] =>
+        node.children.flatMap((child) => (typeof child === "string" ? [] : typeof child.type === "string" ? [child] : hosts(child)));
+      const [timerBox, ringBox] = hosts(footer);
+      expect(texts(timerBox!)).toEqual(["12m 30s"]);
+      expect(flat(ringBox!.props.style).marginLeft).toBe("auto");
+      expect(hostByTestId(ringBox!, "task-card-context")).toBe(meter);
       const track = hostByTestId(meter, "context-ring").children[0] as ReactTestInstance;
       expect(flat(track.props.style)).toMatchObject({ width: 14, height: 14, borderWidth: 2 });
       const arc = hostByTestId(meter, "context-ring-right").children[0] as ReactTestInstance;
@@ -572,6 +590,14 @@ describe("TaskCardView context ring", () => {
     await act(async () => tree.update(cardElement(withContext(86, { usage: null }), { compact: true })));
     await act(async () => hostByTestId(tree.root, "task-card-context").props.onHoverIn());
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-context-details")).toHaveLength(0);
+  });
+
+  it("stays bottom right without a timer", async () => {
+    const tree = await render(cardElement(withContext(50), { fields: fields("standard", { timer: false }) }));
+    const footer = hostByTestId(tree.root, "task-card-footer");
+    expect(texts(footer)).toEqual([]);
+    const ringBox = footer.find((node) => typeof node.type === "string" && flat(node.props.style).marginLeft === "auto");
+    expect(hostByTestId(ringBox, "task-card-context")).toBeDefined();
   });
 
   it("hides when the context is unknown, off the running lane, and on a phone until 80%", async () => {
@@ -781,6 +807,98 @@ describe("TaskDetails", () => {
     const tree = await render(React.createElement(TaskDetails, { card: sample("sample-done"), theme: LIGHT, now: NOW, language: "en" }));
     expect(texts(tree.root)).toEqual(expect.arrayContaining(["Not a git directory", "directory"]));
     expect(texts(tree.root)).not.toContain("Open tab");
+  });
+});
+
+describe("TaskCardView chrome", () => {
+  it("is Linear's card: radius 6, a hairline, and on hover only the fill and shadow change", async () => {
+    const tokens = buildTaskTokens(LIGHT.colors);
+    const tree = await render(cardElement(sample("sample-done")));
+    const surface = () => flat(hostByTestId(tree.root, "task-card-sample-done").props.style);
+    const rest = surface();
+    expect(rest).toMatchObject({ borderRadius: 6, borderWidth: 1, borderColor: tokens.card.border, backgroundColor: tokens.card.background });
+    expect(rest.boxShadow).toBe(tokens.card.shadow);
+    await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onHoverIn());
+    const hovered = surface();
+    expect(hovered.backgroundColor).toBe(tokens.card.hoverBackground);
+    expect(hovered.borderColor).toBe(rest.borderColor);
+    expect(hovered.boxShadow).toBe(tokens.card.shadowHover);
+    expect({ ...hovered, backgroundColor: 0, boxShadow: 0, zIndex: 0 }).toEqual({ ...rest, backgroundColor: 0, boxShadow: 0, zIndex: 0 });
+  });
+});
+
+/** Paseo v0.12.0's default themes as the plugin sees them, and two palettes of our own. */
+const PALETTES = {
+  paseoLight: {
+    surface0: "#ffffff", surface1: "#fafafa", surface2: "#f4f4f5", border: "#e4e4e7", foreground: "#1a1a1e",
+    foregroundMuted: "#71717a", accent: "#20744a", accentForeground: "#ffffff",
+    statusSuccess: "#3e704a", statusWarning: "#7b5d39", statusDanger: "#9d433b",
+  },
+  paseoDark: {
+    surface0: "#181b1a", surface1: "#1e2120", surface2: "#272a29", border: "#252b2a", foreground: "#fafafa",
+    foregroundMuted: "#a1a5a4", accent: "#20744a", accentForeground: "#ffffff",
+    statusSuccess: "#6cb17b", statusWarning: "#c09664", statusDanger: "#d8847b",
+  },
+  sepiaLight: {
+    surface0: "#fbf6ec", surface1: "#f4ecdc", surface2: "#ece2cf", border: "#e2d5bd", foreground: "#3b2f22",
+    foregroundMuted: "#7a6650", accent: "#a0522d", accentForeground: "#fff8ee",
+    statusSuccess: "#5b7a3a", statusWarning: "#9a6a1f", statusDanger: "#a63d2f",
+  },
+  blueDark: {
+    surface0: "#0f1626", surface1: "#152036", surface2: "#1c2944", border: "#26365a", foreground: "#e6edf8",
+    foregroundMuted: "#8fa0bf", accent: "#4c8dff", accentForeground: "#0f1626",
+    statusSuccess: "#58c08a", statusWarning: "#e0b25c", statusDanger: "#f0707a",
+  },
+};
+
+describe("card tokens follow the host theme", () => {
+  for (const [name, colors] of Object.entries(PALETTES)) {
+    it(`derives every card colour from ${name}`, async () => {
+      const tokens = buildTaskTokens(colors);
+      const dark = name.endsWith("Dark");
+      expect(tokens.isDark).toBe(dark);
+      const card = tokens.card;
+      const bg = dark ? colors.surface2 : colors.surface0;
+      expect(card.background).toBe(bg);
+      expect(card.hoverBackground).toBe(mix(bg, colors.foreground, 0.04));
+      expect(card.hoverBackground).not.toBe(bg);
+      expect(card.border).toBe(colors.border);
+      expect(card.pillBorder).toBe(mix(colors.border, colors.foreground, dark ? 0.08 : 0.05));
+      expect(card.pillFill).toBe(mix(bg, colors.foreground, dark ? 0.06 : 0.035));
+      expect(card.primaryFill).toBe(mix(bg, colors.accent, dark ? 0.18 : 0.1));
+      expect(card.dangerFill).toBe(mix(bg, colors.statusDanger, dark ? 0.16 : 0.1));
+      expect(card.onStrong).toBe(colors.accentForeground);
+      expect(tokens.danger).toBe(colors.statusDanger);
+      expect(tokens.warning).toBe(colors.statusWarning);
+      expect(tokens.success).toBe(colors.statusSuccess);
+      expect(tokens.foreground).toBe(colors.foreground);
+      expect(tokens.foregroundMuted).toBe(colors.foregroundMuted);
+      // Data colours keep their hue; only the tint's strength follows the theme.
+      expect(pillTint(tokens, "#8b5cf6").background).toBe(mix(bg, "#8b5cf6", dark ? 0.16 : 0.1));
+      // Shadows: black, fainter on a light theme than the stronger dark-theme ones.
+      const alpha = (shadow: string) => Number(/rgba\(0, 0, 0, ([0-9.]+)\)/.exec(shadow)![1]);
+      expect(alpha(card.shadow) < alpha(card.shadowHover)).toBe(true);
+
+      // The rendered card uses them: fill, hairline colour, title and meta text, the stop pill.
+      const theme = { colors };
+      const tree = await render(cardElement(sample("sample-child-1"), { theme, onStop: () => {}, stopPhase: "confirming" }));
+      const surface = flat(hostByTestId(tree.root, "task-card-sample-child-1").props.style);
+      expect(surface).toMatchObject({ backgroundColor: bg, borderColor: colors.border });
+      expect(flat(hostByTestId(tree.root, "task-card-title").props.style).color).toBe(colors.foreground);
+      expect(flat(hostByTestId(tree.root, "task-card-meta-location").props.style).color).toBe(colors.foregroundMuted);
+      const armed = byLabel(tree.root, "确认停止");
+      expect(flat(armed.props.style)).toMatchObject({ backgroundColor: colors.statusDanger, borderColor: colors.statusDanger });
+      expect(flat(armed.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(colors.accentForeground);
+      await act(async () => tree.unmount());
+      renderer = null;
+    });
+  }
+
+  it("lands near Linear's measured greys on Paseo's default light theme", () => {
+    const card = buildTaskTokens(PALETTES.paseoLight).card;
+    // Linear: hover #f5f5f5, pill hairline #d8d8da on white.
+    expect(card.hoverBackground).toBe("#f6f6f6");
+    expect(card.pillBorder).toBe("#dadadd");
   });
 });
 

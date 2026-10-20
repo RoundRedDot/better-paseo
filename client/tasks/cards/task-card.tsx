@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, Text, View, type TextStyle, type ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
@@ -21,7 +21,8 @@ import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } fro
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
 import { cardStrings, subtaskSummary } from "./strings";
-import { taskTokens, type TaskTokens } from "./tokens";
+import { pillTint, taskTokens, type TaskTokens } from "./tokens";
+import { normalizeProvider } from "../../components/provider-logo";
 import { mix, withAlpha } from "../../components/theme-tokens";
 
 export interface CardCallbacks {
@@ -278,6 +279,33 @@ function activeChildren(card: TaskCard): number {
 /** The subtasks pill's groups, most urgent first. */
 const SUBTASK_ORDER: readonly StatusKind[] = ["needs_input", "running", "failed", "unread", "done"];
 
+/**
+ * Brand colours for the agent pill's tint: data colours, like label colours,
+ * so they keep their hue on every theme (the host has no provider palette).
+ * Monochrome marks tint with the theme's foreground; anything else is neutral.
+ */
+const BRAND_TINTS: Partial<Record<string, string>> = {
+  claude: "#d97757",
+  codex: "#10a37f",
+  gemini: "#4285f4",
+};
+const MONOCHROME_BRANDS: ReadonlySet<string> = new Set(["grok", "cursor"]);
+
+export function brandTint(provider: string, tokens: TaskTokens): string | null {
+  const brand = normalizeProvider(provider);
+  if (MONOCHROME_BRANDS.has(brand)) return tokens.foreground;
+  return BRAND_TINTS[brand] ?? null;
+}
+
+/** A status's colour for a tint: the StatusIcon band for running, the theme's status roles otherwise. */
+function statusTint(kind: StatusKind, tokens: TaskTokens): string | null {
+  if (kind === "running") return tokens.status.running;
+  if (kind === "needs_input") return tokens.warning;
+  if (kind === "failed") return tokens.danger;
+  if (kind === "unread") return tokens.success;
+  return null;
+}
+
 // --- Overlays and control hover ----------------------------------------------
 
 /**
@@ -387,7 +415,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     };
   }, [detailsWanted]);
 
-  const background = props.highlighted ? look.highlight : look.background;
+  /** The card's fill right now: the highlight, the hover grey, or the card. */
+  const background = props.highlighted ? look.highlight : hovered ? look.hoverBackground : look.background;
   const canStop = card.stoppable && !!props.onStop;
   const parentStop = canStop && activeChildren(card) > 0;
   const showStop = canStop && !compact && (TOUCH || hovered || props.stopPhase !== "idle" || menuOpen);
@@ -416,9 +445,10 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     paddingHorizontal: m.padH,
     paddingTop: m.padTop,
     paddingBottom: m.padBottom,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: props.focused || props.highlighted ? tokens.accent : hovered ? look.borderHover : look.border,
+    // Linear's card: radius 6, a hairline, and on hover only the fill and shadow change.
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: props.focused || props.highlighted ? tokens.accent : look.border,
     backgroundColor: background,
     boxShadow: shadows.join(", "),
     zIndex: menuOpen ? 30 : hovered ? 2 : 1,
@@ -572,6 +602,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         key="agent"
         {...pill}
         testID="pill-agent"
+        tint={brandTint(card.provider, tokens)}
         lead={layout.brand ? <ProviderLogo provider={card.provider} size={m.icon} /> : undefined}
         label={parts.length ? parts.join(" · ") : card.providerLabel}
         accessibilityLabel={[card.providerLabel, ...parts].join(" · ")}
@@ -600,6 +631,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           key={`label-${label.name}`}
           {...pill}
           testID={`pill-label-${label.name}`}
+          tint={label.color}
           dot={label.color ?? tokens.foregroundMuted}
           label={label.name}
         />,
@@ -640,11 +672,15 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     // Icons and counts, no words: ListTree, then each status the children are in.
     const counts = new Map<StatusKind, number>();
     for (const child of card.children) counts.set(child.status, (counts.get(child.status) ?? 0) + 1);
+    // Tinted by the status most children are in; ties go to the more urgent one.
+    let dominant: StatusKind | null = null;
+    for (const kind of SUBTASK_ORDER) if ((counts.get(kind) ?? 0) > (dominant ? counts.get(dominant)! : 0)) dominant = kind;
     pills.push(
       <PillButton
         key="subtasks"
         {...pill}
         testID="pill-subtasks"
+        tint={dominant ? statusTint(dominant, tokens) : null}
         icon="ListTree"
         accessibilityLabel={subtaskSummary(card.children, language)}
         expanded={expanded}
@@ -670,10 +706,10 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       </View>
     ) : null;
 
-  // Footer: the context ring, then the timer -------------------------------
+  // Footer: the timer, and the context ring at the far right ----------------
   const timer = layout.timer ? cardTimer(card, props.now, language) : null;
   const timerColor =
-    timer?.tone === "warning" ? tokens.status.warning : timer?.tone === "running" ? tokens.status.running : muted;
+    timer?.tone === "warning" ? tokens.warning : timer?.tone === "running" ? tokens.status.running : muted;
   const ratio = contextRatio(card.context);
   const ring =
     layout.context && ratio !== null && card.context ? (
@@ -696,13 +732,14 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: m.rowGap, zIndex: ringOpen ? OVERLAY_ROW_Z + 1 : undefined }}
         testID="task-card-footer"
       >
-        {ring}
         {timer ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
             {timer.tone === "warning" ? <Icon name="Clock" size={m.icon} color={timerColor} /> : null}
             <Text style={[text(m.footSize, m.footLine, timerColor), tabular]}>{timer.text}</Text>
           </View>
         ) : null}
+        {/* Bottom right, where Linear keeps nothing else; it stays there without a timer. */}
+        {ring ? <View style={{ marginLeft: "auto" }}>{ring}</View> : null}
       </View>
     ) : null;
 
@@ -839,22 +876,29 @@ interface PillProps {
   lead?: ReactNode;
   /** Text and icon colour; muted by default. */
   color?: string;
+  /** The data colour the pill is tinted with (label, brand, status); null or absent for the neutral pill. */
+  tint?: string | null;
   tabular?: boolean;
   accessibilityLabel?: string;
   testID?: string;
   children?: ReactNode;
 }
 
-/** Linear's property pill: 24 high (28 on a phone), fully rounded, a hairline outline and no fill. */
-export function pillStyle(tokens: TaskTokens, compact: boolean): ViewStyle {
+/**
+ * Linear's property pill, 24 high (28 on a phone), fully rounded, with a
+ * hairline; filled with a light tint of its data colour, or neutral grey.
+ */
+export function pillStyle(tokens: TaskTokens, compact: boolean, tint: string | null = null): ViewStyle {
   const m = compact ? PHONE : DESKTOP;
+  const colors = pillTint(tokens, tint);
   return {
     height: m.pillHeight,
     minWidth: m.pillHeight,
     maxWidth: "100%",
     borderRadius: m.pillHeight / 2,
-    borderWidth: 1,
-    borderColor: tokens.card.pillBorder,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
     paddingHorizontal: m.pillPad,
     flexDirection: "row",
     alignItems: "center",
@@ -886,7 +930,7 @@ function PillContent(props: PillProps) {
 
 function Pill(props: PillProps) {
   return (
-    <View style={pillStyle(props.tokens, props.compact)} testID={props.testID} accessibilityLabel={props.accessibilityLabel}>
+    <View style={pillStyle(props.tokens, props.compact, props.tint ?? null)} testID={props.testID} accessibilityLabel={props.accessibilityLabel}>
       <PillContent {...props} />
     </View>
   );
@@ -903,8 +947,8 @@ function PillButton(props: PillProps & { expanded: boolean; report?: ControlHove
       {...hoverProps}
       testID={props.testID}
       style={[
-        pillStyle(props.tokens, props.compact),
-        { backgroundColor: hovered || props.expanded ? props.tokens.card.controlHover : "transparent" },
+        pillStyle(props.tokens, props.compact, props.tint ?? null),
+        hovered || props.expanded ? { backgroundColor: mix(pillTint(props.tokens, props.tint ?? null).background, props.tokens.foreground, 0.06) } : null,
         webTransition,
       ]}
     >
@@ -980,7 +1024,7 @@ function ContextMeter(props: {
           pointerEvents="none"
           style={{
             position: "absolute",
-            left: -8,
+            right: -8,
             bottom: props.line + 6,
             minWidth: 180,
             paddingHorizontal: 10,
@@ -1090,9 +1134,9 @@ function StopControl(props: StopControlProps) {
   const solid = confirming || stopping;
   const stopHover = useControlHover(props.report);
   const chevronHover = useControlHover(props.report);
-  const color = solid ? "#ffffff" : tokens.danger;
+  const color = solid ? look.onStrong : tokens.danger;
   const fill = (hovered: boolean) =>
-    solid ? (hovered ? mix(tokens.danger, "#000000", 0.12) : tokens.danger) : hovered ? look.dangerFillHover : look.dangerFill;
+    solid ? (hovered ? look.dangerStrongHover : tokens.danger) : hovered ? look.dangerFillHover : look.dangerFill;
   const height = compact ? PHONE.stopHeight : DESKTOP.stopHeight;
   const round = compact ? 8 : height / 2;
   const label = stopping ? strings.stopping : confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
@@ -1154,7 +1198,7 @@ function StopControl(props: StopControlProps) {
             {
               width: compact ? 44 : 20,
               borderLeftWidth: 1,
-              borderLeftColor: solid ? withAlpha("#ffffff", 0.4) : withAlpha(tokens.danger, 0.4),
+              borderLeftColor: solid ? withAlpha(look.onStrong, 0.4) : withAlpha(tokens.danger, 0.4),
               marginLeft: -1,
               backgroundColor: fill(chevronHover.hovered || props.menuOpen),
               borderTopRightRadius: round,
