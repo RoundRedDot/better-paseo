@@ -6,6 +6,8 @@
 
 <img alt="Better Paseo，一个 Paseo 插件：聊天时间线，清爽又飞快。桌面窗口和手机上的时间线" src="images/hero-cover-zh.png">
 
+https://github.com/user-attachments/assets/d1da47b9-1d1c-46ae-8aae-3f64b7f0d809
+
 > Better Paseo fork 自 [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat)，从 `42b61d8`（2026-09-23）接着开发。除 Eval、Ask、Task 和审批卡片外，Beautiful Chat 原有的卡片都还在；当前的 Paseo 不会把这几类内容交给插件（见[兼容性](#兼容性)）。本文介绍这个 fork 新增的功能和它的性能表现。
 
 ## 亮点
