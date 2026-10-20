@@ -261,6 +261,38 @@ function activeChildren(card: TaskCard): number {
   return card.children.filter((child) => child.status === "running" || child.status === "needs_input").length;
 }
 
+// --- Overlays and control hover ----------------------------------------------
+
+/**
+ * RNW gives every View `position: relative; z-index: 0`, so each one is a
+ * stacking context: an overlay's own zIndex only counts inside its row, and a
+ * later sibling row (transparent, but still a hit target) sits above it. The
+ * rows that hold overlays (the header's stop menu and tooltip, the phone
+ * action bar's menu) are therefore raised above the rows after them.
+ */
+export const OVERLAY_ROW_Z = 2;
+
+/** A control tells its card whether the pointer is on it; `key` is the control's own. */
+export type ControlHover = (key: string, on: boolean) => void;
+
+let nextControl = 0;
+
+/**
+ * A control's hover, reported to the card so the details popover waits for
+ * the body. Pass `rowRef` for a control that holds another (a subtask row):
+ * on web it then takes the DOM's hover, which RNW's hover lock cannot end.
+ */
+function useControlHover(report: ControlHover | undefined, rowRef?: React.RefObject<unknown>) {
+  const [key] = useState(() => `control-${nextControl++}`);
+  const hover = useHover(rowRef);
+  const { hovered } = hover;
+  useEffect(() => {
+    if (hovered) report?.(key, true);
+    return () => report?.(key, false);
+  }, [report, key, hovered]);
+  return hover;
+}
+
 // --- The card -----------------------------------------------------------------
 
 function TaskCardViewImpl(props: TaskCardViewProps) {
@@ -281,6 +313,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const [stopAll, setStopAll] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const detailsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** This card asked for the popover, so it may ask to close it (the board closes whichever is open). */
+  const detailsShown = useRef(false);
 
   const latest = useRef(props);
   latest.current = props;
@@ -288,28 +322,52 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     if (detailsTimer.current) clearTimeout(detailsTimer.current);
     detailsTimer.current = null;
   };
-  useEffect(() => clearDetails, []);
 
-  // Hover side effects follow the hover state, whichever source drives it.
+  // The card's own controls report their hover here: the popover is for the
+  // card body, not for a pointer resting on Stop, the menu or a button.
+  const controls = useRef(new Set<string>());
+  const [overControl, setOverControl] = useState(false);
+  const reportControl = useCallback<ControlHover>((key, on) => {
+    if (on) controls.current.add(key);
+    else controls.current.delete(key);
+    setOverControl(controls.current.size > 0);
+  }, []);
+
+  const parentHover = useControlHover(reportControl);
+  const toggleHover = useControlHover(reportControl);
+
+  // Leaving the card closes the menu and cancels an armed stop.
   const wasHovered = useRef(false);
   useEffect(() => {
     if (hovered === wasHovered.current) return;
     wasHovered.current = hovered;
+    if (hovered) return;
     const current = latest.current;
-    if (hovered) {
-      if (!current.onDetails || current.compact) return;
-      clearDetails();
-      detailsTimer.current = setTimeout(() => {
-        detailsTimer.current = null;
-        latest.current.onDetails?.(latest.current.card);
-      }, DETAILS_DELAY_MS);
-      return;
-    }
-    clearDetails();
+    controls.current.clear();
+    setOverControl(false);
     setMenuOpen(false);
-    current.onDetailsEnd?.(current.card.id);
     if (current.stopPhase === "confirming") current.onCancelStop?.(current.card.id);
   }, [hovered]);
+
+  // The details popover: 450 ms of hover on the body, never while the pointer
+  // is on a control, the stop menu is open or a stop is armed or running.
+  const detailsWanted =
+    hovered && !overControl && !menuOpen && props.stopPhase === "idle" && !!props.onDetails && !compact;
+  useEffect(() => {
+    if (!detailsWanted) return;
+    detailsTimer.current = setTimeout(() => {
+      detailsTimer.current = null;
+      detailsShown.current = true;
+      latest.current.onDetails?.(latest.current.card);
+    }, DETAILS_DELAY_MS);
+    return () => {
+      clearDetails();
+      if (detailsShown.current) {
+        detailsShown.current = false;
+        latest.current.onDetailsEnd?.(latest.current.card.id);
+      }
+    };
+  }, [detailsWanted]);
 
   const background = props.highlighted ? tokens.highlight : hovered ? tokens.surface1 : tokens.surface0;
   const canStop = card.stoppable && !!props.onStop;
@@ -330,6 +388,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     menuOpen,
     onPress: () => pressStop(props.stopPhase === "confirming" ? stopAll : false),
     onToggleMenu: () => setMenuOpen((open) => !open),
+    report: reportControl,
     onPick: pressStop,
   };
 
@@ -361,7 +420,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   if (layout.model && card.modelLabel) subtitleParts.push(card.modelLabel);
   if (layout.thinking && card.thinkingLabel) subtitleParts.push(card.thinkingLabel);
   const header = (
-    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }}>
+    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP, zIndex: OVERLAY_ROW_Z }} testID="task-card-header">
       <StatusIcon
         kind={card.status}
         size={m.slot}
@@ -390,6 +449,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       {showStop ? <StopControl {...stop} compact={false} /> : null}
       {props.onOpen ? (
         <JumpButton
+          report={reportControl}
           tokens={tokens}
           compact={compact}
           label={strings.openInWorkspace}
@@ -405,6 +465,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       accessibilityRole="button"
       accessibilityLabel={strings.revealParent}
       onPress={() => props.onReveal(card.parent!.id)}
+      {...parentHover.hoverProps}
       style={{
         flexDirection: "row",
         alignItems: "center",
@@ -599,6 +660,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
             <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: GAP, paddingLeft: m.slot + GAP }}>
               {props.permissionButtons.map((button) => (
                 <ActionButton
+                  report={reportControl}
                   key={button.key}
                   button={button}
                   tokens={tokens}
@@ -643,6 +705,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           accessibilityRole="button"
           accessibilityState={{ expanded }}
           onPress={() => setExpanded((open) => !open)}
+          {...toggleHover.hoverProps}
           style={{ flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: GAP, minHeight: compact ? 36 : undefined }}
         >
           <View style={{ width: m.slot, alignItems: "center" }}>
@@ -665,6 +728,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
                 openLabel={strings.openInWorkspace}
                 backdrop={background}
                 animated={props.animated}
+                report={reportControl}
                 onReveal={props.onReveal}
                 onOpen={props.onOpen}
               />
@@ -679,9 +743,9 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const buttons = compact && layout.permission ? props.permissionButtons : [];
   const actionBar =
     compact && (buttons.length > 0 || canStop) ? (
-      <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+      <View style={{ flexDirection: "row", gap: 8, marginTop: 12, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
         {buttons.map((button) => (
-          <ActionButton key={button.key} button={button} tokens={tokens} compact onPress={() => props.onPermission?.(card, button)} />
+          <ActionButton key={button.key} report={reportControl} button={button} tokens={tokens} compact onPress={() => props.onPermission?.(card, button)} />
         ))}
         {canStop ? <StopControl {...stop} compact /> : null}
       </View>
@@ -771,9 +835,15 @@ function MoreChip(props: { tokens: TaskTokens; label: string; compact: boolean }
 }
 
 /** A permission answer or "去回答": an outlined pill, 24 high on desktop, 40 and evenly split on a phone. */
-function ActionButton(props: { button: PermissionButton; tokens: TaskTokens; compact: boolean; onPress(): void }) {
+function ActionButton(props: {
+  button: PermissionButton;
+  tokens: TaskTokens;
+  compact: boolean;
+  report?: ControlHover;
+  onPress(): void;
+}) {
   const { button, tokens, compact } = props;
-  const { hovered, hoverProps } = useHover();
+  const { hovered, hoverProps } = useControlHover(props.report);
   const color = button.variant === "primary" ? tokens.accent : button.variant === "danger" ? tokens.danger : tokens.foreground;
   const border = button.variant === "secondary" ? tokens.border : color;
   const hoverFill = button.variant === "primary" ? tokens.accentSoft : button.variant === "danger" ? tokens.dangerSoft : tokens.surface2;
@@ -823,6 +893,7 @@ interface StopControlProps {
   onPress(): void;
   onToggleMenu(): void;
   onPick(withChildren: boolean): void;
+  report?: ControlHover;
 }
 
 /** Stop, its confirm state, and a parent's "only this / with subtasks" menu. */
@@ -836,6 +907,8 @@ function StopControl(props: StopControlProps) {
   const height = compact ? 40 : 22;
   const round = compact ? 20 : 999;
   const label = stopping ? strings.stopping : confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
+  const stopHover = useControlHover(props.report);
+  const chevronHover = useControlHover(props.report);
   const segment: ViewStyle = {
     height,
     borderWidth: 1,
@@ -853,6 +926,7 @@ function StopControl(props: StopControlProps) {
         accessibilityLabel={label}
         disabled={stopping}
         onPress={props.onPress}
+        {...stopHover.hoverProps}
         style={[
           segment,
           {
@@ -878,6 +952,7 @@ function StopControl(props: StopControlProps) {
           accessibilityLabel={strings.stopOptions}
           disabled={stopping}
           onPress={props.onToggleMenu}
+          {...chevronHover.hoverProps}
           style={[
             segment,
             { width: compact ? 48 : 20, marginLeft: -1, borderTopRightRadius: round, borderBottomRightRadius: round },
@@ -901,8 +976,9 @@ function StopControl(props: StopControlProps) {
             boxShadow: tokens.popoverShadow,
           } as ViewStyle}
         >
-          <MenuItem tokens={tokens} compact={compact} icon="Square" label={strings.stopOnlyThis} onPress={() => props.onPick(false)} />
+          <MenuItem report={props.report} tokens={tokens} compact={compact} icon="Square" label={strings.stopOnlyThis} onPress={() => props.onPick(false)} />
           <MenuItem
+            report={props.report}
             tokens={tokens}
             compact={compact}
             icon="ListTree"
@@ -916,9 +992,17 @@ function StopControl(props: StopControlProps) {
   );
 }
 
-function MenuItem(props: { tokens: TaskTokens; compact: boolean; icon: string; label: string; count?: number; onPress(): void }) {
+function MenuItem(props: {
+  tokens: TaskTokens;
+  compact: boolean;
+  icon: string;
+  label: string;
+  count?: number;
+  report?: ControlHover;
+  onPress(): void;
+}) {
   const { tokens, compact } = props;
-  const { hovered, hoverProps } = useHover();
+  const { hovered, hoverProps } = useControlHover(props.report);
   return (
     <Pressable
       accessibilityRole="menuitem"
@@ -944,9 +1028,9 @@ function MenuItem(props: { tokens: TaskTokens; compact: boolean; icon: string; l
 }
 
 /** ArrowUpRight, 24 × 24 (36 on a phone); a tooltip after 400 ms of hover on desktop. */
-function JumpButton(props: { tokens: TaskTokens; compact: boolean; label: string; onPress(): void }) {
+function JumpButton(props: { tokens: TaskTokens; compact: boolean; label: string; report?: ControlHover; onPress(): void }) {
   const { tokens, compact } = props;
-  const { hovered, hoverProps } = useHover();
+  const { hovered, hoverProps } = useControlHover(props.report);
   const [tip, setTip] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clear = useCallback(() => {
@@ -1030,6 +1114,7 @@ function SubtaskRow(props: {
   /** The card's fill, under the row's status icon while it is not hovered. */
   backdrop: string;
   animated?: boolean;
+  report?: ControlHover;
   onReveal(agentId: string): void;
   onOpen?(agentId: string): void;
 }) {
@@ -1037,7 +1122,7 @@ function SubtaskRow(props: {
   // DOM hover on web, as the card: the row's own Pressable hover would end
   // when the pointer reaches its jump button, and hide it.
   const rowRef = useRef<View>(null);
-  const { hovered, hoverProps } = useHover(rowRef);
+  const { hovered, hoverProps } = useControlHover(props.report, rowRef);
   const showJump = !!props.onOpen && (compact || TOUCH || hovered);
   const size = compact ? 32 : 22;
   return (
