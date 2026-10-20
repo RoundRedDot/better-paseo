@@ -57,6 +57,7 @@ import {
   formatRelative,
   formatTokens,
   formatWait,
+  tildePath,
   sameCardProps,
   statusMarkSize,
   subtaskSummary,
@@ -370,7 +371,7 @@ describe("TaskCardView rows", () => {
     const ids = pills(tree.root).map(([id]) => id);
     expect(ids).toEqual(expect.arrayContaining(["pill-branch", "pill-path", "pill-pr"]));
     expect(texts(hostByTestId(tree.root, "pill-branch"))).toEqual(["feat/tasks-board", "未提交 ↑3 ↓0"]);
-    expect(texts(hostByTestId(tree.root, "pill-path"))).toEqual(["/Users/dev/code/better-paseo/.worktrees/tasks-board"]);
+    expect(texts(hostByTestId(tree.root, "pill-path"))).toEqual(["~/code/better-paseo/.worktrees/tasks-board"]);
     expect(texts(hostByTestId(tree.root, "pill-pr"))).toEqual(["#42"]);
     expect(ids).not.toContain("pill-labels-more");
     expect(hostByTestId(tree.root, "task-card-meta").findAll((node) => (node.type as unknown) === "View" && flat(node.props.style).width === 12)).toHaveLength(1);
@@ -671,7 +672,7 @@ describe("TaskDetails", () => {
       expect.arrayContaining([
         "feat/tasks-board",
         "↑3 ↓0 origin · 有未提交改动",
-        "/Users/dev/code/better-paseo/.worktrees/tasks-board",
+        "~/code/better-paseo/.worktrees/tasks-board",
         "#42 feat: Tasks board",
         "1 小时前",
         "Bypass",
@@ -684,6 +685,23 @@ describe("TaskDetails", () => {
     );
     byLabel(tree.root, "打开 tab").props.onPress();
     expect(onOpen).toHaveBeenCalledWith("sample-running");
+  });
+
+  it("lays rows out as a fixed key column and a wrapping value column", async () => {
+    const tree = await render(React.createElement(TaskDetails, { card: sample("sample-running"), theme: LIGHT, now: NOW, language: "zh" }));
+    for (const key of ["工作目录", "Workspace", "分支"]) {
+      const row = hostByTestId(tree.root, `detail-row-${key}`);
+      const [keyText, valueColumn] = row.children as ReactTestInstance[];
+      expect(flat(keyText!.props.style)).toMatchObject({ width: 84, flexShrink: 0 });
+      expect(flat(valueColumn!.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
+      for (const text of valueColumn!.findAll((node) => (node.type as unknown) === "Text")) {
+        const style = flat(text.props.style);
+        expect(style.flex).toBeUndefined();
+        expect(style.position).toBeUndefined();
+        expect(text.props.numberOfLines).toBeUndefined();
+      }
+    }
+    expect(texts(hostByTestId(tree.root, "detail-row-工作目录"))).toEqual(["工作目录", "~/code/better-paseo/.worktrees/tasks-board"]);
   });
 
   it("says a directory is not a git checkout", async () => {
@@ -711,6 +729,16 @@ describe("formatters", () => {
     expect(formatTokens(950)).toBe("950");
     expect(formatTokens(182_000)).toBe("182k");
     expect(formatTokens(1_250_000)).toBe("1.25M");
+  });
+
+  it("shows the home directory as ~", () => {
+    expect(tildePath("/Users/dev/code/app")).toBe("~/code/app");
+    expect(tildePath("/Users/dev")).toBe("~");
+    expect(tildePath("/home/luke/src")).toBe("~/src");
+    expect(tildePath("C:\\Users\\Luke\\code\\app")).toBe("~\\code\\app");
+    expect(tildePath("/Users/devs-shared")).toBe("~");
+    expect(tildePath("/tmp/tasks-qa")).toBe("/tmp/tasks-qa");
+    expect(tildePath("/opt/Users/dev/x")).toBe("/opt/Users/dev/x");
   });
 
   it("summarises subtasks", () => {

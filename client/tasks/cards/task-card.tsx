@@ -16,6 +16,7 @@ import {
   formatRelative,
   formatWait,
   since,
+  tildePath,
 } from "./format";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
@@ -588,7 +589,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     );
   }
   if (layout.path) {
-    pills.push(<Pill key="path" {...pill} testID="pill-path" icon="FolderOpen" label={location.cwd} />);
+    pills.push(<Pill key="path" {...pill} testID="pill-path" icon="FolderOpen" label={tildePath(location.cwd)} />);
   } else if (layout.folder && location.folder) {
     pills.push(<Pill key="folder" {...pill} testID="pill-folder" icon="Folder" label={location.folder} />);
   }
