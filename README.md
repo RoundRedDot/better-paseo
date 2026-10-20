@@ -5,7 +5,8 @@
 A [Paseo](https://paseo.sh) plugin that redraws the chat timeline of every agent Paseo runs,
 whichever provider is behind it (Claude Code, Codex, Oh My Pi and the rest): tool calls, reasoning,
 replies, prompts, checklists and errors become compact, typed, syntax-aware rows that follow the
-active Paseo theme. The performance section compares it with Paseo’s own timeline.
+active Paseo theme. It also adds a **Tasks** board that lays out every agent on the host in four
+lanes. The performance section compares the timeline with Paseo’s own.
 
 <img alt="Better Paseo, a Paseo plugin: a clear, fast chat timeline on a desktop window and a phone" src="images/hero-cover.png">
 
@@ -25,6 +26,9 @@ https://github.com/user-attachments/assets/56d25aed-062c-41ed-8aa8-174e23bd3395
 - **Block-by-block streaming replies.** Finished Markdown blocks are cached while growing code and tables are repaired. This round’s layout-shift readings are in the [performance comparison](#performance).
 - **Previews without opening.** Hover a collapsed row or a path on desktop, or long-press a
   collapsed row on a phone, to read its content in a scrollable panel. Images open in a full-screen viewer.
+- **Tasks board.** One sidebar entry shows every agent by state (needs input, running, to review,
+  done), with the parent/child links, model and thinking level, and Stop and permission buttons on
+  the card. See [Tasks board](#tasks-board).
 - **Follows Paseo.** Fonts, sizes and colours follow the host by default; settings are stored on
   the daemon and shared by desktop, web, iOS and Android. The settings page is in English and
   Simplified Chinese.
@@ -386,6 +390,34 @@ unrenderable attachment stays with Paseo. Rewind stays wherever the running Pase
   the rest of the body) instead of raw XML.
 
 Permission requests are not redrawn: Paseo draws them and owns the approve and deny actions.
+
+### Tasks board
+
+**Tasks** sits in the sidebar's top group (with a running · needs-input count) and in the Command
+Center. It opens a board of every agent on the host in four lanes, sorted the way the sidebar's
+workspace status sorts them: **needs input** (oldest wait first), **running** (longest first),
+**to review** (finished unread or failed) and **done** (last 24 hours by default, 50 at a time).
+
+- Cards are grouped: title and "agent · model · thinking", then "project › workspace" and
+  "branch · folder", then labels and the timer. The status icons are Paseo's own sidebar marks.
+- Filter by workspace, agent, label, open tabs or hidden subtasks, and search titles. Keyboard on
+  desktop: J/K, H/L, Enter, / and Esc. On a phone one lane shows at a time; swipe or tap the tabs,
+  and long-press a card for its details.
+- The arrow on every card opens the agent's tab. A child card links back to its parent, and a
+  parent lists its direct children.
+- **Stop** (hover on desktop, always on phones) asks for a second press, and a parent can stop
+  with its running children. Tool, plan and mode permission requests can be allowed or denied on the
+  card; questions jump to the tab.
+- Settings → Tasks picks the card fields and density (minimal, standard, full or custom), the
+  phone card, the done-lane window, subtasks, the stop confirmation and the sidebar count, with a
+  live preview.
+
+Limits: Stop runs `paseo agent stop` through the CLI that Paseo hands the plugin, because the
+plugin API has no cancel; without that CLI the button is hidden. "Open tabs only" relies on a label
+Paseo sets only for subagent tabs. Label colours and project icons need
+[getpaseo/paseo#7482](https://github.com/getpaseo/paseo/pull/7482); without it labels get a neutral
+dot and projects a letter avatar. Subagents a provider runs internally (Claude Code's Task tool,
+Codex sub-tasks) are not Paseo agents and do not appear.
 
 ---
 
