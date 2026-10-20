@@ -18,11 +18,15 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 });
 vi.mock("@getpaseo/plugin/client", () => ({ useAgent: () => undefined, useWorkspace: () => undefined }));
 vi.mock("../../client/ui/use-input-capabilities", () => ({
+  noteHover() {},
   useInputCapabilities: () => ({ hover: true, touch: false, compact: false, native: false }),
 }));
-const pointer = vi.hoisted(() => ({ enter: null as null | (() => void) }));
+const pointer = vi.hoisted(() => ({ enter: null as null | (() => void), rowEnter: null as null | (() => void) }));
 vi.mock("../../client/web", () => ({
-  bindRowHover: () => () => {},
+  bindRowHover: (node: unknown, enter: () => void) => {
+    if (node) pointer.rowEnter = enter;
+    return () => {};
+  },
   bindPreviewMaximize: () => () => {},
   dropSelectionIn: () => {},
   bindPreviewPointer: (_node: unknown, enter: () => void) => {
@@ -48,6 +52,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   resetEnhancerPreferences();
   pointer.enter = null;
+  pointer.rowEnter = null;
   (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
 });
 afterEach(() => {
@@ -71,6 +76,27 @@ describe("a path's desktop preview", () => {
 
     act(() => button("Maximize preview")[0]!.props.onPress());
     expect(button("Close preview")).toHaveLength(1);
+    act(() => renderer.unmount());
+  });
+});
+
+describe("a path's hover copy icon", () => {
+  it("stays pressable with the pointer on it: the hover is the path's whole DOM region", async () => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(PathText, { path: "/tmp/project/a.ts", tokens }), { createNodeMock: () => ({}) });
+    });
+    const path = renderer.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "/tmp/project/a.ts");
+    // RNW ends a Pressable's hover as the pointer moves onto a nested one, so
+    // the path takes no hover callbacks of its own on web.
+    expect(path.props.onHoverIn).toBeUndefined();
+    expect(path.props.onHoverOut).toBeUndefined();
+    const icon = () => path.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Copy path");
+    expect(icon().props.disabled).toBe(true);
+    act(() => pointer.rowEnter?.());
+    expect(icon().props.disabled).toBe(false);
+    await act(async () => icon().props.onPress());
+    expect(clipboard.copyText).toHaveBeenCalledWith("/tmp/project/a.ts");
     act(() => renderer.unmount());
   });
 });

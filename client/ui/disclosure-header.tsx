@@ -17,6 +17,7 @@ import { useEnhancerPreferences } from "../preferences";
 import { TooltipAlignContext, TooltipSideContext } from "./toolbar-button";
 import { HoverPreview, HoverPreviewContext, RowLongPressContext, useHoverPreview } from "./hover-preview";
 import { useScrollAnchor, type ScrollAnchor } from "./scroll-anchor";
+import { useContainerButton } from "./container-button";
 
 /**
  * Row geometry (S7 design spec §2.5, F0 "Row heights and hit areas").
@@ -291,6 +292,9 @@ export function DisclosureHeader({
     },
     [anchorRef, anchor.ref],
   );
+  // The row holds its copy buttons and a pressable path, so on web it is a
+  // <div> with role="button" rather than a <button> (see `useContainerButton`).
+  const button = useContainerButton(!inert, rowRef);
   const toggle = useCallback(() => {
     anchor.arm();
     onToggle();
@@ -397,8 +401,8 @@ export function DisclosureHeader({
         <HoverPreviewContext.Provider value={previewOwner || (Boolean(previewContent) && !expanded)}>
           <RowLongPressContext.Provider value={pressPreview ? preview.press : longPress}>
             <Pressable
-              ref={rowRef}
-              accessibilityRole={inert ? undefined : "button"}
+              ref={button.ref}
+              accessibilityRole={button.accessibilityRole}
               accessibilityLabel={label}
               accessibilityState={inert ? undefined : { expanded }}
               // React Native Web reads the ARIA prop, not `accessibilityState`.
