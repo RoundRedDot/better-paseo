@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useRef, useState, type ReactNode } from "react";
+import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Platform, Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -6,13 +6,11 @@ import type { DoneWindow } from "../../../shared/tasks-settings";
 import { DONE_WINDOWS } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import type { PermissionButton, StopPhase } from "../actions";
-import { TaskCardView } from "../cards";
-import type { CardSettings } from "../../../shared/tasks-settings";
+import { TaskCardView, taskTokens, type CardCallbacks } from "../cards";
 import type { TaskCard } from "../model";
-import { boardColors, MOTION } from "./board-style";
+import { MOTION } from "./board-style";
 import type { BoardStrings } from "./strings";
-import type { BoardCardCallbacks } from "./use-board";
+import type { BoardController } from "./use-board";
 
 const nativeDriver = Platform.OS !== "web";
 
@@ -63,7 +61,7 @@ export function Checkbox({ on, theme, size = 14 }: { on: boolean; theme: PluginT
         height: size,
         borderRadius: size > 16 ? 4 : 3,
         borderWidth: 1,
-        borderColor: on ? colors.accent : boardColors(theme).borderStrong,
+        borderColor: on ? colors.accent : taskTokens(theme).borderStrong,
         backgroundColor: on ? colors.accent : "transparent",
         alignItems: "center",
         justifyContent: "center",
@@ -235,48 +233,57 @@ export function HoverPressable(
 
 export interface CardCellProps {
   card: TaskCard;
-  fields: CardSettings;
+  board: BoardController;
   theme: PluginTheme;
   compact: boolean;
-  buttons: PermissionButton[];
-  stopPhase: StopPhase;
-  focused: boolean;
-  highlighted: boolean;
-  now: number;
-  callbacks: BoardCardCallbacks;
+  focused?: boolean;
   fresh: boolean;
   /** The cell's node by card id, for placing the details popover. */
   register?(agentId: string, node: unknown): void;
+  /** Overrides the board's callbacks (the phone swallows taps after a swipe). */
+  callbacks?: CardCallbacks;
 }
 
-/** One card in a lane: the card and its fade-in. */
-export const CardCell = memo(function CardCell(props: CardCellProps) {
-  const { card, callbacks, register } = props;
+/**
+ * One card in a lane: the card, its fade-in, and its project icon request.
+ * It re-renders with the board; `TaskCardView`'s own memo skips the cards a
+ * tick does not change.
+ */
+export function CardCell(props: CardCellProps) {
+  const { card, board, register } = props;
   const nodeRef = useRef<View>(null);
   useEffect(() => {
     if (!register) return;
     register(card.id, nodeRef.current);
     return () => register(card.id, null);
   }, [register, card.id]);
+  // Rendered cards only, once per project while the icon is missing; the data layer dedupes the fetch.
+  const { requestIcon } = board;
+  const projectId = card.location.projectIcon === null ? card.location.projectId : null;
+  useEffect(() => {
+    if (requestIcon && projectId) requestIcon(projectId);
+  }, [requestIcon, projectId]);
   return (
     <View ref={nodeRef} collapsable={false}>
       <FadeOnMount enabled={props.fresh}>
         <TaskCardView
           card={card}
-          fields={props.fields}
+          fields={board.fields}
           theme={props.theme}
           compact={props.compact}
-          permissionButtons={props.buttons}
-          stopPhase={props.stopPhase}
-          focused={props.focused}
-          highlighted={props.highlighted}
-          now={props.now}
-          {...callbacks}
+          permissionButtons={board.buttonsFor(card)}
+          stopPhase={board.stop.phase(card.id)}
+          focused={props.focused ?? false}
+          highlighted={board.highlighted === card.id}
+          now={board.now}
+          language={board.language}
+          animated={board.visible}
+          {...(props.callbacks ?? board.callbacks)}
         />
       </FadeOnMount>
     </View>
   );
-});
+}
 
 /**
  * The ids a lane has not shown before, so only a card that arrives (a status

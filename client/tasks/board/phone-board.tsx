@@ -11,17 +11,17 @@ import {
 import { FlatList, Icon, Modal, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { StatusIcon, TaskDetails } from "../cards";
+import { StatusIcon, TaskDetails, taskTokens, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { boardColors, MOTION } from "./board-style";
+import { MOTION } from "./board-style";
 import { CardCell, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
 import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
 import { defaultLane, laneAfter, swallowsTap, swipeStep } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
 import { LANE_EMPTY_ICON } from "./strings";
-import { findCard, type BoardCardCallbacks, type BoardController, type BoardLayoutHandlers } from "./use-board";
+import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
 
 const nativeDriver = Platform.OS !== "web";
 const Separator = () => <View style={{ height: 10 }} />;
@@ -133,7 +133,7 @@ export function PhoneBoard(props: {
       ? { onPointerDown: onStart, onPointerMove: onMove, onPointerUp: onEnd, onPointerCancel: () => (swipeStart.current = null) }
       : { onTouchStart: onStart, onTouchMove: onMove, onTouchEnd: onEnd, onTouchCancel: () => (swipeStart.current = null) };
 
-  const callbacks = useMemo<BoardCardCallbacks>(() => {
+  const callbacks = useMemo<CardCallbacks>(() => {
     const base = board.callbacks;
     const guard =
       <Args extends unknown[]>(run: ((...args: Args) => void) | undefined) =>
@@ -179,7 +179,7 @@ export function PhoneBoard(props: {
   };
 
   const gridRef = useRef<View>(null);
-  const dotGrid = boardColors(theme).dotGrid;
+  const dotGrid = taskTokens(theme).dotGrid;
   useLayoutEffect(() => {
     if (Platform.OS !== "web") return;
     const node = gridRef.current as unknown as HTMLElement | null;
@@ -192,7 +192,7 @@ export function PhoneBoard(props: {
 
   const breathing = useBreathing(!tasks.ready && board.visible);
   const detailsCard = sheet?.kind === "details" ? tasks.byId.get(sheet.id) : undefined;
-  const warning = colors.statusWarning;
+  const warning = taskTokens(theme).status.warning;
 
   return (
     <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0 }}>
@@ -242,7 +242,7 @@ export function PhoneBoard(props: {
               onPress={() => select(id)}
               style={{ flex: 1, height: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}
             >
-              <StatusIcon kind={LANE_STATUS[id]} size={14} theme={theme} />
+              <StatusIcon kind={LANE_STATUS[id]} size={14} theme={theme} animated={board.visible} />
               <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 15, fontWeight: on ? "600" : "500", color: on ? colors.foreground : colors.foregroundMuted }}>
                 {strings.tabs[id]}
               </Text>
@@ -304,16 +304,11 @@ export function PhoneBoard(props: {
           >
             {leaving.cards.map((card) => (
               <CardCell
+                board={board}
                 key={card.id}
                 card={card}
-                fields={board.fields}
                 theme={theme}
                 compact
-                buttons={board.buttonsFor(card)}
-                stopPhase={board.stop.phase(card.id)}
-                focused={false}
-                highlighted={false}
-                now={board.now}
                 callbacks={callbacks}
                 fresh={false}
               />
@@ -326,13 +321,15 @@ export function PhoneBoard(props: {
           {sheet?.kind === "filters" ? <FilterSheetBody board={board} theme={theme} options={options} onDone={() => setSheet(null)} /> : null}
         </Modal.Content>
       </Modal>
-      <Modal title={detailsCard?.title ?? strings.details} open={detailsCard !== undefined} onOpenChange={(open) => !open && setSheet(null)}>
+      <Modal title={strings.details} open={detailsCard !== undefined} onOpenChange={(open) => !open && setSheet(null)}>
         <Modal.Content contentContainerStyle={SHEET_BODY}>
           {detailsCard ? (
             <TaskDetails
               card={detailsCard}
               theme={theme}
               now={board.now}
+              language={board.language}
+              compact
               onOpen={
                 board.callbacks.onOpen
                   ? (agentId) => {
@@ -400,7 +397,7 @@ function PhoneLane(props: {
   lane: LaneModel;
   board: BoardController;
   theme: PluginTheme;
-  callbacks: BoardCardCallbacks;
+  callbacks: CardCallbacks;
   listRef: RefObject<NativeFlatList<TaskCard> | null>;
   breathing: Animated.Value;
 }) {
@@ -431,15 +428,10 @@ function PhoneLane(props: {
       extraData={{ now: board.now, highlighted: board.highlighted, stop: board.stop, fields: board.fields, fresh, callbacks: props.callbacks }}
       renderItem={({ item }) => (
         <CardCell
+          board={board}
           card={item}
-          fields={board.fields}
           theme={theme}
           compact
-          buttons={board.buttonsFor(item)}
-          stopPhase={board.stop.phase(item.id)}
-          focused={false}
-          highlighted={board.highlighted === item.id}
-          now={board.now}
           callbacks={props.callbacks}
           fresh={fresh.has(item.id)}
         />

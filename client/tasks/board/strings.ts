@@ -50,6 +50,7 @@ const en = {
   hiddenByFilters: "Hidden by the current filters",
   noOptions: "Nothing to filter yet",
   details: "Details",
+  stoppedManually: "Stopped manually",
 };
 
 const zh: typeof en = {
@@ -98,6 +99,7 @@ const zh: typeof en = {
   hiddenByFilters: "该任务被当前筛选隐藏",
   noOptions: "暂无可筛选的项",
   details: "详情",
+  stoppedManually: "已手动停止",
 };
 
 export type BoardStrings = typeof en;
