@@ -83,7 +83,7 @@ function CreateAgentView({ data, tokens, raw, compact }: {
       }}>
         <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.sm, minWidth: 0, flexShrink: 1 }}>
           <ProviderLogo provider={data.provider} size={16} showLabel
-            color={normalizeProvider(data.provider) === "cursor" ? (tokens.isDark ? "#FFFFFF" : "#000000") : undefined} />
+            color={["cursor", "grok"].includes(normalizeProvider(data.provider)) ? (tokens.isDark ? "#FFFFFF" : "#000000") : undefined} />
           {data.model ? <ModelName model={data.model} thinkingOptionId={data.thinkingOptionId} tokens={tokens} mobile={mobile} /> : null}
           <View testID="create-agent-permissions" accessibilityLabel={`Permissions: ${data.modeId ?? "未指定"}`}
             style={{ flexDirection: "row", alignItems: "center", gap: space.xs, minWidth: 0, maxWidth: "100%", flexShrink: 1 }}>
