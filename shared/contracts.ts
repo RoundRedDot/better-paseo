@@ -273,7 +273,15 @@ export type PaseoToolKind =
   | "list_providers"
   | "list_models"
   | "send_agent_prompt"
-  | "get_agent_status";
+  | "get_agent_status"
+  | "list_agents"
+  | "cancel_agent"
+  | "archive_agent"
+  | "kill_agent"
+  | "update_agent"
+  | "set_agent_mode"
+  | "list_pending_permissions"
+  | "respond_to_permission";
 
 export interface PaseoCreateAgentData {
   title: string;
@@ -283,7 +291,7 @@ export interface PaseoCreateAgentData {
   thinkingOptionId?: string;
   initialPrompt: string;
   agentId?: string;
-  status: "created" | "running" | "failed";
+  status: "created" | "running" | "failed" | "canceled";
 }
 
 export interface PaseoGetActivityData {
@@ -295,6 +303,32 @@ export interface PaseoGetActivityData {
     elapsed?: string;
     timestamp?: string;
   }>;
+}
+
+export interface PaseoSendAgentPromptData {
+  agentId?: string;
+  prompt: string;
+  state: "sending" | "sent" | "failed" | "canceled" | "unconfirmed";
+  success?: boolean;
+  disposition?: string;
+  agentStatus?: string;
+  guidance?: string;
+  sessionMode?: string;
+  arguments: Record<string, unknown>;
+  result: unknown;
+}
+
+export interface PaseoAgentOperationData {
+  title: string;
+  agentId?: string;
+  label: string;
+  tone: "neutral" | "active" | "success" | "warning" | "danger";
+  facts: Array<{ label: string; value: string }>;
+  agents?: Array<{ id: string; title: string; status?: string; provider?: string; cwd?: string }>;
+  permissions?: Array<{ agentId: string; requestId: string; title: string; description?: string; status?: string }>;
+  content?: string;
+  arguments: Record<string, unknown>;
+  result: unknown;
 }
 
 export interface PaseoListProvidersData {
@@ -323,6 +357,8 @@ export interface PaseoToolData {
   tool: PaseoToolKind;
   durationMs?: number;
   createAgent?: PaseoCreateAgentData;
+  sendAgentPrompt?: PaseoSendAgentPromptData;
+  agentOperation?: PaseoAgentOperationData;
   activity?: PaseoGetActivityData;
   providers?: PaseoListProvidersData;
   models?: PaseoListModelsData;

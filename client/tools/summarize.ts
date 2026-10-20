@@ -16,6 +16,7 @@
  */
 import { stripAnsi } from "../copy/content";
 import type { ToolCallView } from "./classify";
+import { AGENT_STATUS_LABEL } from "./agent-status";
 
 export interface ToolSummary {
   verb: string;
@@ -374,10 +375,17 @@ function summarizeKind(view: ToolCallView): ToolSummary {
     }
     case "paseo": {
       const paseo = view.paseo;
+      if (paseo?.createAgent?.status === "failed") meta.push("failed");
+      if (paseo?.createAgent?.status === "canceled") meta.push("canceled");
+      const dispatch = paseo?.sendAgentPrompt;
+      if (dispatch) meta.push(dispatch.state === "unconfirmed" ? "not confirmed" : dispatch.state);
+      if (paseo?.agentOperation) meta.push(paseo.agentOperation.label);
       // The title carries the bare name; `name` may still be `mcp__paseo__…`.
       const tool = paseo?.tool ?? (view.title.replace(/^Paseo:\s*/, "") || view.name);
       const target =
         paseo?.createAgent?.title ??
+        paseo?.sendAgentPrompt?.agentId ??
+        paseo?.agentOperation?.agentId ??
         (paseo?.models ? paseo.models.provider : undefined) ??
         (paseo?.activity ? paseo.activity.agentId : undefined) ??
         keyArgument(view.input);
@@ -468,6 +476,10 @@ function path(verb: string, view: ToolCallView, meta: string[], tone: ToolSummar
 }
 
 export function summarizeTool(view: ToolCallView): ToolSummary {
+  if (view.agentStatus) return {
+    verb: AGENT_STATUS_LABEL[view.agentStatus.status], target: view.agentStatus.title,
+    meta: [], tone: view.agentStatus.status === "errored" ? "danger" : "default",
+  };
   const summary = summarizeKind(view);
   const errorLine = errorLineFor(view);
   if (!errorLine) return summary;

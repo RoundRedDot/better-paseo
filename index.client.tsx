@@ -10,6 +10,7 @@ import { getEnhancerPreferences } from "./client/preferences";
 import { followPreference } from "./client/state/follow-preference";
 import { perfSlashCommand } from "./client/debug/perf-command";
 import { transformToolCall } from "./client/tools/transform";
+import { agentMessageSchema } from "./client/tools/agent-message";
 import { assistantRows } from "./client/assistant-transform";
 import { embeddedFontsRpc } from "./shared/font-rpc";
 import { markBitmapsRpc } from "./shared/mark-rpc";
@@ -75,6 +76,7 @@ export default function contribute(client: PluginClientContext) {
       phase: z.string().optional(),
       approved: z.boolean().optional(),
       questionData: z.record(z.string(), z.unknown()).optional(),
+      agentMessage: agentMessageSchema.optional(),
     }),
     Component: LiveToolCallRenderer,
   });

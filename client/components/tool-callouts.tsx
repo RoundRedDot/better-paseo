@@ -6,7 +6,9 @@ import { surfaceProps } from "./view-props";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { HubCallout } from "./hub-callout";
-import { PaseoToolCallout } from "./paseo-tool-callouts";
+import { PaseoToolCallout, AgentStatusView, agentStatusColor } from "./paseo-tool-callouts";
+import { SubAgentView } from "./agent-operation-views";
+import { AGENT_STATUS_ICON } from "../tools/agent-status";
 import { SyntaxHighlightBlock, renderTerminalOutput, terminalLines } from "./syntax-highlight";
 import { ToolOutput, DiffPreview } from "./tool-output";
 import { ImageMeta, ImagePreview } from "./image-preview";
@@ -211,7 +213,8 @@ export function ToolCallout({
   const statusIcon = running ? (
     <RunningDot color={tokens.accent} />
   ) : (
-    <RowIcon name={toolIconName(data.tool)} color={failed ? tokens.danger : undefined} />
+    <RowIcon name={data.agentStatus ? AGENT_STATUS_ICON[data.agentStatus.status] : toolIconName(data.tool)}
+      color={data.agentStatus ? agentStatusColor(data.agentStatus, tokens) : failed ? tokens.danger : undefined} />
   );
 
   const target =
@@ -436,7 +439,9 @@ export function ToolPreviewContent({ data, resolvePath, drawsImage = false, page
   const { tokens, imageFile } = rest;
   const [raw, setRaw] = useState(false);
   const createAgent = data.tool === "paseo" && data.paseo?.tool === "create_agent" && Boolean(data.paseo.createAgent);
-  const markdown = isMarkdownWrite(data) || createAgent;
+  const agentTool = createAgent || Boolean(data.paseo?.sendAgentPrompt || data.paseo?.agentOperation);
+  const subAgent = data.tool === "sub_agent" && Boolean(data.subAgent);
+  const markdown = isMarkdownWrite(data) || agentTool || subAgent || Boolean(data.agentStatus);
   const streaming = data.status === "running";
   const questions = useMemo(() => readUserQuestions(data), [data]);
   if (questions) {
@@ -449,13 +454,15 @@ export function ToolPreviewContent({ data, resolvePath, drawsImage = false, page
   }
   const content = (
     <>
-      <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens} streaming={streaming} fitControls={createAgent}
+      <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens} streaming={streaming} fitControls={agentTool || subAgent || Boolean(data.agentStatus)}
         pager={<>{pager}{markdown ? <ToolbarButton icon={raw ? "FileText" : "Code"}
           label={raw ? "Render Markdown" : "Show raw text"} onPress={() => setRaw((value) => !value)} tokens={tokens} /> : null}</>}
         meta={drawsImage ? <ImageMeta file={imageFile ?? null} tokens={tokens} /> : undefined} />
       <HoverPreviewBody key={markdown && !raw ? "markdown" : "raw"} streaming={streaming}>
         {data.filePath ? <PreviewPath path={resolvePath(data.filePath)} tokens={tokens} /> : null}
-        {createAgent ? <PaseoToolCallout data={data.paseo!} tokens={tokens} raw={raw} compact={rest.compact} /> :
+        {data.agentStatus ? <AgentStatusView data={data.agentStatus} tokens={tokens} raw={raw} compact={rest.compact} /> :
+          subAgent ? <SubAgentView data={data} tokens={tokens} raw={raw} compact={rest.compact} /> :
+          agentTool ? <PaseoToolCallout data={data.paseo!} tokens={tokens} raw={raw} compact={rest.compact} /> :
           markdown && !raw ? <MarkdownView text={data.code!} tokens={tokens} variant="document"
           streaming={streaming} size={blockProseBase(tokens.typography)} /> : <ToolBody data={data} {...rest} preview />}
         {data.error ? <PreviewError text={data.error} tokens={tokens} /> : null}
@@ -587,11 +594,16 @@ function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, str
   fitControls?: boolean;
 }) {
   return (
-    <HoverPreviewHeader tokens={tokens} streaming={streaming} icon={meta ? "Image" : <RowIcon name={toolIconName(call.tool)} color={tokens.foregroundMuted} />}
+    <HoverPreviewHeader tokens={tokens} streaming={streaming} icon={meta ? "Image" : <RowIcon
+      name={call.agentStatus ? AGENT_STATUS_ICON[call.agentStatus.status] : toolIconName(call.tool)}
+      color={call.agentStatus ? agentStatusColor(call.agentStatus, tokens) : tokens.foregroundMuted} />}
       iconLabel={title ?? summarizeTool(call).verb}
       left={pager} center={meta} fitControls={fitControls}>
       <View style={styles.previewActions}>
-        {call.tool === "paseo" && call.paseo?.createAgent ?
+        {call.paseo?.sendAgentPrompt ? <>
+          <ToolbarCopyButton text={call.paseo.sendAgentPrompt.prompt} label="Copy prompt" tokens={tokens} />
+          <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />
+        </> : call.tool === "paseo" && call.paseo?.createAgent ?
           <ToolbarCopyButton text={call.paseo.createAgent.initialPrompt} label="Copy prompt" tokens={tokens} /> :
           <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />}
       </View>
@@ -771,6 +783,8 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
   const styles = useBodyStyles(tokens, compact);
   const isRunning = data.status === "running";
   const questions = useMemo(() => raw ? undefined : readUserQuestions(data), [data, raw]);
+  if (data.tool === "sub_agent" && data.subAgent) return <SubAgentView data={data} tokens={tokens} compact={compact} raw={raw} />;
+  if (data.agentStatus) return <AgentStatusView data={data.agentStatus} tokens={tokens} compact={compact} raw={raw} />;
   if (questions) {
     return <UserQuestions key={data.callId ?? data.id} questions={questions} tokens={tokens}
       rawBody={<ToolBody data={data} tokens={tokens} compact={compact} preview={preview} raw />} />;
@@ -1059,39 +1073,6 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
             <View style={styles.terminalWindow}>
               <SelectableText {...selectionCodeText} style={styles.terminalOutput}>
                 {renderTerminalOutput(data.worktree.log, tokens)}
-              </SelectableText>
-            </View>
-          ) : null}
-        </View>
-      )}
-
-      {data.tool === "sub_agent" && data.subAgent && (
-        <View style={styles.section}>
-          {data.subAgent.description ? (
-            <SelectableText style={styles.plainText}>
-              {data.subAgent.description}
-            </SelectableText>
-          ) : null}
-          {/* The full brief the parent wrote: often markdown, so drawn as a plan is. */}
-          {data.subAgent.prompt ? (
-            <MarkdownView text={data.subAgent.prompt} tokens={tokens} variant="compact" streaming={preview && isRunning} size={blockProseBase(tokens.typography)} />
-          ) : null}
-          {data.subAgent.actions?.map((action) => (
-            <View key={action.index} style={styles.inlineRow}>
-              <SelectableText {...(codeSurface as object)} style={[styles.monoText, styles.mutedColor]}>
-                {action.toolName}
-              </SelectableText>
-              {action.summary ? (
-                <SelectableText numberOfLines={1} style={[styles.plainText, styles.flex]}>
-                  {action.summary}
-                </SelectableText>
-              ) : null}
-            </View>
-          ))}
-          {data.subAgent.log ? (
-            <View style={styles.terminalWindow}>
-              <SelectableText {...selectionCodeText} style={styles.terminalOutput}>
-                {renderTerminalOutput(data.subAgent.log, tokens)}
               </SelectableText>
             </View>
           ) : null}

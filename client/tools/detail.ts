@@ -94,6 +94,8 @@ function bodyDetail(view: ToolCallView, budget: number): boolean {
  * record, has detail.
  */
 export function toolHasDetail(view: ToolCallView, budget: number): boolean {
+  if (view.agentStatus) return true;
+  if (view.tool === "sub_agent" && view.subAgent) return true;
   if (Array.isArray(view.questionData?.questions) && view.questionData.questions.length > 0) return true;
   return bodyDetail(view, budget) || errorDetail(view, budget);
 }

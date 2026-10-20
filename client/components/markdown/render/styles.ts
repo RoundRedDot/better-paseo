@@ -433,6 +433,7 @@ export function buildStyles(
     },
     itemText: {
       flex: 1,
+      minWidth: 0,
       fontFamily: bodyFont,
       fontSize: metrics.bodySize,
       lineHeight: metrics.bodyLineHeight,
@@ -441,6 +442,7 @@ export function buildStyles(
     // A finished task reads quieter, not struck through (S7 3.3).
     itemTextDone: {
       flex: 1,
+      minWidth: 0,
       fontFamily: bodyFont,
       fontSize: metrics.bodySize,
       lineHeight: metrics.bodyLineHeight,
