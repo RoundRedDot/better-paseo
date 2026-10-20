@@ -509,8 +509,9 @@ describe("TaskCardView rows", () => {
         const answer = byLabel(tree.root, set[0]!.label);
         expect(texts(answer)).toEqual(["去回答"]);
         expect(icons(answer)).toEqual(["ArrowUpRight"]);
-        expect(answer.findByType("Icon" as never).props.color).toBe(amber);
-        expect(flat(answer.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(amber);
+        // The label and arrow: the amber pulled until it reads at 4.5:1 on the tint.
+        expect(answer.findByType("Icon" as never).props.color).toBe(tokens.card.answerText);
+        expect(flat(answer.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(tokens.card.answerText);
         const rest = flat(answer.props.style);
         expect(rest).toMatchObject({
           backgroundColor: mix(tokens.card.background, amber, tokens.isDark ? 0.18 : 0.12),
@@ -1144,6 +1145,28 @@ describe("model, thinking and brand marks", () => {
     expect(flat(allow.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(dark.card.primaryText);
     await act(async () => tree.unmount());
     renderer = null;
+  });
+
+  it("draws the Answer button's amber label at 4.5:1 on its fills on every palette", async () => {
+    for (const palette of Object.values(PALETTES)) {
+      const tokens = buildTaskTokens(palette);
+      for (const ground of [tokens.card.answerFill, tokens.card.answerFillHover]) {
+        expect(contrastRatio(tokens.card.answerText, ground)).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+    const answer: PermissionButton = { key: "open", label: "Answer", variant: "secondary", kind: "open", action: { behavior: "allow", id: null } };
+    for (const palette of [PALETTES.paseoLight, PALETTES.paseoDark]) {
+      const tokens = buildTaskTokens(palette);
+      // The raw amber read 3.27 (light) and 4.18 (dark) on the tint.
+      expect(contrastRatio(tokens.status.warning, tokens.card.answerFill)).toBeLessThan(4.5);
+      const card = sample("sample-input");
+      const tree = await render(cardElement(card, { theme: { colors: palette }, permissionButtons: [answer], language: "en" }));
+      const button = byLabel(tree.root, "Answer");
+      expect(flat(button.props.style).backgroundColor).toBe(tokens.card.answerFill);
+      expect(flat(button.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(tokens.card.answerText);
+      await act(async () => tree.unmount());
+      renderer = null;
+    }
   });
 
   it("tints the branch pill with the theme accent, readable on every palette", async () => {
