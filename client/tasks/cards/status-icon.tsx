@@ -32,7 +32,8 @@ export function statusMarkSize(box: number): number {
 }
 
 export interface StatusIconProps {
-  kind: StatusKind;
+  /** A status, or "stopped" for a card stopped from the board: a solid square. */
+  kind: StatusKind | "stopped";
   /** Box width; the ring and dots scale from Paseo's sidebar geometry. Default 16. */
   size?: number;
   /** Box height, the line it centres on (the card's title line is 20). Default `size`. */
@@ -221,6 +222,17 @@ export const StatusIcon = memo(function StatusIcon(props: StatusIconProps) {
             borderColor: tokens.status.warning,
           }}
         />
+      </View>
+    );
+  }
+
+  if (props.kind === "stopped") {
+    // Stopped is the stop pill's solid square (an approved deviation from
+    // the prototype), muted: a stop is not a failure.
+    const side = mark * 0.75;
+    return (
+      <View style={box} testID="status-stopped" {...a11y}>
+        <View style={{ width: side, height: side, borderRadius: 2 * scale, backgroundColor: tokens.foregroundMuted }} />
       </View>
     );
   }
