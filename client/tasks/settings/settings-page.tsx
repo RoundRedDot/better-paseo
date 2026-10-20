@@ -55,6 +55,7 @@ interface Strings {
   doneWindow: string;
   doneWindows: Record<DoneWindow, string>;
   hideSubtasks: string;
+  hideSubtasksHint: string;
   confirmStop: string;
   sidebarTitle: string;
   sidebarCount: string;
@@ -113,6 +114,7 @@ const STRINGS: Record<TasksLanguage, Strings> = {
     doneWindow: "Done lane window",
     doneWindows: { "24h": "Last 24 hours", "7d": "Last 7 days", all: "All" },
     hideSubtasks: "Hide subtasks by default",
+    hideSubtasksHint: "Running, waiting and failed subtasks still show in their lane.",
     confirmStop: "Confirm before stopping",
     sidebarTitle: "Sidebar",
     sidebarCount: "Sidebar entry count",
@@ -166,6 +168,7 @@ const STRINGS: Record<TasksLanguage, Strings> = {
     doneWindow: "已完成默认时间窗口",
     doneWindows: { "24h": "近 24 小时", "7d": "近 7 天", all: "全部" },
     hideSubtasks: "默认隐藏子任务",
+    hideSubtasksHint: "运行中、待输入和失败的子任务仍会显示在各自的泳道。",
     confirmStop: "停止前二次确认",
     sidebarTitle: "侧边栏",
     sidebarCount: "侧边栏入口计数",
@@ -352,6 +355,7 @@ export function TasksSettingsPage(props: PluginSurfaceProps) {
           />
           <SettingsSwitch
             label={t.hideSubtasks}
+            hint={t.hideSubtasksHint}
             value={values.board.hideSubtasks}
             disabled={busy}
             onValueChange={(next) => void commit({ ...values, board: { ...values.board, hideSubtasks: next } })}
