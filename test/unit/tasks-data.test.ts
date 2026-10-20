@@ -5,7 +5,7 @@ import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
 import { filterLanes, useTaskCounts, useTasks, type TasksHandle } from "../../client/tasks/data";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
-import { at, createFakePaseo, makeAgent, makeWorkspace } from "./helpers/fake-paseo";
+import { at, createFakePaseo, makeAgent, makePlacement, makeWorkspace } from "./helpers/fake-paseo";
 import "./helpers/quiet-renderer";
 
 const storeNotificationProbe = vi.hoisted(() => ({ enabled: false, count: 0 }));
@@ -163,6 +163,39 @@ describe("Tasks data store", () => {
     try {
       expect(mounted.current.byId.get("a")?.providerLabel).toBe("bc-bench");
       expect(mounted.current.byId.get("a")?.provider).toBe("bc-bench");
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("uses the placement project key, falls back to the project descriptor, and preserves unchanged cards", async () => {
+    const placementAgent = activeAgent("placement", { status: "running", workspaceId: "ws" });
+    const fallbackAgent = activeAgent("fallback", { status: "running", workspaceId: "ws" });
+    const unknownAgent = activeAgent("unknown", { status: "running", workspaceId: "ws-unknown" });
+    const fake = createFakePaseo({
+      agents: [placementAgent, fallbackAgent, unknownAgent],
+      workspaces: [workspace(), makeWorkspace({ id: "ws-unknown", projectId: "missing-project" })],
+      projects: [{ ...PROJECT, projectKey: "descriptor-key" }],
+      placements: {
+        placement: makePlacement(placementAgent, { projectKey: "placement-key" }),
+        fallback: makePlacement(fallbackAgent, { projectKey: "" }),
+        unknown: makePlacement(unknownAgent, { projectKey: "" }),
+      },
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(mounted.current.byId.get("placement")?.location.projectKey).toBe("placement-key");
+      expect(mounted.current.byId.get("fallback")?.location.projectKey).toBe("descriptor-key");
+      expect(mounted.current.byId.get("unknown")?.location.projectKey).toBeNull();
+      const unchanged = mounted.current.byId.get("fallback");
+      await act(async () => {
+        fake.upsertAgent(
+          activeAgent("placement", { status: "running", workspaceId: "ws", title: "Updated placement" }),
+          makePlacement(placementAgent, { projectKey: "placement-key" }),
+        );
+        await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("fallback")).toBe(unchanged);
     } finally {
       mounted.unmount();
     }
@@ -422,7 +455,7 @@ describe("Tasks data store", () => {
     expect(ready).toBe(true);
     expect(counts.running).toBe(1);
     expect(fake.calls.filter((call) => call.method === "agents.list")).toHaveLength(3);
-    expect(fake.openSubscriptions()).toBe(4);
+    expect(fake.openSubscriptions()).toBe(5);
     act(() => renderer.unmount());
     expect(fake.openSubscriptions()).toBe(0);
   });

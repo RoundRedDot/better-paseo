@@ -13,6 +13,7 @@ export function sampleCards(now: number = Date.now()): TaskCard[] {
 
   const location = {
     projectId: "prj_sample",
+    projectKey: "remote:github.com/RoundRedDot/better-paseo",
     projectName: "better-paseo",
     projectIcon: null,
     workspaceId: "wks_sample",
