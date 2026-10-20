@@ -13,9 +13,9 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   };
 });
 
-import { StyleSheet } from "react-native";
+import { Dimensions, StyleSheet } from "react-native";
 import { CascadeMenu } from "../../client/tasks/board/menu";
-import { MENU, MENU_FOCUS, layoutMenu, menuChrome, menuKeyReducer, selectableItems, type MenuItem, type MenuSection } from "../../client/tasks/board/menu-model";
+import { MENU, MENU_EDGE, MENU_FOCUS, layoutMenu, menuChrome, menuKeyReducer, panelMaxHeight, selectableItems, submenuPlacement, type MenuItem, type MenuSection } from "../../client/tasks/board/menu-model";
 import { SORT_GROUPS, SORT_ICONS, sortMenuSections } from "../../client/tasks/board/board-menus";
 import { SORT_KEYS, type BoardSort } from "../../client/tasks/board/sort";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -197,6 +197,40 @@ describe("CascadeMenu", () => {
       act(() => renderer!.unmount());
     }
     renderer = undefined;
+  });
+
+  it("stays inside a short window: the panel scrolls above its bottom, the submenu shifts up", () => {
+    // Android landscape: 360 high, the sort menu hung 150 down.
+    expect(panelMaxHeight(null, 360)).toBe(MENU.maxHeight);
+    expect(panelMaxHeight(150, 360)).toBe(360 - 150 - MENU_EDGE);
+    expect(panelMaxHeight(20, 1000)).toBe(MENU.maxHeight);
+    expect(panelMaxHeight(340, 360)).toBe(MENU.rowHeight * 3 + MENU.padV * 2);
+    // A two-row submenu (76) beside a row 160 into the menu would end at 386: it moves up to end at 352.
+    const two = layoutMenu([{ key: "d", items: [{ key: "a", label: "A" }, { key: "z", label: "Z" }] }]).height;
+    expect(submenuPlacement(160, two, 150, 360)).toEqual({ top: 360 - MENU_EDGE - 150 - two, maxHeight: 360 - 2 * MENU_EDGE });
+    // Room enough: beside its row.
+    expect(submenuPlacement(40, two, 150, 900).top).toBe(40);
+    // Never above the window's top edge.
+    expect(submenuPlacement(0, 2000, 100, 360).top).toBe(MENU_EDGE - 100);
+
+    const layout = { createNodeMock: () => ({ measureInWindow: (cb: (x: number, y: number, w: number) => void) => cb(100, 150, 240) }) };
+    const many: MenuSection[] = [{ key: "all", items: Array.from({ length: 12 }, (_, at) => ({ key: `k${at}`, label: `Row ${at}`, submenu: [{ key: "d", items: [{ key: "a", label: "A" }, { key: "z", label: "Z" }] }] })) }];
+    const dims = vi.spyOn(Dimensions, "get").mockReturnValue({ width: 800, height: 360, scale: 3, fontScale: 1 } as never);
+    try {
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(CascadeMenu, { sections: many, theme: theme(LIGHT), width: 240, top: 34, align: "left", onClose: close }),
+          layout,
+        );
+      });
+      const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
+      expect(StyleSheet.flatten(panel.props.style).maxHeight).toBe(360 - 150 - MENU_EDGE);
+      act(() => row("Row 5").props.onPress());
+      const placed = submenu()[0]!;
+      expect(StyleSheet.flatten(placed.props.style).top).toBe(360 - MENU_EDGE - 150 - two);
+    } finally {
+      dims.mockRestore();
+    }
   });
 
   it("draws the icon, label, hint and a chevron for a submenu", () => {
