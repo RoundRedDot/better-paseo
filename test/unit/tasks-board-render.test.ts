@@ -765,29 +765,22 @@ describe("Tasks board, phone", () => {
     expect(notice()).toHaveLength(0);
   });
 
-  it("opens the filter sheet at the sort from the header's sort pill", () => {
-    const scrollTo = vi.fn();
+  it("opens the filter sheet with the sort first from the header's sort pill, and at the workspaces from the filters button", () => {
+    const order = () => {
+      const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
+      const text = textOf(scroll);
+      return { sort: text.indexOf("Sort"), workspace: text.indexOf("Workspace") };
+    };
     act(() => {
-      renderer = TestRenderer.create(screen(true, { sort: "branch-desc" }), { createNodeMock: () => ({ scrollTo }) });
+      renderer = TestRenderer.create(screen(true, { sort: "branch-desc" }));
     });
     act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "phone-sort-hint").props.onPress());
-    const sort = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-sort");
-    act(() => sort.props.onLayout({ nativeEvent: { layout: { x: 0, y: 640, width: 360, height: 300 } } }));
-    expect(scrollTo).toHaveBeenCalledWith({ y: 632, animated: false });
-    // Laid out again (the drill-down), it stays where the user scrolled.
-    act(() => sort.props.onLayout({ nativeEvent: { layout: { x: 0, y: 640, width: 360, height: 512 } } }));
-    expect(scrollTo).toHaveBeenCalledTimes(1);
-  });
-
-  it("opens the filter sheet at its top from the filters button", () => {
-    const scrollTo = vi.fn();
-    act(() => {
-      renderer = TestRenderer.create(screen(true), { createNodeMock: () => ({ scrollTo }) });
-    });
+    expect(order().sort).toBeGreaterThanOrEqual(0);
+    expect(order().sort).toBeLessThan(order().workspace);
+    expect(renderer!.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-sort")).toHaveLength(1);
+    act(() => renderer!.root.find((node) => (node.type as unknown) === "Modal").props.onOpenChange?.(false));
     act(() => pressable("Filters").props.onPress());
-    const sort = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-sort");
-    act(() => sort.props.onLayout({ nativeEvent: { layout: { x: 0, y: 640, width: 360, height: 300 } } }));
-    expect(scrollTo).not.toHaveBeenCalled();
+    expect(order().workspace).toBeLessThan(order().sort);
   });
 
   it("opens the details sheet on a card's long press", () => {
