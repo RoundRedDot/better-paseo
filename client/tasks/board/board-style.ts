@@ -18,8 +18,8 @@ export const HAIRLINE = StyleSheet.hairlineWidth;
 /** Checkbox and letter-avatar outlines are part of the glyph, not a divider: a full point keeps them legible. */
 export const GLYPH_LINE = 1;
 
-/** Linear's lane panel corner: about 8 device px at 2x. */
-export const PANEL_RADIUS = 4;
+/** Linear's lane panel corner: a 10 device px arc at 2x. */
+export const PANEL_RADIUS = 5;
 
 export interface BoardPalette {
   page: string;
