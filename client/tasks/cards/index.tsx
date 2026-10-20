@@ -30,6 +30,8 @@ export {
   formatTokens,
   formatWait,
   since,
+  tildePath,
   type ContextTone,
 } from "./format";
 export { cardStrings, subtaskSummary } from "./strings";
+export { ProjectIcon, identityColor, projectIconRadius, projectInitial, projectViewKey } from "./project-icon";

@@ -6,7 +6,7 @@ import { ProviderLogo } from "../../components/provider-logo";
 import { useHover } from "../../ui/use-hover";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import type { TaskCard } from "../model";
-import { formatCost, formatRelative, formatTokens, since } from "./format";
+import { formatCost, formatRelative, formatTokens, since, tildePath } from "./format";
 import { cardStrings } from "./strings";
 import { taskTokens, type TaskTokens } from "./tokens";
 
@@ -52,7 +52,7 @@ export function detailRows(card: TaskCard, now: number, language: TasksLanguage)
   }
   const folder = location.cwd.split("/").filter(Boolean).pop();
   if (folder) rows.push({ key: strings.folder, value: folder });
-  rows.push({ key: strings.cwd, value: location.cwd });
+  rows.push({ key: strings.cwd, value: tildePath(location.cwd) });
   if (location.pullRequest) {
     const number = location.pullRequest.number !== null ? `#${location.pullRequest.number} ` : "";
     rows.push({ key: strings.pr, value: `${number}${location.pullRequest.title}` });
@@ -87,8 +87,9 @@ export function TaskDetails(props: TaskDetailsProps) {
   const size = compact ? 13 : 12;
   const line = compact ? 18 : 16;
   const padH = compact ? 16 : 12;
-  const label: TextStyle = { fontSize: size, lineHeight: line, color: tokens.foregroundMuted, flexShrink: 0 };
-  const value: TextStyle = { fontSize: size, lineHeight: line, color: tokens.foreground, textAlign: "right", flex: 1 };
+  // A fixed key column and a value column that wraps; rows grow with their content.
+  const label: TextStyle = { width: compact ? 96 : 84, fontSize: size, lineHeight: line, color: tokens.foregroundMuted, flexShrink: 0 };
+  const value: TextStyle = { fontSize: size, lineHeight: line, color: tokens.foreground };
   const section: ViewStyle = { paddingHorizontal: padH, paddingVertical: 10, gap: 6 };
   const rule = <View style={{ height: 1, backgroundColor: tokens.card.border }} />;
   const agent = [card.providerLabel, card.modelLabel, card.thinkingLabel].filter(Boolean).join(" · ");
@@ -123,7 +124,7 @@ export function TaskDetails(props: TaskDetailsProps) {
         {card.labels.length > 0 ? (
           <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
             <Text style={label}>{strings.details.labels}</Text>
-            <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 4 }}>
+            <View style={{ flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", gap: 4 }}>
               {card.labels.map((tag) => (
                 <View
                   key={tag.name}
@@ -171,9 +172,9 @@ export function TaskDetails(props: TaskDetailsProps) {
 function DetailRow(props: { row: Row; label: TextStyle; value: TextStyle; tokens: TaskTokens; compact: boolean; tabular?: boolean }) {
   const { row } = props;
   return (
-    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }} testID={`detail-row-${row.key}`}>
       <Text style={props.label}>{row.key}</Text>
-      <View style={{ flex: 1, alignItems: "flex-end", gap: 1 }}>
+      <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
         <Text
           style={[
             props.value,
@@ -184,7 +185,14 @@ function DetailRow(props: { row: Row; label: TextStyle; value: TextStyle; tokens
           {row.value}
         </Text>
         {row.sub ? (
-          <Text style={{ fontSize: props.compact ? 12 : 11, lineHeight: props.compact ? 16 : 14, color: props.tokens.foregroundMuted, textAlign: "right", fontVariant: ["tabular-nums"] }}>
+          <Text
+            style={{
+              fontSize: props.compact ? 12 : 11,
+              lineHeight: props.compact ? 16 : 14,
+              color: props.tokens.foregroundMuted,
+              fontVariant: ["tabular-nums"],
+            }}
+          >
             {row.sub}
           </Text>
         ) : null}
