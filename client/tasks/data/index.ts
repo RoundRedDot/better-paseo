@@ -23,6 +23,8 @@ export interface WorkspaceOption {
   name: string;
   projectId: string;
   projectName: string;
+  /** The last segment of the workspace's directory, to tell same-named workspaces apart. */
+  folder?: string | null;
 }
 
 export interface TasksOptions {
@@ -934,6 +936,7 @@ function createStore(api: PaseoApi): TaskStore {
         name: workspace.title?.trim() || workspace.name,
         projectId: workspace.projectId,
         projectName: workspace.projectCustomName?.trim() || workspace.projectDisplayName,
+        folder: typeof workspace.workspaceDirectory === "string" ? pathTail(workspace.workspaceDirectory) : null,
       }))
       .sort((a, b) => a.projectName.localeCompare(b.projectName) || a.name.localeCompare(b.name));
   }

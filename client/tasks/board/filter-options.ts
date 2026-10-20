@@ -48,6 +48,7 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
       on: params.workspaceIds.includes(workspace.id),
     });
   }
+  for (const group of groups.values()) group.items = distinctLabels(group.items, tasks.workspaces);
   const known = new Set(tasks.workspaces.map((workspace) => workspace.id));
   const missing = params.workspaceIds.filter((id) => !known.has(id));
   if (missing.length) {
@@ -72,6 +73,25 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
   for (const name of params.labels) if (!labels.some((label) => label.id === name)) labels.push({ id: name, label: name, color: null, count: 0, on: true });
 
   return { workspaceGroups: [...groups.values()], agents, labels };
+}
+
+/**
+ * Workspaces of one project that share a name (several worktrees on one
+ * branch) get their folder after it, "fix/x · payments-svc-2"; where the
+ * folders match too, the end of the id. Unique names stay as they are.
+ */
+export function distinctLabels(items: FilterOption[], workspaces: readonly { id: string; folder?: string | null }[]): FilterOption[] {
+  const folders = new Map(workspaces.map((workspace) => [workspace.id, workspace.folder ?? null]));
+  const named = new Map<string, FilterOption[]>();
+  for (const item of items) named.set(item.label, [...(named.get(item.label) ?? []), item]);
+  if ([...named.values()].every((same) => same.length < 2)) return items;
+  return items.map((item) => {
+    const same = named.get(item.label)!;
+    if (same.length < 2) return item;
+    const folder = folders.get(item.id);
+    const folderUnique = folder && folder !== item.label && same.filter((other) => folders.get(other.id) === folder).length === 1;
+    return { ...item, label: `${item.label} \u00b7 ${folderUnique ? folder : item.id.slice(-6)}` };
+  });
 }
 
 /** An applied filter as a removable chip on the desktop filter bar. */
