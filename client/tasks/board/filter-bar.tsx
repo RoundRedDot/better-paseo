@@ -2,9 +2,8 @@ import React, { type ReactNode, type Ref } from "react";
 import { Platform, Text, View, type TextInput as NativeTextInput } from "react-native";
 import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { ProviderLogo } from "../../components/provider-logo";
 import { taskTokens } from "../cards";
-import { Checkbox, HoverPressable, WindowSegments } from "./board-parts";
+import { Checkbox, FilterBrand, HoverPressable, WindowSegments } from "./board-parts";
 import { GLYPH_LINE, HAIRLINE } from "./board-style";
 import { activeChips, clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem, type BoardParams } from "./params";
@@ -137,7 +136,7 @@ export function DesktopFilterBar(props: {
               key={agent.id}
               option={agent}
               theme={theme}
-              leading={<ProviderLogo provider={agent.id} size={16} />}
+              leading={<FilterBrand provider={agent.id} theme={theme} />}
               onPress={() => setParams((p) => ({ ...p, providers: toggleItem(p.providers, agent.id) }))}
             />
           ))}
