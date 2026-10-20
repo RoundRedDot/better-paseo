@@ -362,6 +362,24 @@ describe("TaskCardView rows", () => {
     expect(icons(tree.root)).toContain("CircleX");
   });
 
+  it("draws a manual stop's reason muted, in the review and the done lane", async () => {
+    for (const lane of ["review", "done"] as const) {
+      const card = { ...sample("sample-done"), lane, status: lane === "review" ? ("unread" as const) : ("done" as const), error: "已手动停止" };
+      const tree = await render(cardElement(card));
+      const reason = tree.root.find((node) => (node.type as unknown) === "Text" && node.props.children === "已手动停止");
+      expect(flat(reason.props.style).color).toBe("#6b6b75");
+      expect(icons(tree.root)).toContain("Square");
+      expect(icons(tree.root)).not.toContain("CircleX");
+      await act(async () => tree.unmount());
+      renderer = null;
+    }
+  });
+
+  it("draws no reason on running or needs-input cards", async () => {
+    const tree = await render(cardElement({ ...sample("sample-child-1"), error: "已手动停止" }));
+    expect(texts(tree.root)).not.toContain("已手动停止");
+  });
+
   it("draws the permission summary, its buttons and the remaining count", async () => {
     const buttons: PermissionButton[] = [
       { key: "allow", label: "允许", variant: "primary", kind: "respond", action: { behavior: "allow", id: null } },

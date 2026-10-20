@@ -225,7 +225,8 @@ export function cardLayout(card: TaskCard, fields: CardSettings, compact: boolea
     context:
       card.lane === "running" && ratio !== null && (compact ? ratio > 0.8 : fields.context),
     subtasks: fields.subtasks && card.children.length > 0,
-    failure: card.lane === "review" && !!card.error,
+    // Review: a failure or a manual stop. Done: the board's "Stopped manually" after a stop the daemon filed as idle.
+    failure: (card.lane === "review" || card.lane === "done") && !!card.error,
     permission: card.lane === "needs_input" && card.permission !== null,
   };
 }
