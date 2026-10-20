@@ -1,5 +1,11 @@
 import React from "react";
-import { View, type ViewStyle } from "react-native";
+import { Platform, View, type ViewProps, type ViewStyle } from "react-native";
+
+// Hidden from assistive tech: the ring is drawn, its value is read from the
+// card. React Native Web passes the native props to the DOM as unknown
+// attributes (a React warning), so web takes `aria-hidden` instead.
+const hidden = (): ViewProps =>
+  Platform.OS === "web" ? { "aria-hidden": true } : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" };
 
 /**
  * Paseo's composer context meter (v0.12.0 `context-window-meter.tsx`): a
@@ -78,7 +84,7 @@ export function ContextRing(props: { ratio: number; color: string; track: string
     />
   );
   return (
-    <View style={{ width: size, height: size }} testID="context-ring" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <View style={{ width: size, height: size }} testID="context-ring" {...hidden()}>
       <View style={[circle, { left: 0, borderColor: props.track }]} />
       {angle > 0 ? (
         <View
