@@ -2,13 +2,14 @@ import React, { useLayoutEffect, useRef } from "react";
 import { Platform, StyleSheet, Text, View, type TextProps, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
 import type { Tokens } from "../../../vendor/marked";
 import type { RenderContext } from "./context";
-import { inlineText, inlineWidth, renderInline } from "./inline";
+import { inlineWidth, renderInline } from "./inline";
 import { nextReuse, reuseNode, type NodeReuse } from "./reuse";
 import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
 import { HScroll } from "../../../ui/h-scroll";
 import { TableCopyMenu } from "./table-copy-menu";
 import { bindTableCellSelection, TABLE_CELL_TEST_ID } from "./table-selection";
-import { useTableTouchSelection } from "./table-touch-selection";
+import { useTableCellSelection } from "./table-touch-selection";
+import { rangeHas, rangeText, rowSpan } from "./table-range";
 import { FLOAT } from "../../../ui/tokens/float";
 import {
   ALIGN_KEYS,
@@ -87,8 +88,7 @@ export function MdTable({
   const measured = columnWidths(token, metrics);
   const widest = useRef<number[]>([]);
   const frameRef = useRef<View>(null);
-  const selection = useTableTouchSelection(token.raw);
-  useLayoutEffect(() => bindTableCellSelection(frameRef.current, selection.select), [selection.select]);
+  const rowRefs = useRef<(View | null)[]>([]);
   let widths = measured;
   if (open) {
     widths = measured.map((width, column) => Math.max(width, widest.current[column] ?? 0));
@@ -101,6 +101,15 @@ export function MdTable({
   const aligns = token.header.map(
     (_, column) => token.align[column] ?? (numericColumn(token, column) ? "right" : "left"),
   );
+  const columnStarts: number[] = [];
+  widths.reduce((start, width) => { columnStarts.push(start); return start + width; }, TABLE_DIVIDER_WIDTH);
+  const selection = useTableCellSelection(token.raw, { frame: frameRef, rows: rowRefs, columns: columnStarts });
+  const { select, begin, extend, end } = selection;
+  useLayoutEffect(() => bindTableCellSelection(frameRef.current, { select, begin, extend, end }), [select, begin, extend, end]);
+  rowRefs.current.length = token.rows.length + 1;
+  const selectedText = selection.range ? rangeText(token, selection.range) : "";
+  // A range of empty cells has nothing to copy, so it is not drawn once let go.
+  const range = selection.dragging || selectedText ? selection.range : null;
   const align = (column: number) => styles[ALIGN_KEYS[aligns[column] ?? "left"]];
   const frame = (column: number) => [
     column === 0 ? null : styles.tableDivider,
@@ -111,37 +120,37 @@ export function MdTable({
   const drawn = useRef<{ context: RenderContext; nodes: NodeReuse["next"] } | null>(null);
   const reuse = nextReuse(drawn, context, open);
   const columns = `${widths.join(",")}|${aligns.join(",")}`;
-  const rowSource = (key: string, cells: readonly Tokens.TableCell[], last: boolean) => {
-    const selected = selection.selected?.key;
-    const marked = selected !== undefined && selected.startsWith(key) ? selected : "";
-    return `${columns}|${last ? 1 : 0}|${marked}|${JSON.stringify(cells.map((cell) => cell.text))}`;
-  };
+  const rowSource = (row: number, cells: readonly Tokens.TableCell[], last: boolean) =>
+    `${columns}|${last ? 1 : 0}|${rowSpan(range, row)}|${JSON.stringify(cells.map((cell) => cell.text))}`;
   const cellTokens = (cells: readonly Tokens.TableCell[]) => () => cells.map((cell) => cell.tokens);
   const drawRow = (
     key: string | undefined,
+    row: number,
     cellPrefix: string,
     cells: readonly Tokens.TableCell[],
     rowStyle: ViewStyle,
     cellStyle: TextStyle,
     last: boolean,
   ) => (
-    <View key={key} style={[rowStyle, last && styles.tableRowLast]}>
+    <View key={key} ref={(node) => { rowRefs.current[row] = node; }} style={[rowStyle, last && styles.tableRowLast]}>
       {cells.map((cell, column) => {
         const cellKey = `${cellPrefix}${column}`;
         return (
           <TableCell
             key={cellKey}
             testID={TABLE_CELL_TEST_ID}
-            selectable
+            // On iOS and Android a held cell starts a range, which the
+            // platform's own text selection would take over.
+            selectable={Platform.OS === "web"}
             {...contentTextProps()}
-            {...(Platform.OS === "web" ? { dataSet: { tableCellKey: cellKey, tableCellText: inlineText(cell.tokens) } } : {})}
-            touchProps={selection.cellProps(cellKey, () => inlineText(cell.tokens))}
+            {...(Platform.OS === "web" ? { dataSet: { tableCellRow: row, tableCellColumn: column } } : {})}
+            touchProps={selection.cellProps({ row, column })}
             style={[
               cellStyle,
               align(column),
               ...frame(column),
               contentTextStyle(),
-              selection.selected?.key === cellKey && { backgroundColor: context.tokens.accentBg },
+              rangeHas(range, row, column) && { backgroundColor: context.tokens.accentBg },
             ]}
           >
             {renderInline(cell.tokens, context, cellKey)}
@@ -154,17 +163,18 @@ export function MdTable({
   return (
     <View style={copyStyles.outer}>
       <HScroll tokens={context.tokens} indicatorOnScroll style={styles.tableScroll} contentContainerStyle={styles.tableContent}
-        onScrollBeginDrag={selection.selected ? selection.dismiss : undefined}>
+        scrollEnabled={!selection.dragging}
+        onScrollBeginDrag={range ? selection.dismiss : undefined}>
         <View style={copyStyles.container}>
           <View ref={frameRef} style={styles.tableFrame}>
-            {reuseNode(reuse, `${keyPrefix}h`, rowSource(`${keyPrefix}h`, token.header, token.rows.length === 0),
-              cellTokens(token.header), () => drawRow(undefined, `${keyPrefix}h`, token.header, styles.tableHeaderRow,
+            {reuseNode(reuse, `${keyPrefix}h`, rowSource(0, token.header, token.rows.length === 0),
+              cellTokens(token.header), () => drawRow(undefined, 0, `${keyPrefix}h`, token.header, styles.tableHeaderRow,
                 styles.tableHeaderCell, token.rows.length === 0))}
             {token.rows.map((row, rowIndex) => {
               const rowKey = `${keyPrefix}r${rowIndex}`;
               const last = rowIndex === token.rows.length - 1;
-              return reuseNode(reuse, rowKey, rowSource(`${rowKey}c`, row, last), cellTokens(row),
-                () => drawRow(rowKey, `${rowKey}c`, row, styles.tableRow, styles.tableCell, last));
+              return reuseNode(reuse, rowKey, rowSource(rowIndex + 1, row, last), cellTokens(row),
+                () => drawRow(rowKey, rowIndex + 1, `${rowKey}c`, row, styles.tableRow, styles.tableCell, last));
             })}
           </View>
         </View>
@@ -176,7 +186,7 @@ export function MdTable({
             own expanding frame so no full-width fill remains during exit. */}
         <View pointerEvents="none" style={[copyStyles.corner, copyStyles.backing, { backgroundColor: context.tokens.surface0 }]} />
         <TableCopyMenu source={() => token.raw} frame={frameRef} tokens={context.tokens}
-          selected={selection.selected ? { text: selection.selected.text, dismiss: selection.dismiss } : undefined} />
+          selected={selectedText && !selection.dragging ? { text: selectedText, dismiss: selection.dismiss } : undefined} />
       </View>
     </View>
   );

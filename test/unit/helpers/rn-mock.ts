@@ -139,6 +139,10 @@ export const TurboModuleRegistry = {
   },
 };
 
+export function findNodeHandle(_node: unknown): number | null {
+  return null;
+}
+
 export function useWindowDimensions() {
   return Dimensions.get();
 }
