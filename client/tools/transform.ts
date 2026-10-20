@@ -5,7 +5,7 @@
 import type { PluginTimelineTransformResult } from "@getpaseo/plugin";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import { toolErrorText } from "./error-text";
-import { agentMessageSchema } from "./agent-message";
+import { agentMessageFromDetail, agentMessageSchema } from "./agent-message";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -18,8 +18,11 @@ export function transformToolCall({ item, phase }: {
   phase: "streaming" | "complete";
 }): PluginTimelineTransformResult | undefined {
   if (item.type !== "tool_call") return undefined;
-  const message = item.name === "agent_message" ? agentMessageSchema.safeParse(item.agentMessage) : undefined;
-  // Claim a message only when the host supplies its sender and event.
+  // The host's provenance when it passes it on; otherwise the notification's own status line.
+  const provenance = item.name === "agent_message"
+    ? (item as { agentMessage?: unknown }).agentMessage ?? agentMessageFromDetail(item.detail) : undefined;
+  const message = item.name === "agent_message" ? agentMessageSchema.safeParse(provenance) : undefined;
+  // Claim a message only when its sender and event are known.
   if (message && !message.success) return undefined;
   // The status rides as the host sent it, `canceled` included. Of the
   // metadata a plan's verdict and structured questions are kept: Claude reports a rejected plan

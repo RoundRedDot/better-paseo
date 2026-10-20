@@ -28,6 +28,26 @@ describe("supervisor status cards", () => {
     expect(toolCopyPlan(view, (path) => path).primary?.text).toBe(body);
   });
 
+  // Paseo 0.12 hands transformers the call without `agentMessage` (sourceToolCallTimelineItem).
+  it.each(Object.keys(AGENT_STATUS_LABEL).filter((status) => status !== "message"))(
+    "claims %s when the host passes no agentMessage, reading sender and event from the notification", (status) => {
+      const transformed = transformToolCall({ item: { type: "tool_call", callId: "paseo-agent-message:m1",
+        name: "agent_message", status: "completed", error: null, detail: { ...detail(status), icon: "bot" } } as never, phase: "complete" });
+      expect(transformed).toBeDefined();
+      const view = classifyTool(transformed!.items[0]!.data as unknown as ToolCallPayload);
+      expect(view.agentStatus).toEqual({ agentId, title, status, body });
+      expect(summarizeTool(view)).toMatchObject({ verb: AGENT_STATUS_LABEL[status as AgentStatus], target: title });
+    });
+
+  it("leaves a plain agent-to-agent message without provenance to the host, which knows its sender", () => {
+    expect(transformToolCall({ item: { type: "tool_call", callId: "paseo-agent-message:m2", name: "agent_message",
+      status: "completed", error: null, detail: { type: "plain_text", text: "Can you rebase first?" } }, phase: "complete" })).toBeUndefined();
+  });
+
+  it("strips the response wrapper even with trailing whitespace", () => {
+    expect(readAgentStatus({ ...detail(), text: `${detail().text}\n` })?.body).toBe(body);
+  });
+
   it("does not infer failure from a finished agent's response", () => {
     expect(classifyTool({ name: "agent_message", status: "completed", detail: detail(), agentMessage: { event: "finished", sender: { id: agentId, title }, text: detail().text } }).status).toBe("completed");
   });
