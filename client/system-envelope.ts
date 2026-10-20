@@ -29,6 +29,8 @@ export interface SystemEnvelope {
   body: string;
   /** True when the envelope reports a failure. */
   failed: boolean;
+  /** The agent that sent a relayed message; the card names it as an agent row does. */
+  sender?: string;
 }
 
 const TAG_KINDS: Record<string, SystemEnvelopeKind> = {
@@ -150,7 +152,7 @@ export function parseSystemEnvelope(text: string): SystemEnvelope | null {
     const sender = inner.match(IRC_SENDER);
     if (sender) {
       const body = inner.slice((sender.index ?? 0) + sender[0].length).trim();
-      return { kind, title: `Message from ${sender[1]}`, chips: [], body, failed: false };
+      return { kind, title: `Message from ${sender[1]}`, chips: [], body, failed: false, sender: sender[1] };
     }
   }
 

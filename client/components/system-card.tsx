@@ -3,6 +3,8 @@ import { View, Text, StyleSheet } from "react-native";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { SyntaxHighlightBlock } from "./syntax-highlight";
+import { MarkdownView } from "./markdown/markdown-view";
+import { blockProseBase } from "../ui/tokens/typography";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface } from "./selection-actions";
 import { DisclosureHeader, RowIcon, RowText } from "../ui/disclosure-header";
@@ -81,6 +83,10 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
           paddingHorizontal: space.md,
           ...selectableSurface,
         },
+        senderTitle: {
+          fontSize: tokens.typography.block.target.size,
+          lineHeight: tokens.typography.block.target.lineHeight,
+        },
         prose: {
           fontFamily: tokens.fontUi,
           fontSize: tokens.typography.content.size - 1 + tokens.typography.block.delta,
@@ -97,12 +103,14 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
       color={failed ? tokens.danger : envelope.kind === "job" ? tokens.success : undefined}
     />
   );
+  // A relayed message reads as an agent row: "Message  reviewer  IRC".
+  const sender = envelope.sender;
   const title = (
-    <RowText part="target" selectable={false} numberOfLines={1} style={styles.title}>
-      {envelope.title}
+    <RowText part="target" selectable={false} numberOfLines={1} style={[styles.title, sender ? styles.senderTitle : null]}>
+      {sender ?? envelope.title}
     </RowText>
   );
-  const meta: React.ReactNode[] = envelope.chips.map((chip) => chip.value);
+  const meta: React.ReactNode[] = sender ? ["IRC"] : envelope.chips.map((chip) => chip.value);
   if (failed) meta.push(<Text style={{ color: tokens.danger }}>failed</Text>);
 
   return (
@@ -115,7 +123,9 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
         compact={compact}
         icon={icon}
         iconIsStatus={failed}
-        verb={look.label}
+        verb={sender ? "Message" : look.label}
+        keepVerb={Boolean(sender)}
+        metaFont={sender ? "ui" : "mono"}
         target={title}
         meta={meta}
         accessibilityLabel={`${look.label} ${envelope.title}${failed ? ", failed" : ""}`}
@@ -123,7 +133,10 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
       {open ? (
         <FadeIn style={styles.body}>
           <View {...selectionSurface} style={styles.bodyInner}>
-            {kind === "prose" ? (
+            {sender ? (
+              <MarkdownView text={envelope.body} tokens={tokens} variant="document" compact={compact}
+                size={blockProseBase(tokens.typography)} />
+            ) : kind === "prose" ? (
               <Text selectable {...contentTextProps()} style={[styles.prose, contentTextStyle()]}>
                 {envelope.body}
               </Text>

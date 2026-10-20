@@ -68,7 +68,7 @@ describe("received agent messages", () => {
     const projected = transformToolCall({ item: source, phase: "complete" })!;
     const view = classifyTool(projected.items[0]!.data as unknown as ToolCallPayload);
     expect(view.agentStatus).toEqual({ agentId, title: message.sender.title, status: "message", body: message.text });
-    expect(summarizeTool(view).verb).toBe("Message received");
+    expect(summarizeTool(view).verb).toBe("Message");
     expect(toolCopyPlan(view, (path) => path).primary?.text).toBe(message.text);
   });
 

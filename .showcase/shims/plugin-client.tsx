@@ -21,9 +21,17 @@ export function usePaseo() {
   return PASEO as never;
 }
 
-export function useAgent<T>(_agentId: string, selector: (agent: never) => T): T | null {
-  void selector;
-  return null;
+// Titles for the agent-card fixtures, as a host that has the agents loaded returns them.
+const AGENTS: Record<string, Record<string, unknown>> = {
+  "58821f29-ede4-48c1-8bb2-60ed7057abca": { title: "tasks B: cards and status icons", provider: "codex", model: "gpt-6",
+    status: "idle", attentionReason: "finished", cwd: "/Users/me/code/better-paseo/.worktrees/tasks-cards" },
+  "db43c484-e0ea-4ae2-94f9-6f5261234567": { title: "Screenshot builder", provider: "claude", model: "claude-opus-5",
+    status: "running", attentionReason: "permission", cwd: "/Users/me/code/better-paseo" },
+};
+
+export function useAgent<T>(agentId: string, selector: (agent: never) => T): T | null {
+  const agent = AGENTS[agentId];
+  return agent ? selector(agent as never) ?? null : null;
 }
 
 export function useWorkspace<T>(_workspaceId: string, selector: (workspace: never) => T): T | null {

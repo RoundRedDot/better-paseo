@@ -101,7 +101,7 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
   [
     "paseo · create_agent · title",
     call("create_agent", { type: "unknown", input: { title: "Reviewer", provider: "claude/opus" }, output: "" }),
-    { verb: "paseo / create_agent", target: "Reviewer" },
+    { verb: "Created", target: "Reviewer", meta: ["Claude"] },
   ],
   [
     "codex mcp · server / tool",
@@ -162,7 +162,7 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
       log: "",
       actions: [{ index: 0, toolName: "Read" }],
     }),
-    { verb: "Explore", target: "Find the bug", meta: ["1 action"] },
+    { verb: "Subtask", target: "Find the bug", meta: ["Explore · 1 action"] },
   ],
   [
     "sub_agent · the description, not the prompt",
@@ -173,7 +173,7 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
       prompt: "Read src/ and report where the crash starts.",
       log: "",
     }),
-    { verb: "General-purpose", target: "Find the bug", meta: [] },
+    { verb: "Subtask", target: "Find the bug", meta: ["General-purpose"] },
   ],
   [
     "unknown · name · key argument",
