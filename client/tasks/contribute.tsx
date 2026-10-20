@@ -6,6 +6,7 @@ import { setTasksEnabled, setTasksSettingsOpener, subscribeTasksEnabled, tasksEn
 import { encodeBoardParams, lastBoardParams } from "./board/params";
 import { TasksSidebarEntry } from "./board/sidebar-entry";
 import { BOARD_STRINGS } from "./board/strings";
+import { subscribeHostLanguage } from "../i18n/host-language";
 import { onTasksLanguageChange, resolveTasksLanguage } from "./i18n";
 import { TasksSettingsPage } from "./settings/settings-page";
 
@@ -84,6 +85,9 @@ export function contributeTasks(client: PluginClientContext): () => void {
   };
   const unsubscribeEnabled = subscribeTasksEnabled(applyEnabled);
   const unsubscribeLanguage = onTasksLanguageChange(relabel);
+  // On iOS and Android the host's language arrives from AsyncStorage after
+  // this first look, with or without a Tasks component mounted.
+  const unsubscribeHostLanguage = subscribeHostLanguage(relabel);
   applyEnabled();
 
   // One read at startup; afterwards the settings page and the board's own
@@ -101,6 +105,7 @@ export function contributeTasks(client: PluginClientContext): () => void {
     live = false;
     unsubscribeEnabled();
     unsubscribeLanguage();
+    unsubscribeHostLanguage();
     removeBoard?.();
     removeBoard = null;
     removeSettings();

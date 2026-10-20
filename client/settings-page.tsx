@@ -7,6 +7,7 @@ import { radiusV2, space, buildThemeTokens, inlineCodeColor, type ExtendedThemeT
 import { ensureEmbeddedFonts } from "./components/embed-fonts";
 import { pluginRoot } from "./components/focus-ring";
 import { useHostAppearance } from "./ui/tokens/host-appearance-shim";
+import { useHostLanguageVersion } from "./i18n/host-language";
 import { surfaceProps } from "./components/view-props";
 import {
   ACCENT_PRESETS,
@@ -826,6 +827,8 @@ export function BetterPaseoSettingsPage({ theme, layout }: PluginSurfaceProps) {
   // The settings screen reads (and, through the store, saves) the daemon
   // record itself, so it works with no chat open.
   const sync = usePreferenceSettings();
+  // "Follow Paseo" on iOS and Android learns the host's language a turn later.
+  useHostLanguageVersion();
   const t = SETTINGS_STRINGS[resolveLanguage(preferences.language)];
   const hint = storageHint(sync, t);
   const platform =

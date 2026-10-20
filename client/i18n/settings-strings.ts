@@ -1,36 +1,32 @@
 /**
  * The settings page in English and Chinese.
  *
- * The plugin SDK does not tell a plugin which language Paseo is set to, so
- * "Follow system" reads the device locale; a reader whose Paseo and system
- * languages differ picks one explicitly. Only the settings page (with the
- * sample turn of its preview) and the names preview toolbar buttons show on
- * hover are translated (`toolbar-strings.ts`): the chat itself shows the
- * model's and the tools' own words.
+ * "Follow Paseo" (the "system" preference) follows Paseo's own language (`host-language.ts`): the
+ * language set in Paseo's settings, else the device locales the way Paseo
+ * reads them. Only the settings page (with the sample turn of its preview)
+ * and the names preview toolbar buttons show on hover are translated
+ * (`toolbar-strings.ts`): the chat itself shows the model's and the tools'
+ * own words.
  */
+import { deviceLocales, hostLanguage, isChineseLocale } from "./host-language";
 
 export type SettingsLanguagePreference = "system" | "en" | "zh";
 export type SettingsLanguage = "en" | "zh";
 
 /** The device locale, e.g. `zh-CN`, or null where the runtime exposes none. */
 export function systemLanguage(): string | null {
-  const nav = (globalThis as { navigator?: { languages?: readonly string[]; language?: string } }).navigator;
-  const fromNavigator = nav?.languages?.[0] ?? nav?.language;
-  if (typeof fromNavigator === "string" && fromNavigator) return fromNavigator;
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().locale ?? null;
-  } catch {
-    return null;
-  }
+  return deviceLocales()[0] ?? null;
 }
 
-/** The language the page is drawn in: an explicit choice, else Chinese for any `zh` locale. */
-export function resolveLanguage(
-  preference: SettingsLanguagePreference,
-  locale: string | null = systemLanguage(),
-): SettingsLanguage {
+/**
+ * The language the page is drawn in: an explicit choice, else Paseo's
+ * language. A `locale` given (tests, a caller that knows it) stands in for
+ * Paseo's: Chinese for any `zh` locale.
+ */
+export function resolveLanguage(preference: SettingsLanguagePreference, locale?: string | null): SettingsLanguage {
   if (preference !== "system") return preference;
-  return locale !== null && /^zh(?:[-_]|$)/i.test(locale) ? "zh" : "en";
+  if (locale === undefined) return hostLanguage();
+  return isChineseLocale(locale) ? "zh" : "en";
 }
 
 const en = {
@@ -73,8 +69,8 @@ const en = {
   sectionGeneral: "General",
   languageTitle: "Language",
   languageDescription:
-    "For this page and the toolbar tooltips. Plugins cannot read Paseo's own language, so Follow system uses the device's.",
-  languageSystem: "Follow system",
+    "For this page, the toolbar tooltips and the Tasks board. Follow Paseo uses the language set in Paseo, or the device's when Paseo follows the system.",
+  languageSystem: "Follow Paseo",
   languageEnglish: "English",
   languageChinese: "简体中文",
 
@@ -229,8 +225,8 @@ const zh: SettingsStrings = {
 
   sectionGeneral: "通用",
   languageTitle: "语言",
-  languageDescription: "本页和工具栏提示使用的语言。插件读不到 Paseo 自身的语言设置，“跟随系统”按设备语言判断。",
-  languageSystem: "跟随系统",
+  languageDescription: "本页、工具栏提示和任务看板使用的语言。“跟随 Paseo”使用 Paseo 里设置的语言；Paseo 跟随系统时按设备语言判断。",
+  languageSystem: "跟随 Paseo",
   languageEnglish: "English",
   languageChinese: "简体中文",
 
