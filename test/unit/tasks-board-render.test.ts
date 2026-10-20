@@ -88,13 +88,12 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
 
 import { StyleSheet, View } from "react-native";
 import { ProviderLogo } from "../../client/components/provider-logo";
-import { FilterBrand } from "../../client/tasks/board/board-parts";
 import * as data from "../../client/tasks/data";
 import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS } from "../../client/tasks/board/params";
-import { TaskCardView, TaskDetails } from "../../client/tasks/cards";
+import { BrandMark, PiMark, TaskCardView, TaskDetails, taskTokens } from "../../client/tasks/cards";
 import { DEFAULT_TASKS_SETTINGS } from "../../shared/tasks-settings";
 import { resetEnhancerPreferences } from "../../client/preferences";
 
@@ -304,20 +303,36 @@ describe("Tasks board, host theme", () => {
 });
 
 describe("Tasks filter brand marks", () => {
-  it("draws monochrome marks in the theme foreground and coloured ones in their hue", () => {
+  it("draws the agent menu's marks as the cards do", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(1600);
+    const agentPill = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false && textOf(node) === "Agent")[0]!;
+    act(() => agentPill.props.onPress());
+    // The menu's rows are checkboxes; the cards draw their own marks elsewhere.
+    const rows = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox");
+    const marks = rows.flatMap((row) => row.findAllByType(BrandMark));
+    expect(marks.map((mark) => [mark.props.provider, mark.props.size])).toEqual([
+      ["claude", 16],
+      ["codex", 16],
+    ]);
+  });
+
+  it("draws Pi in its three colours and monochrome marks in the theme foreground", () => {
     const colors = { ...(theme as unknown as { colors: Record<string, string> }).colors, foreground: "#3b2f20" };
+    const tokens = taskTokens({ colors } as never);
     act(() => {
       renderer = TestRenderer.create(
-        React.createElement(View, null, ...["grok", "pi", "cursor", "claude", "codex"].map((provider) => React.createElement(FilterBrand, { key: provider, provider, theme: { colors } as never }))),
+        React.createElement(View, null, ...["pi", "grok", "cursor", "claude"].map((provider) => React.createElement(BrandMark, { key: provider, provider, size: 16, tokens }))),
       );
     });
-    const logos = renderer!.root.findAllByType(ProviderLogo);
-    expect(logos.map((logo) => [logo.props.provider, logo.props.color])).toEqual([
+    expect(renderer!.root.findAllByType(PiMark)).toHaveLength(1);
+    expect(renderer!.root.findAllByType(ProviderLogo).map((logo) => [logo.props.provider, logo.props.color])).toEqual([
       ["grok", "#3b2f20"],
-      ["pi", "#3b2f20"],
       ["cursor", "#3b2f20"],
       ["claude", undefined],
-      ["codex", undefined],
     ]);
   });
 });
