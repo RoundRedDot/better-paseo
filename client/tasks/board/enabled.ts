@@ -44,8 +44,20 @@ export function useTasksSettings(): TasksSettings | null {
   return values;
 }
 
+/** Opens Settings > Tasks; set by `contribute.tsx`, since screen props carry no way to open settings. */
+let settingsOpener: (() => void) | null = null;
+
+export function setTasksSettingsOpener(open: (() => void) | null): void {
+  settingsOpener = open;
+}
+
+export function tasksSettingsOpener(): (() => void) | null {
+  return settingsOpener;
+}
+
 /** Tests only. */
 export function resetTasksEnabled(): void {
   enabled = null;
+  settingsOpener = null;
   listeners.clear();
 }
