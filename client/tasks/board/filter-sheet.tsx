@@ -84,6 +84,7 @@ export function FilterSheetBody(props: { board: BoardController; theme: PluginTh
         <ToggleRow
           icon="ListTree"
           label={strings.hideSubtasks}
+          hint={strings.hideSubtasksHint}
           on={resolved.filters.hideSubtasks}
           theme={theme}
           onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}

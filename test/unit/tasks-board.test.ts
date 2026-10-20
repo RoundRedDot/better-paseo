@@ -186,8 +186,10 @@ describe("sidebar counts", () => {
     ["running-and-input", counts, { running: 3, input: 2 }, "3 running, 2 need input", "3 个运行中，2 个待输入"],
     ["input-only", counts, { running: null, input: 2 }, "2 need input", "2 个待输入"],
     ["none", counts, { running: null, input: null }, "", ""],
-    ["running-and-input", { running: 0, needsInput: 1 }, { running: null, input: 1 }, "1 need input", "1 个待输入"],
-    ["running-and-input", { running: 4, needsInput: 0 }, { running: 4, input: null }, "4 running", "4 个运行中"],
+    // Both numbers as soon as either is above zero; the zero one is drawn muted.
+    ["running-and-input", { running: 0, needsInput: 1 }, { running: 0, input: 1 }, "0 running, 1 need input", "0 个运行中，1 个待输入"],
+    ["running-and-input", { running: 4, needsInput: 0 }, { running: 4, input: 0 }, "4 running, 0 need input", "4 个运行中，0 个待输入"],
+    ["input-only", { running: 4, needsInput: 0 }, { running: null, input: null }, "", ""],
     ["running-and-input", { running: 0, needsInput: 0 }, { running: null, input: null }, "", ""],
   ] as const)("%s with %j", (mode, value, parts, en, zh) => {
     const result = sidebarCountParts(value, mode);
