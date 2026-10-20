@@ -364,7 +364,10 @@ describe("Markdown table copy", () => {
       getOutermostParentListRef: () => ({ getScrollRef: () => ({ getNativeScrollRef: () => ({ setNativeProps }) }) }) };
     // The frame sits at (0, 100) on the page; its rows, measured in order, are 30 tall.
     let row = 0;
+    const setIsJSResponder = vi.fn();
+    vi.stubGlobal("nativeFabricUIManager", { setIsJSResponder });
     const createNodeMock = () => ({
+      __internalInstanceHandle: { stateNode: { node: "shadow" } },
       measure: (done: (...args: number[]) => void) => { row = 0; done(0, 0, 300, 90, 0, 100); },
       measureLayout: (_node: unknown, done: (left: number, top: number) => void) => done(1, row++ * 30),
     });
@@ -382,8 +385,16 @@ describe("Markdown table copy", () => {
     act(() => { vi.advanceTimersByTime(350); });
     expect(highlighted()).toEqual(["one"]);
     expect(setNativeProps).toHaveBeenLastCalledWith({ scrollEnabled: false });
-    expect(handleSetJSResponder).toHaveBeenCalledExactlyOnceWith(-1, true);
-    expect(flushOperations).toHaveBeenCalledAfter(handleSetJSResponder);
+    if (os === "ios") {
+      // Gesture Handler fails the host's pans itself once its call is flushed.
+      expect(handleSetJSResponder).toHaveBeenCalledExactlyOnceWith(-1, true);
+      expect(flushOperations).toHaveBeenCalledAfter(handleSetJSResponder);
+      expect(setIsJSResponder).not.toHaveBeenCalled();
+    } else {
+      // Its call crashes on Android; the frame becomes the blocking responder instead.
+      expect(handleSetJSResponder).not.toHaveBeenCalled();
+      expect(setIsJSResponder).toHaveBeenCalledExactlyOnceWith("shadow", true, true);
+    }
     expect(scroller().props.scrollEnabled).toBe(false);
     expect(touchCell(2).props.onMoveShouldSetResponder()).toBe(true);
     expect(touchCell(2).props.onResponderTerminationRequest()).toBe(false);
@@ -393,6 +404,7 @@ describe("Markdown table copy", () => {
     expect(selectedCopy()).toHaveLength(0);
     act(() => touchCell(2).props.onTouchEnd(touch(500, 2000, 165)));
     expect(setNativeProps).toHaveBeenLastCalledWith({ scrollEnabled: true });
+    if (os === "android") expect(setIsJSResponder).toHaveBeenLastCalledWith("shadow", false, false);
     expect(scroller().props.scrollEnabled).toBe(true);
     expect(touchCell(2).props.onMoveShouldSetResponder()).toBe(false);
     expect(selectedCopy()).toHaveLength(1);
