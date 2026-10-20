@@ -11,7 +11,7 @@ import { useCopy } from "../ui/use-copy";
 import {
   AgentDivider, AgentErrorLine, AgentIdentityStrip, AgentMarkdown, AgentSection, useCardMobile, useLiveAgent, type AgentField,
 } from "./agent-card-content";
-import { SendAgentPromptView, AgentOperationView, PermissionActions, PermissionRequest } from "./agent-operation-views";
+import { SendAgentPromptView, AgentOperationView, PermissionActions, PermissionQuestionForm, PermissionRequest, PermissionRequestId } from "./agent-operation-views";
 import { readPermissionRequest, type AgentStatusData } from "../tools/agent-status";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { ProviderLogo } from "./provider-logo";
@@ -130,9 +130,13 @@ export function AgentStatusView({ data, tokens, raw = false, compact = false }: 
       agentId={data.agentId} tokens={tokens} mobile={mobile} />
     {errorLine || rest || permission ? <AgentDivider tokens={tokens} /> : null}
     {errorLine ? <AgentErrorLine text={errorLine} tokens={tokens} /> : null}
-    {permission ? <PermissionRequest testID="agent-status-permission" title={permission.title} requestId={permission.requestId}
-      description={permission.description} command={permission.command} tokens={tokens} /> : null}
-    {permission?.requestId ? <PermissionActions agentId={data.agentId} requestId={permission.requestId} tokens={tokens} mobile={mobile} /> : null}
+    {permission?.questions ? <PermissionQuestionForm agentId={data.agentId} requestId={permission.requestId}
+      questions={permission.questions} input={permission.input} tokens={tokens} mobile={mobile} /> : null}
+    {permission && !permission.questions ? <PermissionRequest testID="agent-status-permission" title={permission.title}
+      description={permission.description} command={permission.command} plan={permission.plan} tokens={tokens} mobile={mobile} /> : null}
+    {permission?.requestId && !permission.questions ? <PermissionActions agentId={data.agentId} requestId={permission.requestId}
+      actions={permission.actions} tokens={tokens} mobile={mobile} /> : null}
+    {permission?.requestId ? <PermissionRequestId requestId={permission.requestId} tokens={tokens} /> : null}
     {rest ? <AgentSection label={data.status === "finished" && !raw ? "Reply" : undefined} tokens={tokens}>
       <AgentMarkdown testID="agent-status-body" text={rest} tokens={tokens} raw={raw} mobile={mobile} /></AgentSection> : null}
   </View>;

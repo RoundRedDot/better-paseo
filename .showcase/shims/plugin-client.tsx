@@ -27,6 +27,8 @@ const AGENTS: Record<string, Record<string, unknown>> = {
     status: "idle", attentionReason: "finished", cwd: "/Users/me/code/better-paseo/.worktrees/tasks-cards" },
   "db43c484-e0ea-4ae2-94f9-6f5261234567": { title: "Screenshot builder", provider: "claude", model: "claude-opus-5",
     status: "running", attentionReason: "permission", cwd: "/Users/me/code/better-paseo" },
+  "8308fd05-7a1e-4c2b-9d3f-1b2c3d4e5f60": { title: "整理 Android develop 对齐 iOS 2.0.6 的设置改动", provider: "codex", model: "gpt-6-luna",
+    status: "running", attentionReason: "permission", cwd: "/Users/me/code/ideashell" },
 };
 
 export function useAgent<T>(agentId: string, selector: (agent: never) => T): T | null {

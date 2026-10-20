@@ -40,7 +40,7 @@ import { Glyph } from "../client/components/glyph";
 import { classifyTool, type ToolCallPayload, type ToolCallView } from "../client/tools/classify";
 import { useSelectionActions } from "../client/components/selection-actions";
 import { S7_GROUPS } from "./s7-groups";
-import { AgentOpened, AgentPreviews, AgentRows } from "./agent-cards";
+import { AgentOpened, AgentPreviews, AgentRows, PERMISSION_CARDS } from "./agent-cards";
 import { pluginRoot } from "../client/components/focus-ring";
 import { DEFAULT_WEB_MONO_STACK } from "../client/ui/tokens/typography";
 
@@ -1483,6 +1483,8 @@ function Showcase() {
           <Shot id={`shot-agent-opened-${name}`} width={720} background={bg}><AgentOpened tokens={t} /></Shot>
           <Shot id={`shot-agent-narrow-${name}`} width={380} background={bg}><AgentOpened tokens={t} /></Shot>
           <Shot id={`shot-agent-previews-${name}`} width={720} background={bg}><AgentPreviews tokens={t} /></Shot>
+          <Shot id={`shot-agent-permission-${name}`} width={720} background={bg}><AgentOpened tokens={t} only={PERMISSION_CARDS} /></Shot>
+          <Shot id={`shot-agent-permission-narrow-${name}`} width={380} background={bg}><AgentOpened tokens={t} only={PERMISSION_CARDS} /></Shot>
         </React.Fragment>
       ))}
       <Shot id="shot-primitives-dark" width={640}>

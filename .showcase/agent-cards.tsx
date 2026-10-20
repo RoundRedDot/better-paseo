@@ -69,6 +69,33 @@ export const AGENT_PERMISSION = classifyTool((() => {
   return { name: "agent_message", callId: "msg-permission", status: "completed", detail: { type: "plain_text", text },
     agentMessage: { event: "permission-required" as const, sender: { id: BUILDER, title: "Screenshot builder" }, text } };
 })());
+const ASKER = "8308fd05-7a1e-4c2b-9d3f-1b2c3d4e5f60";
+function permissionMessage(id: string, title: string, callId: string, request: Record<string, unknown>, response = ""): ToolCallView {
+  const text = `Agent ${id} (${title}) needs permission.\n\nRespond with \`respond_to_permission\` using the \`agentId\` and \`requestId\` below.\n\n<permission-request>\n${
+    JSON.stringify({ agentId: id, requestId: request.id, request }, null, 2)}\n</permission-request>${response ? `\n\n<agent-response>\n${response}\n</agent-response>` : ""}`;
+  return classifyTool({ name: "agent_message", callId, status: "completed", detail: { type: "plain_text", text },
+    agentMessage: { event: "permission-required" as const, sender: { id, title }, text } });
+}
+/** Codex's async question, as the iOS report showed it: one question, two options, a free-text answer. */
+export const AGENT_QUESTION = permissionMessage(ASKER, "整理 Android develop 对齐 iOS 2.0.6 的设置改动", "msg-question", {
+  id: "permission-call_4c3390c78d9e40b8877eb4c8eaf0a65d", provider: "codex", name: "request_user_input_async", kind: "question",
+  title: "Question", input: { questions: [{ id: "0", header: "Question 1", isOther: true,
+    question: "仓库 AGENTS.md 要求多文件任务先确认计划。拟分 6 组实施并分批提交：设置常规 / AI 专题与文案；连接应用和 MCP；联系人分组、关联记录与校验；语音词库独立页、加权长度、服务端确认与去重；技能和定时任务页面；全局网络 Toast 去重及头像资源。新增字符串放 `strings_align206_settings.xml` 的 8 个语言目录；不改 Room schema、`NoteDrawerUI.kt` 或主路由；完成后合并 `feat/align-ios-2.0.6` 并按简报在 Mac Studio 验证。按此计划实施？",
+    options: [{ label: "按此计划实施" }, { label: "调整计划", description: "先说明要改哪几组，再开始" }] }] },
+});
+export const AGENT_QUESTIONS = permissionMessage(ASKER, "Release checklist", "msg-questions", {
+  id: "permission-call_2", provider: "codex", name: "request_user_input_async", kind: "question", title: "Question",
+  input: { questions: [
+    { id: "0", header: "Question 1", question: "Which branch should the release cut from?", options: [{ label: "main" }, { label: "release/2.0" }], isOther: true },
+    { id: "1", header: "Question 2", question: "Which checks must pass first?", multiSelect: true,
+      options: [{ label: "tsc", description: "Type check every package" }, { label: "vitest" }, { label: "check:hermes" }] },
+  ] },
+});
+export const AGENT_PLAN = permissionMessage(BUILDER, "Screenshot builder", "msg-plan", {
+  id: "permission-plan-1", provider: "claude", name: "ExitPlanMode", kind: "plan", title: "Plan",
+  input: { plan: "## Recapture the agent cards\n\n1. Clear `.showcase/out`\n2. Run `shots.mjs` in dark and light\n3. Compare against the baseline" },
+  actions: [{ id: "reject", label: "Keep planning", behavior: "deny" }, { id: "implement", label: "Implement", behavior: "allow", variant: "primary" }],
+});
 export const AGENT_CLOSED = message("closed", "was closed", "");
 export const AGENT_MESSAGE = message("message", "", "Can you confirm the base branch is `feat/tasks-integration`?");
 export const AGENT_STATUS_OP = paseo("get_agent_status", { agentId: REVIEWER }, { status: "running", snapshot: {
@@ -119,6 +146,8 @@ export function AgentOpened({ tokens, only }: { tokens: ExtendedThemeTokens; onl
     </View>)}
   </View>;
 }
+
+export const PERMISSION_CARDS: ToolCallView[] = [AGENT_QUESTION, AGENT_QUESTIONS, AGENT_PERMISSION, AGENT_PLAN];
 
 /** Hover previews: the floating panel's toolbar and body. */
 export function AgentPreviews({ tokens, only }: { tokens: ExtendedThemeTokens; only?: ToolCallView[] }) {

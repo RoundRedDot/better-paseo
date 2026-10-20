@@ -481,6 +481,66 @@ describe("needs-permission card", () => {
     expect(renderer!.root.findByProps({ testID: "permission-actions" })).toBeDefined();
   });
 
+  function questionView() {
+    const text = `Agent ${agentId} (Builder) needs permission.\n\n<permission-request>\n${JSON.stringify({ agentId, requestId: "permission-q1",
+      request: { id: "permission-q1", provider: "codex", name: "request_user_input_async", kind: "question", title: "Question", input: { questions: [
+        { id: "0", header: "Question 1", question: "按此计划实施？", options: [{ label: "按此计划实施" }, { label: "调整计划" }], isOther: true },
+      ] } } }, null, 2)}\n</permission-request>`;
+    return classifyTool({ name: "agent_message", callId: "question", status: "completed", detail: { type: "plain_text", text },
+      agentMessage: { event: "permission-required", sender: { id: agentId, title: "Builder" }, text } });
+  }
+
+  it("draws a question as options and submits the picked answer the way Paseo's form does", async () => {
+    host.agent = { status: "running", attentionReason: "permission" };
+    act(() => { renderer = TestRenderer.create(preview(questionView())); });
+    const text = textOf(renderer!.toJSON());
+    expect(text).toContain("按此计划实施？");
+    expect(text).not.toContain('"questions"');
+    const submit = () => renderer!.root.findByProps({ testID: "permission-submit" });
+    expect(submit().props.disabled).toBe(true);
+    act(() => renderer!.root.findByProps({ testID: "permission-option-0-1" }).props.onPress());
+    expect(submit().props.disabled).toBe(false);
+    await act(async () => submit().props.onPress());
+    expect(host.respondToPermission).toHaveBeenLastCalledWith({ requestId: "permission-q1", response: { behavior: "allow",
+      updatedInput: { questions: expect.any(Array), answers: { "Question 1": "调整计划" } } } });
+    expect(textOf(renderer!.toJSON())).toContain("Answered - by you");
+    expect(renderer!.root.findAllByProps({ testID: "permission-submit" })).toHaveLength(0);
+  });
+
+  it("lets typed text replace a single pick, and dismisses as a deny", async () => {
+    host.agent = { status: "running", attentionReason: "permission" };
+    act(() => { renderer = TestRenderer.create(preview(questionView())); });
+    act(() => renderer!.root.findByProps({ testID: "permission-option-0-0" }).props.onPress());
+    act(() => renderer!.root.findByProps({ testID: "permission-other-0" }).props.onChangeText("先拆小"));
+    expect(renderer!.root.findByProps({ testID: "permission-option-0-0" }).props.accessibilityState.checked).toBe(false);
+    await act(async () => renderer!.root.findByProps({ testID: "permission-dismiss" }).props.onPress());
+    expect(host.respondToPermission).toHaveBeenLastCalledWith({ requestId: "permission-q1",
+      response: { behavior: "deny", message: "Dismissed by user" } });
+    expect(textOf(renderer!.toJSON())).toContain("Dismissed - by you");
+  });
+
+  it("keeps a question read-only once the agent stops waiting", () => {
+    host.agent = { status: "idle", attentionReason: null };
+    act(() => { renderer = TestRenderer.create(preview(questionView())); });
+    expect(renderer!.root.findByProps({ testID: "permission-option-0-0" }).props.disabled).toBe(true);
+    expect(renderer!.root.findAllByProps({ testID: "permission-actions" })).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ testID: "permission-other-0" })).toHaveLength(0);
+  });
+
+  it("offers the provider's own actions and sends the picked one", async () => {
+    host.agent = { status: "running", attentionReason: "permission" };
+    const text = `Agent ${agentId} (Builder) needs permission.\n\n<permission-request>\n${JSON.stringify({ agentId, requestId: "plan-1",
+      request: { id: "plan-1", kind: "plan", name: "ExitPlanMode", title: "Plan", input: { plan: "## Ship it" },
+        actions: [{ id: "keep", label: "Keep planning", behavior: "deny" }, { id: "implement", label: "Implement", behavior: "allow", variant: "primary" }] } })}\n</permission-request>`;
+    const view = classifyTool({ name: "agent_message", callId: "plan", status: "completed", detail: { type: "plain_text", text },
+      agentMessage: { event: "permission-required", sender: { id: agentId, title: "Builder" }, text } });
+    act(() => { renderer = TestRenderer.create(preview(view)); });
+    expect(textOf(renderer!.toJSON())).toContain("Ship it");
+    await act(async () => renderer!.root.findByProps({ testID: "permission-action-implement" }).props.onPress());
+    expect(host.respondToPermission).toHaveBeenLastCalledWith({ requestId: "plan-1", response: { behavior: "allow", selectedActionId: "implement" } });
+    expect(textOf(renderer!.toJSON())).toContain("Implement - by you");
+  });
+
   it("offers no buttons once the agent no longer waits", () => {
     host.agent = { status: "running", attentionReason: null };
     act(() => { renderer = TestRenderer.create(preview(permissionView())); });
