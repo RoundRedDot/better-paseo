@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Image, Platform, Pressable, Text, View, type TextStyle, type ViewStyle } from "react-native";
+import { Platform, Pressable, Text, View, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
@@ -17,6 +17,7 @@ import {
   formatWait,
   since,
 } from "./format";
+import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
 import { cardStrings, subtaskSummary } from "./strings";
 import { taskTokens, type TaskTokens } from "./tokens";
@@ -57,6 +58,8 @@ export interface TaskCardViewProps extends CardCallbacks {
   language?: TasksLanguage;
   /** False stops the running ring (a hidden pane, a static preview). Default true. */
   animated?: boolean;
+  /** The host's id: with the project id it keys the project icon's colour, as Paseo's sidebar does. */
+  hostId?: string;
 }
 
 const WEB = Platform.OS === "web";
@@ -186,8 +189,8 @@ export interface CardLayout {
   model: boolean;
   thinking: boolean;
   project: boolean;
-  /** The 12 px avatar before the project: "image" is `projectIcon`, "letter" the outlined initial. */
-  projectAvatar: "image" | "letter" | null;
+  /** Paseo's project icon before the project name: its image, or the generated initial square. */
+  projectAvatar: boolean;
   workspace: boolean;
   branch: boolean;
   gitStatus: boolean;
@@ -215,8 +218,7 @@ export function cardLayout(card: TaskCard, fields: CardSettings, compact: boolea
   const project = fields.project && !!location.projectName;
   const ratio = contextRatio(card.context);
   const path = !compact && fields.path && !!location.cwd;
-  let projectAvatar: CardLayout["projectAvatar"] = null;
-  if (project && !compact && fields.projectIcon) projectAvatar = location.projectIcon ? "image" : "letter";
+  const projectAvatar = project && !compact && fields.projectIcon;
   return {
     agent: compact || fields.provider || fields.model || fields.thinking,
     brand: card.providerMark !== null && (compact || fields.provider),
@@ -493,25 +495,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       style={{ flexDirection: "row", alignItems: "center", gap: GAP, minHeight: m.metaLine, zIndex: OVERLAY_ROW_Z }}
       testID="task-card-meta"
     >
-      {avatar === "image" ? (
-        <Image source={{ uri: location.projectIcon! }} style={{ width: 12, height: 12, borderRadius: 3 }} />
-      ) : avatar === "letter" ? (
-        <View
-          style={{
-            width: 12,
-            height: 12,
-            borderRadius: 3,
-            borderWidth: 1,
-            borderColor: muted,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Text style={{ fontSize: 8, lineHeight: 10, fontWeight: "600", color: muted }}>
-            {(location.projectName ?? "?").slice(0, 1).toUpperCase()}
-          </Text>
-        </View>
-      ) : null}
+      {avatar ? <ProjectIcon location={location} size={12} hostId={props.hostId} /> : null}
       <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center" }}>
         {metaText ? (
           <Text numberOfLines={1} style={[metaStyle, { flexShrink: 1, minWidth: 0 }]} testID="task-card-meta-location">

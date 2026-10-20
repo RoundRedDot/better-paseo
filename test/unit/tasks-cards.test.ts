@@ -64,6 +64,7 @@ import {
 } from "../../client/tasks/cards";
 import { statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
+import { identityColor, projectIconRadius, projectInitial, projectViewKey } from "../../client/tasks/cards/project-icon";
 
 const LIGHT = {
   colors: {
@@ -461,6 +462,41 @@ describe("TaskCardView rows", () => {
     byLabel(tree.root, "拒绝").props.onPress();
     expect(onPermission).toHaveBeenCalledWith(card, buttons[1]);
     expect(onOpen).not.toHaveBeenCalled();
+  });
+});
+
+describe("ProjectIcon", () => {
+  it("hashes the view key into Paseo's identity colours", () => {
+    expect(identityColor("a")).toBe("#b06260"); // 97 % 10 = 7, red
+    expect(identityColor("prj_sample")).toBe("#6a70b8");
+    expect(identityColor(JSON.stringify(["host-1", "prj_sample"]))).toBe("#5179b0");
+    expect(identityColor("remote:github.com/RoundRedDot/better-paseo")).toBe("#3d7ea6");
+    expect(projectIconRadius(12)).toBe(3);
+    expect(projectIconRadius(16)).toBe(4);
+    expect(projectInitial("RoundRedDot/better-paseo")).toBe("B");
+    expect(projectInitial("  atlas-web ")).toBe("A");
+  });
+
+  it("keys the colour by projectKey, then [hostId, projectId], then projectId", () => {
+    const location = sample("sample-running").location;
+    expect(projectViewKey({ ...location, projectKey: "k" } as typeof location)).toBe("k");
+    expect(projectViewKey(location, "host-1")).toBe(JSON.stringify(["host-1", "prj_sample"]));
+    expect(projectViewKey(location)).toBe("prj_sample");
+  });
+
+  it("draws the generated square on the card, or the uploaded image unrounded", async () => {
+    const tree = await render(cardElement(sample("sample-running"), { hostId: "host-1" }));
+    const square = hostByTestId(tree.root, "project-icon-generated");
+    expect(flat(square.props.style)).toMatchObject({ width: 12, height: 12, borderRadius: 3, backgroundColor: "#5179b0" });
+    const initial = square.find((node) => (node.type as unknown) === "Text");
+    expect(initial.props.children).toBe("B");
+    expect(flat(initial.props.style).color).toBe("#ffffff");
+
+    const withImage = { ...sample("sample-running"), location: { ...sample("sample-running").location, projectIcon: "data:image/png;base64,AAAA" } };
+    await act(async () => tree.update(cardElement(withImage)));
+    const image = hostByTestId(tree.root, "project-icon-image");
+    expect(image.props.source).toEqual({ uri: "data:image/png;base64,AAAA" });
+    expect(flat(image.props.style).borderRadius).toBeUndefined();
   });
 });
 
