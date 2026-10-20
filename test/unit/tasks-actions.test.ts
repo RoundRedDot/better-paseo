@@ -68,12 +68,12 @@ describe("Tasks permission actions", () => {
     const buttons = permissionButtons(permission(kind, [action()]), "zh");
     expect(buttons).toEqual([{
       key: "open",
-      label: "去回答 ↗",
+      label: "去回答",
       variant: "primary",
       kind: "open",
       action: { behavior: "deny", id: null },
     }]);
-    expect(permissionButtons(permission(kind), "en")[0]?.label).toBe("Answer ↗");
+    expect(permissionButtons(permission(kind), "en")[0]?.label).toBe("Answer");
   });
 
   it("uses a behavior-based variant only when a request action omits one", () => {
