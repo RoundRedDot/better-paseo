@@ -21,7 +21,7 @@ export function permissionButtons(permission: TaskPermission, language: TasksLan
   if (permission.kind === "question" || permission.kind === "other") {
     return [{
       key: "open",
-      label: language === "zh" ? "去回答 ↗" : "Answer ↗",
+      label: language === "zh" ? "去回答" : "Answer",
       variant: "primary",
       kind: "open",
       action: { behavior: "deny", id: null },
