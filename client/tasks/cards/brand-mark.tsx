@@ -1,6 +1,7 @@
 import React from "react";
 import { View } from "react-native";
 import { normalizeProvider, ProviderLogo, providerBrand } from "../../components/provider-logo";
+import { mix } from "../../components/theme-tokens";
 import type { TaskTokens } from "./tokens";
 
 /**
@@ -63,4 +64,50 @@ export function BrandMark(props: { provider: string; size: number; tokens: TaskT
   if (multicolour(props.provider)) return <PiMark size={props.size} />;
   const brand = providerBrand(props.provider);
   return <ProviderLogo provider={props.provider} size={props.size} color={brand.monochrome ? props.tokens.foreground : undefined} />;
+}
+
+/** WCAG relative luminance of a `#rrggbb` colour. */
+function luminance(hex: string): number {
+  const value = hex.replace("#", "");
+  const channel = (i: number) => {
+    const c = Number.parseInt(value.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+}
+
+/** WCAG contrast ratio of two `#rrggbb` colours. */
+export function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+export interface AgentPillColors {
+  background: string;
+  text: string;
+  /** The mark and the Brain icon. */
+  icon: string;
+}
+
+/**
+ * The model and thinking pills, after Linear's status pill: no border, the
+ * brand's hue at 12% over the card (20% on a dark theme), the icon in the
+ * brand colour and the label the brand pulled 30% towards the theme's
+ * foreground (darker on light, lighter on dark), further if it would fall
+ * under 4.5:1 on the tint. Monochrome and multicolour marks get the neutral
+ * version: the foreground at 6% with a foreground label.
+ */
+export function agentPillColors(tokens: TaskTokens, provider: string): AgentPillColors {
+  const base = tokens.card.background;
+  const fg = tokens.foreground;
+  const brand = brandTint(provider);
+  if (!brand) return { background: mix(base, fg, 0.06), text: fg, icon: fg };
+  const background = mix(base, brand, tokens.isDark ? 0.2 : 0.12);
+  let toward = 0.3;
+  let text = mix(brand, fg, toward);
+  while (contrastRatio(text, background) < 4.5 && toward < 1) {
+    toward = Math.min(1, toward + 0.05);
+    text = mix(brand, fg, toward);
+  }
+  return { background, text, icon: brand };
 }
