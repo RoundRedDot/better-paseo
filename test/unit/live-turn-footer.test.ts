@@ -42,7 +42,7 @@ vi.mock("../../client/components/markdown/markdown-view", async () => {
 import { LiveAssistantRenderer, type LiveAssistantPayload } from "../../client/live-renderers";
 import { AssistantFooter } from "../../client/components/turn-footer";
 import { assistantRows } from "../../client/assistant-transform";
-import { formatFullStamp } from "../../client/ui/time";
+import { formatFooterStamp, formatFullStamp } from "../../client/ui/time";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -78,7 +78,11 @@ describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform
       expect(footer.props.at.getTime()).toBe(endedAt);
       expect(footer.props.startedAt).toBe(startedAt);
       expect(footer.props.durationMs).toBe(82000);
-      expect(footer.findByProps({ accessibilityLabel: formatFullStamp(new Date(endedAt)) })).toBeDefined();
+      // Since f0540bd the clock item's hint names the turn's start time; its
+      // visible stamp is still the turn end time.
+      const clock = footer.findByProps({ accessibilityLabel: `Start time ${formatFullStamp(new Date(startedAt))}` });
+      expect(clock.findAllByType("Text" as never).map((node) => node.props.children))
+        .toEqual([formatFooterStamp(new Date(endedAt))]);
       expect(footer.props.modelName).toBe("GPT-6.1-Sol");
       await act(async () => footer.findByProps({ accessibilityLabel: "Copy model name" }).props.onPress());
       expect(runtime.copyText).toHaveBeenCalledExactlyOnceWith("sol");
