@@ -1114,17 +1114,17 @@ function ActionButton(props: {
   const primary = button.variant === "primary" && !answer;
   const danger = button.variant === "danger" && !answer;
   // "Answer" opens the tab for a question: it wears the needs-input icon's
-  // amber (the statusDot band), tinted, with a hairline of the same hue.
-  const amber = tokens.status.warning;
+  // amber (the statusDot band), tinted, with a hairline of the same hue; its
+  // label is that amber pulled until it reads at 4.5:1.
   let color = primary ? look.primaryText : danger ? tokens.danger : tokens.foreground;
   let fill = hovered ? look.controlHover : "transparent";
   let border = look.pillBorder;
   if (primary) fill = border = hovered ? look.primaryFillHover : look.primaryFill;
   if (danger) fill = border = hovered ? look.dangerFillHover : look.dangerFill;
   if (answer) {
-    color = amber;
-    fill = mix(look.background, amber, (tokens.isDark ? 0.18 : 0.12) + (hovered ? 0.08 : 0));
-    border = mix(look.background, amber, tokens.isDark ? 0.45 : 0.4);
+    color = look.answerText;
+    fill = hovered ? look.answerFillHover : look.answerFill;
+    border = look.answerBorder;
   }
   const icon = button.kind === "open" ? null : button.action.behavior === "allow" ? "Check" : "X";
   const size = compact ? 16 : 13;
