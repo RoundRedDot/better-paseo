@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Platform, Pressable, Text, View, useWindowDimensions } from "react-native";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -19,6 +19,16 @@ import {
 } from "./menu-model";
 
 export { MENU, menuChrome, type MenuItem, type MenuSection } from "./menu-model";
+
+/**
+ * The view menus must stay inside: the board's root. Its frame is measured
+ * with the menu's own, in the same window coordinates; the window's size
+ * alone disagreed by about 11 pt in Android landscape, so the sort menu ran
+ * off the screen without scrolling. Without one, the window.
+ */
+export const MenuBoundsContext = createContext<RefObject<View | null> | null>(null);
+
+type Measurable = { measureInWindow?(callback: (x: number, y: number, width: number, height: number) => void): void };
 
 export interface CascadeMenuProps {
   sections: MenuSection[];
@@ -57,19 +67,31 @@ export function CascadeMenu(props: CascadeMenuProps) {
   // The side with room: towards the window's middle from the anchor.
   const window = useWindowDimensions();
   const containerRef = useRef<View>(null);
+  const boundsRef = useContext(MenuBoundsContext);
   const [side, setSide] = useState<"left" | "right">(props.align === "right" ? "left" : "right");
-  // Its top in the window, so neither panel runs off a short window's bottom.
-  const [windowY, setWindowY] = useState<number | null>(null);
-  useEffect(() => {
-    const node = containerRef.current as unknown as { measureInWindow?(cb: (x: number, y: number, w: number) => void): void } | null;
+  // Its top in the window and the area it must end inside, so neither panel
+  // runs off a short window's bottom. Measured after layout (native lays
+  // out after the first effect) and again when the window changes.
+  const [frame, setFrame] = useState<{ y: number; top: number; bottom: number } | null>(null);
+  const measure = useCallback(() => {
+    const node = containerRef.current as unknown as Measurable | null;
     node?.measureInWindow?.((x, y, w) => {
       if (!w) return;
-      setWindowY(y);
       if (x + w + subWidth > window.width) setSide("left");
       else if (x - subWidth < 0) setSide("right");
+      const place = (top: number, bottom: number) =>
+        setFrame((was) => (was && was.y === y && was.top === top && was.bottom === bottom ? was : { y, top, bottom }));
+      const bounds = boundsRef?.current as unknown as Measurable | null;
+      if (!bounds?.measureInWindow) return place(0, window.height);
+      bounds.measureInWindow((_bx, by, _bw, bh) => {
+        if (!bh) place(0, window.height);
+        else place(Math.max(0, by), window.height > 0 ? Math.min(by + bh, window.height) : by + bh);
+      });
     });
-  }, [subWidth, window.width, window.height]);
-  const maxHeight = panelMaxHeight(windowY, window.height);
+  }, [subWidth, window.width, window.height, boundsRef]);
+  useEffect(measure, [measure]);
+  const windowY = frame?.y ?? null;
+  const maxHeight = panelMaxHeight(windowY, frame?.bottom ?? window.height);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearTimer = () => {
@@ -127,11 +149,12 @@ export function CascadeMenu(props: CascadeMenuProps) {
 
   const openRow = focus.open !== null ? layout.rows[focus.open] : undefined;
   const subHeight = subSections ? layoutMenu(subSections).height : 0;
-  const sub = submenuPlacement(openRow ? openRow.top - scrollY - MENU.padV : 0, subHeight, windowY, window.height);
+  const sub = submenuPlacement(openRow ? openRow.top - scrollY - MENU.padV : 0, subHeight, windowY, frame?.bottom ?? window.height, frame?.top ?? 0);
   return (
     <View
       ref={containerRef}
       collapsable={false}
+      onLayout={measure}
       testID={props.testID}
       style={{ position: "absolute", top: props.top, ...(props.align === "right" ? { right: 0 } : { left: 0 }), width, zIndex: 30 }}
     >
