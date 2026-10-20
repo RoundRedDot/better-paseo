@@ -128,6 +128,8 @@ function intlLocales(): string[] {
 interface Sources {
   deviceLocales?: () => string[];
   nativeRead?: NativeSettingsRead | null;
+  /** Keep the last native read, as a bundle evaluated again in the same app does. */
+  keepRemembered?: boolean;
 }
 let sources: Sources = {};
 
@@ -194,6 +196,24 @@ function notify(): void {
   for (const listener of [...listeners]) listener();
 }
 
+// The last native read, kept on the JS runtime's global: a daemon restart
+// or a plugin reload evaluates this bundle again in the same app, and its
+// first look would otherwise see the device locale only until the new read
+// lands, so a title drawn then (the board's) could be English over a
+// Chinese body. Until the read lands the last one stands in.
+const REMEMBERED = "__betterPaseoHostLanguagePair";
+
+function rememberedPair(): SettingsPair | null {
+  const pair = (globalThis as Record<string, unknown>)[REMEMBERED] as Partial<SettingsPair> | undefined;
+  if (!pair || typeof pair !== "object") return null;
+  const valid = (value: unknown) => value === null || typeof value === "string";
+  return valid(pair.current) && valid(pair.legacy) ? { current: pair.current ?? null, legacy: pair.legacy ?? null } : null;
+}
+
+function rememberPair(pair: SettingsPair): void {
+  (globalThis as Record<string, unknown>)[REMEMBERED] = { current: pair.current, legacy: pair.legacy };
+}
+
 type WebStorage = { getItem(key: string): string | null };
 
 function webStorage(): WebStorage | null {
@@ -227,12 +247,18 @@ export function hostLanguageSetting(now: number = Date.now()): unknown {
     return setting;
   }
   const read = sources.nativeRead !== undefined ? sources.nativeRead : builtinNativeRead();
+  if (read && settingRaw === undefined) {
+    const last = rememberedPair();
+    if (last) apply(last);
+  }
   if (read && !nativeInflight) {
     nativeInflight = true;
     void read()
       .then((pair) => {
         nativeInflight = false;
-        if (pair && apply(pair)) notify();
+        if (!pair) return;
+        rememberPair(pair);
+        if (apply(pair)) notify();
       })
       .catch(() => {
         nativeInflight = false;
@@ -295,6 +321,7 @@ export function resetHostLanguageForTests(next: Sources = {}): void {
   settingAt = -Infinity;
   nativeInflight = false;
   listeners.clear();
+  if (!next.keepRemembered) delete (globalThis as Record<string, unknown>)[REMEMBERED];
   detachStorage?.();
   detachStorage = null;
 }

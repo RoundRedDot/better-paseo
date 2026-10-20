@@ -104,6 +104,25 @@ describe("the host's language setting", () => {
     expect(hostLanguage()).toBe("en");
   });
 
+  it("starts from the last native read when the bundle is evaluated again in the same app", async () => {
+    const stored = JSON.stringify({ language: "zh-CN" });
+    let release: (() => void) | null = null;
+    const slowRead = () => new Promise<{ current: string; legacy: null }>((resolve) => (release = () => resolve({ current: stored, legacy: null })));
+    resetHostLanguageForTests({ deviceLocales: () => ["en-US"], nativeRead: () => Promise.resolve({ current: stored, legacy: null }) });
+    expect(hostLanguage()).toBe("en");
+    await flush();
+    expect(hostLanguage()).toBe("zh");
+    // A daemon restart re-evaluates the plugin: module state is new, the app's global is not.
+    resetHostLanguageForTests({ deviceLocales: () => ["en-US"], nativeRead: slowRead, keepRemembered: true });
+    expect(hostLanguage()).toBe("zh");
+    release!();
+    await flush();
+    expect(hostLanguage()).toBe("zh");
+    // A fresh app has nothing remembered: the device locale until the read lands.
+    resetHostLanguageForTests({ deviceLocales: () => ["en-US"], nativeRead: slowRead });
+    expect(hostLanguage()).toBe("en");
+  });
+
   it("keeps the device locale when the native read fails or there is no storage module", async () => {
     resetHostLanguageForTests({ deviceLocales: () => ["zh-Hans"], nativeRead: () => Promise.reject(new Error("gone")) });
     expect(hostLanguage()).toBe("zh");
