@@ -526,7 +526,18 @@ describe("preview line numbers and shading", () => {
     }
   });
 
-  it("shades every other line behind one text, with no numbers by default", () => {
+  it("shades every other line behind one text, numbered by default", () => {
+    const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "one\ntwo\nthree\nfour\n" } });
+    expect(previewLines(React.createElement(ToolCallout, { data, tokens }))).toEqual({
+      placed: true,
+      content: "one\ntwo\nthree\nfour",
+      numbers: [["1", 0], ["2", line], ["3", 2 * line], ["4", 3 * line]],
+      stripes: [[line, line], [3 * line, line]],
+    });
+  });
+
+  it("drops the numbers but keeps the shading when line numbers are turned off", () => {
+    updateEnhancerPreferences({ previewLineNumbers: false });
     const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/a.ts", content: "one\ntwo\nthree\nfour\n" } });
     expect(previewLines(React.createElement(ToolCallout, { data, tokens }))).toEqual({
       placed: true, content: "one\ntwo\nthree\nfour", numbers: null, stripes: [[line, line], [3 * line, line]],
