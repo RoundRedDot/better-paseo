@@ -36,6 +36,8 @@ export interface ToolSummary {
     targetIsId: boolean;
     icon: string;
     iconTone?: "success";
+    /** A created agent's harness; on a phone its grey mark replaces the icon and the meta. */
+    provider?: string;
   };
   /** The first line of a failure, drawn under the header. */
   errorLine?: string;
@@ -491,7 +493,8 @@ export function summarizeTool(view: ToolCallView): ToolSummary {
     return {
       verb: agent.verb, target: clip(title ?? (agent.agentId ? shortAgentId(agent.agentId) : undefined), TARGET_MAX),
       meta: agent.meta.length ? [agent.meta.join(" · ")] : [], tone: agent.tone,
-      agent: { id: agent.agentId, targetIsId: !title && Boolean(agent.agentId), icon: agent.icon, iconTone: agent.iconTone },
+      agent: { id: agent.agentId, targetIsId: !title && Boolean(agent.agentId), icon: agent.icon, iconTone: agent.iconTone,
+        provider: agent.provider },
     };
   }
   const summary = summarizeKind(view);
