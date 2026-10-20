@@ -9,6 +9,8 @@ active Paseo theme. The performance section compares it with Paseo’s own timel
 
 <img alt="Better Paseo, a Paseo plugin: a clear, fast chat timeline on a desktop window and a phone" src="images/hero-cover.png">
 
+https://github.com/user-attachments/assets/56d25aed-062c-41ed-8aa8-174e23bd3395
+
 > Better Paseo is a fork of [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat),
 > continued from `42b61d8` (2026-09-23). It keeps Beautiful Chat's cards except the Eval, Ask,
 > Task and approval cards, which current Paseo never feeds a plugin (see
