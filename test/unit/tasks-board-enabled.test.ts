@@ -55,6 +55,7 @@ import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { resetTasksEnabled, setTasksEnabled, setTasksSettingsOpener, tasksEnabled } from "../../client/tasks/board/enabled";
 import { resetTasksLanguage, resolveTasksLanguage } from "../../client/tasks/i18n";
+import { resetHostLanguageForTests } from "../../client/i18n/host-language";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { DEFAULT_TASKS_SETTINGS } from "../../shared/tasks-settings";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
@@ -327,5 +328,22 @@ describe("Tasks registrations, opt-in", () => {
     expect(plugin.active).toHaveLength(4);
     // The screen follows in place: registered once, never removed.
     expect(plugin.removed.filter((entry) => entry.kind === "screen")).toEqual([]);
+  });
+
+  it("relabels when the native host's language arrives from AsyncStorage, with nothing of the board mounted", async () => {
+    resetHostLanguageForTests({
+      deviceLocales: () => ["en-SG"],
+      nativeRead: () => Promise.resolve({ current: JSON.stringify({ language: "zh-CN" }), legacy: null }),
+    });
+    const plugin = client(() => Promise.resolve({ status: "ready", revision: "1", values: { enabled: true } }));
+    contributeTasks(plugin.value as never);
+    await flush();
+    await flush();
+    expect(Object.fromEntries(plugin.active.map((entry) => [entry.kind, typeof entry.title === "function" ? entry.title() : entry.title]))).toEqual({
+      settings: "任务",
+      screen: "任务",
+      sidebar: "任务",
+      command: "打开任务",
+    });
   });
 });

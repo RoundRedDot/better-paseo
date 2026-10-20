@@ -184,8 +184,8 @@ let trailing: ReturnType<typeof setTimeout> | null = null;
 let nativeInflight = false;
 let nativeAgain = false;
 
-type SettingsPair = { current: string | null; legacy: string | null };
-type NativeSettingsRead = () => Promise<SettingsPair | null>;
+export type SettingsPair = { current: string | null; legacy: string | null };
+export type NativeSettingsRead = () => Promise<SettingsPair | null>;
 type MultiGet = (
   keys: string[],
   callback: (errors?: unknown[] | null, result?: Array<[string, string | null]>) => void,
@@ -258,11 +258,12 @@ declare function require(id: string): unknown;
  * The host's AsyncStorage, or null on web and where the native module is not
  * registered. Plugins cannot import the AsyncStorage package; the host app
  * already links `RNCAsyncStorage`, and `react-native` is the host's module.
+ * Also reads the host's language for `i18n/host-language.ts`.
  *
  * Called only when `localStorage` is absent, so unit tests that stub
  * `localStorage` never reach it.
  */
-function builtinNativeRead(): NativeSettingsRead | null {
+export function builtinNativeRead(): NativeSettingsRead | null {
   let rn: ReactNativeSettingsModule | null = null;
   try {
     rn = require("react-native") as ReactNativeSettingsModule;
