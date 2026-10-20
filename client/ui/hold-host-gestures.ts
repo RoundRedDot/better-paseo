@@ -14,7 +14,7 @@ const RELEASE_NOTHING = () => {};
 /**
  * Fails the host's native pans for the held touch, the swipe that opens the
  * agent list among them, before they activate; returns what lets them go.
- * Shared by the table's hold-to-select and the phone board's lane swipe.
+ * Shared by the table's hold-to-select and the phone board's long press.
  *
  * Gesture Handler stops its pans when a JS responder blocks native ones, but
  * the new architecture's responder no longer passes through its hook, and it
