@@ -28,6 +28,8 @@ export interface TaskTokens {
   /** The host's `statusWarning`/`statusDanger`, for text and bars (context, timers, errors). */
   warning: string;
   danger: string;
+  /** The host's `statusSuccess`. */
+  success: string;
   /** The board's dot grid, 1px every 16. */
   dotGrid: string;
   /** Card hover border, unchecked boxes. */
@@ -55,15 +57,19 @@ export interface TaskTokens {
 }
 
 export interface CardTokens {
+  /** One step lighter than the lane panel: surface0 on a light theme, surface2 on a dark one. */
   background: string;
+  /** Hover, as Linear: the fill greys a step (foreground at 4%); the border stays. */
+  hoverBackground: string;
+  /** The hairline outline (theme border). */
   border: string;
-  /** Hover: a stronger border. */
-  borderHover: string;
-  /** CSS box-shadow at rest and on hover. */
+  /** CSS box-shadow at rest and on hover: short and mostly downward, fainter on a dark theme. */
   shadow: string;
   shadowHover: string;
-  /** Pill and secondary-button outline (#dadada on white). */
+  /** Neutral pill and secondary-button outline: the border a step towards the foreground. */
   pillBorder: string;
+  /** A neutral pill's fill (branch, folder, path, PR, a label without colour). */
+  pillFill: string;
   /** A hovered control's fill on the card. */
   controlHover: string;
   /** The 1 s background after a parent link scrolled here. */
@@ -73,6 +79,10 @@ export interface CardTokens {
   primaryFillHover: string;
   dangerFill: string;
   dangerFillHover: string;
+  /** Text on a solid accent or danger fill. */
+  onStrong: string;
+  /** A solid danger fill, hovered. */
+  dangerStrongHover: string;
 }
 
 const STATUS_LIGHT = { running: "#268ae0", warning: "#b37824", success: "#299f51", danger: "#f12e2f" } as const;
@@ -107,6 +117,7 @@ export function buildTaskTokens(colors: PluginTheme["colors"]): TaskTokens {
     status,
     warning: colors.statusWarning || status.warning,
     danger,
+    success: colors.statusSuccess || status.success,
     dotGrid: mix(s0, colors.foregroundMuted, 0.22),
     borderStrong: mix(colors.border, colors.foregroundMuted, 0.35),
     accentSoft: mix(s0, colors.accent, 0.12),
@@ -122,21 +133,46 @@ export function buildTaskTokens(colors: PluginTheme["colors"]): TaskTokens {
   };
 }
 
+// Shadows are the one place the card darkens with plain black: a shadow is the
+// absence of light whatever the palette. Only its strength follows the theme.
+const SHADOW = {
+  light: { rest: "0px 1px 2px rgba(0, 0, 0, 0.06)", hover: "0px 2px 6px rgba(0, 0, 0, 0.07)" },
+  dark: { rest: "0px 1px 2px rgba(0, 0, 0, 0.18)", hover: "0px 2px 6px rgba(0, 0, 0, 0.26)" },
+} as const;
+
 function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: string): CardTokens {
   const background = isDark ? colors.surface2 : colors.surface0;
+  const fg = colors.foreground;
   return {
     background,
+    hoverBackground: mix(background, fg, 0.04),
     border: colors.border,
-    borderHover: mix(colors.border, colors.foregroundMuted, isDark ? 0.3 : 0.35),
-    shadow: isDark ? "0px 1px 1px rgba(0, 0, 0, 0.24)" : "0px 1px 1px rgba(0, 0, 0, 0.04)",
-    shadowHover: isDark ? "0px 2px 6px rgba(0, 0, 0, 0.32)" : "0px 2px 6px rgba(0, 0, 0, 0.07)",
-    pillBorder: mix(colors.border, colors.foreground, isDark ? 0.08 : 0.04),
-    controlHover: mix(background, colors.foreground, isDark ? 0.08 : 0.05),
+    shadow: SHADOW[isDark ? "dark" : "light"].rest,
+    shadowHover: SHADOW[isDark ? "dark" : "light"].hover,
+    pillBorder: mix(colors.border, fg, isDark ? 0.08 : 0.05),
+    pillFill: mix(background, fg, isDark ? 0.06 : 0.035),
+    controlHover: mix(background, fg, isDark ? 0.1 : 0.07),
     highlight: mix(background, colors.accent, isDark ? 0.12 : 0.08),
     primaryFill: mix(background, colors.accent, isDark ? 0.18 : 0.1),
     primaryFillHover: mix(background, colors.accent, isDark ? 0.26 : 0.16),
     dangerFill: mix(background, danger, isDark ? 0.16 : 0.1),
     dangerFillHover: mix(background, danger, isDark ? 0.24 : 0.16),
+    onStrong: colors.accentForeground,
+    dangerStrongHover: mix(danger, fg, 0.15),
+  };
+}
+
+/**
+ * A pill tinted with a data colour (a label, a provider's brand, a status):
+ * the hue at 10% over the card (16% on a dark theme) with a hairline of the
+ * same hue a little stronger. Null gives the neutral grey pill.
+ */
+export function pillTint(tokens: TaskTokens, color: string | null): { background: string; border: string } {
+  if (!color) return { background: tokens.card.pillFill, border: tokens.card.pillBorder };
+  const base = tokens.card.background;
+  return {
+    background: mix(base, color, tokens.isDark ? 0.16 : 0.1),
+    border: mix(base, color, tokens.isDark ? 0.34 : 0.26),
   };
 }
 
