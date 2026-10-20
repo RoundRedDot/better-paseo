@@ -47,12 +47,16 @@ export interface TaskLocation {
   workspaceId: string | null;
   /** Null when equal to the project name or the task title (spec: 去重). */
   workspaceName: string | null;
+  /** Raw display title (`title`, `name`, or placement name), before deduplication. */
+  workspaceTitle: string | null;
   workspaceKind: WorkspaceKind | null;
   branch: string | null;
   /** Null when the workspace reports no git state. */
   git: { dirty: boolean | null; ahead: number | null; behind: number | null } | null;
   /** Last segment of `cwd`; null when equal to the project, workspace or branch name. */
   folder: string | null;
+  /** Last segment of `cwd` before deduplication. */
+  folderName: string | null;
   /** The full `cwd`, shown instead of the folder when `card.path` is on. */
   cwd: string;
   pullRequest: { number: number | null; title: string; url: string } | null;

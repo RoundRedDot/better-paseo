@@ -18,10 +18,12 @@ export function sampleCards(now: number = Date.now()): TaskCard[] {
     projectIcon: null,
     workspaceId: "wks_sample",
     workspaceName: "tasks-board",
+    workspaceTitle: "tasks-board",
     workspaceKind: "worktree" as const,
     branch: "feat/tasks-board",
     git: { dirty: true, ahead: 3, behind: 0 },
     folder: null,
+    folderName: "tasks-board",
     cwd: "/Users/dev/code/better-paseo/.worktrees/tasks-board",
     pullRequest: { number: 42, title: "feat: Tasks board", url: "https://github.com/RoundRedDot/better-paseo/pull/42" },
   };
@@ -131,7 +133,7 @@ export function sampleCards(now: number = Date.now()): TaskCard[] {
       title: "Bump the plugin SDK to 0.12",
       lane: "done",
       status: "done",
-      location: { ...location, branch: null, workspaceKind: "directory", git: null, folder: "scratch", pullRequest: null },
+      location: { ...location, branch: null, workspaceKind: "directory", git: null, folder: "scratch", folderName: "scratch", pullRequest: null },
       context: null,
     },
   ];

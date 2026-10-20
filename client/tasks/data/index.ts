@@ -240,13 +240,13 @@ function buildBaseCard(
     requiresAttention: agent.requiresAttention,
     attentionReason: agent.attentionReason,
   });
-  const workspaceName = workspace?.title?.trim() || workspace?.name || placement?.workspaceName || null;
+  const workspaceTitle = workspace?.title?.trim() || workspace?.name || placement?.workspaceName || null;
   const projectName = workspace?.projectCustomName?.trim() || workspace?.projectDisplayName ||
     project?.projectCustomName?.trim() || project?.projectDisplayName || placement?.projectName || null;
   const branch = workspace?.gitRuntime?.currentBranch ?? placement?.checkout.currentBranch ?? null;
   const folderCandidate = pathTail(agent.cwd);
   const branchFolder = branch?.replace(/\//g, "-") ?? null;
-  const folder = folderCandidate && folderCandidate !== projectName && folderCandidate !== workspaceName && folderCandidate !== branch && folderCandidate !== branchFolder
+  const folder = folderCandidate && folderCandidate !== projectName && folderCandidate !== workspaceTitle && folderCandidate !== branch && folderCandidate !== branchFolder
     ? folderCandidate
     : null;
   const contextUsed = agent.lastUsage?.contextWindowUsedTokens;
@@ -287,8 +287,9 @@ function buildBaseCard(
       projectName,
       projectIcon,
       workspaceId: agent.workspaceId ?? workspace?.id ?? null,
-      workspaceName: workspaceName && workspaceName !== projectName && workspaceName !== agent.title &&
-        workspaceName !== branch && workspaceName !== branchFolder ? workspaceName : null,
+      workspaceName: workspaceTitle && workspaceTitle !== projectName && workspaceTitle !== agent.title &&
+        workspaceTitle !== branch && workspaceTitle !== branchFolder ? workspaceTitle : null,
+      workspaceTitle,
       workspaceKind: workspace?.workspaceKind ?? null,
       branch,
       git: hasGitState
@@ -299,6 +300,7 @@ function buildBaseCard(
           }
         : null,
       folder: folder && folder !== agent.title ? folder : null,
+      folderName: folderCandidate,
       cwd: agent.cwd,
       pullRequest: pullRequest
         ? { number: pullRequest.number ?? null, title: pullRequest.title, url: pullRequest.url }
