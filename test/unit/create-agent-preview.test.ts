@@ -17,7 +17,8 @@ vi.mock("@getpaseo/plugin/client", () => ({
   useRpc: () => () => Promise.resolve(null), usePaseo: () => host,
   useSettings: () => ({ status: "loading" }),
 }));
-import { buildThemeTokens } from "../../client/components/theme-tokens";
+import { buildThemeTokens, withAlpha } from "../../client/components/theme-tokens";
+import { Glyph } from "../../client/components/glyph";
 import { ToolPreviewContent } from "../../client/components/tool-callouts";
 import { HoverPreviewHeader, PreviewPanelSample } from "../../client/ui/hover-preview";
 import { ToolbarButton, ToolbarItem, TOOLBAR_TOOLTIP_MS } from "../../client/ui/toolbar-button";
@@ -85,7 +86,8 @@ describe("create_agent preview", () => {
     const root = renderer!.root;
     expect(root.findByType(MarkdownView).props.text).toBe(prompt);
     expect(root.findByType(HoverPreviewHeader).props.fitControls).toBe(true);
-    expect(textOf(renderer!.toJSON())).toContain(agentId);
+    expect(textOf(renderer!.toJSON())).toContain(agentId.slice(0, 8));
+    expect(textOf(renderer!.toJSON())).not.toContain(agentId);
     expect(textOf(renderer!.toJSON())).toContain("Line 79");
     expect(textOf(renderer!.toJSON())).not.toMatch(/Initial task prompt|Show .*more|Show less/);
     await press("Copy prompt");
@@ -193,23 +195,14 @@ describe("create_agent preview", () => {
     expect(clipboard.show).not.toHaveBeenCalled();
   });
 
-  it.each(["web", "ios", "android"])("keeps a full task heading above metadata in both modes on %s", async (os) => {
+  it.each(["web", "ios", "android"])("names the task once, in the preview header, in both modes on %s", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const title = "[实施 A] 平台余额采集器：验证多平台额度采集、缓存有效期与失败状态的完整展示";
     act(() => { renderer = TestRenderer.create(agentView(tokens, title)); });
-    const heading = () => renderer!.root.findAll((node) =>
-      (node.type as unknown) === "Text" && node.props.testID === "create-agent-title");
     const verify = () => {
-      expect(heading()).toHaveLength(1);
-      const node = heading()[0]!;
-      expect(node.props.children).toBe(title);
-      expect(node.props.accessibilityRole).toBe("header");
-      expect(node.props.selectable).toBe(true);
-      expect(node.props.numberOfLines).toBeUndefined();
-      expect(StyleSheet.flatten(node.props.style).color).toBe(tokens.foreground);
-      const text = textOf(renderer!.toJSON());
-      expect(text.indexOf(title)).toBeLessThan(text.indexOf("grok-4.7"));
-      expect(text.indexOf(title)).toBeLessThan(text.indexOf(agentId));
+      expect(renderer!.root.findAllByProps({ testID: "create-agent-title" })).toHaveLength(0);
+      expect(renderer!.root.findByType(HoverPreviewHeader).props.iconLabel).toBe(`Created · ${title}`);
+      expect(textOf(renderer!.toJSON()).split(title)).toHaveLength(2);
     };
     verify();
     await press("Show raw text");
@@ -220,62 +213,52 @@ describe("create_agent preview", () => {
     verify();
   });
 
-  it.each(["ios", "android", "web"])("puts ID on its own row with a visible copy affordance on mobile %s", (os) => {
+  it.each(["ios", "android", "web"])("ends the strip with a short, copyable ID on mobile %s", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     vi.spyOn(input, "useInputCapabilities").mockReturnValue({ native: os !== "web", hover: false, touch: true, compact: false });
     act(() => { renderer = TestRenderer.create(agentView()); });
     const root = renderer!.root;
-    expect(StyleSheet.flatten(root.findByProps({ testID: "create-agent-metadata" }).props.style)).toMatchObject({
-      flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-start",
-    });
-    expect(StyleSheet.flatten(root.findByProps({ testID: "create-agent-copy-icon" }).props.style).opacity).toBe(1);
+    const strip = root.findByProps({ testID: "create-agent-metadata" });
+    expect(StyleSheet.flatten(strip.props.style)).toMatchObject({ flexDirection: "row", alignItems: "flex-end" });
+    // The ID is the strip's last child, outside the wrapping fields, so it never takes a line alone.
     const id = root.findByProps({ testID: "create-agent-id" });
-    expect(StyleSheet.flatten(id.props.style).width).toBe("100%");
-    expect(Number(StyleSheet.flatten(id.props.style).minHeight) + 2 * id.props.hitSlop).toBeGreaterThanOrEqual(44);
-    const idText = root.findAll((node) => (node.type as unknown) === "Text" && node.props.children === agentId)[0]!;
-    expect(idText.props.numberOfLines).toBeUndefined();
-    expect(StyleSheet.flatten(idText.props.style).flexShrink).toBe(1);
+    expect(StyleSheet.flatten(id.props.style).width).toBeUndefined();
+    expect(StyleSheet.flatten(id.props.style).flexShrink).toBe(0);
+    expect(id.props.hitSlop).toBeGreaterThanOrEqual(10);
+    expect(root.findByProps({ testID: "create-agent-copy-icon" })).toBeDefined();
+    expect(textOf(id.props.children)).toBe("");
+    expect(root.findAll((node) => (node.type as unknown) === "Text" && node.props.children === agentId.slice(0, 8))).toHaveLength(1);
+    await press(`Copy agent ID ${agentId}`);
+    expect(clipboard.copyText).toHaveBeenLastCalledWith(agentId);
   });
 
-  it.each([390, 1280])("keeps running inline after permissions at width %s until the ID arrives", async (width) => {
+  it.each([390, 1280])("shows the running state in the strip at width %s until the ID arrives", async (width) => {
     vi.spyOn(Dimensions, "get").mockReturnValue({ width, height: 800, scale: 1, fontScale: 1 });
     vi.spyOn(input, "useInputCapabilities").mockReturnValue({ native: false, hover: true, touch: false, compact: false });
     act(() => { renderer = TestRenderer.create(agentView(tokens, "Review", undefined, "cursor/grok-4.7", "", "running")); });
-    const metadata = () => renderer!.root.findByProps({ testID: "create-agent-metadata" });
-    const id = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "create-agent-id")[0]!;
-    expect(StyleSheet.flatten(metadata().props.style)).toMatchObject({ flexDirection: "row", justifyContent: "flex-start", flexWrap: "wrap" });
     const text = textOf(renderer!.toJSON());
     expect(text.indexOf("running")).toBeGreaterThan(text.indexOf("未指定"));
-    expect(id().props.accessibilityLabel).toBe("running");
-    expect(id().props.disabled).toBe(true);
-    expect(StyleSheet.flatten(id().props.style).width).toBeUndefined();
+    expect(renderer!.root.findByProps({ testID: "create-agent-state" }).props.accessibilityLabel).toBe("running");
+    expect(renderer!.root.findAllByProps({ testID: "create-agent-id" })).toHaveLength(0);
     await act(async () => renderer!.update(agentView()));
-    expect(id().props.accessibilityLabel).toBe(`Copy agent ID ${agentId}`);
-    expect(StyleSheet.flatten(id().props.style).width).toBe(width < 600 ? "100%" : undefined);
+    const id = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "create-agent-id")[0]!;
+    expect(id.props.accessibilityLabel).toBe(`Copy agent ID ${agentId}`);
   });
 
-  it("keeps desktop ID at the left and reveals copy on hover and focus", async () => {
+  it("keeps the copy icon visible but quiet, and full strength on hover", async () => {
     vi.spyOn(Dimensions, "get").mockReturnValue({ width: 1280, height: 800, scale: 1, fontScale: 1 });
     vi.spyOn(input, "useInputCapabilities").mockReturnValue({ native: false, hover: true, touch: false, compact: false });
     act(() => { renderer = TestRenderer.create(agentView()); });
     const root = renderer!.root;
-    expect(StyleSheet.flatten(root.findByProps({ testID: "create-agent-metadata" }).props.style).flexDirection).toBe("row");
-    const opacity = () => StyleSheet.flatten(root.findByProps({ testID: "create-agent-copy-icon" }).props.style).opacity;
+    const glyph = () => root.findByProps({ testID: "create-agent-copy-icon" }).findByType(Glyph);
     const id = root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "create-agent-id")[0]!;
-    expect(StyleSheet.flatten(root.findByProps({ testID: "create-agent-metadata" }).props.style).justifyContent).toBe("flex-start");
-    expect(StyleSheet.flatten(id.props.style).width).toBeUndefined();
-    expect(opacity()).toBe(0);
+    expect(glyph().props.color).toBe(withAlpha(tokens.foregroundMuted, 0.6));
     act(() => id.props.onHoverIn());
-    expect(opacity()).toBe(1);
+    expect(glyph().props.color).toBe(withAlpha(tokens.foregroundMuted, 1));
     act(() => id.props.onHoverOut());
-    expect(opacity()).toBe(0);
-    act(() => id.props.onFocus());
-    expect(opacity()).toBe(1);
-    act(() => id.props.onBlur());
-    expect(opacity()).toBe(0);
     await act(async () => id.props.onPress());
     expect(clipboard.copyText).toHaveBeenLastCalledWith(agentId);
-    expect(opacity()).toBe(1);
+    expect(glyph().props.name).toBe("Check");
   });
 
   it.each([false, true])("uses the theme's muted color for the Cursor mark (dark=%s)", (isDark) => {
@@ -300,7 +283,7 @@ describe("create_agent preview", () => {
       expect(StyleSheet.flatten(images[0]!.props.style).tintColor).toBe(dark ? "#aaa" : "#666");
       const label = model.findByProps({ testID: "create-agent-model-label" });
       expect(label.props.children).toBe("Grok 4.7");
-      expect(StyleSheet.flatten(label.props.style)).toMatchObject({ color: dark ? "#aaa" : "#666", fontWeight: "400" });
+      expect(StyleSheet.flatten(label.props.style)).toMatchObject({ color: tokens.foreground, fontWeight: "500" });
       expect(textOf(renderer!.toJSON())).not.toContain("grok-4.7");
       expect(model.findAll((node) => (node.type as unknown) === "Text" && node.props.children === "Grok")).toHaveLength(0);
       expect(model.findAllByProps({ name: "Copy" })).toHaveLength(0);
@@ -338,14 +321,15 @@ describe("agent status card presentation", () => {
         const theme = { ...tokens, isDark };
         act(() => { renderer = TestRenderer.create(preview(statusView(status), theme)); });
         const root = renderer!.root;
-        expect(root.findByProps({ testID: "agent-status-title" }).props.children).toBe("卡片测试 · Cursor");
-        expect(root.findByProps({ testID: "agent-status-title" }).props.numberOfLines).toBeUndefined();
-        const state = root.findByProps({ testID: "agent-status-state" });
-        expect(state.props.accessibilityLabel).toBe(AGENT_STATUS_LABEL[status]);
+        const header = root.findByType(HoverPreviewHeader);
+        expect(header.props.iconLabel).toBe(`${AGENT_STATUS_LABEL[status]} · 卡片测试 · Cursor`);
         const color = status === "errored" ? tokens.danger : status === "needs permission" ? tokens.warning :
           status === "finished" ? tokens.success : tokens.foregroundMuted;
-        expect(state.findAllByProps({ name: AGENT_STATUS_ICON[status] })[0]!.props.color).toBe(color);
-        expect(root.findByType(MarkdownView).props.text).toBe(statusBody);
+        expect(header.findAllByProps({ name: AGENT_STATUS_ICON[status] })[0]!.props.color).toBe(color);
+        expect(root.findAllByProps({ testID: "agent-status-title" })).toHaveLength(0);
+        // An errored reply opens with its first line as the error; the rest stays the reply.
+        const body = status === "errored" ? statusBody.slice("# Result".length).trim() : statusBody;
+        expect(root.findByType(MarkdownView).props.text).toBe(body);
         expect(textOf(renderer!.toJSON())).not.toContain("<agent-response>");
         await press(`Copy agent ID ${agentId}`);
         expect(clipboard.copyText).toHaveBeenLastCalledWith(agentId);
@@ -354,7 +338,7 @@ describe("agent status card presentation", () => {
         await press("Show raw text");
         expect(root.findAllByType(MarkdownView)).toHaveLength(0);
         expect(root.findByType(PreviewLines).props.text).toBe(statusBody);
-        expect(root.findByProps({ testID: "agent-status-title" }).props.children).toBe("卡片测试 · Cursor");
+        expect(root.findByType(HoverPreviewHeader).props.iconLabel).toBe(`${AGENT_STATUS_LABEL[status]} · 卡片测试 · Cursor`);
         await press("Render Markdown");
         act(() => renderer!.unmount());
         renderer = undefined;
@@ -378,26 +362,29 @@ describe("agent status card presentation", () => {
     act(() => { vi.advanceTimersByTime(1); });
     expect(renderer!.root.findByType(MarkdownView).props.text).toBe(statusBody);
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" &&
-      node.props.accessibilityLabel === "Agent finished 卡片测试 · Cursor")[0]!.props.accessibilityState.expanded).toBe(false);
+      node.props.accessibilityLabel === "Finished 卡片测试 · Cursor")[0]!.props.accessibilityState.expanded).toBe(false);
   });
 
   it.each(["ios", "android"])("opens a status preview on long press on %s", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, { data: statusView(), tokens })); });
     const row = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" &&
-      node.props.accessibilityLabel === "Agent finished 卡片测试 · Cursor")[0]!;
+      node.props.accessibilityLabel === "Finished 卡片测试 · Cursor")[0]!;
     act(() => row.props.onLongPress());
     expect(renderer!.root.findByType(MarkdownView).props.text).toBe(statusBody);
-    expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: "agent-status-id" }).props.style).width).toBe("100%");
+    expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: "agent-status-id" }).props.style).width).toBeUndefined();
   });
 
   it("expands a status card using the same content as its preview", () => {
     act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, { data: statusView(), tokens })); });
     const row = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" &&
-      node.props.accessibilityLabel === "Agent finished 卡片测试 · Cursor")[0]!;
+      node.props.accessibilityLabel === "Finished 卡片测试 · Cursor")[0]!;
     act(() => row.props.onPress());
-    expect(renderer!.root.findByProps({ testID: "agent-status-title" }).props.children).toBe("卡片测试 · Cursor");
+    expect(renderer!.root.findAllByProps({ testID: "agent-status-title" })).toHaveLength(0);
     expect(renderer!.root.findByType(MarkdownView).props.text).toBe(statusBody);
+    // Inline, the long reply folds under "Show all"; the preview never folds.
+    expect(renderer!.root.findByProps({ testID: "agent-body-folded" })).toBeDefined();
+    expect(textOf(renderer!.toJSON())).toContain(`Show all · ${statusBody.split("\n").length} lines`);
   });
 
   it.each(["failed", "mcp-error", "canceled"])("marks unsuccessful creation without inventing an agent ID: %s", async (failure) => {
@@ -408,14 +395,15 @@ describe("agent status card presentation", () => {
         output: failure === "mcp-error" ? { isError: true, content: [{ type: "text", text: error }] } : error } });
     expect(data.paseo!.createAgent!.agentId).toBeUndefined();
     act(() => { renderer = TestRenderer.create(preview(data)); });
-    const label = failure === "canceled" ? "Creation canceled" : "Creation failed";
+    const label = failure === "canceled" ? "Create canceled" : "Create failed";
     expect(textOf(renderer!.toJSON())).toContain(label);
     expect(textOf(renderer!.toJSON())).not.toContain("running");
-    expect(renderer!.root.findByProps({ testID: "create-agent-id" }).props.disabled).toBe(true);
+    expect(renderer!.root.findAllByProps({ testID: "create-agent-id" })).toHaveLength(0);
     expect(renderer!.root.findAllByProps({ testID: "create-agent-copy-icon" })).toHaveLength(0);
     if (failure !== "canceled") {
       expect(data.status).toBe("failed");
-      expect(summarizeTool(data).meta).toContain("failed");
+      expect(summarizeTool(data)).toMatchObject({ verb: "Create failed", tone: "danger" });
+      expect(renderer!.root.findByProps({ testID: "agent-error" })).toBeDefined();
       expect(textOf(renderer!.toJSON())).toContain(error);
     }
     await press("Show raw text");
@@ -424,7 +412,7 @@ describe("agent status card presentation", () => {
 
   it("shows missing ID explicitly once creation has settled", () => {
     act(() => { renderer = TestRenderer.create(agentView(tokens, "Review", undefined, "cursor/grok-4.7", "")); });
-    expect(textOf(renderer!.toJSON())).toContain("Agent ID unavailable");
+    expect(textOf(renderer!.toJSON())).toContain("ID unavailable");
     expect(textOf(renderer!.toJSON())).not.toContain("running");
   });
 });
@@ -439,9 +427,9 @@ describe("unified agent tool card layout", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const receipt = { success: true, disposition: "turn_started", status: "running", guidance: "Wait for the finish notification." };
     act(() => { renderer = TestRenderer.create(preview(agentTool("send_agent_prompt", receipt))); });
-    expect(textOf(renderer!.toJSON())).toContain("Prompt sent");
-    expect(textOf(renderer!.toJSON())).toContain("Turn started");
-    expect(textOf(renderer!.toJSON())).toContain("Agent: running");
+    expect(renderer!.root.findByType(HoverPreviewHeader).props.iconLabel).toBe(`Sent prompt · ${agentId.slice(0, 8)}`);
+    expect(summarizeTool(agentTool("send_agent_prompt", receipt)).meta).toEqual(["turn started"]);
+    expect(renderer!.root.findByProps({ testID: "send-agent-prompt-state" }).props.accessibilityLabel).toBe("running");
     expect(textOf(renderer!.toJSON())).toContain(receipt.guidance);
     expect(renderer!.root.findByType(MarkdownView).props.text).toBe(statusBody);
     await press("Copy prompt");
@@ -479,20 +467,24 @@ describe("unified agent tool card layout", () => {
       expect(row.props.accessibilityState.expanded).toBe(false);
     });
 
-  it.each([["running", null, "Sending prompt"], ["failed", "Provider unavailable", "Send failed"],
-    ["canceled", null, "Send canceled"], ["completed", null, "Dispatch not confirmed"]])(
-    "shows dispatch outcome without treating an unknown result as success (%s)", (status, result, label) => {
-      act(() => { renderer = TestRenderer.create(preview(agentTool("send_agent_prompt", result, status as string))); });
-      expect(textOf(renderer!.toJSON())).toContain(label);
-      expect(textOf(renderer!.toJSON())).not.toContain("Prompt sent");
+  it.each([["running", null, "Sending prompt", []], ["failed", "Provider unavailable", "Prompt failed", ["Provider unavailable"]],
+    ["canceled", null, "Prompt canceled", []], ["completed", null, "Sent prompt", ["not confirmed"]]])(
+    "shows dispatch outcome without treating an unknown result as success (%s)", (status, result, verb, meta) => {
+      const data = agentTool("send_agent_prompt", result, status as string);
+      act(() => { renderer = TestRenderer.create(preview(data)); });
+      expect(summarizeTool(data)).toMatchObject({ verb, meta });
+      expect(renderer!.root.findByType(HoverPreviewHeader).props.iconLabel).toBe(`${verb} · ${agentId.slice(0, 8)}`);
+      expect(textOf(renderer!.toJSON())).not.toContain("turn started");
     });
 
   it.each(["get_agent_status", "get_agent_activity", "list_agents", "cancel_agent", "archive_agent", "kill_agent", "update_agent", "set_agent_mode", "list_pending_permissions", "respond_to_permission"])(
     "renders %s using the shared card and supports raw response inspection", async (name) => {
       const result = { success: true, status: "idle", agents: [], content: "# Agent activity\n\n**Complete response**", updateCount: 2 };
       act(() => { renderer = TestRenderer.create(preview(agentTool(name, result))); });
-      expect(renderer!.root.findByProps({ testID: "agent-operation-title" }).props.numberOfLines).toBeUndefined();
-      expect(textOf(renderer!.toJSON())).toContain("Request acknowledged");
+      expect(renderer!.root.findAllByProps({ testID: "agent-operation-title" })).toHaveLength(0);
+      expect(renderer!.root.findByProps({ testID: "agent-operation-metadata" })).toBeDefined();
+      const summary = summarizeTool(agentTool(name, result));
+      expect(renderer!.root.findByType(HoverPreviewHeader).props.iconLabel).toBe(`${summary.verb} · ${summary.target}`);
       expect(renderer!.root.findByType(MarkdownView).props.text).toBe(result.content);
       await press("Show raw text");
       expect(JSON.parse(renderer!.root.findByType(PreviewLines).props.text).result).toEqual(result);
@@ -501,8 +493,9 @@ describe("unified agent tool card layout", () => {
   it("keeps a provider-native agent task previewable with title and status", async () => {
     const data = classifyTool({ name: "Task", status: "running", detail: { type: "sub_agent", description: "Explore the code", subAgentType: "Explore", log: "" } });
     act(() => { renderer = TestRenderer.create(preview(data)); });
-    expect(renderer!.root.findByProps({ testID: "sub-agent-title" }).props.children).toBe("Explore the code");
-    expect(textOf(renderer!.toJSON())).toContain("Explore · running");
+    expect(renderer!.root.findByType(HoverPreviewHeader).props.iconLabel).toBe("Running subtask · Explore the code");
+    expect(renderer!.root.findByProps({ testID: "sub-agent-state" }).props.accessibilityLabel).toBe("running");
+    expect(textOf(renderer!.toJSON())).toContain("Explore");
     await press("Show raw text");
     expect(JSON.parse(renderer!.root.findByType(PreviewLines).props.text).description).toBe("Explore the code");
   });

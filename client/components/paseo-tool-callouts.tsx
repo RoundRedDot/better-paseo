@@ -1,26 +1,24 @@
-import React, { useMemo } from "react";
-import { View, Text, StyleSheet, useWindowDimensions } from "react-native";
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
-import { useAgent, usePaseo } from "@getpaseo/plugin/client";
+import { usePaseo } from "@getpaseo/plugin/client";
 import { surfaceProps } from "./view-props";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
-import { MarkdownView } from "./markdown/markdown-view";
-import { PreviewLines } from "../ui/preview-lines";
 import { ToolbarItem } from "../ui/toolbar-button";
 import { FooterDetails, useFooterDetailsWidth } from "./footer-details";
 import { useCopy } from "../ui/use-copy";
-import { AgentCardContent, AgentCardMetadataItem as MetadataItem } from "./agent-card-content";
-import { SendAgentPromptView, AgentOperationView } from "./agent-operation-views";
-import { AGENT_STATUS_LABEL, AGENT_STATUS_ICON, type AgentStatusData } from "../tools/agent-status";
+import {
+  AgentDivider, AgentErrorLine, AgentIdentityStrip, AgentMarkdown, AgentSection, useCardMobile, useLiveAgent, type AgentField,
+} from "./agent-card-content";
+import { SendAgentPromptView, AgentOperationView, PermissionRequest } from "./agent-operation-views";
+import { readPermissionRequest, type AgentStatusData } from "../tools/agent-status";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
-import { blockProseBase } from "../ui/tokens/typography";
 import { ProviderLogo } from "./provider-logo";
 import { useFooterModel, useProviderMode } from "../state/footer-model";
 import { selectableSurface } from "./selection";
 import { selectionSurface } from "./selection-actions";
 import type {
-  PaseoToolKind,
   PaseoCreateAgentData,
   PaseoGetActivityData,
   PaseoListProvidersData,
@@ -33,6 +31,8 @@ interface PaseoToolCalloutProps {
   tokens: ExtendedThemeTokens;
   raw?: boolean;
   compact?: boolean;
+  /** The host's error for a failed call, drawn as the card's first line. */
+  error?: string;
 }
 
 /**
@@ -41,14 +41,14 @@ interface PaseoToolCalloutProps {
  * whose header already names the call and whose open state decides whether
  * this is mounted at all.
  */
-export function PaseoToolCallout({ data, tokens, raw = false, compact = false }: PaseoToolCalloutProps) {
+export function PaseoToolCallout({ data, tokens, raw = false, compact = false, error }: PaseoToolCalloutProps) {
   return (
     <View {...surfaceProps(selectionSurface)} style={styles.body}>
       {data.tool === "create_agent" && data.createAgent && (
-        <CreateAgentView data={data.createAgent} tokens={tokens} raw={raw} compact={compact} />
+        <CreateAgentView data={data.createAgent} tokens={tokens} raw={raw} compact={compact} error={error} />
       )}
-      {data.sendAgentPrompt ? <SendAgentPromptView data={data.sendAgentPrompt} tokens={tokens} raw={raw} compact={compact} /> : null}
-      {data.agentOperation ? <AgentOperationView data={data.agentOperation} tokens={tokens} raw={raw} compact={compact} /> : null}
+      {data.sendAgentPrompt ? <SendAgentPromptView data={data.sendAgentPrompt} tokens={tokens} raw={raw} compact={compact} error={error} /> : null}
+      {data.agentOperation ? <AgentOperationView data={data.agentOperation} tokens={tokens} raw={raw} compact={compact} error={error} /> : null}
       {data.tool === "list_providers" && data.providers && (
         <ListProvidersView data={data.providers} tokens={tokens} />
       )}
@@ -66,41 +66,44 @@ const styles = StyleSheet.create({
   body: { gap: 10, ...selectableSurface },
 });
 
-function CreateAgentView({ data, tokens, raw, compact }: {
+function CreateAgentView({ data, tokens, raw, compact, error }: {
   data: PaseoCreateAgentData;
   tokens: ExtendedThemeTokens;
   raw: boolean;
   compact: boolean;
+  error?: string;
 }) {
-  const capabilities = useInputCapabilities(compact);
-  const { width } = useWindowDimensions();
-  const mobile = capabilities.native || width < 600;
-  const lines = useMemo(() => data.initialPrompt.split("\n"), [data.initialPrompt]);
+  const mobile = useCardMobile(compact);
   const paseo = usePaseo();
-  const cwd = useAgent(data.agentId ?? "", (agent) => agent.cwd) ?? null;
+  const live = useLiveAgent(data.agentId);
+  const cwd = live.cwd ?? null;
   const { modelName, thinkingLabel } = useFooterModel(paseo, data.provider, data.model ?? null,
     data.thinkingOptionId ?? null, cwd, { requireCwd: false });
   const mode = useProviderMode(paseo, data.provider, data.modeId ?? null, cwd);
   const thinking = thinkingLabel ?? data.thinkingOptionId;
+  const fields: AgentField[] = [];
+  if (data.model) fields.push({ key: "model", icon: "Cpu", label: modelName ?? data.model });
+  if (thinking) fields.push({ key: "thinking", icon: "Brain", label: thinking, iconColor: tokens.accent,
+    accessibilityLabel: `Thinking: ${thinking}` });
+  const modeLabel = mode?.label ?? data.modeId ?? "未指定";
+  fields.push({ key: "permissions", icon: mode?.icon ?? "Shield", label: modeLabel,
+    iconColor: modeColor(mode?.colorTier, tokens), accessibilityLabel: `Permissions: ${modeLabel}` });
+  // A settled creation that returned no ID says so, rather than leaving a gap where the ID goes.
+  if (data.status === "created" && !data.agentId) fields.push({ key: "missing-id", icon: "CircleHelp", label: "ID unavailable" });
+  const state = data.status === "failed" || data.status === "canceled" ? undefined :
+    live.status ?? (data.status === "running" ? "running" : undefined);
   return (
-    <AgentCardContent title={data.title} agentId={data.agentId} state={data.status} tokens={tokens} mobile={mobile}
-      metadata={<>
-          {data.model ? <ModelName provider={data.provider} model={data.model} modelName={modelName}
-            thinkingLabel={thinking} tokens={tokens} mobile={mobile} /> :
-            <ProviderLogo provider={data.provider} size={16} showLabel labelColor={tokens.foregroundMuted}
-              neutralColor={tokens.foregroundMuted} />}
-          {thinking ? <MetadataItem testID="create-agent-thinking" accessibilityLabel={`Thinking: ${thinking}`}
-            icon="Brain" iconColor={tokens.accent} label={thinking} tokens={tokens} /> : null}
-          <MetadataItem testID="create-agent-permissions" accessibilityLabel={`Permissions: ${mode?.label ?? data.modeId ?? "未指定"}`}
-            icon={mode?.icon ?? "Shield"} iconColor={modeColor(mode?.colorTier, tokens)}
-            label={mode?.label ?? data.modeId ?? "未指定"} tokens={tokens} />
-      </>}>
-      {raw ? <PreviewLines text={data.initialPrompt} lines={lines} tokens={tokens}
-        style={{ color: tokens.foreground, fontFamily: tokens.fontMono,
-          fontSize: tokens.typography.mono.size, lineHeight: tokens.typography.mono.lineHeight }} /> :
-        <MarkdownView text={data.initialPrompt} tokens={tokens} variant="document" compact={mobile}
-          size={blockProseBase(tokens.typography)} />}
-    </AgentCardContent>
+    <View testID="create-agent" style={{ gap: space.sm, minWidth: 0 }}>
+      <AgentIdentityStrip testID="create-agent" tokens={tokens} mobile={mobile} fields={fields.slice(data.model ? 1 : 0)}
+        state={state} agentId={data.agentId}
+        leading={data.model ? <ModelName provider={data.provider} model={data.model} modelName={modelName}
+          thinkingLabel={thinking} tokens={tokens} mobile={mobile} /> : undefined}
+        provider={data.model ? undefined : data.provider} />
+      <AgentDivider tokens={tokens} />
+      {data.status === "failed" && error ? <AgentErrorLine text={error.split("\n")[0]!} tokens={tokens} /> : null}
+      <AgentSection label={raw ? undefined : "Prompt"} tokens={tokens}>
+        <AgentMarkdown text={data.initialPrompt} tokens={tokens} raw={raw} mobile={mobile} /></AgentSection>
+    </View>
   );
 }
 
@@ -110,24 +113,28 @@ export function agentStatusColor(data: AgentStatusData, tokens: ExtendedThemeTok
     data.status === "finished" ? tokens.success : tokens.foregroundMuted;
 }
 
+/** A child agent's notification: who sent it, then its reply, error or permission request. */
 export function AgentStatusView({ data, tokens, raw = false, compact = false }: {
   data: AgentStatusData; tokens: ExtendedThemeTokens; raw?: boolean; compact?: boolean;
 }) {
-  const capabilities = useInputCapabilities(compact);
-  const { width } = useWindowDimensions();
-  const mobile = capabilities.native || width < 600;
-  const lines = useMemo(() => data.body.split("\n"), [data.body]);
-  const color = agentStatusColor(data, tokens);
-  return <AgentCardContent title={data.title} agentId={data.agentId} color={tokens.foregroundMuted}
-    testID="agent-status" tokens={tokens} mobile={mobile}
-    metadata={<MetadataItem testID="agent-status-state" accessibilityLabel={AGENT_STATUS_LABEL[data.status]}
-      icon={AGENT_STATUS_ICON[data.status]} iconColor={color} label={AGENT_STATUS_LABEL[data.status]} tokens={tokens} />}>
-    {raw ? <PreviewLines text={data.body} lines={lines} tokens={tokens}
-      style={{ color: tokens.foreground, fontFamily: tokens.fontMono,
-        fontSize: tokens.typography.mono.size, lineHeight: tokens.typography.mono.lineHeight }} /> :
-      <MarkdownView text={data.body} tokens={tokens} variant="document" compact={mobile}
-        size={blockProseBase(tokens.typography)} />}
-  </AgentCardContent>;
+  const mobile = useCardMobile(compact);
+  const live = useLiveAgent(data.agentId);
+  const permission = !raw && data.status === "needs permission" ? readPermissionRequest(data.body) : undefined;
+  const reply = permission ? permission.rest : data.body;
+  const fields: AgentField[] = live.model ? [{ key: "model", icon: "Cpu", label: live.model }] : [];
+  const state = data.status === "needs permission" ? "waiting" : data.status === "errored" ? "error" : live.status;
+  const errorLine = !raw && data.status === "errored" ? reply.split("\n").map((line) => line.trim()).find(Boolean) : undefined;
+  const rest = errorLine ? reply.slice(reply.indexOf(errorLine) + errorLine.length).trim() : reply;
+  return <View testID="agent-status" style={{ gap: space.sm, minWidth: 0 }}>
+    <AgentIdentityStrip testID="agent-status" provider={live.provider} fields={fields} state={state}
+      agentId={data.agentId} tokens={tokens} mobile={mobile} />
+    {errorLine || rest || permission ? <AgentDivider tokens={tokens} /> : null}
+    {errorLine ? <AgentErrorLine text={errorLine} tokens={tokens} /> : null}
+    {permission ? <PermissionRequest testID="agent-status-permission" title={permission.title} requestId={permission.requestId}
+      description={permission.description} command={permission.command} tokens={tokens} /> : null}
+    {rest ? <AgentSection label={data.status === "finished" && !raw ? "Reply" : undefined} tokens={tokens}>
+      <AgentMarkdown testID="agent-status-body" text={rest} tokens={tokens} raw={raw} mobile={mobile} /></AgentSection> : null}
+  </View>;
 }
 
 /** The composer's colour for each permission tier; text stays muted like the composer. */
@@ -159,11 +166,11 @@ function ModelName({ provider, model, modelName, thinkingLabel, tokens, mobile }
         tokens={tokens} align="start" onPress={() => { void copy(model, { label: "Copy model name" }); }}
         details={<FooterDetails modelId={model} modelName={modelName ?? model} thinkingLabel={thinkingLabel ?? "未指定"} tokens={tokens} />}
         detailsWidth={detailsWidth} hitSlop={mobile ? 10 : 4}
-        buttonStyle={{ width: "auto", height: "auto", minHeight: mobile ? 24 : capabilities.touch ? 44 : 24,
-          flexDirection: "row", gap: space.xs, minWidth: 0, maxWidth: "100%" }}>
-        <ProviderLogo provider={provider} size={16} neutralColor={tokens.foregroundMuted} />
-        <Text testID="create-agent-model-label" style={{ fontSize: tokens.typography.block.meta.size, fontFamily: tokens.fontUi,
-          fontWeight: "400", color: tokens.foregroundMuted, flexShrink: 1, minWidth: 0 }}>{modelName ?? model}</Text>
+        buttonStyle={{ width: "auto", height: "auto", minHeight: mobile ? 20 : capabilities.touch ? 44 : 20,
+          flexDirection: "row", gap: 5, minWidth: 0, maxWidth: "100%" }}>
+        <ProviderLogo provider={provider} size={12} neutralColor={tokens.foregroundMuted} />
+        <Text testID="create-agent-model-label" style={{ fontSize: 12, lineHeight: 20, fontFamily: tokens.fontUi,
+          fontWeight: "500", color: tokens.foreground, flexShrink: 1, minWidth: 0 }}>{modelName ?? model}</Text>
       </ToolbarItem>
     </View>
   );

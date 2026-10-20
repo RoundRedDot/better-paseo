@@ -51,6 +51,7 @@ export function readAgentOperation(tool: keyof typeof AGENT_OPERATIONS, input: R
   }) : undefined;
   return {
     title: text(snapshot?.title) ?? AGENT_OPERATIONS[tool], agentId: text(input.agentId), label,
+    agentTitle: text(snapshot?.title), agentStatus: text(result?.status) ?? text(snapshot?.status),
     tone: error ? "danger" : canceled ? "neutral" : running ? "active" : success === false ? "warning" : success === true ? "success" : "neutral",
     facts, agents, permissions, content: text(result?.content), arguments: input, result: output,
   };

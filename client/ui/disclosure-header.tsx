@@ -189,6 +189,15 @@ export interface DisclosureHeaderProps {
   /** How loud the row is at rest; see `RowTone`. */
   tone?: RowTone;
   /**
+   * The verb carries the outcome ("Finished", "Needs permission"), so it stays
+   * beside the target whatever the reader's row label style.
+   */
+  keepVerb?: boolean;
+  /** The verb's colour for a row that reports a state (danger, warning). */
+  verbColor?: string;
+  /** `ui` draws the meta in the interface face, as agent rows read as words. */
+  metaFont?: "mono" | "ui";
+  /**
    * Nothing to open: the body would repeat the row. The row neither toggles
    * nor lights up on hover (no paint, chevron or preview); hover still shows
    * its actions, so the copy button stays in reach.
@@ -250,6 +259,9 @@ export function DisclosureHeader({
   scrollAnchor,
   tone = "quiet",
   inert = false,
+  keepVerb = false,
+  verbColor,
+  metaFont = "mono",
 }: DisclosureHeaderProps) {
   const previewOwner = useContext(HoverPreviewContext);
   const preview = useHoverPreview(Boolean(previewContent) && !expanded && !actionsActive && !inert, previewKey);
@@ -286,7 +298,7 @@ export function DisclosureHeader({
   const rowLabelStyle = useEnhancerPreferences().rowLabelStyle;
   // Icon-only rows still need words: a row with no target keeps its verb.
   const hasTarget = target !== undefined && target !== null && target !== "";
-  const showVerb = rowLabelStyle !== "icon" || !hasTarget;
+  const showVerb = keepVerb || rowLabelStyle !== "icon" || !hasTarget;
   const showIcon = rowLabelStyle !== "label" || iconIsStatus;
   const block = tokens.typography.block;
   const height = compact ? block.rowHeight.compact : block.rowHeight.desktop;
@@ -349,7 +361,7 @@ export function DisclosureHeader({
         style={[
           styles.metaText,
           unselectable,
-          { color: palette.meta, fontFamily: tokens.fontMono, fontSize: block.meta.size, lineHeight: block.meta.lineHeight },
+          { color: palette.meta, fontFamily: metaFont === "ui" ? tokens.fontUi : tokens.fontMono, fontSize: block.meta.size, lineHeight: block.meta.lineHeight },
           target === undefined && metaLead === undefined ? styles.pushRight : null,
         ]}
       >
@@ -413,7 +425,7 @@ export function DisclosureHeader({
                     styles.verb,
                     textSelect,
                     {
-                      color: palette.target,
+                      color: verbColor ?? palette.target,
                       fontFamily: tokens.fontUi,
                       fontSize: block.label.size,
                       lineHeight: block.label.lineHeight,
