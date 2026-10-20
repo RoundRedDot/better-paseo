@@ -40,6 +40,12 @@ interface ScrollMetrics {
 interface ListRef {
   props?: { inverted?: boolean | null };
   scrollToOffset?(params: { offset: number; animated?: boolean }): void;
+  getScrollRef?(): NativeScroller | null;
+}
+
+interface NativeScroller {
+  getNativeScrollRef?(): NativeScroller | null;
+  setNativeProps?(props: object): void;
 }
 
 interface ListContextValue {
@@ -86,6 +92,27 @@ export function useScrollDismiss(active: boolean, dismiss: () => void): void {
     frame = requestAnimationFrame(check);
     return () => cancelAnimationFrame(frame);
   }, [active]);
+}
+
+/**
+ * Holds the native timeline still while a held finger draws a selection in
+ * it. The list scrolls on the UI thread, so a JS responder alone cannot keep
+ * it from panning on iOS; turning the native scroller off before the finger
+ * moves does. Web keeps the page's own gestures.
+ */
+export function useListScrollLock(): (locked: boolean) => void {
+  const list = useContext(resolveListContext());
+  const latest = useRef(list);
+  latest.current = list;
+  return useCallback((locked: boolean) => {
+    if (Platform.OS === "web") return;
+    try {
+      const scroller = latest.current?.getOutermostParentListRef?.()?.getScrollRef?.();
+      (scroller?.getNativeScrollRef?.() ?? scroller)?.setNativeProps?.({ scrollEnabled: !locked });
+    } catch {
+      // A host list without native props keeps scrolling; the selection still follows the finger.
+    }
+  }, []);
 }
 
 export interface ScrollAnchor {

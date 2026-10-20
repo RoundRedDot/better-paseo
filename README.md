@@ -310,9 +310,11 @@ data, it gets a question transcript; otherwise it stays a generic text card.
 - Every table has a copy control at its top-left corner. On web and desktop, hovering it (or a
   long press on a touch screen) opens **Copy as Markdown** and **Copy as image**, a picture of the
   table as drawn; a plain press copies the Markdown. On iOS and Android it copies the Markdown.
-- On web and desktop, double-click a cell to select its text. On iOS and Android, double-tap a cell;
-  the corner menu always offers **Copy selected** and offers **Add to chat** when Paseo provides its
-  composer capability.
+- On web and desktop, double-click a cell to select its text. On iOS and Android, double-tap a cell.
+  To select a block of cells, hold a cell and drag right or down; with a mouse, dragging from one
+  cell into another works too. The menu appears on release: one cell copies its text, several copy
+  a Markdown table of those rows and columns under their header. The corner menu always offers
+  **Copy selected** and offers **Add to chat** when Paseo provides its composer capability.
 - Each completed turn has a separate footer under its final reply with Copy and its time, plus the
   provider mark, model, thinking level and observed duration when available. The model name copies
   when pressed and confirms with a toast; completed-turn footers remain during a later run. Turn
