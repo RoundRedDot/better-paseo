@@ -32,8 +32,10 @@ function card(id: string, over: { lane?: LaneId; title?: string; location?: Reco
       ...base.location,
       projectName: null,
       workspaceName: null,
+      workspaceTitle: null,
       branch: null,
       folder: null,
+      folderName: null,
       ...over.location,
     } as TaskCard["location"],
     timing: { ...base.timing, turnStartedAt: null, attentionAt: null, lastTurnMs: null, ...over.timing },
@@ -60,7 +62,17 @@ describe("sortCards", () => {
     }
   });
 
-  it("falls back to the deduped workspace and folder until the raw fields arrive", () => {
+  it("sorts by the raw workspace title and folder name, not the deduped ones", () => {
+    // Dedup hides a workspace named like its project and a folder named like its branch; the sort still sees them.
+    const cards = [
+      card("z", { location: { workspaceTitle: "zeta", workspaceName: null, folderName: "zeta", folder: null } }),
+      card("a", { location: { workspaceTitle: "alpha", workspaceName: "zzz", folderName: "alpha", folder: "zzz" } }),
+    ];
+    expect(ids(sortCards(cards, by("workspace", "asc"), NOW, compare))).toEqual(["a", "z"]);
+    expect(ids(sortCards(cards, by("folder", "asc"), NOW, compare))).toEqual(["a", "z"]);
+  });
+
+  it("falls back to the deduped workspace and folder when a raw field is null", () => {
     const cards = [card("z", { location: { workspaceName: "zeta", folder: "zeta" } }), card("a", { location: { workspaceName: "alpha", folder: "alpha" } })];
     expect(ids(sortCards(cards, by("workspace", "asc"), NOW, compare))).toEqual(["a", "z"]);
     expect(ids(sortCards(cards, by("folder", "asc"), NOW, compare))).toEqual(["a", "z"]);
