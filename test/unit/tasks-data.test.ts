@@ -152,6 +152,36 @@ describe("Tasks data store", () => {
     const mounted = await mountTasks(fake, "24h", false);
     try {
       expect(mounted.current.byId.get("a")?.location.workspaceName).toBeNull();
+      expect(mounted.current.byId.get("a")?.location.workspaceTitle).toBe(workspaceName);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("preserves raw folder names and placement workspace titles when display values are deduplicated", async () => {
+    const workspaceAgent = activeAgent("raw-workspace", {
+      status: "running",
+      cwd: "/Users/dev/code/feature-tasks",
+    });
+    const placementAgent = activeAgent("raw-placement", { status: "running", workspaceId: undefined });
+    const fake = createFakePaseo({
+      agents: [workspaceAgent, placementAgent],
+      workspaces: [{ ...workspace(), title: "feature/tasks" }],
+      placements: {
+        "raw-placement": makePlacement(placementAgent, { workspaceName: "main" }),
+      },
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      const workspaceLocation = mounted.current.byId.get("raw-workspace")?.location;
+      expect(workspaceLocation?.workspaceName).toBeNull();
+      expect(workspaceLocation?.workspaceTitle).toBe("feature/tasks");
+      expect(workspaceLocation?.folder).toBeNull();
+      expect(workspaceLocation?.folderName).toBe("feature-tasks");
+
+      const placementLocation = mounted.current.byId.get("raw-placement")?.location;
+      expect(placementLocation?.workspaceName).toBeNull();
+      expect(placementLocation?.workspaceTitle).toBe("main");
     } finally {
       mounted.unmount();
     }
