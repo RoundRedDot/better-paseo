@@ -167,11 +167,13 @@ export function DesktopFilterBar(props: {
       <ToggleChip
         icon="ListTree"
         label={strings.hideSubtasks}
+        hint={strings.hideSubtasksHint}
         on={resolved.filters.hideSubtasks}
         onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
         theme={theme}
       />
       {resolved.filters.openTabsOnly ? <Text style={{ fontSize: 11, color: colors.foregroundMuted }}>{strings.openTabsHint}</Text> : null}
+      {resolved.filters.hideSubtasks ? <Text style={{ fontSize: 11, color: colors.foregroundMuted }}>{strings.hideSubtasksHint}</Text> : null}
       {chips.length ? (
         <>
           <Divider theme={theme} />
