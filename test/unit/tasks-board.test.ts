@@ -324,6 +324,8 @@ describe("stopped manually", () => {
     const once = withStopReasons(lanes, stopped, "已手动停止");
     const unread = once.review.cards.find((card) => card.id === "sample-unread")!;
     expect(unread.error).toBe("已手动停止");
+    expect(unread.stoppedManually).toBe(true);
+    expect(once.review.cards.find((card) => card.id === "sample-failed")!.stoppedManually).toBeUndefined();
     expect(once.review.cards.find((card) => card.id === "sample-failed")!.error).toBe("Provider exited with code 1: rate limit reached");
     expect(once.running).toBe(lanes.running);
     // The daemon idles a stopped agent without asking for attention: it lands in done.

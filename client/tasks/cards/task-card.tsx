@@ -558,7 +558,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     >
       <View style={{ width: m.iconSlot, alignItems: "center" }}>
         <StatusIcon
-          kind={card.status}
+          kind={card.stoppedManually ? "stopped" : card.status}
           size={m.iconBox}
           height={m.titleLine}
           theme={theme}
@@ -752,7 +752,12 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const failure = layout.failure ? (
     <View style={[block, { flexDirection: "row", alignItems: "flex-start", gap: GAP }]} testID="task-card-reason">
       <View style={iconCell}>
-        <Icon name={failed ? "CircleX" : "Square"} size={m.icon} color={failed ? tokens.danger : muted} />
+        {card.stoppedManually && !failed ? (
+          // Stopped: the stop pill's solid square, not Lucide's hollow one.
+          <View style={{ width: m.icon - 4, height: m.icon - 4, borderRadius: 2, backgroundColor: muted }} testID="task-card-reason-stopped" />
+        ) : (
+          <Icon name={failed ? "CircleX" : "Square"} size={m.icon} color={failed ? tokens.danger : muted} />
+        )}
       </View>
       <Text style={[text(m.blockSize, m.blockLine, failed ? tokens.danger : muted), { flex: 1 }]}>{card.error}</Text>
     </View>
