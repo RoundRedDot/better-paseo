@@ -148,3 +148,41 @@ agent 与模型（真实组合）：Claude · Opus 5.5 · High；Claude · Opus 
 7. 泳道切换动效分解（0 / 100 / 200ms 三帧）。
 
 画板 6 补移动端规格：tab 栏尺寸、下划线、计数样式、吸顶规则、手势与动效参数、sheet 尺寸与圆角、按钮点击区。其余画板不变。直接改，不要提问。
+
+---
+
+追加消息四（卡片补上项目、workspace、分支、文件夹、标签）：
+
+再改一处：卡片要补上任务所在位置的上下文信息：项目、workspace 名称、分支、文件夹、标签。写法与 Paseo 侧边栏的 workspace 行保持一致（附件 paseo-sidebar.png 里「ideashell-server 分支整理」下方那行「⑂ hotfix · 📁 ideashell-server」）。
+
+数据含义：
+- 项目：Paseo 的 project（一个仓库或目录），如 beautiful-chat、ideashell-server、paseo。侧边栏用 16×16 圆角方块 + 项目首字母作为项目头像，颜色按项目固定。
+- workspace 名称：项目下的一个 workspace（本地 checkout 或 worktree），名字常常是一句中文任务描述，如「Tasks 看板实现」「ideashell-server 分支整理」。
+- 分支：当前 git 分支，如 docs/tasks-board、hotfix、perf/next-p0。非 git 项目没有分支。
+- 文件夹：agent 的工作目录名（cwd 的最后一级），worktree 时如 tasks-board、diagnose-hardware-entry-20261020。
+- 标签：用户在侧边栏给 workspace 打的标签，每个标签有一种颜色（violet / sky / emerald / orange / pink / indigo / teal / red / amber / blue）。示例：上游 PR（violet）、hotfix（red）、性能（amber）、文档（sky）。
+
+卡片结构改为：
+- 行 1：标题 + 跳转按钮（悬停时还有停止），不变。
+- 行 2：品牌标识 + 模型 · 思考等级，不变，思考等级永不截断。
+- 行 3「位置行」：项目头像 16×16 + 项目名 / workspace 名（用 / 分隔；workspace 名与项目名或任务标题相同时只显示项目名）；右侧仍是计时或完成于。
+- 行 4「git 行」：Lucide GitBranch 图标 + 分支名 · Lucide Folder 图标 + 文件夹名；非 git 项目只显示文件夹；文件夹名与 workspace 名或分支名相同时省略文件夹。右侧放标签：小 chip（6px 色点 + 标签名，11px，细描边），最多 2 个，其余收成「+N」。
+- 去掉原来行 3 的 workspace chip（被位置行取代）。
+- 截断优先级（先截后者）：标签先收成 +N → 文件夹 → workspace 名 → 分支 → 项目名。模型和思考等级、计时永不被挤掉。
+- 卡片会多一行，行高保持 16，不加内边距；整体仍要紧凑。
+
+其他位置：
+- 悬停详情浮层（手机长按 sheet）补全：项目、workspace 名、分支（带领先 / 落后 origin 的提交数和是否有未提交改动）、完整工作目录路径、关联的 PR（如「#6737 fix: …」，有就显示）、全部标签。
+- 过滤栏：Workspace 下拉按项目分组列出 workspace；新增「标签」多选筛选。
+- 父任务展开的子任务清单：子任务与父任务不在同一个 workspace 时，行内用小号字补一个「项目 / workspace」。
+- 窄屏：同样的 4 行结构，标签最多 1 个 +N。
+
+示例数据（替换现有卡片，保持真实感）：
+- Tasks 看板实现：beautiful-chat / Tasks 看板实现，分支 docs/tasks-board，文件夹 tasks-board，标签 文档
+- 补充单元测试（子任务）：beautiful-chat / Tasks 看板实现，分支 docs/tasks-board
+- 迁移脚本重构：ideashell-server / ideashell-server 分支整理，分支 hotfix，标签 hotfix
+- 排查 iOS 七连击入口：ideashell_ios / 排查 develop iOS 七连击未显示硬件入口，分支 diagnose-hardware-entry-20261020，文件夹 diagnose-hardware-entry-20261020
+- 上游 PR 回归验证：paseo / PR 6737 回归验证，分支 fix/ping-review-minimal-20261020，标签 上游 PR、性能
+- 其余卡片按此风格补齐，部分卡片用非 git 目录（只有文件夹）。
+
+请同步更新画板 1（浅、深）、画板 2 的所有卡片状态（新增「多标签收成 +N」「非 git 项目」两个状态）、画板 4 手机、画板 6 移植规格（行结构、截断优先级、项目头像、标签 chip 的颜色公式：色点用标签色，chip 底与描边用宿主 token）。其余不变。直接改，不要提问。

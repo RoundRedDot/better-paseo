@@ -2,19 +2,19 @@
 
 - 来源：[Claude Design 项目「Paseo Tasks 泳道看板」](https://claude.ai/design/p/5f122bf6-c1af-43e3-9f28-eecb8d286e18?file=Paseo+Tasks+%E6%B3%B3%E9%81%93%E7%9C%8B%E6%9D%BF.dc.html)
 - 导出日期：2026-10-20
-- 原稿：`docs/prototypes/tasks-board.html`，由 Claude Design 的 Export HTML → Standalone HTML 导出，按字节原样保存，可离线打开，看板可交互。这是第四版（首轮 + 三轮追加修改）。文件 3.5 MB（内嵌 1.7 MB 的 SVG 和多套字体），**只留在本地、不进 Git**（见 `.gitignore`）；新 clone 里没有它，从上面的 Claude Design 项目再导出一份即可（重新导出的文件字节不一定与上面的 SHA-256 相同）。
-- 提示词：[tasks-board-prompt.md](tasks-board-prompt.md)，含首轮提示和三轮追加消息。首轮附两张图：`paseo-sidebar.png`（Paseo 侧边栏现状，红框标出新入口的位置）、`cloudflare-style.png`（cloudflare.com 定价区截图，作为细线风格参考）。
-- 原稿 SHA-256：`52c90de62e0dc9796b78229707c04e2ad1cd4e84ad911dbdffd66b2496257336`
+- 原稿：`docs/prototypes/tasks-board.html`，由 Claude Design 的 Export HTML → Standalone HTML 导出，按字节原样保存，可离线打开，看板可交互。这是第五版（首轮 + 四轮追加修改）。文件 3.6 MB（内嵌 1.7 MB 的 SVG 和多套字体），**只留在本地、不进 Git**（见 `.gitignore`）；新 clone 里没有它，从上面的 Claude Design 项目再导出一份即可（重新导出的文件字节不一定与上面的 SHA-256 相同）。
+- 提示词：[tasks-board-prompt.md](tasks-board-prompt.md)，含首轮提示和四轮追加消息。首轮附两张图：`paseo-sidebar.png`（Paseo 侧边栏现状，红框标出新入口的位置）、`cloudflare-style.png`（cloudflare.com 定价区截图，作为细线风格参考）。
+- 原稿 SHA-256：`769f51ad279130ff16cfb37c0d3ee452cbc524a6478ba785c332771d9352e0e9`
 - 需求方案：[../tasks-board.md](../tasks-board.md)
 
-用户的要求：以 Linear 的泳道看板为结构模板，视觉用 Cloudflare 新版官网的简洁线条风格；每张卡片要有显式的「跳转到原 workspace 对应 tab」按钮；模型和思考等级不能被截断；移动端用 tab 切换泳道，一次只显示一个泳道。
+用户的要求：以 Linear 的泳道看板为结构模板，视觉用 Cloudflare 新版官网的简洁线条风格；每张卡片要有显式的「跳转到原 workspace 对应 tab」按钮；模型和思考等级不能被截断；移动端用 tab 切换泳道，一次只显示一个泳道；卡片要显示项目、workspace、分支、文件夹和标签。
 
 ## 画板
 
 | 画板 | 内容 |
 | --- | --- |
 | 01 桌面端完整看板 | 1440 × 900，浅色（默认筛选）与深色（已开启「隐藏子任务」）；左侧 Paseo 侧边栏带新增的 Tasks 入口和计数；J/K/H/L 键盘导航 |
-| 02 卡片状态全集 | 卡片宽 284，浅色与深色，16 个状态：待输入（工具权限、提问）、运行中（普通、父任务展开、悬停、确认停止）、子任务、待查看（未读、失败）、已完成、键盘焦点、详情浮层、跳转按钮悬停与焦点、子任务行悬停 |
+| 02 卡片状态全集 | 卡片宽 284，浅色与深色，18 个状态（含「多标签收成 +N」「非 git 项目」）：待输入（工具权限、提问）、运行中（普通、父任务展开、悬停、确认停止）、子任务、待查看（未读、失败）、已完成、键盘焦点、详情浮层、跳转按钮悬停与焦点、子任务行悬停 |
 | 03 侧边栏入口状态 | 无计数、有运行中、有待输入、选中 |
 | 04 窄屏 · 手机 | 390 × 844，浅色与深色各 7 屏：待输入（默认）、运行中、已完成、过滤 sheet、长按详情 sheet、空泳道、切换动效分解 |
 | 05 空状态与加载 | 全部为空、某列为空、已完成「加载更多」、首次加载骨架 |
@@ -38,20 +38,24 @@
 | dangerSoft | mix(statusDanger, surface0, 10%) | `#fbecec` | `#2e1f21` | 确认停止按钮底 |
 | popoverShadow | surface0 亮度 ≥ .5 ? 黑 12% / 6% : 黑 50% / 35% | | | `0 8 24 −6` + `0 2 6 −2`，仅菜单、详情、Toast |
 | scrim | surface0 亮度 ≥ .5 ? `rgba(0,0,0,.32)` : `rgba(0,0,0,.56)` | | | 手机底部 sheet 遮罩 |
+| tagChip | 底 surface0 · 描边 border · 字 foregroundMuted | `#ffffff` / `#e2e2e6` | `#18181b` / `#2e2e33` | 标签 chip，随主题 |
+| tagDot | 标签数据色，不随主题，如 violet `#8b5cf6`、red `#ef4444` | | | 标签色点 6 × 6 |
 
-`statusSuccess` 保留未用。scrim 是原稿新增的固定色，宿主主题里没有对应 token。
+`statusSuccess` 保留未用。scrim 是原稿新增的固定色，宿主主题里没有对应 token。标签色点和项目头像底色是「数据色」，浅深主题同值。
 
 ### 卡片
 
 | 元素 | 规格 |
 | --- | --- |
-| 卡片 | 宽 100%，内边距 9 10 10，行间 4，圆角 6，1px border；悬停 borderStrong + 底 surface1；焦点 accent + 3px accentRing |
+| 卡片 | 宽 100%，四行固定内容（行高 22 / 16 / 16 / 16），内边距 9 10 10，行间 4，圆角 6，1px border；悬停 borderStrong + 底 surface1；焦点 accent + 3px accentRing |
 | 行 1（高 22） | 标题 13/500/18 单行截断；右侧「停止」（运行中悬停）与跳转按钮，间距 6 |
 | 行 2（高 16） | 品牌位图 16 × 16 + 模型（foreground）·思考等级（foregroundMuted），12/400/16；思考等级永不截断，极窄时只截断模型名 |
-| 行 3（高 18） | 左 workspace chip（最大宽 60%），右计时或完成于，12/400 tabular-nums；待输入计时用 warning + clock 图标 12 |
+| 行 3 位置行（高 16） | 项目头像 16 × 16（圆角 4，底为项目固定色，白色首字母 11/600）+「项目 / workspace」，项目名 foreground、其余 foregroundMuted；workspace 名与项目名或任务标题相同时只显示项目名；右侧计时或完成于，12/400 tabular-nums，待输入计时用 warning + clock 图标 12 |
+| 行 4 git 行（高 16） | GitBranch / Folder 图标 12 +「分支 · 文件夹」，foregroundMuted；非 git 项目只显示文件夹；文件夹名与 workspace 名或分支名（`/` 视作 `-`）相同时省略；右侧标签 chip |
+| 标签 chip | 高 16，最大宽 84，圆角 3，1px border，左右 5；色点 6 × 6 + 名称 11/400；桌面最多 2 个、手机 1 个，其余收成「+N」 |
 | 跳转按钮 | ArrowUpRight，24 × 24（触屏 32 × 32），图标 14，圆角 4（触屏 16）；默认透明描边，悬停 1px border + 底 surface2 + 图标 foreground；tooltip「在 workspace 中打开 [Enter]」悬停 400ms 出现 |
 | 子任务行跳转 | 22 × 22（触屏 32，行高 36），行悬停时出现，触屏常驻 |
-| 截断顺序 | 先 workspace chip，再模型名 |
+| 截断顺序 | 标签先收成 +N；位置行和 git 行按收缩比例截断，文件夹和 workspace 名先缩，分支和项目名后缩；模型、思考等级和计时不参与收缩 |
 
 ### 列与看板
 
@@ -88,6 +92,7 @@
 2. 追加一：每张卡片标题行右侧加常驻跳转按钮；子任务行、详情浮层加同样的入口；计时移出标题行。
 3. 追加二：计时移到第二行后模型名被截断，改为三行结构，模型与思考等级独占第二行。
 4. 追加三：移动端改为细线 tab 切换泳道，一次一个泳道，加滑动手势、过滤 sheet、长按详情 sheet 和移动端规格。
+5. 追加四：卡片改为四行，加位置行（项目 / workspace）和 git 行（分支 · 文件夹 · 标签）；详情浮层补完整路径、领先落后、关联 PR；过滤栏加标签筛选，Workspace 下拉按项目分组。
 
 ## 移植时要注意
 
@@ -95,3 +100,5 @@
 - 提示词里给的 warning 浅深参考色 `#c98a12` / `#e0a53a` 是出稿用的估计值，实现时一律读宿主的 `statusWarning`。
 - scrim 是固定色，不随宿主主题变化。
 - 原稿里的品牌标识是位图占位，实现时复用 `server/mark-bitmaps.ts`。
+- 标签颜色和项目图标要等上游 [getpaseo/paseo#7482](https://github.com/getpaseo/paseo/pull/7482) 合入：它给插件的 `PaseoApi` 加了 `workspaces.listLabels()` 和 `projects.icon()`。标签颜色是协议里的颜色名（violet、red 等），按原稿的 tagDot 色值映射；项目有图标时用 `projects.icon()` 的图，没有时才用首字母头像。合入前，标签用中性色点、项目用首字母头像。
+- 原稿里的示例 PR 编号、领先落后提交数、路径和项目头像色是 Claude Design 编的。
