@@ -90,24 +90,33 @@ export interface AgentPillColors {
 }
 
 /**
- * The model and thinking pills, after Linear's status pill: no border, the
- * brand's hue at 12% over the card (20% on a dark theme), the icon in the
- * brand colour and the label the brand pulled 30% towards the theme's
- * foreground (darker on light, lighter on dark), further if it would fall
- * under 4.5:1 on the tint. Monochrome and multicolour marks get the neutral
- * version: the foreground at 6% with a foreground label.
+ * A borderless pill in one hue, after Linear's status pill: the hue at 12%
+ * over the card (20% on a dark theme), the icon in the hue itself and the
+ * label the hue pulled 30% towards the theme's foreground (darker on light,
+ * lighter on dark), further if it would fall under 4.5:1 on the fill.
  */
-export function agentPillColors(tokens: TaskTokens, provider: string): AgentPillColors {
-  const base = tokens.card.background;
+export function tintedPillColors(tokens: TaskTokens, hue: string): AgentPillColors {
   const fg = tokens.foreground;
-  const brand = brandTint(provider);
-  if (!brand) return { background: mix(base, fg, 0.06), text: fg, icon: fg };
-  const background = mix(base, brand, tokens.isDark ? 0.2 : 0.12);
+  const background = mix(tokens.card.background, hue, tokens.isDark ? 0.2 : 0.12);
   let toward = 0.3;
-  let text = mix(brand, fg, toward);
+  let text = mix(hue, fg, toward);
   while (contrastRatio(text, background) < 4.5 && toward < 1) {
     toward = Math.min(1, toward + 0.05);
-    text = mix(brand, fg, toward);
+    text = mix(hue, fg, toward);
   }
-  return { background, text, icon: brand };
+  return { background, text, icon: hue };
+}
+
+/** The neutral borderless pill: the foreground at 6%, a foreground label and a muted icon. */
+export function neutralPillColors(tokens: TaskTokens, icon: string = tokens.foreground): AgentPillColors {
+  return { background: mix(tokens.card.background, tokens.foreground, 0.06), text: tokens.foreground, icon };
+}
+
+/**
+ * The model pill: a coloured brand's tinted pill; monochrome and
+ * multicolour marks get the neutral one.
+ */
+export function agentPillColors(tokens: TaskTokens, provider: string): AgentPillColors {
+  const brand = brandTint(provider);
+  return brand ? tintedPillColors(tokens, brand) : neutralPillColors(tokens);
 }
