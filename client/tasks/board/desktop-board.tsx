@@ -27,6 +27,11 @@ function measure(node: unknown): Promise<Box | null> {
 
 const Separator = () => <View style={{ height: 12 }} />;
 
+/** True while the keyboard types into a text field. */
+function isTyping(active: HTMLElement | null): boolean {
+  return !!active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
+}
+
 /** The desktop board (prototype 01): the bars, then four lanes that scroll sideways when they do not fit. */
 export function DesktopBoard(props: {
   screen: PluginScreenProps;
@@ -146,20 +151,11 @@ export function DesktopBoard(props: {
       const root = rootRef.current as unknown as HTMLElement | null;
       const active = document.activeElement as HTMLElement | null;
       if (active && active !== document.body && root && !root.contains(active)) return;
-      const typing = !!active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
-      if (typing) {
-        if (event.key === "Escape") active.blur();
-        return;
-      }
+      if (isTyping(active)) return;
       const now = latest.current;
       if (event.key === "Escape" && (now.menu || now.popover)) {
         setMenu(null);
         setPopover(null);
-        event.preventDefault();
-        return;
-      }
-      // Esc disarms an armed stop wherever the keyboard focus is.
-      if (event.key === "Escape" && now.board.stop.cancelAll()) {
         event.preventDefault();
         return;
       }
@@ -178,8 +174,29 @@ export function DesktopBoard(props: {
         }
       }
     };
+    // Esc, in the capture phase: React Native Web's TextInput stops it before
+    // it bubbles to the document. It disarms an armed stop wherever the
+    // keyboard focus is (the board, its search box, the sidebar), and takes
+    // the focus out of the board's search box.
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const root = rootRef.current as unknown as HTMLElement | null;
+      const active = document.activeElement as HTMLElement | null;
+      const inBoard = !!active && !!root && root.contains(active);
+      const disarmed = latest.current.board.stop.cancelAll();
+      if (inBoard && isTyping(active)) {
+        active!.blur();
+        event.preventDefault();
+      } else if (disarmed && (inBoard || !active || active === document.body)) {
+        event.preventDefault();
+      }
+    };
+    document.addEventListener("keydown", onEscape, true);
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onEscape, true);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [board.visible, rootRef]);
 
   const breathing = useBreathing(!tasks.ready && board.visible);
