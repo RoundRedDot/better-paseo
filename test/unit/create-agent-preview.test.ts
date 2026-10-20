@@ -10,9 +10,11 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   return { Icon: rn.View, ScrollView: rn.ScrollView, TextInput: rn.TextInput,
     copyText: clipboard.copyText, useToast: () => ({ show: clipboard.show, error: clipboard.error }), useRevealedText: (text: string) => text };
 });
+const host = vi.hoisted(() => ({ cwd: null as string | null, providers: { listModels: vi.fn() } }));
 vi.mock("@getpaseo/plugin/client", () => ({
-  useAgent: () => undefined, useWorkspace: () => undefined,
-  useRpc: () => () => Promise.resolve(null), usePaseo: () => ({}),
+  useAgent: (_id: string, select: (agent: { cwd: string }) => unknown) => host.cwd === null ? null : select({ cwd: host.cwd }),
+  useWorkspace: () => undefined,
+  useRpc: () => () => Promise.resolve(null), usePaseo: () => host,
   useSettings: () => ({ status: "loading" }),
 }));
 import { buildThemeTokens } from "../../client/components/theme-tokens";
@@ -58,6 +60,7 @@ async function press(label: string) {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  host.cwd = null;
   seedMarkBitmaps({ "provider:cursor": "data:image/png;base64,cursor", "lobe:grok": "data:image/png;base64,grok" });
 });
 afterEach(() => {
@@ -181,7 +184,7 @@ describe("create_agent preview", () => {
       expect(node.props.numberOfLines).toBeUndefined();
       expect(StyleSheet.flatten(node.props.style).color).toBe(tokens.foreground);
       const text = textOf(renderer!.toJSON());
-      expect(text.indexOf(title)).toBeLessThan(text.indexOf("Cursor"));
+      expect(text.indexOf(title)).toBeLessThan(text.indexOf("grok-4.7"));
       expect(text.indexOf(title)).toBeLessThan(text.indexOf(agentId));
     };
     verify();
@@ -229,25 +232,38 @@ describe("create_agent preview", () => {
     expect(opacity()).toBe(1);
   });
 
-  it.each([false, true])("uses the original Cursor black/white mark (dark=%s)", (isDark) => {
+  it.each([false, true])("uses the theme's muted color for the Cursor mark (dark=%s)", (isDark) => {
     act(() => { renderer = TestRenderer.create(agentView({ ...tokens, isDark })); });
     const image = renderer!.root.findAll((node) => (node.type as unknown) === "Image" && node.props.accessibilityLabel === "Cursor")[0]!;
-    expect(StyleSheet.flatten(image.props.style).tintColor).toBe(isDark ? "#FFFFFF" : "#000000");
+    expect(StyleSheet.flatten(image.props.style).tintColor).toBe(tokens.foregroundMuted);
   });
 
-  it.each([false, true])("keeps the Grok mark and label readable when switching themes (dark=%s)", (isDark) => {
-    const view = (dark: boolean) => agentView({ ...tokens, isDark: dark }, "Review", undefined, "grok/grok-4.7");
-    act(() => { renderer = TestRenderer.create(view(isDark)); });
-    const verify = (dark: boolean) => {
-      const image = renderer!.root.findAll((node) => (node.type as unknown) === "Image" && node.props.accessibilityLabel === "Grok")[0]!;
-      const label = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.children === "Grok")[0]!;
-      const color = dark ? "#FFFFFF" : "#000000";
-      expect(image.props.source.uri).toBe("data:image/png;base64,grok");
-      expect(StyleSheet.flatten(image.props.style).tintColor).toBe(color);
-      expect(StyleSheet.flatten(label.props.style).color).toBe(color);
-    };
-    verify(isDark);
-    act(() => renderer!.update(view(!isDark)));
-    verify(!isDark);
+  it.each(["web", "ios", "android"])("matches the composer model label and preserves raw ID copying across themes on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    host.cwd = "/workspace";
+    host.providers.listModels.mockResolvedValue({ models: [{ id: "grok-4.7", label: "Grok 4.7" }] });
+    const view = (dark: boolean) => agentView({ ...tokens, isDark: dark,
+      foregroundMuted: dark ? "#aaa" : "#666" }, "Review", undefined, "grok/grok-4.7");
+    await act(async () => { renderer = TestRenderer.create(view(false)); });
+    for (const dark of [false, true]) {
+      await act(async () => renderer!.update(view(dark)));
+      const model = renderer!.root.findByProps({ testID: "create-agent-model" });
+      const images = model.findAll((node) => (node.type as unknown) === "Image");
+      expect(images).toHaveLength(1);
+      expect(images[0]!.props.accessibilityLabel).toBe("Grok");
+      expect(StyleSheet.flatten(images[0]!.props.style).tintColor).toBe(dark ? "#aaa" : "#666");
+      const label = model.findByProps({ testID: "create-agent-model-label" });
+      expect(label.props.children).toBe("Grok 4.7");
+      expect(StyleSheet.flatten(label.props.style)).toMatchObject({ color: dark ? "#aaa" : "#666", fontWeight: "400" });
+      expect(textOf(renderer!.toJSON())).not.toContain("grok-4.7");
+      expect(model.findAll((node) => (node.type as unknown) === "Text" && node.props.children === "Grok")).toHaveLength(0);
+      expect(model.findAllByProps({ name: "Copy" })).toHaveLength(0);
+      const item = model.findByType(ToolbarItem);
+      expect(item.props.details.props.modelId).toBe("grok-4.7");
+      expect(item.props.details.props.modelName).toBe("Grok 4.7");
+      await press("Copy model name");
+      expect(clipboard.copyText).toHaveBeenLastCalledWith("grok-4.7");
+    }
+    expect(host.providers.listModels).toHaveBeenCalledWith("grok", { cwd: "/workspace" });
   });
 });

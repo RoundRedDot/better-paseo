@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { Glyph } from "./glyph";
 import { Icon } from "@getpaseo/plugin/client/react-native";
+import { useAgent, usePaseo } from "@getpaseo/plugin/client";
 import { surfaceProps } from "./view-props";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
@@ -13,7 +14,8 @@ import { useCopy } from "../ui/use-copy";
 import { useHover } from "../ui/use-hover";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { blockProseBase } from "../ui/tokens/typography";
-import { ProviderLogo, normalizeProvider } from "./provider-logo";
+import { ProviderLogo } from "./provider-logo";
+import { useFooterModel } from "../state/footer-model";
 import { selectableSurface } from "./selection";
 import { selectionSurface } from "./selection-actions";
 import type {
@@ -82,9 +84,9 @@ function CreateAgentView({ data, tokens, raw, compact }: {
         justifyContent: "space-between", flexWrap: "wrap", gap: mobile ? space.xs : space.sm, minWidth: 0,
       }}>
         <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.sm, minWidth: 0, flexShrink: 1 }}>
-          <ProviderLogo provider={data.provider} size={16} showLabel
-            color={["cursor", "grok"].includes(normalizeProvider(data.provider)) ? (tokens.isDark ? "#FFFFFF" : "#000000") : undefined} />
-          {data.model ? <ModelName model={data.model} thinkingOptionId={data.thinkingOptionId} tokens={tokens} mobile={mobile} /> : null}
+          {data.model ? <ModelName provider={data.provider} agentId={data.agentId} model={data.model}
+            thinkingOptionId={data.thinkingOptionId} tokens={tokens} mobile={mobile} /> :
+            <ProviderLogo provider={data.provider} size={16} showLabel color={tokens.foregroundMuted} />}
           <View testID="create-agent-permissions" accessibilityLabel={`Permissions: ${data.modeId ?? "未指定"}`}
             style={{ flexDirection: "row", alignItems: "center", gap: space.xs, minWidth: 0, maxWidth: "100%", flexShrink: 1 }}>
             <Icon name="Shield" size={14} color={tokens.foregroundMuted} />
@@ -106,7 +108,9 @@ function CreateAgentView({ data, tokens, raw, compact }: {
 }
 
 /** Copies the model ID exactly as requested, without provider or metadata. */
-function ModelName({ model, thinkingOptionId, tokens, mobile }: {
+function ModelName({ provider, agentId, model, thinkingOptionId, tokens, mobile }: {
+  provider: string;
+  agentId?: string;
   model: string;
   thinkingOptionId?: string;
   tokens: ExtendedThemeTokens;
@@ -115,17 +119,20 @@ function ModelName({ model, thinkingOptionId, tokens, mobile }: {
   const { copied, copy } = useCopy();
   const capabilities = useInputCapabilities();
   const detailsWidth = useFooterDetailsWidth();
+  const paseo = usePaseo();
+  const cwd = useAgent(agentId ?? "", (agent) => agent.cwd);
+  const { modelName } = useFooterModel(paseo, provider, model, thinkingOptionId ?? null, cwd ?? null);
   return (
     <View testID="create-agent-model" style={{ minWidth: 0, maxWidth: "100%", flexShrink: 1 }}>
       <ToolbarItem label={copied ? "Copied" : "Copy model name"} accessibilityLabel="Copy model name"
         tokens={tokens} align="start" onPress={() => { void copy(model, { label: "Copy model name" }); }}
-        details={<FooterDetails modelName={model} thinkingLabel={thinkingOptionId ?? "未指定"} tokens={tokens} />}
+        details={<FooterDetails modelId={model} modelName={modelName ?? model} thinkingLabel={thinkingOptionId ?? "未指定"} tokens={tokens} />}
         detailsWidth={detailsWidth} hitSlop={mobile ? 10 : 4}
         buttonStyle={{ width: "auto", height: "auto", minHeight: mobile ? 24 : capabilities.touch ? 44 : 24,
           flexDirection: "row", gap: space.xs, minWidth: 0, maxWidth: "100%" }}>
-        <Text style={{ fontSize: tokens.typography.block.meta.size, fontFamily: tokens.fontUi,
-          color: tokens.foregroundMuted, flexShrink: 1, minWidth: 0 }}>{model}</Text>
-        <Glyph name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : tokens.foregroundMuted} />
+        <ProviderLogo provider={provider} size={16} color={tokens.foregroundMuted} />
+        <Text testID="create-agent-model-label" style={{ fontSize: tokens.typography.block.meta.size, fontFamily: tokens.fontUi,
+          fontWeight: "400", color: tokens.foregroundMuted, flexShrink: 1, minWidth: 0 }}>{modelName ?? model}</Text>
       </ToolbarItem>
     </View>
   );
