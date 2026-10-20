@@ -23,6 +23,7 @@ import { lineDiff } from "../components/diff-lines";
 import type { AgentStatusData } from "./agent-status";
 import { readAgentMessage, type AgentMessage } from "./agent-message";
 import { readSendAgentPrompt } from "./send-agent-prompt";
+import { CATALOG_TOOLS, readPaseoCatalog, type CatalogTool } from "./paseo-catalog";
 import { AGENT_OPERATIONS, readAgentOperation } from "./agent-operation";
 import { readPaseoResult } from "./paseo-result";
 
@@ -150,6 +151,10 @@ export function buildPaseoData(
   if (Object.keys(AGENT_OPERATIONS).includes(rawName)) return {
     id: `paseo-${rawName}`, tool: rawName as keyof typeof AGENT_OPERATIONS, durationMs,
     agentOperation: readAgentOperation(rawName as keyof typeof AGENT_OPERATIONS, input, output, outputText, status),
+  };
+  if (rawName in CATALOG_TOOLS) return {
+    id: `paseo-${rawName}`, tool: rawName as CatalogTool, durationMs,
+    catalog: readPaseoCatalog(rawName as CatalogTool, input, output, outputText),
   };
   if (rawName === "send_agent_prompt") return {
     id: `paseo-${rawName}`, tool: rawName, durationMs,
@@ -356,9 +361,8 @@ const PROTOCOL_KINDS: Record<string, ToolKind> = {
 
 const PASEO_TOOLS = new Set([
   ...Object.keys(AGENT_OPERATIONS),
+  ...Object.keys(CATALOG_TOOLS),
   "create_agent",
-  "list_providers",
-  "list_models",
   "get_agent_activity",
   "send_agent_prompt",
   "get_agent_status",

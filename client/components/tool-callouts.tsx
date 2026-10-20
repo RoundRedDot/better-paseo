@@ -449,7 +449,7 @@ function GroupedToolDetails({ calls, ...rest }: GroupedBodyProps) {
 
 /** Agent cards put a failure's first line under their identity strip. */
 function drawsOwnError(data: ToolCallView): boolean {
-  return Boolean(data.paseo?.createAgent || data.paseo?.sendAgentPrompt || data.paseo?.agentOperation);
+  return Boolean(data.paseo?.createAgent || data.paseo?.sendAgentPrompt || data.paseo?.agentOperation || data.paseo?.catalog);
 }
 
 function isMarkdownWrite(data: ToolCallView): boolean {
@@ -469,7 +469,7 @@ export function ToolPreviewContent({ data, resolvePath, drawsImage = false, page
   const { tokens, imageFile } = rest;
   const [raw, setRaw] = useState(false);
   const createAgent = data.tool === "paseo" && data.paseo?.tool === "create_agent" && Boolean(data.paseo.createAgent);
-  const agentTool = createAgent || Boolean(data.paseo?.sendAgentPrompt || data.paseo?.agentOperation);
+  const agentTool = createAgent || Boolean(data.paseo?.sendAgentPrompt || data.paseo?.agentOperation || data.paseo?.catalog);
   const subAgent = data.tool === "sub_agent" && Boolean(data.subAgent);
   const markdown = isMarkdownWrite(data) || agentTool || subAgent || Boolean(data.agentStatus);
   const streaming = data.status === "running";

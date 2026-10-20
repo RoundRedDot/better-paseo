@@ -397,8 +397,6 @@ function summarizeKind(view: ToolCallView): ToolSummary {
         paseo?.createAgent?.title ??
         paseo?.sendAgentPrompt?.agentId ??
         paseo?.agentOperation?.agentId ??
-        (paseo?.models ? paseo.models.provider : undefined) ??
-        (paseo?.activity ? paseo.activity.agentId : undefined) ??
         keyArgument(view.input);
       pushDuration(meta, view);
       return { verb: clip(`paseo / ${tool}`, VERB_MAX) ?? "paseo", target: clip(target, TARGET_MAX), meta, tone };

@@ -9,8 +9,9 @@ import { ToolbarItem } from "../ui/toolbar-button";
 import { FooterDetails, useFooterDetailsWidth } from "./footer-details";
 import { useCopy } from "../ui/use-copy";
 import {
-  AgentDivider, AgentErrorLine, AgentIdentityStrip, AgentMarkdown, AgentSection, useCardMobile, useLiveAgent, type AgentField,
+  AgentDivider, AgentErrorLine, AgentIdentityStrip, AgentMarkdown, AgentSection, modeColor, useCardMobile, useLiveAgent, type AgentField,
 } from "./agent-card-content";
+import { CatalogView } from "./paseo-catalog-views";
 import { SendAgentPromptView, AgentOperationView, PermissionActions, PermissionQuestionForm, PermissionRequest, PermissionRequestId } from "./agent-operation-views";
 import { readPermissionRequest, type AgentStatusData } from "../tools/agent-status";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
@@ -20,9 +21,6 @@ import { selectableSurface } from "./selection";
 import { selectionSurface } from "./selection-actions";
 import type {
   PaseoCreateAgentData,
-  PaseoGetActivityData,
-  PaseoListProvidersData,
-  PaseoListModelsData,
   PaseoToolData,
 } from "../../shared/contracts";
 
@@ -49,15 +47,7 @@ export function PaseoToolCallout({ data, tokens, raw = false, compact = false, e
       )}
       {data.sendAgentPrompt ? <SendAgentPromptView data={data.sendAgentPrompt} tokens={tokens} raw={raw} compact={compact} error={error} /> : null}
       {data.agentOperation ? <AgentOperationView data={data.agentOperation} tokens={tokens} raw={raw} compact={compact} error={error} /> : null}
-      {data.tool === "list_providers" && data.providers && (
-        <ListProvidersView data={data.providers} tokens={tokens} />
-      )}
-      {data.tool === "list_models" && data.models && (
-        <ListModelsView data={data.models} tokens={tokens} />
-      )}
-      {data.tool === "get_agent_activity" && data.activity && (
-        <GetActivityView data={data.activity} tokens={tokens} />
-      )}
+      {data.catalog ? <CatalogView data={data.catalog} tokens={tokens} raw={raw} compact={compact} /> : null}
     </View>
   );
 }
@@ -142,17 +132,6 @@ export function AgentStatusView({ data, tokens, raw = false, compact = false }: 
   </View>;
 }
 
-/** The composer's colour for each permission tier; text stays muted like the composer. */
-function modeColor(tier: string | undefined, tokens: ExtendedThemeTokens): string {
-  switch (tier) {
-    case "safe": return tokens.success;
-    case "dangerous": return tokens.danger;
-    case "planning":
-    case "moderate": return tokens.accent;
-    default: return tokens.foregroundMuted;
-  }
-}
-
 /** Copies the model ID exactly as requested, without provider or metadata. */
 function ModelName({ provider, model, modelName, thinkingLabel, tokens, mobile }: {
   provider: string;
@@ -177,294 +156,6 @@ function ModelName({ provider, model, modelName, thinkingLabel, tokens, mobile }
         <Text testID="create-agent-model-label" style={{ fontSize: 12, lineHeight: 20, fontFamily: tokens.fontUi,
           fontWeight: "500", color: tokens.foreground, flexShrink: 1, minWidth: 0 }}>{modelName ?? model}</Text>
       </ToolbarItem>
-    </View>
-  );
-}
-
-
-function ListProvidersView({
-  data,
-  tokens,
-}: {
-  data: PaseoListProvidersData;
-  tokens: ExtendedThemeTokens;
-}) {
-  return (
-    <View style={{ gap: space.sm }}>
-      <Text
-        selectable
-        style={{
-          fontSize: tokens.typography.block.meta.size,
-          color: tokens.foregroundMuted,
-        }}
-      >
-        Configured agent backends discovered on local daemon:
-      </Text>
-
-      <View style={{ gap: 6 }}>
-        {data.providers.map((p) => {
-          const isAvail = p.status === "available";
-          return (
-            <View
-              key={p.id}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                paddingHorizontal: 10,
-                paddingVertical: 7,
-                borderRadius: radiusV2.block,
-                backgroundColor: tokens.v2.surface2,
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <ProviderLogo provider={p.id} size={15} />
-                <View>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <Text
-                      selectable
-                      style={{
-                        fontSize: tokens.typography.block.meta.size,
-                        fontWeight: "700",
-                        color: tokens.foreground,
-                      }}
-                    >
-                      {p.label}
-                    </Text>
-                    <Text
-                      selectable
-                      style={{
-                        fontSize: tokens.typography.block.meta.size,
-                        fontFamily: tokens.fontUi,
-                        color: tokens.foregroundMuted,
-                      }}
-                    >
-                      {p.id}
-                    </Text>
-                  </View>
-                  <Text
-                    selectable
-                    style={{
-                      fontSize: tokens.typography.block.meta.size,
-                      color: tokens.foregroundMuted,
-                      marginTop: 1,
-                    }}
-                    numberOfLines={1}
-                  >
-                    {p.description}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <View
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: radiusV2.pill,
-                    backgroundColor: isAvail ? tokens.success : tokens.foregroundSubtle,
-                  }}
-                />
-                <Text
-                  selectable
-                  style={{
-                    fontSize: tokens.typography.block.meta.size,
-                    fontWeight: "600",
-                    color: isAvail ? tokens.success : tokens.foregroundMuted,
-                  }}
-                >
-                  {p.status}
-                </Text>
-              </View>
-            </View>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
-function ListModelsView({
-  data,
-  tokens,
-}: {
-  data: PaseoListModelsData;
-  tokens: ExtendedThemeTokens;
-}) {
-  return (
-    <View style={{ gap: space.sm }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-        <ProviderLogo provider={data.provider} size={16} showLabel />
-        <Text selectable style={{ fontSize: tokens.typography.block.meta.size, color: tokens.foregroundMuted }}>
-          Supported models & reasoning modes:
-        </Text>
-      </View>
-
-      <View style={{ gap: 6 }}>
-        {data.models.map((m) => (
-          <View
-            key={m.id}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              paddingHorizontal: 10,
-              paddingVertical: 6,
-              borderRadius: radiusV2.block,
-              backgroundColor: tokens.v2.surface2,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-              <Text
-                selectable
-                style={{
-                  fontSize: tokens.typography.block.meta.size,
-                  fontFamily: tokens.fontUi,
-                  fontWeight: "700",
-                  color: tokens.foreground,
-                }}
-              >
-                {m.id}
-              </Text>
-              <Text
-                selectable
-                style={{
-                  fontSize: tokens.typography.block.meta.size,
-                  color: tokens.foregroundMuted,
-                }}
-              >
-                {m.label}
-              </Text>
-            </View>
-
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              {m.thinkingSupport && (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 3,
-                    paddingHorizontal: 5,
-                    paddingVertical: 1,
-                    borderRadius: radiusV2.chip,
-                  }}
-                >
-                  <Glyph name="Brain" size={10} color={tokens.accent} />
-                  <Text
-                    selectable
-                    style={{
-                      fontSize: tokens.typography.block.meta.size,
-                      color: tokens.accent,
-                      fontWeight: "600",
-                    }}
-                  >
-                    Reasoning
-                  </Text>
-                </View>
-              )}
-              <Text
-                selectable
-                style={{
-                  fontSize: tokens.typography.block.meta.size,
-                  fontFamily: tokens.fontUi,
-                  color: tokens.foregroundMuted,
-                }}
-              >
-                {m.contextTokens}
-              </Text>
-            </View>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function GetActivityView({
-  data,
-  tokens,
-}: {
-  data: PaseoGetActivityData;
-  tokens: ExtendedThemeTokens;
-}) {
-  return (
-    <View style={{ gap: 6 }}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          paddingBottom: 6,
-          borderBottomWidth: 1,
-          borderBottomColor: tokens.borderSubtle,
-        }}
-      >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <ProviderLogo provider={data.provider} size={14} />
-          <Text
-            selectable
-            style={{
-              fontSize: tokens.typography.block.meta.size,
-              fontFamily: tokens.fontUi,
-              color: tokens.foregroundMuted,
-            }}
-          >
-            Target: {data.agentId}
-          </Text>
-        </View>
-        <Text selectable style={{ fontSize: tokens.typography.block.meta.size, color: tokens.foregroundMuted }}>
-          {data.activities.length} recent activities
-        </Text>
-      </View>
-
-      {data.activities.map((act, idx) => (
-        <View
-          key={idx}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            paddingVertical: space.xs,
-          }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Glyph
-              name={
-                act.kind === "tool" ? "Wrench" : act.kind === "thinking" ? "Brain" : "MessageSquare"
-              }
-              size={11}
-              color={act.kind === "thinking" ? tokens.accent : tokens.accent}
-            />
-            <Text
-              selectable
-              style={{
-                fontSize: tokens.typography.block.meta.size,
-                color: tokens.foreground,
-              }}
-            >
-              {act.title}
-            </Text>
-          </View>
-          {act.elapsed && (
-            <Text
-              selectable
-              style={{
-                fontSize: tokens.typography.block.meta.size,
-                fontFamily: tokens.fontUi,
-                color: tokens.foregroundMuted,
-              }}
-            >
-              {act.elapsed}
-            </Text>
-          )}
-        </View>
-      ))}
     </View>
   );
 }

@@ -14,6 +14,8 @@ export function toolCopyPlan(view: ToolCallView, resolve: ResolvePath): CopyPlan
   if (view.agentStatus) return copyPlan({ kind: "mcp", result: view.agentStatus.body });
   if (view.paseo?.agentOperation) return copyPlan({ kind: "mcp",
     result: stringifyValue(view.paseo.agentOperation.result), args: view.paseo.agentOperation.arguments });
+  if (view.paseo?.catalog) return copyPlan({ kind: "mcp",
+    result: stringifyValue(view.paseo.catalog.result), args: view.paseo.catalog.arguments });
   if (view.paseo?.sendAgentPrompt) return copyPlan({ kind: "mcp",
     result: stringifyValue(view.paseo.sendAgentPrompt.result), args: view.paseo.sendAgentPrompt.arguments });
   if (view.questionData) {

@@ -35,7 +35,22 @@ export function readAgentOperation(tool: keyof typeof AGENT_OPERATIONS, input: R
   add("Mode", result?.newMode ?? result?.currentModeId ?? snapshot?.currentModeId);
   add("Updates", result?.updateCount);
   add("Request", input.requestId);
-  add("Decision", record(input.response)?.behavior);
+  const response = record(input.response);
+  add("Decision", response?.behavior);
+  add("Action", response?.selectedActionId);
+  // A question's answers, keyed by its header ("Question 1"), are what was decided.
+  for (const [header, answer] of Object.entries(record(record(response?.updatedInput)?.answers) ?? {})) add(header, answer);
+  if (response?.behavior === "deny") add("Message", response.message);
+  // update_agent says what it changed; the result is only `success`.
+  if (tool === "update_agent") {
+    add("Name", input.name);
+    const settings = record(input.settings);
+    add("Model", settings?.model);
+    add("Mode", settings?.modeId);
+    add("Thinking", settings?.thinkingOptionId);
+    for (const [key, value] of Object.entries(record(input.labels) ?? {})) add(`Label ${key}`, value);
+    for (const [key, value] of Object.entries(record(settings?.features) ?? {})) add(key, typeof value === "boolean" ? value ? "on" : "off" : value);
+  }
   const agents = Array.isArray(result?.agents) ? result.agents.flatMap((value) => {
     const agent = record(value);
     const id = text(agent?.id);
@@ -47,7 +62,7 @@ export function readAgentOperation(tool: keyof typeof AGENT_OPERATIONS, input: R
     const agentId = text(item?.agentId);
     const requestId = text(request?.id);
     return agentId && requestId ? [{ agentId, requestId, title: text(request?.title) ?? text(request?.name) ?? requestId,
-      description: text(request?.description), status: text(item?.status) }] : [];
+      description: text(request?.description), status: text(item?.status), request }] : [];
   }) : undefined;
   return {
     title: text(snapshot?.title) ?? AGENT_OPERATIONS[tool], agentId: text(input.agentId), label,

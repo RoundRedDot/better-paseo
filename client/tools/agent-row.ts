@@ -1,4 +1,4 @@
-import type { PaseoToolKind } from "../../shared/contracts";
+import type { PaseoCatalogData, PaseoToolKind } from "../../shared/contracts";
 import type { ToolCallView } from "./classify";
 import { AGENT_STATUS_ICON, AGENT_STATUS_LABEL, readPermissionRequest, type AgentStatus } from "./agent-status";
 
@@ -106,6 +106,8 @@ export function summarizeAgentRow(view: ToolCallView): AgentRow | undefined {
       tone: failed ? "danger" : "default", icon: "Send",
     };
   }
+  const catalog = paseo.catalog;
+  if (catalog) return catalogRow(catalog, view.status, failure);
   const op = paseo.agentOperation;
   const words = OPERATIONS[paseo.tool];
   if (!op || !words) return undefined;
@@ -142,10 +144,51 @@ export function summarizeAgentRow(view: ToolCallView): AgentRow | undefined {
     case "respond_to_permission": {
       const decision = op.facts.find((fact) => fact.label === "Decision")?.value;
       const denied = decision === "deny";
-      return { ...row, verb: decision ? denied ? "Denied" : "Allowed" : row.verb, icon: denied ? "ShieldX" : "ShieldCheck" };
+      // An answered question names the answer; a provider action names its button.
+      const answer = op.facts.find((fact) => !["Request", "Decision", "Message"].includes(fact.label))?.value;
+      return { ...row, verb: decision ? denied ? "Denied" : "Allowed" : row.verb, icon: denied ? "ShieldX" : "ShieldCheck",
+        meta: compact([answer]) };
+    }
+    case "update_agent": {
+      const changes = op.facts.filter((fact) => ["Name", "Model", "Mode", "Thinking"].includes(fact.label)).map((fact) => fact.value);
+      return { ...row, meta: changes.length ? [`→ ${changes.join(" · ")}`] : [] };
     }
     default:
       return row;
+  }
+}
+
+const CATALOG_WORDS: Record<PaseoCatalogData["kind"], { running: string; done: string; icon: string }> = {
+  providers: { running: "Listing providers", done: "Providers", icon: "Boxes" },
+  models: { running: "Listing models", done: "Models", icon: "Cpu" },
+  profiles: { running: "Listing profiles", done: "Profiles", icon: "UserRoundCog" },
+  provider: { running: "Inspecting provider", done: "Provider", icon: "ScanSearch" },
+};
+
+/** The provider catalog reads as what it found: "Providers 7 available", "Models Codex · 7 models". */
+function catalogRow(catalog: PaseoCatalogData, status: string, failure: string | undefined): AgentRow {
+  const words = CATALOG_WORDS[catalog.kind];
+  const provider = providerName(catalog.provider);
+  const base = { icon: words.icon, tone: "default" as const, meta: [] as string[] };
+  if (status === "failed") return { ...base, verb: words.done, target: provider, meta: compact(["failed", failure]), tone: "danger" };
+  if (status === "running") return { ...base, verb: words.running, target: provider };
+  switch (catalog.kind) {
+    case "providers": {
+      const providers = catalog.providers ?? [];
+      const available = providers.filter((entry) => entry.available).length;
+      return { ...base, verb: words.done, target: `${available} available`,
+        meta: available < providers.length ? [`${providers.length - available} unavailable`] : [] };
+    }
+    case "models": {
+      const models = catalog.models ?? [];
+      return { ...base, verb: words.done, target: provider, meta: [count(models.length, "model")] };
+    }
+    case "profiles": return { ...base, verb: words.done, target: count(catalog.profiles?.length ?? 0, "profile") };
+    case "provider": {
+      const found = catalog.providers?.[0];
+      return { ...base, verb: words.done, target: found?.label ?? provider,
+        meta: found ? [found.available ? count(found.modes.length, "mode") : "unavailable"] : [] };
+    }
   }
 }
 
