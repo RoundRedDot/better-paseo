@@ -4,7 +4,7 @@
  * badge. The card and its subtask rows hold buttons, so they are focusable
  * groups there; every button is a leaf.
  */
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import React from "react";
 
 vi.hoisted(() => {
@@ -37,6 +37,7 @@ import { CARD_PRESETS } from "../../shared/tasks-settings";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import type { PermissionButton } from "../../client/tasks/actions";
 import { TaskCardView, TaskDetails, type TaskCardViewProps } from "../../client/tasks/cards";
+import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
 
 afterAll(() => {
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
@@ -241,5 +242,116 @@ describe("TaskCardView on web", () => {
     // The menu is still open: the card never lost its hover.
     expect(texts(root)).toContain("连同子任务一起停止");
     await act(async () => renderer.unmount());
+  });
+
+  it("raises the rows that hold overlays above the rows after them", async () => {
+    const flat = (style: unknown) => Object.assign({}, ...[style].flat(Infinity).filter(Boolean)) as Record<string, unknown>;
+    const host = (root: ReactTestInstance, testID: string) =>
+      root.find((node) => typeof node.type === "string" && node.props.testID === testID);
+    /** Host children of a host element, looking through rn-mock's function wrappers. */
+    const hostChildren = (node: ReactTestInstance): ReactTestInstance[] =>
+      node.children.flatMap((child) =>
+        typeof child === "string" ? [] : typeof child.type === "string" ? [child] : hostChildren(child),
+      );
+    const zOf = (node: ReactTestInstance) => Number(flat(node.props.style).zIndex ?? 0);
+
+    // Desktop: the stop menu and the jump tooltip live in the header, above the location rows.
+    const renderer = await render(React.createElement(TaskCardView, props("sample-running")));
+    const root = renderer.root;
+    await act(async () => hovers.get("task-card-sample-running")!.enter());
+    await act(async () =>
+      root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "停止选项").props.onPress(),
+    );
+    const header = host(root, "task-card-header");
+    expect(OVERLAY_ROW_Z).toBeGreaterThan(0);
+    expect(zOf(header)).toBe(OVERLAY_ROW_Z);
+    const rows = hostChildren(host(root, "task-card-sample-running"));
+    const after = rows.slice(rows.indexOf(header) + 1);
+    expect(after.length).toBeGreaterThan(0);
+    for (const row of after) expect(zOf(row)).toBeLessThan(OVERLAY_ROW_Z);
+    const items = header.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
+    expect(items).toHaveLength(2);
+    await act(async () => renderer.unmount());
+
+    // Phone: the menu opens upwards from the action bar, the card's last and raised row.
+    const phone = await render(React.createElement(TaskCardView, props("sample-running", { compact: true })));
+    const actions = host(phone.root, "task-card-actions");
+    expect(zOf(actions)).toBe(OVERLAY_ROW_Z);
+    const phoneRows = hostChildren(host(phone.root, "task-card-sample-running"));
+    expect(phoneRows[phoneRows.length - 1]).toBe(actions);
+    await act(async () =>
+      actions.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "停止选项").props.onPress(),
+    );
+    expect(actions.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem")).toHaveLength(2);
+    await act(async () => phone.unmount());
+  });
+});
+
+describe("TaskCardView details popover", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function setup(overrides: Partial<TaskCardViewProps> = {}) {
+    vi.useFakeTimers();
+    const onDetails = vi.fn();
+    const onDetailsEnd = vi.fn();
+    const element = (more: Partial<TaskCardViewProps> = {}) =>
+      React.createElement(TaskCardView, props("sample-running", { onDetails, onDetailsEnd, ...overrides, ...more }));
+    const renderer = await render(element());
+    const root = renderer.root;
+    const control = (label: string) =>
+      root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === label);
+    const wait = (ms: number) => act(async () => void vi.advanceTimersByTime(ms));
+    return { renderer, root, element, control, wait, onDetails, onDetailsEnd };
+  }
+
+  it("opens after 450 ms on the body, and not while the pointer rests on Stop", async () => {
+    const { renderer, control, wait, onDetails, onDetailsEnd } = await setup();
+    await act(async () => hovers.get("task-card-sample-running")!.enter());
+    await act(async () => control("停止").props.onHoverIn());
+    await wait(1000);
+    expect(onDetails).not.toHaveBeenCalled();
+
+    // Back on the body: the delay starts again.
+    await act(async () => control("停止").props.onHoverOut());
+    await wait(449);
+    expect(onDetails).not.toHaveBeenCalled();
+    await wait(1);
+    expect(onDetails).toHaveBeenCalledTimes(1);
+
+    // Onto the jump button: the open popover is asked to close.
+    await act(async () => control("在 workspace 中打开").props.onHoverIn());
+    expect(onDetailsEnd).toHaveBeenCalledWith("sample-running");
+    await act(async () => renderer.unmount());
+  });
+
+  it("stays closed while the stop menu is open or a stop is armed", async () => {
+    const { renderer, control, wait, element, onDetails } = await setup();
+    await act(async () => hovers.get("task-card-sample-running")!.enter());
+    await act(async () => control("停止选项").props.onPress());
+    await wait(1000);
+    expect(onDetails).not.toHaveBeenCalled();
+
+    // Close the menu, arm a stop: still closed.
+    await act(async () => control("停止选项").props.onPress());
+    await act(async () => renderer.update(element({ stopPhase: "confirming" })));
+    await wait(1000);
+    expect(onDetails).not.toHaveBeenCalled();
+
+    await act(async () => renderer.update(element({ stopPhase: "idle" })));
+    await wait(450);
+    expect(onDetails).toHaveBeenCalledTimes(1);
+    await act(async () => renderer.unmount());
+  });
+
+  it("does not close a popover it never opened", async () => {
+    const { renderer, control, wait, onDetailsEnd } = await setup();
+    await act(async () => hovers.get("task-card-sample-running")!.enter());
+    await wait(100);
+    await act(async () => control("停止").props.onHoverIn());
+    await act(async () => hovers.get("task-card-sample-running")!.leave());
+    await act(async () => renderer.unmount());
+    expect(onDetailsEnd).not.toHaveBeenCalled();
   });
 });
