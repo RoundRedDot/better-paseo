@@ -22,9 +22,9 @@ export { MENU, menuChrome, type MenuItem, type MenuSection } from "./menu-model"
 
 /**
  * The view menus must stay inside: the board's root. Its frame is measured
- * with the menu's own, in the same window coordinates; the window's size
- * alone disagreed by about 11 pt in Android landscape, so the sort menu ran
- * off the screen without scrolling. Without one, the window.
+ * with the menu's own, in the same window coordinates, after layout, so a
+ * board that does not reach the window's bottom still keeps its menus in
+ * view. Without one, the window.
  */
 export const MenuBoundsContext = createContext<RefObject<View | null> | null>(null);
 

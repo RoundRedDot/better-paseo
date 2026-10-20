@@ -234,7 +234,7 @@ describe("CascadeMenu", () => {
   });
 
   it("ends inside the board's frame when it has one, measured after layout", () => {
-    // The window says 371 high, the board ends at 360: the board decides.
+    // The window is 371 high, the board ends at 360: the board decides.
     expect(panelMaxHeight(178, 360)).toBe(360 - 178 - MENU_EDGE);
     expect(submenuPlacement(0, 2000, 100, 360, 40).top).toBe(40 + MENU_EDGE - 100);
     expect(submenuPlacement(0, 2000, 100, 360, 40).maxHeight).toBe(360 - 40 - 2 * MENU_EDGE);
