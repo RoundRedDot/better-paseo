@@ -86,7 +86,9 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
   };
 });
 
-import { StyleSheet } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { ProviderLogo } from "../../client/components/provider-logo";
+import { FilterBrand } from "../../client/tasks/board/board-parts";
 import * as data from "../../client/tasks/data";
 import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
@@ -298,6 +300,25 @@ describe("Tasks board, host theme", () => {
     // The tab bar is the one row drawn above the lane content (zIndex 5).
     const tabs = views.find((node) => style(node).zIndex === 5)!;
     expect(style(tabs)).toMatchObject({ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BLUE_DARK.border, backgroundColor: BLUE_DARK.surface0 });
+  });
+});
+
+describe("Tasks filter brand marks", () => {
+  it("draws monochrome marks in the theme foreground and coloured ones in their hue", () => {
+    const colors = { ...(theme as unknown as { colors: Record<string, string> }).colors, foreground: "#3b2f20" };
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(View, null, ...["grok", "pi", "cursor", "claude", "codex"].map((provider) => React.createElement(FilterBrand, { key: provider, provider, theme: { colors } as never }))),
+      );
+    });
+    const logos = renderer!.root.findAllByType(ProviderLogo);
+    expect(logos.map((logo) => [logo.props.provider, logo.props.color])).toEqual([
+      ["grok", "#3b2f20"],
+      ["pi", "#3b2f20"],
+      ["cursor", "#3b2f20"],
+      ["claude", undefined],
+      ["codex", undefined],
+    ]);
   });
 });
 
