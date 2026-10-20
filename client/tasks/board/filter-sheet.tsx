@@ -5,6 +5,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { ProviderLogo } from "../../components/provider-logo";
 import { taskTokens } from "../cards";
 import { Checkbox, WindowSegments } from "./board-parts";
+import { HAIRLINE } from "./board-style";
 import { LetterAvatar } from "./filter-bar";
 import { clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
@@ -72,7 +73,7 @@ export function FilterSheetBody(props: { board: BoardController; theme: PluginTh
             />
           ))}
         </ChipWrap>
-        <View style={{ height: 1, marginTop: 16, marginBottom: 4, backgroundColor: colors.border }} />
+        <View style={{ height: HAIRLINE, marginTop: 16, marginBottom: 4, backgroundColor: colors.border }} />
         <ToggleRow
           icon="AppWindow"
           label={strings.openTabs}
@@ -92,7 +93,7 @@ export function FilterSheetBody(props: { board: BoardController; theme: PluginTh
         <Text style={{ paddingTop: 12, paddingBottom: 8, fontSize: 12, fontWeight: "500", color: colors.foregroundMuted }}>{strings.doneRange}</Text>
         <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
       </View>
-      <View style={{ paddingTop: 12, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
+      <View style={{ paddingTop: 12, paddingHorizontal: 16, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
         <Pressable
           accessibilityRole="button"
           onPress={props.onDone}
@@ -132,7 +133,7 @@ function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void
         maxWidth: "100%",
         paddingLeft: props.leading ? 8 : 12,
         paddingRight: 12,
-        borderWidth: 1,
+        borderWidth: HAIRLINE,
         borderColor: on ? colors.accent : colors.border,
         borderRadius: 4,
         backgroundColor: on ? taskTokens(props.theme).accentSoft : "transparent",

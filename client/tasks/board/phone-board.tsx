@@ -14,7 +14,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { StatusIcon, TaskDetails, taskTokens, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { MOTION, boardPalette } from "./board-style";
+import { HAIRLINE, MOTION, boardPalette } from "./board-style";
 import { CardCell, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
 import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
@@ -207,7 +207,7 @@ export function PhoneBoard(props: {
       </View>
       {searchOpen || board.params.query ? (
         <View style={{ paddingHorizontal: 16, paddingBottom: 10 }}>
-          <View style={{ height: 36, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 18 }}>
+          <View style={{ height: 36, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 18 }}>
             <Icon name="Search" size={15} color={colors.foregroundMuted} />
             <TextInput
               autoFocus={searchOpen && !board.params.query}
@@ -224,7 +224,7 @@ export function PhoneBoard(props: {
       ) : null}
       <View
         onLayout={(event: LayoutChangeEvent) => setTabWidth(event.nativeEvent.layout.width)}
-        style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border, zIndex: 5, backgroundColor: colors.surface0 }}
+        style={{ flexDirection: "row", borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 5, backgroundColor: colors.surface0 }}
       >
         {LANE_ORDER.map((id) => {
           const on = id === lane;
@@ -274,7 +274,7 @@ export function PhoneBoard(props: {
         ) : null}
       </View>
       {lane === "done" ? (
-        <View style={{ height: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <View style={{ height: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
           <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.timeRange}</Text>
           <WindowSegments value={doneWindow} onChange={(value) => board.setParams((params) => ({ ...params, doneWindow: value }))} theme={theme} strings={strings} large />
         </View>
@@ -354,7 +354,7 @@ function RoundButton(props: { icon: string; label: string; theme: PluginTheme; o
           width: 36,
           height: 36,
           borderRadius: 18,
-          borderWidth: 1,
+          borderWidth: HAIRLINE,
           borderColor: props.active ? colors.accent : colors.border,
           alignItems: "center",
           justifyContent: "center",
@@ -450,7 +450,7 @@ function PhoneLane(props: {
             gap: 8,
             paddingVertical: 28,
             paddingHorizontal: 20,
-            borderWidth: 1,
+            borderWidth: HAIRLINE,
             borderStyle: "dashed",
             borderColor: colors.border,
             borderRadius: 8,
@@ -463,7 +463,7 @@ function PhoneLane(props: {
             <Pressable
               accessibilityRole="button"
               onPress={() => board.setParams(clearedParams)}
-              style={{ marginTop: 6, height: 36, paddingHorizontal: 16, borderRadius: 18, borderWidth: 1, borderColor: colors.border, justifyContent: "center" }}
+              style={{ marginTop: 6, height: 36, paddingHorizontal: 16, borderRadius: 18, borderWidth: HAIRLINE, borderColor: colors.border, justifyContent: "center" }}
             >
               <Text style={{ fontSize: 14, fontWeight: "500", color: colors.foreground }}>{strings.clearFilters}</Text>
             </Pressable>

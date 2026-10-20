@@ -5,6 +5,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { ProviderLogo } from "../../components/provider-logo";
 import { taskTokens } from "../cards";
 import { Checkbox, HoverPressable, WindowSegments } from "./board-parts";
+import { GLYPH_LINE, HAIRLINE } from "./board-style";
 import { activeChips, clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem, type BoardParams } from "./params";
 import type { BoardController } from "./use-board";
@@ -20,7 +21,7 @@ export function DesktopToolbar(props: { board: BoardController; theme: PluginThe
   const colors = theme.colors;
   const strings = board.strings;
   return (
-    <View style={{ height: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+    <View style={{ height: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
       <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>{strings.total(board.total)}</Text>
       <View style={{ flex: 1 }} />
       {Platform.OS === "web" ? (
@@ -46,7 +47,7 @@ export function DesktopToolbar(props: { board: BoardController; theme: PluginThe
           alignItems: "center",
           gap: 6,
           paddingHorizontal: 10,
-          borderWidth: 1,
+          borderWidth: HAIRLINE,
           borderColor: colors.border,
           borderRadius: 6,
         }}
@@ -68,7 +69,7 @@ export function DesktopToolbar(props: { board: BoardController; theme: PluginThe
 
 function KeyCap({ label, theme }: { label: string; theme: PluginTheme }) {
   return (
-    <View style={{ minWidth: 16, height: 16, paddingHorizontal: 3, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 3, alignItems: "center", justifyContent: "center" }}>
+    <View style={{ minWidth: 16, height: 16, paddingHorizontal: 3, borderWidth: HAIRLINE, borderColor: theme.colors.border, borderRadius: 3, alignItems: "center", justifyContent: "center" }}>
       <Text style={{ fontSize: 11, color: theme.colors.foregroundMuted }}>{label}</Text>
     </View>
   );
@@ -180,7 +181,7 @@ export function DesktopFilterBar(props: {
           {chips.map((chip) => (
             <View
               key={chip.key}
-              style={{ height: 28, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 10, paddingRight: 4, borderWidth: 1, borderColor: colors.border, borderRadius: 6 }}
+              style={{ height: 28, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 10, paddingRight: 4, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 6 }}
             >
               {chip.kind ? <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{chip.kind}</Text> : null}
               <Text numberOfLines={1} style={{ fontSize: 13, color: colors.foreground, maxWidth: 220 }}>
@@ -214,13 +215,13 @@ export function DesktopFilterBar(props: {
 }
 
 function Divider({ theme }: { theme: PluginTheme }) {
-  return <View style={{ width: 1, height: 16, marginHorizontal: 4, backgroundColor: theme.colors.border }} />;
+  return <View style={{ width: HAIRLINE, height: 16, marginHorizontal: 4, backgroundColor: theme.colors.border }} />;
 }
 
 export function LetterAvatar({ name, theme, size = 14 }: { name: string; theme: PluginTheme; size?: number }) {
   return (
     <View
-      style={{ width: size, height: size, borderRadius: 3, borderWidth: 1, borderColor: theme.colors.foregroundMuted, alignItems: "center", justifyContent: "center" }}
+      style={{ width: size, height: size, borderRadius: 3, borderWidth: GLYPH_LINE, borderColor: theme.colors.foregroundMuted, alignItems: "center", justifyContent: "center" }}
     >
       <Text style={{ fontSize: size - 6, fontWeight: "600", color: theme.colors.foregroundMuted }}>{(name.trim()[0] ?? "?").toUpperCase()}</Text>
     </View>
@@ -239,7 +240,7 @@ function MenuButton(props: { icon: string; label: string; open: boolean; onPress
           height: 28,
           paddingHorizontal: 10,
           borderRadius: 6,
-          borderWidth: 1,
+          borderWidth: HAIRLINE,
           borderColor: colors.border,
           backgroundColor: hovered || props.open ? colors.surface1 : "transparent",
           flexDirection: "row",
@@ -267,7 +268,7 @@ function MenuPanel(props: { theme: PluginTheme; width: number; empty: string | n
         width: props.width,
         maxHeight: 420,
         padding: 4,
-        borderWidth: 1,
+        borderWidth: HAIRLINE,
         borderColor: colors.border,
         borderRadius: 8,
         backgroundColor: colors.surface0,
@@ -326,7 +327,7 @@ function ToggleChip(props: { icon: string; label: string; hint?: string; on: boo
         height: 28,
         paddingHorizontal: 10,
         borderRadius: 6,
-        borderWidth: 1,
+        borderWidth: HAIRLINE,
         borderColor: props.on ? colors.accent : colors.border,
         backgroundColor: props.on ? taskTokens(props.theme).accentSoft : hovered ? colors.surface1 : "transparent",
         flexDirection: "row",
