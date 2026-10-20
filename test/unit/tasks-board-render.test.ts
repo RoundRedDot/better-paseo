@@ -377,16 +377,14 @@ describe("Tasks sidebar entry", () => {
     expect(textOf(row)).toBe(text);
   });
 
-  it("draws a zero count muted and static next to a live one", () => {
+  it("hides a zero count and draws nothing when both are zero", () => {
     host.counts = { running: 0, needsInput: 2, review: 0, done: 0 };
     const row = entry(null);
-    expect(textOf(row)).toBe("02");
-    expect(row.findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "LoaderCircle")).toHaveLength(1);
-    expect(row.findAll((node) => node.props.kind === "needs_input").length).toBeGreaterThan(0);
-    // The zero running count draws no ring: only the count wrapper carries the kind.
-    expect(row.findAll((node) => node.props.kind === "running" && node.props.idleIcon === undefined)).toHaveLength(0);
-    const zero = row.findAll((node) => (node.type as unknown) === "Text" && node.props.children === 0)[0]!;
-    expect(zero.props.style.color).toBe("#6b6b75");
+    expect(textOf(row)).toBe("2");
+    expect(row.findAll((node) => (node.type as unknown) === "View" && node.props.accessibilityLabel !== undefined).map((node) => node.props.accessibilityLabel)).toEqual(["2 need input"]);
+    expect(row.findAll((node) => node.props.kind === "running")).toHaveLength(0);
+    const input = row.findAll((node) => (node.type as unknown) === "Text" && node.props.children === 2)[0]!;
+    expect(input.props.style).toMatchObject({ fontWeight: "600" });
     host.counts = { running: 0, needsInput: 0, review: 3, done: 1 };
     act(() => renderer!.unmount());
     expect(textOf(entry(null))).toBe("");

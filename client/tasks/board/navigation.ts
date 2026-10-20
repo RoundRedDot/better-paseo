@@ -117,20 +117,16 @@ export function defaultLane(needsInput: number, remembered: LaneId | null): Lane
   return needsInput > 0 ? "needs_input" : "running";
 }
 
-/**
- * The sidebar row's trailing counts; a null part is not drawn. "running and
- * input" shows both numbers, zeros included (drawn muted), as soon as either
- * is above zero, and nothing when both are zero; "input only" shows a
- * needs-input count above zero.
- */
+/** The sidebar row's trailing counts; a null part is not drawn, so zero counts disappear. */
 export function sidebarCountParts(
   counts: Pick<BoardCounts, "running" | "needsInput">,
   mode: SidebarCount,
 ): { running: number | null; input: number | null } {
   if (mode === "none") return { running: null, input: null };
-  if (mode === "input-only") return { running: null, input: counts.needsInput > 0 ? counts.needsInput : null };
-  if (counts.running === 0 && counts.needsInput === 0) return { running: null, input: null };
-  return { running: counts.running, input: counts.needsInput };
+  return {
+    running: mode === "running-and-input" && counts.running > 0 ? counts.running : null,
+    input: counts.needsInput > 0 ? counts.needsInput : null,
+  };
 }
 
 /** The counts as the row's accessibility text, "" when nothing shows. */
