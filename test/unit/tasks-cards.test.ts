@@ -529,6 +529,21 @@ describe("TaskCardView rows", () => {
     expect(icons(byLabel(tree.root, "允许"))).toEqual(["Check"]);
   });
 
+  it("on a phone, grows the action bar with the font and gives the armed stop two shares", async () => {
+    const card = sample("sample-input");
+    const buttons = permissionButtons(card.permission!, "en");
+    const element = (stopPhase: StopPhase) =>
+      cardElement(card, { compact: true, language: "en", permissionButtons: buttons, onStop: () => {}, stopPhase });
+    const tree = await render(element("idle"));
+    const allow = flat(byLabel(tree.root, "Allow").props.style);
+    expect(allow.minHeight).toBe(40);
+    expect(allow.height).toBeUndefined();
+    expect(flat(hostByTestId(tree.root, "task-card-stop").props.style).flex).toBe(1);
+    await act(async () => tree.update(element("confirming")));
+    expect(flat(hostByTestId(tree.root, "task-card-stop").props.style).flex).toBe(2);
+    expect(flat(byLabel(tree.root, "Confirm stop").props.style).minHeight).toBe(40);
+  });
+
   it("draws the permission summary, its buttons and the remaining count", async () => {
     const buttons: PermissionButton[] = [
       { key: "allow", label: "允许", variant: "primary", kind: "respond", action: { behavior: "allow", id: null } },
