@@ -26,7 +26,6 @@ import {
   sidebarCountText,
   swallowsTap,
   swipeStep,
-  claimsSwipe,
   tabUnderline,
   tabsOverflow,
   LANES,
@@ -164,15 +163,6 @@ describe("phone lanes", () => {
     expect(swipeStep(-60, 40)).toBe(1);
     expect(swipeStep(-60, 41)).toBe(0);
     expect(swipeStep(0, 200)).toBe(0);
-  });
-
-  it("claims a native touch from the host while it is still under the host's 15, only when horizontal", () => {
-    expect(SWIPE.claim).toBeLessThan(15);
-    expect(claimsSwipe(SWIPE.claim, 0)).toBe(true);
-    expect(claimsSwipe(-SWIPE.claim, 4)).toBe(true);
-    expect(claimsSwipe(SWIPE.claim - 1, 0)).toBe(false);
-    expect(claimsSwipe(8, 6)).toBe(false);
-    expect(claimsSwipe(2, 30)).toBe(false);
   });
 
   it("puts the underline under the active tab's label and count, a quarter less 24 until laid out", () => {

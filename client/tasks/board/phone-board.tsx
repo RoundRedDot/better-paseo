@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   Animated,
   Platform,
@@ -8,6 +8,7 @@ import {
   type FlatList as NativeFlatList,
   type ScrollView as NativeScrollView,
   type LayoutChangeEvent,
+  useWindowDimensions,
 } from "react-native";
 import { FlatList, Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
@@ -16,17 +17,20 @@ import { StatusIcon, TaskDetails, taskTokens, type CardCallbacks } from "../card
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
+import { findHostHorizontalScroll } from "../../ui/host-horizontal-scroll";
 import { HAIRLINE, MOTION, boardPalette } from "./board-style";
 import { CardCell, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
 import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
-import { claimsSwipe, defaultLane, laneAfter, swallowsTap, swipeStep, tabUnderline, tabsOverflow, type TabBox } from "./navigation";
+import { defaultLane, laneAfter, swallowsTap, swipeStep, tabUnderline, tabsOverflow, type TabBox } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
 import { LANE_EMPTY_ICON, sortLabel } from "./strings";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
 
 const nativeDriver = Platform.OS !== "web";
+/** iOS and Android page the lanes natively; web swipes them with pointer events. */
+const isNative = () => Platform.OS === "ios" || Platform.OS === "android";
 const Separator = () => <View style={{ height: 12 }} />;
 /** The underline is drawn this wide and scaled to its label. */
 const UNDERLINE_BASE = 100;
@@ -118,7 +122,7 @@ export function PhoneBoard(props: {
       const from = defaultLane(board.lanes.needs_input.cards.length, chosen);
       rememberLane(hostId, next);
       setChosen(next);
-      if (next === from || reduced) return;
+      if (next === from || reduced || isNative()) return;
       const direction = LANE_ORDER.indexOf(next) > LANE_ORDER.indexOf(from) ? 1 : -1;
       setLeaving({ lane: from, cards: board.lanes[from].cards.slice(0, 6) });
       leaveOpacity.setValue(1);
@@ -135,26 +139,33 @@ export function PhoneBoard(props: {
     [board.lanes, chosen, hostId, reduced, enterOpacity, enterX, leaveOpacity, leaveX],
   );
 
-  // Swipes: a horizontal travel of 56 that beats 1.5x the vertical; taps right after one are swallowed.
-  // On iOS and Android the touch is claimed from the host's pans (the swipe
-  // that opens the agent list activates at 15) once it is clearly
-  // horizontal, and when a long press opens a card's details: the drag that
-  // follows must not open the drawer, nor switch the lane under the sheet.
+  // Swipes. On iOS and Android the lanes are pages of a native horizontal
+  // pager: its pan takes a horizontal drag at the platform's touch slop,
+  // natively, before the host's agent-list swipe activates at 15, which a
+  // claim from JS could not (it lands a frame late on a fast swipe). The
+  // vertical lists inside keep their own drags. On web a horizontal travel
+  // of 56 that beats 1.5x the vertical switches the lane. Taps right after a
+  // swipe are swallowed. A long press that opens a card's details claims the
+  // touch from the host's pans and locks the pager: the drag that follows
+  // must not open the drawer, nor switch the lane under the sheet.
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const swipedAt = useRef<number | null>(null);
   const claimed = useRef<(() => void) | null>(null);
   const heldForDetails = useRef(false);
+  const [pagerLocked, setPagerLocked] = useState(false);
   const gridRef = useRef<View>(null);
   const latest = useRef({ lane, select });
   latest.current = { lane, select };
   const claim = useCallback(() => {
-    if (Platform.OS === "web" || claimed.current) return;
+    if (!isNative() || claimed.current) return;
     claimed.current = holdHostGestures(gridRef.current);
+    setPagerLocked(true);
   }, []);
   const release = useCallback(() => {
     const letGo = claimed.current;
     claimed.current = null;
     letGo?.();
+    setPagerLocked(false);
   }, []);
   useEffect(() => release, [release]);
   const onStart = useCallback((event: PointEvent) => {
@@ -165,14 +176,13 @@ export function PhoneBoard(props: {
     const start = swipeStart.current;
     if (!start) return;
     const at = point(event);
-    if (claimsSwipe(at.x - start.x, at.y - start.y)) claim();
     if (!heldForDetails.current && swipeStep(at.x - start.x, at.y - start.y) !== 0) swipedAt.current = Date.now();
-  }, [claim]);
+  }, []);
   const onEnd = useCallback((event: PointEvent) => {
     const start = swipeStart.current;
     swipeStart.current = null;
     release();
-    if (!start || heldForDetails.current) return;
+    if (!start || heldForDetails.current || isNative()) return;
     const at = point(event);
     const step = swipeStep(at.x - start.x, at.y - start.y);
     if (step === 0) return;
@@ -184,10 +194,33 @@ export function PhoneBoard(props: {
     swipeStart.current = null;
     release();
   }, [release]);
-  const gesture =
-    Platform.OS === "web"
-      ? { onPointerDown: onStart, onPointerMove: onMove, onPointerUp: onEnd, onPointerCancel: onCancel }
-      : { onTouchStart: onStart, onTouchMove: onMove, onTouchEnd: onEnd, onTouchCancel: onCancel };
+  const markSwiped = useCallback(() => {
+    swipedAt.current = Date.now();
+  }, []);
+  const settle = useCallback((next: LaneId) => {
+    swipedAt.current = Date.now();
+    if (next !== latest.current.lane) latest.current.select(next);
+  }, []);
+  const gesture = isNative()
+    ? { onTouchStart: onStart, onTouchEnd: onEnd, onTouchCancel: onCancel }
+    : { onPointerDown: onStart, onPointerMove: onMove, onPointerUp: onEnd, onPointerCancel: onCancel };
+
+  // Android delivers a fast swipe's first move already past the 15 at which
+  // the host's agent-list pan activates, and Gesture Handler sees each move
+  // before the pager does. Past the first lane the board therefore tells the
+  // host it is scrolled sideways, as Paseo's diff scroller does; the pan then
+  // fails on its first move and a right swipe is the pager's. On the first
+  // lane a right swipe may open the agent list as anywhere else.
+  const scrollId = useId();
+  const pagedAway = Platform.OS === "android" && laneIndex > 0 && board.visible;
+  useEffect(() => {
+    if (!pagedAway) return;
+    const host = findHostHorizontalScroll(gridRef.current);
+    if (!host) return;
+    const id = `better-paseo:tasks-lanes:${scrollId}`;
+    host.registerScrollOffset(id, 100);
+    return () => host.unregisterScrollOffset(id);
+  }, [pagedAway, scrollId]);
 
   const callbacks = useMemo<CardCallbacks>(() => {
     const base = board.callbacks;
@@ -242,7 +275,7 @@ export function PhoneBoard(props: {
   };
 
   useLayoutEffect(() => {
-    if (Platform.OS !== "web") return;
+    if (isNative()) return;
     const node = gridRef.current as unknown as HTMLElement | null;
     // Vertical scrolling stays the browser's; horizontal travel is the lane swipe.
     if (node?.style) node.style.touchAction = "pan-y";
@@ -396,7 +429,21 @@ export function PhoneBoard(props: {
           <WindowSegments value={doneWindow} onChange={(value) => board.setParams((params) => ({ ...params, doneWindow: value }))} theme={theme} strings={strings} large />
         </View>
       ) : null}
-      <View ref={gridRef} style={{ flex: 1, minHeight: 0, overflow: "hidden", backgroundColor: palette.panel }} {...gesture}>
+      <View ref={gridRef} collapsable={false} style={{ flex: 1, minHeight: 0, overflow: "hidden", backgroundColor: palette.panel }} {...gesture}>
+        {isNative() ? (
+          <LanePager
+            lane={lane}
+            board={board}
+            theme={theme}
+            callbacks={callbacks}
+            listRef={listRef}
+            breathing={breathing}
+            reduced={reduced}
+            locked={pagerLocked}
+            onDrag={markSwiped}
+            onSettle={settle}
+          />
+        ) : (
         <Animated.View style={{ flex: 1, opacity: enterOpacity, transform: [{ translateX: enterX }] }}>
           <PhoneLane
             key={lane}
@@ -408,7 +455,8 @@ export function PhoneBoard(props: {
             breathing={breathing}
           />
         </Animated.View>
-        {leaving ? (
+        )}
+        {!isNative() && leaving ? (
           <Animated.View
             pointerEvents="none"
             style={{ position: "absolute", top: 0, left: 0, right: 0, padding: 12, gap: 12, opacity: leaveOpacity, transform: [{ translateX: leaveX }] }}
@@ -504,13 +552,109 @@ function RoundButton(props: { icon: string; label: string; theme: PluginTheme; o
   );
 }
 
-function PhoneLane(props: {
-  lane: LaneModel;
+/**
+ * The phone's lanes on iOS and Android: one page each in a native paging
+ * ScrollView, so a horizontal drag is the pager's from the platform's touch
+ * slop on and the host's agent-list pan never starts (a UIScrollView pan
+ * begins first and fails it on iOS; on Android the scroller asks its parents
+ * not to intercept, which cancels Gesture Handler's pans). Only the lane
+ * shown and its neighbours mount; a tab more than one lane away jumps.
+ */
+export function LanePager(props: {
+  lane: LaneId;
   board: BoardController;
   theme: PluginTheme;
   callbacks: CardCallbacks;
   listRef: RefObject<NativeFlatList<TaskCard> | null>;
   breathing: Animated.Value;
+  reduced: boolean;
+  /** A long press holds the touch: the pager stays where it is. */
+  locked: boolean;
+  onDrag(): void;
+  /** The pager came to rest on another lane. */
+  onSettle(lane: LaneId): void;
+}) {
+  const { lane, board, theme, onSettle } = props;
+  const window = useWindowDimensions();
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const width = size?.width || window.width;
+  const index = LANE_ORDER.indexOf(lane);
+  const pagerRef = useRef<NativeScrollView | null>(null);
+  // The page the pager rests on, and the width it was placed at; -1 until
+  // laid out, when it is placed once more without animating.
+  const resting = useRef({ index, width: -1 });
+  const measured = size !== null;
+  useLayoutEffect(() => {
+    const was = resting.current;
+    const at = measured ? width : -1;
+    if (was.index === index && was.width === at) return;
+    const animated = !props.reduced && was.width === at && Math.abs(was.index - index) === 1;
+    resting.current = { index, width: at };
+    pagerRef.current?.scrollTo?.({ x: index * width, y: 0, animated });
+  }, [index, width, measured, props.reduced]);
+  const settleAt = useCallback(
+    (x: number) => {
+      if (width <= 0) return;
+      const page = Math.max(0, Math.min(LANE_ORDER.length - 1, Math.round(x / width)));
+      resting.current = { index: page, width };
+      const next = LANE_ORDER[page]!;
+      if (next !== lane) onSettle(next);
+    },
+    [width, lane, onSettle],
+  );
+  return (
+    <ScrollView
+      ref={pagerRef}
+      horizontal
+      pagingEnabled
+      scrollEnabled={!props.locked}
+      directionalLockEnabled
+      nestedScrollEnabled
+      showsHorizontalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      contentOffset={{ x: index * width, y: 0 }}
+      onLayout={(event: LayoutChangeEvent) => {
+        const next = event.nativeEvent.layout;
+        setSize((was) => (was && was.width === next.width && was.height === next.height ? was : { width: next.width, height: next.height }));
+      }}
+      onScrollBeginDrag={props.onDrag}
+      onScrollEndDrag={(event: { nativeEvent: { contentOffset: { x: number } } }) => {
+        // A release exactly on a page has no momentum to end.
+        const x = event.nativeEvent.contentOffset.x;
+        if (width > 0 && Math.abs(x - Math.round(x / width) * width) < 1) settleAt(x);
+      }}
+      onMomentumScrollEnd={(event: { nativeEvent: { contentOffset: { x: number } } }) => settleAt(event.nativeEvent.contentOffset.x)}
+      style={{ flex: 1 }}
+      testID="phone-lane-pager"
+    >
+      {LANE_ORDER.map((id, at) => (
+        <View key={id} testID={`phone-lane-${id}`} style={{ width, height: size?.height }}>
+          {Math.abs(at - index) <= 1 ? (
+            <PhoneLane
+              lane={board.lanes[id]}
+              board={board}
+              theme={theme}
+              callbacks={props.callbacks}
+              listRef={at === index ? props.listRef : undefined}
+              breathing={props.breathing}
+              active={at === index}
+            />
+          ) : null}
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+function PhoneLane(props: {
+  lane: LaneModel;
+  board: BoardController;
+  theme: PluginTheme;
+  callbacks: CardCallbacks;
+  listRef?: RefObject<NativeFlatList<TaskCard> | null>;
+  breathing: Animated.Value;
+  /** The lane on screen; a neighbour in the pager loads no more. */
+  active?: boolean;
 }) {
   const { lane, board, theme } = props;
   const colors = theme.colors;
@@ -552,11 +696,11 @@ function PhoneLane(props: {
       maxToRenderPerBatch={6}
       windowSize={7}
       onScrollToIndexFailed={({ index, averageItemLength }) => {
-        props.listRef.current?.scrollToOffset({ offset: averageItemLength * index, animated: false });
+        props.listRef?.current?.scrollToOffset({ offset: averageItemLength * index, animated: false });
       }}
       onEndReachedThreshold={0.5}
       onEndReached={() => {
-        if (lane.id === "done" && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
+        if (props.active !== false && lane.id === "done" && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
       }}
       ListEmptyComponent={
         <View
