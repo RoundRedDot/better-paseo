@@ -57,6 +57,9 @@ const en = {
   details: "Details",
   stoppedManually: "Stopped manually",
   closeMenu: "Close menu",
+  boardOff: "The Tasks board is off",
+  boardOffHint: "Turn it on in Settings > Tasks to see your agents by status here.",
+  openSettings: "Open settings",
   answerFailed: (message: string) => `Could not answer: ${message}`,
 };
 
@@ -111,6 +114,9 @@ const zh: typeof en = {
   details: "详情",
   stoppedManually: "已手动停止",
   closeMenu: "关闭菜单",
+  boardOff: "任务面板未启用",
+  boardOffHint: "在 设置 > 任务 中开启后，这里会按状态显示你的 agent。",
+  openSettings: "打开设置",
   answerFailed: (message) => `回答失败：${message}`,
 };
 

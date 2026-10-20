@@ -2,7 +2,7 @@ import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { settingsRpc } from "@getpaseo/plugin";
 import { TASKS_SETTINGS, tasksSettingsSchema } from "../../shared/tasks-settings";
 import { TasksBoardScreen } from "./board/board-screen";
-import { setTasksEnabled, subscribeTasksEnabled, tasksEnabled } from "./board/enabled";
+import { setTasksEnabled, setTasksSettingsOpener, subscribeTasksEnabled, tasksEnabled } from "./board/enabled";
 import { encodeBoardParams, lastBoardParams } from "./board/params";
 import { TasksSidebarEntry } from "./board/sidebar-entry";
 import { BOARD_STRINGS } from "./board/strings";
@@ -16,12 +16,13 @@ const KEYWORDS = ["tasks", "board", "kanban", "agents", "看板", "任务"];
 
 /**
  * Registers the Tasks board. The board is opt-in (`enabled` in its
- * settings): while it is off only the settings page is registered, and the
- * only work is one settings read at startup. Turning it on registers the
- * screen, the sidebar entry and the Command Center item; turning it off
- * calls their cleanups, so nothing of the board stays mounted. The titles
- * follow the host's language and are registered again when it changes.
- * Returns the cleanup.
+ * settings). Always registered: the settings page and the board screen,
+ * which mounts only when open and then says the board is off; the only
+ * work while off is one settings read at startup. Turning the board on
+ * registers the sidebar entry and the Command Center item; turning it off
+ * calls their cleanups, so nothing of the board stays mounted. Titles follow
+ * the host's language: the screen's in place, the others by registering
+ * again. Returns the cleanup.
  */
 export function contributeTasks(client: PluginClientContext): () => void {
   let live = true;
@@ -34,7 +35,6 @@ export function contributeTasks(client: PluginClientContext): () => void {
   const registerBoard = () => {
     const titles = BOARD_STRINGS[language];
     const cleanups = [
-      client.addScreen({ id: TASKS_SCREEN_ID, title: titles.name, Component: TasksBoardScreen }),
       client.addSidebarHeaderItem({ id: "tasks", title: titles.name, Component: TasksSidebarEntry }),
       client.addCommandCenterItem({
         id: "open-tasks",
@@ -51,6 +51,16 @@ export function contributeTasks(client: PluginClientContext): () => void {
     };
   };
 
+  // The screen stays registered whatever the setting: the host resolves a
+  // board route (a reload, a restored tab, a link) once, before the startup
+  // read could register it, and a registration costs nothing until the screen
+  // is open. Its title is a function, so it follows the language in place.
+  const removeScreen = client.addScreen({
+    id: TASKS_SCREEN_ID,
+    title: () => BOARD_STRINGS[resolveTasksLanguage()].name,
+    Component: TasksBoardScreen,
+  });
+  setTasksSettingsOpener(() => client.openSettings("tasks"));
   let removeSettings = registerSettings();
   let removeBoard: (() => void) | null = null;
   const applyEnabled = () => {
@@ -94,5 +104,7 @@ export function contributeTasks(client: PluginClientContext): () => void {
     removeBoard?.();
     removeBoard = null;
     removeSettings();
+    void removeScreen();
+    setTasksSettingsOpener(null);
   };
 }
