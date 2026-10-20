@@ -52,6 +52,9 @@ const en = {
   noOptions: "Nothing to filter yet",
   details: "Details",
   stoppedManually: "Stopped manually",
+  boardOff: "The Tasks board is off",
+  boardOffHint: "Turn it on in Settings > Tasks to see your agents by status here.",
+  openSettings: "Open settings",
 };
 
 const zh: typeof en = {
@@ -102,6 +105,9 @@ const zh: typeof en = {
   noOptions: "暂无可筛选的项",
   details: "详情",
   stoppedManually: "已手动停止",
+  boardOff: "Tasks 面板未启用",
+  boardOffHint: "在 设置 > Tasks 中开启后，这里会按状态显示你的 agent。",
+  openSettings: "打开设置",
 };
 
 export type BoardStrings = typeof en;

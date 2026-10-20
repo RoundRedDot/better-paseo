@@ -14,12 +14,22 @@ import {
 describe("tasks settings", () => {
   it("defaults to the spec's values", () => {
     expect(DEFAULT_TASKS_SETTINGS).toEqual({
+      enabled: false,
       density: "standard",
       card: { ...CARD_PRESETS.standard.fields, labelLimit: "2" },
       mobile: { compactCards: false },
       board: { doneWindow: "24h", hideSubtasks: false, confirmStop: true },
       sidebar: { count: "running-and-input" },
     });
+  });
+
+  it("keeps the board off unless a record turns it on", () => {
+    // A record saved before the switch existed has no key: still version 1, read as off.
+    expect(tasksSettingsSchema.parse({ density: "full", card: {} }).enabled).toBe(false);
+    expect(tasksSettingsSchema.parse({ enabled: "yes" }).enabled).toBe(false);
+    expect(tasksSettingsSchema.parse({ enabled: true }).enabled).toBe(true);
+    // Density presets never touch it.
+    expect(applyDensity({ ...DEFAULT_TASKS_SETTINGS, enabled: true }, "minimal").enabled).toBe(true);
   });
 
   it("degrades one bad value without losing the rest", () => {

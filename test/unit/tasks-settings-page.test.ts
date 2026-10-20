@@ -116,7 +116,30 @@ describe("tasks settings page", () => {
     await act(async () => { byLabel(r, "SettingsAction", "Restore default settings").props.onPress(); });
     expect(api.reset).not.toHaveBeenCalled();
     await act(async () => { byLabel(r, "SettingsAction", "Restore default settings").props.onPress(); });
-    expect(api.reset).toHaveBeenCalledTimes(1);
+    // The options go back to their defaults; the board's own switch stays as it was.
+    expect(api.reset).not.toHaveBeenCalled();
+    expect(api.save).toHaveBeenCalledWith(DEFAULT_TASKS_SETTINGS, "r1");
+  });
+
+  it("reset keeps the board on", async () => {
+    const api = makeSettings({ values: { ...applyDensity(DEFAULT_TASKS_SETTINGS, "full"), enabled: true } });
+    const r = render();
+    await act(async () => { byLabel(r, "SettingsAction", "Restore default settings").props.onPress(); });
+    await act(async () => { byLabel(r, "SettingsAction", "Restore default settings").props.onPress(); });
+    expect(lastSaved(api)).toEqual({ ...DEFAULT_TASKS_SETTINGS, enabled: true });
+  });
+
+  it("the switch at the top saves enabled and steps the options back while off", async () => {
+    const api = makeSettings();
+    const r = render();
+    const sections = r.root.findAll((node) => (node.type as unknown) === "SettingsSection");
+    expect(sections[0]!.props.title).toBe("Tasks board");
+    const toggle = byLabel(r, "SettingsSwitch", "Enable the Tasks board");
+    expect(toggle.props).toMatchObject({ value: false, hint: "Shows the Tasks entry and board in the sidebar" });
+    const options = r.root.find((node) => node.props.testID === "tasks-settings-options");
+    expect(options.props.style.opacity).toBe(0.5);
+    await act(async () => { toggle.props.onValueChange(true); });
+    expect(lastSaved(api)).toEqual({ ...DEFAULT_TASKS_SETTINGS, enabled: true });
   });
 
   it("an invalid record offers a reset", async () => {
