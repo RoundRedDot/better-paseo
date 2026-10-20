@@ -30,7 +30,7 @@
 用户故事：
 
 1. 作为同时跑很多 agent 的人，我打开 Tasks，一眼看到所有待输入、运行中、待查看和已完成的任务。
-2. 我可以按 workspace（项目）、provider 和「只看开着 tab 的」过滤，也可以按标题搜索。
+2. 我可以按 workspace（项目）、provider、标签和「只看开着 tab 的」过滤，也可以按标题搜索。卡片上能看到任务所在的项目、workspace、分支、文件夹和标签。
 3. 我点卡片上的跳转按钮，就跳到它所在 workspace 的对应 tab。
 4. 我在父任务卡片上看到它派出去的子任务及其状态，在子任务卡片上能回到父任务。
 5. 我在卡片上直接停止一个跑偏的任务。
@@ -87,16 +87,19 @@
 
 ### 过滤与搜索
 
-- Workspace 多选、Agent（provider）多选、只看开着的 tab、隐藏子任务、按标题搜索、已完成列的时间窗口。
+- Workspace 多选（下拉里按项目分组）、Agent（provider）多选、标签多选、只看开着的 tab、隐藏子任务、按标题搜索、已完成列的时间窗口。
 - 过滤条件写进 screen params。关掉再打开，或从 Command Center 打开时，条件保留。
 
 ### 卡片
 
-每张卡片分三行固定内容：
+每张卡片分四行固定内容：
 
 1. 标题（单行截断），标题行右侧是常驻的跳转按钮；运行中卡片悬停时还有「停止」。
 2. provider 图标 + 模型 + 思考等级，独占一行，思考等级永不截断。
-3. 左边 workspace 标签，右边计时（运行中、待输入）或完成于多久前（待查看、已完成）。
+3. 位置行：项目头像 + 「项目 / workspace 名」（workspace 名与项目名或任务标题相同时只显示项目名）；右边是计时（运行中、待输入）或完成于多久前（待查看、已完成）。
+4. git 行：分支 · 文件夹，写法与侧边栏 workspace 行一致（非 git 项目只显示文件夹，文件夹名与 workspace 名或分支名相同时省略）；右边是 workspace 标签，最多 2 个，其余收成「+N」。
+
+空间不够时先把标签收成 +N，再依次截断文件夹、workspace 名、分支、项目名；模型、思考等级和计时不被挤掉。
 
 其余内容随泳道变化：
 
@@ -168,6 +171,12 @@
 | 上下文占用 | `lastUsage.contextWindowUsedTokens / contextWindowMaxTokens` | 细进度条，超过 80% 变黄、90% 变红 | 取决于 provider |
 | token 与费用 | `lastUsage` 的 input、output、`totalCostUsd` | 卡片详情里显示，不上卡片正面 | 取决于 provider |
 | 错误信息 | `lastError` | 失败卡片上的一行红字 | 准确 |
+| 项目 | 列表条目的 `project.projectName`；workspace 的 `projectDisplayName`；图标用 `paseo.projects.icon(projectId)` | 项目图标（没有时用首字母头像）+ 名称 | 准确；`projects.icon` 来自上游 PR [#7482](https://github.com/getpaseo/paseo/pull/7482)，合入前只能用首字母头像 |
+| workspace 名称 | 列表条目的 `project.workspaceName`；workspace 的 `title ?? name` | 位置行「项目 / workspace」 | 准确 |
+| 分支 | 列表条目的 `project.checkout.currentBranch`；workspace 的 `gitRuntime.currentBranch` | git 行，详情里加领先 / 落后和是否有未提交改动（`gitRuntime.aheadBehind`、`isDirty`） | 准确 |
+| 文件夹 | `cwd` 的最后一级；完整路径放详情 | git 行 | 准确 |
+| 标签 | workspace 的 `labels`（`paseo.workspaces.list`）只有名字；颜色用 `paseo.workspaces.listLabels({ subscribe: {} })` 的定义匹配 | git 行右侧的小 chip | 准确；`listLabels` 来自上游 PR [#7482](https://github.com/getpaseo/paseo/pull/7482)，合入前用中性色点 |
+| 关联 PR | workspace 的 `githubRuntime.pullRequest` | 详情里显示「#编号 标题」 | 有 GitHub 集成时准确 |
 
 历史耗时和累计耗时要精确，只能在插件服务端监听 `agent.turn_started` 和 `agent.turn_ended` 自己记账，而且只能从插件装上那一刻开始算。放在后续版本。
 
@@ -214,12 +223,14 @@ flowchart LR
 
 ### 数据订阅
 
-用两路请求，避免一次拉全 340 个 agent 的完整快照：
+agent 用两路请求，避免一次拉全 340 个 agent 的完整快照；workspace 另走一路订阅：
 
 1. **活跃订阅**（常驻，侧边栏计数也用它）：`filter.statuses = [running, initializing, error]`，再加一路 `filter.requiresAttention = true`。覆盖待输入、运行中、待查看三列，带 `subscribe`。
 2. **已完成分页**（只在看板打开时）：`filter.statuses = [idle, closed]`，`sort = updated_at desc`，`page.limit = 50`，客户端再按时间窗口截断。
 
-两路结果按 agent id 合并去重，再用「泳道定义」里的规则归列。协议包不在插件客户端的模块白名单里，`deriveAgentStateBucket` 约 20 行，照抄一份，并用测试和协议版本对齐。
+3. **workspace 订阅**（常驻）：`paseo.workspaces.list({ subscribe: {} })`，按 workspace id 建索引，给卡片补标签、`gitRuntime`（分支、领先落后、是否有改动）和 `githubRuntime.pullRequest`；再订阅 `workspaces.listLabels({ subscribe: {} })` 拿标签颜色，项目图标按 `projectIconRevision` 缓存 `projects.icon()` 的结果。
+
+两路 agent 结果按 agent id 合并去重，再用「泳道定义」里的规则归列。协议包不在插件客户端的模块白名单里，`deriveAgentStateBucket` 约 20 行，照抄一份，并用测试和协议版本对齐。
 
 ### 停止任务的两步走
 
@@ -249,6 +260,7 @@ flowchart LR
 | 「待查看」何时清除由宿主决定 | 卡片可能在用户看过后仍停留 | 上线前实测打开 tab 后 `requiresAttention` 是否清零 |
 | 宿主会保留隐藏的页面不卸载 | 看板在后台仍在订阅和每秒计时 | 页面不可见时停掉每秒计时器 |
 | 窄屏放不下四列 | 手机上不可用 | `layout.compact` 时改为细线 tab 切换，一次一个泳道 |
+| 标签颜色、项目图标依赖上游：`listWorkspaceLabels`、`getProjectIcon` 原本只在底层 `DaemonClient` 上 | PR 合入前，卡片上的标签与侧边栏颜色不一致 | 已提上游 PR [#7482](https://github.com/getpaseo/paseo/pull/7482)（Discussion [#7481](https://github.com/getpaseo/paseo/discussions/7481)），给 `PaseoApi` 加 `workspaces.listLabels()` 和 `projects.icon()`；合入前标签用中性色点、项目用首字母头像，按方法是否存在做特性检测 |
 
 ## 里程碑与验收标准
 
