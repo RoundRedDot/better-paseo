@@ -271,7 +271,12 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const strings = cardStrings(language);
   const m = compact ? PHONE : DESKTOP;
   const layout = cardLayout(card, fields, compact);
-  const { hovered, hoverProps } = useHover();
+  // On web the hover is the DOM's, child controls included (`bindRowHover`):
+  // RNW's Pressable ends an ancestor's hover as soon as the pointer enters an
+  // inner Pressable (its `hover:lock` event), which dropped the Stop button
+  // the moment the pointer reached it. Native keeps the Pressable's own hover.
+  const rootRef = useRef<View>(null);
+  const { hovered, hoverProps } = useHover(rootRef);
   const [menuOpen, setMenuOpen] = useState(false);
   const [stopAll, setStopAll] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -285,22 +290,26 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   };
   useEffect(() => clearDetails, []);
 
-  const onHoverIn = () => {
-    hoverProps.onHoverIn();
-    if (!props.onDetails || compact) return;
-    clearDetails();
-    detailsTimer.current = setTimeout(() => {
-      detailsTimer.current = null;
-      latest.current.onDetails?.(latest.current.card);
-    }, DETAILS_DELAY_MS);
-  };
-  const onHoverOut = () => {
-    hoverProps.onHoverOut();
+  // Hover side effects follow the hover state, whichever source drives it.
+  const wasHovered = useRef(false);
+  useEffect(() => {
+    if (hovered === wasHovered.current) return;
+    wasHovered.current = hovered;
+    const current = latest.current;
+    if (hovered) {
+      if (!current.onDetails || current.compact) return;
+      clearDetails();
+      detailsTimer.current = setTimeout(() => {
+        detailsTimer.current = null;
+        latest.current.onDetails?.(latest.current.card);
+      }, DETAILS_DELAY_MS);
+      return;
+    }
     clearDetails();
     setMenuOpen(false);
-    props.onDetailsEnd?.(card.id);
-    if (props.stopPhase === "confirming") props.onCancelStop?.(card.id);
-  };
+    current.onDetailsEnd?.(current.card.id);
+    if (current.stopPhase === "confirming") current.onCancelStop?.(current.card.id);
+  }, [hovered]);
 
   const background = props.highlighted ? tokens.highlight : hovered ? tokens.surface1 : tokens.surface0;
   const canStop = card.stoppable && !!props.onStop;
@@ -685,8 +694,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       onPress={props.onOpen ? () => props.onOpen?.(card.id) : undefined}
       onLongPress={props.onDetails && (compact || TOUCH) ? () => props.onDetails?.(card) : undefined}
       delayLongPress={DETAILS_DELAY_MS}
-      onHoverIn={onHoverIn}
-      onHoverOut={onHoverOut}
+      ref={rootRef}
+      {...(WEB ? null : hoverProps)}
       style={cardStyle}
       testID={`task-card-${card.id}`}
     >
@@ -1025,7 +1034,10 @@ function SubtaskRow(props: {
   onOpen?(agentId: string): void;
 }) {
   const { child, tokens, compact } = props;
-  const { hovered, hoverProps } = useHover();
+  // DOM hover on web, as the card: the row's own Pressable hover would end
+  // when the pointer reaches its jump button, and hide it.
+  const rowRef = useRef<View>(null);
+  const { hovered, hoverProps } = useHover(rowRef);
   const showJump = !!props.onOpen && (compact || TOUCH || hovered);
   const size = compact ? 32 : 22;
   return (
@@ -1033,7 +1045,8 @@ function SubtaskRow(props: {
       {...CONTAINER_ROLE}
       accessibilityLabel={child.title}
       onPress={() => props.onReveal(child.id)}
-      {...hoverProps}
+      ref={rowRef}
+      {...(WEB ? null : hoverProps)}
       style={{
         minHeight: compact ? 36 : 26,
         flexDirection: "row",
