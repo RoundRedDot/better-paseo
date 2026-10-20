@@ -1,6 +1,7 @@
 import type { PluginScreenParams } from "@getpaseo/plugin/client";
 import { DONE_WINDOWS, type DoneWindow } from "../../../shared/tasks-settings";
 import type { BoardFilters, LaneId } from "../model";
+import { decodeSort, encodeSort, type BoardSort } from "./sort";
 
 /**
  * What the board's filter bar holds, as it travels in the screen's params.
@@ -17,6 +18,8 @@ export interface BoardParams {
   openTabsOnly: boolean;
   hideSubtasks: boolean | null;
   doneWindow: DoneWindow | null;
+  /** One order for every lane; null keeps each lane's own (the spec's). Not a filter: "Clear all" keeps it. */
+  sort: BoardSort | null;
 }
 
 export const EMPTY_PARAMS: BoardParams = {
@@ -27,6 +30,7 @@ export const EMPTY_PARAMS: BoardParams = {
   openTabsOnly: false,
   hideSubtasks: null,
   doneWindow: null,
+  sort: null,
 };
 
 /** The settings the board falls back to while a filter follows them. */
@@ -36,7 +40,7 @@ export interface BoardDefaults {
 }
 
 // Short keys: params ride in the screen's URL.
-const KEY = { query: "q", workspaceIds: "ws", providers: "agent", labels: "label", openTabsOnly: "tabs", hideSubtasks: "sub", doneWindow: "win" } as const;
+const KEY = { query: "q", workspaceIds: "ws", providers: "agent", labels: "label", openTabsOnly: "tabs", hideSubtasks: "sub", doneWindow: "win", sort: "sort" } as const;
 
 /** A list as one param: each item URI-encoded, so ids and label names may hold commas. */
 function encodeList(values: readonly string[]): string {
@@ -69,6 +73,8 @@ export function encodeBoardParams(params: BoardParams): PluginScreenParams {
   if (params.openTabsOnly) out[KEY.openTabsOnly] = "1";
   if (params.hideSubtasks !== null) out[KEY.hideSubtasks] = params.hideSubtasks ? "1" : "0";
   if (params.doneWindow !== null) out[KEY.doneWindow] = params.doneWindow;
+  const sort = encodeSort(params.sort);
+  if (sort) out[KEY.sort] = sort;
   return out;
 }
 
@@ -88,6 +94,7 @@ export function decodeBoardParams(params: PluginScreenParams | null | undefined)
     openTabsOnly: read(KEY.openTabsOnly) === "1",
     hideSubtasks: sub === "1" ? true : sub === "0" ? false : null,
     doneWindow: (DONE_WINDOWS as readonly string[]).includes(win ?? "") ? (win as DoneWindow) : null,
+    sort: decodeSort(read(KEY.sort)),
   };
 }
 
