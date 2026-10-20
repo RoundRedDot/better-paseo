@@ -27,6 +27,8 @@ import {
   swallowsTap,
   swipeStep,
   claimsSwipe,
+  tabUnderline,
+  tabsOverflow,
   LANES,
   laneLayout,
   popoverPlacement,
@@ -171,6 +173,21 @@ describe("phone lanes", () => {
     expect(claimsSwipe(SWIPE.claim - 1, 0)).toBe(false);
     expect(claimsSwipe(8, 6)).toBe(false);
     expect(claimsSwipe(2, 30)).toBe(false);
+  });
+
+  it("puts the underline under the active tab's label and count, a quarter less 24 until laid out", () => {
+    expect(tabUnderline(undefined, 1, 0)).toBeNull();
+    expect(tabUnderline(undefined, 1, 400)).toEqual({ center: 150, width: 76, measured: false });
+    // The row is centred in the tab; the label sits after the 14 icon and a gap of 4.
+    const box = { tab: { x: 100, width: 100 }, row: { x: 10, width: 80 }, label: { x: 18, width: 62 } };
+    expect(tabUnderline(box, 1, 400)).toEqual({ center: 159, width: 62, measured: true });
+  });
+
+  it("lets the tabs size to content only when one outgrows its quarter", () => {
+    expect(tabsOverflow({}, 400)).toBe(false);
+    expect(tabsOverflow({ running: { row: { x: 0, width: 100 } } }, 400)).toBe(false);
+    expect(tabsOverflow({ running: { row: { x: 0, width: 112 } } }, 400)).toBe(true);
+    expect(tabsOverflow({ running: { row: { x: 0, width: 112 } } }, 0)).toBe(false);
   });
 
   it("does not wrap past either end", () => {

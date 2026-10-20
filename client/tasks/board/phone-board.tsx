@@ -6,9 +6,10 @@ import {
   Text,
   View,
   type FlatList as NativeFlatList,
+  type ScrollView as NativeScrollView,
   type LayoutChangeEvent,
 } from "react-native";
-import { FlatList, Icon, Modal, TextInput } from "@getpaseo/plugin/client/react-native";
+import { FlatList, Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { StatusIcon, TaskDetails, taskTokens, type CardCallbacks } from "../cards";
@@ -19,7 +20,7 @@ import { HAIRLINE, MOTION, boardPalette } from "./board-style";
 import { CardCell, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
 import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
-import { claimsSwipe, defaultLane, laneAfter, swallowsTap, swipeStep } from "./navigation";
+import { claimsSwipe, defaultLane, laneAfter, swallowsTap, swipeStep, tabUnderline, tabsOverflow, type TabBox } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
 import { LANE_EMPTY_ICON } from "./strings";
 import { sortsLoadedOnly } from "./sort";
@@ -27,6 +28,8 @@ import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-
 
 const nativeDriver = Platform.OS !== "web";
 const Separator = () => <View style={{ height: 12 }} />;
+/** The underline is drawn this wide and scaled to its label. */
+const UNDERLINE_BASE = 100;
 
 /** A touch (native) or pointer (web) event; both carry page coordinates. */
 type PointEvent = { nativeEvent: { pageX: number; pageY: number } };
@@ -60,22 +63,47 @@ export function PhoneBoard(props: {
   const badge = activeFilterCount(board.params, board.defaults);
   const doneWindow = resolveBoardParams(board.params, board.defaults).doneWindow;
 
-  // The tab underline: one bar sliding under the tabs, a quarter wide less 24.
-  const [tabWidth, setTabWidth] = useState(0);
-  const underline = useRef(new Animated.Value(0)).current;
+  // The tabs: a quarter of the bar each, or as wide as their content when a
+  // large system font outgrows a quarter, the bar then scrolling sideways.
+  // The underline is one bar sliding under the active tab's label and count,
+  // measured; a quarter less 24, centred, until the tab is laid out.
+  const [barWidth, setBarWidth] = useState(0);
+  const [boxes, setBoxes] = useState<Partial<Record<LaneId, TabBox>>>({});
+  const measureTab = useCallback((id: LaneId, part: keyof TabBox, layout: { x: number; width: number }) => {
+    setBoxes((current) => {
+      const box = current[id] ?? {};
+      const was = box[part];
+      if (was && was.x === layout.x && was.width === layout.width) return current;
+      return { ...current, [id]: { ...box, [part]: { x: layout.x, width: layout.width } } };
+    });
+  }, []);
+  const overflowing = tabsOverflow(boxes, barWidth);
+  const span = tabUnderline(boxes[lane], laneIndex, barWidth);
+  const underlineX = useRef(new Animated.Value(0)).current;
+  const underlineScale = useRef(new Animated.Value(0)).current;
   const placed = useRef(false);
+  const tabsRef = useRef<NativeScrollView | null>(null);
   useEffect(() => {
-    if (!tabWidth) return;
-    const to = (laneIndex * tabWidth) / 4 + 12;
+    if (!span) return;
+    const x = span.center - UNDERLINE_BASE / 2;
+    const scale = span.width / UNDERLINE_BASE;
+    // Jump into place until the first measured placement; slide after it.
     if (!placed.current || reduced) {
-      placed.current = true;
-      underline.setValue(to);
+      placed.current = span.measured;
+      underlineX.setValue(x);
+      underlineScale.setValue(scale);
       return;
     }
-    const animation = Animated.timing(underline, { toValue: to, duration: MOTION.laneMs, easing: MOTION.ease, useNativeDriver: nativeDriver });
+    const timing = (value: Animated.Value, toValue: number) =>
+      Animated.timing(value, { toValue, duration: MOTION.laneMs, easing: MOTION.ease, useNativeDriver: nativeDriver });
+    const animation = Animated.parallel([timing(underlineX, x), timing(underlineScale, scale)]);
     animation.start();
     return () => animation.stop();
-  }, [laneIndex, tabWidth, reduced, underline]);
+  }, [span?.center, span?.width, span?.measured, reduced, underlineX, underlineScale]);
+  const activeTabX = boxes[lane]?.tab?.x;
+  useEffect(() => {
+    if (overflowing && activeTabX !== undefined) tabsRef.current?.scrollTo?.({ x: Math.max(0, activeTabX - 16), animated: !reduced });
+  }, [overflowing, activeTabX, reduced]);
 
   // The content switch: the old lane fades out moving 24 (120 ms) while the new one comes in from the other side (200 ms).
   const enterOpacity = useRef(new Animated.Value(1)).current;
@@ -225,8 +253,10 @@ export function PhoneBoard(props: {
 
   return (
     <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0 }}>
-      <View style={{ height: 52, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 16, paddingRight: 6 }}>
-        <Text style={{ fontSize: 17, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>{strings.total(board.total)}</Text>
+      <View style={{ minHeight: 52, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 16, paddingRight: 6 }}>
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 17, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>
+          {strings.total(board.total)}
+        </Text>
         <View style={{ flex: 1 }} />
         <RoundButton
           icon="Search"
@@ -239,7 +269,7 @@ export function PhoneBoard(props: {
       </View>
       {searchOpen || board.params.query ? (
         <View style={{ paddingHorizontal: 16, paddingBottom: 10 }}>
-          <View style={{ height: 36, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 18 }}>
+          <View style={{ minHeight: 36, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 18 }}>
             <Icon name="Search" size={15} color={colors.foregroundMuted} />
             <TextInput
               autoFocus={searchOpen && !board.params.query}
@@ -255,58 +285,85 @@ export function PhoneBoard(props: {
         </View>
       ) : null}
       <View
-        onLayout={(event: LayoutChangeEvent) => setTabWidth(event.nativeEvent.layout.width)}
-        style={{ flexDirection: "row", borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 5, backgroundColor: colors.surface0 }}
+        onLayout={(event: LayoutChangeEvent) => setBarWidth(event.nativeEvent.layout.width)}
+        style={{ borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 5, backgroundColor: colors.surface0 }}
       >
-        {LANE_ORDER.map((id) => {
-          const on = id === lane;
-          const count = lanes[id].cards.length;
-          const warn = id === "needs_input" && count > 0;
-          return (
-            <Pressable
-              key={id}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: on }}
-              accessibilityLabel={`${strings.lanes[id]} ${count}`}
-              onPress={() => select(id)}
-              style={{ flex: 1, height: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}
-            >
-              <StatusIcon kind={LANE_STATUS[id]} size={14} theme={theme} animated={board.visible} />
-              <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 15, fontWeight: on ? "600" : "500", color: on ? colors.foreground : colors.foregroundMuted }}>
-                {strings.tabs[id]}
-              </Text>
-              {tasks.ready ? (
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontVariant: ["tabular-nums"],
-                    fontWeight: warn || on ? "600" : "400",
-                    color: warn ? warning : on ? colors.foreground : colors.foregroundMuted,
-                  }}
+        <ScrollView
+          ref={tabsRef}
+          horizontal
+          scrollEnabled={overflowing}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1, minWidth: barWidth }}
+        >
+          {LANE_ORDER.map((id) => {
+            const on = id === lane;
+            const count = lanes[id].cards.length;
+            const warn = id === "needs_input" && count > 0;
+            return (
+              <Pressable
+                key={id}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={`${strings.lanes[id]} ${count}`}
+                onPress={() => select(id)}
+                onLayout={(event: LayoutChangeEvent) => measureTab(id, "tab", event.nativeEvent.layout)}
+                style={{
+                  flexGrow: 1,
+                  minWidth: barWidth / 4,
+                  minHeight: 44,
+                  paddingHorizontal: overflowing ? 10 : 0,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <View
+                  onLayout={(event: LayoutChangeEvent) => measureTab(id, "row", event.nativeEvent.layout)}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
                 >
-                  {count}
-                </Text>
-              ) : null}
-            </Pressable>
-          );
-        })}
-        {tabWidth ? (
-          <Animated.View
-            pointerEvents="none"
-            style={{
-              position: "absolute",
-              left: 0,
-              bottom: -1,
-              width: Math.max(0, tabWidth / 4 - 24),
-              height: 2,
-              backgroundColor: colors.accent,
-              transform: [{ translateX: underline }],
-            }}
-          />
-        ) : null}
+                  <StatusIcon kind={LANE_STATUS[id]} size={14} theme={theme} animated={board.visible} />
+                  <View
+                    onLayout={(event: LayoutChangeEvent) => measureTab(id, "label", event.nativeEvent.layout)}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                  >
+                    <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: on ? "600" : "500", color: on ? colors.foreground : colors.foregroundMuted }}>
+                      {strings.tabs[id]}
+                    </Text>
+                    {tasks.ready ? (
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontVariant: ["tabular-nums"],
+                          fontWeight: warn || on ? "600" : "400",
+                          color: warn ? warning : on ? colors.foreground : colors.foregroundMuted,
+                        }}
+                      >
+                        {count}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              </Pressable>
+            );
+          })}
+          {span ? (
+            <Animated.View
+              pointerEvents="none"
+              testID="lane-underline"
+              style={{
+                position: "absolute",
+                left: 0,
+                bottom: 0,
+                width: UNDERLINE_BASE,
+                height: 2,
+                backgroundColor: colors.accent,
+                transform: [{ translateX: underlineX }, { scaleX: underlineScale }],
+              }}
+            />
+          ) : null}
+        </ScrollView>
       </View>
       {lane === "done" ? (
-        <View style={{ height: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
+        <View style={{ minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
           <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.timeRange}</Text>
           <WindowSegments value={doneWindow} onChange={(value) => board.setParams((params) => ({ ...params, doneWindow: value }))} theme={theme} strings={strings} large />
         </View>
