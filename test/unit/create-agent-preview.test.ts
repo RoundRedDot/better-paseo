@@ -39,9 +39,9 @@ const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: 
 
 const agentId = "db43c484-e0ea-4ae2-94f9-6f5261234567";
 const prompt = "# Review\n\n**Read only**\n\n" + Array.from({ length: 80 }, (_, i) => `Line ${i}`).join("\n");
-function agentView(theme = tokens, title = "Review", settings?: Record<string, unknown>, provider = "cursor/grok-4.7") {
+function agentView(theme = tokens, title = "Review", settings?: Record<string, unknown>, provider = "cursor/grok-4.7", output = agentId) {
   const data = classifyTool({ callId: "create", name: "paseo.create_agent", status: "completed", detail: {
-    type: "unknown", input: { title, provider, initialPrompt: prompt, settings }, output: agentId,
+    type: "unknown", input: { title, provider, initialPrompt: prompt, settings }, output,
   } });
   return React.createElement(PreviewPanelSample, { tokens: theme,
     children: React.createElement(ToolPreviewContent, { data, tokens: theme, compact: false, resolvePath: (path) => path }),
@@ -219,16 +219,36 @@ describe("create_agent preview", () => {
     vi.spyOn(input, "useInputCapabilities").mockReturnValue({ native: os !== "web", hover: false, touch: true, compact: false });
     act(() => { renderer = TestRenderer.create(agentView()); });
     const root = renderer!.root;
-    expect(StyleSheet.flatten(root.findByProps({ testID: "create-agent-metadata" }).props.style).flexDirection).toBe("column");
+    expect(StyleSheet.flatten(root.findByProps({ testID: "create-agent-metadata" }).props.style)).toMatchObject({
+      flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-start",
+    });
     expect(StyleSheet.flatten(root.findByProps({ testID: "create-agent-copy-icon" }).props.style).opacity).toBe(1);
     const id = root.findByProps({ testID: "create-agent-id" });
+    expect(StyleSheet.flatten(id.props.style).width).toBe("100%");
     expect(Number(StyleSheet.flatten(id.props.style).minHeight) + 2 * id.props.hitSlop).toBeGreaterThanOrEqual(44);
     const idText = root.findAll((node) => (node.type as unknown) === "Text" && node.props.children === agentId)[0]!;
     expect(idText.props.numberOfLines).toBeUndefined();
     expect(StyleSheet.flatten(idText.props.style).flexShrink).toBe(1);
   });
 
-  it("keeps desktop ID at the right and reveals copy on hover and focus", async () => {
+  it.each([390, 1280])("keeps running inline after permissions at width %s until the ID arrives", async (width) => {
+    vi.spyOn(Dimensions, "get").mockReturnValue({ width, height: 800, scale: 1, fontScale: 1 });
+    vi.spyOn(input, "useInputCapabilities").mockReturnValue({ native: false, hover: true, touch: false, compact: false });
+    act(() => { renderer = TestRenderer.create(agentView(tokens, "Review", undefined, "cursor/grok-4.7", "")); });
+    const metadata = () => renderer!.root.findByProps({ testID: "create-agent-metadata" });
+    const id = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "create-agent-id")[0]!;
+    expect(StyleSheet.flatten(metadata().props.style)).toMatchObject({ flexDirection: "row", justifyContent: "flex-start", flexWrap: "wrap" });
+    const text = textOf(renderer!.toJSON());
+    expect(text.indexOf("running")).toBeGreaterThan(text.indexOf("未指定"));
+    expect(id().props.accessibilityLabel).toBe("running");
+    expect(id().props.disabled).toBe(true);
+    expect(StyleSheet.flatten(id().props.style).width).toBeUndefined();
+    await act(async () => renderer!.update(agentView()));
+    expect(id().props.accessibilityLabel).toBe(`Copy agent ID ${agentId}`);
+    expect(StyleSheet.flatten(id().props.style).width).toBe(width < 600 ? "100%" : undefined);
+  });
+
+  it("keeps desktop ID at the left and reveals copy on hover and focus", async () => {
     vi.spyOn(Dimensions, "get").mockReturnValue({ width: 1280, height: 800, scale: 1, fontScale: 1 });
     vi.spyOn(input, "useInputCapabilities").mockReturnValue({ native: false, hover: true, touch: false, compact: false });
     act(() => { renderer = TestRenderer.create(agentView()); });
@@ -236,6 +256,8 @@ describe("create_agent preview", () => {
     expect(StyleSheet.flatten(root.findByProps({ testID: "create-agent-metadata" }).props.style).flexDirection).toBe("row");
     const opacity = () => StyleSheet.flatten(root.findByProps({ testID: "create-agent-copy-icon" }).props.style).opacity;
     const id = root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "create-agent-id")[0]!;
+    expect(StyleSheet.flatten(root.findByProps({ testID: "create-agent-metadata" }).props.style).justifyContent).toBe("flex-start");
+    expect(StyleSheet.flatten(id.props.style).width).toBeUndefined();
     expect(opacity()).toBe(0);
     act(() => id.props.onHoverIn());
     expect(opacity()).toBe(1);
