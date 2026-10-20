@@ -1,6 +1,6 @@
 import type { PaseoToolKind } from "../../shared/contracts";
 import type { ToolCallView } from "./classify";
-import { AGENT_STATUS_ICON, AGENT_STATUS_LABEL, type AgentStatus } from "./agent-status";
+import { AGENT_STATUS_ICON, AGENT_STATUS_LABEL, readPermissionRequest, type AgentStatus } from "./agent-status";
 
 /**
  * One grammar for every agent row (agent cards design 5.1): what happened,
@@ -59,8 +59,13 @@ export function summarizeAgentRow(view: ToolCallView): AgentRow | undefined {
   if (view.agentStatus) {
     const status = view.agentStatus;
     const look = { verb: AGENT_STATUS_LABEL[status.status], icon: AGENT_STATUS_ICON[status.status], ...NOTIFICATION_TONE[status.status] };
+    const permission = status.status === "needs permission" ? readPermissionRequest(status.body) : undefined;
+    const questions = permission?.questions?.length;
+    // A question asks the reader for an answer; "request_user_input_async" says nothing to them.
+    if (questions) return { verb: "Needs answer", agentId: status.agentId, agentTitle: status.title,
+      meta: [`${questions} question${questions === 1 ? "" : "s"}`], tone: look.tone, icon: "MessageCircleQuestion" };
     const meta = status.status === "errored" ? compact([firstLine(stripTags(status.body))]) :
-      status.status === "needs permission" ? compact([permissionTool(status.body)]) : [];
+      permission ? compact([permission.title ?? permission.name]) : [];
     return { verb: look.verb, agentId: status.agentId, agentTitle: status.title, meta, tone: look.tone,
       icon: look.icon, iconTone: look.iconTone };
   }
@@ -160,18 +165,6 @@ export function providerName(provider: string | undefined): string | undefined {
   if (!provider) return undefined;
   const head = provider.split(/[/:]/)[0]!.toLowerCase();
   return PROVIDER_NAMES[head] ?? provider;
-}
-
-function permissionTool(body: string): string | undefined {
-  const match = /<permission-request>\s*([\s\S]*?)\s*<\/permission-request>/.exec(body);
-  if (!match) return undefined;
-  try {
-    const parsed = JSON.parse(match[1]!) as { request?: { name?: unknown; title?: unknown } };
-    const name = parsed.request?.name ?? parsed.request?.title;
-    return typeof name === "string" && name ? name : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function statusCounts(statuses: Array<string | undefined>): string {
