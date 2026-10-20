@@ -1,9 +1,7 @@
 import React, { type ReactElement } from "react";
-import { View, Text, StyleSheet, Image } from "react-native";
+import { View, Image } from "react-native";
 import { Icon as HostIcon } from "@getpaseo/plugin/client/react-native";
-import { fontMono } from "./theme-tokens";
-import { MONO_MARKS, useMarkBitmap } from "./marks";
-import { unselectable } from "./selection";
+import { MARK_IDS, MONO_MARKS, useMarkBitmap } from "./marks";
 
 export interface IconProps {
   name: string;
@@ -15,16 +13,13 @@ export interface IconProps {
  * Vendor paths kept as the source the raster generator reads. They are no
  * longer drawn here: React Native's <Image> decodes PNG, JPEG, GIF, and WebP,
  * never SVG, so an inlined SVG rendered on web and stayed blank on iOS and
- * Android. Every mark below now arrives as a PNG raster instead.
+ * Android. Every mark below now arrives as a PNG raster instead. GitHub and
+ * the MCP service marks are line icons whose SVGs live in `assets/tool-marks`.
  */
 const BRAND_PATHS = {
   Git: {
     viewBox: "0 0 24 24",
     d: "M13.09 23.549a1.54 1.54 0 0 1-2.18 0L.451 13.089a1.54 1.54 0 0 1 0-2.179l7.191-7.19l2.733 2.733a1.85 1.85 0 0 0 .964 2.326v6.66a1.849 1.849 0 1 0 1.54 0V8.957l2.508 2.508a1.85 1.85 0 1 0 1.09-1.09l-2.634-2.634a1.85 1.85 0 0 0-2.378-2.377L8.73 2.63L10.91.451a1.54 1.54 0 0 1 2.179 0l10.459 10.46a1.54 1.54 0 0 1 0 2.179z",
-  },
-  GitHub: {
-    viewBox: "0 0 24 24",
-    d: "M12 .297c-6.63 0-12 5.373-12 12c0 5.303 3.438 9.8 8.205 11.385c.6.113.82-.258.82-.577c0-.285-.01-1.04-.015-2.04c-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729c1.205.084 1.838 1.236 1.838 1.236c1.07 1.835 2.809 1.305 3.495.998c.108-.776.417-1.305.76-1.605c-2.665-.3-5.466-1.332-5.466-5.93c0-1.31.465-2.38 1.235-3.22c-.135-.303-.54-1.523.105-3.176c0 0 1.005-.322 3.3 1.23c.96-.267 1.98-.399 3-.405c1.02.006 2.04.138 3 .405c2.28-1.552 3.285-1.23 3.285-1.23c.645 1.653.24 2.873.12 3.176c.765.84 1.23 1.91 1.23 3.22c0 4.61-2.805 5.625-5.475 5.92c.42.36.81 1.096.81 2.22c0 1.606-.015 2.896-.015 3.286c0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12",
   },
   // Paseo's own mark, taken from the app's PaseoLogo component.
   Paseo: {
@@ -34,7 +29,7 @@ const BRAND_PATHS = {
 } as const;
 
 /** A brand mark Lucide does not carry, rasterised and tinted when monochrome. */
-function BrandMark({ id, size, color }: { id: string; size: number; color: string }) {
+export function BrandMark({ id, size, color }: { id: string; size: number; color: string }) {
   // The raster comes from the daemon; its slot holds the size until it lands.
   const uri = useMarkBitmap(id);
   if (!uri) return <View style={{ width: size, height: size }} />;
@@ -52,13 +47,10 @@ function BrandMark({ id, size, color }: { id: string; size: number; color: strin
   );
 }
 
-/** Corner geometry of drawn glyph parts; part of the icon's shape, not a surface radius. */
-const GLYPH_PIN_RADIUS = 0.5;
-const GLYPH_BODY_RADIUS = 3;
-
 /**
- * Universal zero-dependency stroke and geometric glyphs.
- * Runs in any Paseo plugin sandbox without requiring react-native-svg or external icon packages.
+ * An icon by name. Chevrons and status dots are drawn here, brand marks are
+ * rasters from the daemon, and everything else is the host's Lucide icon, so
+ * the icons share one line style.
  */
 export function Icon({ name, size = 13, color = "#94a3b8" }: IconProps): ReactElement {
   const safeColor = color === "currentColor" ? "#94a3b8" : color;
@@ -78,6 +70,16 @@ export function Icon({ name, size = 13, color = "#94a3b8" }: IconProps): ReactEl
 }
 
 export { Icon as Glyph };
+
+/** Older names callers still pass, under the name Lucide uses now. */
+const LUCIDE_NAMES: Record<string, string> = {
+  CheckCircle: "CircleCheck",
+  AlertTriangle: "TriangleAlert",
+  AlertCircle: "CircleAlert",
+  HelpCircle: "CircleHelp",
+  Edit: "Pencil",
+  Book: "BookOpen",
+};
 
 function renderGlyph(name: string, size: number, color: string): ReactElement {
   const stroke = Math.max(1.2, size / 8.5);
@@ -119,22 +121,6 @@ function renderGlyph(name: string, size: number, color: string): ReactElement {
         </View>
       );
     }
-
-    case "Check":
-      return (
-        <Text
-          style={[styles.symbol, { fontSize: size + 1, color, fontWeight: "700" }, unselectable]}
-        >
-          ✓
-        </Text>
-      );
-
-    case "X":
-      return (
-        <Text style={[styles.symbol, { fontSize: size, color, fontWeight: "600" }, unselectable]}>
-          ✕
-        </Text>
-      );
 
     case "Dot":
       return (
@@ -185,271 +171,17 @@ function renderGlyph(name: string, size: number, color: string): ReactElement {
         </View>
       );
 
-    case "Play":
-      return (
-        <Text style={[styles.arrow, { fontSize: size - 2, color, marginLeft: 1 }, unselectable]}>
-          ▶
-        </Text>
-      );
-
-    case "Terminal":
-      return (
-        <Text style={[styles.mono, { fontSize: Math.max(8.5, size - 2), color }, unselectable]}>
-          &gt;_
-        </Text>
-      );
-
-    // A completion marker: filled disc in the status colour with a white
-    // tick on top. The tick is two borders on a rotated box, so it stays
-    // crisp at any size without a font glyph or an SVG.
-    case "CheckCircle": {
-      const tickWidth = size * 0.44;
-      const tickHeight = size * 0.24;
-      const tickStroke = Math.max(1.25, size * 0.11);
-      return (
-        <View
-          style={{
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            backgroundColor: color,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <View
-            style={{
-              width: tickWidth,
-              height: tickHeight,
-              borderLeftWidth: tickStroke,
-              borderBottomWidth: tickStroke,
-              borderColor: "#FFFFFF",
-              transform: [{ rotate: "-45deg" }],
-              marginTop: -size * 0.08,
-            }}
-          />
-        </View>
-      );
-    }
-
-    // Reasoning is a bolt. The host draws it, so it renders on every platform.
-    case "Zap":
-      return <HostIcon name="Zap" size={size} color={color} />;
-
-    case "Brain":
-      return <HostIcon name="Brain" size={size} color={color} />;
-
     case "Git":
       return <BrandMark id="brand:git" size={size} color={color} />;
     case "GitHub":
       return <BrandMark id="brand:github" size={size} color={color} />;
     case "Paseo":
       return <BrandMark id="brand:paseo" size={size} color={color} />;
-    case "Sparkles":
-      return <Text style={[styles.symbol, { fontSize: size - 1, color }, unselectable]}>✦</Text>;
-
-    case "Shield":
-    case "ShieldAlert":
-      return <Text style={[styles.symbol, { fontSize: size - 1, color }, unselectable]}>⛨</Text>;
-
-    case "ListChecks":
-    case "ListTodo":
-      return (
-        <Text
-          style={[styles.symbol, { fontSize: size - 1, color, fontWeight: "700" }, unselectable]}
-        >
-          ≡
-        </Text>
-      );
-
-    case "AlertTriangle":
-    case "AlertCircle":
-      return <Text style={[styles.bold, { fontSize: size, color }, unselectable]}>!</Text>;
-
-    case "HelpCircle":
-      return (
-        <View
-          style={{
-            width: size * 0.85,
-            height: size * 0.85,
-            borderRadius: size * 0.425,
-            borderWidth: stroke,
-            borderColor: color,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Text
-            style={[
-              {
-                fontSize: size * 0.65,
-                fontWeight: "700",
-                color,
-                lineHeight: size * 0.7,
-              },
-              unselectable,
-            ]}
-          >
-            ?
-          </Text>
-        </View>
-      );
-
-    case "Copy":
-      return <HostIcon name="Copy" size={size} color={color} />;
-    case "Bot":
-      return (
-        <Text style={[styles.mono, { fontSize: size - 2, color, fontWeight: "700" }, unselectable]}>
-          [•]
-        </Text>
-      );
-
-    case "Server":
-    case "Layers":
-      return <Text style={[styles.symbol, { fontSize: size - 1, color }, unselectable]}>☵</Text>;
-
-    case "Radio":
-      return (
-        <View
-          style={{
-            width: size * 0.7,
-            height: size * 0.7,
-            borderRadius: size * 0.35,
-            borderWidth: stroke,
-            borderColor: color,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <View
-            style={{
-              width: size * 0.25,
-              height: size * 0.25,
-              borderRadius: size * 0.125,
-              backgroundColor: color,
-            }}
-          />
-        </View>
-      );
-
-    case "Plug":
-      return (
-        <View
-          style={{
-            width: size,
-            height: size,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              gap: Math.max(2.5, size * 0.24),
-              marginBottom: 0.5,
-            }}
-          >
-            <View
-              style={{
-                width: 1.5,
-                height: size * 0.28,
-                backgroundColor: color,
-                borderRadius: GLYPH_PIN_RADIUS,
-              }}
-            />
-            <View
-              style={{
-                width: 1.5,
-                height: size * 0.28,
-                backgroundColor: color,
-                borderRadius: GLYPH_PIN_RADIUS,
-              }}
-            />
-          </View>
-          <View
-            style={{
-              width: size * 0.65,
-              height: size * 0.44,
-              backgroundColor: color,
-              borderRadius: GLYPH_BODY_RADIUS,
-            }}
-          />
-          <View
-            style={{
-              width: 1.5,
-              height: size * 0.2,
-              backgroundColor: color,
-            }}
-          />
-        </View>
-      );
-
-    case "Pencil":
-    case "Edit":
-      return (
-        <Text
-          style={[
-            styles.symbol,
-            {
-              fontSize: size + 1,
-              color,
-              fontWeight: "600",
-              lineHeight: size + 2,
-            },
-            unselectable,
-          ]}
-        >
-          ✎
-        </Text>
-      );
-
-    case "Book":
-    case "BookOpen":
-      return <HostIcon name="BookOpen" size={size} color={color} />;
-    case "FileCode":
-      return (
-        <Text style={[styles.mono, { fontSize: size - 3, color, fontWeight: "700" }, unselectable]}>
-          &lt;/&gt;
-        </Text>
-      );
-
-    case "FileDiff":
-      return (
-        <Text style={[styles.mono, { fontSize: size - 1, color, fontWeight: "700" }, unselectable]}>
-          ±
-        </Text>
-      );
-
-    case "Wrench":
-      return <Text style={[styles.symbol, { fontSize: size - 1, color }, unselectable]}>⚙</Text>;
-
-    case "MessageSquare":
-      return <Text style={[styles.symbol, { fontSize: size - 1, color }, unselectable]}>💬</Text>;
 
     default:
-      // Anything this file does not draw comes from the host's Lucide set.
-      return <HostIcon name={name} size={size} color={color} />;
+      // A service mark (`linear`, `google-calendar`) is a raster from the daemon.
+      if (MARK_IDS.has(`brand:${name}`)) return <BrandMark id={`brand:${name}`} size={size} color={color} />;
+      // Anything else is the host's Lucide icon, so every icon is the same line drawing.
+      return <HostIcon name={LUCIDE_NAMES[name] ?? name} size={size} color={color} />;
   }
 }
-
-const styles = StyleSheet.create({
-  arrow: {
-    textAlign: "center",
-    lineHeight: 14,
-  },
-  symbol: {
-    textAlign: "center",
-    lineHeight: 14,
-  },
-  mono: {
-    fontFamily: fontMono,
-    fontWeight: "600",
-    textAlign: "center",
-    lineHeight: 13,
-  },
-  bold: {
-    fontWeight: "800",
-    textAlign: "center",
-    lineHeight: 13,
-  },
-});

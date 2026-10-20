@@ -16,12 +16,15 @@ import {
 // capture resolves the identical icon set from lucide-react instead.
 import * as lucide from "lucide-react";
 
+/** The host wraps the app in `<LucideProvider strokeWidth={ICON_STROKE_WIDTH}>`, 1.5. */
+const HOST_ICON_STROKE_WIDTH = 1.5;
+
 export function Icon({ name, size = 16, color }: { name: string; size?: number; color?: string }) {
   const Resolved = (lucide as Record<string, unknown>)[name] as
-    | React.ComponentType<{ size?: number; color?: string }>
+    | React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>
     | undefined;
   if (!Resolved) return <Text style={{ fontSize: size, color }}>{name.slice(0, 1)}</Text>;
-  return <Resolved size={size} color={color} />;
+  return <Resolved size={size} color={color} strokeWidth={HOST_ICON_STROKE_WIDTH} />;
 }
 
 export const Modal = Object.assign(
