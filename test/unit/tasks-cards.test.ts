@@ -480,15 +480,21 @@ describe("ProjectIcon", () => {
 
   it("keys the colour by projectKey, then [hostId, projectId], then projectId", () => {
     const location = sample("sample-running").location;
-    expect(projectViewKey({ ...location, projectKey: "k" } as typeof location)).toBe("k");
-    expect(projectViewKey(location, "host-1")).toBe(JSON.stringify(["host-1", "prj_sample"]));
-    expect(projectViewKey(location)).toBe("prj_sample");
+    expect(location.projectKey).toBe("remote:github.com/RoundRedDot/better-paseo");
+    expect(projectViewKey(location, "host-1")).toBe("remote:github.com/RoundRedDot/better-paseo");
+    const keyless = { ...location, projectKey: null };
+    expect(projectViewKey(keyless, "host-1")).toBe(JSON.stringify(["host-1", "prj_sample"]));
+    expect(projectViewKey(keyless)).toBe("prj_sample");
   });
 
   it("draws the generated square on the card, or the uploaded image unrounded", async () => {
+    // The sample's projectKey wins over the host pair.
     const tree = await render(cardElement(sample("sample-running"), { hostId: "host-1" }));
     const square = hostByTestId(tree.root, "project-icon-generated");
-    expect(flat(square.props.style)).toMatchObject({ width: 12, height: 12, borderRadius: 3, backgroundColor: "#5179b0" });
+    expect(flat(square.props.style)).toMatchObject({ width: 12, height: 12, borderRadius: 3, backgroundColor: "#3d7ea6" });
+    const keyless = { ...sample("sample-running"), location: { ...sample("sample-running").location, projectKey: null } };
+    await act(async () => tree.update(cardElement(keyless, { hostId: "host-1" })));
+    expect(flat(hostByTestId(tree.root, "project-icon-generated").props.style).backgroundColor).toBe("#5179b0");
     const initial = square.find((node) => (node.type as unknown) === "Text");
     expect(initial.props.children).toBe("B");
     expect(flat(initial.props.style).color).toBe("#ffffff");
