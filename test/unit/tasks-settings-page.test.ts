@@ -121,6 +121,20 @@ describe("tasks settings page", () => {
     expect(api.save).toHaveBeenCalledWith(DEFAULT_TASKS_SETTINGS, "r1");
   });
 
+  it("the armed reset shows one Cancel: its row says what cancelling keeps", async () => {
+    const api = makeSettings();
+    const r = render();
+    await act(async () => { byLabel(r, "SettingsAction", "Restore default settings").props.onPress(); });
+    const actions = r.root.findAll((node) => (node.type as unknown) === "SettingsAction");
+    const words = actions.flatMap((node) => [node.props.label, node.props.actionLabel]);
+    expect(words.filter((word) => word === "Cancel")).toHaveLength(1);
+    const keep = byLabel(r, "SettingsAction", "Keep the current settings");
+    expect(keep.props.actionLabel).toBe("Cancel");
+    await act(async () => { keep.props.onPress(); });
+    expect(r.root.findAll((node) => (node.type as unknown) === "SettingsAction" && node.props.label === "Keep the current settings")).toHaveLength(0);
+    expect(api.save).not.toHaveBeenCalled();
+  });
+
   it("reset keeps the board on", async () => {
     const api = makeSettings({ values: { ...applyDensity(DEFAULT_TASKS_SETTINGS, "full"), enabled: true } });
     const r = render();

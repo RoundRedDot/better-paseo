@@ -72,6 +72,8 @@ interface Strings {
   resetConfirm: string;
   resetConfirmHint: string;
   resetCancel: string;
+  /** The cancel row's own label, so it does not repeat its button's "Cancel". */
+  resetKeep: string;
   resetInvalidHint: string;
 }
 
@@ -134,6 +136,7 @@ const STRINGS: Record<TasksLanguage, Strings> = {
     resetConfirm: "Restore now",
     resetConfirmHint: "This replaces all Tasks settings with the defaults.",
     resetCancel: "Cancel",
+    resetKeep: "Keep the current settings",
     resetInvalidHint: "Restoring the defaults replaces the unusable record.",
   },
   zh: {
@@ -191,6 +194,7 @@ const STRINGS: Record<TasksLanguage, Strings> = {
     resetConfirm: "确认恢复",
     resetConfirmHint: "这会用默认值替换全部任务面板设置。",
     resetCancel: "取消",
+    resetKeep: "保留当前设置",
     resetInvalidHint: "恢复默认设置会替换无法使用的记录。",
   },
 };
@@ -252,7 +256,7 @@ export function TasksSettingsPage(props: PluginSurfaceProps) {
             actionLabel={t.resetConfirm}
             onPress={() => void doReset()}
           />
-          <SettingsAction label={t.resetCancel} actionLabel={t.resetCancel} onPress={() => setConfirmingReset(false)} />
+          <SettingsAction label={t.resetKeep} actionLabel={t.resetCancel} onPress={() => setConfirmingReset(false)} />
         </>
       ) : (
         <SettingsAction label={t.reset} hint={hint} actionLabel={t.resetAction} onPress={() => setConfirmingReset(true)} />
