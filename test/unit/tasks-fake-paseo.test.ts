@@ -27,7 +27,7 @@ describe("fake PaseoApi", () => {
     expect(second.pageInfo.hasMore).toBe(false);
   });
 
-  it("pushes upserts while an agent matches and a remove once it leaves", async () => {
+  it("pushes an upsert while an agent matches and a remove for every non-match", async () => {
     const fake = createFakePaseo({ agents: [makeAgent({ id: "a", status: "running" })] });
     const result = await fake.paseo.agents.list({ filter: { statuses: ["running"] }, subscribe: {} });
     const messages: unknown[] = [];
@@ -38,9 +38,23 @@ describe("fake PaseoApi", () => {
     expect(messages).toEqual([
       expect.objectContaining({ type: "agent_update", payload: expect.objectContaining({ kind: "upsert", agent: expect.objectContaining({ id: "b" }) }) }),
       expect.objectContaining({ type: "agent_update", payload: expect.objectContaining({ kind: "remove", agentId: "a" }) }),
+      expect.objectContaining({ type: "agent_update", payload: expect.objectContaining({ kind: "remove", agentId: "c" }) }),
     ]);
     await result.subscription.release();
     expect(fake.openSubscriptions()).toBe(0);
+  });
+
+  it("replays a replacement snapshot after reconnect", async () => {
+    const fake = createFakePaseo({ agents: [makeAgent({ id: "a", status: "running" })] });
+    const result = await fake.paseo.agents.list({ filter: { statuses: ["running"] }, subscribe: {} });
+    const snapshots: unknown[] = [];
+    result.subscription.subscribe({ snapshot: (snapshot) => snapshots.push(snapshot), update() {} });
+    fake.setAgentSilently(makeAgent({ id: "a", status: "idle" }));
+    fake.reconnectSubscriptions();
+    expect(snapshots).toEqual([
+      expect.objectContaining({ entries: [], pageInfo: expect.objectContaining({ hasMore: false }) }),
+    ]);
+    await result.subscription.release();
   });
 
   it("offers label definitions and project icons only on new hosts", async () => {
