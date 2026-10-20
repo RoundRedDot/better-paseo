@@ -68,7 +68,7 @@ import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
 import { contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
-import { PiMark, agentPillColors, contrastRatio } from "../../client/tasks/cards/brand-mark";
+import { PiMark, agentPillColors, contrastRatio, tintedPillColors } from "../../client/tasks/cards/brand-mark";
 import { permissionButtons } from "../../client/tasks/actions";
 import { providerBrand } from "../../client/components/provider-logo";
 import { MARK_IDS, seedMarkBitmaps } from "../../client/components/marks";
@@ -231,29 +231,36 @@ describe("StatusIcon", () => {
     expect(flat(dot!.props.style)).toMatchObject({ width: 6, height: 6, backgroundColor: "#268ae0" });
 
     const alert = box("needs_input");
-    expect(flat((alert.children[0] as ReactTestInstance).props.style)).toMatchObject({ width: 10, backgroundColor: "#b37824" });
+    expect(flat((alert.children[0] as ReactTestInstance).props.style)).toMatchObject({ width: 12, borderWidth: 1.5, borderColor: "#b37824" });
 
     expect(flat((box("unread").children[0] as ReactTestInstance).props.style)).toMatchObject({ width: 6, backgroundColor: "#299f51", opacity: 1 });
     expect(flat((box("failed").children[0] as ReactTestInstance).props.style)).toMatchObject({ width: 8, backgroundColor: "#f12e2f" });
     expect(flat((box("done").children[0] as ReactTestInstance).props.style)).toMatchObject({ width: 6, backgroundColor: "#6b6b75", opacity: 0.3 });
   });
 
-  it("draws the needs-input \"!\" inside the disc, in the backdrop colour, at 12, 16 and 20 px", async () => {
+  it("draws needs-input as a hollow amber ring, unlike the running ring, at 12, 16 and 20 px", async () => {
     for (const [size, scale] of [[12, 0.75], [16, 1], [20, 14 / 12]] as const) {
-      const tree = await render(React.createElement(StatusIcon, { kind: "needs_input", size, theme: LIGHT, backdrop: "#f7f7f8" }));
-      const disc = hostByTestId(tree.root, "status-needs_input-disc");
-      expect(flat(disc.props.style)).toMatchObject({ width: 10 * scale, height: 10 * scale, backgroundColor: "#b37824" });
-      // The bar and the dot are the disc's children, so they paint over it on every platform.
-      const bar = hostByTestId(disc, "status-needs_input-bar");
-      const dot = hostByTestId(disc, "status-needs_input-dot");
-      expect(flat(bar.props.style)).toMatchObject({ width: 1.5 * scale, height: 3 * scale, backgroundColor: "#f7f7f8" });
-      expect(flat(dot.props.style)).toMatchObject({ width: 1.5 * scale, height: 1.5 * scale, backgroundColor: "#f7f7f8" });
-      // Nothing absolutely positioned: on web that would paint over its in-flow siblings.
-      const positioned = hostByTestId(tree.root, "status-needs_input").findAll(
-        (node) => typeof node.type === "string" && flat(node.props.style).position === "absolute",
+      const tree = await render(
+        React.createElement(
+          React.Fragment,
+          null,
+          React.createElement(StatusIcon, { key: "input", kind: "needs_input", size, theme: LIGHT, animated: false }),
+          React.createElement(StatusIcon, { key: "running", kind: "running", size, theme: LIGHT, animated: false }),
+        ),
       );
-      expect(positioned).toHaveLength(0);
-      expect(icons(tree.root)).toEqual([]);
+      const ring = hostByTestId(tree.root, "status-needs_input-ring");
+      const style = flat(ring.props.style);
+      // The running ring's track, whole and opaque: same diameter and stroke, no fill, nothing inside.
+      expect(style).toMatchObject({ width: 12 * scale, height: 12 * scale, borderRadius: 6 * scale, borderWidth: 1.5 * scale, borderColor: "#b37824" });
+      expect(style.backgroundColor).toBeUndefined();
+      expect(style.opacity).toBeUndefined();
+      expect(ring.children).toHaveLength(0);
+      const running = hostByTestId(tree.root, "status-running");
+      const [track] = running.children as ReactTestInstance[];
+      expect(flat(track!.props.style)).toMatchObject({ width: style.width, borderWidth: style.borderWidth, opacity: 0.3 });
+      // Running keeps its centre dot and arc; needs-input has neither.
+      expect(running.children.length).toBe(3);
+      expect(icons(hostByTestId(tree.root, "status-needs_input"))).toEqual([]);
       await act(async () => tree.unmount());
       renderer = null;
     }
@@ -342,7 +349,7 @@ describe("TaskCardView rows", () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: fields("standard", { labelLimit: "all" }) }));
     for (const [id] of pills(tree.root)) {
       // borderWidth is StyleSheet.hairlineWidth, which rn-mock reports as 1; the agent pills have none.
-      const agent = id === "pill-model" || id === "pill-thinking";
+      const agent = id === "pill-model" || id === "pill-thinking" || id === "pill-branch";
       expect(flat(hostByTestId(tree.root, id).props.style)).toMatchObject({ height: 24, borderRadius: 12, borderWidth: agent ? 0 : 1 });
     }
     // Tints: a label's colour at 10% over the card with a stronger hairline; neutral grey without one.
@@ -353,11 +360,12 @@ describe("TaskCardView rows", () => {
     };
     expect(pillColors("pill-label-frontend")).toEqual({ background: mix("#ffffff", "#8b5cf6", 0.1), border: mix("#ffffff", "#8b5cf6", 0.26) });
     expect(pillColors("pill-label-board")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
-    expect(pillColors("pill-branch")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
+    // The branch: the theme accent, borderless; folder, path and PR stay neutral.
+    expect(pillColors("pill-branch").background).toBe(mix("#ffffff", LIGHT.colors.accent, 0.12));
     // The agent pill takes the provider's brand (Codex green); the subtasks pill its dominant status (2 running).
     // The agent pills are borderless, in the brand's colours (Codex green).
     expect(pillColors("pill-model").background).toBe(mix("#ffffff", "#10A37F", 0.12));
-    expect(pillColors("pill-thinking").background).toBe(mix("#ffffff", "#10A37F", 0.12));
+    expect(pillColors("pill-thinking").background).toBe(mix("#ffffff", LIGHT.colors.foreground, 0.06));
     expect(pillColors("pill-subtasks").background).toBe(mix("#ffffff", tokens.status.running, 0.1));
     const dot = (name: string) =>
       flat((hostByTestId(tree.root, `pill-label-${name}`).findAll((node) => typeof node.type === "string" && flat(node.props.style).width === 8)[0])!.props.style)
@@ -741,6 +749,27 @@ describe("TaskCardView actions", () => {
     expect(onStop).toHaveBeenCalledWith(card, { withChildren: false });
   });
 
+  it("draws Stop's icon as a solid rounded square in the pill's colour", async () => {
+    const tokens = buildTaskTokens(LIGHT.colors);
+    const square = (root: ReactTestInstance, label: string) =>
+      flat(byLabel(root, label).find((node) => typeof node.type === "string" && node.props.testID === "stop-square").props.style);
+    const tree = await render(cardElement(sample("sample-running"), { onStop: () => {} }));
+    expect(square(tree.root, "停止")).toMatchObject({ width: 10, height: 10, borderRadius: 2, backgroundColor: tokens.danger });
+    expect(icons(byLabel(tree.root, "停止"))).toEqual([]);
+    await act(async () => tree.update(cardElement(sample("sample-running"), { onStop: () => {}, stopPhase: "confirming" })));
+    expect(square(tree.root, "确认停止").backgroundColor).toBe(LIGHT.colors.accentForeground);
+    // The parent's menu leads "stop only this" with the same square.
+    await act(async () => byLabel(tree.root, "停止选项").props.onPress());
+    const [only] = tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
+    expect(texts(only!)).toEqual(["仅停止此任务"]);
+    expect(only!.findAll((node) => typeof node.type === "string" && node.props.testID === "stop-square")).toHaveLength(1);
+    await act(async () => tree.unmount());
+    renderer = null;
+
+    const phone = await render(cardElement(sample("sample-child-1"), { onStop: () => {}, compact: true }));
+    expect(square(phone.root, "停止")).toMatchObject({ width: 12, height: 12, borderRadius: 2, backgroundColor: tokens.danger });
+  });
+
   it("offers a parent with running children the stop-with-subtasks menu", async () => {
     const onStop = vi.fn();
     const card = sample("sample-running");
@@ -973,13 +1002,31 @@ describe("model, thinking and brand marks", () => {
       const tokens = buildTaskTokens(theme.colors);
       const tree = await render(cardElement(sample("sample-running"), { theme }));
       const colors = agentPillColors(tokens, "codex");
-      for (const id of ["pill-model", "pill-thinking"]) {
-        const node = hostByTestId(tree.root, id);
-        expect(flat(node.props.style)).toMatchObject({ backgroundColor: colors.background, borderWidth: 0 });
-        expect(flat(node.find((child) => (child.type as unknown) === "Text").props.style)).toMatchObject({ color: colors.text, fontWeight: "500" });
-      }
-      // The Brain icon and the (tinted) Codex mark wear the brand colour itself.
-      expect(hostByTestId(tree.root, "pill-thinking").findByType("Icon" as never).props.color).toBe("#10A37F");
+      const model = hostByTestId(tree.root, "pill-model");
+      expect(flat(model.props.style)).toMatchObject({ backgroundColor: colors.background, borderWidth: 0 });
+      expect(flat(model.find((child) => (child.type as unknown) === "Text").props.style)).toMatchObject({ color: colors.text, fontWeight: "500" });
+      // The thinking pill is the neutral one: foreground at 6%, a foreground label, a muted Brain.
+      const thinking = hostByTestId(tree.root, "pill-thinking");
+      expect(flat(thinking.props.style)).toMatchObject({ backgroundColor: mix(tokens.card.background, tokens.foreground, 0.06), borderWidth: 0 });
+      expect(flat(thinking.find((child) => (child.type as unknown) === "Text").props.style).color).toBe(tokens.foreground);
+      expect(thinking.findByType("Icon" as never).props.color).toBe(tokens.foregroundMuted);
+      await act(async () => tree.unmount());
+      renderer = null;
+    }
+  });
+
+  it("tints the branch pill with the theme accent, readable on every palette", async () => {
+    for (const palette of Object.values(PALETTES)) {
+      const tokens = buildTaskTokens(palette);
+      const colors = tintedPillColors(tokens, palette.accent);
+      expect(colors.background).toBe(mix(tokens.card.background, palette.accent, tokens.isDark ? 0.2 : 0.12));
+      expect(colors.icon).toBe(palette.accent);
+      expect(contrastRatio(colors.text, colors.background)).toBeGreaterThanOrEqual(4.5);
+      const tree = await render(cardElement(sample("sample-running"), { theme: { colors: palette } }));
+      const branch = hostByTestId(tree.root, "pill-branch");
+      expect(flat(branch.props.style)).toMatchObject({ backgroundColor: colors.background, borderWidth: 0 });
+      expect(branch.findByType("Icon" as never).props).toMatchObject({ name: "GitBranch", color: palette.accent });
+      expect(flat(branch.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(colors.text);
       await act(async () => tree.unmount());
       renderer = null;
     }

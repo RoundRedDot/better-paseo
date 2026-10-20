@@ -17,7 +17,7 @@ import {
   tildePath,
 } from "./format";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
-import { agentPillColors, BrandMark, type AgentPillColors } from "./brand-mark";
+import { agentPillColors, BrandMark, neutralPillColors, tintedPillColors, type AgentPillColors } from "./brand-mark";
 import { THINKING_ICON } from "./mode-icons";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
@@ -593,11 +593,21 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     );
   }
   if (layout.thinking && card.thinkingLabel) {
-    pills.push(<Pill key="thinking" {...pill} testID="pill-thinking" solid={agentColors} icon={THINKING_ICON} label={card.thinkingLabel} />);
+    pills.push(
+      <Pill
+        key="thinking"
+        {...pill}
+        testID="pill-thinking"
+        solid={neutralPillColors(tokens, muted)}
+        icon={THINKING_ICON}
+        label={card.thinkingLabel}
+      />,
+    );
   }
   if (layout.branch && location.branch) {
     pills.push(
-      <Pill key="branch" {...pill} testID="pill-branch" icon="GitBranch" label={location.branch}>
+      // The branch wears the host theme's accent, borderless like the agent pills.
+      <Pill key="branch" {...pill} testID="pill-branch" solid={tintedPillColors(tokens, tokens.accent)} icon="GitBranch" label={location.branch}>
         {layout.gitStatus && location.git ? (
           <GitStatus git={location.git} tokens={tokens} size={m.pillText} line={m.pillLine} strings={strings} />
         ) : null}
@@ -1187,7 +1197,7 @@ function StopControl(props: StopControlProps) {
           },
         ]}
       >
-        <Icon name="CircleStop" size={compact ? 16 : 12} color={color} />
+        <StopSquare compact={compact} color={color} />
         <Text numberOfLines={1} style={{ fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
           {label}
         </Text>
@@ -1234,7 +1244,7 @@ function StopControl(props: StopControlProps) {
             report={props.report}
             tokens={tokens}
             compact={compact}
-            icon="CircleStop"
+            icon={<StopSquare compact={compact} color={tokens.foregroundMuted} small />}
             label={strings.stopOnlyThis}
             onPress={() => props.onPick(false)}
           />
@@ -1253,10 +1263,20 @@ function StopControl(props: StopControlProps) {
   );
 }
 
+/**
+ * The media stop: a solid rounded square (10 px, 12 on a phone, radius 2)
+ * in the pill's colour. CircleStop's ring-and-square read poorly at 12 px.
+ */
+function StopSquare(props: { compact: boolean; color: string; small?: boolean }) {
+  const size = (props.compact ? 12 : 10) - (props.small ? 1 : 0);
+  return <View style={{ width: size, height: size, borderRadius: 2, backgroundColor: props.color }} testID="stop-square" />;
+}
+
 function MenuItem(props: {
   tokens: TaskTokens;
   compact: boolean;
-  icon: string;
+  /** A Lucide name, or a drawn mark. */
+  icon: string | ReactNode;
   label: string;
   count?: number;
   report?: ControlHover;
@@ -1279,7 +1299,11 @@ function MenuItem(props: {
         backgroundColor: hovered ? tokens.card.controlHover : "transparent",
       }}
     >
-      <Icon name={props.icon} size={compact ? 14 : 12} color={tokens.foregroundMuted} />
+      {typeof props.icon === "string" ? (
+        <Icon name={props.icon} size={compact ? 14 : 12} color={tokens.foregroundMuted} />
+      ) : (
+        <View style={{ width: compact ? 14 : 12, alignItems: "center" }}>{props.icon}</View>
+      )}
       <Text style={{ flex: 1, fontSize: compact ? 15 : 12, color: tokens.foreground }}>{props.label}</Text>
       {props.count !== undefined ? (
         <Text style={[{ fontSize: compact ? 15 : 12, color: tokens.foregroundMuted }, tabular]}>{props.count}</Text>
