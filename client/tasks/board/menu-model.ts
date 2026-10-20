@@ -131,26 +131,29 @@ export const MENU_EDGE = 8;
 const MIN_PANEL = MENU.rowHeight * 3 + MENU.padV * 2;
 
 /**
- * The tallest the top panel may be, its top `y` px down a window
- * `windowHeight` high (null: not measured yet): MENU.maxHeight, or less so
- * it ends MENU_EDGE above the window's bottom. A taller menu scrolls.
+ * The tallest the top panel may be, its top `y` px down the window, inside
+ * an area that ends `bottom` px down (the board's frame, else the window;
+ * null `y`: not measured yet): MENU.maxHeight, or less so it ends MENU_EDGE
+ * above that bottom. A taller menu scrolls.
  */
-export function panelMaxHeight(y: number | null, windowHeight: number): number {
-  if (y === null || windowHeight <= 0) return MENU.maxHeight;
-  return Math.min(MENU.maxHeight, Math.max(MIN_PANEL, windowHeight - y - MENU_EDGE));
+export function panelMaxHeight(y: number | null, bottom: number): number {
+  if (y === null || bottom <= 0) return MENU.maxHeight;
+  return Math.min(MENU.maxHeight, Math.max(MIN_PANEL, bottom - y - MENU_EDGE));
 }
 
 /**
  * A submenu's top inside the menu (beside its row, at `rowTop`) and its
- * height cap: shifted up as far as it must to end inside the window, but
- * never above the window's top edge; one taller than the window scrolls.
+ * height cap, in an area from `top` to `bottom` px down the window (the
+ * board's frame, else the window): shifted up as far as it must to end
+ * MENU_EDGE inside the bottom, but never above the top's edge; one taller
+ * than the area scrolls.
  */
-export function submenuPlacement(rowTop: number, height: number, y: number | null, windowHeight: number): { top: number; maxHeight: number } {
-  if (y === null || windowHeight <= 0) return { top: rowTop, maxHeight: MENU.maxHeight };
-  const maxHeight = Math.min(MENU.maxHeight, Math.max(MIN_PANEL, windowHeight - MENU_EDGE * 2));
+export function submenuPlacement(rowTop: number, height: number, y: number | null, bottom: number, top = 0): { top: number; maxHeight: number } {
+  if (y === null || bottom <= 0) return { top: rowTop, maxHeight: MENU.maxHeight };
+  const maxHeight = Math.min(MENU.maxHeight, Math.max(MIN_PANEL, bottom - top - MENU_EDGE * 2));
   const shown = Math.min(height, maxHeight);
-  const lowest = windowHeight - MENU_EDGE - y - shown;
-  const highest = MENU_EDGE - y;
+  const lowest = bottom - MENU_EDGE - y - shown;
+  const highest = top + MENU_EDGE - y;
   return { top: Math.max(highest, Math.min(rowTop, lowest)), maxHeight };
 }
 

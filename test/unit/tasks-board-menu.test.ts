@@ -14,7 +14,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 });
 
 import { Dimensions, StyleSheet } from "react-native";
-import { CascadeMenu } from "../../client/tasks/board/menu";
+import { CascadeMenu, MenuBoundsContext } from "../../client/tasks/board/menu";
 import { MENU, MENU_EDGE, MENU_FOCUS, layoutMenu, menuChrome, menuKeyReducer, panelMaxHeight, selectableItems, submenuPlacement, type MenuItem, type MenuSection } from "../../client/tasks/board/menu-model";
 import { SORT_GROUPS, SORT_ICONS, sortMenuSections } from "../../client/tasks/board/board-menus";
 import { SORT_KEYS, type BoardSort } from "../../client/tasks/board/sort";
@@ -228,6 +228,40 @@ describe("CascadeMenu", () => {
       act(() => row("Row 5").props.onPress());
       const placed = submenu()[0]!;
       expect(StyleSheet.flatten(placed.props.style).top).toBe(360 - MENU_EDGE - 150 - two);
+    } finally {
+      dims.mockRestore();
+    }
+  });
+
+  it("ends inside the board's frame when it has one, measured after layout", () => {
+    // The window says 371 high, the board ends at 360: the board decides.
+    expect(panelMaxHeight(178, 360)).toBe(360 - 178 - MENU_EDGE);
+    expect(submenuPlacement(0, 2000, 100, 360, 40).top).toBe(40 + MENU_EDGE - 100);
+    expect(submenuPlacement(0, 2000, 100, 360, 40).maxHeight).toBe(360 - 40 - 2 * MENU_EDGE);
+    const many: MenuSection[] = [{ key: "all", items: Array.from({ length: 12 }, (_, at) => ({ key: `k${at}`, label: `Row ${at}` })) }];
+    const dims = vi.spyOn(Dimensions, "get").mockReturnValue({ width: 800, height: 371, scale: 3, fontScale: 1 } as never);
+    let laidOut = false;
+    const menuNode = { measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => cb(100, 178, laidOut ? 240 : 0, 300) };
+    const boardNode = { measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => cb(0, 60, 800, 300) };
+    const bounds = { current: boardNode as never };
+    try {
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(
+            MenuBoundsContext.Provider,
+            { value: bounds },
+            React.createElement(CascadeMenu, { sections: many, theme: theme(LIGHT), width: 240, top: 34, align: "left", onClose: close, testID: "m" }),
+          ),
+          { createNodeMock: () => menuNode },
+        );
+      });
+      const panel = () => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
+      // Not laid out at the first look (native): not measured yet.
+      expect(StyleSheet.flatten(panel().props.style).maxHeight).toBeUndefined();
+      laidOut = true;
+      const container = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "m");
+      act(() => container.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 240, height: 300 } } }));
+      expect(StyleSheet.flatten(panel().props.style).maxHeight).toBe(360 - 178 - MENU_EDGE);
     } finally {
       dims.mockRestore();
     }

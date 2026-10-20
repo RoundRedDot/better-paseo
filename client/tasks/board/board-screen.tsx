@@ -5,6 +5,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useTasksLanguage } from "../i18n";
 import { HAIRLINE } from "./board-style";
 import { DesktopBoard } from "./desktop-board";
+import { MenuBoundsContext } from "./menu";
 import { tasksSettingsOpener, useTasksSettings } from "./enabled";
 import { PhoneBoard } from "./phone-board";
 import { BOARD_STRINGS } from "./strings";
@@ -33,7 +34,11 @@ function BoardContent(props: PluginScreenProps) {
   const handlers = useRef<BoardLayoutHandlers | null>(null);
   const board = useBoard(props, rootRef, handlers);
   const Layout = props.layout.compact ? PhoneBoard : DesktopBoard;
-  return <Layout screen={props} board={board} rootRef={rootRef} handlers={handlers} />;
+  return (
+    <MenuBoundsContext.Provider value={rootRef}>
+      <Layout screen={props} board={board} rootRef={rootRef} handlers={handlers} />
+    </MenuBoundsContext.Provider>
+  );
 }
 
 function BoardOff(props: PluginScreenProps) {
