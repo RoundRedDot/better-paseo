@@ -16,7 +16,7 @@ export function readAgentStatus(detail: unknown): AgentStatusData | undefined {
   const payload = match[4] ?? "";
   // Remove only the supervisor's outer response wrapper. Keep permission
   // requests, nested tags, code and server-side truncation notices intact.
-  const response = /(?:^|\r?\n\r?\n)<agent-response>\r?\n([\s\S]*?)\r?\n<\/agent-response>$/.exec(payload);
+  const response = /(?:^|\r?\n\r?\n)<agent-response>\r?\n([\s\S]*?)\r?\n<\/agent-response>\s*$/.exec(payload);
   const body = response
     ? payload.slice(0, response.index) + (response.index > 0 ? "\n\n" : "") + response[1]
     : payload;
