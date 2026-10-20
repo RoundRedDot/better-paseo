@@ -11,6 +11,8 @@ import type { ToolCallView } from "./classify";
  * opens when the reader chose "expand on failure".
  */
 export function defaultToolExpanded(view: ToolCallView, preference: ToolDetailPreference): boolean {
+  // A child waiting on a permission needs the reader: its request opens (agent cards design 5.5).
+  if (view.agentStatus?.status === "needs permission") return true;
   return view.status === "failed" && preference === "expand-failed";
 }
 

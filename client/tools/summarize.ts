@@ -16,7 +16,7 @@
  */
 import { stripAnsi } from "../copy/content";
 import type { ToolCallView } from "./classify";
-import { AGENT_STATUS_LABEL } from "./agent-status";
+import { shortAgentId, summarizeAgentRow } from "./agent-row";
 
 export interface ToolSummary {
   verb: string;
@@ -26,8 +26,17 @@ export interface ToolSummary {
   meta: string[];
   /** A path shown among the meta (shell cwd, worktree directory). */
   metaPath?: string;
-  /** `danger` for a failure, a non-zero exit, or an HTTP error. */
-  tone: "default" | "danger";
+  /** `danger` for a failure, a non-zero exit, or an HTTP error; `warning` for an agent awaiting permission. */
+  tone: "default" | "danger" | "warning";
+  /** An agent row (agent cards design 5.1): keeps its verb and draws target and meta in the UI face. */
+  agent?: {
+    /** The agent named by the row; the row looks up its title when `target` is only a short ID. */
+    id?: string;
+    /** `target` is `shortAgentId(id)`, drawn in mono until the title arrives. */
+    targetIsId: boolean;
+    icon: string;
+    iconTone?: "success";
+  };
   /** The first line of a failure, drawn under the header. */
   errorLine?: string;
 }
@@ -476,10 +485,15 @@ function path(verb: string, view: ToolCallView, meta: string[], tone: ToolSummar
 }
 
 export function summarizeTool(view: ToolCallView): ToolSummary {
-  if (view.agentStatus) return {
-    verb: AGENT_STATUS_LABEL[view.agentStatus.status], target: view.agentStatus.title,
-    meta: [], tone: view.agentStatus.status === "errored" ? "danger" : "default",
-  };
+  const agent = summarizeAgentRow(view);
+  if (agent) {
+    const title = agent.agentTitle ?? agent.target;
+    return {
+      verb: agent.verb, target: clip(title ?? (agent.agentId ? shortAgentId(agent.agentId) : undefined), TARGET_MAX),
+      meta: agent.meta.length ? [agent.meta.join(" · ")] : [], tone: agent.tone,
+      agent: { id: agent.agentId, targetIsId: !title && Boolean(agent.agentId), icon: agent.icon, iconTone: agent.iconTone },
+    };
+  }
   const summary = summarizeKind(view);
   const errorLine = errorLineFor(view);
   if (!errorLine) return summary;

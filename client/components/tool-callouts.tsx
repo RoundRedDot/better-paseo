@@ -6,9 +6,10 @@ import { surfaceProps } from "./view-props";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { HubCallout } from "./hub-callout";
-import { PaseoToolCallout, AgentStatusView, agentStatusColor } from "./paseo-tool-callouts";
+import { PaseoToolCallout, AgentStatusView } from "./paseo-tool-callouts";
 import { SubAgentView } from "./agent-operation-views";
-import { AGENT_STATUS_ICON } from "../tools/agent-status";
+import { AgentRowTarget, useAgentRowTarget } from "./agent-row-target";
+import { permissionBorder } from "./agent-card-content";
 import { SyntaxHighlightBlock, renderTerminalOutput, terminalLines } from "./syntax-highlight";
 import { ToolOutput, DiffPreview } from "./tool-output";
 import { ImageMeta, ImagePreview } from "./image-preview";
@@ -208,17 +209,23 @@ export function ToolCallout({
 
   const running = groupCalls ? groupCalls.some((call) => call.status === "running") : data.status === "running";
   const failed = data.status === "failed" || summary.tone === "danger";
+  // An agent row colours its icon, verb and meta together (agent cards design 5.5).
+  const agentTone = summary.agent ? summary.tone === "danger" ? tokens.danger : summary.tone === "warning" ? tokens.warning :
+    summary.agent.iconTone === "success" ? tokens.success : undefined : undefined;
+  const agentStateColor = summary.agent && summary.tone !== "default" ? agentTone : undefined;
   // A finished call steps behind the prose.
   const tone = running ? "active" : "quiet";
   const statusIcon = running ? (
     <RunningDot color={tokens.accent} />
   ) : (
-    <RowIcon name={data.agentStatus ? AGENT_STATUS_ICON[data.agentStatus.status] : toolIconName(data.tool)}
-      color={data.agentStatus ? agentStatusColor(data.agentStatus, tokens) : failed ? tokens.danger : undefined} />
+    <RowIcon name={summary.agent?.icon ?? toolIconName(data.tool)}
+      color={agentTone ?? (failed ? tokens.danger : undefined)} />
   );
 
   const target =
-    summary.targetIsPath && summary.target ? (
+    summary.agent ? (
+      <AgentRowTarget summary={summary} tokens={tokens} />
+    ) : summary.targetIsPath && summary.target ? (
       <PathText
         path={summary.target}
         tokens={tokens}
@@ -237,6 +244,7 @@ export function ToolCallout({
   const meta = summary.meta.map((entry) => {
     const exitCode = parseExitMeta(entry);
     const shown = exitCode === undefined ? diffCountSpans(entry) : exitMark(exitCode);
+    if (agentStateColor) return <Text style={{ color: agentStateColor }}>{entry}</Text>;
     return failed && FAILURE_META.test(entry) ? <Text style={{ color: tokens.danger }}>{shown}</Text> : shown;
   });
   const metaLead = summary.metaPath ? (
@@ -308,6 +316,9 @@ export function ToolCallout({
       icon={statusIcon}
       iconIsStatus={running || failed}
       verb={summary.verb}
+      keepVerb={Boolean(summary.agent)}
+      verbColor={agentStateColor}
+      metaFont={summary.agent ? "ui" : "mono"}
       target={target}
       count={groupCalls?.length}
       meta={meta}
@@ -332,7 +343,8 @@ export function ToolCallout({
     />
   );
   const body = expanded ? (
-    <FadeIn style={[styles.body, { backgroundColor: tokens.row.outputBg }]}>
+    <FadeIn style={[styles.body, { backgroundColor: tokens.row.outputBg },
+      summary.tone === "warning" && { borderWidth: 1, borderColor: permissionBorder(tokens) }]}>
       <View {...surfaceProps(selectionSurface)} style={styles.bodyInner}>
         {groupCalls ? (
           <GroupedToolDetails calls={groupCalls} tokens={tokens} compact={compact} imageFile={imageFile}
@@ -347,7 +359,7 @@ export function ToolCallout({
             displayPath={displayPath}
           />
         )}
-        {!groupCalls && data.error ? <CallError text={data.error} tokens={tokens} /> : null}
+        {!groupCalls && data.error && !drawsOwnError(data) ? <CallError text={data.error} tokens={tokens} /> : null}
       </View>
     </FadeIn>
   ) : null;
@@ -422,6 +434,11 @@ function GroupedToolDetails({ calls, ...rest }: GroupedBodyProps) {
   );
 }
 
+/** Agent cards put a failure's first line under their identity strip. */
+function drawsOwnError(data: ToolCallView): boolean {
+  return Boolean(data.paseo?.createAgent || data.paseo?.sendAgentPrompt || data.paseo?.agentOperation);
+}
+
 function isMarkdownWrite(data: ToolCallView): boolean {
   return data.tool === "write" && data.language === "markdown" && Boolean(data.code) && !data.diff;
 }
@@ -462,10 +479,10 @@ export function ToolPreviewContent({ data, resolvePath, drawsImage = false, page
         {data.filePath ? <PreviewPath path={resolvePath(data.filePath)} tokens={tokens} /> : null}
         {data.agentStatus ? <AgentStatusView data={data.agentStatus} tokens={tokens} raw={raw} compact={rest.compact} /> :
           subAgent ? <SubAgentView data={data} tokens={tokens} raw={raw} compact={rest.compact} /> :
-          agentTool ? <PaseoToolCallout data={data.paseo!} tokens={tokens} raw={raw} compact={rest.compact} /> :
+          agentTool ? <PaseoToolCallout data={data.paseo!} tokens={tokens} raw={raw} compact={rest.compact} error={data.error} /> :
           markdown && !raw ? <MarkdownView text={data.code!} tokens={tokens} variant="document"
           streaming={streaming} size={blockProseBase(tokens.typography)} /> : <ToolBody data={data} {...rest} preview />}
-        {data.error ? <PreviewError text={data.error} tokens={tokens} /> : null}
+        {data.error && !drawsOwnError(data) ? <PreviewError text={data.error} tokens={tokens} /> : null}
       </HoverPreviewBody>
     </>
   );
@@ -593,11 +610,17 @@ function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, str
   streaming?: boolean;
   fitControls?: boolean;
 }) {
+  const summary = useMemo(() => summarizeTool(call), [call]);
+  const agentTarget = useAgentRowTarget(summary);
+  const agent = summary.agent;
+  // An agent card's preview is named in words: "Finished - tasks B" (design 3).
+  const agentLabel = agent ? [summary.verb, agentTarget.text].filter(Boolean).join(" · ") : undefined;
+  const agentColor = agent ? summary.tone === "danger" ? tokens.danger : summary.tone === "warning" ? tokens.warning :
+    agent.iconTone === "success" ? tokens.success : tokens.foregroundMuted : undefined;
   return (
     <HoverPreviewHeader tokens={tokens} streaming={streaming} icon={meta ? "Image" : <RowIcon
-      name={call.agentStatus ? AGENT_STATUS_ICON[call.agentStatus.status] : toolIconName(call.tool)}
-      color={call.agentStatus ? agentStatusColor(call.agentStatus, tokens) : tokens.foregroundMuted} />}
-      iconLabel={title ?? summarizeTool(call).verb}
+      name={agent?.icon ?? toolIconName(call.tool)} color={agentColor ?? tokens.foregroundMuted} />}
+      iconLabel={title ?? agentLabel ?? summary.verb}
       left={pager} center={meta} fitControls={fitControls}>
       <View style={styles.previewActions}>
         {call.paseo?.sendAgentPrompt ? <>
@@ -976,7 +999,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
       )}
 
       {data.tool === "hub" && data.hub && <HubCallout data={data.hub} tokens={tokens} embedded />}
-      {data.tool === "paseo" && data.paseo && <PaseoToolCallout data={data.paseo} tokens={tokens} compact={compact} />}
+      {data.tool === "paseo" && data.paseo && <PaseoToolCallout data={data.paseo} tokens={tokens} compact={compact} raw={raw} error={data.error} />}
 
       {data.tool === "search" && data.search && (
         <View style={styles.section}>

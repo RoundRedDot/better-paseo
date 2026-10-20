@@ -23,20 +23,55 @@ export function readAgentStatus(detail: unknown): AgentStatusData | undefined {
   return { agentId: match[1]!, title: match[2]!, status: match[3] as AgentStatus, body };
 }
 
+/** The row's verb for each notification (agent cards design 5.1). */
 export const AGENT_STATUS_LABEL: Record<AgentStatus, string> = {
-  message: "Message received",
-  finished: "Agent finished",
-  errored: "Agent errored",
-  "needs permission": "Agent needs permission",
-  "was closed": "Agent closed",
-  "was canceled": "Agent canceled",
+  message: "Message",
+  finished: "Finished",
+  errored: "Errored",
+  "needs permission": "Needs permission",
+  "was closed": "Closed",
+  "was canceled": "Canceled",
 };
 
 export const AGENT_STATUS_ICON: Record<AgentStatus, string> = {
   message: "MessageSquare",
   finished: "CircleCheck",
   errored: "CircleX",
-  "needs permission": "Shield",
-  "was closed": "CircleStop",
-  "was canceled": "CircleX",
+  "needs permission": "ShieldAlert",
+  "was closed": "CircleMinus",
+  "was canceled": "CircleSlash",
 };
+
+export interface PermissionRequestView {
+  requestId?: string;
+  title?: string;
+  description?: string;
+  /** A shell command, or the request's input as JSON. */
+  command?: string;
+  /** What the notification says besides the request and its instruction line. */
+  rest: string;
+}
+
+/**
+ * The `<permission-request>` JSON a needs-permission notification carries.
+ * The line telling the model to call `respond_to_permission` is for the
+ * model, not the reader, and is dropped.
+ */
+export function readPermissionRequest(body: string): PermissionRequestView | undefined {
+  const match = /<permission-request>\s*([\s\S]*?)\s*<\/permission-request>/.exec(body);
+  if (!match) return undefined;
+  let parsed: { requestId?: unknown; request?: Record<string, unknown> };
+  try {
+    parsed = JSON.parse(match[1]!) as typeof parsed;
+  } catch {
+    return undefined;
+  }
+  const request = parsed.request ?? {};
+  const text = (value: unknown) => typeof value === "string" && value ? value : undefined;
+  const input = request.input && typeof request.input === "object" ? request.input as Record<string, unknown> : undefined;
+  const command = text(input?.command) ?? (input && Object.keys(input).length ? JSON.stringify(input, null, 2) : undefined);
+  const rest = body.replace(match[0], "").split("\n")
+    .filter((line) => !/^Respond with `respond_to_permission`/.test(line.trim())).join("\n").trim();
+  return { requestId: text(parsed.requestId) ?? text(request.id), title: text(request.title) ?? text(request.name),
+    description: text(request.description), command, rest };
+}

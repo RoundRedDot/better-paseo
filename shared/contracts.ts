@@ -321,6 +321,10 @@ export interface PaseoSendAgentPromptData {
 export interface PaseoAgentOperationData {
   title: string;
   agentId?: string;
+  /** The agent's own title, when the result carries a snapshot. */
+  agentTitle?: string;
+  /** The agent's state as the result reports it ("running", "idle"). */
+  agentStatus?: string;
   label: string;
   tone: "neutral" | "active" | "success" | "warning" | "danger";
   facts: Array<{ label: string; value: string }>;
