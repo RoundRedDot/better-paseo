@@ -23,6 +23,8 @@ export interface TaskTokens {
   foreground: string;
   foregroundMuted: string;
   accent: string;
+  /** The accent as text: pulled towards the foreground until it reads at 4.5:1 on the card and the surfaces. */
+  accentText: string;
   /** Paseo's `statusDot*` band: running ring, needs-input alert, unread dot, failed dot. */
   status: { running: string; warning: string; success: string; danger: string };
   /** The host's `statusWarning`/`statusDanger`, for text and bars (context, timers, errors). */
@@ -77,6 +79,8 @@ export interface CardTokens {
   /** Primary (accent-tinted) and danger buttons, at rest and hovered. */
   primaryFill: string;
   primaryFillHover: string;
+  /** The primary button's label: the accent, readable at 4.5:1 on both its fills. */
+  primaryText: string;
   dangerFill: string;
   dangerFillHover: string;
   /** Text on a solid accent or danger fill. */
@@ -100,11 +104,48 @@ function brightness(color: string): number | null {
   return (0.299 * channel(0) + 0.587 * channel(2) + 0.114 * channel(4)) / 255;
 }
 
+/** WCAG relative luminance of a `#rrggbb` colour. */
+function luminance(hex: string): number {
+  const value = hex.replace("#", "");
+  const channel = (i: number) => {
+    const c = Number.parseInt(value.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+}
+
+/** WCAG contrast ratio of two `#rrggbb` colours. */
+export function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * `hue` as text on every one of `backgrounds`: unchanged when it already
+ * reads at `min`:1 on each, else pulled towards `toward` (the theme's
+ * foreground) in 5% steps until it does. A colour that cannot be parsed is
+ * returned as it is.
+ */
+export function readableOn(hue: string, backgrounds: readonly string[], toward: string, min = 4.5): string {
+  // `mix` normalises to #rrggbb, which `contrastRatio` needs.
+  const grounds = backgrounds.map((ground) => mix(ground, ground, 0)).filter((ground) => ground.startsWith("#") && ground.length === 7);
+  const start = mix(hue, hue, 0);
+  if (!start.startsWith("#") || start.length !== 7 || grounds.length === 0) return hue;
+  const reads = (color: string) => grounds.every((ground) => contrastRatio(color, ground) >= min);
+  for (let step = 0; step <= 20; step++) {
+    const color = step === 0 ? start : mix(start, toward, step / 20);
+    if (reads(color)) return color;
+  }
+  return mix(start, toward, 1);
+}
+
 export function buildTaskTokens(colors: PluginTheme["colors"]): TaskTokens {
   const isDark = (brightness(colors.surface0) ?? 0) < 0.5;
   const s0 = colors.surface0;
   const status = isDark ? STATUS_DARK : STATUS_LIGHT;
   const danger = colors.statusDanger || status.danger;
+  const card = cardTokens(colors, isDark, danger);
+  const accentSoft = mix(s0, colors.accent, 0.12);
   return {
     isDark,
     surface0: s0,
@@ -114,13 +155,14 @@ export function buildTaskTokens(colors: PluginTheme["colors"]): TaskTokens {
     foreground: colors.foreground,
     foregroundMuted: colors.foregroundMuted,
     accent: colors.accent,
+    accentText: readableOn(colors.accent, [card.background, card.primaryFill, s0, colors.surface1, colors.surface2, accentSoft], colors.foreground),
     status,
     warning: colors.statusWarning || status.warning,
     danger,
     success: colors.statusSuccess || status.success,
     dotGrid: mix(s0, colors.foregroundMuted, 0.22),
     borderStrong: mix(colors.border, colors.foregroundMuted, 0.35),
-    accentSoft: mix(s0, colors.accent, 0.12),
+    accentSoft,
     accentRing: mix(s0, colors.accent, 0.28),
     highlight: mix(s0, colors.accent, 0.08),
     dangerSoft: mix(s0, danger, 0.1),
@@ -129,7 +171,7 @@ export function buildTaskTokens(colors: PluginTheme["colors"]): TaskTokens {
       : "0px 8px 24px -6px rgba(0, 0, 0, 0.12), 0px 2px 6px -2px rgba(0, 0, 0, 0.06)",
     scrim: isDark ? "rgba(0, 0, 0, 0.56)" : "rgba(0, 0, 0, 0.32)",
     tagChip: { background: s0, border: colors.border, text: colors.foregroundMuted },
-    card: cardTokens(colors, isDark, danger),
+    card,
   };
 }
 
@@ -143,6 +185,8 @@ const SHADOW = {
 function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: string): CardTokens {
   const background = isDark ? colors.surface2 : colors.surface0;
   const fg = colors.foreground;
+  const primaryFill = mix(background, colors.accent, isDark ? 0.18 : 0.1);
+  const primaryFillHover = mix(background, colors.accent, isDark ? 0.26 : 0.16);
   return {
     background,
     hoverBackground: mix(background, fg, 0.04),
@@ -153,8 +197,9 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
     pillFill: mix(background, fg, isDark ? 0.06 : 0.035),
     controlHover: mix(background, fg, isDark ? 0.1 : 0.07),
     highlight: mix(background, colors.accent, isDark ? 0.12 : 0.08),
-    primaryFill: mix(background, colors.accent, isDark ? 0.18 : 0.1),
-    primaryFillHover: mix(background, colors.accent, isDark ? 0.26 : 0.16),
+    primaryFill,
+    primaryFillHover,
+    primaryText: readableOn(colors.accent, [primaryFill, primaryFillHover], fg),
     dangerFill: mix(background, danger, isDark ? 0.16 : 0.1),
     dangerFillHover: mix(background, danger, isDark ? 0.24 : 0.16),
     onStrong: colors.accentForeground,
