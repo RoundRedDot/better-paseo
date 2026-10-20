@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useSettings } from "@getpaseo/plugin/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, type TasksSettings } from "../../../shared/tasks-settings";
 
@@ -21,7 +21,38 @@ export function tasksEnabled(): boolean | null {
 export function setTasksEnabled(next: boolean): void {
   if (next === enabled) return;
   enabled = next;
+  notify();
+}
+
+function notify(): void {
   for (const listener of [...listeners]) listener();
+}
+
+/**
+ * The startup read (`contribute.tsx`): "pending" while it is in flight,
+ * "done" once it answered, "failed" when it could not; "none" when nothing
+ * started one (tests, another entry). A board opened while it is pending
+ * waits for it instead of reading the settings a second time.
+ */
+export type StartupRead = "none" | "pending" | "done" | "failed";
+let startupRead: StartupRead = "none";
+
+export function setTasksStartupRead(next: StartupRead): void {
+  if (next === startupRead) return;
+  startupRead = next;
+  notify();
+}
+
+export function tasksStartupRead(): StartupRead {
+  return startupRead;
+}
+
+const snapshot = () => `${enabled}:${startupRead}`;
+
+/** What the store knows, for a component: re-renders when either changes. */
+export function useTasksEnabledStore(): { enabled: boolean | null; startupRead: StartupRead } {
+  useSyncExternalStore(subscribeTasksEnabled, snapshot, snapshot);
+  return { enabled, startupRead };
 }
 
 export function subscribeTasksEnabled(listener: () => void): () => void {
@@ -58,6 +89,7 @@ export function tasksSettingsOpener(): (() => void) | null {
 /** Tests only. */
 export function resetTasksEnabled(): void {
   enabled = null;
+  startupRead = "none";
   settingsOpener = null;
   listeners.clear();
 }
