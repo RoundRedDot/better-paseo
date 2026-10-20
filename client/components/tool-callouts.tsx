@@ -49,6 +49,8 @@ import { ToolbarButton, ToolbarCopyButton, TooltipAlignContext } from "../ui/too
 import { stringifyValue, type ToolCallView, type ToolKind } from "../tools/classify";
 import { summarizeToolCall, summarizeToolGroup } from "../tools/group";
 import { toolHasDetail } from "../tools/detail";
+import { mcpServiceIcon } from "../tools/mcp-service-icon";
+import { commandIcon } from "../tools/command-icon";
 
 /**
  * The muted icon a settled call shows in the row's status slot: one Lucide
@@ -91,6 +93,14 @@ export function toolIconName(tool: ToolKind): string {
     default:
       return "Wrench";
   }
+}
+
+/** The icon a settled call shows: its MCP service's or shell program's, else its kind's. */
+export function toolCallIconName(call: ToolCallView): string {
+  const shell = call.tool === "bash" || call.tool === "shell";
+  return (call.tool === "mcp" && call.mcp && mcpServiceIcon(call.mcp.server, call.mcp.tool))
+    || (shell && call.command && commandIcon(call.command))
+    || toolIconName(call.tool);
 }
 
 /** A row icon by name: the host's Lucide set, or a brand bitmap for `brand:*`. */
@@ -191,6 +201,7 @@ export function ToolCallout({
   const scrollAnchor = useScrollAnchor(expanded);
 
   const summary = useMemo(() => groupCalls ? summarizeToolGroup(groupCalls) : summarizeTool(data), [data, groupCalls]);
+  const iconName = useMemo(() => toolCallIconName(data), [data]);
   const pathContext = useContext(PathContext);
   const capabilities = useInputCapabilities(compact);
   const touchFirst = capabilities.touch && !capabilities.hover;
@@ -220,7 +231,7 @@ export function ToolCallout({
   const statusIcon = running ? (
     <RunningDot color={tokens.accent} />
   ) : (
-    <RowIcon name={provider ? `provider:${provider}` : summary.agent?.icon ?? toolIconName(data.tool)}
+    <RowIcon name={provider ? `provider:${provider}` : summary.agent?.icon ?? iconName}
       color={agentTone ?? (failed ? tokens.danger : undefined)} />
   );
 
@@ -621,7 +632,7 @@ function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, str
     agent.iconTone === "success" ? tokens.success : tokens.foregroundMuted : undefined;
   return (
     <HoverPreviewHeader tokens={tokens} streaming={streaming} icon={meta ? "Image" : <RowIcon
-      name={agent?.icon ?? toolIconName(call.tool)} color={agentColor ?? tokens.foregroundMuted} />}
+      name={agent?.icon ?? toolCallIconName(call)} color={agentColor ?? tokens.foregroundMuted} />}
       iconLabel={title ?? agentLabel ?? summary.verb}
       left={pager} center={meta} fitControls={fitControls}>
       <View style={styles.previewActions}>

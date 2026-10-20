@@ -6,7 +6,7 @@ import { radiusV2, space } from "../components/theme-tokens";
 import { selectableTextStyle, unselectable } from "../components/selection";
 import { selectionSurface } from "../components/selection-actions";
 import { surfaceProps } from "../components/view-props";
-import { Glyph } from "../components/glyph";
+import { BrandMark } from "../components/glyph";
 import { ProviderLogo } from "../components/provider-logo";
 import { codeSurface } from "../components/host-font-escape";
 import { truncateMiddle } from "../paths/truncate-middle";
@@ -104,7 +104,11 @@ export const RowPaletteContext = createContext<RowPalette | null>(null);
 export function RowIcon({ name, color, size = DISCLOSURE_HEADER.icon }: { name: string; color?: string; size?: number }) {
   const palette = useContext(RowPaletteContext);
   const drawn = color ?? palette?.icon ?? "currentColor";
-  if (name.startsWith("brand:")) return <Glyph name={name.slice(6)} size={size} color={drawn} />;
+  // Drawn bare, without Glyph's box: a row's icon is one view whichever set it comes from.
+  // `tintColor` takes no `currentColor`; Glyph's default grey stands in for it.
+  if (name.startsWith("brand:")) {
+    return <BrandMark id={name.toLowerCase()} size={size} color={drawn === "currentColor" ? "#94a3b8" : drawn} />;
+  }
   if (name.startsWith("provider:")) {
     return <ProviderLogo provider={name.slice(9)} size={size} color={drawn === "currentColor" ? undefined : drawn} />;
   }
