@@ -1,13 +1,9 @@
 import React, { useRef } from "react";
-import { Pressable, Text, View } from "react-native";
+import { View } from "react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
-import { Icon } from "@getpaseo/plugin/client/react-native";
-import { useTasksLanguage } from "../i18n";
-import { HAIRLINE } from "./board-style";
 import { DesktopBoard } from "./desktop-board";
-import { tasksSettingsOpener, useTasksSettings } from "./enabled";
+import { useTasksSettings } from "./enabled";
 import { PhoneBoard } from "./phone-board";
-import { BOARD_STRINGS } from "./strings";
 import { useBoard, type BoardLayoutHandlers } from "./use-board";
 
 /**
@@ -16,14 +12,13 @@ import { useBoard, type BoardLayoutHandlers } from "./use-board";
  * live in the session per host and travel as the screen's params; see
  * `params.ts`.
  *
- * The board is opt-in (`enabled` in its settings). Opened while off (a link,
- * a stale tab) it says so and subscribes to nothing; while the settings
- * load it draws an empty page rather than flash either state.
+ * Registered only while the board is enabled. While its settings load, or
+ * in the moment between another client turning it off and the screen being
+ * unregistered, it draws an empty page and subscribes to nothing.
  */
 export function TasksBoardScreen(props: PluginScreenProps) {
   const settings = useTasksSettings();
-  if (!settings) return <View style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }} />;
-  if (!settings.enabled) return <BoardOff {...props} />;
+  if (!settings?.enabled) return <View style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }} />;
   return <BoardContent {...props} />;
 }
 
@@ -33,28 +28,4 @@ function BoardContent(props: PluginScreenProps) {
   const board = useBoard(props, rootRef, handlers);
   const Layout = props.layout.compact ? PhoneBoard : DesktopBoard;
   return <Layout screen={props} board={board} rootRef={rootRef} handlers={handlers} />;
-}
-
-function BoardOff(props: PluginScreenProps) {
-  const strings = BOARD_STRINGS[useTasksLanguage()];
-  const colors = props.theme.colors;
-  const open = tasksSettingsOpener();
-  return (
-    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: colors.surface0 }}>
-      <View style={{ maxWidth: 360, alignItems: "center", gap: 8 }}>
-        <Icon name="SquareKanban" size={20} color={colors.foregroundMuted} />
-        <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>{strings.boardOff}</Text>
-        <Text style={{ fontSize: 13, lineHeight: 19, color: colors.foregroundMuted, textAlign: "center" }}>{strings.boardOffHint}</Text>
-        {open ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={open}
-            style={{ marginTop: 6, height: 32, paddingHorizontal: 14, borderRadius: 6, borderWidth: HAIRLINE, borderColor: colors.border, justifyContent: "center" }}
-          >
-            <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground }}>{strings.openSettings}</Text>
-          </Pressable>
-        ) : null}
-      </View>
-    </View>
-  );
 }
