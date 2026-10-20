@@ -21,7 +21,12 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     return React.createElement(
       "FlatList",
       { testID: props.testID },
-      data.length ? data.map((item, index) => React.createElement(React.Fragment, { key: key(item, index) }, render({ item, index }))) : empty,
+      data.length
+        ? data.map((item, index) => {
+            host.rowRenders += 1;
+            return React.createElement(React.Fragment, { key: key(item, index) }, render({ item, index }));
+          })
+        : empty,
       props.ListFooterComponent as React.ReactNode,
     );
   }
@@ -43,6 +48,8 @@ const host = vi.hoisted(() => ({
   settings: null as Record<string, unknown> | null,
   counts: null as { running: number; needsInput: number; review: number; done: number } | null,
   canStop: false,
+  /** Rows a lane's list drew, counted by the FlatList mock. */
+  rowRenders: 0,
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   usePaseo: () => ({}),
@@ -168,6 +175,7 @@ beforeEach(() => {
   host.settings = { ...DEFAULT_TASKS_SETTINGS };
   host.counts = null;
   host.canStop = false;
+  host.rowRenders = 0;
   resetBoardSessions();
   vi.useFakeTimers();
 });
@@ -494,6 +502,51 @@ describe("Tasks board, project icons", () => {
     });
     layOut(1600);
     expect(requestProjectIcon()).not.toHaveBeenCalled();
+  });
+});
+
+/** Every Text that shows a card's timer, by card id. */
+function timerTexts(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const card of cards()) {
+    const [footer] = card.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "task-card-footer");
+    const [label] = footer ? footer.findAll((node) => (node.type as unknown) === "Text") : [];
+    if (label) out[card.props.card.id as string] = textOf(label);
+  }
+  return out;
+}
+
+describe("Tasks board, the 1 s clock", () => {
+  beforeEach(() => {
+    vi.setSystemTime(Date.parse("2026-10-20T12:00:00Z"));
+  });
+
+  it.each([
+    ["desktop", false],
+    ["phone", true],
+  ] as const)("ticks the timer texts without drawing the %s lane rows again", (_name, compact) => {
+    if (!compact) (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => {
+      renderer = TestRenderer.create(screen(compact));
+    });
+    if (compact) act(() => pressable("Running 2").props.onPress());
+    else layOut(1600);
+    const before = timerTexts();
+    expect(before["sample-running"]).toBe("12m 30s");
+    const rows = host.rowRenders;
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(timerTexts()["sample-running"]).toBe("12m 31s");
+    expect(host.rowRenders).toBe(rows);
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(timerTexts()["sample-running"]).toBe("12m 36s");
+    expect(host.rowRenders).toBe(rows);
+    // Waits and "ago" texts move by the minute, so six seconds leave them as they were.
+    const after = timerTexts();
+    for (const id of Object.keys(before)) if (id !== "sample-running" && id !== "sample-child-1") expect(after[id]).toBe(before[id]);
   });
 });
 

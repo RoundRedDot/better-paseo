@@ -10,12 +10,12 @@ import { cardStrings } from "./strings";
 import { pillTint, taskTokens, type TaskTokens } from "./tokens";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { BrandMark } from "./brand-mark";
+import { useTime, type TimeSource } from "./clock";
 import { panelChrome } from "./panel";
 
-export interface TaskDetailsProps {
+export interface TaskDetailsProps extends TimeSource {
   card: TaskCard;
   theme: PluginTheme;
-  now: number;
   onOpen?(agentId: string): void;
   /** The phone's bottom sheet: larger type, no frame (the sheet draws its own). */
   compact?: boolean;
@@ -83,7 +83,9 @@ export function TaskDetails(props: TaskDetailsProps) {
   const preferred = useTasksLanguage();
   const language = props.language ?? preferred;
   const strings = cardStrings(language);
-  const { location, stats } = detailRows(card, props.now, language);
+  // One open popover or sheet follows the clock; nothing else on the board does.
+  const now = useTime(props, (time) => time);
+  const { location, stats } = detailRows(card, now, language);
   // Rows in the card's meta and footer style: 12 px (13 on a phone), muted keys.
   const size = compact ? 13 : 12;
   const line = compact ? 18 : 16;

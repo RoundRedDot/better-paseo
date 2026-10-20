@@ -438,7 +438,7 @@ export function PhoneBoard(props: {
             <TaskDetails
               card={detailsCard}
               theme={theme}
-              now={board.now}
+              clock={board.clock}
               language={board.language}
               compact
               onOpen={
@@ -521,6 +521,14 @@ function PhoneLane(props: {
     lane.cards.map((card) => card.id),
     ready,
   );
+  // No clock in here: a tick reaches the timer texts, not the list and its rows.
+  const { callbacks } = props;
+  const { highlighted, stop, fields } = board;
+  const extraData = useMemo(() => ({ highlighted, stop, fields, fresh, callbacks }), [highlighted, stop, fields, fresh, callbacks]);
+  const renderItem = useCallback(
+    ({ item }: { item: TaskCard }) => <CardCell board={board} card={item} theme={theme} compact callbacks={callbacks} fresh={fresh.has(item.id)} />,
+    [board, theme, callbacks, fresh],
+  );
   if (!ready || (lane.id === "done" && lane.loading && count === 0)) {
     return (
       <View style={{ padding: 12, gap: 12 }}>
@@ -536,17 +544,8 @@ function PhoneLane(props: {
       ref={props.listRef}
       data={lane.cards}
       keyExtractor={(card) => card.id}
-      extraData={{ now: board.now, highlighted: board.highlighted, stop: board.stop, fields: board.fields, fresh, callbacks: props.callbacks }}
-      renderItem={({ item }) => (
-        <CardCell
-          board={board}
-          card={item}
-          theme={theme}
-          compact
-          callbacks={props.callbacks}
-          fresh={fresh.has(item.id)}
-        />
-      )}
+      extraData={extraData}
+      renderItem={renderItem}
       ItemSeparatorComponent={Separator}
       contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 12, paddingBottom: 46 }}
       initialNumToRender={6}

@@ -3,10 +3,12 @@
  * the card and its details, plus the derived colours and formatters the
  * board and settings slices share.
  *
- * Every running ring rotates in phase from one clock (`status-icon.tsx`); the
- * card re-renders for a clock tick only when its timer text changes
- * (`sameCardProps`), so the board should pass stable callbacks.
+ * Every running ring rotates in phase from one clock (`status-icon.tsx`). The
+ * board's second clock is a store (`clock.ts`): a tick re-renders a card's
+ * timer text and nothing else, so the board should pass stable callbacks.
  */
+
+export { createTaskClock, useTime, type TaskClock, type TickingClock, type TimeSource } from "./clock";
 
 export { StatusIcon, statusMarkSize, STATUS_RING_PERIOD_MS, type StatusIconProps } from "./status-icon";
 export {
