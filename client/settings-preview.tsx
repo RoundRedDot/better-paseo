@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import type { ExtendedThemeTokens } from "./components/theme-tokens";
 import { radiusV2, space } from "./components/theme-tokens";
 import { ToolCallout, ToolPreviewContent } from "./components/tool-callouts";
+import { HostAgentStateContext } from "./components/agent-row-target";
 import { ReasoningCard } from "./components/reasoning-trace";
 import { UserMessage } from "./components/user-message";
 import { MarkdownView } from "./components/markdown/markdown-view";
@@ -171,67 +172,70 @@ export function SettingsPreview({
       <HostReply text={text} tokens={tokens} />
     );
 
+  // The settings page is not a workspace panel: no host agent state here.
   return (
-    <PathContext.Provider value={paths}>
-      <View {...pluginRoot}>
-        <Item gap={HOST_GAP}>
-          {preferences.enhancedUserBubble ? (
-            <UserMessage
-              text={t.previewPrompt}
-              timestamp={AT}
+    <HostAgentStateContext.Provider value={false}>
+      <PathContext.Provider value={paths}>
+        <View {...pluginRoot}>
+          <Item gap={HOST_GAP}>
+            {preferences.enhancedUserBubble ? (
+              <UserMessage
+                text={t.previewPrompt}
+                timestamp={AT}
+                tokens={tokens}
+                compact={compact}
+                usage={{ inputTokens: 18_412, cachedInputTokens: 96_300, outputTokens: 1_268 }}
+              />
+            ) : (
+              <HostBubble text={t.previewPrompt} tokens={tokens} />
+            )}
+          </Item>
+          <Item gap={rowGap}>
+            <ReasoningCard
+              segmentation={thought}
+              streaming={false}
+              durationMs={6200}
+              expanded={false}
+              onToggle={() => {}}
               tokens={tokens}
               compact={compact}
-              usage={{ inputTokens: 18_412, cachedInputTokens: 96_300, outputTokens: 1_268 }}
+              storeKey="settings-preview:thought"
+              copyText={reasoningText(thought)}
             />
-          ) : (
-            <HostBubble text={t.previewPrompt} tokens={tokens} />
-          )}
-        </Item>
-        <Item gap={rowGap}>
-          <ReasoningCard
-            segmentation={thought}
-            streaming={false}
-            durationMs={6200}
-            expanded={false}
-            onToggle={() => {}}
-            tokens={tokens}
-            compact={compact}
-            storeKey="settings-preview:thought"
-            copyText={reasoningText(thought)}
-          />
-        </Item>
-        <Item gap={replyGap}>{reply(t.previewLead)}</Item>
-        {/* Paseo's own gap under a plan: the row options do not apply to it. */}
-        <Item gap={HOST_GAP}>
-          <TaskList data={plan} tokens={tokens} compact={compact} />
-        </Item>
-        <Item gap={rowGap}>
-          <ToolCallout data={READ} tokens={tokens} compact={compact} />
-          {preferences.hoverPreview ? (
-            <View style={styles.openPanel}>
-              <Text style={[styles.caption, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-                {t.previewPanelCaption}
-              </Text>
-              <OpenPanel tokens={tokens} compact={compact} />
-            </View>
-          ) : null}
-        </Item>
-        <Item gap={rowGap}>
-          <ToolCallout data={EDIT} tokens={tokens} compact={compact} />
-        </Item>
-        <Item gap={rowGap}>
-          {/* Remounted when the option changes: the start state is read once. */}
-          <ToolCallout key={String(failedOpen)} data={FAILED} tokens={tokens} compact={compact} defaultExpanded={failedOpen} />
-        </Item>
-        <Item gap={HOST_GAP}>
-          <ToolCallout data={TESTS} tokens={tokens} compact={compact} />
-        </Item>
-        <View>
-          {reply(t.previewReply)}
-          <AssistantFooter text={t.previewReply} at={DONE} tokens={tokens} compact={compact} />
+          </Item>
+          <Item gap={replyGap}>{reply(t.previewLead)}</Item>
+          {/* Paseo's own gap under a plan: the row options do not apply to it. */}
+          <Item gap={HOST_GAP}>
+            <TaskList data={plan} tokens={tokens} compact={compact} />
+          </Item>
+          <Item gap={rowGap}>
+            <ToolCallout data={READ} tokens={tokens} compact={compact} />
+            {preferences.hoverPreview ? (
+              <View style={styles.openPanel}>
+                <Text style={[styles.caption, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+                  {t.previewPanelCaption}
+                </Text>
+                <OpenPanel tokens={tokens} compact={compact} />
+              </View>
+            ) : null}
+          </Item>
+          <Item gap={rowGap}>
+            <ToolCallout data={EDIT} tokens={tokens} compact={compact} />
+          </Item>
+          <Item gap={rowGap}>
+            {/* Remounted when the option changes: the start state is read once. */}
+            <ToolCallout key={String(failedOpen)} data={FAILED} tokens={tokens} compact={compact} defaultExpanded={failedOpen} />
+          </Item>
+          <Item gap={HOST_GAP}>
+            <ToolCallout data={TESTS} tokens={tokens} compact={compact} />
+          </Item>
+          <View>
+            {reply(t.previewReply)}
+            <AssistantFooter text={t.previewReply} at={DONE} tokens={tokens} compact={compact} />
+          </View>
         </View>
-      </View>
-    </PathContext.Provider>
+      </PathContext.Provider>
+    </HostAgentStateContext.Provider>
   );
 }
 
