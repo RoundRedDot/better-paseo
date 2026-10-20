@@ -1,7 +1,8 @@
 # Plugin SDK limitations found while building Better Paseo
 
-Measured against `@getpaseo/plugin` 0.8.0 and the Paseo 0.8.0 desktop build. Each entry names the
-evidence and the workaround this plugin uses.
+Measured against `@getpaseo/plugin` 0.8.0 and the Paseo 0.8.0 desktop build; entries 15–18 were
+checked on 2026-10-20 against `@getpaseo/plugin` 0.11.2 and the Paseo 0.12.0 desktop build while
+planning a Tasks board. Each entry names the evidence and the workaround this plugin uses or plans.
 
 1. **No file navigation.** Timeline renderer props are exactly `{agentId, theme, host, layout,
 timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurface`,
@@ -61,3 +62,28 @@ timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurfac
     message id, then waits for a row carrying that id. A transformed row always carries
     `<pluginId>/<itemId>` instead, so Ctrl+F on a styled prompt or reply never reveals the match.
     Workaround: the plugin's own find bar, described in [Finding text](../README.md#finding-text).
+15. **No way to stop an agent.** The `PaseoApi` agent handle offers `send`, `run`, `archive` and
+    `detach`, but no cancel; `DaemonClient.cancelAgent` exists and is not exposed, on `main` either.
+    `send()` would interrupt the turn, but only by posting another message. Planned workaround: a
+    plugin RPC on the server side runs `paseo agent stop <id>`. The plugin process inherits
+    `PASEO_CLI` (`/Applications/Paseo.app/Contents/Resources/bin/paseo`) and `PASEO_HOME`, and it runs
+    on the daemon's machine, so it stops the right agent for remote hosts too.
+16. **Workspace label colours and project icons are out of reach.** Workspace descriptors carry
+    their `projectId` and the names of their assigned `labels`, nothing more. The colours live in the
+    label definitions (`DaemonClient.listWorkspaceLabels` / `observeWorkspaceLabels`) and the icon
+    comes from `DaemonClient.getProjectIcon`; neither is on `PaseoApi`. Proposed upstream as
+    [getpaseo/paseo#7482](https://github.com/getpaseo/paseo/pull/7482) (Discussion
+    [#7481](https://github.com/getpaseo/paseo/discussions/7481)), which adds
+    `workspaces.listLabels()` and `projects.icon()`. Until it ships: neutral label dots and letter
+    avatars, chosen by feature detection.
+17. **Paseo's status-dot colours are not in the theme.** The sidebar's running ring, needs-input
+    alert and attention dot use a separate `statusDot*` band (light `#268ae0` / `#b37824` /
+    `#299f51` / `#f12e2f`, dark `#5caaf6` / `#db932e` / `#35c264` / `#f7796d`). `PluginTheme`'s
+    `statusWarning`, `statusSuccess` and `statusDanger` only approximate three of them, and the
+    running blue has no counterpart at all; `accent` is not reliably blue. Workaround: approximate
+    the three, and pick the running blue by the luminance of `surface0`.
+18. **No list hook for agents.** `useAgent` and `useWorkspace` read host state by id, so a view
+    across workspaces has to call `paseo.agents.list({ subscribe: {} })`. Every entry is a full
+    snapshot (`availableModes`, `features`, permissions), and a daemon with 340 unarchived agents
+    sends all of them again after each reconnect. Workaround: subscribe to active statuses only and
+    page finished agents when the view is open.
