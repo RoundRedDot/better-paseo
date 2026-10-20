@@ -4,6 +4,7 @@
   "private": true,
   "description": "Paseo plugin: Better Paseo redraws the chat timeline of every agent: tool calls, reasoning, replies, prompts, and tasks",
   "license": "MIT",
+  "packageManager": "npm@11.16.0",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
