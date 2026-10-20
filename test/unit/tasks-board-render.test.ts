@@ -42,10 +42,11 @@ const host = vi.hoisted(() => ({
   toast: vi.fn(),
   settings: null as Record<string, unknown> | null,
   counts: null as { running: number; needsInput: number; review: number; done: number } | null,
+  canStop: false,
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   usePaseo: () => ({}),
-  useRpc: () => () => Promise.resolve({ stop: false }),
+  useRpc: () => () => Promise.resolve({ stop: host.canStop }),
   useSettings: () => (host.settings ? { status: "ready", values: host.settings, revision: "1", saving: false, saveError: null } : { status: "loading" }),
 }));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
@@ -160,6 +161,7 @@ function pressable(label: string): ReactTestInstance {
 beforeEach(() => {
   host.settings = { ...DEFAULT_TASKS_SETTINGS };
   host.counts = null;
+  host.canStop = false;
   resetBoardSessions();
   vi.useFakeTimers();
 });
@@ -238,6 +240,37 @@ describe("Tasks board, desktop", () => {
     expect(child.props.compact).toBe(false);
     // The host has no CLI to stop with (`tasks.capabilities`), so no card offers Stop.
     expect(child.props.onStop).toBeUndefined();
+  });
+
+  it("disarms an armed stop on Esc, whatever has the keyboard focus", async () => {
+    host.canStop = true;
+    const keys: Array<(event: unknown) => void> = [];
+    vi.stubGlobal("document", {
+      activeElement: null,
+      body: {},
+      visibilityState: "visible",
+      addEventListener: (type: string, listener: (event: unknown) => void) => type === "keydown" && keys.push(listener),
+      removeEventListener: () => {},
+    });
+    try {
+      await act(async () => {
+        renderer = TestRenderer.create(screen(false));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      layOut(1600);
+      const running = () => cards().find((card) => card.props.card.id === "sample-running")!;
+      act(() => running().props.onStop(running().props.card));
+      expect(running().props.stopPhase).toBe("confirming");
+      const preventDefault = vi.fn();
+      act(() => keys.at(-1)!({ key: "Escape", preventDefault }));
+      expect(running().props.stopPhase).toBe("idle");
+      expect(preventDefault).toHaveBeenCalled();
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
   });
 
   it("hides the jump without navigation", () => {

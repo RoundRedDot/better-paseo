@@ -158,6 +158,11 @@ export function DesktopBoard(props: {
         event.preventDefault();
         return;
       }
+      // Esc disarms an armed stop wherever the keyboard focus is.
+      if (event.key === "Escape" && now.board.stop.cancelAll()) {
+        event.preventDefault();
+        return;
+      }
       const result = boardKeyReducer(now.focus, event.key, now.shapes);
       if (!result.handled) return;
       event.preventDefault();

@@ -140,8 +140,15 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
 
   const visible = useBoardVisible(rootRef);
   const now = useBoardClock(visible);
-  const stop = useStopControl({ confirmStop: settings.board.confirmStop });
-  const { stoppedManually, noteRunning } = stop;
+  // Whether an agent still runs or waits, for the stop's check that it took.
+  const byIdRef = useRef(tasks.byId);
+  byIdRef.current = tasks.byId;
+  const isActive = useCallback((agentId: string) => {
+    const card = byIdRef.current.get(agentId);
+    return card !== undefined && (card.lane === "running" || card.lane === "needs_input");
+  }, []);
+  const stop = useStopControl({ confirmStop: settings.board.confirmStop, isActive });
+  const { stoppedManually, noteRunning, reconcile } = stop;
   const filtered = useMemo(
     () => filterLanes(withStopReasons(tasks.lanes, stoppedManually, strings.stoppedManually), filters),
     [tasks.lanes, stoppedManually, strings.stoppedManually, filters],
@@ -152,13 +159,15 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
   const compareNames = useMemo(() => nameCompare(language), [language]);
   const lanes = useMemo(() => sortLaneCards(filtered, sort, Date.now(), compareNames), [filtered, sort, compareNames]);
   const total = LANE_ORDER.reduce((sum, id) => sum + lanes[id].cards.length, 0);
-  // A card stopped from the board that runs again drops its "Stopped manually".
+  // A stop whose agents have left running is done; a card stopped from the
+  // board that runs again drops its "Stopped manually".
   useEffect(() => {
+    reconcile();
     for (const id of stoppedManually) {
       const card = tasks.byId.get(id);
       if (card && (card.lane === "running" || card.lane === "needs_input")) noteRunning(id);
     }
-  }, [tasks.byId, stoppedManually, noteRunning]);
+  }, [tasks.byId, stoppedManually, noteRunning, reconcile]);
 
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

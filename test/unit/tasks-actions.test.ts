@@ -5,6 +5,8 @@ import "./helpers/quiet-renderer";
 import {
   permissionButtons,
   respondToPermission,
+  STOP_RPC_TIMEOUT_MS,
+  STOP_VERIFY_MS,
   useStopControl,
   type StopControl,
 } from "../../client/tasks/actions";
@@ -118,8 +120,10 @@ describe("Tasks permission actions", () => {
 
 let latestControl: StopControl | undefined;
 
-function StopProbe({ confirmStop }: { confirmStop: boolean }) {
-  latestControl = useStopControl({ confirmStop });
+const activeAgents = new Set<string>();
+
+function StopProbe({ confirmStop, verify = false }: { confirmStop: boolean; verify?: boolean }) {
+  latestControl = useStopControl({ confirmStop, isActive: verify ? (agentId) => activeAgents.has(agentId) : undefined });
   return React.createElement("probe");
 }
 
@@ -143,6 +147,7 @@ describe("Tasks stop control", () => {
     mocks.stop.mockReset().mockResolvedValue({ results: [] });
     mocks.toastError.mockReset();
     mocks.language.mockReturnValue("en");
+    activeAgents.clear();
   });
 
   afterEach(() => {
@@ -150,10 +155,10 @@ describe("Tasks stop control", () => {
     vi.useRealTimers();
   });
 
-  async function mount(confirmStop: boolean) {
+  async function mount(confirmStop: boolean, verify = false) {
     let renderer!: ReactTestRenderer;
     await act(async () => {
-      renderer = TestRenderer.create(React.createElement(StopProbe, { confirmStop }));
+      renderer = TestRenderer.create(React.createElement(StopProbe, { confirmStop, verify }));
       await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
@@ -243,6 +248,78 @@ describe("Tasks stop control", () => {
 
     expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["parent", "running-child", "waiting-child"] });
     expect(mounted.control().phase("parent")).toBe("idle");
+  });
+
+  it("disarms every armed stop at once (Esc), and says when none was armed", async () => {
+    const mounted = await mount(true);
+    act(() => mounted.control().press(taskCard("agent-a")));
+    act(() => mounted.control().press(taskCard("agent-b")));
+    let disarmed = false;
+    act(() => { disarmed = mounted.control().cancelAll(); });
+    expect(disarmed).toBe(true);
+    expect(mounted.control().phase("agent-a")).toBe("idle");
+    expect(mounted.control().phase("agent-b")).toBe("idle");
+    act(() => { disarmed = mounted.control().cancelAll(); });
+    expect(disarmed).toBe(false);
+  });
+
+  it("keeps Stopping until the agent leaves running, then is done without a toast", async () => {
+    vi.useFakeTimers();
+    mocks.stop.mockResolvedValue({ results: [{ agentId: "agent-a", ok: true, error: null }] });
+    activeAgents.add("agent-a");
+    const mounted = await mount(false, true);
+    await act(async () => {
+      mounted.control().press(taskCard("agent-a"));
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mounted.control().phase("agent-a")).toBe("stopping");
+    // The board still lists it as running right after the stop: the marker stays.
+    act(() => mounted.control().noteRunning("agent-a"));
+    expect(mounted.control().stoppedManually.has("agent-a")).toBe(true);
+    activeAgents.delete("agent-a");
+    act(() => mounted.control().reconcile());
+    expect(mounted.control().phase("agent-a")).toBe("idle");
+    expect(mounted.control().stoppedManually.has("agent-a")).toBe(true);
+    act(() => { vi.advanceTimersByTime(20_000); });
+    expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  it("says so when the daemon accepted the stop but the agent keeps running", async () => {
+    vi.useFakeTimers();
+    mocks.stop.mockResolvedValue({ results: [{ agentId: "zombie", ok: true, error: null }] });
+    activeAgents.add("zombie");
+    const mounted = await mount(false, true);
+    await act(async () => {
+      mounted.control().press(taskCard("zombie"));
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mounted.control().phase("zombie")).toBe("stopping");
+    act(() => { vi.advanceTimersByTime(STOP_VERIFY_MS); });
+    expect(mocks.toastError).toHaveBeenCalledWith("Stop was sent, but the task is still running");
+    expect(mounted.control().phase("zombie")).toBe("idle");
+    expect(mounted.control().stoppedManually.has("zombie")).toBe(false);
+  });
+
+  it("fails a stop whose RPC never answers", async () => {
+    vi.useFakeTimers();
+    mocks.stop.mockReturnValue(new Promise(() => {}));
+    const mounted = await mount(false, true);
+    await act(async () => {
+      mounted.control().press(taskCard("agent-a"));
+      await Promise.resolve();
+    });
+    expect(mounted.control().phase("agent-a")).toBe("stopping");
+    await act(async () => {
+      vi.advanceTimersByTime(STOP_RPC_TIMEOUT_MS);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mocks.toastError).toHaveBeenCalledWith("Could not stop task: The stop request did not answer.");
+    expect(mounted.control().phase("agent-a")).toBe("idle");
   });
 
   it("surfaces per-agent and rejected RPC failures through the toast", async () => {
