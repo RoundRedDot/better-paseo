@@ -36,7 +36,7 @@ import {
 } from "../../client/tasks/board/navigation";
 import { activeChips, buildFilterOptions, clearedParams } from "../../client/tasks/board/filter-options";
 import { boardPalette, cubicBezier } from "../../client/tasks/board/board-style";
-import { withStopReasons } from "../../client/tasks/board/use-board";
+import { restoredStops, withStopReasons } from "../../client/tasks/board/use-board";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { hostLanguage, resetTasksLanguage, resolveTasksLanguage } from "../../client/tasks/i18n";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
@@ -339,6 +339,28 @@ describe("board easing", () => {
       previous = value;
     }
     expect(ease(0.5)).toBeGreaterThan(0.8);
+  });
+});
+
+describe("stops restored from the server", () => {
+  it("keep a known card's marker until it is prompted again", () => {
+    const byId = handle().byId;
+    const card = (id: string, lastUserMessageAt: string | null) => ({ ...byId.get(id)!, timing: { ...byId.get(id)!.timing, lastUserMessageAt } });
+    const cards = new Map([
+      ["quiet", card("sample-done", "2026-10-20T09:00:00.000Z")],
+      ["prompted", card("sample-unread", "2026-10-20T11:00:00.000Z")],
+      ["never", card("sample-failed", null)],
+    ]);
+    const own = new Set(["mine"]);
+    const restored = new Map([
+      ["quiet", "2026-10-20T10:00:00.000Z"],
+      ["prompted", "2026-10-20T10:00:00.000Z"],
+      ["never", "2026-10-20T10:00:00.000Z"],
+      ["unknown", "2026-10-20T10:00:00.000Z"],
+    ]);
+    expect([...restoredStops(own, restored, cards)].sort()).toEqual(["mine", "never", "quiet"]);
+    expect(restoredStops(own, new Map(), cards)).toBe(own);
+    expect(restoredStops(own, new Map([["unknown", "x"]]), cards)).toBe(own);
   });
 });
 
