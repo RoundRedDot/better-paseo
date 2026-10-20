@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
@@ -830,7 +830,9 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const buttons = compact && layout.permission ? props.permissionButtons : [];
   const actionBar =
     compact && (buttons.length > 0 || canStop) ? (
-      <View style={{ flexDirection: "row", gap: 8, marginTop: m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
+      // Buttons keep their labels on one line and share what is left; one that
+      // no longer fits beside the others moves to a second row.
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
         {buttons.map((button) => (
           <ActionButton
             key={button.key}
@@ -1075,6 +1077,28 @@ function ContextMeter(props: {
 
 // --- Buttons ------------------------------------------------------------------
 
+/** A system font at least this much larger than normal lets a phone button's label wrap. */
+export const LARGE_FONT_SCALE = 1.15;
+/** A phone button is never narrower than this. */
+export const PHONE_BUTTON_MIN_WIDTH = 72;
+
+/**
+ * A phone action button's share of the bar: as wide as its label on one
+ * line, then an equal part of what is left. It never shrinks under its label
+ * at a normal font size, so a label never breaks inside a word ("Sto/p");
+ * the bar wraps a button that does not fit instead. With an enlarged system
+ * font the label may take a second line, broken between words.
+ */
+export function phoneButtonSizing(fontScale: number): { wraps: boolean; box: ViewStyle; label: TextStyle; lines: number } {
+  const wraps = fontScale >= LARGE_FONT_SCALE;
+  return {
+    wraps,
+    box: { flexGrow: 1, flexShrink: wraps ? 1 : 0, flexBasis: "auto", minWidth: PHONE_BUTTON_MIN_WIDTH },
+    label: { flexShrink: wraps ? 1 : 0 },
+    lines: wraps ? 2 : 1,
+  };
+}
+
 /** A permission answer or "go answer": 28 high, radius 6; 40 and evenly split on a phone. */
 function ActionButton(props: {
   button: PermissionButton;
@@ -1104,6 +1128,7 @@ function ActionButton(props: {
   }
   const icon = button.kind === "open" ? null : button.action.behavior === "allow" ? "Check" : "X";
   const size = compact ? 16 : 13;
+  const sizing = phoneButtonSizing(useWindowDimensions().fontScale ?? 1);
   return (
     <Pressable
       accessibilityRole="button"
@@ -1111,9 +1136,8 @@ function ActionButton(props: {
       onPress={props.onPress}
       {...hoverProps}
       style={{
-        // A phone's button grows with a large system font; its label wraps before it clips.
-        ...(compact ? { minHeight: PHONE.buttonHeight, paddingVertical: 4 } : { height: DESKTOP.buttonHeight }),
-        flex: compact ? 1 : undefined,
+        // A phone's button grows with a large system font.
+        ...(compact ? { minHeight: PHONE.buttonHeight, paddingVertical: 4, ...sizing.box } : { height: DESKTOP.buttonHeight }),
         paddingHorizontal: compact ? 14 : 10,
         borderRadius: compact ? 8 : 6,
         borderWidth: answer ? StyleSheet.hairlineWidth : 1,
@@ -1127,7 +1151,7 @@ function ActionButton(props: {
       }}
     >
       {icon ? <Icon name={icon} size={size} color={color} /> : null}
-      <Text numberOfLines={compact ? 2 : 1} style={{ flexShrink: 1, textAlign: "center", fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
+      <Text numberOfLines={compact ? sizing.lines : 1} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
         {answer ? button.label.replace(/\s*\u2197\s*$/, "") : button.label}
       </Text>
       {/* The one arrow: a label that still ends in its own is trimmed above. */}
@@ -1189,6 +1213,7 @@ function StopControl(props: StopControlProps) {
       ],
     },
   ];
+  const sizing = phoneButtonSizing(useWindowDimensions().fontScale ?? 1);
   const color = solid ? look.onStrong : tokens.danger;
   const fill = (hovered: boolean) =>
     solid ? (hovered ? look.dangerStrongHover : tokens.danger) : hovered ? look.dangerFillHover : look.dangerFill;
@@ -1208,10 +1233,10 @@ function StopControl(props: StopControlProps) {
     <View
       style={{
         flexDirection: "row",
-        // On a phone the armed pill takes two shares of the action bar, so
-        // "Confirm stop" fits beside Allow and Deny; at rest it takes one.
-        flex: compact ? (solid ? 2 : 1) : undefined,
-        flexShrink: 0,
+        // On a phone the pill shares the action bar like the buttons, as wide
+        // as its label: "Confirm stop" takes more than "Stop". Explicit grow
+        // and basis, never the `flex` shorthand beside `flexShrink`.
+        ...(compact ? sizing.box : { flexShrink: 0 }),
         marginVertical: compact ? 0 : (props.line - height) / 2,
         zIndex: 40,
       }}
@@ -1226,7 +1251,7 @@ function StopControl(props: StopControlProps) {
         style={[
           segment,
           {
-            flex: compact ? 1 : undefined,
+            ...(compact ? { flexGrow: 1, flexShrink: sizing.wraps ? 1 : 0, flexBasis: "auto" } : null),
             gap: compact ? 6 : 4,
             paddingHorizontal: compact ? 14 : 8,
             backgroundColor: fill(stopHover.hovered),
@@ -1239,7 +1264,7 @@ function StopControl(props: StopControlProps) {
         ]}
       >
         <StopSquare compact={compact} color={color} />
-        <Text numberOfLines={compact ? 2 : 1} style={{ flexShrink: 1, textAlign: "center", fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
+        <Text numberOfLines={compact ? sizing.lines : 1} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
           {label}
         </Text>
       </Pressable>
