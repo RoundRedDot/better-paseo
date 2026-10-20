@@ -68,6 +68,8 @@ import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
 import { contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
+import { PiMark } from "../../client/tasks/cards/brand-mark";
+import { permissionButtons } from "../../client/tasks/actions";
 import { providerBrand } from "../../client/components/provider-logo";
 import { MARK_IDS, seedMarkBitmaps } from "../../client/components/marks";
 import { mix } from "../../client/components/theme-tokens";
@@ -473,6 +475,49 @@ describe("TaskCardView rows", () => {
     expect(texts(tree.root)).not.toContain("已手动停止");
   });
 
+  it("draws the answer button in the needs-input amber with a single arrow", async () => {
+    for (const theme of [LIGHT, DARK]) {
+      const tokens = buildTaskTokens(theme.colors);
+      const amber = tokens.status.warning;
+      const card = {
+        ...sample("sample-input"),
+        permission: { requestId: "q", kind: "question" as const, title: "Which database?", summary: null, actions: [], remaining: 0 },
+      };
+      const buttons = permissionButtons(card.permission, "zh");
+      // An older label with its own arrow still ends up with one.
+      const withArrow = buttons.map((button) => ({ ...button, label: `${button.label} \u2197` }));
+      for (const set of [buttons, withArrow]) {
+        const tree = await render(cardElement(card, { theme, permissionButtons: set }));
+        const answer = byLabel(tree.root, set[0]!.label);
+        expect(texts(answer)).toEqual(["去回答"]);
+        expect(icons(answer)).toEqual(["ArrowUpRight"]);
+        expect(answer.findByType("Icon" as never).props.color).toBe(amber);
+        expect(flat(answer.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(amber);
+        const rest = flat(answer.props.style);
+        expect(rest).toMatchObject({
+          backgroundColor: mix(tokens.card.background, amber, tokens.isDark ? 0.18 : 0.12),
+          borderColor: mix(tokens.card.background, amber, tokens.isDark ? 0.45 : 0.4),
+          borderWidth: 1,
+        });
+        await act(async () => answer.props.onHoverIn());
+        expect(flat(byLabel(tree.root, set[0]!.label).props.style).backgroundColor).toBe(
+          mix(tokens.card.background, amber, (tokens.isDark ? 0.18 : 0.12) + 0.08),
+        );
+        await act(async () => tree.unmount());
+        renderer = null;
+      }
+    }
+  });
+
+  it("leaves Allow and Deny as they were", async () => {
+    const buttons = permissionButtons(sample("sample-input").permission!, "zh");
+    const tree = await render(cardElement(sample("sample-input"), { permissionButtons: buttons }));
+    const tokens = buildTaskTokens(LIGHT.colors);
+    expect(flat(byLabel(tree.root, "允许").props.style)).toMatchObject({ backgroundColor: tokens.card.primaryFill, borderColor: tokens.card.primaryFill });
+    expect(flat(byLabel(tree.root, "拒绝").props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: tokens.card.pillBorder });
+    expect(icons(byLabel(tree.root, "允许"))).toEqual(["Check"]);
+  });
+
   it("draws the permission summary, its buttons and the remaining count", async () => {
     const buttons: PermissionButton[] = [
       { key: "allow", label: "允许", variant: "primary", kind: "respond", action: { behavior: "allow", id: null } },
@@ -826,7 +871,7 @@ describe("model, thinking and brand marks", () => {
     "paseo", "claude", "codex", "omp", "pi", "gemini", "antigravity", "copilot",
     "opencode", "minimax", "deepseek", "grok", "cursor", "ollama", "some-new-agent",
   ] as const;
-  const MONOCHROME = new Set(["paseo", "omp", "pi", "grok", "cursor", "ollama", "some-new-agent"]);
+  const MONOCHROME = new Set(["paseo", "omp", "grok", "cursor", "ollama", "some-new-agent"]);
   // Marks rasterised in colour carry their hue in the image; the rest are tinted.
   const RASTER_COLOURED = new Set(["claude", "gemini", "antigravity", "minimax", "deepseek"]);
   const WRONG_ON_LIGHT = ["#E5E7EB", "#818CF8", "#CBD5E1", "#94A3B8", "#6366F1"];
@@ -846,6 +891,16 @@ describe("model, thinking and brand marks", () => {
         const brand = providerBrand(provider);
         expect(brand.monochrome).toBe(MONOCHROME.has(provider));
         let drawn: unknown;
+        if (provider === "pi") {
+          // Pi: the coloured pixel mark from Views, the same on both themes, on a neutral pill.
+          expect(image).toBeUndefined();
+          const cells = hostByTestId(model, "pi-mark").children.map((cell) => flat((cell as ReactTestInstance).props.style).backgroundColor);
+          expect(cells).toEqual(["#e39586", "#e39586", "#6198bb", "#6198bb", "#e9c069"]);
+          expect(flat(model.props.style).backgroundColor).toBe(tokens.card.pillFill);
+          await act(async () => tree.unmount());
+          renderer = null;
+          continue;
+        }
         if (image) {
           drawn = flat(image.props.style).tintColor;
           if (MONOCHROME.has(provider)) expect(drawn).toBe(tokens.foreground);
@@ -866,6 +921,19 @@ describe("model, thinking and brand marks", () => {
         renderer = null;
       }
     }
+  });
+
+  it("draws Pi's mark on its 4 x 4 grid with the shipped margin", async () => {
+    const tree = await render(React.createElement(PiMark, { size: 20 }));
+    const cells = hostByTestId(tree.root, "pi-mark").children.map((cell) => flat((cell as ReactTestInstance).props.style));
+    // Cell 4 px (20 less a 2 px margin each side, over 4).
+    expect(cells.map(({ left, top, width, height }) => [left, top, width, height])).toEqual([
+      [2, 2, 12, 4],
+      [10, 6, 4, 4],
+      [2, 6, 4, 12],
+      [6, 10, 4, 4],
+      [14, 10, 4, 8],
+    ]);
   });
 
   it("draws the thinking pill with the host's Brain icon", async () => {

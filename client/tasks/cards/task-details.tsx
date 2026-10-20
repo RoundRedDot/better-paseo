@@ -9,7 +9,7 @@ import { formatCost, formatRelative, formatTokens, since, tildePath } from "./fo
 import { cardStrings } from "./strings";
 import { pillTint, taskTokens, type TaskTokens } from "./tokens";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
-import { BrandMark } from "./task-card";
+import { BrandMark } from "./brand-mark";
 
 export interface TaskDetailsProps {
   card: TaskCard;
