@@ -66,7 +66,7 @@ import {
   type TaskCardViewProps,
 } from "../../client/tasks/cards";
 import { statusRingHolders } from "../../client/tasks/cards/status-icon";
-import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
+import { LARGE_FONT_SCALE, OVERLAY_ROW_Z, PHONE_BUTTON_MIN_WIDTH, phoneButtonSizing } from "../../client/tasks/cards/task-card";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
@@ -536,19 +536,34 @@ describe("TaskCardView rows", () => {
     expect(icons(byLabel(tree.root, "允许"))).toEqual(["Check"]);
   });
 
-  it("on a phone, grows the action bar with the font and gives the armed stop two shares", async () => {
+  it("on a phone, keeps the action labels on one line, sized to their text, and wraps the bar instead", async () => {
     const card = sample("sample-input");
     const buttons = permissionButtons(card.permission!, "en");
     const element = (stopPhase: StopPhase) =>
       cardElement(card, { compact: true, language: "en", permissionButtons: buttons, onStop: () => {}, stopPhase });
     const tree = await render(element("idle"));
     const allow = flat(byLabel(tree.root, "Allow").props.style);
-    expect(allow.minHeight).toBe(40);
+    expect(allow).toMatchObject({ minHeight: 40, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: PHONE_BUTTON_MIN_WIDTH });
     expect(allow.height).toBeUndefined();
-    expect(flat(hostByTestId(tree.root, "task-card-stop").props.style).flex).toBe(1);
+    expect(allow.flex).toBeUndefined();
+    const label = byLabel(tree.root, "Allow").find((node) => (node.type as unknown) === "Text");
+    expect(label.props.numberOfLines).toBe(1);
+    expect(flat(label.props.style).flexShrink).toBe(0);
+    expect(flat(hostByTestId(tree.root, "task-card-actions").props.style).flexWrap).toBe("wrap");
+    const stop = () => flat(hostByTestId(tree.root, "task-card-stop").props.style);
+    expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 0, flexBasis: "auto" });
+    // No `flex` beside `flexShrink`: React Native Web warns when they update together.
+    expect(stop().flex).toBeUndefined();
     await act(async () => tree.update(element("confirming")));
-    expect(flat(hostByTestId(tree.root, "task-card-stop").props.style).flex).toBe(2);
+    expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 0, flexBasis: "auto" });
+    expect(stop().flex).toBeUndefined();
     expect(flat(byLabel(tree.root, "Confirm stop").props.style).minHeight).toBe(40);
+  });
+
+  it("lets a phone label wrap between words only with an enlarged system font", () => {
+    expect(phoneButtonSizing(1)).toMatchObject({ wraps: false, lines: 1, label: { flexShrink: 0 } });
+    expect(phoneButtonSizing(1.1).wraps).toBe(false);
+    expect(phoneButtonSizing(LARGE_FONT_SCALE)).toMatchObject({ wraps: true, lines: 2, label: { flexShrink: 1 }, box: { flexShrink: 1 } });
   });
 
   it("draws the permission summary, its buttons and the remaining count", async () => {
