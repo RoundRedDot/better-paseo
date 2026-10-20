@@ -52,7 +52,7 @@ export function FooterDetails({ agentName, modelId, modelName, thinkingLabel, st
   if (thinkingLabel) rows.push({ label: "Thinking level", icon: "Brain", value: thinkingLabel, copyLabel: "Copy thinking level" });
   if (startedAt != null) rows.push({ label: "Start time", icon: "Clock", value: formatFullStamp(new Date(startedAt)), copyLabel: "Copy start time" });
   if (completedAt != null) rows.push({ label: "End time", icon: "Clock", value: formatFullStamp(new Date(completedAt)), copyLabel: "Copy end time" });
-  if (durationMs != null) rows.push({ label: "Elapsed time", icon: "Hourglass", value: formatDuration(durationMs) });
+  if (durationMs != null) rows.push({ label: "Elapsed time", icon: "Hourglass", value: formatDuration(durationMs, resolveLanguage(language)) });
   for (const [label, icon, count] of [
     ["Input", "LogIn", usage?.inputTokens],
     ["Cached", "Database", usage?.cachedInputTokens],
