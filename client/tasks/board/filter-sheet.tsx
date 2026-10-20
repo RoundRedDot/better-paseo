@@ -2,8 +2,8 @@ import React, { type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { taskTokens } from "../cards";
-import { Checkbox, FilterBrand, WindowSegments } from "./board-parts";
+import { BrandMark, taskTokens } from "../cards";
+import { Checkbox, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { LetterAvatar } from "./filter-bar";
 import { clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
@@ -53,7 +53,7 @@ export function FilterSheetBody(props: { board: BoardController; theme: PluginTh
               key={agent.id}
               option={agent}
               theme={theme}
-              leading={<FilterBrand provider={agent.id} theme={theme} />}
+              leading={<BrandMark provider={agent.id} size={16} tokens={taskTokens(theme)} />}
               hideCount
               onPress={() => setParams((p) => ({ ...p, providers: toggleItem(p.providers, agent.id) }))}
             />

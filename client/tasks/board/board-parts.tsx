@@ -4,7 +4,6 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import type { DoneWindow } from "../../../shared/tasks-settings";
 import { DONE_WINDOWS } from "../../../shared/tasks-settings";
-import { ProviderLogo, providerBrand } from "../../components/provider-logo";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { TaskCardView, taskTokens, type CardCallbacks } from "../cards";
@@ -294,12 +293,3 @@ export function useFreshIds(ids: readonly string[], ready: boolean): ReadonlySet
   return fresh;
 }
 
-/**
- * A provider's mark in the filter menus, as the cards draw it: a coloured
- * brand keeps its hue, a monochrome mark takes the theme's foreground
- * (its configured near-white or indigo would vanish or mislead).
- */
-export function FilterBrand({ provider, theme }: { provider: string; theme: PluginTheme }) {
-  const brand = providerBrand(provider);
-  return <ProviderLogo provider={provider} size={16} color={brand.monochrome ? theme.colors.foreground : undefined} />;
-}
