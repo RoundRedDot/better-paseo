@@ -1,0 +1,273 @@
+import React, { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Platform, Pressable, Text, View, useWindowDimensions } from "react-native";
+import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
+import type { PluginTheme } from "@getpaseo/plugin";
+import { HAIRLINE } from "./board-style";
+import {
+  MENU,
+  MENU_FOCUS,
+  layoutMenu,
+  menuChrome,
+  menuKeyReducer,
+  selectableItems,
+  type MenuChrome,
+  type MenuFocus,
+  type MenuItem,
+  type MenuSection,
+} from "./menu-model";
+
+export { MENU, menuChrome, type MenuItem, type MenuSection } from "./menu-model";
+
+export interface CascadeMenuProps {
+  sections: MenuSection[];
+  theme: PluginTheme;
+  width: number;
+  submenuWidth?: number;
+  /** The panel's top inside its anchor, and which edge it hangs from. */
+  top: number;
+  align: "left" | "right";
+  onClose(): void;
+  testID?: string;
+}
+
+/**
+ * A Linear-style menu with one level of submenus. A submenu opens on hover
+ * after 150 ms or on a click, beside its row with its top aligned and its
+ * edge over the parent's by 4; it opens towards the side with room (left
+ * for a menu hung from the right). Moving onto the submenu within those
+ * 150 ms keeps it: the hover-intent delay stands in for Linear's pointer
+ * triangle. Keys (web): up/down, right or Enter into a submenu, left back,
+ * Enter chooses, Escape closes one level. A click outside is the owner's:
+ * it renders a backdrop and calls `onClose`.
+ */
+export function CascadeMenu(props: CascadeMenuProps) {
+  const { sections, theme, width, onClose } = props;
+  const chrome = menuChrome(theme);
+  const subWidth = props.submenuWidth ?? 200;
+  const layout = layoutMenu(sections);
+  const topItems = layout.rows.map((row) => row.item);
+  const [focus, setFocus] = useState<MenuFocus>(MENU_FOCUS);
+  const [scrollY, setScrollY] = useState(0);
+  const openItem = focus.open !== null ? topItems[focus.open] : undefined;
+  const subSections = openItem?.submenu ?? null;
+  const subItems = subSections ? selectableItems(subSections) : null;
+
+  // The side with room: towards the window's middle from the anchor.
+  const window = useWindowDimensions();
+  const containerRef = useRef<View>(null);
+  const [side, setSide] = useState<"left" | "right">(props.align === "right" ? "left" : "right");
+  useEffect(() => {
+    const node = containerRef.current as unknown as { measureInWindow?(cb: (x: number, y: number, w: number) => void): void } | null;
+    node?.measureInWindow?.((x, _y, w) => {
+      if (!w) return;
+      if (x + w + subWidth > window.width) setSide("left");
+      else if (x - subWidth < 0) setSide("right");
+    });
+  }, [subWidth, window.width]);
+
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearTimer = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  useEffect(() => clearTimer, []);
+
+  const latest = useRef({ focus, topItems, subItems, onClose });
+  latest.current = { focus, topItems, subItems, onClose };
+  const choose = useCallback((level: 0 | 1, index: number) => {
+    const { topItems: tops, subItems: subs, onClose: close } = latest.current;
+    const item = level === 0 ? tops[index] : subs?.[index];
+    if (!item || item.disabled) return;
+    if (item.submenu) {
+      clearTimer();
+      setFocus((current) => (current.open === index ? { ...current, open: null, level: 0 } : { level: 0, top: index, sub: -1, open: index }));
+      return;
+    }
+    item.onSelect?.();
+    if (!item.keepOpen) close();
+  }, []);
+
+  const hoverTop = (index: number) => {
+    clearTimer();
+    setFocus((current) => ({ ...current, level: 0, top: index }));
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      const item = latest.current.topItems[index];
+      setFocus((current) => ({ ...current, sub: -1, open: item?.submenu ? index : null }));
+    }, MENU.hoverMs);
+  };
+  const hoverSub = (index: number) => {
+    clearTimer();
+    setFocus((current) => ({ ...current, level: 1, sub: index }));
+  };
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const onKey = (event: KeyboardEvent) => {
+      const now = latest.current;
+      const result = menuKeyReducer(now.focus, event.key, now.topItems, now.subItems);
+      if (!result.handled) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setFocus(result.focus);
+      if (result.effect?.type === "close") now.onClose();
+      if (result.effect?.type === "select") choose(result.effect.level, result.effect.index);
+    };
+    // Capture, ahead of the board's own keys.
+    const doc = document;
+    doc.addEventListener("keydown", onKey, true);
+    return () => doc.removeEventListener("keydown", onKey, true);
+  }, [choose]);
+
+  const openRow = focus.open !== null ? layout.rows[focus.open] : undefined;
+  const subTop = openRow ? openRow.top - scrollY - MENU.padV : 0;
+  return (
+    <View
+      ref={containerRef}
+      collapsable={false}
+      testID={props.testID}
+      style={{ position: "absolute", top: props.top, ...(props.align === "right" ? { right: 0 } : { left: 0 }), width, zIndex: 30 }}
+    >
+      <MenuPanel
+        sections={sections}
+        chrome={chrome}
+        theme={theme}
+        width={width}
+        active={focus.level === 0 ? focus.top : focus.open ?? -1}
+        open={focus.open}
+        onHover={hoverTop}
+        onPress={(index) => choose(0, index)}
+        onScroll={setScrollY}
+        scrolls={layout.height > MENU.maxHeight}
+      />
+      {subSections ? (
+        <View
+          testID="menu-submenu"
+          onPointerEnter={clearTimer}
+          style={{ position: "absolute", top: subTop, width: subWidth, ...(side === "right" ? { left: width - MENU.overlap } : { right: width - MENU.overlap }) }}
+        >
+          <MenuPanel
+            sections={subSections}
+            chrome={chrome}
+            theme={theme}
+            width={subWidth}
+            active={focus.level === 1 ? focus.sub : -1}
+            open={null}
+            onHover={hoverSub}
+            onPress={(index) => choose(1, index)}
+            testID="menu-submenu-panel"
+          />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function MenuPanel(props: {
+  sections: MenuSection[];
+  chrome: MenuChrome;
+  theme: PluginTheme;
+  width: number;
+  /** The highlighted selectable row; -1 for none. */
+  active: number;
+  /** The row whose submenu shows; it keeps its fill. */
+  open: number | null;
+  onHover(index: number): void;
+  onPress(index: number): void;
+  onScroll?(y: number): void;
+  scrolls?: boolean;
+  testID?: string;
+}) {
+  const { chrome, theme } = props;
+  const colors = theme.colors;
+  let index = -1;
+  const body = props.sections.map((section, at) => (
+    <View key={section.key}>
+      {at > 0 ? <View style={{ height: HAIRLINE, marginVertical: MENU.separatorGap, backgroundColor: chrome.border }} /> : null}
+      {section.title ? (
+        <View style={{ height: MENU.titleHeight, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: MENU.inset + 8 }}>
+          {section.titleLeading}
+          <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "500", color: colors.foregroundMuted }}>
+            {section.title}
+          </Text>
+        </View>
+      ) : null}
+      {section.items.map((item) => {
+        const at = item.disabled ? -1 : ++index;
+        return (
+          <MenuRow
+            key={item.key}
+            item={item}
+            theme={theme}
+            chrome={chrome}
+            active={at >= 0 && (at === props.active || at === props.open)}
+            onHover={() => at >= 0 && props.onHover(at)}
+            onPress={() => at >= 0 && props.onPress(at)}
+          />
+        );
+      })}
+    </View>
+  ));
+  const frame = {
+    width: props.width,
+    paddingVertical: MENU.padV,
+    borderRadius: MENU.radius,
+    borderWidth: HAIRLINE,
+    borderColor: chrome.border,
+    backgroundColor: chrome.background,
+    boxShadow: chrome.shadow,
+    elevation: 8,
+  };
+  if (!props.scrolls) {
+    return (
+      <View testID={props.testID ?? "menu-panel"} style={frame}>
+        {body}
+      </View>
+    );
+  }
+  return (
+    <View testID={props.testID ?? "menu-panel"} style={[frame, { paddingVertical: 0, maxHeight: MENU.maxHeight, overflow: "hidden" }]}>
+      <ScrollView
+        style={{ maxHeight: MENU.maxHeight }}
+        contentContainerStyle={{ paddingVertical: MENU.padV }}
+        scrollEventThrottle={16}
+        onScroll={(event) => props.onScroll?.(event.nativeEvent.contentOffset.y)}
+      >
+        {body}
+      </ScrollView>
+    </View>
+  );
+}
+
+function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome; active: boolean; onHover(): void; onPress(): void }) {
+  const { item, chrome } = props;
+  const colors = props.theme.colors;
+  const leading: ReactNode = item.leading ?? (item.icon ? <Icon name={item.icon} size={MENU.icon} color={colors.foregroundMuted} /> : null);
+  return (
+    <Pressable
+      accessibilityRole="menuitem"
+      accessibilityState={{ disabled: item.disabled, checked: item.checked, expanded: item.submenu ? props.active : undefined }}
+      disabled={item.disabled}
+      onHoverIn={props.onHover}
+      onPress={props.onPress}
+      style={{
+        height: MENU.rowHeight,
+        marginHorizontal: MENU.inset,
+        paddingHorizontal: 8,
+        borderRadius: MENU.rowRadius,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: MENU.gap,
+        backgroundColor: props.active ? chrome.hover : "transparent",
+      }}
+    >
+      {leading}
+      <Text numberOfLines={1} style={{ flex: 1, fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : colors.foreground }}>
+        {item.label}
+      </Text>
+      {item.hint ? <Text style={{ fontSize: 13, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{item.hint}</Text> : null}
+      {item.checked ? <Icon name="Check" size={14} color={colors.accent} /> : null}
+      {item.submenu ? <Icon name="ChevronRight" size={12} color={colors.foregroundMuted} /> : null}
+    </Pressable>
+  );
+}
