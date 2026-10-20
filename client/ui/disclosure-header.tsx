@@ -7,6 +7,7 @@ import { selectableTextStyle, unselectable } from "../components/selection";
 import { selectionSurface } from "../components/selection-actions";
 import { surfaceProps } from "../components/view-props";
 import { Glyph } from "../components/glyph";
+import { ProviderLogo } from "../components/provider-logo";
 import { codeSurface } from "../components/host-font-escape";
 import { truncateMiddle } from "../paths/truncate-middle";
 import { TYPE } from "./tokens/typography";
@@ -95,11 +96,18 @@ export function rowPalette(tokens: ExtendedThemeTokens, tone: RowTone, lit: bool
  */
 export const RowPaletteContext = createContext<RowPalette | null>(null);
 
-/** A tool icon in the row's icon colour, unless `color` sets a status. */
+/**
+ * A tool icon in the row's icon colour, unless `color` sets a status. A
+ * `provider:*` name draws that harness's mark as a one-colour silhouette, so
+ * it sits among the Lucide icons rather than in its brand hue.
+ */
 export function RowIcon({ name, color, size = DISCLOSURE_HEADER.icon }: { name: string; color?: string; size?: number }) {
   const palette = useContext(RowPaletteContext);
   const drawn = color ?? palette?.icon ?? "currentColor";
   if (name.startsWith("brand:")) return <Glyph name={name.slice(6)} size={size} color={drawn} />;
+  if (name.startsWith("provider:")) {
+    return <ProviderLogo provider={name.slice(9)} size={size} color={drawn === "currentColor" ? undefined : drawn} />;
+  }
   return <Icon name={name} size={size} color={drawn} />;
 }
 

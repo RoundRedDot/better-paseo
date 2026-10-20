@@ -215,10 +215,12 @@ export function ToolCallout({
   const agentStateColor = summary.agent && summary.tone !== "default" ? agentTone : undefined;
   // A finished call steps behind the prose.
   const tone = running ? "active" : "quiet";
+  // On a phone a created agent's row shows its harness as the grey mark, not as words.
+  const provider = compact ? summary.agent?.provider : undefined;
   const statusIcon = running ? (
     <RunningDot color={tokens.accent} />
   ) : (
-    <RowIcon name={summary.agent?.icon ?? toolIconName(data.tool)}
+    <RowIcon name={provider ? `provider:${provider}` : summary.agent?.icon ?? toolIconName(data.tool)}
       color={agentTone ?? (failed ? tokens.danger : undefined)} />
   );
 
@@ -241,7 +243,7 @@ export function ToolCallout({
     ) : (
       summary.target
     );
-  const meta = summary.meta.map((entry) => {
+  const meta = (provider ? [] : summary.meta).map((entry) => {
     const exitCode = parseExitMeta(entry);
     const shown = exitCode === undefined ? diffCountSpans(entry) : exitMark(exitCode);
     if (agentStateColor) return <Text style={{ color: agentStateColor }}>{entry}</Text>;

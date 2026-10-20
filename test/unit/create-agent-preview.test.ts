@@ -302,6 +302,22 @@ describe("create_agent preview", () => {
     }
     expect(host.providers.listModels).toHaveBeenCalledWith("grok", { cwd: "/workspace" });
   });
+
+  it("draws the harness as a grey mark instead of its name on a phone", () => {
+    const data = classifyTool({ callId: "create", name: "paseo.create_agent", status: "completed", detail: {
+      type: "unknown", input: { title: "Review", provider: "grok/grok-4.7", initialPrompt: prompt }, output: agentId,
+    } });
+    for (const compact of [false, true]) {
+      act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, { data, tokens, compact })); });
+      const marks = renderer!.root.findAll((node) => (node.type as unknown) === "Image" && node.props.accessibilityLabel === "Grok");
+      expect(marks).toHaveLength(compact ? 1 : 0);
+      if (compact) expect(StyleSheet.flatten(marks[0]!.props.style).tintColor).toBe(tokens.row.icon);
+      expect(renderer!.root.findAllByProps({ name: "Bot" }).length > 0).toBe(!compact);
+      expect(textOf(renderer!.toJSON()).includes("Grok")).toBe(!compact);
+      act(() => renderer!.unmount());
+      renderer = undefined;
+    }
+  });
 });
 
 const statusBody = "# Result\n\n**Cursor OK**\n\n" + "Long response\n".repeat(80);

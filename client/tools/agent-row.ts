@@ -22,6 +22,8 @@ export interface AgentRow {
   icon: string;
   /** Colour of the settled icon beyond the tone: a finished agent's success. */
   iconTone?: "success";
+  /** A created agent's harness, also the row's only meta; a phone draws its mark instead. */
+  provider?: string;
 }
 
 /** Running, done, and the base form for "not applied" and failures. */
@@ -85,6 +87,7 @@ export function summarizeAgentRow(view: ToolCallView): AgentRow | undefined {
     return {
       verb: create.status === "running" && !create.agentId ? "Creating" : create.status === "canceled" ? "Create canceled" : "Created",
       agentId: create.agentId, agentTitle: create.title, meta: compact([provider]), tone: "default", icon: "Bot",
+      provider: create.provider,
     };
   }
   const send = paseo.sendAgentPrompt;
