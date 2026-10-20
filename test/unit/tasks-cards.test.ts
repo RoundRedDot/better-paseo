@@ -1064,12 +1064,12 @@ describe("model, thinking and brand marks", () => {
 });
 
 describe("TaskCardView chrome", () => {
-  it("is Linear's card: radius 6, a hairline, and on hover only the fill and shadow change", async () => {
+  it("is Linear's card: radius 8, a hairline, and on hover only the fill and shadow change", async () => {
     const tokens = buildTaskTokens(LIGHT.colors);
     const tree = await render(cardElement(sample("sample-done")));
     const surface = () => flat(hostByTestId(tree.root, "task-card-sample-done").props.style);
     const rest = surface();
-    expect(rest).toMatchObject({ borderRadius: 6, borderWidth: 1, borderColor: tokens.card.border, backgroundColor: tokens.card.background });
+    expect(rest).toMatchObject({ borderRadius: 8, borderWidth: 1, borderColor: tokens.card.border, backgroundColor: tokens.card.background });
     expect(rest.boxShadow).toBe(tokens.card.shadow);
     await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onHoverIn());
     const hovered = surface();
