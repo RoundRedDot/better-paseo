@@ -830,9 +830,9 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const buttons = compact && layout.permission ? props.permissionButtons : [];
   const actionBar =
     compact && (buttons.length > 0 || canStop) ? (
-      // Buttons keep their labels on one line and share what is left; one that
-      // no longer fits beside the others moves to a second row.
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
+      // One row: no flexWrap, whose Yoga layout left a phantom second row's
+      // height under the buttons on Android.
+      <View style={{ flexDirection: "row", gap: 8, marginTop: m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
         {buttons.map((button) => (
           <ActionButton
             key={button.key}
@@ -1084,18 +1084,29 @@ export const PHONE_BUTTON_MIN_WIDTH = 72;
 
 /**
  * A phone action button's share of the bar: as wide as its label on one
- * line, then an equal part of what is left. It never shrinks under its label
- * at a normal font size, so a label never breaks inside a word ("Sto/p");
- * the bar wraps a button that does not fit instead. With an enlarged system
- * font the label may take a second line, broken between words.
+ * line, then an equal part of what is left. At a normal font size a
+ * permission button never shrinks under its label, so no label breaks
+ * inside a word ("Sto/p", "Allo/w"); only the stop pill gives width back
+ * when the labels do not fit side by side (an armed "Confirm stop" beside
+ * Allow and Deny on a narrow phone), shrinking its font to fit its one
+ * line, never under 75%. With an enlarged system font any label may take a
+ * second line, broken between words.
  */
-export function phoneButtonSizing(fontScale: number): { wraps: boolean; box: ViewStyle; label: TextStyle; lines: number } {
+export function phoneButtonSizing(fontScale: number, yields = false): {
+  wraps: boolean;
+  box: ViewStyle;
+  label: TextStyle;
+  lines: number;
+  fit: { adjustsFontSizeToFit?: boolean; minimumFontScale?: number };
+} {
   const wraps = fontScale >= LARGE_FONT_SCALE;
+  const shrinks = wraps || yields;
   return {
     wraps,
-    box: { flexGrow: 1, flexShrink: wraps ? 1 : 0, flexBasis: "auto", minWidth: PHONE_BUTTON_MIN_WIDTH },
-    label: { flexShrink: wraps ? 1 : 0 },
+    box: { flexGrow: 1, flexShrink: shrinks ? 1 : 0, flexBasis: "auto", minWidth: PHONE_BUTTON_MIN_WIDTH },
+    label: { flexShrink: shrinks ? 1 : 0 },
     lines: wraps ? 2 : 1,
+    fit: !wraps && yields ? { adjustsFontSizeToFit: true, minimumFontScale: 0.75 } : {},
   };
 }
 
@@ -1151,7 +1162,7 @@ function ActionButton(props: {
       }}
     >
       {icon ? <Icon name={icon} size={size} color={color} /> : null}
-      <Text numberOfLines={compact ? sizing.lines : 1} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
+      <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
         {answer ? button.label.replace(/\s*\u2197\s*$/, "") : button.label}
       </Text>
       {/* The one arrow: a label that still ends in its own is trimmed above. */}
@@ -1213,7 +1224,7 @@ function StopControl(props: StopControlProps) {
       ],
     },
   ];
-  const sizing = phoneButtonSizing(useWindowDimensions().fontScale ?? 1);
+  const sizing = phoneButtonSizing(useWindowDimensions().fontScale ?? 1, true);
   const color = solid ? look.onStrong : tokens.danger;
   const fill = (hovered: boolean) =>
     solid ? (hovered ? look.dangerStrongHover : tokens.danger) : hovered ? look.dangerFillHover : look.dangerFill;
@@ -1251,9 +1262,12 @@ function StopControl(props: StopControlProps) {
         style={[
           segment,
           {
-            ...(compact ? { flexGrow: 1, flexShrink: sizing.wraps ? 1 : 0, flexBasis: "auto" } : null),
+            ...(compact ? { flexGrow: 1, flexShrink: 1, flexBasis: "auto" } : null),
             gap: compact ? 6 : 4,
-            paddingHorizontal: compact ? 14 : 8,
+            // Armed on a phone the solid pill says what it does in words; its
+            // square goes and its padding narrows, so "Confirm stop" fits
+            // beside Allow and Deny at full size on a 360 pt phone.
+            paddingHorizontal: compact ? (solid ? 10 : 14) : 8,
             backgroundColor: fill(stopHover.hovered),
             borderTopLeftRadius: round,
             borderBottomLeftRadius: round,
@@ -1263,8 +1277,8 @@ function StopControl(props: StopControlProps) {
           },
         ]}
       >
-        <StopSquare compact={compact} color={color} />
-        <Text numberOfLines={compact ? sizing.lines : 1} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
+        {compact && solid ? null : <StopSquare compact={compact} color={color} />}
+        <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
           {label}
         </Text>
       </Pressable>

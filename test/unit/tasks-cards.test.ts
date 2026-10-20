@@ -537,7 +537,7 @@ describe("TaskCardView rows", () => {
     expect(icons(byLabel(tree.root, "允许"))).toEqual(["Check"]);
   });
 
-  it("on a phone, keeps the action labels on one line, sized to their text, and wraps the bar instead", async () => {
+  it("on a phone, keeps the action labels on one line, sized to their text, in one row", async () => {
     const card = sample("sample-input");
     const buttons = permissionButtons(card.permission!, "en");
     const element = (stopPhase: StopPhase) =>
@@ -550,21 +550,30 @@ describe("TaskCardView rows", () => {
     const label = byLabel(tree.root, "Allow").find((node) => (node.type as unknown) === "Text");
     expect(label.props.numberOfLines).toBe(1);
     expect(flat(label.props.style).flexShrink).toBe(0);
-    expect(flat(hostByTestId(tree.root, "task-card-actions").props.style).flexWrap).toBe("wrap");
+    // No flexWrap: on Android it left a phantom second row's height under the buttons.
+    expect(flat(hostByTestId(tree.root, "task-card-actions").props.style).flexWrap).toBeUndefined();
     const stop = () => flat(hostByTestId(tree.root, "task-card-stop").props.style);
-    expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 0, flexBasis: "auto" });
+    // Only the stop pill gives width back, its label shrinking its font on one line.
+    expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 1, flexBasis: "auto" });
     // No `flex` beside `flexShrink`: React Native Web warns when they update together.
     expect(stop().flex).toBeUndefined();
+    const squares = (node: ReactTestInstance) => node.findAll((child) => (child.type as unknown) === "View" && child.props.testID === "stop-square");
+    expect(squares(byLabel(tree.root, "Stop"))).toHaveLength(1);
     await act(async () => tree.update(element("confirming")));
-    expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 0, flexBasis: "auto" });
+    expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 1, flexBasis: "auto" });
     expect(stop().flex).toBeUndefined();
-    expect(flat(byLabel(tree.root, "Confirm stop").props.style).minHeight).toBe(40);
+    const confirm = byLabel(tree.root, "Confirm stop");
+    expect(flat(confirm.props.style)).toMatchObject({ minHeight: 40, paddingHorizontal: 10 });
+    expect(confirm.find((node) => (node.type as unknown) === "Text").props).toMatchObject({ numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.75 });
+    // Armed, the pill drops its square to fit "Confirm stop" at full size.
+    expect(squares(confirm)).toHaveLength(0);
   });
 
   it("lets a phone label wrap between words only with an enlarged system font", () => {
-    expect(phoneButtonSizing(1)).toMatchObject({ wraps: false, lines: 1, label: { flexShrink: 0 } });
+    expect(phoneButtonSizing(1)).toMatchObject({ wraps: false, lines: 1, label: { flexShrink: 0 }, box: { flexShrink: 0 }, fit: {} });
+    expect(phoneButtonSizing(1, true)).toMatchObject({ wraps: false, lines: 1, box: { flexShrink: 1 }, fit: { adjustsFontSizeToFit: true } });
     expect(phoneButtonSizing(1.1).wraps).toBe(false);
-    expect(phoneButtonSizing(LARGE_FONT_SCALE)).toMatchObject({ wraps: true, lines: 2, label: { flexShrink: 1 }, box: { flexShrink: 1 } });
+    expect(phoneButtonSizing(LARGE_FONT_SCALE)).toMatchObject({ wraps: true, lines: 2, label: { flexShrink: 1 }, box: { flexShrink: 1 }, fit: {} });
   });
 
   it("draws the permission summary, its buttons and the remaining count", async () => {
