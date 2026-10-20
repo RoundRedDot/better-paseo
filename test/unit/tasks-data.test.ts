@@ -469,12 +469,12 @@ describe("Tasks data store", () => {
   it("shares active subscriptions across hooks and releases them with the last consumer", async () => {
     const fake = createFakePaseo({ agents: [activeAgent("a", { status: "running" })] });
     let ready = false;
-    let counts = { needsInput: 0, running: 0, review: 0, done: 0 };
+    let counts = { needsInput: 0, running: 0 };
     function BoardAndSidebar() {
       const board = useTasks(fake.paseo, { doneWindow: "24h", includeDone: true });
       const sidebar = useTaskCounts(fake.paseo);
       ready = board.ready && sidebar.ready;
-      counts = { needsInput: sidebar.needsInput, running: sidebar.running, review: sidebar.review, done: sidebar.done };
+      counts = { needsInput: sidebar.needsInput, running: sidebar.running };
       return null;
     }
     let renderer!: Renderer;
@@ -488,5 +488,172 @@ describe("Tasks data store", () => {
     expect(fake.openSubscriptions()).toBe(5);
     act(() => renderer.unmount());
     expect(fake.openSubscriptions()).toBe(0);
+  });
+
+  describe("sidebar counts", () => {
+    async function mountCounts(fake: Fake) {
+      let current!: ReturnType<typeof useTaskCounts>;
+      let renders = 0;
+      function Counts() {
+        current = useTaskCounts(fake.paseo);
+        renders += 1;
+        return null;
+      }
+      let renderer!: Renderer;
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(Counts));
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      return { get current() { return current; }, get renders() { return renders; }, unmount: () => act(() => renderer.unmount()) };
+    }
+
+    const permission = { id: "p", provider: "claude", name: "Bash", kind: "tool" as const };
+
+    it("open one status subscription and nothing the board alone needs", async () => {
+      const fake = createFakePaseo({
+        agents: [
+          activeAgent("running", { status: "running" }),
+          activeAgent("asking", { status: "running", pendingPermissions: [permission] }),
+          activeAgent("unread", { status: "idle", requiresAttention: true, attentionReason: "finished" }),
+          activeAgent("done", { status: "idle" }),
+        ],
+        workspaces: [workspace()],
+        projects: [PROJECT],
+        withLabelsAndIcons: true,
+        models: { claude: [] },
+      });
+      const counts = await mountCounts(fake);
+      try {
+        expect(counts.current).toEqual({ running: 1, needsInput: 1, ready: true });
+        expect(fake.calls.map((call) => call.method)).toEqual(["agents.list"]);
+        expect(fake.calls[0]?.input).toEqual({ filter: { statuses: ["running", "initializing", "error"] }, subscribe: {} });
+        expect(fake.openSubscriptions()).toBe(1);
+      } finally {
+        counts.unmount();
+      }
+      expect(fake.openSubscriptions()).toBe(0);
+    });
+
+    it("follow live updates and re-render only when a number changes", async () => {
+      const fake = createFakePaseo({ agents: [activeAgent("a", { status: "running" })] });
+      const counts = await mountCounts(fake);
+      try {
+        const before = counts.renders;
+        const shown = counts.current;
+        await act(async () => {
+          fake.upsertAgent(activeAgent("a", { status: "running", title: "Renamed", updatedAt: at(12) }));
+          await Promise.resolve();
+        });
+        expect(counts.renders).toBe(before);
+        expect(counts.current).toBe(shown);
+        await act(async () => {
+          fake.upsertAgent(activeAgent("b", { status: "running", pendingPermissions: [permission] }));
+          await Promise.resolve();
+        });
+        expect(counts.current).toEqual({ running: 1, needsInput: 1, ready: true });
+        await act(async () => {
+          fake.upsertAgent(activeAgent("a", { status: "idle", requiresAttention: true, attentionReason: "finished" }));
+          await Promise.resolve();
+        });
+        expect(counts.current).toEqual({ running: 0, needsInput: 1, ready: true });
+      } finally {
+        counts.unmount();
+      }
+    });
+
+    it("share the board's cards while it is open and drop back to one subscription after", async () => {
+      const fake = createFakePaseo({
+        agents: [
+          activeAgent("running", { status: "running" }),
+          activeAgent("legacy", { status: "idle", requiresAttention: true, attentionReason: "permission" }),
+          activeAgent("unread", { status: "idle", requiresAttention: true, attentionReason: "finished" }),
+        ],
+        workspaces: [workspace()],
+        projects: [PROJECT],
+      });
+      const counts = await mountCounts(fake);
+      try {
+        expect(counts.current).toEqual({ running: 1, needsInput: 0, ready: true });
+        const board = await mountTasks(fake);
+        expect(board.current.ready).toBe(true);
+        expect(board.current.byId.get("running")?.location.branch).toBe("feature/tasks");
+        // The board's attention subscription lists an old daemon's permission wait; the counts follow it.
+        expect(counts.current).toEqual({ running: 1, needsInput: 1, ready: true });
+        expect(fake.openSubscriptions()).toBe(5);
+        board.unmount();
+        expect(fake.openSubscriptions()).toBe(1);
+        expect(counts.current).toEqual({ running: 1, needsInput: 0, ready: true });
+        await act(async () => {
+          fake.upsertAgent(activeAgent("second", { status: "running" }));
+          await Promise.resolve();
+        });
+        expect(counts.current.running).toBe(2);
+        const methods = fake.calls.map((call) => call.method);
+        const reopened = await mountTasks(fake);
+        try {
+          expect(reopened.current.ready).toBe(true);
+          expect(reopened.current.lanes.review.cards.map((card) => card.id)).toEqual(["unread"]);
+          expect(reopened.current.byId.get("second")?.location.branch).toBe("feature/tasks");
+          expect(fake.calls.slice(methods.length).map((call) => call.method).sort()).toEqual(["agents.list", "agents.list", "projects.list", "workspaces.list"]);
+        } finally {
+          reopened.unmount();
+        }
+      } finally {
+        counts.unmount();
+      }
+      expect(fake.openSubscriptions()).toBe(0);
+    });
+  });
+
+  it("holds the board on its skeleton until the unread agents and the workspaces arrive", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("running", { status: "running" }), activeAgent("unread", { status: "idle", requiresAttention: true, attentionReason: "finished" })],
+      workspaces: [workspace()],
+    });
+    const list = fake.paseo.workspaces.list.bind(fake.paseo.workspaces);
+    let releaseWorkspaces!: () => void;
+    const gate = new Promise<void>((resolve) => { releaseWorkspaces = resolve; });
+    (fake.paseo.workspaces as { list: unknown }).list = async (options: { subscribe: {} }) => {
+      await gate;
+      return list(options);
+    };
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(mounted.current.ready).toBe(false);
+      await act(async () => {
+        releaseWorkspaces();
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.ready).toBe(true);
+      expect(mounted.current.byId.get("unread")?.location.workspaceName).toBe("Tasks workspace");
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("reads model names only while a board is open", async () => {
+    const catalog: PaseoProviderModelsResult["models"] = [{ provider: "claude", id: "claude-opus-5-5", label: "Claude Opus 5.5", thinkingOptions: [] }];
+    const fake = createFakePaseo({ agents: [activeAgent("a", { status: "running" })], models: { claude: catalog } });
+    let renderer!: Renderer;
+    function Sidebar() {
+      useTaskCounts(fake.paseo);
+      return null;
+    }
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Sidebar));
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    });
+    try {
+      expect(fake.calls.some((call) => call.method === "providers.listModels")).toBe(false);
+      const board = await mountTasks(fake);
+      expect(board.current.byId.get("a")?.modelLabel).toBe("Claude Opus 5.5");
+      board.unmount();
+      const again = await mountTasks(fake);
+      expect(again.current.byId.get("a")?.modelLabel).toBe("Claude Opus 5.5");
+      again.unmount();
+      expect(fake.calls.filter((call) => call.method === "providers.listModels")).toHaveLength(1);
+    } finally {
+      act(() => renderer.unmount());
+    }
   });
 });

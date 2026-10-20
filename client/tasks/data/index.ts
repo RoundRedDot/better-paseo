@@ -30,8 +30,16 @@ export interface WorkspaceOption {
 export interface TasksOptions {
   /** The done lane's time window. */
   doneWindow: DoneWindow;
-  /** Page the done lane in; false keeps only the active subscription (the sidebar's case). */
+  /** Page the done lane in; false keeps only the active lanes. */
   includeDone: boolean;
+}
+
+/** The sidebar row's two numbers. */
+export interface SidebarCounts {
+  running: number;
+  needsInput: number;
+  /** False until the first active snapshot arrives. */
+  ready: boolean;
 }
 
 export interface TasksSnapshot {
@@ -122,10 +130,22 @@ interface ProjectIconValue {
   uri: string | null;
 }
 
-const ACTIVE_SUBSCRIPTIONS: Array<{ key: string; filter: PaseoAgentListOptions["filter"] }> = [
-  { key: "active-status", filter: { statuses: ["running", "initializing", "error"] } },
-  { key: "active-attention", filter: { requiresAttention: true } },
-];
+/**
+ * The agents in flight. The only subscription the sidebar's counts need: an
+ * agent that waits for a permission is mid-turn, so it is running. Both
+ * daemons (0.11, 0.12) store attention only for "finished" and "error"; a
+ * "permission" reason survives only on records from older daemons, and the
+ * board's attention subscription still lists those.
+ */
+const STATUS_KEY = "active-status";
+const STATUS_FILTER: PaseoAgentListOptions["filter"] = { statuses: ["running", "initializing", "error"] };
+/**
+ * The unread and failed agents; with the workspaces, labels, projects and
+ * model names, opened only while a board is open. Unread agents are most of
+ * a busy daemon's active records, and each one is a full snapshot.
+ */
+const ATTENTION_KEY = "active-attention";
+const ATTENTION_FILTER: PaseoAgentListOptions["filter"] = { requiresAttention: true };
 const DONE_SUBSCRIPTION = "done-first";
 const PAGE_SIZE = 50;
 const LABEL_COLORS: Readonly<Record<string, string>> = {
@@ -356,9 +376,28 @@ interface SnapshotCache {
   snapshot: TasksSnapshot;
 }
 
+/** What a consumer needs: the counts alone (the sidebar), the board, the board with its done lane. */
+interface TasksDemand {
+  board: boolean;
+  done: boolean;
+}
+
+/**
+ * Subscriptions belong to a tier: `base` while anything is mounted, `board`
+ * while a board is, `done` while a board shows its done lane. A run is the
+ * tier's generation when a request left, so a late answer for a closed tier
+ * is released instead of applied.
+ */
+interface Run {
+  generation: number;
+  tier: "base" | "board" | "done";
+  tierRun: number;
+}
+
 interface TaskStore {
-  subscribe(listener: () => void, includeDone: boolean): () => void;
+  subscribe(listener: () => void, demand: TasksDemand): () => void;
   getSnapshot(options: TasksOptions): TasksHandle;
+  getCounts(): SidebarCounts;
   loadMoreDone(window: DoneWindow): void;
   resolveParent(id: string): void;
   requestProjectIcon(projectId: string): void;
@@ -385,9 +424,16 @@ function createStore(api: PaseoApi): TaskStore {
   const subscriptions = new Map<string, StoreSubscription>();
   const projectUnsubscribes: Array<() => void> = [];
   let consumers = 0;
+  let boardConsumers = 0;
   let doneConsumers = 0;
   let generation = 0;
-  let activeReady = false;
+  let boardRun = 0;
+  let doneRun = 0;
+  let statusReady = false;
+  let attentionReady = false;
+  let workspacesReady = false;
+  let countsCache: SidebarCounts | null = null;
+  let countsDirty = true;
   let loadingDone = false;
   let doneCursor: string | null = null;
   let doneTailAt: string | null = null;
@@ -398,6 +444,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   const emitNotification = () => {
     snapshotCaches = [];
+    countsDirty = true;
     for (const listener of listeners) listener();
   };
 
@@ -498,9 +545,7 @@ function createStore(api: PaseoApi): TaskStore {
     const oldBase = baseCards.get(agent.id);
     if (!shallowCardEqual(oldBase, base)) baseCards.set(agent.id, base);
     else if (!oldBase) baseCards.set(agent.id, base);
-    if (agent.model && !modelCatalogs.has(agent.provider) && !modelRequests.has(agent.provider)) {
-      requestModelCatalog(agent.provider, generation);
-    }
+    requestModelCatalogFor(agent);
     const affected = new Set<string>([agent.id]);
     if (oldParent) affected.add(oldParent);
     if (newParent) affected.add(newParent);
@@ -525,15 +570,15 @@ function createStore(api: PaseoApi): TaskStore {
 
   function reconcileActiveMembers(agent: PaseoAgent) {
     if (isArchived(agent)) {
-      for (const { key } of ACTIVE_SUBSCRIPTIONS) sourceMembers.get(key)?.delete(agent.id);
+      for (const key of [STATUS_KEY, ATTENTION_KEY]) sourceMembers.get(key)?.delete(agent.id);
       return;
     }
     const statusMatches = ["running", "initializing", "error"].includes(agent.status);
     const attentionMatches = Boolean(agent.requiresAttention);
-    if (statusMatches) sourceMembers.get("active-status")?.add(agent.id);
-    else sourceMembers.get("active-status")?.delete(agent.id);
-    if (attentionMatches) sourceMembers.get("active-attention")?.add(agent.id);
-    else sourceMembers.get("active-attention")?.delete(agent.id);
+    if (statusMatches) sourceMembers.get(STATUS_KEY)?.add(agent.id);
+    else sourceMembers.get(STATUS_KEY)?.delete(agent.id);
+    if (attentionMatches) sourceMembers.get(ATTENTION_KEY)?.add(agent.id);
+    else sourceMembers.get(ATTENTION_KEY)?.delete(agent.id);
   }
 
   function applyAgentUpdate(sourceKey: string, update: AgentUpdateEnvelope) {
@@ -576,7 +621,8 @@ function createStore(api: PaseoApi): TaskStore {
       }
       sourceMembers.set(sourceKey, nextMembers);
       for (const id of [...entries.keys()]) if (!nextMembers.has(id) && memberSetsContaining(id).length === 0) dropIfUnreferenced(id);
-      if (sourceKey.startsWith("active-")) activeReady = true;
+      if (sourceKey === STATUS_KEY) statusReady = true;
+      if (sourceKey === ATTENTION_KEY) attentionReady = true;
       if (sourceKey === DONE_SUBSCRIPTION) {
         doneCursor = snapshot.pageInfo.nextCursor;
         doneTailAt = snapshot.entries.at(-1)?.agent.updatedAt ?? null;
@@ -590,19 +636,26 @@ function createStore(api: PaseoApi): TaskStore {
     notify();
   }
 
+  function isCurrent(run: Run): boolean {
+    if (run.generation !== generation || consumers === 0) return false;
+    if (run.tier === "board") return boardConsumers > 0 && run.tierRun === boardRun;
+    if (run.tier === "done") return doneConsumers > 0 && run.tierRun === doneRun;
+    return true;
+  }
+
   async function observeOwned<T extends { subscription?: OwnedSubscriptionLike }>(
     key: string,
     result: T,
-    run: number,
+    run: Run,
     initial: (snapshot: T) => void,
     update: (message: unknown) => void,
   ) {
     const owned = result.subscription;
     if (!owned) {
-      if (run === generation) initial(result);
+      if (isCurrent(run)) initial(result);
       return;
     }
-    if (run !== generation || consumers === 0 || (key === DONE_SUBSCRIPTION && doneConsumers === 0)) {
+    if (!isCurrent(run)) {
       await owned.release();
       return;
     }
@@ -623,7 +676,7 @@ function createStore(api: PaseoApi): TaskStore {
     subscriptions.set(key, { stopObserver, release: () => { void owned.release(); } });
     try {
       const ready = await owned.ready as T;
-      if (run !== generation) return;
+      if (!isCurrent(run)) return;
       initial(ready);
       initialApplied = true;
       for (const event of pending) {
@@ -631,8 +684,17 @@ function createStore(api: PaseoApi): TaskStore {
         else update(event.value);
       }
     } catch (caught) {
-      if (run === generation) subscriptionError(caught);
+      if (isCurrent(run)) subscriptionError(caught);
     }
+  }
+
+  /**
+   * Model names show on cards only, so a catalog is read while a board is
+   * open, once per provider; it is kept when the board closes.
+   */
+  function requestModelCatalogFor(agent: PaseoAgent) {
+    if (boardConsumers === 0 || !agent.model || modelCatalogs.has(agent.provider) || modelRequests.has(agent.provider)) return;
+    requestModelCatalog(agent.provider, generation);
   }
 
   function requestModelCatalog(provider: string, run: number) {
@@ -662,10 +724,10 @@ function createStore(api: PaseoApi): TaskStore {
     return { filter, subscribe: {} };
   }
 
-  async function openAgentSubscription(key: string, options: PaseoAgentListOptions, run: number) {
+  async function openAgentSubscription(key: string, options: PaseoAgentListOptions, run: Run) {
     try {
       const result = await api.agents.list(options);
-      if (run !== generation || consumers === 0 || (key === DONE_SUBSCRIPTION && doneConsumers === 0)) {
+      if (!isCurrent(run)) {
         await result.subscription?.release();
         return;
       }
@@ -673,7 +735,11 @@ function createStore(api: PaseoApi): TaskStore {
         (snapshot) => replaceAgentSnapshot(key, snapshot as PaseoAgentListResult),
         (message) => applyAgentUpdate(key, message as AgentUpdateEnvelope));
     } catch (caught) {
-      if (run === generation) subscriptionError(caught);
+      if (isCurrent(run)) {
+        // A failed list must not hold the board on its skeleton.
+        if (key === ATTENTION_KEY) attentionReady = true;
+        subscriptionError(caught);
+      }
     }
   }
 
@@ -690,15 +756,25 @@ function createStore(api: PaseoApi): TaskStore {
     notify();
   }
 
-  async function startWorkspaceSubscription(run: number) {
+  /**
+   * The board's own workspace subscription. It repeats the host's: the
+   * daemon sends `workspace_update` once per subscription, and a plugin
+   * cannot reach the host's. `workspace_update` is no session event
+   * (`observeEvents`), `workspaces.subscribe` relays only this API's own
+   * lists, and `useWorkspace` reads one id with no git, pull request or
+   * labels, outside screens and sidebar items at that. So it runs only
+   * while a board is open.
+   */
+  async function startWorkspaceSubscription(run: Run) {
     try {
       const result = await api.workspaces.list({ subscribe: {} });
-      if (run !== generation || consumers === 0) {
+      if (!isCurrent(run)) {
         await result.subscription?.release();
         return;
       }
       await observeOwned("workspaces", result, run, (snapshot) => {
         batchUpdates(() => {
+          workspacesReady = true;
           const workspaceSnapshot = snapshot as PaseoWorkspaceListResult;
           const next = new Set<string>();
           for (const workspace of workspaceSnapshot.entries) {
@@ -734,7 +810,10 @@ function createStore(api: PaseoApi): TaskStore {
         }
       });
     } catch (caught) {
-      if (run === generation) subscriptionError(caught);
+      if (isCurrent(run)) {
+        workspacesReady = true;
+        subscriptionError(caught);
+      }
     }
   }
 
@@ -751,12 +830,12 @@ function createStore(api: PaseoApi): TaskStore {
     notify();
   }
 
-  async function startLabelSubscription(run: number) {
+  async function startLabelSubscription(run: Run) {
     const labelApi = api.workspaces as unknown as OptionalLabelsApi;
     if (typeof labelApi.listLabels !== "function") return;
     try {
       const result = await labelApi.listLabels({ subscribe: {} });
-      if (run !== generation || consumers === 0) {
+      if (!isCurrent(run)) {
         await result.subscription?.release();
         return;
       }
@@ -780,7 +859,7 @@ function createStore(api: PaseoApi): TaskStore {
       const stopObserver = result.subscription.subscribe(observer);
       subscriptions.set("labels", { stopObserver, release: () => { void result.subscription?.release(); } });
       const ready = await result.subscription.ready;
-      if (run !== generation) return;
+      if (!isCurrent(run)) return;
       applyLabelDefinitions(ready.labels);
       initialApplied = true;
       for (const event of pending) {
@@ -788,7 +867,7 @@ function createStore(api: PaseoApi): TaskStore {
         else applyLabelUpdate(event.value);
       }
     } catch (caught) {
-      if (run === generation) subscriptionError(caught);
+      if (isCurrent(run)) subscriptionError(caught);
     }
   }
 
@@ -833,23 +912,24 @@ function createStore(api: PaseoApi): TaskStore {
     }
   }
 
-  async function startProjects(run: number) {
+  async function startProjects(run: Run) {
     const queued: Array<unknown> = [];
     let initialApplied = false;
     projectUnsubscribes.push(api.projects.subscribe((update) => {
+      if (!isCurrent(run)) return;
       if (initialApplied) applyProjectUpdate(update);
       else queued.push(update);
     }));
     try {
       const result = await api.projects.list();
-      if (run !== generation || consumers === 0) return;
+      if (!isCurrent(run)) return;
       batchUpdates(() => {
         for (const project of result.projects) applyProject(project);
         initialApplied = true;
         for (const update of queued) applyProjectUpdate(update as PaseoProjectUpdate);
       });
     } catch (caught) {
-      if (run === generation) subscriptionError(caught);
+      if (isCurrent(run)) subscriptionError(caught);
     }
   }
 
@@ -864,17 +944,27 @@ function createStore(api: PaseoApi): TaskStore {
     }
   }
 
-  function startActive(run: number) {
-    for (const { key, filter } of ACTIVE_SUBSCRIPTIONS) {
-      sourceMembers.set(key, new Set());
-      void openAgentSubscription(key, activeOptions(filter), run);
-    }
+  function startBase() {
+    const run: Run = { generation, tier: "base", tierRun: 0 };
+    statusReady = false;
+    sourceMembers.set(STATUS_KEY, new Set());
+    void openAgentSubscription(STATUS_KEY, activeOptions(STATUS_FILTER), run);
+  }
+
+  function startBoard() {
+    const run: Run = { generation, tier: "board", tierRun: ++boardRun };
+    attentionReady = false;
+    workspacesReady = false;
+    sourceMembers.set(ATTENTION_KEY, new Set());
+    void openAgentSubscription(ATTENTION_KEY, activeOptions(ATTENTION_FILTER), run);
     void startWorkspaceSubscription(run);
     void startLabelSubscription(run);
     void startProjects(run);
+    for (const entry of entries.values()) requestModelCatalogFor(entry.agent);
   }
 
-  function startDone(run: number) {
+  function startDone() {
+    const run: Run = { generation, tier: "done", tierRun: ++doneRun };
     sourceMembers.set(DONE_SUBSCRIPTION, new Set());
     void openAgentSubscription(DONE_SUBSCRIPTION, {
       filter: { statuses: ["idle", "closed"] },
@@ -893,6 +983,7 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function stopDone() {
+    doneRun += 1;
     stopSubscription(DONE_SUBSCRIPTION);
     for (const key of [...sourceMembers.keys()]) if (key === DONE_SUBSCRIPTION || key.startsWith("done-page-")) sourceMembers.delete(key);
     for (const id of [...entries.keys()]) if (memberSetsContaining(id).length === 0) dropIfUnreferenced(id);
@@ -900,6 +991,33 @@ function createStore(api: PaseoApi): TaskStore {
     doneTailAt = null;
     loadingDone = false;
     notify();
+  }
+
+  /**
+   * The last board closed: back to the counts' one subscription. Records
+   * only the board listed go, and the rest lose the workspace and project
+   * details that would go stale; a board opened later reads them again.
+   */
+  function stopBoard() {
+    boardRun += 1;
+    for (const key of [ATTENTION_KEY, "workspaces", "labels"]) stopSubscription(key);
+    for (const unsubscribe of projectUnsubscribes.splice(0)) unsubscribe();
+    sourceMembers.delete(ATTENTION_KEY);
+    attentionReady = false;
+    workspacesReady = false;
+    workspaces.clear();
+    projects.clear();
+    colorNames.clear();
+    projectIcons.clear();
+    iconRequests.clear();
+    batchUpdates(() => {
+      for (const id of [...entries.keys()]) dropIfUnreferenced(id);
+      for (const [id, entry] of entries) {
+        baseCards.set(id, buildBaseCard(entry, undefined, undefined, colorNames, modelCatalogs.get(entry.agent.provider), undefined));
+      }
+      for (const id of entries.keys()) refreshFinalCard(id);
+      notify();
+    });
   }
 
   function stopAll() {
@@ -920,7 +1038,9 @@ function createStore(api: PaseoApi): TaskStore {
     modelRequests.clear();
     projectIcons.clear();
     iconRequests.clear();
-    activeReady = false;
+    statusReady = false;
+    attentionReady = false;
+    workspacesReady = false;
     doneCursor = null;
     doneTailAt = null;
     loadingDone = false;
@@ -991,7 +1111,7 @@ function createStore(api: PaseoApi): TaskStore {
       workspaces: upsertWorkspacesOptions(),
       providers: [...providersById].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label)),
       labels: [...labelsByName.values()].sort((a, b) => a.name.localeCompare(b.name)),
-      ready: activeReady,
+      ready: statusReady && attentionReady && workspacesReady,
       error,
       loadMoreDone: () => { if (options.includeDone) loadMoreDone(options.doneWindow); },
       resolveParent,
@@ -1007,13 +1127,30 @@ function createStore(api: PaseoApi): TaskStore {
     return Number.isFinite(parsed) ? parsed : missing;
   }
 
+  function getCounts(): SidebarCounts {
+    if (countsDirty || !countsCache) {
+      countsDirty = false;
+      let running = 0;
+      let needsInput = 0;
+      for (const card of cards.values()) {
+        if (card.lane === "running") running += 1;
+        else if (card.lane === "needs_input") needsInput += 1;
+      }
+      // The same object while the numbers hold, so a streaming agent does not re-render the row.
+      if (!countsCache || countsCache.running !== running || countsCache.needsInput !== needsInput || countsCache.ready !== statusReady) {
+        countsCache = { running, needsInput, ready: statusReady };
+      }
+    }
+    return countsCache;
+  }
+
   function loadMoreDone(window: DoneWindow) {
     if (loadingDone || !doneCursor || doneConsumers === 0) return;
     const cutoff = doneWindowMs(window);
     const tailTime = doneTailAt ? Date.parse(doneTailAt) : Number.NaN;
     if (cutoff !== null && Number.isFinite(tailTime) && Date.now() - tailTime > cutoff) return;
     const cursor = doneCursor;
-    const run = generation;
+    const run: Run = { generation, tier: "done", tierRun: doneRun };
     loadingDone = true;
     notify();
     void api.agents.list({
@@ -1021,7 +1158,7 @@ function createStore(api: PaseoApi): TaskStore {
       sort: [{ key: "updated_at", direction: "desc" }],
       page: { limit: PAGE_SIZE, cursor },
     }).then((result) => {
-      if (run !== generation || doneConsumers === 0) return;
+      if (!isCurrent(run)) return;
       const key = `done-page-${cursor}`;
       batchUpdates(() => {
         const pageMembers = new Set<string>();
@@ -1035,7 +1172,7 @@ function createStore(api: PaseoApi): TaskStore {
         notify();
       });
     }).catch(subscriptionError).finally(() => {
-      if (run !== generation) return;
+      if (!isCurrent(run)) return;
       loadingDone = false;
       notify();
     });
@@ -1085,29 +1222,38 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   return {
-    subscribe(listener, includeDone) {
+    subscribe(listener, demand) {
+      const done = demand.board && demand.done;
       listeners.add(listener);
       consumers += 1;
       if (consumers === 1) {
-        const run = ++generation;
-        activeReady = false;
-        startActive(run);
+        generation += 1;
+        startBase();
       }
-      if (includeDone) {
+      if (demand.board) {
+        boardConsumers += 1;
+        if (boardConsumers === 1) startBoard();
+      }
+      if (done) {
         doneConsumers += 1;
-        if (doneConsumers === 1) startDone(generation);
+        if (doneConsumers === 1) startDone();
       }
       return () => {
         listeners.delete(listener);
         consumers = Math.max(0, consumers - 1);
-        if (includeDone) {
+        if (done) {
           doneConsumers = Math.max(0, doneConsumers - 1);
-          if (doneConsumers === 0) stopDone();
+          if (doneConsumers === 0 && consumers > 0) stopDone();
+        }
+        if (demand.board) {
+          boardConsumers = Math.max(0, boardConsumers - 1);
+          if (boardConsumers === 0 && consumers > 0) stopBoard();
         }
         if (consumers === 0) stopAll();
       };
     },
     getSnapshot,
+    getCounts,
     loadMoreDone,
     resolveParent,
     requestProjectIcon,
@@ -1126,15 +1272,21 @@ function getStore(api: PaseoApi): TaskStore {
 /** All lanes, all subscriptions. The board screen calls this once. */
 export function useTasks(paseo: PaseoApi, options: TasksOptions): TasksHandle {
   const store = getStore(paseo);
-  const subscribe = useMemo(() => (listener: () => void) => store.subscribe(listener, options.includeDone), [store, options.includeDone]);
+  const subscribe = useMemo(() => (listener: () => void) => store.subscribe(listener, { board: true, done: options.includeDone }), [store, options.includeDone]);
   const getSnapshot = useMemo(() => () => store.getSnapshot(options), [store, options.doneWindow, options.includeDone]);
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
-/** Counts from the active subscription only; the sidebar entry calls this. */
-export function useTaskCounts(paseo: PaseoApi): BoardCounts & { ready: boolean } {
-  const snapshot = useTasks(paseo, { doneWindow: "24h", includeDone: false });
-  return { ...snapshot.counts, ready: snapshot.ready };
+/**
+ * The sidebar's running and needs-input counts. Alone it opens one agent
+ * subscription (running, initializing, error) and nothing else: no
+ * workspaces, projects, labels or model names. With a board open it counts
+ * the board's cards. Re-renders only when a number changes.
+ */
+export function useTaskCounts(paseo: PaseoApi): SidebarCounts {
+  const store = getStore(paseo);
+  const subscribe = useMemo(() => (listener: () => void) => store.subscribe(listener, { board: false, done: false }), [store]);
+  return useSyncExternalStore(subscribe, store.getCounts, store.getCounts);
 }
 
 /** The lanes after the filter bar and search; pure. Hidden subtasks stay on their parent's card. */
