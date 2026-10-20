@@ -279,11 +279,10 @@ describe("TaskCardView rows", () => {
     expect(all.some((text) => text.includes("未提交"))).toBe(false);
   });
 
-  it("keeps only the header, the project and the timer at minimal", async () => {
+  it("keeps only the header and the timer at minimal", async () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: fields("minimal") }));
     const all = texts(tree.root);
-    // The skeleton's minimal preset keeps `project` on (requirements table).
-    expect(all).toEqual(["Port the status ring to React Native", "Codex · GPT-5.5 Codex · Medium", "better-paseo", "12m 30s"]);
+    expect(all).toEqual(["Port the status ring to React Native", "Codex · GPT-5.5 Codex · Medium", "12m 30s"]);
     expect(icons(tree.root)).not.toContain("GitBranch");
     expect(icons(tree.root)).not.toContain("Gauge");
   });

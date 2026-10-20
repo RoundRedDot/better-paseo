@@ -56,14 +56,19 @@ export interface CardFieldPreset {
   labelLimit: LabelLimit;
 }
 
-/** The density table of the spec, one column per preset. */
+/**
+ * The density table of the spec, one column per preset. One deliberate
+ * difference: minimal turns `project` off. The spec's table has it on, but its
+ * own collapse rule ("精简密度只留头部组和计时") and the prototype both keep
+ * only the header and the timer.
+ */
 export const CARD_PRESETS: Readonly<Record<DensityPreset, CardFieldPreset>> = {
   minimal: {
     fields: {
       provider: false,
       model: true,
       thinking: true,
-      project: true,
+      project: false,
       projectIcon: false,
       workspace: false,
       branch: false,
