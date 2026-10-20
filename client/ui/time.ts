@@ -1,3 +1,5 @@
+import type { SettingsLanguage } from "../i18n/settings-strings";
+
 /**
  * The one timestamp format of the timeline (S7 design spec §3.5, §3.8):
  * `HH:mm` today, `Sep 16, 06:47` on any other day, `Sep 16 2025, 06:47` in
@@ -25,17 +27,21 @@ export function formatFullStamp(date: Date): string {
   return `${String(date.getFullYear()).padStart(4, "0")}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${clock}`;
 }
 
-/** Compact footer text by default; spaced, localized units for hover hints. */
-export function formatDuration(durationMs: number, style: "compact" | "zh" | "en" = "compact"): string {
+/**
+ * Compact footer text (`1分18秒`, `1m 18s`), or spaced units for hover hints
+ * (`1 分 18 秒`, `1 min 18 s`).
+ */
+export function formatDuration(durationMs: number, language: SettingsLanguage, spaced = false): string {
   const seconds = Math.floor(durationMs / 1000);
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor(seconds / 60) % 60;
   const rest = seconds % 60;
-  const units = style === "en" ? ["h", "min", "s"] : ["小时", "分", "秒"];
-  const gap = style === "compact" ? "" : " ";
-  return [hours > 0 ? `${hours}${gap}${units[0]}` : null,
-    hours > 0 || minutes > 0 ? `${minutes}${gap}${units[1]}` : null,
-    `${rest}${gap}${units[2]}`].filter((part) => part !== null).join(gap);
+  const units = language === "zh" ? ["小时", "分", "秒"] : spaced ? ["h", "min", "s"] : ["h", "m", "s"];
+  const unitGap = spaced ? " " : "";
+  const partGap = spaced || language === "en" ? " " : "";
+  return [hours > 0 ? `${hours}${unitGap}${units[0]}` : null,
+    hours > 0 || minutes > 0 ? `${minutes}${unitGap}${units[1]}` : null,
+    `${rest}${unitGap}${units[2]}`].filter((part) => part !== null).join(partGap);
 }
 
 export function formatStamp(date: Date, now: Date = new Date()): string {

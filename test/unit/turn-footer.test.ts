@@ -110,7 +110,7 @@ describe("assistant footer", () => {
     })); });
     try {
       const labels = { toolbar: undefined, reply: "Copy reply", model: "Copy model name",
-        time: `Start time ${formatFullStamp(new Date(1000))}`, duration: "Elapsed time: 3秒" };
+        time: `Start time ${formatFullStamp(new Date(1000))}`, duration: "Elapsed time: 3s" };
       const trigger = renderer.root.findAllByType("Pressable" as never).find((node) => target === "toolbar"
         ? node.props.testID === "footer-toolbar" : node.props.accessibilityLabel === labels[target as keyof typeof labels])!;
       act(() => { trigger.props.onLongPress(); });
@@ -207,6 +207,7 @@ describe("assistant footer", () => {
   });
 
   it("shows known timing even without a model and does not invent missing start or duration", () => {
+    updateEnhancerPreferences({ language: "en" });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
       text, at, tokens, durationMs: 0,
@@ -220,7 +221,7 @@ describe("assistant footer", () => {
       expect(rowIds).toEqual(["footer-details-table", "footer-detail-End time", "footer-detail-Elapsed time"]);
       expect(rowIds).not.toContain("footer-detail-Start time");
       expect(rowIds).not.toContain("footer-detail-Model name");
-      expect(table.findAllByType("Text" as never).map((node) => node.props.children)).toContain("0秒");
+      expect(table.findAllByType("Text" as never).map((node) => node.props.children)).toContain("0s");
     } finally { act(() => renderer.unmount()); }
   });
 
@@ -397,7 +398,7 @@ describe("assistant footer", () => {
     try {
       const metadata = renderer.root.findAllByType("Pressable" as never).filter((node) => node.props.accessibilityRole === "image");
       expect(metadata).toHaveLength(2);
-      expect(labels()).toEqual(["Copy", "15:05", "3分56秒"]);
+      expect(labels()).toEqual(["Copy", "15:05", language === "zh" ? "3分56秒" : "3m 56s"]);
       const timeLabel = startedAt != null ? (language === "zh" ? "开始时间" : "Start time")
         : (language === "zh" ? "结束时间" : "End time");
       const timeStamp = startedAt != null ? formatFullStamp(new Date(startedAt)) : "2026-10-15 15:05:03";
@@ -487,6 +488,7 @@ describe("assistant footer", () => {
     }
   });
   it("shows agent, model, today's time and duration after Copy in order", () => {
+    updateEnhancerPreferences({ language: "zh" });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, {
       text, at: new Date(2026, 9, 15, 15, 5, 3), tokens,
@@ -507,6 +509,7 @@ describe("assistant footer", () => {
   });
 
   it("omits unavailable metadata and retains a measured zero duration", () => {
+    updateEnhancerPreferences({ language: "zh" });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(footer(false)); });
     try {
