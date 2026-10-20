@@ -37,11 +37,13 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 const host = vi.hoisted(() => ({
   settings: null as Record<string, unknown> | null,
   paseo: null as unknown,
+  /** Renders that read the settings through the host's hook (each mounted reader is one live read). */
+  settingsHooks: 0,
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   usePaseo: () => host.paseo,
   useRpc: () => () => Promise.resolve({ stop: false }),
-  useSettings: () => (host.settings ? { status: "ready", values: host.settings, revision: "1", saving: false, saveError: null } : { status: "loading" }),
+  useSettings: () => (host.settingsHooks++, host.settings ? { status: "ready", values: host.settings, revision: "1", saving: false, saveError: null } : { status: "loading" }),
 }));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const React = await import("react");
@@ -103,6 +105,7 @@ beforeEach(() => {
   fake = createFakePaseo({ workspaces: [workspace], agents: [agent], placements: { a1: makePlacement(agent) } });
   host.paseo = fake.paseo;
   host.settings = null;
+  host.settingsHooks = 0;
 });
 afterEach(async () => {
   await act(async () => renderer?.unmount());
@@ -185,6 +188,45 @@ describe("Tasks board screen, opt-in", () => {
     await mount(screen());
     expect(textOf(renderer!.root)).toBe("");
     expect(fake.openSubscriptions()).toBe(0);
+  });
+
+  it("opened directly while off, waits for the startup read and reads nothing itself", async () => {
+    let answer!: (value: unknown) => void;
+    const rpc = vi.fn(() => new Promise((resolve) => (answer = resolve)));
+    contributeTasks({
+      addScreen: () => () => {},
+      addSidebarHeaderItem: () => () => {},
+      addSettingsScreen: () => () => {},
+      addCommandCenterItem: () => () => {},
+      openSettings: vi.fn(),
+      rpc,
+    } as never);
+    await mount(screen());
+    expect(textOf(renderer!.root)).toBe("");
+    answer({ status: "ready", revision: "1", values: { enabled: false } });
+    await act(async () => {
+      for (let tick = 0; tick < 5; tick++) await Promise.resolve();
+    });
+    expect(textOf(renderer!.root)).toContain("The Tasks board is off");
+    expect(textOf(renderer!.root)).toContain("Settings > Tasks");
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(host.settingsHooks).toBe(0);
+    expect(fake.openSubscriptions()).toBe(0);
+  });
+
+  it("reads the settings itself when the startup read failed", async () => {
+    contributeTasks({
+      addScreen: () => () => {},
+      addSidebarHeaderItem: () => () => {},
+      addSettingsScreen: () => () => {},
+      addCommandCenterItem: () => () => {},
+      openSettings: vi.fn(),
+      rpc: () => Promise.reject(new Error("offline")),
+    } as never);
+    host.settings = { ...DEFAULT_TASKS_SETTINGS };
+    await mount(screen());
+    expect(host.settingsHooks).toBeGreaterThan(0);
+    expect(textOf(renderer!.root)).toContain("The Tasks board is off");
   });
 
   it("opens straight onto the board on a reload: registered first, settings later", async () => {
