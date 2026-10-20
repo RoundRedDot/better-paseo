@@ -11,6 +11,11 @@ import { stringifyValue, type ToolCallView } from "./classify";
 export type ResolvePath = (path: string) => string;
 
 export function toolCopyPlan(view: ToolCallView, resolve: ResolvePath): CopyPlan {
+  if (view.agentStatus) return copyPlan({ kind: "mcp", result: view.agentStatus.body });
+  if (view.paseo?.agentOperation) return copyPlan({ kind: "mcp",
+    result: stringifyValue(view.paseo.agentOperation.result), args: view.paseo.agentOperation.arguments });
+  if (view.paseo?.sendAgentPrompt) return copyPlan({ kind: "mcp",
+    result: stringifyValue(view.paseo.sendAgentPrompt.result), args: view.paseo.sendAgentPrompt.arguments });
   if (view.questionData) {
     return copyPlan({ kind: "mcp", args: { questions: view.questionData.questions },
       result: view.text ?? view.output ?? stringifyValue(view.questionData.answers ?? view.questionData.result) });

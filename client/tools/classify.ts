@@ -20,6 +20,11 @@ import type {
 import { buildHubData } from "../hub-details";
 import { buildGitHubData, buildGitHubDataFromLabel } from "../github-request";
 import { lineDiff } from "../components/diff-lines";
+import type { AgentStatusData } from "./agent-status";
+import { readAgentMessage, type AgentMessage } from "./agent-message";
+import { readSendAgentPrompt } from "./send-agent-prompt";
+import { AGENT_OPERATIONS, readAgentOperation } from "./agent-operation";
+import { readPaseoResult } from "./paseo-result";
 
 function extractStringProp(obj: unknown, key: string): string | undefined {
   if (obj && typeof obj === "object" && key in obj) {
@@ -133,18 +138,29 @@ export function buildMcpData(
   };
 }
 
-/** Paseo's own agent tools. Only `create_agent` carries a record worth a card. */
+/** Paseo's creation and dispatch tools carry typed card records. */
 export function buildPaseoData(
   rawName: string,
   input: Record<string, unknown>,
   outputText: string | undefined,
   durationMs: number | undefined,
+  status: string = "completed",
+  output?: unknown,
 ): PaseoToolData | undefined {
+  if (Object.keys(AGENT_OPERATIONS).includes(rawName)) return {
+    id: `paseo-${rawName}`, tool: rawName as keyof typeof AGENT_OPERATIONS, durationMs,
+    agentOperation: readAgentOperation(rawName as keyof typeof AGENT_OPERATIONS, input, output, outputText, status),
+  };
+  if (rawName === "send_agent_prompt") return {
+    id: `paseo-${rawName}`, tool: rawName, durationMs,
+    sendAgentPrompt: readSendAgentPrompt(input, output, outputText, status),
+  };
   if (rawName !== "create_agent") return undefined;
   const provider = asString(input.provider) ?? "agent";
   const [providerId, ...modelParts] = provider.split("/");
   const model = modelParts.join("/");
   const settings = asRecord(input.settings);
+  const result = readPaseoResult(output, outputText);
   return {
     id: `paseo-${rawName}`,
     tool: "create_agent",
@@ -156,8 +172,9 @@ export function buildPaseoData(
       modeId: asString(settings?.modeId),
       thinkingOptionId: asString(settings?.thinkingOptionId),
       initialPrompt: asString(input.initialPrompt) ?? "",
-      agentId: outputText?.match(/[0-9a-f]{8}-[0-9a-f-]{27}/i)?.[0],
-      status: "created",
+      agentId: status === "failed" || status === "canceled" ? undefined :
+        asString(result?.agentId) ?? outputText?.match(/[0-9a-f]{8}-[0-9a-f-]{27}/i)?.[0],
+      status: status === "failed" ? "failed" : status === "running" ? "running" : status === "canceled" ? "canceled" : "created",
     },
   };
 }
@@ -223,6 +240,7 @@ export type ToolKind =
 
 /** What the transformer hands the renderer for one `tool_call` item. */
 export interface ToolCallPayload {
+  agentMessage?: AgentMessage;
   name: string;
   status: string;
   detail?: Record<string, unknown>;
@@ -292,6 +310,7 @@ export interface SubAgentToolData {
  * the showcase's hand-written cards still type-check.
  */
 export interface ToolCallView extends Omit<ToolCalloutData, "tool"> {
+  agentStatus?: AgentStatusData;
   questionData?: Record<string, unknown>;
   tool: ToolKind;
   /** The tool's own name as the host reported it ("Read", "mcp__x__y"). */
@@ -336,6 +355,7 @@ const PROTOCOL_KINDS: Record<string, ToolKind> = {
 };
 
 const PASEO_TOOLS = new Set([
+  ...Object.keys(AGENT_OPERATIONS),
   "create_agent",
   "list_providers",
   "list_models",
@@ -498,6 +518,12 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
   const rawName = (payload.name || "").toLowerCase();
   const detail = asRecord(payload.detail) ?? {};
   const detailType = typeof detail.type === "string" ? detail.type.toLowerCase() : "";
+  const agentStatus = rawName === "agent_message" && payload.agentMessage ? readAgentMessage(payload.agentMessage) : undefined;
+  if (agentStatus) return {
+    id: `live-${rawName}`, tool: "plain_text", name: payload.name, callId: payload.callId,
+    title: agentStatus.title, status: agentStatus.status === "errored" ? "failed" : "completed",
+    text: agentStatus.body, agentStatus,
+  };
   const input = (asRecord(detail.input) ??
     asRecord(detail.arguments) ??
     asRecord(detail.args) ??
@@ -638,7 +664,13 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
   } else if (paseoTool) {
     toolKind = "paseo";
     title = `Paseo: ${paseoTool}`;
-    paseo = buildPaseoData(paseoTool, input, outputText, durationMs);
+    const resultFailed = asRecord(output)?.isError === true;
+    const callStatus = resultFailed ? "failed" : payload.status;
+    paseo = buildPaseoData(paseoTool, input, outputText, durationMs, callStatus, output);
+    if (callStatus === "failed" || paseo?.sendAgentPrompt?.state === "failed") {
+      extra.status = "failed";
+      extra.error = readError(payload.error) ?? outputText;
+    }
   } else if (mcpName || rawName === "mcp") {
     const name = mcpName ?? { server: "mcp", tool: rawName };
     toolKind = "mcp";

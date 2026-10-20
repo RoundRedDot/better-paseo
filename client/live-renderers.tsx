@@ -61,6 +61,7 @@ function toJsonValue(value: unknown): JsonValue {
 }
 
 export interface LiveToolCallPayload {
+  agentMessage?: import("./tools/agent-message").AgentMessage;
   name: string;
   status: string;
   detail?: Record<string, unknown>;
