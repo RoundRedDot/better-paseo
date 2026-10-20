@@ -10,7 +10,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   return { Icon: rn.View, ScrollView: rn.ScrollView, TextInput: rn.TextInput,
     copyText: clipboard.copyText, useToast: () => ({ show: clipboard.show, error: clipboard.error }), useRevealedText: (text: string) => text };
 });
-const host = vi.hoisted(() => ({ cwd: null as string | null, providers: { listModels: vi.fn() } }));
+const host = vi.hoisted(() => ({ cwd: null as string | null, providers: { listModels: vi.fn(), listModes: vi.fn() } }));
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: (_id: string, select: (agent: { cwd: string }) => unknown) => host.cwd === null ? null : select({ cwd: host.cwd }),
   useWorkspace: () => undefined,
@@ -104,8 +104,10 @@ describe("create_agent preview", () => {
     const verify = () => {
       const text = textOf(renderer!.toJSON());
       expect(text).not.toContain("思考");
-      expect(text).not.toContain("max");
       expect(text).toContain("full-access");
+      const thinking = renderer!.root.findByProps({ testID: "create-agent-thinking" });
+      expect(thinking.props.accessibilityLabel).toBe("Thinking: max");
+      expect(thinking.findAllByProps({ name: "Brain" })[0]!.props.color).toBe(tokens.accent);
       expect(text).not.toContain("权限：");
       const item = renderer!.root.findAllByType(ToolbarItem).find((node) => node.props.accessibilityLabel === "Copy model name")!;
       expect(item.props.details.type).toBe(FooterDetails);
@@ -126,6 +128,22 @@ describe("create_agent preview", () => {
     expect(clipboard.copyText).toHaveBeenLastCalledWith(prompt);
     await press("Render Markdown");
     verify();
+  });
+
+  it("labels and colours the mode and model like the composer before the spawned agent loads", async () => {
+    host.providers.listModels.mockResolvedValue({ models: [{ id: "claude-sonnet-5-5", label: "Sonnet 5.5",
+      thinkingOptions: [{ id: "high", label: "High", isDefault: true }] }] });
+    host.providers.listModes.mockResolvedValue({ modes: [{ id: "bypassPermissions", label: "Bypass", icon: "ShieldOff", colorTier: "dangerous" }] });
+    await act(async () => { renderer = TestRenderer.create(agentView(tokens, "Review", { modeId: "bypassPermissions" }, "claude/claude-sonnet-5-5")); });
+    expect(host.providers.listModels).toHaveBeenCalledWith("claude", undefined);
+    expect(textOf(renderer!.root.findByProps({ testID: "create-agent-model-label" }).props.children)).toBe("Sonnet 5.5");
+    const thinking = renderer!.root.findByProps({ testID: "create-agent-thinking" });
+    expect(thinking.props.accessibilityLabel).toBe("Thinking: High");
+    const permissions = renderer!.root.findByProps({ testID: "create-agent-permissions" });
+    expect(permissions.props.accessibilityLabel).toBe("Permissions: Bypass");
+    expect(permissions.findAllByProps({ name: "ShieldOff" })[0]!.props.color).toBe(tokens.danger);
+    const label = permissions.findAll((node) => (node.type as unknown) === "Text")[0]!;
+    expect(StyleSheet.flatten(label.props.style).color).toBe(tokens.foregroundMuted);
   });
 
   it("shows missing settings explicitly without inferring values from the prompt", () => {

@@ -4,7 +4,18 @@ import React from "react";
  * Only the shapes the presentational path touches are provided.
  */
 const AGENT_HANDLE = { refresh: async () => null };
-const PASEO = { agents: { ref: () => AGENT_HANDLE } };
+// Enough of the Claude catalog for the create_agent card to label its model,
+// thinking level and permission mode the way the composer does.
+const PROVIDERS = {
+  listModels: async (provider: string) => ({ models: provider !== "claude" ? [] : [
+    { id: "claude-opus-5", label: "Opus 5", thinkingOptions: [{ id: "high", label: "High", isDefault: true }] },
+  ] }),
+  listModes: async (provider: string) => ({ modes: provider !== "claude" ? [] : [
+    { id: "acceptEdits", label: "Accept File Edits", icon: "ShieldPlus", colorTier: "moderate" },
+    { id: "bypassPermissions", label: "Bypass", icon: "ShieldOff", colorTier: "dangerous" },
+  ] }),
+};
+const PASEO = { agents: { ref: () => AGENT_HANDLE }, providers: PROVIDERS };
 
 export function usePaseo() {
   return PASEO as never;
