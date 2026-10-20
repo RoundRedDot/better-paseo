@@ -65,6 +65,7 @@ import {
 } from "../../client/tasks/cards";
 import { statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
+import { contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { identityColor, projectIconRadius, projectInitial, projectViewKey } from "../../client/tasks/cards/project-icon";
 
 const LIGHT = {
@@ -323,7 +324,6 @@ describe("TaskCardView rows", () => {
       ["pill-label-frontend", "frontend"],
       ["pill-label-p1", "p1"],
       ["pill-labels-more", "+1"],
-      ["pill-context", "86%"],
       ["pill-subtasks", "2"],
     ]);
     expect(texts(hostByTestId(tree.root, "task-card-footer"))).toEqual(["12m 30s"]);
@@ -501,35 +501,82 @@ describe("ProjectIcon", () => {
   });
 });
 
-describe("TaskCardView context pill", () => {
-  const withContext = (used: number) => ({ ...sample("sample-running"), context: { usedTokens: used, maxTokens: 100 } });
-  const pill = (tree: ReactTestRenderer) =>
-    tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "pill-context");
+describe("TaskCardView context ring", () => {
+  const withContext = (used: number, extra: Partial<TaskCard> = {}) => ({
+    ...sample("sample-running"),
+    context: { usedTokens: used, maxTokens: 100 },
+    ...extra,
+  });
+  const ring = (tree: ReactTestRenderer) =>
+    tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-context");
+  const rotation = (node: ReactTestInstance) =>
+    (flat((node.children[0] as ReactTestInstance).props.style).transform as Array<{ rotate: string }>)[0]!.rotate;
 
-  it("turns warning above 80% and danger above 90%", async () => {
-    expect([contextTone(0.8), contextTone(0.81), contextTone(0.9), contextTone(0.91)]).toEqual(["normal", "warning", "warning", "danger"]);
-    for (const [used, color] of [[46, "#6b6b75"], [85, "#a36a00"], [95, "#d93636"]] as const) {
+  it("uses the host's thresholds and number formats", () => {
+    expect([0.69, 0.7, 0.9, 0.91].map(contextRingTone)).toEqual(["normal", "warning", "warning", "danger"]);
+    expect([950, 1500, 647_000, 1_000_000, 1_499_999, 2_600_000].map(formatTokenCount)).toEqual(["950", "2k", "647k", "1m", "1m", "3m"]);
+    expect(formatSessionCost(32.48)).toBe("$32.48");
+    expect(formatSessionCost(0.005)).toBe("$0.0050");
+    expect(formatSessionCost(0)).toBeNull();
+    expect(formatSessionCost(null)).toBeNull();
+  });
+
+  it("sits in the footer before the timer, coloured by the host's thresholds", async () => {
+    for (const [used, color] of [[46, "#6b6b75"], [75, "#a36a00"], [95, "#d93636"]] as const) {
       const tree = await render(cardElement(withContext(used)));
-      const [node] = pill(tree);
-      const label = node!.find((child) => (child.type as unknown) === "Text");
-      expect(label.props.children).toBe(`${used}%`);
-      expect(flat(label.props.style).color).toBe(color);
-      expect(node!.findByType("Icon" as never).props).toMatchObject({ name: "Gauge", color });
-      expect(node!.props.accessibilityLabel).toBe(`上下文 ${used}%`);
+      const footer = hostByTestId(tree.root, "task-card-footer");
+      const meter = hostByTestId(footer, "task-card-context");
+      // The ring is the footer's first element, the timer after it.
+      const firstChild = (footer.children[0] as ReactTestInstance).findAll((node) => typeof node.type === "string")[0];
+      expect(firstChild?.props.testID).toBe("task-card-context");
+      expect(texts(footer)).toEqual(["12m 30s"]);
+      const track = hostByTestId(meter, "context-ring").children[0] as ReactTestInstance;
+      expect(flat(track.props.style)).toMatchObject({ width: 14, height: 14, borderWidth: 2 });
+      const arc = hostByTestId(meter, "context-ring-right").children[0] as ReactTestInstance;
+      expect(flat(arc.props.style)).toMatchObject({ borderColor: "transparent", borderTopColor: color, borderRightColor: color });
       await act(async () => tree.unmount());
       renderer = null;
     }
   });
 
+  it("fills clockwise from twelve with two half rings and round caps", async () => {
+    let tree = await render(cardElement(withContext(25)));
+    const quarter = hostByTestId(tree.root, "context-ring");
+    expect(rotation(hostByTestId(quarter, "context-ring-right"))).toBe("-45deg");
+    expect(quarter.findAll((node) => typeof node.type === "string" && node.props.testID === "context-ring-left")).toHaveLength(0);
+    // Track, right clip, two caps.
+    expect((quarter.children as ReactTestInstance[]).length).toBe(4);
+    await act(async () => tree.update(cardElement(withContext(75))));
+    const three = hostByTestId(tree.root, "context-ring");
+    expect(rotation(hostByTestId(three, "context-ring-right"))).toBe("45deg");
+    expect(rotation(hostByTestId(three, "context-ring-left"))).toBe("135deg");
+  });
+
+  it("shows the host's context details above the ring on hover, desktop only", async () => {
+    const tree = await render(cardElement(withContext(86, { context: { usedTokens: 647_000, maxTokens: 1_000_000 }, usage: { inputTokens: 1, cachedInputTokens: null, outputTokens: 1, totalCostUsd: 32.48 } })));
+    await act(async () => hostByTestId(tree.root, "task-card-context").props.onHoverIn());
+    const details = hostByTestId(tree.root, "task-card-context-details");
+    expect(texts(details)).toEqual(["上下文窗口", "已使用 65%", "647k / 1m tokens", "会话费用 $32.48"]);
+    expect(flat(details.props.style).position).toBe("absolute");
+    expect(flat(hostByTestId(tree.root, "task-card-footer").props.style).zIndex).toBe(OVERLAY_ROW_Z + 1);
+    await act(async () => hostByTestId(tree.root, "task-card-context").props.onHoverOut());
+    expect(flat(hostByTestId(tree.root, "task-card-footer").props.style).zIndex).toBeUndefined();
+
+    // No cost line without a cost; no details on a phone.
+    await act(async () => tree.update(cardElement(withContext(86, { usage: null }), { compact: true })));
+    await act(async () => hostByTestId(tree.root, "task-card-context").props.onHoverIn());
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-context-details")).toHaveLength(0);
+  });
+
   it("hides when the context is unknown, off the running lane, and on a phone until 80%", async () => {
     const tree = await render(cardElement({ ...sample("sample-running"), context: null }));
-    expect(pill(tree)).toHaveLength(0);
+    expect(ring(tree)).toHaveLength(0);
     await act(async () => tree.update(cardElement({ ...withContext(86), lane: "review" })));
-    expect(pill(tree)).toHaveLength(0);
+    expect(ring(tree)).toHaveLength(0);
     await act(async () => tree.update(cardElement(withContext(46), { compact: true })));
-    expect(pill(tree)).toHaveLength(0);
+    expect(ring(tree)).toHaveLength(0);
     await act(async () => tree.update(cardElement(withContext(86), { compact: true })));
-    expect(pill(tree)).toHaveLength(1);
+    expect(ring(tree)).toHaveLength(1);
   });
 });
 
@@ -546,7 +593,6 @@ describe("TaskCardView compact tiers", () => {
       ["pill-branch", "feat/tasks-board"],
       ["pill-label-frontend", "frontend"],
       ["pill-labels-more", "+2"],
-      ["pill-context", "86%"],
       ["pill-subtasks", "2"],
     ]);
     // The brand stays on a phone even with the provider switched off.
