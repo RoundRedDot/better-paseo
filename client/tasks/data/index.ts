@@ -1142,7 +1142,7 @@ export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilt
       (filters.providers.length === 0 || filters.providers.includes(card.provider)) &&
       (filters.labels.length === 0 || card.labels.some((label) => filters.labels.includes(label.name))) &&
       (!filters.openTabsOnly || card.openTab) &&
-      (!filters.hideSubtasks || card.parent === null);
+      (!filters.hideSubtasks || card.parent === null || card.status === "running" || card.status === "needs_input" || card.status === "failed");
   };
   const out = {} as Record<LaneId, LaneModel>;
   for (const id of LANE_ORDER) out[id] = { ...lanes[id], cards: lanes[id].cards.filter(keep) };

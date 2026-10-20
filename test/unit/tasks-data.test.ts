@@ -3,6 +3,8 @@ import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
 import { filterLanes, useTaskCounts, useTasks, type TasksHandle } from "../../client/tasks/data";
+import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
+import { sampleCards } from "../../client/tasks/sample-cards";
 import { at, createFakePaseo, makeAgent, makeWorkspace } from "./helpers/fake-paseo";
 import "./helpers/quiet-renderer";
 
@@ -163,6 +165,56 @@ describe("Tasks data store", () => {
       expect(mounted.current.byId.get("a")?.provider).toBe("bc-bench");
     } finally {
       mounted.unmount();
+    }
+  });
+
+  it("keeps actionable child tasks visible when hiding other subtasks", () => {
+    const samples = new Map(sampleCards().map((card) => [card.id, card]));
+    const parentId = "orchestrator-parent";
+    const child = (id: string, sampleId: string): TaskCard => ({
+      ...samples.get(sampleId)!,
+      id,
+      parent: { id: parentId, title: "Orchestrator parent", missing: false },
+    });
+    const children = [
+      child("child-running", "sample-child-1"),
+      child("child-needs-input", "sample-input"),
+      child("child-failed", "sample-failed"),
+      child("child-unread", "sample-unread"),
+      child("child-done", "sample-done"),
+    ];
+    const parent: TaskCard = {
+      ...samples.get("sample-done")!,
+      id: parentId,
+      title: "Orchestrator parent",
+      children: children.map(({ id, title, status }) => ({ id, title, status })),
+    };
+    const cards = [parent, ...children];
+    const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, {
+      id,
+      cards: cards.filter((card) => card.lane === id),
+      hasMore: false,
+      loading: false,
+    }])) as Record<LaneId, LaneModel>;
+    const filters = {
+      query: "",
+      workspaceIds: [],
+      providers: [],
+      labels: [],
+      openTabsOnly: false,
+      hideSubtasks: true,
+    };
+
+    const hidden = filterLanes(lanes, filters);
+    expect(hidden.needs_input.cards.map((card) => card.id)).toEqual(["child-needs-input"]);
+    expect(hidden.running.cards.map((card) => card.id)).toEqual(["child-running"]);
+    expect(hidden.review.cards.map((card) => card.id)).toEqual(["child-failed"]);
+    expect(hidden.done.cards.map((card) => card.id)).toEqual([parentId]);
+    expect(hidden.done.cards[0]?.children.map((childCard) => childCard.id)).toEqual(children.map((card) => card.id));
+
+    const visible = filterLanes(lanes, { ...filters, hideSubtasks: false });
+    for (const id of LANE_ORDER) {
+      expect(visible[id].cards.map((card) => card.id)).toEqual(lanes[id].cards.map((card) => card.id));
     }
   });
 
