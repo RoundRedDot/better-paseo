@@ -171,6 +171,9 @@ function markFor(provider: string): string | null {
 
 function providerLabel(provider: string): string {
   const normalized = normalizeProvider(provider);
+  if (normalized === "generic") {
+    return provider.trim().toLowerCase() === "generic" ? PROVIDER_LABELS.generic ?? "Agent" : provider;
+  }
   return PROVIDER_LABELS[normalized] ?? normalized;
 }
 
@@ -281,7 +284,8 @@ function buildBaseCard(
       projectName,
       projectIcon,
       workspaceId: agent.workspaceId ?? workspace?.id ?? null,
-      workspaceName: workspaceName && workspaceName !== projectName && workspaceName !== agent.title ? workspaceName : null,
+      workspaceName: workspaceName && workspaceName !== projectName && workspaceName !== agent.title &&
+        workspaceName !== branch && workspaceName !== branchFolder ? workspaceName : null,
       workspaceKind: workspace?.workspaceKind ?? null,
       branch,
       git: hasGitState
@@ -382,11 +386,34 @@ function createStore(api: PaseoApi): TaskStore {
   let doneTailAt: string | null = null;
   let error: string | null = null;
   let snapshotCaches: SnapshotCache[] = [];
+  let notificationBatchDepth = 0;
+  let notificationPending = false;
 
-  const notify = () => {
+  const emitNotification = () => {
     snapshotCaches = [];
     for (const listener of listeners) listener();
   };
+
+  const notify = () => {
+    if (notificationBatchDepth > 0) {
+      notificationPending = true;
+      return;
+    }
+    emitNotification();
+  };
+
+  function batchUpdates<T>(update: () => T): T {
+    notificationBatchDepth += 1;
+    try {
+      return update();
+    } finally {
+      notificationBatchDepth -= 1;
+      if (notificationBatchDepth === 0 && notificationPending) {
+        notificationPending = false;
+        emitNotification();
+      }
+    }
+  }
 
   const memberSetsContaining = (id: string) => [...sourceMembers.entries()].filter(([, members]) => members.has(id));
 
@@ -534,19 +561,21 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function replaceAgentSnapshot(sourceKey: string, snapshot: PaseoAgentListResult) {
-    const nextMembers = new Set<string>();
-    for (const entry of matchingEntries(snapshot)) {
-      nextMembers.add(entry.agent.id);
-      updateRecord(entry.agent, entry.project ?? null);
-    }
-    sourceMembers.set(sourceKey, nextMembers);
-    for (const id of [...entries.keys()]) if (!nextMembers.has(id) && memberSetsContaining(id).length === 0) dropIfUnreferenced(id);
-    if (sourceKey.startsWith("active-")) activeReady = true;
-    if (sourceKey === DONE_SUBSCRIPTION) {
-      doneCursor = snapshot.pageInfo.nextCursor;
-      doneTailAt = snapshot.entries.at(-1)?.agent.updatedAt ?? null;
-    }
-    notify();
+    batchUpdates(() => {
+      const nextMembers = new Set<string>();
+      for (const entry of matchingEntries(snapshot)) {
+        nextMembers.add(entry.agent.id);
+        updateRecord(entry.agent, entry.project ?? null);
+      }
+      sourceMembers.set(sourceKey, nextMembers);
+      for (const id of [...entries.keys()]) if (!nextMembers.has(id) && memberSetsContaining(id).length === 0) dropIfUnreferenced(id);
+      if (sourceKey.startsWith("active-")) activeReady = true;
+      if (sourceKey === DONE_SUBSCRIPTION) {
+        doneCursor = snapshot.pageInfo.nextCursor;
+        doneTailAt = snapshot.entries.at(-1)?.agent.updatedAt ?? null;
+      }
+      notify();
+    });
   }
 
   function subscriptionError(caught: unknown) {
@@ -603,18 +632,20 @@ function createStore(api: PaseoApi): TaskStore {
     modelRequests.add(provider);
     void providerCatalog(api, provider).then((catalog) => {
       if (run !== generation) return;
-      modelCatalogs.set(provider, catalog);
-      for (const [id, entry] of entries) {
-        if (entry.agent.provider !== provider) continue;
-        const workspace = entry.agent.workspaceId ? workspaces.get(entry.agent.workspaceId) : undefined;
-        const project = projectFor(entry, workspace, projects);
-        const projectId = workspace?.projectId ?? project?.projectId ?? null;
-        const base = buildBaseCard(entry, workspace, project, colorNames, catalog, projectId ? projectIcons.get(projectId) : undefined);
-        baseCards.set(id, base);
-        refreshFinalCard(id);
-        for (const child of childrenByParent.get(id) ?? []) refreshFinalCard(child);
-      }
-      notify();
+      batchUpdates(() => {
+        modelCatalogs.set(provider, catalog);
+        for (const [id, entry] of entries) {
+          if (entry.agent.provider !== provider) continue;
+          const workspace = entry.agent.workspaceId ? workspaces.get(entry.agent.workspaceId) : undefined;
+          const project = projectFor(entry, workspace, projects);
+          const projectId = workspace?.projectId ?? project?.projectId ?? null;
+          const base = buildBaseCard(entry, workspace, project, colorNames, catalog, projectId ? projectIcons.get(projectId) : undefined);
+          baseCards.set(id, base);
+          refreshFinalCard(id);
+          for (const child of childrenByParent.get(id) ?? []) refreshFinalCard(child);
+        }
+        notify();
+      });
     }).catch((caught: unknown) => {
       if (run === generation) subscriptionError(caught);
     });
@@ -660,24 +691,26 @@ function createStore(api: PaseoApi): TaskStore {
         return;
       }
       await observeOwned("workspaces", result, run, (snapshot) => {
-        const workspaceSnapshot = snapshot as PaseoWorkspaceListResult;
-        const next = new Set<string>();
-        for (const workspace of workspaceSnapshot.entries) {
-          next.add(workspace.id);
-          updateWorkspace(workspace);
-        }
-        const removed = [...workspaces.keys()].filter((id) => !next.has(id));
-        for (const id of removed) workspaces.delete(id);
-        if (removed.length > 0) {
-          const removedIds = new Set(removed);
-          for (const [id, entry] of entries) {
-            if (!entry.agent.workspaceId || !removedIds.has(entry.agent.workspaceId)) continue;
-            const project = projectFor(entry, undefined, projects);
-            baseCards.set(id, buildBaseCard(entry, undefined, project, colorNames, modelCatalogs.get(entry.agent.provider), project ? projectIcons.get(project.projectId) : undefined));
-            refreshFinalCard(id);
+        batchUpdates(() => {
+          const workspaceSnapshot = snapshot as PaseoWorkspaceListResult;
+          const next = new Set<string>();
+          for (const workspace of workspaceSnapshot.entries) {
+            next.add(workspace.id);
+            updateWorkspace(workspace);
           }
-        }
-        notify();
+          const removed = [...workspaces.keys()].filter((id) => !next.has(id));
+          for (const id of removed) workspaces.delete(id);
+          if (removed.length > 0) {
+            const removedIds = new Set(removed);
+            for (const [id, entry] of entries) {
+              if (!entry.agent.workspaceId || !removedIds.has(entry.agent.workspaceId)) continue;
+              const project = projectFor(entry, undefined, projects);
+              baseCards.set(id, buildBaseCard(entry, undefined, project, colorNames, modelCatalogs.get(entry.agent.provider), project ? projectIcons.get(project.projectId) : undefined));
+              refreshFinalCard(id);
+            }
+          }
+          notify();
+        });
       }, (message) => {
         const envelope = message as WorkspaceUpdateEnvelope;
         if (envelope.type !== "workspace_update" || !envelope.payload) return;
@@ -805,9 +838,11 @@ function createStore(api: PaseoApi): TaskStore {
     try {
       const result = await api.projects.list();
       if (run !== generation || consumers === 0) return;
-      for (const project of result.projects) applyProject(project);
-      initialApplied = true;
-      for (const update of queued) applyProjectUpdate(update as PaseoProjectUpdate);
+      batchUpdates(() => {
+        for (const project of result.projects) applyProject(project);
+        initialApplied = true;
+        for (const update of queued) applyProjectUpdate(update as PaseoProjectUpdate);
+      });
     } catch (caught) {
       if (run === generation) subscriptionError(caught);
     }
@@ -982,15 +1017,17 @@ function createStore(api: PaseoApi): TaskStore {
     }).then((result) => {
       if (run !== generation || doneConsumers === 0) return;
       const key = `done-page-${cursor}`;
-      const pageMembers = new Set<string>();
-      for (const entry of matchingEntries(result)) {
-        pageMembers.add(entry.agent.id);
-        updateRecord(entry.agent, entry.project ?? null);
-      }
-      sourceMembers.set(key, pageMembers);
-      doneCursor = result.pageInfo.nextCursor;
-      doneTailAt = result.entries.at(-1)?.agent.updatedAt ?? doneTailAt;
-      notify();
+      batchUpdates(() => {
+        const pageMembers = new Set<string>();
+        for (const entry of matchingEntries(result)) {
+          pageMembers.add(entry.agent.id);
+          updateRecord(entry.agent, entry.project ?? null);
+        }
+        sourceMembers.set(key, pageMembers);
+        doneCursor = result.pageInfo.nextCursor;
+        doneTailAt = result.entries.at(-1)?.agent.updatedAt ?? doneTailAt;
+        notify();
+      });
     }).catch(subscriptionError).finally(() => {
       if (run !== generation) return;
       loadingDone = false;
