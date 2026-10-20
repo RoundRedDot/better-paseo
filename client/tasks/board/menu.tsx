@@ -260,6 +260,13 @@ function MenuPanel(props: {
       </View>
     );
   }
+  if (Platform.OS === "android") {
+    return (
+      <DragScroll testID={props.testID ?? "menu-panel"} frame={frame} maxHeight={props.maxHeight ?? MENU.maxHeight} contentHeight={layoutMenu(props.sections).height} onScroll={props.onScroll}>
+        {body}
+      </DragScroll>
+    );
+  }
   return (
     <View testID={props.testID ?? "menu-panel"} style={[frame, { paddingVertical: 0, maxHeight: props.maxHeight ?? MENU.maxHeight, overflow: "hidden" }]}>
       <ScrollView
@@ -270,6 +277,56 @@ function MenuPanel(props: {
       >
         {body}
       </ScrollView>
+    </View>
+  );
+}
+
+/** Past this vertical travel a drag on the panel scrolls it instead of pressing a row. */
+const DRAG_SLOP = 6;
+
+/**
+ * An Android menu panel taller than its room, scrolled by dragging in JS.
+ * The menu hangs below its small anchor, and Android hands a native
+ * ScrollView no touch outside its parents' bounds, so a native one there
+ * could not scroll; React Native still finds the rows for presses. The
+ * drag takes the responder from a row once it has moved 6 vertically.
+ */
+function DragScroll(props: {
+  testID: string;
+  frame: object;
+  maxHeight: number;
+  contentHeight: number;
+  onScroll?(y: number): void;
+  children: ReactNode;
+}) {
+  const [offset, setOffset] = useState(0);
+  const range = Math.max(0, props.contentHeight - props.maxHeight);
+  const start = useRef(0);
+  const shown = Math.min(offset, range);
+  const latest = useRef({ shown, range, onScroll: props.onScroll });
+  latest.current = { shown, range, onScroll: props.onScroll };
+  const moveTo = (y: number) => {
+    const next = Math.max(0, Math.min(latest.current.range, y));
+    setOffset(next);
+    latest.current.onScroll?.(next);
+  };
+  type Drag = { nativeEvent: { pageY: number } };
+  return (
+    <View
+      testID={props.testID}
+      style={[props.frame, { paddingVertical: 0, maxHeight: props.maxHeight, overflow: "hidden" }]}
+      onMoveShouldSetResponderCapture={(event: Drag) => Math.abs(event.nativeEvent.pageY - start.current) > DRAG_SLOP}
+      onStartShouldSetResponderCapture={(event: Drag) => {
+        start.current = event.nativeEvent.pageY;
+        return false;
+      }}
+      onResponderGrant={(event: Drag) => {
+        start.current = event.nativeEvent.pageY + latest.current.shown;
+      }}
+      onResponderMove={(event: Drag) => moveTo(start.current - event.nativeEvent.pageY)}
+      onResponderTerminationRequest={() => false}
+    >
+      <View style={{ paddingVertical: MENU.padV, transform: [{ translateY: -shown }] }}>{props.children}</View>
     </View>
   );
 }

@@ -267,6 +267,42 @@ describe("CascadeMenu", () => {
     }
   });
 
+  it("on Android scrolls a tall panel by dragging in JS, since a native ScrollView past its anchor gets no touches", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+    const many: MenuSection[] = [{ key: "all", items: Array.from({ length: 12 }, (_, at) => ({ key: `k${at}`, label: `Row ${at}` })) }];
+    const dims = vi.spyOn(Dimensions, "get").mockReturnValue({ width: 800, height: 360, scale: 3, fontScale: 1 } as never);
+    const node = { measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => cb(100, 150, 240, 300) };
+    try {
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(CascadeMenu, { sections: many, theme: theme(LIGHT), width: 240, top: 34, align: "left", onClose: close }),
+          { createNodeMock: () => node },
+        );
+      });
+      const panel = () => renderer!.root.find((n) => (n.type as unknown) === "View" && n.props.testID === "menu-panel");
+      expect(renderer!.root.findAll((n) => (n.type as unknown) === "ScrollView")).toHaveLength(0);
+      const max = 360 - 150 - MENU_EDGE;
+      expect(StyleSheet.flatten(panel().props.style).maxHeight).toBe(max);
+      const at = (pageY: number) => ({ nativeEvent: { pageY } });
+      expect(panel().props.onStartShouldSetResponderCapture(at(300))).toBe(false);
+      // A press stays the row's; a drag past 6 takes the panel.
+      expect(panel().props.onMoveShouldSetResponderCapture(at(304))).toBe(false);
+      expect(panel().props.onMoveShouldSetResponderCapture(at(290))).toBe(true);
+      act(() => panel().props.onResponderGrant(at(290)));
+      act(() => panel().props.onResponderMove(at(200)));
+      // The panel's first host child is the moving content.
+      const content = () => StyleSheet.flatten(panel().findAll((n) => (n.type as unknown) === "View" && n !== panel())[0]!.props.style);
+      expect(content().transform).toEqual([{ translateY: -90 }]);
+      // Never past the end.
+      act(() => panel().props.onResponderMove(at(-2000)));
+      const range = layoutMenu(many).height - max;
+      expect(content().transform).toEqual([{ translateY: -range }]);
+    } finally {
+      dims.mockRestore();
+      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+    }
+  });
+
   it("draws the icon, label, hint and a chevron for a submenu", () => {
     render(sections());
     const branch = row("Branch");
