@@ -16,6 +16,10 @@ import { taskTokens } from "./tokens";
  * with only its top border coloured, which is a 90° arc. Smaller boxes scale
  * the mark by 3/4; larger ones grow it by half the extra (20 → 14, as the
  * prototype's phone tab).
+ *
+ * One deliberate deviation, at the user's request: needs-input is a hollow
+ * amber ring (the running track, whole and opaque), not the host's filled
+ * CircleAlert.
  */
 
 export const STATUS_RING_PERIOD_MS = 900;
@@ -35,9 +39,8 @@ export interface StatusIconProps {
   height?: number;
   theme: PluginTheme;
   /**
-   * The surface under the icon. The needs-input mark's "!" is knocked out of
-   * the amber disc in this colour, as the host's filled CircleAlert draws it.
-   * Default `surface0`.
+   * The surface under the icon. Kept for callers; the hollow needs-input ring
+   * no longer knocks anything out of a fill. Default `surface0`.
    */
   backdrop?: string;
   /** False stops the ring (a hidden pane, a static preview). Default true. */
@@ -200,37 +203,24 @@ export const StatusIcon = memo(function StatusIcon(props: StatusIconProps) {
   }
 
   if (props.kind === "needs_input") {
-    // The prototype's alert (StatusIcon.dc.html) on a 12 px mark: a 10 px
-    // amber disc, a 1.5 × 3 bar from y 3.5 and a 1.5 dot from y 7.5, both
-    // in the backdrop colour, which is how the host's filled CircleAlert
-    // reads. Everything sits in normal flow inside the disc: on web an
-    // absolutely positioned disc paints over an in-flow sibling whatever the
-    // order, which is what hid the Lucide glyph drawn over it.
-    const disc = 10 * scale;
+    // A deliberate deviation from the host (the user's call): not the filled
+    // CircleAlert but a hollow amber ring, empty in the middle, no "!". It is
+    // the running ring's track (same diameter and stroke) drawn whole and
+    // fully opaque, with no centre dot and no turning arc, so the two never
+    // read alike.
     const stroke = 1.5 * scale;
-    const knockout = props.backdrop ?? tokens.surface0;
     return (
       <View style={box} testID="status-needs_input" {...a11y}>
         <View
-          testID="status-needs_input-disc"
+          testID="status-needs_input-ring"
           style={{
-            width: disc,
-            height: disc,
-            borderRadius: disc / 2,
-            backgroundColor: tokens.status.warning,
-            alignItems: "center",
-            paddingTop: 2.5 * scale,
+            width: mark,
+            height: mark,
+            borderRadius: mark / 2,
+            borderWidth: stroke,
+            borderColor: tokens.status.warning,
           }}
-        >
-          <View
-            testID="status-needs_input-bar"
-            style={{ width: stroke, height: 3 * scale, borderRadius: stroke / 2, backgroundColor: knockout }}
-          />
-          <View
-            testID="status-needs_input-dot"
-            style={{ width: stroke, height: stroke, marginTop: scale, borderRadius: stroke / 2, backgroundColor: knockout }}
-          />
-        </View>
+        />
       </View>
     );
   }
