@@ -11,10 +11,9 @@
  *
  * Changing the table (`upsertAgent`, `removeAgent`, `upsertWorkspace`) pushes
  * the same `agent_update` / `workspace_update` messages a daemon does to every
- * open subscription. Subscription semantics assumed here: an upsert is sent
- * to a subscription while the agent matches its filter, and a `remove` once it
- * stops matching. Check this against the daemon (`packages/server`) before
- * relying on it; adjust here if the daemon differs.
+ * open subscription. Every changed agent produces an upsert for matching
+ * subscriptions and a remove for non-matching subscriptions, even if that
+ * subscription never included the agent in its current snapshot.
  *
  * `calls` records every request, so a test can assert how many lists the board
  * opened and with what options.
@@ -66,12 +65,14 @@ interface AgentSubscription {
   options: PaseoAgentListOptions;
   observers: Set<Observer>;
   members: Set<string>;
+  snapshot: () => unknown;
   released: boolean;
 }
 
 interface PlainSubscription {
   id: string;
   observers: Set<Observer>;
+  snapshot: () => unknown;
   released: boolean;
 }
 
@@ -202,13 +203,14 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   const agents = new Map<string, Agent>((options.agents ?? []).map((agent) => [agent.id, agent]));
   const placements = new Map<string, Placement>(Object.entries(options.placements ?? {}));
   const workspaces = new Map<string, PaseoWorkspace>((options.workspaces ?? []).map((ws) => [ws.id, ws]));
-  const projects = [...(options.projects ?? [])];
+  let projects = [...(options.projects ?? [])];
   let labels = [...(options.labels ?? [])];
   const calls: FakeCall[] = [];
   const permissionResponses: Array<{ agentId: string } & PaseoAgentRespondToPermissionOptions> = [];
   const agentSubs = new Set<AgentSubscription>();
   const workspaceSubs = new Set<PlainSubscription>();
   const labelSubs = new Set<PlainSubscription>();
+  const projectSubs = new Set<(update: unknown) => void>();
   let nextId = 1;
 
   const placementOf = (agent: Agent) => placements.get(agent.id) ?? makePlacement(agent);
@@ -226,6 +228,7 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   }
 
   function makeSubscription<T>(sub: PlainSubscription | AgentSubscription, snapshot: () => T, onRelease: () => void) {
+    sub.snapshot = snapshot;
     return {
       get subscriptionId() {
         return sub.released ? null : sub.id;
@@ -247,14 +250,15 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     for (const sub of agentSubs) {
       const id = agent?.id ?? removedId!;
       const inNow = agent !== null && matches(agent, sub.options);
-      let message: unknown = null;
       if (inNow) {
         sub.members.add(id);
-        message = { type: "agent_update", payload: { subscriptionId: sub.id, kind: "upsert", agent, project: placementOf(agent!) } };
-      } else if (sub.members.delete(id)) {
-        message = { type: "agent_update", payload: { subscriptionId: sub.id, kind: "remove", agentId: id } };
+        const message = { type: "agent_update", payload: { subscriptionId: sub.id, kind: "upsert", agent, project: placementOf(agent!) } };
+        for (const observer of sub.observers) observer.update(message);
+      } else {
+        sub.members.delete(id);
+        const message = { type: "agent_update", payload: { subscriptionId: sub.id, kind: "remove", agentId: id } };
+        for (const observer of sub.observers) observer.update(message);
       }
-      if (message) for (const observer of sub.observers) observer.update(message);
     }
   }
 
@@ -268,10 +272,11 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         options: listOptions,
         observers: new Set(),
         members: new Set([...agents.values()].filter((agent) => matches(agent, listOptions)).map((agent) => agent.id)),
+        snapshot: () => ({ requestId: result.requestId, ...page(listOptions) }),
         released: false,
       };
       agentSubs.add(sub);
-      const subscription = makeSubscription(sub, () => result, () => agentSubs.delete(sub));
+      const subscription = makeSubscription(sub, () => ({ requestId: result.requestId, ...page(listOptions) }), () => agentSubs.delete(sub));
       return { ...result, subscriptionId: sub.id, subscription };
     },
     ref(agent: string | Agent) {
@@ -304,9 +309,18 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         pageInfo: { nextCursor: null, prevCursor: null, hasMore: false },
       };
       if (!listOptions.subscribe) return result;
-      const sub: PlainSubscription = { id: `sub-${nextId++}`, observers: new Set(), released: false };
+      const sub: PlainSubscription = {
+        id: `sub-${nextId++}`,
+        observers: new Set(),
+        snapshot: () => ({ requestId: result.requestId, entries: [...workspaces.values()], pageInfo: result.pageInfo }),
+        released: false,
+      };
       workspaceSubs.add(sub);
-      return { ...result, subscriptionId: sub.id, subscription: makeSubscription(sub, () => result, () => workspaceSubs.delete(sub)) };
+      return {
+        ...result,
+        subscriptionId: sub.id,
+        subscription: makeSubscription(sub, () => ({ requestId: result.requestId, entries: [...workspaces.values()], pageInfo: result.pageInfo }), () => workspaceSubs.delete(sub)),
+      };
     },
     subscribe() {
       return () => {};
@@ -318,8 +332,9 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       calls.push({ method: "projects.list", input: {} });
       return { requestId: `req-${nextId++}`, projects };
     },
-    subscribe() {
-      return () => {};
+    subscribe(handler: (update: unknown) => void) {
+      projectSubs.add(handler);
+      return () => projectSubs.delete(handler);
     },
   };
 
@@ -328,9 +343,18 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       calls.push({ method: "workspaces.listLabels", input: listOptions });
       const result = { requestId: `req-${nextId++}`, labels: [...labels] };
       if (!listOptions.subscribe) return result;
-      const sub: PlainSubscription = { id: `sub-${nextId++}`, observers: new Set(), released: false };
+      const sub: PlainSubscription = {
+        id: `sub-${nextId++}`,
+        observers: new Set(),
+        snapshot: () => ({ requestId: result.requestId, labels: [...labels] }),
+        released: false,
+      };
       labelSubs.add(sub);
-      return { ...result, subscriptionId: sub.id, subscription: makeSubscription(sub, () => result, () => labelSubs.delete(sub)) };
+      return {
+        ...result,
+        subscriptionId: sub.id,
+        subscription: makeSubscription(sub, () => ({ requestId: result.requestId, labels: [...labels] }), () => labelSubs.delete(sub)),
+      };
     };
     projectActions.icon = async (projectId: string) => {
       calls.push({ method: "projects.icon", input: { projectId } });
@@ -358,7 +382,7 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     calls,
     permissionResponses,
     /** Open subscriptions, so a test can check that the board released them. */
-    openSubscriptions: () => agentSubs.size + workspaceSubs.size + labelSubs.size,
+    openSubscriptions: () => agentSubs.size + workspaceSubs.size + labelSubs.size + projectSubs.size,
     upsertAgent(agent: Agent, placement?: Placement) {
       agents.set(agent.id, agent);
       if (placement) placements.set(agent.id, placement);
@@ -367,6 +391,10 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     removeAgent(agentId: string) {
       agents.delete(agentId);
       pushAgent(null, agentId);
+    },
+    setAgentSilently(agent: Agent, placement?: Placement) {
+      agents.set(agent.id, agent);
+      if (placement) placements.set(agent.id, placement);
     },
     upsertWorkspace(workspace: PaseoWorkspace) {
       workspaces.set(workspace.id, workspace);
@@ -380,6 +408,25 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       for (const sub of labelSubs) {
         const message = { type: "workspace.label.update", payload: { subscriptionId: sub.id, labels } };
         for (const observer of sub.observers) observer.update(message);
+      }
+    },
+    upsertProject(project: PaseoProject) {
+      projects = [...projects.filter((entry) => entry.projectId !== project.projectId), project];
+      const update = { kind: "upsert", project };
+      for (const observer of projectSubs) observer(update);
+    },
+    removeProject(projectId: string) {
+      projects = projects.filter((project) => project.projectId !== projectId);
+      const update = { kind: "remove", projectId };
+      for (const observer of projectSubs) observer(update);
+    },
+    reconnectSubscriptions() {
+      for (const sub of agentSubs) {
+        if ("members" in sub) sub.members = new Set([...agents.values()].filter((agent) => matches(agent, sub.options)).map((agent) => agent.id));
+      }
+      for (const sub of [...agentSubs, ...workspaceSubs, ...labelSubs]) {
+        const snapshot = { ...(sub.snapshot() as object), subscriptionId: sub.id };
+        for (const observer of sub.observers) observer.snapshot(snapshot);
       }
     },
   };
