@@ -48,8 +48,7 @@ export function projectInitial(displayName: string): string {
  * project id alone.
  */
 export function projectViewKey(location: TaskLocation, hostId?: string | null): string {
-  const key = (location as TaskLocation & { projectKey?: string | null }).projectKey;
-  if (key) return key;
+  if (location.projectKey) return location.projectKey;
   if (hostId && location.projectId) return JSON.stringify([hostId, location.projectId]);
   return location.projectId ?? location.projectName ?? "";
 }
