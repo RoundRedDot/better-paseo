@@ -4,6 +4,10 @@ import type { TasksLanguage } from "../i18n";
 
 /** The board's own words; Chinese follows the prototype. */
 const en = {
+  /** The board's name: screen title, sidebar row, settings page. */
+  name: "Tasks",
+  /** The Command Center item. */
+  openBoard: "Open Tasks",
   lanes: { needs_input: "Needs input", running: "Running", review: "Review", done: "Done" } as Record<LaneId, string>,
   /** The phone's tabs: a quarter of 390 each. */
   tabs: { needs_input: "Input", running: "Running", review: "Review", done: "Done" } as Record<LaneId, string>,
@@ -52,12 +56,13 @@ const en = {
   noOptions: "Nothing to filter yet",
   details: "Details",
   stoppedManually: "Stopped manually",
-  boardOff: "The Tasks board is off",
-  boardOffHint: "Turn it on in Settings > Tasks to see your agents by status here.",
-  openSettings: "Open settings",
+  closeMenu: "Close menu",
+  answerFailed: (message: string) => `Could not answer: ${message}`,
 };
 
 const zh: typeof en = {
+  name: "任务",
+  openBoard: "打开任务",
   lanes: { needs_input: "待输入", running: "运行中", review: "待查看", done: "已完成" },
   tabs: { needs_input: "待输入", running: "运行中", review: "待查看", done: "已完成" },
   laneEmpty: {
@@ -105,9 +110,8 @@ const zh: typeof en = {
   noOptions: "暂无可筛选的项",
   details: "详情",
   stoppedManually: "已手动停止",
-  boardOff: "Tasks 面板未启用",
-  boardOffHint: "在 设置 > Tasks 中开启后，这里会按状态显示你的 agent。",
-  openSettings: "打开设置",
+  closeMenu: "关闭菜单",
+  answerFailed: (message) => `回答失败：${message}`,
 };
 
 export type BoardStrings = typeof en;

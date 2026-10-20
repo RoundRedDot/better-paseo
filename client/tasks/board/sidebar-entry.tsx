@@ -10,6 +10,7 @@ import { useTasksLanguage } from "../i18n";
 import { useTasksSettings } from "./enabled";
 import { sidebarCountParts, sidebarCountText } from "./navigation";
 import { encodeBoardParams, lastBoardParams } from "./params";
+import { BOARD_STRINGS } from "./strings";
 
 /** The board's screen id; mirrors `TASKS_SCREEN_ID` in `contribute.tsx`, which imports this file. */
 const SCREEN_ID = "tasks";
@@ -26,16 +27,18 @@ const SCREEN_ID = "tasks";
  */
 export function TasksSidebarEntry(props: PluginSidebarItemProps) {
   const settings = useTasksSettings();
+  const language = useTasksLanguage();
   if (!settings?.enabled) return null;
   const mode = settings.sidebar.count;
-  return mode === "none" ? <TasksRow {...props} /> : <CountedTasksRow {...props} mode={mode} />;
+  const label = BOARD_STRINGS[language].name;
+  return mode === "none" ? <TasksRow {...props} label={label} /> : <CountedTasksRow {...props} label={label} mode={mode} />;
 }
 
-function TasksRow(props: PluginSidebarItemProps & { trailing?: ReactNode }) {
+function TasksRow(props: PluginSidebarItemProps & { label: string; trailing?: ReactNode }) {
   return (
     <SidebarRow
       icon="SquareKanban"
-      label="Tasks"
+      label={props.label}
       active={props.currentScreen?.screenId === SCREEN_ID}
       trailing={props.trailing}
       onPress={() => props.openScreen({ screenId: SCREEN_ID, params: encodeBoardParams(lastBoardParams(props.host.id)) })}
@@ -43,7 +46,7 @@ function TasksRow(props: PluginSidebarItemProps & { trailing?: ReactNode }) {
   );
 }
 
-function CountedTasksRow(props: PluginSidebarItemProps & { mode: Exclude<SidebarCount, "none"> }) {
+function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: Exclude<SidebarCount, "none"> }) {
   const paseo = usePaseo();
   const counts = useTaskCounts(paseo);
   const language = useTasksLanguage();

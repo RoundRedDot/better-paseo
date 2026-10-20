@@ -35,6 +35,8 @@ import { activeChips, buildFilterOptions, clearedParams } from "../../client/tas
 import { boardPalette, cubicBezier } from "../../client/tasks/board/board-style";
 import { withStopReasons } from "../../client/tasks/board/use-board";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
+import { hostLanguage, resetTasksLanguage, resolveTasksLanguage } from "../../client/tasks/i18n";
+import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { LANE_ORDER, type LaneId, type LaneModel } from "../../client/tasks/model";
 import type { TasksHandle } from "../../client/tasks/data";
@@ -363,5 +365,55 @@ describe("board palette", () => {
     expect(boardPalette(theme(BLUE_DARK))).toEqual({ page: "#0f1729", panel: "#16203a", panelHover: "#1e2a48" });
     // rgb() colours are read too, so a dark theme written that way still gets surface1.
     expect(boardPalette(theme({ ...BLUE_DARK, surface0: "rgb(15, 23, 41)" })).panel).toBe("#16203a");
+  });
+});
+
+describe("tasks language", () => {
+  afterEach(() => {
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+    delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+    resetTasksLanguage();
+    resetEnhancerPreferences();
+  });
+
+  it("maps the host's language setting to zh or en", () => {
+    expect(hostLanguage("zh-CN", "en-US")).toBe("zh");
+    expect(hostLanguage("en", "zh-CN")).toBe("en");
+    // Every other host language falls back to English, whatever the device says.
+    for (const other of ["ar", "es", "fr", "ja", "ko", "pt-BR", "ru", 42]) expect(hostLanguage(other, "zh-CN")).toBe("en");
+    // "system" (or no setting) follows the device locale.
+    expect(hostLanguage("system", "zh-TW")).toBe("zh");
+    expect(hostLanguage("system", "zh_Hans")).toBe("zh");
+    expect(hostLanguage("system", "en-GB")).toBe("en");
+    expect(hostLanguage(undefined, "zh")).toBe("zh");
+    expect(hostLanguage(undefined, null)).toBe("en");
+  });
+
+  function hostSettings(raw: string | null) {
+    // The stored settings are read at most once a second; start each case fresh.
+    resetTasksLanguage();
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    (globalThis as { localStorage?: unknown }).localStorage = { getItem: (key: string) => (key === "@paseo:app-settings" ? raw : null) };
+  }
+
+  it("reads Paseo's app settings from localStorage on web when following the system", () => {
+    hostSettings(JSON.stringify({ theme: "dark", language: "zh-CN" }));
+    expect(resolveTasksLanguage()).toBe("zh");
+    hostSettings(JSON.stringify({ language: "ja" }));
+    expect(resolveTasksLanguage()).toBe("en");
+  });
+
+  it("falls back to the locale on unreadable settings, and an explicit preference wins", () => {
+    hostSettings("{not json");
+    expect(resolveTasksLanguage()).toBe(hostLanguage(undefined));
+    hostSettings(JSON.stringify({ language: "zh-CN" }));
+    updateEnhancerPreferences({ language: "en" });
+    expect(resolveTasksLanguage()).toBe("en");
+  });
+
+  it("names the board 任务 in Chinese", () => {
+    expect(BOARD_STRINGS.zh.name).toBe("任务");
+    expect(BOARD_STRINGS.zh.openBoard).toBe("打开任务");
+    expect(BOARD_STRINGS.en.name).toBe("Tasks");
   });
 });

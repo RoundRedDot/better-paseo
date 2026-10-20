@@ -53,10 +53,11 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
 
 import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
-import { resetTasksEnabled, setTasksEnabled, setTasksSettingsOpener, tasksEnabled, tasksSettingsOpener } from "../../client/tasks/board/enabled";
+import { resetTasksEnabled, setTasksEnabled, tasksEnabled } from "../../client/tasks/board/enabled";
+import { resetTasksLanguage, resolveTasksLanguage } from "../../client/tasks/i18n";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { DEFAULT_TASKS_SETTINGS } from "../../shared/tasks-settings";
-import { resetEnhancerPreferences } from "../../client/preferences";
+import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -106,6 +107,7 @@ afterEach(async () => {
   await act(async () => renderer?.unmount());
   renderer = undefined;
   resetTasksEnabled();
+  resetTasksLanguage();
   resetEnhancerPreferences();
 });
 
@@ -154,103 +156,129 @@ describe("Tasks sidebar entry, opt-in", () => {
 });
 
 describe("Tasks board screen, opt-in", () => {
-  it("says the board is off, offers the settings, and subscribes to nothing", async () => {
-    const open = vi.fn();
-    setTasksSettingsOpener(open);
+  it("draws an empty page and subscribes to nothing while off or loading", async () => {
     host.settings = { ...DEFAULT_TASKS_SETTINGS };
     await mount(screen());
-    expect(textOf(renderer!.root)).toContain("The Tasks board is off");
+    expect(textOf(renderer!.root)).toBe("");
     expect(fake.openSubscriptions()).toBe(0);
-    const button = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && textOf(node) === "Open settings");
-    act(() => button.props.onPress());
-    expect(open).toHaveBeenCalledTimes(1);
-  });
-
-  it("drops the settings button where nothing can open the settings", async () => {
-    host.settings = { ...DEFAULT_TASKS_SETTINGS };
-    await mount(screen());
-    expect(textOf(renderer!.root)).not.toContain("Open settings");
-  });
-
-  it("draws an empty page while the settings load", async () => {
+    await act(async () => renderer!.unmount());
+    host.settings = null;
     await mount(screen());
     expect(textOf(renderer!.root)).toBe("");
     expect(fake.openSubscriptions()).toBe(0);
   });
 });
 
-describe("Tasks Command Center item, opt-in", () => {
+describe("Tasks registrations, opt-in", () => {
+  type Registered = { kind: string; id: string; title: string };
   function client(read: () => Promise<unknown>) {
-    const items: string[] = [];
-    const removed: string[] = [];
-    const noop = () => () => {};
+    const active: Registered[] = [];
+    const removed: Registered[] = [];
+    const add = (kind: string) => (contribution: { id: string; title: string }) => {
+      const entry = { kind, id: contribution.id, title: contribution.title };
+      active.push(entry);
+      return () => {
+        active.splice(active.indexOf(entry), 1);
+        removed.push(entry);
+      };
+    };
     const value = {
-      addScreen: noop,
-      addSidebarHeaderItem: noop,
-      addSettingsScreen: noop,
+      addScreen: add("screen"),
+      addSidebarHeaderItem: add("sidebar"),
+      addSettingsScreen: add("settings"),
+      addCommandCenterItem: add("command"),
       openSettings: vi.fn(),
       rpc: vi.fn(read),
-      addCommandCenterItem: (item: { id: string }) => {
-        items.push(item.id);
-        return () => removed.push(item.id);
-      },
     };
-    return { value, items, removed };
+    return { value, active, removed, kinds: () => active.map((entry) => entry.kind).sort() };
   }
   const flush = async () => {
     for (let tick = 0; tick < 5; tick++) await Promise.resolve();
   };
+  const offRecord = () => Promise.resolve({ status: "ready", revision: "1", values: {} });
 
-  it("registers the item only while the board is on, and follows the switch", async () => {
-    const host = client(() => Promise.resolve({ status: "ready", revision: "1", values: {} }));
-    const cleanup = contributeTasks(host.value as never);
+  it("registers only the settings page while off: no screen, sidebar item, command, timer or listener", async () => {
+    vi.useFakeTimers();
+    const listen = vi.fn();
+    const previous = (globalThis as { addEventListener?: unknown }).addEventListener;
+    (globalThis as { addEventListener?: unknown }).addEventListener = listen;
+    try {
+      const plugin = client(offRecord);
+      contributeTasks(plugin.value as never);
+      await flush();
+      expect(plugin.value.rpc).toHaveBeenCalledTimes(1);
+      expect(plugin.kinds()).toEqual(["settings"]);
+      expect(tasksEnabled()).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(listen).not.toHaveBeenCalled();
+      expect(fake.openSubscriptions()).toBe(0);
+    } finally {
+      (globalThis as { addEventListener?: unknown }).addEventListener = previous;
+      vi.useRealTimers();
+    }
+  });
+
+  it("registers the board when it is turned on and calls every cleanup when it is turned off", async () => {
+    const plugin = client(offRecord);
+    const cleanup = contributeTasks(plugin.value as never);
     await flush();
-    expect(host.value.rpc).toHaveBeenCalledTimes(1);
-    expect(tasksEnabled()).toBe(false);
-    expect(host.items).toEqual([]);
     setTasksEnabled(true);
-    expect(host.items).toEqual(["open-tasks"]);
+    expect(plugin.kinds()).toEqual(["command", "screen", "settings", "sidebar"]);
     setTasksEnabled(true);
-    expect(host.items).toEqual(["open-tasks"]);
+    expect(plugin.active).toHaveLength(4);
     setTasksEnabled(false);
-    expect(host.removed).toEqual(["open-tasks"]);
+    expect(plugin.kinds()).toEqual(["settings"]);
+    expect(plugin.removed.map((entry) => entry.kind).sort()).toEqual(["command", "screen", "sidebar"]);
     setTasksEnabled(true);
     cleanup();
-    expect(host.removed).toEqual(["open-tasks", "open-tasks"]);
+    expect(plugin.active).toEqual([]);
     // Unloaded: a later flip registers nothing.
     setTasksEnabled(false);
     setTasksEnabled(true);
-    expect(host.items).toEqual(["open-tasks", "open-tasks"]);
+    expect(plugin.active).toEqual([]);
   });
 
   it("seeds from one settings read at startup", async () => {
-    const host = client(() => Promise.resolve({ status: "ready", revision: "1", values: { enabled: true } }));
-    contributeTasks(host.value as never);
-    expect(host.items).toEqual([]);
+    const plugin = client(() => Promise.resolve({ status: "ready", revision: "1", values: { enabled: true } }));
+    contributeTasks(plugin.value as never);
+    expect(plugin.kinds()).toEqual(["settings"]);
     await flush();
-    expect(host.items).toEqual(["open-tasks"]);
+    expect(plugin.kinds()).toEqual(["command", "screen", "settings", "sidebar"]);
   });
 
   it("keeps the board off when the read fails or the record is unusable", async () => {
     const failing = client(() => Promise.reject(new Error("offline")));
     contributeTasks(failing.value as never);
     await flush();
-    expect(failing.items).toEqual([]);
+    expect(failing.kinds()).toEqual(["settings"]);
     expect(tasksEnabled()).toBeNull();
     resetTasksEnabled();
     const invalid = client(() => Promise.resolve({ status: "invalid", revision: "1", error: "bad" }));
     contributeTasks(invalid.value as never);
     await flush();
-    expect(invalid.items).toEqual([]);
+    expect(invalid.kinds()).toEqual(["settings"]);
   });
 
-  it("lets the board screen open Settings > Tasks", () => {
-    const host = client(() => Promise.resolve({ status: "ready", revision: "1", values: {} }));
-    const cleanup = contributeTasks(host.value as never);
-    // The opener is what the off board's button calls.
-    tasksSettingsOpener()?.();
-    expect(host.value.openSettings).toHaveBeenCalledWith("tasks");
-    cleanup();
-    expect(tasksSettingsOpener()).toBeNull();
+  it("titles everything in the host's language and re-registers when it changes", async () => {
+    updateEnhancerPreferences({ language: "zh" });
+    const plugin = client(() => Promise.resolve({ status: "ready", revision: "1", values: { enabled: true } }));
+    contributeTasks(plugin.value as never);
+    await flush();
+    expect(Object.fromEntries(plugin.active.map((entry) => [entry.kind, entry.title]))).toEqual({
+      settings: "任务",
+      screen: "任务",
+      sidebar: "任务",
+      command: "打开任务",
+    });
+    updateEnhancerPreferences({ language: "en" });
+    resolveTasksLanguage();
+    await flush();
+    expect(Object.fromEntries(plugin.active.map((entry) => [entry.kind, entry.title]))).toEqual({
+      settings: "Tasks",
+      screen: "Tasks",
+      sidebar: "Tasks",
+      command: "Open Tasks",
+    });
+    expect(plugin.active).toHaveLength(4);
   });
 });
