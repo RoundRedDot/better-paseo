@@ -10,7 +10,6 @@ import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import type { StatusKind, TaskCard, TaskChild } from "../model";
 import {
   contextRatio,
-  contextTone,
   formatApprox,
   formatDuration,
   formatRelative,
@@ -18,6 +17,7 @@ import {
   since,
   tildePath,
 } from "./format";
+import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
 import { cardStrings, subtaskSummary } from "./strings";
@@ -330,6 +330,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [stopAll, setStopAll] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [ringOpen, setRingOpen] = useState(false);
   const detailsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** This card asked for the popover, so it may ask to close it (the board closes whichever is open). */
   const detailsShown = useRef(false);
@@ -635,24 +636,6 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       />,
     );
   }
-  const ratio = contextRatio(card.context);
-  if (layout.context && ratio !== null) {
-    const tone = contextTone(ratio);
-    const color = tone === "danger" ? tokens.danger : tone === "warning" ? tokens.warning : muted;
-    const percent = `${Math.round(ratio * 100)}%`;
-    pills.push(
-      <Pill
-        key="context"
-        {...pill}
-        testID="pill-context"
-        icon="Gauge"
-        color={color}
-        label={percent}
-        tabular
-        accessibilityLabel={`${strings.context} ${percent}`}
-      />,
-    );
-  }
   if (layout.subtasks) {
     // Icons and counts, no words: ListTree, then each status the children are in.
     const counts = new Map<StatusKind, number>();
@@ -687,16 +670,41 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       </View>
     ) : null;
 
-  // Footer -----------------------------------------------------------------
+  // Footer: the context ring, then the timer -------------------------------
   const timer = layout.timer ? cardTimer(card, props.now, language) : null;
   const timerColor =
     timer?.tone === "warning" ? tokens.status.warning : timer?.tone === "running" ? tokens.status.running : muted;
-  const footer = timer ? (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: m.rowGap }} testID="task-card-footer">
-      {timer.tone === "warning" ? <Icon name="Clock" size={m.icon} color={timerColor} /> : null}
-      <Text style={[text(m.footSize, m.footLine, timerColor), tabular]}>{timer.text}</Text>
-    </View>
-  ) : null;
+  const ratio = contextRatio(card.context);
+  const ring =
+    layout.context && ratio !== null && card.context ? (
+      <ContextMeter
+        tokens={tokens}
+        strings={strings}
+        compact={compact}
+        line={m.footLine}
+        context={card.context}
+        ratio={ratio}
+        cost={card.usage?.totalCostUsd ?? null}
+        report={reportControl}
+        onOpenChange={setRingOpen}
+      />
+    ) : null;
+  const footer =
+    timer || ring ? (
+      <View
+        // Its details card opens upwards over the rows above, so the row is raised while it shows.
+        style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: m.rowGap, zIndex: ringOpen ? OVERLAY_ROW_Z + 1 : undefined }}
+        testID="task-card-footer"
+      >
+        {ring}
+        {timer ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            {timer.tone === "warning" ? <Icon name="Clock" size={m.icon} color={timerColor} /> : null}
+            <Text style={[text(m.footSize, m.footLine, timerColor), tabular]}>{timer.text}</Text>
+          </View>
+        ) : null}
+      </View>
+    ) : null;
 
   // Lane blocks ------------------------------------------------------------
   const iconCell: ViewStyle = { width: m.iconSlot, height: m.blockLine, alignItems: "center", justifyContent: "center" };
@@ -924,6 +932,79 @@ function GitStatus(props: {
         {[git.dirty ? props.strings.uncommitted : null, arrows || null].filter(Boolean).join(" ")}
       </Text>
     </>
+  );
+}
+
+// --- Context ------------------------------------------------------------------
+
+/**
+ * The host composer's context ring, inline in the footer; on desktop a hover
+ * shows the host's context details in a small card above it. The card floats
+ * (absolutely positioned), so showing it moves nothing.
+ */
+function ContextMeter(props: {
+  tokens: TaskTokens;
+  strings: ReturnType<typeof cardStrings>;
+  compact: boolean;
+  line: number;
+  context: NonNullable<TaskCard["context"]>;
+  ratio: number;
+  cost: number | null;
+  report?: ControlHover;
+  onOpenChange(open: boolean): void;
+}) {
+  const { tokens, strings, context } = props;
+  const { hovered, hoverProps } = useControlHover(props.report);
+  const open = hovered && !props.compact;
+  const { onOpenChange } = props;
+  useEffect(() => {
+    onOpenChange(open);
+    return () => onOpenChange(false);
+  }, [open, onOpenChange]);
+  const tone = contextRingTone(props.ratio);
+  const color = tone === "danger" ? tokens.danger : tone === "warning" ? tokens.warning : tokens.foregroundMuted;
+  const percent = Math.round(props.ratio * 100);
+  const cost = formatSessionCost(props.cost);
+  return (
+    <Pressable
+      accessibilityRole="image"
+      accessibilityLabel={`${strings.contextWindow} ${strings.contextUsed(percent)}`}
+      focusable={false}
+      {...hoverProps}
+      style={{ height: props.line, justifyContent: "center" }}
+      testID="task-card-context"
+    >
+      <ContextRing ratio={props.ratio} color={color} track={withAlpha(tokens.foregroundMuted, 0.25)} />
+      {open ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: -8,
+            bottom: props.line + 6,
+            minWidth: 180,
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            gap: 4,
+            backgroundColor: tokens.card.background,
+            borderWidth: 1,
+            borderColor: tokens.card.border,
+            borderRadius: 8,
+            boxShadow: tokens.popoverShadow,
+          } as ViewStyle}
+          testID="task-card-context-details"
+        >
+          <Text style={{ fontSize: 12, lineHeight: 16, fontWeight: "500", color: tokens.foreground }}>{strings.contextWindow}</Text>
+          <Text style={[{ fontSize: 14, lineHeight: 20, color: tokens.foreground }, tabular]}>{strings.contextUsed(percent)}</Text>
+          <Text style={[{ fontSize: 12, lineHeight: 16, color: tokens.foregroundMuted }, tabular]}>
+            {strings.contextTokens(formatTokenCount(context.usedTokens), formatTokenCount(context.maxTokens))}
+          </Text>
+          {cost ? (
+            <Text style={[{ fontSize: 12, lineHeight: 16, color: tokens.foregroundMuted }, tabular]}>{strings.sessionCost(cost)}</Text>
+          ) : null}
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
