@@ -26,11 +26,13 @@ import {
   sidebarCountText,
   swallowsTap,
   swipeStep,
+  LANES,
+  laneLayout,
   popoverPlacement,
   type LaneShape,
 } from "../../client/tasks/board/navigation";
 import { activeChips, buildFilterOptions, clearedParams } from "../../client/tasks/board/filter-options";
-import { cubicBezier } from "../../client/tasks/board/board-style";
+import { boardPalette, cubicBezier } from "../../client/tasks/board/board-style";
 import { withStopReasons } from "../../client/tasks/board/use-board";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -300,5 +302,46 @@ describe("stopped manually", () => {
     expect(withStopReasons(lanes, new Set(["sample-running"]), "x")).toBe(lanes);
     expect(withStopReasons(lanes, stopped, "已手动停止").review.cards.find((card) => card.id === "sample-unread")).toBe(unread);
     expect(withStopReasons(lanes, new Set(), "x")).toBe(lanes);
+  });
+});
+
+describe("lane widths", () => {
+  const fixed = (lanes: number, collapsed: number) => 2 * LANES.edge + (lanes - 1) * LANES.gap + collapsed * LANES.collapsed;
+
+  it("shares a wide window among four lanes with no scrolling and no maximum", () => {
+    const layout = laneLayout(2000, 4, 0);
+    expect(layout.scroll).toBe(false);
+    expect(layout.contentWidth).toBe(2000);
+    expect(layout.laneWidth).toBeCloseTo((2000 - fixed(4, 0)) / 4);
+    expect(layout.laneWidth * 4 + fixed(4, 0)).toBeCloseTo(2000);
+  });
+
+  it("keeps the minimum and scrolls when four lanes do not fit", () => {
+    const layout = laneLayout(1000, 4, 0);
+    expect(layout).toEqual({ laneWidth: LANES.min, contentWidth: fixed(4, 0) + 4 * LANES.min, scroll: true });
+    // Exactly the minimum still fits.
+    expect(laneLayout(fixed(4, 0) + 4 * LANES.min, 4, 0).scroll).toBe(false);
+    // A card stays at least 280 wide: the panel pads 8 on each side.
+    expect(LANES.min - 16).toBeGreaterThanOrEqual(280);
+  });
+
+  it("gives collapsed lanes 40 and the rest to the expanded ones", () => {
+    const one = laneLayout(1000, 3, 1);
+    expect(one.scroll).toBe(false);
+    expect(one.laneWidth).toBeCloseTo((1000 - fixed(4, 1)) / 3);
+    const two = laneLayout(700, 2, 2);
+    expect(two).toEqual({ laneWidth: LANES.min, contentWidth: fixed(4, 2) + 2 * LANES.min, scroll: true });
+    expect(laneLayout(1000, 2, 2).laneWidth).toBeCloseTo((1000 - fixed(4, 2)) / 2);
+    expect(laneLayout(1000, 0, 4)).toEqual({ laneWidth: 0, contentWidth: 1000, scroll: false });
+  });
+});
+
+describe("board palette", () => {
+  const theme = (colors: Record<string, string>) => ({ colors }) as never;
+  it("steps the lane panel off the page in both of Paseo's themes", () => {
+    const light = boardPalette(theme({ surface0: "#ffffff", surface1: "#fafafa", surface2: "#f4f4f5", foreground: "#09090b", foregroundMuted: "#71717a", border: "#e4e4e7", accent: "#18181b" }));
+    expect(light).toEqual({ page: "#ffffff", panel: "#f7f7f8", panelHover: "#f4f4f5" });
+    const dark = boardPalette(theme({ surface0: "#181B1A", surface1: "#1E2120", surface2: "#272A29", foreground: "#fafafa", foregroundMuted: "#A1A5A4", border: "#252B2A", accent: "#fafafa" }));
+    expect(dark).toEqual({ page: "#181B1A", panel: "#1E2120", panelHover: "#272A29" });
   });
 });

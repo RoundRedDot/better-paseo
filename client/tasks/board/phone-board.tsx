@@ -14,7 +14,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { StatusIcon, TaskDetails, taskTokens, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { MOTION } from "./board-style";
+import { MOTION, boardPalette } from "./board-style";
 import { CardCell, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
 import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
@@ -24,7 +24,7 @@ import { LANE_EMPTY_ICON } from "./strings";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
 
 const nativeDriver = Platform.OS !== "web";
-const Separator = () => <View style={{ height: 10 }} />;
+const Separator = () => <View style={{ height: 12 }} />;
 
 /** A touch (native) or pointer (web) event; both carry page coordinates. */
 type PointEvent = { nativeEvent: { pageX: number; pageY: number } };
@@ -179,16 +179,13 @@ export function PhoneBoard(props: {
   };
 
   const gridRef = useRef<View>(null);
-  const dotGrid = taskTokens(theme).dotGrid;
   useLayoutEffect(() => {
     if (Platform.OS !== "web") return;
     const node = gridRef.current as unknown as HTMLElement | null;
-    if (!node?.style) return;
-    node.style.backgroundImage = `radial-gradient(${dotGrid} 1px, transparent 1.3px)`;
-    node.style.backgroundSize = "16px 16px";
     // Vertical scrolling stays the browser's; horizontal travel is the lane swipe.
-    node.style.touchAction = "pan-y";
-  }, [dotGrid]);
+    if (node?.style) node.style.touchAction = "pan-y";
+  }, []);
+  const palette = boardPalette(theme);
 
   const breathing = useBreathing(!tasks.ready && board.visible);
   const detailsCard = sheet?.kind === "details" ? tasks.byId.get(sheet.id) : undefined;
@@ -277,15 +274,12 @@ export function PhoneBoard(props: {
         ) : null}
       </View>
       {lane === "done" ? (
-        <View style={{ height: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12 }}>
+        <View style={{ height: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
           <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.timeRange}</Text>
           <WindowSegments value={doneWindow} onChange={(value) => board.setParams((params) => ({ ...params, doneWindow: value }))} theme={theme} strings={strings} large />
-          <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 1, overflow: "hidden" }}>
-            <View style={{ height: 3, borderWidth: 1, borderStyle: "dashed", borderColor: colors.border }} />
-          </View>
         </View>
       ) : null}
-      <View ref={gridRef} style={{ flex: 1, minHeight: 0, overflow: "hidden" }} {...gesture}>
+      <View ref={gridRef} style={{ flex: 1, minHeight: 0, overflow: "hidden", backgroundColor: palette.panel }} {...gesture}>
         <Animated.View style={{ flex: 1, opacity: enterOpacity, transform: [{ translateX: enterX }] }}>
           <PhoneLane
             key={lane}
@@ -300,7 +294,7 @@ export function PhoneBoard(props: {
         {leaving ? (
           <Animated.View
             pointerEvents="none"
-            style={{ position: "absolute", top: 0, left: 0, right: 0, padding: 12, gap: 10, opacity: leaveOpacity, transform: [{ translateX: leaveX }] }}
+            style={{ position: "absolute", top: 0, left: 0, right: 0, padding: 12, gap: 12, opacity: leaveOpacity, transform: [{ translateX: leaveX }] }}
           >
             {leaving.cards.map((card) => (
               <CardCell
@@ -412,7 +406,7 @@ function PhoneLane(props: {
   );
   if (!ready || (lane.id === "done" && lane.loading && count === 0)) {
     return (
-      <View style={{ padding: 12, gap: 10 }}>
+      <View style={{ padding: 12, gap: 12 }}>
         {[0, 1, 2].map((index) => (
           <SkeletonCard key={index} index={index} theme={theme} opacity={props.breathing} />
         ))}
@@ -460,7 +454,6 @@ function PhoneLane(props: {
             borderStyle: "dashed",
             borderColor: colors.border,
             borderRadius: 8,
-            backgroundColor: colors.surface0,
           }}
         >
           <Icon name={LANE_EMPTY_ICON[lane.id]} size={20} color={colors.foregroundMuted} />
