@@ -131,11 +131,11 @@ export function ProviderLogo({ provider, size = 14, showLabel = false, color, la
 /**
  * Marks drawn in one colour: the theme's foreground suits them on any
  * surface, where their configured hue (a near-white grey, an indigo) does not.
+ * Pi is not one of them: its mark is three colours (see the Tasks cards' PiMark).
  */
 const MONOCHROME_PROVIDERS: ReadonlySet<KnownProvider> = new Set([
   "paseo",
   "omp",
-  "pi",
   "grok",
   "cursor",
   "ollama",
