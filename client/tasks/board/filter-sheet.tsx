@@ -3,7 +3,7 @@ import { Pressable, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { ProviderLogo } from "../../components/provider-logo";
-import { boardColors } from "./board-style";
+import { taskTokens } from "../cards";
 import { Checkbox, DashedRule, WindowSegments } from "./board-parts";
 import { LetterAvatar } from "./filter-bar";
 import { clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
@@ -134,7 +134,7 @@ function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void
         borderWidth: 1,
         borderColor: on ? colors.accent : colors.border,
         borderRadius: 4,
-        backgroundColor: on ? boardColors(props.theme).accentSoft : "transparent",
+        backgroundColor: on ? taskTokens(props.theme).accentSoft : "transparent",
         flexDirection: "row",
         alignItems: "center",
         gap: 6,

@@ -39,8 +39,10 @@ export interface BoardController {
   now: number;
   visible: boolean;
   stop: StopControl;
-  callbacks: BoardCardCallbacks;
+  callbacks: CardCallbacks;
   buttonsFor(card: TaskCard): PermissionButton[];
+  /** Fetch a rendered card's project icon; undefined when cards draw no project image (phone, or the field is off). */
+  requestIcon: ((projectId: string) => void) | undefined;
   highlighted: string | null;
   highlight(agentId: string): void;
   toastMessage(message: string): void;
@@ -53,22 +55,42 @@ export interface BoardLayoutHandlers {
   detailsEnd?(agentId: string): void;
 }
 
-/** The card callbacks, plus the desktop card's hover-out (`onDetailsEnd`, added by the cards slice). */
-export type BoardCardCallbacks = CardCallbacks & { onDetailsEnd?(agentId: string): void };
-
 const NO_BUTTONS: PermissionButton[] = [];
-// One array per request, so a memoized card sees the same buttons on every tick.
-const buttonCache = new WeakMap<TaskPermission, PermissionButton[]>();
+// One array per request and language, so a memoized card sees the same buttons on every tick.
+const buttonCache = new WeakMap<TaskPermission, { language: TasksLanguage; buttons: PermissionButton[] }>();
 
-function buttonsFor(card: TaskCard): PermissionButton[] {
+function buttonsIn(card: TaskCard, language: TasksLanguage): PermissionButton[] {
   const permission = card.permission;
   if (!permission) return NO_BUTTONS;
-  let buttons = buttonCache.get(permission);
-  if (!buttons) {
-    buttons = permissionButtons(permission);
-    buttonCache.set(permission, buttons);
+  let entry = buttonCache.get(permission);
+  if (entry?.language !== language) {
+    entry = { language, buttons: permissionButtons(permission, language) };
+    buttonCache.set(permission, entry);
   }
-  return buttons;
+  return entry.buttons;
+}
+
+// One overlaid card per card and reason, so its identity holds across renders.
+const stoppedCache = new WeakMap<TaskCard, TaskCard>();
+
+/**
+ * A card stopped from the board says so until it runs again: in the review
+ * lane, without an error of its own, its reason reads "Stopped manually".
+ */
+export function withStopReasons(lanes: Record<LaneId, LaneModel>, stopped: ReadonlySet<string>, reason: string): Record<LaneId, LaneModel> {
+  if (stopped.size === 0) return lanes;
+  const review = lanes.review;
+  if (!review.cards.some((card) => stopped.has(card.id) && !card.error)) return lanes;
+  const cards = review.cards.map((card) => {
+    if (!stopped.has(card.id) || card.error) return card;
+    let shown = stoppedCache.get(card);
+    if (shown?.error !== reason) {
+      shown = { ...card, error: reason };
+      stoppedCache.set(card, shown);
+    }
+    return shown;
+  });
+  return { ...lanes, review: { ...review, cards } };
 }
 
 function errorText(error: unknown): string {
@@ -105,13 +127,24 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
   const { filters, doneWindow } = useMemo(() => resolveBoardParams(params, defaults), [params, defaults]);
   const options = useMemo(() => ({ doneWindow, includeDone: true }), [doneWindow]);
   const tasks = useTasks(paseo, options);
-  const lanes = useMemo(() => filterLanes(tasks.lanes, filters), [tasks.lanes, filters]);
-  const total = LANE_ORDER.reduce((sum, id) => sum + lanes[id].cards.length, 0);
   const fields = useMemo(() => effectiveCard(settings, props.layout.compact), [settings, props.layout.compact]);
 
   const visible = useBoardVisible(rootRef);
   const now = useBoardClock(visible);
   const stop = useStopControl({ confirmStop: settings.board.confirmStop });
+  const { stoppedManually, noteRunning } = stop;
+  const lanes = useMemo(
+    () => filterLanes(withStopReasons(tasks.lanes, stoppedManually, strings.stoppedManually), filters),
+    [tasks.lanes, stoppedManually, strings.stoppedManually, filters],
+  );
+  const total = LANE_ORDER.reduce((sum, id) => sum + lanes[id].cards.length, 0);
+  // A card stopped from the board that runs again drops its "Stopped manually".
+  useEffect(() => {
+    for (const id of stoppedManually) {
+      const card = tasks.byId.get(id);
+      if (card && (card.lane === "running" || card.lane === "needs_input")) noteRunning(id);
+    }
+  }, [tasks.byId, stoppedManually, noteRunning]);
 
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -129,9 +162,11 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
   latest.current = { props, paseo, toast, stop, strings, tasks };
   const toastMessage = useCallback((message: string) => latest.current.toast.show(message), []);
   const open = useCallback((agentId: string) => latest.current.props.navigation?.openAgent({ agentId }), []);
+  const requestProjectIcon = useCallback((projectId: string) => latest.current.tasks.requestProjectIcon(projectId), []);
+  const buttonsFor = useCallback((card: TaskCard) => buttonsIn(card, language), [language]);
   const hasNavigation = props.navigation !== undefined;
   const stopAvailable = stop.available;
-  const callbacks = useMemo<BoardCardCallbacks>(
+  const callbacks = useMemo<CardCallbacks>(
     () => ({
       onOpen: hasNavigation ? open : undefined,
       onReveal: (agentId) => handlers.current?.reveal(agentId),
@@ -172,6 +207,7 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
     stop,
     callbacks,
     buttonsFor,
+    requestIcon: fields.projectIcon && !props.layout.compact ? requestProjectIcon : undefined,
     highlighted,
     highlight,
     toastMessage,

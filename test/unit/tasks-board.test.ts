@@ -31,6 +31,7 @@ import {
 } from "../../client/tasks/board/navigation";
 import { activeChips, buildFilterOptions, clearedParams } from "../../client/tasks/board/filter-options";
 import { cubicBezier } from "../../client/tasks/board/board-style";
+import { withStopReasons } from "../../client/tasks/board/use-board";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { LANE_ORDER, type LaneId, type LaneModel } from "../../client/tasks/model";
@@ -219,6 +220,7 @@ function handle(): TasksHandle {
     error: null,
     loadMoreDone() {},
     resolveParent() {},
+    requestProjectIcon() {},
   };
 }
 
@@ -279,5 +281,19 @@ describe("board easing", () => {
       previous = value;
     }
     expect(ease(0.5)).toBeGreaterThan(0.8);
+  });
+});
+
+describe("stopped manually", () => {
+  it("says so on a review card without its own error, keeping its identity", () => {
+    const lanes = handle().lanes;
+    const stopped = new Set(["sample-unread", "sample-failed", "sample-running"]);
+    const once = withStopReasons(lanes, stopped, "已手动停止");
+    const unread = once.review.cards.find((card) => card.id === "sample-unread")!;
+    expect(unread.error).toBe("已手动停止");
+    expect(once.review.cards.find((card) => card.id === "sample-failed")!.error).toBe("Provider exited with code 1: rate limit reached");
+    expect(once.running).toBe(lanes.running);
+    expect(withStopReasons(lanes, stopped, "已手动停止").review.cards.find((card) => card.id === "sample-unread")).toBe(unread);
+    expect(withStopReasons(lanes, new Set(), "x")).toBe(lanes);
   });
 });

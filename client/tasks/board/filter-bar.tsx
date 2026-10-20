@@ -3,7 +3,7 @@ import { Platform, Text, View, type TextInput as NativeTextInput } from "react-n
 import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { ProviderLogo } from "../../components/provider-logo";
-import { boardColors } from "./board-style";
+import { taskTokens } from "../cards";
 import { Checkbox, HoverPressable, WindowSegments } from "./board-parts";
 import { activeChips, clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem, type BoardParams } from "./params";
@@ -271,7 +271,7 @@ function MenuPanel(props: { theme: PluginTheme; width: number; empty: string | n
         borderColor: colors.border,
         borderRadius: 8,
         backgroundColor: colors.surface0,
-        boxShadow: boardColors(props.theme).popoverShadow,
+        boxShadow: taskTokens(props.theme).popoverShadow,
         elevation: 8,
       }}
     >
@@ -328,7 +328,7 @@ function ToggleChip(props: { icon: string; label: string; hint?: string; on: boo
         borderRadius: 13,
         borderWidth: 1,
         borderColor: props.on ? colors.accent : colors.border,
-        backgroundColor: props.on ? boardColors(props.theme).accentSoft : hovered ? colors.surface1 : "transparent",
+        backgroundColor: props.on ? taskTokens(props.theme).accentSoft : hovered ? colors.surface1 : "transparent",
         flexDirection: "row",
         alignItems: "center",
         gap: 5,
