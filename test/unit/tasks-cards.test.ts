@@ -324,7 +324,7 @@ describe("TaskCardView rows", () => {
       ["pill-label-p1", "p1"],
       ["pill-labels-more", "+1"],
       ["pill-context", "86%"],
-      ["pill-subtasks", "1/3"],
+      ["pill-subtasks", "2"],
     ]);
     expect(texts(hostByTestId(tree.root, "task-card-footer"))).toEqual(["12m 30s"]);
     expect(texts(tree.root).some((text) => text.includes("未提交"))).toBe(false);
@@ -547,7 +547,7 @@ describe("TaskCardView compact tiers", () => {
       ["pill-label-frontend", "frontend"],
       ["pill-labels-more", "+2"],
       ["pill-context", "86%"],
-      ["pill-subtasks", "1/3"],
+      ["pill-subtasks", "2"],
     ]);
     // The brand stays on a phone even with the provider switched off.
     expect(hostByTestId(tree.root, "pill-agent").findAll((node) => (node.type as unknown) === "Image" || (node.type as unknown) === "View").length).toBeGreaterThan(0);
@@ -630,7 +630,28 @@ describe("TaskCardView actions", () => {
     );
     byLabel(tree.root, "Measure the sidebar ring").props.onPress();
     expect(onReveal).toHaveBeenCalledWith("sample-child-1");
-    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID?.startsWith?.("status-"))).toHaveLength(4);
+    const list = hostByTestId(tree.root, "task-card-subtasks");
+    // Each row: the official status icon on the left, aligned with the title's first line; no state words.
+    for (const child of sample("sample-running").children) {
+      const slot = hostByTestId(list, `subtask-status-${child.id}`);
+      expect(hostByTestId(slot, `status-${child.status}`).props.style).toMatchObject({ height: 18 });
+    }
+    expect(texts(list)).toEqual(["Measure the sidebar ring", "Write the ring geometry test", "Collect status colours"]);
+    for (const word of ["运行中", "已完成", "待输入"]) expect(texts(list)).not.toContain(word);
+  });
+
+  it("counts subtasks by status icon in the pill, without words", async () => {
+    const tree = await render(cardElement(sample("sample-running")));
+    const pill = hostByTestId(tree.root, "pill-subtasks");
+    expect(icons(pill)[0]).toBe("ListTree");
+    const groups = pill.findAll((node) => typeof node.type === "string" && String(node.props.testID ?? "").startsWith("subtask-count-"));
+    expect(groups.map((group) => [group.props.testID, texts(group)])).toEqual([
+      ["subtask-count-running", ["2"]],
+      ["subtask-count-done", ["1"]],
+    ]);
+    expect(hostByTestId(groups[0]!, "status-running")).toBeDefined();
+    expect(hostByTestId(groups[1]!, "status-done")).toBeDefined();
+    expect(pill.props.accessibilityLabel).toBe("3 个子任务：2 运行中 · 1 已完成");
   });
 });
 

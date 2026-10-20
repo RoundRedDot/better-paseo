@@ -7,7 +7,7 @@ import { ProviderLogo } from "../../components/provider-logo";
 import { useHover } from "../../ui/use-hover";
 import type { PermissionButton, StopPhase } from "../actions";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
-import type { TaskCard, TaskChild } from "../model";
+import type { StatusKind, TaskCard, TaskChild } from "../model";
 import {
   contextRatio,
   contextTone,
@@ -275,10 +275,8 @@ function activeChildren(card: TaskCard): number {
   return card.children.filter((child) => child.status === "running" || child.status === "needs_input").length;
 }
 
-/** Children that finished: done, or done but not yet looked at. */
-function finishedChildren(card: TaskCard): number {
-  return card.children.filter((child) => child.status === "done" || child.status === "unread").length;
-}
+/** The subtasks pill's groups, most urgent first. */
+const SUBTASK_ORDER: readonly StatusKind[] = ["needs_input", "running", "failed", "unread", "done"];
 
 // --- Overlays and control hover ----------------------------------------------
 
@@ -656,19 +654,27 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     );
   }
   if (layout.subtasks) {
+    // Icons and counts, no words: ListTree, then each status the children are in.
+    const counts = new Map<StatusKind, number>();
+    for (const child of card.children) counts.set(child.status, (counts.get(child.status) ?? 0) + 1);
     pills.push(
       <PillButton
         key="subtasks"
         {...pill}
         testID="pill-subtasks"
         icon="ListTree"
-        label={`${finishedChildren(card)}/${card.children.length}`}
-        tabular
         accessibilityLabel={subtaskSummary(card.children, language)}
         expanded={expanded}
         report={reportControl}
         onPress={() => setExpanded((open) => !open)}
-      />,
+      >
+        {SUBTASK_ORDER.filter((kind) => counts.has(kind)).map((kind) => (
+          <View key={kind} style={{ flexDirection: "row", alignItems: "center", gap: 3 }} testID={`subtask-count-${kind}`}>
+            <StatusIcon kind={kind} size={m.icon + 2} height={m.pillLine} theme={theme} animated={props.animated} />
+            <Text style={[{ fontSize: m.pillText, lineHeight: m.pillLine, color: muted }, tabular]}>{counts.get(kind)}</Text>
+          </View>
+        ))}
+      </PillButton>,
     );
   }
   const pillRow =
@@ -749,7 +755,6 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
             theme={theme}
             tokens={tokens}
             compact={compact}
-            state={strings.status[child.status]}
             openLabel={strings.openInWorkspace}
             backdrop={background}
             animated={props.animated}
@@ -816,7 +821,8 @@ function permissionIcon(kind: string): string {
 interface PillProps {
   tokens: TaskTokens;
   compact: boolean;
-  label: string;
+  /** The pill's text; a pill of icons and counts passes children instead. */
+  label?: string;
   /** A Lucide icon before the text. */
   icon?: string;
   /** An 8 px dot before the text (a label's colour). */
@@ -857,12 +863,14 @@ function PillContent(props: PillProps) {
       {props.lead ?? null}
       {props.icon ? <Icon name={props.icon} size={m.icon} color={color} /> : null}
       {props.dot ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: props.dot }} /> : null}
-      <Text
-        numberOfLines={1}
-        style={[{ fontSize: m.pillText, lineHeight: m.pillLine, color, flexShrink: 1 }, props.tabular ? tabular : null]}
-      >
-        {props.label}
-      </Text>
+      {props.label !== undefined ? (
+        <Text
+          numberOfLines={1}
+          style={[{ fontSize: m.pillText, lineHeight: m.pillLine, color, flexShrink: 1 }, props.tabular ? tabular : null]}
+        >
+          {props.label}
+        </Text>
+      ) : null}
       {props.children}
     </>
   );
@@ -1250,7 +1258,6 @@ function SubtaskRow(props: {
   theme: PluginTheme;
   tokens: TaskTokens;
   compact: boolean;
-  state: string;
   openLabel: string;
   /** The card's fill, under the row's status icon while it is not hovered. */
   backdrop: string;
@@ -1278,9 +1285,9 @@ function SubtaskRow(props: {
       style={{
         minHeight: compact ? 36 : 28,
         flexDirection: "row",
-        alignItems: "center",
+        alignItems: "flex-start",
         gap: GAP,
-        paddingVertical: 2,
+        paddingVertical: (compact ? 36 - m.blockLine : 28 - m.blockLine) / 2,
         paddingLeft: 6,
         paddingRight: 2,
         marginHorizontal: -6,
@@ -1289,13 +1296,13 @@ function SubtaskRow(props: {
         ...webTransition,
       }}
     >
-      <View style={{ width: m.iconSlot, alignItems: "center" }}>
+      {/* The official status icon, centred on the title's first line. */}
+      <View style={{ width: m.iconSlot, alignItems: "center" }} testID={`subtask-status-${child.id}`}>
         <StatusIcon kind={child.status} size={m.iconBox} height={m.blockLine} theme={props.theme} backdrop={fill} animated={props.animated} />
       </View>
       <Text numberOfLines={2} style={{ flex: 1, fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
         {child.title}
       </Text>
-      <Text style={{ fontSize: m.metaSize, color: tokens.foregroundMuted }}>{props.state}</Text>
       {props.onOpen ? (
         <Pressable
           accessibilityRole="button"
@@ -1305,6 +1312,7 @@ function SubtaskRow(props: {
           style={{
             width: size,
             height: size,
+            marginVertical: (m.blockLine - size) / 2,
             marginRight: compact ? -8 : 0,
             borderRadius: 5,
             alignItems: "center",
