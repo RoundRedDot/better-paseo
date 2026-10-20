@@ -86,11 +86,9 @@ function CreateAgentView({ data, tokens, raw, compact }: {
         fontWeight: "600", color: tokens.foreground, minWidth: 0, flexShrink: 1, marginBottom: mobile ? 0 : 4,
       }}>{data.title}</Text>
       <View testID="create-agent-metadata" style={{
-        flexDirection: mobile ? "column" : "row", alignItems: mobile ? "stretch" : "center",
-        justifyContent: "space-between", flexWrap: "wrap", gap: mobile ? space.xs : space.sm, minWidth: 0,
+        flexDirection: "row", alignItems: "center", justifyContent: "flex-start",
+        flexWrap: "wrap", columnGap: space.lg, rowGap: space.xs, minWidth: 0,
       }}>
-        <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: space.lg, rowGap: space.xs,
-          minWidth: 0, flexShrink: 1 }}>
           {data.model ? <ModelName provider={data.provider} model={data.model} modelName={modelName}
             thinkingLabel={thinking} tokens={tokens} mobile={mobile} /> :
             <ProviderLogo provider={data.provider} size={16} showLabel labelColor={tokens.foregroundMuted}
@@ -100,7 +98,6 @@ function CreateAgentView({ data, tokens, raw, compact }: {
           <MetadataItem testID="create-agent-permissions" accessibilityLabel={`Permissions: ${mode?.label ?? data.modeId ?? "未指定"}`}
             icon={mode?.icon ?? "Shield"} iconColor={modeColor(mode?.colorTier, tokens)}
             label={mode?.label ?? data.modeId ?? "未指定"} tokens={tokens} />
-        </View>
         <AgentId agentId={data.agentId} tokens={tokens} mobile={mobile} />
       </View>
       {raw ? <PreviewLines text={data.initialPrompt} lines={lines} tokens={tokens}
@@ -186,6 +183,7 @@ function AgentId({ agentId, tokens, mobile }: { agentId?: string; tokens: Extend
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
       onPress={() => { if (agentId) void copy(agentId, { label: "Copy agent ID" }); }}
       style={{ flexDirection: "row", alignItems: "center", gap: space.xs, maxWidth: "100%", minWidth: 0,
+        width: mobile && agentId ? "100%" : undefined,
         minHeight: mobile ? 24 : capabilities.touch ? 44 : 24, paddingVertical: 3, borderRadius: radiusV2.block }}>
       <Glyph name="CheckCircle" size={11} color={tokens.success} />
       <Text style={{ fontSize: tokens.typography.block.meta.size, fontFamily: tokens.fontUi,
