@@ -12,6 +12,7 @@ import { DesktopFilterBar, DesktopToolbar, type FilterMenu } from "./filter-bar"
 import { buildFilterOptions } from "./filter-options";
 import { LANES, POPOVER_MAX_HEIGHT, POPOVER_WIDTH, boardKeyReducer, clampFocus, laneLayout, popoverPlacement, type BoardFocus, type Box, type LaneShape } from "./navigation";
 import { rememberCollapsed, rememberedCollapsed } from "./params";
+import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
 
 const nativeDriver = Platform.OS !== "web";
@@ -417,7 +418,7 @@ function DesktopLane(props: {
           }
           ListFooterComponent={
             lane.id === "done" && count > 0 && (lane.hasMore || lane.loading) ? (
-              <LoadMoreRow shown={count} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} />
+              <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} />
             ) : null
           }
         />

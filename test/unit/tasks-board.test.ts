@@ -55,6 +55,7 @@ describe("board params", () => {
       openTabsOnly: true,
       hideSubtasks: false,
       doneWindow: "7d",
+      sort: { key: "branch", direction: "desc" },
     };
     const encoded = encodeBoardParams(params);
     expect(Object.values(encoded).every((value) => typeof value === "string")).toBe(true);

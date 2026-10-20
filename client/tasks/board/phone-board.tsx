@@ -21,6 +21,7 @@ import { FilterSheetBody } from "./filter-sheet";
 import { defaultLane, laneAfter, swallowsTap, swipeStep } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
 import { LANE_EMPTY_ICON } from "./strings";
+import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
 
 const nativeDriver = Platform.OS !== "web";
@@ -472,7 +473,7 @@ function PhoneLane(props: {
       }
       ListFooterComponent={
         lane.id === "done" && count > 0 && (lane.hasMore || lane.loading) ? (
-          <LoadMoreRow shown={count} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} large />
+          <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} large />
         ) : null
       }
     />

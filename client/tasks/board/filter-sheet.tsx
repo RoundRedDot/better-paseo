@@ -8,6 +8,8 @@ import { HAIRLINE } from "./board-style";
 import { LetterAvatar } from "./filter-bar";
 import { clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
+import { SORT_CHOICES, encodeSort, sameSort } from "./sort";
+import { sortLabel } from "./strings";
 import type { BoardController } from "./use-board";
 
 /** The phone's filters (prototype 04 · 过滤 sheet), drawn inside the host's bottom sheet. */
@@ -91,6 +93,21 @@ export function FilterSheetBody(props: { board: BoardController; theme: PluginTh
         />
         <Text style={{ paddingTop: 12, paddingBottom: 8, fontSize: 12, fontWeight: "500", color: colors.foregroundMuted }}>{strings.doneRange}</Text>
         <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
+        <SectionTitle text={strings.sort} theme={theme} />
+        <ChipWrap>
+          {SORT_CHOICES.map((choice) => {
+            const id = encodeSort(choice) ?? "default";
+            return (
+              <Chip
+                key={id}
+                option={{ id, label: sortLabel(choice, strings), count: 0, on: sameSort(choice, board.params.sort) }}
+                theme={theme}
+                hideCount
+                onPress={() => setParams((p) => ({ ...p, sort: choice }))}
+              />
+            );
+          })}
+        </ChipWrap>
       </View>
       <View style={{ paddingTop: 12, paddingHorizontal: 16, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
         <Pressable

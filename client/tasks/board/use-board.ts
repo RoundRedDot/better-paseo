@@ -9,6 +9,7 @@ import { filterLanes, useTasks, type TasksHandle } from "../data";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { LANE_ORDER, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
 import { MOTION } from "./board-style";
+import { nameCompare, sortLaneCards } from "./sort";
 import {
   decodeBoardParams,
   encodeBoardParams,
@@ -141,10 +142,15 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
   const now = useBoardClock(visible);
   const stop = useStopControl({ confirmStop: settings.board.confirmStop });
   const { stoppedManually, noteRunning } = stop;
-  const lanes = useMemo(
+  const filtered = useMemo(
     () => filterLanes(withStopReasons(tasks.lanes, stoppedManually, strings.stoppedManually), filters),
     [tasks.lanes, stoppedManually, strings.stoppedManually, filters],
   );
+  // The order is taken when the sort or the cards change, never on a clock
+  // tick, so a duration sort does not reshuffle every second.
+  const sort = params.sort;
+  const compareNames = useMemo(() => nameCompare(language), [language]);
+  const lanes = useMemo(() => sortLaneCards(filtered, sort, Date.now(), compareNames), [filtered, sort, compareNames]);
   const total = LANE_ORDER.reduce((sum, id) => sum + lanes[id].cards.length, 0);
   // A card stopped from the board that runs again drops its "Stopped manually".
   useEffect(() => {

@@ -159,6 +159,8 @@ export function SkeletonCard({ theme, opacity, index }: { theme: PluginTheme; op
 /** "Showing 50 · Load more", or "Loading" while the next page is on its way. */
 export function LoadMoreRow(props: {
   shown: number;
+  /** The sort reaches only the loaded pages: say so instead of the plain count. */
+  sortedLoadedOnly?: boolean;
   loading: boolean;
   onPress(): void;
   theme: PluginTheme;
@@ -170,7 +172,7 @@ export function LoadMoreRow(props: {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingTop: props.large ? 4 : 6 }}>
       <Text style={{ flex: 1, fontSize: props.large ? 12 : 11, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>
-        {props.strings.shown(props.shown)}
+        {props.sortedLoadedOnly ? props.strings.sortedAmong(props.shown) : props.strings.shown(props.shown)}
       </Text>
       <HoverPressable
         accessibilityRole="button"

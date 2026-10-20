@@ -7,9 +7,11 @@ import { Checkbox, HoverPressable, WindowSegments } from "./board-parts";
 import { GLYPH_LINE, HAIRLINE } from "./board-style";
 import { activeChips, clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem, type BoardParams } from "./params";
+import { SORT_CHOICES, encodeSort, sameSort } from "./sort";
+import { sortLabel } from "./strings";
 import type { BoardController } from "./use-board";
 
-export type FilterMenu = "workspace" | "agent" | "label";
+export type FilterMenu = "workspace" | "agent" | "label" | "sort";
 
 /**
  * The desktop board's two bars (prototype 01): the count, key hints and
@@ -209,7 +211,55 @@ export function DesktopFilterBar(props: {
         theme={theme}
         strings={strings}
       />
+      <Divider theme={theme} />
+      <MenuButton
+        icon="ArrowUpDown"
+        label={params.sort ? sortLabel(params.sort, strings) : strings.sort}
+        open={menu === "sort"}
+        onPress={() => toggle("sort")}
+        theme={theme}
+      >
+        <MenuPanel theme={theme} width={220} empty={null} alignRight>
+          {SORT_CHOICES.map((choice) => (
+            <SortRow
+              key={encodeSort(choice) ?? "default"}
+              label={sortLabel(choice, strings)}
+              on={sameSort(choice, params.sort)}
+              theme={theme}
+              onPress={() => {
+                setParams((p) => ({ ...p, sort: choice }));
+                setMenu(null);
+              }}
+            />
+          ))}
+        </MenuPanel>
+      </MenuButton>
     </View>
+  );
+}
+
+function SortRow(props: { label: string; on: boolean; theme: PluginTheme; onPress(): void }) {
+  const colors = props.theme.colors;
+  return (
+    <HoverPressable
+      accessibilityRole="radio"
+      accessibilityState={{ selected: props.on }}
+      onPress={props.onPress}
+      style={(hovered) => ({
+        height: 30,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        paddingHorizontal: 8,
+        borderRadius: 5,
+        backgroundColor: hovered ? colors.surface1 : "transparent",
+      })}
+    >
+      <View style={{ width: 14, alignItems: "center" }}>{props.on ? <Icon name="Check" size={14} color={colors.accent} /> : null}</View>
+      <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, color: colors.foreground }}>
+        {props.label}
+      </Text>
+    </HoverPressable>
   );
 }
 
@@ -256,14 +306,14 @@ function MenuButton(props: { icon: string; label: string; open: boolean; onPress
   );
 }
 
-function MenuPanel(props: { theme: PluginTheme; width: number; empty: string | null; children: ReactNode }) {
+function MenuPanel(props: { theme: PluginTheme; width: number; empty: string | null; children: ReactNode; alignRight?: boolean }) {
   const colors = props.theme.colors;
   return (
     <View
       style={{
         position: "absolute",
         top: 32,
-        left: 0,
+        ...(props.alignRight ? { right: 0 } : { left: 0 }),
         width: props.width,
         maxHeight: 420,
         padding: 4,
