@@ -50,6 +50,8 @@ function render(language = "", text = source, closed = true) {
 const hosts = (id: string) => renderer.root.findAll((node) => String(node.type) === "View" && node.props.testID === id);
 const buttons = (label: string) => renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === label);
 const press = (label: string) => act(() => buttons(label)[0]!.props.onPress());
+const previewWrap = () => hosts("hover-preview-start")[0]!.find((node) =>
+  String(node.type) === "Pressable" && ["Do not wrap lines", "Wrap lines"].includes(node.props.accessibilityLabel));
 afterEach(() => {
   act(() => renderer?.unmount());
   delete platform.__rnMockOS;
@@ -64,7 +66,7 @@ describe("Markdown code window", () => {
     render("markdown");
     press("Open Markdown in a window");
     act(() => state.layers.at(-1)!.onLinesFit!(true));
-    expect(buttons("Do not wrap lines")[0]!.props.disabled).toBe(true);
+    expect(previewWrap().props.disabled).toBe(true);
     press("Show raw text");
     const header = hosts("hover-preview-start")[0]!;
     const wrap = header.find((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Do not wrap lines");
@@ -72,7 +74,7 @@ describe("Markdown code window", () => {
     act(() => wrap.props.onPress());
     expect(header.find((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Wrap lines").props.disabled).toBe(false);
     press("Render Markdown");
-    expect(buttons("Do not wrap lines")[0]!.props.disabled).toBe(true);
+    expect(previewWrap().props.disabled).toBe(true);
   });
   it.each(["web", "ios", "android"])("opens maximized, switches the complete source and closes on %s", async (os) => {
     platform.__rnMockOS = os;
@@ -89,7 +91,7 @@ describe("Markdown code window", () => {
     const header = hosts("hover-preview-start")[0]!;
     expect(header.findAll((node) => String(node.type) === "Pressable").map((node) => node.props.accessibilityLabel))
       .toEqual(["Do not wrap lines", "Show raw text"]);
-    const wrapButton = buttons("Do not wrap lines")[0]!;
+    const wrapButton = previewWrap();
     expect(wrapButton.props.disabled).toBe(true);
     expect(StyleSheet.flatten(wrapButton.props.style).opacity).toBeLessThan(1);
     expect(buttons("Show raw text")[0]!.find((node) => String(node.type) === "Icon").props.name).toBe("Code");
@@ -97,8 +99,8 @@ describe("Markdown code window", () => {
     expect(body.findByType(MarkdownView).props.text).toBe(source);
     expect(buttons("Open Markdown in a window")).toHaveLength(1);
     press("Show raw text");
-    expect(buttons("Do not wrap lines")[0]!.props.disabled).toBe(false);
-    press("Do not wrap lines");
+    expect(previewWrap().props.disabled).toBe(false);
+    act(() => previewWrap().props.onPress());
     expect(header.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Wrap lines")).toHaveLength(1);
     expect(body.findByType(PreviewLines).props.text).toBe(source);
     expect(body.findAll((node) => String(node.type) === "Text" && node.children.length === 1 && node.children[0] === source)).toHaveLength(1);
@@ -110,7 +112,7 @@ describe("Markdown code window", () => {
     });
     expect(state.copy).toHaveBeenCalledWith(source);
     press("Render Markdown");
-    expect(buttons("Do not wrap lines")[0]!.props.disabled).toBe(true);
+    expect(previewWrap().props.disabled).toBe(true);
     expect(header.findAll((node) => String(node.type) === "Pressable").map((node) => node.props.accessibilityLabel))
       .toEqual(["Do not wrap lines", "Show raw text"]);
     expect(body.findByType(MarkdownView).props.text).toBe(source);
