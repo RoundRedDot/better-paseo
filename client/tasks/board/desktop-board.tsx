@@ -3,10 +3,10 @@ import { Animated, Platform, Pressable, ScrollView, Text, View, type FlatList as
 import { FlatList, Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { StatusIcon, TaskDetails } from "../cards";
+import { StatusIcon, TaskDetails, taskTokens } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { boardColors, MOTION } from "./board-style";
+import { MOTION } from "./board-style";
 import { CardCell, DashedRule, LoadMoreRow, SkeletonCard, VerticalLabel, useBreathing, useFreshIds } from "./board-parts";
 import { DesktopFilterBar, DesktopToolbar, type FilterMenu } from "./filter-bar";
 import { buildFilterOptions } from "./filter-options";
@@ -176,7 +176,7 @@ export function DesktopBoard(props: {
   }, [board.visible, rootRef]);
 
   // The dot grid is a CSS background on web; native skips it (one View per dot is too many).
-  const dotGrid = boardColors(theme).dotGrid;
+  const dotGrid = taskTokens(theme).dotGrid;
   useLayoutEffect(() => {
     if (Platform.OS !== "web") return;
     const node = gridRef.current as unknown as HTMLElement | null;
@@ -233,6 +233,7 @@ export function DesktopBoard(props: {
             card={popoverCard}
             theme={theme}
             now={board.now}
+            language={board.language}
             onOpen={
               board.callbacks.onOpen
                 ? (agentId) => {
@@ -325,7 +326,7 @@ function DesktopLane(props: {
           { width: 40, alignItems: "center", gap: 10, paddingVertical: 12, backgroundColor: pressed ? colors.surface1 : colors.surface0 },
         ]}
       >
-        <StatusIcon kind={LANE_STATUS[lane.id]} size={16} theme={theme} />
+        <StatusIcon kind={LANE_STATUS[lane.id]} size={16} theme={theme} animated={board.visible} />
         <VerticalLabel text={name} color={colors.foreground} language={board.language} />
         <Text style={{ fontSize: 12, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{ready ? count : ""}</Text>
       </Pressable>
@@ -336,7 +337,7 @@ function DesktopLane(props: {
   return (
     <View style={[rule, { flexGrow: 1, flexShrink: 0, flexBasis: 320, minHeight: 0 }]}>
       <View style={{ height: 40, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 12, paddingRight: 8, backgroundColor: colors.surface0, zIndex: 1 }}>
-        <StatusIcon kind={LANE_STATUS[lane.id]} size={16} theme={theme} />
+        <StatusIcon kind={LANE_STATUS[lane.id]} size={16} theme={theme} animated={board.visible} />
         <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground }}>{name}</Text>
         {ready ? (
           <Text style={{ fontSize: 12, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{count}</Text>
@@ -395,16 +396,11 @@ function DesktopLane(props: {
           extraData={{ now: board.now, focus: props.focusIndex, highlighted: board.highlighted, stop: board.stop, fields: board.fields, fresh }}
           renderItem={({ item, index }) => (
             <CardCell
+              board={board}
               card={item}
-              fields={board.fields}
               theme={theme}
               compact={false}
-              buttons={board.buttonsFor(item)}
-              stopPhase={board.stop.phase(item.id)}
               focused={props.focusIndex === index}
-              highlighted={board.highlighted === item.id}
-              now={board.now}
-              callbacks={board.callbacks}
               fresh={fresh.has(item.id)}
               register={props.register}
             />

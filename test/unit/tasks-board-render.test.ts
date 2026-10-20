@@ -75,19 +75,22 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
     error: null,
     loadMoreDone: vi.fn(),
     resolveParent: vi.fn(),
+    requestProjectIcon: vi.fn(),
   };
   return {
     ...actual,
+    __handle: handle,
     useTasks: () => handle,
     useTaskCounts: () => ({ ...handle.counts, ready: true }),
   };
 });
 
+import * as data from "../../client/tasks/data";
 import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS } from "../../client/tasks/board/params";
-import { TaskCardView } from "../../client/tasks/cards";
+import { TaskCardView, TaskDetails } from "../../client/tasks/cards";
 import { DEFAULT_TASKS_SETTINGS } from "../../shared/tasks-settings";
 import { resetEnhancerPreferences } from "../../client/preferences";
 
@@ -219,6 +222,32 @@ describe("Tasks board, desktop", () => {
   });
 });
 
+describe("Tasks board, project icons", () => {
+  const requestProjectIcon = () => (data as unknown as { __handle: { requestProjectIcon: ReturnType<typeof vi.fn> } }).__handle.requestProjectIcon;
+
+  it("asks for the icons of rendered cards on desktop when the field is on", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    expect(requestProjectIcon()).toHaveBeenCalledWith("prj_sample");
+    expect(cards()[0]!.props).toMatchObject({ language: "en", animated: true });
+  });
+
+  it("never asks on a phone or with the field off", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    act(() => renderer!.unmount());
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, card: { ...DEFAULT_TASKS_SETTINGS.card, projectIcon: false } };
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    expect(requestProjectIcon()).not.toHaveBeenCalled();
+  });
+});
+
 describe("Tasks board, phone", () => {
   it("opens on needs-input, switches lanes by tab and remembers the pick", () => {
     act(() => {
@@ -274,7 +303,9 @@ describe("Tasks board, phone", () => {
     });
     act(() => cards()[0]!.props.onDetails(cards()[0]!.props.card));
     const sheet = renderer!.root.find((node) => (node.type as unknown) === "Modal");
-    expect(sheet.props.title).toBe("Run the migration against the staging database");
+    // The compact details draw the title themselves; the sheet's header says what it is.
+    expect(sheet.props.title).toBe("Details");
+    expect(sheet.findByType(TaskDetails).props).toMatchObject({ compact: true, language: "en", card: { id: "sample-input" } });
   });
 });
 

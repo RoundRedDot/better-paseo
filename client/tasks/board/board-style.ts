@@ -1,53 +1,6 @@
-import type { PluginTheme } from "@getpaseo/plugin";
-import { mix } from "../../components/theme-tokens";
-import { themeKey } from "../../ui/tokens/theme-key";
-
 /**
- * The board's derived colours and motion (prototype 6.1, 6.4). Colours are
- * the prototype's formulas, `mix(A, B, p) = A·p + B·(1 − p)`, written with
- * `theme-tokens`' `mix(from, to, t)`, which runs the other way.
+ * The board's motion (prototype 6.4). Colours come from the cards' `taskTokens`.
  */
-export interface BoardColors {
-  /** The 16px dot grid under the lanes. */
-  dotGrid: string;
-  /** Unchecked boxes. */
-  borderStrong: string;
-  /** A selected chip's fill. */
-  accentSoft: string;
-  /** Menus and the details popover. */
-  popoverShadow: string;
-}
-
-// Keyed on the colour strings: the host builds a fresh `theme.colors` on every render.
-const cache = new Map<string, BoardColors>();
-
-function isLight(color: string): boolean {
-  const match = /^#?([0-9a-f]{6})$/i.exec(color.trim());
-  if (!match) return true;
-  const value = parseInt(match[1]!, 16);
-  const luminance = (0.299 * ((value >> 16) & 255) + 0.587 * ((value >> 8) & 255) + 0.114 * (value & 255)) / 255;
-  return luminance >= 0.5;
-}
-
-export function boardColors(theme: PluginTheme): BoardColors {
-  const colors = theme.colors;
-  const key = themeKey(theme);
-  let out = cache.get(key);
-  if (!out) {
-    if (cache.size >= 8) cache.delete(cache.keys().next().value as string);
-    const light = isLight(colors.surface0);
-    out = {
-      dotGrid: mix(colors.surface0, colors.foregroundMuted, 0.22),
-      borderStrong: mix(colors.border, colors.foregroundMuted, 0.35),
-      accentSoft: mix(colors.surface0, colors.accent, 0.12),
-      popoverShadow: light
-        ? "0px 8px 24px -6px rgba(0, 0, 0, 0.12), 0px 2px 6px -2px rgba(0, 0, 0, 0.06)"
-        : "0px 8px 24px -6px rgba(0, 0, 0, 0.5), 0px 2px 6px -2px rgba(0, 0, 0, 0.35)",
-    };
-    cache.set(key, out);
-  }
-  return out;
-}
 
 /** `cubic-bezier(x1, y1, x2, y2)` as an easing for `Animated.timing`. */
 export function cubicBezier(x1: number, y1: number, x2: number, y2: number): (t: number) => number {

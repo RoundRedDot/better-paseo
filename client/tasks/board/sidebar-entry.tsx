@@ -4,7 +4,7 @@ import type { PluginSidebarItemProps } from "@getpaseo/plugin/client";
 import { usePaseo, useSettings } from "@getpaseo/plugin/client";
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS } from "../../../shared/tasks-settings";
-import { StatusIcon } from "../cards";
+import { StatusIcon, useTaskTokens } from "../cards";
 import { useTaskCounts } from "../data";
 import { useTasksLanguage } from "../i18n";
 import { sidebarCountParts, sidebarCountText } from "./navigation";
@@ -26,6 +26,7 @@ export function TasksSidebarEntry(props: PluginSidebarItemProps) {
   const language = useTasksLanguage();
   const parts = sidebarCountParts(counts, counts.ready ? mode : "none");
   const colors = props.theme.colors;
+  const warning = useTaskTokens(props.theme).status.warning;
   const trailing =
     parts.running !== null || parts.input !== null ? (
       <View accessible accessibilityLabel={sidebarCountText(parts, language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -38,7 +39,7 @@ export function TasksSidebarEntry(props: PluginSidebarItemProps) {
         {parts.input !== null ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
             <StatusIcon kind="needs_input" size={14} theme={props.theme} />
-            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.statusWarning, fontVariant: ["tabular-nums"] }}>{parts.input}</Text>
+            <Text style={{ fontSize: 12, fontWeight: "600", color: warning, fontVariant: ["tabular-nums"] }}>{parts.input}</Text>
           </View>
         ) : null}
       </View>
