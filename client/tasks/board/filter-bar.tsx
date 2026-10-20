@@ -101,117 +101,121 @@ export function DesktopFilterBar(props: {
       style={{
         minHeight: 44,
         flexDirection: "row",
-        flexWrap: "wrap",
-        alignItems: "center",
+        alignItems: "flex-start",
         gap: 6,
         paddingHorizontal: 16,
         paddingVertical: 8,
         zIndex: 10,
       }}
     >
-      <MenuButton icon="Folder" label={strings.workspace + count(params.workspaceIds)} open={menu === "workspace"} onPress={() => toggle("workspace")} theme={theme}>
-        <CascadeMenu
-          sections={workspaceMenuSections(options, theme, strings, (id) => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, id) })))}
+      {/* The filters and their chips wrap among themselves; the done window
+          and the sort keep the first row's right end. */}
+      <View style={{ flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
+        <MenuButton icon="Folder" label={strings.workspace + count(params.workspaceIds)} open={menu === "workspace"} onPress={() => toggle("workspace")} theme={theme}>
+          <CascadeMenu
+            sections={workspaceMenuSections(options, theme, strings, (id) => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, id) })))}
+            theme={theme}
+            width={300}
+            top={34}
+            align="left"
+            onClose={() => setMenu(null)}
+          />
+        </MenuButton>
+        <MenuButton icon="Bot" label={strings.agent + count(params.providers)} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
+          <CascadeMenu
+            sections={agentMenuSections(options, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) })))}
+            theme={theme}
+            width={240}
+            top={34}
+            align="left"
+            onClose={() => setMenu(null)}
+          />
+        </MenuButton>
+        <MenuButton icon="Tag" label={strings.labels + count(params.labels)} open={menu === "label"} onPress={() => toggle("label")} theme={theme}>
+          <CascadeMenu
+            sections={labelMenuSections(options, theme, strings, (id) => setParams((p) => ({ ...p, labels: toggleItem(p.labels, id) })))}
+            theme={theme}
+            width={240}
+            top={34}
+            align="left"
+            onClose={() => setMenu(null)}
+          />
+        </MenuButton>
+        <Divider theme={theme} />
+        <ToggleChip
+          icon="AppWindow"
+          label={strings.openTabs}
+          hint={strings.openTabsHint}
+          on={resolved.filters.openTabsOnly}
+          onPress={() => setParams((p) => ({ ...p, openTabsOnly: !p.openTabsOnly }))}
           theme={theme}
-          width={300}
-          top={34}
-          align="left"
-          onClose={() => setMenu(null)}
         />
-      </MenuButton>
-      <MenuButton icon="Bot" label={strings.agent + count(params.providers)} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
-        <CascadeMenu
-          sections={agentMenuSections(options, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) })))}
+        <ToggleChip
+          icon="ListTree"
+          label={strings.hideSubtasks}
+          hint={strings.hideSubtasksHint}
+          on={resolved.filters.hideSubtasks}
+          onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
           theme={theme}
-          width={240}
-          top={34}
-          align="left"
-          onClose={() => setMenu(null)}
         />
-      </MenuButton>
-      <MenuButton icon="Tag" label={strings.labels + count(params.labels)} open={menu === "label"} onPress={() => toggle("label")} theme={theme}>
-        <CascadeMenu
-          sections={labelMenuSections(options, theme, strings, (id) => setParams((p) => ({ ...p, labels: toggleItem(p.labels, id) })))}
-          theme={theme}
-          width={240}
-          top={34}
-          align="left"
-          onClose={() => setMenu(null)}
-        />
-      </MenuButton>
-      <Divider theme={theme} />
-      <ToggleChip
-        icon="AppWindow"
-        label={strings.openTabs}
-        hint={strings.openTabsHint}
-        on={resolved.filters.openTabsOnly}
-        onPress={() => setParams((p) => ({ ...p, openTabsOnly: !p.openTabsOnly }))}
-        theme={theme}
-      />
-      <ToggleChip
-        icon="ListTree"
-        label={strings.hideSubtasks}
-        hint={strings.hideSubtasksHint}
-        on={resolved.filters.hideSubtasks}
-        onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
-        theme={theme}
-      />
-      {resolved.filters.openTabsOnly ? <Text style={{ fontSize: 11, color: colors.foregroundMuted }}>{strings.openTabsHint}</Text> : null}
-      {resolved.filters.hideSubtasks ? <Text style={{ fontSize: 11, color: colors.foregroundMuted }}>{strings.hideSubtasksHint}</Text> : null}
-      {chips.length ? (
-        <>
-          <Divider theme={theme} />
-          {chips.map((chip) => (
-            <View
-              key={chip.key}
-              style={{ height: 28, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 10, paddingRight: 4, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 6 }}
-            >
-              {chip.kind ? <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{chip.kind}</Text> : null}
-              <Text numberOfLines={1} style={{ fontSize: 13, color: colors.foreground, maxWidth: 220 }}>
-                {chip.value}
-              </Text>
-              <HoverPressable
-                accessibilityRole="button"
-                accessibilityLabel={`${strings.clear} ${chip.value}`}
-                onPress={() => setParams(chip.clear)}
-                style={(hovered) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? colors.surface2 : "transparent" })}
+        {resolved.filters.openTabsOnly ? <Text style={{ fontSize: 11, color: colors.foregroundMuted }}>{strings.openTabsHint}</Text> : null}
+        {resolved.filters.hideSubtasks ? <Text style={{ fontSize: 11, color: colors.foregroundMuted }}>{strings.hideSubtasksHint}</Text> : null}
+        {chips.length ? (
+          <>
+            <Divider theme={theme} />
+            {chips.map((chip) => (
+              <View
+                key={chip.key}
+                style={{ height: 28, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 10, paddingRight: 4, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 6 }}
               >
-                <Icon name="X" size={12} color={colors.foregroundMuted} />
-              </HoverPressable>
-            </View>
-          ))}
-          <HoverPressable accessibilityRole="button" onPress={() => setParams(clearedParams)} style={() => ({ height: 28, paddingHorizontal: 4, justifyContent: "center" })}>
-            <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.clearAll}</Text>
-          </HoverPressable>
-        </>
-      ) : null}
-      <View style={{ flex: 1 }} />
-      <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.doneWindowLabel}</Text>
-      <WindowSegments
-        value={resolved.doneWindow}
-        onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))}
-        theme={theme}
-        strings={strings}
-      />
-      <Divider theme={theme} />
-      <MenuButton
-        icon="ArrowUpDown"
-        label={params.sort ? sortLabel(params.sort, strings) : strings.sort}
-        open={menu === "sort"}
-        onPress={() => toggle("sort")}
-        theme={theme}
-      >
-        <CascadeMenu
-          sections={sortMenuSections(params.sort, strings, (sort) => setParams((p) => ({ ...p, sort })))}
+                {chip.kind ? <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{chip.kind}</Text> : null}
+                <Text numberOfLines={1} style={{ fontSize: 13, color: colors.foreground, maxWidth: 220 }}>
+                  {chip.value}
+                </Text>
+                <HoverPressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${strings.clear} ${chip.value}`}
+                  onPress={() => setParams(chip.clear)}
+                  style={(hovered) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? colors.surface2 : "transparent" })}
+                >
+                  <Icon name="X" size={12} color={colors.foregroundMuted} />
+                </HoverPressable>
+              </View>
+            ))}
+            <HoverPressable accessibilityRole="button" onPress={() => setParams(clearedParams)} style={() => ({ height: 28, paddingHorizontal: 4, justifyContent: "center" })}>
+              <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.clearAll}</Text>
+            </HoverPressable>
+          </>
+        ) : null}
+      </View>
+      <View testID="filter-bar-end" style={{ flexShrink: 0, height: 28, flexDirection: "row", alignItems: "center", gap: 6, zIndex: menu === "sort" ? 2 : 1 }}>
+        <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.doneWindowLabel}</Text>
+        <WindowSegments
+          value={resolved.doneWindow}
+          onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))}
           theme={theme}
-          width={240}
-          submenuWidth={200}
-          top={34}
-          align="right"
-          onClose={() => setMenu(null)}
-          testID="sort-menu"
+          strings={strings}
         />
-      </MenuButton>
+        <Divider theme={theme} />
+        <MenuButton
+          icon="ArrowUpDown"
+          label={params.sort ? sortLabel(params.sort, strings) : strings.sort}
+          open={menu === "sort"}
+          onPress={() => toggle("sort")}
+          theme={theme}
+        >
+          <CascadeMenu
+            sections={sortMenuSections(params.sort, strings, (sort) => setParams((p) => ({ ...p, sort })))}
+            theme={theme}
+            width={240}
+            submenuWidth={200}
+            top={34}
+            align="right"
+            onClose={() => setMenu(null)}
+            testID="sort-menu"
+          />
+        </MenuButton>
+      </View>
     </View>
   );
 }

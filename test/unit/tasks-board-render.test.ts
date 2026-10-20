@@ -150,6 +150,12 @@ function lanesScroll(): ReactTestInstance {
   return renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.horizontal === true);
 }
 
+function hostParentOf(node: ReactTestInstance): ReactTestInstance | null {
+  let parent = node.parent;
+  while (parent && typeof parent.type !== "string") parent = parent.parent;
+  return parent;
+}
+
 function cards(): ReactTestInstance[] {
   return renderer!.root.findAllByType(TaskCardView);
 }
@@ -271,6 +277,25 @@ describe("Tasks board, desktop", () => {
       renderer = undefined;
       vi.unstubAllGlobals();
     }
+  });
+
+  it("keeps the done window and the sort at the first filter row's end, whatever wraps", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false, { q: "status", agent: "claude" }));
+    });
+    layOut(1440);
+    const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
+    expect(StyleSheet.flatten(end.props.style)).toMatchObject({ flexShrink: 0 });
+    expect(end.findAll((node) => (node.type as unknown) === "Text" && textOf(node) === "Sort")).toHaveLength(1);
+    // The chips wrap inside the filters' own group, never the bar itself.
+    let bar = end.parent!;
+    while (typeof bar.type !== "string") bar = bar.parent!;
+    expect(StyleSheet.flatten(bar.props.style).flexWrap).toBeUndefined();
+    const groups = bar.findAll((node) => (node.type as unknown) === "View" && hostParentOf(node) === bar);
+    expect(groups).toHaveLength(2);
+    const filters = groups.find((child) => child !== end)!;
+    expect(StyleSheet.flatten(filters.props.style)).toMatchObject({ flex: 1, minWidth: 0, flexWrap: "wrap" });
+    expect(textOf(filters)).toContain("Clear all");
   });
 
   it("hides the jump without navigation", () => {
