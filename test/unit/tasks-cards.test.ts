@@ -68,7 +68,7 @@ import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
 import { contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
-import { PiMark } from "../../client/tasks/cards/brand-mark";
+import { PiMark, agentPillColors, contrastRatio } from "../../client/tasks/cards/brand-mark";
 import { permissionButtons } from "../../client/tasks/actions";
 import { providerBrand } from "../../client/components/provider-logo";
 import { MARK_IDS, seedMarkBitmaps } from "../../client/components/marks";
@@ -341,8 +341,9 @@ describe("TaskCardView rows", () => {
   it("draws pills fully rounded and outlined, with label dots in the label colour", async () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: fields("standard", { labelLimit: "all" }) }));
     for (const [id] of pills(tree.root)) {
-      // borderWidth is StyleSheet.hairlineWidth, which rn-mock reports as 1.
-      expect(flat(hostByTestId(tree.root, id).props.style)).toMatchObject({ height: 24, borderRadius: 12, borderWidth: 1 });
+      // borderWidth is StyleSheet.hairlineWidth, which rn-mock reports as 1; the agent pills have none.
+      const agent = id === "pill-model" || id === "pill-thinking";
+      expect(flat(hostByTestId(tree.root, id).props.style)).toMatchObject({ height: 24, borderRadius: 12, borderWidth: agent ? 0 : 1 });
     }
     // Tints: a label's colour at 10% over the card with a stronger hairline; neutral grey without one.
     const tokens = buildTaskTokens(LIGHT.colors);
@@ -354,8 +355,9 @@ describe("TaskCardView rows", () => {
     expect(pillColors("pill-label-board")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
     expect(pillColors("pill-branch")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
     // The agent pill takes the provider's brand (Codex green); the subtasks pill its dominant status (2 running).
-    expect(pillColors("pill-model").background).toBe(mix("#ffffff", "#10A37F", 0.1));
-    expect(pillColors("pill-thinking")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
+    // The agent pills are borderless, in the brand's colours (Codex green).
+    expect(pillColors("pill-model").background).toBe(mix("#ffffff", "#10A37F", 0.12));
+    expect(pillColors("pill-thinking").background).toBe(mix("#ffffff", "#10A37F", 0.12));
     expect(pillColors("pill-subtasks").background).toBe(mix("#ffffff", tokens.status.running, 0.1));
     const dot = (name: string) =>
       flat((hostByTestId(tree.root, `pill-label-${name}`).findAll((node) => typeof node.type === "string" && flat(node.props.style).width === 8)[0])!.props.style)
@@ -896,7 +898,7 @@ describe("model, thinking and brand marks", () => {
           expect(image).toBeUndefined();
           const cells = hostByTestId(model, "pi-mark").children.map((cell) => flat((cell as ReactTestInstance).props.style).backgroundColor);
           expect(cells).toEqual(["#e39586", "#e39586", "#6198bb", "#6198bb", "#e9c069"]);
-          expect(flat(model.props.style).backgroundColor).toBe(tokens.card.pillFill);
+          expect(flat(model.props.style).backgroundColor).toBe(mix(tokens.card.background, tokens.foreground, 0.06));
           await act(async () => tree.unmount());
           renderer = null;
           continue;
@@ -916,7 +918,11 @@ describe("model, thinking and brand marks", () => {
         if (theme === LIGHT) expect(WRONG_ON_LIGHT).not.toContain(drawn);
         // Tint: a coloured brand's hue, a monochrome mark's neutral grey.
         const fill = flat(model.props.style).backgroundColor;
-        expect(fill).toBe(MONOCHROME.has(provider) ? tokens.card.pillFill : mix(tokens.card.background, brand.color, tokens.isDark ? 0.16 : 0.1));
+        expect(fill).toBe(
+          MONOCHROME.has(provider)
+            ? mix(tokens.card.background, tokens.foreground, 0.06)
+            : mix(tokens.card.background, brand.color, tokens.isDark ? 0.2 : 0.12),
+        );
         await act(async () => tree.unmount());
         renderer = null;
       }
@@ -934,6 +940,49 @@ describe("model, thinking and brand marks", () => {
       [6, 10, 4, 4],
       [14, 10, 4, 8],
     ]);
+  });
+
+  it("styles the agent pills as Linear's status pill: brand tint, no border, readable label, brand icon", async () => {
+    // The reference: #606acd over white gives #ecedfa and a #4349a3 label.
+    const reference = buildTaskTokens(PALETTES.paseoLight);
+    const near = (a: string, b: string) =>
+      [1, 3, 5].every((i) => Math.abs(Number.parseInt(a.slice(i, i + 2), 16) - Number.parseInt(b.slice(i, i + 2), 16)) <= 1);
+    expect(near(mix(reference.card.background, "#606acd", 0.12), "#ecedfa")).toBe(true);
+    for (const palette of [PALETTES.paseoLight, PALETTES.paseoDark, PALETTES.sepiaLight, PALETTES.blueDark]) {
+      const tokens = buildTaskTokens(palette);
+      for (const provider of ["claude", "codex", "gemini", "copilot", "deepseek", "minimax", "antigravity", "opencode"]) {
+        const brand = providerBrand(provider).color;
+        const colors = agentPillColors(tokens, provider);
+        expect(colors.background).toBe(mix(tokens.card.background, brand, tokens.isDark ? 0.2 : 0.12));
+        expect(colors.icon).toBe(brand);
+        expect(contrastRatio(colors.text, colors.background)).toBeGreaterThanOrEqual(4.5);
+        // Darker than the brand on a light theme, lighter on a dark one.
+        const lighter = contrastRatio(colors.text, "#000000") > contrastRatio(brand, "#000000");
+        expect(lighter).toBe(tokens.isDark);
+      }
+      for (const provider of ["grok", "cursor", "ollama", "omp", "paseo", "pi", "some-new-agent"]) {
+        expect(agentPillColors(tokens, provider)).toEqual({
+          background: mix(tokens.card.background, palette.foreground, 0.06),
+          text: palette.foreground,
+          icon: palette.foreground,
+        });
+      }
+    }
+
+    for (const theme of [LIGHT, DARK]) {
+      const tokens = buildTaskTokens(theme.colors);
+      const tree = await render(cardElement(sample("sample-running"), { theme }));
+      const colors = agentPillColors(tokens, "codex");
+      for (const id of ["pill-model", "pill-thinking"]) {
+        const node = hostByTestId(tree.root, id);
+        expect(flat(node.props.style)).toMatchObject({ backgroundColor: colors.background, borderWidth: 0 });
+        expect(flat(node.find((child) => (child.type as unknown) === "Text").props.style)).toMatchObject({ color: colors.text, fontWeight: "500" });
+      }
+      // The Brain icon and the (tinted) Codex mark wear the brand colour itself.
+      expect(hostByTestId(tree.root, "pill-thinking").findByType("Icon" as never).props.color).toBe("#10A37F");
+      await act(async () => tree.unmount());
+      renderer = null;
+    }
   });
 
   it("draws the thinking pill with the host's Brain icon", async () => {

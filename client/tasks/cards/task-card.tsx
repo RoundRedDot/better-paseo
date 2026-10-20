@@ -17,7 +17,7 @@ import {
   tildePath,
 } from "./format";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
-import { BrandMark, brandTint } from "./brand-mark";
+import { agentPillColors, BrandMark, type AgentPillColors } from "./brand-mark";
 import { THINKING_ICON } from "./mode-icons";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
@@ -575,7 +575,9 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   // Pills ------------------------------------------------------------------
   const pill = { tokens, compact };
   const pills: ReactNode[] = [];
-  // Model and thinking as the composer shows them: two items, each with its icon.
+  // Model and thinking as the composer shows them: two items, each with its icon,
+  // in the brand's borderless status-pill colours.
+  const agentColors = agentPillColors(tokens, card.provider);
   if (layout.modelPill) {
     const model = layout.model && card.modelLabel ? card.modelLabel : card.providerLabel;
     pills.push(
@@ -583,7 +585,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         key="model"
         {...pill}
         testID="pill-model"
-        tint={brandTint(card.provider)}
+        solid={agentColors}
         lead={layout.brand ? <BrandMark provider={card.provider} size={m.icon} tokens={tokens} /> : undefined}
         label={model}
         accessibilityLabel={model === card.providerLabel ? model : `${card.providerLabel} ${model}`}
@@ -591,7 +593,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     );
   }
   if (layout.thinking && card.thinkingLabel) {
-    pills.push(<Pill key="thinking" {...pill} testID="pill-thinking" icon={THINKING_ICON} label={card.thinkingLabel} />);
+    pills.push(<Pill key="thinking" {...pill} testID="pill-thinking" solid={agentColors} icon={THINKING_ICON} label={card.thinkingLabel} />);
   }
   if (layout.branch && location.branch) {
     pills.push(
@@ -860,8 +862,10 @@ interface PillProps {
   lead?: ReactNode;
   /** Text and icon colour; muted by default. */
   color?: string;
-  /** The data colour the pill is tinted with (label, brand, status); null or absent for the neutral pill. */
+  /** The data colour the pill is tinted with (label, status); null or absent for the neutral pill. */
   tint?: string | null;
+  /** A borderless filled pill (the agent pills): its fill, label and icon colours. */
+  solid?: AgentPillColors;
   tabular?: boolean;
   accessibilityLabel?: string;
   testID?: string;
@@ -872,15 +876,15 @@ interface PillProps {
  * Linear's property pill, 24 high (28 on a phone), fully rounded, with a
  * hairline; filled with a light tint of its data colour, or neutral grey.
  */
-export function pillStyle(tokens: TaskTokens, compact: boolean, tint: string | null = null): ViewStyle {
+export function pillStyle(tokens: TaskTokens, compact: boolean, tint: string | null = null, solid?: AgentPillColors): ViewStyle {
   const m = compact ? PHONE : DESKTOP;
-  const colors = pillTint(tokens, tint);
+  const colors = solid ? { background: solid.background, border: "transparent" } : pillTint(tokens, tint);
   return {
     height: m.pillHeight,
     minWidth: m.pillHeight,
     maxWidth: "100%",
     borderRadius: m.pillHeight / 2,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: solid ? 0 : StyleSheet.hairlineWidth,
     borderColor: colors.border,
     backgroundColor: colors.background,
     paddingHorizontal: m.pillPad,
@@ -893,16 +897,19 @@ export function pillStyle(tokens: TaskTokens, compact: boolean, tint: string | n
 
 function PillContent(props: PillProps) {
   const m = props.compact ? PHONE : DESKTOP;
-  const color = props.color ?? props.tokens.foregroundMuted;
+  const color = props.solid?.text ?? props.color ?? props.tokens.foregroundMuted;
   return (
     <>
       {props.lead ?? null}
-      {props.icon ? <Icon name={props.icon} size={m.icon} color={color} /> : null}
+      {props.icon ? <Icon name={props.icon} size={m.icon} color={props.solid?.icon ?? color} /> : null}
       {props.dot ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: props.dot }} /> : null}
       {props.label !== undefined ? (
         <Text
           numberOfLines={1}
-          style={[{ fontSize: m.pillText, lineHeight: m.pillLine, color, flexShrink: 1 }, props.tabular ? tabular : null]}
+          style={[
+          { fontSize: m.pillText, lineHeight: m.pillLine, color, flexShrink: 1, fontWeight: props.solid ? "500" : "400" },
+          props.tabular ? tabular : null,
+        ]}
         >
           {props.label}
         </Text>
@@ -914,7 +921,11 @@ function PillContent(props: PillProps) {
 
 function Pill(props: PillProps) {
   return (
-    <View style={pillStyle(props.tokens, props.compact, props.tint ?? null)} testID={props.testID} accessibilityLabel={props.accessibilityLabel}>
+    <View
+      style={pillStyle(props.tokens, props.compact, props.tint ?? null, props.solid)}
+      testID={props.testID}
+      accessibilityLabel={props.accessibilityLabel}
+    >
       <PillContent {...props} />
     </View>
   );
