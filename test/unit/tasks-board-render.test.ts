@@ -277,9 +277,54 @@ describe("Tasks board, desktop", () => {
       act(() => running().props.onStop(running().props.card));
       expect(running().props.stopPhase).toBe("confirming");
       const preventDefault = vi.fn();
-      act(() => keys.at(-1)!({ key: "Escape", preventDefault }));
+      act(() => {
+        for (const listener of keys) listener({ key: "Escape", preventDefault });
+      });
       expect(running().props.stopPhase).toBe("idle");
       expect(preventDefault).toHaveBeenCalled();
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("disarms on Esc in the capture phase from the search box and the sidebar, and blurs the search box", async () => {
+    host.canStop = true;
+    const capture: Array<(event: unknown) => void> = [];
+    const doc = {
+      activeElement: null as unknown,
+      body: {},
+      visibilityState: "visible",
+      addEventListener: (type: string, listener: (event: unknown) => void, useCapture?: boolean) => type === "keydown" && useCapture === true && capture.push(listener),
+      removeEventListener: () => {},
+    };
+    vi.stubGlobal("document", doc);
+    const search = { tagName: "INPUT", inBoard: true, blur: vi.fn() };
+    const sidebar = { tagName: "DIV", inBoard: false, blur: vi.fn() };
+    // The board's root is the one collapsable={false} view; the rest stay unmocked.
+    const nodeMock = {
+      createNodeMock: (element: { props: { collapsable?: boolean } }) =>
+        element.props.collapsable === false ? { contains: (node: { inBoard?: boolean }) => node?.inBoard === true } : null,
+    };
+    try {
+      await act(async () => {
+        renderer = TestRenderer.create(screen(false), nodeMock);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      layOut(1600);
+      expect(capture).toHaveLength(1);
+      const running = () => cards().find((card) => card.props.card.id === "sample-running")!;
+      for (const focus of [search, sidebar]) {
+        act(() => running().props.onStop(running().props.card));
+        expect(running().props.stopPhase).toBe("confirming");
+        doc.activeElement = focus;
+        act(() => capture[0]!({ key: "Escape", preventDefault() {} }));
+        expect(running().props.stopPhase).toBe("idle");
+      }
+      expect(search.blur).toHaveBeenCalledTimes(1);
+      expect(sidebar.blur).not.toHaveBeenCalled();
     } finally {
       act(() => renderer?.unmount());
       renderer = undefined;
