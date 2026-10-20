@@ -4,7 +4,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { ProviderLogo } from "../../components/provider-logo";
 import { taskTokens } from "../cards";
-import { Checkbox, DashedRule, WindowSegments } from "./board-parts";
+import { Checkbox, WindowSegments } from "./board-parts";
 import { LetterAvatar } from "./filter-bar";
 import { clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
@@ -72,7 +72,7 @@ export function FilterSheetBody(props: { board: BoardController; theme: PluginTh
             />
           ))}
         </ChipWrap>
-        <DashedRule color={colors.border} style={{ marginTop: 16, marginBottom: 4 }} />
+        <View style={{ height: 1, marginTop: 16, marginBottom: 4, backgroundColor: colors.border }} />
         <ToggleRow
           icon="AppWindow"
           label={strings.openTabs}

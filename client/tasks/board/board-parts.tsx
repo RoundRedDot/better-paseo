@@ -14,18 +14,6 @@ import type { BoardController } from "./use-board";
 
 const nativeDriver = Platform.OS !== "web";
 
-/**
- * A 1px dashed horizontal rule. React Native draws a dashed border only on
- * all four sides, so this clips a dashed box to its top edge.
- */
-export function DashedRule({ color, style }: { color: string; style?: StyleProp<ViewStyle> }) {
-  return (
-    <View style={[{ height: 1, overflow: "hidden" }, style]} pointerEvents="none">
-      <View style={{ height: 3, borderWidth: 1, borderStyle: "dashed", borderColor: color }} />
-    </View>
-  );
-}
-
 /** A lane name read top to bottom: Chinese stacks its characters upright, Latin text turns 90°. */
 export function VerticalLabel({ text, color, language }: { text: string; color: string; language: "en" | "zh" }) {
   const [length, setLength] = useState(0);
@@ -83,7 +71,9 @@ export function WindowSegments(props: {
   stretch?: boolean;
 }) {
   const colors = props.theme.colors;
-  const outer = props.large ? 32 : 26;
+  // Desktop: a Linear-style 28 pill with square-ish corners; phone: the prototype's round segments.
+  const outer = props.large ? 32 : 28;
+  const round = (height: number) => (props.large ? height / 2 : height === outer ? 6 : 4);
   return (
     <View
       accessibilityRole="radiogroup"
@@ -93,7 +83,7 @@ export function WindowSegments(props: {
         padding: 2,
         borderWidth: 1,
         borderColor: colors.border,
-        borderRadius: (props.stretch ? 36 : outer) / 2,
+        borderRadius: round(props.stretch ? 36 : outer),
         alignSelf: props.stretch ? "stretch" : "auto",
       }}
     >
@@ -110,13 +100,13 @@ export function WindowSegments(props: {
               height: inner,
               flex: props.stretch ? 1 : undefined,
               paddingHorizontal: props.large ? 12 : 9,
-              borderRadius: inner / 2,
+              borderRadius: round(inner),
               backgroundColor: on ? colors.surface2 : "transparent",
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Text style={{ fontSize: props.large ? (props.stretch ? 14 : 13) : 12, fontWeight: "500", color: on ? colors.foreground : colors.foregroundMuted }}>
+            <Text style={{ fontSize: props.large ? (props.stretch ? 14 : 13) : 13, fontWeight: "500", color: on ? colors.foreground : colors.foregroundMuted }}>
               {props.strings.windows[window]}
             </Text>
           </Pressable>

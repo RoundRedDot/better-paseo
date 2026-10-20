@@ -164,3 +164,38 @@ export function popoverPlacement(card: Box, root: Box): { x: number; y: number }
   y = Math.max(8, Math.min(y, root.height - POPOVER_MAX_HEIGHT));
   return { x, y };
 }
+
+/** The desktop lanes' geometry: Linear-style panels on the board's background. */
+export const LANES = {
+  /** A lane's narrowest width; its cards are this less the panel's padding (300 - 2 x 8 = 284). */
+  min: 300,
+  /** A collapsed lane's strip. */
+  collapsed: 40,
+  /** Between two lanes. */
+  gap: 8,
+  /** Around the row of lanes, left and right. */
+  edge: 12,
+} as const;
+
+export interface LaneLayout {
+  /** Each expanded lane's width; collapsed lanes are `LANES.collapsed`. */
+  laneWidth: number;
+  /** The row's full width, edges included. */
+  contentWidth: number;
+  /** True only when the lanes at their minimum do not fit: then the row scrolls sideways. */
+  scroll: boolean;
+}
+
+/**
+ * Expanded lanes share the viewport equally, never narrower than `LANES.min`,
+ * with no maximum: a wide window has no horizontal scrollbar, a narrow one
+ * scrolls at the minimum width.
+ */
+export function laneLayout(viewport: number, expanded: number, collapsed: number): LaneLayout {
+  const lanes = expanded + collapsed;
+  const fixed = 2 * LANES.edge + Math.max(0, lanes - 1) * LANES.gap + collapsed * LANES.collapsed;
+  if (expanded === 0) return { laneWidth: 0, contentWidth: Math.max(viewport, fixed), scroll: fixed > viewport };
+  const share = (viewport - fixed) / expanded;
+  if (share >= LANES.min) return { laneWidth: share, contentWidth: viewport, scroll: false };
+  return { laneWidth: LANES.min, contentWidth: fixed + expanded * LANES.min, scroll: true };
+}

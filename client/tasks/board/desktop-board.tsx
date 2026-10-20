@@ -1,16 +1,16 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Animated, Platform, Pressable, ScrollView, Text, View, type FlatList as NativeFlatList, type TextInput as NativeTextInput } from "react-native";
 import { FlatList, Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { StatusIcon, TaskDetails, taskTokens } from "../cards";
+import { StatusIcon, TaskDetails } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { MOTION } from "./board-style";
-import { CardCell, DashedRule, LoadMoreRow, SkeletonCard, VerticalLabel, useBreathing, useFreshIds } from "./board-parts";
+import { MOTION, boardPalette } from "./board-style";
+import { CardCell, HoverPressable, LoadMoreRow, SkeletonCard, VerticalLabel, useBreathing, useFreshIds } from "./board-parts";
 import { DesktopFilterBar, DesktopToolbar, type FilterMenu } from "./filter-bar";
 import { buildFilterOptions } from "./filter-options";
-import { POPOVER_MAX_HEIGHT, POPOVER_WIDTH, boardKeyReducer, clampFocus, popoverPlacement, type BoardFocus, type Box, type LaneShape } from "./navigation";
+import { LANES, POPOVER_MAX_HEIGHT, POPOVER_WIDTH, boardKeyReducer, clampFocus, laneLayout, popoverPlacement, type BoardFocus, type Box, type LaneShape } from "./navigation";
 import { rememberCollapsed, rememberedCollapsed } from "./params";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
 
@@ -24,7 +24,7 @@ function measure(node: unknown): Promise<Box | null> {
   });
 }
 
-const Separator = () => <View style={{ height: 8 }} />;
+const Separator = () => <View style={{ height: 12 }} />;
 
 /** The desktop board (prototype 01): the bars, then four lanes that scroll sideways when they do not fit. */
 export function DesktopBoard(props: {
@@ -75,7 +75,8 @@ export function DesktopBoard(props: {
     return out;
   }, []);
   const searchRef = useRef<NativeTextInput>(null);
-  const gridRef = useRef<View>(null);
+  const [viewport, setViewport] = useState(0);
+  const layout = laneLayout(viewport, LANE_ORDER.length - collapsed.length, collapsed.length);
 
   const scrollTo = useCallback((lane: LaneId, index: number) => {
     const list = listRefs.current[lane];
@@ -175,17 +176,6 @@ export function DesktopBoard(props: {
     return () => document.removeEventListener("keydown", onKey);
   }, [board.visible, rootRef]);
 
-  // The dot grid is a CSS background on web; native skips it (one View per dot is too many).
-  const dotGrid = taskTokens(theme).dotGrid;
-  useLayoutEffect(() => {
-    if (Platform.OS !== "web") return;
-    const node = gridRef.current as unknown as HTMLElement | null;
-    if (!node?.style) return;
-    node.style.backgroundImage = `radial-gradient(${dotGrid} 1px, transparent 1.3px)`;
-    node.style.backgroundSize = "16px 16px";
-    node.style.backgroundPosition = "8px 8px";
-  }, [dotGrid]);
-
   const breathing = useBreathing(!tasks.ready && board.visible);
   const unfilteredEmpty = tasks.ready && LANE_ORDER.every((id) => tasks.lanes[id].cards.length === 0);
   const popoverCard = popover ? tasks.byId.get(popover.id) : undefined;
@@ -194,24 +184,32 @@ export function DesktopBoard(props: {
     <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0 }}>
       <DesktopToolbar board={board} theme={theme} searchRef={searchRef} />
       <DesktopFilterBar board={board} theme={theme} options={options} menu={menu} setMenu={setMenu} />
-      <View ref={gridRef} style={{ flex: 1, minHeight: 0 }}>
-        <ScrollView horizontal style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} showsHorizontalScrollIndicator>
-          {LANE_ORDER.map((id, index) => (
-            <DesktopLane
-              key={id}
-              lane={lanes[id]}
-              index={index}
-              collapsed={collapsed.includes(id)}
-              onToggle={() => setCollapsed((current) => (current.includes(id) ? current.filter((lane) => lane !== id) : [...current, id]))}
-              board={board}
-              theme={theme}
-              focusIndex={focus?.lane === id ? focus.index : null}
-              listRef={publishList[id]}
-              register={register}
-              breathing={breathing}
-            />
-          ))}
-        </ScrollView>
+      <View style={{ flex: 1, minHeight: 0 }} onLayout={(event) => setViewport(Math.floor(event.nativeEvent.layout.width))}>
+        {viewport > 0 ? (
+          <ScrollView
+            horizontal
+            scrollEnabled={layout.scroll}
+            showsHorizontalScrollIndicator={layout.scroll}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ width: layout.contentWidth, gap: LANES.gap, paddingHorizontal: LANES.edge, paddingTop: 4, paddingBottom: 12 }}
+          >
+            {LANE_ORDER.map((id) => (
+              <DesktopLane
+                key={id}
+                lane={lanes[id]}
+                width={layout.laneWidth}
+                collapsed={collapsed.includes(id)}
+                onToggle={() => setCollapsed((current) => (current.includes(id) ? current.filter((lane) => lane !== id) : [...current, id]))}
+                board={board}
+                theme={theme}
+                focusIndex={focus?.lane === id ? focus.index : null}
+                listRef={publishList[id]}
+                register={register}
+                breathing={breathing}
+              />
+            ))}
+          </ScrollView>
+        ) : null}
         {unfilteredEmpty ? <BoardEmpty board={board} theme={theme} /> : null}
       </View>
       {menu ? (
@@ -284,7 +282,7 @@ function BoardEmpty({ board, theme }: { board: BoardController; theme: PluginThe
 
 function DesktopLane(props: {
   lane: LaneModel;
-  index: number;
+  width: number;
   collapsed: boolean;
   onToggle(): void;
   board: BoardController;
@@ -296,11 +294,11 @@ function DesktopLane(props: {
 }) {
   const { lane, board, theme } = props;
   const colors = theme.colors;
+  const palette = boardPalette(theme);
   const strings = board.strings;
   const ready = board.tasks.ready;
   const name = strings.lanes[lane.id];
   const count = lane.cards.length;
-  const rule = props.index > 0 ? { borderLeftWidth: 1, borderLeftColor: colors.border } : null;
   const fresh = useFreshIds(
     lane.cards.map((card) => card.id),
     ready,
@@ -317,73 +315,59 @@ function DesktopLane(props: {
 
   if (props.collapsed) {
     return (
-      <Pressable
+      <HoverPressable
         accessibilityRole="button"
         accessibilityLabel={`${strings.expand}: ${name}`}
         onPress={props.onToggle}
-        style={({ pressed }) => [
-          rule,
-          { width: 40, alignItems: "center", gap: 10, paddingVertical: 12, backgroundColor: pressed ? colors.surface1 : colors.surface0 },
-        ]}
+        style={(hovered) => ({
+          width: LANES.collapsed,
+          alignItems: "center",
+          gap: 10,
+          paddingVertical: 11,
+          borderRadius: 8,
+          backgroundColor: hovered ? palette.panelHover : palette.panel,
+        })}
       >
-        <StatusIcon kind={LANE_STATUS[lane.id]} size={16} theme={theme} animated={board.visible} />
+        <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <VerticalLabel text={name} color={colors.foreground} language={board.language} />
-        <Text style={{ fontSize: 12, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{ready ? count : ""}</Text>
-      </Pressable>
+        <Text style={{ fontSize: 13, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{ready ? count : ""}</Text>
+      </HoverPressable>
     );
   }
 
   const loadingFirst = !ready || (lane.id === "done" && lane.loading && count === 0);
   return (
-    <View style={[rule, { flexGrow: 1, flexShrink: 0, flexBasis: 320, minHeight: 0 }]}>
-      <View style={{ height: 40, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 12, paddingRight: 8, backgroundColor: colors.surface0, zIndex: 1 }}>
-        <StatusIcon kind={LANE_STATUS[lane.id]} size={16} theme={theme} animated={board.visible} />
-        <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground }}>{name}</Text>
+    <View style={{ width: props.width, minHeight: 0, borderRadius: 8, backgroundColor: palette.panel, overflow: "hidden" }}>
+      <View style={{ height: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 14, paddingRight: 8 }}>
+        <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
+        <Text style={{ fontSize: 14, fontWeight: "500", color: colors.foreground }}>{name}</Text>
         {ready ? (
-          <Text style={{ fontSize: 12, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{count}</Text>
+          <Text style={{ fontSize: 14, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{count}</Text>
         ) : (
           <View style={{ width: 14, height: 10, borderRadius: 2, backgroundColor: colors.surface2 }} />
         )}
         <View style={{ flex: 1 }} />
         {lane.id === "done" ? (
-          <Text style={{ marginRight: 4, fontSize: 11, color: colors.foregroundMuted }}>
-            {strings.windows[board.params.doneWindow ?? board.defaults.doneWindow]}
-          </Text>
+          <Text style={{ fontSize: 12, color: colors.foregroundMuted }}>{strings.windows[board.params.doneWindow ?? board.defaults.doneWindow]}</Text>
         ) : null}
-        <Pressable
+        <HoverPressable
           accessibilityRole="button"
           accessibilityLabel={strings.collapse}
           onPress={props.onToggle}
-          style={({ pressed }) => ({
+          style={(hovered) => ({
             width: 24,
             height: 24,
-            borderRadius: 4,
+            borderRadius: 6,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: pressed ? colors.surface2 : "transparent",
+            backgroundColor: hovered ? palette.panelHover : "transparent",
           })}
         >
           <Icon name="FoldHorizontal" size={14} color={colors.foregroundMuted} />
-        </Pressable>
-        <DashedRule color={colors.border} style={{ position: "absolute", left: 0, right: 0, bottom: 0 }} />
-        {props.index > 0 ? (
-          <View
-            style={{
-              position: "absolute",
-              left: -4,
-              bottom: -3,
-              width: 6,
-              height: 6,
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: 1,
-              backgroundColor: colors.surface0,
-            }}
-          />
-        ) : null}
+        </HoverPressable>
       </View>
       {loadingFirst ? (
-        <View style={{ padding: 10, gap: 8 }}>
+        <View style={{ paddingHorizontal: 8, paddingBottom: 8, gap: 12 }}>
           {[0, 1, 2].map((index) => (
             <SkeletonCard key={index} index={index} theme={theme} opacity={props.breathing} />
           ))}
@@ -406,7 +390,8 @@ function DesktopLane(props: {
             />
           )}
           ItemSeparatorComponent={Separator}
-          contentContainerStyle={{ padding: 10 }}
+          // 8 around the cards leaves room for the 3 px focus ring inside the list's clip.
+          contentContainerStyle={{ paddingHorizontal: 8, paddingTop: 2, paddingBottom: 8 }}
           initialNumToRender={8}
           maxToRenderPerBatch={8}
           windowSize={7}
@@ -426,8 +411,8 @@ function DesktopLane(props: {
             if (lane.id === "done" && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
           }}
           ListEmptyComponent={
-            <View style={{ height: 64, borderWidth: 1, borderStyle: "dashed", borderColor: colors.border, borderRadius: 6, backgroundColor: colors.surface0, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 12, color: colors.foregroundMuted }}>{strings.laneEmpty[lane.id]}</Text>
+            <View style={{ height: 64, borderWidth: 1, borderStyle: "dashed", borderColor: colors.border, borderRadius: 8, alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.laneEmpty[lane.id]}</Text>
             </View>
           }
           ListFooterComponent={

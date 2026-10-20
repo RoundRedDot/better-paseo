@@ -130,6 +130,18 @@ function textOf(node: ReactTestInstance | string): string {
   return node.children.map(textOf).join("");
 }
 
+/** The desktop lanes wait for the board's width; this lays every View out at `width`. */
+function layOut(width: number) {
+  const views = renderer!.root.findAll((node) => (node.type as unknown) === "View" && typeof node.props.onLayout === "function");
+  act(() => {
+    for (const view of views) view.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 800 } } });
+  });
+}
+
+function lanesScroll(): ReactTestInstance {
+  return renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.horizontal === true);
+}
+
 function cards(): ReactTestInstance[] {
   return renderer!.root.findAllByType(TaskCardView);
 }
@@ -161,6 +173,7 @@ describe("Tasks board, desktop", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
+    layOut(1600);
     const text = textOf(renderer!.root);
     for (const name of ["Needs input", "Running", "Review", "Done"]) expect(text).toContain(name);
     expect(cards().map((card) => card.props.card.id)).toEqual(["sample-input", "sample-running", "sample-child-1", "sample-failed", "sample-unread", "sample-done"]);
@@ -171,6 +184,7 @@ describe("Tasks board, desktop", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false, { q: "ring", sub: "1" }));
     });
+    layOut(1600);
     // "ring" matches the parent and its running child; hiding subtasks keeps active children.
     expect(cards().map((card) => card.props.card.id)).toEqual(["sample-running", "sample-child-1"]);
     expect(lastBoardParams("host-1")).toMatchObject({ query: "ring", hideSubtasks: true });
@@ -182,6 +196,7 @@ describe("Tasks board, desktop", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
+    layOut(1600);
     expect(cards().map((card) => card.props.card.id)).toEqual(["sample-running"]);
   });
 
@@ -189,6 +204,7 @@ describe("Tasks board, desktop", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
+    layOut(1600);
     const collapse = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Collapse lane");
     expect(collapse).toHaveLength(4);
     act(() => collapse[1]!.props.onPress());
@@ -201,6 +217,7 @@ describe("Tasks board, desktop", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false, { agent: "claude" }));
     });
+    layOut(1600);
     const child = cards().find((card) => card.props.card.id === "sample-child-1")!;
     act(() => child.props.onOpen("sample-child-1"));
     expect(openAgent).toHaveBeenCalledWith({ agentId: "sample-child-1" });
@@ -218,7 +235,25 @@ describe("Tasks board, desktop", () => {
         React.createElement(TasksBoardScreen, { theme, host: { id: "host-1", label: "Local" }, layout: { compact: false, platform: "web" }, params: {} }),
       );
     });
+    layOut(1600);
     expect(cards()[0]!.props.onOpen).toBeUndefined();
+  });
+});
+
+describe("Tasks board, lane widths", () => {
+  beforeEach(() => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+  });
+
+  it("fills a wide board without a scrollbar and scrolls a narrow one at the minimum", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    expect(renderer!.root.findAll((node) => (node.type as unknown) === "ScrollView" && node.props.horizontal === true)).toHaveLength(0);
+    layOut(2000);
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: false, contentContainerStyle: { width: 2000 } });
+    layOut(900);
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 300 * 4 } });
   });
 });
 
@@ -230,6 +265,7 @@ describe("Tasks board, project icons", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
+    layOut(1600);
     expect(requestProjectIcon()).toHaveBeenCalledWith("prj_sample");
     expect(cards()[0]!.props).toMatchObject({ language: "en", animated: true });
   });
@@ -244,6 +280,7 @@ describe("Tasks board, project icons", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
+    layOut(1600);
     expect(requestProjectIcon()).not.toHaveBeenCalled();
   });
 });

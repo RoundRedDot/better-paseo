@@ -48,7 +48,7 @@ export function DesktopToolbar(props: { board: BoardController; theme: PluginThe
           paddingHorizontal: 10,
           borderWidth: 1,
           borderColor: colors.border,
-          borderRadius: 14,
+          borderRadius: 6,
         }}
       >
         <Icon name="Search" size={13} color={colors.foregroundMuted} />
@@ -59,7 +59,7 @@ export function DesktopToolbar(props: { board: BoardController; theme: PluginThe
           placeholder={strings.search}
           placeholderTextColor={colors.foregroundMuted}
           accessibilityLabel={strings.search}
-          style={{ flex: 1, minWidth: 0, padding: 0, fontSize: 12, color: colors.foreground }}
+          style={{ flex: 1, minWidth: 0, padding: 0, fontSize: 13, color: colors.foreground }}
         />
       </View>
     </View>
@@ -103,8 +103,6 @@ export function DesktopFilterBar(props: {
         gap: 6,
         paddingHorizontal: 16,
         paddingVertical: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
         zIndex: 10,
       }}
     >
@@ -180,29 +178,29 @@ export function DesktopFilterBar(props: {
           {chips.map((chip) => (
             <View
               key={chip.key}
-              style={{ height: 22, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 8, paddingRight: 3, borderWidth: 1, borderColor: colors.border, borderRadius: 4 }}
+              style={{ height: 28, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 10, paddingRight: 4, borderWidth: 1, borderColor: colors.border, borderRadius: 6 }}
             >
-              {chip.kind ? <Text style={{ fontSize: 12, color: colors.foregroundMuted }}>{chip.kind}</Text> : null}
-              <Text numberOfLines={1} style={{ fontSize: 12, color: colors.foreground, maxWidth: 220 }}>
+              {chip.kind ? <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{chip.kind}</Text> : null}
+              <Text numberOfLines={1} style={{ fontSize: 13, color: colors.foreground, maxWidth: 220 }}>
                 {chip.value}
               </Text>
               <HoverPressable
                 accessibilityRole="button"
                 accessibilityLabel={`${strings.clear} ${chip.value}`}
                 onPress={() => setParams(chip.clear)}
-                style={(hovered) => ({ width: 16, height: 16, borderRadius: 3, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? colors.surface2 : "transparent" })}
+                style={(hovered) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? colors.surface2 : "transparent" })}
               >
-                <Icon name="X" size={11} color={colors.foregroundMuted} />
+                <Icon name="X" size={12} color={colors.foregroundMuted} />
               </HoverPressable>
             </View>
           ))}
-          <HoverPressable accessibilityRole="button" onPress={() => setParams(clearedParams)} style={() => ({ height: 22, paddingHorizontal: 4, justifyContent: "center" })}>
-            <Text style={{ fontSize: 12, color: colors.foregroundMuted }}>{strings.clearAll}</Text>
+          <HoverPressable accessibilityRole="button" onPress={() => setParams(clearedParams)} style={() => ({ height: 28, paddingHorizontal: 4, justifyContent: "center" })}>
+            <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.clearAll}</Text>
           </HoverPressable>
         </>
       ) : null}
       <View style={{ flex: 1 }} />
-      <Text style={{ fontSize: 12, color: colors.foregroundMuted }}>{strings.doneWindowLabel}</Text>
+      <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.doneWindowLabel}</Text>
       <WindowSegments
         value={resolved.doneWindow}
         onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))}
@@ -236,9 +234,9 @@ function MenuButton(props: { icon: string; label: string; open: boolean; onPress
         accessibilityState={{ expanded: props.open }}
         onPress={props.onPress}
         style={(hovered) => ({
-          height: 26,
+          height: 28,
           paddingHorizontal: 10,
-          borderRadius: 13,
+          borderRadius: 6,
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: hovered || props.open ? colors.surface1 : "transparent",
@@ -248,7 +246,7 @@ function MenuButton(props: { icon: string; label: string; open: boolean; onPress
         })}
       >
         <Icon name={props.icon} size={13} color={colors.foregroundMuted} />
-        <Text style={{ fontSize: 12, fontWeight: "500", color: colors.foreground }}>{props.label}</Text>
+        <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground }}>{props.label}</Text>
         <Icon name="ChevronDown" size={12} color={colors.foregroundMuted} />
       </HoverPressable>
       {props.open ? props.children : null}
@@ -305,10 +303,10 @@ function MenuRow(props: { option: FilterOption; theme: PluginTheme; onPress(): v
     >
       <Checkbox on={option.on} theme={props.theme} />
       {props.leading}
-      <Text numberOfLines={1} style={{ flex: 1, fontSize: 12, color: colors.foreground }}>
+      <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, color: colors.foreground }}>
         {option.label}
       </Text>
-      <Text style={{ minWidth: 12, textAlign: "right", fontSize: 12, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{option.count}</Text>
+      <Text style={{ minWidth: 12, textAlign: "right", fontSize: 13, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{option.count}</Text>
     </HoverPressable>
   );
 }
@@ -323,9 +321,9 @@ function ToggleChip(props: { icon: string; label: string; hint?: string; on: boo
       accessibilityHint={props.hint}
       onPress={props.onPress}
       style={(hovered) => ({
-        height: 26,
+        height: 28,
         paddingHorizontal: 10,
-        borderRadius: 13,
+        borderRadius: 6,
         borderWidth: 1,
         borderColor: props.on ? colors.accent : colors.border,
         backgroundColor: props.on ? taskTokens(props.theme).accentSoft : hovered ? colors.surface1 : "transparent",
@@ -335,7 +333,7 @@ function ToggleChip(props: { icon: string; label: string; hint?: string; on: boo
       })}
     >
       <Icon name={props.icon} size={13} color={tint} />
-      <Text style={{ fontSize: 12, fontWeight: "500", color: tint }}>{props.label}</Text>
+      <Text style={{ fontSize: 13, fontWeight: "500", color: tint }}>{props.label}</Text>
     </HoverPressable>
   );
 }
