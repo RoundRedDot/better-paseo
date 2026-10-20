@@ -2,7 +2,17 @@ import { describe, expect, it } from "vitest";
 import { classifyTool, type ToolCallPayload } from "../../client/tools/classify";
 import { summarizeTool } from "../../client/tools/summarize";
 import { providerName, shortAgentId, shouldFold } from "../../client/tools/agent-row";
-import { readPermissionRequest } from "../../client/tools/agent-status";
+import { buildPermissionAnswers, isQuestionAnswered, readPermissionRequest } from "../../client/tools/agent-status";
+
+/** The shape Codex's async question takes in a needs-permission notification. */
+function questionBody(): string {
+  return "Respond with `respond_to_permission` using the `agentId` and `requestId` below.\n\n" +
+    `<permission-request>\n${JSON.stringify({ agentId: "a", requestId: "permission-call_4c33", request: { id: "permission-call_4c33",
+      provider: "codex", name: "request_user_input_async", kind: "question", input: { questions: [
+        { id: "0", header: "Question 1", question: "按此计划实施？", options: [{ label: "按此计划实施" }, { label: "调整计划", description: "先改再做" }], isOther: true },
+        { id: "1", header: "Question 2", question: "Which checks?", options: ["tsc", "vitest"], multiSelect: true },
+      ] } } }, null, 2)}\n</permission-request>`;
+}
 
 const agentId = "58821f29-ede4-48c1-8bb2-60ed7057abca";
 
@@ -63,9 +73,48 @@ describe("agent identity helpers", () => {
     const body = "Respond with `respond_to_permission` using the `agentId` and `requestId` below.\n\n" +
       `<permission-request>\n${JSON.stringify({ agentId, requestId: "p7", request: { id: "p7", title: "Bash",
         description: "Clear screenshots", input: { command: "rm -rf out" } } }, null, 2)}\n</permission-request>`;
-    expect(readPermissionRequest(body)).toEqual({ requestId: "p7", title: "Bash", description: "Clear screenshots",
+    expect(readPermissionRequest(body)).toMatchObject({ requestId: "p7", title: "Bash", description: "Clear screenshots",
       command: "rm -rf out", rest: "" });
+    expect(readPermissionRequest(body)?.questions).toBeUndefined();
     expect(readPermissionRequest("no request")).toBeUndefined();
+  });
+
+  it("reads a question request as questions and options, not a JSON dump", () => {
+    const view = readPermissionRequest(questionBody());
+    expect(view).toMatchObject({ requestId: "permission-call_4c33", kind: "question", name: "request_user_input_async" });
+    expect(view?.command).toBeUndefined();
+    expect(view?.questions).toEqual([
+      { header: "Question 1", question: "按此计划实施？", options: [{ label: "按此计划实施" }, { label: "调整计划", description: "先改再做" }],
+        multiSelect: false, allowOther: true, allowEmpty: false, placeholder: undefined },
+      { header: "Question 2", question: "Which checks?", options: [{ label: "tsc" }, { label: "vitest" }],
+        multiSelect: true, allowOther: false, allowEmpty: false, placeholder: undefined },
+    ]);
+  });
+
+  it("reads a plan's markdown and the provider's own actions", () => {
+    const body = `<permission-request>\n${JSON.stringify({ requestId: "plan-1", request: { id: "plan-1", kind: "plan", name: "ExitPlanMode",
+      input: { plan: "## Plan\n\n1. Do it" }, actions: [{ id: "implement", label: "Implement", behavior: "allow", variant: "primary" },
+        { id: "keep", label: "Keep planning", behavior: "deny" }, { id: "bad", behavior: "maybe" }] } })}\n</permission-request>`;
+    expect(readPermissionRequest(body)).toMatchObject({ plan: "## Plan\n\n1. Do it", command: undefined, actions: [
+      { id: "implement", label: "Implement", behavior: "allow", variant: "primary" },
+      { id: "keep", label: "Keep planning", behavior: "deny", variant: undefined }] });
+  });
+
+  it("builds Paseo's question answers keyed by header", () => {
+    const questions = readPermissionRequest(questionBody())!.questions!;
+    expect(isQuestionAnswered(questions[0]!, [], "  ")).toBe(false);
+    expect(isQuestionAnswered(questions[0]!, [], "later")).toBe(true);
+    expect(isQuestionAnswered(questions[1]!, [], "typed")).toBe(false);
+    expect(buildPermissionAnswers(questions, { 0: [1], 1: [0, 1] }, {})).toEqual({ "Question 1": "调整计划", "Question 2": "tsc, vitest" });
+    expect(buildPermissionAnswers(questions, { 0: [] }, { 0: " 先拆小 " })).toEqual({ "Question 1": "先拆小" });
+  });
+
+  it("names a question request by its question count", () => {
+    const text = `Agent ${agentId} (Builder) needs permission.\n\n${questionBody()}`;
+    const summary = summarizeTool(classifyTool({ name: "agent_message", status: "completed", detail: { type: "plain_text", text },
+      agentMessage: { event: "permission-required", sender: { id: agentId, title: "Builder" }, text } }));
+    expect(summary).toMatchObject({ verb: "Needs answer", target: "Builder", meta: ["2 questions"], tone: "warning",
+      agent: { icon: "MessageCircleQuestion" } });
   });
 
   it("folds long bodies but not ones that would hide only a few lines", () => {
