@@ -2,13 +2,14 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import { ProviderLogo } from "../../components/provider-logo";
 import { useHover } from "../../ui/use-hover";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import type { TaskCard } from "../model";
 import { formatCost, formatRelative, formatTokens, since, tildePath } from "./format";
 import { cardStrings } from "./strings";
 import { pillTint, taskTokens, type TaskTokens } from "./tokens";
+import { modeIcon, THINKING_ICON } from "./mode-icons";
+import { BrandMark } from "./task-card";
 
 export interface TaskDetailsProps {
   card: TaskCard;
@@ -61,7 +62,6 @@ export function detailRows(card: TaskCard, now: number, language: TasksLanguage)
   const stats: Row[] = [];
   const created = since(card.timing.createdAt, now);
   if (created !== null) stats.push({ key: strings.created, value: formatRelative(created, language) });
-  if (card.modeLabel) stats.push({ key: strings.mode, value: card.modeLabel });
   const usage = card.usage;
   if (usage?.inputTokens != null) {
     const cached = usage.cachedInputTokens != null ? ` (${strings.cached} ${formatTokens(usage.cachedInputTokens)})` : "";
@@ -92,7 +92,7 @@ export function TaskDetails(props: TaskDetailsProps) {
   const value: TextStyle = { fontSize: size, lineHeight: line, color: tokens.foreground };
   const section: ViewStyle = { paddingHorizontal: padH, paddingVertical: 10, gap: 6 };
   const rule = <View style={{ height: 1, backgroundColor: tokens.card.border }} />;
-  const agent = [card.providerLabel, card.modelLabel, card.thinkingLabel].filter(Boolean).join(" · ");
+  const iconSize = compact ? 14 : 12;
 
   const frame: ViewStyle = compact
     ? {}
@@ -111,9 +111,30 @@ export function TaskDetails(props: TaskDetailsProps) {
         <Text numberOfLines={2} style={{ fontSize: compact ? 16 : 13, lineHeight: compact ? 22 : 18, fontWeight: "500", color: tokens.foreground }}>
           {card.title}
         </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {card.providerMark !== null ? <ProviderLogo provider={card.provider} size={compact ? 14 : 12} /> : null}
-          <Text style={[label, { flex: 1 }]}>{agent}</Text>
+        {/* Model, thinking and mode as the composer shows them, each with its icon. */}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 12, rowGap: 4 }} testID="task-details-agent">
+          <AgentItem
+            lead={card.providerMark !== null ? <BrandMark provider={card.provider} size={iconSize} tokens={tokens} /> : null}
+            text={card.modelLabel ?? card.providerLabel}
+            style={label}
+            testID="task-details-model"
+          />
+          {card.thinkingLabel ? (
+            <AgentItem
+              lead={<Icon name={THINKING_ICON} size={iconSize} color={tokens.foregroundMuted} />}
+              text={card.thinkingLabel}
+              style={label}
+              testID="task-details-thinking"
+            />
+          ) : null}
+          {card.modeLabel ? (
+            <AgentItem
+              lead={<Icon name={modeIcon(card.provider, card.modeLabel)} size={iconSize} color={tokens.foregroundMuted} />}
+              text={card.modeLabel}
+              style={label}
+              testID="task-details-mode"
+            />
+          ) : null}
         </View>
       </View>
       {rule}
@@ -166,6 +187,15 @@ export function TaskDetails(props: TaskDetailsProps) {
           </View>
         </>
       ) : null}
+    </View>
+  );
+}
+
+function AgentItem(props: { lead: React.ReactNode; text: string; style: TextStyle; testID: string }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }} testID={props.testID}>
+      {props.lead}
+      <Text style={[props.style, { width: undefined }]}>{props.text}</Text>
     </View>
   );
 }

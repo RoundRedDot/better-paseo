@@ -67,6 +67,9 @@ import { statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
 import { contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
+import { modeIcon } from "../../client/tasks/cards/mode-icons";
+import { providerBrand } from "../../client/components/provider-logo";
+import { MARK_IDS, seedMarkBitmaps } from "../../client/components/marks";
 import { mix } from "../../client/components/theme-tokens";
 import { identityColor, projectIconRadius, projectInitial, projectViewKey } from "../../client/tasks/cards/project-icon";
 
@@ -321,7 +324,8 @@ describe("TaskCardView rows", () => {
     expect(title.props.ellipsizeMode).toBe("tail");
     expect(flat(title.props.style)).toMatchObject({ fontSize: 13, fontWeight: "500" });
     expect(pills(tree.root)).toEqual([
-      ["pill-agent", "GPT-5.5 Codex · Medium"],
+      ["pill-model", "GPT-5.5 Codex"],
+      ["pill-thinking", "Medium"],
       ["pill-branch", "feat/tasks-board"],
       ["pill-label-frontend", "frontend"],
       ["pill-label-p1", "p1"],
@@ -348,7 +352,8 @@ describe("TaskCardView rows", () => {
     expect(pillColors("pill-label-board")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
     expect(pillColors("pill-branch")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
     // The agent pill takes the provider's brand (Codex green); the subtasks pill its dominant status (2 running).
-    expect(pillColors("pill-agent").background).toBe(mix("#ffffff", "#10a37f", 0.1));
+    expect(pillColors("pill-model").background).toBe(mix("#ffffff", "#10A37F", 0.1));
+    expect(pillColors("pill-thinking")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
     expect(pillColors("pill-subtasks").background).toBe(mix("#ffffff", tokens.status.running, 0.1));
     const dot = (name: string) =>
       flat((hostByTestId(tree.root, `pill-label-${name}`).findAll((node) => typeof node.type === "string" && flat(node.props.style).width === 8)[0])!.props.style)
@@ -362,8 +367,13 @@ describe("TaskCardView rows", () => {
   it("keeps the title row, the agent pill and the footer at minimal", async () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: fields("minimal") }));
     expect(rows(tree.root, "sample-running")).toEqual(["task-card-title-row", "task-card-pills", "task-card-footer"]);
-    expect(pills(tree.root)).toEqual([["pill-agent", "GPT-5.5 Codex · Medium"]]);
-    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex · Medium", "12m 30s"]);
+    // Minimal: the model and thinking switches are on, the provider's mark is off.
+    expect(pills(tree.root)).toEqual([
+      ["pill-model", "GPT-5.5 Codex"],
+      ["pill-thinking", "Medium"],
+    ]);
+    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex", "Medium", "12m 30s"]);
+    expect(hostByTestId(tree.root, "pill-model").findAll((node) => (node.type as unknown) === "Image")).toHaveLength(0);
     // With no meta row, the jump button moves up to the title row, which then holds the overlays.
     expect(icons(hostByTestId(tree.root, "task-card-title-row"))).toContain("ArrowUpRight");
     expect(flat(hostByTestId(tree.root, "task-card-title-row").props.style).zIndex).toBe(OVERLAY_ROW_Z);
@@ -376,9 +386,10 @@ describe("TaskCardView rows", () => {
     expect(texts(tree.root)).toEqual(["Port the status ring to React Native"]);
   });
 
-  it("names the provider in the agent pill when the model and thinking are off", async () => {
+  it("names the provider in the model pill when the model is off, and drops the thinking pill", async () => {
     const tree = await render(cardElement(sample("sample-done"), { fields: fields("standard", { model: false, thinking: false }) }));
-    expect(pills(tree.root)[0]).toEqual(["pill-agent", "Claude"]);
+    expect(pills(tree.root)[0]).toEqual(["pill-model", "Claude"]);
+    expect(pills(tree.root).map(([id]) => id)).not.toContain("pill-thinking");
   });
 
   it("adds git status, the full path and the PR at full", async () => {
@@ -621,15 +632,15 @@ describe("TaskCardView compact tiers", () => {
     const tree = await render(cardElement(card, { compact: true, fields: fields("full", { provider: false, model: false, timer: false }) }));
     const all = texts(tree.root);
     expect(pills(tree.root)).toEqual([
-      ["pill-agent", "GPT-5.5 Codex · Medium"],
+      ["pill-model", "GPT-5.5 Codex"],
+      ["pill-thinking", "Medium"],
       ["pill-branch", "feat/tasks-board"],
       ["pill-label-frontend", "frontend"],
       ["pill-labels-more", "+2"],
       ["pill-subtasks", "2"],
     ]);
     // The brand stays on a phone even with the provider switched off.
-    expect(hostByTestId(tree.root, "pill-agent").findAll((node) => (node.type as unknown) === "Image" || (node.type as unknown) === "View").length).toBeGreaterThan(0);
-    expect(flat(hostByTestId(tree.root, "pill-agent").props.style)).toMatchObject({ height: 28, borderRadius: 14 });
+    expect(flat(hostByTestId(tree.root, "pill-model").props.style)).toMatchObject({ height: 28, borderRadius: 14 });
     expect(flat(hostByTestId(tree.root, "task-card-title").props.style)).toMatchObject({ fontSize: 16 });
     expect(all).toContain("better-paseo › tasks-board");
     expect(all).toContain("12m 30s");
@@ -807,6 +818,84 @@ describe("TaskDetails", () => {
     const tree = await render(React.createElement(TaskDetails, { card: sample("sample-done"), theme: LIGHT, now: NOW, language: "en" }));
     expect(texts(tree.root)).toEqual(expect.arrayContaining(["Not a git directory", "directory"]));
     expect(texts(tree.root)).not.toContain("Open tab");
+  });
+});
+
+describe("model, thinking and brand marks", () => {
+  const PROVIDERS = [
+    "paseo", "claude", "codex", "omp", "pi", "gemini", "antigravity", "copilot",
+    "opencode", "minimax", "deepseek", "grok", "cursor", "ollama", "some-new-agent",
+  ] as const;
+  const MONOCHROME = new Set(["paseo", "omp", "pi", "grok", "cursor", "ollama", "some-new-agent"]);
+  // Marks rasterised in colour carry their hue in the image; the rest are tinted.
+  const RASTER_COLOURED = new Set(["claude", "gemini", "antigravity", "minimax", "deepseek"]);
+  const WRONG_ON_LIGHT = ["#E5E7EB", "#818CF8", "#CBD5E1", "#94A3B8", "#6366F1"];
+
+  beforeEach(() => {
+    seedMarkBitmaps(Object.fromEntries([...MARK_IDS].map((id) => [id, `data:image/png;base64,${id}`])));
+  });
+
+  it("draws monochrome marks in the theme foreground and coloured brands in their hue", async () => {
+    for (const theme of [LIGHT, DARK]) {
+      const tokens = buildTaskTokens(theme.colors);
+      for (const provider of PROVIDERS) {
+        const card = { ...sample("sample-done"), provider, providerMark: provider };
+        const tree = await render(cardElement(card, { theme }));
+        const model = hostByTestId(tree.root, "pill-model");
+        const [image] = model.findAll((node) => (node.type as unknown) === "Image");
+        const brand = providerBrand(provider);
+        expect(brand.monochrome).toBe(MONOCHROME.has(provider));
+        let drawn: unknown;
+        if (image) {
+          drawn = flat(image.props.style).tintColor;
+          if (MONOCHROME.has(provider)) expect(drawn).toBe(tokens.foreground);
+          else if (RASTER_COLOURED.has(provider)) expect(drawn).toBeUndefined();
+          else expect(drawn).toBe(brand.color);
+        } else {
+          // No mark at all (an unknown agent): the letter fallback, in the foreground.
+          expect(provider).toBe("some-new-agent");
+          const letter = model.find((node) => (node.type as unknown) === "Text" && String(node.props.children).length === 1);
+          drawn = flat(letter.props.style).color;
+          expect(drawn).toBe(tokens.foreground);
+        }
+        if (theme === LIGHT) expect(WRONG_ON_LIGHT).not.toContain(drawn);
+        // Tint: a coloured brand's hue, a monochrome mark's neutral grey.
+        const fill = flat(model.props.style).backgroundColor;
+        expect(fill).toBe(MONOCHROME.has(provider) ? tokens.card.pillFill : mix(tokens.card.background, brand.color, tokens.isDark ? 0.16 : 0.1));
+        await act(async () => tree.unmount());
+        renderer = null;
+      }
+    }
+  });
+
+  it("draws the thinking pill with the host's Brain icon", async () => {
+    const tree = await render(cardElement(sample("sample-running")));
+    const thinking = hostByTestId(tree.root, "pill-thinking");
+    expect(icons(thinking)).toEqual(["Brain"]);
+    expect(texts(thinking)).toEqual(["Medium"]);
+  });
+
+  it("maps modes to the composer's icons", () => {
+    expect(modeIcon("claude", "Bypass")).toBe("ShieldOff");
+    expect(modeIcon("claude", "Plan Mode")).toBe("ShieldEllipsis");
+    expect(modeIcon("claude", "Always Ask")).toBe("Shield");
+    expect(modeIcon("omp", "Always Ask")).toBe("ShieldCheck");
+    expect(modeIcon("codex", "Auto-review")).toBe("ShieldCheck");
+    expect(modeIcon("copilot", "Allow All")).toBe("ShieldOff");
+    expect(modeIcon("opencode", "Build")).toBe("Shield");
+    expect(modeIcon("someone", "Write Approval")).toBe("ShieldAlert");
+    expect(modeIcon("claude", "Something new")).toBe("Bot");
+  });
+
+  it("lists model, thinking and mode with icons in the details", async () => {
+    const tree = await render(React.createElement(TaskDetails, { card: sample("sample-input"), theme: LIGHT, now: NOW, language: "zh" }));
+    const agent = hostByTestId(tree.root, "task-details-agent");
+    expect(texts(hostByTestId(agent, "task-details-model"))).toEqual(["Opus 5.5"]);
+    expect(hostByTestId(agent, "task-details-model").findAll((node) => (node.type as unknown) === "Image")).toHaveLength(1);
+    expect(texts(hostByTestId(agent, "task-details-thinking"))).toEqual(["High"]);
+    expect(icons(hostByTestId(agent, "task-details-thinking"))).toEqual(["Brain"]);
+    expect(texts(hostByTestId(agent, "task-details-mode"))).toEqual(["Bypass"]);
+    expect(icons(hostByTestId(agent, "task-details-mode"))).toEqual(["ShieldOff"]);
   });
 });
 
