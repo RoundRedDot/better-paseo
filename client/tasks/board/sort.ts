@@ -97,7 +97,7 @@ function text(value: string | null | undefined): string | null {
 
 /** The card's value for a key; null when it has none. */
 function sortValue(card: TaskCard, key: SortKey, now: number): string | number | null {
-  const location = card.location as TaskCard["location"] & { workspaceTitle?: string | null; folderName?: string | null };
+  const location = card.location;
   switch (key) {
     case "workspace":
       return text(location.workspaceTitle ?? location.workspaceName);
