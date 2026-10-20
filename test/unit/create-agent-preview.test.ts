@@ -37,9 +37,9 @@ const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: 
 
 const agentId = "db43c484-e0ea-4ae2-94f9-6f5261234567";
 const prompt = "# Review\n\n**Read only**\n\n" + Array.from({ length: 80 }, (_, i) => `Line ${i}`).join("\n");
-function agentView(theme = tokens, title = "Review", settings?: Record<string, unknown>) {
+function agentView(theme = tokens, title = "Review", settings?: Record<string, unknown>, provider = "cursor/grok-4.7") {
   const data = classifyTool({ callId: "create", name: "paseo.create_agent", status: "completed", detail: {
-    type: "unknown", input: { title, provider: "cursor/grok-4.7", initialPrompt: prompt, settings }, output: agentId,
+    type: "unknown", input: { title, provider, initialPrompt: prompt, settings }, output: agentId,
   } });
   return React.createElement(PreviewPanelSample, { tokens: theme,
     children: React.createElement(ToolPreviewContent, { data, tokens: theme, compact: false, resolvePath: (path) => path }),
@@ -58,7 +58,7 @@ async function press(label: string) {
 }
 beforeEach(() => {
   vi.clearAllMocks();
-  seedMarkBitmaps({ "provider:cursor": "data:image/png;base64,cursor" });
+  seedMarkBitmaps({ "provider:cursor": "data:image/png;base64,cursor", "lobe:grok": "data:image/png;base64,grok" });
 });
 afterEach(() => {
   act(() => renderer?.unmount());
@@ -233,5 +233,21 @@ describe("create_agent preview", () => {
     act(() => { renderer = TestRenderer.create(agentView({ ...tokens, isDark })); });
     const image = renderer!.root.findAll((node) => (node.type as unknown) === "Image" && node.props.accessibilityLabel === "Cursor")[0]!;
     expect(StyleSheet.flatten(image.props.style).tintColor).toBe(isDark ? "#FFFFFF" : "#000000");
+  });
+
+  it.each([false, true])("keeps the Grok mark and label readable when switching themes (dark=%s)", (isDark) => {
+    const view = (dark: boolean) => agentView({ ...tokens, isDark: dark }, "Review", undefined, "grok/grok-4.7");
+    act(() => { renderer = TestRenderer.create(view(isDark)); });
+    const verify = (dark: boolean) => {
+      const image = renderer!.root.findAll((node) => (node.type as unknown) === "Image" && node.props.accessibilityLabel === "Grok")[0]!;
+      const label = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.children === "Grok")[0]!;
+      const color = dark ? "#FFFFFF" : "#000000";
+      expect(image.props.source.uri).toBe("data:image/png;base64,grok");
+      expect(StyleSheet.flatten(image.props.style).tintColor).toBe(color);
+      expect(StyleSheet.flatten(label.props.style).color).toBe(color);
+    };
+    verify(isDark);
+    act(() => renderer!.update(view(!isDark)));
+    verify(!isDark);
   });
 });
