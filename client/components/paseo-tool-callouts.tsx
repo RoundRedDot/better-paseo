@@ -15,7 +15,7 @@ import { useHover } from "../ui/use-hover";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { blockProseBase } from "../ui/tokens/typography";
 import { ProviderLogo } from "./provider-logo";
-import { useFooterModel } from "../state/footer-model";
+import { useFooterModel, useProviderMode } from "../state/footer-model";
 import { selectableSurface } from "./selection";
 import { selectionSurface } from "./selection-actions";
 import type {
@@ -73,6 +73,12 @@ function CreateAgentView({ data, tokens, raw, compact }: {
   const { width } = useWindowDimensions();
   const mobile = capabilities.native || width < 600;
   const lines = useMemo(() => data.initialPrompt.split("\n"), [data.initialPrompt]);
+  const paseo = usePaseo();
+  const cwd = useAgent(data.agentId ?? "", (agent) => agent.cwd) ?? null;
+  const { modelName, thinkingLabel } = useFooterModel(paseo, data.provider, data.model ?? null,
+    data.thinkingOptionId ?? null, cwd, { requireCwd: false });
+  const mode = useProviderMode(paseo, data.provider, data.modeId ?? null, cwd);
+  const thinking = thinkingLabel ?? data.thinkingOptionId;
   return (
     <View style={{ gap: mobile ? space.xs : space.sm, minWidth: 0 }}>
       <Text testID="create-agent-title" selectable accessibilityRole="header" style={{
@@ -83,18 +89,17 @@ function CreateAgentView({ data, tokens, raw, compact }: {
         flexDirection: mobile ? "column" : "row", alignItems: mobile ? "stretch" : "center",
         justifyContent: "space-between", flexWrap: "wrap", gap: mobile ? space.xs : space.sm, minWidth: 0,
       }}>
-        <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.sm, minWidth: 0, flexShrink: 1 }}>
-          {data.model ? <ModelName provider={data.provider} agentId={data.agentId} model={data.model}
-            thinkingOptionId={data.thinkingOptionId} tokens={tokens} mobile={mobile} /> :
-            <ProviderLogo provider={data.provider} size={16} showLabel color={tokens.foregroundMuted} />}
-          <View testID="create-agent-permissions" accessibilityLabel={`Permissions: ${data.modeId ?? "未指定"}`}
-            style={{ flexDirection: "row", alignItems: "center", gap: space.xs, minWidth: 0, maxWidth: "100%", flexShrink: 1 }}>
-            <Icon name="Shield" size={14} color={tokens.foregroundMuted} />
-            <Text selectable style={{ fontSize: tokens.typography.block.meta.size,
-              fontFamily: tokens.fontUi, color: tokens.foregroundMuted, flexShrink: 1 }}>
-              {data.modeId ?? "未指定"}
-            </Text>
-          </View>
+        <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: space.lg, rowGap: space.xs,
+          minWidth: 0, flexShrink: 1 }}>
+          {data.model ? <ModelName provider={data.provider} model={data.model} modelName={modelName}
+            thinkingLabel={thinking} tokens={tokens} mobile={mobile} /> :
+            <ProviderLogo provider={data.provider} size={16} showLabel labelColor={tokens.foregroundMuted}
+              neutralColor={tokens.foregroundMuted} />}
+          {thinking ? <MetadataItem testID="create-agent-thinking" accessibilityLabel={`Thinking: ${thinking}`}
+            icon="Brain" iconColor={tokens.accent} label={thinking} tokens={tokens} /> : null}
+          <MetadataItem testID="create-agent-permissions" accessibilityLabel={`Permissions: ${mode?.label ?? data.modeId ?? "未指定"}`}
+            icon={mode?.icon ?? "Shield"} iconColor={modeColor(mode?.colorTier, tokens)}
+            label={mode?.label ?? data.modeId ?? "未指定"} tokens={tokens} />
         </View>
         <AgentId agentId={data.agentId} tokens={tokens} mobile={mobile} />
       </View>
@@ -107,30 +112,59 @@ function CreateAgentView({ data, tokens, raw, compact }: {
   );
 }
 
+/** The composer's colour for each permission tier; text stays muted like the composer. */
+function modeColor(tier: string | undefined, tokens: ExtendedThemeTokens): string {
+  switch (tier) {
+    case "safe": return tokens.success;
+    case "dangerous": return tokens.danger;
+    case "planning":
+    case "moderate": return tokens.accent;
+    default: return tokens.foregroundMuted;
+  }
+}
+
+/** One composer-style control, read-only: a coloured icon beside a muted label. */
+function MetadataItem({ testID, accessibilityLabel, icon, iconColor, label, tokens }: {
+  testID: string;
+  accessibilityLabel: string;
+  icon: string;
+  iconColor: string;
+  label: string;
+  tokens: ExtendedThemeTokens;
+}) {
+  return (
+    <View testID={testID} accessibilityLabel={accessibilityLabel}
+      style={{ flexDirection: "row", alignItems: "center", gap: space.xs, minWidth: 0, maxWidth: "100%", flexShrink: 1 }}>
+      <Icon name={icon} size={16} color={iconColor} />
+      <Text selectable style={{ fontSize: tokens.typography.block.meta.size,
+        fontFamily: tokens.fontUi, color: tokens.foregroundMuted, flexShrink: 1 }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 /** Copies the model ID exactly as requested, without provider or metadata. */
-function ModelName({ provider, agentId, model, thinkingOptionId, tokens, mobile }: {
+function ModelName({ provider, model, modelName, thinkingLabel, tokens, mobile }: {
   provider: string;
-  agentId?: string;
   model: string;
-  thinkingOptionId?: string;
+  modelName: string | null;
+  thinkingLabel?: string;
   tokens: ExtendedThemeTokens;
   mobile: boolean;
 }) {
   const { copied, copy } = useCopy();
   const capabilities = useInputCapabilities();
   const detailsWidth = useFooterDetailsWidth();
-  const paseo = usePaseo();
-  const cwd = useAgent(agentId ?? "", (agent) => agent.cwd);
-  const { modelName } = useFooterModel(paseo, provider, model, thinkingOptionId ?? null, cwd ?? null);
   return (
     <View testID="create-agent-model" style={{ minWidth: 0, maxWidth: "100%", flexShrink: 1 }}>
       <ToolbarItem label={copied ? "Copied" : "Copy model name"} accessibilityLabel="Copy model name"
         tokens={tokens} align="start" onPress={() => { void copy(model, { label: "Copy model name" }); }}
-        details={<FooterDetails modelId={model} modelName={modelName ?? model} thinkingLabel={thinkingOptionId ?? "未指定"} tokens={tokens} />}
+        details={<FooterDetails modelId={model} modelName={modelName ?? model} thinkingLabel={thinkingLabel ?? "未指定"} tokens={tokens} />}
         detailsWidth={detailsWidth} hitSlop={mobile ? 10 : 4}
         buttonStyle={{ width: "auto", height: "auto", minHeight: mobile ? 24 : capabilities.touch ? 44 : 24,
           flexDirection: "row", gap: space.xs, minWidth: 0, maxWidth: "100%" }}>
-        <ProviderLogo provider={provider} size={16} color={tokens.foregroundMuted} />
+        <ProviderLogo provider={provider} size={16} neutralColor={tokens.foregroundMuted} />
         <Text testID="create-agent-model-label" style={{ fontSize: tokens.typography.block.meta.size, fontFamily: tokens.fontUi,
           fontWeight: "400", color: tokens.foregroundMuted, flexShrink: 1, minWidth: 0 }}>{modelName ?? model}</Text>
       </ToolbarItem>

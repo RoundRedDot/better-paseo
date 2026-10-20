@@ -27,6 +27,10 @@ interface ProviderLogoProps {
   size?: number;
   showLabel?: boolean;
   color?: string;
+  /** Colours only the label, leaving the mark in its brand hue. */
+  labelColor?: string;
+  /** Replaces a near-white brand hue that would vanish on a light surface. */
+  neutralColor?: string;
 }
 
 export function normalizeProvider(provider: string): KnownProvider {
@@ -77,14 +81,14 @@ function markId(provider: KnownProvider): string | undefined {
   return undefined;
 }
 
-export function ProviderLogo({ provider, size = 14, showLabel = false, color }: ProviderLogoProps) {
+export function ProviderLogo({ provider, size = 14, showLabel = false, color, labelColor, neutralColor }: ProviderLogoProps) {
   const normalized = normalizeProvider(provider);
   const config = PROVIDER_CONFIGS[normalized];
   const id = useMemo(() => markId(normalized), [normalized]);
   const uri = useMarkBitmap(id);
-  const foreground = color ?? config.brandColor;
+  const foreground = color ?? (config.neutral && neutralColor ? neutralColor : config.brandColor);
   // A monochrome mark is rasterised white, so the brand hue arrives as a tint.
-  const tint = color ?? (id && MONO_MARKS.has(id) ? config.brandColor : undefined);
+  const tint = id && MONO_MARKS.has(id) ? foreground : color;
 
   return (
     <View style={styles.row}>
@@ -116,7 +120,7 @@ export function ProviderLogo({ provider, size = 14, showLabel = false, color }: 
         </View>
       )}
       {showLabel ? (
-        <Text style={[styles.label, { color: foreground }, unselectable]}>
+        <Text style={[styles.label, { color: labelColor ?? foreground }, unselectable]}>
           {config.displayName}
         </Text>
       ) : null}
@@ -128,6 +132,8 @@ interface ProviderMeta {
   displayName: string;
   /** Also the fill for a monochrome mark, so it stays legible on either theme. */
   brandColor: string;
+  /** The brand hue is a light grey, legible only on a dark surface. */
+  neutral?: boolean;
 }
 
 const PROVIDER_CONFIGS: Record<KnownProvider, ProviderMeta> = {
@@ -142,9 +148,9 @@ const PROVIDER_CONFIGS: Record<KnownProvider, ProviderMeta> = {
   opencode: { displayName: "OpenCode", brandColor: "#38BDF8" },
   minimax: { displayName: "MiniMax", brandColor: "#E2167E" },
   deepseek: { displayName: "DeepSeek", brandColor: "#4D6BFE" },
-  grok: { displayName: "Grok", brandColor: "#E5E7EB" },
-  cursor: { displayName: "Cursor", brandColor: "#E5E7EB" },
-  ollama: { displayName: "Ollama", brandColor: "#CBD5E1" },
+  grok: { displayName: "Grok", brandColor: "#E5E7EB", neutral: true },
+  cursor: { displayName: "Cursor", brandColor: "#E5E7EB", neutral: true },
+  ollama: { displayName: "Ollama", brandColor: "#CBD5E1", neutral: true },
   generic: { displayName: "Agent", brandColor: "#94A3B8" },
 };
 
