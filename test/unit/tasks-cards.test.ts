@@ -65,7 +65,7 @@ import {
 } from "../../client/tasks/cards";
 import { statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
-import { contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
+import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
 import { menuChrome } from "../../client/tasks/board/menu";
@@ -656,6 +656,24 @@ describe("TaskCardView context ring", () => {
     const three = hostByTestId(tree.root, "context-ring");
     expect(rotation(hostByTestId(three, "context-ring-right"))).toBe("45deg");
     expect(rotation(hostByTestId(three, "context-ring-left"))).toBe("135deg");
+  });
+
+  it("hides the ring from assistive tech with native props off the web and aria-hidden on it", async () => {
+    const tree = await render(React.createElement(ContextRing, { ratio: 0.5, color: "#000", track: "#ccc" }));
+    expect(hostByTestId(tree.root, "context-ring").props).toMatchObject({ accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" });
+    await act(async () => tree.unmount());
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    try {
+      const web = await render(React.createElement(ContextRing, { ratio: 0.5, color: "#000", track: "#ccc" }));
+      const ring = hostByTestId(web.root, "context-ring");
+      expect(ring.props["aria-hidden"]).toBe(true);
+      expect(ring.props.accessibilityElementsHidden).toBeUndefined();
+      expect(ring.props.importantForAccessibility).toBeUndefined();
+      await act(async () => web.unmount());
+    } finally {
+      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+    }
+    renderer = null;
   });
 
   it("shows the host's context details above the ring on hover, desktop only", async () => {
