@@ -98,6 +98,7 @@ import { StyleSheet, View } from "react-native";
 import { ProviderLogo } from "../../client/components/provider-logo";
 import * as data from "../../client/tasks/data";
 import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
+import { WindowSegments } from "../../client/tasks/board/board-parts";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS } from "../../client/tasks/board/params";
@@ -344,17 +345,45 @@ describe("Tasks board, desktop", () => {
     });
     layOut(1440);
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
-    expect(StyleSheet.flatten(end.props.style)).toMatchObject({ flexShrink: 0 });
+    // At the right end of its line; on a line of its own it shrinks rather than overflow.
+    expect(StyleSheet.flatten(end.props.style)).toMatchObject({ marginLeft: "auto", maxWidth: "100%", flexShrink: 1 });
     expect(end.findAll((node) => (node.type as unknown) === "Text" && textOf(node) === "Sort")).toHaveLength(1);
-    // The chips wrap inside the filters' own group, never the bar itself.
+    // The chips wrap inside the filters' own group. The bar wraps only once
+    // that group would get less than its floor beside the done window and the
+    // sort: a bar as wide as 1440's keeps them on the first row.
     let bar = end.parent!;
     while (typeof bar.type !== "string") bar = bar.parent!;
-    expect(StyleSheet.flatten(bar.props.style).flexWrap).toBeUndefined();
+    expect(StyleSheet.flatten(bar.props.style).flexWrap).toBe("wrap");
     const groups = bar.findAll((node) => (node.type as unknown) === "View" && hostParentOf(node) === bar);
     expect(groups).toHaveLength(2);
     const filters = groups.find((child) => child !== end)!;
-    expect(StyleSheet.flatten(filters.props.style)).toMatchObject({ flex: 1, minWidth: 0, flexWrap: "wrap" });
+    expect(StyleSheet.flatten(filters.props.style)).toMatchObject({ flex: 1, minWidth: 240, flexWrap: "wrap" });
     expect(textOf(filters)).toContain("Clear all");
+  });
+
+  it("ends a long sort and every filter label in an ellipsis rather than overlap", () => {
+    for (const sort of ["duration-asc", "updated-desc", "context-desc"]) {
+      act(() => {
+        renderer = TestRenderer.create(screen(false, { q: "status", sort }));
+      });
+      layOut(1440);
+      const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
+      let bar = end.parent!;
+      while (typeof bar.type !== "string") bar = bar.parent!;
+      const inSegments = (node: ReactTestInstance) => {
+        for (let parent = node.parent; parent; parent = parent.parent) if (parent.type === WindowSegments) return true;
+        return false;
+      };
+      const labels = bar.findAll((node) => (node.type as unknown) === "Text" && typeof node.children[0] === "string" && !inSegments(node));
+      // Every label of the bar is one line: none wraps out of its 28pt button
+      // (the done window's fixed segments aside).
+      expect(labels.filter((label) => label.props.numberOfLines !== 1).map(textOf)).toEqual([]);
+      const sortText = end.findAll((node) => (node.type as unknown) === "Text" && node.props.numberOfLines === 1 && /first|high|low/.test(textOf(node)));
+      expect(sortText).toHaveLength(1);
+      expect(StyleSheet.flatten(sortText[0]!.props.style)).toMatchObject({ maxWidth: 160, flexShrink: 1 });
+      act(() => renderer!.unmount());
+      renderer = undefined;
+    }
   });
 
   it("hides the jump without navigation", () => {
