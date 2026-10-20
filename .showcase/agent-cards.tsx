@@ -106,7 +106,11 @@ export const AGENT_LIST = paseo("list_agents", {}, { agents: [
   { id: BUILDER, title: "Screenshot builder", status: "idle", provider: "claude", cwd: "/Users/me/code/better-paseo" },
 ] });
 export const AGENT_PERMISSIONS = paseo("list_pending_permissions", {}, { permissions: [
-  { agentId: REVIEWER, status: "pending", request: { id: "perm-7", title: "Bash", description: "`git push origin feat/tasks-cards`" } },
+  { agentId: BUILDER, status: "pending", request: { id: "perm-7", kind: "tool", name: "Bash", title: "Bash",
+    description: "Push the branch", input: { command: "git push origin feat/tasks-cards" } } },
+  { agentId: "8308fd05-7a1e-4c2b-9d3f-1b2c3d4e5f60", status: "pending", request: { id: "permission-call_9", kind: "question",
+    name: "request_user_input_async", title: "Question", input: { questions: [{ id: "0", header: "Question 1", isOther: true,
+      question: "Merge `feat/align-ios-2.0.6` now?", options: [{ label: "Merge" }, { label: "Wait for review" }] }] } } },
 ] });
 export const AGENT_ACTIVITY = paseo("get_agent_activity", { agentId: REVIEWER }, { agentId: REVIEWER, updateCount: 3,
   content: "## Activity\n\n- Read `client/tasks/cards/task-card.tsx`\n- Edited 1 file (+4 −1)\n- Ran `npx vitest run`: 147 passed" });
@@ -130,10 +134,10 @@ function Label({ tokens, children }: { tokens: ExtendedThemeTokens; children: st
 }
 
 /** Collapsed rows, one per card kind. */
-export function AgentRows({ tokens }: { tokens: ExtendedThemeTokens }) {
+export function AgentRows({ tokens, only }: { tokens: ExtendedThemeTokens; only?: ToolCallView[] }) {
   return <View style={{ gap: 0 }}>
-    {AGENT_ROWS.map((view) => <ToolCallout key={view.callId} data={view} tokens={tokens} />)}
-    {IRC ? <SystemCard envelope={IRC} tokens={tokens} /> : null}
+    {(only ?? AGENT_ROWS).map((view) => <ToolCallout key={view.callId} data={view} tokens={tokens} />)}
+    {!only && IRC ? <SystemCard envelope={IRC} tokens={tokens} /> : null}
   </View>;
 }
 
@@ -146,6 +150,42 @@ export function AgentOpened({ tokens, only }: { tokens: ExtendedThemeTokens; onl
     </View>)}
   </View>;
 }
+
+// The rest of Paseo's agent tools, with payloads cut from real daemon answers.
+const MODE = (id: string, label: string, icon: string, colorTier: string, description: string) => ({ id, label, icon, colorTier, description });
+export const AGENT_PROVIDERS = paseo("list_providers", {}, { providers: [
+  { id: "claude", label: "Claude", description: "Anthropic's multi-tool assistant with MCP support, streaming, and deep reasoning", enabled: true, status: "available",
+    modes: [MODE("plan", "Plan Mode", "ShieldEllipsis", "planning", "Analyze without edits"), MODE("bypassPermissions", "Bypass", "ShieldOff", "dangerous", "Skip all prompts")] },
+  { id: "codex", label: "Codex", description: "OpenAI's Codex workspace agent with sandbox controls and optional network access", enabled: true, status: "available",
+    modes: [MODE("auto", "Default Permissions", "Shield", "moderate", "Default approval flow"), MODE("full-access", "Full Access", "ShieldOff", "dangerous", "No prompts")] },
+  { id: "copilot", label: "Copilot", description: "GitHub Copilot via Agent Client Protocol", enabled: false, modes: [], status: "unavailable" },
+] });
+const THINKING = ["low", "medium", "high", "max"].map((id) => ({ id, label: id, isDefault: id === "medium" }));
+export const AGENT_MODELS = paseo("list_models", { provider: "codex" }, { provider: "codex", models: [
+  { provider: "codex", id: "gpt-6.1-sol", label: "GPT-6.1-Sol", description: "Latest workhorse model for coding and everyday work.", isDefault: true, thinkingOptions: THINKING },
+  { provider: "codex", id: "gpt-6-astra", label: "GPT-6-Astra", description: "Frontier intelligence for the most demanding work.", thinkingOptions: THINKING },
+  { provider: "codex", id: "gpt-6-luna", label: "GPT-6-Luna", description: "Fast and affordable model for easier tasks.", thinkingOptions: THINKING },
+] });
+export const AGENT_PROFILES = paseo("list_profiles", {}, { profiles: [
+  { id: "p1", name: "Opus 5.5 High · complex / ui / reviewer", icon: "palette", provider: "claude", model: "claude-opus-5-5", modeId: "bypassPermissions",
+    thinkingOptionId: "high", notes: "复杂跨模块实现、并发状态、疑难根因和跨家族独立评审；也是 UI 与交互的默认模型。" },
+  { id: "p2", name: "GPT-6 Luna Max · impl / engineering", icon: "hammer", provider: "codex", model: "gpt-6-luna", modeId: "auto-review",
+    thinkingOptionId: "max", notes: "日常功能、架构既定的后端逻辑、接口接线和测试补齐。" },
+  { id: "p3", name: "Grok 4.7 · research", icon: "search", provider: "grok", model: "grok-4.7", featureValues: { auto_accept: true },
+    notes: "代码定位和资料整理的默认模型。" },
+] });
+export const AGENT_INSPECT = paseo("inspect_provider", { provider: "codex" }, { provider: "codex", label: "Codex",
+  description: "OpenAI's Codex workspace agent with sandbox controls and optional network access", enabled: true, status: "available",
+  modes: [MODE("auto", "Default Permissions", "Shield", "moderate", "Edit files and run commands with Codex's default approval flow."),
+    MODE("full-access", "Full Access", "ShieldOff", "dangerous", "Edit files, run commands, and access the network without additional prompts.")],
+  selectedModel: null, features: [] });
+export const AGENT_RESPOND = paseo("respond_to_permission", { agentId: REVIEWER, requestId: "permission-call_4c33",
+  response: { behavior: "allow", updatedInput: { answers: { "Question 1": "按此计划实施" } } } }, { success: true });
+export const AGENT_UPDATE = paseo("update_agent", { agentId: REVIEWER, name: "tasks B: cards", settings: { thinkingOptionId: "high" } }, { success: true });
+export const AGENT_MODE = paseo("set_agent_mode", { agentId: REVIEWER, modeId: "full-access" }, { success: true, newMode: "full-access" });
+export const AGENT_ARCHIVE = paseo("archive_agent", { agentId: BUILDER }, { success: true });
+export const OTHER_TOOLS: ToolCallView[] = [AGENT_PERMISSIONS, AGENT_PROVIDERS, AGENT_MODELS, AGENT_PROFILES, AGENT_INSPECT, AGENT_RESPOND, AGENT_UPDATE,
+  AGENT_MODE, AGENT_ARCHIVE, AGENT_CANCEL];
 
 export const PERMISSION_CARDS: ToolCallView[] = [AGENT_QUESTION, AGENT_QUESTIONS, AGENT_PERMISSION, AGENT_PLAN];
 

@@ -3,6 +3,7 @@ import { classifyTool } from "../../client/tools/classify";
 import { AGENT_OPERATIONS } from "../../client/tools/agent-operation";
 import { toolCopyPlan } from "../../client/tools/copy";
 import { toolHasDetail } from "../../client/tools/detail";
+import { summarizeTool } from "../../client/tools/summarize";
 
 const agentId = "remote::reviewer";
 const input = { agentId, prompt: "# Follow up\n\n**Keep all changes**\n", sessionMode: "read-only" };
@@ -89,5 +90,60 @@ describe("agent operation inventory", () => {
 
   it("extracts a successful creation ID from the structured MCP result", () => {
     expect(tool("paseo.create_agent", { content: [], structuredContent: { agentId, status: "running" } }).paseo?.createAgent?.agentId).toBe(agentId);
+  });
+});
+
+describe("Paseo provider catalog cards", () => {
+  const providers = { providers: [
+    { id: "claude", label: "Claude", description: "Anthropic", enabled: true, status: "available",
+      modes: [{ id: "bypassPermissions", label: "Bypass", icon: "ShieldOff", colorTier: "dangerous" }] },
+    { id: "copilot", label: "Copilot", enabled: false, modes: [], status: "unavailable" },
+  ] };
+
+  it("reads list_providers rows and their modes from either transport", () => {
+    for (const output of [providers, { content: [{ type: "text", text: JSON.stringify(providers) }] }]) {
+      const view = tool("mcp__paseo__list_providers", output, "completed", {});
+      expect(view.paseo?.catalog?.providers).toEqual([
+        { id: "claude", label: "Claude", description: "Anthropic", available: true,
+          modes: [{ id: "bypassPermissions", label: "Bypass", icon: "ShieldOff", colorTier: "dangerous", description: undefined }] },
+        { id: "copilot", label: "Copilot", description: undefined, available: false, modes: [] },
+      ]);
+      expect(toolHasDetail(view, 72)).toBe(true);
+      expect(summarizeTool(view)).toMatchObject({ verb: "Providers", target: "1 available", meta: ["1 unavailable"] });
+    }
+  });
+
+  it("reads list_models with its default thinking level", () => {
+    const view = tool("paseo.list_models", { provider: "codex", models: [{ id: "gpt-6-luna", label: "GPT-6-Luna", isDefault: true,
+      defaultThinkingOptionId: "medium", thinkingOptions: [{ id: "low", label: "low" }, { id: "medium", label: "medium" }] }, { label: "no id" }] },
+      "completed", { provider: "codex" });
+    expect(view.paseo?.catalog?.models).toEqual([{ id: "gpt-6-luna", label: "GPT-6-Luna", description: undefined, isDefault: true,
+      thinking: ["low", "medium"], defaultThinking: "medium" }]);
+    expect(summarizeTool(view)).toMatchObject({ verb: "Models", target: "Codex", meta: ["1 model"] });
+  });
+
+  it("reads list_profiles and inspect_provider instead of dumping JSON", () => {
+    const profiles = tool("mcp__paseo__list_profiles", { profiles: [{ id: "p1", name: "Opus · ui", icon: "palette", provider: "claude",
+      model: "claude-opus-5-5", modeId: "bypassPermissions", thinkingOptionId: "high", notes: "UI work" }] }, "completed", {});
+    expect(profiles.tool).toBe("paseo");
+    expect(profiles.paseo?.catalog?.profiles?.[0]).toMatchObject({ name: "Opus · ui", icon: "palette", model: "claude-opus-5-5", notes: "UI work" });
+    expect(summarizeTool(profiles)).toMatchObject({ verb: "Profiles", target: "1 profile" });
+    const inspect = tool("mcp__paseo__inspect_provider", { provider: "codex", label: "Codex", status: "available",
+      modes: [{ id: "auto", label: "Default" }], features: [{ type: "toggle", id: "fast", label: "Fast", value: true },
+        { type: "select", id: "effort", label: "Effort", value: "hi", options: [{ id: "hi", label: "High" }] }] }, "completed", { provider: "codex" });
+    expect(inspect.paseo?.catalog).toMatchObject({ kind: "provider", providers: [{ id: "codex", label: "Codex", available: true }],
+      features: [{ label: "Fast", value: "on" }, { label: "Effort", value: "High" }] });
+    expect(summarizeTool(inspect)).toMatchObject({ verb: "Provider", target: "Codex", meta: ["1 mode"] });
+    expect(toolCopyPlan(inspect, (path) => path).menu.length).toBeGreaterThan(0);
+  });
+
+  it("shows a question's answer and what update_agent changed", () => {
+    const respond = tool("paseo.respond_to_permission", { success: true }, "completed", { agentId, requestId: "q1",
+      response: { behavior: "allow", updatedInput: { answers: { "Question 1": "Merge" } } } });
+    expect(respond.paseo?.agentOperation?.facts).toContainEqual({ label: "Question 1", value: "Merge" });
+    expect(summarizeTool(respond)).toMatchObject({ verb: "Allowed", meta: ["Merge"] });
+    const update = tool("paseo.update_agent", { success: true }, "completed", { agentId, name: "Renamed", settings: { thinkingOptionId: "high" } });
+    expect(update.paseo?.agentOperation?.facts).toEqual(expect.arrayContaining([{ label: "Name", value: "Renamed" }, { label: "Thinking", value: "high" }]));
+    expect(summarizeTool(update)).toMatchObject({ verb: "Updated", meta: ["→ Renamed · high"] });
   });
 });

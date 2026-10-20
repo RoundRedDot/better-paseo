@@ -111,7 +111,7 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
   [
     "paseo through mcp · leaf name",
     call("mcp__paseo__list_models", { type: "unknown", input: { provider: "claude" }, output: "" }),
-    { verb: "paseo / list_models" },
+    { verb: "Models", target: "Claude", meta: ["0 models"] },
   ],
   ["hub keeps its op", call("hub", { type: "unknown", input: { op: "wait" }, output: "" }), { verb: "Hub", target: "wait" }],
   [
