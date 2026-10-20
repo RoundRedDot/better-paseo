@@ -101,7 +101,7 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
   [
     "paseo · create_agent · title",
     call("create_agent", { type: "unknown", input: { title: "Reviewer", provider: "claude/opus" }, output: "" }),
-    { verb: "Created", target: "Reviewer", meta: ["Claude"] },
+    { verb: "Created", target: "Reviewer", meta: ["Claude"], agent: { icon: "Bot", provider: "claude", targetIsId: false } },
   ],
   [
     "codex mcp · server / tool",
