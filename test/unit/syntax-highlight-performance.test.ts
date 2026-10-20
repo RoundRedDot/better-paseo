@@ -3,7 +3,7 @@ import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } fro
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "./helpers/quiet-renderer";
 
-const rpc = vi.hoisted(() => ({ call: vi.fn() }));
+const rpc = vi.hoisted(() => ({ call: vi.fn(() => Promise.resolve(null)) }));
 const clipboard = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => {}) }));
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
@@ -26,6 +26,7 @@ import {
   lineNumberWidth,
   maxLineNumber,
 } from "../../client/components/syntax-highlight";
+import { HScroll } from "../../client/ui/h-scroll";
 import {
   disablePerf,
   enablePerf,
@@ -97,11 +98,54 @@ async function render(
 }
 
 afterEach(() => {
+  delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
   disablePerf();
   resetPerf();
   rpc.call.mockReset();
   rpc.call.mockImplementation(() => Promise.resolve(null));
   clipboard.copyText.mockClear();
+});
+
+describe.each(["web", "ios", "android"])("code wrapping on %s", (os) => {
+  it.each(["bash", "typescript", "json", "markdown", "plaintext"])(
+    "wraps %s blocks by default without changing copied text",
+    async (language) => {
+      (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+      const code = `git push --force-with-lease=develop:${"a".repeat(64)} origin develop\n`;
+      const renderer = await render(code, { language, scrollX: true });
+      expect(renderer.root.findAllByType(HScroll)).toHaveLength(0);
+      expect(textContent(renderer.toJSON())).toContain(code.trimEnd());
+      const copy = renderer.root.findByProps({ accessibilityLabel: "Copy code" });
+      await act(async () => copy.props.onPress());
+      expect(clipboard.copyText).toHaveBeenCalledWith(code);
+      act(() => renderer.unmount());
+    },
+  );
+
+  it("can turn wrapping off and on for one block", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const renderer = await render("echo a-long-command", { language: "bash", scrollX: true });
+    const toggle = () => renderer.root.findByProps({ accessibilityLabel: "Do not wrap lines" });
+    expect(toggle().props.accessibilityState.selected).toBe(true);
+    act(() => toggle().props.onPress());
+    expect(renderer.root.findAllByType(HScroll)).toHaveLength(1);
+    const unwrapped = renderer.root.findByProps({ accessibilityLabel: "Wrap lines" });
+    expect(unwrapped.props.accessibilityState.selected).toBe(false);
+    act(() => unwrapped.props.onPress());
+    expect(renderer.root.findAllByType(HScroll)).toHaveLength(0);
+    expect(toggle().props.accessibilityState.selected).toBe(true);
+    act(() => renderer.unmount());
+  });
+
+  it("wraps streaming blocks before their controls appear", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const renderer = await render(`echo ${"a".repeat(200)}`, {
+      language: "bash", scrollX: true, highlight: false,
+    });
+    expect(renderer.root.findAllByType(HScroll)).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ accessibilityLabel: "Do not wrap lines" })).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
 });
 
 describe("maxLineNumber", () => {

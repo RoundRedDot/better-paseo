@@ -37,7 +37,7 @@ interface SyntaxHighlightProps {
    * so a streaming block costs one highlight call, made once it is complete.
    */
   highlight?: boolean;
-  /** Lines keep their length and the block scrolls sideways instead of wrapping. */
+  /** Offers a per-block toggle between wrapping and sideways scrolling. */
   scrollX?: boolean;
   /**
    * Lines drawn before "Show all". Blocks longer than `LARGE_BLOCK_LINES` start
@@ -502,7 +502,7 @@ export function SyntaxHighlightBlock({
   const lines = useMemo(() => code.trimEnd().split("\n"), [code]);
   const total = lines.length;
   const { shown, expanding, expanded, showAll, showLess } = useBatchedRows(total, initialLines);
-  const [wrapped, setWrapped] = useState(false);
+  const [wrapped, setWrapped] = useState(true);
   // A diff is a diff whatever the label says, and everything below reads this
   // flag rather than the label.
   const isDiff = useMemo(
@@ -541,9 +541,8 @@ export function SyntaxHighlightBlock({
   const mono = tokens.typography.mono;
   const languageLabel = codeLanguageLabel(isDiff ? "diff" : language, filename);
   const hasHeader = Boolean(filename || filenameNode !== undefined || languageLabel);
-  // Sideways scrolling is the default for a block that asked for it; Wrap
-  // turns it off for this block only (S7 design spec §3.6). Plain text has
-  // no header to hold Wrap and is usually a sentence, not code, so it wraps.
+  // Blocks start wrapped; the reader can opt into sideways scrolling for
+  // this block only. Plain text has no header to hold the toggle, so it wraps.
   const scroll = scrollX && !wrapped && hasHeader;
   // Plain text names nothing, so it has no header to carry Copy. A framed
   // block still offers it, pinned to the first line's end; a bare one sits in
