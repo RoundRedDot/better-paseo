@@ -185,7 +185,8 @@ const options = <Value extends string>(values: readonly Value[], labels: Record<
   values.map((value) => ({ value, label: labels[value] }));
 
 export function TasksSettingsPage(props: PluginSurfaceProps) {
-  const t = STRINGS[useTasksLanguage()];
+  const language = useTasksLanguage();
+  const t = STRINGS[language];
   const settings = useSettings(TASKS_SETTINGS);
   const [conflict, setConflict] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
@@ -287,7 +288,8 @@ export function TasksSettingsPage(props: PluginSurfaceProps) {
               fields={effectiveCard(values, compact)}
               theme={props.theme}
               compact={compact}
-              permissionButtons={sample.permission ? permissionButtons(sample.permission) : []}
+              permissionButtons={sample.permission ? permissionButtons(sample.permission, language) : []}
+              language={language}
               stopPhase="idle"
               focused={false}
               highlighted={false}
