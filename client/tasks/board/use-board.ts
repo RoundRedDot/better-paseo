@@ -75,22 +75,28 @@ const stoppedCache = new WeakMap<TaskCard, TaskCard>();
 
 /**
  * A card stopped from the board says so until it runs again: in the review
- * lane, without an error of its own, its reason reads "Stopped manually".
+ * or done lane (the daemon idles a stopped agent without asking for
+ * attention, so it usually lands in done), without an error of its own,
+ * its reason reads "Stopped manually".
  */
 export function withStopReasons(lanes: Record<LaneId, LaneModel>, stopped: ReadonlySet<string>, reason: string): Record<LaneId, LaneModel> {
   if (stopped.size === 0) return lanes;
-  const review = lanes.review;
-  if (!review.cards.some((card) => stopped.has(card.id) && !card.error)) return lanes;
-  const cards = review.cards.map((card) => {
-    if (!stopped.has(card.id) || card.error) return card;
-    let shown = stoppedCache.get(card);
-    if (shown?.error !== reason) {
-      shown = { ...card, error: reason };
-      stoppedCache.set(card, shown);
-    }
-    return shown;
-  });
-  return { ...lanes, review: { ...review, cards } };
+  let out = lanes;
+  for (const id of ["review", "done"] as const) {
+    const lane = lanes[id];
+    if (!lane.cards.some((card) => stopped.has(card.id) && !card.error)) continue;
+    const cards = lane.cards.map((card) => {
+      if (!stopped.has(card.id) || card.error) return card;
+      let shown = stoppedCache.get(card);
+      if (shown?.error !== reason) {
+        shown = { ...card, error: reason };
+        stoppedCache.set(card, shown);
+      }
+      return shown;
+    });
+    out = { ...out, [id]: { ...lane, cards } };
+  }
+  return out;
 }
 
 function errorText(error: unknown): string {
