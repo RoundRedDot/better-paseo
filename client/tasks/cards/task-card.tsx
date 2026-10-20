@@ -21,6 +21,9 @@ import { agentPillColors, BrandMark, neutralPillColors, tintedPillColors, type A
 import { THINKING_ICON } from "./mode-icons";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
+import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
+import { layoutMenu } from "../board/menu-model";
+import { panelChrome } from "./panel";
 import { cardStrings, subtaskSummary } from "./strings";
 import { pillTint, taskTokens, type TaskTokens } from "./tokens";
 import { mix, withAlpha } from "../../components/theme-tokens";
@@ -417,6 +420,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     menuOpen,
     onPress: () => pressStop(props.stopPhase === "confirming" ? stopAll : false),
     onToggleMenu: () => setMenuOpen((open) => !open),
+    onCloseMenu: () => setMenuOpen(false),
+    theme,
     report: reportControl,
     onPick: pressStop,
   };
@@ -718,6 +723,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         context={card.context}
         ratio={ratio}
         cost={card.usage?.totalCostUsd ?? null}
+        theme={theme}
         report={reportControl}
         onOpenChange={setRingOpen}
       />
@@ -1000,6 +1006,7 @@ function ContextMeter(props: {
   context: NonNullable<TaskCard["context"]>;
   ratio: number;
   cost: number | null;
+  theme: PluginTheme;
   report?: ControlHover;
   onOpenChange(open: boolean): void;
 }) {
@@ -1036,11 +1043,7 @@ function ContextMeter(props: {
             paddingHorizontal: 10,
             paddingVertical: 8,
             gap: 4,
-            backgroundColor: tokens.card.background,
-            borderWidth: 1,
-            borderColor: tokens.card.border,
-            borderRadius: 8,
-            boxShadow: tokens.popoverShadow,
+            ...panelChrome(props.theme),
           } as ViewStyle}
           testID="task-card-context-details"
         >
@@ -1135,6 +1138,8 @@ interface StopControlProps {
   onPress(): void;
   onToggleMenu(): void;
   onPick(withChildren: boolean): void;
+  onCloseMenu(): void;
+  theme: PluginTheme;
   report?: ControlHover;
 }
 
@@ -1151,6 +1156,26 @@ function StopControl(props: StopControlProps) {
   const solid = confirming || stopping;
   const stopHover = useControlHover(props.report);
   const chevronHover = useControlHover(props.report);
+  const stopSections: MenuSection[] = [
+    {
+      key: "stop",
+      items: [
+        {
+          key: "only",
+          label: strings.stopOnlyThis,
+          leading: <MenuGlyph><StopSquare compact={false} color={tokens.foregroundMuted} /></MenuGlyph>,
+          onSelect: () => props.onPick(false),
+        },
+        {
+          key: "all",
+          label: strings.stopWithChildren,
+          leading: <StopTreeGlyph tokens={tokens} />,
+          hint: String(props.count),
+          onSelect: () => props.onPick(true),
+        },
+      ],
+    },
+  ];
   const color = solid ? look.onStrong : tokens.danger;
   const fill = (hovered: boolean) =>
     solid ? (hovered ? look.dangerStrongHover : tokens.danger) : hovered ? look.dangerFillHover : look.dangerFill;
@@ -1227,38 +1252,17 @@ function StopControl(props: StopControlProps) {
         </Pressable>
       ) : null}
       {props.parent && props.menuOpen ? (
-        <View
-          style={{
-            position: "absolute",
-            right: 0,
-            ...(compact ? { bottom: height + 6 } : { top: height + 4 }),
-            width: compact ? 240 : 200,
-            padding: 4,
-            backgroundColor: look.background,
-            borderWidth: 1,
-            borderColor: look.border,
-            borderRadius: 8,
-            boxShadow: tokens.popoverShadow,
-          } as ViewStyle}
-        >
-          <MenuItem
-            report={props.report}
-            tokens={tokens}
-            compact={compact}
-            icon={<StopSquare compact={compact} color={tokens.foregroundMuted} small />}
-            label={strings.stopOnlyThis}
-            onPress={() => props.onPick(false)}
-          />
-          <MenuItem
-            report={props.report}
-            tokens={tokens}
-            compact={compact}
-            icon="ListTree"
-            label={strings.stopWithChildren}
-            count={props.count}
-            onPress={() => props.onPick(true)}
-          />
-        </View>
+        // The board's Linear menu (radius 12, hairline, soft shadow, 32 pt
+        // rows): below the pill on desktop, above the action bar on a phone.
+        <CascadeMenu
+          sections={stopSections}
+          theme={props.theme}
+          width={STOP_MENU_WIDTH}
+          top={compact ? -(layoutMenu(stopSections).height + 2 * StyleSheet.hairlineWidth + 6) : height + 4}
+          align="right"
+          onClose={props.onCloseMenu}
+          testID="task-card-stop-menu"
+        />
       ) : null}
     </View>
   );
@@ -1273,43 +1277,34 @@ function StopSquare(props: { compact: boolean; color: string; small?: boolean })
   return <View style={{ width: size, height: size, borderRadius: 2, backgroundColor: props.color }} testID="stop-square" />;
 }
 
-function MenuItem(props: {
-  tokens: TaskTokens;
-  compact: boolean;
-  /** A Lucide name, or a drawn mark. */
-  icon: string | ReactNode;
-  label: string;
-  count?: number;
-  report?: ControlHover;
-  onPress(): void;
-}) {
-  const { tokens, compact } = props;
-  const { hovered, hoverProps } = useControlHover(props.report);
+const STOP_MENU_WIDTH = 220;
+
+/** A drawn mark in the menu's 16 pt icon slot. */
+function MenuGlyph(props: { children: ReactNode }) {
+  return <View style={{ width: MENU.icon, height: MENU.icon, alignItems: "center", justifyContent: "center" }}>{props.children}</View>;
+}
+
+/** "Stop with subtasks": the subtask tree with a small stop square at its corner. */
+function StopTreeGlyph(props: { tokens: TaskTokens }) {
+  const muted = props.tokens.foregroundMuted;
   return (
-    <Pressable
-      accessibilityRole="menuitem"
-      onPress={props.onPress}
-      {...hoverProps}
-      style={{
-        height: compact ? 44 : 28,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: compact ? 10 : 8,
-        paddingHorizontal: compact ? 12 : 8,
-        borderRadius: compact ? 6 : 4,
-        backgroundColor: hovered ? tokens.card.controlHover : "transparent",
-      }}
-    >
-      {typeof props.icon === "string" ? (
-        <Icon name={props.icon} size={compact ? 14 : 12} color={tokens.foregroundMuted} />
-      ) : (
-        <View style={{ width: compact ? 14 : 12, alignItems: "center" }}>{props.icon}</View>
-      )}
-      <Text style={{ flex: 1, fontSize: compact ? 15 : 12, color: tokens.foreground }}>{props.label}</Text>
-      {props.count !== undefined ? (
-        <Text style={[{ fontSize: compact ? 15 : 12, color: tokens.foregroundMuted }, tabular]}>{props.count}</Text>
-      ) : null}
-    </Pressable>
+    <MenuGlyph>
+      <Icon name="ListTree" size={14} color={muted} />
+      <View
+        style={{
+          position: "absolute",
+          right: -1,
+          bottom: -1,
+          width: 7,
+          height: 7,
+          borderRadius: 2,
+          backgroundColor: muted,
+          borderWidth: 1.5,
+          borderColor: props.tokens.surface0,
+        }}
+        testID="stop-square"
+      />
+    </MenuGlyph>
   );
 }
 
