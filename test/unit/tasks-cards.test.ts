@@ -68,6 +68,7 @@ import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
 import { contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
+import { menuChrome } from "../../client/tasks/board/menu";
 import { PiMark, agentPillColors, contrastRatio, tintedPillColors } from "../../client/tasks/cards/brand-mark";
 import { permissionButtons } from "../../client/tasks/actions";
 import { providerBrand } from "../../client/components/provider-logo";
@@ -1060,6 +1061,63 @@ describe("model, thinking and brand marks", () => {
     expect(icons(hostByTestId(agent, "task-details-thinking"))).toEqual(["Brain"]);
     expect(texts(hostByTestId(agent, "task-details-mode"))).toEqual(["Bypass"]);
     expect(icons(hostByTestId(agent, "task-details-mode"))).toEqual(["ShieldOff"]);
+  });
+});
+
+describe("overlays in the board's menu chrome", () => {
+  const chromeOf = (theme: typeof LIGHT) => {
+    const chrome = menuChrome(theme);
+    return { backgroundColor: chrome.background, borderColor: chrome.border, borderWidth: 1, borderRadius: 12, boxShadow: chrome.shadow };
+  };
+
+  it("draws the stop menu with the shared Linear menu", async () => {
+    for (const theme of [LIGHT, DARK]) {
+      const onStop = vi.fn();
+      const card = sample("sample-running");
+      const tree = await render(cardElement(card, { theme, onStop }));
+      await act(async () => byLabel(tree.root, "停止选项").props.onPress());
+      const menu = hostByTestId(tree.root, "task-card-stop-menu");
+      expect(flat(menu.props.style)).toMatchObject({ position: "absolute", right: 0, top: 24, width: 220 });
+      const panel = hostByTestId(menu, "menu-panel");
+      expect(flat(panel.props.style)).toMatchObject(chromeOf(theme));
+      const rows = menu.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
+      expect(rows.map((row) => texts(row))).toEqual([["仅停止此任务"], ["连同子任务一起停止", "2"]]);
+      for (const row of rows) expect(flat(row.props.style)).toMatchObject({ height: 32, borderRadius: 6, marginHorizontal: 6 });
+      // Leading marks: the solid stop square; the tree with a stop square at its corner.
+      expect(rows[0]!.findAll((node) => typeof node.type === "string" && node.props.testID === "stop-square")).toHaveLength(1);
+      expect(icons(rows[1]!)).toEqual(["ListTree"]);
+      await act(async () => rows[1]!.props.onPress());
+      expect(onStop).toHaveBeenCalledWith(card, { withChildren: true });
+      expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop-menu")).toHaveLength(0);
+      await act(async () => tree.unmount());
+      renderer = null;
+    }
+  });
+
+  it("opens the phone's stop menu above the action bar", async () => {
+    const tree = await render(cardElement(sample("sample-running"), { compact: true, onStop: () => {} }));
+    await act(async () => byLabel(tree.root, "停止选项").props.onPress());
+    const menu = hostByTestId(tree.root, "task-card-stop-menu");
+    // Two 32 rows and 6 above and below, plus the hairlines and a 6 gap.
+    expect(flat(menu.props.style).top).toBe(-(6 + 32 * 2 + 6 + 2 + 6));
+  });
+
+  it("frames the details popover and the context tooltip the same way", async () => {
+    for (const theme of [LIGHT, DARK]) {
+      const details = await render(React.createElement(TaskDetails, { card: sample("sample-running"), theme, now: NOW, language: "zh" }));
+      expect(flat(hostByTestId(details.root, "task-details").props.style)).toMatchObject({ width: 288, ...chromeOf(theme) });
+      await act(async () => details.unmount());
+      renderer = null;
+
+      const tree = await render(cardElement(sample("sample-running"), { theme }));
+      await act(async () => hostByTestId(tree.root, "task-card-context").props.onHoverIn());
+      expect(flat(hostByTestId(tree.root, "task-card-context-details").props.style)).toMatchObject({ position: "absolute", ...chromeOf(theme) });
+      await act(async () => tree.unmount());
+      renderer = null;
+    }
+    // The card itself keeps its own radius.
+    const card = await render(cardElement(sample("sample-done")));
+    expect(flat(hostByTestId(card.root, "task-card-sample-done").props.style).borderRadius).toBe(8);
   });
 });
 
