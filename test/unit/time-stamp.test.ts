@@ -28,10 +28,18 @@ it("compares the full local calendar date across midnight, month and year bounda
     .toBe("2025-10-15 03:04");
 });
 
-it.each([[0, "0秒"], [999, "0秒"], [59000, "59秒"], [60000, "1分0秒"],
-  [138000, "2分18秒"], [3600000, "1小时0分0秒"], [3661000, "1小时1分1秒"]] as const)(
-  "formats %i milliseconds as %s", (ms, expected) => expect(formatDuration(ms)).toBe(expected),
-);
+it.each([
+  [0, "0秒", "0s"],
+  [999, "0秒", "0s"],
+  [59000, "59秒", "59s"],
+  [60000, "1分0秒", "1m 0s"],
+  [138000, "2分18秒", "2m 18s"],
+  [3600000, "1小时0分0秒", "1h 0m 0s"],
+  [3661000, "1小时1分1秒", "1h 1m 1s"],
+] as const)("formats %i milliseconds for the footer as %s or %s", (ms, zh, en) => {
+  expect(formatDuration(ms, "zh")).toBe(zh);
+  expect(formatDuration(ms, "en")).toBe(en);
+});
 
 it.each([
   [0, "0 秒", "0 s"],
@@ -42,8 +50,8 @@ it.each([
   [3600000, "1 小时 0 分 0 秒", "1 h 0 min 0 s"],
   [3661000, "1 小时 1 分 1 秒", "1 h 1 min 1 s"],
 ] as const)("formats %i milliseconds for localized hover hints", (ms, zh, en) => {
-  expect(formatDuration(ms, "zh")).toBe(zh);
-  expect(formatDuration(ms, "en")).toBe(en);
+  expect(formatDuration(ms, "zh", true)).toBe(zh);
+  expect(formatDuration(ms, "en", true)).toBe(en);
 });
 
 describe("formatStamp", () => {

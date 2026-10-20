@@ -181,9 +181,9 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
           <Text style={styles.time}>{formatFooterStamp(at)}</Text>
         </ToolbarItem>
         {visibleDurationMs != null ? (
-          <ToolbarItem label={`${toolbarLabel("Elapsed time", language)}${hintLanguage === "zh" ? "：" : ":"} ${formatDuration(visibleDurationMs, hintLanguage)}`} accessibilityLabel={`Elapsed time: ${formatDuration(visibleDurationMs)}`} tokens={tokens} align="end" buttonStyle={styles.metadata} onLongPress={longPress}>
+          <ToolbarItem label={`${toolbarLabel("Elapsed time", language)}${hintLanguage === "zh" ? "：" : ":"} ${formatDuration(visibleDurationMs, hintLanguage, true)}`} accessibilityLabel={`Elapsed time: ${formatDuration(visibleDurationMs, "en")}`} tokens={tokens} align="end" buttonStyle={styles.metadata} onLongPress={longPress}>
             <Icon name="Hourglass" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-            <Text style={styles.time}>{formatDuration(visibleDurationMs)}</Text>
+            <Text style={styles.time}>{formatDuration(visibleDurationMs, hintLanguage)}</Text>
           </ToolbarItem>
         ) : null}
       </Pressable>
