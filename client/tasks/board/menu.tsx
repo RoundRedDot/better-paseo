@@ -8,6 +8,8 @@ import {
   MENU_FOCUS,
   layoutMenu,
   menuChrome,
+  panelMaxHeight,
+  submenuPlacement,
   menuKeyReducer,
   selectableItems,
   type MenuChrome,
@@ -56,14 +58,18 @@ export function CascadeMenu(props: CascadeMenuProps) {
   const window = useWindowDimensions();
   const containerRef = useRef<View>(null);
   const [side, setSide] = useState<"left" | "right">(props.align === "right" ? "left" : "right");
+  // Its top in the window, so neither panel runs off a short window's bottom.
+  const [windowY, setWindowY] = useState<number | null>(null);
   useEffect(() => {
     const node = containerRef.current as unknown as { measureInWindow?(cb: (x: number, y: number, w: number) => void): void } | null;
-    node?.measureInWindow?.((x, _y, w) => {
+    node?.measureInWindow?.((x, y, w) => {
       if (!w) return;
+      setWindowY(y);
       if (x + w + subWidth > window.width) setSide("left");
       else if (x - subWidth < 0) setSide("right");
     });
-  }, [subWidth, window.width]);
+  }, [subWidth, window.width, window.height]);
+  const maxHeight = panelMaxHeight(windowY, window.height);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearTimer = () => {
@@ -120,7 +126,8 @@ export function CascadeMenu(props: CascadeMenuProps) {
   }, [choose]);
 
   const openRow = focus.open !== null ? layout.rows[focus.open] : undefined;
-  const subTop = openRow ? openRow.top - scrollY - MENU.padV : 0;
+  const subHeight = subSections ? layoutMenu(subSections).height : 0;
+  const sub = submenuPlacement(openRow ? openRow.top - scrollY - MENU.padV : 0, subHeight, windowY, window.height);
   return (
     <View
       ref={containerRef}
@@ -138,13 +145,14 @@ export function CascadeMenu(props: CascadeMenuProps) {
         onHover={hoverTop}
         onPress={(index) => choose(0, index)}
         onScroll={setScrollY}
-        scrolls={layout.height > MENU.maxHeight}
+        maxHeight={maxHeight}
+        scrolls={layout.height > maxHeight}
       />
       {subSections ? (
         <View
           testID="menu-submenu"
           onPointerEnter={clearTimer}
-          style={{ position: "absolute", top: subTop, width: subWidth, ...(side === "right" ? { left: width - MENU.overlap } : { right: width - MENU.overlap }) }}
+          style={{ position: "absolute", top: sub.top, width: subWidth, ...(side === "right" ? { left: width - MENU.overlap } : { right: width - MENU.overlap }) }}
         >
           <MenuPanel
             sections={subSections}
@@ -155,6 +163,8 @@ export function CascadeMenu(props: CascadeMenuProps) {
             open={null}
             onHover={hoverSub}
             onPress={(index) => choose(1, index)}
+            maxHeight={sub.maxHeight}
+            scrolls={subHeight > sub.maxHeight}
             testID="menu-submenu-panel"
           />
         </View>
@@ -175,6 +185,8 @@ function MenuPanel(props: {
   onHover(index: number): void;
   onPress(index: number): void;
   onScroll?(y: number): void;
+  /** Taller content scrolls inside this. */
+  maxHeight?: number;
   scrolls?: boolean;
   testID?: string;
 }) {
@@ -226,9 +238,9 @@ function MenuPanel(props: {
     );
   }
   return (
-    <View testID={props.testID ?? "menu-panel"} style={[frame, { paddingVertical: 0, maxHeight: MENU.maxHeight, overflow: "hidden" }]}>
+    <View testID={props.testID ?? "menu-panel"} style={[frame, { paddingVertical: 0, maxHeight: props.maxHeight ?? MENU.maxHeight, overflow: "hidden" }]}>
       <ScrollView
-        style={{ maxHeight: MENU.maxHeight }}
+        style={{ maxHeight: props.maxHeight ?? MENU.maxHeight }}
         contentContainerStyle={{ paddingVertical: MENU.padV }}
         scrollEventThrottle={16}
         onScroll={(event) => props.onScroll?.(event.nativeEvent.contentOffset.y)}

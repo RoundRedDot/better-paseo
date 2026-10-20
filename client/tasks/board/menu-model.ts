@@ -125,6 +125,35 @@ export function layoutMenu(sections: readonly MenuSection[]): { rows: PlacedRow[
   return { rows, height: y + MENU.padV };
 }
 
+/** The gap a menu keeps from the window's edges. */
+export const MENU_EDGE = 8;
+/** However short the window, a panel shows at least this much, scrolling the rest. */
+const MIN_PANEL = MENU.rowHeight * 3 + MENU.padV * 2;
+
+/**
+ * The tallest the top panel may be, its top `y` px down a window
+ * `windowHeight` high (null: not measured yet): MENU.maxHeight, or less so
+ * it ends MENU_EDGE above the window's bottom. A taller menu scrolls.
+ */
+export function panelMaxHeight(y: number | null, windowHeight: number): number {
+  if (y === null || windowHeight <= 0) return MENU.maxHeight;
+  return Math.min(MENU.maxHeight, Math.max(MIN_PANEL, windowHeight - y - MENU_EDGE));
+}
+
+/**
+ * A submenu's top inside the menu (beside its row, at `rowTop`) and its
+ * height cap: shifted up as far as it must to end inside the window, but
+ * never above the window's top edge; one taller than the window scrolls.
+ */
+export function submenuPlacement(rowTop: number, height: number, y: number | null, windowHeight: number): { top: number; maxHeight: number } {
+  if (y === null || windowHeight <= 0) return { top: rowTop, maxHeight: MENU.maxHeight };
+  const maxHeight = Math.min(MENU.maxHeight, Math.max(MIN_PANEL, windowHeight - MENU_EDGE * 2));
+  const shown = Math.min(height, maxHeight);
+  const lowest = windowHeight - MENU_EDGE - y - shown;
+  const highest = MENU_EDGE - y;
+  return { top: Math.max(highest, Math.min(rowTop, lowest)), maxHeight };
+}
+
 /** Where keyboard focus is: a row of the top panel, or of its open submenu. */
 export interface MenuFocus {
   level: 0 | 1;
