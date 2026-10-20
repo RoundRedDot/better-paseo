@@ -86,6 +86,7 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
   };
 });
 
+import { StyleSheet } from "react-native";
 import * as data from "../../client/tasks/data";
 import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
@@ -116,9 +117,9 @@ const theme = {
 let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 const openAgent = vi.fn();
 
-function screen(compact: boolean, params: Record<string, string> = {}) {
+function screen(compact: boolean, params: Record<string, string> = {}, boardTheme: unknown = theme) {
   return React.createElement(TasksBoardScreen, {
-    theme,
+    theme: boardTheme as never,
     host: { id: "host-1", label: "Local" },
     layout: { compact, platform: compact ? "ios" : "web" },
     navigation: { openAgent, openWorkspace: vi.fn() },
@@ -256,6 +257,47 @@ describe("Tasks board, lane widths", () => {
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: false, contentContainerStyle: { width: 2000 } });
     layOut(900);
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 300 * 4 } });
+  });
+});
+
+describe("Tasks board, host theme", () => {
+  const status = { statusSuccess: "#3f8f4f", statusWarning: "#b7791f", statusDanger: "#c53030" };
+  const SEPIA_LIGHT = { surface0: "#fbf6ec", surface1: "#f5eedf", surface2: "#ede3cf", border: "#e2d6bf", foreground: "#3b2f20", foregroundMuted: "#7a6a55", accent: "#a0522d", accentForeground: "#fffaf0", ...status };
+  const BLUE_DARK = { surface0: "#0f1729", surface1: "#16203a", surface2: "#1e2a48", border: "#25324f", foreground: "#e6ecff", foregroundMuted: "#93a0c4", accent: "#5b8cff", accentForeground: "#0f1729", ...status };
+
+  it.each([
+    ["sepia light", SEPIA_LIGHT, "#f1e9d7"],
+    ["blue dark", BLUE_DARK, "#16203a"],
+  ] as const)("draws the desktop board in a %s theme's colours, lines a hairline", (_name, colors, panel) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => {
+      renderer = TestRenderer.create(screen(false, {}, { colors }));
+    });
+    layOut(1600);
+    const style = (node: ReactTestInstance) => StyleSheet.flatten(node.props.style) as Record<string, unknown>;
+    const views = renderer!.root.findAll((node) => (node.type as unknown) === "View");
+    expect(style(views[0]!).backgroundColor).toBe(colors.surface0);
+    const panels = views.filter((node) => style(node).backgroundColor === panel);
+    expect(panels).toHaveLength(4);
+    for (const lane of panels) {
+      expect(style(lane)).toMatchObject({ borderRadius: 4 });
+      expect(style(lane).borderWidth).toBeUndefined();
+      expect(style(lane).boxShadow).toBeUndefined();
+    }
+    const pill = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false)[0]!;
+    expect(style(pill)).toMatchObject({ height: 28, borderRadius: 6, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth });
+  });
+
+  it("draws the phone board on the theme's panel with a hairline under the tabs", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true, {}, { colors: BLUE_DARK }));
+    });
+    const style = (node: ReactTestInstance) => StyleSheet.flatten(node.props.style) as Record<string, unknown>;
+    const views = renderer!.root.findAll((node) => (node.type as unknown) === "View");
+    expect(views.some((node) => style(node).backgroundColor === "#16203a")).toBe(true);
+    // The tab bar is the one row drawn above the lane content (zIndex 5).
+    const tabs = views.find((node) => style(node).zIndex === 5)!;
+    expect(style(tabs)).toMatchObject({ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BLUE_DARK.border, backgroundColor: BLUE_DARK.surface0 });
   });
 });
 
