@@ -209,7 +209,8 @@ describe("sort params and labels", () => {
     expect(sortLabel(by("branch", "asc"), BOARD_STRINGS.en)).toBe("Branch A→Z");
     expect(sortLabel(by("updated", "desc"), BOARD_STRINGS.en)).toBe("Updated newest first");
     expect(sortLabel(by("context", "desc"), BOARD_STRINGS.zh)).toBe("上下文占用 高→低");
-    expect(sortLabel(by("duration", "asc"), BOARD_STRINGS.en)).toBe("Duration short→long");
+    expect(sortLabel(by("duration", "asc"), BOARD_STRINGS.en)).toBe("Duration shortest first");
+    expect(sortLabel(by("duration", "desc"), BOARD_STRINGS.zh)).toBe("耗时 长→短");
   });
 
   it("notes the done lane when the sort reaches only its loaded pages", () => {
