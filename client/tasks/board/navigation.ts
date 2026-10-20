@@ -84,7 +84,7 @@ export function clampFocus(focus: BoardFocus | null, lanes: readonly LaneShape[]
   return focus.index < lane.count ? focus : { lane: focus.lane, index: lane.count - 1 };
 }
 
-/** The phone's swipe rule (prototype 6.6). */
+/** The phone's swipe rule on web (prototype 6.6); iOS and Android page the lanes natively. */
 export const SWIPE = {
   /** Horizontal travel, px. */
   distance: 56,
@@ -92,21 +92,7 @@ export const SWIPE = {
   ratio: 1.5,
   /** Card taps are swallowed this long after a swipe. */
   swallowMs: 350,
-  /**
-   * Horizontal travel, px, at which a native touch is claimed from the host's
-   * pans: under the 15 at which the host's agent-list swipe activates, and
-   * far enough that a vertical scroll has shown its direction first.
-   */
-  claim: 6,
 } as const;
-
-/**
- * True once a native touch is clearly a horizontal swipe, early enough to
- * take it from the host's agent-list pan; a vertical scroll never claims.
- */
-export function claimsSwipe(dx: number, dy: number): boolean {
-  return Math.abs(dx) >= SWIPE.claim && Math.abs(dx) >= SWIPE.ratio * Math.abs(dy);
-}
 
 /** +1 for the next lane (a swipe to the left), −1 for the previous, 0 for no swipe. */
 export function swipeStep(dx: number, dy: number): -1 | 0 | 1 {

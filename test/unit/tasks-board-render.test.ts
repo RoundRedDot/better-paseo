@@ -167,6 +167,11 @@ function cards(): ReactTestInstance[] {
   return renderer!.root.findAllByType(TaskCardView);
 }
 
+/** The card ids a phone pager page draws. */
+function laneCards(lane: string): string[] {
+  return renderer!.root.findByProps({ testID: `phone-lane-${lane}` }).findAllByType(TaskCardView).map((card) => card.props.card.id);
+}
+
 function pressable(label: string): ReactTestInstance {
   return renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === label);
 }
@@ -304,8 +309,8 @@ describe("Tasks board, desktop", () => {
     const sidebar = { tagName: "DIV", inBoard: false, blur: vi.fn() };
     // The board's root is the one collapsable={false} view; the rest stay unmocked.
     const nodeMock = {
-      createNodeMock: (element: { props: { collapsable?: boolean } }) =>
-        element.props.collapsable === false ? { contains: (node: { inBoard?: boolean }) => node?.inBoard === true } : null,
+      createNodeMock: (element: React.ReactElement) =>
+        (element.props as { collapsable?: boolean }).collapsable === false ? { contains: (node: { inBoard?: boolean }) => node?.inBoard === true } : null,
     };
     try {
       await act(async () => {
@@ -600,19 +605,48 @@ describe("Tasks board, phone", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));
     });
-    expect(cards().map((card) => card.props.card.id)).toEqual(["sample-input"]);
-    expect(cards()[0]!.props.compact).toBe(true);
+    expect(laneCards("needs_input")).toEqual(["sample-input"]);
+    expect(renderer!.root.findByProps({ testID: "phone-lane-needs_input" }).findAllByType(TaskCardView)[0]!.props.compact).toBe(true);
     expect(cards()[0]!.props.hostId).toBe("host-1");
     act(() => pressable("Running 2").props.onPress());
-    const list = renderer!.root.find((node) => (node.type as unknown) === "FlatList");
-    expect(list.findAllByType(TaskCardView).map((card) => card.props.card.id)).toEqual(["sample-running", "sample-child-1"]);
-    // The old lane stays on top while it fades out (the mock's animations never finish).
-    expect(cards().map((card) => card.props.card.id)).toContain("sample-input");
+    expect(laneCards("running")).toEqual(["sample-running", "sample-child-1"]);
+    expect(pressable("Running 2").props.accessibilityState).toEqual({ selected: true });
     act(() => renderer!.unmount());
     act(() => {
       renderer = TestRenderer.create(screen(true));
     });
-    expect(cards().map((card) => card.props.card.id)).toEqual(["sample-running", "sample-child-1"]);
+    expect(pressable("Running 2").props.accessibilityState).toEqual({ selected: true });
+  });
+
+  it("on iOS and Android pages the lanes natively, mounting the lane shown and its neighbours", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    const pager = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "phone-lane-pager");
+    expect(pager().props).toMatchObject({ horizontal: true, pagingEnabled: true, scrollEnabled: true });
+    act(() => pager().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 600 } } }));
+    const mounted = () => ["needs_input", "running", "review", "done"].filter((id) => renderer!.root.findByProps({ testID: `phone-lane-${id}` }).findAll((node) => (node.type as unknown) === "FlatList").length > 0);
+    expect(mounted()).toEqual(["needs_input", "running"]);
+    // A swipe that comes to rest two pages on picks Review.
+    act(() => pager().props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x: 780, y: 0 } } }));
+    expect(pressable("Review 2").props.accessibilityState).toEqual({ selected: true });
+    expect(mounted()).toEqual(["running", "review", "done"]);
+    // A release right on a page has no momentum; it settles too. Off a page it waits.
+    act(() => pager().props.onScrollEndDrag({ nativeEvent: { contentOffset: { x: 500, y: 0 } } }));
+    expect(pressable("Review 2").props.accessibilityState).toEqual({ selected: true });
+    act(() => pager().props.onScrollEndDrag({ nativeEvent: { contentOffset: { x: 390, y: 0 } } }));
+    expect(pressable("Running 2").props.accessibilityState).toEqual({ selected: true });
+  });
+
+  it("swallows a card tap right after the pager moved", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    const pager = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "phone-lane-pager");
+    act(() => pager.props.onScrollBeginDrag());
+    const card = renderer!.root.findByProps({ testID: "phone-lane-needs_input" }).findAllByType(TaskCardView)[0]!;
+    act(() => card.props.onOpen?.(card.props.card.id));
+    expect(openAgent).not.toHaveBeenCalled();
   });
 
   it("uses the minimal card when mobile.compactCards is on", () => {
@@ -649,7 +683,8 @@ describe("Tasks board, phone", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));
     });
-    const bar = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.horizontal === true);
+    const isBar = (node: ReactTestInstance) => (node.type as unknown) === "ScrollView" && node.props.horizontal === true && node.props.testID !== "phone-lane-pager";
+    const bar = renderer!.root.find(isBar);
     const layout = (node: ReactTestInstance, x: number, width: number) =>
       act(() => node.props.onLayout({ nativeEvent: { layout: { x, y: 0, width, height: 44 } } }));
     let outer = bar.parent!;
@@ -670,7 +705,7 @@ describe("Tasks board, phone", () => {
     expect(tab.props.style.minWidth).toBe(100);
     // 1.3x system font: the row no longer fits its quarter.
     layout(row, 0, 130);
-    expect(renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.horizontal === true).props.scrollEnabled).toBe(true);
+    expect(renderer!.root.find(isBar).props.scrollEnabled).toBe(true);
     expect(pressable("Needs input 1").props.style.paddingHorizontal).toBe(10);
     expect(pressable("Needs input 1").props.style.minHeight).toBe(44);
   });
@@ -725,14 +760,28 @@ describe("Tasks board, phone lane swipe and the host's pans", () => {
   const nodeMock = { createNodeMock: () => ({ __internalInstanceHandle: { stateNode: { node: shadow } } }) };
   const touch = (x: number, y: number) => ({ nativeEvent: { pageX: x, pageY: y } });
   const grid = () => renderer!.root.find((node) => (node.type as unknown) === "View" && typeof node.props.onTouchStart === "function");
-  const laneIds = () => renderer!.root.find((node) => (node.type as unknown) === "FlatList").findAllByType(TaskCardView).map((card) => card.props.card.id);
+  const pager = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "phone-lane-pager");
 
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("iOS: claims the touch through Gesture Handler once it is clearly horizontal, before the host's 15", async () => {
+  it("iOS: a swipe is the pager's; nothing is claimed from JS while the finger moves", async () => {
+    const { TurboModuleRegistry } = await import("react-native");
+    const handleSetJSResponder = vi.fn();
+    vi.spyOn(TurboModuleRegistry, "get").mockImplementation((() => ({ handleSetJSResponder, flushOperations() {} })) as typeof TurboModuleRegistry.get);
+    act(() => {
+      renderer = TestRenderer.create(screen(true), nodeMock);
+    });
+    expect(grid().props.onTouchMove).toBeUndefined();
+    act(() => grid().props.onTouchStart(touch(100, 300)));
+    act(() => pager().props.onScrollBeginDrag());
+    act(() => grid().props.onTouchEnd(touch(300, 304)));
+    expect(handleSetJSResponder).not.toHaveBeenCalled();
+  });
+
+  it("iOS: a long press claims the touch through Gesture Handler and locks the pager", async () => {
     const { TurboModuleRegistry } = await import("react-native");
     const handleSetJSResponder = vi.fn();
     const flushOperations = vi.fn();
@@ -741,53 +790,22 @@ describe("Tasks board, phone lane swipe and the host's pans", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true), nodeMock);
     });
-    // Needs input opens first; swipe right is "back", so start from Running.
-    act(() => pressable("Running 2").props.onPress());
     act(() => grid().props.onTouchStart(touch(100, 300)));
-    act(() => grid().props.onTouchMove(touch(104, 301)));
-    expect(handleSetJSResponder).not.toHaveBeenCalled();
-    act(() => grid().props.onTouchMove(touch(108, 302)));
-    act(() => grid().props.onTouchMove(touch(130, 303)));
+    const card = renderer!.root.findByProps({ testID: "phone-lane-needs_input" }).findAllByType(TaskCardView)[0]!;
+    act(() => card.props.onDetails(card.props.card));
     expect(handleSetJSResponder).toHaveBeenCalledTimes(1);
     expect(flushOperations).toHaveBeenCalledTimes(1);
-    act(() => grid().props.onTouchEnd(touch(170, 304)));
-    expect(laneIds()).toEqual(["sample-input"]);
+    expect(pager().props.scrollEnabled).toBe(false);
+    act(() => grid().props.onTouchEnd(touch(220, 302)));
+    expect(pager().props.scrollEnabled).toBe(true);
+    expect(renderer!.root.find((node) => (node.type as unknown) === "Modal").props.title).toBe("Details");
   });
 
-  it("iOS: a vertical scroll is never claimed", async () => {
-    const { TurboModuleRegistry } = await import("react-native");
-    const handleSetJSResponder = vi.fn();
-    vi.spyOn(TurboModuleRegistry, "get").mockImplementation((() => ({ handleSetJSResponder, flushOperations() {} })) as typeof TurboModuleRegistry.get);
-    act(() => {
-      renderer = TestRenderer.create(screen(true), nodeMock);
-    });
-    act(() => grid().props.onTouchStart(touch(100, 300)));
-    act(() => grid().props.onTouchMove(touch(106, 320)));
-    act(() => grid().props.onTouchMove(touch(110, 400)));
-    act(() => grid().props.onTouchEnd(touch(110, 420)));
-    expect(handleSetJSResponder).not.toHaveBeenCalled();
-  });
-
-  it("Android: makes the lane the Fabric JS responder, never calls Gesture Handler, and lets go on release", async () => {
+  it("Android: a long press makes the lane the Fabric JS responder, never calls Gesture Handler, and lets go on release", async () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
     const { TurboModuleRegistry } = await import("react-native");
     const handleSetJSResponder = vi.fn();
     vi.spyOn(TurboModuleRegistry, "get").mockImplementation((() => ({ handleSetJSResponder, flushOperations() {} })) as typeof TurboModuleRegistry.get);
-    const setIsJSResponder = vi.fn();
-    vi.stubGlobal("nativeFabricUIManager", { setIsJSResponder });
-    act(() => {
-      renderer = TestRenderer.create(screen(true), nodeMock);
-    });
-    act(() => grid().props.onTouchStart(touch(200, 300)));
-    act(() => grid().props.onTouchMove(touch(192, 301)));
-    expect(setIsJSResponder).toHaveBeenCalledWith(shadow, true, true);
-    act(() => grid().props.onTouchCancel());
-    expect(setIsJSResponder).toHaveBeenLastCalledWith(shadow, false, false);
-    expect(handleSetJSResponder).not.toHaveBeenCalled();
-  });
-
-  it("a long press claims the touch, and the drag after it opens the details without switching the lane", async () => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
     const setIsJSResponder = vi.fn();
     vi.stubGlobal("nativeFabricUIManager", { setIsJSResponder });
     act(() => {
@@ -795,14 +813,62 @@ describe("Tasks board, phone lane swipe and the host's pans", () => {
     });
     act(() => pressable("Running 2").props.onPress());
     act(() => grid().props.onTouchStart(touch(100, 300)));
-    const card = renderer!.root.find((node) => (node.type as unknown) === "FlatList").findAllByType(TaskCardView)[0]!;
+    expect(setIsJSResponder).not.toHaveBeenCalled();
+    const card = renderer!.root.findByProps({ testID: "phone-lane-running" }).findAllByType(TaskCardView)[0]!;
     act(() => card.props.onDetails(card.props.card));
     expect(setIsJSResponder).toHaveBeenCalledWith(shadow, true, true);
-    act(() => grid().props.onTouchMove(touch(180, 302)));
-    act(() => grid().props.onTouchEnd(touch(190, 302)));
-    expect(laneIds()).toEqual(["sample-running", "sample-child-1"]);
-    expect(renderer!.root.find((node) => (node.type as unknown) === "Modal").props.title).toBe("Details");
+    expect(pager().props.scrollEnabled).toBe(false);
+    act(() => grid().props.onTouchCancel());
     expect(setIsJSResponder).toHaveBeenLastCalledWith(shadow, false, false);
+    expect(pager().props.scrollEnabled).toBe(true);
+    expect(handleSetJSResponder).not.toHaveBeenCalled();
+    expect(pressable("Running 2").props.accessibilityState).toEqual({ selected: true });
+    expect(renderer!.root.find((node) => (node.type as unknown) === "Modal").props.title).toBe("Details");
+  });
+
+  it("Android: past the first lane tells the host the board is scrolled sideways, so its agent-list pan fails", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+    const record = { registerScrollOffset: vi.fn(), unregisterScrollOffset: vi.fn(), isAnyScrolledRight: { value: false } };
+    const fiber = { memoizedProps: {}, return: { memoizedProps: { value: record }, return: null } };
+    act(() => {
+      renderer = TestRenderer.create(screen(true), { createNodeMock: () => ({ __internalInstanceHandle: fiber }) });
+    });
+    // Needs input: the first lane registers nothing.
+    expect(record.registerScrollOffset).not.toHaveBeenCalled();
+    act(() => pressable("Running 2").props.onPress());
+    expect(record.registerScrollOffset).toHaveBeenCalledTimes(1);
+    const [id, offset] = record.registerScrollOffset.mock.calls[0]!;
+    expect(offset).toBeGreaterThan(1);
+    act(() => pressable("Review 2").props.onPress());
+    expect(record.registerScrollOffset).toHaveBeenCalledTimes(1);
+    act(() => pressable("Needs input 1").props.onPress());
+    expect(record.unregisterScrollOffset).toHaveBeenCalledWith(id);
+    act(() => pressable("Running 2").props.onPress());
+    act(() => renderer!.unmount());
+    renderer = undefined;
+    expect(record.unregisterScrollOffset).toHaveBeenCalledTimes(2);
+  });
+
+  it("iOS registers nothing: the pager's pan begins first there", () => {
+    const record = { registerScrollOffset: vi.fn(), unregisterScrollOffset: vi.fn(), isAnyScrolledRight: { value: false } };
+    const fiber = { memoizedProps: { value: record }, return: null };
+    act(() => {
+      renderer = TestRenderer.create(screen(true), { createNodeMock: () => ({ __internalInstanceHandle: fiber }) });
+    });
+    act(() => pressable("Running 2").props.onPress());
+    expect(record.registerScrollOffset).not.toHaveBeenCalled();
+  });
+
+  it("web: a pointer swipe still switches the lane", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    const area = renderer!.root.find((node) => (node.type as unknown) === "View" && typeof node.props.onPointerDown === "function");
+    act(() => pressable("Running 2").props.onPress());
+    act(() => area.props.onPointerDown(touch(100, 300)));
+    act(() => area.props.onPointerUp(touch(180, 304)));
+    expect(pressable("Needs input 1").props.accessibilityState).toEqual({ selected: true });
   });
 });
 
