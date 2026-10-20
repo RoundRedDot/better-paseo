@@ -92,7 +92,7 @@ export function withStopReasons(lanes: Record<LaneId, LaneModel>, stopped: Reado
       if (!stopped.has(card.id) || card.error) return card;
       let shown = stoppedCache.get(card);
       if (shown?.error !== reason) {
-        shown = { ...card, error: reason };
+        shown = { ...card, error: reason, stoppedManually: true };
         stoppedCache.set(card, shown);
       }
       return shown;

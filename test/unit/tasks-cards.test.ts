@@ -470,12 +470,17 @@ describe("TaskCardView rows", () => {
 
   it("draws a manual stop's reason muted, in the review and the done lane", async () => {
     for (const lane of ["review", "done"] as const) {
-      const card = { ...sample("sample-done"), lane, status: lane === "review" ? ("unread" as const) : ("done" as const), error: "已手动停止" };
+      const card = { ...sample("sample-done"), lane, status: lane === "review" ? ("unread" as const) : ("done" as const), error: "已手动停止", stoppedManually: true };
       const tree = await render(cardElement(card));
       const reason = tree.root.find((node) => (node.type as unknown) === "Text" && node.props.children === "已手动停止");
       expect(flat(reason.props.style).color).toBe("#6b6b75");
-      expect(icons(tree.root)).toContain("Square");
+      // The approved stopped mark: a solid square, on the title and the reason, never Lucide's hollow one or a dot.
+      expect(icons(tree.root)).not.toContain("Square");
       expect(icons(tree.root)).not.toContain("CircleX");
+      expect(flat(hostByTestId(tree.root, "task-card-reason-stopped").props.style)).toMatchObject({ backgroundColor: "#6b6b75", borderRadius: 2 });
+      const mark = hostByTestId(tree.root, "status-stopped");
+      expect(flat((mark.children[0] as ReactTestInstance).props.style)).toMatchObject({ backgroundColor: "#6b6b75" });
+      expect(tree.root.findAll((node) => typeof node.type === "string" && /^status-(unread|done)$/.test(String(node.props.testID)))).toHaveLength(0);
       await act(async () => tree.unmount());
       renderer = null;
     }

@@ -143,8 +143,10 @@ export interface TaskCard {
   timing: TaskTiming;
   context: TaskContext | null;
   usage: TaskUsage | null;
-  /** `lastError`, or "已手动停止" after a stop from the board; failed lane only. */
+  /** `lastError`, or "Stopped manually" after a stop from the board; review and done lanes only. */
   error: string | null;
+  /** Stopped from the board and not run since: drawn with the solid stop square. */
+  stoppedManually?: boolean;
   permission: TaskPermission | null;
   parent: TaskParentRef | null;
   /** Direct children only; grandchildren unfold on the child's own card. */
