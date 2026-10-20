@@ -98,10 +98,10 @@ describe("code block copy", () => {
     expect(copyButtons({ language: "bash" })).toBe(1);
   });
 
-  it("wraps a plain-text block, which has no Wrap toggle, and scrolls a named one", async () => {
+  it("wraps both plain-text and named blocks by default", async () => {
     const { scrollsSideways } = await load();
     expect(scrollsSideways({ language: "plaintext" })).toBe(false);
-    expect(scrollsSideways({ language: "bash" })).toBe(true);
+    expect(scrollsSideways({ language: "bash" })).toBe(false);
   });
 
   it("offers nothing on a bare block or an open fence", async () => {
