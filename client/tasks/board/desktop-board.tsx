@@ -236,7 +236,7 @@ export function DesktopBoard(props: {
           <TaskDetails
             card={popoverCard}
             theme={theme}
-            now={board.now}
+            clock={board.clock}
             language={board.language}
             onOpen={
               board.callbacks.onOpen
@@ -318,6 +318,16 @@ function DesktopLane(props: {
     },
     [publish],
   );
+  // No clock in here: a tick reaches the timer texts, not the list and its rows.
+  const { focusIndex, register } = props;
+  const { highlighted, stop, fields } = board;
+  const extraData = useMemo(() => ({ focusIndex, highlighted, stop, fields, fresh }), [focusIndex, highlighted, stop, fields, fresh]);
+  const renderItem = useCallback(
+    ({ item, index }: { item: TaskCard; index: number }) => (
+      <CardCell board={board} card={item} theme={theme} compact={false} focused={focusIndex === index} fresh={fresh.has(item.id)} register={register} />
+    ),
+    [board, theme, focusIndex, fresh, register],
+  );
 
   if (props.collapsed) {
     return (
@@ -383,18 +393,8 @@ function DesktopLane(props: {
           ref={setList}
           data={lane.cards}
           keyExtractor={(card) => card.id}
-          extraData={{ now: board.now, focus: props.focusIndex, highlighted: board.highlighted, stop: board.stop, fields: board.fields, fresh }}
-          renderItem={({ item, index }) => (
-            <CardCell
-              board={board}
-              card={item}
-              theme={theme}
-              compact={false}
-              focused={props.focusIndex === index}
-              fresh={fresh.has(item.id)}
-              register={props.register}
-            />
-          )}
+          extraData={extraData}
+          renderItem={renderItem}
           ItemSeparatorComponent={Separator}
           // 8 around the cards leaves room for the 3 px focus ring inside the list's clip.
           contentContainerStyle={{ paddingHorizontal: 8, paddingTop: 2, paddingBottom: 8 }}

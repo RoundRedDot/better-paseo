@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, type TextStyle, type ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
@@ -16,6 +16,7 @@ import {
   since,
   tildePath,
 } from "./format";
+import { useTime, type TaskClock, type TimeSource } from "./clock";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
 import { agentPillColors, BrandMark, neutralPillColors, tintedPillColors, type AgentPillColors } from "./brand-mark";
 import { THINKING_ICON } from "./mode-icons";
@@ -57,8 +58,13 @@ export interface TaskCardViewProps extends CardCallbacks {
   focused: boolean;
   /** The 1 s highlight after a parent link scrolled here. */
   highlighted: boolean;
-  /** The board's clock (ms), ticking once a second while visible. */
-  now: number;
+  /** A fixed instant (ms) for the timer: previews and tests. Beats `clock`. */
+  now?: number;
+  /**
+   * The board's clock, ticking once a second while visible. Only the timer
+   * text reads it, so a tick re-renders that text and not the card.
+   */
+  clock?: TaskClock;
   /** The board's language; read from the preferences when absent. */
   language?: TasksLanguage;
   /** False stops the running ring (a hidden pane, a static preview). Default true. */
@@ -709,7 +715,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     ) : null;
 
   // Footer: the timer, and the context ring at the far right ----------------
-  const timer = layout.timer ? cardTimer(card, props.now, language) : null;
+  // Whether there is a timer and its tone do not change with the time; the text does, in `TimerText`.
+  const timer = layout.timer ? cardTimer(card, props.now ?? 0, language) : null;
   const timerColor =
     timer?.tone === "warning" ? tokens.warning : timer?.tone === "running" ? tokens.status.running : muted;
   const ratio = contextRatio(card.context);
@@ -738,7 +745,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         {timer ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
             {timer.tone === "warning" ? <Icon name="Clock" size={m.icon} color={timerColor} /> : null}
-            <Text style={[text(m.footSize, m.footLine, timerColor), tabular]}>{timer.text}</Text>
+            <TimerText card={card} language={language} now={props.now} clock={props.clock} style={[text(m.footSize, m.footLine, timerColor), tabular]} />
           </View>
         ) : null}
         {/* Bottom right, where Linear keeps nothing else; it stays there without a timer. */}
@@ -1487,10 +1494,21 @@ function SubtaskRow(props: {
 }
 
 /**
- * The card re-renders for a tick of `now` only when the text it shows from
- * the clock changes: a running timer every second, "5 min ago" once a minute,
- * a card without a timer never. Every other prop compares by identity, so the
- * board passes stable callbacks and keeps a card object until it changes.
+ * The footer's timer text: the one part of a card that follows the clock. It
+ * re-renders when its text changes (a running timer every second, "5 min
+ * ago" once a minute); the card around it does not.
+ */
+function TimerText(props: TimeSource & { card: TaskCard; language: TasksLanguage; style: StyleProp<TextStyle> }) {
+  const { card, language } = props;
+  const value = useTime(props, (now) => cardTimer(card, now, language)?.text ?? "");
+  return <Text style={props.style}>{value}</Text>;
+}
+
+/**
+ * With a fixed `now`, the card re-renders for a new instant only when its
+ * timer text changes; with the board's `clock` a tick never reaches it (the
+ * timer text reads the clock itself). Every other prop compares by identity,
+ * so the board passes stable callbacks and keeps a card object until it changes.
  */
 export function sameCardProps(prev: TaskCardViewProps, next: TaskCardViewProps): boolean {
   const keys = new Set([...Object.keys(prev), ...Object.keys(next)]) as Set<keyof TaskCardViewProps>;
@@ -1499,6 +1517,7 @@ export function sameCardProps(prev: TaskCardViewProps, next: TaskCardViewProps):
     if (prev[key] !== next[key]) return false;
   }
   if (prev.now === next.now) return true;
+  if (prev.now === undefined || next.now === undefined) return false;
   if (!cardLayout(next.card, next.fields, next.compact).timer) return true;
   // The en and zh texts change at the same instants.
   return cardTimer(prev.card, prev.now, "en")?.text === cardTimer(next.card, next.now, "en")?.text;

@@ -238,8 +238,8 @@ export interface CardCellProps {
 
 /**
  * One card in a lane: the card, its fade-in, and its project icon request.
- * It re-renders with the board; `TaskCardView`'s own memo skips the cards a
- * tick does not change.
+ * It re-renders with the board, not with the clock; `TaskCardView`'s own
+ * memo skips the cards a board update does not change.
  */
 export function CardCell(props: CardCellProps) {
   const { card, board, register } = props;
@@ -267,7 +267,7 @@ export function CardCell(props: CardCellProps) {
           stopPhase={board.stop.phase(card.id)}
           focused={props.focused ?? false}
           highlighted={board.highlighted === card.id}
-          now={board.now}
+          clock={board.clock}
           language={board.language}
           animated={board.visible}
           hostId={board.hostId}
@@ -285,6 +285,7 @@ export function CardCell(props: CardCellProps) {
  */
 export function useFreshIds(ids: readonly string[], ready: boolean): ReadonlySet<string> {
   const seen = useRef<Set<string> | null>(null);
+  const last = useRef<ReadonlySet<string>>(NO_IDS);
   const fresh = new Set<string>();
   if (ready && seen.current) for (const id of ids) if (!seen.current.has(id)) fresh.add(id);
   useEffect(() => {
@@ -292,7 +293,17 @@ export function useFreshIds(ids: readonly string[], ready: boolean): ReadonlySet
     if (!seen.current) seen.current = new Set();
     for (const id of ids) seen.current.add(id);
   });
-  return fresh;
+  // The same set while its ids hold, so a list's `extraData` does not change for nothing.
+  if (!sameIds(last.current, fresh)) last.current = fresh.size === 0 ? NO_IDS : fresh;
+  return last.current;
+}
+
+const NO_IDS: ReadonlySet<string> = new Set();
+
+function sameIds(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  if (left.size !== right.size) return false;
+  for (const id of right) if (!left.has(id)) return false;
+  return true;
 }
 
 
