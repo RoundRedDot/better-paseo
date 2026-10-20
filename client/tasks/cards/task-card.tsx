@@ -3,7 +3,7 @@ import { Platform, Pressable, StyleSheet, Text, View, type TextStyle, type ViewS
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
-import { ProviderLogo } from "../../components/provider-logo";
+import { ProviderLogo, providerBrand } from "../../components/provider-logo";
 import { useHover } from "../../ui/use-hover";
 import type { PermissionButton, StopPhase } from "../actions";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
@@ -18,11 +18,11 @@ import {
   tildePath,
 } from "./format";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
+import { THINKING_ICON } from "./mode-icons";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
 import { cardStrings, subtaskSummary } from "./strings";
 import { pillTint, taskTokens, type TaskTokens } from "./tokens";
-import { normalizeProvider } from "../../components/provider-logo";
 import { mix, withAlpha } from "../../components/theme-tokens";
 
 export interface CardCallbacks {
@@ -185,8 +185,8 @@ const webTransition = (WEB
 
 /** The rows and pills a card draws for a field set; pure, so tier and collapse rules are testable. */
 export interface CardLayout {
-  /** The agent pill: brand mark, model and thinking, or the provider's name. */
-  agent: boolean;
+  /** The model pill: brand mark (`brand`) and the model, or the provider's name when the model is off or unknown. */
+  modelPill: boolean;
   brand: boolean;
   model: boolean;
   thinking: boolean;
@@ -222,7 +222,7 @@ export function cardLayout(card: TaskCard, fields: CardSettings, compact: boolea
   const path = !compact && fields.path && !!location.cwd;
   const projectAvatar = project && !compact && fields.projectIcon;
   return {
-    agent: compact || fields.provider || fields.model || fields.thinking,
+    modelPill: compact || fields.provider || fields.model,
     brand: card.providerMark !== null && (compact || fields.provider),
     model: !!card.modelLabel && (compact || fields.model),
     thinking: !!card.thinkingLabel && (compact || fields.thinking),
@@ -279,22 +279,21 @@ function activeChildren(card: TaskCard): number {
 /** The subtasks pill's groups, most urgent first. */
 const SUBTASK_ORDER: readonly StatusKind[] = ["needs_input", "running", "failed", "unread", "done"];
 
-/**
- * Brand colours for the agent pill's tint: data colours, like label colours,
- * so they keep their hue on every theme (the host has no provider palette).
- * Monochrome marks tint with the theme's foreground; anything else is neutral.
- */
-const BRAND_TINTS: Partial<Record<string, string>> = {
-  claude: "#d97757",
-  codex: "#10a37f",
-  gemini: "#4285f4",
-};
-const MONOCHROME_BRANDS: ReadonlySet<string> = new Set(["grok", "cursor"]);
+/** A coloured brand tints its pill with its hue; a monochrome mark's pill is neutral. */
+export function brandTint(provider: string): string | null {
+  const brand = providerBrand(provider);
+  return brand.monochrome ? null : brand.color;
+}
 
-export function brandTint(provider: string, tokens: TaskTokens): string | null {
-  const brand = normalizeProvider(provider);
-  if (MONOCHROME_BRANDS.has(brand)) return tokens.foreground;
-  return BRAND_TINTS[brand] ?? null;
+/**
+ * A provider's mark on a theme-following surface: coloured brands keep their
+ * hue; monochrome marks (Pi, Cursor, Grok, Ollama, Paseo) take the theme's
+ * foreground, where their configured near-white or indigo would vanish or
+ * mislead.
+ */
+export function BrandMark(props: { provider: string; size: number; tokens: TaskTokens }) {
+  const brand = providerBrand(props.provider);
+  return <ProviderLogo provider={props.provider} size={props.size} color={brand.monochrome ? props.tokens.foreground : undefined} />;
 }
 
 /** A status's colour for a tint: the StatusIcon band for running, the theme's status roles otherwise. */
@@ -593,21 +592,23 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   // Pills ------------------------------------------------------------------
   const pill = { tokens, compact };
   const pills: ReactNode[] = [];
-  if (layout.agent) {
-    const parts: string[] = [];
-    if (layout.model && card.modelLabel) parts.push(card.modelLabel);
-    if (layout.thinking && card.thinkingLabel) parts.push(card.thinkingLabel);
+  // Model and thinking as the composer shows them: two items, each with its icon.
+  if (layout.modelPill) {
+    const model = layout.model && card.modelLabel ? card.modelLabel : card.providerLabel;
     pills.push(
       <Pill
-        key="agent"
+        key="model"
         {...pill}
-        testID="pill-agent"
-        tint={brandTint(card.provider, tokens)}
-        lead={layout.brand ? <ProviderLogo provider={card.provider} size={m.icon} /> : undefined}
-        label={parts.length ? parts.join(" · ") : card.providerLabel}
-        accessibilityLabel={[card.providerLabel, ...parts].join(" · ")}
+        testID="pill-model"
+        tint={brandTint(card.provider)}
+        lead={layout.brand ? <BrandMark provider={card.provider} size={m.icon} tokens={tokens} /> : undefined}
+        label={model}
+        accessibilityLabel={model === card.providerLabel ? model : `${card.providerLabel} ${model}`}
       />,
     );
+  }
+  if (layout.thinking && card.thinkingLabel) {
+    pills.push(<Pill key="thinking" {...pill} testID="pill-thinking" icon={THINKING_ICON} label={card.thinkingLabel} />);
   }
   if (layout.branch && location.branch) {
     pills.push(

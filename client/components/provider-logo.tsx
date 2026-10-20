@@ -128,6 +128,30 @@ export function ProviderLogo({ provider, size = 14, showLabel = false, color, la
   );
 }
 
+/**
+ * Marks drawn in one colour: the theme's foreground suits them on any
+ * surface, where their configured hue (a near-white grey, an indigo) does not.
+ */
+const MONOCHROME_PROVIDERS: ReadonlySet<KnownProvider> = new Set([
+  "paseo",
+  "omp",
+  "pi",
+  "grok",
+  "cursor",
+  "ollama",
+  "generic",
+]);
+
+/**
+ * A provider's brand colour, and whether its mark is monochrome. Surfaces
+ * that follow the host theme pass the foreground as `color` for a
+ * monochrome mark and leave coloured brands to their own hue.
+ */
+export function providerBrand(provider: string): { color: string; monochrome: boolean } {
+  const normalized = normalizeProvider(provider);
+  return { color: PROVIDER_CONFIGS[normalized].brandColor, monochrome: MONOCHROME_PROVIDERS.has(normalized) };
+}
+
 interface ProviderMeta {
   displayName: string;
   /** Also the fill for a monochrome mark, so it stays legible on either theme. */
