@@ -489,6 +489,36 @@ describe("Tasks board, phone", () => {
     expect(text).toContain("Clear filters");
   });
 
+  it("slides the underline under the label, and lets the tabs scroll when a large font outgrows a quarter", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    const bar = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.horizontal === true);
+    const layout = (node: ReactTestInstance, x: number, width: number) =>
+      act(() => node.props.onLayout({ nativeEvent: { layout: { x, y: 0, width, height: 44 } } }));
+    let outer = bar.parent!;
+    while (!((outer.type as unknown) === "View" && typeof outer.props.onLayout === "function")) outer = outer.parent!;
+    layout(outer, 0, 400);
+    const tab = pressable("Needs input 1");
+    const row = tab.findAll((node) => (node.type as unknown) === "View" && typeof node.props.onLayout === "function")[0]!;
+    const label = row.findAll((node) => (node.type as unknown) === "View" && typeof node.props.onLayout === "function")[1]!;
+    layout(tab, 0, 100);
+    layout(row, 20, 60);
+    layout(label, 18, 42);
+    const underline = () => renderer!.root.findByProps({ testID: "lane-underline" }).props.style.transform;
+    // Centre 20 + 18 + 21 = 59, drawn 100 wide and scaled to 42.
+    expect(underline()[0].translateX.__value).toBe(59 - 50);
+    expect(underline()[1].scaleX.__value).toBeCloseTo(0.42);
+    expect(bar.props.scrollEnabled).toBe(false);
+    expect(tab.props.style.paddingHorizontal).toBe(0);
+    expect(tab.props.style.minWidth).toBe(100);
+    // 1.3x system font: the row no longer fits its quarter.
+    layout(row, 0, 130);
+    expect(renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.horizontal === true).props.scrollEnabled).toBe(true);
+    expect(pressable("Needs input 1").props.style.paddingHorizontal).toBe(10);
+    expect(pressable("Needs input 1").props.style.minHeight).toBe(44);
+  });
+
   it("opens the details sheet on a card's long press", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));

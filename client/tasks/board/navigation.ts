@@ -114,6 +114,37 @@ export function swipeStep(dx: number, dy: number): -1 | 0 | 1 {
   return dx < 0 ? 1 : -1;
 }
 
+/** A phone tab's layout: the tab in the bar, its content row in the tab, and the label (with its count) in the row. */
+export interface TabBox {
+  tab?: { x: number; width: number };
+  row?: { x: number; width: number };
+  label?: { x: number; width: number };
+}
+
+/** True when some tab's content is wider than a quarter of the bar: the tabs then size to content and scroll. */
+export function tabsOverflow(boxes: Partial<Record<LaneId, TabBox>>, barWidth: number): boolean {
+  if (barWidth <= 0) return false;
+  return Object.values(boxes).some((box) => (box?.row?.width ?? 0) > barWidth / 4 + 0.5);
+}
+
+/**
+ * Where the lane underline sits, as a centre and a width in the bar's
+ * content: under the active tab's label and count once laid out, else a
+ * quarter less 24 centred in the tab's quarter. Null before the bar is.
+ */
+export function tabUnderline(
+  box: TabBox | undefined,
+  index: number,
+  barWidth: number,
+): { center: number; width: number; measured: boolean } | null {
+  if (box?.tab && box.row && box.label && box.label.width > 0) {
+    return { center: box.tab.x + box.row.x + box.label.x + box.label.width / 2, width: box.label.width, measured: true };
+  }
+  if (barWidth <= 0) return null;
+  const quarter = barWidth / 4;
+  return { center: index * quarter + quarter / 2, width: Math.max(0, quarter - 24), measured: false };
+}
+
 /** The lane a step lands on; null past either end (no wrap). */
 export function laneAfter(lane: LaneId, step: -1 | 0 | 1): LaneId | null {
   if (step === 0) return null;
