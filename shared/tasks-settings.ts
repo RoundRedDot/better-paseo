@@ -140,6 +140,12 @@ const cardSchema = z
 
 /** Keys follow the spec: `card.provider`, `board.doneWindow`, `mobile.compactCards`, `sidebar.count`. */
 export const tasksSettingsSchema = z.object({
+  /**
+   * The board is opt-in: off, there is no sidebar entry, no Command Center
+   * item and no agent subscription. A record saved before this switch
+   * existed has no key and reads off.
+   */
+  enabled: flag(false),
   /** The density the card switches were last set from; `custom` after a hand edit. */
   density: z.enum(DENSITIES).catch("standard"),
   card: cardSchema,

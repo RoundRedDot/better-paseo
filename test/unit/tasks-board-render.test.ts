@@ -94,7 +94,11 @@ import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS } from "../../client/tasks/board/params";
 import { BrandMark, PiMark, TaskCardView, TaskDetails, taskTokens } from "../../client/tasks/cards";
-import { DEFAULT_TASKS_SETTINGS } from "../../shared/tasks-settings";
+import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
+import { resetTasksEnabled } from "../../client/tasks/board/enabled";
+
+// The board is opt-in; these tests draw it turned on (tasks-board-enabled.test.ts covers off).
+const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: true };
 import { resetEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -166,6 +170,7 @@ afterEach(() => {
   vi.clearAllMocks();
   resetEnhancerPreferences();
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+  resetTasksEnabled();
 });
 
 describe("Tasks board, desktop", () => {
@@ -480,19 +485,22 @@ describe("Tasks sidebar entry", () => {
 });
 
 describe("Tasks Command Center item", () => {
-  it("opens the board with the last filters", () => {
+  it("opens the board with the last filters", async () => {
     const items: { onSelect(context: unknown): void }[] = [];
     const noop = () => () => {};
     const client = {
       addScreen: noop,
       addSidebarHeaderItem: noop,
       addSettingsScreen: noop,
+      openSettings: noop,
+      rpc: () => Promise.resolve({ status: "ready", revision: "1", values: { enabled: true } }),
       addCommandCenterItem: (item: { onSelect(context: unknown): void }) => {
         items.push(item);
         return () => {};
       },
     };
     contributeTasks(client as never);
+    for (let tick = 0; tick < 5; tick++) await Promise.resolve();
     rememberBoardParams("host-1", { ...EMPTY_PARAMS, query: "ring" });
     const openScreen = vi.fn();
     items[0]!.onSelect({ context: "global", openScreen });
