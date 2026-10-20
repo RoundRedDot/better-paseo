@@ -249,8 +249,8 @@ function OpenTab(props: { tokens: TaskTokens; label: string; compact: boolean; o
         backgroundColor: hovered ? tokens.card.primaryFill : "transparent",
       }}
     >
-      <Text style={{ fontSize: props.compact ? 14 : 12, fontWeight: "500", color: tokens.accent }}>{props.label}</Text>
-      <Icon name="ArrowUpRight" size={props.compact ? 15 : 13} color={tokens.accent} />
+      <Text style={{ fontSize: props.compact ? 14 : 12, fontWeight: "500", color: tokens.accentText }}>{props.label}</Text>
+      <Icon name="ArrowUpRight" size={props.compact ? 15 : 13} color={tokens.accentText} />
     </Pressable>
   );
 }
