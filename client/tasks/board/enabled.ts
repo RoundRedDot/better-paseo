@@ -1,0 +1,62 @@
+import { useEffect } from "react";
+import { useSettings } from "@getpaseo/plugin/client";
+import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, type TasksSettings } from "../../../shared/tasks-settings";
+
+/**
+ * Whether the Tasks board is on (`enabled` in the tasks settings), for what
+ * lives outside React: the Command Center item is registered only while it
+ * is. Null until something knows: the startup read in `contribute.tsx`, or
+ * any mounted Tasks component that reads the settings (the sidebar entry is
+ * always mounted, and its `useSettings` follows saves from every client).
+ * Module state, so one per host bundle like the board's session store.
+ */
+let enabled: boolean | null = null;
+const listeners = new Set<() => void>();
+
+export function tasksEnabled(): boolean | null {
+  return enabled;
+}
+
+export function setTasksEnabled(next: boolean): void {
+  if (next === enabled) return;
+  enabled = next;
+  for (const listener of [...listeners]) listener();
+}
+
+export function subscribeTasksEnabled(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/** The tasks settings for a component, and the store kept in step with them. Null until they load. */
+export function useTasksSettings(): TasksSettings | null {
+  const state = useSettings(TASKS_SETTINGS);
+  const values = state.status === "ready" ? state.values : null;
+  const on = values?.enabled ?? null;
+  useEffect(() => {
+    if (on !== null) setTasksEnabled(on);
+  }, [on]);
+  // A record the schema rejects keeps the board off rather than guessing.
+  if (state.status === "invalid") return { ...DEFAULT_TASKS_SETTINGS, enabled: false };
+  return values;
+}
+
+/** Opens Settings > Tasks; set by `contribute.tsx`, since screen props carry no way to open settings. */
+let settingsOpener: (() => void) | null = null;
+
+export function setTasksSettingsOpener(open: (() => void) | null): void {
+  settingsOpener = open;
+}
+
+export function tasksSettingsOpener(): (() => void) | null {
+  return settingsOpener;
+}
+
+/** Tests only. */
+export function resetTasksEnabled(): void {
+  enabled = null;
+  settingsOpener = null;
+  listeners.clear();
+}

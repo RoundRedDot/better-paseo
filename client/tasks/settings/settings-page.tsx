@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSettings, type PluginSurfaceProps } from "@getpaseo/plugin/client";
+import { setTasksEnabled } from "../board/enabled";
 import {
   SettingsAction,
   SettingsSection,
@@ -9,6 +10,7 @@ import {
 } from "@getpaseo/plugin/client/ui";
 import {
   CARD_FIELDS,
+  DEFAULT_TASKS_SETTINGS,
   DENSITIES,
   DONE_WINDOWS,
   LABEL_LIMITS,
@@ -39,6 +41,9 @@ interface Strings {
   saving: string;
   saveError: (message: string) => string;
   conflict: string;
+  enabledTitle: string;
+  enabled: string;
+  enabledHint: string;
   previewTitle: string;
   lanes: Record<PreviewLane, string>;
   density: string;
@@ -82,6 +87,9 @@ const STRINGS: Record<TasksLanguage, Strings> = {
     saving: "Saving…",
     saveError: (message) => `Could not save: ${message}`,
     conflict: "Settings changed elsewhere; reloaded the latest.",
+    enabledTitle: "Tasks board",
+    enabled: "Enable the Tasks board",
+    enabledHint: "Shows the Tasks entry and board in the sidebar",
     previewTitle: "Preview",
     lanes: { running: "Running", needs_input: "Needs input", done: "Done" },
     density: "Card density",
@@ -121,7 +129,7 @@ const STRINGS: Record<TasksLanguage, Strings> = {
     sidebarCounts: { "running-and-input": "Running · Needs input", "input-only": "Needs input only", none: "Hidden" },
     resetTitle: "Reset",
     reset: "Restore default settings",
-    resetHint: "Puts every Tasks setting back to its default.",
+    resetHint: "Puts every Tasks setting back to its default; the board stays on or off.",
     resetAction: "Restore",
     resetConfirm: "Restore now",
     resetConfirmHint: "This replaces all Tasks settings with the defaults.",
@@ -136,6 +144,9 @@ const STRINGS: Record<TasksLanguage, Strings> = {
     saving: "正在保存…",
     saveError: (message) => `保存失败：${message}`,
     conflict: "设置已在别处更改，已重新载入最新内容。",
+    enabledTitle: "Tasks 面板",
+    enabled: "启用 Tasks 面板",
+    enabledHint: "在侧边栏显示 Tasks 入口和看板",
     previewTitle: "实时预览",
     lanes: { running: "运行中", needs_input: "待输入", done: "已完成" },
     density: "卡片信息密度",
@@ -175,7 +186,7 @@ const STRINGS: Record<TasksLanguage, Strings> = {
     sidebarCounts: { "running-and-input": "运行中 · 待输入", "input-only": "只显示待输入", none: "不显示" },
     resetTitle: "恢复",
     reset: "恢复默认设置",
-    resetHint: "把 Tasks 的所有设置恢复为默认值。",
+    resetHint: "把 Tasks 的所有设置恢复为默认值；面板的开关保持不变。",
     resetAction: "恢复",
     resetConfirm: "确认恢复",
     resetConfirmHint: "这会用默认值替换全部 Tasks 设置。",
@@ -212,11 +223,20 @@ export function TasksSettingsPage(props: PluginSurfaceProps) {
     },
     [save, reload, revision],
   );
+  // Resetting the card and board options keeps the board on or off: a reset
+  // that also hid the board would read as the page breaking it. A record the
+  // schema rejects has no switch to keep, so it takes the host's reset.
+  const enabled = settings.status === "ready" ? settings.values.enabled : null;
   const doReset = useCallback(async () => {
     setConfirmingReset(false);
     setConflict(false);
-    await reset();
-  }, [reset]);
+    if (enabled === null) await reset();
+    else await commit({ ...DEFAULT_TASKS_SETTINGS, enabled });
+  }, [reset, commit, enabled]);
+  // The sidebar entry and the Command Center item follow the switch at once.
+  useEffect(() => {
+    if (enabled !== null) setTasksEnabled(enabled);
+  }, [enabled]);
 
   const note = (text: string, color: string = colors.foregroundMuted) => (
     <Text style={{ color, fontSize: 13, paddingVertical: 8 }}>{text}</Text>
@@ -259,126 +279,139 @@ export function TasksSettingsPage(props: PluginSurfaceProps) {
     const busy = settings.saving;
     body = (
       <>
-        <SettingsSection title={t.previewTitle}>
-          <View style={{ flexDirection: "row", gap: 6, paddingBottom: 10 }}>
-            {PREVIEW_LANES.map((id) => {
-              const active = id === lane;
-              return (
-                <Pressable
-                  key={id}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  onPress={() => setLane(id)}
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 6,
-                    borderWidth: 1,
-                    borderColor: active ? colors.accent : colors.border,
-                    backgroundColor: active ? colors.surface2 : colors.surface0,
-                  }}
-                >
-                  <Text style={{ color: active ? colors.foreground : colors.foregroundMuted, fontSize: 13 }}>
-                    {t.lanes[id]}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {sample ? (
-            <TaskCardView
-              card={sample}
-              fields={effectiveCard(values, compact)}
-              theme={props.theme}
-              compact={compact}
-              permissionButtons={sample.permission ? permissionButtons(sample.permission, language) : []}
-              language={language}
-              stopPhase="idle"
-              focused={false}
-              highlighted={false}
-              now={now}
-              onReveal={() => {}}
-            />
-          ) : null}
+        <SettingsSection title={t.enabledTitle}>
+          <SettingsSwitch
+            label={t.enabled}
+            hint={t.enabledHint}
+            value={values.enabled}
+            disabled={busy}
+            onValueChange={(next) => void commit({ ...values, enabled: next })}
+          />
         </SettingsSection>
 
-        <SettingsSection title={t.cardTitle}>
-          <SettingsSelect<Density>
-            label={t.density}
-            hint={t.densityHint}
-            value={values.density}
-            options={options(DENSITIES, t.densities)}
-            disabled={busy}
-            onValueChange={(next) => {
-              if (next === "custom") return;
-              void commit(applyDensity(values, next as DensityPreset));
-            }}
-          />
-          {CARD_FIELDS.map((field) => (
-            <React.Fragment key={field}>
-              <SettingsSwitch
-                label={t.fields[field]}
-                value={card[field]}
-                disabled={busy}
-                onValueChange={(next) => void commit(setCardSetting(values, field, next))}
+        {/* Off, the options stay reachable (set the board up before turning it on) but step back. */}
+        <View style={{ gap: 16, opacity: values.enabled ? 1 : 0.5 }} testID="tasks-settings-options">
+          <SettingsSection title={t.previewTitle}>
+            <View style={{ flexDirection: "row", gap: 6, paddingBottom: 10 }}>
+              {PREVIEW_LANES.map((id) => {
+                const active = id === lane;
+                return (
+                  <Pressable
+                    key={id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => setLane(id)}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: active ? colors.accent : colors.border,
+                      backgroundColor: active ? colors.surface2 : colors.surface0,
+                    }}
+                  >
+                    <Text style={{ color: active ? colors.foreground : colors.foregroundMuted, fontSize: 13 }}>
+                      {t.lanes[id]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {sample ? (
+              <TaskCardView
+                card={sample}
+                fields={effectiveCard(values, compact)}
+                theme={props.theme}
+                compact={compact}
+                permissionButtons={sample.permission ? permissionButtons(sample.permission, language) : []}
+                language={language}
+                stopPhase="idle"
+                focused={false}
+                highlighted={false}
+                now={now}
+                onReveal={() => {}}
               />
-              {field === "labels" && card.labels ? (
-                <SettingsSelect<LabelLimit>
-                  label={t.labelLimit}
-                  value={card.labelLimit}
-                  options={options(LABEL_LIMITS, t.labelLimits)}
+            ) : null}
+          </SettingsSection>
+
+          <SettingsSection title={t.cardTitle}>
+            <SettingsSelect<Density>
+              label={t.density}
+              hint={t.densityHint}
+              value={values.density}
+              options={options(DENSITIES, t.densities)}
+              disabled={busy}
+              onValueChange={(next) => {
+                if (next === "custom") return;
+                void commit(applyDensity(values, next as DensityPreset));
+              }}
+            />
+            {CARD_FIELDS.map((field) => (
+              <React.Fragment key={field}>
+                <SettingsSwitch
+                  label={t.fields[field]}
+                  value={card[field]}
                   disabled={busy}
-                  onValueChange={(next) => void commit(setCardSetting(values, "labelLimit", next))}
+                  onValueChange={(next) => void commit(setCardSetting(values, field, next))}
                 />
-              ) : null}
-            </React.Fragment>
-          ))}
-        </SettingsSection>
+                {field === "labels" && card.labels ? (
+                  <SettingsSelect<LabelLimit>
+                    label={t.labelLimit}
+                    value={card.labelLimit}
+                    options={options(LABEL_LIMITS, t.labelLimits)}
+                    disabled={busy}
+                    onValueChange={(next) => void commit(setCardSetting(values, "labelLimit", next))}
+                  />
+                ) : null}
+              </React.Fragment>
+            ))}
+          </SettingsSection>
 
-        <SettingsSection title={t.phoneTitle}>
-          <SettingsSwitch
-            label={t.compactCards}
-            hint={t.compactCardsHint}
-            value={values.mobile.compactCards}
-            disabled={busy}
-            onValueChange={(next) => void commit({ ...values, mobile: { ...values.mobile, compactCards: next } })}
-          />
-        </SettingsSection>
+          <SettingsSection title={t.phoneTitle}>
+            <SettingsSwitch
+              label={t.compactCards}
+              hint={t.compactCardsHint}
+              value={values.mobile.compactCards}
+              disabled={busy}
+              onValueChange={(next) => void commit({ ...values, mobile: { ...values.mobile, compactCards: next } })}
+            />
+          </SettingsSection>
 
-        <SettingsSection title={t.boardTitle}>
-          <SettingsSelect<DoneWindow>
-            label={t.doneWindow}
-            value={values.board.doneWindow}
-            options={options(DONE_WINDOWS, t.doneWindows)}
-            disabled={busy}
-            onValueChange={(next) => void commit({ ...values, board: { ...values.board, doneWindow: next } })}
-          />
-          <SettingsSwitch
-            label={t.hideSubtasks}
-            hint={t.hideSubtasksHint}
-            value={values.board.hideSubtasks}
-            disabled={busy}
-            onValueChange={(next) => void commit({ ...values, board: { ...values.board, hideSubtasks: next } })}
-          />
-          <SettingsSwitch
-            label={t.confirmStop}
-            value={values.board.confirmStop}
-            disabled={busy}
-            onValueChange={(next) => void commit({ ...values, board: { ...values.board, confirmStop: next } })}
-          />
-        </SettingsSection>
+          <SettingsSection title={t.boardTitle}>
+            <SettingsSelect<DoneWindow>
+              label={t.doneWindow}
+              value={values.board.doneWindow}
+              options={options(DONE_WINDOWS, t.doneWindows)}
+              disabled={busy}
+              onValueChange={(next) => void commit({ ...values, board: { ...values.board, doneWindow: next } })}
+            />
+            <SettingsSwitch
+              label={t.hideSubtasks}
+              hint={t.hideSubtasksHint}
+              value={values.board.hideSubtasks}
+              disabled={busy}
+              onValueChange={(next) => void commit({ ...values, board: { ...values.board, hideSubtasks: next } })}
+            />
+            <SettingsSwitch
+              label={t.confirmStop}
+              value={values.board.confirmStop}
+              disabled={busy}
+              onValueChange={(next) => void commit({ ...values, board: { ...values.board, confirmStop: next } })}
+            />
+          </SettingsSection>
 
-        <SettingsSection title={t.sidebarTitle}>
-          <SettingsSelect<SidebarCount>
-            label={t.sidebarCount}
-            value={values.sidebar.count}
-            options={options(SIDEBAR_COUNTS, t.sidebarCounts)}
-            disabled={busy}
-            onValueChange={(next) => void commit({ ...values, sidebar: { count: next } })}
-          />
-        </SettingsSection>
+          <SettingsSection title={t.sidebarTitle}>
+            <SettingsSelect<SidebarCount>
+              label={t.sidebarCount}
+              value={values.sidebar.count}
+              options={options(SIDEBAR_COUNTS, t.sidebarCounts)}
+              disabled={busy}
+              onValueChange={(next) => void commit({ ...values, sidebar: { count: next } })}
+            />
+          </SettingsSection>
 
-        {resetSection(t.resetHint)}
+          {resetSection(t.resetHint)}
+        </View>
       </>
     );
   }
