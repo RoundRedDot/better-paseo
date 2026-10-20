@@ -311,7 +311,7 @@ describe("Tasks board, project icons", () => {
     });
     layOut(1600);
     expect(requestProjectIcon()).toHaveBeenCalledWith("prj_sample");
-    expect(cards()[0]!.props).toMatchObject({ language: "en", animated: true });
+    expect(cards()[0]!.props).toMatchObject({ language: "en", animated: true, hostId: "host-1" });
   });
 
   it("never asks on a phone or with the field off", () => {
@@ -336,6 +336,7 @@ describe("Tasks board, phone", () => {
     });
     expect(cards().map((card) => card.props.card.id)).toEqual(["sample-input"]);
     expect(cards()[0]!.props.compact).toBe(true);
+    expect(cards()[0]!.props.hostId).toBe("host-1");
     act(() => pressable("Running 2").props.onPress());
     const list = renderer!.root.find((node) => (node.type as unknown) === "FlatList");
     expect(list.findAllByType(TaskCardView).map((card) => card.props.card.id)).toEqual(["sample-running", "sample-child-1"]);

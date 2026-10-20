@@ -24,6 +24,8 @@ import { useBoardClock, useBoardVisible } from "./visibility";
 
 /** What both layouts share: settings, data after the filters, the clock, and the card callbacks. */
 export interface BoardController {
+  /** The host the board shows; the cards key project icon colours by it, as Paseo's sidebar does. */
+  hostId: string;
   language: TasksLanguage;
   strings: BoardStrings;
   settings: TasksSettings;
@@ -197,6 +199,7 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
   );
 
   return {
+    hostId,
     language,
     strings,
     settings,
