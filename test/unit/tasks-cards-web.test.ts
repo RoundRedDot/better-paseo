@@ -255,14 +255,14 @@ describe("TaskCardView on web", () => {
       );
     const zOf = (node: ReactTestInstance) => Number(flat(node.props.style).zIndex ?? 0);
 
-    // Desktop: the stop menu and the jump tooltip live in the header, above the location rows.
+    // Desktop: the stop menu and the jump tooltip live in the meta row, above the rows after it.
     const renderer = await render(React.createElement(TaskCardView, props("sample-running")));
     const root = renderer.root;
     await act(async () => hovers.get("task-card-sample-running")!.enter());
     await act(async () =>
       root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "停止选项").props.onPress(),
     );
-    const header = host(root, "task-card-header");
+    const header = host(root, "task-card-meta");
     expect(OVERLAY_ROW_Z).toBeGreaterThan(0);
     expect(zOf(header)).toBe(OVERLAY_ROW_Z);
     const rows = hostChildren(host(root, "task-card-sample-running"));

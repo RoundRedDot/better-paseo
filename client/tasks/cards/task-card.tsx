@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Image, Platform, Pressable, Text, View, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
@@ -7,7 +7,7 @@ import { ProviderLogo } from "../../components/provider-logo";
 import { useHover } from "../../ui/use-hover";
 import type { PermissionButton, StopPhase } from "../actions";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
-import type { TaskCard, TaskChild, WorkspaceKind } from "../model";
+import type { TaskCard, TaskChild } from "../model";
 import {
   contextRatio,
   contextTone,
@@ -41,7 +41,7 @@ export interface TaskCardViewProps extends CardCallbacks {
   /** Field switches after `effectiveCard`. */
   fields: CardSettings;
   theme: PluginTheme;
-  /** Phone layout (`layout.compact`): must/default/details-only tiers, 36 px jump button. */
+  /** Phone layout (`layout.compact`): must/default/details-only tiers, larger type and targets. */
   compact: boolean;
   /** The permission buttons for `card.permission` (from `permissionButtons`). */
   permissionButtons: PermissionButton[];
@@ -74,74 +74,93 @@ const TOUCH = !WEB;
 const CONTAINER_ROLE = WEB ? ({ role: "group" } as const) : ({ accessibilityRole: "button" } as const);
 const DETAILS_DELAY_MS = 450;
 const TOOLTIP_DELAY_MS = 400;
-const NBSP = "\u00a0";
 
-// --- Geometry (prototype "卡片" and "移动端") --------------------------------
+// --- Geometry (Linear's issue card, measured on the desktop app) -------------
 
 interface Metrics {
-  padV: number;
   padH: number;
-  slot: number;
-  statusHeight: number;
+  padTop: number;
+  padBottom: number;
+  /** Meta row: project, workspace, parent; muted, one line. */
+  metaSize: number;
+  metaLine: number;
+  /** Meta row to title row. */
+  titleGap: number;
   titleSize: number;
   titleLine: number;
-  subSize: number;
-  subLine: number;
-  rowSize: number;
-  rowLine: number;
+  /** The status icon's slot; its box is two wider so the mark keeps the sidebar's 12 px. */
+  iconSlot: number;
+  iconBox: number;
+  /** Title to pills, pills to footer, footer to a lane block. */
+  rowGap: number;
+  pillHeight: number;
+  pillText: number;
+  pillLine: number;
+  pillPad: number;
   icon: number;
-  mark: number;
-  locGap: number;
-  footGap: number;
-  blockGap: number;
+  footSize: number;
+  footLine: number;
+  /** Lane block text. */
+  blockSize: number;
+  blockLine: number;
   jump: number;
   jumpIcon: number;
-  chipHeight: number;
-  chipSize: number;
+  stopHeight: number;
+  buttonHeight: number;
 }
 
 const DESKTOP: Metrics = {
-  padV: 12,
-  padH: 14,
-  slot: 16,
-  statusHeight: 20,
+  padH: 12,
+  padTop: 10,
+  padBottom: 12,
+  metaSize: 12,
+  metaLine: 16,
+  titleGap: 5,
   titleSize: 13,
-  titleLine: 20,
-  subSize: 12,
-  subLine: 18,
-  rowSize: 12,
-  rowLine: 20,
+  titleLine: 18,
+  iconSlot: 14,
+  iconBox: 16,
+  rowGap: 10,
+  pillHeight: 24,
+  pillText: 12,
+  pillLine: 16,
+  pillPad: 10,
   icon: 12,
-  mark: 12,
-  locGap: 10,
-  footGap: 8,
-  blockGap: 10,
-  jump: 24,
+  footSize: 12,
+  footLine: 16,
+  blockSize: 12,
+  blockLine: 18,
+  jump: 20,
   jumpIcon: 14,
-  chipHeight: 20,
-  chipSize: 11,
+  stopHeight: 20,
+  buttonHeight: 28,
 };
 
 const PHONE: Metrics = {
-  padV: 14,
-  padH: 16,
-  slot: 20,
-  statusHeight: 22,
+  padH: 14,
+  padTop: 12,
+  padBottom: 14,
+  metaSize: 13,
+  metaLine: 18,
+  titleGap: 6,
   titleSize: 16,
   titleLine: 22,
-  subSize: 14,
-  subLine: 22,
-  rowSize: 14,
-  rowLine: 22,
+  iconSlot: 18,
+  iconBox: 20,
+  rowGap: 12,
+  pillHeight: 28,
+  pillText: 13,
+  pillLine: 18,
+  pillPad: 11,
   icon: 14,
-  mark: 14,
-  locGap: 12,
-  footGap: 12,
-  blockGap: 12,
-  jump: 36,
+  footSize: 13,
+  footLine: 18,
+  blockSize: 14,
+  blockLine: 20,
+  jump: 32,
   jumpIcon: 18,
-  chipHeight: 22,
-  chipSize: 12,
+  stopHeight: 40,
+  buttonHeight: 40,
 };
 
 const GAP = 6;
@@ -150,26 +169,18 @@ const webTransition = (WEB
   ? { transitionProperty: "background-color, border-color, box-shadow, color, opacity", transitionDuration: "120ms", transitionTimingFunction: "ease-out" }
   : {}) as ViewStyle;
 
-function kindIcon(kind: WorkspaceKind | null): string {
-  if (kind === "local_checkout") return "Monitor";
-  if (kind === "worktree") return "FolderGit2";
-  return "Folder";
-}
-
-/** Keeps "Opus 5.5" on one line while the subtitle wraps between segments. */
-const glue = (text: string) => text.replace(/ /g, NBSP);
-
 // --- What the card shows ----------------------------------------------------
 
-/** The rows a card draws for a field set; pure, so tier and collapse rules are testable. */
+/** The rows and pills a card draws for a field set; pure, so tier and collapse rules are testable. */
 export interface CardLayout {
-  subtitle: boolean;
+  /** The agent pill: brand mark, model and thinking, or the provider's name. */
+  agent: boolean;
   brand: boolean;
   model: boolean;
   thinking: boolean;
   project: boolean;
-  /** "image" draws `projectIcon`, "letter" the outlined initial, "icon" FolderKanban, null the workspace-kind icon. */
-  projectAvatar: "image" | "letter" | "icon" | null;
+  /** The 12 px avatar before the project: "image" is `projectIcon`, "letter" the outlined initial. */
+  projectAvatar: "image" | "letter" | null;
   workspace: boolean;
   branch: boolean;
   gitStatus: boolean;
@@ -187,43 +198,35 @@ export interface CardLayout {
 
 /**
  * Desktop follows the switches. Compact keeps the must tier whatever the
- * switches say (status, title, agent · model · thinking, timer, actions,
+ * switches say (status, title, agent, model, thinking, timer, actions,
  * permission, failure), lets the default tier follow them (project,
- * workspace, branch, first label, subtasks summary) and never draws the
- * details-only tier (folder, path, git status, PR, project image).
+ * workspace, branch, first label, subtasks) and never draws the
+ * details-only tier (folder, path, git status, PR, project icon).
  */
 export function cardLayout(card: TaskCard, fields: CardSettings, compact: boolean): CardLayout {
   const location = card.location;
   const project = fields.project && !!location.projectName;
   const ratio = contextRatio(card.context);
-  const brand = card.providerMark !== null && (compact || fields.provider);
-  const model = !!card.modelLabel && (compact || fields.model);
-  const thinking = !!card.thinkingLabel && (compact || fields.thinking);
   const path = !compact && fields.path && !!location.cwd;
   let projectAvatar: CardLayout["projectAvatar"] = null;
-  if (project) {
-    if (compact) projectAvatar = "letter";
-    else if (fields.projectIcon) projectAvatar = location.projectIcon ? "image" : "letter";
-    else projectAvatar = "icon";
-  }
+  if (project && !compact && fields.projectIcon) projectAvatar = location.projectIcon ? "image" : "letter";
   return {
-    subtitle: compact || fields.provider || fields.model || fields.thinking,
-    brand,
-    model,
-    thinking,
+    agent: compact || fields.provider || fields.model || fields.thinking,
+    brand: card.providerMark !== null && (compact || fields.provider),
+    model: !!card.modelLabel && (compact || fields.model),
+    thinking: !!card.thinkingLabel && (compact || fields.thinking),
     project,
     projectAvatar,
     workspace: fields.workspace && !!location.workspaceName,
     branch: fields.branch && !!location.branch,
-    gitStatus: !compact && fields.gitStatus && location.git !== null,
+    gitStatus: !compact && fields.branch && fields.gitStatus && !!location.branch && location.git !== null,
     folder: !compact && !path && fields.folder && !!location.folder,
     path,
     pullRequest: !compact && fields.pullRequest && location.pullRequest !== null,
     labels: fields.labels ? card.labels.length : 0,
     labelLimit: compact ? 1 : labelLimitCount(fields.labelLimit),
     timer: compact || fields.timer,
-    context:
-      card.lane === "running" && ratio !== null && (compact ? ratio > 0.8 : fields.context),
+    context: card.lane === "running" && ratio !== null && (compact ? ratio > 0.8 : fields.context),
     subtasks: fields.subtasks && card.children.length > 0,
     // Review: a failure or a manual stop. Done: the board's "Stopped manually" after a stop the daemon filed as idle.
     failure: (card.lane === "review" || card.lane === "done") && !!card.error,
@@ -262,13 +265,18 @@ function activeChildren(card: TaskCard): number {
   return card.children.filter((child) => child.status === "running" || child.status === "needs_input").length;
 }
 
+/** Children that finished: done, or done but not yet looked at. */
+function finishedChildren(card: TaskCard): number {
+  return card.children.filter((child) => child.status === "done" || child.status === "unread").length;
+}
+
 // --- Overlays and control hover ----------------------------------------------
 
 /**
  * RNW gives every View `position: relative; z-index: 0`, so each one is a
  * stacking context: an overlay's own zIndex only counts inside its row, and a
  * later sibling row (transparent, but still a hit target) sits above it. The
- * rows that hold overlays (the header's stop menu and tooltip, the phone
+ * rows that hold overlays (the stop menu and the jump tooltip, the phone
  * action bar's menu) are therefore raised above the rows after them.
  */
 export const OVERLAY_ROW_Z = 2;
@@ -299,6 +307,7 @@ function useControlHover(report: ControlHover | undefined, rowRef?: React.RefObj
 function TaskCardViewImpl(props: TaskCardViewProps) {
   const { card, fields, compact, theme } = props;
   const tokens = taskTokens(theme);
+  const look = tokens.card;
   const preferred = useTasksLanguage();
   const language = props.language ?? preferred;
   const strings = cardStrings(language);
@@ -335,7 +344,6 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   }, []);
 
   const parentHover = useControlHover(reportControl);
-  const toggleHover = useControlHover(reportControl);
 
   // Leaving the card closes the menu and cancels an armed stop.
   const wasHovered = useRef(false);
@@ -370,7 +378,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     };
   }, [detailsWanted]);
 
-  const background = props.highlighted ? tokens.highlight : hovered ? tokens.surface1 : tokens.surface0;
+  const background = props.highlighted ? look.highlight : look.background;
   const canStop = card.stoppable && !!props.onStop;
   const parentStop = canStop && activeChildren(card) > 0;
   const showStop = canStop && !compact && (TOUCH || hovered || props.stopPhase !== "idle" || menuOpen);
@@ -393,17 +401,20 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     onPick: pressStop,
   };
 
-  const cardStyle: ViewStyle = {
-    paddingVertical: m.padV,
+  const shadows = [hovered ? look.shadowHover : look.shadow];
+  if (props.focused) shadows.push(`0px 0px 0px 3px ${tokens.accentRing}`);
+  const cardStyle = {
     paddingHorizontal: m.padH,
+    paddingTop: m.padTop,
+    paddingBottom: m.padBottom,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: props.focused || props.highlighted ? tokens.accent : hovered ? tokens.borderStrong : tokens.border,
+    borderColor: props.focused || props.highlighted ? tokens.accent : hovered ? look.borderHover : look.border,
     backgroundColor: background,
+    boxShadow: shadows.join(", "),
     zIndex: menuOpen ? 30 : hovered ? 2 : 1,
-    ...(props.focused ? ({ boxShadow: `0px 0px 0px 3px ${tokens.accentRing}` } as ViewStyle) : null),
     ...webTransition,
-  };
+  } as ViewStyle;
 
   const text = (size: number, line: number, color: string, weight: TextStyle["fontWeight"] = "400"): TextStyle => ({
     fontSize: size,
@@ -411,231 +422,270 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     color,
     fontWeight: weight,
   });
-  const slot: ViewStyle = { width: m.slot, height: m.rowLine, alignItems: "center", justifyContent: "center", flexShrink: 0 };
-  const rule = <DashedRule color={tokens.border} inset={m.padH} />;
-  const block: ViewStyle = { marginTop: m.blockGap };
-  const blockBody: ViewStyle = { paddingTop: m.blockGap };
+  const muted = tokens.foregroundMuted;
+  const block: ViewStyle = {
+    marginTop: m.rowGap,
+    paddingTop: m.rowGap,
+    borderTopWidth: 1,
+    borderTopColor: look.border,
+  };
 
-  // Header group -----------------------------------------------------------
-  const subtitleParts = [card.providerLabel];
-  if (layout.model && card.modelLabel) subtitleParts.push(card.modelLabel);
-  if (layout.thinking && card.thinkingLabel) subtitleParts.push(card.thinkingLabel);
-  const header = (
-    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP, zIndex: OVERLAY_ROW_Z }} testID="task-card-header">
-      <StatusIcon
-        kind={card.status}
-        size={m.slot}
-        height={m.statusHeight}
-        theme={theme}
-        backdrop={background}
-        animated={props.animated}
-      />
-      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <Text numberOfLines={2} style={text(m.titleSize, m.titleLine, tokens.foreground, "600")}>
-          {card.title}
-        </Text>
-        {layout.subtitle ? (
-          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
-            {layout.brand ? (
-              <View style={{ height: m.subLine, justifyContent: "center" }}>
-                <ProviderLogo provider={card.provider} size={m.mark} />
-              </View>
-            ) : null}
-            <Text numberOfLines={2} style={[text(m.subSize, m.subLine, tokens.foregroundMuted), { flex: 1 }]}>
-              {subtitleParts.map(glue).join(" · ")}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-      {showStop ? <StopControl {...stop} compact={false} /> : null}
+  // Controls: Stop (hover, confirming) and the jump button, on the meta row,
+  // or on the title row when the meta row has nothing to say.
+  const location = card.location;
+  const metaParts: string[] = [];
+  if (layout.project && location.projectName) metaParts.push(location.projectName);
+  if (layout.workspace && location.workspaceName) metaParts.push(location.workspaceName);
+  const metaText = metaParts.join(" › ");
+  const hasMeta = metaText !== "" || card.parent !== null;
+  const controlsFor = (line: number) => (
+    <>
+      {showStop ? <StopControl {...stop} compact={false} line={line} /> : null}
       {props.onOpen ? (
         <JumpButton
           report={reportControl}
           tokens={tokens}
           compact={compact}
+          line={line}
           label={strings.openInWorkspace}
           onPress={() => props.onOpen?.(card.id)}
         />
       ) : null}
+    </>
+  );
+
+  // Meta row ---------------------------------------------------------------
+  const avatar = layout.projectAvatar;
+  const metaStyle = text(m.metaSize, m.metaLine, muted);
+  const parentLabel = card.parent
+    ? card.parent.missing
+      ? strings.parentArchived
+      : card.parent.title ?? strings.parentUnknown
+    : null;
+  const metaRow = hasMeta ? (
+    <View
+      style={{ flexDirection: "row", alignItems: "center", gap: GAP, minHeight: m.metaLine, zIndex: OVERLAY_ROW_Z }}
+      testID="task-card-meta"
+    >
+      {avatar === "image" ? (
+        <Image source={{ uri: location.projectIcon! }} style={{ width: 12, height: 12, borderRadius: 3 }} />
+      ) : avatar === "letter" ? (
+        <View
+          style={{
+            width: 12,
+            height: 12,
+            borderRadius: 3,
+            borderWidth: 1,
+            borderColor: muted,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Text style={{ fontSize: 8, lineHeight: 10, fontWeight: "600", color: muted }}>
+            {(location.projectName ?? "?").slice(0, 1).toUpperCase()}
+          </Text>
+        </View>
+      ) : null}
+      <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center" }}>
+        {metaText ? (
+          <Text numberOfLines={1} style={[metaStyle, { flexShrink: 1 }]}>
+            {metaText}
+          </Text>
+        ) : null}
+        {parentLabel !== null ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={strings.revealParent}
+            onPress={() => props.onReveal(card.parent!.id)}
+            {...parentHover.hoverProps}
+            style={{ flexShrink: 1, minWidth: 0 }}
+          >
+            <Text numberOfLines={1} style={[metaStyle, parentHover.hovered ? { color: tokens.foreground } : null]}>
+              {metaText ? " › " : ""}
+              {"↳ "}
+              {parentLabel}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {controlsFor(m.metaLine)}
+    </View>
+  ) : null;
+
+  // Title row --------------------------------------------------------------
+  const titleRow = (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: GAP,
+        marginTop: hasMeta ? m.titleGap : 0,
+        zIndex: hasMeta ? undefined : OVERLAY_ROW_Z,
+      }}
+      testID="task-card-title-row"
+    >
+      <View style={{ width: m.iconSlot, alignItems: "center" }}>
+        <StatusIcon
+          kind={card.status}
+          size={m.iconBox}
+          height={m.titleLine}
+          theme={theme}
+          backdrop={background}
+          animated={props.animated}
+        />
+      </View>
+      <Text
+        numberOfLines={2}
+        ellipsizeMode="tail"
+        style={[text(m.titleSize, m.titleLine, tokens.foreground, "500"), { flex: 1 }]}
+        testID="task-card-title"
+      >
+        {card.title}
+      </Text>
+      {hasMeta ? null : controlsFor(m.titleLine)}
     </View>
   );
 
-  // Parent link ------------------------------------------------------------
-  const parent = card.parent ? (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={strings.revealParent}
-      onPress={() => props.onReveal(card.parent!.id)}
-      {...parentHover.hoverProps}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        alignSelf: "flex-start",
-        gap: GAP,
-        marginBottom: compact ? 4 : 2,
-        minHeight: compact ? 28 : undefined,
-      }}
-    >
-      <View style={{ width: m.slot, alignItems: "center" }}>
-        <Icon name="CornerDownRight" size={compact ? 14 : 12} color={tokens.foregroundMuted} />
+  // Pills ------------------------------------------------------------------
+  const pill = { tokens, compact };
+  const pills: ReactNode[] = [];
+  if (layout.agent) {
+    const parts: string[] = [];
+    if (layout.model && card.modelLabel) parts.push(card.modelLabel);
+    if (layout.thinking && card.thinkingLabel) parts.push(card.thinkingLabel);
+    pills.push(
+      <Pill
+        key="agent"
+        {...pill}
+        testID="pill-agent"
+        lead={layout.brand ? <ProviderLogo provider={card.provider} size={m.icon} /> : undefined}
+        label={parts.length ? parts.join(" · ") : card.providerLabel}
+        accessibilityLabel={[card.providerLabel, ...parts].join(" · ")}
+      />,
+    );
+  }
+  if (layout.branch && location.branch) {
+    pills.push(
+      <Pill key="branch" {...pill} testID="pill-branch" icon="GitBranch" label={location.branch}>
+        {layout.gitStatus && location.git ? (
+          <GitStatus git={location.git} tokens={tokens} size={m.pillText} line={m.pillLine} strings={strings} />
+        ) : null}
+      </Pill>,
+    );
+  }
+  if (layout.path) {
+    pills.push(<Pill key="path" {...pill} testID="pill-path" icon="FolderOpen" label={location.cwd} />);
+  } else if (layout.folder && location.folder) {
+    pills.push(<Pill key="folder" {...pill} testID="pill-folder" icon="Folder" label={location.folder} />);
+  }
+  if (layout.labels > 0) {
+    const shown = card.labels.slice(0, layout.labelLimit);
+    for (const label of shown) {
+      pills.push(
+        <Pill
+          key={`label-${label.name}`}
+          {...pill}
+          testID={`pill-label-${label.name}`}
+          dot={label.color ?? tokens.foregroundMuted}
+          label={label.name}
+        />,
+      );
+    }
+    const hidden = card.labels.length - shown.length;
+    if (hidden > 0) {
+      pills.push(
+        <Pill
+          key="labels-more"
+          {...pill}
+          testID="pill-labels-more"
+          label={`+${hidden}`}
+          tabular
+          accessibilityLabel={card.labels
+            .slice(shown.length)
+            .map((label) => label.name)
+            .join(", ")}
+        />,
+      );
+    }
+  }
+  if (layout.pullRequest && location.pullRequest) {
+    const pr = location.pullRequest;
+    pills.push(
+      <Pill
+        key="pr"
+        {...pill}
+        testID="pill-pr"
+        icon="GitPullRequest"
+        label={pr.number !== null ? `#${pr.number}` : pr.title}
+        tabular
+        accessibilityLabel={pr.number !== null ? `#${pr.number} ${pr.title}` : pr.title}
+      />,
+    );
+  }
+  const ratio = contextRatio(card.context);
+  if (layout.context && ratio !== null) {
+    const tone = contextTone(ratio);
+    const color = tone === "danger" ? tokens.danger : tone === "warning" ? tokens.warning : muted;
+    const percent = `${Math.round(ratio * 100)}%`;
+    pills.push(
+      <Pill
+        key="context"
+        {...pill}
+        testID="pill-context"
+        icon="Gauge"
+        color={color}
+        label={percent}
+        tabular
+        accessibilityLabel={`${strings.context} ${percent}`}
+      />,
+    );
+  }
+  if (layout.subtasks) {
+    pills.push(
+      <PillButton
+        key="subtasks"
+        {...pill}
+        testID="pill-subtasks"
+        icon="ListTree"
+        label={`${finishedChildren(card)}/${card.children.length}`}
+        tabular
+        accessibilityLabel={subtaskSummary(card.children, language)}
+        expanded={expanded}
+        report={reportControl}
+        onPress={() => setExpanded((open) => !open)}
+      />,
+    );
+  }
+  const pillRow =
+    pills.length > 0 ? (
+      <View
+        style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 4, rowGap: 6, marginTop: m.rowGap }}
+        testID="task-card-pills"
+      >
+        {pills}
       </View>
-      <Text numberOfLines={2} style={text(compact ? 13 : 11, compact ? 18 : 16, tokens.foregroundMuted)}>
-        {card.parent.missing ? strings.parentArchived : card.parent.title ?? strings.parentUnknown}
-      </Text>
-    </Pressable>
+    ) : null;
+
+  // Footer -----------------------------------------------------------------
+  const timer = layout.timer ? cardTimer(card, props.now, language) : null;
+  const timerColor =
+    timer?.tone === "warning" ? tokens.status.warning : timer?.tone === "running" ? tokens.status.running : muted;
+  const footer = timer ? (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: m.rowGap }} testID="task-card-footer">
+      {timer.tone === "warning" ? <Icon name="Clock" size={m.icon} color={timerColor} /> : null}
+      <Text style={[text(m.footSize, m.footLine, timerColor), tabular]}>{timer.text}</Text>
+    </View>
   ) : null;
 
-  // Location group ---------------------------------------------------------
-  const location = card.location;
-  const rowText = text(m.rowSize, m.rowLine, tokens.foregroundMuted);
-  const showLoc = layout.project || layout.workspace;
-  const showLine2 = layout.branch || layout.gitStatus || layout.folder || layout.path;
-  const avatar = layout.projectAvatar;
-  const locationGroup =
-    showLoc || showLine2 || layout.pullRequest ? (
-      <View style={{ marginTop: m.locGap, gap: 4 }}>
-        {showLoc ? (
-          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }}>
-            <View style={slot}>
-              {avatar === "image" ? (
-                <Image source={{ uri: location.projectIcon! }} style={{ width: m.mark, height: m.mark, borderRadius: 3 }} />
-              ) : avatar === "letter" ? (
-                <View
-                  style={{
-                    width: m.mark,
-                    height: m.mark,
-                    borderRadius: 3,
-                    borderWidth: 1,
-                    borderColor: tokens.foregroundMuted,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text style={{ fontSize: compact ? 9 : 8, lineHeight: compact ? 11 : 10, fontWeight: "600", color: tokens.foregroundMuted }}>
-                    {(location.projectName ?? "?").slice(0, 1).toUpperCase()}
-                  </Text>
-                </View>
-              ) : (
-                <Icon name={avatar === "icon" ? "FolderKanban" : kindIcon(location.workspaceKind)} size={m.icon} color={tokens.foregroundMuted} />
-              )}
-            </View>
-            <Text numberOfLines={2} style={[rowText, { flex: 1 }]}>
-              {layout.project ? <Text style={{ color: tokens.foreground }}>{location.projectName}</Text> : null}
-              {layout.project && layout.workspace ? " › " : null}
-              {layout.workspace ? (
-                <Text style={{ color: layout.project ? tokens.foregroundMuted : tokens.foreground }}>{location.workspaceName}</Text>
-              ) : null}
-            </Text>
-          </View>
-        ) : null}
-        {showLine2 ? (
-          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }}>
-            <View style={slot}>
-              <Icon
-                name={layout.branch || layout.gitStatus ? "GitBranch" : kindIcon(location.workspaceKind)}
-                size={m.icon}
-                color={tokens.foregroundMuted}
-              />
-            </View>
-            <View style={{ flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: GAP }}>
-              {layout.branch ? (
-                <Text numberOfLines={2} style={[rowText, { flexShrink: 1 }]}>
-                  {location.branch}
-                </Text>
-              ) : null}
-              {layout.gitStatus && location.git ? <GitStatus git={location.git} tokens={tokens} style={rowText} strings={strings} /> : null}
-              {(layout.folder || layout.path) && (layout.branch || layout.gitStatus) ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                  <Text style={rowText}>·</Text>
-                  <Icon name={layout.path ? "FolderOpen" : "Folder"} size={m.icon} color={tokens.foregroundMuted} />
-                </View>
-              ) : null}
-              {layout.folder || layout.path ? (
-                <Text numberOfLines={2} style={[rowText, { flexShrink: 1 }]}>
-                  {layout.path ? location.cwd : location.folder}
-                </Text>
-              ) : null}
-            </View>
-          </View>
-        ) : null}
-        {layout.pullRequest && location.pullRequest ? (
-          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }}>
-            <View style={slot}>
-              <Icon name="GitPullRequest" size={m.icon} color={tokens.foregroundMuted} />
-            </View>
-            <Text numberOfLines={2} style={[rowText, { flex: 1 }]}>
-              {location.pullRequest.number !== null ? (
-                <Text style={[{ color: tokens.foreground }, tabular]}>#{location.pullRequest.number} </Text>
-              ) : null}
-              {location.pullRequest.title}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-    ) : null;
-
-  // Footer group -----------------------------------------------------------
-  const timer = layout.timer ? cardTimer(card, props.now, language) : null;
-  const shownLabels = layout.labels > 0 ? card.labels.slice(0, layout.labelLimit) : [];
-  const hiddenLabels = layout.labels > 0 ? card.labels.length - shownLabels.length : 0;
-  const chip: ViewStyle = {
-    height: m.chipHeight,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: compact ? 5 : 4,
-    paddingHorizontal: compact ? 7 : 6,
-    borderWidth: 1,
-    borderColor: tokens.tagChip.border,
-    borderRadius: 3,
-    backgroundColor: tokens.tagChip.background,
-  };
-  const chipText = text(m.chipSize, m.chipHeight - 2, tokens.tagChip.text);
-  const timerColor = timer?.tone === "warning" ? tokens.status.warning : timer?.tone === "running" ? tokens.status.running : tokens.foregroundMuted;
-  const footer =
-    shownLabels.length > 0 || timer ? (
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          flexWrap: compact ? "wrap" : "nowrap",
-          gap: GAP,
-          marginTop: m.footGap,
-          paddingLeft: m.slot + GAP,
-        }}
-      >
-        <View style={{ flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", gap: 4 }}>
-          {shownLabels.map((label) => (
-            <View key={label.name} style={chip}>
-              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: label.color ?? tokens.foregroundMuted }} />
-              <Text style={chipText}>{label.name}</Text>
-            </View>
-          ))}
-          {hiddenLabels > 0 ? (
-            <View style={chip}>
-              <Text style={[chipText, tabular]}>+{hiddenLabels}</Text>
-            </View>
-          ) : null}
-        </View>
-        {timer ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 3, height: m.chipHeight, flexShrink: 0 }}>
-            {timer.tone === "warning" ? <Icon name="Clock" size={m.icon} color={timerColor} /> : null}
-            <Text style={[text(compact ? 14 : 12, m.chipHeight, timerColor), tabular]}>{timer.text}</Text>
-          </View>
-        ) : null}
-      </View>
-    ) : null;
-
   // Lane blocks ------------------------------------------------------------
+  const iconCell: ViewStyle = { width: m.iconSlot, height: m.blockLine, alignItems: "center", justifyContent: "center" };
   const failed = card.status === "failed";
   const failure = layout.failure ? (
-    <View style={block}>
-      {rule}
-      <View style={[blockBody, { flexDirection: "row", alignItems: "flex-start", gap: GAP }]}>
-        <View style={[slot, { height: compact ? 22 : 18 }]}>
-          <Icon name={failed ? "CircleX" : "Square"} size={m.icon} color={failed ? tokens.danger : tokens.foregroundMuted} />
-        </View>
-        <Text style={[text(m.rowSize, compact ? 22 : 18, failed ? tokens.danger : tokens.foregroundMuted), { flex: 1 }]}>{card.error}</Text>
+    <View style={[block, { flexDirection: "row", alignItems: "flex-start", gap: GAP }]} testID="task-card-reason">
+      <View style={iconCell}>
+        <Icon name={failed ? "CircleX" : "Square"} size={m.icon} color={failed ? tokens.danger : muted} />
       </View>
+      <Text style={[text(m.blockSize, m.blockLine, failed ? tokens.danger : muted), { flex: 1 }]}>{card.error}</Text>
     </View>
   ) : null;
 
@@ -643,112 +693,75 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const asksQuestion = permission?.kind === "question" || permission?.kind === "other";
   const permissionBlock =
     layout.permission && permission ? (
-      <View style={block}>
-        {rule}
-        <View style={[blockBody, { gap: 8 }]}>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }}>
-            <View style={[slot, { height: compact ? 22 : 18 }]}>
-              <Icon name={permissionIcon(permission.kind)} size={compact ? 15 : 13} color={tokens.status.warning} />
-            </View>
-            <Text numberOfLines={2} style={[text(m.rowSize, compact ? 22 : 18, tokens.foreground), { flex: 1 }]}>
-              <Text style={{ fontWeight: asksQuestion ? "500" : "600" }}>{permission.title}</Text>
-              {permission.summary ? <Text style={{ color: tokens.foregroundMuted }}> · </Text> : null}
-              {permission.summary}
-            </Text>
-            {compact && permission.remaining > 0 ? <MoreChip tokens={tokens} label={strings.more(permission.remaining)} compact /> : null}
+      <View style={[block, { gap: 8 }]} testID="task-card-permission">
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }}>
+          <View style={iconCell}>
+            <Icon name={permissionIcon(permission.kind)} size={m.icon + 1} color={tokens.status.warning} />
           </View>
-          {!compact && (props.permissionButtons.length > 0 || permission.remaining > 0) ? (
-            <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: GAP, paddingLeft: m.slot + GAP }}>
-              {props.permissionButtons.map((button) => (
-                <ActionButton
-                  report={reportControl}
-                  key={button.key}
-                  button={button}
-                  tokens={tokens}
-                  compact={false}
-                  onPress={() => props.onPermission?.(card, button)}
-                />
-              ))}
-              <View style={{ flex: 1 }} />
-              {permission.remaining > 0 ? <MoreChip tokens={tokens} label={strings.more(permission.remaining)} compact={false} /> : null}
-            </View>
+          <Text numberOfLines={2} style={[text(m.blockSize, m.blockLine, tokens.foreground), { flex: 1 }]}>
+            <Text style={{ fontWeight: asksQuestion ? "500" : "600" }}>{permission.title}</Text>
+            {permission.summary ? <Text style={{ color: muted }}> · </Text> : null}
+            {permission.summary}
+          </Text>
+          {permission.remaining > 0 ? (
+            <Text style={[text(m.blockSize - 1, m.blockLine, muted), tabular]}>{strings.more(permission.remaining)}</Text>
           ) : null}
         </View>
-      </View>
-    ) : null;
-
-  const ratio = contextRatio(card.context);
-  const tone = ratio === null ? "normal" : contextTone(ratio);
-  const contextColor = tone === "danger" ? tokens.danger : tone === "warning" ? tokens.warning : tokens.foregroundMuted;
-  const contextBlock =
-    layout.context && ratio !== null ? (
-      <View style={block}>
-        {rule}
-        <View style={[blockBody, { flexDirection: "row", alignItems: "center", gap: GAP }]}>
-          <View style={[slot, { height: m.slot }]}>
-            <Icon name="Gauge" size={m.icon} color={compact ? contextColor : tokens.foregroundMuted} />
-          </View>
-          <View style={{ flex: 1, height: compact ? 3 : 2, borderRadius: 2, backgroundColor: tokens.surface2, overflow: "hidden" }}>
-            <View style={{ width: `${Math.round(ratio * 100)}%`, height: "100%", backgroundColor: tone === "normal" ? tokens.foregroundMuted : contextColor }} />
-          </View>
-          <Text style={[text(compact ? 13 : 11, compact ? 22 : 16, contextColor), tabular]}>
-            {strings.context} {Math.round(ratio * 100)}%
-          </Text>
-        </View>
-      </View>
-    ) : null;
-
-  const subtasks = layout.subtasks ? (
-    <View style={block}>
-      {rule}
-      <View style={{ paddingTop: compact ? 6 : 8 }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded }}
-          onPress={() => setExpanded((open) => !open)}
-          {...toggleHover.hoverProps}
-          style={{ flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: GAP, minHeight: compact ? 36 : undefined }}
-        >
-          <View style={{ width: m.slot, alignItems: "center" }}>
-            <Icon name={expanded ? "ChevronDown" : "ChevronRight"} size={m.icon} color={tokens.foregroundMuted} />
-          </View>
-          <Text style={[text(m.rowSize, compact ? 22 : 18, tokens.foregroundMuted), tabular]}>
-            {subtaskSummary(card.children, language)}
-          </Text>
-        </Pressable>
-        {expanded ? (
-          <View style={{ marginTop: compact ? 0 : 4 }}>
-            {card.children.map((child) => (
-              <SubtaskRow
-                key={child.id}
-                child={child}
-                theme={theme}
-                tokens={tokens}
-                compact={compact}
-                state={strings.status[child.status]}
-                openLabel={strings.openInWorkspace}
-                backdrop={background}
-                animated={props.animated}
+        {!compact && props.permissionButtons.length > 0 ? (
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: GAP, paddingLeft: m.iconSlot + GAP }}>
+            {props.permissionButtons.map((button) => (
+              <ActionButton
                 report={reportControl}
-                onReveal={props.onReveal}
-                onOpen={props.onOpen}
+                key={button.key}
+                button={button}
+                tokens={tokens}
+                compact={false}
+                onPress={() => props.onPermission?.(card, button)}
               />
             ))}
           </View>
         ) : null}
       </View>
-    </View>
-  ) : null;
+    ) : null;
+
+  const subtaskList =
+    layout.subtasks && expanded ? (
+      <View style={[block, { paddingTop: m.rowGap - 4 }]} testID="task-card-subtasks">
+        {card.children.map((child) => (
+          <SubtaskRow
+            key={child.id}
+            child={child}
+            theme={theme}
+            tokens={tokens}
+            compact={compact}
+            state={strings.status[child.status]}
+            openLabel={strings.openInWorkspace}
+            backdrop={background}
+            animated={props.animated}
+            report={reportControl}
+            onReveal={props.onReveal}
+            onOpen={props.onOpen}
+          />
+        ))}
+      </View>
+    ) : null;
 
   // Phone action bar -------------------------------------------------------
   const buttons = compact && layout.permission ? props.permissionButtons : [];
   const actionBar =
     compact && (buttons.length > 0 || canStop) ? (
-      <View style={{ flexDirection: "row", gap: 8, marginTop: 12, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
+      <View style={{ flexDirection: "row", gap: 8, marginTop: m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
         {buttons.map((button) => (
-          <ActionButton key={button.key} report={reportControl} button={button} tokens={tokens} compact onPress={() => props.onPermission?.(card, button)} />
+          <ActionButton
+            key={button.key}
+            report={reportControl}
+            button={button}
+            tokens={tokens}
+            compact
+            onPress={() => props.onPermission?.(card, button)}
+          />
         ))}
-        {canStop ? <StopControl {...stop} compact /> : null}
+        {canStop ? <StopControl {...stop} compact line={m.stopHeight} /> : null}
       </View>
     ) : null;
 
@@ -764,15 +777,13 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       style={cardStyle}
       testID={`task-card-${card.id}`}
     >
-      {parent}
-      {header}
-      {locationGroup}
-      {compact ? null : footer}
-      {failure}
+      {metaRow}
+      {titleRow}
+      {pillRow}
+      {footer}
       {permissionBlock}
-      {contextBlock}
-      {subtasks}
-      {compact ? footer : null}
+      {failure}
+      {subtaskList}
       {actionBar}
     </Pressable>
   );
@@ -785,57 +796,117 @@ function permissionIcon(kind: string): string {
   return "Terminal";
 }
 
-/**
- * A 1 px dashed rule from card edge to card edge. iOS draws no dashes on a
- * one-sided border, so the rule is the top edge of a dashed box clipped to 1 px.
- */
-function DashedRule(props: { color: string; inset: number }) {
+// --- Pills ------------------------------------------------------------------
+
+interface PillProps {
+  tokens: TaskTokens;
+  compact: boolean;
+  label: string;
+  /** A Lucide icon before the text. */
+  icon?: string;
+  /** An 8 px dot before the text (a label's colour). */
+  dot?: string;
+  /** Any other leading mark (the agent's brand). */
+  lead?: ReactNode;
+  /** Text and icon colour; muted by default. */
+  color?: string;
+  tabular?: boolean;
+  accessibilityLabel?: string;
+  testID?: string;
+  children?: ReactNode;
+}
+
+/** Linear's property pill: 24 high (28 on a phone), fully rounded, a hairline outline and no fill. */
+export function pillStyle(tokens: TaskTokens, compact: boolean): ViewStyle {
+  const m = compact ? PHONE : DESKTOP;
+  return {
+    height: m.pillHeight,
+    minWidth: m.pillHeight,
+    maxWidth: "100%",
+    borderRadius: m.pillHeight / 2,
+    borderWidth: 1,
+    borderColor: tokens.card.pillBorder,
+    paddingHorizontal: m.pillPad,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: compact ? 7 : 6,
+  };
+}
+
+function PillContent(props: PillProps) {
+  const m = props.compact ? PHONE : DESKTOP;
+  const color = props.color ?? props.tokens.foregroundMuted;
   return (
-    <View style={{ height: 1, overflow: "hidden", marginHorizontal: -props.inset }}>
-      <View style={{ height: 3, borderWidth: 1, borderStyle: "dashed", borderColor: props.color }} />
+    <>
+      {props.lead ?? null}
+      {props.icon ? <Icon name={props.icon} size={m.icon} color={color} /> : null}
+      {props.dot ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: props.dot }} /> : null}
+      <Text
+        numberOfLines={1}
+        style={[{ fontSize: m.pillText, lineHeight: m.pillLine, color, flexShrink: 1 }, props.tabular ? tabular : null]}
+      >
+        {props.label}
+      </Text>
+      {props.children}
+    </>
+  );
+}
+
+function Pill(props: PillProps) {
+  return (
+    <View style={pillStyle(props.tokens, props.compact)} testID={props.testID} accessibilityLabel={props.accessibilityLabel}>
+      <PillContent {...props} />
     </View>
+  );
+}
+
+function PillButton(props: PillProps & { expanded: boolean; report?: ControlHover; onPress(): void }) {
+  const { hovered, hoverProps } = useControlHover(props.report);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={props.accessibilityLabel}
+      accessibilityState={{ expanded: props.expanded }}
+      onPress={props.onPress}
+      {...hoverProps}
+      testID={props.testID}
+      style={[
+        pillStyle(props.tokens, props.compact),
+        { backgroundColor: hovered || props.expanded ? props.tokens.card.controlHover : "transparent" },
+        webTransition,
+      ]}
+    >
+      <PillContent {...props} color={hovered ? props.tokens.foreground : props.color} />
+    </Pressable>
   );
 }
 
 function GitStatus(props: {
   git: NonNullable<TaskCard["location"]["git"]>;
   tokens: TaskTokens;
-  style: TextStyle;
+  size: number;
+  line: number;
   strings: ReturnType<typeof cardStrings>;
 }) {
   const { git, tokens } = props;
-  const arrows = [git.ahead !== null ? `↑${git.ahead}` : null, git.behind !== null ? `↓${git.behind}` : null].filter(Boolean).join(" ");
+  const arrows = [git.ahead !== null ? `↑${git.ahead}` : null, git.behind !== null ? `↓${git.behind}` : null]
+    .filter(Boolean)
+    .join(" ");
   if (!git.dirty && !arrows) return null;
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+    <>
       {git.dirty ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: tokens.warning }} /> : null}
-      <Text style={[props.style, tabular]}>{[git.dirty ? props.strings.uncommitted : null, arrows || null].filter(Boolean).join(" ")}</Text>
-    </View>
-  );
-}
-
-function MoreChip(props: { tokens: TaskTokens; label: string; compact: boolean }) {
-  const height = props.compact ? 22 : 18;
-  return (
-    <View
-      style={{
-        height,
-        paddingHorizontal: props.compact ? 6 : 5,
-        borderWidth: 1,
-        borderColor: props.tokens.border,
-        borderRadius: 3,
-        justifyContent: "center",
-        flexShrink: 0,
-      }}
-    >
-      <Text style={[{ fontSize: props.compact ? 12 : 11, lineHeight: height - 2, color: props.tokens.foregroundMuted }, tabular]}>
-        {props.label}
+      <Text style={[{ fontSize: props.size, lineHeight: props.line, color: tokens.foregroundMuted }, tabular]}>
+        {[git.dirty ? props.strings.uncommitted : null, arrows || null].filter(Boolean).join(" ")}
       </Text>
-    </View>
+    </>
   );
 }
 
-/** A permission answer or "去回答": an outlined pill, 24 high on desktop, 40 and evenly split on a phone. */
+// --- Buttons ------------------------------------------------------------------
+
+/** A permission answer or "go answer": 28 high, radius 6; 40 and evenly split on a phone. */
 function ActionButton(props: {
   button: PermissionButton;
   tokens: TaskTokens;
@@ -844,13 +915,16 @@ function ActionButton(props: {
   onPress(): void;
 }) {
   const { button, tokens, compact } = props;
+  const look = tokens.card;
   const { hovered, hoverProps } = useControlHover(props.report);
-  const color = button.variant === "primary" ? tokens.accent : button.variant === "danger" ? tokens.danger : tokens.foreground;
-  const border = button.variant === "secondary" ? tokens.border : color;
-  const hoverFill = button.variant === "primary" ? tokens.accentSoft : button.variant === "danger" ? tokens.dangerSoft : tokens.surface2;
-  const icon =
-    button.kind === "open" ? null : button.action.behavior === "allow" ? "Check" : "X";
-  const size = compact ? 16 : 12;
+  const primary = button.variant === "primary";
+  const danger = button.variant === "danger";
+  const color = primary ? tokens.accent : danger ? tokens.danger : tokens.foreground;
+  let fill = hovered ? look.controlHover : "transparent";
+  if (primary) fill = hovered ? look.primaryFillHover : look.primaryFill;
+  if (danger) fill = hovered ? look.dangerFillHover : look.dangerFill;
+  const icon = button.kind === "open" ? null : button.action.behavior === "allow" ? "Check" : "X";
+  const size = compact ? 16 : 13;
   return (
     <Pressable
       accessibilityRole="button"
@@ -858,17 +932,17 @@ function ActionButton(props: {
       onPress={props.onPress}
       {...hoverProps}
       style={{
-        height: compact ? 40 : 24,
+        height: compact ? PHONE.buttonHeight : DESKTOP.buttonHeight,
         flex: compact ? 1 : undefined,
-        paddingHorizontal: compact ? 12 : 10,
-        borderRadius: compact ? 20 : 999,
+        paddingHorizontal: compact ? 14 : 10,
+        borderRadius: compact ? 8 : 6,
         borderWidth: 1,
-        borderColor: border,
-        backgroundColor: hovered ? hoverFill : "transparent",
+        borderColor: primary || danger ? fill : look.pillBorder,
+        backgroundColor: fill,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        gap: compact ? 6 : 4,
+        gap: compact ? 6 : 5,
         ...webTransition,
       }}
     >
@@ -891,6 +965,8 @@ interface StopControlProps {
   count: number;
   menuOpen: boolean;
   compact: boolean;
+  /** The line it sits on, so it centres without growing the row. */
+  line: number;
   onPress(): void;
   onToggleMenu(): void;
   onPick(withChildren: boolean): void;
@@ -900,28 +976,37 @@ interface StopControlProps {
 /** Stop, its confirm state, and a parent's "only this / with subtasks" menu. */
 function StopControl(props: StopControlProps) {
   const { tokens, strings, phase, compact } = props;
+  const look = tokens.card;
   const confirming = phase === "confirming";
   const stopping = phase === "stopping";
-  const color = confirming ? tokens.danger : tokens.foreground;
-  const border = confirming ? tokens.danger : tokens.border;
-  const fill = confirming ? tokens.dangerSoft : compact ? "transparent" : tokens.surface0;
-  const height = compact ? 40 : 22;
-  const round = compact ? 20 : 999;
-  const label = stopping ? strings.stopping : confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
   const stopHover = useControlHover(props.report);
   const chevronHover = useControlHover(props.report);
+  const color = confirming ? tokens.danger : tokens.foreground;
+  const border = confirming ? tokens.danger : look.pillBorder;
+  const fill = (hovered: boolean) =>
+    confirming ? (hovered ? look.dangerFillHover : look.dangerFill) : hovered ? look.controlHover : look.background;
+  const height = compact ? PHONE.stopHeight : DESKTOP.stopHeight;
+  const round = compact ? 8 : height / 2;
+  const label = stopping ? strings.stopping : confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
   const segment: ViewStyle = {
     height,
     borderWidth: 1,
     borderColor: border,
-    backgroundColor: fill,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     ...webTransition,
   };
   return (
-    <View style={{ flexDirection: "row", flex: compact ? 1 : undefined, flexShrink: 0, marginTop: compact ? 0 : -1, zIndex: 40 }}>
+    <View
+      style={{
+        flexDirection: "row",
+        flex: compact ? 1 : undefined,
+        flexShrink: 0,
+        marginVertical: compact ? 0 : (props.line - height) / 2,
+        zIndex: 40,
+      }}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}
@@ -933,7 +1018,8 @@ function StopControl(props: StopControlProps) {
           {
             flex: compact ? 1 : undefined,
             gap: compact ? 6 : 4,
-            paddingHorizontal: compact ? 12 : 8,
+            paddingHorizontal: compact ? 14 : 8,
+            backgroundColor: fill(stopHover.hovered),
             borderTopLeftRadius: round,
             borderBottomLeftRadius: round,
             borderTopRightRadius: props.parent ? 0 : round,
@@ -956,7 +1042,13 @@ function StopControl(props: StopControlProps) {
           {...chevronHover.hoverProps}
           style={[
             segment,
-            { width: compact ? 48 : 20, marginLeft: -1, borderTopRightRadius: round, borderBottomRightRadius: round },
+            {
+              width: compact ? 44 : 20,
+              marginLeft: -1,
+              backgroundColor: fill(chevronHover.hovered || props.menuOpen),
+              borderTopRightRadius: round,
+              borderBottomRightRadius: round,
+            },
           ]}
         >
           <Icon name={compact ? "ChevronUp" : "ChevronDown"} size={compact ? 16 : 12} color={color} />
@@ -968,16 +1060,23 @@ function StopControl(props: StopControlProps) {
             position: "absolute",
             right: 0,
             ...(compact ? { bottom: height + 6 } : { top: height + 4 }),
-            width: compact ? 240 : 196,
+            width: compact ? 240 : 200,
             padding: 4,
-            backgroundColor: tokens.surface0,
+            backgroundColor: look.background,
             borderWidth: 1,
-            borderColor: tokens.border,
-            borderRadius: compact ? 10 : 8,
+            borderColor: look.border,
+            borderRadius: 8,
             boxShadow: tokens.popoverShadow,
           } as ViewStyle}
         >
-          <MenuItem report={props.report} tokens={tokens} compact={compact} icon="Square" label={strings.stopOnlyThis} onPress={() => props.onPick(false)} />
+          <MenuItem
+            report={props.report}
+            tokens={tokens}
+            compact={compact}
+            icon="Square"
+            label={strings.stopOnlyThis}
+            onPress={() => props.onPick(false)}
+          />
           <MenuItem
             report={props.report}
             tokens={tokens}
@@ -1010,16 +1109,16 @@ function MenuItem(props: {
       onPress={props.onPress}
       {...hoverProps}
       style={{
-        height: compact ? 44 : 30,
+        height: compact ? 44 : 28,
         flexDirection: "row",
         alignItems: "center",
         gap: compact ? 10 : 8,
         paddingHorizontal: compact ? 12 : 8,
-        borderRadius: compact ? 6 : 5,
-        backgroundColor: hovered ? tokens.surface1 : "transparent",
+        borderRadius: compact ? 6 : 4,
+        backgroundColor: hovered ? tokens.card.controlHover : "transparent",
       }}
     >
-      <Icon name={props.icon} size={compact ? 14 : 11} color={tokens.foregroundMuted} />
+      <Icon name={props.icon} size={compact ? 14 : 12} color={tokens.foregroundMuted} />
       <Text style={{ flex: 1, fontSize: compact ? 15 : 12, color: tokens.foreground }}>{props.label}</Text>
       {props.count !== undefined ? (
         <Text style={[{ fontSize: compact ? 15 : 12, color: tokens.foregroundMuted }, tabular]}>{props.count}</Text>
@@ -1028,8 +1127,16 @@ function MenuItem(props: {
   );
 }
 
-/** ArrowUpRight, 24 × 24 (36 on a phone); a tooltip after 400 ms of hover on desktop. */
-function JumpButton(props: { tokens: TaskTokens; compact: boolean; label: string; report?: ControlHover; onPress(): void }) {
+/** ArrowUpRight, 20 x 20 (32 on a phone), where Linear puts the assignee; a tooltip after 400 ms of hover. */
+function JumpButton(props: {
+  tokens: TaskTokens;
+  compact: boolean;
+  /** The line it sits on, so it centres without growing the row. */
+  line: number;
+  label: string;
+  report?: ControlHover;
+  onPress(): void;
+}) {
   const { tokens, compact } = props;
   const { hovered, hoverProps } = useControlHover(props.report);
   const [tip, setTip] = useState(false);
@@ -1039,10 +1146,17 @@ function JumpButton(props: { tokens: TaskTokens; compact: boolean; label: string
     timer.current = null;
   }, []);
   useEffect(() => clear, [clear]);
-  const size = compact ? 36 : 24;
+  const size = compact ? PHONE.jump : DESKTOP.jump;
   const lit = hovered && !compact;
   return (
-    <View style={{ flexShrink: 0, margin: compact ? -7 : -3, marginRight: compact ? -10 : -6, marginLeft: 0, zIndex: 45 }}>
+    <View
+      style={{
+        flexShrink: 0,
+        marginVertical: (props.line - size) / 2,
+        marginRight: compact ? -8 : -4,
+        zIndex: 45,
+      }}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={props.label}
@@ -1061,16 +1175,18 @@ function JumpButton(props: { tokens: TaskTokens; compact: boolean; label: string
         style={{
           width: size,
           height: size,
-          borderRadius: compact ? 18 : 4,
-          borderWidth: compact ? 0 : 1,
-          borderColor: lit ? tokens.border : "transparent",
-          backgroundColor: lit ? tokens.surface2 : "transparent",
+          borderRadius: compact ? size / 2 : 5,
+          backgroundColor: lit ? tokens.card.controlHover : "transparent",
           alignItems: "center",
           justifyContent: "center",
           ...webTransition,
         }}
       >
-        <Icon name="ArrowUpRight" size={compact ? 18 : 14} color={lit ? tokens.foreground : tokens.foregroundMuted} />
+        <Icon
+          name="ArrowUpRight"
+          size={compact ? PHONE.jumpIcon : DESKTOP.jumpIcon}
+          color={lit ? tokens.foreground : tokens.foregroundMuted}
+        />
       </Pressable>
       {tip ? (
         <View
@@ -1085,9 +1201,9 @@ function JumpButton(props: { tokens: TaskTokens; compact: boolean; label: string
             gap: 8,
             paddingLeft: 8,
             paddingRight: 6,
-            backgroundColor: tokens.surface0,
+            backgroundColor: tokens.card.background,
             borderWidth: 1,
-            borderColor: tokens.border,
+            borderColor: tokens.card.border,
             borderRadius: 6,
             boxShadow: tokens.popoverShadow,
           } as ViewStyle}
@@ -1095,7 +1211,9 @@ function JumpButton(props: { tokens: TaskTokens; compact: boolean; label: string
           <Text numberOfLines={1} style={{ fontSize: 12, color: tokens.foreground }}>
             {props.label}
           </Text>
-          <View style={{ height: 16, paddingHorizontal: 4, borderWidth: 1, borderColor: tokens.border, borderRadius: 3, justifyContent: "center" }}>
+          <View
+            style={{ height: 16, paddingHorizontal: 4, borderWidth: 1, borderColor: tokens.card.border, borderRadius: 3, justifyContent: "center" }}
+          >
             <Text style={{ fontSize: 11, lineHeight: 14, color: tokens.foregroundMuted }}>Enter</Text>
           </View>
         </View>
@@ -1120,11 +1238,13 @@ function SubtaskRow(props: {
   onOpen?(agentId: string): void;
 }) {
   const { child, tokens, compact } = props;
+  const m = compact ? PHONE : DESKTOP;
   // DOM hover on web, as the card: the row's own Pressable hover would end
   // when the pointer reaches its jump button, and hide it.
   const rowRef = useRef<View>(null);
   const { hovered, hoverProps } = useControlHover(props.report, rowRef);
   const showJump = !!props.onOpen && (compact || TOUCH || hovered);
+  const fill = hovered && !compact ? tokens.card.controlHover : props.backdrop;
   const size = compact ? 32 : 22;
   return (
     <Pressable
@@ -1134,30 +1254,26 @@ function SubtaskRow(props: {
       ref={rowRef}
       {...(WEB ? null : hoverProps)}
       style={{
-        minHeight: compact ? 36 : 26,
+        minHeight: compact ? 36 : 28,
         flexDirection: "row",
         alignItems: "center",
         gap: GAP,
         paddingVertical: 2,
-        paddingLeft: compact ? 0 : 6,
+        paddingLeft: 6,
         paddingRight: 2,
-        marginHorizontal: compact ? 0 : -6,
-        borderRadius: 4,
-        backgroundColor: hovered && !compact ? tokens.surface2 : "transparent",
+        marginHorizontal: -6,
+        borderRadius: 6,
+        backgroundColor: fill,
+        ...webTransition,
       }}
     >
-      <StatusIcon
-        kind={child.status}
-        size={compact ? 20 : 16}
-        height={compact ? 20 : 18}
-        theme={props.theme}
-        backdrop={hovered && !compact ? tokens.surface2 : props.backdrop}
-        animated={props.animated}
-      />
-      <Text numberOfLines={2} style={{ flex: 1, fontSize: compact ? 14 : 12, lineHeight: compact ? 22 : 18, color: tokens.foreground }}>
+      <View style={{ width: m.iconSlot, alignItems: "center" }}>
+        <StatusIcon kind={child.status} size={m.iconBox} height={m.blockLine} theme={props.theme} backdrop={fill} animated={props.animated} />
+      </View>
+      <Text numberOfLines={2} style={{ flex: 1, fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
         {child.title}
       </Text>
-      <Text style={{ fontSize: compact ? 12 : 11, color: tokens.foregroundMuted }}>{props.state}</Text>
+      <Text style={{ fontSize: m.metaSize, color: tokens.foregroundMuted }}>{props.state}</Text>
       {props.onOpen ? (
         <Pressable
           accessibilityRole="button"
@@ -1167,8 +1283,8 @@ function SubtaskRow(props: {
           style={{
             width: size,
             height: size,
-            marginRight: compact ? -10 : 0,
-            borderRadius: 4,
+            marginRight: compact ? -8 : 0,
+            borderRadius: 5,
             alignItems: "center",
             justifyContent: "center",
             opacity: showJump ? 1 : 0,
@@ -1183,7 +1299,7 @@ function SubtaskRow(props: {
 
 /**
  * The card re-renders for a tick of `now` only when the text it shows from
- * the clock changes: a running timer every second, a "5 分钟前" once a minute,
+ * the clock changes: a running timer every second, "5 min ago" once a minute,
  * a card without a timer never. Every other prop compares by identity, so the
  * board passes stable callbacks and keeps a card object until it changes.
  */

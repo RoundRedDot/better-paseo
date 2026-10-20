@@ -46,6 +46,33 @@ export interface TaskTokens {
   scrim: string;
   /** Label chip: fill, border, text. */
   tagChip: { background: string; border: string; text: string };
+  /**
+   * The card, after Linear's issue card: the raised surface (surface0 on a
+   * light theme, surface2 on a dark one), a hairline border and a 1 px shadow;
+   * pills outlined a step darker than the border.
+   */
+  card: CardTokens;
+}
+
+export interface CardTokens {
+  background: string;
+  border: string;
+  /** Hover: a stronger border. */
+  borderHover: string;
+  /** CSS box-shadow at rest and on hover. */
+  shadow: string;
+  shadowHover: string;
+  /** Pill and secondary-button outline (#dadada on white). */
+  pillBorder: string;
+  /** A hovered control's fill on the card. */
+  controlHover: string;
+  /** The 1 s background after a parent link scrolled here. */
+  highlight: string;
+  /** Primary (accent-tinted) and danger buttons, at rest and hovered. */
+  primaryFill: string;
+  primaryFillHover: string;
+  dangerFill: string;
+  dangerFillHover: string;
 }
 
 const STATUS_LIGHT = { running: "#268ae0", warning: "#b37824", success: "#299f51", danger: "#f12e2f" } as const;
@@ -91,6 +118,25 @@ export function buildTaskTokens(colors: PluginTheme["colors"]): TaskTokens {
       : "0px 8px 24px -6px rgba(0, 0, 0, 0.12), 0px 2px 6px -2px rgba(0, 0, 0, 0.06)",
     scrim: isDark ? "rgba(0, 0, 0, 0.56)" : "rgba(0, 0, 0, 0.32)",
     tagChip: { background: s0, border: colors.border, text: colors.foregroundMuted },
+    card: cardTokens(colors, isDark, danger),
+  };
+}
+
+function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: string): CardTokens {
+  const background = isDark ? colors.surface2 : colors.surface0;
+  return {
+    background,
+    border: colors.border,
+    borderHover: mix(colors.border, colors.foregroundMuted, isDark ? 0.3 : 0.35),
+    shadow: isDark ? "0px 1px 1px rgba(0, 0, 0, 0.24)" : "0px 1px 1px rgba(0, 0, 0, 0.04)",
+    shadowHover: isDark ? "0px 2px 6px rgba(0, 0, 0, 0.32)" : "0px 2px 6px rgba(0, 0, 0, 0.07)",
+    pillBorder: mix(colors.border, colors.foreground, isDark ? 0.08 : 0.04),
+    controlHover: mix(background, colors.foreground, isDark ? 0.08 : 0.05),
+    highlight: mix(background, colors.accent, isDark ? 0.12 : 0.08),
+    primaryFill: mix(background, colors.accent, isDark ? 0.18 : 0.1),
+    primaryFillHover: mix(background, colors.accent, isDark ? 0.26 : 0.16),
+    dangerFill: mix(background, danger, isDark ? 0.16 : 0.1),
+    dangerFillHover: mix(background, danger, isDark ? 0.24 : 0.16),
   };
 }
 

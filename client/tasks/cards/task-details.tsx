@@ -83,22 +83,23 @@ export function TaskDetails(props: TaskDetailsProps) {
   const language = props.language ?? preferred;
   const strings = cardStrings(language);
   const { location, stats } = detailRows(card, props.now, language);
-  const size = compact ? 14 : 12;
-  const line = compact ? 20 : 16;
+  // Rows in the card's meta and footer style: 12 px (13 on a phone), muted keys.
+  const size = compact ? 13 : 12;
+  const line = compact ? 18 : 16;
   const padH = compact ? 16 : 12;
   const label: TextStyle = { fontSize: size, lineHeight: line, color: tokens.foregroundMuted, flexShrink: 0 };
   const value: TextStyle = { fontSize: size, lineHeight: line, color: tokens.foreground, textAlign: "right", flex: 1 };
-  const section: ViewStyle = { paddingHorizontal: padH, paddingVertical: 8, gap: 5 };
-  const rule = <View style={{ height: 1, overflow: "hidden" }}><View style={{ height: 3, borderWidth: 1, borderStyle: "dashed", borderColor: tokens.border }} /></View>;
+  const section: ViewStyle = { paddingHorizontal: padH, paddingVertical: 10, gap: 6 };
+  const rule = <View style={{ height: 1, backgroundColor: tokens.card.border }} />;
   const agent = [card.providerLabel, card.modelLabel, card.thinkingLabel].filter(Boolean).join(" · ");
 
   const frame: ViewStyle = compact
     ? {}
     : ({
         width: 288,
-        backgroundColor: tokens.surface0,
+        backgroundColor: tokens.card.background,
         borderWidth: 1,
-        borderColor: tokens.border,
+        borderColor: tokens.card.border,
         borderRadius: 8,
         boxShadow: tokens.popoverShadow,
       } as ViewStyle);
@@ -106,11 +107,11 @@ export function TaskDetails(props: TaskDetailsProps) {
   return (
     <View style={frame} testID="task-details">
       <View style={{ paddingHorizontal: padH, paddingTop: 10, paddingBottom: 10, gap: 4 }}>
-        <Text numberOfLines={2} style={{ fontSize: compact ? 16 : 13, lineHeight: compact ? 22 : 18, fontWeight: "600", color: tokens.foreground }}>
+        <Text numberOfLines={2} style={{ fontSize: compact ? 16 : 13, lineHeight: compact ? 22 : 18, fontWeight: "500", color: tokens.foreground }}>
           {card.title}
         </Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {card.providerMark !== null ? <ProviderLogo provider={card.provider} size={compact ? 16 : 14} /> : null}
+          {card.providerMark !== null ? <ProviderLogo provider={card.provider} size={compact ? 14 : 12} /> : null}
           <Text style={[label, { flex: 1 }]}>{agent}</Text>
         </View>
       </View>
@@ -127,18 +128,18 @@ export function TaskDetails(props: TaskDetailsProps) {
                 <View
                   key={tag.name}
                   style={{
-                    height: 18,
+                    height: 20,
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: 4,
-                    paddingHorizontal: 5,
+                    gap: 5,
+                    paddingHorizontal: 8,
                     borderWidth: 1,
-                    borderColor: tokens.tagChip.border,
-                    borderRadius: 3,
+                    borderColor: tokens.card.pillBorder,
+                    borderRadius: 10,
                   }}
                 >
                   <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: tag.color ?? tokens.foregroundMuted }} />
-                  <Text style={{ fontSize: 11, lineHeight: 16, color: tokens.tagChip.text }}>{tag.name}</Text>
+                  <Text style={{ fontSize: 11, lineHeight: 16, color: tokens.foregroundMuted }}>{tag.name}</Text>
                 </View>
               ))}
             </View>
@@ -204,11 +205,11 @@ function OpenTab(props: { tokens: TaskTokens; label: string; compact: boolean; o
       style={{
         height: props.compact ? 36 : 26,
         paddingHorizontal: 8,
-        borderRadius: 4,
+        borderRadius: 6,
         flexDirection: "row",
         alignItems: "center",
         gap: 4,
-        backgroundColor: hovered ? tokens.accentSoft : "transparent",
+        backgroundColor: hovered ? tokens.card.primaryFill : "transparent",
       }}
     >
       <Text style={{ fontSize: props.compact ? 14 : 12, fontWeight: "500", color: tokens.accent }}>{props.label}</Text>
