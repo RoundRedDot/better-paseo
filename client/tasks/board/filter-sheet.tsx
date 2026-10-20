@@ -1,6 +1,6 @@
 import React, { useState, type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { BrandMark, taskTokens } from "../cards";
 import { Checkbox, LetterAvatar, WindowSegments } from "./board-parts";
@@ -12,7 +12,11 @@ import { sameSort, type BoardSort, type SortKey } from "./sort";
 import { sortOrderLabel } from "./strings";
 import type { BoardController } from "./use-board";
 
-/** The phone's filters (prototype 04 · 过滤 sheet), drawn inside the host's bottom sheet. */
+/**
+ * The phone's filters (prototype 04 sheet), drawn inside the host's bottom
+ * sheet as a bounded body (`Modal.Content scrollable={false}`): the options
+ * scroll, the "Show N tasks" button stays pinned under them.
+ */
 export function FilterSheetBody(props: { board: BoardController; theme: PluginTheme; options: FilterOptions; onDone(): void }) {
   const { board, theme, options } = props;
   const colors = theme.colors;
@@ -20,83 +24,85 @@ export function FilterSheetBody(props: { board: BoardController; theme: PluginTh
   const { setParams, defaults } = board;
   const resolved = resolveBoardParams(board.params, defaults);
   return (
-    <View>
-      <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-        <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-          <Pressable accessibilityRole="button" onPress={() => setParams(clearedParams)} style={{ height: 36, paddingHorizontal: 4, justifyContent: "center" }}>
-            <Text style={{ fontSize: 15, color: colors.foregroundMuted }}>{strings.reset}</Text>
-          </Pressable>
-        </View>
-        <SectionTitle text={strings.workspace} theme={theme} first />
-        {options.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
-        {options.workspaceGroups.map((group) => (
-          <View key={group.projectId || "missing"}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 10, paddingBottom: 6 }}>
-              <LetterAvatar name={group.projectName} theme={theme} size={16} />
-              <Text style={{ fontSize: 13, color: colors.foreground }}>{group.projectName}</Text>
-            </View>
-            <ChipWrap>
-              {group.items.map((item) => (
-                <Chip
-                  key={item.id}
-                  option={item}
-                  theme={theme}
-                  onPress={() => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, item.id) }))}
-                />
-              ))}
-            </ChipWrap>
+    <View style={{ flex: 1, minHeight: 0 }}>
+      <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" testID="filter-sheet-scroll">
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+            <Pressable accessibilityRole="button" onPress={() => setParams(clearedParams)} style={{ height: 36, paddingHorizontal: 4, justifyContent: "center" }}>
+              <Text style={{ fontSize: 15, color: colors.foregroundMuted }}>{strings.reset}</Text>
+            </Pressable>
           </View>
-        ))}
-        <SectionTitle text={strings.agent} theme={theme} />
-        {options.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
-        <ChipWrap>
-          {options.agents.map((agent) => (
-            <Chip
-              key={agent.id}
-              option={agent}
-              theme={theme}
-              leading={<BrandMark provider={agent.id} size={16} tokens={taskTokens(theme)} />}
-              hideCount
-              onPress={() => setParams((p) => ({ ...p, providers: toggleItem(p.providers, agent.id) }))}
-            />
+          <SectionTitle text={strings.workspace} theme={theme} first />
+          {options.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+          {options.workspaceGroups.map((group) => (
+            <View key={group.projectId || "missing"}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 10, paddingBottom: 6 }}>
+                <LetterAvatar name={group.projectName} theme={theme} size={16} />
+                <Text style={{ fontSize: 13, color: colors.foreground }}>{group.projectName}</Text>
+              </View>
+              <ChipWrap>
+                {group.items.map((item) => (
+                  <Chip
+                    key={item.id}
+                    option={item}
+                    theme={theme}
+                    onPress={() => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, item.id) }))}
+                  />
+                ))}
+              </ChipWrap>
+            </View>
           ))}
-        </ChipWrap>
-        <SectionTitle text={strings.labels} theme={theme} />
-        {options.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
-        <ChipWrap>
-          {options.labels.map((label) => (
-            <Chip
-              key={label.id}
-              option={label}
-              theme={theme}
-              leading={<View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: label.color ?? colors.foregroundMuted }} />}
-              onPress={() => setParams((p) => ({ ...p, labels: toggleItem(p.labels, label.id) }))}
-            />
-          ))}
-        </ChipWrap>
-        <View style={{ height: HAIRLINE, marginTop: 16, marginBottom: 4, backgroundColor: colors.border }} />
-        <ToggleRow
-          icon="AppWindow"
-          label={strings.openTabs}
-          hint={strings.openTabsHint}
-          on={resolved.filters.openTabsOnly}
-          theme={theme}
-          onPress={() => setParams((p) => ({ ...p, openTabsOnly: !p.openTabsOnly }))}
-        />
-        <ToggleRow
-          icon="ListTree"
-          label={strings.hideSubtasks}
-          hint={strings.hideSubtasksHint}
-          on={resolved.filters.hideSubtasks}
-          theme={theme}
-          onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
-        />
-        <Text style={{ paddingTop: 12, paddingBottom: 8, fontSize: 12, fontWeight: "500", color: colors.foregroundMuted }}>{strings.doneRange}</Text>
-        <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
-        <SectionTitle text={strings.sort} theme={theme} />
-        <SortDrillDown board={board} theme={theme} />
-      </View>
-      <View style={{ paddingTop: 12, paddingHorizontal: 16, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
+          <SectionTitle text={strings.agent} theme={theme} />
+          {options.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+          <ChipWrap>
+            {options.agents.map((agent) => (
+              <Chip
+                key={agent.id}
+                option={agent}
+                theme={theme}
+                leading={<BrandMark provider={agent.id} size={16} tokens={taskTokens(theme)} />}
+                hideCount
+                onPress={() => setParams((p) => ({ ...p, providers: toggleItem(p.providers, agent.id) }))}
+              />
+            ))}
+          </ChipWrap>
+          <SectionTitle text={strings.labels} theme={theme} />
+          {options.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+          <ChipWrap>
+            {options.labels.map((label) => (
+              <Chip
+                key={label.id}
+                option={label}
+                theme={theme}
+                leading={<View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: label.color ?? colors.foregroundMuted }} />}
+                onPress={() => setParams((p) => ({ ...p, labels: toggleItem(p.labels, label.id) }))}
+              />
+            ))}
+          </ChipWrap>
+          <View style={{ height: HAIRLINE, marginTop: 16, marginBottom: 4, backgroundColor: colors.border }} />
+          <ToggleRow
+            icon="AppWindow"
+            label={strings.openTabs}
+            hint={strings.openTabsHint}
+            on={resolved.filters.openTabsOnly}
+            theme={theme}
+            onPress={() => setParams((p) => ({ ...p, openTabsOnly: !p.openTabsOnly }))}
+          />
+          <ToggleRow
+            icon="ListTree"
+            label={strings.hideSubtasks}
+            hint={strings.hideSubtasksHint}
+            on={resolved.filters.hideSubtasks}
+            theme={theme}
+            onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
+          />
+          <Text style={{ paddingTop: 12, paddingBottom: 8, fontSize: 12, fontWeight: "500", color: colors.foregroundMuted }}>{strings.doneRange}</Text>
+          <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
+          <SectionTitle text={strings.sort} theme={theme} />
+          <SortDrillDown board={board} theme={theme} />
+        </View>
+      </ScrollView>
+      <View testID="filter-sheet-footer" style={{ paddingTop: 12, paddingHorizontal: 16, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
         <Pressable
           accessibilityRole="button"
           onPress={props.onDone}
@@ -182,6 +188,9 @@ function ToggleRow(props: { icon: string; label: string; hint?: string; on: bool
  */
 function SortDrillDown({ board, theme }: { board: BoardController; theme: PluginTheme }) {
   const [field, setField] = useState<SortKey | null>(null);
+  // The directions keep the fields' height, so drilling in or out does not
+  // shorten the sheet's content and make its scroll position jump.
+  const [fieldsHeight, setFieldsHeight] = useState(0);
   const colors = theme.colors;
   const strings = board.strings;
   const current = board.params.sort;
@@ -192,7 +201,7 @@ function SortDrillDown({ board, theme }: { board: BoardController; theme: Plugin
   const rule = <View style={{ height: HAIRLINE, marginVertical: 4, backgroundColor: colors.border }} />;
   if (field) {
     return (
-      <View testID="sort-directions">
+      <View testID="sort-directions" style={{ minHeight: fieldsHeight }}>
         <SortRow icon="ChevronLeft" label={strings.back} hint={strings.sortKeys[field]} theme={theme} onPress={() => setField(null)} />
         {rule}
         {sortDirections(field).map((direction) => {
@@ -212,7 +221,7 @@ function SortDrillDown({ board, theme }: { board: BoardController; theme: Plugin
     );
   }
   return (
-    <View testID="sort-fields">
+    <View testID="sort-fields" onLayout={(event) => setFieldsHeight(event.nativeEvent.layout.height)}>
       <SortRow icon={SORT_ICONS.default} label={strings.sortDefault} checked={current === null} theme={theme} onPress={() => choose(null)} />
       {SORT_GROUPS.map((keys) => (
         <View key={keys.join()}>

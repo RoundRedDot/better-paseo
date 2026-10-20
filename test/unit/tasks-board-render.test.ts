@@ -577,6 +577,39 @@ describe("Tasks board, phone", () => {
     expect(pressable("Needs input 1").props.style.minHeight).toBe(44);
   });
 
+  it("says when a non-default sort is on, and opens the filters from it", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "phone-sort-hint")).toHaveLength(0);
+    act(() => renderer!.unmount());
+    act(() => {
+      renderer = TestRenderer.create(screen(true, { sort: "branch-desc" }));
+    });
+    const hint = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "phone-sort-hint");
+    expect(textOf(hint)).toBe("Branch Z→A");
+    act(() => hint.props.onPress());
+    expect(renderer!.root.find((node) => (node.type as unknown) === "Modal").props.title).toBe("Filters");
+  });
+
+  it("pins the filter sheet's button under its scrolling options, and keeps the sort's height when drilling in", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    act(() => pressable("Filters").props.onPress());
+    const sheet = renderer!.root.find((node) => (node.type as unknown) === "Modal");
+    const scroll = sheet.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
+    const footer = sheet.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-footer");
+    expect(scroll.findAll((node) => node === footer)).toHaveLength(0);
+    expect(textOf(footer)).toMatch(/^Show \d+ tasks?$/);
+    const fields = sheet.find((node) => (node.type as unknown) === "View" && node.props.testID === "sort-fields");
+    act(() => fields.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 512 } } }));
+    const branch = fields.find((node) => (node.type as unknown) === "Pressable" && textOf(node).startsWith("Branch"));
+    act(() => branch.props.onPress());
+    const directions = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "sort-directions");
+    expect(StyleSheet.flatten(directions.props.style).minHeight).toBe(512);
+  });
+
   it("opens the details sheet on a card's long press", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));

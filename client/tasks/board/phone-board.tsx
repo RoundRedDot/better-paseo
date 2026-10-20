@@ -22,7 +22,7 @@ import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
 import { claimsSwipe, defaultLane, laneAfter, swallowsTap, swipeStep, tabUnderline, tabsOverflow, type TabBox } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
-import { LANE_EMPTY_ICON } from "./strings";
+import { LANE_EMPTY_ICON, sortLabel } from "./strings";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
 
@@ -37,6 +37,8 @@ const point = (event: PointEvent) => ({ x: event.nativeEvent.pageX, y: event.nat
 
 // The sheet's safe area is the host's; the bodies pad themselves.
 const SHEET_BODY = { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, gap: 0 } as const;
+// The filters bound their own scroll so their button stays pinned (FilterSheetBody).
+const SHEET_FILTER_BODY = { ...SHEET_BODY, flex: 1, minHeight: 0 } as const;
 
 type Sheet = { kind: "filters" } | { kind: "details"; id: string } | null;
 
@@ -257,6 +259,32 @@ export function PhoneBoard(props: {
         <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 17, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>
           {strings.total(board.total)}
         </Text>
+        {board.params.sort ? (
+          // A non-default sort says so, as the desktop sort button's label does; it opens the sheet.
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${strings.sort}: ${sortLabel(board.params.sort, strings)}`}
+            onPress={() => setSheet({ kind: "filters" })}
+            testID="phone-sort-hint"
+            style={{
+              flexShrink: 1,
+              minHeight: 28,
+              marginLeft: 4,
+              paddingHorizontal: 10,
+              borderRadius: 14,
+              borderWidth: HAIRLINE,
+              borderColor: colors.border,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            <Icon name="ArrowUpDown" size={13} color={colors.foregroundMuted} />
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 13, fontWeight: "500", color: colors.foreground }}>
+              {sortLabel(board.params.sort, strings)}
+            </Text>
+          </Pressable>
+        ) : null}
         <View style={{ flex: 1 }} />
         <RoundButton
           icon="Search"
@@ -400,7 +428,7 @@ export function PhoneBoard(props: {
         ) : null}
       </View>
       <Modal title={strings.filters} open={sheet?.kind === "filters"} onOpenChange={(open) => !open && setSheet(null)}>
-        <Modal.Content contentContainerStyle={SHEET_BODY}>
+        <Modal.Content contentContainerStyle={SHEET_FILTER_BODY} scrollable={false}>
           {sheet?.kind === "filters" ? <FilterSheetBody board={board} theme={theme} options={options} onDone={() => setSheet(null)} /> : null}
         </Modal.Content>
       </Modal>
