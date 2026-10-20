@@ -225,7 +225,11 @@ export function PathText({
   const pressable = (
     <>
       <Pressable
-        accessibilityRole="button"
+        // A link, not a button: it sits inside a disclosure row's button and
+        // holds its own copy button, and React Native Web draws "button" as
+        // <button>, which may not nest ("button cannot contain a nested
+        // button", a hydration error on web).
+        accessibilityRole="link"
         accessibilityLabel={formatted.absolutePath}
         accessibilityHint={touchFirst || !reveal ? "Copies the path" : "Reveals the file"}
         onPress={onPress}
