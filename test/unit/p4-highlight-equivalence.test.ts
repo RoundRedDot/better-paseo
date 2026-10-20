@@ -9,6 +9,7 @@ interface Baseline {
   loaded: string[];
   resolver: Array<{ input: { language?: string; filename?: string }; language: string | null }>;
   cases: Array<{ name: string; input: { code: string }; output: Answer }>;
+  shiki: string;
 }
 const root = path.resolve(__dirname, "../..");
 const expected: Baseline = JSON.parse(readFileSync(path.join(root, "test/fixtures/p4-highlight/eager.json"), "utf8"));
@@ -23,6 +24,12 @@ beforeAll(() => {
 }, 30_000);
 
 describe("P4 current eager server equivalence baseline", () => {
+  it("runs against the Shiki release the baseline was frozen with (package-lock.json; reinstall with npm ci)", () => {
+    for (const name of ["core", "engine-javascript", "langs", "themes"]) {
+      const installed = JSON.parse(readFileSync(path.join(root, "node_modules/@shikijs", name, "package.json"), "utf8")).version;
+      expect(`@shikijs/${name}@${installed}`).toBe(`@shikijs/${name}@${expected.shiki}`);
+    }
+  });
   it("retains every loaded grammar name and alias", () => {
     expect(actual.loaded).toEqual(expected.loaded);
     expect(actual.resolver).toHaveLength(expected.resolver.length);
