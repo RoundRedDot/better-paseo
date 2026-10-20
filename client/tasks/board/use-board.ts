@@ -102,6 +102,28 @@ export function withStopReasons(lanes: Record<LaneId, LaneModel>, stopped: Reado
   return out;
 }
 
+/**
+ * This board's own stops plus the server's earlier ones that still hold: the
+ * card is known and has had no prompt since the stop (a new prompt means it
+ * ran again). Returns `own` itself while nothing is added.
+ */
+export function restoredStops(
+  own: ReadonlySet<string>,
+  restored: ReadonlyMap<string, string>,
+  byId: ReadonlyMap<string, TaskCard>,
+): ReadonlySet<string> {
+  let out: Set<string> | null = null;
+  for (const [agentId, stoppedAt] of restored) {
+    if (own.has(agentId)) continue;
+    const card = byId.get(agentId);
+    if (!card) continue;
+    const prompted = card.timing.lastUserMessageAt ? Date.parse(card.timing.lastUserMessageAt) : Number.NaN;
+    if (Number.isFinite(prompted) && prompted > Date.parse(stoppedAt)) continue;
+    (out ??= new Set(own)).add(agentId);
+  }
+  return out ?? own;
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -148,10 +170,11 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
     return card !== undefined && (card.lane === "running" || card.lane === "needs_input");
   }, []);
   const stop = useStopControl({ confirmStop: settings.board.confirmStop, isActive });
-  const { stoppedManually, noteRunning, reconcile } = stop;
+  const { stoppedManually, noteRunning, reconcile, restored } = stop;
+  const stoppedIds = useMemo(() => restoredStops(stoppedManually, restored, tasks.byId), [stoppedManually, restored, tasks.byId]);
   const filtered = useMemo(
-    () => filterLanes(withStopReasons(tasks.lanes, stoppedManually, strings.stoppedManually), filters),
-    [tasks.lanes, stoppedManually, strings.stoppedManually, filters],
+    () => filterLanes(withStopReasons(tasks.lanes, stoppedIds, strings.stoppedManually), filters),
+    [tasks.lanes, stoppedIds, strings.stoppedManually, filters],
   );
   // The order is taken when the sort or the cards change, never on a clock
   // tick, so a duration sort does not reshuffle every second.

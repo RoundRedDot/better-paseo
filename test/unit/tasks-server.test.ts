@@ -166,3 +166,18 @@ describe("Tasks server stop RPC", () => {
     expect(execCommand.mock.calls.every((call) => call[0] === cli)).toBe(true);
   });
 });
+
+describe("Tasks server stopped record", () => {
+  it("remembers successful stops with their time, newest last, and forgets nothing it did not stop", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    execCommand.mockImplementation(async (_cli: string, args: string[]) =>
+      args[2] === "agent-bad" ? Promise.reject(Object.assign(new Error("boom"), { code: 1 })) : { stdout: validJson, stderr: "" });
+    const handlers = await registerHandlers();
+    await expect(invoke(handlers, "tasks.stopped", {})).resolves.toEqual({ stops: [] });
+    await invoke(handlers, "tasks.stop", { agentIds: ["agent-a", "agent-bad", "agent-b"] });
+    await invoke(handlers, "tasks.stop", { agentIds: ["agent-a"] });
+    const { stops } = await invoke<{ stops: Array<{ agentId: string; stoppedAt: string }> }>(handlers, "tasks.stopped", {});
+    expect(stops.map((stop) => stop.agentId)).toEqual(["agent-b", "agent-a"]);
+    for (const stop of stops) expect(Number.isFinite(Date.parse(stop.stoppedAt))).toBe(true);
+  });
+});

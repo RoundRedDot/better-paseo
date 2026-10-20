@@ -3,10 +3,12 @@ import { access, stat } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { execCommand, type PluginServerContext } from "@getpaseo/plugin/server";
 import { TASKS_SETTINGS } from "../../shared/tasks-settings";
-import { tasksCapabilitiesRpc, tasksStopRpc } from "../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksStopRpc, tasksStoppedRpc } from "../../shared/tasks-rpc";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const STOP_TIMEOUT_MS = 10_000;
+/** The stops `tasks.stopped` remembers; the oldest go first. */
+const STOPS_KEPT = 500;
 
 type CliStopOutput = { stoppedCount: number; agentIds: string[] };
 
@@ -86,7 +88,17 @@ async function stopAgent(cli: string, agentId: string): Promise<{ ok: boolean; e
 
 /** The Tasks board's settings record and stop RPCs. */
 export function registerTasksServer(server: PluginServerContext): void {
+  // Agent id -> when it was stopped, in insertion order (a later stop moves it last).
+  const stops = new Map<string, string>();
+  const remember = (agentId: string) => {
+    stops.delete(agentId);
+    stops.set(agentId, new Date().toISOString());
+    while (stops.size > STOPS_KEPT) stops.delete(stops.keys().next().value as string);
+  };
   server.registerSettings(TASKS_SETTINGS);
+  server.handle(tasksStoppedRpc, async () => ({
+    stops: [...stops].map(([agentId, stoppedAt]) => ({ agentId, stoppedAt })),
+  }));
   server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCliPath()) !== null }));
   server.handle(tasksStopRpc, async ({ agentIds }) => {
     const cli = await resolveCliPath();
@@ -99,6 +111,7 @@ export function registerTasksServer(server: PluginServerContext): void {
       }
 
       const result = await stopAgent(cli, agentId);
+      if (result.ok) remember(agentId);
       results.push({ agentId, ...result });
     }
 

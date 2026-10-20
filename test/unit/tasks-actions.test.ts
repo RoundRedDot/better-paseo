@@ -16,13 +16,14 @@ import { createFakePaseo, makeAgent } from "./helpers/fake-paseo";
 const mocks = vi.hoisted(() => ({
   capabilities: vi.fn(),
   stop: vi.fn(),
+  stopped: vi.fn(),
   toastError: vi.fn(),
   language: vi.fn(() => "en" as const),
 }));
 
 vi.mock("@getpaseo/plugin/client", () => ({
   useRpc(contract: { name: string }) {
-    return contract.name === "tasks.capabilities" ? mocks.capabilities : mocks.stop;
+    return contract.name === "tasks.capabilities" ? mocks.capabilities : contract.name === "tasks.stopped" ? mocks.stopped : mocks.stop;
   },
 }));
 vi.mock("@getpaseo/plugin/client/react-native", () => ({
@@ -145,6 +146,7 @@ describe("Tasks stop control", () => {
     latestControl = undefined;
     mocks.capabilities.mockReset().mockResolvedValue({ stop: true });
     mocks.stop.mockReset().mockResolvedValue({ results: [] });
+    mocks.stopped.mockReset().mockResolvedValue({ stops: [] });
     mocks.toastError.mockReset();
     mocks.language.mockReturnValue("en");
     activeAgents.clear();
@@ -320,6 +322,16 @@ describe("Tasks stop control", () => {
     });
     expect(mocks.toastError).toHaveBeenCalledWith("Could not stop task: The stop request did not answer.");
     expect(mounted.control().phase("agent-a")).toBe("idle");
+  });
+
+  it("reads the server's earlier stops once, and survives a server without the RPC", async () => {
+    mocks.stopped.mockResolvedValue({ stops: [{ agentId: "agent-a", stoppedAt: "2026-10-20T10:00:00.000Z" }] });
+    const mounted = await mount(true);
+    expect(mocks.stopped).toHaveBeenCalledTimes(1);
+    expect([...mounted.control().restored]).toEqual([["agent-a", "2026-10-20T10:00:00.000Z"]]);
+    mocks.stopped.mockRejectedValue(new Error("Unknown RPC tasks.stopped"));
+    const old = await mount(true);
+    expect(old.control().restored.size).toBe(0);
   });
 
   it("surfaces per-agent and rejected RPC failures through the toast", async () => {
