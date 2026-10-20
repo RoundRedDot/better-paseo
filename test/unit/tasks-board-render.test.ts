@@ -171,8 +171,8 @@ describe("Tasks board, desktop", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false, { q: "ring", sub: "1" }));
     });
-    // "ring" matches the parent; its child is hidden as a subtask.
-    expect(cards().map((card) => card.props.card.id)).toEqual(["sample-running"]);
+    // "ring" matches the parent and its running child; hiding subtasks keeps active children.
+    expect(cards().map((card) => card.props.card.id)).toEqual(["sample-running", "sample-child-1"]);
     expect(lastBoardParams("host-1")).toMatchObject({ query: "ring", hideSubtasks: true });
     expect(textOf(renderer!.root)).toContain("Clear all");
   });
