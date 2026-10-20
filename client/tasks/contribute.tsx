@@ -2,7 +2,7 @@ import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { settingsRpc } from "@getpaseo/plugin";
 import { TASKS_SETTINGS, tasksSettingsSchema } from "../../shared/tasks-settings";
 import { TasksBoardScreen } from "./board/board-screen";
-import { setTasksEnabled, setTasksSettingsOpener, subscribeTasksEnabled, tasksEnabled } from "./board/enabled";
+import { setTasksEnabled, setTasksSettingsOpener, setTasksStartupRead, subscribeTasksEnabled, tasksEnabled } from "./board/enabled";
 import { encodeBoardParams, lastBoardParams } from "./board/params";
 import { TasksSidebarEntry } from "./board/sidebar-entry";
 import { BOARD_STRINGS } from "./board/strings";
@@ -92,14 +92,23 @@ export function contributeTasks(client: PluginClientContext): () => void {
 
   // One read at startup; afterwards the settings page and the board's own
   // settings readers keep the store in step.
+  // A board screen opened meanwhile (a link, a reload) waits for this one
+  // instead of reading again.
+  setTasksStartupRead("pending");
   void Promise.resolve()
     .then(() => client.rpc(settingsRpc(TASKS_SETTINGS.id).read, {}))
     .then((result) => {
-      if (!live || result?.status !== "ready" || tasksEnabled() !== null) return;
-      const parsed = tasksSettingsSchema.safeParse(result.values);
-      setTasksEnabled(parsed.success && parsed.data.enabled);
+      if (!live) return;
+      if (result?.status !== "ready") return setTasksStartupRead("failed");
+      if (tasksEnabled() === null) {
+        const parsed = tasksSettingsSchema.safeParse(result.values);
+        setTasksEnabled(parsed.success && parsed.data.enabled);
+      }
+      setTasksStartupRead("done");
     })
-    .catch(() => {});
+    .catch(() => {
+      if (live) setTasksStartupRead("failed");
+    });
 
   return () => {
     live = false;

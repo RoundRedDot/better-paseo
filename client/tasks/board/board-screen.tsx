@@ -6,7 +6,7 @@ import { useTasksLanguage } from "../i18n";
 import { HAIRLINE } from "./board-style";
 import { DesktopBoard } from "./desktop-board";
 import { MenuBoundsContext } from "./menu";
-import { tasksSettingsOpener, useTasksSettings } from "./enabled";
+import { tasksSettingsOpener, useTasksEnabledStore, useTasksSettings } from "./enabled";
 import { PhoneBoard } from "./phone-board";
 import { BOARD_STRINGS } from "./strings";
 import { useBoard, type BoardLayoutHandlers } from "./use-board";
@@ -19,14 +19,30 @@ import { useBoard, type BoardLayoutHandlers } from "./use-board";
  *
  * Always registered, so a reload, a restored tab or a link resolves before
  * the settings arrive (the host resolves the route once). It mounts only
- * when open: while the settings load it draws an empty page, while the
- * board is off it says so; neither subscribes to anything.
+ * when open. Off, it says so and how to turn it on, from what the startup
+ * read or the settings page already told the store: no read of its own.
+ * While the startup read is out it draws an empty page and waits for it;
+ * without one (or after it failed) it reads the settings itself.
  */
 export function TasksBoardScreen(props: PluginScreenProps) {
+  const store = useTasksEnabledStore();
+  // Off, as the startup read or the settings page said: say so, and read nothing more.
+  if (store.enabled === false) return <BoardOff {...props} />;
+  // The startup read is still out: wait for it rather than read a second time.
+  if (store.enabled === null && store.startupRead === "pending") return <BoardBlank {...props} />;
+  return <BoardReader {...props} />;
+}
+
+/** The settings, read (or shared with the board's own read when on), and followed. */
+function BoardReader(props: PluginScreenProps) {
   const settings = useTasksSettings();
-  if (!settings) return <View style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }} />;
+  if (!settings) return <BoardBlank {...props} />;
   if (!settings.enabled) return <BoardOff {...props} />;
   return <BoardContent {...props} />;
+}
+
+function BoardBlank(props: PluginScreenProps) {
+  return <View style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }} />;
 }
 
 function BoardContent(props: PluginScreenProps) {
