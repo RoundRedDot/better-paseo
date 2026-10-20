@@ -268,6 +268,7 @@ export function CardCell(props: CardCellProps) {
           now={board.now}
           language={board.language}
           animated={board.visible}
+          hostId={board.hostId}
           {...(props.callbacks ?? board.callbacks)}
         />
       </FadeOnMount>
