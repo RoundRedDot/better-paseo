@@ -1,6 +1,7 @@
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import React, { useCallback, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { usePaseo } from "@getpaseo/plugin/client";
+import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import {
   AgentCode, AgentDivider, AgentErrorLine, AgentIdentityStrip, AgentMarkdown, AgentNote, AgentSection,
   useCardMobile, useLiveAgent, type AgentField,
@@ -80,6 +81,57 @@ function PermissionList({ permissions, tokens }: { permissions: NonNullable<Pase
     description={request.description} tokens={tokens} />)}</View>;
 }
 
+type Decision = "allow" | "deny";
+
+/**
+ * Allow and Deny for a request the reader can still answer, through the same
+ * host call Paseo's own permission UI makes. Once answered the buttons give
+ * way to the decision; a request the agent no longer waits on shows none.
+ */
+export function PermissionActions({ agentId, requestId, tokens, mobile }: {
+  agentId: string; requestId: string; tokens: ExtendedThemeTokens; mobile: boolean;
+}) {
+  const paseo = usePaseo();
+  const toast = useToast();
+  const live = useLiveAgent(agentId);
+  const [state, setState] = useState<"idle" | "sending" | Decision>("idle");
+  const answer = useCallback((decision: Decision) => {
+    setState("sending");
+    // The payload Paseo's own permission UI sends.
+    const response = decision === "allow" ? { behavior: "allow" as const } : { behavior: "deny" as const, message: "Denied by user" };
+    paseo.agents.ref(agentId).respondToPermission({ requestId, response })
+      .then(() => setState(decision))
+      .catch((error: unknown) => {
+        setState("idle");
+        toast.error(error instanceof Error ? error.message : String(error));
+      });
+  }, [paseo, agentId, requestId, toast]);
+  if (state === "allow" || state === "deny") {
+    return <View testID="permission-answered" style={styles.answered}>
+      <Icon name={state === "allow" ? "ShieldCheck" : "ShieldX"} size={14} color={tokens.foregroundMuted} />
+      <Text style={[styles.answeredText, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+        {state === "allow" ? "Permission allowed - by you" : "Permission denied - by you"}</Text>
+    </View>;
+  }
+  // The host knows the agent and it has moved on: answered elsewhere, or closed.
+  if (live.status !== undefined && live.status !== "waiting") return null;
+  const height = mobile ? 36 : 26;
+  const busy = state === "sending";
+  return <View testID="permission-actions" style={styles.buttons}>
+    <Pressable testID="permission-allow" accessibilityRole="button" accessibilityLabel="Allow" disabled={busy}
+      onPress={() => answer("allow")} style={[styles.button, { height, backgroundColor: tokens.foreground, opacity: busy ? 0.6 : 1 }]}>
+      <Icon name="Check" size={12} color={tokens.v2.surface0} />
+      <Text style={[styles.buttonText, { color: tokens.v2.surface0, fontFamily: tokens.fontUi }]}>Allow</Text>
+    </Pressable>
+    <Pressable testID="permission-deny" accessibilityRole="button" accessibilityLabel="Deny" disabled={busy}
+      onPress={() => answer("deny")} style={[styles.button, { height, backgroundColor: tokens.v2.surface0, borderWidth: 1,
+        borderColor: tokens.border, opacity: busy ? 0.6 : 1 }]}>
+      <Icon name="X" size={12} color={tokens.foreground} />
+      <Text style={[styles.buttonText, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>Deny</Text>
+    </Pressable>
+  </View>;
+}
+
 /** One request: what it wants to run, for which agent, under which request ID. */
 export function PermissionRequest({ testID, title, agentId, requestId, description, command, tokens }: {
   testID?: string; title?: string; agentId?: string; requestId?: string; description?: string; command?: string;
@@ -150,4 +202,9 @@ const styles = StyleSheet.create({
   action: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 22, minWidth: 0 },
   actionTool: { fontSize: 12, lineHeight: 18, fontWeight: "500" },
   actionSummary: { flex: 1, minWidth: 0, fontSize: 12, lineHeight: 18 },
+  buttons: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  button: { flexDirection: "row", alignItems: "center", gap: space.xs, paddingHorizontal: 10, borderRadius: 6 },
+  buttonText: { fontSize: 12, lineHeight: 16, fontWeight: "500" },
+  answered: { flexDirection: "row", alignItems: "center", gap: 6 },
+  answeredText: { fontSize: 12, lineHeight: 18 },
 });

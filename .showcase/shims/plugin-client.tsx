@@ -3,7 +3,7 @@ import React from "react";
  * Host-injected client hooks, stubbed for the offline screenshot harness.
  * Only the shapes the presentational path touches are provided.
  */
-const AGENT_HANDLE = { refresh: async () => null };
+const AGENT_HANDLE = { refresh: async () => null, respondToPermission: async () => {} };
 // Enough of the Claude catalog for the create_agent card to label its model,
 // thinking level and permission mode the way the composer does.
 const PROVIDERS = {

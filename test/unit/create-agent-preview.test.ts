@@ -10,9 +10,14 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   return { Icon: rn.View, ScrollView: rn.ScrollView, TextInput: rn.TextInput,
     copyText: clipboard.copyText, useToast: () => ({ show: clipboard.show, error: clipboard.error }), useRevealedText: (text: string) => text };
 });
-const host = vi.hoisted(() => ({ cwd: null as string | null, providers: { listModels: vi.fn(), listModes: vi.fn() } }));
+const host = vi.hoisted(() => {
+  const respondToPermission = vi.fn(async (_options: unknown) => {});
+  return { cwd: null as string | null, agent: null as Record<string, unknown> | null, respondToPermission,
+    providers: { listModels: vi.fn(), listModes: vi.fn() }, agents: { ref: vi.fn((_id: string) => ({ respondToPermission })) } };
+});
 vi.mock("@getpaseo/plugin/client", () => ({
-  useAgent: (_id: string, select: (agent: { cwd: string }) => unknown) => host.cwd === null ? null : select({ cwd: host.cwd }),
+  useAgent: (_id: string, select: (agent: Record<string, unknown>) => unknown) =>
+    host.agent ? select(host.agent) : host.cwd === null ? null : select({ cwd: host.cwd }),
   useWorkspace: () => undefined,
   useRpc: () => () => Promise.resolve(null), usePaseo: () => host,
   useSettings: () => ({ status: "loading" }),
@@ -28,6 +33,7 @@ import { classifyTool } from "../../client/tools/classify";
 import { resetEnhancerPreferences } from "../../client/preferences";
 import { PreviewLines } from "../../client/ui/preview-lines";
 import { ToolCallout } from "../../client/components/tool-callouts";
+import { defaultToolExpanded } from "../../client/tools/disclosure";
 import { AGENT_STATUS_LABEL, AGENT_STATUS_ICON, type AgentStatus } from "../../client/tools/agent-status";
 import * as web from "../../client/web";
 import { PREVIEW_OPEN_MS } from "../../client/ui/hover-preview";
@@ -68,6 +74,7 @@ async function press(label: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   host.cwd = null;
+  host.agent = null;
   seedMarkBitmaps({ "provider:cursor": "data:image/png;base64,cursor", "lobe:grok": "data:image/png;base64,grok" });
 });
 afterEach(() => {
@@ -414,6 +421,55 @@ describe("agent status card presentation", () => {
     act(() => { renderer = TestRenderer.create(agentView(tokens, "Review", undefined, "cursor/grok-4.7", "")); });
     expect(textOf(renderer!.toJSON())).toContain("ID unavailable");
     expect(textOf(renderer!.toJSON())).not.toContain("running");
+  });
+});
+
+describe("needs-permission card", () => {
+  function permissionView() {
+    const text = `Agent ${agentId} (Builder) needs permission.\n\nRespond with \`respond_to_permission\` using the \`agentId\` and \`requestId\` below.\n\n` +
+      `<permission-request>\n${JSON.stringify({ agentId, requestId: "perm-7", request: { id: "perm-7", name: "Bash",
+        description: "Clear the screenshots", input: { command: "rm -rf out" } } }, null, 2)}\n</permission-request>`;
+    return classifyTool({ name: "agent_message", callId: "perm", status: "completed", detail: { type: "plain_text", text },
+      agentMessage: { event: "permission-required", sender: { id: agentId, title: "Builder" }, text } });
+  }
+
+  it("opens by default inside a warning border and shows the command, not the model-facing instruction", () => {
+    act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, {
+      data: permissionView(), tokens, defaultExpanded: defaultToolExpanded(permissionView(), "collapsed") })); });
+    const text = textOf(renderer!.toJSON());
+    expect(text).toContain("rm -rf out");
+    expect(text).toContain("perm-7");
+    expect(text).not.toContain("respond_to_permission");
+    expect(text).not.toContain("<permission-request>");
+  });
+
+  it("answers Allow through the host and then shows the decision", async () => {
+    host.agent = { status: "running", attentionReason: "permission" };
+    act(() => { renderer = TestRenderer.create(preview(permissionView())); });
+    const allow = renderer!.root.findByProps({ testID: "permission-allow" });
+    await act(async () => allow.props.onPress());
+    expect(host.agents.ref).toHaveBeenLastCalledWith(agentId);
+    expect(host.respondToPermission).toHaveBeenLastCalledWith({ requestId: "perm-7", response: { behavior: "allow" } });
+    expect(renderer!.root.findAllByProps({ testID: "permission-actions" })).toHaveLength(0);
+    expect(textOf(renderer!.toJSON())).toContain("Permission allowed - by you");
+  });
+
+  it("keeps the buttons after a failed answer and reports it", async () => {
+    host.agent = { status: "running", attentionReason: "permission" };
+    host.respondToPermission.mockRejectedValueOnce(new Error("request expired"));
+    act(() => { renderer = TestRenderer.create(preview(permissionView())); });
+    await act(async () => renderer!.root.findByProps({ testID: "permission-deny" }).props.onPress());
+    expect(host.respondToPermission).toHaveBeenLastCalledWith({ requestId: "perm-7",
+      response: { behavior: "deny", message: "Denied by user" } });
+    expect(clipboard.error).toHaveBeenLastCalledWith("request expired");
+    expect(renderer!.root.findByProps({ testID: "permission-actions" })).toBeDefined();
+  });
+
+  it("offers no buttons once the agent no longer waits", () => {
+    host.agent = { status: "running", attentionReason: null };
+    act(() => { renderer = TestRenderer.create(preview(permissionView())); });
+    expect(renderer!.root.findAllByProps({ testID: "permission-actions" })).toHaveLength(0);
+    expect(textOf(renderer!.toJSON())).toContain("rm -rf out");
   });
 });
 

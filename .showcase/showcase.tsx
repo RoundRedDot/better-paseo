@@ -1477,7 +1477,7 @@ function Showcase() {
       <Shot id="shot-tools-wide-dark" width={1100}>
         <ToolsNarrow tokens={v2Dark} />
       </Shot>
-      {([["dark", v2Dark, BASE.surface0], ["light", v2Light, LIGHT.surface0]] as const).map(([name, t, bg]) => (
+      {([["dark", v2Dark, DARK.surface0], ["light", v2Light, LIGHT.surface0]] as const).map(([name, t, bg]) => (
         <React.Fragment key={name}>
           <Shot id={`shot-agent-rows-${name}`} width={720} background={bg}><AgentRows tokens={t} /></Shot>
           <Shot id={`shot-agent-opened-${name}`} width={720} background={bg}><AgentOpened tokens={t} /></Shot>

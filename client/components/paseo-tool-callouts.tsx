@@ -11,7 +11,7 @@ import { useCopy } from "../ui/use-copy";
 import {
   AgentDivider, AgentErrorLine, AgentIdentityStrip, AgentMarkdown, AgentSection, useCardMobile, useLiveAgent, type AgentField,
 } from "./agent-card-content";
-import { SendAgentPromptView, AgentOperationView, PermissionRequest } from "./agent-operation-views";
+import { SendAgentPromptView, AgentOperationView, PermissionActions, PermissionRequest } from "./agent-operation-views";
 import { readPermissionRequest, type AgentStatusData } from "../tools/agent-status";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { ProviderLogo } from "./provider-logo";
@@ -132,6 +132,7 @@ export function AgentStatusView({ data, tokens, raw = false, compact = false }: 
     {errorLine ? <AgentErrorLine text={errorLine} tokens={tokens} /> : null}
     {permission ? <PermissionRequest testID="agent-status-permission" title={permission.title} requestId={permission.requestId}
       description={permission.description} command={permission.command} tokens={tokens} /> : null}
+    {permission?.requestId ? <PermissionActions agentId={data.agentId} requestId={permission.requestId} tokens={tokens} mobile={mobile} /> : null}
     {rest ? <AgentSection label={data.status === "finished" && !raw ? "Reply" : undefined} tokens={tokens}>
       <AgentMarkdown testID="agent-status-body" text={rest} tokens={tokens} raw={raw} mobile={mobile} /></AgentSection> : null}
   </View>;
