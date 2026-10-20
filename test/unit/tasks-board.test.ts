@@ -285,14 +285,19 @@ describe("board easing", () => {
 });
 
 describe("stopped manually", () => {
-  it("says so on a review card without its own error, keeping its identity", () => {
+  it("says so on a review or done card without its own error, keeping its identity", () => {
     const lanes = handle().lanes;
-    const stopped = new Set(["sample-unread", "sample-failed", "sample-running"]);
+    const stopped = new Set(["sample-unread", "sample-failed", "sample-running", "sample-done"]);
     const once = withStopReasons(lanes, stopped, "已手动停止");
     const unread = once.review.cards.find((card) => card.id === "sample-unread")!;
     expect(unread.error).toBe("已手动停止");
     expect(once.review.cards.find((card) => card.id === "sample-failed")!.error).toBe("Provider exited with code 1: rate limit reached");
     expect(once.running).toBe(lanes.running);
+    // The daemon idles a stopped agent without asking for attention: it lands in done.
+    const done = once.done.cards.find((card) => card.id === "sample-done")!;
+    expect(done.error).toBe("已手动停止");
+    expect(withStopReasons(lanes, stopped, "已手动停止").done.cards[0]).toBe(done);
+    expect(withStopReasons(lanes, new Set(["sample-running"]), "x")).toBe(lanes);
     expect(withStopReasons(lanes, stopped, "已手动停止").review.cards.find((card) => card.id === "sample-unread")).toBe(unread);
     expect(withStopReasons(lanes, new Set(), "x")).toBe(lanes);
   });
