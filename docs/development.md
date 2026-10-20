@@ -14,6 +14,8 @@ better-paseo/
   server/
     font-data.ts             # GENERATED subset woff2 faces (Inter), served by fonts.embedded
     mark-bitmaps.ts          # GENERATED PNG rasters of every brand mark, served by marks.bitmaps
+  assets/tool-marks/         # Line sources of the tool-row marks (MCP services, shell programs)
+  scripts/build-tool-marks.mjs # Rasterises assets/tool-marks into server/mark-bitmaps.ts
   client/
     live-renderers.tsx       # Timeline item to component mapping
     settings-page.tsx        # Settings screen; settings-preview.tsx draws its sample turn
@@ -27,6 +29,7 @@ better-paseo/
   docs/images/               # Screenshots used by the READMEs
   docs/perf/                 # Benchmark charts and the comparison page
   docs/bench/                # Benchmark methods, tools and raw runs
+  docs/design.md             # Design notes: the icon family, mark format and how to add a mark
 ```
 
 ## Commands
