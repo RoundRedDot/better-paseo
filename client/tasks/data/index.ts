@@ -260,6 +260,7 @@ function buildBaseCard(
     : { modelName: null, thinkingLabel: null };
   const modeLabel = agent.availableModes?.find((mode) => mode.id === agent.currentModeId)?.label ?? null;
   const projectId = workspace?.projectId ?? project?.projectId ?? null;
+  const projectKey = placement?.projectKey || project?.projectKey || null;
   const revision = project?.projectIconRevision ?? null;
   const projectIcon = icon?.revision === revision ? icon.uri : null;
   const hasGitState = workspace ? workspace.gitRuntime != null : placement?.checkout.isGit === true;
@@ -281,6 +282,7 @@ function buildBaseCard(
     modeLabel,
     location: {
       projectId,
+      projectKey,
       projectName,
       projectIcon,
       workspaceId: agent.workspaceId ?? workspace?.id ?? null,
@@ -827,8 +829,6 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   async function startProjects(run: number) {
-    const iconsApi = api.projects as PaseoApi["projects"] & OptionalProjectIconsApi;
-    if (typeof iconsApi.icon !== "function") return;
     const queued: Array<unknown> = [];
     let initialApplied = false;
     projectUnsubscribes.push(api.projects.subscribe((update) => {

@@ -40,6 +40,7 @@ export interface TaskLabel {
 
 export interface TaskLocation {
   projectId: string | null;
+  projectKey: string | null;
   projectName: string | null;
   /** A `data:` URI of the project's icon, or null for the letter avatar. */
   projectIcon: string | null;
