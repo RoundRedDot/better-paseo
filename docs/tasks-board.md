@@ -93,14 +93,11 @@
 
 ### 卡片
 
-卡片不截断信息：每条信息一行，以图标开头，过长时最多折成两行。列最小宽 320，四列放不下时看板横向滚动；列头可以折叠成 40px 竖条。
+卡片按组排版，组与组之间用留白分开；信息完整显示，放不下就折行（最多 2 行），不截断。列最小宽 320，四列放不下时看板横向滚动；列头可以折叠成 40px 竖条。
 
-1. 标题行：状态图标 + 标题 + 跳转按钮（运行中卡片悬停时还有「停止」）。
-2. agent 行：品牌标识 + agent 名称 + 模型 · 思考等级，如「Claude · Opus 5.5 · High」。
-3. 项目行：项目图标（没有时用首字母头像）+ 项目名。
-4. workspace 行：workspace 类型图标（`local_checkout` 用 Monitor，`worktree` 用 FolderGit2，其余用 Folder，与侧边栏一致）+ workspace 名；与项目名或任务标题相同时不显示。
-5. 分支行；文件夹单独一行，只在与项目名、workspace 名、分支名都不同时显示。
-6. 底部行：左边标签（最多 2 个，其余 +N），右边计时（运行中、待输入）或完成于多久前（待查看、已完成）。
+1. 头部组：状态图标 + 标题 + 跳转按钮（运行中卡片悬停时还有「停止」）；标题下方是灰色副标题「Claude · Opus 5.5 · High」，品牌标识缩小后内联在 agent 名前。
+2. 位置组：第一行「项目 › workspace」（项目头像缩小、无底色；workspace 与项目名或任务标题相同时只显示项目名）；第二行「分支 · 文件夹」（文件夹只在与项目名、workspace 名、分支名都不同时显示）。只有这一组的行首带图标；没有分支时行首改为 workspace 类型图标（`local_checkout` 用 Monitor，`worktree` 用 FolderGit2，其余用 Folder，与侧边栏一致）。
+3. 底部组：左边标签（最多 2 个，其余 +N），右边计时（运行中、待输入）或完成于多久前（待查看、已完成）。
 
 状态图标照搬 Paseo 侧边栏 workspace 行的官方指示器：运行中是转圈的环（中心圆点 + 90° 弧，900ms 一圈，所有环同步），等待输入是实心 `CircleAlert`，跑完未看是绿点，失败是红点，已完成是 30% 透明的灰点。列头、卡片标题、手机 tab、侧边栏计数和子任务清单都用同一组图标。
 
@@ -150,7 +147,7 @@
 | 上下文占用条 | `card.context` | 关 | 开 | 开 |
 | 子任务摘要 | `card.subtasks` | 关 | 开 | 开 |
 
-标题和跳转按钮始终显示，不提供开关。某一行的字段全部关掉时整行收起，不留空行；位置行收起但计时开着时，计时移到模型行最右侧。
+标题和跳转按钮始终显示，不提供开关。某一行的字段被关掉或没有数据时整行不显示，不留空行；位置组全空时整组收起；标签和计时都关掉时底部组收起。精简密度只留头部组和计时。
 
 ### 其他设置
 
@@ -206,7 +203,7 @@
 
 | 字段 | 来源 | 展示 | 精度 |
 | --- | --- | --- | --- |
-| 用的哪个 agent | `provider` | 品牌图标 + 名称（复用 `server/mark-bitmaps.ts` 的位图） | 准确 |
+| 用的哪个 agent | `provider` | 标题下副标题里的品牌图标 + 名称（复用 `server/mark-bitmaps.ts` 的位图） | 准确 |
 | 模型 | `model` → `providers.listModels` 的 `label` | 如「Opus 5.5」 | 准确 |
 | 思考等级 | `effectiveThinkingOptionId`，缺省用 `thinkingOptionId`，再缺省用模型的 `defaultThinkingOptionId` | 如「High」 | 准确 |
 | 模式 | `currentModeId` → `availableModes` 的名称 | 如「Plan」「Bypass」 | 准确 |
@@ -218,10 +215,10 @@
 | token 与费用 | `lastUsage` 的 input、output、`totalCostUsd` | 卡片详情里显示，不上卡片正面 | 取决于 provider |
 | 错误信息 | `lastError` | 失败卡片上的一行红字 | 准确 |
 | 项目 | 列表条目的 `project.projectName`；workspace 的 `projectDisplayName`；图标用 `paseo.projects.icon(projectId)` | 项目图标（没有时用首字母头像）+ 名称 | 准确；`projects.icon` 来自上游 PR [#7482](https://github.com/getpaseo/paseo/pull/7482)，合入前只能用首字母头像 |
-| workspace 名称 | 列表条目的 `project.workspaceName`；workspace 的 `title ?? name` | 位置行「项目 / workspace」 | 准确 |
-| 分支 | 列表条目的 `project.checkout.currentBranch`；workspace 的 `gitRuntime.currentBranch` | git 行，详情里加领先 / 落后和是否有未提交改动（`gitRuntime.aheadBehind`、`isDirty`） | 准确 |
-| 文件夹 | `cwd` 的最后一级；完整路径放详情 | git 行 | 准确 |
-| 标签 | workspace 的 `labels`（`paseo.workspaces.list`）只有名字；颜色用 `paseo.workspaces.listLabels({ subscribe: {} })` 的定义匹配 | git 行右侧的小 chip | 准确；`listLabels` 来自上游 PR [#7482](https://github.com/getpaseo/paseo/pull/7482)，合入前用中性色点 |
+| workspace 名称 | 列表条目的 `project.workspaceName`；workspace 的 `title ?? name` | 位置组第一行「项目 › workspace」 | 准确 |
+| 分支 | 列表条目的 `project.checkout.currentBranch`；workspace 的 `gitRuntime.currentBranch` | 位置组第二行；详情里加领先 / 落后和是否有未提交改动（`gitRuntime.aheadBehind`、`isDirty`） | 准确 |
+| 文件夹 | `cwd` 的最后一级；完整路径放详情 | 位置组第二行，接在分支后 | 准确 |
+| 标签 | workspace 的 `labels`（`paseo.workspaces.list`）只有名字；颜色用 `paseo.workspaces.listLabels({ subscribe: {} })` 的定义匹配 | 底部组左侧的小 chip | 准确；`listLabels` 来自上游 PR [#7482](https://github.com/getpaseo/paseo/pull/7482)，合入前用中性色点 |
 | 关联 PR | workspace 的 `githubRuntime.pullRequest` | 详情里显示「#编号 标题」 | 有 GitHub 集成时准确 |
 
 历史耗时和累计耗时要精确，只能在插件服务端监听 `agent.turn_started` 和 `agent.turn_ended` 自己记账，而且只能从插件装上那一刻开始算。放在后续版本。
