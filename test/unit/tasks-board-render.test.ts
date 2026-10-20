@@ -280,30 +280,40 @@ describe("Tasks board, sorting", () => {
     const pill = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false && textOf(node) === "Sort")[0]!;
     expect(StyleSheet.flatten(pill.props.style)).toMatchObject({ height: 28, borderRadius: 6, borderWidth: StyleSheet.hairlineWidth });
     act(() => pill.props.onPress());
-    const rows = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "radio" && textOf(node) !== "" && node.props.accessibilityState?.selected !== undefined);
-    const choices = rows.map((row) => textOf(row)).filter((label) => label.includes("→") || label.includes("first") || label === "Default order");
-    expect(choices[0]).toBe("Default order");
-    expect(choices).toContain("Title Z→A");
-    const titleDesc = rows.find((row) => textOf(row) === "Title Z→A")!;
-    act(() => titleDesc.props.onPress());
+    const menu = renderer!.root.find((node) => node.props.testID === "sort-menu");
+    const item = (label: string, within: ReactTestInstance = menu) =>
+      within.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).startsWith(label))[0]!;
+    // A field row opens its submenu on a click; the submenu holds the two directions.
+    act(() => item("Title").props.onPress());
+    const submenu = menu.find((node) => node.props.testID === "menu-submenu");
+    expect(submenu.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem").map(textOf)).toEqual(["A→Z", "Z→A"]);
+    act(() => item("Z→A", submenu).props.onPress());
+    expect(renderer!.root.findAll((node) => node.props.testID === "sort-menu")).toHaveLength(0);
     // Z to A: "Port the status ring" before "Measure the sidebar ring".
     expect(runningOrder()).toEqual(["sample-running", "sample-child-1"]);
     expect(lastBoardParams("host-1").sort).toEqual({ key: "title", direction: "desc" });
     expect(textOf(renderer!.root)).toContain("Title Z→A");
   });
 
-  it("offers the sort in the phone's filter sheet", () => {
+  it("drills into the sort in the phone's filter sheet", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     act(() => {
       renderer = TestRenderer.create(screen(true, { sort: "branch-desc" }));
     });
     act(() => pressable("Filters").props.onPress());
-    const sheet = renderer!.root.find((node) => (node.type as unknown) === "Modal");
-    const text = textOf(sheet);
-    expect(text).toContain("Sort");
-    expect(text).toContain("Branch Z→A");
-    const chip = sheet.findAll((node) => (node.type as unknown) === "Pressable" && textOf(node) === "Updated newest first")[0]!;
-    act(() => chip.props.onPress());
+    const sheet = () => renderer!.root.find((node) => (node.type as unknown) === "Modal");
+    const rows = (testID: string) =>
+      sheet().find((node) => node.props.testID === testID).findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem");
+    const fields = rows("sort-fields");
+    expect(fields.map(textOf)).toEqual(["Default order", "Workspace", "Project", "BranchZ→A", "Folder", "Title", "Created", "Updated", "Context", "Duration"]);
+    act(() => fields.find((row) => textOf(row) === "Updated")!.props.onPress());
+    const directions = rows("sort-directions");
+    expect(directions.map(textOf)).toEqual(["BackUpdated", "Newest first", "Oldest first"]);
+    // Back returns to the fields without choosing.
+    act(() => directions[0]!.props.onPress());
+    expect(lastBoardParams("host-1").sort).toEqual({ key: "branch", direction: "desc" });
+    act(() => rows("sort-fields").find((row) => textOf(row) === "Updated")!.props.onPress());
+    act(() => rows("sort-directions")[1]!.props.onPress());
     expect(lastBoardParams("host-1").sort).toEqual({ key: "updated", direction: "desc" });
   });
 });
@@ -375,8 +385,8 @@ describe("Tasks filter brand marks", () => {
     layOut(1600);
     const agentPill = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false && textOf(node) === "Agent")[0]!;
     act(() => agentPill.props.onPress());
-    // The menu's rows are checkboxes; the cards draw their own marks elsewhere.
-    const rows = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox");
+    // The menu's rows; the cards draw their own marks elsewhere.
+    const rows = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem");
     const marks = rows.flatMap((row) => row.findAllByType(BrandMark));
     expect(marks.map((mark) => [mark.props.provider, mark.props.size])).toEqual([
       ["claude", 16],

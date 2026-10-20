@@ -295,3 +295,13 @@ export function useFreshIds(ids: readonly string[], ready: boolean): ReadonlySet
   return fresh;
 }
 
+
+export function LetterAvatar({ name, theme, size = 14 }: { name: string; theme: PluginTheme; size?: number }) {
+  return (
+    <View
+      style={{ width: size, height: size, borderRadius: 3, borderWidth: GLYPH_LINE, borderColor: theme.colors.foregroundMuted, alignItems: "center", justifyContent: "center" }}
+    >
+      <Text style={{ fontSize: size - 6, fontWeight: "600", color: theme.colors.foregroundMuted }}>{(name.trim()[0] ?? "?").toUpperCase()}</Text>
+    </View>
+  );
+}

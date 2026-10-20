@@ -1,15 +1,15 @@
-import React, { type ReactNode } from "react";
+import React, { useState, type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { BrandMark, taskTokens } from "../cards";
-import { Checkbox, WindowSegments } from "./board-parts";
+import { Checkbox, LetterAvatar, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
-import { LetterAvatar } from "./filter-bar";
 import { clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
-import { SORT_CHOICES, encodeSort, sameSort } from "./sort";
-import { sortLabel } from "./strings";
+import { SORT_GROUPS, SORT_ICONS, sortDirectionIcon, sortDirections } from "./board-menus";
+import { sameSort, type BoardSort, type SortKey } from "./sort";
+import { sortOrderLabel } from "./strings";
 import type { BoardController } from "./use-board";
 
 /** The phone's filters (prototype 04 · 过滤 sheet), drawn inside the host's bottom sheet. */
@@ -94,20 +94,7 @@ export function FilterSheetBody(props: { board: BoardController; theme: PluginTh
         <Text style={{ paddingTop: 12, paddingBottom: 8, fontSize: 12, fontWeight: "500", color: colors.foregroundMuted }}>{strings.doneRange}</Text>
         <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
         <SectionTitle text={strings.sort} theme={theme} />
-        <ChipWrap>
-          {SORT_CHOICES.map((choice) => {
-            const id = encodeSort(choice) ?? "default";
-            return (
-              <Chip
-                key={id}
-                option={{ id, label: sortLabel(choice, strings), count: 0, on: sameSort(choice, board.params.sort) }}
-                theme={theme}
-                hideCount
-                onPress={() => setParams((p) => ({ ...p, sort: choice }))}
-              />
-            );
-          })}
-        </ChipWrap>
+        <SortDrillDown board={board} theme={theme} />
       </View>
       <View style={{ paddingTop: 12, paddingHorizontal: 16, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
         <Pressable
@@ -184,6 +171,83 @@ function ToggleRow(props: { icon: string; label: string; hint?: string; on: bool
         {props.hint ? <Text style={{ fontSize: 12, lineHeight: 16, color: colors.foregroundMuted }}>{props.hint}</Text> : null}
       </View>
       <Checkbox on={props.on} theme={props.theme} size={20} />
+    </Pressable>
+  );
+}
+
+/**
+ * The phone's sort: no hover, so the menu's two levels become a drill-down.
+ * The fields, grouped as on desktop, each with its active direction; a tap
+ * opens that field's two directions under a back row.
+ */
+function SortDrillDown({ board, theme }: { board: BoardController; theme: PluginTheme }) {
+  const [field, setField] = useState<SortKey | null>(null);
+  const colors = theme.colors;
+  const strings = board.strings;
+  const current = board.params.sort;
+  const choose = (sort: BoardSort | null) => {
+    board.setParams((p) => ({ ...p, sort }));
+    setField(null);
+  };
+  const rule = <View style={{ height: HAIRLINE, marginVertical: 4, backgroundColor: colors.border }} />;
+  if (field) {
+    return (
+      <View testID="sort-directions">
+        <SortRow icon="ChevronLeft" label={strings.back} hint={strings.sortKeys[field]} theme={theme} onPress={() => setField(null)} />
+        {rule}
+        {sortDirections(field).map((direction) => {
+          const sort: BoardSort = { key: field, direction };
+          return (
+            <SortRow
+              key={direction}
+              icon={sortDirectionIcon(field, direction)}
+              label={sortOrderLabel(sort, strings)}
+              checked={sameSort(sort, current)}
+              theme={theme}
+              onPress={() => choose(sort)}
+            />
+          );
+        })}
+      </View>
+    );
+  }
+  return (
+    <View testID="sort-fields">
+      <SortRow icon={SORT_ICONS.default} label={strings.sortDefault} checked={current === null} theme={theme} onPress={() => choose(null)} />
+      {SORT_GROUPS.map((keys) => (
+        <View key={keys.join()}>
+          {rule}
+          {keys.map((key) => (
+            <SortRow
+              key={key}
+              icon={SORT_ICONS[key]}
+              label={strings.sortKeys[key]}
+              hint={current?.key === key ? sortOrderLabel(current, strings) : undefined}
+              drills
+              theme={theme}
+              onPress={() => setField(key)}
+            />
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function SortRow(props: { icon: string; label: string; hint?: string; checked?: boolean; drills?: boolean; theme: PluginTheme; onPress(): void }) {
+  const colors = props.theme.colors;
+  return (
+    <Pressable
+      accessibilityRole="menuitem"
+      accessibilityState={{ checked: props.checked }}
+      onPress={props.onPress}
+      style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 12 }}
+    >
+      <Icon name={props.icon} size={18} color={colors.foregroundMuted} />
+      <Text style={{ flex: 1, fontSize: 15, color: colors.foreground }}>{props.label}</Text>
+      {props.hint ? <Text style={{ fontSize: 14, color: colors.foregroundMuted }}>{props.hint}</Text> : null}
+      {props.checked ? <Icon name="Check" size={18} color={colors.accent} /> : null}
+      {props.drills ? <Icon name="ChevronRight" size={16} color={colors.foregroundMuted} /> : null}
     </Pressable>
   );
 }

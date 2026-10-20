@@ -60,6 +60,7 @@ const en = {
   closeMenu: "Close menu",
   sort: "Sort",
   sortDefault: "Default order",
+  back: "Back",
   sortKeys: {
     workspace: "Workspace",
     project: "Project",
@@ -75,7 +76,7 @@ const en = {
     name: { asc: "A\u2192Z", desc: "Z\u2192A" },
     time: { asc: "oldest first", desc: "newest first" },
     amount: { asc: "low\u2192high", desc: "high\u2192low" },
-    length: { asc: "short\u2192long", desc: "long\u2192short" },
+    length: { asc: "shortest first", desc: "longest first" },
   } as Record<"name" | "time" | "amount" | "length", Record<SortDirection, string>>,
   sortedAmong: (count: number) => `Sorted among the ${count} loaded`,
   boardOff: "The Tasks board is off",
@@ -137,6 +138,7 @@ const zh: typeof en = {
   closeMenu: "关闭菜单",
   sort: "排序",
   sortDefault: "默认顺序",
+  back: "返回",
   sortKeys: {
     workspace: "Workspace",
     project: "项目",
@@ -146,7 +148,7 @@ const zh: typeof en = {
     created: "创建时间",
     updated: "更新时间",
     context: "上下文占用",
-    duration: "时长",
+    duration: "耗时",
   },
   sortOrders: {
     name: { asc: "A\u2192Z", desc: "Z\u2192A" },
@@ -173,15 +175,21 @@ export const LANE_EMPTY_ICON: Readonly<Record<LaneId, string>> = {
   done: "Archive",
 };
 
-/** A sort as its menu and pill read it: "Branch A\u2192Z", "Updated newest first"; the default order when none. */
+/** Which wording a key's two directions take. */
+export function sortOrderKind(key: SortKey): "name" | "time" | "amount" | "length" {
+  if (NAME_KEYS.has(key)) return "name";
+  if (key === "created" || key === "updated") return "time";
+  return key === "context" ? "amount" : "length";
+}
+
+/** A direction on its own, as a submenu row reads it: "A\u2192Z", "Newest first", "\u9ad8\u2192\u4f4e". */
+export function sortOrderLabel(sort: BoardSort, strings: BoardStrings): string {
+  const order = strings.sortOrders[sortOrderKind(sort.key)][sort.direction];
+  return order.charAt(0).toUpperCase() + order.slice(1);
+}
+
+/** A sort as the pill reads it: "Branch A\u2192Z", "Updated newest first"; the default order when none. */
 export function sortLabel(sort: BoardSort | null, strings: BoardStrings): string {
   if (!sort) return strings.sortDefault;
-  const kind = NAME_KEYS.has(sort.key)
-    ? "name"
-    : sort.key === "created" || sort.key === "updated"
-      ? "time"
-      : sort.key === "context"
-        ? "amount"
-        : "length";
-  return `${strings.sortKeys[sort.key]} ${strings.sortOrders[kind][sort.direction]}`;
+  return `${strings.sortKeys[sort.key]} ${strings.sortOrders[sortOrderKind(sort.key)][sort.direction]}`;
 }
