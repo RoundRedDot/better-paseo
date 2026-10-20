@@ -61,6 +61,17 @@ export interface TaskCardViewProps extends CardCallbacks {
 const WEB = Platform.OS === "web";
 /** No hover: the stop button and the subtask jump buttons stay visible. */
 const TOUCH = !WEB;
+/**
+ * The card and a subtask row hold buttons of their own, so on web they must not
+ * be buttons: React Native Web draws `role="button"` as a `<button>`, and a
+ * `<button>` inside another is invalid HTML (React reports it, and Paseo shows
+ * the error badge). As a `group` the Pressable is a focusable `<div>`: a click
+ * on the body presses it, Enter on it while focused presses it (RNW's
+ * PressResponder), and an inner button's click and keydown stop propagating
+ * before they reach it. Native has no such nesting rule, and the responder
+ * system gives a touch to the innermost Pressable, so it keeps the button role.
+ */
+const CONTAINER_ROLE = WEB ? ({ role: "group" } as const) : ({ accessibilityRole: "button" } as const);
 const DETAILS_DELAY_MS = 450;
 const TOOLTIP_DELAY_MS = 400;
 const NBSP = "\u00a0";
@@ -669,7 +680,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
 
   return (
     <Pressable
-      accessibilityRole="button"
+      {...CONTAINER_ROLE}
       accessibilityLabel={card.title}
       onPress={props.onOpen ? () => props.onOpen?.(card.id) : undefined}
       onLongPress={props.onDetails && (compact || TOUCH) ? () => props.onDetails?.(card) : undefined}
@@ -1019,7 +1030,7 @@ function SubtaskRow(props: {
   const size = compact ? 32 : 22;
   return (
     <Pressable
-      accessibilityRole="button"
+      {...CONTAINER_ROLE}
       accessibilityLabel={child.title}
       onPress={() => props.onReveal(child.id)}
       {...hoverProps}
