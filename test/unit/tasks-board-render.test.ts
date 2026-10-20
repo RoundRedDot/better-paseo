@@ -251,6 +251,63 @@ describe("Tasks board, desktop", () => {
   });
 });
 
+describe("Tasks board, sorting", () => {
+  beforeEach(() => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+  });
+  const runningOrder = () => cards().filter((card) => card.props.card.lane === "running").map((card) => card.props.card.id);
+
+  it("applies the sort from the params and notes the done lane's loaded pages", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false, { sort: "title-asc" }));
+    });
+    layOut(1600);
+    // "Measure the sidebar ring" before "Port the status ring": the default order is the other way round.
+    expect(runningOrder()).toEqual(["sample-child-1", "sample-running"]);
+    const text = textOf(renderer!.root);
+    expect(text).toContain("Title A→Z");
+    expect(text).toContain("Sorted among the 1 loaded");
+    expect(text).not.toContain("Showing 1");
+  });
+
+  it("picks a sort from the dropdown, keeps it for the session, and counts the done lane plainly by default", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(1600);
+    expect(runningOrder()).toEqual(["sample-running", "sample-child-1"]);
+    expect(textOf(renderer!.root)).toContain("Showing 1");
+    const pill = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false && textOf(node) === "Sort")[0]!;
+    expect(StyleSheet.flatten(pill.props.style)).toMatchObject({ height: 28, borderRadius: 6, borderWidth: StyleSheet.hairlineWidth });
+    act(() => pill.props.onPress());
+    const rows = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "radio" && textOf(node) !== "" && node.props.accessibilityState?.selected !== undefined);
+    const choices = rows.map((row) => textOf(row)).filter((label) => label.includes("→") || label.includes("first") || label === "Default order");
+    expect(choices[0]).toBe("Default order");
+    expect(choices).toContain("Title Z→A");
+    const titleDesc = rows.find((row) => textOf(row) === "Title Z→A")!;
+    act(() => titleDesc.props.onPress());
+    // Z to A: "Port the status ring" before "Measure the sidebar ring".
+    expect(runningOrder()).toEqual(["sample-running", "sample-child-1"]);
+    expect(lastBoardParams("host-1").sort).toEqual({ key: "title", direction: "desc" });
+    expect(textOf(renderer!.root)).toContain("Title Z→A");
+  });
+
+  it("offers the sort in the phone's filter sheet", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    act(() => {
+      renderer = TestRenderer.create(screen(true, { sort: "branch-desc" }));
+    });
+    act(() => pressable("Filters").props.onPress());
+    const sheet = renderer!.root.find((node) => (node.type as unknown) === "Modal");
+    const text = textOf(sheet);
+    expect(text).toContain("Sort");
+    expect(text).toContain("Branch Z→A");
+    const chip = sheet.findAll((node) => (node.type as unknown) === "Pressable" && textOf(node) === "Updated newest first")[0]!;
+    act(() => chip.props.onPress());
+    expect(lastBoardParams("host-1").sort).toEqual({ key: "updated", direction: "desc" });
+  });
+});
+
 describe("Tasks board, lane widths", () => {
   beforeEach(() => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";

@@ -1,5 +1,6 @@
 import type { DoneWindow } from "../../../shared/tasks-settings";
 import type { LaneId } from "../model";
+import { NAME_KEYS, type BoardSort, type SortDirection, type SortKey } from "./sort";
 import type { TasksLanguage } from "../i18n";
 
 /** The board's own words; Chinese follows the prototype. */
@@ -57,6 +58,26 @@ const en = {
   details: "Details",
   stoppedManually: "Stopped manually",
   closeMenu: "Close menu",
+  sort: "Sort",
+  sortDefault: "Default order",
+  sortKeys: {
+    workspace: "Workspace",
+    project: "Project",
+    branch: "Branch",
+    folder: "Folder",
+    title: "Title",
+    created: "Created",
+    updated: "Updated",
+    context: "Context",
+    duration: "Duration",
+  } as Record<SortKey, string>,
+  sortOrders: {
+    name: { asc: "A\u2192Z", desc: "Z\u2192A" },
+    time: { asc: "oldest first", desc: "newest first" },
+    amount: { asc: "low\u2192high", desc: "high\u2192low" },
+    length: { asc: "short\u2192long", desc: "long\u2192short" },
+  } as Record<"name" | "time" | "amount" | "length", Record<SortDirection, string>>,
+  sortedAmong: (count: number) => `Sorted among the ${count} loaded`,
   boardOff: "The Tasks board is off",
   boardOffHint: "Turn it on in Settings > Tasks to see your agents by status here.",
   openSettings: "Open settings",
@@ -114,6 +135,26 @@ const zh: typeof en = {
   details: "详情",
   stoppedManually: "已手动停止",
   closeMenu: "关闭菜单",
+  sort: "排序",
+  sortDefault: "默认顺序",
+  sortKeys: {
+    workspace: "Workspace",
+    project: "项目",
+    branch: "分支",
+    folder: "文件夹",
+    title: "标题",
+    created: "创建时间",
+    updated: "更新时间",
+    context: "上下文占用",
+    duration: "时长",
+  },
+  sortOrders: {
+    name: { asc: "A\u2192Z", desc: "Z\u2192A" },
+    time: { asc: "最早在前", desc: "最新在前" },
+    amount: { asc: "低\u2192高", desc: "高\u2192低" },
+    length: { asc: "短\u2192长", desc: "长\u2192短" },
+  },
+  sortedAmong: (count) => `仅对已加载的 ${count} 条排序`,
   boardOff: "任务面板未启用",
   boardOffHint: "在 设置 > 任务 中开启后，这里会按状态显示你的 agent。",
   openSettings: "打开设置",
@@ -131,3 +172,16 @@ export const LANE_EMPTY_ICON: Readonly<Record<LaneId, string>> = {
   review: "Inbox",
   done: "Archive",
 };
+
+/** A sort as its menu and pill read it: "Branch A\u2192Z", "Updated newest first"; the default order when none. */
+export function sortLabel(sort: BoardSort | null, strings: BoardStrings): string {
+  if (!sort) return strings.sortDefault;
+  const kind = NAME_KEYS.has(sort.key)
+    ? "name"
+    : sort.key === "created" || sort.key === "updated"
+      ? "time"
+      : sort.key === "context"
+        ? "amount"
+        : "length";
+  return `${strings.sortKeys[sort.key]} ${strings.sortOrders[kind][sort.direction]}`;
+}
