@@ -147,12 +147,25 @@ function textOf(node: ReactTestInstance | string): string {
   return node.children.map(textOf).join("");
 }
 
-/** The desktop lanes wait for the board's width; this lays every View out at `width`. */
+/**
+ * The desktop lanes wait for their width, and the board picks its layout by
+ * it; this lays every View out at `width`, again while that mounts Views
+ * that wait for one.
+ */
 function layOut(width: number) {
-  const views = renderer!.root.findAll((node) => (node.type as unknown) === "View" && typeof node.props.onLayout === "function");
-  act(() => {
-    for (const view of views) view.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 800 } } });
-  });
+  const laidOut = new Set<unknown>();
+  for (let pass = 0; pass < 4; pass++) {
+    const views = renderer!.root.findAll(
+      (node) => (node.type as unknown) === "View" && typeof node.props.onLayout === "function" && !laidOut.has(node.props.onLayout),
+    );
+    if (views.length === 0) return;
+    act(() => {
+      for (const view of views) {
+        laidOut.add(view.props.onLayout);
+        view.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 800 } } });
+      }
+    });
+  }
 }
 
 function lanesScroll(): ReactTestInstance {
@@ -478,6 +491,27 @@ describe("Tasks board, lane widths", () => {
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: false, contentContainerStyle: { width: 2000 } });
     layOut(900);
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 300 * 4 } });
+  });
+
+  it("narrows the lanes to keep two in view, and draws the phone layout on a wide host below that", () => {
+    const tabs = () => renderer!.root.findAllByProps({ testID: "lane-underline" });
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    // A tablet with the sidebar open: two lanes of 224 side by side, the rest scrolled to.
+    layOut(480);
+    expect(tabs()).toHaveLength(0);
+    // No room for the key hints beside the count and the search.
+    expect(textOf(renderer!.root)).not.toContain("Lane");
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 224 * 4 } });
+    layOut(460);
+    expect(tabs().length).toBeGreaterThan(0);
+    expect(cards()[0]!.props.compact).toBe(true);
+    expect(textOf(renderer!.root)).not.toContain("Workspace");
+    layOut(1600);
+    expect(tabs()).toHaveLength(0);
+    expect(textOf(renderer!.root)).toContain("Lane");
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: false, contentContainerStyle: { width: 1600 } });
   });
 });
 

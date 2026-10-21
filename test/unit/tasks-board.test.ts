@@ -29,6 +29,8 @@ import {
   tabUnderline,
   tabsOverflow,
   LANES,
+  LANES_MIN_BOARD,
+  boardIsCompact,
   laneLayout,
   popoverPlacement,
   type LaneShape,
@@ -391,8 +393,20 @@ describe("lane widths", () => {
     expect(layout).toEqual({ laneWidth: LANES.min, contentWidth: fixed(4, 0) + 4 * LANES.min, scroll: true });
     // Exactly the minimum still fits.
     expect(laneLayout(fixed(4, 0) + 4 * LANES.min, 4, 0).scroll).toBe(false);
-    // A card stays at least 280 wide: the panel pads 8 on each side.
+    // A card stays at least 280 wide while two lanes fit at 300: the panel pads 8 on each side.
     expect(LANES.min - 16).toBeGreaterThanOrEqual(280);
+  });
+
+  it("narrows the scrolled lanes to keep two in view, down to LANES.narrow", () => {
+    // A tablet with the sidebar open: two lanes of 224.
+    expect(laneLayout(480, 4, 0)).toEqual({ laneWidth: 224, contentWidth: fixed(4, 0) + 4 * 224, scroll: true });
+    // Wide enough for two at 300: 300, as before.
+    expect(laneLayout(632, 4, 0).laneWidth).toBe(LANES.min);
+    expect(laneLayout(LANES_MIN_BOARD, 4, 0).laneWidth).toBe(LANES.narrow);
+    expect(laneLayout(400, 4, 0).laneWidth).toBe(LANES.narrow);
+    // Two expanded lanes that fit at the narrowed width share the board without scrolling.
+    expect(laneLayout(480, 2, 0)).toEqual({ laneWidth: 224, contentWidth: 480, scroll: false });
+    expect(LANES.narrow - 16).toBeGreaterThanOrEqual(200);
   });
 
   it("gives collapsed lanes 40 and the rest to the expanded ones", () => {
@@ -403,6 +417,17 @@ describe("lane widths", () => {
     expect(two).toEqual({ laneWidth: LANES.min, contentWidth: fixed(4, 2) + 2 * LANES.min, scroll: true });
     expect(laneLayout(1000, 2, 2).laneWidth).toBeCloseTo((1000 - fixed(4, 2)) / 2);
     expect(laneLayout(1000, 0, 4)).toEqual({ laneWidth: 0, contentWidth: 1000, scroll: false });
+  });
+});
+
+describe("compact board", () => {
+  it("draws the phone layout on a compact host, or a board too narrow for two lanes at their minimum", () => {
+    expect(LANES_MIN_BOARD).toBe(2 * LANES.edge + LANES.gap + 2 * LANES.narrow);
+    expect(boardIsCompact(true, 2000)).toBe(true);
+    expect(boardIsCompact(false, LANES_MIN_BOARD - 1)).toBe(true);
+    expect(boardIsCompact(false, LANES_MIN_BOARD)).toBe(false);
+    // Not measured yet: the host decides.
+    expect(boardIsCompact(false, 0)).toBe(false);
   });
 });
 

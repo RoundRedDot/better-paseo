@@ -14,19 +14,24 @@ import type { BoardController } from "./use-board";
 
 export type FilterMenu = "workspace" | "agent" | "label" | "sort";
 
+/** The narrowest board whose toolbar shows the key hints beside the count and the search. */
+export const KEY_HINTS_MIN_WIDTH = 760;
+
 /**
  * The desktop board's two bars (prototype 01): the count, key hints and
  * search, then the filters, the applied-filter chips and the done window.
+ * A narrow board (a tablet with the sidebar open) drops the key hints, so
+ * the count keeps its line and the search shrinks before it does.
  */
-export function DesktopToolbar(props: { board: BoardController; theme: PluginTheme; searchRef: Ref<NativeTextInput> }) {
+export function DesktopToolbar(props: { board: BoardController; theme: PluginTheme; searchRef: Ref<NativeTextInput>; keyHints: boolean }) {
   const { board, theme } = props;
   const colors = theme.colors;
   const strings = board.strings;
   return (
     <View style={{ height: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
-      <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>{strings.total(board.total)}</Text>
+      <Text numberOfLines={1} style={{ flexShrink: 0, fontSize: 14, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>{strings.total(board.total)}</Text>
       <View style={{ flex: 1 }} />
-      {Platform.OS === "web" ? (
+      {Platform.OS === "web" && props.keyHints ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           <KeyCap label="J" theme={theme} />
           <KeyCap label="K" theme={theme} />
@@ -44,6 +49,8 @@ export function DesktopToolbar(props: { board: BoardController; theme: PluginThe
         style={{
           height: 28,
           width: 220,
+          flexShrink: 1,
+          minWidth: 140,
           marginLeft: 8,
           flexDirection: "row",
           alignItems: "center",
