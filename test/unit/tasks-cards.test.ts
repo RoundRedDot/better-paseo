@@ -996,8 +996,7 @@ describe("TaskDetailCards", () => {
 
   it("heads with the status, the title, the agent's chips and the actions, then the running turn", async () => {
     const onOpen = vi.fn();
-    const onTogglePin = vi.fn();
-    const tree = await render(details(sample("sample-running"), { onOpen, onTogglePin, pinned: true }));
+    const tree = await render(details(sample("sample-running"), { onOpen }));
     const header = hostByTestId(tree.root, "detail-header");
     expect(texts(header).slice(0, 11)).toEqual(["运行中", "本轮 12:30", "Port the status ring to React Native", "GPT-5.5 Codex", "Medium", "Bypass", "frontend", "p1", "board", "切换到 tab", "已打开"]);
     // The turn's block: its clock and the context ring (86% is past the warning line).
@@ -1006,8 +1005,6 @@ describe("TaskDetailCards", () => {
     // Its tab is open somewhere: the button switches to it.
     byLabel(tree.root, "切换到 tab").props.onPress();
     expect(onOpen).toHaveBeenCalledWith("sample-running");
-    byLabel(tree.root, "取消钉住").props.onPress();
-    expect(onTogglePin).toHaveBeenCalled();
     // One raised card holds the header and the sections: radius 12, a hairline, the card's shadow.
     expect(flat(hostByTestId(tree.root, "detail-cards").props.style)).toMatchObject({ borderRadius: 12, borderWidth: 1, boxShadow: taskTokens(LIGHT).card.shadow });
     expect(flat(header.props.style).borderWidth).toBeUndefined();

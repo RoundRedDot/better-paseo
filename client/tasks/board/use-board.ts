@@ -73,7 +73,6 @@ export const NOTICE_MS = 4000;
 export interface BoardLayoutHandlers {
   reveal(agentId: string): void;
   details(card: TaskCard): void;
-  detailsEnd?(agentId: string): void;
 }
 
 const NO_BUTTONS: PermissionButton[] = [];
@@ -276,7 +275,6 @@ export function useBoard(
         );
       },
       onDetails: (card) => handlers.current?.details(card),
-      onDetailsEnd: (agentId) => handlers.current?.detailsEnd?.(agentId),
     }),
     [hasNavigation, stopAvailable, open, handlers],
   );
