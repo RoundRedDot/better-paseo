@@ -3,7 +3,10 @@ import { Platform } from "react-native";
 /**
  * The desktop board's details sidebar (`docs/prototypes/task-details-sidebar.md`):
  * a column of Linear-style cards at the board's right, inline on a wide board
- * and floating over its right side on a narrow one.
+ * and floating over its right side on a narrow one. A board narrower still
+ * (a tablet or foldable with the host's sidebar open) has no room beside its
+ * lanes at all: there the details rise from the bottom as a sheet
+ * (`docs/prototypes/task-board-pad.md`).
  */
 export const SIDEBAR = {
   /** The width it opens at, and where a double click on its edge puts it back. */
@@ -15,19 +18,48 @@ export const SIDEBAR = {
   /** Inline from this board width; floating below `floatBelow`; between the two it keeps its mode. */
   inlineFrom: 1020,
   floatBelow: 996,
+  /** Floating from this width; a bottom sheet below `sheetBelow`; between the two it keeps its mode. */
+  floatFrom: 784,
+  sheetBelow: 760,
   /** What an inline sidebar leaves the lanes at least: two lanes at their scroll width and the edges. */
   lanesMin: 612,
   /** At most this many cards to go back through. */
   history: 20,
 } as const;
 
-export type SidebarMode = "inline" | "floating";
+export type SidebarMode = "inline" | "floating" | "sheet";
 
-/** Inline or floating for a board this wide, keeping the current mode inside the 24 px band. */
+/** Inline, floating or a bottom sheet for a board this wide, keeping the current mode inside each 24 px band. */
 export function sidebarMode(boardWidth: number, current: SidebarMode | null): SidebarMode {
   if (boardWidth >= SIDEBAR.inlineFrom) return "inline";
-  if (boardWidth < SIDEBAR.floatBelow) return "floating";
-  return current ?? "inline";
+  if (boardWidth >= SIDEBAR.floatBelow) return current === null || current === "inline" ? "inline" : "floating";
+  if (boardWidth >= SIDEBAR.floatFrom) return "floating";
+  if (boardWidth >= SIDEBAR.sheetBelow) return current === "sheet" ? "sheet" : "floating";
+  return "sheet";
+}
+
+/** The bottom sheet's two heights in the lanes' area: half leaves the lanes' top in view, full leaves a strip to drag it back down by. */
+export const SHEET = {
+  half: 0.58,
+  /** The lanes the full sheet leaves showing. */
+  fullGap: 8,
+  /** A drag past this far, or a flick past `flick` px/ms, moves to the next height. */
+  distance: 64,
+  flick: 0.5,
+} as const;
+
+export type SheetDetent = "half" | "full";
+
+export function sheetHeight(area: number, detent: SheetDetent): number {
+  return Math.max(0, detent === "full" ? area - SHEET.fullGap : Math.round(area * SHEET.half));
+}
+
+/** Where a drag on the sheet's handle leaves it: `dy` down is positive, `vy` in px/ms. Down from half closes it. */
+export function sheetRelease(detent: SheetDetent, dy: number, vy: number): SheetDetent | "closed" {
+  const down = dy > SHEET.distance || vy > SHEET.flick;
+  const up = dy < -SHEET.distance || vy < -SHEET.flick;
+  if (detent === "half") return down ? "closed" : up ? "full" : "half";
+  return down ? "half" : "full";
 }
 
 /** The sidebar's width: the user's, made narrower (down to the minimum) when an inline one would squeeze the lanes. */
