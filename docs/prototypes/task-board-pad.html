@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>看板 · 小尺寸平板（画板 7、8 + 规格）</title>
+<style>
+  :root { --page-bg: #efeee9; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page-bg); color: #18181b; font: 14px/1.45 -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+  .doc { padding: 40px 48px 80px; max-width: 2400px; }
+  .doc > h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .doc > p.lead { margin: 0 0 8px; color: #52525b; max-width: 1100px; }
+  .kicker { font-size: 12px; color: #71717a; margin-bottom: 2px; }
+  section.boardsec { margin-top: 48px; }
+  section.boardsec > h2 { font-size: 22px; margin: 0 0 4px; }
+  section.boardsec > p { margin: 0 0 20px; color: #52525b; max-width: 1200px; }
+  .frames { display: flex; flex-wrap: wrap; gap: 36px 32px; align-items: flex-start; }
+  .frame h3 { font-size: 14px; margin: 0 0 2px; }
+  .frame .cap { font-size: 12px; color: #52525b; margin: 0 0 10px; max-width: var(--capw, 520px); }
+  .scaler { position: relative; }
+  .scaler > .device { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+
+  /* ---------- device ---------- */
+  .device { border-radius: 28px; border: 10px solid #1c1c1f; background: #1c1c1f; overflow: hidden; box-shadow: 0 30px 60px -30px rgba(0,0,0,.35); }
+  .screen { position: relative; overflow: hidden; border-radius: 18px; display: flex; flex-direction: column; background: var(--s0); color: var(--fg); }
+  .statusbar { height: 28px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; font-size: 13px; font-weight: 600; background: var(--host); }
+  .statusbar .icons { display: flex; gap: 6px; align-items: center; font-size: 11px; }
+  .hostrow { flex: 1; min-height: 0; display: flex; }
+  .hostside { flex: none; background: var(--host); border-right: 1px solid var(--border); padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; font-size: 15px; color: var(--fg); }
+  .hostside .it { height: 40px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border-radius: 10px; color: var(--fg); }
+  .hostside .it.on { background: var(--s2h); }
+  .hostside .it i { width: 18px; height: 18px; border: 1.5px solid var(--muted); border-radius: 4px; flex: none; opacity: .8; }
+  .hostside .it .cnt { margin-left: auto; font-size: 13px; color: var(--muted); display: flex; gap: 8px; }
+  .hostside .sep { height: 1px; background: var(--border); margin: 10px 0; }
+  .hostside .ws { height: 52px; display: flex; gap: 10px; align-items: center; padding: 0 12px; }
+  .hostside .ws b { width: 20px; height: 20px; border-radius: 5px; flex: none; }
+  .hostside .ws span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+  .hostmain { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; background: var(--s0); }
+  .hosttab { height: 48px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid var(--border); font-size: 16px; }
+  .hosttab .x { font-size: 20px; color: var(--muted); }
+
+  /* ---------- themes ---------- */
+  .light { --s0:#ffffff; --s1:#fafafa; --s2:#f4f4f5; --s2h:#e9e9ec; --host:#f4f4f5; --panel:#f7f7f8; --border:#e4e4e7; --pillb:#d4d4d8; --fg:#18181b; --muted:#71717a; --faint:#a1a1aa; --accent:#2563eb; --card:#ffffff; --cardsh:0 1px 2px rgba(24,24,27,.06); --run:#268ae0; --warn:#b37824; --ok:#299f51; --bad:#f12e2f; --branch:#0969da; --sheetsh:0 -8px 28px rgba(24,24,27,.14), 0 -1px 0 rgba(24,24,27,.06); --floatsh:0 0 0 1px rgba(24,24,27,.06), 0 10px 32px rgba(24,24,27,.14); --cur-bg:#f0f4fe; --cur-bd:#8da9e8; --grab:rgba(24,24,27,.22); --scrim:rgba(24,24,27,.32); }
+  .dark { --s0:#0f0f11; --s1:#17171a; --s2:#1f1f23; --s2h:#26262b; --host:#131316; --panel:#17171a; --border:#2a2a2e; --pillb:#3a3a40; --fg:#f2f3f5; --muted:#a1a1aa; --faint:#71717a; --accent:#7aa2f7; --card:#1f1f23; --cardsh:0 1px 2px rgba(0,0,0,.4); --run:#5caaf6; --warn:#db932e; --ok:#35c264; --bad:#f7796d; --branch:#4493f8; --sheetsh:0 -8px 28px rgba(0,0,0,.55), 0 -1px 0 rgba(255,255,255,.05); --floatsh:0 0 0 1px #2a2a2e, 0 10px 32px rgba(15,15,17,.8); --cur-bg:#252832; --cur-bd:#4e608a; --grab:rgba(242,243,245,.22); --scrim:rgba(15,15,17,.72); }
+
+  /* ---------- board ---------- */
+  .board { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; background: var(--s0); }
+  .tb1 { height: 52px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px; }
+  .tbline { height: 1px; flex: none; background: var(--border); }
+  .fbtn { height: 36px; min-width: 36px; flex: none; border-radius: 18px; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; font-size: 14px; color: var(--fg); background: var(--s0); position: relative; }
+  .fbtn.set { background: var(--s2); border-color: transparent; }
+  .fbtn .badge { min-width: 18px; height: 18px; border-radius: 9px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; display: grid; place-items: center; padding: 0 5px; font-variant-numeric: tabular-nums; }
+  .popover { position: absolute; top: 48px; z-index: 12; max-height: calc(100% - 60px); display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--floatsh); overflow: hidden; }
+  .phd { height: 48px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; font-size: 15px; border-bottom: 1px solid var(--border); }
+  .phd span { color: var(--muted); font-size: 14px; }
+  .pscroll { overflow-y: auto; padding: 4px 0 8px; }
+  .ps { padding: 8px 14px 4px; }
+  .ps h5 { margin: 0 0 6px; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .seg { display: flex; gap: 6px; flex-wrap: wrap; }
+  .seg span { height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--pillb); display: flex; align-items: center; font-size: 13px; }
+  .seg span.on { background: var(--s2); border-color: transparent; font-weight: 600; }
+  .frow { height: 44px; display: flex; align-items: center; gap: 10px; font-size: 14px; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+  .frow:first-of-type { border-top: 0; }
+  .frow b { width: 14px; height: 14px; border-radius: 4px; flex: none; }
+  .frow .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .frow .n { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+  .frow .ck { width: 20px; height: 20px; border-radius: 5px; border: 1px solid var(--pillb); display: grid; place-items: center; font-size: 12px; }
+  .frow .ck.on { background: var(--accent); border-color: transparent; color: #fff; }
+  .more { height: 36px; display: flex; align-items: center; font-size: 13px; color: var(--accent); }
+  .tb2 { height: 44px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 12px; overflow: hidden; position: relative; border-bottom: 1px solid var(--border); }
+  .tb2.fade::after { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 28px; background: linear-gradient(90deg, transparent, var(--s0)); }
+  .strip { display: flex; gap: 2px; flex: none; }
+  .stat { height: 36px; display: flex; align-items: center; gap: 6px; padding: 0 9px; border-radius: 18px; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fg); position: relative; }
+  .stat .lb { font-size: 13px; font-weight: 500; color: var(--muted); margin-right: -2px; }
+  .tb1.dots .stat .lb { display: none; }
+  .tb1.sicon .search { flex: none !important; width: 36px; height: 36px; padding: 0; border-radius: 18px; justify-content: center; margin-left: auto; }
+  .tb1.sicon .search span { display: none; }
+  .stat small { font-size: 11px; font-weight: 500; color: var(--muted); }
+  .stat.zero { color: var(--faint); font-weight: 500; }
+  .stat.hot { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 40%, var(--border)); color: var(--warn); }
+  .stat.tapped { background: var(--s2); }
+  .search { flex: 1; min-width: 0; height: 36px; border-radius: 10px; border: 1px solid var(--border); display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--faint); font-size: 14px; white-space: nowrap; overflow: hidden; }
+  .rbtn { width: 36px; height: 36px; border-radius: 18px; border: 1px solid var(--border); display: grid; place-items: center; color: var(--fg); flex: none; background: var(--s0); }
+  .rbtn.on { background: var(--s2); border-color: transparent; }
+  .chip { height: 30px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--fg); white-space: nowrap; background: var(--s0); }
+  .chip .chev { color: var(--muted); font-size: 10px; }
+  .chip.icon { width: 30px; padding: 0; justify-content: center; }
+  .chip.set { background: var(--s2); border-color: transparent; }
+  .vsep { width: 1px; height: 18px; background: var(--border); flex: none; margin: 0 2px; }
+
+  .lanesWrap { flex: 1; min-height: 0; position: relative; }
+  .lanes { position: absolute; inset: 0; overflow-x: auto; overflow-y: hidden; display: flex; gap: 8px; padding: 8px 12px 12px; scroll-snap-type: x mandatory; scroll-padding: 0 12px; scrollbar-width: none; }
+  .lanes::-webkit-scrollbar { display: none; }
+  .lane { flex: none; background: var(--panel); border-radius: 6px; display: flex; flex-direction: column; min-height: 0; scroll-snap-align: start; }
+  .lanehd { height: 40px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px; font-size: 14px; font-weight: 600; }
+  .lanehd .n { color: var(--muted); font-weight: 500; }
+  .lanehd.flash { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); border-radius: 6px 6px 0 0; }
+  .lanebody { flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px 8px; display: flex; flex-direction: column; gap: 8px; scrollbar-width: none; }
+  .lanebody::-webkit-scrollbar { display: none; }
+  .empty { border: 1px dashed var(--pillb); border-radius: 8px; color: var(--muted); font-size: 13px; padding: 28px 12px; text-align: center; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--cardsh); padding: 10px 10px 9px; display: flex; flex-direction: column; gap: 6px; position: relative; flex: none; cursor: pointer; }
+  .card.cur { background: var(--cur-bg); border-color: var(--cur-bd); }
+  .card .proj { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); min-width: 0; padding-right: 24px; }
+  .card .proj b { width: 14px; height: 14px; border-radius: 4px; flex: none; }
+  .card .proj span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .go { position: absolute; right: 4px; top: 4px; width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; color: var(--muted); font-size: 13px; }
+  .card .ttl { display: flex; gap: 8px; font-size: 14px; font-weight: 500; line-height: 20px; }
+  .card .ttl .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card .ttl svg { flex: none; margin-top: 3px; }
+  .pills { display: flex; flex-wrap: wrap; gap: 4px; }
+  .pill { height: 22px; display: inline-flex; align-items: center; gap: 4px; padding: 0 7px; border: 1px solid var(--pillb); border-radius: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .pill.br { color: var(--branch); border-color: color-mix(in srgb, var(--branch) 35%, var(--border)); }
+  .card .foot { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* ---------- in-board sheet ---------- */
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--panel); border-radius: 16px 16px 0 0; box-shadow: var(--sheetsh); display: flex; flex-direction: column; z-index: 5; transition: height 280ms cubic-bezier(0.2,0,0,1); }
+  .sheet.dragging { transition: none; }
+  .grabzone { height: 22px; flex: none; display: grid; place-items: center; cursor: grab; touch-action: none; }
+  .grabzone i { width: 36px; height: 5px; border-radius: 3px; background: var(--grab); }
+  .shead { flex: none; padding: 0 12px 8px; touch-action: none; }
+  .sbody { flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 12px; display: flex; flex-direction: column; gap: 8px; scrollbar-width: thin; }
+  .dcard { background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--cardsh); flex: none; }
+  .hdcard { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .hdtop { display: flex; align-items: center; gap: 6px; height: 28px; font-size: 13px; color: var(--muted); }
+  .hdtop .st { display: flex; align-items: center; gap: 6px; color: var(--run); font-weight: 600; }
+  .hdtop .sp { flex: 1; }
+  .ib { width: 36px; height: 36px; border-radius: 18px; display: grid; place-items: center; color: var(--muted); font-size: 16px; margin: -4px 0; }
+  .ib.back { width: auto; padding: 0 10px 0 4px; border-radius: 18px; font-size: 13px; gap: 4px; display: flex; align-items: center; color: var(--fg); }
+  .hdtitle { font-size: 17px; font-weight: 600; line-height: 24px; }
+  .hdmeta { font-size: 12px; color: var(--muted); display: flex; gap: 10px; }
+  .acts { display: flex; gap: 8px; margin-top: 2px; }
+  .btn { height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; font-weight: 500; padding: 0 14px; border: 1px solid var(--pillb); color: var(--fg); background: var(--card); white-space: nowrap; }
+  .btn.pri { background: var(--fg); color: var(--s0); border-color: transparent; flex: 1; }
+  .btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 35%, var(--border)); }
+  .sect { padding: 6px 12px; }
+  .sect h4 { margin: 4px 0 2px; font-size: 12px; font-weight: 500; color: var(--muted); display: flex; justify-content: space-between; }
+  .prow { min-height: 44px; display: flex; align-items: center; gap: 8px; font-size: 13px; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+  .prow:first-of-type { border-top: 0; }
+  .prow .k { width: 72px; flex: none; color: var(--muted); }
+  .prow .v { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prow .v .tail { margin-left: auto; color: var(--muted); font-size: 12px; flex: none; }
+  .prow.wr, .prow.st { align-items: flex-start; padding: 12px 0; min-height: 44px; }
+  .prow.wr .v, .prow.st .v { white-space: normal; overflow: visible; display: block; line-height: 19px; word-break: break-all; }
+  .prow.wr .k { line-height: 19px; }
+  .prow .bdg { display: flex; gap: 4px; flex-wrap: wrap; flex: none; }
+  .prow.st .col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .prow.st .k { width: auto; font-size: 12px; }
+  .prow.st .bdg { margin-top: 4px; }
+  .prow.st .ico { width: 14px; height: 14px; border: 1.5px solid var(--faint); border-radius: 4px; flex: none; margin-top: 2px; }
+  .sub { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+  .sub:first-of-type { border-top: 0; }
+  .sub .mk { position: relative; width: 14px; height: 14px; flex: none; display: grid; place-items: center; }
+  .sub .pm { font-size: 13px; line-height: 14px; font-weight: 400; }
+  .sub .ring { position: absolute; right: -5px; bottom: -5px; width: 14px; height: 14px; border-radius: 7px; background: var(--card); display: grid; place-items: center; }
+  .sub .dt { position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px; border-radius: 4px; border: 1px solid var(--card); box-sizing: border-box; }
+  .sub .col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .sub .t { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub .f { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ctxbar { height: 6px; border-radius: 3px; background: var(--s2); overflow: hidden; margin: 4px 0 8px; }
+  .ctxbar i { display: block; height: 100%; background: var(--warn); }
+
+  /* ---------- floating panel (760–996) ---------- */
+  .float { position: absolute; top: 8px; right: 12px; bottom: 12px; border-radius: 16px; border: 1px solid var(--border); background: var(--panel); box-shadow: var(--floatsh); z-index: 6; display: flex; flex-direction: column; overflow: hidden; }
+  .float .fscroll { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+  .float .sticky { position: sticky; top: -8px; z-index: 2; margin-top: -8px; padding-top: 8px; background: var(--panel); }
+  .statline { display: flex; align-items: center; gap: 4px; padding: 6px 8px; }
+  .statline .t { font-size: 13px; font-weight: 600; margin-right: auto; }
+  .scrollhint { position: absolute; right: 3px; width: 3px; border-radius: 2px; background: var(--grab); }
+
+  /* ---------- annotations ---------- */
+  .anno { position: absolute; z-index: 20; font: 600 11px/1.3 -apple-system, "PingFang SC", sans-serif; color: #fff; background: #e5484d; border-radius: 10px; padding: 3px 8px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+  .anno.blue { background: #2563eb; }
+  .anno.dark { background: #18181b; }
+  .dot { position: absolute; z-index: 20; width: 34px; height: 34px; border-radius: 17px; background: rgba(229,72,77,.22); border: 2px solid #e5484d; }
+  .arrowv { position: absolute; z-index: 20; width: 2px; background: #e5484d; }
+  .arrowh { position: absolute; z-index: 20; height: 2px; background: #2563eb; }
+  .bracket { position: absolute; z-index: 19; border: 1.5px dashed #2563eb; border-radius: 8px; }
+
+  /* ---------- spec ---------- */
+  table.spec { border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.06); font-size: 13px; width: 100%; max-width: 1400px; }
+  table.spec th, table.spec td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid #ececef; }
+  table.spec th { width: 200px; color: #52525b; font-weight: 600; background: #fafafa; }
+  table.spec tr.h td { background: #18181b; color: #fff; font-weight: 600; border-top: 0; }
+  table.spec code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: #f4f4f5; padding: 1px 5px; border-radius: 4px; }
+  .bands { display: flex; height: 54px; max-width: 1400px; border-radius: 10px; overflow: hidden; margin: 0 0 18px; font-size: 12px; }
+  .bands div { display: flex; flex-direction: column; justify-content: center; padding: 0 12px; color: #fff; border-right: 2px solid var(--page-bg); }
+  .bands b { font-size: 13px; }
+  .live-tag { display: inline-block; background: #2563eb; color: #fff; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 8px; margin-left: 6px; vertical-align: 1px; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="kicker">Better Paseo · 看板详情侧边栏 · 第三轮（本地原型，Claude Design 额度用完后由 Claude Code 绘制）</div>
+  <h1>小尺寸平板：看板宽 488–996 的布局和交互</h1>
+  <p class="lead">问题来自真机截图（折叠屏展开 840×904 dp，宿主侧栏占 260，看板约 580）：340 宽的浮动面板一打开就盖掉一列多泳道，只剩「待输入」左边 200 来宽，而面板里只有统计和分组，不值得长期占屏。这一轮把小尺寸平板分成两档：<b>488–760</b> 详情改成看板内的底部 sheet，统计并入顶栏的状态条，顶栏收成一行；<b>760–996</b> 保留右侧浮动面板，但只在点卡片或点开关时出现，整块可以滚动，头部卡吸顶。前两轮的规则（Linear 风格的卡片、统计卡在上、无选中时显示分组卡、宽屏内嵌、颜色只从 10 个 token 推导）都不变。</p>
+
+  <section class="boardsec" id="b7">
+    <div class="kicker">画板 7</div>
+    <h2>折叠屏展开 840×904 · 宿主侧栏 260 · 看板 580</h2>
+    <p>看板宽 580，落在 488–760 这一档：两列泳道横向滚动，并按列吸附；详情是看板内的底部 sheet，非模态、没有遮罩，泳道露出的部分照常滚动和点按。sheet 只盖住看板，不盖宿主侧栏和宿主 tab 栏。第一张可以直接操作。</p>
+    <div class="frames" id="frames7"></div>
+  </section>
+
+  <section class="boardsec" id="b8">
+    <div class="kicker">画板 8</div>
+    <h2>同一档的其它尺寸</h2>
+    <p>iPad mini 竖屏 744 在宿主侧栏收起时落在 sheet 档；侧栏展开后看板剩 484，低于 488，改用现有的手机布局。折叠屏横向分屏约 480，同样是手机布局。iPad mini 横屏 1133 展开侧栏后看板 873，落在浮动档，用这一组说明浮动面板怎么滚动。</p>
+    <div class="frames" id="frames8"></div>
+  </section>
+
+  <section class="boardsec" id="b6">
+    <div class="kicker">画板 6 · 新增一节</div>
+    <h2>规格：小尺寸平板</h2>
+    <p>B = 看板容器宽，不含宿主侧栏。回差都是 24，在分界线两侧各保持当前档位，避免旋转或拖动分屏时来回跳。</p>
+    <div class="bands">
+      <div style="flex: 488; background:#71717a"><b>手机布局</b>B &lt; 488（已有）</div>
+      <div style="flex: 272; background:#2563eb"><b>sheet 档</b>488 ≤ B &lt; 760</div>
+      <div style="flex: 236; background:#7c3aed"><b>浮动档</b>784 ≤ B &lt; 996</div>
+      <div style="flex: 400; background:#18181b"><b>内嵌</b>B ≥ 1020（已有）</div>
+    </div>
+    <div id="spec"></div>
+  </section>
+</div>
+
+<script>
+/* ======================= data ======================= */
+const P = { android:'#e5484d', ios:'#c2410c', server:'#6e56cf', chat:'#0f766e', paseo:'#18181b', shell:'#3b82f6' };
+const LANES = [
+  { id:'input', name:'待输入', count:0, cards:[] },
+  { id:'running', name:'运行中', count:3, cards:[
+    { id:'r1', proj:'ideashell-android › Android 对齐 2.0.6', pc:P.android, title:'2.0.6 真机验收批次 1：fav/sidebar/export/voice', pills:['Opus 5.5','High'], br:'feat/align-ios-2.0.6', foot:'4h 42m' },
+    { id:'r2', proj:'beautiful-chat › beautiful-chat 优化', pc:P.chat, title:'小尺寸平板的看板布局优化，浮窗挡住泳道', pills:['Opus 5.5','Medium'], br:'main', foot:'12m 08s' },
+    { id:'r3', proj:'ideashell-server › 分页接口', pc:P.server, title:'ideashell-server 分页接口压测与慢查询排查', pills:['GPT-6-Luna','max'], br:'develop', foot:'38m 51s' },
+  ]},
+  { id:'review', name:'待查看', count:59, cards:[
+    { id:'v1', proj:'ideashell-ios › 评估优化 iOS 2.0.6', pc:P.ios, title:'评估优化 iOS 2.0.6 冷启动，给出三档方案', pills:['Sonnet 5.5','High'], br:'feature/cold-start', foot:'刚刚' },
+    { id:'v2', proj:'ideashell-android › 打包并安装', pc:'#db2777', title:'打包并安装 feat-ring 到折叠屏真机', pills:['Codex','medium'], br:'feat-ring', foot:'6 分钟前' },
+    { id:'v3', proj:'paseo › Paseo 优化', pc:P.paseo, title:'检查所有开着的 PR 状态，看看是否需要补缺口', pills:['GPT-6.1-Sol','high'], br:'main', foot:'21 分钟前' },
+    { id:'v4', proj:'ideashell-system › 整理 Android devel…', pc:P.shell, title:'整理 Android develop 分支的提交并写变更说明', pills:['Grok 5','fast'], br:'develop', foot:'1 小时前' },
+    { id:'v5', proj:'ideashell-ios › 整理 ideashell-ios', pc:P.ios, title:'整理 ideashell-ios 的 feature 分支，删掉已合并的', pills:['Cursor','auto'], br:'feature/cleanup', foot:'2 小时前' },
+  ]},
+  { id:'done', name:'已完成', count:36, cards:[
+    { id:'d1', proj:'lark › 查找用户目录密钥', pc:'#2563eb', title:'查找用户目录里的密钥并换成 Keychain', pills:['Opus 5.5','High'], br:'main', foot:'3 小时前' },
+    { id:'d2', proj:'beautiful-chat › 发布', pc:P.chat, title:'README 换成 Paseo 0.12.0 的测量结果', pills:['Opus 5.5','Medium'], br:'main', foot:'5 小时前' },
+    { id:'d3', proj:'ideashell-server › 分页', pc:P.server, title:'分页游标改为不透明字符串', pills:['Antigravity','—'], br:'develop', foot:'9 小时前' },
+  ]},
+];
+const ALL = LANES.flatMap(l => l.cards.map(c => ({...c, lane:l.id})));
+const byId = id => ALL.find(c => c.id === id);
+
+/* ======================= icons ======================= */
+const ic = {
+  input: (s=14) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="var(--warn)" stroke-width="2"/></svg>`,
+  running: (s=14) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="color-mix(in srgb, var(--run) 28%, transparent)" stroke-width="1.6"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke="var(--run)" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="8" r="3" fill="var(--run)"/></svg>`,
+  review: (s=14) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.6" fill="var(--ok)"/></svg>`,
+  done: (s=14) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.6" fill="var(--faint)"/></svg>`,
+  search: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14" stroke-linecap="round"/></svg>`,
+  panel: `<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="3" width="13" height="12" rx="2.5"/><path d="M11 3v12"/></svg>`,
+  sliders: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6"/><circle cx="10" cy="4.5" r="1.5"/><circle cx="6" cy="11.5" r="1.5"/></svg>`,
+  folder: `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3H6l1.5 1.5h5A1.5 1.5 0 0 1 14 6v5.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/></svg>`,
+  bot: `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="10" height="8" rx="2"/><path d="M8 2.5V5M6 9h.01M10 9h.01" stroke-linecap="round"/></svg>`,
+  tag: `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 8.2V3.5a1 1 0 0 1 1-1h4.7l5.3 5.3-5.7 5.7z"/><circle cx="5.5" cy="5.5" r=".9" fill="currentColor"/></svg>`,
+  sort: `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 3v10M2.5 10.5 5 13l2.5-2.5M11 13V3M8.5 5.5 11 3l2.5 2.5"/></svg>`,
+  branch: `<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="4.5" cy="3.5" r="1.6"/><circle cx="4.5" cy="12.5" r="1.6"/><circle cx="11.5" cy="5.5" r="1.6"/><path d="M4.5 5.1v5.8M11.5 7.1c0 2.4-2.2 2.9-5.6 4"/></svg>`,
+  go: '↗',
+};
+const laneIcon = id => ic[id]();
+
+/* ======================= pieces ======================= */
+function cardHTML(c, cur) {
+  return `<div class="card${cur ? ' cur' : ''}" data-card="${c.id}">
+    <div class="proj"><b style="background:${c.pc}"></b><span>${c.proj}</span></div>
+    <div class="go">${ic.go}</div>
+    <div class="ttl">${laneIcon(c.lane)}<span class="t">${c.title}</span></div>
+    <div class="pills">${c.pills.map(p => `<span class="pill">${p}</span>`).join('')}<span class="pill br">${ic.branch}${c.br}</span></div>
+    <div class="foot">${c.foot}</div>
+  </div>`;
+}
+function laneHTML(l, w, sel, opts = {}) {
+  const body = l.cards.length ? l.cards.map(c => cardHTML({...c, lane:l.id}, c.id === sel)).join('') : `<div class="empty">没有等待输入的任务</div>`;
+  return `<div class="lane" style="width:${w}px" data-lane="${l.id}">
+    <div class="lanehd${opts.flash === l.id ? ' flash' : ''}">${laneIcon(l.id)}<span>${l.name}</span><span class="n">${l.count}</span></div>
+    <div class="lanebody" ${opts.bodyPad ? `style="padding-bottom:${opts.bodyPad}px"` : ''}>${body}</div>
+  </div>`;
+}
+function stripHTML(opts = {}) {
+  return `<div class="strip">${LANES.map(l => `<div class="stat${l.count === 0 ? ' zero' : ''}${opts.tapped === l.id ? ' tapped' : ''}" data-stat="${l.id}">${laneIcon(l.id)}<span class="lb">${l.name}</span>${l.count}${l.id === 'done' ? '<small>24h</small>' : ''}</div>`).join('')}</div>`;
+}
+/**
+ * The one-row toolbar both pad bands share (52): the status strip, search,
+ * one 筛选 button that holds Workspace / Agent / 标签 / 已完成 window / 排序,
+ * and (floating band only) the sidebar switch. Active filters show as a
+ * badge, and as removable chips when the row has room.
+ */
+function filterButton(B, o) {
+  const n = o.filters ? o.filters.length : 0;
+  const wide = B >= 760;
+  return `<div class="fbtn${n || o.filterOpen ? ' set' : ''}">${ic.sliders}${wide ? '<span>筛选</span>' : ''}${n ? `<span class="badge">${n}</span>` : ''}</div>`;
+}
+function activeChips(B, o) {
+  if (!o.filters || B < 760) return '';
+  return o.filters.map(f => `<span class="chip set" style="height:30px">${f}<span class="chev" style="font-size:12px">✕</span></span>`).join('');
+}
+function toolbarOne(B, o = {}, toggle = false) {
+  const search = `<div class="search" style="${B >= 760 ? 'flex:0 1 260px;margin-left:auto' : ''}">${ic.search}<span>按标题搜索</span></div>`;
+  return `<div class="tb1">${stripHTML(o)}${activeChips(B, o)}${search}${filterButton(B, o)}${toggle ? `<div class="rbtn${o.open ? ' on' : ''}">${ic.panel}</div>` : ''}</div><div class="tbline"></div>`;
+}
+const toolbarSheetBand = (B, o) => toolbarOne(B, o, false);
+const toolbarFloatBand = (B, o) => toolbarOne(B, o, true);
+
+/** The 筛选 popover: the phone's filter sheet body, anchored under the button. */
+function filterPopover(B, o, right) {
+  const w = Math.min(360, B - 24);
+  const seg = (items, on) => `<div class="seg">${items.map(t => `<span class="${t === on ? 'on' : ''}">${t}</span>`).join('')}</div>`;
+  const rows = (items) => items.map(([t, n, on, c]) => `<div class="frow">${c ? `<b style="background:${c}"></b>` : ''}<span class="nm">${t}</span><span class="n">${n}</span><span class="ck${on ? ' on' : ''}">${on ? '✓' : ''}</span></div>`).join('');
+  return `<div class="popover" style="width:${w}px;right:${right}px">
+    <div class="phd"><b>筛选与排序</b><span>重置</span></div>
+    <div class="pscroll">
+      <div class="ps"><h5>已完成显示</h5>${seg(['24 小时', '7 天', '全部'], '24 小时')}</div>
+      <div class="ps"><h5>排序</h5>${seg(['默认', '更新时间', '创建时间', '耗时'], '默认')}</div>
+      <div class="ps"><h5>Agent</h5>${rows([['Codex', 30], ['Claude', 19, true], ['Grok', 7], ['Antigravity', 4], ['Cursor', 2]])}</div>
+      <div class="ps"><h5>Workspace</h5>${rows([['ideashell-android', 31, false, P.android], ['beautiful-chat', 14, false, P.chat], ['ideashell-server', 12, false, P.server], ['paseo', 9, false, P.paseo]])}<div class="more">显示全部 11 个</div></div>
+      <div class="ps"><h5>标签</h5>${rows([['验收', 8], ['Android', 21]])}</div>
+    </div>
+  </div>`;
+}
+
+function groupsCard() {
+  const seg = `<div class="seg" style="padding:10px 12px 4px">${['Agent', '项目', '标签'].map((t, i) => `<span class="${i === 0 ? 'on' : ''}" style="flex:1;justify-content:center">${t}</span>`).join('')}</div>`;
+  const rows = [['Codex', 30], ['Claude', 19], ['Grok', 7], ['Antigravity', 4], ['Cursor', 2]].map(([t, n]) => `<div class="prow" style="padding:0 12px"><span class="v">${t}<span class="tail" style="font-size:13px">${n}</span></span></div>`).join('');
+  return `<div class="dcard">${seg}${rows}</div>`;
+}
+
+/* detail stack */
+function headCard(c, opts = {}) {
+  return `<div class="dcard hdcard">
+    <div class="hdtop">${opts.back ? `<span class="ib back">‹ 父任务</span>` : ''}<span class="st">${ic.running()}运行中</span><span>· 4h 42m</span><span class="sp"></span><span class="ib">⋯</span><span class="ib" data-close>✕</span></div>
+    <div class="hdtitle">${c.title}</div>
+    <div class="hdmeta"><span>${c.pills[0]}</span><span>思考 ${c.pills[1]}</span><span>Bypass</span></div>
+    <div class="acts"><span class="btn pri">${ic.go} 打开 tab</span><span class="btn danger">■ 停止运行</span></div>
+  </div>`;
+}
+/** Properties wrap instead of cutting off; stacked (label over value) in a panel under 440. Subtasks as Paseo 0.12's subagent rows. */
+function bodyCards(stacked = false) {
+  const prop = (k, v, extra = '') => stacked
+    ? `<div class="prow st"><span class="ico"></span><span class="col"><span class="k">${k}</span><span class="v">${v}</span>${extra ? `<span class="bdg">${extra}</span>` : ''}</span></div>`
+    : `<div class="prow wr"><span class="k">${k}</span><span class="v">${v}</span>${extra ? `<span class="bdg">${extra}</span>` : ''}</div>`;
+  const sub = (mark, status, title, facts) => `<div class="sub"><span class="mk">${mark}${status}</span><span class="col"><span class="t">${title}</span>${facts ? `<span class="f">${facts}</span>` : ''}</span></div>`;
+  const ring = `<i class="ring">${ic.running(12)}</i>`, green = `<i class="dt" style="background:var(--ok)"></i>`;
+  const claude = `<b class="pm" style="color:#d97757">✳</b>`, openai = `<b class="pm">◎</b>`;
+  return `<div class="dcard sect">
+      ${prop('项目', `<span style="color:var(--muted)">ideashell-android ›</span> Android 对齐 2.0.6`, '<span class="pill">worktree</span>')}
+      ${prop('分支', `<span style="color:var(--branch)">feat/align-ios-2.0.6</span>`, '<span class="pill">↑1587</span><span class="pill">● 未提交</span>')}
+      ${prop('工作目录', '~/code/ideashell-android/.worktrees/align-206')}
+      ${prop('PR', '#412 Android 2.0.6 验收', '<span class="pill">Open</span>')}
+      ${prop('父任务', '目前我在安卓折叠屏上体验的有几个比较大的问题，需要逐个对齐 iOS 2.0.6 ›')}
+      ${prop('标签', '<span class="pill">验收</span> <span class="pill">Android</span>')}
+    </div>
+    <div class="dcard sect">
+      <h4><span>子任务</span><span>1 / 3 完成</span></h4>
+      ${sub(claude, ring, '语音输入：长按录音与转写', 'Opus 5.5 · High · Bypass · 225k / 1m tokens (23%)')}
+      ${sub(openai, green, '导出流程：分享与另存为', 'GPT-6.1-Sol · High · Full access · 149k / 475k tokens (31%)')}
+      ${sub(openai, '', '侧边栏收藏夹排序', 'GPT-6-Luna · Max · Auto-review · 67k / 258k tokens (26%)')}
+    </div>
+    <div class="dcard sect">
+      <h4><span>用量</span><span></span></h4>
+      <div class="prow"><span class="k">创建</span><span class="v">12 小时前</span></div>
+      <div class="prow"><span class="k">更新</span><span class="v">刚刚</span></div>
+      <div class="prow"><span class="k">输入 token</span><span class="v">2.41M<span class="tail">缓存 82%</span></span></div>
+      <div class="prow"><span class="k">输出 token</span><span class="v">184k</span></div>
+      <div class="prow"><span class="k">费用</span><span class="v">$18.42</span></div>
+      <div class="prow" style="border-bottom:0"><span class="k">上下文</span><span class="v">81%<span class="tail">813k / 1.00M</span></span></div>
+      <div class="ctxbar"><i style="width:81%"></i></div>
+    </div>`;
+}
+function sheetHTML(c, h, opts = {}) {
+  return `<div class="sheet" style="height:${h}px">
+    <div class="grabzone"><i></i></div>
+    <div class="shead">${headCard(c, opts)}</div>
+    <div class="sbody" ${opts.scrollTop ? `data-scrolltop="${opts.scrollTop}"` : ''}>${bodyCards()}</div>
+  </div>`;
+}
+
+/* ======================= layouts ======================= */
+const HOST_SIDE = (w, theme) => `<div class="hostside" style="width:${w}px">
+  <div class="it"><i></i>新建工作区</div><div class="it"><i></i>历史</div><div class="it"><i></i>搜索</div><div class="it"><i></i>计划</div>
+  <div class="it on"><i></i>任务<span class="cnt"><span>◉ 3</span><span style="color:var(--ok)">● 59</span></span></div>
+  <div class="sep"></div>
+  ${[['评估优化 iOS 2.0.6 …',P.ios],['beautiful-chat 优化',P.chat],['整理 Android devel…',P.shell],['ideashell-server 分…',P.server],['打包并安装 feat-rin…','#db2777'],['整理 ideashell-ios …',P.ios],['Paseo 优化',P.paseo]].map(([t,c]) => `<div class="ws"><b style="background:${c}"></b><span>${t}</span></div>`).join('')}
+</div>`;
+
+function laneWidthFor(B) { return Math.max(220, Math.min(300, (B - 24 - 8) / 2)); }
+
+/** One device frame. kind: 'sheet' | 'float' | 'phone'. */
+function device(cfg) {
+  const { W, H, side = 0, theme = 'light', B = W - side } = cfg;
+  const inner = cfg.board(B, H - 28 - 48);
+  return `<div class="device ${theme}" style="width:${W + 20}px;height:${H + 20}px">
+    <div class="screen" style="width:${W}px;height:${H}px">
+      <div class="statusbar"><span>21:06</span><span class="icons">◔ ᯤ ▮ 83</span></div>
+      <div class="hostrow">${side ? HOST_SIDE(side, theme) : ''}
+        <div class="hostmain"><div class="hosttab"><span>任务</span><span class="x">✕</span></div>${inner}</div>
+      </div>
+      ${cfg.annos || ''}
+    </div>
+  </div>`;
+}
+
+/** The sheet band board (488–760). */
+function sheetBoard(o = {}) {
+  return (B, H) => {
+    const lw = laneWidthFor(B);
+    const lanesH = H - 53;
+    const sheetH = o.detent === 'full' ? lanesH - 8 : o.detent === 'half' ? Math.round(lanesH * 0.58) : 0;
+    const scrolled = o.scrollX || 0;
+    const sel = o.sel || null;
+    const pad = sheetH && o.detent === 'half' ? sheetH : 0;
+    return `<div class="board">
+      ${toolbarSheetBand(B, o)}
+      <div class="lanesWrap">
+        <div class="lanes" data-scrollx="${scrolled}">${LANES.map(l => laneHTML(l, lw, sel, { flash: o.flash, bodyPad: pad })).join('')}<div style="flex:none;width:4px"></div></div>
+        ${sheetH ? sheetHTML(byId(sel), sheetH, { back: o.back, scrollTop: o.bodyScroll }) : ''}
+      </div>
+      ${o.filterOpen ? filterPopover(B, o, 12) : ''}
+    </div>`;
+  };
+}
+
+/** The floating panel's width: a share of the board, so a tablet keeps most of its lanes. */
+function floatWidth(B) { return Math.round(Math.max(300, Math.min(360, B * 0.36))); }
+
+/** The floating band board (784–996): panel only on demand, the whole panel scrolls, the head card sticks. */
+function floatBoard(o = {}) {
+  return (B, H) => {
+    const lw = 300;
+    const pw = floatWidth(B);
+    const sel = o.sel;
+    const panel = o.open ? `<div class="float" style="width:${pw}px;top:48px"><div class="fscroll" data-scrolltop="${o.panelScroll || 0}">
+        ${sel ? '' : groupsCard()}
+        ${sel ? `<div class="sticky">${headCard(byId(sel))}</div>${bodyCards(true)}` : ''}
+      </div>${o.panelScroll ? `<div class="scrollhint" style="top:${o.panelScroll > 200 ? 46 : 30}%;height:22%"></div>` : ''}</div>` : '';
+    return `<div class="board">
+      ${toolbarFloatBand(B, o)}
+      <div class="lanesWrap">
+        <div class="lanes" style="scroll-snap-type:none" data-scrollx="${o.scrollX || 0}">${LANES.map(l => laneHTML(l, lw, sel)).join('')}<div style="flex:none;width:${o.open ? pw + 12 : 4}px"></div></div>
+      </div>
+      ${panel}
+      ${o.filterOpen ? filterPopover(B, o, 12 + 36 + 8) : ''}
+    </div>`;
+  };
+}
+
+/** The phone layout (B < 488), as it ships: status strip as lane tabs, one lane, details in the host's modal sheet. */
+function phoneBoard(o = {}) {
+  return (B, H) => {
+    const lane = LANES.find(l => l.id === (o.lane || 'running'));
+    const strip = `<div style="height:48px;display:flex;align-items:stretch;border-bottom:1px solid var(--border)">${LANES.map(l => `<div style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;${l.id === lane.id ? 'box-shadow:inset 0 -2px 0 var(--fg)' : 'color:var(--muted)'}">${laneIcon(l.id)}${l.count}</div>`).join('')}</div>`;
+    const top = `<div class="tb1"><div class="search">${ic.search}<span>按标题搜索</span></div><div class="rbtn">⚲</div></div>`;
+    const list = `<div style="flex:1;min-height:0;overflow:hidden;padding:10px 12px;display:flex;flex-direction:column;gap:8px;background:var(--panel)">${lane.cards.map(c => cardHTML({...c, lane:lane.id}, c.id === o.sel)).join('')}</div>`;
+    const modal = o.sel ? `<div style="position:absolute;inset:0;background:var(--scrim);z-index:7"></div>
+      <div class="sheet" style="height:${Math.round((H) * 0.86)}px;z-index:8;background:var(--panel)"><div class="grabzone"><i></i></div>
+        <div style="height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:13px;color:var(--muted)"><span>‹ 上一张</span><span>2 / 3 · 运行中</span><span>下一张 ›</span></div>
+        <div class="shead">${headCard(byId(o.sel))}</div><div class="sbody">${bodyCards()}</div></div>` : '';
+    return `<div class="board">${top}${strip}${list}${modal}</div>`;
+  };
+}
+
+/* ======================= frames ======================= */
+function frame(id, title, cap, cfg, scale) {
+  const W = cfg.W + 20, H = cfg.H + 20;
+  return `<div class="frame" id="${id}" style="--capw:${Math.max(360, W * scale)}px"><h3>${title}</h3><p class="cap">${cap}</p>
+    <div class="scaler" style="width:${W * scale}px;height:${H * scale}px"><div style="transform:scale(${scale});transform-origin:0 0;position:absolute;left:0;top:0">${device(cfg)}</div></div></div>`;
+}
+const FOLD = { W: 840, H: 904, side: 260 };
+const S7 = 0.62;
+
+const a = (x, y, text, cls = '') => `<div class="anno ${cls}" style="left:${x}px;top:${y}px">${text}</div>`;
+const tap = (x, y) => `<div class="dot" style="left:${x - 17}px;top:${y - 17}px"></div>`;
+
+document.getElementById('frames7').innerHTML = [
+  frame('f7-live', '7·0 可操作 <span class="live-tag">LIVE</span>', '顶栏一行：状态条、搜索、筛选。点卡片：sheet 升到半屏，内容是这张卡；再点别的卡：原地换内容。拖顶部把手或头部：上推到全屏，下拉回半屏或关闭。点泳道空白处关闭。泳道左右滑按列吸附；sheet 打开时上面露出的泳道照常上下滚。点顶栏状态条：滚到该泳道并闪一下泳道头。',
+    { ...FOLD, board: sheetBoard({}) }, 0.8),
+  frame('f7-a', '7·A 无选中', '顶栏只有一行（52）：状态条（四种状态 + 数量，兼泳道跳转）、搜索、筛选按钮。Workspace、Agent、标签、已完成时间窗、排序都收进筛选按钮，比原来的两行半省下 44 + 52。这一档没有侧边栏开关：统计已经在状态条上，分组就在筛选里。两列泳道各 274，第三、四列要左右滑才能看到。',
+    { ...FOLD, board: sheetBoard({}), annos: a(282, 134, '↑ 状态条 · 点一格跳泳道', 'blue') + a(640, 134, '筛选：五项收进一个弹层 ↑', 'blue') }, S7),
+  frame('f7-b', '7·B 点按一张运行中的卡片', 'sheet 升到半屏（泳道区高度的 58%），头部卡固定在 sheet 顶部：状态、标题、元信息、「打开 tab」「停止运行」。点到的卡片如果会被 sheet 盖住，泳道先把它滚到 sheet 上沿以上，并加上「当前」标记。',
+    { ...FOLD, board: sheetBoard({ sel: 'r1', detent: 'half' }), annos: tap(570, 236) + a(300, 300, '点按 = 选中并打开 sheet →') + a(300, 452, '把手 / 头部可拖 →', 'dark') }, S7),
+  frame('f7-c', '7·C 上推到全屏，滚到底部', '全屏档时 sheet 顶到泳道区上沿，下面留 8 露出泳道，提示可以下拉回去；顶栏不被盖住。头部卡不滚，位置、子任务、用量三张卡在下面滚，滚到底能看到上下文条。',
+    { ...FOLD, board: sheetBoard({ sel: 'r1', detent: 'full', bodyScroll: 9999 }), annos: a(612, 196, '头部卡固定', 'dark') + a(612, 640, '内容区独立纵向滚动', 'blue') }, S7),
+  frame('f7-d', '7·D 半屏时左右滑泳道', 'sheet 只占看板下部，上面露出的泳道可以左右滑（按列吸附）、上下滚，也可以点另一张卡：sheet 不动，只换内容。每列底部留出 sheet 的高度，最后一张卡能滚到 sheet 上方。',
+    { ...FOLD, board: sheetBoard({ sel: 'r1', detent: 'half', scrollX: 282 }), annos: `<div class="arrowh" style="left:420px;top:330px;width:240px"></div>` + a(440, 306, '← 左右滑 · 按列吸附', 'blue') + tap(700, 262) + a(560, 300, '点另一张卡：原地换内容') }, S7),
+  frame('f7-e', '7·E 关闭后', '下拉、点泳道空白处、头部 ✕、外接键盘 Esc 都会关闭 sheet：降下去 200ms，并取消卡片的选中标记。泳道的横向位置保持不动。',
+    { ...FOLD, board: sheetBoard({ scrollX: 282 }), annos: tap(410, 790) + a(330, 820, '点空白处：关闭并取消选中') }, S7),
+  frame('f7-g', '7·G 筛选弹层', '点筛选按钮：弹层出现在按钮下方，右边和按钮对齐，宽 min(360, B − 24)。原来分在两行的 Workspace、Agent、标签、已完成时间窗、排序都在这里。改动立即生效；有筛选生效时，按钮变灰底并显示条数。',
+    { ...FOLD, board: sheetBoard({ filterOpen: true, filters: ['Agent: Claude'] }) }, S7),
+  frame('f7-f', '7·F 深色 · 半屏', '结构和浅色一样：sheet 用 panel 底色（surface1），里面的卡片用 surface2，阴影改成深色的 sh-float。',
+    { ...FOLD, theme: 'dark', board: sheetBoard({ sel: 'r1', detent: 'half' }) }, S7),
+].join('');
+
+const MINI_P = { W: 744, H: 1133 };
+const MINI_L = { W: 1133, H: 744 };
+const S8 = 0.5;
+document.getElementById('frames8').innerHTML = [
+  frame('f8-a', '8·A iPad mini 竖屏 744 · 侧栏收起 · 无选中', 'B = 744，sheet 档。泳道每列 300（两列放得下，第三列露出边缘）。顶栏一行：状态条、搜索、筛选按钮。',
+    { ...MINI_P, board: sheetBoard({}) }, S8),
+  frame('f8-b', '8·B iPad mini 竖屏 744 · 侧栏收起 · 选中', '高 1133，半屏 sheet 是 58%，上面能露出两张多卡片。sheet 的宽度跟看板一样宽：这一档看板最宽 760，不需要限制最大宽度。',
+    { ...MINI_P, board: sheetBoard({ sel: 'r1', detent: 'half' }) }, S8),
+  frame('f8-c', '8·C iPad mini 竖屏 · 侧栏展开（B = 484）· 无选中', '低于 488，改用手机布局：状态条兼泳道 tab，只显示一列，点卡片打开宿主的模态 sheet。这是现有行为，不改。',
+    { ...MINI_P, side: 260, board: phoneBoard({}) }, S8),
+  frame('f8-d', '8·D iPad mini 竖屏 · 侧栏展开 · 选中', '手机布局的详情 sheet：带遮罩、模态，顶部可以切换上一张 / 下一张。',
+    { ...MINI_P, side: 260, board: phoneBoard({ sel: 'r1' }) }, S8),
+  frame('f8-e', '8·E 折叠屏横向分屏约 480 · 选中', '分屏一半大约 480，同样是手机布局。宿主侧栏在分屏里一般是收起的。',
+    { W: 480, H: 904, board: phoneBoard({ sel: 'r1' }) }, S7 * 0.95),
+  frame('f8-f', '8·F iPad mini 横屏 · 侧栏展开（B = 873）· 浮动档 · 无选中', '浮动档的面板只在点卡片或点顶栏开关时出现，默认不出现，泳道占满整宽。顶栏也只有一行：状态条、已生效的筛选（可以点 ✕ 去掉）、搜索、「筛选」按钮、侧边栏开关。原来的「98 个任务」标题去掉了，四个数量加起来就是它。',
+    { ...MINI_L, side: 260, board: floatBoard({ filters: ['Agent: Claude'] }) }, S8),
+  frame('f8-g', '8·G 浮动档 · 选中', '面板从侧边栏开关正下方开始（顶栏下方，留 4 的间距），右边和开关对齐。顶栏只剩一行，面板比原来放在筛选行下面时多出 56 的高度。宽度跟着看板走：B × 0.36，限制在 300–360 之间（这里 B = 873，面板 314）。左边露出 523，比一整列泳道还多出大半列。泳道行右侧补上面板宽度的滚动余量，最后一列能从面板下面滚出来。',
+    { ...MINI_L, side: 260, board: floatBoard({ open: true, sel: 'r1' }) }, S8),
+  frame('f8-h', '8·H 浮动档 · 面板整块滚动', '整个面板是一个纵向滚动容器：统计卡跟着滚走，头部卡滚到顶后吸住（sticky），「打开 tab」「停止运行」始终点得到。面板内向右拖或点面板外关闭。',
+    { ...MINI_L, side: 260, board: floatBoard({ open: true, sel: 'r1', panelScroll: 260 }), annos: a(690, 210, '头部卡吸顶 →', 'dark') + a(690, 480, '整块纵向滚动 →', 'blue') }, S8),
+  frame('f8-i', '8·I iPad 竖屏 820 · 侧栏收起 · 浮动档 · 选中', 'B = 820，面板取下限 300，左边露出 484：一整列泳道加下一列的一半。300 宽时属性行的值列还有 188，头部卡的两个按钮并排放得下。',
+    { W: 820, H: 1180, board: floatBoard({ open: true, sel: 'r1' }) }, S8),
+].join('');
+
+/* scroll states for static frames */
+/**
+ * The status strip shows its labels while the row has room. It gives way in
+ * two steps: the search field folds to a 36 round button (a tap opens it over
+ * the row), then the labels go and only the marks and counts stay.
+ */
+function fitToolbar(row) {
+  row.classList.remove('sicon', 'dots');
+  const search = row.querySelector('.search');
+  const overflows = () => row.scrollWidth > row.clientWidth + 0.5;
+  if (search && (search.clientWidth < 160 || overflows())) row.classList.add('sicon');
+  if (overflows()) row.classList.add('dots');
+}
+function fitToolbars() { document.querySelectorAll('.tb1').forEach(fitToolbar); }
+requestAnimationFrame(() => {
+  fitToolbars();
+  document.querySelectorAll('[data-scrollx]').forEach(el => { el.style.scrollSnapType = 'none'; el.scrollLeft = +el.dataset.scrollx; });
+  document.querySelectorAll('[data-scrolltop]').forEach(el => { el.scrollTop = +el.dataset.scrolltop; });
+});
+
+/* ======================= spec ======================= */
+const rows = [
+  ['h', '分档与回差'],
+  ['档位', '<code>B &lt; 488</code> 手机布局（已有，<code>LANES_MIN_BOARD</code>）；<code>488 ≤ B &lt; 760</code> sheet 档；<code>760 ≤ B &lt; 784</code> 保持当前档；<code>784 ≤ B &lt; 996</code> 浮动档；<code>996–1020</code> 保持当前档；<code>B ≥ 1020</code> 内嵌。'],
+  ['为什么 760', '浮动面板最窄 340，加左边至少一整列泳道 300 和三处边距 12×3，合计 676。再留出 84，让面板左边露出的泳道不止一张卡宽，取 760。低于它时，右侧面板只会盖住泳道，换成底部 sheet。'],
+  ['为什么底部 sheet', '这一档的看板是竖长的（580×780、744×1040）：高度富余、宽度紧张。从底部升起只占高度，泳道两列都还看得见；从右侧浮出则要占掉一整列。sheet 宽 = 看板宽，详情卡片的属性行（标签列 72 + 值）在 488 以上都不会截断。'],
+  ['h', 'sheet 档的顶栏'],
+  ['顶栏 · 一行 52', '两档共用一行，下面一条 1px 分隔线。从左到右：状态条、已生效的筛选 chip（B ≥ 760 时显示，点 ✕ 去掉）、搜索框、「筛选」按钮、侧边栏开关（只在浮动档显示）。原来的「98 个任务」标题和第二、三行都去掉了：sheet 档顶栏从 52 + 44 + 52 降到 52，浮动档从 52 + 44 降到 52。'],
+  ['状态条', '四格，每格高 36、左右内边距 9。放得下时每格是「图标 14 + 名称 13/500 muted + 数字 14/600 tabular」（例如「◉ 运行中 3」）。行宽不够时分两步让位：先把搜索框收成 36 的圆形按钮（点开后搜索框盖住整行），还放不下再去掉名称，只留图标和数字。宽度按实际测量结果判断，不写死断点：例如 580 宽的折叠屏显示「名称 + 搜索按钮」；744 宽显示「名称 + 完整搜索框」；873 宽但带一个已生效筛选 chip 时，又退回「名称 + 搜索按钮」。已完成后面跟 <code>24h</code> 11/500 muted。数量为 0 时文字用 faint；待输入大于 0 时，内描边用 <code>mix(warning 40%, border)</code>、文字用 warning。点一格：横向滚到该列并闪一下泳道头（mix(accent 12%, panel)，600ms）。搜索框占剩下的宽度，最小 140，高 36、圆角 10。'],
+  ['筛选按钮', '高 36、圆角 18；B < 760 时只显示图标，B ≥ 760 时显示「图标 + 筛选」。有筛选生效时变成灰底，并加 accent 角标显示条数。点它在按钮下方弹出筛选弹层：宽 min(360, B − 24)，右边和按钮对齐，最高到看板底部上方 12，内容可以滚。弹层里自上而下是：已完成显示（24 小时 / 7 天 / 全部）、排序、Agent、Workspace、标签。每一项是 44 高的勾选行，后面带数量；改动立即生效，右上角「重置」恢复默认；点弹层外关闭。弹层内容就是手机布局的筛选 sheet（<code>FilterSheetBody</code>），这里换成锚在按钮下的弹层。'],
+  ['侧边栏开关', '这一档不显示：统计在状态条上，分组就是筛选菜单（菜单里每项带数量）。外接键盘按 <code>I</code> 不起作用。'],
+  ['h', '泳道'],
+  ['宽度', '<code>laneWidth = clamp((B − 2×12 − 8) / 2, 220, 300)</code>：580 → 274，744 → 300。'],
+  ['横向滚动', '按列吸附（每列左边对齐 12 边距），惯性滑动结束后停在整列上。sheet 打开时，每列内容底部补上 sheet 的高度，最后一张卡能滚到 sheet 上方。'],
+  ['h', '底部 sheet（非模态）'],
+  ['位置', '在泳道区内：<code>left 0 / right 0 / bottom 0</code>，不盖顶栏，也不盖宿主侧栏和宿主 tab 栏。没有遮罩。底色 panel，顶部圆角 16，阴影 <code>0 -8 28 mix(foreground 14%)</code>。'],
+  ['两档高度', '半屏 = 泳道区高 × 0.58（折叠屏约 400，iPad mini 约 560）；全屏 = 泳道区高 − 8，露出 8 的泳道作为可以下拉回去的提示。'],
+  ['结构', '把手区 22（拖动条 36×5）→ 头部卡固定（‹ 返回、状态、计时、⋯、✕；标题 17/600；元信息；主按钮「打开 tab」40 高、深色实底，旁边是「停止运行」，待输入时换成允许 / 拒绝 / 回答）→ 内容区独立纵向滚动：位置卡、子任务卡、用量卡。属性行高 44。'],
+  ['手势', '<b>只有把手区和头部卡可以拖</b>，用来切换档位；内容区只负责滚动，不会因为滚动而改变档位。（宿主会抢插件的拖动手势，把两种手势分在不同区域最稳，见 memory host-gestures-steal-plugin-drags。）松手时，位移超过 64 或速度超过 0.5 px/ms 就切到下一档，否则回弹。从半屏下拉就关闭。sheet 不响应左右滑，避免和泳道横滑、宿主边缘返回手势冲突。'],
+  ['打开 / 切换 / 关闭', '点卡片：没打开时升到半屏；已经打开时原地换内容，档位不变。点泳道空白处、点 ✕、下拉关闭、外接键盘 Esc（先返回上一张，再关闭）都会关闭 sheet 并取消选中。卡片右上 ↗ 和 sheet 的「打开 tab」直接打开 tab；长按卡片弹出上下文菜单。'],
+  ['选中的卡片', '打开或换内容时，如果选中的卡片会被 sheet 盖住，泳道纵向滚动，把它放到 sheet 上沿往上 12 处；卡片加「当前」标记（mix(accent 7%, card) 底 + mix(accent 45%, border) 边）。'],
+  ['动画', '打开 280ms、两档切换 240ms、关闭 200ms，都用 cubic-bezier(0.2, 0, 0, 1)。系统开启「减少动态效果」时只做 120ms 淡入淡出。'],
+  ['h', '浮动档（784–996）的修改'],
+  ['出现时机', '默认不出现，即使宽屏记住的偏好是「打开」也一样。点卡片或点顶栏开关时浮出来；点面板外、Esc、开关、面板内向右拖超过 80 时收起。临时浮出不改宽屏记住的开关状态。'],
+  ['位置', '顶部在侧边栏开关正下方：<code>top = 顶栏第一行高 52 − 4</code>（开关 36 高、垂直居中，下沿在 44，留 4 的间距）；右边距 12，和开关的右边对齐；下边距 12。顶栏收成一行后，iPad mini 横屏（B = 873，屏高 744）时面板高 560，最早放在筛选行下面时是 504。'],
+  ['宽度', '<code>clamp(round(B × 0.36), 300, 360)</code>，跟着看板宽度走，不再固定 380（桌面内嵌时的 340–520 拖拽范围不变）。784 → 300，820 → 300，873 → 314，996 → 359。左边露出 <code>B − 宽 − 36</code>：784 时 448，996 时 601（两列 300 宽的泳道）。面板窄于 340 时，内容按 300 的版式排：属性行标签列 72，头部卡两个按钮并排，统计卡收成一行。'],
+  ['滚动结构', '整个面板只有一个纵向滚动容器：统计已经在顶栏的状态条上，面板里不再放统计卡；选中卡片的头部卡用 sticky 吸顶，所以动作按钮始终可点；下面依次是位置、子任务、用量。没有选中时（点开关打开），面板里是分组卡（Agent / 项目 / 标签 + 数量），同样在这个容器里滚动。'],
+  ['手势隔离', '面板本身接管纵向拖动，不把手势传给下面的泳道；面板外露出的泳道照常横向、纵向滚动。泳道行右侧补上「面板宽 + 12」的滚动余量。'],
+  ['h', '移植'],
+  ['代码落点', '<code>desktop-board.tsx</code>：<code>sidebarMode</code> 增加第三种模式 <code>sheet</code>（新常量 <code>SIDEBAR.sheetBelow = 760</code>、<code>floatFrom = 784</code>）；sheet 档换用新的 <code>BoardSheet</code> 组件（Animated 高度 + PanResponder，只挂在把手区和头部）。两档的顶栏都改成一行：状态条复用手机布局已有的组件，筛选弹层复用 <code>FilterSheetBody</code>。浮动面板的内容改成单个 ScrollView，头部卡用 <code>stickyHeaderIndices</code> 吸顶。'],
+  ['验收', '真机：折叠屏展开、宿主侧栏开着（B≈580），检查无选中时泳道完整可见；点卡片后上面两列仍能左右滑；全屏档滚到用量卡底部；下拉、点空白、✕ 都能关闭；旋转到横屏（B≈1100）切到内嵌，再转回来回到 sheet 档。'],
+];
+document.getElementById('spec').innerHTML = `<table class="spec">${rows.map(r => r[0] === 'h' ? `<tr class="h"><td colspan="2">${r[1]}</td></tr>` : `<tr><th>${r[0]}</th><td>${r[1]}</td></tr>`).join('')}</table>`;
+
+/* ======================= live frame ======================= */
+(function live() {
+  const root = document.querySelector('#f7-live .board');
+  const wrap = root.querySelector('.lanesWrap');
+  const lanes = root.querySelector('.lanes');
+  const scale = 0.8;
+  let sel = null, detent = null, sheet = null;
+  const H = () => wrap.clientHeight;
+  const heights = () => ({ half: Math.round(H() * 0.58), full: H() - 8 });
+  function setPad(px) { root.querySelectorAll('.lanebody').forEach(b => b.style.paddingBottom = (px ? px + 8 : 8) + 'px'); }
+  function mark() { root.querySelectorAll('.card').forEach(c => c.classList.toggle('cur', c.dataset.card === sel)); }
+  function ensureVisible(id) {
+    const card = root.querySelector(`[data-card="${id}"]`);
+    if (!card) return;
+    const body = card.closest('.lanebody');
+    const limit = H() - heights().half - 12;
+    const top = card.offsetTop - body.scrollTop + 40;
+    if (top + card.offsetHeight > limit) body.scrollTo({ top: body.scrollTop + (top + card.offsetHeight - limit), behavior: 'smooth' });
+  }
+  function open(id) {
+    sel = id; mark();
+    if (!sheet) {
+      wrap.insertAdjacentHTML('beforeend', sheetHTML(byId(id), 0));
+      sheet = wrap.querySelector('.sheet');
+      bindSheet();
+      sheet.getBoundingClientRect();
+      detent = 'half'; sheet.style.height = heights().half + 'px';
+    } else {
+      sheet.querySelector('.shead').innerHTML = headCard(byId(id));
+      sheet.querySelector('.hdtitle').textContent = byId(id).title;
+      sheet.querySelector('.sbody').scrollTop = 0;
+      bindClose();
+    }
+    setPad(heights().half);
+    ensureVisible(id);
+  }
+  function close() {
+    if (!sheet) return;
+    const s = sheet; sheet = null; sel = null; detent = null; mark(); setPad(0);
+    s.style.transition = 'height 200ms cubic-bezier(0.2,0,0,1)'; s.style.height = '0px';
+    setTimeout(() => s.remove(), 210);
+  }
+  function bindClose() { sheet.querySelector('[data-close]').onclick = (e) => { e.stopPropagation(); close(); }; }
+  function bindSheet() {
+    bindClose();
+    const handles = [sheet.querySelector('.grabzone'), sheet.querySelector('.shead')];
+    handles.forEach(h => h.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.btn,.ib')) return;
+      const y0 = e.clientY, h0 = sheet.offsetHeight, t0 = performance.now();
+      let lastY = y0, lastT = t0, v = 0;
+      sheet.classList.add('dragging');
+      h.setPointerCapture(e.pointerId);
+      const move = (m) => {
+        const dy = (m.clientY - y0) / scale;
+        sheet.style.height = Math.max(40, Math.min(heights().full, h0 - dy)) + 'px';
+        const now = performance.now(); v = (m.clientY - lastY) / scale / Math.max(1, now - lastT); lastY = m.clientY; lastT = now;
+      };
+      const up = (u) => {
+        h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up);
+        sheet.classList.remove('dragging');
+        const dy = (u.clientY - y0) / scale;
+        const { half, full } = heights();
+        if (Math.abs(dy) < 4) { sheet.style.height = (detent === 'full' ? full : half) + 'px'; return; }
+        const down = dy > 64 || v > 0.5, upward = dy < -64 || v < -0.5;
+        if (detent === 'half' && down) return close();
+        if (detent === 'half' && upward) detent = 'full';
+        else if (detent === 'full' && down) detent = 'half';
+        sheet.style.height = (detent === 'full' ? full : half) + 'px';
+      };
+      h.addEventListener('pointermove', move); h.addEventListener('pointerup', up);
+    }));
+  }
+  wrap.addEventListener('click', (e) => {
+    if (e.target.closest('.sheet')) return;
+    const c = e.target.closest('.card');
+    if (c) { if (e.target.closest('.go')) return; open(c.dataset.card); return; }
+    if (e.target.closest('.lanes')) close();
+  });
+  root.querySelectorAll('[data-stat]').forEach(s => s.addEventListener('click', () => {
+    const lane = root.querySelector(`[data-lane="${s.dataset.stat}"]`);
+    lanes.style.scrollSnapType = 'none';
+    lanes.scrollTo({ left: lane.offsetLeft - 12, behavior: 'smooth' });
+    setTimeout(() => { lanes.style.scrollSnapType = ''; }, 500);
+    const hd = lane.querySelector('.lanehd'); hd.classList.add('flash'); setTimeout(() => hd.classList.remove('flash'), 600);
+  }));
+})();
+</script>
+</body>
+</html>
