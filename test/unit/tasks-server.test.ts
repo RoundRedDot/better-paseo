@@ -24,14 +24,18 @@ async function executable(directory: string, name = "paseo", mode = 0o755): Prom
 async function registerHandlers(): Promise<Map<string, Handler>> {
   vi.resetModules();
   const { registerTasksServer } = await import("../../server/tasks/register");
+  const { createStopMarks } = await import("../../server/tasks/stop-marks");
   const handlers = new Map<string, Handler>();
   const server = {
     registerSettings() {},
+    on() {
+      return () => {};
+    },
     handle(contract: { name: string }, handler: Handler) {
       handlers.set(contract.name, handler);
     },
   } as unknown as PluginServerContext;
-  registerTasksServer(server);
+  registerTasksServer(server, createStopMarks(join(tempRoot, "tasks-stops.json")));
   return handlers;
 }
 

@@ -37,11 +37,13 @@ export const tasksStopRpc = defineRpc({
 });
 
 /**
- * The agents stopped through `tasks.stop` since the plugin server started,
- * with when, newest last, so a board opened later (another client, the app
- * after a restart) can still say "Stopped manually". Held in the server's
- * memory: a daemon restart or a plugin reload forgets them. Older servers
- * lack it; the board then keeps only its own stops.
+ * The agents stopped through `tasks.stop`, with when, newest last, so a board
+ * opened later (another client, the app after a restart) can still say
+ * "Stopped manually". The server keeps them in a file under its data
+ * directory, so a daemon restart or a plugin reload keeps them; a mark goes
+ * when the agent starts a new turn or is archived, or after 30 days. Older
+ * servers lack it (or lose the marks on a restart); the board then keeps
+ * only its own stops.
  */
 export const tasksStoppedRpc = defineRpc({
   name: "tasks.stopped",
