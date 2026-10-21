@@ -1,23 +1,22 @@
-// Charts for README.md and README-zh.md, one English and one Chinese copy of each.
+// Charts and table rows for README.md and README-zh.md, one English and one Chinese copy of each.
 //   node docs/perf/readme-charts.mjs
-// Reads the October 17 raw runs under docs/bench/2026-10-17-readme/parallel-v2/raw and writes docs/perf/readme/*.svg:
-//   web-cpu.<lang>.svg     Web main-thread task time, no plugin / Beautiful Chat 42b61d8 / Better Paseo
+// Reads the October 21 Paseo 0.12 raw runs under docs/bench/2026-10-21-paseo-012/raw (local, not in
+// git) and writes docs/perf/readme/*.svg:
+//   web-cpu.<lang>.svg     Web main-thread task time, no plugin (Paseo 0.12.0) / Better Paseo
+//   ios-cpu.<lang>.svg     iOS Release: app-process CPU time per replay, native threads included
 //   web-memory.<lang>.svg  JS heap and DOM nodes after a forced GC, the scenarios that differ most
-//   ios-commit.<lang>.svg  iOS total row-render time (median of allRows.sum), no plugin / Beautiful Chat 42b61d8 / Better Paseo
-// The iOS axis is clipped so no-plugin and Better Paseo stay readable. Beautiful Chat's
-// multi-second totals, and a long reply, keep the real number as the bar label.
-// Every figure is the median of the runs of one mode. The charts carry their own white card,
-// so they stay legible on GitHub's dark theme.
+// It also prints the README table rows (en, then zh) for every table in the performance section.
+// Every figure is the median of the three runs of one mode. Bars past the axis are clipped and
+// keep the real number as their label. The charts carry their own white card, so they stay
+// legible on GitHub's dark theme.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { gunzipSync } from "node:zlib";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const RAW = path.join(HERE, "../bench/2026-10-17-readme/parallel-v2/raw");
+const RAW = path.join(HERE, "../bench/2026-10-21-paseo-012/raw");
 const OUT = path.join(HERE, "readme");
-const audit = JSON.parse(readFileSync(path.join(RAW, "summary.json")));
-if (audit.collected !== 550 || audit.failures.length) throw new Error("complete audited current-main matrix required");
+const RUNS_PER_GROUP = 3;
 
 const SCENARIOS = [
   ["codeblock-streaming", "Code block streaming", "代码块流式"],
@@ -33,95 +32,89 @@ const SCENARIOS = [
   ["tool-expanded-streaming", "Growing tool log", "工具日志增长"],
 ];
 const MEMORY_SCENARIOS = ["diff-large", "history-100", "markdown-long", "reads-20", "shell-log-large", "tool-expanded-streaming"];
-// Above this, an iOS bar is clipped and its label retains the real measured total.
-const IOS_AXIS_MS = 2000;
+const WEB_AXIS_S = 4;
+const IOS_AXIS_S = 10;
 
 const TEXT = {
   en: {
     font: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
-    native: "No plugin (Paseo 0.11.2)",
-    upstream: "Beautiful Chat 42b61d8",
-    fork: "Better Paseo b9dfae6",
+    native: "No plugin (Paseo 0.12.0)",
+    fork: "Better Paseo 6a76c56",
     vsNative: "vs no plugin",
-    vsUpstream: "vs Beautiful Chat",
     even: "even",
     cpuTitle: "Web: main-thread time for a whole replay (seconds, lower is better)",
-    cpuNote: "Main b9dfae6: Web profiling, 5 runs/mode, median, up to 4 groups, 2026-10-17. Green ⬆ better, red ⬇ worse.",
+    cpuNote: [
+      "Paseo 0.12.0 production profiling build, Chrome 155, 3 runs/mode, median, 2026-10-21.",
+      `Bars past ${WEB_AXIS_S} s are clipped; the label is the real time. Green ⬆ better, red ⬇ worse.`,
+    ],
     memTitle: "Web: memory after a forced GC (lower is better)",
-    memNote: "Same runs as the main-thread chart, 2026-10-17. DOM nodes on a log scale.",
+    memNote: "Same runs as the main-thread chart, 2026-10-21. DOM nodes on a log scale.",
     heap: "JS heap (MB)",
     dom: "DOM nodes",
-    iosTitle: "iOS: total row-render time per replay (ms, lower is better)",
+    iosTitle: "iOS: app CPU time per replay (seconds, lower is better)",
     iosNote: [
-      "iOS 18.6 simulator, development build, cold start, 2026-10-17. 5 runs per mode, up to 4 groups.",
-      `Total row-render time. Bars past ${IOS_AXIS_MS.toLocaleString("en-US")} ms are clipped; the label is the real total. Green ⬆ better, red ⬇ worse.`,
-      "Four isolated benchmark simulators; actual overlap varies. No physical iPhone performance claim.",
+      "Paseo 0.12.0 Release simulator build, iOS 26.5, cold start, 3 runs/mode, median, 2026-10-21.",
+      `Whole app process, native threads included. Bars past ${IOS_AXIS_S} s are clipped; the label is the real time.`,
+      "Simulator on a shared, loaded machine; no physical iPhone performance claim. Green ⬆ better, red ⬇ worse.",
     ],
   },
   zh: {
     font: "'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif",
-    native: "不开插件（Paseo 0.11.2）",
-    upstream: "Beautiful Chat 42b61d8",
-    fork: "Better Paseo b9dfae6",
+    native: "不开插件（Paseo 0.12.0）",
+    fork: "Better Paseo 6a76c56",
     vsNative: "对比不开插件",
-    vsUpstream: "对比 Beautiful Chat",
     even: "持平",
     cpuTitle: "Web：整段回放的主线程时间（秒，越短越好）",
-    cpuNote: "b9dfae6：Web profiling，每模式 5 次中位数，最多 4 组并行，2026-10-17。绿色 ⬆ 更好，红色 ⬇ 更差。",
+    cpuNote: [
+      "Paseo 0.12.0 生产 profiling 构建，Chrome 155，每模式 3 次中位数，2026-10-21。",
+      `超过 ${WEB_AXIS_S} 秒的条被截断，数字是真实时间。绿色 ⬆ 更好，红色 ⬇ 更差。`,
+    ],
     memTitle: "Web：强制 GC 后的内存（越低越好）",
-    memNote: "与主线程时间同一批跑次，2026-10-17。DOM 节点为对数刻度。",
+    memNote: "与主线程时间同一批跑次，2026-10-21。DOM 节点为对数刻度。",
     heap: "JS 堆（MB）",
     dom: "DOM 节点",
-    iosTitle: "iOS：每次回放的行渲染总量（毫秒，越短越好）",
+    iosTitle: "iOS：每次回放的 App CPU 时间（秒，越短越好）",
     iosNote: [
-      "iOS 18.6 模拟器开发版，每次冷启动，中位数，2026-10-17。每种模式 5 次，最多 4 组并行。",
-      `行渲染总量。超过 ${IOS_AXIS_MS} ms 的条被截断，数字是真实总量。绿色 ⬆ 更好，红色 ⬇ 更差。`,
-      "4 台隔离测试模拟器，实际并发有变化；模拟器结果不代表 iPhone 真机性能。",
+      "Paseo 0.12.0 Release 模拟器构建，iOS 26.5，每次冷启动，每模式 3 次中位数，2026-10-21。",
+      `整个 App 进程，含原生线程。超过 ${IOS_AXIS_S} 秒的条被截断，数字是真实时间。`,
+      "共享且有负载的机器上的模拟器，不代表 iPhone 真机性能。绿色 ⬆ 更好，红色 ⬇ 更差。",
     ],
   },
 };
 
-const COLOUR = { native: "#9fadb3", upstream: "#d99a2b", fork: "#1e6b57" };
+const COLOUR = { native: "#9fadb3", fork: "#1e6b57" };
 const INK = "#1f2a2e";
 const MUTED = "#61727a";
 const GRID = "#e3eaed";
 const GOOD = "#1e6b57";
 const BAD = "#b0392f";
 
-// File names are <platform>-<mode>-<fixture>-r<rep>.json. Several directories may be
-// given: a fixture found in a later one replaces the earlier runs of that fixture.
-function load(dirs) {
-  let runs = [];
-  for (const dir of dirs) {
-    const next = readdirSync(path.join(RAW, dir))
-      .filter((file) => /\.json(?:\.gz)?$/.test(file))
-      .map((file) => {
-        const [, mode, ...rest] = file.replace(/\.json(?:\.gz)?$/, "").split("-");
-        rest.pop();
-        const bytes = readFileSync(path.join(RAW, dir, file));
-        return { mode: mode === "latest" ? "fork" : mode, fixture: rest.join("-"), data: JSON.parse(file.endsWith('.gz') ? gunzipSync(bytes) : bytes) };
-      });
-    const replaced = new Set(next.map((run) => run.fixture));
-    runs = [...runs.filter((run) => !replaced.has(run.fixture)), ...next];
-  }
+// File names are <platform>-<mode>-<fixture>-r<rep>.json. The candidate build ("cand") in the
+// same directory is not part of the README.
+function load(dir) {
+  const runs = readdirSync(path.join(RAW, dir))
+    .filter((file) => file.endsWith(".json"))
+    .map((file) => {
+      const [, mode, ...rest] = file.replace(/\.json$/, "").split("-");
+      rest.pop();
+      return { mode, fixture: rest.join("-"), data: JSON.parse(readFileSync(path.join(RAW, dir, file))) };
+    });
   return (fixture, mode, get) => {
-    const selected = runs.filter((run) => run.fixture === fixture && run.mode === mode);
-    if (selected.length !== 5) throw new Error(`incomplete group ${mode} ${fixture}`);
-    if (selected.some(run => run.data.displayErrors?.length || run.data.comparisonEligible === false)) return null;
-    if (selected.some(run => !run.data.completed || run.data.error)) throw new Error(`incomplete group ${mode} ${fixture}`);
-    const values = selected.map((run) => get(run.data)).sort((a, b) => a - b);
-    if (values.length === 0) throw new Error(`no runs for ${mode} ${fixture}`);
-    const mid = Math.floor(values.length / 2);
-    return values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
+    const values = runs.filter((run) => run.fixture === fixture && run.mode === mode).map((run) => get(run.data));
+    if (values.length !== RUNS_PER_GROUP) throw new Error(`incomplete group ${dir} ${mode} ${fixture}`);
+    values.sort((a, b) => a - b);
+    return values[Math.floor(values.length / 2)];
   };
 }
 
-const web = load(["web"]);
-const ios = load(["ios"]);
+const web = load("web-r012");
+const ios = load("ios-r012");
 const task = (run) => run.cdp.delta.TaskDuration;
 const heap = (run) => run.cdp.jsHeapUsedMB;
 const nodes = (run) => run.cdp.nodes;
 const rowSum = (run) => (run.probe ?? run).allRows.sum;
+const shift = (run) => run.probe.layoutShift;
+const appCpu = (run) => run.appCpuS;
 
 const escape = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const textEl = (x, y, content, { size = 12, fill = INK, anchor = "start", weight = 400, font }) =>
@@ -235,21 +228,21 @@ function groupedChart({ t, lang, modes, get, max, ticks, unit, digits, title, no
 function memoryChart(t) {
   const WIDTH = 900;
   const font = t.font;
-  const modes = ["native", "upstream", "fork"];
+  const modes = ["native", "fork"];
   const bar = 8;
   const ROW = modes.length * (bar + 2) + 14;
   const TOP = 104;
   const height = TOP + MEMORY_SCENARIOS.length * ROW + 40;
   const LABEL = 170;
   const panels = [
-    { x0: 180, width: 300, title: t.heap, get: heap, scale: (v) => v / 300, ticks: [0, 100, 200, 300], tick: (v) => `${v}`, fmt: (v) => v.toFixed(0) },
+    { x0: 180, width: 300, title: t.heap, get: heap, scale: (v) => v / 120, ticks: [0, 40, 80, 120], tick: (v) => `${v}`, fmt: (v) => v.toFixed(0) },
     {
       x0: 560,
       width: 300,
       title: t.dom,
       get: nodes,
-      scale: (v) => (Math.log10(v) - Math.log10(500)) / (Math.log10(100000) - Math.log10(500)),
-      ticks: [1000, 10000, 100000],
+      scale: (v) => (Math.log10(v) - Math.log10(500)) / (Math.log10(20000) - Math.log10(500)),
+      ticks: [1000, 3000, 10000],
       tick: (v) => (v >= 1000 ? `${v / 1000}k` : `${v}`),
       fmt: (v) => Math.round(v).toLocaleString("en-US"),
     },
@@ -300,41 +293,75 @@ for (const [direction, fill] of [["up", GOOD], ["down", BAD]]) {
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 11 13" width="11" height="13"><path fill="${fill}" d="${arrowPath(direction, 0, 0)}"/></svg>\n`,
   );
 }
+// README table rows. `floor` is the half-second rule for whole Web replays; `format` the cell.
+const fmtFixed = (digits) => (v) => v.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+const TABLES = [
+  { name: "web-cpu", get: (f, m) => web(f, m, task), format: fmtFixed(3), floor: 0.5 },
+  { name: "web-rows", get: (f, m) => web(f, m, rowSum), format: fmtFixed(1) },
+  { name: "web-cls", get: (f, m) => web(f, m, shift), format: fmtFixed(6) },
+  { name: "ios-cpu", get: (f, m) => ios(f, m, appCpu), format: fmtFixed(2) },
+  { name: "ios-rows", get: (f, m) => ios(f, m, rowSum), format: fmtFixed(1) },
+];
+const ARROW = {
+  up: '<img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;',
+  down: '<img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;',
+};
+function tableRows(table, lang) {
+  const t = TEXT[lang];
+  const tally = { lower: 0, even: 0, higher: 0 };
+  const rows = SCENARIOS.map(([fixture, en, zh]) => {
+    const [n, f] = ["native", "fork"].map((mode) => table.get(fixture, mode));
+    const d = delta(n, f, t, { floor: table.floor });
+    tally[d.arrow === "up" ? "lower" : d.arrow === "down" ? "higher" : "even"] += 1;
+    const cell = d.arrow ? `${ARROW[d.arrow]}${d.label}` : d.label;
+    return `| ${lang === "zh" ? zh : en} | ${table.format(n)} | **${table.format(f)}** | ${cell} |`;
+  });
+  return { rows, tally };
+}
+function memoryRows(lang) {
+  return SCENARIOS.map(([fixture, en, zh]) => {
+    const [n, f] = ["native", "fork"].map((mode) => web(fixture, mode, heap));
+    const diff = f - n;
+    return `| ${lang === "zh" ? zh : en} | ${n.toFixed(1)} | **${f.toFixed(1)}** | ${diff >= 0 ? "+" : "-"}${Math.abs(diff).toFixed(1)} |`;
+  });
+}
+
 for (const lang of ["en", "zh"]) {
   const t = TEXT[lang];
   const charts = {
     "web-cpu": groupedChart({
       t,
       lang,
-      modes: ["native", "upstream", "fork"],
+      modes: ["native", "fork"],
       get: (fixture, mode) => web(fixture, mode, task),
-      max: 10,
-      ticks: [0, 2, 4, 6, 8, 10],
+      max: WEB_AXIS_S,
+      ticks: [0, 1, 2, 3, WEB_AXIS_S],
       unit: "s",
       digits: 2,
       title: t.cpuTitle,
       note: t.cpuNote,
-      deltas: [["native", t.vsNative], ["upstream", t.vsUpstream]],
+      deltas: [["native", t.vsNative]],
       floor: 0.5,
     }),
     "web-memory": memoryChart(t),
-    "ios-commit": groupedChart({
+    "ios-cpu": groupedChart({
       t,
       lang,
-      modes: ["native", "upstream", "fork"],
-      get: (fixture, mode) => ios(fixture, mode, rowSum),
-      max: IOS_AXIS_MS,
-      ticks: [0, 500, 1000, 1500, IOS_AXIS_MS],
-      unit: "ms",
-      digits: 1,
+      modes: ["native", "fork"],
+      get: (fixture, mode) => ios(fixture, mode, appCpu),
+      max: IOS_AXIS_S,
+      ticks: [0, 2, 4, 6, 8, IOS_AXIS_S],
+      unit: "s",
+      digits: 2,
       title: t.iosTitle,
       note: t.iosNote,
-      deltas: [["native", t.vsNative], ["upstream", t.vsUpstream]],
-      // Millisecond totals: only the 10% clause. The Web chart's half-second floor stays off.
+      deltas: [["native", t.vsNative]],
     }),
   };
-  for (const [name, chart] of Object.entries(charts)) {
-    writeFileSync(path.join(OUT, `${name}.${lang}.svg`), chart.svg);
-    if (lang === "en") console.log(`# ${name}\n${chart.rows.join("\n")}`);
+  for (const [name, chart] of Object.entries(charts)) writeFileSync(path.join(OUT, `${name}.${lang}.svg`), chart.svg);
+  for (const table of TABLES) {
+    const { rows, tally } = tableRows(table, lang);
+    console.log(`\n## ${lang} ${table.name} lower ${tally.lower} even ${tally.even} higher ${tally.higher}\n${rows.join("\n")}`);
   }
+  console.log(`\n## ${lang} memory\n${memoryRows(lang).join("\n")}`);
 }
