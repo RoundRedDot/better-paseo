@@ -1,8 +1,8 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { z } from "zod";
+import { pluginDataDir } from "./plugin-data";
 import { recordedTurnSchema, turnUsageRpc, turnUsageSchema, type RecordedTurn } from "../shared/turn-usage-rpc";
 
 /** A file-name safe agent ID; anything else is neither read nor written. */
@@ -13,8 +13,7 @@ const TURNS_KEPT = 500;
 const ledgerSchema = z.array(recordedTurnSchema);
 
 export function turnUsageDir(): string {
-  const home = process.env.PASEO_HOME || join(homedir(), ".paseo");
-  return join(home, "plugin-data", "better-paseo", "turn-usage");
+  return join(pluginDataDir(), "turn-usage");
 }
 
 /** One JSON file per agent. Writes to an agent run one at a time. */
