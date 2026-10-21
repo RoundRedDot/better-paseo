@@ -55,31 +55,22 @@ describe("sidebar width", () => {
 describe("sidebar selection", () => {
   const run = (...actions: Parameters<typeof selectionReducer>[1][]) => actions.reduce(selectionReducer, NO_SELECTION);
 
-  it("follows hover and the keyboard until a card is pinned", () => {
-    expect(run({ type: "hover", id: "a" })).toEqual({ id: "a", pinned: false, back: [] });
-    expect(run({ type: "hover", id: "a" }, { type: "focus", id: "b" }).id).toBe("b");
-    const pinned = run({ type: "click", id: "a" }, { type: "hover", id: "b" }, { type: "focus", id: "c" });
-    expect(pinned).toEqual({ id: "a", pinned: true, back: [] });
+  it("shows the clicked card, and keeps it on a second click", () => {
+    expect(run({ type: "click", id: "a" })).toEqual({ id: "a", back: [] });
+    const once = run({ type: "click", id: "a" });
+    expect(selectionReducer(once, { type: "click", id: "a" })).toBe(once);
+    expect(run({ type: "click", id: "a" }, { type: "click", id: "b" })).toEqual({ id: "b", back: [] });
+    expect(run({ type: "click", id: "a" }, { type: "clear" })).toBe(NO_SELECTION);
   });
 
-  it("pins on a click and unpins on a second click of the same card", () => {
-    expect(run({ type: "click", id: "a" })).toEqual({ id: "a", pinned: true, back: [] });
-    expect(run({ type: "click", id: "a" }, { type: "click", id: "a" })).toEqual({ id: "a", pinned: false, back: [] });
-    expect(run({ type: "click", id: "a" }, { type: "click", id: "b" })).toEqual({ id: "b", pinned: true, back: [] });
-  });
-
-  it("toggles the pin with P", () => {
-    expect(run({ type: "togglePin", id: "a" })).toEqual({ id: "a", pinned: true, back: [] });
-    expect(run({ type: "togglePin", id: "a" }, { type: "togglePin", id: "a" }).pinned).toBe(false);
-    expect(run({ type: "togglePin", id: null })).toBe(NO_SELECTION);
-  });
-
-  it("jumps to a parent or subtask, pinned, and goes back through the earlier cards", () => {
-    const jumped = run({ type: "hover", id: "a" }, { type: "jump", id: "b" }, { type: "jump", id: "c" });
-    expect(jumped).toEqual({ id: "c", pinned: true, back: ["a", "b"] });
+  it("jumps to a parent or subtask and goes back through the earlier cards", () => {
+    const jumped = run({ type: "click", id: "a" }, { type: "jump", id: "b" }, { type: "jump", id: "c" });
+    expect(jumped).toEqual({ id: "c", back: ["a", "b"] });
     const once = selectionReducer(jumped, { type: "back" });
-    expect(once).toEqual({ id: "b", pinned: true, back: ["a"] });
-    expect(selectionReducer(selectionReducer(once, { type: "back" }), { type: "back" })).toEqual({ id: "a", pinned: true, back: [] });
+    expect(once).toEqual({ id: "b", back: ["a"] });
+    expect(selectionReducer(selectionReducer(once, { type: "back" }), { type: "back" })).toEqual({ id: "a", back: [] });
+    // A click on a card starts over.
+    expect(selectionReducer(jumped, { type: "click", id: "c" })).toEqual({ id: "c", back: [] });
   });
 
   it("keeps at most twenty cards to go back to", () => {
@@ -89,11 +80,11 @@ describe("sidebar selection", () => {
     expect(state.back[0]).toBe("c9");
   });
 
-  it("orders Esc: back, unpin, close the floating panel", () => {
-    expect(escapeStep({ id: "b", pinned: true, back: ["a"] }, true)).toBe("back");
-    expect(escapeStep({ id: "b", pinned: true, back: [] }, true)).toBe("unpin");
-    expect(escapeStep({ id: "b", pinned: false, back: [] }, true)).toBe("close");
-    expect(escapeStep({ id: "b", pinned: false, back: [] }, false)).toBeNull();
+  it("orders Esc: back, close the floating panel, let go of the card", () => {
+    expect(escapeStep({ id: "b", back: ["a"] }, true)).toBe("back");
+    expect(escapeStep({ id: "b", back: [] }, true)).toBe("close");
+    expect(escapeStep({ id: "b", back: [] }, false)).toBe("clear");
+    expect(escapeStep(NO_SELECTION, false)).toBeNull();
   });
 });
 

@@ -60,8 +60,6 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
         strings,
         touch: props.touch,
         clock: board.clock,
-        pinned: selection.pinned,
-        onTogglePin: () => dispatch({ type: "togglePin", id: card.id }),
         onClose: () => dispatch({ type: "clear" }),
         back: backId ? { title: backCard?.title ?? board.strings.back, onPress: () => dispatch({ type: "back" }) } : null,
         notice,

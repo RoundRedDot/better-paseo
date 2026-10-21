@@ -233,9 +233,8 @@ export interface CardCellProps {
   theme: PluginTheme;
   compact: boolean;
   focused?: boolean;
-  /** The card the details sidebar shows, and whether it is pinned there. */
+  /** The card the details sidebar shows. */
   current?: boolean;
-  pinned?: boolean;
   fresh: boolean;
   /** The cell's node by card id. */
   register?(agentId: string, node: unknown): void;
@@ -274,7 +273,6 @@ export function CardCell(props: CardCellProps) {
           stopPhase={board.stop.phase(card.id)}
           focused={props.focused ?? false}
           current={props.current}
-          pinned={props.pinned}
           highlighted={board.highlighted === card.id}
           clock={board.clock}
           language={board.language}

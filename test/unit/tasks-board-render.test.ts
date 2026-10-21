@@ -377,29 +377,28 @@ describe("Tasks board, desktop", () => {
     expect(readSidebarPreference().open).toBe(false);
   });
 
-  it("follows a hover until a click pins a card, and a second click opens its tab", () => {
+  it("shows a card only once it is clicked, and the next clicked card after it", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
     layOut(2000);
     const card = (id: string) => cards().find((node) => node.props.card.id === id)!;
     const title = () => textOf(renderer!.root.findByProps({ testID: "detail-title" }));
-    act(() => card("sample-running").props.onDetails(card("sample-running").props.card));
+    expect(hostsById("detail-title")).toHaveLength(0);
+    act(() => card("sample-running").props.onSelect(card("sample-running").props.card));
     expect(title()).toBe(card("sample-running").props.card.title);
     expect(card("sample-running").props.current).toBe(true);
-    act(() => card("sample-failed").props.onDetails(card("sample-failed").props.card));
+    act(() => card("sample-failed").props.onSelect(card("sample-failed").props.card));
     expect(title()).toBe(card("sample-failed").props.card.title);
-    // A click pins: hovers no longer move it.
-    act(() => card("sample-running").props.onSelect(card("sample-running").props.card));
-    expect(card("sample-running").props.pinned).toBe(true);
-    act(() => card("sample-failed").props.onDetails(card("sample-failed").props.card));
-    expect(title()).toBe(card("sample-running").props.card.title);
+    expect(card("sample-running").props.current).toBe(false);
+    // No pin button: the header has only Close.
+    expect(hostsById("detail-pin")).toHaveLength(0);
     // Close: back to the groups.
     act(() => renderer!.root.findByProps({ testID: "detail-close" }).props.onPress());
     expect(hostsById("detail-title")).toHaveLength(0);
   });
 
-  it("floats the sidebar over a narrow board, where a hover does not change it", () => {
+  it("floats the sidebar over a narrow board and shows the clicked card there", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
@@ -407,7 +406,6 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("sidebar-floating")).toHaveLength(1);
     expect(hostsById("sidebar-inline")).toHaveLength(0);
     const card = cards().find((node) => node.props.card.id === "sample-running")!;
-    act(() => card.props.onDetails(card.props.card));
     expect(hostsById("detail-title")).toHaveLength(0);
     act(() => card.props.onSelect(card.props.card));
     expect(textOf(renderer!.root.findByProps({ testID: "detail-title" }))).toBe(card.props.card.title);
