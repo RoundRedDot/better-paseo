@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import React, { memo, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../../theme-tokens";
@@ -29,8 +29,8 @@ export const COPY_IMAGE_LABEL = "Copy as image";
  * was, so a click or a tap without a pause still copies the Markdown. Native
  * keeps the single button. Every platform expands to Copy selected for a selected cell.
  */
-export function TableCopyMenu({ source, frame, tokens, selected }: {
-  /** The table's Markdown, read when pressed so a streaming table copies its latest rows. */
+function TableCopyMenuBody({ source, frame, tokens, selected }: {
+  /** The table's Markdown, read when pressed so a streaming table copies its latest rows; one callback for the table's life. */
   source: () => string;
   /** The table's frame; on web its DOM element. */
   frame: RefObject<View | null>;
@@ -44,11 +44,44 @@ export function TableCopyMenu({ source, frame, tokens, selected }: {
   return <SelectionCopyMenu selected={selected} tokens={tokens}>{control}</SelectionCopyMenu>;
 }
 
-/** The fixed corner slot keeps its menu mounted through an interruptible exit. */
+/** Memoised: a streamed chunk redraws the table, not its closed corner. */
+export const TableCopyMenu = memo(TableCopyMenuBody);
+
+/**
+ * The table's corner. Until a cell is selected it holds the closed control on
+ * a backing of the card's colour, so the table's border does not show through
+ * it, and nothing else: a reply can hold dozens of tables and most are never
+ * selected. The menu mounts with the first selection and stays through its
+ * exit, which a new selection can interrupt.
+ */
 function SelectionCopyMenu({ children, selected, tokens }: {
   children: ReactNode;
   selected?: { text: string; dismiss(): void };
   tokens: ExtendedThemeTokens;
+}) {
+  const [held, setHeld] = useState(false);
+  if (selected !== undefined && !held) setHeld(true);
+  if (!held && selected === undefined) {
+    return (
+      <View testID="table-native-copy-slot" style={[styles.nativeSlot, { backgroundColor: tokens.surface0 }]}>
+        {children}
+      </View>
+    );
+  }
+  return <SelectionMenu selected={selected} tokens={tokens} onHidden={() => setHeld(false)} />;
+}
+
+/**
+ * The open menu: the slot widens to it so native hit testing reaches every
+ * entry, while the frame inside animates. The closed control under it is not
+ * mounted meanwhile; the frame paints its own fill and covers the control's
+ * place at every width, so no full-width backing remains during the exit.
+ */
+function SelectionMenu({ selected, tokens, onHidden }: {
+  selected?: { text: string; dismiss(): void };
+  tokens: ExtendedThemeTokens;
+  /** The exit has finished: the closed control returns. */
+  onHidden(): void;
 }) {
   const { copy } = useCopy();
   const composer = useContext(ChatComposerContext);
@@ -76,23 +109,18 @@ function SelectionCopyMenu({ children, selected, tokens }: {
     doc?.addEventListener("keydown", onKeyDown);
     return () => { release(); doc?.removeEventListener("keydown", onKeyDown); };
   }, [dismiss, selectedText, copy]);
-  const [shown, setShown] = useState(open);
-  // Keep the underlying border hidden until the shrinking frame is removed.
-  const buttonHidden = open || shown;
   const [measured, setMeasured] = useState<number | null>(null);
   const width = useRef(new Animated.Value(FLOAT.control)).current;
   const reveal = useRef(new Animated.Value(0)).current;
   const latestOpen = useRef(open);
   latestOpen.current = open;
   useLayoutEffect(() => {
-    if (!open && !shown) return;
-    if (open) setShown(true);
     const target = open && measured !== null ? measured : FLOAT.control;
     const visible = open && measured !== null ? 1 : 0;
     if (reducedMotion) {
       width.setValue(target);
       reveal.setValue(visible);
-      if (!open) setShown(false);
+      if (!open) onHidden();
       return;
     }
     // Only the absolute clipping frame changes width; the row inside keeps
@@ -104,67 +132,60 @@ function SelectionCopyMenu({ children, selected, tokens }: {
       toValue: visible, duration: open ? 140 : 80, easing: easing.out, useNativeDriver: Platform.OS !== "web",
     });
     frameAnimation.start(({ finished }) => {
-      if (finished && !latestOpen.current) setShown(false);
+      if (finished && !latestOpen.current) onHidden();
     });
     labelAnimation.start();
     return () => { frameAnimation.stop(); labelAnimation.stop(); };
-  }, [open, shown, measured, reducedMotion, width, reveal]);
+  }, [open, measured, reducedMotion, width, reveal]);
   return (
-    <View ref={anchorRef} testID="table-native-copy-slot" style={[styles.nativeSlot, { width: shown ? measured ?? FLOAT.control : FLOAT.control }]}>
-      <View pointerEvents={buttonHidden ? "none" : "auto"} accessibilityElementsHidden={buttonHidden}
-        aria-hidden={buttonHidden}
-        style={{ opacity: buttonHidden ? 0 : 1, ...(Platform.OS === "web" && buttonHidden ? { display: "none" } : {}) }}>
-        {children}
-      </View>
-      {shown ? (
-        <Animated.View testID="table-selection-menu-animation" pointerEvents={open ? "auto" : "none"}
-          accessibilityElementsHidden={!open}
-          aria-hidden={!open}
-          style={[styles.frame, styles.nativeFrame, { width, backgroundColor: tokens.surface0, borderColor: tokens.v2.border }]}>
-          <View style={{ width: windowWidth }}>
-            <View testID="table-selection-menu-row" style={styles.selectedRow}
-              onLayout={(event) => setMeasured(Math.ceil(event.nativeEvent.layout.width) + BORDER * 2)}>
-              <Pressable accessibilityRole="button" accessible={open} focusable={open} accessibilityLabel={open ? "Copy selected cell" : undefined}
-                onPress={() => {
-                  if (selected) void copy(selected.text, { feedback: "toast", label: "Copy selected" })
-                    .then((ok) => { if (ok) selected.dismiss(); });
-                }}
-                style={({ pressed }) => [styles.selected, { backgroundColor: pressed ? floatPressed(tokens) : tokens.surface0 }]}>
-                <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
-                <Animated.View style={{ opacity: reveal,
-                  transform: [{ translateX: reveal.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}>
+    <View ref={anchorRef} testID="table-native-copy-slot" style={[styles.nativeSlot, { width: measured ?? FLOAT.control }]}>
+      <Animated.View testID="table-selection-menu-animation" pointerEvents={open ? "auto" : "none"}
+        accessibilityElementsHidden={!open}
+        aria-hidden={!open}
+        style={[styles.frame, styles.nativeFrame, { width, backgroundColor: tokens.surface0, borderColor: tokens.v2.border }]}>
+        <View style={{ width: windowWidth }}>
+          <View testID="table-selection-menu-row" style={styles.selectedRow}
+            onLayout={(event) => setMeasured(Math.ceil(event.nativeEvent.layout.width) + BORDER * 2)}>
+            <Pressable accessibilityRole="button" accessible={open} focusable={open} accessibilityLabel={open ? "Copy selected cell" : undefined}
+              onPress={() => {
+                if (selected) void copy(selected.text, { feedback: "toast", label: "Copy selected" })
+                  .then((ok) => { if (ok) selected.dismiss(); });
+              }}
+              style={({ pressed }) => [styles.selected, { backgroundColor: pressed ? floatPressed(tokens) : tokens.surface0 }]}>
+              <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
+              <Animated.View style={{ opacity: reveal,
+                transform: [{ translateX: reveal.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}>
+                <Text selectable={false} numberOfLines={1}
+                  style={[styles.label, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+                  {toolbarLabel("Copy selected", language)}
+                </Text>
+              </Animated.View>
+            </Pressable>
+            {Platform.OS === "web" || composer ? (
+              <Animated.View style={{ opacity: reveal,
+                transform: [{ translateX: reveal.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}>
+                <Pressable accessibilityRole="button" accessible={open} focusable={open}
+                  accessibilityLabel={open ? "Add to chat" : undefined}
+                  onPress={() => {
+                    if (!selected) return;
+                    const snippet = quoteCell(selected.text);
+                    const added = Platform.OS === "web"
+                      ? insertIntoComposer(snippet, anchorRef.current as unknown as Element | null)
+                      : composer!.appendText(snippet);
+                    if (added) selected.dismiss();
+                  }}
+                  style={({ pressed }) => [styles.selected, { backgroundColor: pressed ? floatPressed(tokens) : tokens.surface0 }]}>
+                  <Icon name="MessageSquarePlus" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
                   <Text selectable={false} numberOfLines={1}
                     style={[styles.label, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
-                    {toolbarLabel("Copy selected", language)}
+                    {toolbarLabel("Add to chat", language)}
                   </Text>
-                </Animated.View>
-              </Pressable>
-              {Platform.OS === "web" || composer ? (
-                <Animated.View style={{ opacity: reveal,
-                  transform: [{ translateX: reveal.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}>
-                  <Pressable accessibilityRole="button" accessible={open} focusable={open}
-                    accessibilityLabel={open ? "Add to chat" : undefined}
-                    onPress={() => {
-                      if (!selected) return;
-                      const snippet = quoteCell(selected.text);
-                      const added = Platform.OS === "web"
-                        ? insertIntoComposer(snippet, anchorRef.current as unknown as Element | null)
-                        : composer!.appendText(snippet);
-                      if (added) selected.dismiss();
-                    }}
-                    style={({ pressed }) => [styles.selected, { backgroundColor: pressed ? floatPressed(tokens) : tokens.surface0 }]}>
-                    <Icon name="MessageSquarePlus" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
-                    <Text selectable={false} numberOfLines={1}
-                      style={[styles.label, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
-                      {toolbarLabel("Add to chat", language)}
-                    </Text>
-                  </Pressable>
-                </Animated.View>
-              ) : null}
-            </View>
+                </Pressable>
+              </Animated.View>
+            ) : null}
           </View>
-        </Animated.View>
-      ) : null}
+        </View>
+      </Animated.View>
     </View>
   );
 }
@@ -369,7 +390,8 @@ function revealed(open: boolean): object {
 const BORDER = 1;
 
 const styles = StyleSheet.create({
-  nativeSlot: { width: FLOAT.control, height: FLOAT.control },
+  // At the table's corner, over its scroller; rounded like the control it backs.
+  nativeSlot: { position: "absolute", top: 0, left: 0, width: FLOAT.control, height: FLOAT.control, borderRadius: FLOAT.radius },
   nativeFrame: { position: "absolute", top: 0, left: 0 },
   selectedRow: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center" },
   selected: { alignSelf: "flex-start", height: FLOAT.control - BORDER * 2, flexDirection: "row", alignItems: "center", gap: FLOAT.iconText, paddingLeft: 7, paddingRight: 10 },

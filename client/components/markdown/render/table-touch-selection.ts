@@ -8,16 +8,21 @@ import { HOLD_MS, MOVE_SLOP } from "./table-selection";
 const DOUBLE_TAP_MS = 300;
 const TAP_MS = 250;
 
-interface Tap { cell: CellPos; time: number; x: number; y: number }
+interface Tap { time: number; x: number; y: number }
 
 interface Press extends Tap {
   timer: ReturnType<typeof setTimeout> | null;
   /** The hold went through: the finger now draws the range. */
   active: boolean;
-  /** The frame's place on the page and its rows' and columns' starts inside it, measured once the hold goes through. */
-  origin?: { x: number; y: number };
-  rows?: number[];
-  columns?: readonly number[];
+  /** Where the cells are, measured once the hold goes through. */
+  cells?: CellGrid;
+}
+
+/** The frame's place on the page and its rows' and columns' starts inside it. */
+interface CellGrid {
+  origin: { x: number; y: number };
+  rows: number[];
+  columns: readonly number[];
 }
 
 /** Where a native finger is: the table's frame, its rows, and its column starts. */
@@ -29,15 +34,17 @@ export interface TableGeometry {
   columns: readonly number[];
 }
 
-type CellTouchProps = Pick<ViewProps, "onTouchStart" | "onTouchMove" | "onTouchEnd" | "onTouchCancel"
+type FrameTouchProps = Pick<ViewProps, "onTouchStart" | "onTouchMove" | "onTouchEnd" | "onTouchCancel"
   | "onMoveShouldSetResponder" | "onResponderGrant" | "onResponderTerminationRequest">;
 
 /**
  * A table's cell selection: a rectangle from the cell it began on to the one
  * it reached. A double tap (a double click on web) selects one cell. Holding
  * a cell starts a range that follows the finger across rows and columns; the
- * copy menu waits for the release. Native gestures are recognised here, web
- * pointers in `bindTableCellSelection`.
+ * copy menu waits for the release. Native gestures are recognised here, on
+ * the table's frame, which finds the cell under the finger from its rows and
+ * column starts, so a cell needs no view of its own; web pointers are
+ * recognised in `bindTableCellSelection`.
  */
 export function useTableCellSelection(source: string, geometry: TableGeometry) {
   const [selection, setSelection] = useState<{ anchor: CellPos; focus: CellPos } | null>(null);
@@ -75,25 +82,35 @@ export function useTableCellSelection(source: string, geometry: TableGeometry) {
   useEffect(() => { cancel(); previous.current = null; dismiss(); }, [source]);
   useEffect(() => () => { cancel(); }, []);
 
-  const point = (cell: CellPos, event: GestureResponderEvent): Tap => ({
-    cell, time: event.nativeEvent.timestamp,
+  const point = (event: GestureResponderEvent): Tap => ({
+    time: event.nativeEvent.timestamp,
     x: event.nativeEvent.pageX, y: event.nativeEvent.pageY,
   });
   const near = (a: Tap, b: Tap) => Math.hypot(a.x - b.x, a.y - b.y) <= MOVE_SLOP;
-  // Rows and columns are measured once the hold goes through, while the
-  // finger is still; the table and the timeline are held still from then on.
-  const measure = (current: Press) => {
+  // The rows and columns are measured only when a cell is needed: once a
+  // hold goes through, while the finger is still, and on a double tap. The
+  // grid arrives once the frame and every row have answered.
+  const measure = (done: (cells: CellGrid) => void) => {
     const { frame, rows, columns } = latest.current;
     const node = frame.current;
     if (!node) return;
-    current.columns = columns;
-    node.measure((_x, _y, _width, _height, pageX, pageY) => { current.origin = { x: pageX, y: pageY }; });
+    const views = rows.current ?? [];
     const tops: number[] = [];
-    current.rows = tops;
-    rows.current?.forEach((row, index) => {
-      row?.measureLayout(node, (_left, top) => { tops[index] = top; });
+    let origin: CellGrid["origin"] | undefined;
+    let waiting = 1 + views.filter(Boolean).length;
+    const answered = () => {
+      waiting -= 1;
+      if (waiting === 0 && origin) done({ origin, rows: tops, columns });
+    };
+    node.measure((_x, _y, _width, _height, pageX, pageY) => { origin = { x: pageX, y: pageY }; answered(); });
+    views.forEach((row, index) => {
+      row?.measureLayout(node, (_left, top) => { tops[index] = top; answered(); }, answered);
     });
   };
+  const locate = (cells: CellGrid, at: Tap): CellPos => ({
+    row: indexAt(cells.rows, at.y - cells.origin.y),
+    column: indexAt(cells.columns, at.x - cells.origin.x),
+  });
   const activate = (current: Press) => {
     current.timer = null;
     if (press.current !== current) return;
@@ -101,16 +118,14 @@ export function useTableCellSelection(source: string, geometry: TableGeometry) {
     previous.current = null;
     lockList(true);
     locked.current = holdHostGestures(latest.current.frame.current);
-    measure(current);
-    begin(current.cell);
-  };
-  const locate = (current: Press, x: number, y: number): CellPos | null => {
-    const { origin, rows, columns } = current;
-    if (!origin || !rows?.length || !columns?.length) return null;
-    return { row: indexAt(rows, y - origin.y), column: indexAt(columns, x - origin.x) };
+    measure((cells) => {
+      if (press.current !== current) return;
+      current.cells = cells;
+      begin(locate(cells, current));
+    });
   };
 
-  const cellProps = (cell: CellPos): CellTouchProps => Platform.OS === "web" ? {} : {
+  const frameProps: FrameTouchProps = Platform.OS === "web" ? {} : {
     onTouchStart: (event) => {
       dismiss();
       cancel();
@@ -118,14 +133,14 @@ export function useTableCellSelection(source: string, geometry: TableGeometry) {
         previous.current = null;
         return;
       }
-      const current: Press = { ...point(cell, event), timer: null, active: false };
+      const current: Press = { ...point(event), timer: null, active: false };
       current.timer = setTimeout(() => activate(current), HOLD_MS);
       press.current = current;
     },
     onTouchMove: (event) => {
       const current = press.current;
       if (!current) return;
-      const at = point(cell, event);
+      const at = point(event);
       if (!current.active) {
         // Moving before the hold is a scroll.
         if (!near(current, at)) {
@@ -134,8 +149,7 @@ export function useTableCellSelection(source: string, geometry: TableGeometry) {
         }
         return;
       }
-      const target = locate(current, at.x, at.y);
-      if (target) extend(target);
+      if (current.cells) extend(locate(current.cells, at));
     },
     onTouchCancel: () => {
       if (cancel()?.active) end();
@@ -148,18 +162,22 @@ export function useTableCellSelection(source: string, geometry: TableGeometry) {
         end();
         return;
       }
-      const release = point(cell, event);
-      if (!sameCell(start.cell, cell) || release.time - start.time > TAP_MS || !near(start, release)) {
+      const release = point(event);
+      if (release.time - start.time > TAP_MS || !near(start, release)) {
         previous.current = null;
         return;
       }
       const last = previous.current;
-      if (last && sameCell(last.cell, cell) && release.time - last.time <= DOUBLE_TAP_MS && near(last, release)) {
+      if (last && release.time - last.time <= DOUBLE_TAP_MS && near(last, release)) {
         previous.current = null;
-        select(cell);
+        // Two taps a few points apart can still straddle a cell's edge.
+        measure((cells) => {
+          const cell = locate(cells, release);
+          if (sameCell(locate(cells, last), cell)) select(cell);
+        });
       } else previous.current = release;
     },
-    // Once the hold goes through, the cell takes the gesture and keeps it,
+    // Once the hold goes through, the frame takes the gesture and keeps it,
     // and blocks the native scrollers above it (Android).
     onMoveShouldSetResponder: () => press.current?.active === true,
     onResponderGrant: (() => true) as ViewProps["onResponderGrant"],
@@ -167,5 +185,5 @@ export function useTableCellSelection(source: string, geometry: TableGeometry) {
   };
 
   const range: CellRange | null = selection ? cellRange(selection.anchor, selection.focus) : null;
-  return { range, dragging, cellProps, dismiss, select, begin, extend, end };
+  return { range, dragging, frameProps, dismiss, select, begin, extend, end };
 }
