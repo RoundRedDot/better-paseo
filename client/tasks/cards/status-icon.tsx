@@ -2,6 +2,7 @@ import React, { memo, useCallback, useLayoutEffect, useRef } from "react";
 import { Animated, Platform, View, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { probeAnimationLoop } from "../../debug/perf";
+import { holdStepClock } from "../../ui/step-clock";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import type { StatusKind } from "../model";
 import { taskTokens } from "./tokens";
@@ -23,6 +24,8 @@ import { taskTokens } from "./tokens";
  */
 
 export const STATUS_RING_PERIOD_MS = 900;
+/** Native turns in steps, like the host's ring and a platform activity indicator. */
+export const STATUS_RING_STEPS = 12;
 const TRACK_OPACITY = 0.3;
 const HEAD_OPACITY = 0.9;
 
@@ -53,15 +56,17 @@ const WEB = Platform.OS === "web";
 
 // --- One clock for every ring ------------------------------------------------
 //
-// Native: one Animated.Value on the native driver, started when the first ring
-// mounts and stopped when the last one leaves, so every ring is in phase and a
-// board without running cards runs nothing. Web: each ring runs a Web Animation
+// Native: one Animated.Value stepped by the shared step clock (`ui/step-clock.ts`),
+// held while the first ring is mounted and released when the last one leaves, so
+// every ring is in phase and a board without running cards runs nothing. A
+// native-driver loop changed the arc on every vsync, and many Android devices
+// redraw the whole window for that. Web: each ring runs a Web Animation
 // pinned to the document timeline's origin (`startTime = 0`), the host's own
 // approach in `clock.web.ts`, so rings mounted at different times still agree.
 
 let spin: Animated.Value | null = null;
 let rotation: Animated.AnimatedInterpolation<string> | null = null;
-let loop: Animated.CompositeAnimation | null = null;
+let releaseClock: (() => void) | null = null;
 let holders = 0;
 let releaseProbe: (() => void) | null = null;
 
@@ -78,17 +83,10 @@ export function holdStatusRing(): () => void {
   sharedRotation();
   holders += 1;
   if (holders === 1 && spin) {
-    spin.setValue(0);
-    loop = Animated.loop(
-      Animated.timing(spin, {
-        toValue: 1,
-        duration: STATUS_RING_PERIOD_MS,
-        easing: linear,
-        useNativeDriver: true,
-        isInteraction: false,
-      }),
+    const value = spin;
+    releaseClock = holdStepClock(STATUS_RING_PERIOD_MS, STATUS_RING_STEPS, (step) =>
+      value.setValue(step / STATUS_RING_STEPS),
     );
-    loop.start();
     releaseProbe = probeAnimationLoop("StatusRing");
   }
   let held = true;
@@ -97,8 +95,8 @@ export function holdStatusRing(): () => void {
     held = false;
     holders -= 1;
     if (holders === 0) {
-      loop?.stop();
-      loop = null;
+      releaseClock?.();
+      releaseClock = null;
       releaseProbe?.();
       releaseProbe = null;
     }
@@ -109,8 +107,6 @@ export function holdStatusRing(): () => void {
 export function statusRingHolders(): number {
   return holders;
 }
-
-const linear = (t: number) => t;
 
 const WEB_KEYFRAMES = [{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }];
 
@@ -181,7 +177,7 @@ const RunningRing = memo(function RunningRing(props: {
   );
 });
 
-/** Paseo's sidebar status indicator. All running rings rotate in phase (900 ms per turn). */
+/** Paseo's sidebar status indicator. All running rings turn in phase (900 ms per turn, in 12 steps on native). */
 export const StatusIcon = memo(function StatusIcon(props: StatusIconProps) {
   const size = props.size ?? 16;
   const height = props.height ?? size;
