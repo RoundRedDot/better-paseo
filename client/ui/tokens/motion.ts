@@ -29,9 +29,19 @@ export function outCubic(t: number): number {
 export const easing = { out: outCubic } as const;
 
 /**
+ * Holds each of `steps` values for an equal share of the period: 0, 1/steps, ...
+ * Native loops run on the native driver with this easing. Many Android devices
+ * redraw the whole window for any changed view; a value that holds between steps
+ * changes the view only on a step, while the native driver keeps JS out of it.
+ * (A JS timer calling `setValue` instead commits a Fabric tree per call.)
+ */
+export function steppedEasing(steps: number): (t: number) => number {
+  return (t) => Math.min(Math.floor(t * steps), steps - 1) / steps;
+}
+
+/**
  * The running indicator (`RunningDot`): a 6px dot pulsing 1.0 <-> 0.3 every 1200 ms.
- * Native steps through `steps` opacities per period (see `ui/step-clock.ts`); web
- * keeps a smooth CSS animation.
+ * Native steps through `steps` phases per period; web keeps a smooth CSS animation.
  */
 export const runningDot = {
   size: 6,
@@ -41,11 +51,13 @@ export const runningDot = {
   maxOpacity: 1,
 } as const;
 
-/** The dot's opacity at a native step: full, halfway, faint, halfway. */
-export function runningDotOpacity(step: number): number {
-  const middle = (runningDot.maxOpacity + runningDot.minOpacity) / 2;
-  return [runningDot.maxOpacity, middle, runningDot.minOpacity, middle][step % runningDot.steps]!;
-}
+const runningDotMiddle = (runningDot.maxOpacity + runningDot.minOpacity) / 2;
+
+/** The dot's phase (0..1) to opacity: full, halfway, faint, halfway. */
+export const runningDotOpacityRange = {
+  inputRange: [0, 0.25, 0.5, 0.75, 1],
+  outputRange: [runningDot.maxOpacity, runningDotMiddle, runningDot.minOpacity, runningDotMiddle, runningDot.maxOpacity],
+};
 
 /** Every duration collapses to 0 while the system asks for reduced motion. */
 export function motionDuration(ms: number, reducedMotion: boolean): number {
