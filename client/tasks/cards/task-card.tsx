@@ -10,6 +10,7 @@ import type { StatusKind, TaskCard, TaskChild } from "../model";
 import {
   contextRatio,
   formatApprox,
+  formatClockTime,
   formatDuration,
   formatRelative,
   formatWait,
@@ -278,6 +279,13 @@ export function cardTimer(card: TaskCard, now: number, language: TasksLanguage):
   const ago = since(timing.updatedAt, now);
   if (ago !== null) parts.push(formatRelative(ago, language));
   return parts.length ? { text: parts.join(" · "), tone: "muted" } : null;
+}
+
+/** When the running turn started, in local time; null outside the running lane or before the turn has a start. */
+export function cardStart(card: TaskCard, now: number): string | null {
+  if (card.lane !== "running" || !card.timing.turnStartedAt) return null;
+  const at = Date.parse(card.timing.turnStartedAt);
+  return Number.isNaN(at) ? null : formatClockTime(at, now);
 }
 
 /** Children that Stop with subtasks would reach. */
@@ -717,6 +725,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   // Footer: the timer, and the context ring at the far right ----------------
   // Whether there is a timer and its tone do not change with the time; the text does, in `TimerText`.
   const timer = layout.timer ? cardTimer(card, props.now ?? 0, language) : null;
+  // A running turn's start behind a clock, then how long it has run behind an hourglass, as the turn footer draws them.
+  const started = timer && cardStart(card, props.now ?? 0) !== null;
   const timerColor =
     timer?.tone === "warning" ? tokens.warning : timer?.tone === "running" ? tokens.status.running : muted;
   const ratio = contextRatio(card.context);
@@ -743,9 +753,18 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         testID="task-card-footer"
       >
         {timer ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            {timer.tone === "warning" ? <Icon name="Clock" size={m.icon} color={timerColor} /> : null}
-            <TimerText card={card} language={language} now={props.now} clock={props.clock} style={[text(m.footSize, m.footLine, timerColor), tabular]} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            {started ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }} testID="task-card-started">
+                <Icon name="Clock" size={m.icon} color={muted} />
+                <StartText card={card} now={props.now} clock={props.clock} style={[text(m.footSize, m.footLine, muted), tabular]} />
+              </View>
+            ) : null}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }} testID="task-card-timer">
+              {timer.tone === "warning" ? <Icon name="Clock" size={m.icon} color={timerColor} /> : null}
+              {started ? <Icon name="Hourglass" size={m.icon} color={timerColor} /> : null}
+              <TimerText card={card} language={language} now={props.now} clock={props.clock} style={[text(m.footSize, m.footLine, timerColor), tabular]} />
+            </View>
           </View>
         ) : null}
         {/* Bottom right, where Linear keeps nothing else; it stays there without a timer. */}
@@ -1540,6 +1559,13 @@ function SubtaskRow(props: {
 function TimerText(props: TimeSource & { card: TaskCard; language: TasksLanguage; style: StyleProp<TextStyle> }) {
   const { card, language } = props;
   const value = useTime(props, (now) => cardTimer(card, now, language)?.text ?? "");
+  return <Text style={props.style}>{value}</Text>;
+}
+
+/** The running turn's start; it follows the clock only to add the date after midnight. */
+function StartText(props: TimeSource & { card: TaskCard; style: StyleProp<TextStyle> }) {
+  const { card } = props;
+  const value = useTime(props, (now) => cardStart(card, now) ?? "");
   return <Text style={props.style}>{value}</Text>;
 }
 

@@ -659,7 +659,8 @@ function timerTexts(): Record<string, string> {
   const out: Record<string, string> = {};
   for (const card of cards()) {
     const [footer] = card.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "task-card-footer");
-    const [label] = footer ? footer.findAll((node) => (node.type as unknown) === "Text") : [];
+    const [timer] = footer ? footer.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "task-card-timer") : [];
+    const [label] = timer ? timer.findAll((node) => (node.type as unknown) === "Text") : [];
     if (label) out[card.props.card.id as string] = textOf(label);
   }
   return out;

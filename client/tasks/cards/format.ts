@@ -53,6 +53,17 @@ export function formatRelative(ms: number, language: TasksLanguage): string {
   return zh ? `${Math.floor(safe / DAY)} 天前` : `${Math.floor(safe / DAY)}d ago`;
 }
 
+/** A turn's start in local time: "14:32" on the day of `now`, "10/20 14:32" on another day. */
+export function formatClockTime(at: number, now: number): string {
+  const date = new Date(at);
+  const today = new Date(now);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const sameDay =
+    date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth() && date.getDate() === today.getDate();
+  return sameDay ? time : `${date.getMonth() + 1}/${date.getDate()} ${time}`;
+}
+
 /** Milliseconds since an ISO time; null when absent or unparseable. */
 export function since(iso: string | null, now: number): number | null {
   if (!iso) return null;

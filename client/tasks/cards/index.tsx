@@ -26,6 +26,7 @@ export {
   contextRatio,
   contextTone,
   formatApprox,
+  formatClockTime,
   formatCost,
   formatDuration,
   formatRelative,
