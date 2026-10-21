@@ -1,5 +1,5 @@
 import React, { useState, type ReactNode, type Ref } from "react";
-import { Platform, View, type TextInput as NativeTextInput } from "react-native";
+import { Platform, Pressable, View, type TextInput as NativeTextInput } from "react-native";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
@@ -24,7 +24,14 @@ export const KEY_HINTS_MIN_WIDTH = 760;
  * A narrow board (a tablet with the sidebar open) drops the key hints, so
  * the count keeps its line and the search shrinks before it does.
  */
-export function DesktopToolbar(props: { board: BoardController; theme: PluginTheme; searchRef: Ref<NativeTextInput>; keyHints: boolean }) {
+export function DesktopToolbar(props: {
+  board: BoardController;
+  theme: PluginTheme;
+  searchRef: Ref<NativeTextInput>;
+  keyHints: boolean;
+  /** The details sidebar's switch at the bar's right end. */
+  sidebar?: { open: boolean; onToggle(): void };
+}) {
   const { board, theme } = props;
   const scale = useTasksFontScale();
   const colors = theme.colors;
@@ -44,7 +51,13 @@ export function DesktopToolbar(props: { board: BoardController; theme: PluginThe
           <KeyCap label="↵" theme={theme} />
           <KeyHint text={strings.keys.open} theme={theme} />
           <KeyCap label="/" theme={theme} />
-          <KeyHint text={strings.keys.search} theme={theme} last />
+          <KeyHint text={strings.keys.search} theme={theme} last={!props.sidebar} />
+          {props.sidebar ? (
+            <>
+              <KeyCap label="I" theme={theme} />
+              <KeyHint text={strings.sidebar.key} theme={theme} last />
+            </>
+          ) : null}
         </View>
       ) : null}
       <View
@@ -74,7 +87,41 @@ export function DesktopToolbar(props: { board: BoardController; theme: PluginThe
           style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(13 * scale), color: colors.foreground }}
         />
       </View>
+      {props.sidebar ? <SidebarSwitch open={props.sidebar.open} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
     </View>
+  );
+}
+
+/** Linear's panel switch: a 28 round button, outlined, filled grey while the sidebar shows. */
+function SidebarSwitch(props: { open: boolean; onToggle(): void; theme: PluginTheme; label: string }) {
+  const colors = props.theme.colors;
+  const scale = useTasksFontScale();
+  const size = taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
+  const [hovered, setHovered] = useState(false);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${props.label} (I)`}
+      accessibilityState={{ selected: props.open }}
+      onPress={props.onToggle}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      hitSlop={Platform.OS === "web" ? 0 : 4}
+      testID="sidebar-switch"
+      style={{
+        width: size,
+        height: size,
+        marginLeft: 2,
+        borderRadius: size / 2,
+        borderWidth: HAIRLINE,
+        borderColor: colors.border,
+        backgroundColor: props.open ? colors.surface2 : hovered ? colors.surface1 : colors.surface0,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Icon name="PanelRight" size={15} color={props.open ? colors.foreground : colors.foregroundMuted} />
+    </Pressable>
   );
 }
 

@@ -20,6 +20,7 @@ export {
   type CardLayout,
   type TaskCardViewProps,
 } from "./task-card";
+export { DETAIL_CARD, DetailBodyCards, DetailCard, DetailHeaderCard, RoundIcon, TaskDetailCards, detailCardFrame, type DetailCardsStrings, type DetailNotice, type TaskDetailCardsProps } from "./detail-cards";
 export { DETAILS, TaskDetails, branchHint, shortenPath, usageRows, type TaskDetailsProps } from "./task-details";
 export { buildTaskTokens, taskTokens, useTaskTokens, type TaskTokens } from "./tokens";
 export {
