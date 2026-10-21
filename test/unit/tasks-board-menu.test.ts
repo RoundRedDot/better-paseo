@@ -199,6 +199,28 @@ describe("CascadeMenu", () => {
     renderer = undefined;
   });
 
+  it("parts its groups with a line one device pixel thin, on the web too, in a 1 pt box the layout counts", () => {
+    for (const os of ["ios", "web"]) {
+      (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+      try {
+        render([...sections(), { key: "more", items: [{ key: "other", label: "Other", onSelect: picked }] }]);
+        const boxes = renderer!.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "menu-separator");
+        expect(boxes).toHaveLength(1);
+        expect(StyleSheet.flatten(boxes[0]!.props.style)).toMatchObject({ height: 1, marginVertical: MENU.separatorGap });
+        const line = boxes[0]!.children[0] as ReactTestInstance;
+        // The mock screen is 3x: react-native-web's hairlineWidth would be a whole CSS pixel, three device pixels.
+        expect(StyleSheet.flatten(line.props.style)).toMatchObject({
+          height: os === "web" ? 1 / 3 : StyleSheet.hairlineWidth,
+          backgroundColor: LIGHT.border,
+        });
+        act(() => renderer!.unmount());
+      } finally {
+        delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+      }
+    }
+    renderer = undefined;
+  });
+
   it("stays inside a short window: the panel scrolls above its bottom, the submenu shifts up", () => {
     // Android landscape: 360 high, the sort menu hung 150 down.
     expect(panelMaxHeight(null, 360)).toBe(MENU.maxHeight);

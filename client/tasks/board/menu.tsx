@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { Platform, Pressable, Text, View, useWindowDimensions } from "react-native";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { HAIRLINE } from "./board-style";
+import { HAIRLINE, devicePixel } from "./board-style";
 import {
   MENU,
   MENU_FOCUS,
@@ -218,7 +218,12 @@ function MenuPanel(props: {
   let index = -1;
   const body = props.sections.map((section, at) => (
     <View key={section.key}>
-      {at > 0 ? <View style={{ height: HAIRLINE, marginVertical: MENU.separatorGap, backgroundColor: chrome.border }} /> : null}
+      {at > 0 ? (
+        // A 1 pt box, as layoutMenu counts it, holding a one-device-pixel line at its top.
+        <View testID="menu-separator" style={{ height: 1, marginVertical: MENU.separatorGap }}>
+          <View style={{ height: devicePixel(), backgroundColor: chrome.border }} />
+        </View>
+      ) : null}
       {section.title ? (
         <View style={{ height: MENU.titleHeight, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: MENU.inset + 8 }}>
           {section.titleLeading}
