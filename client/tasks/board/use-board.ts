@@ -9,6 +9,7 @@ import { filterLanes, useTasks, type TasksHandle } from "../data";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { LANE_ORDER, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
 import { MOTION } from "./board-style";
+import { lingerBoard } from "./prefetch";
 import { nameCompare, sortLaneCards } from "./sort";
 import {
   decodeBoardParams,
@@ -195,7 +196,8 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
   );
   const { filters, doneWindow } = useMemo(() => resolveBoardParams(params, defaults), [params, defaults]);
   const options = useMemo(() => ({ doneWindow, includeDone: true }), [doneWindow]);
-  const tasks = useTasks(paseo, options);
+  // Closed, the board's data stays warm a while, so a quick reopen sends nothing.
+  const tasks = useTasks(paseo, options, lingerBoard);
   const fields = useMemo(() => effectiveCard(settings, props.layout.compact), [settings, props.layout.compact]);
 
   const visible = useBoardVisible(rootRef);
