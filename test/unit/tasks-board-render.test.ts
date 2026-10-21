@@ -41,6 +41,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     ScrollView: rn.ScrollView,
     TextInput: rn.TextInput,
     useToast: () => ({ show: host.toast, error: host.toast }),
+    copyText: async () => {},
   };
 });
 const host = vi.hoisted(() => ({
@@ -258,6 +259,54 @@ describe("Tasks board, desktop", () => {
     expect(StyleSheet.flatten(pressable("Expand lane: Running").props.style)).toMatchObject({ width: 40, borderRadius: 5 });
     act(() => pressable("Expand lane: Running").props.onPress());
     expect(cards().map((card) => card.props.card.id)).toContain("sample-running");
+  });
+
+  it("keeps the details popover open once the pointer is in it, whenever the card's leave arrives", async () => {
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        const listeners = { addEventListener() {}, removeEventListener() {} };
+        // Every node measures as the window; rows bind their web hover to a document that does nothing.
+        const node = {
+          ...listeners,
+          contains: () => false,
+          ownerDocument: { ...listeners, defaultView: listeners },
+          measureInWindow: (callback: (x: number, y: number, w: number, h: number) => void) => callback(0, 0, 1600, 900),
+        };
+        renderer = TestRenderer.create(screen(false), { createNodeMock: () => node });
+      });
+      layOut(1600);
+      const popover = () => renderer!.root.findAll((node) => (node.type as unknown) === "Animated.View" && typeof node.props.onPointerEnter === "function");
+      const open = async () => {
+        const card = cards()[0]!;
+        await act(async () => {
+          card.props.onDetails(card.props.card);
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+        expect(renderer!.root.findAllByType(TaskDetails)).toHaveLength(1);
+        return card;
+      };
+      // The pointer jumps straight onto the popover: its enter comes before the card's leave.
+      let card = await open();
+      act(() => popover()[0]!.props.onPointerEnter());
+      act(() => card.props.onDetailsEnd(card.props.card.id));
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(renderer!.root.findAllByType(TaskDetails)).toHaveLength(1);
+      act(() => popover()[0]!.props.onPointerLeave());
+      expect(renderer!.root.findAllByType(TaskDetails)).toHaveLength(0);
+      // Leaving the card for anywhere else still closes it after the grace.
+      card = await open();
+      act(() => card.props.onDetailsEnd(card.props.card.id));
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(renderer!.root.findAllByType(TaskDetails)).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("wires the cards: open jumps to the agent, a hidden parent toasts", () => {

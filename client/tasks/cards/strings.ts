@@ -55,6 +55,15 @@ const en = {
     context: "Context",
     dirty: "uncommitted changes",
     clean: "no uncommitted changes",
+    parent: "Parent",
+    updated: "Updated",
+    cachedHint: (count: string) => `${count} cached`,
+    subtasks: "Subtasks",
+    subtasksDone: (done: number, total: number) => `${done} / ${total} done`,
+    copyBranch: "Copy branch name",
+    copyFolder: "Copy folder name",
+    copyPath: "Copy path",
+    copyLink: "Copy link",
   },
 };
 
@@ -113,6 +122,15 @@ const zh: CardStrings = {
     context: "上下文",
     dirty: "有未提交改动",
     clean: "无未提交改动",
+    parent: "父任务",
+    updated: "更新",
+    cachedHint: (count) => `缓存 ${count}`,
+    subtasks: "子任务",
+    subtasksDone: (done, total) => `${done} / ${total} 完成`,
+    copyBranch: "复制分支名",
+    copyFolder: "复制文件夹名",
+    copyPath: "复制路径",
+    copyLink: "复制链接",
   },
 };
 

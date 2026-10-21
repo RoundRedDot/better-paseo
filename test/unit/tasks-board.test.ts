@@ -314,7 +314,7 @@ describe("details popover placement", () => {
     expect(popoverPlacement({ x: 110, y: 150, width: 300, height: 120 }, root)).toEqual({ x: 318, y: 100 });
   });
   it("flips left near the right edge and drops below when neither side fits", () => {
-    expect(popoverPlacement({ x: 1000, y: 150, width: 290, height: 120 }, root)).toEqual({ x: 900 - 288 - 8, y: 100 });
+    expect(popoverPlacement({ x: 1000, y: 150, width: 290, height: 120 }, root)).toEqual({ x: 900 - 320 - 8, y: 100 });
     const narrow = { x: 0, y: 0, width: 500, height: 800 };
     expect(popoverPlacement({ x: 10, y: 20, width: 300, height: 100 }, narrow)).toEqual({ x: 18, y: 126 });
   });
