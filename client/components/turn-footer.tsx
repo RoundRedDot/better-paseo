@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState, type RefObject } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, type LayoutChangeEvent } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { unselectable } from "./selection";
 import { radiusV2, space } from "./theme-tokens";
@@ -66,8 +66,11 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
   useScrollDismiss(pressedAnchor !== null, closeDetails);
   const longPress = capabilities.touch ? showDetails : undefined;
   const detailsWidth = useFooterDetailsWidth();
-  // Grok and Cursor upstream history replays lack reliable per-message timestamps.
-  const visibleDurationMs = agentName === "grok" || agentName === "cursor" ? null : durationMs;
+  // Grok and Cursor history replays stamp every item with the load time, so a
+  // replayed turn spans a millisecond or two. Their live turns time normally.
+  const visibleDurationMs = (agentName === "grok" || agentName === "cursor") && durationMs != null &&
+    durationMs < REPLAY_COLLAPSE_MS ? null : durationMs;
+  const { fit, measure } = useOneLineFit(compact, Boolean(modelName), visibleDurationMs != null);
   const details = <FooterDetails agentName={agentName} modelId={modelId} modelName={modelName} thinkingLabel={thinkingLabel}
     startedAt={startedAt} completedAt={at.getTime()} durationMs={visibleDurationMs} usage={usage} tokens={tokens} />;
   const copyModel = useCallback(() => {
@@ -84,7 +87,8 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
           // Keep Copy clear of the composer in both desktop and compact layouts.
           marginBottom: space.lg,
           flexDirection: "row",
-          flexWrap: "wrap",
+          // A phone keeps one line and drops items instead (`fitOneLine`).
+          flexWrap: compact ? "nowrap" : "wrap",
           alignItems: "center",
           gap: space.sm,
         },
@@ -129,14 +133,16 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
           ...unselectable,
         },
       }),
-    [tokens],
+    [tokens, compact],
   );
 
   return (
     <TooltipSideContext.Provider value="auto">
       <Pressable ref={footerRef} testID="footer-toolbar" accessible={false} focusable={false}
-        onLongPress={longPress ? () => longPress(footerRef) : undefined} style={styles.container}>
+        onLongPress={longPress ? () => longPress(footerRef) : undefined} style={styles.container}
+        onLayout={compact ? measure.row : undefined}>
         <ToolbarItem
+          onLayout={compact ? measure.copy : undefined}
           label={copied ? "Copied" : "Copy reply"}
           tokens={tokens}
           align="start"
@@ -153,8 +159,9 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
           />
           <Text style={styles.copyLabel}>Copy</Text>
         </ToolbarItem>
-        {modelName ? (
+        {modelName && fit.model ? (
           <ToolbarItem
+            onLayout={compact ? measure.model : undefined}
             label={modelCopy.copied ? "Copied" : "Copy model name"}
             tokens={tokens}
             align="start"
@@ -176,12 +183,14 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
             <Text style={styles.time}>{modelName}</Text>
           </ToolbarItem>
         ) : null}
-        <ToolbarItem label={`${toolbarLabel(timeLabel, language)} ${timeStamp}`} accessibilityLabel={`${timeLabel} ${timeStamp}`} tokens={tokens} align="start" buttonStyle={styles.metadata} onLongPress={longPress}>
-          <Icon name="Clock" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
-          <Text style={styles.time}>{formatFooterStamp(at)}</Text>
-        </ToolbarItem>
+        {fit.clock ? (
+          <ToolbarItem onLayout={compact ? measure.clock : undefined} label={`${toolbarLabel(timeLabel, language)} ${timeStamp}`} accessibilityLabel={`${timeLabel} ${timeStamp}`} tokens={tokens} align="start" buttonStyle={styles.metadata} onLongPress={longPress}>
+            <Icon name="Clock" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+            <Text style={styles.time}>{formatFooterStamp(at)}</Text>
+          </ToolbarItem>
+        ) : null}
         {visibleDurationMs != null ? (
-          <ToolbarItem label={`${toolbarLabel("Elapsed time", language)}${hintLanguage === "zh" ? "：" : ":"} ${formatDuration(visibleDurationMs, hintLanguage, true)}`} accessibilityLabel={`Elapsed time: ${formatDuration(visibleDurationMs, "en")}`} tokens={tokens} align="end" buttonStyle={styles.metadata} onLongPress={longPress}>
+          <ToolbarItem onLayout={compact ? measure.duration : undefined} label={`${toolbarLabel("Elapsed time", language)}${hintLanguage === "zh" ? "：" : ":"} ${formatDuration(visibleDurationMs, hintLanguage, true)}`} accessibilityLabel={`Elapsed time: ${formatDuration(visibleDurationMs, "en")}`} tokens={tokens} align="end" buttonStyle={styles.metadata} onLongPress={longPress}>
             <Icon name="Hourglass" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
             <Text style={styles.time}>{formatDuration(visibleDurationMs, hintLanguage)}</Text>
           </ToolbarItem>
@@ -197,8 +206,52 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
 }
 
 /**
- * The footer row: at least 24 tall, wrapping metadata on narrow screens (it sits under
- * the last reply, where every extra point moves the turn below), a 44pt Copy
- * on touch through hitSlop.
+ * The footer row: at least 24 tall, a 44pt Copy on touch through hitSlop. It
+ * sits under the last reply, where every extra point moves the turn below, so
+ * the compact layout keeps it to one line.
  */
 const FOOTER_HEIGHT = 24;
+
+/** A replayed Grok or Cursor turn spans under this; a live model turn never does. */
+const REPLAY_COLLAPSE_MS = 1_000;
+
+type FooterSlot = "copy" | "model" | "clock" | "duration";
+export interface FooterFit { model: boolean; clock: boolean }
+
+/**
+ * Which items one line holds, given each item's width (absent when not drawn)
+ * and the row's. The clock goes first, then the model name: both stay in the
+ * long-press details. Copy and the elapsed time always stay.
+ */
+export function fitOneLine(widths: Partial<Record<FooterSlot, number>>, row: number, gap: number): FooterFit {
+  const span = (slots: readonly FooterSlot[]) => {
+    const drawn = slots.map((slot) => widths[slot]).filter((width): width is number => width !== undefined);
+    return drawn.reduce((sum, width) => sum + width, 0) + gap * Math.max(0, drawn.length - 1);
+  };
+  // Half a point of rounding must not drop an item that fits.
+  const fits = (slots: readonly FooterSlot[]) => span(slots) <= row + 0.5;
+  if (fits(["copy", "model", "clock", "duration"])) return { model: true, clock: true };
+  if (fits(["copy", "model", "duration"])) return { model: true, clock: false };
+  return { model: false, clock: false };
+}
+
+const FIT_ALL: FooterFit = { model: true, clock: true };
+
+/**
+ * Measures the compact row and its items. A dropped item keeps its last width,
+ * so a wider row brings it back; an item not drawn at all counts for nothing.
+ */
+function useOneLineFit(compact: boolean, hasModel: boolean, hasDuration: boolean) {
+  const [widths, setWidths] = useState<Partial<Record<FooterSlot | "row", number>>>({});
+  const measure = useMemo(() => {
+    const slot = (name: FooterSlot | "row") => (event: LayoutChangeEvent) => {
+      const width = event.nativeEvent.layout.width;
+      setWidths((previous) => previous[name] === width ? previous : { ...previous, [name]: width });
+    };
+    return { row: slot("row"), copy: slot("copy"), model: slot("model"), clock: slot("clock"), duration: slot("duration") };
+  }, []);
+  const { row, model, duration, ...rest } = widths;
+  const fit = compact && row ? fitOneLine({ ...rest, ...(hasModel ? { model } : {}), ...(hasDuration ? { duration } : {}) },
+    row, space.sm) : FIT_ALL;
+  return { fit, measure };
+}

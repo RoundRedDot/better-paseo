@@ -2,7 +2,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useSyncExternalStore } f
 import type { PaseoApi, PaseoAgentTimelineHandle } from "@getpaseo/client";
 import { useRpc } from "@getpaseo/plugin/client";
 import { turnUsageRpc, type RecordedTurn } from "../../shared/turn-usage-rpc";
-import { completedTurnFooters, continuesTurn, type CompletedTurnFooter, type Entry } from "./turn-duration";
+import { completedTurnFooters, startsTurn, type CompletedTurnFooter, type Entry, type TurnMarks } from "./turn-duration";
 
 type Timeline = Pick<PaseoAgentTimelineHandle, "refetch" | "subscribe">;
 interface Target { at: number; text: string }
@@ -23,7 +23,7 @@ const RECORD_LATE_MS = 10 * 60_000;
  * the footer has one, must also match.
  */
 function assignRecorded(turns: readonly RecordedTurn[], footers: readonly CompletedTurnFooter[]) {
-  const assigned = new Map<CompletedTurnFooter, { usage: Usage; gap: number }>();
+  const assigned = new Map<CompletedTurnFooter, { usage?: Usage; gap: number }>();
   for (const turn of turns) {
     let best: CompletedTurnFooter | undefined;
     let bestGap = Infinity;
@@ -38,10 +38,23 @@ function assignRecorded(turns: readonly RecordedTurn[], footers: readonly Comple
   return assigned;
 }
 
+/** The recorded turns' starts and ends that fall in the loaded span. */
+function turnMarks(turns: readonly RecordedTurn[], from: number): TurnMarks | undefined {
+  const starts: number[] = [];
+  const ends: number[] = [];
+  for (const turn of turns) {
+    if (turn.startedAt !== undefined && turn.startedAt >= from) starts.push(turn.startedAt);
+    if (turn.endedAt >= from) ends.push(turn.endedAt);
+  }
+  if (!starts.length && !ends.length) return undefined;
+  return { starts: starts.sort((a, b) => a - b), ends: ends.sort((a, b) => a - b) };
+}
+
 /**
  * One paginated read and one event subscription per agent, shared by all rows.
  * Usage seen live wins; a turn this client did not see falls back to the
- * server's record, which survives reloads.
+ * server's record, which survives reloads. The record also times turns no
+ * prompt started and splits history reloaded without turn IDs.
  */
 export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (since: number) => Promise<RecordedTurn[]>) {
   const targets = new Set<Target>();
@@ -53,6 +66,8 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
   let observers = 0;
   let footers: Footers = new Map();
   let entries: Entry[] = [];
+  /** The loaded entries begin at the agent's first item. */
+  let fromStart = false;
   let running: boolean | null = null;
   let unsubscribe: ReturnType<Timeline["subscribe"]> | null = null;
   let generation = 0;
@@ -62,13 +77,14 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
   const publish = () => { for (const listener of listeners) listener(); };
   const get = (at: number, text: string) => footers.get(at)?.get(text) ?? null;
 
-  function needsOlder(items: Entry[]): boolean {
+  /** `atStart`: no older page exists, so a turn at the top is whole. */
+  function needsOlder(items: Entry[], atStart = false): boolean {
     let indexed = coverage.get(items);
     if (!indexed) {
       indexed = new Map();
       let start = 0;
       for (let index = 0; index < items.length; index++) {
-        if (index > 0 && !continuesTurn(items[index - 1]!, items[index]!)) start = index;
+        if (index > 0 && startsTurn(items[index - 1]!, items[index]!)) start = index;
         const entry = items[index]!;
         if (entry.item.type !== "assistant_message") continue;
         const at = Date.parse(entry.timestamp);
@@ -89,7 +105,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
         if (running && target.at >= lastAt) continue;
         return true;
       }
-      if (!complete) return true;
+      if (!complete && !atStart) return true;
     }
     return false;
   }
@@ -114,24 +130,37 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
     }
     if (ticket !== generation || !targets.size) return;
     entries = items;
-    const next: Footers = new Map();
-    const completed = completedTurnFooters(items, snapshot ? snapshot.status === "running" : running === true,
-      snapshot?.activeTurn?.turnId ?? null);
-    const latest = completed[completed.length - 1];
-    // The daemon retains the latest usage even when a window missed completion.
-    // Attach it only to the settled tail turn whose prompt matches its snapshot.
-    if (latest && !hasNewer && snapshot?.status === "idle" && !snapshot.activeTurn && snapshot.lastUsage &&
-      snapshot.lastUserMessageAt && latest.startedAt === Date.parse(snapshot.lastUserMessageAt) &&
-      latest.completedAt === Date.parse(items[items.length - 1]!.timestamp)) {
-      const previousUsage = latest.turnId ? usageByTurn.get(latest.turnId) : get(latest.at, latest.text)?.usage;
-      latest.usage = JSON.stringify(previousUsage) === JSON.stringify(snapshot.lastUsage)
-        ? previousUsage : { ...snapshot.lastUsage };
-      if (latest.turnId && latest.usage) usageByTurn.set(latest.turnId, latest.usage);
-    }
+    fromStart = !page.hasOlder;
+    const isRunning = snapshot ? snapshot.status === "running" : running === true;
+    const activeTurnId = snapshot?.activeTurn?.turnId ?? null;
+    const build = (marks?: TurnMarks) => {
+      const completed = completedTurnFooters(items, isRunning, activeTurnId, { marks, fromStart });
+      const latest = completed[completed.length - 1];
+      // The daemon retains the latest usage even when a window missed completion.
+      // Attach it only to the settled tail turn whose prompt matches its snapshot.
+      if (latest && !hasNewer && snapshot?.status === "idle" && !snapshot.activeTurn && snapshot.lastUsage &&
+        snapshot.lastUserMessageAt && latest.startedAt === Date.parse(snapshot.lastUserMessageAt) &&
+        latest.completedAt === Date.parse(items[items.length - 1]!.timestamp)) {
+        const previousUsage = latest.turnId ? usageByTurn.get(latest.turnId) : get(latest.at, latest.text)?.usage;
+        latest.usage = JSON.stringify(previousUsage) === JSON.stringify(snapshot.lastUsage)
+          ? previousUsage : { ...snapshot.lastUsage };
+        if (latest.turnId && latest.usage) usageByTurn.set(latest.turnId, latest.usage);
+      }
+      return completed;
+    };
+    let completed = build();
     // Ask only for the loaded turns' span, and again when older pages or new turns lack usage.
     const unseen = (footer: CompletedTurnFooter) => footer.turnId ? !usageByTurn.has(footer.turnId) : !footer.usage;
     let since = Infinity;
     for (const footer of completed) if (unseen(footer)) since = Math.min(since, footer.completedAt - RECORD_EARLY_MS);
+    // History without turn IDs, or a turn without a prompt, needs the record's turn boundaries.
+    const firstAt = items.length ? Date.parse(items[0]!.timestamp) : NaN;
+    const prompts = new Set<number>();
+    for (const entry of items) if (entry.item.type === "user_message") prompts.add(Date.parse(entry.timestamp));
+    if (Number.isFinite(firstAt) && completed.length && (items.some((entry) => entry.turnId === undefined) ||
+      completed.some((footer) => footer.startedAt === null || !prompts.has(footer.startedAt)))) {
+      since = Math.min(since, firstAt - RECORD_EARLY_MS);
+    }
     if (loadRecorded && since !== Infinity && (recordedStale || since < recordedSince)) {
       recordedStale = false;
       recordedSince = since;
@@ -139,7 +168,10 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
       catch { recordedStale = true; }
       if (ticket !== generation || !targets.size) return;
     }
+    const marks = Number.isFinite(firstAt) ? turnMarks(recorded, firstAt - RECORD_EARLY_MS) : undefined;
+    if (marks) completed = build(marks);
     const fallback = since === Infinity ? null : assignRecorded(recorded, completed);
+    const next: Footers = new Map();
     for (const footer of completed) {
       const record = unseen(footer) ? fallback?.get(footer)?.usage : undefined;
       if (footer.turnId) footer.usage = usageByTurn.get(footer.turnId) ?? record;
@@ -154,7 +186,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
     }
     footers = next;
     publish();
-    if (ticket === generation && !needsOlder(entries)) dirty = false;
+    if (ticket === generation && !needsOlder(entries, fromStart)) dirty = false;
   }
 
   function request(): Promise<void> {
@@ -199,7 +231,8 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
         if (event.type === "turn_completed" && event.turnId && event.usage) {
           usageByTurn.set(event.turnId, { ...event.usage });
         }
-        if (event.type === "turn_completed") recordedStale = true;
+        // The server records every ended turn's timing, and usage on completion.
+        if (event.type !== "turn_started") recordedStale = true;
         if (targets.size) void refresh();
       }
     });
@@ -213,6 +246,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
     unsubscribe?.();
     unsubscribe = null;
     entries = [];
+    fromStart = false;
     footers = new Map();
   }
 
@@ -237,7 +271,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
       const target = { at, text };
       targets.add(target);
       connect();
-      if (!entries.length || needsOlder(entries)) void request();
+      if (!entries.length || needsOlder(entries, fromStart)) void request();
       return () => {
         targets.delete(target);
         disconnect();
