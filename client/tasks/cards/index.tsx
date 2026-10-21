@@ -21,7 +21,7 @@ export {
   type TaskCardViewProps,
 } from "./task-card";
 export { DETAIL_CARD, DetailActionBar, DetailCard, RoundIcon, TaskDetailCards, detailCardFrame, type DetailCardsStrings, type DetailNotice, type TaskDetailCardsProps } from "./detail-cards";
-export { SUBTASK_ROWS, branchHint, shortenPath } from "./details-format";
+export { SUBTASK_ROWS, branchHint, propertyRowWidth, shortenPath } from "./details-format";
 export { buildTaskTokens, taskTokens, useTaskTokens, type TaskTokens } from "./tokens";
 export {
   contextRatio,

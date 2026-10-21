@@ -56,6 +56,7 @@ import {
   TaskDetailCards,
   DetailActionBar,
   branchHint,
+  propertyRowWidth,
   shortenPath,
   buildTaskTokens,
   taskTokens,
@@ -1058,6 +1059,29 @@ describe("TaskDetailCards", () => {
     expect(clipboard.copyText).toHaveBeenCalledTimes(3);
     // The place row only informs.
     expect(hostByTestId(location, "detail-place").props.onPress).toBeUndefined();
+  });
+
+  it("puts the place and branch side by side only when both show whole in half the width", async () => {
+    const tree = await render(details(sample("sample-running")));
+    const location = hostByTestId(tree.root, "detail-location");
+    const holds = (node: ReactTestInstance) => node.findAll((child) => child.props.testID === "detail-place").length > 0;
+    const properties = location.findAll((node) => typeof node.type === "string" && typeof node.props.onLayout === "function" && holds(node)).at(-1)!;
+    const paired = () => location.findAll((node) => typeof node.type === "string" && node.props.style?.flex === 1 && node.props.style?.minWidth === 0 && holds(node)).length > 0;
+    const layout = (width: number) => act(async () => properties.props.onLayout({ nativeEvent: { layout: { width, height: 200 } } }));
+    expect(paired()).toBe(false);
+    // Wide enough for two columns, but "better-paseo › tasks-board" and its badge need more than half.
+    await layout(480);
+    expect(paired()).toBe(false);
+    await layout(900);
+    expect(paired()).toBe(true);
+    expect(texts(hostByTestId(location, "detail-place"))).toEqual(["B", "项目", "better-paseo ›", "tasks-board", "worktree"]);
+
+    const touch = { icon: 18, label: 76, font: 15 };
+    // A phone sheet of about 490: "beautiful-chat" and its "本地 checkout" badge take more than half.
+    expect(propertyRowWidth(touch, "beautiful-chat", [{ text: "本地 checkout", lead: true }])).toBeGreaterThan(241);
+    expect(propertyRowWidth(touch, "main", [{ text: "未提交", lead: true }])).toBeLessThan(241);
+    // A wide character counts as two columns.
+    expect(propertyRowWidth(touch, "分支")).toBe(propertyRowWidth(touch, "ab12"));
   });
 
   it("charts the usage: the token mix with Codex's cached input split out, the cost and the last turn", async () => {
