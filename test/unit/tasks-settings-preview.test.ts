@@ -1,0 +1,173 @@
+/**
+ * The settings page's preview of the Tasks board: the real cards over the
+ * sample agents, four lanes when wide and one under tabs when narrow, the
+ * density and field switches applied as they change, and nothing of the
+ * board's data work: no data layer, no settings read, no RPC, no timer.
+ */
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import React from "react";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+const spy = vi.hoisted(() => ({ dataLoaded: false, dataCalls: [] as string[], hostCalls: [] as string[] }));
+
+vi.mock("react-native", async () => {
+  const rn = await import("./helpers/rn-mock");
+  return {
+    ...rn,
+    Animated: { ...rn.Animated, loop: () => ({ start() {}, stop() {}, reset() {} }) },
+    AccessibilityInfo: { isReduceMotionEnabled: () => Promise.resolve(false), addEventListener: () => ({ remove() {} }) },
+  };
+});
+vi.mock("@getpaseo/plugin/client/react-native", async () => {
+  const react = await import("react");
+  return {
+    Icon: (props: Record<string, unknown>) => react.createElement("Icon", props),
+    useToast: () => (spy.hostCalls.push("useToast"), { show() {} }),
+  };
+});
+// Every host hook a board reader would reach for; the preview calls none.
+vi.mock("@getpaseo/plugin/client", () => ({
+  useSettings: () => (spy.hostCalls.push("useSettings"), { status: "loading" }),
+  useRpc: () => (spy.hostCalls.push("useRpc"), vi.fn()),
+  usePaseo: () => (spy.hostCalls.push("usePaseo"), null),
+}));
+// The board's data layer: loading it at all would be a failure.
+vi.mock("../../client/tasks/data", () => {
+  spy.dataLoaded = true;
+  const record = (name: string) => () => {
+    spy.dataCalls.push(name);
+    throw new Error(`data layer called: ${name}`);
+  };
+  return {
+    useTasks: record("useTasks"),
+    useTaskCounts: record("useTaskCounts"),
+    holdTasks: record("holdTasks"),
+    hasTasksHold: record("hasTasksHold"),
+    releaseTasksHolds: record("releaseTasksHolds"),
+    filterLanes: record("filterLanes"),
+  };
+});
+
+import "./helpers/quiet-renderer";
+import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
+import { DEFAULT_TASKS_SETTINGS, applyDensity, setCardSetting } from "../../shared/tasks-settings";
+import { PREVIEW_LANES_MIN, TasksBoardPreview, previewLanes } from "../../client/tasks/settings/board-preview";
+import { LANE_ORDER } from "../../client/tasks/model";
+
+const theme = {
+  colors: {
+    surface0: "#ffffff", surface1: "#fafafa", surface2: "#f4f4f5", surface3: "#e4e4e7", border: "#e4e4e7",
+    foreground: "#09090b", foregroundMuted: "#71717a", accent: "#2563eb", accentForeground: "#ffffff",
+    statusSuccess: "#16a34a", statusWarning: "#d97706", statusDanger: "#dc2626",
+  },
+} as never;
+
+let renderer: ReactTestRenderer | null = null;
+
+function draw(props: Partial<React.ComponentProps<typeof TasksBoardPreview>> = {}, width = 0) {
+  const element = React.createElement(TasksBoardPreview, { theme, values: DEFAULT_TASKS_SETTINGS, language: "en", phone: false, ...props });
+  act(() => {
+    if (renderer) renderer.update(element);
+    else renderer = TestRenderer.create(element);
+  });
+  if (width) {
+    const root = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "tasks-board-preview");
+    act(() => root.props.onLayout({ nativeEvent: { layout: { width, height: 600 } } }));
+  }
+  return renderer!;
+}
+
+const hosts = (root: ReactTestInstance, test: (node: ReactTestInstance) => boolean) =>
+  root.findAll((node) => typeof node.type === "string" && test(node));
+const byTestID = (root: ReactTestInstance, id: string) => hosts(root, (node) => node.props.testID === id);
+const cardIds = (root: ReactTestInstance) =>
+  hosts(root, (node) => typeof node.props.testID === "string" && node.props.testID.startsWith("task-card-sample-")).map((node) =>
+    (node.props.testID as string).slice("task-card-".length),
+  );
+const textOf = (node: ReactTestInstance | string): string =>
+  typeof node === "string" ? node : node.children.map((child) => textOf(child as ReactTestInstance | string)).join("");
+
+beforeEach(() => {
+  if (renderer) act(() => renderer!.unmount());
+  renderer = null;
+  spy.dataCalls = [];
+  spy.hostCalls = [];
+});
+
+describe("Tasks board preview", () => {
+  it("holds two realistic cards per lane: four brands, a permission, a question, a subtask, a failure, a stop", () => {
+    const lanes = previewLanes(Date.now(), "en");
+    for (const id of LANE_ORDER) expect(lanes[id]).toHaveLength(2);
+    const all = LANE_ORDER.flatMap((id) => lanes[id]);
+    expect(new Set(all.map((card) => card.provider))).toEqual(new Set(["claude", "codex", "gemini", "pi"]));
+    expect(lanes.needs_input.map((card) => card.permission?.kind)).toEqual(["tool", "question"]);
+    expect(lanes.running.some((card) => card.parent !== null)).toBe(true);
+    expect(lanes.review.some((card) => card.status === "failed")).toBe(true);
+    const stopped = lanes.done.find((card) => card.stoppedManually)!;
+    expect(stopped.error).toBe("Stopped manually");
+    expect(previewLanes(Date.now(), "zh").done.find((card) => card.stoppedManually)!.error).not.toBe("Stopped manually");
+  });
+
+  it("wide, draws the four lanes side by side in the board's order", () => {
+    const r = draw({}, PREVIEW_LANES_MIN + 100);
+    expect(byTestID(r.root, "tasks-preview-lanes")).toHaveLength(1);
+    const lanes = LANE_ORDER.map((id) => byTestID(r.root, `tasks-preview-lane-${id}`)[0]!);
+    expect(lanes.map((lane) => cardIds(lane))).toEqual(LANE_ORDER.map((id) => previewLanes(0, "en")[id].map((card) => card.id)));
+    // Brand marks, the permission's buttons and the running card's context ring are all drawn.
+    expect(textOf(r.root)).toContain("Allow");
+    expect(textOf(r.root)).toContain("Answer");
+    expect(hosts(r.root, (node) => node.props.testID === "status-stopped").length).toBeGreaterThan(0);
+  });
+
+  it("narrow or on a phone, draws one lane under tabs, and a tab switches it", () => {
+    for (const phone of [false, true]) {
+      if (renderer) act(() => renderer!.unmount());
+      renderer = null;
+      const r = draw({ phone }, phone ? 390 : PREVIEW_LANES_MIN - 1);
+      expect(byTestID(r.root, "tasks-preview-tabs")).toHaveLength(1);
+      expect(cardIds(r.root)).toEqual(["sample-input", "sample-question"]);
+      const tabs = hosts(r.root, (node) => node.props.accessibilityRole === "tab");
+      expect(tabs).toHaveLength(4);
+      act(() => tabs[3]!.props.onPress());
+      expect(cardIds(r.root)).toEqual(["sample-done", "sample-stopped"]);
+      expect(textOf(r.root)).toContain("Stopped manually");
+    }
+  });
+
+  it("follows the density preset and each field switch as soon as they change", () => {
+    const branchShown = () => textOf(renderer!.root).includes("feat/tasks-board");
+    draw({ values: applyDensity(DEFAULT_TASKS_SETTINGS, "full") }, PREVIEW_LANES_MIN + 100);
+    expect(branchShown()).toBe(true);
+    draw({ values: setCardSetting(applyDensity(DEFAULT_TASKS_SETTINGS, "full"), "branch", false) });
+    expect(branchShown()).toBe(false);
+    const minimal = textOf(renderer!.root).length;
+    draw({ values: applyDensity(DEFAULT_TASKS_SETTINGS, "full") });
+    const full = textOf(renderer!.root).length;
+    draw({ values: applyDensity(DEFAULT_TASKS_SETTINGS, "minimal") });
+    expect(textOf(renderer!.root).length).toBeLessThan(minimal);
+    expect(minimal).toBeLessThan(full);
+  });
+
+  it("shows the done lane's window from the board options", () => {
+    const r = draw({ values: { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, doneWindow: "7d" } } }, PREVIEW_LANES_MIN + 100);
+    expect(textOf(byTestID(r.root, "tasks-preview-lane-done")[0]!)).toContain("7 days");
+  });
+
+  it("never touches the board's data, the settings or the daemon, and starts no timer", () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "setTimeout"] });
+    try {
+      const r = draw({ values: { ...DEFAULT_TASKS_SETTINGS, enabled: false } }, PREVIEW_LANES_MIN + 100);
+      draw({ values: applyDensity(DEFAULT_TASKS_SETTINGS, "full") });
+      const tabs = draw({ phone: true }, 390);
+      act(() => hosts(tabs.root, (node) => node.props.accessibilityRole === "tab")[1]!.props.onPress());
+      expect(cardIds(r.root).length).toBeGreaterThan(0);
+      expect(spy.dataLoaded).toBe(false);
+      expect(spy.dataCalls).toEqual([]);
+      expect(spy.hostCalls).toEqual([]);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

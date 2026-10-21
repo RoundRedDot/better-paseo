@@ -30,6 +30,11 @@ export function resolveLanguage(preference: SettingsLanguagePreference, locale?:
 }
 
 const en = {
+  /** The screen's title: Paseo's plugin menu item and the page header. */
+  screenTitle: "Chat & Tasks settings",
+  tabsLabel: "Settings for",
+  tabDisplay: "Chat presentation",
+  tabTasks: "Tasks board",
   pageTitle: "Chat presentation",
   pageIntro:
     "Saved on this Paseo host and shared by every client connected to it: desktop, web, iOS and Android. An option a platform cannot draw falls back there.",
@@ -189,6 +194,10 @@ const en = {
 export type SettingsStrings = typeof en;
 
 const zh: SettingsStrings = {
+  screenTitle: "聊天与任务设置",
+  tabsLabel: "设置项",
+  tabDisplay: "聊天展示",
+  tabTasks: "任务看板",
   pageTitle: "聊天展示",
   pageIntro: "保存在这台 Paseo 主机上，连接它的桌面、网页、iOS 和 Android 客户端共用。某个平台不支持的选项会在该平台自动回退。",
   syncFailed: "上一次修改没能保存到这台 Paseo 主机，只在当前客户端生效，直到下一次修改或重新加载。",

@@ -75,7 +75,10 @@ export function useTasksSettings(): TasksSettings | null {
   return values;
 }
 
-/** Opens Settings > Tasks; set by `contribute.tsx`, since screen props carry no way to open settings. */
+/**
+ * Opens the Tasks half of Better Paseo's settings page; set by
+ * `contribute.tsx`, since screen props carry no way to open settings.
+ */
 let settingsOpener: (() => void) | null = null;
 
 export function setTasksSettingsOpener(open: (() => void) | null): void {
@@ -86,10 +89,22 @@ export function tasksSettingsOpener(): (() => void) | null {
   return settingsOpener;
 }
 
+/** Opens the board; set by `contribute.tsx`, since settings props carry no navigation. */
+let boardOpener: (() => void) | null = null;
+
+export function setTasksBoardOpener(open: (() => void) | null): void {
+  boardOpener = open;
+}
+
+export function tasksBoardOpener(): (() => void) | null {
+  return boardOpener;
+}
+
 /** Tests only. */
 export function resetTasksEnabled(): void {
   enabled = null;
   startupRead = "none";
   settingsOpener = null;
+  boardOpener = null;
   listeners.clear();
 }

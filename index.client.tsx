@@ -1,6 +1,6 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { z } from "zod";
-import { BetterPaseoSettingsPage } from "./client/settings-page";
+import { contributeSettingsScreen } from "./client/settings-screen";
 import { removeEmbeddedFonts, setEmbeddedFontLoader } from "./client/components/embed-fonts";
 import { installHostNoticeStyle } from "./client/components/host-notice";
 import { installChatFind } from "./client/components/chat-find";
@@ -49,13 +49,9 @@ export default function contribute(client: PluginClientContext) {
   // A clicked row, chip or button keeps no focus ring; Tab focus does.
   const removeFocusRing = installPointerFocusRing();
 
-  // Configuration lives in the host Settings area.
-  client.addSettingsScreen({
-    id: "chat-presentation",
-    title: "Settings",
-    icon: "Blocks",
-    Component: BetterPaseoSettingsPage,
-  });
+  // Configuration lives in the host Settings area: one page, with the chat
+  // options and the Tasks board's as its two halves.
+  const removeSettings = contributeSettingsScreen(client);
 
   // Live chat timeline interception: render real tool calls, reasoning, and todos with enhanced UI.
   const removeToolTransformer = client.addTimelineTransformer({
@@ -266,12 +262,13 @@ export default function contribute(client: PluginClientContext) {
   // Debug only: `/bc-perf on|off|reset|dump [label]` for hosts without a console.
   const removePerfCommand = client.addSlashCommand(perfSlashCommand);
 
-  // The Tasks board: a screen, its sidebar entry, a Command Center item and
-  // its own settings page (docs/tasks-board.md).
+  // The Tasks board: a screen, its sidebar entry and a Command Center item;
+  // its options are the Tasks half of the settings page (docs/tasks-board.md).
   const removeTasks = contributeTasks(client);
 
   return () => {
     removeTasks();
+    removeSettings();
     removePerfCommand();
     removeFonts();
     setMarkLoader(null);

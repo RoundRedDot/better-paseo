@@ -408,9 +408,11 @@ workspace status sorts them: **needs input** (oldest wait first), **running** (l
 - **Stop** (hover on desktop, always on phones) asks for a second press, and a parent can stop
   with its running children. Tool, plan and mode permission requests can be allowed or denied on the
   card; questions jump to the tab.
-- Settings → Tasks picks the card fields and density (minimal, standard, full or custom), the
-  phone card, the done-lane window, subtasks, the stop confirmation and the sidebar count, with a
-  live preview.
+- The board is off until you turn it on: **Tasks board** heads Better Paseo's settings page
+  (Settings → Plugins → Better Paseo), with a preview of the board beside the switch. Its
+  **Tasks board** tab picks the card fields and density (minimal, standard, full or custom), the
+  phone card, the done-lane window, subtasks, the stop confirmation and the sidebar count, over a
+  live preview of all four lanes.
 
 Limits: Stop runs `paseo agent stop` through the CLI that Paseo hands the plugin, because the
 plugin API has no cancel; without that CLI the button is hidden. "Open tabs only" relies on a label
