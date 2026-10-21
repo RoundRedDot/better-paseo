@@ -8,7 +8,7 @@ import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } f
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
 import { CardCell, HoverPressable, LoadMoreRow, SkeletonCard, VerticalLabel, useBreathing, useFreshIds } from "./board-parts";
-import { DesktopFilterBar, DesktopToolbar, type FilterMenu } from "./filter-bar";
+import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type FilterMenu } from "./filter-bar";
 import { buildFilterOptions } from "./filter-options";
 import { LANES, POPOVER_MAX_HEIGHT, POPOVER_WIDTH, boardKeyReducer, clampFocus, laneLayout, popoverPlacement, type BoardFocus, type Box, type LaneShape } from "./navigation";
 import { rememberCollapsed, rememberedCollapsed } from "./params";
@@ -205,7 +205,7 @@ export function DesktopBoard(props: {
 
   return (
     <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0 }}>
-      <DesktopToolbar board={board} theme={theme} searchRef={searchRef} />
+      <DesktopToolbar board={board} theme={theme} searchRef={searchRef} keyHints={viewport === 0 || viewport >= KEY_HINTS_MIN_WIDTH} />
       <DesktopFilterBar board={board} theme={theme} options={options} menu={menu} setMenu={setMenu} />
       <View style={{ flex: 1, minHeight: 0 }} onLayout={(event) => setViewport(Math.floor(event.nativeEvent.layout.width))}>
         {viewport > 0 ? (
