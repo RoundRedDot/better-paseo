@@ -77,7 +77,8 @@ export function UserQuestions({ questions: data, tokens, rawBody, renderHeader, 
 }
 
 const styles = StyleSheet.create({
-  controls: { flexDirection: "row", alignItems: "center", gap: space.xs },
+  // Raised over the question below, so a button's name can hang down across it.
+  controls: { flexDirection: "row", alignItems: "center", gap: space.xs, zIndex: 1 },
   question: { gap: space.md, minWidth: 0 },
   heading: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.sm },
   header: { fontWeight: "600", flexShrink: 1 },
