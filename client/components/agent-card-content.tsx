@@ -220,7 +220,8 @@ const styles = StyleSheet.create({
   item: { flexDirection: "row", alignItems: "center", gap: 5, minWidth: 0, maxWidth: "100%", flexShrink: 1 },
   provider: { fontSize: 12, lineHeight: 20, fontWeight: "500" },
   field: { fontSize: 12, lineHeight: 20, flexShrink: 1 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  // State labels are lowercase, so the dot centres on the x-height, which sits 1px below the line box's centre.
+  dot: { width: 6, height: 6, borderRadius: 3, transform: [{ translateY: 1 }] },
   id: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: space.xs, minHeight: 20, borderRadius: radiusV2.block },
   idText: { fontSize: 11, lineHeight: 16 },
   divider: { height: 1, marginHorizontal: -BODY_PAD },
