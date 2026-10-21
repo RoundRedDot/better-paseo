@@ -20,7 +20,7 @@ export {
   type CardLayout,
   type TaskCardViewProps,
 } from "./task-card";
-export { DETAIL_CARD, DetailBodyCards, DetailCard, DetailHeaderCard, RoundIcon, TaskDetailCards, detailCardFrame, type DetailCardsStrings, type DetailNotice, type TaskDetailCardsProps } from "./detail-cards";
+export { DETAIL_CARD, DetailCard, RoundIcon, TaskDetailCards, detailCardFrame, type DetailCardsStrings, type DetailNotice, type TaskDetailCardsProps } from "./detail-cards";
 export { SUBTASK_ROWS, branchHint, shortenPath, usageRows } from "./details-format";
 export { buildTaskTokens, taskTokens, useTaskTokens, type TaskTokens } from "./tokens";
 export {

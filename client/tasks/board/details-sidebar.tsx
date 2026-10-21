@@ -4,7 +4,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
-import { BrandMark, DETAIL_CARD, DetailBodyCards, DetailCard, DetailHeaderCard, StatusIcon, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
+import { BrandMark, DETAIL_CARD, DetailCard, StatusIcon, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type TaskCard } from "../model";
 import { activeChips, buildFilterOptions, clearedParams, type FilterOption } from "./filter-options";
 import { toggleItem } from "./params";
@@ -30,8 +30,8 @@ export interface DetailsSidebarProps {
 /**
  * The sidebar's column (`docs/prototypes/task-details-sidebar.md`): the
  * status counts always on top; under them the board's groups while no card
- * is chosen, or the chosen card's details as a stack of cards, its header
- * pinned and the rest scrolling.
+ * is chosen, or the chosen card's details as one card, its header pinned and
+ * the sections under it scrolling.
  */
 export function DetailsSidebar(props: DetailsSidebarProps) {
   const { board, theme, selection, dispatch } = props;
@@ -77,12 +77,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
     <View style={{ flex: 1, minHeight: 0, gap: DETAIL_CARD.gap }} testID={props.testID ?? "details-sidebar"}>
       <StatsCard board={board} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} />
       {detailProps ? (
-        <>
-          <DetailHeaderCard {...detailProps} />
-          <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false} key={detailProps.card.id}>
-            <DetailBodyCards {...detailProps} />
-          </ScrollView>
-        </>
+        <TaskDetailCards {...detailProps} scrollBody />
       ) : (
         <GroupCard board={board} theme={theme} tokens={tokens} touch={props.touch} />
       )}
