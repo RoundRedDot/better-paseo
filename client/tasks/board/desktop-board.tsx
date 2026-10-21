@@ -151,6 +151,10 @@ export function DesktopBoard(props: {
   useEffect(() => {
     if (focusedId && open) dispatch({ type: "focus", id: focusedId });
   }, [focusedId, open]);
+  // A panel a tap showed goes once its card is closed.
+  useEffect(() => {
+    if (shownForTap && selection.id === null) setShownForTap(false);
+  }, [shownForTap, selection.id]);
   // A card that left the data (deleted, archived away) leaves the sidebar to the overview.
   const selectedGone = selection.id !== null && tasks.ready && !tasks.byId.has(selection.id);
   useEffect(() => {
