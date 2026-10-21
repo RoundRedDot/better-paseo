@@ -30,6 +30,7 @@ describe("agent message senders", () => {
     store.retain("paseo-agent-message:29");
     await settle();
     expect(refetch).toHaveBeenCalledTimes(1);
+    expect(refetch).toHaveBeenCalledWith({ direction: "tail", projection: "projected", limit: 50 });
     expect(store.get("paseo-agent-message:28")?.sender).toEqual({ id: "a", title: "Agent a" });
     expect(store.get("paseo-agent-message:29")?.sender.id).toBe("b");
   });

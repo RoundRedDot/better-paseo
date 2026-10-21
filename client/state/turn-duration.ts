@@ -1,5 +1,6 @@
 import type { PaseoAgent, PaseoAgentTimelineHandle } from "@getpaseo/client";
 import { parseSystemEnvelope } from "../system-envelope";
+import { getAgentTimelinePageReader } from "./agent-timeline-page-reader";
 
 export type Entry = Awaited<ReturnType<PaseoAgentTimelineHandle["refetch"]>>["entries"][number];
 
@@ -163,7 +164,8 @@ export async function loadReplyTurnDuration(
   text: string,
   cancelled: () => boolean,
 ): Promise<number | null> {
-  let page = await timeline.refetch({ direction: "tail", limit: 200, projection: "projected" });
+  const pageReader = getAgentTimelinePageReader(timeline, "reply-duration");
+  let page = await pageReader.tail(timeline);
   let entries = page.entries;
   while (!cancelled()) {
     if (page.error || page.staleCursor || page.gap) return null;
@@ -176,7 +178,7 @@ export async function loadReplyTurnDuration(
       entry.item.type === "user_message" || (index > 0 && !continuesTurn(entries[index - 1]!, entry)))) return null;
     if (!page.hasOlder || !page.startCursor) return null;
     const cursor = page.startCursor;
-    page = await timeline.refetch({ direction: "before", cursor, limit: 200, projection: "projected" });
+    page = await pageReader.before(timeline, cursor);
     if (page.reset || page.epoch !== cursor.epoch || !page.entries.length ||
       (page.startCursor && page.startCursor.seq >= cursor.seq)) return null;
     entries = [...page.entries, ...entries];
