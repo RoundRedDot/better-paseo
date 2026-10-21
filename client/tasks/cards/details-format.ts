@@ -1,7 +1,4 @@
-import type { TasksLanguage } from "../i18n";
 import type { TaskCard } from "../model";
-import { formatCost, formatRelative, formatTokens, since } from "./format";
-import { cardStrings } from "./strings";
 
 /** What the details cards (`detail-cards.tsx`) show, as pure functions for the tests. */
 
@@ -52,40 +49,4 @@ export function branchHint(git: TaskCard["location"]["git"]): { sync: string | n
   const ahead = git?.ahead ?? 0;
   const behind = git?.behind ?? 0;
   return { sync: ahead !== 0 || behind !== 0 ? `↑${ahead} ↓${behind}` : null, dirty: git?.dirty === true };
-}
-
-export interface UsageRow {
-  key: string;
-  icon: string;
-  label: string;
-  value: string;
-  hint?: string;
-}
-
-/** The usage rows, in order; pure for the tests. */
-export function usageRows(card: TaskCard, language: TasksLanguage): UsageRow[] {
-  const strings = cardStrings(language).details;
-  const rows: UsageRow[] = [];
-  const usage = card.usage;
-  if (usage?.inputTokens != null) {
-    const cached = usage.cachedInputTokens ? strings.cachedHint(formatTokens(usage.cachedInputTokens)) : undefined;
-    rows.push({ key: "input", icon: "ArrowDownToLine", label: strings.input, value: formatTokens(usage.inputTokens), hint: cached });
-  }
-  if (usage?.outputTokens != null) rows.push({ key: "output", icon: "ArrowUpFromLine", label: strings.output, value: formatTokens(usage.outputTokens) });
-  if (usage?.totalCostUsd != null) rows.push({ key: "cost", icon: "CircleDollarSign", label: strings.cost, value: formatCost(usage.totalCostUsd) });
-  return rows;
-}
-
-/**
- * The card's footnote: when it was created, then when it was last updated.
- * "Updated" shows only once it differs from "Created" and no turn is running.
- */
-export function timingLine(card: TaskCard, now: number, language: TasksLanguage): string | null {
-  const strings = cardStrings(language).details;
-  const created = since(card.timing.createdAt, now);
-  if (created === null) return null;
-  const parts = [strings.createdAgo(formatRelative(created, language))];
-  const updated = since(card.timing.updatedAt, now);
-  if (updated !== null && card.status !== "running" && created - updated >= 60_000) parts.push(strings.updatedAgo(formatRelative(updated, language)));
-  return parts.join(" · ");
 }

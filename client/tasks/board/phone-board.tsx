@@ -13,7 +13,7 @@ import { FlatList, Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/c
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
-import { StatusIcon, TaskDetailCards, taskTokens, type CardCallbacks } from "../cards";
+import { DetailActionBar, StatusIcon, TaskDetailCards, taskTokens, type CardCallbacks } from "../cards";
 import { panelChrome } from "../cards/panel";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -501,7 +501,7 @@ export function PhoneBoard(props: {
         </Modal.Content>
       </Modal>
       <Modal title={strings.details} open={detailsCard !== undefined} onOpenChange={(open) => !open && setSheet(null)}>
-        <Modal.Content contentContainerStyle={SHEET_BODY}>
+        <Modal.Content contentContainerStyle={SHEET_FILTER_BODY} scrollable={false}>
           {detailsCard ? (
             <DetailsSheetBody
               card={detailsCard}
@@ -526,7 +526,8 @@ export function PhoneBoard(props: {
 
 /**
  * The phone's details sheet: the sidebar's details card at touch sizes,
- * under a bar that steps to the previous and next card of the same lane.
+ * under a bar that steps to the previous and next card of the same lane. The
+ * card scrolls; its actions stay pinned at the bottom, at thumb height.
  */
 function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme: PluginTheme; onShow(id: string): void; onOpen?(agentId: string): void }) {
   const { card, board, theme } = props;
@@ -538,10 +539,12 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
     if (next) props.onShow(next.id);
   };
   const stopAvailable = !!board.callbacks.onStop && card.stoppable;
+  const stop = stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card) } : null;
+  const onPermission = (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button);
   return (
-    <View style={{ paddingHorizontal: 12, gap: 8 }}>
+    <View style={{ flex: 1, minHeight: 0 }}>
       {index >= 0 && list.length > 1 ? (
-        <View style={{ minHeight: 40, flexDirection: "row", alignItems: "center" }} testID="sheet-stepper">
+        <View style={{ minHeight: 40, paddingHorizontal: 12, flexDirection: "row", alignItems: "center" }} testID="sheet-stepper">
           <SheetStep icon="ChevronLeft" label={board.strings.sidebar.previous} disabled={index <= 0} onPress={() => step(-1)} theme={theme} />
           <Text style={{ flex: 1, textAlign: "center", fontSize: 13, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>
             {`${board.strings.lanes[card.lane]} · ${index + 1} / ${list.length}`}
@@ -549,18 +552,31 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           <SheetStep icon="ChevronRight" label={board.strings.sidebar.next} disabled={index >= list.length - 1} onPress={() => step(1)} theme={theme} />
         </View>
       ) : null}
-      <TaskDetailCards
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 4, paddingBottom: 12 }} testID="details-sheet-scroll">
+        <TaskDetailCards
+          card={card}
+          theme={theme}
+          language={board.language}
+          strings={board.strings.sidebar}
+          touch
+          actions={false}
+          clock={board.clock}
+          onOpen={props.onOpen}
+          stop={stop}
+          permissionButtons={board.buttonsFor(card)}
+          onPermission={onPermission}
+          onJump={props.onShow}
+        />
+      </ScrollView>
+      <DetailActionBar
         card={card}
         theme={theme}
         language={board.language}
         strings={board.strings.sidebar}
-        touch
-        clock={board.clock}
         onOpen={props.onOpen}
-        stop={stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card) } : null}
+        stop={stop}
         permissionButtons={board.buttonsFor(card)}
-        onPermission={(button) => board.callbacks.onPermission?.(card, button)}
-        onJump={props.onShow}
+        onPermission={onPermission}
       />
     </View>
   );

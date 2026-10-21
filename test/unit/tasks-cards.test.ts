@@ -47,16 +47,16 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 import "./helpers/quiet-renderer";
 import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { CARD_PRESETS, type CardSettings, type DensityPreset } from "../../shared/tasks-settings";
-import { sampleCards } from "../../client/tasks/sample-cards";
+import { previewSampleCards, sampleCards } from "../../client/tasks/sample-cards";
 import type { TaskCard } from "../../client/tasks/model";
 import type { PermissionButton, StopPhase } from "../../client/tasks/actions";
 import {
   StatusIcon,
   TaskCardView,
   TaskDetailCards,
+  DetailActionBar,
   branchHint,
   shortenPath,
-  usageRows,
   buildTaskTokens,
   taskTokens,
   cardLayout,
@@ -76,6 +76,7 @@ import {
   type TaskCardViewProps,
 } from "../../client/tasks/cards";
 import { statusRingHolders } from "../../client/tasks/cards/status-icon";
+import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { LARGE_FONT_SCALE, OVERLAY_ROW_Z, PHONE_BUTTON_MIN_WIDTH, phoneButtonSizing } from "../../client/tasks/cards/task-card";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
@@ -986,41 +987,61 @@ describe("TaskDetailCards", () => {
   beforeEach(() => {
     clipboard.copyText.mockClear();
     clipboard.show.mockClear();
+    resetSectionChoices();
   });
 
   const details = (card: TaskCard, more: Record<string, unknown> = {}, language: "zh" | "en" = "zh") =>
     React.createElement(TaskDetailCards, { card, theme: LIGHT, now: NOW, language, strings: BOARD_STRINGS[language].sidebar, ...more });
 
-  it("heads with the status, the title and the agent, and opens the tab from its button", async () => {
+  it("heads with the status, the title, the agent's chips and the actions, then the running turn", async () => {
     const onOpen = vi.fn();
     const onTogglePin = vi.fn();
     const tree = await render(details(sample("sample-running"), { onOpen, onTogglePin, pinned: true }));
     const header = hostByTestId(tree.root, "detail-header");
-    expect(texts(header)).toEqual(["运行中", "12m 30s", "已钉住", "Port the status ring to React Native", "GPT-5.5 Codex", "·", "Medium", "·", "Bypass", "打开 tab"]);
-    byLabel(tree.root, "打开 tab").props.onPress();
+    expect(texts(header).slice(0, 11)).toEqual(["运行中", "本轮 12:30", "Port the status ring to React Native", "GPT-5.5 Codex", "Medium", "Bypass", "frontend", "p1", "board", "切换到 tab", "已打开"]);
+    // The turn's block: its clock and the context ring (86% is past the warning line).
+    expect(texts(hostByTestId(tree.root, "detail-turn"))).toEqual(["本轮计时", "12:30", "上一轮 18m", "上下文", "86%", "172k / 200k"]);
+    expect(tree.root.findAll((node) => (node.type as { name?: string }).name === "ProgressRing")).toHaveLength(1);
+    // Its tab is open somewhere: the button switches to it.
+    byLabel(tree.root, "切换到 tab").props.onPress();
     expect(onOpen).toHaveBeenCalledWith("sample-running");
     byLabel(tree.root, "取消钉住").props.onPress();
     expect(onTogglePin).toHaveBeenCalled();
     // One raised card holds the header and the sections: radius 12, a hairline, the card's shadow.
     expect(flat(hostByTestId(tree.root, "detail-cards").props.style)).toMatchObject({ borderRadius: 12, borderWidth: 1, boxShadow: taskTokens(LIGHT).card.shadow });
     expect(flat(header.props.style).borderWidth).toBeUndefined();
+    // Bypassing permissions wears the warning colour.
+    const modeIconNode = hostByTestId(header, "detail-mode").findAll((node) => node.props.name === "ShieldOff")[0]!;
+    expect(modeIconNode.props.color).toBe(taskTokens(LIGHT).warning);
   });
 
-  it("lists the place, then copyable branch, directory and PR rows, then the usage", async () => {
+  it("orders the sections by state: subtasks first while running, properties first while asking", async () => {
+    const order = (root: ReactTestInstance) =>
+      root.findAll((node) => typeof node.type === "string" && ["detail-location", "detail-subtasks", "detail-usage", "detail-activity"].includes(node.props.testID)).map((node) => node.props.testID);
+    const running = await render(details(sample("sample-running")));
+    expect(order(running.root)).toEqual(["detail-subtasks", "detail-location", "detail-usage", "detail-activity"]);
+    await act(async () => running.unmount());
+    renderer = null;
+    const asking = await render(details(sample("sample-input"), { onPermission: vi.fn(), permissionButtons: permissionButtons(sample("sample-input").permission!, "zh") }));
+    expect(order(asking.root)).toEqual(["detail-location", "detail-usage", "detail-activity"]);
+    // Usage starts closed while a card asks: its heading and summary only.
+    expect(texts(hostByTestId(asking.root, "detail-usage"))).toEqual(["用量", "$1.84 · 46%"]);
+    expect(byLabel(asking.root, "展开用量").props.accessibilityState).toEqual({ expanded: false });
+    // Opening it is remembered for every card.
+    await act(async () => byLabel(asking.root, "展开用量").props.onPress());
+    expect(texts(hostByTestId(asking.root, "detail-usage"))).toContain("Token 构成");
+    await act(async () => byLabel(asking.root, "收起用量").props.onPress());
+  });
+
+  it("lists the place, then copyable branch, directory and PR rows", async () => {
     const tree = await render(details(sample("sample-running")));
     const location = hostByTestId(tree.root, "detail-location");
-    expect(texts(hostByTestId(location, "detail-place"))).toEqual(["项目", "B", "better-paseo › tasks-board", "worktree"]);
+    expect(texts(location).slice(0, 2)).toEqual(["属性", "feat/tasks-board"]);
+    expect(texts(hostByTestId(location, "detail-place"))).toEqual(["B", "项目", "better-paseo ›", "tasks-board", "worktree"]);
     expect(texts(hostByTestId(location, "detail-branch"))).toEqual(["分支", "feat/tasks-board", "↑3 ↓0", "未提交"]);
     // The directory is cut in its middle to one line.
     expect(texts(hostByTestId(location, "detail-cwd"))).toEqual(["工作目录", "…/.worktrees/tasks-board"]);
-    expect(texts(hostByTestId(location, "detail-pr"))).toEqual(["PR", "#42 feat: Tasks board"]);
-    expect(texts(location)[0]).toBe("属性");
-    expect(texts(hostByTestId(tree.root, "detail-usage"))).toEqual(
-      expect.arrayContaining(["用量", "缓存 120k", "182k", "14k", "$1.84", "86%", "172k / 200k"]),
-    );
-    // The times are the card's footnote, not usage.
-    expect(texts(hostByTestId(tree.root, "detail-usage"))).not.toContain("创建时间");
-    expect(texts(hostByTestId(tree.root, "detail-timing"))).toEqual(["1 小时前创建"]);
+    expect(texts(hostByTestId(location, "detail-pr"))).toEqual(["PR", "#42", "feat: Tasks board"]);
 
     const copies: Array<[string, string]> = [
       ["detail-branch", "feat/tasks-board"],
@@ -1039,6 +1060,28 @@ describe("TaskDetailCards", () => {
     expect(hostByTestId(location, "detail-place").props.onPress).toBeUndefined();
   });
 
+  it("charts the usage: the token mix with Codex's cached input split out, the cost and the last turn", async () => {
+    const tree = await render(details(sample("sample-running")));
+    const usage = hostByTestId(tree.root, "detail-usage");
+    // Running: the context is in the turn's block, not repeated here.
+    expect(usage.findAll((node) => node.props.testID === "detail-context-bar")).toEqual([]);
+    expect(texts(hostByTestId(usage, "detail-tokens"))).toEqual(["Token 构成", "196k", "缓存输入", "120k", "新输入", "62k", "输出", "14k"]);
+    expect(texts(hostByTestId(usage, "detail-usage-cost"))).toEqual(["累计费用", "$1.84"]);
+    expect(texts(hostByTestId(usage, "detail-usage-turn"))).toEqual(["上一轮耗时", "18m"]);
+    // A segment grows with its count.
+    expect(flat(hostByTestId(usage, "detail-tokens-cached").props.style).flexGrow).toBe(120_000);
+  });
+
+  it("draws the activity as a timeline, the live span in the status colour", async () => {
+    const tree = await render(details(sample("sample-running")));
+    const activity = hostByTestId(tree.root, "detail-activity");
+    expect(texts(activity).slice(0, 2)).toEqual(["活动", "1 小时前创建"]);
+    expect(texts(hostByTestId(activity, "detail-timeline-created"))).toEqual(["创建", "1 小时前"]);
+    expect(texts(hostByTestId(activity, "detail-timeline-message"))).toEqual(["最后消息", "20 分钟前"]);
+    expect(texts(hostByTestId(activity, "detail-timeline-turn"))).toEqual(["本轮开始", "12 分钟前"]);
+    expect(texts(hostByTestId(activity, "detail-timeline-now"))).toEqual(["现在", "进行中"]);
+  });
+
   it("says nothing beside a clean, level branch", async () => {
     const base = sample("sample-running");
     const card = { ...base, location: { ...base.location, git: { dirty: false, ahead: 0, behind: 0 } } };
@@ -1049,20 +1092,25 @@ describe("TaskDetailCards", () => {
     expect(branchHint(null)).toEqual({ sync: null, dirty: false });
   });
 
-  it("says a directory is not a git checkout, and has no open button without onOpen", async () => {
+  it("says a directory is not a git checkout, sums up a finished card, and has no open button without onOpen", async () => {
     const tree = await render(details(sample("sample-done"), {}, "en"));
     expect(texts(hostByTestId(tree.root, "detail-branch"))).toEqual(["Branch", "Not a git directory"]);
     expect(hostByTestId(tree.root, "detail-branch").props.onPress).toBeUndefined();
-    expect(texts(hostByTestId(tree.root, "detail-place"))).toEqual(["Project", "B", "better-paseo › tasks-board", "directory"]);
+    expect(texts(hostByTestId(tree.root, "detail-place"))).toEqual(["B", "Project", "better-paseo ›", "tasks-board", "directory"]);
     expect(tree.root.findAll((node) => node.props.testID === "detail-open")).toEqual([]);
+    expect(texts(hostByTestId(tree.root, "detail-summary"))).toEqual(["Last turn", "18m", "Ended 2m ago", "Cost", "$1.84", "Total", "Token", "316k", "38% cached"]);
   });
 
-  it("lists the subtasks, a press showing one, and the failure under the title", async () => {
+  it("lists the subtasks under a bar of their statuses, a press showing one", async () => {
     const onJump = vi.fn();
     const running = await render(details(sample("sample-running"), { onJump }));
     expect(texts(hostByTestId(running.root, "detail-subtasks"))).toEqual([
       "子任务",
       "1 / 3 完成",
+      "已完成",
+      "1",
+      "运行中",
+      "2",
       "Measure the sidebar ring",
       "运行中",
       "Write the ring geometry test",
@@ -1072,11 +1120,47 @@ describe("TaskDetailCards", () => {
     ]);
     byLabel(running.root, "Measure the sidebar ring 运行中").props.onPress();
     expect(onJump).toHaveBeenCalledWith("sample-child-1");
+  });
+
+  it("leads with the error when a card failed, and with a grey line after a manual stop", async () => {
+    const failed = await render(details(sample("sample-failed"), {}, "en"));
+    expect(texts(hostByTestId(failed.root, "detail-error"))).toEqual(["Run failed", "Provider exited with code 1: rate limit reached"]);
+    expect(icons(hostByTestId(failed.root, "detail-error"))).toEqual(["CircleAlert", "Copy"]);
+    await act(async () => byLabel(failed.root, "Copy error").props.onPress());
+    expect(clipboard.copyText).toHaveBeenLastCalledWith("Provider exited with code 1: rate limit reached");
+    await act(async () => failed.unmount());
+    renderer = null;
+    const stopped = previewSampleCards(NOW).find((card) => card.id === "sample-stopped")!;
+    const tree = await render(details(stopped, {}, "en"));
+    expect(texts(hostByTestId(tree.root, "detail-error"))).toEqual(["Stopped manually"]);
+    expect(icons(hostByTestId(tree.root, "detail-error"))).toEqual(["OctagonX"]);
+  });
+
+  it("leads with the permission request and its buttons while a card asks", async () => {
+    const onPermission = vi.fn();
+    const card = sample("sample-input");
+    const tree = await render(details(card, { onPermission, permissionButtons: permissionButtons(card.permission!, "zh") }));
+    expect(texts(hostByTestId(tree.root, "detail-permission"))).toEqual(["Bash", "还有 1 个请求", "npm run db:migrate -- --env staging", "允许", "拒绝", "4m"]);
+    await act(async () => byLabel(tree.root, "允许").props.onPress());
+    expect(onPermission).toHaveBeenCalledWith(expect.objectContaining({ kind: "respond" }));
+    // The phone's bar carries them instead.
+    await act(async () => tree.update(details(card, { onPermission, permissionButtons: permissionButtons(card.permission!, "zh"), actions: false })));
+    expect(hostByTestId(tree.root, "detail-permission").findAll((node) => node.props.testID === "detail-permission-buttons")).toEqual([]);
+  });
+
+  it("puts the phone's actions in a bar: open and stop while running, allow first while asking", async () => {
+    const strings = BOARD_STRINGS.zh.sidebar;
+    const bar = (card: TaskCard, more: Record<string, unknown> = {}) =>
+      React.createElement(DetailActionBar, { card, theme: LIGHT, language: "zh", strings, onOpen: vi.fn(), ...more });
+    const running = await render(bar(sample("sample-running"), { stop: { phase: "idle", onPress: vi.fn() } }));
+    expect(texts(hostByTestId(running.root, "detail-action-bar"))).toEqual(["切换到 tab", "停止运行"]);
     await act(async () => running.unmount());
     renderer = null;
-    const failed = await render(details(sample("sample-failed"), {}, "en"));
-    expect(texts(hostByTestId(failed.root, "detail-error"))).toEqual(["Provider exited with code 1: rate limit reached"]);
-    expect(icons(hostByTestId(failed.root, "detail-error"))).toEqual(["CircleX"]);
+    const card = sample("sample-input");
+    const asking = await render(bar(card, { onPermission: vi.fn(), permissionButtons: permissionButtons(card.permission!, "zh") }));
+    const labels = asking.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel);
+    // The tab shrinks to a square; deny, then allow under the thumb.
+    expect(labels).toEqual(["打开 tab 处理", "拒绝", "允许"]);
   });
 
   it("names the stop button by its phase", async () => {
