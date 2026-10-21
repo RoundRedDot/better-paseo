@@ -34,7 +34,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 import "./helpers/quiet-renderer";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { CARD_PRESETS } from "../../shared/tasks-settings";
-import { sampleCards } from "../../client/tasks/sample-cards";
+import { previewSampleCards as sampleCards } from "../../client/tasks/sample-cards";
 import type { PermissionButton } from "../../client/tasks/actions";
 import { TaskCardView, TaskDetails, type TaskCardViewProps } from "../../client/tasks/cards";
 import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
