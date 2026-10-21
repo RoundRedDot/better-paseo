@@ -119,6 +119,12 @@ export interface TaskChild {
   id: string;
   title: string;
   status: StatusKind;
+  /** The child's own agent, for its row's mark and facts line (Paseo 0.12's subagent row). */
+  provider?: string;
+  modelLabel?: string | null;
+  thinkingLabel?: string | null;
+  modeLabel?: string | null;
+  context?: TaskContext | null;
 }
 
 export interface TaskCard {

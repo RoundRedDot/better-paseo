@@ -371,7 +371,7 @@ describe("Tasks data store", () => {
     });
     const mounted = await mountTasks(fake, "24h", false);
     try {
-      expect(mounted.current.byId.get("parent")?.children).toEqual([{ id: "child", title: "Child task", status: "running" }]);
+      expect(mounted.current.byId.get("parent")?.children).toEqual([{ id: "child", title: "Child task", status: "running", provider: "claude", modelLabel: "claude-opus-5-5", thinkingLabel: null, modeLabel: "Default", context: null }]);
       expect(mounted.current.byId.get("child")?.parent).toEqual({ id: "parent", title: "Parent task", missing: false });
       expect(mounted.current.byId.get("orphan")?.parent).toEqual({ id: "archived-parent", title: null, missing: true });
       await act(async () => {

@@ -16,8 +16,9 @@ function textWidth(text: string): number {
   return width;
 }
 
-/** The middle of `text` cut to `budget` columns: 40% of the head and 60% of the tail around "…". */
+/** The middle of `text` cut to `budget` columns: 40% of the head and 60% of the tail around "…"; whole when it fits. */
 function middle(text: string, budget: number): string {
+  if (textWidth(text) <= budget) return text;
   const chars = [...text];
   const room = Math.max(2, budget - 1);
   const head = Math.floor(room * 0.4);
@@ -25,56 +26,103 @@ function middle(text: string, budget: number): string {
   return `${chars.slice(0, head).join("")}…${chars.slice(chars.length - tail).join("")}`;
 }
 
+/** A path's segments, each with its "/" but the last. */
+function pathPieces(path: string): string[] {
+  const parts = path.split("/");
+  return parts.map((part, index) => (index < parts.length - 1 ? `${part}/` : part));
+}
+
 /**
- * A path on one line of `budget` columns: whole when it fits, else "…/" and
- * as many trailing segments as fit. The last segment always shows, cut in
- * its middle when it alone is too long.
+ * The unbreakable runs of a path as `pathText` lays it out, as widths: each
+ * segment that fits a line is one run, broken after its "/". A segment longer
+ * than a line runs on from the "/" before it and breaks only after its own
+ * "-" (a browser keeps the letters between them together).
  */
-export function shortenPath(path: string, budget: number): string {
-  if (textWidth(path) <= budget) return path;
-  const segments = path.split("/").filter((segment, index) => segment !== "" || index === 0);
+function pathWords(path: string, columns: number): number[] {
+  const words: number[] = [];
+  for (const piece of pathPieces(path)) {
+    const width = textWidth(piece);
+    if (width <= columns) {
+      words.push(width);
+      continue;
+    }
+    const parts = piece.split("-").map((part, index, all) => (index < all.length - 1 ? `${part}-` : part));
+    parts.forEach((part, index) => {
+      if (index === 0 && words.length > 0) words[words.length - 1] += textWidth(part);
+      else words.push(textWidth(part));
+    });
+  }
+  return words;
+}
+
+/**
+ * How many lines a path takes in lines of `columns`, laid out as `pathText`
+ * lets it break: a run that does not fit the rest of a line moves to the
+ * next; a run longer than a whole line breaks inside itself.
+ */
+export function pathLines(path: string, columns: number): number {
+  let lines = 1;
+  let used = 0;
+  for (const width of pathWords(path, columns)) {
+    if (used > 0 && used + width > columns) {
+      lines += 1;
+      used = 0;
+    }
+    used += width;
+    while (used > columns) {
+      used -= columns;
+      lines += 1;
+    }
+  }
+  return lines;
+}
+
+/**
+ * A path in `lines` lines of `columns`: whole when it fits, else its head
+ * ("~/workspace", "/Users") and as many trailing segments as fit around
+ * "…/". The last segment always shows, cut in its middle only when it alone
+ * is longer than the lines. Copying still takes the whole path.
+ */
+export function foldPath(path: string, columns: number, lines = 2): string {
+  const fits = (text: string) => pathLines(text, columns) <= lines;
+  if (fits(path)) return path;
+  const segments = path.split("/");
   const last = segments.pop() ?? path;
-  if (textWidth(`…/${last}`) > budget) return `…/${middle(last, budget - 2)}`;
+  const head = segments.length > 2 ? segments.slice(0, 2).join("/") : null;
+  const rest = head ? segments.slice(2) : segments;
+  const lead = head ? `${head}/…/` : "…/";
+  if (!fits(`${lead}${last}`)) return `…/${middle(last, columns * lines - 2)}`;
   let tail = last;
-  for (let index = segments.length - 1; index >= 0; index--) {
-    const next = `${segments[index]}/${tail}`;
-    if (textWidth(`…/${next}`) > budget) break;
+  for (let index = rest.length - 1; index >= 0; index--) {
+    const next = `${rest[index]}/${tail}`;
+    if (!fits(`${lead}${next}`)) break;
     tail = next;
   }
-  return `…/${tail}`;
+  return `${lead}${tail}`;
 }
-
-/** A property row's sizes, in px at the font scale: its icon, label column and value font. */
-export interface PropertyRowSizes {
-  icon: number;
-  label: number;
-  font: number;
-}
-
-/** A badge beside a property's value: its text, and whether an icon or a dot leads it. */
-export interface PropertyBadge {
-  text: string;
-  lead?: boolean;
-}
-
-/** Badge text is 11px with a 14px icon-and-gap lead and 7px of padding a side (`Badge` in `detail-charts.tsx`). */
-const BADGE_FONT = 11;
-const BADGE_LEAD = 16;
-const BADGE_PAD = 14;
-/** A column of text is about this many ems wide; a wide character takes two. */
-const COLUMN_EM = 0.56;
 
 /**
- * About how wide a property row is with its value whole: the padding, icon,
- * label column and value with the gaps between them, then each badge. Two
- * rows share a line only when both fit their half of it.
+ * A path (already folded) with the breaks `pathLines` counts on: a
+ * zero-width space after each "/", a word joiner after each "-" so iOS does
+ * not break "native-bridge" at its hyphen. A segment longer than a line
+ * keeps neither: it follows the "/" before it on the same line and wraps
+ * inside itself.
  */
-export function propertyRowWidth(sizes: PropertyRowSizes, value: string, badges: PropertyBadge[] = []): number {
-  let width = 12 + sizes.icon + 8 + sizes.label + 8 + textWidth(value) * sizes.font * COLUMN_EM;
-  for (const badge of badges) {
-    width += 8 + BADGE_PAD + (badge.lead ? BADGE_LEAD : 0) + textWidth(badge.text) * BADGE_FONT * COLUMN_EM;
-  }
-  return Math.ceil(width);
+export function pathText(path: string, columns: number): string {
+  const pieces = pathPieces(path);
+  const long = pieces.map((piece) => textWidth(piece) > columns);
+  return pieces
+    .map((piece, index) => {
+      const text = long[index] ? piece : piece.replace(/-/g, "-\u2060");
+      const breakAfter = piece.endsWith("/") && index + 1 < pieces.length && !long[index + 1];
+      return breakAfter ? `${text}\u200b` : text;
+    })
+    .join("");
+}
+
+/** Lets a branch or a name wrap after each "/" and "-" before it wraps inside a word. */
+export function breakable(text: string): string {
+  return text.replace(/([/-])/g, "$1\u200b");
 }
 
 /** Ahead/behind and uncommitted changes beside the branch; a clean, level branch says nothing. */

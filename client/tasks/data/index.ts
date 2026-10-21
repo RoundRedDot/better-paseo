@@ -522,7 +522,18 @@ function createStore(api: PaseoApi): TaskStore {
         ? [...childIds]
             .map((childId): TaskChild | null => {
               const child = cards.get(childId) ?? baseCards.get(childId);
-              return child ? { id: child.id, title: child.title, status: child.status } : null;
+              return child
+                ? {
+                    id: child.id,
+                    title: child.title,
+                    status: child.status,
+                    provider: child.provider,
+                    modelLabel: child.modelLabel,
+                    thinkingLabel: child.thinkingLabel,
+                    modeLabel: child.modeLabel,
+                    context: child.context,
+                  }
+                : null;
             })
             .filter((child): child is TaskChild => child !== null)
             .sort((left, right) => left.title.localeCompare(right.title))

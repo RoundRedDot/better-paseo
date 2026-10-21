@@ -8,7 +8,7 @@ import {
   formatShare,
   formatSpan,
   formatTurnClock,
-  subtaskSegments,
+  childFacts,
   timeline,
   timelineFractions,
   tokenMix,
@@ -65,11 +65,11 @@ describe("details card model", () => {
     expect(usageSummary({ ...sample("sample-done"), usage: null }, "en")).toBe("Not reported");
   });
 
-  it("counts the subtasks by status in the bar's order", () => {
-    expect(subtaskSegments(sample("sample-running"))).toEqual([
-      { status: "done", count: 1 },
-      { status: "running", count: 2 },
-    ]);
+  it("writes a subtask's facts line as Paseo 0.12's subagent row does", () => {
+    const child = { id: "c", title: "t", status: "running" as const, modelLabel: "Opus 5.5", thinkingLabel: "High", modeLabel: "Bypass", context: { usedTokens: 225_312, maxTokens: 1_000_000 } };
+    expect(childFacts(child)).toBe("Opus 5.5 · High · Bypass · 225k / 1m tokens (23%)");
+    expect(childFacts({ ...child, thinkingLabel: null, context: null })).toBe("Opus 5.5 · Bypass");
+    expect(childFacts({ ...child, modelLabel: null })).toBeNull();
   });
 
   it("formats the turn's clock and the timeline's spans", () => {

@@ -7,7 +7,7 @@ import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typog
 import { useHover } from "../../ui/use-hover";
 import { useCopy } from "../../ui/use-copy";
 import type { TasksLanguage } from "../i18n";
-import type { PermissionKind, TaskCard } from "../model";
+import type { PermissionKind, TaskCard, TaskChild } from "../model";
 import type { PermissionButton, StopPhase } from "../actions";
 import { formatDuration, formatRelative, since, tildePath } from "./format";
 import { cardStrings } from "./strings";
@@ -18,7 +18,7 @@ import { useTime, type TimeSource } from "./clock";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
 import { cardTimer } from "./task-card";
-import { branchHint, propertyRowWidth, shortenPath, SUBTASK_ROWS } from "./details-format";
+import { branchHint, breakable, foldPath, pathText, SUBTASK_ROWS } from "./details-format";
 import {
   contextView,
   detailHero,
@@ -26,14 +26,14 @@ import {
   errorLines,
   formatSpan,
   formatTurnClock,
-  subtaskSegments,
+  childFacts,
   summaryTiles,
   timeline,
   tokenMix,
   usageSummary,
   type DetailSection,
 } from "./detail-model";
-import { Badge, Chip, ContextBar, SubtaskBar, SummaryTiles, TimelineChart, TokenBar, TurnHero, detailColors, statusColor } from "./detail-charts";
+import { Chip, ContextBar, SummaryTiles, TimelineChart, TokenBar, TurnHero, detailColors, statusColor } from "./detail-charts";
 import { sectionClosed, setSectionClosed, useSectionChoices } from "./detail-collapse";
 
 /**
@@ -50,7 +50,6 @@ export const DETAIL_CARD = {
   gap: 8,
   padH: 12,
   padV: 6,
-  labelWidth: 64,
   row: 32,
   listRow: 30,
   heading: 32,
@@ -62,12 +61,13 @@ export const DETAIL_CARD = {
   round: 28,
 } as const;
 
-const TOUCH_CARD = { ...DETAIL_CARD, labelWidth: 76, row: 44, listRow: 44, heading: 44, font: 15, title: 17, icon: 18, chip: 28, button: 44, round: 36 } as const;
+const TOUCH_CARD = { ...DETAIL_CARD, row: 44, listRow: 44, heading: 44, font: 15, title: 17, icon: 18, chip: 28, button: 44, round: 36 } as const;
 
 type Metrics = typeof DETAIL_CARD | typeof TOUCH_CARD;
 
 /** Properties go two columns once the card's content is this wide (a sidebar of about 480) and both rows fit their half. */
-const TWO_COLUMNS = 456;
+/** The properties get a label column from this width and lose it under `hide`: the 8 between keeps a drag from flickering it. */
+const LABEL_COLUMN = { show: 448, hide: 440 } as const;
 
 const MONO = Platform.select({ ios: "Menlo", android: "monospace", default: "ui-monospace, SFMono-Regular, Menlo, monospace" });
 
@@ -507,7 +507,7 @@ function Section(props: Inner & { section: DetailSection; closed: boolean }) {
   const done = card.children.filter((child) => child.status === "done").length;
   const created = since(card.timing.createdAt, props.now);
   const summary = {
-    properties: card.location.branch ?? "",
+    properties: card.location.branch ?? (card.location.git === null ? words.notGit : ""),
     subtasks: words.subtasksDone(done, card.children.length),
     usage: usageSummary(card, props.language),
     activity: created !== null ? words.createdAgo(formatRelative(created, props.language)) : "",
@@ -517,7 +517,7 @@ function Section(props: Inner & { section: DetailSection; closed: boolean }) {
     <View testID={testID}>
       <View style={{ height: StyleSheet.hairlineWidth, marginHorizontal: m.padH, backgroundColor: tokens.card.border }} />
       <View style={{ paddingTop: 4, paddingBottom: 8, paddingHorizontal: m.padH - 6 }}>
-        <SectionHeading m={m} tokens={tokens} title={title} summary={summary} closed={props.closed} language={props.language} onPress={() => setSectionClosed(section, !props.closed)} />
+        <SectionHeading m={m} tokens={tokens} title={title} summary={summary} summaryStyle={section === "properties" && card.location.branch ? { maxWidth: "60%", fontFamily: MONO, color: tokens.branch } : undefined} closed={props.closed} language={props.language} onPress={() => setSectionClosed(section, !props.closed)} />
         {props.closed ? null : section === "properties" ? (
           <Properties {...props} />
         ) : section === "subtasks" ? (
@@ -532,7 +532,7 @@ function Section(props: Inner & { section: DetailSection; closed: boolean }) {
   );
 }
 
-function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; summary: string; closed: boolean; language: TasksLanguage; onPress(): void }) {
+function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; summary: string; summaryStyle?: TextStyle; closed: boolean; language: TasksLanguage; onPress(): void }) {
   const { m, tokens } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
@@ -554,7 +554,7 @@ function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; 
       </View>
       <View style={{ flex: 1 }} />
       {props.summary ? (
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: font, color, fontVariant: ["tabular-nums"] }}>
+        <Text numberOfLines={1} style={[{ flexShrink: 1, fontSize: font, color, fontVariant: ["tabular-nums"] }, props.summaryStyle]}>
           {props.summary}
         </Text>
       ) : null}
@@ -564,160 +564,155 @@ function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; 
 
 const WORKSPACE_ICONS = { local_checkout: "Laptop", worktree: "GitFork", checkout: "Laptop", directory: "Folder" } as const;
 
+/**
+ * The properties (`docs/prototypes/task-details-properties.md`): one row per
+ * field, icon 16 · value · trailing 16, no label column until the card is
+ * wide (≥ 448, gone under 440). Every state the old badges carried is a
+ * muted note line under the value; values wrap to a few lines instead of
+ * cutting off.
+ */
 function Properties(props: Inner) {
   const { card, m, tokens } = props;
   const words = props.strings.property;
   const cardText = cardStrings(props.language);
+  const details = cardText.details;
   const location = card.location;
-  const scale = useTasksFontScale();
-  const [width, setWidth] = useState(0);
-  let place: React.ReactNode = null;
-  if (location.projectName || location.workspaceName) {
+  const [wide, setWide] = useState(false);
+  const onLayout = (event: LayoutChangeEvent) => {
+    const width = event.nativeEvent.layout.width;
+    setWide((was) => (width >= LABEL_COLUMN.show ? true : width < LABEL_COLUMN.hide ? false : was));
+  };
+  const common = { m, tokens, language: props.language, wide };
+  const rows: React.ReactNode[] = [];
+
+  const placeName = location.projectName ?? location.workspaceName;
+  if (placeName) {
     const kind = location.workspaceKind;
-    place = (
-      <PropertyRow
-        language={props.language}
-        key="place"
-        m={m}
-        tokens={tokens}
-        label={words.project}
-        lead={<ProjectIcon location={location} size={m.icon} />}
-        pre={location.projectName && location.workspaceName ? `${location.projectName} ›` : null}
-        value={location.workspaceName ?? location.projectName ?? ""}
-        badges={kind ? <Badge tokens={tokens} icon={WORKSPACE_ICONS[kind]} text={cardText.kind[kind]} /> : null}
-        testID="detail-place"
-      />
-    );
+    const notes: Note[] = [];
+    if (location.projectName && location.workspaceName) notes.push({ text: location.workspaceName });
+    if (kind) notes.push({ text: cardText.kind[kind], icon: WORKSPACE_ICONS[kind] });
+    rows.push(<PropertyRow {...common} key="place" label={words.project} lead={<ProjectIcon location={location} size={16} />} value={placeName} strong hyphens lines={2} notes={notes} testID="detail-place" />);
   }
-  let branch: React.ReactNode = null;
+
   if (location.branch) {
     const hint = branchHint(location.git);
-    branch = (
+    const notes: Note[] = [];
+    if (hint.sync) notes.push({ text: hint.sync });
+    if (hint.dirty) notes.push({ text: details.uncommittedNote, warn: true });
+    rows.push(
       <PropertyRow
-        language={props.language}
+        {...common}
         key="branch"
-        m={m}
-        tokens={tokens}
         label={words.branch}
         icon="GitBranch"
         value={location.branch}
-        copy={{ text: location.branch, toast: "Copy branch name", label: cardText.details.copyBranch }}
-        badges={
-          hint.sync || hint.dirty ? (
-            <>
-              {hint.sync ? <Badge tokens={tokens} text={hint.sync} /> : null}
-              {hint.dirty ? <Badge tokens={tokens} dot={tokens.warning} text={cardText.uncommitted} /> : null}
-            </>
-          ) : null
-        }
+        mono="branch"
+        lines={3}
+        notes={notes}
+        copy={{ text: location.branch, toast: "Copy branch name", label: details.copyBranch }}
         testID="detail-branch"
-      />
+      />,
     );
   } else if (location.git === null) {
-    branch = <PropertyRow language={props.language} key="branch" m={m} tokens={tokens} label={words.branch} icon="GitBranch" value={cardText.details.notGit} muted testID="detail-branch" />;
+    rows.push(<PropertyRow {...common} key="branch" label={words.branch} icon="GitBranch" value={details.notGit} muted lines={1} testID="detail-branch" />);
   }
-  // Project and branch share a line only when both show whole in half of it.
-  const pairFits = () => {
-    const sizes = { icon: m.icon, label: m.labelWidth * Math.max(1, scale), font: Math.round(m.font * scale) };
-    const kind = location.workspaceKind;
-    const placeValue = [location.projectName && location.workspaceName ? `${location.projectName} ›` : null, location.workspaceName ?? location.projectName].filter(Boolean).join(" ");
-    const placeWidth = propertyRowWidth(sizes, placeValue, kind ? [{ text: cardText.kind[kind], lead: true }] : []);
-    const hint = branchHint(location.git);
-    const branchBadges = [...(hint.sync ? [{ text: hint.sync }] : []), ...(hint.dirty ? [{ text: cardText.uncommitted, lead: true }] : [])];
-    const branchWidth = location.branch ? propertyRowWidth(sizes, location.branch, branchBadges) : propertyRowWidth(sizes, cardText.details.notGit);
-    const half = (width - 8) / 2;
-    return placeWidth <= half && branchWidth <= half;
-  };
-  const rows: React.ReactNode[] = [];
-  if (place && branch && width >= TWO_COLUMNS && pairFits()) {
-    rows.push(
-      <View key="pair" style={{ flexDirection: "row", gap: 8 }}>
-        <View style={{ flex: 1, minWidth: 0 }}>{place}</View>
-        <View style={{ flex: 1, minWidth: 0 }}>{branch}</View>
-      </View>,
-    );
-  } else {
-    if (place) rows.push(place);
-    if (branch) rows.push(branch);
-  }
+
+  rows.push(
+    <PropertyRow
+      {...common}
+      key="cwd"
+      label={words.cwd}
+      icon="Folder"
+      value={tildePath(location.cwd)}
+      mono="path"
+      lines={2}
+      copy={{ text: location.cwd, toast: "Copy path", label: details.copyPath }}
+      testID="detail-cwd"
+    />,
+  );
+
   if (location.pullRequest) {
     const pr = location.pullRequest;
     rows.push(
       <PropertyRow
-        language={props.language}
+        {...common}
         key="pr"
-        m={m}
-        tokens={tokens}
         label={words.pr}
         icon="GitPullRequest"
         pre={pr.number !== null ? `#${pr.number}` : null}
         value={pr.title}
-        copy={{ text: pr.url, toast: "Copy URL", label: cardText.details.copyLink }}
+        lines={2}
         link={pr.url}
+        copy={{ text: pr.url, toast: "Copy URL", label: details.copyLink }}
         testID="detail-pr"
       />,
     );
   }
-  rows.push(
-    <PropertyRow
-      language={props.language}
-      key="cwd"
-      m={m}
-      tokens={tokens}
-      label={words.cwd}
-      icon="Folder"
-      value={tildePath(location.cwd)}
-      path
-      copy={{ text: location.cwd, toast: "Copy path", label: cardText.details.copyPath }}
-      testID="detail-cwd"
-    />,
-  );
+
   if (card.parent) {
     const parent = card.parent;
     const title = parent.title ?? (parent.missing ? cardText.parentArchived : cardText.parentUnknown);
     const jump = props.onJump && !parent.missing ? () => props.onJump?.(parent.id) : undefined;
     rows.push(
       <PropertyRow
-        language={props.language}
+        {...common}
         key="parent"
-        m={m}
-        tokens={tokens}
         label={words.parent}
         icon="CornerLeftUp"
         value={title}
+        lines={3}
+        muted={parent.missing}
+        notes={parent.missing ? [{ text: details.archived, icon: "Archive" }, { text: details.cannotJump }] : []}
         onPress={jump}
         accessibilityLabel={`${words.parent}: ${title}`}
-        badges={parent.missing ? <Badge tokens={tokens} icon="Archive" text={cardText.details.archived} /> : null}
-        chevron={!!jump}
         testID="detail-parent"
       />,
     );
   }
-  return <View onLayout={(event: LayoutChangeEvent) => setWidth(Math.round(event.nativeEvent.layout.width))}>{rows}</View>;
+  return (
+    <View onLayout={onLayout} style={{ gap: 2 }} testID="detail-properties">
+      {rows}
+    </View>
+  );
+}
+
+/** A part of a property's note line: workspace, kind, ahead/behind, uncommitted, archived. */
+interface Note {
+  text: string;
+  icon?: string;
+  /** Uncommitted changes: the warning colour after a 6 dot. */
+  warn?: boolean;
 }
 
 /**
- * A property: icon, a muted label column, the value (a muted prefix, then the
- * value cut to one line), its badges. A copyable row copies on a press; with a
- * pointer, hovering it shows its actions, and a copy says so in the row.
+ * One property: [label 72 when wide] · icon 16 · the value over its note
+ * line · trailing 16. The value wraps to `lines` lines; a branch breaks after
+ * "/" and "-", a path after "/" and folds its middle into "…/" past two
+ * lines. With a pointer, hovering an actionable row shows its buttons at the
+ * top right; on touch its trailing mark (copy, ↗, ›) always shows and a tap
+ * on the row runs it. A copy is confirmed by the host's toast.
  */
 function PropertyRow(props: {
   m: Metrics;
   tokens: TaskTokens;
   language: TasksLanguage;
+  wide: boolean;
   label: string;
   icon?: string;
   lead?: React.ReactNode;
   pre?: string | null;
   value: string;
+  strong?: boolean;
   muted?: boolean;
-  path?: boolean;
-  badges?: React.ReactNode;
+  mono?: "branch" | "path";
+  /** A name ("ideashell-android") that may break after its hyphens, as a branch does. */
+  hyphens?: boolean;
+  lines: number;
+  notes?: Note[];
   copy?: { text: string; toast: string; label: string };
   link?: string;
   onPress?(): void;
   accessibilityLabel?: string;
-  chevron?: boolean;
   testID?: string;
 }) {
   const { m, tokens } = props;
@@ -725,63 +720,103 @@ function PropertyRow(props: {
   const scale = useTasksFontScale();
   const colors = detailColors(tokens);
   const { hovered, hoverProps } = useHover();
-  const { copied, copy } = useCopy();
-  const [columns, setColumns] = useState<number | null>(null);
+  const { copy } = useCopy();
+  const [columns, setColumns] = useState(36);
   const touch = m === TOUCH_CARD;
-  const doCopy = props.copy ? () => void copy(props.copy!.text, { label: props.copy!.toast }) : undefined;
-  const press = props.onPress ?? doCopy;
-  const shown = props.path ? shortenPath(props.value, columns ?? 28) : props.value;
-  const onValueLayout = props.path
-    ? (event: LayoutChangeEvent) => {
-        const next = Math.max(8, Math.floor(event.nativeEvent.layout.width / (Math.round(m.font * scale) * 0.56)));
-        setColumns((was) => (was === next ? was : next));
-      }
-    : undefined;
-  const actions = !touch && hovered && !copied && (props.copy || props.link);
-  const valueText: TextStyle = { fontSize: m.font, color: props.muted ? tokens.foregroundMuted : tokens.foreground };
+  const font = touch ? 15 : 14;
+  const line = touch ? 22 : 20;
+  const monoFont = font - 1;
+  const noteFont = touch ? 13 : 12;
+  const rowHeight = taskControlHeight(touch ? 44 : 36, scale);
+  // The host's toast confirms a copy; the row itself does not change.
+  const doCopy = props.copy ? () => void copy(props.copy!.text, { label: props.copy!.toast, feedback: "toast" }) : undefined;
+  const doOpen = props.link ? () => openLink(props.link!) : undefined;
+  // The row's own action: open a PR, jump to the parent, else copy.
+  const press = props.onPress ?? doOpen ?? doCopy;
+  // With a pointer, the copy / open buttons take a slot of their own at the row's end, kept while
+  // they are hidden, so they never cover the value's last word and the value does not reflow on hover.
+  const actionSlot = touch ? 0 : (props.copy ? 24 : 0) + (props.link ? 26 : 0);
+  const showActions = actionSlot > 0 && hovered;
+  let shown = props.value;
+  if (props.mono === "path") shown = pathText(foldPath(props.value, columns, props.lines), columns);
+  else if (props.mono === "branch" || props.hyphens) shown = breakable(props.value);
+  const onValueLayout =
+    props.mono === "path"
+      ? (event: LayoutChangeEvent) => {
+          // A monospace glyph measures 0.62 em (ui-monospace, Menlo); one column spare absorbs the rest.
+          const next = Math.max(12, Math.floor(event.nativeEvent.layout.width / (monoFont * scale * 0.62)) - 1);
+          setColumns((was) => (was === next ? was : next));
+        }
+      : undefined;
+  let color = tokens.foreground;
+  if (props.muted) color = tokens.foregroundMuted;
+  else if (props.mono === "branch") color = tokens.branch;
+  const valueStyle: TextStyle = {
+    fontSize: props.mono ? monoFont : font,
+    lineHeight: line,
+    color,
+    fontWeight: props.strong ? "500" : "400",
+    ...(props.mono ? { fontFamily: MONO } : null),
+    ...(props.onPress && hovered && !touch ? { textDecorationLine: "underline", textDecorationColor: tokens.card.border } : null),
+  };
+  let trailing: React.ReactNode = null;
+  if (props.onPress) trailing = <Icon name="ChevronRight" size={14} color={tokens.foregroundMuted} />;
+  else if (touch && props.link) trailing = <Icon name="ArrowUpRight" size={16} color={tokens.foregroundMuted} />;
+  else if (touch && props.copy) trailing = <Icon name="Copy" size={14} color={tokens.foregroundMuted} />;
+  const notes = props.notes ?? [];
+  const noteText: TextStyle = { fontSize: noteFont, lineHeight: 18, color: tokens.foregroundMuted };
+  const noteLine = notes.length > 0 ? (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 6, marginTop: 2 }}>
+      {notes.map((note, index) => (
+        <React.Fragment key={note.text}>
+          {index > 0 ? <Text style={noteText}>·</Text> : null}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            {note.warn ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: tokens.warning }} /> : null}
+            {note.icon ? <Icon name={note.icon} size={12} color={tokens.foregroundMuted} /> : null}
+            <Text style={[noteText, note.warn ? { color: tokens.warning } : null]}>{note.text}</Text>
+          </View>
+        </React.Fragment>
+      ))}
+    </View>
+  ) : null;
   const content = (
     <>
-      <View style={{ width: m.icon, alignItems: "center" }}>{props.lead ?? (props.icon ? <Icon name={props.icon} size={m.icon} color={tokens.foregroundMuted} /> : null)}</View>
-      <Text numberOfLines={1} style={{ width: m.labelWidth * Math.max(1, scale), fontSize: m.font, color: tokens.foregroundMuted }}>
-        {props.label}
-      </Text>
-      <View style={{ flex: 1, minWidth: 0, flexDirection: "row", gap: 4 }} onLayout={onValueLayout}>
-        {props.pre ? (
-          <Text numberOfLines={1} style={{ flexShrink: 2, fontSize: m.font, color: tokens.foregroundMuted }}>
-            {props.pre}
-          </Text>
-        ) : null}
-        <Text numberOfLines={1} style={[valueText, { flexShrink: 1 }]}>
+      {props.wide ? (
+        <Text numberOfLines={1} style={{ width: 72, fontSize: touch ? 14 : 13, lineHeight: line, color: tokens.foregroundMuted }}>
+          {props.label}
+        </Text>
+      ) : null}
+      <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }}>
+        {props.lead ?? (props.icon ? <Icon name={props.icon} size={16} color={tokens.foregroundMuted} /> : null)}
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }} onLayout={onValueLayout}>
+        <Text numberOfLines={props.lines} style={valueStyle} testID={props.testID ? `${props.testID}-value` : undefined}>
+          {props.pre ? <Text style={{ fontSize: font, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`${props.pre}\u2002`}</Text> : null}
           {shown}
         </Text>
+        {noteLine}
       </View>
-      {props.badges}
-      {actions ? (
-        <View style={{ flexDirection: "row", gap: 2, marginRight: -2 }}>
-          {props.link ? <RowAction icon="ExternalLink" label={words.openLink} tokens={tokens} onPress={() => openLink(props.link!)} /> : null}
-          {props.copy ? <RowAction icon="Copy" label={props.copy.label} tokens={tokens} onPress={doCopy!} /> : null}
+      {trailing ? <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }}>{trailing}</View> : null}
+      {actionSlot > 0 ? (
+        <View style={{ width: actionSlot, height: line, marginRight: -4, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
+          {showActions && props.copy ? <RowAction icon="Copy" label={props.copy.label} tokens={tokens} onPress={doCopy!} /> : null}
+          {showActions && props.link ? <RowAction icon="ExternalLink" label={words.openLink} tokens={tokens} onPress={doOpen!} /> : null}
         </View>
       ) : null}
-      {copied ? (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <Icon name="Check" size={14} color={tokens.success} />
-          {!touch ? <Text style={{ fontSize: 12, color: tokens.success }}>{words.copied}</Text> : null}
-        </View>
-      ) : null}
-      {props.chevron ? <Icon name="ChevronRight" size={14} color={tokens.foregroundMuted} /> : null}
     </>
   );
   const style: ViewStyle = {
-    minHeight: taskControlHeight(m.row, scale),
-    paddingHorizontal: 6,
-    borderRadius: 6,
+    minHeight: rowHeight,
+    paddingHorizontal: touch ? 12 : 8,
+    paddingVertical: Math.max(4, Math.floor((rowHeight - line) / 2)),
+    borderRadius: 8,
     flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    alignItems: "flex-start",
+    gap: 10,
   };
   if (!press) {
     return (
-      <View testID={props.testID} style={style}>
+      <View testID={props.testID} accessibilityLabel={props.accessibilityLabel ?? `${props.label}: ${props.value}`} style={style}>
         {content}
       </View>
     );
@@ -791,9 +826,11 @@ function PropertyRow(props: {
       {...(props.copy || props.link ? ROW_ROLE : { accessibilityRole: "button" as const })}
       accessibilityLabel={props.accessibilityLabel ?? (props.copy ? `${props.copy.label}: ${props.copy.text}` : props.label)}
       onPress={press}
+      onLongPress={touch && props.link ? doCopy : undefined}
+      delayLongPress={450}
       {...hoverProps}
       testID={props.testID}
-      style={({ pressed }) => ({ ...style, backgroundColor: hovered || pressed || copied ? colors.rowHover : "transparent" })}
+      style={({ pressed }) => ({ ...style, backgroundColor: hovered || pressed ? colors.rowHover : "transparent" })}
     >
       {content}
     </Pressable>
@@ -815,6 +852,7 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
   );
 }
 
+/** The children as Paseo 0.12's subagent rows: the provider's mark with its status at the corner, the title over its facts line. */
 function Subtasks(props: Inner) {
   const { card, m, tokens } = props;
   const scale = useTasksFontScale();
@@ -823,9 +861,8 @@ function Subtasks(props: Inner) {
   const rest = card.children.length - shown.length;
   return (
     <View>
-      <SubtaskBar segments={subtaskSegments(card)} tokens={tokens} language={props.language} font={m === TOUCH_CARD ? 14 : 13} />
       {shown.map((child) => (
-        <SubtaskRow key={child.id} m={m} tokens={tokens} title={child.title} color={statusColor(child.status, tokens)} word={cardText.status[child.status]} onPress={props.onJump ? () => props.onJump?.(child.id) : undefined} />
+        <SubtaskRow key={child.id} m={m} tokens={tokens} theme={props.theme} child={child} word={cardText.status[child.status]} onPress={props.onJump ? () => props.onJump?.(child.id) : undefined} />
       ))}
       {rest > 0 ? (
         <View style={{ height: taskControlHeight(m.listRow, scale), paddingHorizontal: 6, justifyContent: "center" }}>
@@ -836,34 +873,76 @@ function Subtasks(props: Inner) {
   );
 }
 
-function SubtaskRow(props: { m: Metrics; tokens: TaskTokens; title: string; color: string; word: string; onPress?(): void }) {
-  const { m, tokens } = props;
+function SubtaskRow(props: { m: Metrics; tokens: TaskTokens; theme: PluginTheme; child: TaskChild; word: string; onPress?(): void }) {
+  const { m, tokens, child } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
+  const facts = childFacts(child);
+  const active = props.onPress !== undefined && hovered;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${props.title} ${props.word}`}
+      accessibilityLabel={`${child.title} ${props.word}`}
       disabled={!props.onPress}
       onPress={props.onPress}
       {...hoverProps}
       style={({ pressed }) => ({
-        height: taskControlHeight(m.listRow, scale),
+        minHeight: taskControlHeight(m.listRow, scale),
         paddingHorizontal: 6,
+        paddingVertical: m === TOUCH_CARD ? 6 : 4,
         borderRadius: 6,
         flexDirection: "row",
         alignItems: "center",
         gap: 8,
-        backgroundColor: props.onPress && (hovered || pressed) ? detailColors(tokens).rowHover : "transparent",
+        backgroundColor: props.onPress && (active || pressed) ? detailColors(tokens).rowHover : "transparent",
       })}
     >
-      <View style={{ width: 8, height: 8, marginHorizontal: 4, borderRadius: 4, backgroundColor: props.color }} />
-      <Text numberOfLines={1} style={{ flex: 1, fontSize: m.font, color: tokens.foreground }}>
-        {props.title}
-      </Text>
-      <Text style={{ fontSize: m.font - 1, color: tokens.foregroundMuted }}>{props.word}</Text>
-      {props.onPress ? <Icon name="ChevronRight" size={14} color={tokens.foregroundMuted} /> : null}
+      <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={active ? detailColors(tokens).rowHover : tokens.card.background} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text numberOfLines={1} style={{ fontSize: m.font, color: tokens.foreground }}>
+          {child.title}
+        </Text>
+        {facts ? (
+          <Text numberOfLines={1} style={{ fontSize: m.font - 1, color: tokens.foregroundMuted }} testID={`detail-subtask-facts-${child.id}`}>
+            {facts}
+          </Text>
+        ) : null}
+      </View>
     </Pressable>
+  );
+}
+
+/**
+ * Paseo 0.12's `WorkspaceTabIcon` at 14: the provider's mark, its status on
+ * the bottom-right corner over a knockout of the row's fill. Running is the
+ * 12 ring in a 14 frame, unread and failed an 8 dot (6 and a 1 px knockout),
+ * needs input the board's hollow amber ring; a finished child has none.
+ */
+function ChildMark(props: { child: TaskChild; tokens: TaskTokens; theme: PluginTheme; backdrop: string }) {
+  const { child, tokens } = props;
+  const status = child.status;
+  let corner: React.ReactNode = null;
+  if (status === "running" || status === "needs_input") {
+    corner = (
+      <View style={{ position: "absolute", right: -5, bottom: -5, width: 14, height: 14, borderRadius: 7, backgroundColor: props.backdrop, alignItems: "center", justifyContent: "center" }}>
+        <View style={{ margin: -1 }}>
+          <StatusIcon kind={status} size={16} theme={props.theme} />
+        </View>
+      </View>
+    );
+  } else if (status === "unread" || status === "failed") {
+    corner = (
+      <View
+        testID={`status-${status}`}
+        style={{ position: "absolute", right: -2, bottom: -2, width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: props.backdrop, backgroundColor: status === "failed" ? tokens.status.danger : tokens.status.success }}
+      />
+    );
+  }
+  return (
+    <View style={{ width: 14, height: 14, flexShrink: 0 }}>
+      {child.provider ? <BrandMark provider={child.provider} size={14} tokens={tokens} /> : <Icon name="Bot" size={14} color={tokens.foregroundMuted} />}
+      {corner}
+    </View>
   );
 }
 
