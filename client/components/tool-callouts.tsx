@@ -97,6 +97,7 @@ export function toolIconName(tool: ToolKind): string {
 
 /** The icon a settled call shows: its MCP service's or shell program's, else its kind's. */
 export function toolCallIconName(call: ToolCallView): string {
+  if (call.activity) return call.activity.icon;
   const shell = call.tool === "bash" || call.tool === "shell";
   return (call.tool === "mcp" && call.mcp && mcpServiceIcon(call.mcp.server, call.mcp.tool))
     || (shell && call.command && commandIcon(call.command))
@@ -232,7 +233,7 @@ export function ToolCallout({
     <RunningDot color={tokens.accent} />
   ) : (
     <RowIcon name={provider ? `provider:${provider}` : summary.agent?.icon ?? iconName}
-      color={agentTone ?? (failed ? tokens.danger : undefined)} />
+      color={agentTone ?? (failed ? tokens.danger : summary.iconTone === "success" ? tokens.success : undefined)} />
   );
 
   const target =
@@ -848,6 +849,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
     data.tool === "plan" ||
     data.tool === "plain_text" ||
     data.tool === "unknown" ||
+    (data.tool === "activity" && Boolean(data.activity)) ||
     (data.tool === "mcp" && Boolean(data.mcp)) ||
     (data.tool === "hub" && Boolean(data.hub)) ||
     (data.tool === "paseo" && Boolean(data.paseo));
@@ -1128,7 +1130,7 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
         </View>
       )}
 
-      {/* Tool output as text (a task notification, an ACP or Codex result):
+      {/* Tool output as text (an ACP or Codex result):
           commands and logs far more often than prose, so it is set in the
           code face, as the row's own target already is. */}
       {data.tool === "plain_text" &&
@@ -1139,6 +1141,23 @@ function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, p
         ) : (
           <Text style={styles.silentText}>No text.</Text>
         ))}
+
+      {data.tool === "activity" && data.activity ? (
+        <View style={styles.section}>
+          {data.activity.sections.map((section, index) => (
+            <View key={`${index}:${section.label ?? ""}`} style={styles.section}>
+              {section.label ? <Text style={styles.sectionTitle}>{section.label}</Text> : null}
+              {section.format === "markdown" ? (
+                <MarkdownView text={section.text} tokens={tokens} variant="compact" size={blockProseBase(tokens.typography)} />
+              ) : section.format === "path" ? (
+                <PathText path={section.text} tokens={tokens} compact={compact} onReveal={revealFile} />
+              ) : (
+                <SyntaxHighlightBlock code={section.text} language={section.language ?? "text"} tokens={tokens} compact bare />
+              )}
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       {data.tool === "unknown" && (
         <View style={styles.section}>
