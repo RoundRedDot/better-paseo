@@ -6,6 +6,7 @@ import type { PluginTimelineTransformResult } from "@getpaseo/plugin";
 import type { CompactionTimelineItem, ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import { toolErrorText } from "./error-text";
 import { isTaskEcho } from "./task-notification";
+import { readCodexAsyncQuestions } from "./codex-questions";
 import { agentMessageFromDetail, agentMessageSchema, senderlessAgentMessage } from "./agent-message";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -78,7 +79,8 @@ export function transformToolCall({ item, phase }: {
     ...(metadata.answers !== undefined ? { answers: metadata.answers } : {}),
     ...(metadata.questionResult !== undefined ? { result: metadata.questionResult } : {}),
     ...(metadata.questionStatus !== undefined ? { status: metadata.questionStatus } : {}),
-  } : undefined;
+  } : item.name === "request_user_input_async" && item.detail.type === "plain_text"
+    ? readCodexAsyncQuestions(item.detail.text) : undefined;
   return {
     items: [
       {
