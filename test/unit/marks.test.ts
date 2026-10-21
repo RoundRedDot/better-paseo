@@ -100,6 +100,7 @@ describe("brand marks", () => {
     const handlers = new Map<string, (input: unknown) => Promise<unknown>>();
     contribute({
       registerSettings() {},
+      on() { return () => {}; },
       handle(contract: { name: string }, handler: (input: unknown) => Promise<unknown>) {
         handlers.set(contract.name, handler);
       },

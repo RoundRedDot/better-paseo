@@ -13,6 +13,7 @@ import { EMBEDDED_FONTS } from "./server/font-data";
 import { MARK_BITMAPS } from "./server/mark-bitmaps";
 import { writePerfDump } from "./server/perf-dump";
 import { registerTasksServer } from "./server/tasks/register";
+import { registerTurnUsageServer } from "./server/turn-usage";
 
 /**
  * Image types worth inlining, and the mime each one needs in its data URI.
@@ -478,6 +479,8 @@ export default function contribute(server: PluginServerContext) {
   server.registerSettings(PREFERENCES_SETTINGS);
   // The Tasks board's settings and its stop RPCs.
   registerTasksServer(server);
+  // Each turn's token usage, kept on disk for the turn details.
+  registerTurnUsageServer(server);
 
   server.handle(revealPathRpc, async (input) => {
     const requested = await resolveSelector(input.path, input.cwd);

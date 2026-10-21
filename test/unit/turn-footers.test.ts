@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle } from "@getpaseo/client";
 import { completedTurnFooters } from "../../client/state/turn-duration";
 import { createTurnFooterStore } from "../../client/state/turn-footers";
+import type { RecordedTurn } from "../../shared/turn-usage-rpc";
 import { timelineEntry as entry, timelinePage as page, type TimelineEntry, type TimelinePage } from "./helpers/turn-timeline";
 
 const prompt = (seq: number, turnId?: string) => entry({ type: "user_message", text: "prompt" }, seq, seq * 1000, turnId);
@@ -9,13 +10,13 @@ const reply = (seq: number, text: string, turnId?: string, at = seq * 1000) => e
 const turns = () => [prompt(1, "one"), reply(2, "intermediate", "one"), reply(3, "first", "one"),
   prompt(4, "two"), reply(5, "second", "two")];
 
-function setup(initial = turns()) {
+function setup(initial = turns(), loadRecorded?: (since: number) => Promise<RecordedTurn[]>) {
   let entries = initial;
   let handler: Parameters<PaseoAgentTimelineHandle["subscribe"]>[0] | null = null;
   const release = Object.assign(vi.fn(), { ready: Promise.resolve(), subscriptionId: "s", release: async () => {} });
   const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>().mockImplementation(async () => page(entries));
   const subscribe = vi.fn<PaseoAgentTimelineHandle["subscribe"]>().mockImplementation((next) => { handler = next; return release; });
-  const store = createTurnFooterStore(() => ({ refetch, subscribe }));
+  const store = createTurnFooterStore(() => ({ refetch, subscribe }), loadRecorded);
   return { store, refetch, subscribe, release,
     replace: (next: TimelineEntry[]) => { entries = next; },
     emit: (event: PaseoAgentTimelineEvent["event"]) => handler?.({ agentId: "a", event } as PaseoAgentTimelineEvent) };
@@ -78,6 +79,62 @@ describe("shared turn footer timeline", () => {
       emit({ type: "subscription_restored" });
       await store.refresh();
       expect(store.get(5000, "second")?.usage).toEqual(usage);
+    } finally { stop(); }
+  });
+
+  it("falls back to the server's record for turns this client did not see, matched by ID and end time", async () => {
+    const recorded: RecordedTurn[] = [
+      // The same ID from an earlier daemon, long before this turn ended.
+      { turnId: "one", endedAt: 3000 - 60 * 60_000, usage: { outputTokens: 1 } },
+      { turnId: "one", endedAt: 3200, usage: { outputTokens: 7 } },
+      { turnId: "two", endedAt: 5100, usage: { outputTokens: 9 } },
+    ];
+    const loadRecorded = vi.fn(async (since: number) => recorded.filter((turn) => turn.endedAt >= since));
+    const { store, emit } = setup(turns(), loadRecorded);
+    store.setRunning(false);
+    const stop = store.retain(3000, "first");
+    try {
+      await store.refresh();
+      expect(loadRecorded).toHaveBeenCalledTimes(1);
+      expect(loadRecorded).toHaveBeenLastCalledWith(3000 - 5_000);
+      expect(store.get(3000, "first")?.usage).toEqual({ outputTokens: 7 });
+      expect(store.get(5000, "second")?.usage).toEqual({ outputTokens: 9 });
+      await store.refresh();
+      expect(loadRecorded).toHaveBeenCalledTimes(1);
+      // A completion asks again for the turns still unseen; its live reading wins.
+      emit({ type: "turn_completed", provider: "claude", turnId: "two", usage: { outputTokens: 10 } });
+      await store.refresh();
+      expect(loadRecorded).toHaveBeenCalledTimes(2);
+      expect(store.get(5000, "second")?.usage).toEqual({ outputTokens: 10 });
+    } finally { stop(); }
+  });
+
+  it("matches history reloaded without turn IDs by end time, never taking a neighbour's record", async () => {
+    // A daemon restart reloads history from the provider without turn IDs.
+    const rows = [prompt(1), reply(2, "first"), prompt(3), reply(4, "second"), prompt(5), reply(6, "third")];
+    const loadRecorded = vi.fn(async () => [
+      { turnId: "foreground-turn-1", endedAt: 2100, usage: { outputTokens: 7 } },
+      // The second turn was never recorded; the third's record lies inside its window.
+      { turnId: "foreground-turn-3", endedAt: 6050, usage: { outputTokens: 9 } },
+    ]);
+    const { store } = setup(rows, loadRecorded);
+    store.setRunning(false);
+    const stop = store.retain(2000, "first");
+    try {
+      await store.refresh();
+      expect(store.get(2000, "first")?.usage).toEqual({ outputTokens: 7 });
+      expect(store.get(4000, "second")?.usage).toBeUndefined();
+      expect(store.get(6000, "third")?.usage).toEqual({ outputTokens: 9 });
+    } finally { stop(); }
+  });
+
+  it("keeps footers and timing when the record cannot be read", async () => {
+    const { store } = setup(turns(), async () => { throw new Error("no such RPC"); });
+    store.setRunning(false);
+    const stop = store.retain(5000, "second");
+    try {
+      await store.refresh();
+      expect(store.get(5000, "second")).toMatchObject({ durationMs: 1000, usage: undefined });
     } finally { stop(); }
   });
 
