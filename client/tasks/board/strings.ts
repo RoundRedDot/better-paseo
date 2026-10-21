@@ -37,6 +37,9 @@ const en = {
   openTabsHint: "Paseo marks open tabs for subagents only",
   hideSubtasks: "Hide subtasks",
   hideSubtasksHint: "Running, waiting and failed subtasks still show",
+  /** The touch board's button that shows and hides the two toggles. */
+  moreFilters: "More filters",
+  fewerFilters: "Fewer filters",
   titleContains: "Title has",
   doneWindowLabel: "Done",
   clear: "Clear",
@@ -115,6 +118,8 @@ const zh: typeof en = {
   openTabsHint: "Paseo 只给子 agent 标记打开的 tab",
   hideSubtasks: "隐藏子任务",
   hideSubtasksHint: "运行中、待输入和失败的子任务仍会显示",
+  moreFilters: "更多筛选",
+  fewerFilters: "收起筛选",
   titleContains: "标题包含",
   doneWindowLabel: "已完成",
   clear: "清除",
