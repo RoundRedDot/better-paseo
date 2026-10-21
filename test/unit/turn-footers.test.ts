@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle } from "@getpaseo/client";
-import { completedTurnFooters } from "../../client/state/turn-duration";
+import { completedTurnFooters, type CompletedTurnFooter } from "../../client/state/turn-duration";
 import { createTurnFooterStore } from "../../client/state/turn-footers";
 import type { RecordedTurn } from "../../shared/turn-usage-rpc";
 import { timelineEntry as entry, timelinePage as page, type TimelineEntry, type TimelinePage } from "./helpers/turn-timeline";
@@ -57,6 +57,62 @@ describe("completed turn footers", () => {
 
   it("does not render duplicate footers for indistinguishable source items", () => {
     expect(completedTurnFooters([prompt(1), reply(2, "same", undefined, 3000), reply(3, "same", undefined, 3000)], false, null)).toEqual([]);
+  });
+});
+
+const reasoning = (seq: number, turnId?: string, at = seq * 1000) => entry({ type: "reasoning", text: "thinking" }, seq, at, turnId);
+const notice = (seq: number, turnId?: string) => entry({ type: "tool_call", name: "task_notification", callId: `n${seq}`,
+  status: "completed", detail: { type: "unknown", input: null, output: null }, error: null } as TimelineEntry["item"], seq, seq * 1000, turnId);
+const timing = (rows: CompletedTurnFooter[]) => rows.map((row) => [row.text, row.startedAt, row.durationMs]);
+
+describe("turns no prompt started", () => {
+  // The user's chat: a background task notification started autonomous-turn-18
+  // without a user message, so its reply had no elapsed time.
+  const notified = () => [prompt(1, "foreground-turn-1"), reply(2, "first", "foreground-turn-1"),
+    reasoning(10, "autonomous-turn-2"), entry({ type: "reasoning", text: "tool" }, 12, 12000, "autonomous-turn-2"),
+    reply(15, "notified", "autonomous-turn-2")];
+
+  it("times a notification-started turn from its first item", () => {
+    expect(timing(completedTurnFooters(notified(), false, null)))
+      .toEqual([["first", 1000, 1000], ["notified", 10000, 5000]]);
+  });
+
+  it("prefers the start the server recorded before the turn's first item", () => {
+    const marks = { starts: [1000, 9400], ends: [2100, 15100] };
+    expect(timing(completedTurnFooters(notified(), false, null, { marks })))
+      .toEqual([["first", 1000, 1000], ["notified", 9400, 5600]]);
+    // A start outside the gap before the first item belongs to another turn.
+    expect(timing(completedTurnFooters(notified(), false, null, { marks: { starts: [1500, 11000], ends: [] } })).at(-1))
+      .toEqual(["notified", 10000, 5000]);
+  });
+
+  it("times the first turn of an agent's history only when no older page exists", () => {
+    const rows = [reasoning(3, "autonomous-turn-1"), reply(4, "scheduled", "autonomous-turn-1")];
+    expect(timing(completedTurnFooters(rows, false, null))).toEqual([["scheduled", null, null]]);
+    expect(timing(completedTurnFooters(rows, false, null, { fromStart: true }))).toEqual([["scheduled", 3000, 1000]]);
+  });
+
+  it("splits history reloaded without turn IDs at the recorded turns", () => {
+    // A daemon restart reloads history from the provider: no turn IDs, and the
+    // notification that woke the agent arrives long after the previous turn.
+    const rows = [prompt(1), reply(2, "first"), notice(40), reasoning(41), reply(45, "notified"),
+      prompt(50), reply(52, "third")];
+    // Without the record the notified turn swallows the first and spans 44 s.
+    expect(timing(completedTurnFooters(rows, false, null))).toEqual([["notified", 1000, 44000], ["third", 50000, 2000]]);
+    const marks = { starts: [1000, 40500, 50000], ends: [2100, 45100, 52100] };
+    expect(timing(completedTurnFooters(rows, false, null, { marks })))
+      .toEqual([["first", 1000, 1000], ["notified", 40500, 4500], ["third", 50000, 2000]]);
+  });
+
+  it("keeps a turn's trailing items when the record ends just before them", () => {
+    const rows = [prompt(1), reply(2, "draft"), reply(4, "final")];
+    expect(timing(completedTurnFooters(rows, false, null, { marks: { starts: [1000], ends: [3000] } })))
+      .toEqual([["final", 1000, 3000]]);
+  });
+
+  it("starts a live turn after reloaded history even without a prompt", () => {
+    const rows = [prompt(1), reply(2, "reloaded"), reasoning(10, "autonomous-x"), reply(12, "live", "autonomous-x")];
+    expect(timing(completedTurnFooters(rows, false, null))).toEqual([["reloaded", 1000, 1000], ["live", 10000, 2000]]);
   });
 });
 
@@ -370,5 +426,55 @@ describe("shared turn footer timeline", () => {
     finish(page(turns()));
     await pending;
     expect(store.get(3000, "first")).toBeNull();
+  });
+});
+
+describe("turn footer timing after a reload", () => {
+  it("reads the record for a notification-started turn and keeps its start", async () => {
+    const rows = [prompt(1, "foreground-turn-1"), reply(2, "first", "foreground-turn-1"),
+      reasoning(10, "autonomous-turn-2"), reply(15, "notified", "autonomous-turn-2")];
+    const loadRecorded = vi.fn(async (since: number) => [
+      { turnId: "foreground-turn-1", startedAt: 1000, endedAt: 2100, usage: { outputTokens: 3 } },
+      { turnId: "autonomous-turn-2", startedAt: 9300, endedAt: 15100 },
+    ].filter((turn) => turn.endedAt >= since));
+    const { store } = setup(rows, loadRecorded);
+    store.setRunning(false);
+    const stop = store.retain(15000, "notified");
+    try {
+      await store.refresh();
+      expect(loadRecorded).toHaveBeenCalledWith(1000 - 5_000);
+      expect(store.get(15000, "notified")).toMatchObject({ startedAt: 9300, durationMs: 5700 });
+      expect(store.get(2000, "first")).toMatchObject({ durationMs: 1000, usage: { outputTokens: 3 } });
+    } finally { stop(); }
+  });
+
+  it("restores every footer and its time from history reloaded without turn IDs", async () => {
+    const rows = [prompt(1), reply(2, "first"), notice(40), reasoning(41), reply(45, "notified"), prompt(50), reply(52, "third")];
+    const loadRecorded = vi.fn(async () => [
+      { turnId: "foreground-turn-1", startedAt: 1000, endedAt: 2100, usage: { outputTokens: 7 } },
+      { turnId: "autonomous-turn-2", startedAt: 40500, endedAt: 45100, usage: { outputTokens: 8 } },
+      { turnId: "foreground-turn-3", startedAt: 50000, endedAt: 52100 },
+    ]);
+    const { store } = setup(rows, loadRecorded);
+    store.setRunning(false);
+    const stops = [store.retain(2000, "first"), store.retain(45000, "notified"), store.retain(52000, "third")];
+    try {
+      await store.refresh();
+      expect(store.get(2000, "first")).toMatchObject({ startedAt: 1000, durationMs: 1000, usage: { outputTokens: 7 } });
+      expect(store.get(45000, "notified")).toMatchObject({ startedAt: 40500, durationMs: 4500, usage: { outputTokens: 8 } });
+      // A timing-only record never lends its neighbour's usage.
+      expect(store.get(52000, "third")).toMatchObject({ startedAt: 50000, durationMs: 2000, usage: undefined });
+    } finally { stops.forEach((stop) => stop()); }
+  });
+
+  it("still times a notification-started turn when the record cannot be read", async () => {
+    const rows = [prompt(1, "one"), reply(2, "first", "one"), reasoning(10, "auto"), reply(15, "notified", "auto")];
+    const { store } = setup(rows, async () => { throw new Error("no such RPC"); });
+    store.setRunning(false);
+    const stop = store.retain(15000, "notified");
+    try {
+      await store.refresh();
+      expect(store.get(15000, "notified")).toMatchObject({ startedAt: 10000, durationMs: 5000 });
+    } finally { stop(); }
   });
 });
