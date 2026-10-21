@@ -56,6 +56,8 @@ function bodyDetail(view: ToolCallView, budget: number): boolean {
     case "plan":
     case "plain_text":
       return !fitsRow(view.text, budget);
+    case "activity":
+      return Boolean(view.activity?.sections.length);
     case "sub_agent": {
       const agent = view.subAgent;
       return Boolean(agent?.prompt || agent?.actions?.length || agent?.log) || !fitsRow(agent?.description, budget);

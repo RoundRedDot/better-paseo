@@ -41,6 +41,8 @@ export interface ToolSummary {
   };
   /** The first line of a failure, drawn under the header. */
   errorLine?: string;
+  /** The settled icon in the success colour: a background task that finished. */
+  iconTone?: "success";
 }
 
 /** Longest target kept before the header's own middle truncation. */
@@ -438,6 +440,18 @@ function summarizeKind(view: ToolCallView): ToolSummary {
         meta,
         tone,
       };
+    case "activity": {
+      const activity = view.activity;
+      if (!activity) return { verb: clip(view.name, VERB_MAX) ?? "Tool", meta, tone };
+      return {
+        verb: clip(activity.verb, VERB_MAX) ?? "Tool",
+        target: clip(activity.targetIsPath ? activity.target : firstLine(activity.target), TARGET_MAX),
+        ...(activity.targetIsPath && activity.target ? { targetIsPath: true } : {}),
+        meta: [...meta, ...activity.meta],
+        tone: activity.failed ? "danger" : tone,
+        ...(activity.success && settled ? { iconTone: "success" as const } : {}),
+      };
+    }
     case "worktree_setup": {
       const worktree = view.worktree;
       const commands = worktree?.commands ?? [];
@@ -496,7 +510,8 @@ export function summarizeTool(view: ToolCallView): ToolSummary {
     };
   }
   const summary = summarizeKind(view);
-  const errorLine = errorLineFor(view);
+  // An activity's row already says it failed; only a reason of its own adds a line.
+  const errorLine = view.tool === "activity" && !view.error ? undefined : errorLineFor(view);
   if (!errorLine) return summary;
   // A failed background task's summary is its label, text and error at once:
   // a line that only repeats what the row already says is not drawn again.

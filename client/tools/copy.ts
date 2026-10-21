@@ -22,6 +22,11 @@ export function toolCopyPlan(view: ToolCallView, resolve: ResolvePath): CopyPlan
     return copyPlan({ kind: "mcp", args: { questions: view.questionData.questions },
       result: view.text ?? view.output ?? stringifyValue(view.questionData.answers ?? view.questionData.result) });
   }
+  if (view.activity) {
+    // The first section is what the row is about: a message, a result, a script.
+    const first = view.activity.sections[0];
+    return copyPlan({ kind: "reasoning", text: first?.text ?? view.activity.target ?? view.activity.verb });
+  }
   switch (view.tool) {
     case "bash":
     case "shell":

@@ -71,6 +71,7 @@ export interface LiveToolCallPayload {
   phase?: string;
   approved?: boolean;
   questionData?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface LiveReasoningPayload {
