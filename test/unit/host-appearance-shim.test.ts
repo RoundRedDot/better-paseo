@@ -124,7 +124,7 @@ describe("parsing Paseo's app settings", () => {
     expect(parseAppSettings(settings({ contentFontSize: 13, uiBaseFontSize: 15 }))).toMatchObject({
       contentFontSize: 13,
     });
-    expect(parseAppSettings(settings({ uiBaseFontSize: 14 }))).toEqual({ contentFontSize: 14 });
+    expect(parseAppSettings(settings({ uiBaseFontSize: 14 }))).toEqual({ uiBaseFontSize: 14, contentFontSize: 14 });
     expect(parseAppSettings(settings({ contentFontSize: "big" }))).toEqual({});
   });
 

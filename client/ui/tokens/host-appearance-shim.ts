@@ -1,5 +1,5 @@
 /**
- * TEMPORARY, READ-ONLY compatibility layer: the content size (every platform)
+ * TEMPORARY, READ-ONLY compatibility layer: the UI and content sizes (every platform)
  * and, on web, the monospace font and code size the user set in Paseo's
  * Appearance settings.
  *
@@ -20,6 +20,7 @@
  *   whose web backend is `localStorage`, as one JSON object (schema in
  *   `use-settings/storage.ts`).
  * - `monoFontFamily` (string; "" means the platform default stack, i.e. unset),
+ *   `uiBaseFontSize` (number; floored and clamped to 10–21, default 14),
  *   `codeFontSize` (number; the host floors it and clamps it to 9–22, default
  *   12), and `contentFontSize` (number; floored and clamped to 10–21). When
  *   content size is absent, `uiBaseFontSize` is used, which is what the host
@@ -60,6 +61,7 @@ export const LEGACY_SETTINGS_KEY = "@paseo:settings";
 /** The host's bounds (`use-settings/storage.ts`). */
 export const HOST_CODE_FONT_SIZE = { min: 9, max: 22, default: 12 } as const;
 export const HOST_CONTENT_FONT_SIZE = { min: 10, max: 21 } as const;
+export const HOST_UI_FONT_SIZE = { min: 10, max: 21, default: 14 } as const;
 const MAX_FONT_FAMILY_LENGTH = 200;
 /** Re-read storage at most this often. */
 export const RECHECK_MS = 500;
@@ -68,6 +70,8 @@ const TRAILING_MS = 600;
 
 /** What Paseo's Appearance settings say, as far as the plugin uses it. */
 export interface HostAppearance {
+  /** Interface size, independent of the content and code controls. */
+  uiBaseFontSize?: number;
   /** The user's mono family or stack, as typed in Paseo; absent when unset. */
   monoFontFamily?: string;
   /** Code size in px, floored and clamped like the host does; absent when unreadable. */
@@ -118,6 +122,8 @@ export function parseAppSettings(raw: string | null): HostAppearance | null {
   if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) return null;
   const record = decoded as Record<string, unknown>;
   const appearance: HostAppearance = {};
+  const ui = clampSize(record.uiBaseFontSize, HOST_UI_FONT_SIZE);
+  if (ui !== undefined) appearance.uiBaseFontSize = ui;
   const family = sanitizeFamily(record.monoFontFamily);
   if (family !== undefined) appearance.monoFontFamily = family;
   const size = clampCodeSize(record.codeFontSize);
@@ -348,6 +354,7 @@ function sameAppearance(a: HostAppearance | null, b: HostAppearance | null): boo
   return (
     a.monoFontFamily === b.monoFontFamily &&
     a.codeFontSize === b.codeFontSize &&
+    a.uiBaseFontSize === b.uiBaseFontSize &&
     a.contentFontSize === b.contentFontSize
   );
 }

@@ -3,7 +3,6 @@ import {
   Animated,
   Platform,
   Pressable,
-  Text,
   View,
   type FlatList as NativeFlatList,
   type ScrollView as NativeScrollView,
@@ -13,6 +12,7 @@ import {
 import { FlatList, Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
+import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
 import { StatusIcon, TaskDetails, taskTokens, type CardCallbacks } from "../cards";
 import { panelChrome } from "../cards/panel";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
@@ -55,6 +55,7 @@ export function PhoneBoard(props: {
   handlers: RefObject<BoardLayoutHandlers | null>;
 }) {
   const { screen, board, rootRef } = props;
+  const scale = useTasksFontScale();
   const theme = screen.theme;
   const colors = theme.colors;
   const hostId = screen.host.id;
@@ -341,7 +342,7 @@ export function PhoneBoard(props: {
               placeholderTextColor={colors.foregroundMuted}
               accessibilityLabel={strings.search}
               returnKeyType="search"
-              style={{ flex: 1, minWidth: 0, padding: 0, fontSize: 15, color: colors.foreground }}
+              style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(15 * scale), color: colors.foreground }}
             />
           </View>
         </View>
@@ -539,6 +540,7 @@ export function PhoneBoard(props: {
 
 function RoundButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; active?: boolean; badge?: number }) {
   const colors = props.theme.colors;
+  const scale = useTasksFontScale();
   return (
     <Pressable
       accessibilityRole="button"
@@ -566,8 +568,8 @@ function RoundButton(props: { icon: string; label: string; theme: PluginTheme; o
             position: "absolute",
             top: 0,
             right: 0,
-            minWidth: 20,
-            height: 20,
+            minWidth: taskControlHeight(20, scale),
+            height: taskControlHeight(20, scale),
             paddingHorizontal: 2,
             borderRadius: 10,
             backgroundColor: colors.accent,

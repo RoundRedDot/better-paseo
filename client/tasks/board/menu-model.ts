@@ -110,16 +110,16 @@ export interface PlacedRow {
   top: number;
 }
 
-/** Every selectable row with its top, and the panel's content height. Rows are a fixed 32, so this is arithmetic. */
-export function layoutMenu(sections: readonly MenuSection[]): { rows: PlacedRow[]; height: number } {
+/** Every selectable row's top and the panel height, including the UI scale's row growth. */
+export function layoutMenu(sections: readonly MenuSection[], scale = 1): { rows: PlacedRow[]; height: number } {
   const rows: PlacedRow[] = [];
   let y = MENU.padV;
   sections.forEach((section, index) => {
     if (index > 0) y += MENU.separatorGap * 2 + 1;
-    if (section.title) y += MENU.titleHeight;
+    if (section.title) y += Math.round(MENU.titleHeight * Math.max(1, scale));
     for (const item of section.items) {
       if (!item.disabled) rows.push({ item, top: y });
-      y += MENU.rowHeight;
+      y += Math.round(MENU.rowHeight * Math.max(1, scale));
     }
   });
   return { rows, height: y + MENU.padV };
