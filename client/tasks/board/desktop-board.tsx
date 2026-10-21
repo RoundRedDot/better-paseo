@@ -169,11 +169,6 @@ export function DesktopBoard(props: {
     if (focusLane) scrollTo(focusLane, focusIndex);
   }, [focusLane, focusIndex, scrollTo]);
 
-  // The keyboard's card is the sidebar's while nothing is pinned.
-  const focusedId = focusLane ? lanes[focusLane].cards[focusIndex]?.id ?? null : null;
-  useEffect(() => {
-    if (focusedId && open) dispatch({ type: "focus", id: focusedId });
-  }, [focusedId, open]);
   // A panel a tap showed goes once its card is closed.
   useEffect(() => {
     if (shownForTap && selection.id === null) setShownForTap(false);
@@ -195,8 +190,8 @@ export function DesktopBoard(props: {
     [collapsed, setCollapsed, layout.laneWidth, lanes],
   );
 
-  const latest = useRef({ board, focus, shapes, menu, selection, floating, open, focusedId, toggleSidebar });
-  latest.current = { board, focus, shapes, menu, selection, floating, open, focusedId, toggleSidebar };
+  const latest = useRef({ board, focus, shapes, menu, selection, floating, open, toggleSidebar });
+  latest.current = { board, focus, shapes, menu, selection, floating, open, toggleSidebar };
 
   const reveal = useCallback(
     (agentId: string) => {
@@ -217,23 +212,21 @@ export function DesktopBoard(props: {
 
   props.handlers.current = {
     reveal,
-    // A hover of 150 ms: the inline sidebar follows it; a floating one changes only on a click or a key.
+    // A long press on a compact or touch card: the same as a click.
     details(card) {
-      const now = latest.current;
-      if (now.open && !now.floating) dispatch({ type: "hover", id: card.id });
+      showCard(card);
     },
   };
 
-  const callbacks = useMemo<CardCallbacks>(
-    () => ({
-      ...board.callbacks,
-      onSelect: (card) => {
-        dispatch({ type: "click", id: card.id });
-        if (touch && !latest.current.open) setShownForTap(true);
-      },
-    }),
-    [board.callbacks, touch],
+  // Only a click or tap puts a card in the sidebar: no hover, no keyboard focus.
+  const showCard = useCallback(
+    (card: TaskCard) => {
+      dispatch({ type: "click", id: card.id });
+      if (touch && !latest.current.open) setShownForTap(true);
+    },
+    [touch],
   );
+  const callbacks = useMemo<CardCallbacks>(() => ({ ...board.callbacks, onSelect: showCard }), [board.callbacks, showCard]);
 
   // A click or tap on the lanes that no card, button or list takes: the lanes'
   // gaps, a lane's empty space, its header. It lets go of the selected card
@@ -258,7 +251,7 @@ export function DesktopBoard(props: {
     },
   };
 
-  // Keys on web: J/K, H/L, arrows, Enter, Esc, "/", I (sidebar), P (pin). Only
+  // Keys on web: J/K, H/L, arrows, Enter, Esc, "/", I (sidebar). Only
   // while the board is on screen and focus is not somewhere else in the app.
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined" || !board.visible) return;
@@ -279,7 +272,7 @@ export function DesktopBoard(props: {
         if (step) {
           event.preventDefault();
           if (step === "back") dispatch({ type: "back" });
-          else if (step === "unpin") dispatch({ type: "unpin" });
+          else if (step === "clear") dispatch({ type: "clear" });
           else now.toggleSidebar();
           return;
         }
@@ -288,11 +281,6 @@ export function DesktopBoard(props: {
       if (key === "i" && !event.shiftKey) {
         event.preventDefault();
         now.toggleSidebar();
-        return;
-      }
-      if (key === "p" && !event.shiftKey) {
-        event.preventDefault();
-        dispatch({ type: "togglePin", id: now.selection.pinned ? now.selection.id : now.focusedId ?? now.selection.id });
         return;
       }
       const result = boardKeyReducer(now.focus, event.key, now.shapes);
@@ -383,7 +371,6 @@ export function DesktopBoard(props: {
                   theme={theme}
                   focusIndex={focus?.lane === id ? focus.index : null}
                   currentId={open ? selection.id : null}
-                  pinned={selection.pinned}
                   listRef={publishList[id]}
                   breathing={breathing}
                 />
@@ -564,9 +551,8 @@ function DesktopLane(props: {
   callbacks: CardCallbacks;
   theme: PluginTheme;
   focusIndex: number | null;
-  /** The card the sidebar shows, and whether it is pinned. */
+  /** The card the sidebar shows. */
   currentId: string | null;
-  pinned: boolean;
   listRef(list: NativeFlatList<TaskCard> | null): void;
   breathing: Animated.Value;
 }) {
@@ -592,9 +578,9 @@ function DesktopLane(props: {
     [publish],
   );
   // No clock in here: a tick reaches the timer texts, not the list and its rows.
-  const { focusIndex, currentId, pinned, callbacks } = props;
+  const { focusIndex, currentId, callbacks } = props;
   const { highlighted, stop, fields } = board;
-  const extraData = useMemo(() => ({ focusIndex, highlighted, stop, fields, fresh, currentId, pinned }), [focusIndex, highlighted, stop, fields, fresh, currentId, pinned]);
+  const extraData = useMemo(() => ({ focusIndex, highlighted, stop, fields, fresh, currentId }), [focusIndex, highlighted, stop, fields, fresh, currentId]);
   const renderItem = useCallback(
     ({ item, index }: { item: TaskCard; index: number }) => (
       <CardCell
@@ -604,12 +590,11 @@ function DesktopLane(props: {
         compact={false}
         focused={focusIndex === index}
         current={currentId === item.id}
-        pinned={pinned && currentId === item.id}
         fresh={fresh.has(item.id)}
         callbacks={callbacks}
       />
     ),
-    [board, theme, focusIndex, currentId, pinned, fresh, callbacks],
+    [board, theme, focusIndex, currentId, fresh, callbacks],
   );
 
   if (props.collapsed) {

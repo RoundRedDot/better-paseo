@@ -97,9 +97,6 @@ export function DetailCard(props: { tokens: TaskTokens; style?: ViewStyle; testI
 }
 
 export interface DetailCardsStrings {
-  pin: string;
-  unpin: string;
-  pinned: string;
   close: string;
   back(title: string): string;
   stopRun: string;
@@ -121,8 +118,6 @@ export interface TaskDetailCardsProps extends TimeSource {
   strings: DetailCardsStrings;
   /** Touch sizes: the phone's sheet, a tablet's sidebar. */
   touch?: boolean;
-  pinned?: boolean;
-  onTogglePin?(): void;
   onClose?(): void;
   /** The card to go back to after a parent or subtask jump. */
   back?: { title: string; onPress(): void } | null;
@@ -241,17 +236,6 @@ function DetailHeader(props: Inner) {
         </Text>
         <StatusSub {...props} small={small} />
         <View style={{ flex: 1 }} />
-        {props.onTogglePin ? (
-          <RoundIcon
-            icon={props.pinned ? "PinOff" : "Pin"}
-            label={props.pinned ? props.strings.unpin : props.strings.pin}
-            size={m.round}
-            tokens={tokens}
-            active={props.pinned}
-            onPress={props.onTogglePin}
-            testID="detail-pin"
-          />
-        ) : null}
         {props.onClose ? <RoundIcon icon="X" label={props.strings.close} size={m.round} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
       </View>
       <Text style={{ marginTop: 2, fontSize: m.title, lineHeight: Math.round(m.title * 1.45), fontWeight: "600", color: tokens.foreground }} testID="detail-title">

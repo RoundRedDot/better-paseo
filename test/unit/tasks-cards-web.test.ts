@@ -182,7 +182,6 @@ describe("TaskCardView on web", () => {
         language: "zh",
         strings: BOARD_STRINGS.zh.sidebar,
         onOpen: () => {},
-        onTogglePin: () => {},
         onClose: () => {},
         onJump: () => {},
         stop: { phase: "idle", onPress: () => {} },
@@ -307,72 +306,20 @@ describe("TaskCardView on web", () => {
   });
 });
 
-describe("TaskCardView details hover", () => {
+describe("TaskCardView details", () => {
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  async function setup(overrides: Partial<TaskCardViewProps> = {}) {
+  it("never asks for the sidebar on a hover: only a click chooses a card", async () => {
     vi.useFakeTimers();
     const onDetails = vi.fn();
-    const onDetailsEnd = vi.fn();
-    const element = (more: Partial<TaskCardViewProps> = {}) =>
-      React.createElement(TaskCardView, props("sample-running", { onDetails, onDetailsEnd, ...overrides, ...more }));
-    const renderer = await render(element());
-    const root = renderer.root;
-    const control = (label: string) =>
-      root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === label);
-    const wait = (ms: number) => act(async () => void vi.advanceTimersByTime(ms));
-    return { renderer, root, element, control, wait, onDetails, onDetailsEnd };
-  }
-
-  it("asks for the sidebar after 150 ms on the body, and not while the pointer rests on Stop", async () => {
-    const { renderer, control, wait, onDetails, onDetailsEnd } = await setup();
+    const renderer = await render(React.createElement(TaskCardView, props("sample-running", { onDetails })));
     await act(async () => hovers.get("task-card-sample-running")!.enter());
-    await act(async () => control("停止").props.onHoverIn());
-    await wait(1000);
+    await act(async () => void vi.advanceTimersByTime(1000));
     expect(onDetails).not.toHaveBeenCalled();
-
-    // Back on the body: the delay starts again.
-    await act(async () => control("停止").props.onHoverOut());
-    await wait(149);
-    expect(onDetails).not.toHaveBeenCalled();
-    await wait(1);
-    expect(onDetails).toHaveBeenCalledTimes(1);
-
-    // Onto the jump button: the hover on the body ends.
-    await act(async () => control("在 workspace 中打开").props.onHoverIn());
-    expect(onDetailsEnd).toHaveBeenCalledWith("sample-running");
-    await act(async () => renderer.unmount());
-  });
-
-  it("stays closed while the stop menu is open or a stop is armed", async () => {
-    const { renderer, control, wait, element, onDetails } = await setup();
-    await act(async () => hovers.get("task-card-sample-running")!.enter());
-    await act(async () => control("停止选项").props.onPress());
-    await wait(1000);
-    expect(onDetails).not.toHaveBeenCalled();
-
-    // Close the menu, arm a stop: still closed.
-    await act(async () => control("停止选项").props.onPress());
-    await act(async () => renderer.update(element({ stopPhase: "confirming" })));
-    await wait(1000);
-    expect(onDetails).not.toHaveBeenCalled();
-
-    await act(async () => renderer.update(element({ stopPhase: "idle" })));
-    await wait(450);
-    expect(onDetails).toHaveBeenCalledTimes(1);
-    await act(async () => renderer.unmount());
-  });
-
-  it("does not close a popover it never opened", async () => {
-    const { renderer, control, wait, onDetailsEnd } = await setup();
-    await act(async () => hovers.get("task-card-sample-running")!.enter());
-    await wait(100);
-    await act(async () => control("停止").props.onHoverIn());
     await act(async () => hovers.get("task-card-sample-running")!.leave());
     await act(async () => renderer.unmount());
-    expect(onDetailsEnd).not.toHaveBeenCalled();
   });
 });
 

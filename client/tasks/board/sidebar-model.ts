@@ -17,8 +17,6 @@ export const SIDEBAR = {
   floatBelow: 996,
   /** What an inline sidebar leaves the lanes at least: two lanes at their scroll width and the edges. */
   lanesMin: 612,
-  /** Unpinned, a card the pointer rests on this long becomes the sidebar's card. */
-  hoverMs: 150,
   /** At most this many cards to go back through. */
   history: 20,
 } as const;
@@ -43,63 +41,45 @@ export function clampWidth(width: number): number {
   return Math.round(Math.max(SIDEBAR.min, Math.min(SIDEBAR.max, width)));
 }
 
-/** Which card the sidebar shows, whether it is pinned, and the cards to go back to. */
+/** Which card the sidebar shows, and the cards to go back to. */
 export interface SidebarSelection {
   id: string | null;
-  pinned: boolean;
   /** Earlier cards, newest last, for the back row after a parent or subtask jump. */
   back: string[];
 }
 
-export const NO_SELECTION: SidebarSelection = { id: null, pinned: false, back: [] };
+export const NO_SELECTION: SidebarSelection = { id: null, back: [] };
 
 export type SelectionAction =
-  /** The pointer rested on a card: shown unless one is pinned. */
-  | { type: "hover"; id: string }
-  /** J/K/H/L moved the focus: shown unless one is pinned. */
-  | { type: "focus"; id: string }
-  /** A click: shows and pins the card, or unpins it when it is the pinned one. */
+  /** A click or tap on a card: the only way a board card reaches the sidebar. */
   | { type: "click"; id: string }
-  /** P: pins the given card (the focused or shown one), or unpins. */
-  | { type: "togglePin"; id: string | null }
-  /** A parent or subtask link in the sidebar: shown and pinned, the current one kept to go back to. */
+  /** A parent or subtask link in the sidebar: shown, the current one kept to go back to. */
   | { type: "jump"; id: string }
   | { type: "back" }
-  | { type: "unpin" }
   | { type: "clear" };
 
 export function selectionReducer(state: SidebarSelection, action: SelectionAction): SidebarSelection {
   switch (action.type) {
-    case "hover":
-    case "focus":
-      if (state.pinned || state.id === action.id) return state;
-      return { id: action.id, pinned: false, back: [] };
     case "click":
-      if (state.id === action.id && state.pinned) return { ...state, pinned: false, back: [] };
-      return { id: action.id, pinned: true, back: [] };
-    case "togglePin":
-      if (state.pinned && (action.id === null || action.id === state.id)) return { ...state, pinned: false, back: [] };
-      if (action.id === null) return state;
-      return { id: action.id, pinned: true, back: state.id === action.id ? state.back : [] };
+      if (state.id === action.id && state.back.length === 0) return state;
+      return { id: action.id, back: [] };
     case "jump":
-      if (state.id === action.id) return { ...state, pinned: true };
-      return { id: action.id, pinned: true, back: state.id ? [...state.back, state.id].slice(-SIDEBAR.history) : state.back };
+      if (state.id === action.id) return state;
+      return { id: action.id, back: state.id ? [...state.back, state.id].slice(-SIDEBAR.history) : state.back };
     case "back": {
       if (state.back.length === 0) return state;
-      return { id: state.back[state.back.length - 1] ?? null, pinned: true, back: state.back.slice(0, -1) };
+      return { id: state.back[state.back.length - 1] ?? null, back: state.back.slice(0, -1) };
     }
-    case "unpin":
-      return state.pinned ? { ...state, pinned: false, back: [] } : state;
     case "clear":
-      return state.id === null && !state.pinned ? state : NO_SELECTION;
+      return state.id === null ? state : NO_SELECTION;
   }
 }
 
-/** What Esc does to the sidebar, in order: go back, unpin, close the floating panel; null when it has nothing to undo. */
-export function escapeStep(selection: SidebarSelection, floatingOpen: boolean): "back" | "unpin" | "close" | null {
+/** What Esc does to the sidebar, in order: go back, close the floating panel, let go of the card; null when it has nothing to undo. */
+export function escapeStep(selection: SidebarSelection, floatingOpen: boolean): "back" | "close" | "clear" | null {
   if (selection.back.length > 0) return "back";
-  if (selection.pinned) return "unpin";
   if (floatingOpen) return "close";
+  if (selection.id !== null) return "clear";
   return null;
 }
 
