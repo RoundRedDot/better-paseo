@@ -9,6 +9,7 @@ import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } f
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
 import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-scrollbar";
+import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
 import { CardCell, HoverPressable, LoadMoreRow, SkeletonCard, VerticalLabel, useBreathing, useFreshIds } from "./board-parts";
 import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type FilterMenu } from "./filter-bar";
 import { buildFilterOptions } from "./filter-options";
@@ -63,6 +64,7 @@ export function DesktopBoard(props: {
   const hostId = screen.host.id;
   const { lanes, tasks, strings } = board;
   useLaneScrollbar(theme);
+  useResizeLine(theme);
 
   const [collapsed, setCollapsedState] = useState<LaneId[]>(() => rememberedCollapsed(hostId));
   const setCollapsed = useCallback(
@@ -370,15 +372,18 @@ export function DesktopBoard(props: {
 
 /**
  * The inline sidebar: a column at the board's right, 12 from its edge, its
- * left gap a drag handle on web. A drag moves a preview line only; the lanes
- * take the new width once, on release. A double click puts 380 back.
+ * left gap a drag handle on web drawn as Linear's split line. A drag moves
+ * the line only; the lanes take the new width once, on release. A double
+ * click puts 380 back.
  */
 function SidebarColumn(props: { width: number; theme: PluginTheme; onResize(width: number): void; children: React.ReactNode }) {
-  const colors = props.theme.colors;
   const [drag, setDrag] = useState<number | null>(null);
-  const [hovered, setHovered] = useState(false);
   const lastDown = useRef(0);
-  const start = (event: { nativeEvent: { pageX: number } }) => {
+  const handleRef = useRef<View>(null);
+  const indicatorRef = useRef<View>(null);
+  const dom = () => [handleRef.current, indicatorRef.current] as unknown as [HTMLElement | null, HTMLElement | null];
+  const follow = (clientY: number) => followPointer(...dom(), clientY);
+  const start = (event: { nativeEvent: { pageX: number; clientY: number } }) => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
     const at = Date.now();
     if (at - lastDown.current < 350) {
@@ -390,36 +395,47 @@ function SidebarColumn(props: { width: number; theme: PluginTheme; onResize(widt
     const x0 = event.nativeEvent.pageX;
     const width0 = props.width;
     let width = width0;
+    const [handle] = dom();
+    const body = document.body.style;
+    const restore = { cursor: body.cursor, userSelect: body.userSelect };
+    body.cursor = "col-resize";
+    body.userSelect = "none";
+    setResizing(handle, true);
     setDrag(width0);
     const move = (moved: PointerEvent) => {
       width = clampWidth(width0 + (x0 - moved.pageX));
       setDrag(width);
+      follow(moved.clientY);
     };
     const up = () => {
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", up);
+      Object.assign(body, restore);
+      setResizing(handle, false);
       setDrag(null);
       if (width !== width0) props.onResize(width);
     };
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
   };
+  // While dragging, the strip itself rides along with the pointer as the preview edge.
+  const shift = drag !== null ? drag - props.width : 0;
   const handle = Platform.OS === "web" ? (
     <View
-      // A 12 wide strip in the gap before the sidebar.
-      {...({ onPointerDown: start, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) } as object)}
-      style={{ position: "absolute", left: -SIDEBAR.gap, top: 4, bottom: 12, width: SIDEBAR.gap, alignItems: "center", ...({ cursor: "col-resize" } as object) }}
+      ref={handleRef}
+      {...resizeHandleProps}
+      {...({ onPointerDown: start, onPointerMove: (event: { nativeEvent: { clientY: number } }) => follow(event.nativeEvent.clientY) } as object)}
+      style={{ position: "absolute", left: -SIDEBAR.gap - shift, top: 4, bottom: 12, width: SIDEBAR.gap, zIndex: 5, ...({ cursor: "col-resize", touchAction: "none" } as object) }}
       testID="sidebar-resize"
     >
-      <View style={{ width: 2, height: "100%", borderRadius: 1, backgroundColor: drag !== null ? colors.accent : hovered ? colors.border : "transparent" }} />
+      <View {...resizeTrackProps} pointerEvents="none" style={{ position: "absolute", top: 0, bottom: 0, left: SIDEBAR.gap / 2 - 0.5, width: 1, overflow: "hidden" }}>
+        <View ref={indicatorRef} {...resizeIndicatorProps} style={{ position: "absolute", top: "-50%", height: "200%", left: 0, right: 0 }} />
+      </View>
     </View>
   ) : null;
   return (
     <View style={{ width: props.width, marginRight: SIDEBAR.gap, paddingTop: 4, paddingBottom: 12, minHeight: 0 }} testID="sidebar-inline">
       {handle}
-      {drag !== null && drag !== props.width ? (
-        <View pointerEvents="none" style={{ position: "absolute", left: props.width - drag - SIDEBAR.gap / 2 - 1, top: 4, bottom: 12, width: 2, borderRadius: 1, backgroundColor: colors.accent, zIndex: 5 }} />
-      ) : null}
       <FadeIn>{props.children}</FadeIn>
     </View>
   );
