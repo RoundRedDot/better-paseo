@@ -647,8 +647,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   }
   if (layout.branch && location.branch) {
     pills.push(
-      // The branch wears the host theme's accent, borderless like the agent pills.
-      <Pill key="branch" {...pill} testID="pill-branch" solid={tintedPillColors(tokens, tokens.accent)} icon="GitBranch" label={location.branch}>
+      // The branch wears a fixed blue, borderless like the agent pills.
+      <Pill key="branch" {...pill} testID="pill-branch" solid={tintedPillColors(tokens, tokens.branch)} icon="GitBranch" label={location.branch}>
         {layout.gitStatus && location.git ? (
           <GitStatus git={location.git} tokens={tokens} size={m.pillText} line={m.pillLine} strings={strings} />
         ) : null}
