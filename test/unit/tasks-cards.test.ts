@@ -53,6 +53,7 @@ import {
   cardLayout,
   contextTone,
   formatApprox,
+  formatClockTime,
   formatDuration,
   formatRelative,
   formatTokens,
@@ -107,6 +108,8 @@ const DARK = {
 };
 
 const NOW = Date.parse("2026-10-20T09:00:00.000Z");
+/** The running sample's start, 12m 30s before NOW, in the machine's time zone. */
+const RUNNING_START = formatClockTime(NOW - 12 * 60_000 - 30_000, NOW);
 
 function fields(preset: DensityPreset, patch: Partial<CardSettings> = {}): CardSettings {
   return { ...CARD_PRESETS[preset].fields, labelLimit: CARD_PRESETS[preset].labelLimit, ...patch };
@@ -344,7 +347,11 @@ describe("TaskCardView rows", () => {
       ["pill-labels-more", "+1"],
       ["pill-subtasks", "2"],
     ]);
-    expect(texts(hostByTestId(tree.root, "task-card-footer"))).toEqual(["12m 30s"]);
+    // The turn's start behind a clock, then how long it has run behind an hourglass, as the turn footer draws them.
+    const footer = hostByTestId(tree.root, "task-card-footer");
+    expect(texts(footer)).toEqual([RUNNING_START, "12m 30s"]);
+    expect(icons(hostByTestId(footer, "task-card-started"))).toEqual(["Clock"]);
+    expect(icons(hostByTestId(footer, "task-card-timer"))).toEqual(["Hourglass"]);
     expect(texts(tree.root).some((text) => text.includes("未提交"))).toBe(false);
   });
 
@@ -387,7 +394,7 @@ describe("TaskCardView rows", () => {
       ["pill-model", "GPT-5.5 Codex"],
       ["pill-thinking", "Medium"],
     ]);
-    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex", "Medium", "12m 30s"]);
+    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex", "Medium", RUNNING_START, "12m 30s"]);
     expect(hostByTestId(tree.root, "pill-model").findAll((node) => (node.type as unknown) === "Image")).toHaveLength(0);
     // With no meta row, the jump button moves up to the title row, which then holds the overlays.
     expect(icons(hostByTestId(tree.root, "task-card-title-row"))).toContain("ArrowUpRight");
@@ -665,7 +672,7 @@ describe("TaskCardView context ring", () => {
       const hosts = (node: ReactTestInstance): ReactTestInstance[] =>
         node.children.flatMap((child) => (typeof child === "string" ? [] : typeof child.type === "string" ? [child] : hosts(child)));
       const [timerBox, ringBox] = hosts(footer);
-      expect(texts(timerBox!)).toEqual(["12m 30s"]);
+      expect(texts(timerBox!)).toEqual([RUNNING_START, "12m 30s"]);
       expect(flat(ringBox!.props.style).marginLeft).toBe("auto");
       expect(hostByTestId(ringBox!, "task-card-context")).toBe(meter);
       const track = hostByTestId(meter, "context-ring").children[0] as ReactTestInstance;
@@ -1380,6 +1387,9 @@ describe("formatters", () => {
     expect(formatDuration(45_000)).toBe("45s");
     expect(formatDuration(12 * 60_000 + 30_000)).toBe("12m 30s");
     expect(formatDuration(65 * 60_000 + 5_000)).toBe("1h 5m");
+    const local = (day: number, hours: number, minutes: number) => new Date(2026, 9, day, hours, minutes).getTime();
+    expect(formatClockTime(local(20, 9, 5), local(20, 23, 0))).toBe("09:05");
+    expect(formatClockTime(local(19, 23, 58), local(20, 0, 10))).toBe("10/19 23:58");
     expect(formatWait(4 * 60_000 + 20_000, "zh")).toBe("等待 4m");
     expect(formatWait(4 * 60_000, "en")).toBe("Waiting 4m");
     expect(formatApprox(8 * 60_000, "zh")).toBe("约 8m");
