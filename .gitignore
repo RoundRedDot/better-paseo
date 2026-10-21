@@ -11,3 +11,4 @@ dist/
 # Benchmark archive. Reports, tools and raw samples stay on disk for local runs.
 docs/bench/
 
+/.playwright-mcp
