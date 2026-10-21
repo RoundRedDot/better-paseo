@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import type { PaseoAgentTimelineHandle, PaseoProviderModelsResult } from "@getpaseo/client";
 import "./helpers/quiet-renderer";
-import { timelineEntry as entry, timelinePage as page, type TimelinePage } from "./helpers/turn-timeline";
+import { timelineEntry as entry, timelinePage as page, type TimelineEntry, type TimelinePage } from "./helpers/turn-timeline";
 
 const runtime = vi.hoisted(() => ({
   agent: { status: "idle", cwd: "/workspace", provider: "codex", model: "sol", thinkingOptionId: "medium" },
@@ -42,6 +42,8 @@ vi.mock("../../client/components/markdown/markdown-view", async () => {
 import { LiveAssistantRenderer, type LiveAssistantPayload } from "../../client/live-renderers";
 import { AssistantFooter } from "../../client/components/turn-footer";
 import { assistantRows } from "../../client/assistant-transform";
+import { createAgentMessageSenderStore } from "../../client/state/agent-message-senders";
+import { getAgentTimelinePageReader } from "../../client/state/agent-timeline-page-reader";
 import { formatFooterStamp, formatFullStamp } from "../../client/ui/time";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -87,7 +89,53 @@ describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform
       await act(async () => footer.findByProps({ accessibilityLabel: "Copy model name" }).props.onPress());
       expect(runtime.copyText).toHaveBeenCalledExactlyOnceWith("sol");
       expect(refetch).toHaveBeenCalledTimes(1);
+      expect(refetch).toHaveBeenCalledWith({ direction: "tail", projection: "projected", limit: 50 });
     } finally { act(() => renderer.unmount()); }
+  });
+
+  it("shares the footer's former 200-item tail with the sender store's 50-item read", async () => {
+    const callId = "paseo-agent-message:visible";
+    const entries = [
+      entry({ type: "user_message", text: "prompt" }, 1, 1000, "one"),
+      entry({ type: "assistant_message", text: "answer" }, 2, 2000, "one"),
+      entry({ type: "tool_call", callId, name: "agent_message", status: "completed", error: null,
+        detail: { type: "plain_text", text: "from another agent" },
+        agentMessage: { event: "message", sender: { id: "source", title: "Source agent" }, text: "from another agent" },
+      } as TimelineEntry["item"], 3, 3000, "one"),
+    ];
+    let finish!: (result: TimelinePage) => void;
+    const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(() => new Promise((resolve) => { finish = resolve; }));
+    const release = Object.assign(vi.fn(), { ready: Promise.resolve(), subscriptionId: "s", release: async () => {} });
+    const timeline = { refetch, subscribe: () => release };
+    runtime.api = { agents: { ref: () => ({ timeline }) }, providers: { listModels: async () => catalog } };
+    const senderStore = createAgentMessageSenderStore(() => timeline,
+      getAgentTimelinePageReader(runtime.api as object, "a"));
+    const stopSender = senderStore.retain(callId);
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, {
+        agentId: "a", theme, host: { id: "local", label: "Local" }, layout: { platform, compact: platform !== "web" },
+        timestamp: new Date(2000), item: { type: "plugin", kind: "omp-assistant", version: 1,
+          data: { text: "answer", phase: "complete" } },
+      } satisfies PluginTimelineItemProps<LiveAssistantPayload>));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    try {
+      expect(refetch).toHaveBeenCalledTimes(1);
+      expect(refetch).toHaveBeenCalledWith({ direction: "tail", projection: "projected", limit: 50 });
+      await act(async () => {
+        finish(page(entries));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(renderer.root.findByType(AssistantFooter).props).toMatchObject({
+        text: "answer", startedAt: 1000, durationMs: 2000,
+      });
+      expect(senderStore.get(callId)?.sender).toEqual({ id: "source", title: "Source agent" });
+      expect(refetch.mock.calls.map(([options]) => options?.direction)).toEqual(["tail"]);
+    } finally {
+      act(() => renderer.unmount());
+      stopSender();
+    }
   });
 
   it("keeps one full-message copy and timing footer after a long streaming reply splits into rows", async () => {

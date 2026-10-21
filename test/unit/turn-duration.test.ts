@@ -46,6 +46,7 @@ describe("reply turn duration", () => {
       .mockResolvedValueOnce(page([entry("user_message", 2000)]));
     const timeline = { refetch };
     expect(await loadReplyTurnDuration(timeline, 140000, "reply", () => false)).toBe(138000);
+    expect(refetch).toHaveBeenNthCalledWith(1, { direction: "tail", limit: 50, projection: "projected" });
     expect(refetch).toHaveBeenLastCalledWith({ direction: "before", cursor: { epoch: "e", seq: 140000 }, limit: 200, projection: "projected" });
   });
 

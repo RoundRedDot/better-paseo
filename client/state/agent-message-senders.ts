@@ -2,14 +2,11 @@ import { useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from "rea
 import type { PaseoApi, PaseoAgentTimelineHandle } from "@getpaseo/client";
 import { usePaseo } from "@getpaseo/plugin/client";
 import { agentMessageSchema, type AgentMessage } from "../tools/agent-message";
+import { createAgentTimelinePageReader, getAgentTimelinePageReader, type AgentTimelinePageReader } from "./agent-timeline-page-reader";
 
 type Timeline = Pick<PaseoAgentTimelineHandle, "refetch">;
 type Page = Awaited<ReturnType<Timeline["refetch"]>>;
 type Cursor = NonNullable<Page["startCursor"]>;
-
-/** A new message sits at the tail, so the first read is short; history pages are long. */
-const TAIL_LIMIT = 50;
-const PAGE_LIMIT = 200;
 
 /** The contiguous span of the timeline already read, newest first. */
 interface Covered { epoch: string; start: Cursor; endSeq: number; complete: boolean }
@@ -29,7 +26,8 @@ function readEntry(item: unknown): [string, AgentMessage] | undefined {
  * remembered: a row mounting further up history pages on from there instead
  * of from the tail again.
  */
-export function createAgentMessageSenderStore(source: () => Timeline) {
+export function createAgentMessageSenderStore(source: () => Timeline,
+  pageReader: AgentTimelinePageReader = createAgentTimelinePageReader()) {
   const senders = new Map<string, AgentMessage>();
   const wanted = new Map<string, number>();
   /** Not in the timeline when last read through; not asked for again. */
@@ -51,7 +49,7 @@ export function createAgentMessageSenderStore(source: () => Timeline) {
 
   async function read(ids: string[]): Promise<boolean> {
     const timeline = source();
-    const tail = await timeline.refetch({ direction: "tail", projection: "projected", limit: TAIL_LIMIT });
+    const tail = await pageReader.tail(timeline);
     if (tail.error) throw new Error(tail.error);
     let changed = absorb(tail.entries);
     if (!tail.startCursor || !tail.endCursor) {
@@ -66,7 +64,7 @@ export function createAgentMessageSenderStore(source: () => Timeline) {
       : { epoch: tail.epoch, start: tail.startCursor, endSeq: tail.endCursor.seq, complete: !tail.hasOlder };
     while (!covered.complete && ids.some((id) => !senders.has(id))) {
       const cursor: Cursor = covered.start;
-      const page = await timeline.refetch({ direction: "before", cursor, projection: "projected", limit: PAGE_LIMIT });
+      const page = await pageReader.before(timeline, cursor);
       if (page.error || page.reset || page.staleCursor || page.gap || page.epoch !== cursor.epoch ||
         !page.startCursor || page.startCursor.seq >= cursor.seq) {
         covered = null;
@@ -124,7 +122,8 @@ export function useAgentMessageSender(agentId: string, callId: string): AgentMes
     let agents = stores.get(paseo);
     if (!agents) stores.set(paseo, agents = new Map());
     let store = agents.get(agentId);
-    if (!store) agents.set(agentId, store = createAgentMessageSenderStore(() => paseo.agents.ref(agentId).timeline));
+    if (!store) agents.set(agentId, store = createAgentMessageSenderStore(() => paseo.agents.ref(agentId).timeline,
+      getAgentTimelinePageReader(paseo, agentId)));
     return store;
   }, [paseo, agentId]);
   useLayoutEffect(() => store.retain(callId), [store, callId]);
