@@ -50,6 +50,27 @@ function isTyping(active: HTMLElement | null): boolean {
   return !!active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
 }
 
+/** The band an overlay scrollbar (macOS's, the board row's thin one) covers at a scroller's edge. */
+const OVERLAY_SCROLLBAR = 16;
+
+/**
+ * True when a web press lands on the scrollbar of the element it targets, on
+ * a side it scrolls: past its client box for a classic scrollbar (the
+ * lanes'), within the edge band for an overlay one, which takes no room.
+ */
+function onScrollbar(target: unknown, pageX: number, pageY: number): boolean {
+  if (Platform.OS !== "web" || typeof window === "undefined" || !(target instanceof HTMLElement)) return false;
+  const box = target.getBoundingClientRect();
+  const x = pageX - window.scrollX - box.left - target.clientLeft;
+  const y = pageY - window.scrollY - box.top - target.clientTop;
+  const overlayX = target.offsetWidth - target.clientLeft * 2 <= target.clientWidth ? OVERLAY_SCROLLBAR : 0;
+  const overlayY = target.offsetHeight - target.clientTop * 2 <= target.clientHeight ? OVERLAY_SCROLLBAR : 0;
+  return (
+    (target.scrollHeight > target.clientHeight && x >= target.clientWidth - overlayX) ||
+    (target.scrollWidth > target.clientWidth && y >= target.clientHeight - overlayY)
+  );
+}
+
 /** The desktop board (prototype 01): the bars, then four lanes that scroll sideways when they do not fit, and the details sidebar. */
 export function DesktopBoard(props: {
   screen: PluginScreenProps;
@@ -214,6 +235,29 @@ export function DesktopBoard(props: {
     [board.callbacks, touch],
   );
 
+  // A click or tap on the lanes that no card, button or list takes: the lanes'
+  // gaps, a lane's empty space, its header. It lets go of the selected card
+  // and the keyboard's. A drag (a scroll) moves too far to count, and a press
+  // on a scrollbar, which Chromium sends to the list as well, does not count.
+  const blankDown = useRef<{ x: number; y: number } | null>(null);
+  const blankPress = {
+    onStartShouldSetResponder: () => true,
+    onResponderGrant: (event: { nativeEvent: { pageX: number; pageY: number; target?: unknown } }) => {
+      const { pageX, pageY, target } = event.nativeEvent;
+      blankDown.current = onScrollbar(target, pageX, pageY) ? null : { x: pageX, y: pageY };
+    },
+    onResponderRelease: (event: { nativeEvent: { pageX: number; pageY: number } }) => {
+      const down = blankDown.current;
+      blankDown.current = null;
+      if (!down || Math.abs(event.nativeEvent.pageX - down.x) > 6 || Math.abs(event.nativeEvent.pageY - down.y) > 6) return;
+      dispatch({ type: "clear" });
+      setFocus(null);
+    },
+    onResponderTerminate: () => {
+      blankDown.current = null;
+    },
+  };
+
   // Keys on web: J/K, H/L, arrows, Enter, Esc, "/", I (sidebar), P (pin). Only
   // while the board is on screen and focus is not somewhere else in the app.
   useEffect(() => {
@@ -317,7 +361,7 @@ export function DesktopBoard(props: {
       />
       <DesktopFilterBar board={board} theme={theme} options={options} menu={menu} setMenu={setMenu} />
       <View style={{ flex: 1, minHeight: 0, flexDirection: "row" }} onLayout={(event) => setBoardWidth(Math.floor(event.nativeEvent.layout.width))}>
-        <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+        <View style={{ flex: 1, minWidth: 0, minHeight: 0 }} {...blankPress}>
           {boardWidth > 0 ? (
             <ScrollView
               ref={rowRef}
