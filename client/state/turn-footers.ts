@@ -1,16 +1,55 @@
-import { useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import type { PaseoApi, PaseoAgentTimelineHandle } from "@getpaseo/client";
+import { useRpc } from "@getpaseo/plugin/client";
+import { turnUsageRpc, type RecordedTurn } from "../../shared/turn-usage-rpc";
 import { completedTurnFooters, continuesTurn, type CompletedTurnFooter, type Entry } from "./turn-duration";
 
 type Timeline = Pick<PaseoAgentTimelineHandle, "refetch" | "subscribe">;
 interface Target { at: number; text: string }
 type Footers = Map<number, Map<string, CompletedTurnFooter>>;
+type Usage = NonNullable<CompletedTurnFooter["usage"]>;
 
-/** One paginated read and one event subscription per agent, shared by all rows. */
-export function createTurnFooterStore(source: () => Timeline) {
+/**
+ * A recorded turn ends at most this far before its last timeline item and this
+ * far after it. Turn IDs restart with each daemon, and history the daemon
+ * reloads from the provider has none, so the end time does the matching.
+ */
+const RECORD_EARLY_MS = 5_000;
+const RECORD_LATE_MS = 10 * 60_000;
+
+/**
+ * Gives each record to the loaded turn that ended nearest to it, among all of
+ * them, so a turn without a record never takes its neighbour's. A turn ID, when
+ * the footer has one, must also match.
+ */
+function assignRecorded(turns: readonly RecordedTurn[], footers: readonly CompletedTurnFooter[]) {
+  const assigned = new Map<CompletedTurnFooter, { usage: Usage; gap: number }>();
+  for (const turn of turns) {
+    let best: CompletedTurnFooter | undefined;
+    let bestGap = Infinity;
+    for (const footer of footers) {
+      const gap = turn.endedAt - footer.completedAt;
+      if ((footer.turnId && footer.turnId !== turn.turnId) || gap < -RECORD_EARLY_MS || gap > RECORD_LATE_MS) continue;
+      if (Math.abs(gap) < bestGap) { best = footer; bestGap = Math.abs(gap); }
+    }
+    const previous = best && assigned.get(best);
+    if (best && (!previous || bestGap < previous.gap)) assigned.set(best, { usage: turn.usage, gap: bestGap });
+  }
+  return assigned;
+}
+
+/**
+ * One paginated read and one event subscription per agent, shared by all rows.
+ * Usage seen live wins; a turn this client did not see falls back to the
+ * server's record, which survives reloads.
+ */
+export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (since: number) => Promise<RecordedTurn[]>) {
   const targets = new Set<Target>();
   const listeners = new Set<() => void>();
-  const usageByTurn = new Map<string, NonNullable<CompletedTurnFooter["usage"]>>();
+  const usageByTurn = new Map<string, Usage>();
+  let recorded: readonly RecordedTurn[] = [];
+  let recordedStale = true;
+  let recordedSince = Infinity;
   let observers = 0;
   let footers: Footers = new Map();
   let entries: Entry[] = [];
@@ -89,8 +128,22 @@ export function createTurnFooterStore(source: () => Timeline) {
         ? previousUsage : { ...snapshot.lastUsage };
       if (latest.turnId && latest.usage) usageByTurn.set(latest.turnId, latest.usage);
     }
+    // Ask only for the loaded turns' span, and again when older pages or new turns lack usage.
+    const unseen = (footer: CompletedTurnFooter) => footer.turnId ? !usageByTurn.has(footer.turnId) : !footer.usage;
+    let since = Infinity;
+    for (const footer of completed) if (unseen(footer)) since = Math.min(since, footer.completedAt - RECORD_EARLY_MS);
+    if (loadRecorded && since !== Infinity && (recordedStale || since < recordedSince)) {
+      recordedStale = false;
+      recordedSince = since;
+      try { recorded = await loadRecorded(since); }
+      catch { recordedStale = true; }
+      if (ticket !== generation || !targets.size) return;
+    }
+    const fallback = since === Infinity ? null : assignRecorded(recorded, completed);
     for (const footer of completed) {
-      if (footer.turnId) footer.usage = usageByTurn.get(footer.turnId);
+      const record = unseen(footer) ? fallback?.get(footer)?.usage : undefined;
+      if (footer.turnId) footer.usage = usageByTurn.get(footer.turnId) ?? record;
+      else footer.usage ??= record;
       const previous = get(footer.at, footer.text);
       const value = previous?.completedAt === footer.completedAt && previous.startedAt === footer.startedAt &&
         previous.durationMs === footer.durationMs && previous.turnId === footer.turnId &&
@@ -137,6 +190,7 @@ export function createTurnFooterStore(source: () => Timeline) {
         entries = [];
         footers = new Map();
         if (event.type === "replacement") usageByTurn.clear();
+        recordedStale = true;
         publish();
         if (targets.size) void refresh();
       } else if (event.type === "turn_started" || event.type === "turn_completed" ||
@@ -145,6 +199,7 @@ export function createTurnFooterStore(source: () => Timeline) {
         if (event.type === "turn_completed" && event.turnId && event.usage) {
           usageByTurn.set(event.turnId, { ...event.usage });
         }
+        if (event.type === "turn_completed") recordedStale = true;
         if (targets.size) void refresh();
       }
     });
@@ -195,11 +250,15 @@ const stores = new WeakMap<PaseoApi, Map<string, ReturnType<typeof createTurnFoo
 
 export function useTurnFooter(paseo: PaseoApi, agentId: string, at: number, text: string, running: boolean | null,
   observeOnly = false) {
+  const turnUsage = useRpc(turnUsageRpc);
+  const turnUsageRef = useRef(turnUsage);
+  turnUsageRef.current = turnUsage;
   const store = useMemo(() => {
     let agents = stores.get(paseo);
     if (!agents) stores.set(paseo, agents = new Map());
     let store = agents.get(agentId);
-    if (!store) agents.set(agentId, store = createTurnFooterStore(() => paseo.agents.ref(agentId).timeline));
+    if (!store) agents.set(agentId, store = createTurnFooterStore(() => paseo.agents.ref(agentId).timeline,
+      async (since) => (await turnUsageRef.current({ agentId, since })).turns));
     return store;
   }, [paseo, agentId]);
   const enabled = typeof running === "boolean";
