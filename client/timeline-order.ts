@@ -108,8 +108,59 @@ interface AgentTimeline {
   /** Groups as last computed; rebuilt on first read once `stale`. */
   slots: Map<Entry, ToolSlot>;
   stale: boolean;
+  /** Rows left behind by a newer row of their call (`leftBehind`), as of the last rebuild. */
+  superseded: Set<Entry>;
+  /** Call ids mounted more than once, as of the last rebuild. */
+  repeated: Set<string>;
   /** `lowestTiedKey` for the moment it was last asked about, until an item mounts or unmounts. */
   lowest?: { at: number; key: string | null };
+}
+
+/**
+ * Settled before running, then the more the call has to say. A call only
+ * gains: a status settles, a detail fills in, output grows.
+ */
+function callProgress(tool: ToolCallView): [number, number] {
+  return [tool.status === "running" ? 0 : 1, JSON.stringify(tool).length];
+}
+
+/**
+ * Rows of a call that another row of the same call has moved past.
+ *
+ * The host can split one call over two rows: an early update lands in one,
+ * the rest in another, and the first stays as it was, a bare "Agent" or a
+ * command still waiting for output, running for good. Both carry the call's
+ * id, so they also opened and closed together. A copy in another pane is the
+ * same row drawn twice and carries the same call, so it is never behind; a
+ * row behind another of its id is the one left over, and is not drawn.
+ */
+function leftBehind(entries: Iterable<Entry>): { superseded: Set<Entry>; repeated: Set<string> } {
+  const byId = new Map<string, Entry[]>();
+  for (const entry of entries) {
+    const id = entry.tool?.callId;
+    if (!id) continue;
+    const list = byId.get(id);
+    if (list) list.push(entry);
+    else byId.set(id, [entry]);
+  }
+  const superseded = new Set<Entry>();
+  const repeated = new Set<string>();
+  for (const [id, list] of byId) {
+    if (list.length < 2) continue;
+    repeated.add(id);
+    const progress = list.map((entry) => callProgress(entry.tool!));
+    const best = progress.reduce((top, value) => (value[0] - top[0] || value[1] - top[1]) > 0 ? value : top);
+    list.forEach((entry, index) => {
+      const own = progress[index]!;
+      if (own[0] < best[0] || (own[0] === best[0] && own[1] < best[1])) superseded.add(entry);
+    });
+  }
+  return { superseded, repeated };
+}
+
+/** The items on screen: every mounted one but the rows left behind. */
+function* drawn(timeline: AgentTimeline): Iterable<Entry> {
+  for (const entry of timeline.entries) if (!timeline.superseded.has(entry)) yield entry;
 }
 
 const timelines = new Map<string, AgentTimeline>();
@@ -158,7 +209,7 @@ function lowestTiedKey(timeline: AgentTimeline, at: number): string | null {
   let lowest = -Infinity;
   const placed = new Set<string>();
   const unplaced = new Set<string>();
-  for (const entry of timeline.entries) {
+  for (const entry of drawn(timeline)) {
     const own = tieKey(entry);
     if (entry.at !== at || own === undefined) continue;
     const box = entry.measure?.() ?? null;
@@ -252,7 +303,10 @@ function toolSlots(timeline: AgentTimeline): Map<Entry, ToolSlot> {
   // until all its layout effects have finished, then rebuild once.
   if (pendingTimelines.has(timeline)) return timeline.slots;
   if (!timeline.stale) return timeline.slots;
-  const ordered = [...timeline.entries].sort((a, b) => compare(a, b) || a.sequence - b.sequence);
+  const { superseded, repeated } = leftBehind(timeline.entries);
+  timeline.superseded = superseded;
+  timeline.repeated = repeated;
+  const ordered = [...drawn(timeline)].sort((a, b) => compare(a, b) || a.sequence - b.sequence);
   const position = new Map<Entry, number>();
   // A chat mounted in two panes must not count the same call twice.
   const firstById = new Map<string, Entry>();
@@ -301,7 +355,7 @@ function toolSlots(timeline: AgentTimeline): Map<Entry, ToolSlot> {
       const key = lowestTiedKey(timeline, lowest.at);
       run.anythingBelow = key === null || ![...own].some((entry) => tieKey(entry) === key);
     }
-    run.rowBelow = firstAfterIsRow(timeline.entries, lowest);
+    run.rowBelow = firstAfterIsRow(drawn(timeline), lowest);
     const head = run.members[0]!;
     const previous = timeline.slots.get(head)?.run.calls;
     if (previous && previous.length === run.calls.length && run.calls.every((call, index) => call === previous[index])) {
@@ -360,7 +414,7 @@ export function registerTimelineEntry(
 function addEntry(agentId: string, entry: Entry): () => void {
   let timeline = timelines.get(agentId);
   if (!timeline) {
-    timeline = { entries: new Set(), slots: new Map(), stale: true };
+    timeline = { entries: new Set(), slots: new Map(), stale: true, superseded: new Set(), repeated: new Set() };
     timelines.set(agentId, timeline);
   }
   timeline.entries.add(entry);
@@ -401,7 +455,11 @@ function updateTool(agentId: string, entry: Entry, previous: ToolCallView | unde
   const timeline = timelines.get(agentId);
   if (!timeline?.entries.has(entry)) return;
   const tool = entry.tool!;
-  if (timeline.stale || previous?.callId !== tool.callId || toolGroupKey(previous) !== toolGroupKey(tool)) {
+  // A call drawn more than once may now lead, or trail, another row of it.
+  if (
+    timeline.stale || previous?.callId !== tool.callId || toolGroupKey(previous) !== toolGroupKey(tool) ||
+    (tool.callId !== undefined && timeline.repeated.has(tool.callId))
+  ) {
     invalidate(timeline);
     return;
   }
@@ -466,26 +524,33 @@ export function useTimelineToolGroup(
     const timeline = timelines.get(agentId);
     return timeline?.entries.has(entry) ? toolSlots(timeline).get(entry) : undefined;
   }, [agentId, entry]);
+  // A row another row of its call has moved past draws nothing (`leftBehind`).
+  const superseded = useCallback(() => {
+    const timeline = timelines.get(agentId);
+    if (!timeline?.entries.has(entry)) return false;
+    toolSlots(timeline);
+    return timeline.superseded.has(entry);
+  }, [agentId, entry]);
   const getGroup = useCallback(() => {
     const slot = slotOf();
-    if (!slot) return single;
+    if (!slot) return superseded() ? null : single;
     // A singleton already received its current tool through props. Returning
     // the store's previous array adds an echo render when the layout effect
     // publishes that same result. Merged headers still follow their members.
     if (slot.index === 0 && slot.run.calls.length === 1) return single;
     return slot.index === 0 ? slot.run.calls : null;
-  }, [slotOf, single]);
+  }, [slotOf, superseded, single]);
   // Not mounted yet (the first render): below is whatever sorts after this slot.
   const getBelow = useCallback(() => {
     const slot = slotOf();
     if (slot) return slot.index === 0 && slot.run.anythingBelow;
-    return hasEntryAfter(agentId, at, "tool", entry.settledKey, entry.callId);
-  }, [slotOf, agentId, at, entry]);
+    return !superseded() && hasEntryAfter(agentId, at, "tool", entry.settledKey, entry.callId);
+  }, [slotOf, superseded, agentId, at, entry]);
   const getRowBelow = useCallback(() => {
     const slot = slotOf();
     if (slot) return slot.index === 0 && slot.run.rowBelow;
-    return nextEntryIsRow(agentId, at, "tool");
-  }, [slotOf, agentId, at]);
+    return !superseded() && nextEntryIsRow(agentId, at, "tool");
+  }, [slotOf, superseded, agentId, at]);
   const group = useSyncExternalStore(subscribe, getGroup, getGroup);
   const anythingBelow = useSyncExternalStore(subscribe, getBelow, getBelow);
   const rowSnapshot = followRowBelow ? getRowBelow : notFollowed;
@@ -501,7 +566,8 @@ export function useTimelineToolGroup(
  * gap stays.
  */
 export function nextEntryIsRow(agentId: string, at: number, kind: TimelineEntryKind): boolean {
-  return firstAfterIsRow(timelines.get(agentId)?.entries ?? [], { at, order: KIND_ORDER[kind] });
+  const timeline = timelines.get(agentId);
+  return firstAfterIsRow(timeline ? drawn(timeline) : [], { at, order: KIND_ORDER[kind] });
 }
 
 function firstAfterIsRow(entries: Iterable<Entry>, self: { at: number; order: number }): boolean {
@@ -539,7 +605,7 @@ export function hasEntryAfter(
   if (!timeline) return false;
   const self = { at, order: KIND_ORDER[kind], settledKey, callId };
   let tied = false;
-  for (const entry of timeline.entries) {
+  for (const entry of drawn(timeline)) {
     if (unordered(entry, self)) tied = true;
     else if (compare(entry, self) > 0) return true;
   }

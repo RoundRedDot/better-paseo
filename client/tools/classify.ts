@@ -589,7 +589,13 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
     filePath?.startsWith("xd://github/") === true;
   const isGitCommand =
     rawName === "git" || detailType === "git" || /^\s*git(?:\.exe)?(?:\s|$)/i.test(command ?? "");
-  const protocolKind = PROTOCOL_KINDS[detailType];
+  // Claude's Agent (once Task) call arrives as `unknown` while its input streams
+  // and again as its launch answers, before the host names it a sub-agent; the
+  // input already says which subtask it is. A row the host left at that stage
+  // otherwise reads a bare "Agent" for good.
+  const subAgentInput = detailType === "unknown" && (rawName === "agent" || rawName === "task") &&
+    (asString(input.description) || asString(input.prompt)) ? input : undefined;
+  const protocolKind = PROTOCOL_KINDS[detailType] ?? (subAgentInput ? "sub_agent" : undefined);
   const mcpName = readMcpName(rawName, detailType, detail.output);
   // Paseo's own tools arrive bare from OMP and under its MCP server elsewhere.
   const paseoTool = PASEO_TOOLS.has(rawName)
@@ -631,7 +637,9 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
     } else if (protocolKind === "worktree_setup") {
       extra.worktree = readWorktree(detail);
     } else if (protocolKind === "sub_agent") {
-      extra.subAgent = readSubAgent(detail);
+      extra.subAgent = readSubAgent(subAgentInput
+        ? { subAgentType: subAgentInput.subagent_type, description: subAgentInput.description, prompt: subAgentInput.prompt }
+        : detail);
     } else if (protocolKind === "plan") {
       extra.text = asString(detail.text);
       extra.planOutcome = readPlanOutcome(payload);
