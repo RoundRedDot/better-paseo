@@ -55,7 +55,7 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
 import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { resetTasksEnabled, setTasksEnabled } from "../../client/tasks/board/enabled";
-import { BOARD_LINGER_MS, INTENT_GRACE_MS, resetBoardPrefetch, warmBoard } from "../../client/tasks/board/prefetch";
+import { BOARD_LINGER_MS, HOVER_INTENT_MS, INTENT_GRACE_MS, resetBoardPrefetch, warmBoard } from "../../client/tasks/board/prefetch";
 import { resetBoardSessions } from "../../client/tasks/board/params";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { DEFAULT_TASKS_SETTINGS } from "../../shared/tasks-settings";
@@ -113,6 +113,12 @@ function entry(): ReactTestInstance {
 async function fire(handler: string) {
   await act(async () => entry().props[handler]());
   await settle();
+}
+
+/** The pointer enters the entry and stays long enough to count as intent. */
+async function hover() {
+  await fire("onPointerEnter");
+  await advance(HOVER_INTENT_MS);
 }
 
 async function openBoard() {
@@ -173,22 +179,22 @@ describe("Tasks board prefetch", () => {
   it("hover opens the board's subscriptions once, however often it repeats", async () => {
     await mountSidebar();
     const before = fake.calls.length;
-    await fire("onPointerEnter");
+    await hover();
     // Attention and done lists, projects, the model names, workspaces.
     expect(boardCalls(before).sort()).toEqual(["agents.list", "agents.list", "projects.list", "providers.listModels", "workspaces.list"]);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
     const warmed = fake.calls.length;
     await fire("onPointerLeave");
-    await fire("onPointerEnter");
+    await hover();
     await fire("onFocus");
-    await fire("onPointerEnter");
+    await hover();
     expect(fake.calls.length).toBe(warmed);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
   });
 
   it("leaving without opening releases them after the grace period", async () => {
     await mountSidebar();
-    await fire("onPointerEnter");
+    await hover();
     await fire("onPointerLeave");
     await advance(INTENT_GRACE_MS - 1);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
@@ -198,12 +204,12 @@ describe("Tasks board prefetch", () => {
 
   it("keeps them while the pointer stays, and a second hover restarts the grace period", async () => {
     await mountSidebar();
-    await fire("onPointerEnter");
+    await hover();
     await advance(INTENT_GRACE_MS * 3);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
     await fire("onPointerLeave");
     await advance(INTENT_GRACE_MS - 1000);
-    await fire("onPointerEnter");
+    await hover();
     await fire("onPointerLeave");
     await advance(INTENT_GRACE_MS - 1);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
@@ -213,7 +219,7 @@ describe("Tasks board prefetch", () => {
 
   it("a board opened after the hover sends nothing and draws at once", async () => {
     await mountSidebar();
-    await fire("onPointerEnter");
+    await hover();
     const warmed = fake.calls.length;
     await act(async () => {
       boardRenderer = TestRenderer.create(React.createElement(TasksBoardScreen, { ...hostProps, params: {} }));
@@ -261,7 +267,7 @@ describe("Tasks board prefetch", () => {
     host.settings = { ...DEFAULT_TASKS_SETTINGS, enabled: true, sidebar: { count: "none" } };
     await mountSidebar();
     expect(fake.calls).toEqual([]);
-    await fire("onPointerEnter");
+    await hover();
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
     await fire("onPointerLeave");
     await advance(INTENT_GRACE_MS);
@@ -270,13 +276,79 @@ describe("Tasks board prefetch", () => {
 
   it("an entry that goes while hovered lets the hold run out", async () => {
     await mountSidebar();
-    await fire("onPointerEnter");
+    await hover();
     await act(async () => sidebarRenderer!.unmount());
     sidebarRenderer = undefined;
     // The hold keeps the board's lists, status included, until its grace ends.
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
     await advance(INTENT_GRACE_MS);
     expect(fake.openSubscriptions()).toBe(0);
+  });
+
+  it("a pointer that passes over the entry sends nothing and leaves nothing to release", async () => {
+    await mountSidebar();
+    const before = fake.calls.length;
+    await fire("onPointerEnter");
+    await advance(HOVER_INTENT_MS - 30);
+    await fire("onPointerLeave");
+    await advance(INTENT_GRACE_MS * 2);
+    expect(fake.calls.length).toBe(before);
+    expect(fake.openSubscriptions()).toBe(STATUS_ONLY);
+    // The cancelled wait does not fire later, nor shorten the next one.
+    await fire("onPointerEnter");
+    await advance(HOVER_INTENT_MS - 1);
+    expect(fake.openSubscriptions()).toBe(STATUS_ONLY);
+    await advance(1);
+    expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
+  });
+
+  it("warms once the pointer has stayed 80 ms", async () => {
+    expect(HOVER_INTENT_MS).toBe(80);
+    await mountSidebar();
+    const before = fake.calls.length;
+    await fire("onPointerEnter");
+    await advance(100);
+    expect(boardCalls(before).sort()).toEqual(["agents.list", "agents.list", "projects.list", "providers.listModels", "workspaces.list"]);
+    expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
+  });
+
+  it("focus warms at once, without the wait", async () => {
+    await mountSidebar();
+    await fire("onFocus");
+    expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
+    await fire("onBlur");
+    await advance(INTENT_GRACE_MS);
+    expect(fake.openSubscriptions()).toBe(STATUS_ONLY);
+    // Focus while a hover waits takes over; the wait adds nothing.
+    await fire("onPointerEnter");
+    await fire("onFocus");
+    const warmed = fake.calls.length;
+    await advance(HOVER_INTENT_MS * 2);
+    expect(fake.calls.length).toBe(warmed);
+    expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
+  });
+
+  it("a click before the wait ends just opens the board, which requests once", async () => {
+    await mountSidebar();
+    const before = fake.calls.length;
+    await fire("onPointerEnter");
+    await advance(50);
+    expect(fake.calls.length).toBe(before);
+    await openBoard();
+    await advance(HOVER_INTENT_MS * 2);
+    const requests = boardCalls(before).sort();
+    expect(requests).toEqual(["agents.list", "agents.list", "projects.list", "providers.listModels", "workspaces.list"]);
+    expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
+  });
+
+  it("an entry that goes during the wait never warms", async () => {
+    await mountSidebar();
+    const before = fake.calls.length;
+    await fire("onPointerEnter");
+    await act(async () => sidebarRenderer!.unmount());
+    sidebarRenderer = undefined;
+    await advance(HOVER_INTENT_MS * 2);
+    expect(fake.calls.length).toBe(before);
   });
 
   it("warms on a touch on iOS and Android", async () => {
