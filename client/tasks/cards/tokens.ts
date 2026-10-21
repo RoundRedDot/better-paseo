@@ -76,6 +76,9 @@ export interface CardTokens {
   controlHover: string;
   /** The 1 s background after a parent link scrolled here. */
   highlight: string;
+  /** The card the details sidebar shows: the accent at 7% over the card, and its border mixed 45% towards the accent. */
+  current: string;
+  currentBorder: string;
   /** Primary (accent-tinted) and danger buttons, at rest and hovered. */
   primaryFill: string;
   primaryFillHover: string;
@@ -205,6 +208,8 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
     pillFill: mix(background, fg, isDark ? 0.06 : 0.035),
     controlHover: mix(background, fg, isDark ? 0.1 : 0.07),
     highlight: mix(background, colors.accent, isDark ? 0.12 : 0.08),
+    current: mix(background, colors.accent, isDark ? 0.1 : 0.07),
+    currentBorder: mix(colors.border, colors.accent, 0.45),
     primaryFill,
     primaryFillHover,
     primaryText: readableOn(colors.accent, [primaryFill, primaryFillHover], fg),

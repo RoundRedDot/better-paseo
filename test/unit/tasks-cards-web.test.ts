@@ -293,7 +293,7 @@ describe("TaskCardView on web", () => {
   });
 });
 
-describe("TaskCardView details popover", () => {
+describe("TaskCardView details hover", () => {
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -312,7 +312,7 @@ describe("TaskCardView details popover", () => {
     return { renderer, root, element, control, wait, onDetails, onDetailsEnd };
   }
 
-  it("opens after 450 ms on the body, and not while the pointer rests on Stop", async () => {
+  it("asks for the sidebar after 150 ms on the body, and not while the pointer rests on Stop", async () => {
     const { renderer, control, wait, onDetails, onDetailsEnd } = await setup();
     await act(async () => hovers.get("task-card-sample-running")!.enter());
     await act(async () => control("停止").props.onHoverIn());
@@ -321,12 +321,12 @@ describe("TaskCardView details popover", () => {
 
     // Back on the body: the delay starts again.
     await act(async () => control("停止").props.onHoverOut());
-    await wait(449);
+    await wait(149);
     expect(onDetails).not.toHaveBeenCalled();
     await wait(1);
     expect(onDetails).toHaveBeenCalledTimes(1);
 
-    // Onto the jump button: the open popover is asked to close.
+    // Onto the jump button: the hover on the body ends.
     await act(async () => control("在 workspace 中打开").props.onHoverIn());
     expect(onDetailsEnd).toHaveBeenCalledWith("sample-running");
     await act(async () => renderer.unmount());

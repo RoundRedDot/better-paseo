@@ -233,8 +233,11 @@ export interface CardCellProps {
   theme: PluginTheme;
   compact: boolean;
   focused?: boolean;
+  /** The card the details sidebar shows, and whether it is pinned there. */
+  current?: boolean;
+  pinned?: boolean;
   fresh: boolean;
-  /** The cell's node by card id, for placing the details popover. */
+  /** The cell's node by card id. */
   register?(agentId: string, node: unknown): void;
   /** Overrides the board's callbacks (the phone swallows taps after a swipe). */
   callbacks?: CardCallbacks;
@@ -270,6 +273,8 @@ export function CardCell(props: CardCellProps) {
           permissionButtons={board.buttonsFor(card)}
           stopPhase={board.stop.phase(card.id)}
           focused={props.focused ?? false}
+          current={props.current}
+          pinned={props.pinned}
           highlighted={board.highlighted === card.id}
           clock={board.clock}
           language={board.language}
