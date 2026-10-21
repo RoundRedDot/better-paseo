@@ -414,6 +414,47 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("details-sidebar-scroll")).toHaveLength(0);
   });
 
+  it("raises the details from the bottom of a board too narrow to float them, and the lanes make room", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(600);
+    expect(hostsById("board-sheet")).toHaveLength(0);
+    const card = cards().find((node) => node.props.card.id === "sample-running")!;
+    act(() => card.props.onSelect(card.props.card));
+    expect(hostsById("board-sheet")).toHaveLength(1);
+    expect(hostsById("sidebar-floating")).toHaveLength(0);
+    expect(textOf(renderer!.root.findByProps({ testID: "detail-title" }))).toBe(card.props.card.title);
+    // A card in the sheet leaves the counts out; each lane's list scrolls its last card above the half sheet (800 x 0.58).
+    expect(hostsById("sidebar-stats")).toHaveLength(0);
+    const list = renderer!.root.findAll((node) => typeof node.props.renderItem === "function" && node.props.contentContainerStyle !== undefined)[0]!;
+    expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(8 + 464);
+    // The handle switches to full height and back.
+    const handle = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "board-sheet-handle");
+    expect(handle().props.accessibilityLabel).toBe("Expand details");
+    act(() => handle().props.onPress());
+    expect(handle().props.accessibilityLabel).toBe("Collapse details");
+    expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(8 + 792);
+    // A drag down on the handle takes it back to half, and the click the drag ends with does not switch it again.
+    const strip = handle().parent!.parent!;
+    // The drag counts from where the finger went down (pageY), not from the late grant.
+    act(() => {
+      strip.props.onStartShouldSetPanResponderCapture({ nativeEvent: { pageY: 300 } });
+      strip.props.onPanResponderGrant({ nativeEvent: { pageY: 340 } }, { dy: 0, vy: 0 });
+      strip.props.onPanResponderRelease({ nativeEvent: { pageY: 420 } }, { dy: 80, vy: 0 });
+    });
+    act(() => handle().props.onPress());
+    expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(8 + 464);
+    // A tap on the lanes' blank space puts it away.
+    let blank = lanesScroll().parent!;
+    while (!blank.props.onResponderGrant) blank = blank.parent!;
+    act(() => {
+      blank.props.onResponderGrant({ nativeEvent: { pageX: 10, pageY: 10 } });
+      blank.props.onResponderRelease({ nativeEvent: { pageX: 10, pageY: 10 } });
+    });
+    expect(hostsById("board-sheet")).toHaveLength(0);
+  });
+
   it("floats the sidebar over a narrow board only on demand, and puts it away on a tap outside", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));

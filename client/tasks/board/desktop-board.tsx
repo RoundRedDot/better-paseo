@@ -23,12 +23,15 @@ import {
   escapeStep,
   readSidebarPreference,
   selectionReducer,
+  sheetHeight,
   sidebarMode,
   sidebarWidth,
   writeSidebarPreference,
+  type SheetDetent,
   type SidebarMode,
   type SidebarPreference,
 } from "./sidebar-model";
+import { BoardSheet } from "./board-sheet";
 import { rememberCollapsed, rememberedCollapsed } from "./params";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
@@ -58,6 +61,28 @@ const OVERLAY_SCROLLBAR = 16;
  * a side it scrolls: past its client box for a classic scrollbar (the
  * lanes'), within the edge band for an overlay one, which takes no room.
  */
+/**
+ * On web, a press on the board takes the keyboard for it, as a click in
+ * Linear's board does: the host's own buttons (its sidebar switch, its
+ * shortcuts) keep focus otherwise, and the board's keys (Esc, J/K) would go
+ * nowhere. A press in a text field keeps that field's focus.
+ */
+function claimKeys(rootRef: RefObject<View | null>): object {
+  if (Platform.OS !== "web") return {};
+  return {
+    tabIndex: -1,
+    onPointerDown: (event: { target?: unknown }) => {
+      if (typeof document === "undefined") return;
+      const root = rootRef.current as unknown as HTMLElement | null;
+      const target = event.target as HTMLElement | null;
+      if (!root || isTyping(target)) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (active && root.contains(active)) return;
+      root.focus({ preventScroll: true });
+    },
+  };
+}
+
 function onScrollbar(target: unknown, pageX: number, pageY: number): boolean {
   if (Platform.OS !== "web" || typeof window === "undefined" || !(target instanceof HTMLElement)) return false;
   const box = target.getBoundingClientRect();
@@ -110,11 +135,12 @@ export function DesktopBoard(props: {
   // One stable ref callback per lane, so a lane's list is not re-attached on every render.
   const publishList = useMemo(() => {
     const out = {} as Record<LaneId, (list: NativeFlatList<TaskCard> | null) => void>;
-    for (const id of LANE_ORDER) {
+    // forEach, not for-of: Hermes shares one `id` across the closures of a for-of loop, so every lane's list landed under "done".
+    LANE_ORDER.forEach((id) => {
       out[id] = (list) => {
         listRefs.current[id] = list;
       };
-    }
+    });
     return out;
   }, []);
   const searchRef = useRef<NativeTextInput>(null);
@@ -140,18 +166,23 @@ export function DesktopBoard(props: {
   const [shown, setShown] = useState<"card" | "switch" | null>(null);
   const [selection, dispatch] = useReducer(selectionReducer, NO_SELECTION);
   const [boardWidth, setBoardWidth] = useState(0);
+  const [boardHeight, setBoardHeight] = useState(0);
+  const [detent, setDetent] = useState<SheetDetent>("half");
   const modeRef = useRef<SidebarMode | null>(null);
   const mode = boardWidth > 0 ? sidebarMode(boardWidth, modeRef.current) : modeRef.current ?? "inline";
   modeRef.current = boardWidth > 0 ? mode : modeRef.current;
-  const narrow = mode === "floating";
+  const narrow = mode !== "inline";
   const open = shown !== null || (!narrow && preference.open);
   const floating = open && (narrow || !preference.open);
   const inline = open && !floating;
+  // Too narrow to float beside the lanes: the details rise from the bottom instead, and the lanes make room under them.
+  const inSheet = floating && mode === "sheet";
+  const sheetRoom = inSheet ? sheetHeight(boardHeight, detent) : 0;
   const panelWidth = sidebarWidth(boardWidth, preference.width, floating ? "floating" : "inline");
   const lanesWidth = Math.max(0, boardWidth - (inline ? panelWidth + SIDEBAR.gap : 0));
   const layout = laneLayout(lanesWidth, LANE_ORDER.length - collapsed.length, collapsed.length);
   // A floating panel covers the lanes' right side: the row scrolls far enough for the last lane to come out from under it.
-  const coverRoom = floating ? panelWidth + SIDEBAR.gap : 0;
+  const coverRoom = floating && !inSheet ? panelWidth + SIDEBAR.gap : 0;
 
   const toggleSidebar = useCallback(() => {
     if (shown) setShown(null);
@@ -160,11 +191,15 @@ export function DesktopBoard(props: {
   }, [shown, narrow, setPreference]);
   // A panel shown for the moment does not outlive the width it was shown at.
   useEffect(() => setShown(null), [mode]);
+  // A sheet opens at half height again after it closed.
+  useEffect(() => {
+    if (!inSheet) setDetent("half");
+  }, [inSheet]);
 
-  const scrollTo = useCallback((lane: LaneId, index: number) => {
+  const scrollTo = useCallback((lane: LaneId, index: number, viewPosition = 0.3) => {
     const list = listRefs.current[lane];
     try {
-      list?.scrollToIndex({ index, viewPosition: 0.3, animated: true });
+      list?.scrollToIndex({ index, viewPosition, animated: true });
     } catch {
       // Not laid out yet; `onScrollToIndexFailed` retries.
     }
@@ -199,18 +234,23 @@ export function DesktopBoard(props: {
   const floatWidth = sidebarWidth(boardWidth, preference.width, "floating");
   const latest = useRef({ board, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, floatWidth, laneWidth: layout.laneWidth, collapsed });
   latest.current = { board, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, floatWidth, laneWidth: layout.laneWidth, collapsed };
+  const sheetMode = mode === "sheet";
+  const sheetModeRef = useRef(sheetMode);
+  sheetModeRef.current = sheetMode;
   const rowScrollX = useRef(0);
 
   // A floating panel lands on the lanes' right side, where the card just
-  // clicked may sit: the row scrolls that card's lane out from under it.
-  const uncover = useCallback((lane: LaneId) => {
+  // clicked may sit: the row scrolls that card's lane out from under it. A
+  // sheet covers no lane's side (`cover` 0), but a lane clicked at the
+  // board's edge still comes into view whole.
+  const uncover = useCallback((lane: LaneId, cover: number) => {
     const now = latest.current;
     const index = LANE_ORDER.indexOf(lane);
     const left = LANES.edge + LANE_ORDER.slice(0, index).reduce((sum, id) => sum + (now.collapsed.includes(id) ? LANES.collapsed : now.laneWidth) + LANES.gap, 0);
     const right = left + now.laneWidth;
-    const visible = now.boardWidth - now.floatWidth - 2 * SIDEBAR.gap;
+    const visible = now.boardWidth - cover;
     const x = rowScrollX.current;
-    if (right - x <= visible) return;
+    if (right - x <= visible && left - LANES.edge >= x) return;
     const target = Math.max(0, Math.min(left - LANES.edge, right - visible));
     // After the render that gives the row its room to scroll under the panel.
     setTimeout(() => rowRef.current?.scrollTo({ x: target, animated: true }), 50);
@@ -250,9 +290,17 @@ export function DesktopBoard(props: {
       const now = latest.current;
       const show = !now.open && (touch || (now.narrow && now.preferred));
       if (show) setShown("card");
-      if ((now.open || show) && (now.narrow || !now.preferred)) uncover(card.lane);
+      if (!(now.open || show) || !(now.narrow || !now.preferred)) return;
+      if (sheetModeRef.current) {
+        // The sheet covers the lanes' lower part: the card's list brings it to the top, above the sheet.
+        const location = findCard(now.board.lanes, card.id);
+        if (location) setTimeout(() => scrollTo(location.lane, location.index, 0.05), 80);
+        uncover(card.lane, LANES.edge);
+      } else {
+        uncover(card.lane, now.floatWidth + 2 * SIDEBAR.gap);
+      }
     },
-    [touch, uncover],
+    [touch, uncover, scrollTo],
   );
   const callbacks = useMemo<CardCallbacks>(() => ({ ...board.callbacks, onSelect: showCard }), [board.callbacks, showCard]);
 
@@ -302,7 +350,11 @@ export function DesktopBoard(props: {
           event.preventDefault();
           if (step === "back") dispatch({ type: "back" });
           else if (step === "clear") dispatch({ type: "clear" });
-          else now.toggleSidebar();
+          else {
+            // Esc puts a floating panel or sheet away as a click outside does: the card goes with it.
+            now.toggleSidebar();
+            dispatch({ type: "clear" });
+          }
           return;
         }
       }
@@ -364,11 +416,13 @@ export function DesktopBoard(props: {
       onLane={showLane}
       onReveal={reveal}
       touch={touch}
+      stats={!(inSheet && selection.id !== null)}
+      scrollAll={inSheet}
     />
   );
 
   return (
-    <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0 }}>
+    <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }} {...claimKeys(rootRef)}>
       <DesktopToolbar
         board={board}
         theme={theme}
@@ -377,7 +431,13 @@ export function DesktopBoard(props: {
         sidebar={sidebarToggle}
       />
       <DesktopFilterBar board={board} theme={theme} options={options} menu={menu} setMenu={setMenu} />
-      <View style={{ flex: 1, minHeight: 0, flexDirection: "row" }} onLayout={(event) => setBoardWidth(Math.floor(event.nativeEvent.layout.width))}>
+      <View
+        style={{ flex: 1, minHeight: 0, flexDirection: "row" }}
+        onLayout={(event) => {
+          setBoardWidth(Math.floor(event.nativeEvent.layout.width));
+          setBoardHeight(Math.floor(event.nativeEvent.layout.height));
+        }}
+      >
         <View style={{ flex: 1, minWidth: 0, minHeight: 0 }} {...blankPress}>
           {boardWidth > 0 ? (
             <ScrollView
@@ -406,6 +466,7 @@ export function DesktopBoard(props: {
                   currentId={open ? selection.id : null}
                   listRef={publishList[id]}
                   breathing={breathing}
+                  bottomRoom={sheetRoom}
                 />
               ))}
             </ScrollView>
@@ -417,7 +478,21 @@ export function DesktopBoard(props: {
             {sidebar}
           </SidebarColumn>
         ) : null}
-        {floating ? (
+        {inSheet ? (
+          <BoardSheet
+            area={boardHeight}
+            detent={detent}
+            onDetent={setDetent}
+            onClose={() => {
+              dispatch({ type: "clear" });
+              setShown(null);
+            }}
+            theme={theme}
+            labels={{ grow: strings.sidebar.sheetGrow, shrink: strings.sidebar.sheetShrink }}
+          >
+            {sidebar}
+          </BoardSheet>
+        ) : floating ? (
           <FloatingSidebar width={panelWidth} theme={theme}>
             {sidebar}
           </FloatingSidebar>
@@ -588,6 +663,8 @@ function DesktopLane(props: {
   currentId: string | null;
   listRef(list: NativeFlatList<TaskCard> | null): void;
   breathing: Animated.Value;
+  /** The bottom sheet's height over the lanes: the list scrolls its last card above it. */
+  bottomRoom: number;
 }) {
   const { lane, board, theme } = props;
   const scale = useTasksFontScale();
@@ -698,7 +775,7 @@ function DesktopLane(props: {
           extraData={extraData}
           renderItem={renderItem}
           ItemSeparatorComponent={Separator}
-          contentContainerStyle={{ ...LANE_PAD, paddingTop: 2, paddingBottom: 8 }}
+          contentContainerStyle={{ ...LANE_PAD, paddingTop: 2, paddingBottom: 8 + props.bottomRoom }}
           initialNumToRender={8}
           maxToRenderPerBatch={8}
           windowSize={7}

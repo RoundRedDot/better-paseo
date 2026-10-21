@@ -24,6 +24,10 @@ export interface DetailsSidebarProps {
   onReveal(agentId: string): void;
   /** Touch sizes (a tablet). */
   touch: boolean;
+  /** False leaves out the status counts (a bottom sheet showing a card, where room is short). Default true. */
+  stats?: boolean;
+  /** Scroll the whole column as one whatever its height (a bottom sheet: its handle, not the header, is what stays). */
+  scrollAll?: boolean;
   testID?: string;
 }
 
@@ -76,10 +80,10 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
   // A short column (an iPad in landscape, a low window) has no room to hold
   // the header still: the fixed part left the sections a strip of 80. There
   // the whole column scrolls as one.
-  const short = height > 0 && height < SHORT_COLUMN;
+  const short = props.scrollAll === true || (height > 0 && height < SHORT_COLUMN);
   const content = (
     <>
-      <StatsCard board={board} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} />
+      {props.stats === false ? null : <StatsCard board={board} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} />}
       {detailProps ? (
         <TaskDetailCards {...detailProps} scrollBody={!short} />
       ) : (
