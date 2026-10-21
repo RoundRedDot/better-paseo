@@ -44,6 +44,39 @@ export function shortenPath(path: string, budget: number): string {
   return `…/${tail}`;
 }
 
+/** A property row's sizes, in px at the font scale: its icon, label column and value font. */
+export interface PropertyRowSizes {
+  icon: number;
+  label: number;
+  font: number;
+}
+
+/** A badge beside a property's value: its text, and whether an icon or a dot leads it. */
+export interface PropertyBadge {
+  text: string;
+  lead?: boolean;
+}
+
+/** Badge text is 11px with a 14px icon-and-gap lead and 7px of padding a side (`Badge` in `detail-charts.tsx`). */
+const BADGE_FONT = 11;
+const BADGE_LEAD = 16;
+const BADGE_PAD = 14;
+/** A column of text is about this many ems wide; a wide character takes two. */
+const COLUMN_EM = 0.56;
+
+/**
+ * About how wide a property row is with its value whole: the padding, icon,
+ * label column and value with the gaps between them, then each badge. Two
+ * rows share a line only when both fit their half of it.
+ */
+export function propertyRowWidth(sizes: PropertyRowSizes, value: string, badges: PropertyBadge[] = []): number {
+  let width = 12 + sizes.icon + 8 + sizes.label + 8 + textWidth(value) * sizes.font * COLUMN_EM;
+  for (const badge of badges) {
+    width += 8 + BADGE_PAD + (badge.lead ? BADGE_LEAD : 0) + textWidth(badge.text) * BADGE_FONT * COLUMN_EM;
+  }
+  return Math.ceil(width);
+}
+
 /** Ahead/behind and uncommitted changes beside the branch; a clean, level branch says nothing. */
 export function branchHint(git: TaskCard["location"]["git"]): { sync: string | null; dirty: boolean } {
   const ahead = git?.ahead ?? 0;
