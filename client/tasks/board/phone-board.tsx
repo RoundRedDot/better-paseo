@@ -25,6 +25,7 @@ import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
 import { defaultLane, laneAfter, swallowsTap, swipeStep, tabUnderline, tabsOverflow, type TabBox } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
+import { useParentTitle } from "./details-sidebar";
 import { LANE_EMPTY_ICON, sortLabel } from "./strings";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
@@ -532,6 +533,7 @@ export function PhoneBoard(props: {
 function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme: PluginTheme; onShow(id: string): void; onOpen?(agentId: string): void }) {
   const { card, board, theme } = props;
   const colors = theme.colors;
+  useParentTitle(board, card);
   const list = board.lanes[card.lane]?.cards ?? [];
   const index = list.findIndex((item) => item.id === card.id);
   const step = (delta: number) => {
@@ -552,7 +554,8 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           <SheetStep icon="ChevronRight" label={board.strings.sidebar.next} disabled={index >= list.length - 1} onPress={() => step(1)} theme={theme} />
         </View>
       ) : null}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 4, paddingBottom: 12 }} testID="details-sheet-scroll">
+      {/* Keyed by the card: a jump to the parent or a step starts the new card at its top. */}
+      <ScrollView key={card.id} style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 4, paddingBottom: 12 }} testID="details-sheet-scroll">
         <TaskDetailCards
           card={card}
           theme={theme}

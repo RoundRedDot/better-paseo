@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
@@ -36,7 +36,9 @@ export interface DetailsSidebarProps {
 export function DetailsSidebar(props: DetailsSidebarProps) {
   const { board, theme, selection, dispatch } = props;
   const tokens = taskTokens(theme);
+  const [height, setHeight] = useState(0);
   const card = selection.id ? board.tasks.byId.get(selection.id) : undefined;
+  useParentTitle(board, card);
   const shown = card && selection.id ? findCard(board.lanes, selection.id) !== null : false;
   const strings = board.strings.sidebar;
 
@@ -71,17 +73,54 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
       }
     : null;
 
-  return (
-    <View style={{ flex: 1, minHeight: 0, gap: DETAIL_CARD.gap }} testID={props.testID ?? "details-sidebar"}>
+  // A short column (an iPad in landscape, a low window) has no room to hold
+  // the header still: the fixed part left the sections a strip of 80. There
+  // the whole column scrolls as one.
+  const short = height > 0 && height < SHORT_COLUMN;
+  const content = (
+    <>
       <StatsCard board={board} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} />
       {detailProps ? (
-        <TaskDetailCards {...detailProps} scrollBody />
+        <TaskDetailCards {...detailProps} scrollBody={!short} />
       ) : (
         <GroupCard board={board} theme={theme} tokens={tokens} touch={props.touch} />
       )}
+    </>
+  );
+  const onLayout = (event: { nativeEvent: { layout: { height: number } } }) => {
+    const next = Math.round(event.nativeEvent.layout.height);
+    setHeight((was) => (was === next ? was : next));
+  };
+  if (short) {
+    return (
+      <View style={{ flex: 1, minHeight: 0 }} onLayout={onLayout} testID={props.testID ?? "details-sidebar"}>
+        {/* Keyed by the card: a jump to the parent or back starts at the top. */}
+        <ScrollView key={selection.id ?? ""} style={{ flex: 1 }} contentContainerStyle={{ gap: DETAIL_CARD.gap }} showsVerticalScrollIndicator={false} testID="details-sidebar-scroll">
+          {content}
+        </ScrollView>
+      </View>
+    );
+  }
+  return (
+    <View style={{ flex: 1, minHeight: 0, gap: DETAIL_CARD.gap }} onLayout={onLayout} testID={props.testID ?? "details-sidebar"}>
+      {content}
     </View>
   );
 }
+
+/**
+ * A parent that left the loaded set (archived) has no title until it is read
+ * once: the details ask for it, as the card's "show parent" link does.
+ */
+export function useParentTitle(board: BoardController, card: TaskCard | undefined): void {
+  const parentId = card?.parent && card.parent.title === null ? card.parent.id : null;
+  useEffect(() => {
+    if (parentId) board.tasks.resolveParent(parentId);
+  }, [board.tasks, parentId]);
+}
+
+/** Under this height the sidebar scrolls as one instead of holding the details' header still. */
+const SHORT_COLUMN = 640;
 
 /** The four lanes' counts after the filters, each with its lane's mark; a press shows the lane. */
 function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: TaskTokens; onLane(lane: LaneId): void; touch: boolean }) {
