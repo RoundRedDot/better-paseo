@@ -56,6 +56,16 @@ const tokens = buildThemeTokens({
 let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 const appendText = vi.fn((_text: string) => true);
 
+/**
+ * The frame sits at (0, 100) on the page; its rows, measured in order after
+ * it, are 30 tall. A native finger is placed on a cell from these.
+ */
+let measuredRow = 0;
+const createNodeMock = () => ({
+  measure: (done: (...args: number[]) => void) => { measuredRow = 0; done(0, 0, 300, 90, 0, 100); },
+  measureLayout: (_node: unknown, done: (left: number, top: number) => void) => done(1, measuredRow++ * 30),
+});
+
 function render(text: string, streaming = false, variant: "document" | "compact" | "terminal" = "document", offset?: { current: number }) {
   act(() => {
     const markdown = React.createElement(ChatComposerContext.Provider, { value: { appendText } },
@@ -63,7 +73,7 @@ function render(text: string, streaming = false, variant: "document" | "compact"
     const view = offset ? React.createElement(listContext().Provider,
       { value: { getScrollMetrics: () => ({ offset: offset.current }) } }, markdown) : markdown;
     if (renderer) renderer.update(view);
-    else renderer = TestRenderer.create(view);
+    else renderer = TestRenderer.create(view, { createNodeMock });
   });
   return renderer!;
 }
@@ -96,14 +106,23 @@ describe("Markdown table copy", () => {
     && node.props.accessibilityLabel === "Copy selected cell");
   const animatedMenu = () => renderer!.root.findAll((node) => String(node.type) === "Animated.View"
     && node.props.testID === "table-selection-menu-animation");
-  const touchCell = (index: number) => renderer!.root.findAll((node) => String(node.type) === "View"
-    && node.props.testID === "markdown-table-touch-cell")[index]!;
+  // The frame takes native touches and finds the cell under the finger.
+  const touchFrame = () => renderer!.root.findAll((node) => String(node.type) === "View"
+    && typeof node.props.onTouchStart === "function")[0]!;
   const touch = (timestamp: number, pageX = 10, pageY = 10) => ({
     nativeEvent: { timestamp, pageX, pageY, touches: [{}] },
   });
+  /** A point inside cell `index` of a two-column table, counted across rows from the header. */
+  const inside = (index: number) => {
+    const column = index % 2;
+    const left = 1 + (column === 0 ? 0 : StyleSheet.flatten(cell(0).props.style).width as number);
+    return { x: left + 5, y: 100 + Math.floor(index / 2) * 30 + 10 };
+  };
+  const touchAt = (index: number, timestamp: number, dx = 0, dy = 0) =>
+    touch(timestamp, inside(index).x + dx, inside(index).y + dy);
   const tap = (index: number, timestamp: number) => {
-    act(() => touchCell(index).props.onTouchStart(touch(timestamp)));
-    act(() => touchCell(index).props.onTouchEnd(touch(timestamp + 30)));
+    act(() => touchFrame().props.onTouchStart(touchAt(index, timestamp)));
+    act(() => touchFrame().props.onTouchEnd(touchAt(index, timestamp + 30)));
   };
 
   it.each(["ios", "android"])("on %s adds the complete selected cell as a quote and dismisses", (os) => {
@@ -139,6 +158,7 @@ describe("Markdown table copy", () => {
   });
 
   it.each([0, 2])("on iOS selects all rendered text of cell %s on a double tap and copies it", async (index) => {
+    const runs = captureAnimations();
     render("| Header words | B |\n| --- | --- |\n| **bold** and `code` | two |");
     tap(index, 100);
     expect(selectedCopy()).toHaveLength(0);
@@ -153,6 +173,7 @@ describe("Markdown table copy", () => {
     await act(async () => selectedCopy()[0]!.props.onPress());
     expect(copyText).toHaveBeenCalledExactlyOnceWith(index === 0 ? "Header words" : "bold and code");
     expect(selectedCopy()).toHaveLength(0);
+    finishExit(runs);
     expect(buttons()).toHaveLength(1);
     expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).not.toBe(tokens.accentBg);
   });
@@ -185,16 +206,15 @@ describe("Markdown table copy", () => {
     return runs;
   }
 
-  const copyButtonLayer = () => {
-    let node = buttons()[0]!.parent!;
-    while (String(node.type) !== "View" || node.props.accessibilityElementsHidden === undefined) node = node.parent!;
-    return node;
-  };
+  /** The frame's exit is the second to last animation started. */
+  function finishExit(runs: ReturnType<typeof captureAnimations>) {
+    act(() => runs.at(-2)!.finish!({ finished: true }));
+  }
 
+  // Under the menu the closed button is not mounted at all: nothing to see,
+  // reach or announce until the frame has shrunk back over its place.
   const expectCopyButtonHidden = (hidden: boolean) => {
-    expect(StyleSheet.flatten(copyButtonLayer().props.style).opacity).toBe(hidden ? 0 : 1);
-    expect(copyButtonLayer().props.pointerEvents).toBe(hidden ? "none" : "auto");
-    expect(copyButtonLayer().props.accessibilityElementsHidden).toBe(hidden);
+    expect(buttons()).toHaveLength(hidden ? 0 : 1);
   };
 
   it("does not leave an expanded background behind the shrinking native menu", () => {
@@ -202,7 +222,7 @@ describe("Markdown table copy", () => {
     render("| A | B |\n| --- | --- |\n| one | two |");
     tap(2, 100); tap(2, 230);
     act(() => selectionRow().props.onLayout({ nativeEvent: { layout: { width: 96 } } }));
-    act(() => renderer!.root.findAll((node) => String(node.type) === "Animated.ScrollView")[0]!.props.onScrollBeginDrag());
+    act(() => renderer!.root.findAll((node) => String(node.type) === "ScrollView")[0]!.props.onScrollBeginDrag());
     const menu = animatedMenu()[0]!;
     const frame = StyleSheet.flatten(menu.props.style);
     const width = frame.width as { setValue(value: number): void; __value: number };
@@ -219,15 +239,16 @@ describe("Markdown table copy", () => {
       }
       ancestor = ancestor.parent!;
     }
+    // The closed control's backing returns with it, once the frame no longer covers its place.
     const backing = () => renderer!.root.findAll((node) => String(node.type) === "View"
       && StyleSheet.flatten(node.props.style).backgroundColor === tokens.surface0
       && StyleSheet.flatten(node.props.style).width === 30
       && StyleSheet.flatten(node.props.style).height === 30);
-    expect(backing()).toHaveLength(1);
-    expect(backing()[0]!.props.pointerEvents).toBe("none");
+    expect(backing()).toHaveLength(0);
     act(() => runs.at(-2)!.finish!({ finished: true }));
     expect(animatedMenu()).toHaveLength(0);
     expect(backing()).toHaveLength(1);
+    expect(backing()[0]!.findAll((node) => node === buttons()[0])).toHaveLength(1);
   });
 
   it("keeps the underlying copy button hidden until the shrinking frame has finished", () => {
@@ -237,7 +258,7 @@ describe("Markdown table copy", () => {
     tap(2, 100); tap(2, 230);
     act(() => selectionRow().props.onLayout({ nativeEvent: { layout: { width: 96 } } }));
     expectCopyButtonHidden(true);
-    act(() => renderer!.root.findAll((node) => String(node.type) === "Animated.ScrollView")[0]!.props.onScrollBeginDrag());
+    act(() => renderer!.root.findAll((node) => String(node.type) === "ScrollView")[0]!.props.onScrollBeginDrag());
     expect(animatedMenu()).toHaveLength(1);
     expectCopyButtonHidden(true);
     const exit = runs.at(-2)!;
@@ -260,7 +281,7 @@ describe("Markdown table copy", () => {
     // Native hit testing must reach the label outside the original 30pt icon.
     expect(StyleSheet.flatten(slot().props.style).width).toBe(98);
     expect(runs.at(-1)!.config).toMatchObject({ toValue: 1, duration: 140, useNativeDriver: true });
-    act(() => renderer!.root.findAll((node) => String(node.type) === "Animated.ScrollView")[0]!.props.onScrollBeginDrag());
+    act(() => renderer!.root.findAll((node) => String(node.type) === "ScrollView")[0]!.props.onScrollBeginDrag());
     expect(selectedCopy()).toHaveLength(0);
     expect(animatedMenu()).toHaveLength(1);
     expect(animatedMenu()[0]!.props.pointerEvents).toBe("none");
@@ -277,7 +298,7 @@ describe("Markdown table copy", () => {
     render("| A | B |\n| --- | --- |\n| one | two |");
     tap(2, 100); tap(2, 230);
     act(() => selectionRow().props.onLayout({ nativeEvent: { layout: { width: 96 } } }));
-    act(() => renderer!.root.findAll((node) => String(node.type) === "Animated.ScrollView")[0]!.props.onScrollBeginDrag());
+    act(() => renderer!.root.findAll((node) => String(node.type) === "ScrollView")[0]!.props.onScrollBeginDrag());
     const exit = runs.at(-2)!;
     tap(2, 500); tap(2, 630);
     expect(exit.stop).toHaveBeenCalled();
@@ -297,7 +318,7 @@ describe("Markdown table copy", () => {
     expect(runs).toHaveLength(0);
     expect((StyleSheet.flatten(animatedMenu()[0]!.props.style).width as { __value: number }).__value).toBe(98);
     expectCopyButtonHidden(true);
-    act(() => renderer!.root.findAll((node) => String(node.type) === "Animated.ScrollView")[0]!.props.onScrollBeginDrag());
+    act(() => renderer!.root.findAll((node) => String(node.type) === "ScrollView")[0]!.props.onScrollBeginDrag());
     expect(animatedMenu()).toHaveLength(0);
     expectCopyButtonHidden(false);
   });
@@ -308,6 +329,7 @@ describe("Markdown table copy", () => {
     vi.stubGlobal("requestAnimationFrame", (callback: () => void) => { frames.set(++next, callback); return next; });
     vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
     const offset = { current: 100 };
+    const runs = captureAnimations();
     render("| A | B |\n| --- | --- |\n| one | two |", false, "document", offset);
     expect(frames.size).toBe(0);
     tap(2, 100);
@@ -317,18 +339,21 @@ describe("Markdown table copy", () => {
     offset.current = 120;
     act(() => { const [id, callback] = [...frames.entries()][0]!; frames.delete(id); callback(); });
     expect(selectedCopy()).toHaveLength(0);
+    finishExit(runs);
     expect(buttons()).toHaveLength(1);
     expect(frames.size).toBe(0);
   });
 
   it("restores the corner icon when the table starts scrolling sideways", () => {
+    const runs = captureAnimations();
     render("| A | B |\n| --- | --- |\n| one | two |");
     tap(2, 100);
     tap(2, 230);
-    const scroller = renderer!.root.findAll((node) => String(node.type) === "Animated.ScrollView")[0]!;
+    const scroller = renderer!.root.findAll((node) => String(node.type) === "ScrollView")[0]!;
     expect(scroller.props.showsHorizontalScrollIndicator).toBe(true);
     act(() => scroller.props.onScrollBeginDrag());
     expect(selectedCopy()).toHaveLength(0);
+    finishExit(runs);
     expect(buttons()).toHaveLength(1);
   });
 
@@ -339,13 +364,13 @@ describe("Markdown table copy", () => {
     expect(selectedCopy()).toHaveLength(0);
     tap(3, 700);
     expect(selectedCopy()).toHaveLength(0);
-    act(() => touchCell(3).props.onTouchStart(touch(800)));
-    act(() => touchCell(3).props.onTouchMove(touch(820, 30)));
-    act(() => touchCell(3).props.onTouchEnd(touch(850, 30)));
+    act(() => touchFrame().props.onTouchStart(touchAt(3, 800)));
+    act(() => touchFrame().props.onTouchMove(touchAt(3, 820, 20)));
+    act(() => touchFrame().props.onTouchEnd(touchAt(3, 850, 20)));
     tap(3, 900);
     expect(selectedCopy()).toHaveLength(0);
-    act(() => touchCell(3).props.onTouchStart(touch(1000)));
-    act(() => touchCell(3).props.onTouchEnd(touch(1400)));
+    act(() => touchFrame().props.onTouchStart(touchAt(3, 1000)));
+    act(() => touchFrame().props.onTouchEnd(touchAt(3, 1400)));
     tap(3, 1500);
     expect(selectedCopy()).toHaveLength(0);
   });
@@ -380,8 +405,8 @@ describe("Markdown table copy", () => {
       && node.props.testID === "markdown-table-cell"
       && StyleSheet.flatten(node.props.style).backgroundColor === tokens.accentBg).map((node) => node.children.join(""));
     const scroller = () => renderer!.root.findAll((node) => node.props.horizontal === true)[0]!;
-    expect(touchCell(0).props.onMoveShouldSetResponder()).toBe(false);
-    act(() => touchCell(2).props.onTouchStart(touch(0, 5, 140)));
+    expect(touchFrame().props.onMoveShouldSetResponder()).toBe(false);
+    act(() => touchFrame().props.onTouchStart(touch(0, 5, 140)));
     act(() => { vi.advanceTimersByTime(350); });
     expect(highlighted()).toEqual(["one"]);
     expect(setNativeProps).toHaveBeenLastCalledWith({ scrollEnabled: false });
@@ -396,17 +421,17 @@ describe("Markdown table copy", () => {
       expect(setIsJSResponder).toHaveBeenCalledExactlyOnceWith("shadow", true, true);
     }
     expect(scroller().props.scrollEnabled).toBe(false);
-    expect(touchCell(2).props.onMoveShouldSetResponder()).toBe(true);
-    expect(touchCell(2).props.onResponderTerminationRequest()).toBe(false);
+    expect(touchFrame().props.onMoveShouldSetResponder()).toBe(true);
+    expect(touchFrame().props.onResponderTerminationRequest()).toBe(false);
     expect(selectedCopy()).toHaveLength(0);
-    act(() => touchCell(2).props.onTouchMove(touch(400, 2000, 165)));
+    act(() => touchFrame().props.onTouchMove(touch(400, 2000, 165)));
     expect(highlighted()).toEqual(["one", "two", "three", "four"]);
     expect(selectedCopy()).toHaveLength(0);
-    act(() => touchCell(2).props.onTouchEnd(touch(500, 2000, 165)));
+    act(() => touchFrame().props.onTouchEnd(touch(500, 2000, 165)));
     expect(setNativeProps).toHaveBeenLastCalledWith({ scrollEnabled: true });
     if (os === "android") expect(setIsJSResponder).toHaveBeenLastCalledWith("shadow", false, false);
     expect(scroller().props.scrollEnabled).toBe(true);
-    expect(touchCell(2).props.onMoveShouldSetResponder()).toBe(false);
+    expect(touchFrame().props.onMoveShouldSetResponder()).toBe(false);
     expect(selectedCopy()).toHaveLength(1);
     vi.useRealTimers();
     await act(async () => selectedCopy()[0]!.props.onPress());
@@ -417,11 +442,11 @@ describe("Markdown table copy", () => {
   it("on iOS lets a held finger that drifts before the hold scroll instead", () => {
     vi.useFakeTimers();
     render("| A | B |\n| --- | --- |\n| one | two |");
-    act(() => touchCell(2).props.onTouchStart(touch(0)));
-    act(() => touchCell(2).props.onTouchMove(touch(100, 10, 40)));
+    act(() => touchFrame().props.onTouchStart(touchAt(2, 0)));
+    act(() => touchFrame().props.onTouchMove(touchAt(2, 100, 0, 30)));
     act(() => { vi.advanceTimersByTime(350); });
-    expect(touchCell(2).props.onMoveShouldSetResponder()).toBe(false);
-    act(() => touchCell(2).props.onTouchEnd(touch(500, 10, 40)));
+    expect(touchFrame().props.onMoveShouldSetResponder()).toBe(false);
+    act(() => touchFrame().props.onTouchEnd(touchAt(2, 500, 0, 30)));
     expect(selectedCopy()).toHaveLength(0);
   });
 

@@ -47,6 +47,7 @@ const { act } = await import("react-test-renderer");
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
 const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
 const { fixtureNames, streamTexts } = await import("./helpers/stream-texts");
+const { StyleSheet } = await import("./helpers/rn-mock");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -232,10 +233,40 @@ describe("a streamed chunk draws only what it changed", () => {
     expect(texts).toContain("research");
   });
 
-  it("draws every row again when a column widens", () => {
+  it("holds a table's columns while a row is written, so a chunk that would widen one draws that row alone", () => {
     const before = "| a | b |\n| --- | --- |\n| x | y |\n| z | w";
-    const texts = textsDrawn(before, `${before} that is now much wider than the rest`);
-    expect(texts).toContain("x");
+    expect(textsDrawn(before, `${before} that is now much wider than the rest`))
+      .toEqual(["z", "w that is now much wider than the rest"]);
+  });
+
+  it("widens the columns once the row that needs it ends, drawing each row once", () => {
+    const before = "| a | b |\n| --- | --- |\n| x | y |\n| z | w that is now much wider than the rest";
+    const texts = textsDrawn(before, `${before} |\n| n`);
+    for (const cell of ["a", "b", "x", "y", "z", "w that is now much wider than the rest", "n"]) {
+      expect(texts.filter((text) => text === cell), cell).toHaveLength(1);
+    }
+  });
+
+  it("measures a table from its complete rows while open and from every row once it closes", () => {
+    const text = "| a | b |\n| --- | --- |\n| x | y |\n| z | w that is now much wider than the rest";
+    const widths = (renderer: ReturnType<typeof TestRenderer.create>) => renderer.root
+      .findAll((node) => String(node.type) === "Text" && node.props.testID === "markdown-table-cell")
+      .map((node) => StyleSheet.flatten(node.props.style).width as number);
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(view(text, true)); });
+    const open = widths(renderer);
+    let complete!: ReturnType<typeof TestRenderer.create>;
+    act(() => { complete = TestRenderer.create(view("| a | b |\n| --- | --- |\n| x | y |\n| z | w", false)); });
+    // The row being written counts no more than its first character would.
+    expect(open).toEqual(widths(complete));
+    act(() => complete.unmount());
+    act(() => renderer.update(view(text, false)));
+    const closed = widths(renderer);
+    expect(closed[1]).toBeGreaterThan(open[1]!);
+    act(() => renderer.unmount());
+    act(() => { renderer = TestRenderer.create(view(text, false)); });
+    expect(closed).toEqual(widths(renderer));
+    act(() => renderer.unmount());
   });
 
   it("draws the whole tail while it holds a link definition", () => {

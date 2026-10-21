@@ -1,11 +1,10 @@
-import React, { useLayoutEffect, useRef } from "react";
-import { Platform, StyleSheet, Text, View, type TextProps, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
+import React, { useCallback, useLayoutEffect, useRef } from "react";
+import { Platform, ScrollView, StyleSheet, Text, View, type TextStyle, type ViewStyle } from "react-native";
 import type { Tokens } from "../../../vendor/marked";
 import type { RenderContext } from "./context";
 import { inlineWidth, renderInline } from "./inline";
 import { nextReuse, reuseNode, type NodeReuse } from "./reuse";
 import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
-import { HScroll } from "../../../ui/h-scroll";
 import { TableCopyMenu } from "./table-copy-menu";
 import { bindTableCellSelection, TABLE_CELL_TEST_ID } from "./table-selection";
 import { useTableCellSelection } from "./table-touch-selection";
@@ -24,9 +23,10 @@ import {
  * React Native offers no synchronous text measurement, so a column's width is
  * estimated from its longest cell and clamped to the variant's range, then
  * widened by the column gap, which every cell splits around its edges, and by
- * the divider on its left.
+ * the divider on its left. Only the header and the first `rows` body rows
+ * are measured.
  */
-export function columnWidths(token: Tokens.Table, metrics: VariantMetrics): number[] {
+export function columnWidths(token: Tokens.Table, metrics: VariantMetrics, rows = token.rows.length): number[] {
   const ratio = metrics.mono ? CHAR_RATIO_MONO : CHAR_RATIO_UI;
   const cellSize = metrics.cellSize;
   const widths: number[] = [];
@@ -34,8 +34,8 @@ export function columnWidths(token: Tokens.Table, metrics: VariantMetrics): numb
     // The header is bold, which the average advance does not cover, so it is
     // measured a shade wider than a body cell of the same length.
     let longest = inlineWidth(token.header[column]?.tokens, cellSize, ratio) * 1.06;
-    for (const row of token.rows) {
-      const cell = row[column];
+    for (let index = 0; index < rows; index++) {
+      const cell = token.rows[index]?.[column];
       if (cell === undefined) continue;
       const width = inlineWidth(cell.tokens, cellSize, ratio);
       if (width > longest) longest = width;
@@ -67,11 +67,20 @@ export function numericColumn(token: Tokens.Table, column: number): boolean {
 }
 
 /**
+ * The body rows the columns are measured from. While the table is still being
+ * written its last row grows with every chunk, so the columns follow only the
+ * rows that are complete: they change when a row ends, never inside one, and
+ * the row being written wraps until then. Once the table is complete every
+ * row counts. The widths depend on the text alone, so a streamed table draws
+ * what a fresh mount of the same text draws.
+ */
+export function measuredRows(token: Tokens.Table, open: boolean): number {
+  return open && !token.raw.endsWith("\n") ? Math.max(0, token.rows.length - 1) : token.rows.length;
+}
+
+/**
  * A table keeps its own columns and scrolls sideways when the widest row beats
- * the card. Its indicator appears only during scrolling. While the table is
- * still being written its columns only widen, so a short cell arriving in a
- * new row never pulls the layout back; once it is complete the widths are
- * measured once more from the final cells.
+ * the card. Its indicator appears only during scrolling.
  */
 export function MdTable({
   token,
@@ -85,17 +94,14 @@ export function MdTable({
   keyPrefix: string;
 }) {
   const { styles, metrics } = context;
-  const measured = columnWidths(token, metrics);
-  const widest = useRef<number[]>([]);
+  const widths = columnWidths(token, metrics, measuredRows(token, open));
   const frameRef = useRef<View>(null);
   const rowRefs = useRef<(View | null)[]>([]);
-  let widths = measured;
-  if (open) {
-    widths = measured.map((width, column) => Math.max(width, widest.current[column] ?? 0));
-    widest.current = widths;
-  } else {
-    widest.current = measured;
-  }
+  // Read when pressed, so the copy control keeps one callback and skips the
+  // draws a streamed chunk causes.
+  const raw = useRef(token.raw);
+  raw.current = token.raw;
+  const source = useCallback(() => raw.current, []);
   // A column the author left unaligned is right-aligned when every cell is a
   // figure, so digits line up (S7 §3.7).
   const aligns = token.header.map(
@@ -116,7 +122,9 @@ export function MdTable({
     { width: widths[column] ?? metrics.columnMin },
   ];
   // While the table is written, a chunk lands in its last row: a row whose
-  // cells, columns and selection are as they were keeps its element.
+  // cells, columns and selection are as they were keeps its element. The
+  // columns hold still until a row ends (`measuredRows`), so a chunk redraws
+  // the row it grew and no other.
   const drawn = useRef<{ context: RenderContext; nodes: NodeReuse["next"] } | null>(null);
   const reuse = nextReuse(drawn, context, open);
   const columns = `${widths.join(",")}|${aligns.join(",")}`;
@@ -135,8 +143,10 @@ export function MdTable({
     <View key={key} ref={(node) => { rowRefs.current[row] = node; }} style={[rowStyle, last && styles.tableRowLast]}>
       {cells.map((cell, column) => {
         const cellKey = `${cellPrefix}${column}`;
+        // One Text per cell: on iOS and Android the frame takes the touches
+        // and finds the cell from its rows and column starts.
         return (
-          <TableCell
+          <Text
             key={cellKey}
             testID={TABLE_CELL_TEST_ID}
             // On iOS and Android a held cell starts a range, which the
@@ -144,7 +154,6 @@ export function MdTable({
             selectable={Platform.OS === "web"}
             {...contentTextProps()}
             {...(Platform.OS === "web" ? { dataSet: { tableCellRow: row, tableCellColumn: column } } : {})}
-            touchProps={selection.cellProps({ row, column })}
             style={[
               cellStyle,
               align(column),
@@ -154,7 +163,7 @@ export function MdTable({
             ]}
           >
             {renderInline(cell.tokens, context, cellKey)}
-          </TableCell>
+          </Text>
         );
       })}
     </View>
@@ -162,59 +171,38 @@ export function MdTable({
 
   return (
     <View style={copyStyles.outer}>
-      <HScroll tokens={context.tokens} indicatorOnScroll style={styles.tableScroll} contentContainerStyle={styles.tableContent}
+      {/* The platform indicator, shown while scrolling: nothing to draw or
+          measure until then. */}
+      <ScrollView horizontal showsHorizontalScrollIndicator style={styles.tableScroll}
+        contentContainerStyle={[styles.tableContent, copyStyles.content]}
         scrollEnabled={!selection.dragging}
         onScrollBeginDrag={range ? selection.dismiss : undefined}>
-        <View style={copyStyles.container}>
-          <View ref={frameRef} style={styles.tableFrame}>
-            {reuseNode(reuse, `${keyPrefix}h`, rowSource(0, token.header, token.rows.length === 0),
-              cellTokens(token.header), () => drawRow(undefined, 0, `${keyPrefix}h`, token.header, styles.tableHeaderRow,
-                styles.tableHeaderCell, token.rows.length === 0))}
-            {token.rows.map((row, rowIndex) => {
-              const rowKey = `${keyPrefix}r${rowIndex}`;
-              const last = rowIndex === token.rows.length - 1;
-              return reuseNode(reuse, rowKey, rowSource(rowIndex + 1, row, last), cellTokens(row),
-                () => drawRow(rowKey, rowIndex + 1, `${rowKey}c`, row, styles.tableRow, styles.tableCell, last));
-            })}
-          </View>
+        <View ref={frameRef} style={styles.tableFrame} {...selection.frameProps}>
+          {reuseNode(reuse, `${keyPrefix}h`, rowSource(0, token.header, token.rows.length === 0),
+            cellTokens(token.header), () => drawRow(undefined, 0, `${keyPrefix}h`, token.header, styles.tableHeaderRow,
+              styles.tableHeaderCell, token.rows.length === 0))}
+          {token.rows.map((row, rowIndex) => {
+            const rowKey = `${keyPrefix}r${rowIndex}`;
+            const last = rowIndex === token.rows.length - 1;
+            return reuseNode(reuse, rowKey, rowSource(rowIndex + 1, row, last), cellTokens(row),
+              () => drawRow(rowKey, rowIndex + 1, `${rowKey}c`, row, styles.tableRow, styles.tableCell, last));
+          })}
         </View>
-      </HScroll>
+      </ScrollView>
       {/* Over the scroller rather than in it: a scroller clips what passes its
           edges, and the open menu's border and shadow reach past the left one. */}
-      <View style={copyStyles.corner}>
-        {/* Only the closed icon needs a static backing; the menu paints its
-            own expanding frame so no full-width fill remains during exit. */}
-        <View pointerEvents="none" style={[copyStyles.corner, copyStyles.backing, { backgroundColor: context.tokens.surface0 }]} />
-        <TableCopyMenu source={() => token.raw} frame={frameRef} tokens={context.tokens}
-          selected={selectedText && !selection.dragging ? { text: selectedText, dismiss: selection.dismiss } : undefined} />
-      </View>
+      <TableCopyMenu source={source} frame={frameRef} tokens={context.tokens}
+        selected={selectedText && !selection.dragging ? { text: selectedText, dismiss: selection.dismiss } : undefined} />
     </View>
   );
 }
 
-/** View owns native raw touches; Text keeps its layout and rich inline runs. */
-function TableCell({ touchProps, ...props }: TextProps & { touchProps: ViewProps }) {
-  const text = <Text {...props} />;
-  return Platform.OS !== "web"
-    ? <View testID="markdown-table-touch-cell" style={copyStyles.touchCell} {...touchProps}>{text}</View>
-    : text;
-}
-
 const copyStyles = StyleSheet.create({
-  touchCell: { flexDirection: "row" },
   outer: { position: "relative" },
   // Room for the corner control outside the columns: half its side, so its
   // centre sits on the table's corner.
-  container: {
+  content: {
     paddingTop: FLOAT.control / 2,
     paddingLeft: FLOAT.control / 2,
   },
-  // Shaped like the control it backs, so the table's border is not cut square.
-  corner: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    borderRadius: FLOAT.radius,
-  },
-  backing: { width: FLOAT.control, height: FLOAT.control },
 });
