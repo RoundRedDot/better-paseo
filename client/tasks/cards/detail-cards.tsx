@@ -18,7 +18,7 @@ import { useTime, type TimeSource } from "./clock";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
 import { cardTimer } from "./task-card";
-import { branchHint, shortenPath, SUBTASK_ROWS } from "./details-format";
+import { branchHint, propertyRowWidth, shortenPath, SUBTASK_ROWS } from "./details-format";
 import {
   contextView,
   detailHero,
@@ -66,7 +66,7 @@ const TOUCH_CARD = { ...DETAIL_CARD, labelWidth: 76, row: 44, listRow: 44, headi
 
 type Metrics = typeof DETAIL_CARD | typeof TOUCH_CARD;
 
-/** Properties go two columns once the card's content is this wide (a sidebar of about 480). */
+/** Properties go two columns once the card's content is this wide (a sidebar of about 480) and both rows fit their half. */
 const TWO_COLUMNS = 456;
 
 const MONO = Platform.select({ ios: "Menlo", android: "monospace", default: "ui-monospace, SFMono-Regular, Menlo, monospace" });
@@ -585,8 +585,8 @@ function Properties(props: Inner) {
   const words = props.strings.property;
   const cardText = cardStrings(props.language);
   const location = card.location;
+  const scale = useTasksFontScale();
   const [width, setWidth] = useState(0);
-  const wide = width >= TWO_COLUMNS;
   let place: React.ReactNode = null;
   if (location.projectName || location.workspaceName) {
     const kind = location.workspaceKind;
@@ -632,8 +632,20 @@ function Properties(props: Inner) {
   } else if (location.git === null) {
     branch = <PropertyRow language={props.language} key="branch" m={m} tokens={tokens} label={words.branch} icon="GitBranch" value={cardText.details.notGit} muted testID="detail-branch" />;
   }
+  // Project and branch share a line only when both show whole in half of it.
+  const pairFits = () => {
+    const sizes = { icon: m.icon, label: m.labelWidth * Math.max(1, scale), font: Math.round(m.font * scale) };
+    const kind = location.workspaceKind;
+    const placeValue = [location.projectName && location.workspaceName ? `${location.projectName} ›` : null, location.workspaceName ?? location.projectName].filter(Boolean).join(" ");
+    const placeWidth = propertyRowWidth(sizes, placeValue, kind ? [{ text: cardText.kind[kind], lead: true }] : []);
+    const hint = branchHint(location.git);
+    const branchBadges = [...(hint.sync ? [{ text: hint.sync }] : []), ...(hint.dirty ? [{ text: cardText.uncommitted, lead: true }] : [])];
+    const branchWidth = location.branch ? propertyRowWidth(sizes, location.branch, branchBadges) : propertyRowWidth(sizes, cardText.details.notGit);
+    const half = (width - 8) / 2;
+    return placeWidth <= half && branchWidth <= half;
+  };
   const rows: React.ReactNode[] = [];
-  if (wide && place && branch) {
+  if (place && branch && width >= TWO_COLUMNS && pairFits()) {
     rows.push(
       <View key="pair" style={{ flexDirection: "row", gap: 8 }}>
         <View style={{ flex: 1, minWidth: 0 }}>{place}</View>
