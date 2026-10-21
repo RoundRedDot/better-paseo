@@ -3,12 +3,11 @@ import { access, stat } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { execCommand, type PluginServerContext } from "@getpaseo/plugin/server";
 import { TASKS_SETTINGS } from "../../shared/tasks-settings";
+import { createStopMarks, stopMarksPath } from "./stop-marks";
 import { tasksCapabilitiesRpc, tasksStopRpc, tasksStoppedRpc } from "../../shared/tasks-rpc";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const STOP_TIMEOUT_MS = 10_000;
-/** The stops `tasks.stopped` remembers; the oldest go first. */
-const STOPS_KEPT = 500;
 
 type CliStopOutput = { stoppedCount: number; agentIds: string[] };
 
@@ -86,19 +85,18 @@ async function stopAgent(cli: string, agentId: string): Promise<{ ok: boolean; e
   }
 }
 
-/** The Tasks board's settings record and stop RPCs. */
-export function registerTasksServer(server: PluginServerContext): void {
-  // Agent id -> when it was stopped, in insertion order (a later stop moves it last).
-  const stops = new Map<string, string>();
-  const remember = (agentId: string) => {
-    stops.delete(agentId);
-    stops.set(agentId, new Date().toISOString());
-    while (stops.size > STOPS_KEPT) stops.delete(stops.keys().next().value as string);
-  };
+/**
+ * The Tasks board's settings record and stop RPCs. The stops `tasks.stopped`
+ * answers with live in a file under the plugin's data directory, so they
+ * outlive a daemon restart; a mark goes when the agent starts a new turn or
+ * is archived, and when it is 30 days old.
+ */
+export function registerTasksServer(server: PluginServerContext, stops = createStopMarks(stopMarksPath())): void {
   server.registerSettings(TASKS_SETTINGS);
-  server.handle(tasksStoppedRpc, async () => ({
-    stops: [...stops].map(([agentId, stoppedAt]) => ({ agentId, stoppedAt })),
-  }));
+  // A new turn means a new prompt: the agent is no longer "stopped manually".
+  server.on("agent.turn_started", ({ agent }) => stops.clear(agent.id));
+  server.on("agent.archived", ({ agent }) => stops.clear(agent.id));
+  server.handle(tasksStoppedRpc, async () => ({ stops: await stops.list() }));
   server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCliPath()) !== null }));
   server.handle(tasksStopRpc, async ({ agentIds }) => {
     const cli = await resolveCliPath();
@@ -111,7 +109,7 @@ export function registerTasksServer(server: PluginServerContext): void {
       }
 
       const result = await stopAgent(cli, agentId);
-      if (result.ok) remember(agentId);
+      if (result.ok) await stops.mark(agentId);
       results.push({ agentId, ...result });
     }
 
