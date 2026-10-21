@@ -34,16 +34,15 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 vi.mock("../../client/components/hub-live", () => ({ TimelineTailHub: () => null }));
 vi.mock("../../client/state/preference-sync-slot", () => ({ PreferenceSyncSlot: () => null }));
 vi.mock("../../client/components/selection-actions", () => ({ useSelectionActions: () => {} }));
+vi.mock("../../client/components/tool-callouts", () => ({ ToolCallout: () => null }));
 vi.mock("../../client/components/markdown/markdown-view", async () => {
   const rn = await import("./helpers/rn-mock");
   return { MarkdownView: ({ text }: { text: string }) => React.createElement(rn.Text, null, text) };
 });
 
-import { LiveAssistantRenderer, type LiveAssistantPayload } from "../../client/live-renderers";
+import { LiveAssistantRenderer, LiveToolCallRenderer, type LiveAssistantPayload, type LiveToolCallPayload } from "../../client/live-renderers";
 import { AssistantFooter } from "../../client/components/turn-footer";
 import { assistantRows } from "../../client/assistant-transform";
-import { createAgentMessageSenderStore } from "../../client/state/agent-message-senders";
-import { getAgentTimelinePageReader } from "../../client/state/agent-timeline-page-reader";
 import { formatFooterStamp, formatFullStamp } from "../../client/ui/time";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -93,7 +92,7 @@ describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform
     } finally { act(() => renderer.unmount()); }
   });
 
-  it("shares the footer's former 200-item tail with the sender store's 50-item read", async () => {
+  it("shows the footer and senderless agent_message stores reading sequential tails", async () => {
     const callId = "paseo-agent-message:visible";
     const entries = [
       entry({ type: "user_message", text: "prompt" }, 1, 1000, "one"),
@@ -103,38 +102,61 @@ describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform
         agentMessage: { event: "message", sender: { id: "source", title: "Source agent" }, text: "from another agent" },
       } as TimelineEntry["item"], 3, 3000, "one"),
     ];
-    let finish!: (result: TimelinePage) => void;
-    const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(() => new Promise((resolve) => { finish = resolve; }));
+    const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(async () => page(entries));
     const release = Object.assign(vi.fn(), { ready: Promise.resolve(), subscriptionId: "s", release: async () => {} });
-    const timeline = { refetch, subscribe: () => release };
+    let onEvent!: Parameters<PaseoAgentTimelineHandle["subscribe"]>[0];
+    const subscribe = vi.fn<PaseoAgentTimelineHandle["subscribe"]>((handler) => { onEvent = handler; return release; });
+    const timeline = { refetch, subscribe };
     runtime.api = { agents: { ref: () => ({ timeline }) }, providers: { listModels: async () => catalog } };
-    const senderStore = createAgentMessageSenderStore(() => timeline,
-      getAgentTimelinePageReader(runtime.api as object, "a"));
-    const stopSender = senderStore.retain(callId);
-    let renderer!: ReturnType<typeof TestRenderer.create>;
-    await act(async () => {
-      renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, {
+    const reply = React.createElement(LiveAssistantRenderer, {
         agentId: "a", theme, host: { id: "local", label: "Local" }, layout: { platform, compact: platform !== "web" },
         timestamp: new Date(2000), item: { type: "plugin", kind: "omp-assistant", version: 1,
           data: { text: "answer", phase: "complete" } },
-      } satisfies PluginTimelineItemProps<LiveAssistantPayload>));
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+      } satisfies PluginTimelineItemProps<LiveAssistantPayload>);
+    const senderless = React.createElement(LiveToolCallRenderer, {
+      agentId: "a", theme, host: { id: "local", label: "Local" }, layout: { platform, compact: platform !== "web" },
+      timestamp: new Date(3000), item: { type: "plugin", kind: "omp-tool-call", version: 1,
+        data: { name: "agent_message", callId, status: "completed", phase: "complete",
+          detail: { type: "plain_text", text: "from another agent" } } },
+    } satisfies PluginTimelineItemProps<LiveToolCallPayload>);
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    let mounted = false;
+    await act(async () => { renderer = TestRenderer.create(reply); await new Promise((resolve) => setTimeout(resolve, 0)); });
+    mounted = true;
     try {
+      // The live reply mounts its footer, whose store completes the first tail before the row mounts.
       expect(refetch).toHaveBeenCalledTimes(1);
       expect(refetch).toHaveBeenCalledWith({ direction: "tail", projection: "projected", limit: 50 });
-      await act(async () => {
-        finish(page(entries));
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      });
       expect(renderer.root.findByType(AssistantFooter).props).toMatchObject({
         text: "answer", startedAt: 1000, durationMs: 2000,
       });
-      expect(senderStore.get(callId)?.sender).toEqual({ id: "source", title: "Source agent" });
-      expect(refetch.mock.calls.map(([options]) => options?.direction)).toEqual(["tail"]);
+      expect(subscribe).toHaveBeenCalledTimes(1);
+      await act(async () => { renderer.update(React.createElement(React.Fragment, null, reply, senderless));
+        await new Promise((resolve) => setTimeout(resolve, 0)); });
+      // The senderless agent_message row mounts after the first response and reuses its cached tail.
+      expect(refetch).toHaveBeenCalledTimes(1);
+      expect(refetch.mock.calls.map(([options]) => options)).toEqual([
+        { direction: "tail", projection: "projected", limit: 50 },
+      ]);
+      expect(onEvent).toBeTypeOf("function");
+      await act(async () => {
+        onEvent({ agentId: "a", timestamp: new Date(4000).toISOString(),
+          event: { type: "turn_completed", provider: "codex", turnId: "one" } });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(refetch).toHaveBeenCalledTimes(2);
+      expect(refetch.mock.calls.map(([options]) => options?.direction)).toEqual(["tail", "tail"]);
+      await act(async () => renderer.unmount());
+      mounted = false;
+      expect(release).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        renderer = TestRenderer.create(reply);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      mounted = true;
+      expect(refetch).toHaveBeenCalledTimes(3);
     } finally {
-      act(() => renderer.unmount());
-      stopSender();
+      if (mounted) act(() => renderer.unmount());
     }
   });
 
