@@ -1,4 +1,4 @@
-import React, { type ReactNode, type Ref } from "react";
+import React, { useState, type ReactNode, type Ref } from "react";
 import { Platform, Text, View, type TextInput as NativeTextInput } from "react-native";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -98,6 +98,9 @@ const FILTERS_MIN_WIDTH = 240;
 /** A long sort ("Duration shortest first") ends in an ellipsis past this. */
 const SORT_LABEL_MAX_WIDTH = 160;
 
+/** iOS and Android (a tablet): the two toggles fold behind a plus button, the bar keeps one row. */
+const foldsToggles = () => Platform.OS === "ios" || Platform.OS === "android";
+
 export function DesktopFilterBar(props: {
   board: BoardController;
   theme: PluginTheme;
@@ -113,6 +116,10 @@ export function DesktopFilterBar(props: {
   const chips = activeChips(params, defaults, options, strings);
   const count = (list: readonly string[]) => (list.length ? ` · ${list.length}` : "");
   const toggle = (menuId: FilterMenu) => setMenu(menu === menuId ? null : menuId);
+  const folds = foldsToggles();
+  const [unfolded, setUnfolded] = useState(false);
+  const togglesOn = (resolved.filters.openTabsOnly ? 1 : 0) + (resolved.filters.hideSubtasks ? 1 : 0);
+  const showToggles = !folds || unfolded;
   return (
     <View
       style={{
@@ -162,24 +169,37 @@ export function DesktopFilterBar(props: {
           />
         </MenuButton>
         <Divider theme={theme} />
-        <ToggleChip
-          icon="AppWindow"
-          label={strings.openTabs}
-          hint={strings.openTabsHint}
-          on={resolved.filters.openTabsOnly}
-          onPress={() => setParams((p) => ({ ...p, openTabsOnly: !p.openTabsOnly }))}
-          theme={theme}
-        />
-        <ToggleChip
-          icon="ListTree"
-          label={strings.hideSubtasks}
-          hint={strings.hideSubtasksHint}
-          on={resolved.filters.hideSubtasks}
-          onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
-          theme={theme}
-        />
-        {resolved.filters.openTabsOnly ? <Text style={{ fontSize: 11, color: colors.foregroundMuted }}>{strings.openTabsHint}</Text> : null}
-        {resolved.filters.hideSubtasks ? <Text style={{ fontSize: 11, color: colors.foregroundMuted }}>{strings.hideSubtasksHint}</Text> : null}
+        {folds ? (
+          <MoreButton
+            open={unfolded}
+            on={togglesOn}
+            label={unfolded ? strings.fewerFilters : strings.moreFilters}
+            onPress={() => setUnfolded((open) => !open)}
+            theme={theme}
+          />
+        ) : null}
+        {showToggles ? (
+          <>
+            <ToggleChip
+              icon="AppWindow"
+              label={strings.openTabs}
+              hint={strings.openTabsHint}
+              on={resolved.filters.openTabsOnly}
+              onPress={() => setParams((p) => ({ ...p, openTabsOnly: !p.openTabsOnly }))}
+              theme={theme}
+            />
+            <ToggleChip
+              icon="ListTree"
+              label={strings.hideSubtasks}
+              hint={strings.hideSubtasksHint}
+              on={resolved.filters.hideSubtasks}
+              onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
+              theme={theme}
+            />
+            {resolved.filters.openTabsOnly ? <Text style={{ fontSize: 11, color: colors.foregroundMuted }}>{strings.openTabsHint}</Text> : null}
+            {resolved.filters.hideSubtasks ? <Text style={{ fontSize: 11, color: colors.foregroundMuted }}>{strings.hideSubtasksHint}</Text> : null}
+          </>
+        ) : null}
         {chips.length ? (
           <>
             <Divider theme={theme} />
@@ -282,6 +302,43 @@ function MenuButton(props: { icon: string; label: string; labelMaxWidth?: number
 }
 
 
+
+/**
+ * The plus that shows the folded toggles; an X while they show. Folded with
+ * a toggle on, it takes the accent and says how many, so a hidden filter
+ * still shows that it filters.
+ */
+function MoreButton(props: { open: boolean; on: number; label: string; onPress(): void; theme: PluginTheme }) {
+  const colors = props.theme.colors;
+  const tokens = taskTokens(props.theme);
+  const marked = !props.open && props.on > 0;
+  const tint = marked ? tokens.accentText : colors.foregroundMuted;
+  return (
+    <HoverPressable
+      accessibilityRole="button"
+      accessibilityLabel={props.label}
+      accessibilityState={{ expanded: props.open }}
+      onPress={props.onPress}
+      testID="filter-bar-more"
+      style={(hovered) => ({
+        height: 28,
+        minWidth: 28,
+        paddingHorizontal: marked ? 8 : 0,
+        borderRadius: 6,
+        borderWidth: HAIRLINE,
+        borderColor: marked ? colors.accent : colors.border,
+        backgroundColor: marked ? tokens.accentSoft : hovered || props.open ? colors.surface1 : "transparent",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 4,
+      })}
+    >
+      <Icon name={props.open ? "X" : "Plus"} size={14} color={tint} />
+      {marked ? <Text style={{ fontSize: 13, fontWeight: "500", color: tint, fontVariant: ["tabular-nums"] }}>{props.on}</Text> : null}
+    </HoverPressable>
+  );
+}
 
 function ToggleChip(props: { icon: string; label: string; hint?: string; on: boolean; onPress(): void; theme: PluginTheme }) {
   const colors = props.theme.colors;
