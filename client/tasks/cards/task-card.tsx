@@ -40,7 +40,7 @@ export interface CardCallbacks {
   onStop?(card: TaskCard, options?: { withChildren?: boolean }): void;
   onCancelStop?(agentId: string): void;
   onPermission?(card: TaskCard, button: PermissionButton): void;
-  /** Long press on a phone, hover on desktop: the details sheet or popover. */
+  /** Long press on a phone, hover on desktop: the details sheet or sidebar. */
   onDetails?(card: TaskCard): void;
   /** Desktop: the pointer left the card. */
   onDetailsEnd?(agentId: string): void;
@@ -337,7 +337,7 @@ export type ControlHover = (key: string, on: boolean) => void;
 let nextControl = 0;
 
 /**
- * A control's hover, reported to the card so the details popover waits for
+ * A control's hover, reported to the card so the details sidebar waits for
  * the body. Pass `rowRef` for a control that holds another (a subtask row):
  * on web it then takes the DOM's hover, which RNW's hover lock cannot end.
  */
@@ -375,7 +375,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const [expanded, setExpanded] = useState(false);
   const [ringOpen, setRingOpen] = useState(false);
   const detailsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** This card asked for the popover, so it may ask to close it (the board closes whichever is open). */
+  /** This card's hover reached the details, so its end is reported. */
   const detailsShown = useRef(false);
 
   const latest = useRef(props);
@@ -385,7 +385,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     detailsTimer.current = null;
   };
 
-  // The card's own controls report their hover here: the popover is for the
+  // The card's own controls report their hover here: the details are for the
   // card body, not for a pointer resting on Stop, the menu or a button.
   const controls = useRef(new Set<string>());
   const [overControl, setOverControl] = useState(false);

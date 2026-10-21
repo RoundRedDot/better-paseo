@@ -98,11 +98,7 @@ export const MOTION = {
   laneShift: 24,
   /** A card that changed lanes fades in. */
   fadeMs: 120,
-  popoverInMs: 160,
   /** The skeleton breathes from 1 to 0.5 and back. */
   skeletonMs: 1200,
-  /** Hover before the details popover opens; leave before it closes. */
-  popoverOpenMs: 450,
-  popoverCloseMs: 150,
   highlightMs: 1000,
 } as const;

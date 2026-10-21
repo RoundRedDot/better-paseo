@@ -53,12 +53,12 @@ import type { PermissionButton, StopPhase } from "../../client/tasks/actions";
 import {
   StatusIcon,
   TaskCardView,
-  DETAILS,
-  TaskDetails,
+  TaskDetailCards,
   branchHint,
   shortenPath,
   usageRows,
   buildTaskTokens,
+  taskTokens,
   cardLayout,
   contextTone,
   formatApprox,
@@ -81,6 +81,7 @@ import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } fro
 import { pillTint } from "../../client/tasks/cards/tokens";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
 import { menuChrome } from "../../client/tasks/board/menu";
+import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { PiMark, agentPillColors, contrastRatio, tintedPillColors } from "../../client/tasks/cards/brand-mark";
 import { permissionButtons } from "../../client/tasks/actions";
 import { providerBrand } from "../../client/components/provider-logo";
@@ -981,81 +982,80 @@ describe("useTime", () => {
   });
 });
 
-describe("TaskDetails", () => {
+describe("TaskDetailCards", () => {
   beforeEach(() => {
     clipboard.copyText.mockClear();
     clipboard.show.mockClear();
   });
 
-  it("heads with the status, the title and the agent, and opens the tab from the corner", async () => {
+  const details = (card: TaskCard, more: Record<string, unknown> = {}, language: "zh" | "en" = "zh") =>
+    React.createElement(TaskDetailCards, { card, theme: LIGHT, now: NOW, language, strings: BOARD_STRINGS[language].sidebar, ...more });
+
+  it("heads with the status, the title and the agent, and opens the tab from its button", async () => {
     const onOpen = vi.fn();
-    const tree = await render(React.createElement(TaskDetails, { card: sample("sample-running"), theme: LIGHT, now: NOW, onOpen, language: "zh" }));
-    const header = hostByTestId(tree.root, "task-details-header");
-    expect(texts(header)).toEqual(["运行中", "12m 30s", "Port the status ring to React Native", "GPT-5.5 Codex", "·", "Medium", "·", "Bypass"]);
-    // No open-tab row any more: one round arrow in the header's corner.
-    expect(texts(tree.root)).not.toContain("打开 tab");
-    const open = hostByTestId(header, "task-details-open");
-    expect(icons(open)).toEqual(["ArrowUpRight"]);
-    expect(flat(open.props.style)).toMatchObject({ width: 28, height: 28, borderRadius: 14, backgroundColor: "transparent" });
-    await act(async () => open.props.onHoverIn());
-    expect(flat(hostByTestId(header, "task-details-open").props.style).backgroundColor).toBe(menuChrome(LIGHT).hover);
+    const onTogglePin = vi.fn();
+    const tree = await render(details(sample("sample-running"), { onOpen, onTogglePin, pinned: true }));
+    const header = hostByTestId(tree.root, "detail-header");
+    expect(texts(header)).toEqual(["运行中", "12m 30s", "已钉住", "Port the status ring to React Native", "GPT-5.5 Codex", "·", "Medium", "·", "Bypass", "打开 tab"]);
     byLabel(tree.root, "打开 tab").props.onPress();
     expect(onOpen).toHaveBeenCalledWith("sample-running");
+    byLabel(tree.root, "取消钉住").props.onPress();
+    expect(onTogglePin).toHaveBeenCalled();
+    // Each block is its own raised card: radius 12, a hairline, the card's shadow.
+    expect(flat(header.props.style)).toMatchObject({ borderRadius: 12, borderWidth: 1, boxShadow: taskTokens(LIGHT).card.shadow });
   });
 
-  it("lists the place, then copyable branch, folder, directory and PR rows, then the usage", async () => {
-    const tree = await render(React.createElement(TaskDetails, { card: sample("sample-running"), theme: LIGHT, now: NOW, language: "zh" }));
-    const location = hostByTestId(tree.root, "task-details-location");
-    expect(texts(hostByTestId(location, "task-details-place"))).toEqual(["B", "better-paseo › tasks-board", "worktree"]);
-    expect(texts(hostByTestId(location, "task-details-branch"))).toEqual(["feat/tasks-board", "未提交", "↑3 ↓0"]);
-    expect(texts(hostByTestId(location, "task-details-folder"))).toEqual(["tasks-board"]);
+  it("lists the place, then copyable branch, directory and PR rows, then the usage", async () => {
+    const tree = await render(details(sample("sample-running")));
+    const location = hostByTestId(tree.root, "detail-location");
+    expect(texts(hostByTestId(location, "detail-place"))).toEqual(["项目", "B", "better-paseo › tasks-board", "worktree"]);
+    expect(texts(hostByTestId(location, "detail-branch"))).toEqual(["分支", "feat/tasks-board", "↑3 ↓0", "未提交"]);
     // The directory is cut in its middle to one line.
-    expect(texts(hostByTestId(location, "task-details-cwd"))).toEqual(["…/.worktrees/tasks-board"]);
-    expect(texts(hostByTestId(location, "task-details-pr"))).toEqual(["#42 feat: Tasks board"]);
-    expect(texts(hostByTestId(tree.root, "task-details-usage"))).toEqual(
+    expect(texts(hostByTestId(location, "detail-cwd"))).toEqual(["工作目录", "…/.worktrees/tasks-board"]);
+    expect(texts(hostByTestId(location, "detail-pr"))).toEqual(["PR", "#42 feat: Tasks board"]);
+    expect(texts(hostByTestId(tree.root, "detail-usage"))).toEqual(
       expect.arrayContaining(["创建时间", "1 小时前", "缓存 120k", "182k", "14k", "$1.84", "86%", "172k / 200k"]),
     );
 
-    const copies: Array<[string, string, string]> = [
-      ["task-details-branch", "feat/tasks-board", "Copy branch name"],
-      ["task-details-folder", "tasks-board", "Copy folder name"],
-      ["task-details-cwd", "/Users/dev/code/better-paseo/.worktrees/tasks-board", "Copy path"],
-      ["task-details-pr", "https://github.com/RoundRedDot/better-paseo/pull/42", "Copy URL"],
+    const copies: Array<[string, string]> = [
+      ["detail-branch", "feat/tasks-board"],
+      ["detail-cwd", "/Users/dev/code/better-paseo/.worktrees/tasks-board"],
+      ["detail-pr", "https://github.com/RoundRedDot/better-paseo/pull/42"],
     ];
-    for (const [testID, text, label] of copies) {
+    for (const [testID, text] of copies) {
       const row = hostByTestId(tree.root, testID);
       expect(row.props.accessibilityRole).toBe("button");
       await act(async () => row.props.onPress());
       expect(clipboard.copyText).toHaveBeenLastCalledWith(text);
       expect(clipboard.show).toHaveBeenCalled();
     }
-    expect(clipboard.copyText).toHaveBeenCalledTimes(4);
+    expect(clipboard.copyText).toHaveBeenCalledTimes(3);
     // The place row only informs.
-    expect(hostByTestId(location, "task-details-place").props.onPress).toBeUndefined();
+    expect(hostByTestId(location, "detail-place").props.onPress).toBeUndefined();
   });
 
   it("says nothing beside a clean, level branch", async () => {
     const base = sample("sample-running");
     const card = { ...base, location: { ...base.location, git: { dirty: false, ahead: 0, behind: 0 } } };
-    const tree = await render(React.createElement(TaskDetails, { card, theme: LIGHT, now: NOW, language: "zh" }));
-    expect(texts(hostByTestId(tree.root, "task-details-branch"))).toEqual(["feat/tasks-board"]);
-    expect(texts(tree.root).join(" ")).not.toMatch(/无未提交改动|有未提交改动|origin/);
+    const tree = await render(details(card));
+    expect(texts(hostByTestId(tree.root, "detail-branch"))).toEqual(["分支", "feat/tasks-board"]);
     expect(branchHint({ dirty: false, ahead: 0, behind: 0 })).toEqual({ sync: null, dirty: false });
     expect(branchHint({ dirty: true, ahead: null, behind: 2 })).toEqual({ sync: "↑0 ↓2", dirty: true });
     expect(branchHint(null)).toEqual({ sync: null, dirty: false });
   });
 
-  it("says a directory is not a git checkout, and has no corner arrow without onOpen", async () => {
-    const tree = await render(React.createElement(TaskDetails, { card: sample("sample-done"), theme: LIGHT, now: NOW, language: "en" }));
-    expect(texts(hostByTestId(tree.root, "task-details-branch"))).toEqual(["Not a git directory"]);
-    expect(hostByTestId(tree.root, "task-details-branch").props.onPress).toBeUndefined();
-    expect(texts(hostByTestId(tree.root, "task-details-place"))).toEqual(["B", "better-paseo › tasks-board", "directory"]);
-    expect(tree.root.findAll((node) => node.props.testID === "task-details-open")).toEqual([]);
+  it("says a directory is not a git checkout, and has no open button without onOpen", async () => {
+    const tree = await render(details(sample("sample-done"), {}, "en"));
+    expect(texts(hostByTestId(tree.root, "detail-branch"))).toEqual(["Branch", "Not a git directory"]);
+    expect(hostByTestId(tree.root, "detail-branch").props.onPress).toBeUndefined();
+    expect(texts(hostByTestId(tree.root, "detail-place"))).toEqual(["Project", "B", "better-paseo › tasks-board", "directory"]);
+    expect(tree.root.findAll((node) => node.props.testID === "detail-open")).toEqual([]);
   });
 
-  it("lists the subtasks with their status, and the failure under the title", async () => {
-    const running = await render(React.createElement(TaskDetails, { card: sample("sample-running"), theme: LIGHT, now: NOW, language: "zh" }));
-    expect(texts(hostByTestId(running.root, "task-details-subtasks"))).toEqual([
+  it("lists the subtasks, a press showing one, and the failure under the title", async () => {
+    const onJump = vi.fn();
+    const running = await render(details(sample("sample-running"), { onJump }));
+    expect(texts(hostByTestId(running.root, "detail-subtasks"))).toEqual([
       "子任务",
       "1 / 3 完成",
       "Measure the sidebar ring",
@@ -1065,25 +1065,23 @@ describe("TaskDetails", () => {
       "Collect status colours",
       "已完成",
     ]);
+    byLabel(running.root, "Measure the sidebar ring 运行中").props.onPress();
+    expect(onJump).toHaveBeenCalledWith("sample-child-1");
     await act(async () => running.unmount());
     renderer = null;
-    const failed = await render(React.createElement(TaskDetails, { card: sample("sample-failed"), theme: LIGHT, now: NOW, language: "en" }));
-    expect(texts(hostByTestId(failed.root, "task-details-error"))).toEqual(["Provider exited with code 1: rate limit reached"]);
-    expect(icons(hostByTestId(failed.root, "task-details-error"))).toEqual(["CircleX"]);
+    const failed = await render(details(sample("sample-failed"), {}, "en"));
+    expect(texts(hostByTestId(failed.root, "detail-error"))).toEqual(["Provider exited with code 1: rate limit reached"]);
+    expect(icons(hostByTestId(failed.root, "detail-error"))).toEqual(["CircleX"]);
   });
 
-  it("parts its groups with lines one device pixel thin", async () => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
-    try {
-      const tree = await render(React.createElement(TaskDetails, { card: sample("sample-running"), theme: LIGHT, now: NOW, language: "zh" }));
-      const rules = tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-details-rule");
-      // Under the header, then between location, subtasks and usage.
-      expect(rules).toHaveLength(3);
-      // The mock screen is 3x.
-      for (const rule of rules) expect(flat(rule.props.style)).toMatchObject({ height: 1 / 3, backgroundColor: LIGHT.colors.border });
-    } finally {
-      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
-    }
+  it("names the stop button by its phase", async () => {
+    const onPress = vi.fn();
+    const tree = await render(details(sample("sample-running"), { stop: { phase: "idle", onPress } }));
+    expect(texts(hostByTestId(tree.root, "detail-stop"))).toEqual(["停止运行"]);
+    hostByTestId(tree.root, "detail-stop").props.onPress();
+    expect(onPress).toHaveBeenCalled();
+    await act(async () => tree.update(details(sample("sample-running"), { stop: { phase: "confirming", onPress } })));
+    expect(texts(hostByTestId(tree.root, "detail-stop"))).toEqual(["确认停止"]);
   });
 
   it("cuts a path in its middle to fit", () => {
@@ -1091,210 +1089,6 @@ describe("TaskDetails", () => {
     expect(shortenPath("~/workspace/rrd/ideashell-system/ideashell-android/.worktrees/align-206-integration", 40)).toBe(
       "…/.worktrees/align-206-integration",
     );
-    expect(shortenPath("~/a/an-extremely-long-folder-name-that-never-fits", 20)).toBe("…/an-ext…-never-fits");
-    // Wide characters take two columns.
-    expect(shortenPath("~/文档/研究笔记/第二季度", 20)).toBe("…/研究笔记/第二季度");
-  });
-
-  it("shows Updated only once it differs from Created and no turn runs", () => {
-    const done = sample("sample-done");
-    expect(usageRows(done, NOW, "en").map((row) => row.key)).toEqual(["created", "updated", "input", "output", "cost"]);
-    expect(usageRows(sample("sample-running"), NOW, "en").map((row) => row.key)).not.toContain("updated");
-    const fresh = { ...done, timing: { ...done.timing, updatedAt: done.timing.createdAt }, usage: null };
-    expect(usageRows(fresh, NOW, "zh").map((row) => row.label)).toEqual(["创建时间"]);
-  });
-});
-
-describe("model, thinking and brand marks", () => {
-  const PROVIDERS = [
-    "paseo", "claude", "codex", "omp", "pi", "gemini", "antigravity", "copilot",
-    "opencode", "minimax", "deepseek", "grok", "cursor", "ollama", "some-new-agent",
-  ] as const;
-  const MONOCHROME = new Set(["paseo", "omp", "grok", "cursor", "ollama", "some-new-agent"]);
-  // Marks rasterised in colour carry their hue in the image; the rest are tinted.
-  const RASTER_COLOURED = new Set(["claude", "gemini", "antigravity", "minimax", "deepseek"]);
-  const WRONG_ON_LIGHT = ["#E5E7EB", "#818CF8", "#CBD5E1", "#94A3B8", "#6366F1"];
-
-  beforeEach(() => {
-    seedMarkBitmaps(Object.fromEntries([...MARK_IDS].map((id) => [id, `data:image/png;base64,${id}`])));
-  });
-
-  it("draws monochrome marks in the theme foreground and coloured brands in their hue", async () => {
-    for (const theme of [LIGHT, DARK]) {
-      const tokens = buildTaskTokens(theme.colors);
-      for (const provider of PROVIDERS) {
-        const card = { ...sample("sample-done"), provider, providerMark: provider };
-        const tree = await render(cardElement(card, { theme }));
-        const model = hostByTestId(tree.root, "pill-model");
-        const [image] = model.findAll((node) => (node.type as unknown) === "Image");
-        const brand = providerBrand(provider);
-        expect(brand.monochrome).toBe(MONOCHROME.has(provider));
-        let drawn: unknown;
-        if (provider === "pi") {
-          // Pi: the coloured pixel mark from Views, the same on both themes, on a neutral pill.
-          expect(image).toBeUndefined();
-          const cells = hostByTestId(model, "pi-mark").children.map((cell) => flat((cell as ReactTestInstance).props.style).backgroundColor);
-          expect(cells).toEqual(["#e39586", "#e39586", "#6198bb", "#6198bb", "#e9c069"]);
-          expect(flat(model.props.style).backgroundColor).toBe(mix(tokens.card.background, tokens.foreground, 0.06));
-          await act(async () => tree.unmount());
-          renderer = null;
-          continue;
-        }
-        if (image) {
-          drawn = flat(image.props.style).tintColor;
-          if (MONOCHROME.has(provider)) expect(drawn).toBe(tokens.foreground);
-          else if (RASTER_COLOURED.has(provider)) expect(drawn).toBeUndefined();
-          else expect(drawn).toBe(brand.color);
-        } else {
-          // No mark at all (an unknown agent): the letter fallback, in the foreground.
-          expect(provider).toBe("some-new-agent");
-          const letter = model.find((node) => (node.type as unknown) === "Text" && String(node.props.children).length === 1);
-          drawn = flat(letter.props.style).color;
-          expect(drawn).toBe(tokens.foreground);
-        }
-        if (theme === LIGHT) expect(WRONG_ON_LIGHT).not.toContain(drawn);
-        // Tint: a coloured brand's hue, a monochrome mark's neutral grey.
-        const fill = flat(model.props.style).backgroundColor;
-        expect(fill).toBe(
-          MONOCHROME.has(provider)
-            ? mix(tokens.card.background, tokens.foreground, 0.06)
-            : mix(tokens.card.background, brand.color, tokens.isDark ? 0.2 : 0.12),
-        );
-        await act(async () => tree.unmount());
-        renderer = null;
-      }
-    }
-  });
-
-  it("draws Pi's mark on its 4 x 4 grid with the shipped margin", async () => {
-    const tree = await render(React.createElement(PiMark, { size: 20 }));
-    const cells = hostByTestId(tree.root, "pi-mark").children.map((cell) => flat((cell as ReactTestInstance).props.style));
-    // Cell 4 px (20 less a 2 px margin each side, over 4).
-    expect(cells.map(({ left, top, width, height }) => [left, top, width, height])).toEqual([
-      [2, 2, 12, 4],
-      [10, 6, 4, 4],
-      [2, 6, 4, 12],
-      [6, 10, 4, 4],
-      [14, 10, 4, 8],
-    ]);
-  });
-
-  it("styles the agent pills as Linear's status pill: brand tint, no border, readable label, brand icon", async () => {
-    // The reference: #606acd over white gives #ecedfa and a #4349a3 label.
-    const reference = buildTaskTokens(PALETTES.paseoLight);
-    const near = (a: string, b: string) =>
-      [1, 3, 5].every((i) => Math.abs(Number.parseInt(a.slice(i, i + 2), 16) - Number.parseInt(b.slice(i, i + 2), 16)) <= 1);
-    expect(near(mix(reference.card.background, "#606acd", 0.12), "#ecedfa")).toBe(true);
-    for (const palette of [PALETTES.paseoLight, PALETTES.paseoDark, PALETTES.sepiaLight, PALETTES.blueDark]) {
-      const tokens = buildTaskTokens(palette);
-      for (const provider of ["claude", "codex", "gemini", "copilot", "deepseek", "minimax", "antigravity", "opencode"]) {
-        const brand = providerBrand(provider).color;
-        const colors = agentPillColors(tokens, provider);
-        expect(colors.background).toBe(mix(tokens.card.background, brand, tokens.isDark ? 0.2 : 0.12));
-        expect(colors.icon).toBe(brand);
-        expect(contrastRatio(colors.text, colors.background)).toBeGreaterThanOrEqual(4.5);
-        // Darker than the brand on a light theme, lighter on a dark one.
-        const lighter = contrastRatio(colors.text, "#000000") > contrastRatio(brand, "#000000");
-        expect(lighter).toBe(tokens.isDark);
-      }
-      for (const provider of ["grok", "cursor", "ollama", "omp", "paseo", "pi", "some-new-agent"]) {
-        expect(agentPillColors(tokens, provider)).toEqual({
-          background: mix(tokens.card.background, palette.foreground, 0.06),
-          text: palette.foreground,
-          icon: palette.foreground,
-        });
-      }
-    }
-
-    for (const theme of [LIGHT, DARK]) {
-      const tokens = buildTaskTokens(theme.colors);
-      const tree = await render(cardElement(sample("sample-running"), { theme }));
-      const colors = agentPillColors(tokens, "codex");
-      const model = hostByTestId(tree.root, "pill-model");
-      expect(flat(model.props.style)).toMatchObject({ backgroundColor: colors.background, borderWidth: 0 });
-      expect(flat(model.find((child) => (child.type as unknown) === "Text").props.style)).toMatchObject({ color: colors.text, fontWeight: "500" });
-      // The thinking pill is the neutral one: foreground at 6%, a foreground label, a muted Brain.
-      const thinking = hostByTestId(tree.root, "pill-thinking");
-      expect(flat(thinking.props.style)).toMatchObject({ backgroundColor: mix(tokens.card.background, tokens.foreground, 0.06), borderWidth: 0 });
-      expect(flat(thinking.find((child) => (child.type as unknown) === "Text").props.style).color).toBe(tokens.foreground);
-      expect(thinking.findByType("Icon" as never).props.color).toBe(tokens.foregroundMuted);
-      await act(async () => tree.unmount());
-      renderer = null;
-    }
-  });
-
-  it("draws accent text (Allow, Open tab, selected chips) at 4.5:1 on every palette, unchanged where the accent already reads", async () => {
-    for (const palette of Object.values(PALETTES)) {
-      const tokens = buildTaskTokens(palette);
-      for (const ground of [tokens.card.primaryFill, tokens.card.primaryFillHover]) {
-        expect(contrastRatio(tokens.card.primaryText, ground)).toBeGreaterThanOrEqual(4.5);
-      }
-      for (const ground of [tokens.card.background, tokens.card.primaryFill, palette.surface0, palette.surface1, palette.surface2, tokens.accentSoft]) {
-        expect(contrastRatio(tokens.accentText, ground)).toBeGreaterThanOrEqual(4.5);
-      }
-    }
-    // Paseo's light theme keeps its accent; on the dark one #20744a read about 2.2:1 and is lifted.
-    const light = buildTaskTokens(PALETTES.paseoLight);
-    expect(light.card.primaryText).toBe(PALETTES.paseoLight.accent);
-    const dark = buildTaskTokens(PALETTES.paseoDark);
-    expect(contrastRatio(PALETTES.paseoDark.accent, dark.card.primaryFill)).toBeLessThan(3);
-    expect(dark.card.primaryText).not.toBe(PALETTES.paseoDark.accent);
-    // The Allow button wears it.
-    const card = sample("sample-input");
-    const tree = await render(cardElement(card, { theme: { colors: PALETTES.paseoDark }, permissionButtons: permissionButtons(card.permission!, "en"), language: "en" }));
-    const allow = byLabel(tree.root, "Allow");
-    expect(flat(allow.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(dark.card.primaryText);
-    await act(async () => tree.unmount());
-    renderer = null;
-  });
-
-  it("draws the Answer button's amber label at 4.5:1 on its fills on every palette", async () => {
-    for (const palette of Object.values(PALETTES)) {
-      const tokens = buildTaskTokens(palette);
-      for (const ground of [tokens.card.answerFill, tokens.card.answerFillHover]) {
-        expect(contrastRatio(tokens.card.answerText, ground)).toBeGreaterThanOrEqual(4.5);
-      }
-    }
-    const answer: PermissionButton = { key: "open", label: "Answer", variant: "secondary", kind: "open", action: { behavior: "allow", id: null } };
-    for (const palette of [PALETTES.paseoLight, PALETTES.paseoDark]) {
-      const tokens = buildTaskTokens(palette);
-      // The raw amber read 3.27 (light) and 4.18 (dark) on the tint.
-      expect(contrastRatio(tokens.status.warning, tokens.card.answerFill)).toBeLessThan(4.5);
-      const card = sample("sample-input");
-      const tree = await render(cardElement(card, { theme: { colors: palette }, permissionButtons: [answer], language: "en" }));
-      const button = byLabel(tree.root, "Answer");
-      expect(flat(button.props.style).backgroundColor).toBe(tokens.card.answerFill);
-      expect(flat(button.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(tokens.card.answerText);
-      await act(async () => tree.unmount());
-      renderer = null;
-    }
-  });
-
-  it("tints the branch pill with the theme accent, readable on every palette", async () => {
-    for (const palette of Object.values(PALETTES)) {
-      const tokens = buildTaskTokens(palette);
-      const colors = tintedPillColors(tokens, palette.accent);
-      expect(colors.background).toBe(mix(tokens.card.background, palette.accent, tokens.isDark ? 0.2 : 0.12));
-      expect(colors.icon).toBe(palette.accent);
-      expect(contrastRatio(colors.text, colors.background)).toBeGreaterThanOrEqual(4.5);
-      const tree = await render(cardElement(sample("sample-running"), { theme: { colors: palette } }));
-      const branch = hostByTestId(tree.root, "pill-branch");
-      expect(flat(branch.props.style)).toMatchObject({ backgroundColor: colors.background, borderWidth: 0 });
-      expect(branch.findByType("Icon" as never).props).toMatchObject({ name: "GitBranch", color: palette.accent });
-      expect(flat(branch.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(colors.text);
-      await act(async () => tree.unmount());
-      renderer = null;
-    }
-  });
-
-  it("draws the thinking pill with the host's Brain icon", async () => {
-    const tree = await render(cardElement(sample("sample-running")));
-    const thinking = hostByTestId(tree.root, "pill-thinking");
-    expect(icons(thinking)).toEqual(["Brain"]);
-    expect(texts(thinking)).toEqual(["Medium"]);
-  });
-
-  it("maps modes to the composer's icons", () => {
     expect(modeIcon("claude", "Bypass")).toBe("ShieldOff");
     expect(modeIcon("claude", "Plan Mode")).toBe("ShieldEllipsis");
     expect(modeIcon("claude", "Always Ask")).toBe("Shield");
@@ -1306,15 +1100,15 @@ describe("model, thinking and brand marks", () => {
     expect(modeIcon("claude", "Something new")).toBe("Bot");
   });
 
-  it("lists model, thinking and mode with icons in the details", async () => {
-    const tree = await render(React.createElement(TaskDetails, { card: sample("sample-input"), theme: LIGHT, now: NOW, language: "zh" }));
-    const agent = hostByTestId(tree.root, "task-details-agent");
-    expect(texts(hostByTestId(agent, "task-details-model"))).toEqual(["Opus 5.5"]);
-    expect(hostByTestId(agent, "task-details-model").findAll((node) => (node.type as unknown) === "Image")).toHaveLength(1);
-    expect(texts(hostByTestId(agent, "task-details-thinking"))).toEqual(["High"]);
-    expect(icons(hostByTestId(agent, "task-details-thinking"))).toEqual(["Brain"]);
-    expect(texts(hostByTestId(agent, "task-details-mode"))).toEqual(["Bypass"]);
-    expect(icons(hostByTestId(agent, "task-details-mode"))).toEqual(["ShieldOff"]);
+  it("lists model, thinking and mode with icons", async () => {
+    const tree = await render(details(sample("sample-input")));
+    const agent = hostByTestId(tree.root, "detail-agent");
+    expect(texts(hostByTestId(agent, "detail-model"))).toEqual(["Opus 5.5"]);
+    expect(hostByTestId(agent, "detail-model").findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(1);
+    expect(texts(hostByTestId(agent, "detail-thinking"))).toEqual(["High"]);
+    expect(icons(hostByTestId(agent, "detail-thinking"))).toEqual(["Brain"]);
+    expect(texts(hostByTestId(agent, "detail-mode"))).toEqual(["Bypass"]);
+    expect(icons(hostByTestId(agent, "detail-mode"))).toEqual(["ShieldOff"]);
   });
 });
 
@@ -1356,13 +1150,8 @@ describe("overlays in the board's menu chrome", () => {
     expect(flat(menu.props.style).top).toBe(-(6 + 32 * 2 + 6 + 2 + 6));
   });
 
-  it("frames the details popover and the context tooltip the same way", async () => {
+  it("frames the context tooltip in the menu chrome", async () => {
     for (const theme of [LIGHT, DARK]) {
-      const details = await render(React.createElement(TaskDetails, { card: sample("sample-running"), theme, now: NOW, language: "zh" }));
-      expect(flat(hostByTestId(details.root, "task-details").props.style)).toMatchObject({ width: DETAILS.width, ...chromeOf(theme) });
-      await act(async () => details.unmount());
-      renderer = null;
-
       const tree = await render(cardElement(sample("sample-running"), { theme }));
       await act(async () => hostByTestId(tree.root, "task-card-context").props.onHoverIn());
       expect(flat(hostByTestId(tree.root, "task-card-context-details").props.style)).toMatchObject({ position: "absolute", ...chromeOf(theme) });

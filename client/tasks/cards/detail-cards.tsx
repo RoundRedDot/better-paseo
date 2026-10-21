@@ -18,7 +18,7 @@ import { contextRingTone } from "./context-ring";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
 import { ActionButton, cardTimer } from "./task-card";
-import { branchHint, shortenPath, usageRows, SUBTASK_ROWS } from "./task-details";
+import { branchHint, shortenPath, usageRows, SUBTASK_ROWS } from "./details-format";
 
 /**
  * The details as a stack of Linear sidebar cards (`docs/prototypes/task-details-sidebar.md`):
@@ -132,20 +132,20 @@ export function DetailHeaderCard(props: TaskDetailCardsProps) {
   const meta: React.ReactNode[] = [];
   const iconSize = touch ? 15 : 14;
   meta.push(
-    <MetaItem key="model" lead={card.providerMark !== null ? <BrandMark provider={card.provider} size={iconSize} tokens={tokens} /> : null}>
+    <MetaItem key="model" testID="detail-model" lead={card.providerMark !== null ? <BrandMark provider={card.provider} size={iconSize} tokens={tokens} /> : null}>
       <Text style={[muted, { color: tokens.foreground }]}>{card.modelLabel ?? card.providerLabel}</Text>
     </MetaItem>,
   );
   if (card.thinkingLabel) {
     meta.push(
-      <MetaItem key="thinking" lead={<Icon name={THINKING_ICON} size={iconSize} color={tokens.foregroundMuted} />}>
+      <MetaItem key="thinking" testID="detail-thinking" lead={<Icon name={THINKING_ICON} size={iconSize} color={tokens.foregroundMuted} />}>
         <Text style={muted}>{card.thinkingLabel}</Text>
       </MetaItem>,
     );
   }
   if (card.modeLabel) {
     meta.push(
-      <MetaItem key="mode" lead={<Icon name={modeIcon(card.provider, card.modeLabel)} size={iconSize} color={tokens.foregroundMuted} />}>
+      <MetaItem key="mode" testID="detail-mode" lead={<Icon name={modeIcon(card.provider, card.modeLabel)} size={iconSize} color={tokens.foregroundMuted} />}>
         <Text style={muted}>{card.modeLabel}</Text>
       </MetaItem>,
     );
@@ -219,7 +219,7 @@ export function DetailHeaderCard(props: TaskDetailCardsProps) {
       <Text style={{ fontSize: m.title, lineHeight: m.title + 6, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
         {card.title}
       </Text>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 6, rowGap: 2 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 6, rowGap: 2 }} testID="detail-agent">
         {meta.flatMap((item, index) => (index === 0 ? [item] : [<Text key={`dot-${index}`} style={muted}>·</Text>, item]))}
       </View>
       {card.error && !card.stoppedManually ? (
@@ -300,9 +300,9 @@ export function TaskDetailCards(props: TaskDetailCardsProps) {
   );
 }
 
-function MetaItem(props: { lead: React.ReactNode; children: React.ReactNode }) {
+function MetaItem(props: { lead: React.ReactNode; testID: string; children: React.ReactNode }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }} testID={props.testID}>
       {props.lead}
       {props.children}
     </View>

@@ -105,7 +105,7 @@ import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS } from "../../client/tasks/board/params";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
-import { BrandMark, PiMark, TaskCardView, TaskDetailCards, TaskDetails, taskTokens } from "../../client/tasks/cards";
+import { BrandMark, PiMark, TaskCardView, TaskDetailCards, taskTokens } from "../../client/tasks/cards";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled } from "../../client/tasks/board/enabled";
 import { APP_SETTINGS_KEY, resetHostAppearanceForTests, setNativeSettingsReaderForTests, triggerHostAppearanceCheck } from "../../client/ui/tokens/host-appearance-shim";
