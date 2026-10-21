@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PaseoAgentTimelineHandle } from "@getpaseo/client";
+import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle } from "@getpaseo/client";
 import { createAgentMessageSenderStore } from "../../client/state/agent-message-senders";
 import { timelineEntry as entry, timelinePage as page, type TimelineEntry } from "./helpers/turn-timeline";
 
@@ -12,15 +12,20 @@ const filler = (seq: number) => entry({ type: "assistant_message", text: `reply 
 
 /** A daemon timeline of `count` entries, read newest first in pages, as the host pages it. */
 function setup(count: number, messages: Record<number, string>) {
-  const entries = Array.from({ length: count }, (_, index) =>
+  let entries = Array.from({ length: count }, (_, index) =>
     messages[index + 1] ? message(index + 1, messages[index + 1]!) : filler(index + 1));
   const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>().mockImplementation(async (options = {}) => {
     const end = options.direction === "before" ? entries.findIndex((item) => item.seqStart === options.cursor!.seq) : entries.length;
     const start = Math.max(0, end - (options.limit ?? 200));
     return page(entries.slice(start, end), { hasOlder: start > 0, direction: options.direction ?? "tail" });
   });
-  const store = createAgentMessageSenderStore(() => ({ refetch }));
-  return { store, refetch, entries, settle: () => new Promise((resolve) => setTimeout(resolve, 0)) };
+  const subscription = Object.assign(vi.fn(), { ready: Promise.resolve(), subscriptionId: "s", release: async () => {} });
+  let handler: Parameters<PaseoAgentTimelineHandle["subscribe"]>[0] | null = null;
+  const subscribe = vi.fn<PaseoAgentTimelineHandle["subscribe"]>((next) => { handler = next; return subscription; });
+  const store = createAgentMessageSenderStore(() => ({ refetch, subscribe }));
+  return { store, refetch, replace: (next: typeof entries) => { entries = next; },
+    emit: (event: PaseoAgentTimelineEvent["event"]) => handler?.({ agentId: "a", event } as PaseoAgentTimelineEvent),
+    settle: () => new Promise((resolve) => setTimeout(resolve, 0)) };
 }
 
 describe("agent message senders", () => {
@@ -49,8 +54,8 @@ describe("agent message senders", () => {
     store.retain("paseo-agent-message:100");
     await settle();
     expect(store.get("paseo-agent-message:100")?.sender.id).toBe("b");
-    // A fresh tail, then on from 551: 351–550 and 151–350 and 1–150.
-    expect(refetch.mock.calls.map(([options]) => options?.cursor?.seq ?? null)).toEqual([null, 551, 351, 151]);
+    // The still-observed tail is shared, then paging continues below 551.
+    expect(refetch.mock.calls.map(([options]) => options?.cursor?.seq)).toEqual([551, 351, 151]);
   });
 
   it("does not read the timeline again for a call it did not find", async () => {
@@ -62,6 +67,21 @@ describe("agent message senders", () => {
     store.retain("paseo-agent-message:missing");
     await settle();
     expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries an unresolved sender after a completed turn invalidates the tail", async () => {
+    const { store, refetch, replace, emit, settle } = setup(10, {});
+    const callId = "paseo-agent-message:11";
+    store.retain(callId);
+    await settle();
+    expect(store.get(callId)).toBeNull();
+    expect(refetch).toHaveBeenCalledTimes(1);
+
+    replace(Array.from({ length: 10 }, (_, index) => filler(index + 1)).concat(message(11, "a")));
+    emit({ type: "turn_completed", provider: "codex", turnId: "turn" });
+    await settle();
+    expect(refetch).toHaveBeenCalledTimes(2);
+    expect(store.get(callId)?.sender).toEqual({ id: "a", title: "Agent a" });
   });
 
   it("keeps a row senderless when the read fails", async () => {

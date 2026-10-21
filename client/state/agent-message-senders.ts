@@ -1,10 +1,11 @@
 import { useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
-import type { PaseoApi, PaseoAgentTimelineHandle } from "@getpaseo/client";
+import type { PaseoApi, PaseoAgentTimelineEvent, PaseoAgentTimelineHandle } from "@getpaseo/client";
 import { usePaseo } from "@getpaseo/plugin/client";
 import { agentMessageSchema, type AgentMessage } from "../tools/agent-message";
-import { createAgentTimelinePageReader, getAgentTimelinePageReader, type AgentTimelinePageReader } from "./agent-timeline-page-reader";
+import { createAgentTimelinePageReader, getAgentTimelinePageReader, isAgentTimelinePageInvalidation,
+  type AgentTimelinePageReader } from "./agent-timeline-page-reader";
 
-type Timeline = Pick<PaseoAgentTimelineHandle, "refetch">;
+type Timeline = Pick<PaseoAgentTimelineHandle, "refetch" | "subscribe">;
 type Page = Awaited<ReturnType<Timeline["refetch"]>>;
 type Cursor = NonNullable<Page["startCursor"]>;
 
@@ -36,6 +37,7 @@ export function createAgentMessageSenderStore(source: () => Timeline,
   let covered: Covered | null = null;
   let dirty = false;
   let pending: Promise<void> | null = null;
+  let stopObserving: (() => void) | null = null;
 
   const unresolved = () => [...wanted.keys()].filter((id) => !senders.has(id) && !searched.has(id));
   const absorb = (entries: Page["entries"]) => {
@@ -95,6 +97,21 @@ export function createAgentMessageSenderStore(source: () => Timeline,
     });
   }
 
+  function onTimelineEvent(event: PaseoAgentTimelineEvent) {
+    if (!isAgentTimelinePageInvalidation(event)) return;
+    if (event.event.type === "replacement" || event.event.type === "subscription_restored") {
+      covered = null;
+      searched.clear();
+      if (senders.size) {
+        senders.clear();
+        for (const listener of listeners) listener();
+      }
+    }
+    const activeIds = [...wanted.keys()].filter((id) => !senders.has(id));
+    for (const id of activeIds) searched.delete(id);
+    if (activeIds.length) request();
+  }
+
   return {
     get: (callId: string) => senders.get(callId) ?? null,
     subscribe(listener: () => void) {
@@ -103,11 +120,16 @@ export function createAgentMessageSenderStore(source: () => Timeline,
     },
     retain(callId: string) {
       wanted.set(callId, (wanted.get(callId) ?? 0) + 1);
+      stopObserving ??= pageReader.observe(source(), onTimelineEvent);
       if (!senders.has(callId) && !searched.has(callId)) request();
       return () => {
         const count = (wanted.get(callId) ?? 1) - 1;
         if (count > 0) wanted.set(callId, count);
         else wanted.delete(callId);
+        if (!wanted.size) {
+          stopObserving?.();
+          stopObserving = null;
+        }
       };
     },
   };

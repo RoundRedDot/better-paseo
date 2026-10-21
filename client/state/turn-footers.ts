@@ -71,7 +71,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
   /** The loaded entries begin at the agent's first item. */
   let fromStart = false;
   let running: boolean | null = null;
-  let unsubscribe: ReturnType<Timeline["subscribe"]> | null = null;
+  let unsubscribe: (() => void) | null = null;
   let generation = 0;
   let dirty = false;
   let pending: Promise<void> | null = null;
@@ -213,13 +213,14 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
   }
 
   function refresh(): Promise<void> {
+    pageReader.invalidate();
     generation++;
     return request();
   }
 
   function connect() {
     if (unsubscribe) return;
-    unsubscribe = source().subscribe(({ event }) => {
+    unsubscribe = pageReader.observe(source(), ({ event }) => {
       if (event.type === "replacement" || event.type === "subscription_restored") {
         entries = [];
         footers = new Map();
@@ -238,7 +239,6 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
         if (targets.size) void refresh();
       }
     });
-    void unsubscribe.ready.catch(() => {});
   }
 
   function disconnect() {
