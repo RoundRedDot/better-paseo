@@ -49,8 +49,8 @@ export interface CascadeMenuProps {
  * for a menu hung from the right). Moving onto the submenu within those
  * 150 ms keeps it: the hover-intent delay stands in for Linear's pointer
  * triangle. Keys (web): up/down, right or Enter into a submenu, left back,
- * Enter chooses, Escape closes one level. A click outside is the owner's:
- * it renders a backdrop and calls `onClose`.
+ * Enter chooses, Escape closes one level. On web, a pointer press outside
+ * the menu and its anchor closes it; native owners render a backdrop.
  */
 export function CascadeMenu(props: CascadeMenuProps) {
   const { sections, theme, width, onClose } = props;
@@ -141,10 +141,20 @@ export function CascadeMenu(props: CascadeMenuProps) {
       if (result.effect?.type === "close") now.onClose();
       if (result.effect?.type === "select") choose(result.effect.level, result.effect.index);
     };
+    const onPointerDown = (event: PointerEvent) => {
+      const menu = containerRef.current as unknown as HTMLElement | null;
+      // The parent holds the trigger as well as both panels. Leave its press
+      // to the trigger's toggle, otherwise it would close and immediately reopen.
+      if (menu && !menu.parentElement?.contains(event.target as Node)) latest.current.onClose();
+    };
     // Capture, ahead of the board's own keys.
     const doc = document;
     doc.addEventListener("keydown", onKey, true);
-    return () => doc.removeEventListener("keydown", onKey, true);
+    doc.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      doc.removeEventListener("keydown", onKey, true);
+      doc.removeEventListener("pointerdown", onPointerDown, true);
+    };
   }, [choose]);
 
   const openRow = focus.open !== null ? layout.rows[focus.open] : undefined;

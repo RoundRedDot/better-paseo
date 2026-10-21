@@ -368,7 +368,9 @@ describe("CascadeMenu", () => {
     picked.mockClear();
     const handlers: { fn: (event: unknown) => void; capture: unknown }[] = [];
     (globalThis as { document?: unknown }).document = {
-      addEventListener: (_type: string, fn: (event: unknown) => void, capture: unknown) => handlers.push({ fn, capture }),
+      addEventListener: (type: string, fn: (event: unknown) => void, capture: unknown) => {
+        if (type === "keydown") handlers.push({ fn, capture });
+      },
       removeEventListener: () => {},
     };
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
@@ -396,6 +398,50 @@ describe("CascadeMenu", () => {
     } finally {
       delete (globalThis as { document?: unknown }).document;
       delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+    }
+  });
+
+  it("closes on outside pointer presses on web, keeps both panels and the trigger, and removes the listener", () => {
+    close.mockClear();
+    const addEventListener = vi.fn();
+    const removeEventListener = vi.fn();
+    const doc = { addEventListener, removeEventListener };
+    vi.stubGlobal("document", doc);
+    vi.stubGlobal("__rnMockOS", "web");
+    const trigger = {};
+    const mainRow = {};
+    const subRow = {};
+    const inside = new Set([trigger, mainRow, subRow]);
+    const node = { parentElement: { contains: (target: unknown) => inside.has(target as object) } };
+    try {
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(CascadeMenu, { sections: sections(), theme: theme(LIGHT), width: 240, top: 34, align: "left", onClose: close }),
+          { createNodeMock: () => node },
+        );
+      });
+      const registration = addEventListener.mock.calls.find(([type]) => type === "pointerdown")!;
+      expect(registration[2]).toBe(true);
+      const pointerDown = registration[1] as (event: { target: object }) => void;
+      act(() => row("Branch").props.onPress());
+      expect(submenu()).toHaveLength(1);
+      for (const target of inside) act(() => pointerDown({ target }));
+      expect(close).not.toHaveBeenCalled();
+      // A sibling toolbar control or anything outside the board closes it,
+      // even when that control stops the event from bubbling.
+      act(() => pointerDown({ target: {} }));
+      expect(close).toHaveBeenCalledTimes(1);
+      const updatedClose = vi.fn();
+      act(() => renderer!.update(
+        React.createElement(CascadeMenu, { sections: sections(), theme: theme(LIGHT), width: 240, top: 34, align: "left", onClose: updatedClose }),
+      ));
+      act(() => pointerDown({ target: {} }));
+      expect(updatedClose).toHaveBeenCalledTimes(1);
+      act(() => renderer!.unmount());
+      renderer = undefined;
+      expect(removeEventListener).toHaveBeenCalledWith("pointerdown", pointerDown, true);
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 
