@@ -48,7 +48,8 @@ function pathWords(path: string, columns: number): number[] {
     }
     const parts = piece.split("-").map((part, index, all) => (index < all.length - 1 ? `${part}-` : part));
     parts.forEach((part, index) => {
-      if (index === 0 && words.length > 0) words[words.length - 1] += textWidth(part);
+      const before = words.length - 1;
+      if (index === 0 && before >= 0) words[before] = (words[before] ?? 0) + textWidth(part);
       else words.push(textWidth(part));
     });
   }
