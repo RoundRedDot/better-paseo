@@ -126,10 +126,20 @@ export function DesktopBoard(props: {
     },
     [rootRef],
   );
+  // The pointer is on the popover: the card's own leave arrives after React
+  // commits its hover, which can be after the popover's enter, and must not
+  // close a popover the pointer is already in.
+  const inPopover = useRef(false);
   const closeDetailsSoon = useCallback(() => {
     clearClose();
+    if (inPopover.current) return;
     closeTimer.current = setTimeout(() => setPopover(null), MOTION.popoverCloseMs);
   }, []);
+  // A popover closed any other way (Escape, a new card) takes no leave with it.
+  const popoverId = popover?.id ?? null;
+  useEffect(() => {
+    inPopover.current = false;
+  }, [popoverId]);
 
   const latest = useRef({ board, focus, shapes, menu, popover });
   latest.current = { board, focus, shapes, menu, popover };
@@ -257,7 +267,10 @@ export function DesktopBoard(props: {
           key={popover.id}
           x={popover.x}
           y={popover.y}
-          onEnter={clearClose}
+          onEnter={() => {
+            inPopover.current = true;
+            clearClose();
+          }}
           onLeave={() => setPopover(null)}
         >
           <TaskDetails
@@ -265,6 +278,7 @@ export function DesktopBoard(props: {
             theme={theme}
             clock={board.clock}
             language={board.language}
+            maxHeight={POPOVER_MAX_HEIGHT}
             onOpen={
               board.callbacks.onOpen
                 ? (agentId) => {
