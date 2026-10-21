@@ -198,8 +198,14 @@ export function popoverPlacement(card: Box, root: Box): { x: number; y: number }
 
 /** The desktop lanes' geometry: Linear-style panels on the board's background. */
 export const LANES = {
-  /** A lane's narrowest width; its cards are this less the panel's padding (300 - 2 x 8 = 284). */
+  /** A lane's width once the lanes scroll; its cards are this less the panel's padding (300 - 2 x 8 = 284). */
   min: 300,
+  /**
+   * The narrowest a lane gets so that two still sit side by side (cards
+   * 220 - 2 x 8 = 204): a tablet with the sidebar open has about 480 for
+   * the board, where 300 showed a lane and a half.
+   */
+  narrow: 220,
   /** A collapsed lane's strip. */
   collapsed: 40,
   /** Between two lanes. */
@@ -208,19 +214,28 @@ export const LANES = {
   edge: 12,
 } as const;
 
+/** The narrowest board that draws lanes side by side: two at `LANES.narrow`. Below it the phone layout's tabs read better. */
+export const LANES_MIN_BOARD = 2 * LANES.narrow + LANES.gap + 2 * LANES.edge;
+
+/** True when the board draws the phone layout: the host's compact layout, or a board measured too narrow for two lanes. */
+export function boardIsCompact(hostCompact: boolean, width: number): boolean {
+  return hostCompact || (width > 0 && width < LANES_MIN_BOARD);
+}
+
 export interface LaneLayout {
   /** Each expanded lane's width; collapsed lanes are `LANES.collapsed`. */
   laneWidth: number;
   /** The row's full width, edges included. */
   contentWidth: number;
-  /** True only when the lanes at their minimum do not fit: then the row scrolls sideways. */
+  /** True only when the lanes do not fit at the width they scroll at: then the row scrolls sideways. */
   scroll: boolean;
 }
 
 /**
- * Expanded lanes share the viewport equally, never narrower than `LANES.min`,
- * with no maximum: a wide window has no horizontal scrollbar, a narrow one
- * scrolls at the minimum width.
+ * Expanded lanes share the viewport equally, with no maximum: a wide window
+ * has no horizontal scrollbar. When they do not fit at `LANES.min`, the row
+ * scrolls at the width that keeps two lanes in view, `LANES.min` at most
+ * and `LANES.narrow` at least.
  */
 export function laneLayout(viewport: number, expanded: number, collapsed: number): LaneLayout {
   const lanes = expanded + collapsed;
@@ -228,5 +243,8 @@ export function laneLayout(viewport: number, expanded: number, collapsed: number
   if (expanded === 0) return { laneWidth: 0, contentWidth: Math.max(viewport, fixed), scroll: fixed > viewport };
   const share = (viewport - fixed) / expanded;
   if (share >= LANES.min) return { laneWidth: share, contentWidth: viewport, scroll: false };
-  return { laneWidth: LANES.min, contentWidth: fixed + expanded * LANES.min, scroll: true };
+  const pair = (viewport - 2 * LANES.edge - LANES.gap) / 2;
+  const width = Math.max(LANES.narrow, Math.min(LANES.min, pair));
+  if (share >= width) return { laneWidth: share, contentWidth: viewport, scroll: false };
+  return { laneWidth: width, contentWidth: fixed + expanded * width, scroll: true };
 }

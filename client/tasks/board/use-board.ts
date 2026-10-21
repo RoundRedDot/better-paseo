@@ -146,13 +146,18 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, handlers: RefObject<BoardLayoutHandlers | null>): BoardController {
+/** `compact`: the board draws the phone layout, as the host's compact layout or a board too narrow for two lanes does. */
+export function useBoard(
+  props: PluginScreenProps,
+  rootRef: RefObject<unknown>,
+  handlers: RefObject<BoardLayoutHandlers | null>,
+  compact: boolean,
+): BoardController {
   const hostId = props.host.id;
   const language = useTasksLanguage();
   const strings = BOARD_STRINGS[language];
   const paseo = usePaseo();
   const hostToast = useToast();
-  const compact = props.layout.compact;
   const [notice, setNotice] = useState<BoardNotice | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dismissNotice = useCallback(() => {
@@ -198,7 +203,7 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
   const options = useMemo(() => ({ doneWindow, includeDone: true }), [doneWindow]);
   // Closed, the board's data stays warm a while, so a quick reopen sends nothing.
   const tasks = useTasks(paseo, options, lingerBoard);
-  const fields = useMemo(() => effectiveCard(settings, props.layout.compact), [settings, props.layout.compact]);
+  const fields = useMemo(() => effectiveCard(settings, compact), [settings, compact]);
 
   const visible = useBoardVisible(rootRef);
   const clock = useBoardClock(visible);
@@ -294,7 +299,7 @@ export function useBoard(props: PluginScreenProps, rootRef: RefObject<unknown>, 
     stop,
     callbacks,
     buttonsFor,
-    requestIcon: fields.projectIcon && !props.layout.compact ? requestProjectIcon : undefined,
+    requestIcon: fields.projectIcon && !compact ? requestProjectIcon : undefined,
     highlighted,
     highlight,
     toastMessage,
