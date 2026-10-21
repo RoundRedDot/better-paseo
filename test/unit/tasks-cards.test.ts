@@ -380,8 +380,8 @@ describe("TaskCardView rows", () => {
     };
     expect(pillColors("pill-label-frontend")).toEqual({ background: mix("#ffffff", "#8b5cf6", 0.1), border: mix("#ffffff", "#8b5cf6", 0.26) });
     expect(pillColors("pill-label-board")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
-    // The branch: the theme accent, borderless; folder, path and PR stay neutral.
-    expect(pillColors("pill-branch").background).toBe(mix("#ffffff", LIGHT.colors.accent, 0.12));
+    // The branch: a fixed blue, borderless; folder, path and PR stay neutral.
+    expect(pillColors("pill-branch").background).toBe(mix("#ffffff", tokens.branch, 0.12));
     // The agent pill takes the provider's brand (Codex green); the subtasks pill its dominant status (2 running).
     // The agent pills are borderless, in the brand's colours (Codex green).
     expect(pillColors("pill-model").background).toBe(mix("#ffffff", "#10A37F", 0.12));
