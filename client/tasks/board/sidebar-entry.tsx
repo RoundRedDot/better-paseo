@@ -10,6 +10,7 @@ import { useTasksLanguage } from "../i18n";
 import { useTasksSettings } from "./enabled";
 import { sidebarCountParts, sidebarCountText } from "./navigation";
 import { encodeBoardParams, lastBoardParams } from "./params";
+import { useBoardIntent } from "./prefetch";
 import { BOARD_STRINGS } from "./strings";
 
 /** The board's screen id; mirrors `TASKS_SCREEN_ID` in `contribute.tsx`, which imports this file. */
@@ -34,15 +35,23 @@ export function TasksSidebarEntry(props: PluginSidebarItemProps) {
   return mode === "none" ? <TasksRow {...props} label={label} /> : <CountedTasksRow {...props} label={label} mode={mode} />;
 }
 
+/**
+ * The row in a plain wrapper that warms the board on intent (`prefetch.ts`):
+ * pointer over it or focus on web, a touch on iOS and Android. The host's
+ * row takes no hover or press-in handler of its own.
+ */
 function TasksRow(props: PluginSidebarItemProps & { label: string; trailing?: ReactNode }) {
+  const intent = useBoardIntent(usePaseo());
   return (
-    <SidebarRow
-      icon="SquareKanban"
-      label={props.label}
-      active={props.currentScreen?.screenId === SCREEN_ID}
-      trailing={props.trailing}
-      onPress={() => props.openScreen({ screenId: SCREEN_ID, params: encodeBoardParams(lastBoardParams(props.host.id)) })}
-    />
+    <View {...intent}>
+      <SidebarRow
+        icon="SquareKanban"
+        label={props.label}
+        active={props.currentScreen?.screenId === SCREEN_ID}
+        trailing={props.trailing}
+        onPress={() => props.openScreen({ screenId: SCREEN_ID, params: encodeBoardParams(lastBoardParams(props.host.id)) })}
+      />
+    </View>
   );
 }
 

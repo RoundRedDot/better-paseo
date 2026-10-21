@@ -394,8 +394,23 @@ interface Run {
   tierRun: number;
 }
 
+/** Everything a board subscribes to; a warm hold asks for the same, so a board opened meanwhile sends nothing. */
+const BOARD_DEMAND: TasksDemand = { board: true, done: true };
+
+/** Why the board's data is kept without a board: the user is about to open one, or just closed one. */
+export type TasksHoldReason = "intent" | "linger";
+
+interface WarmHold {
+  release: () => void;
+  timer: ReturnType<typeof setTimeout> | null;
+}
+
 interface TaskStore {
   subscribe(listener: () => void, demand: TasksDemand): () => void;
+  /** Keep the board's subscriptions open for `reason`: until `ms` from now, or with no deadline when null. */
+  hold(reason: TasksHoldReason, ms: number | null): void;
+  hasHold(reason: TasksHoldReason): boolean;
+  dropHolds(): void;
   getSnapshot(options: TasksOptions): TasksHandle;
   getCounts(): SidebarCounts;
   loadMoreDone(window: DoneWindow): void;
@@ -404,6 +419,8 @@ interface TaskStore {
 }
 
 const stores = new WeakMap<PaseoApi, TaskStore>();
+/** Stores with a warm hold, so turning the board off can drop them all. */
+const heldStores = new Set<TaskStore>();
 
 function createStore(api: PaseoApi): TaskStore {
   const listeners = new Set<() => void>();
@@ -1221,36 +1238,72 @@ function createStore(api: PaseoApi): TaskStore {
     });
   }
 
-  return {
-    subscribe(listener, demand) {
-      const done = demand.board && demand.done;
-      listeners.add(listener);
-      consumers += 1;
-      if (consumers === 1) {
-        generation += 1;
-        startBase();
+  function subscribe(listener: () => void, demand: TasksDemand): () => void {
+    const done = demand.board && demand.done;
+    listeners.add(listener);
+    consumers += 1;
+    if (consumers === 1) {
+      generation += 1;
+      startBase();
+    }
+    if (demand.board) {
+      boardConsumers += 1;
+      if (boardConsumers === 1) startBoard();
+    }
+    if (done) {
+      doneConsumers += 1;
+      if (doneConsumers === 1) startDone();
+    }
+    return () => {
+      listeners.delete(listener);
+      consumers = Math.max(0, consumers - 1);
+      if (done) {
+        doneConsumers = Math.max(0, doneConsumers - 1);
+        if (doneConsumers === 0 && consumers > 0) stopDone();
       }
       if (demand.board) {
-        boardConsumers += 1;
-        if (boardConsumers === 1) startBoard();
+        boardConsumers = Math.max(0, boardConsumers - 1);
+        if (boardConsumers === 0 && consumers > 0) stopBoard();
       }
-      if (done) {
-        doneConsumers += 1;
-        if (doneConsumers === 1) startDone();
-      }
-      return () => {
-        listeners.delete(listener);
-        consumers = Math.max(0, consumers - 1);
-        if (done) {
-          doneConsumers = Math.max(0, doneConsumers - 1);
-          if (doneConsumers === 0 && consumers > 0) stopDone();
-        }
-        if (demand.board) {
-          boardConsumers = Math.max(0, boardConsumers - 1);
-          if (boardConsumers === 0 && consumers > 0) stopBoard();
-        }
-        if (consumers === 0) stopAll();
-      };
+      if (consumers === 0) stopAll();
+    };
+  }
+
+  /**
+   * A warm hold is one more board consumer without a listener: the tiers'
+   * ref counts do the rest, so a board mounted while a hold is up, or a hold
+   * taken while a board is open, starts nothing, and the last of them to go
+   * closes the board's subscriptions. One hold per reason; taking it again
+   * only moves its deadline.
+   */
+  const holds = new Map<TasksHoldReason, WarmHold>();
+
+  function hold(reason: TasksHoldReason, ms: number | null) {
+    let held = holds.get(reason);
+    if (!held) {
+      held = { release: subscribe(() => {}, BOARD_DEMAND), timer: null };
+      holds.set(reason, held);
+      heldStores.add(store);
+    }
+    if (held.timer !== null) clearTimeout(held.timer);
+    held.timer = ms === null ? null : setTimeout(() => dropHold(reason), ms);
+  }
+
+  function dropHold(reason: TasksHoldReason) {
+    const held = holds.get(reason);
+    if (!held) return;
+    holds.delete(reason);
+    if (held.timer !== null) clearTimeout(held.timer);
+    if (holds.size === 0) heldStores.delete(store);
+    held.release();
+  }
+
+  const store: TaskStore = {
+    subscribe,
+    hold,
+    hasHold: (reason) => holds.has(reason),
+    dropHolds() {
+      for (const reason of [...holds.keys()]) dropHold(reason);
     },
     getSnapshot,
     getCounts,
@@ -1258,6 +1311,7 @@ function createStore(api: PaseoApi): TaskStore {
     resolveParent,
     requestProjectIcon,
   };
+  return store;
 }
 
 function getStore(api: PaseoApi): TaskStore {
@@ -1269,12 +1323,41 @@ function getStore(api: PaseoApi): TaskStore {
   return store;
 }
 
-/** All lanes, all subscriptions. The board screen calls this once. */
-export function useTasks(paseo: PaseoApi, options: TasksOptions): TasksHandle {
+/**
+ * All lanes, all subscriptions. The board screen calls this once.
+ * `beforeRelease` runs as the board lets go, before its subscriptions could
+ * close: a warm hold taken there keeps them open.
+ */
+export function useTasks(paseo: PaseoApi, options: TasksOptions, beforeRelease?: (paseo: PaseoApi) => void): TasksHandle {
   const store = getStore(paseo);
-  const subscribe = useMemo(() => (listener: () => void) => store.subscribe(listener, { board: true, done: options.includeDone }), [store, options.includeDone]);
+  const subscribe = useMemo(() => (listener: () => void) => {
+    const release = store.subscribe(listener, { board: true, done: options.includeDone });
+    return () => {
+      beforeRelease?.(paseo);
+      release();
+    };
+  }, [store, paseo, options.includeDone, beforeRelease]);
   const getSnapshot = useMemo(() => () => store.getSnapshot(options), [store, options.doneWindow, options.includeDone]);
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+/**
+ * Open the board's subscriptions ahead of a board, or keep them after one:
+ * a warm hold for `reason`, released `ms` from now (null: no deadline until
+ * the next call). Taking a held reason again moves its deadline and sends
+ * nothing.
+ */
+export function holdTasks(paseo: PaseoApi, reason: TasksHoldReason, ms: number | null): void {
+  getStore(paseo).hold(reason, ms);
+}
+
+export function hasTasksHold(paseo: PaseoApi, reason: TasksHoldReason): boolean {
+  return stores.get(paseo)?.hasHold(reason) ?? false;
+}
+
+/** Drop every warm hold now (the board was turned off). Open boards keep their own subscriptions. */
+export function releaseTasksHolds(): void {
+  for (const store of [...heldStores]) store.dropHolds();
 }
 
 /**

@@ -4,6 +4,7 @@ import { TASKS_SETTINGS, tasksSettingsSchema } from "../../shared/tasks-settings
 import { TasksBoardScreen } from "./board/board-screen";
 import { setTasksEnabled, setTasksSettingsOpener, setTasksStartupRead, subscribeTasksEnabled, tasksEnabled } from "./board/enabled";
 import { encodeBoardParams, lastBoardParams } from "./board/params";
+import { prefetchBoardFromCommand, releaseBoardPrefetch } from "./board/prefetch";
 import { TasksSidebarEntry } from "./board/sidebar-entry";
 import { BOARD_STRINGS } from "./board/strings";
 import { subscribeHostLanguage } from "../i18n/host-language";
@@ -44,7 +45,11 @@ export function contributeTasks(client: PluginClientContext): () => void {
         keywords: KEYWORDS,
         context: "global",
         // The context names no host; this bundle runs per host, so the last board shown is this host's.
-        onSelect: (context) => context.openScreen({ screenId: TASKS_SCREEN_ID, params: encodeBoardParams(lastBoardParams()) }),
+        // The board's requests leave before its screen mounts (`prefetch.ts`).
+        onSelect: (context) => {
+          prefetchBoardFromCommand();
+          context.openScreen({ screenId: TASKS_SCREEN_ID, params: encodeBoardParams(lastBoardParams()) });
+        },
       }),
     ];
     return () => {
@@ -70,6 +75,8 @@ export function contributeTasks(client: PluginClientContext): () => void {
     else if (!on && removeBoard) {
       removeBoard();
       removeBoard = null;
+      // No warm subscription outlives the entry points.
+      releaseBoardPrefetch();
     }
   };
   const relabel = () => {
@@ -117,6 +124,7 @@ export function contributeTasks(client: PluginClientContext): () => void {
     unsubscribeHostLanguage();
     removeBoard?.();
     removeBoard = null;
+    releaseBoardPrefetch();
     removeSettings();
     void removeScreen();
     setTasksSettingsOpener(null);
