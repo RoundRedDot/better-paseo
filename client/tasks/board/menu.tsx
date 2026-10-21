@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Platform, Pressable, Text, View, useWindowDimensions } from "react-native";
+import { Platform, Pressable, View, useWindowDimensions } from "react-native";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
+import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
 import { HAIRLINE, devicePixel } from "./board-style";
 import {
   MENU,
@@ -54,9 +55,10 @@ export interface CascadeMenuProps {
  */
 export function CascadeMenu(props: CascadeMenuProps) {
   const { sections, theme, width, onClose } = props;
+  const scale = useTasksFontScale();
   const chrome = menuChrome(theme);
   const subWidth = props.submenuWidth ?? 200;
-  const layout = layoutMenu(sections);
+  const layout = layoutMenu(sections, scale);
   const topItems = layout.rows.map((row) => row.item);
   const [focus, setFocus] = useState<MenuFocus>(MENU_FOCUS);
   const [scrollY, setScrollY] = useState(0);
@@ -158,7 +160,7 @@ export function CascadeMenu(props: CascadeMenuProps) {
   }, [choose]);
 
   const openRow = focus.open !== null ? layout.rows[focus.open] : undefined;
-  const subHeight = subSections ? layoutMenu(subSections).height : 0;
+  const subHeight = subSections ? layoutMenu(subSections, scale).height : 0;
   const sub = submenuPlacement(openRow ? openRow.top - scrollY - MENU.padV : 0, subHeight, windowY, frame?.bottom ?? window.height, frame?.top ?? 0);
   return (
     <View
@@ -224,6 +226,7 @@ function MenuPanel(props: {
   testID?: string;
 }) {
   const { chrome, theme } = props;
+  const scale = useTasksFontScale();
   const colors = theme.colors;
   let index = -1;
   const body = props.sections.map((section, at) => (
@@ -235,7 +238,7 @@ function MenuPanel(props: {
         </View>
       ) : null}
       {section.title ? (
-        <View style={{ height: MENU.titleHeight, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: MENU.inset + 8 }}>
+        <View style={{ height: taskControlHeight(MENU.titleHeight, scale), flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: MENU.inset + 8 }}>
           {section.titleLeading}
           <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "500", color: colors.foregroundMuted }}>
             {section.title}
@@ -277,7 +280,7 @@ function MenuPanel(props: {
   }
   if (Platform.OS === "android") {
     return (
-      <DragScroll testID={props.testID ?? "menu-panel"} frame={frame} maxHeight={props.maxHeight ?? MENU.maxHeight} contentHeight={layoutMenu(props.sections).height} onScroll={props.onScroll}>
+      <DragScroll testID={props.testID ?? "menu-panel"} frame={frame} maxHeight={props.maxHeight ?? MENU.maxHeight} contentHeight={layoutMenu(props.sections, scale).height} onScroll={props.onScroll}>
         {body}
       </DragScroll>
     );
@@ -348,6 +351,7 @@ function DragScroll(props: {
 
 function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome; active: boolean; onHover(): void; onPress(): void }) {
   const { item, chrome } = props;
+  const scale = useTasksFontScale();
   const colors = props.theme.colors;
   const leading: ReactNode = item.leading ?? (item.icon ? <Icon name={item.icon} size={MENU.icon} color={colors.foregroundMuted} /> : null);
   return (
@@ -358,7 +362,7 @@ function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome
       onHoverIn={props.onHover}
       onPress={props.onPress}
       style={{
-        height: MENU.rowHeight,
+        height: taskControlHeight(MENU.rowHeight, scale),
         marginHorizontal: MENU.inset,
         paddingHorizontal: 8,
         borderRadius: MENU.rowRadius,
