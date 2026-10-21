@@ -176,6 +176,21 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
     { verb: "Subtask", target: "Find the bug", meta: ["General-purpose"] },
   ],
   [
+    "a question leads with what it asks, on one line",
+    call("AskUserQuestion", { type: "unknown", input: { questions: [
+      { question: "Which approach?\nThe second line stays out.", header: "Approach", options: [{ label: "A" }, { label: "B" }] },
+    ] }, output: "" }),
+    { verb: "Ask", target: "Which approach? …", meta: [] },
+  ],
+  [
+    "several questions count themselves",
+    call("AskUserQuestion", { type: "unknown", input: { questions: [
+      { question: "First?", options: [{ label: "A" }] },
+      { question: "Second?", options: [{ label: "B" }] },
+    ] }, output: "" }),
+    { verb: "Ask", target: "First?", meta: ["2 questions"] },
+  ],
+  [
     "unknown · name · key argument",
     call("frobnicate", { type: "unknown", input: { path: "/w/x" }, output: "" }),
     { verb: "frobnicate", target: "/w/x" },

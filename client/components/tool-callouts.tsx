@@ -95,9 +95,10 @@ export function toolIconName(tool: ToolKind): string {
   }
 }
 
-/** The icon a settled call shows: its MCP service's or shell program's, else its kind's. */
+/** The icon a settled call shows: a question's, its MCP service's or shell program's, else its kind's. */
 export function toolCallIconName(call: ToolCallView): string {
   if (call.activity) return call.activity.icon;
+  if (readUserQuestions(call)) return "MessageCircleQuestion";
   const shell = call.tool === "bash" || call.tool === "shell";
   return (call.tool === "mcp" && call.mcp && mcpServiceIcon(call.mcp.server, call.mcp.tool))
     || (shell && call.command && commandIcon(call.command))
