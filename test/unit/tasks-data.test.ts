@@ -104,7 +104,7 @@ describe("Tasks data store", () => {
         activeAgent("running-early", { status: "initializing", activeTurn: { turnId: "t1", startedAt: at(1) } }),
         activeAgent("failed", { status: "error", attentionReason: "error", attentionTimestamp: at(5), lastError: "tool crashed" }),
         activeAgent("unread", { status: "idle", requiresAttention: true, attentionReason: "finished", attentionTimestamp: at(3) }),
-        activeAgent("done", { status: "closed", updatedAt: at(4) }),
+        activeAgent("done", { status: "closed", updatedAt: recentIso(60_000) }),
         activeAgent("archived", { status: "running", archivedAt: at(8) }),
       ],
       workspaces: [workspace(["bug", "release"])],
