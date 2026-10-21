@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle, type StyleProp } from "react-native";
+import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle, type StyleProp, type ViewProps } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
@@ -92,6 +92,7 @@ export function ToolbarItem({
   details,
   detailsWidth = TOOLTIP_SLOT,
   onLongPress,
+  onLayout,
 }: Omit<ToolbarButtonProps, "icon" | "color" | "onPress"> & {
   children: ReactNode;
   onPress?: () => void;
@@ -102,6 +103,8 @@ export function ToolbarItem({
   details?: ReactNode;
   detailsWidth?: number;
   onLongPress?: (anchor: RefObject<View | null>) => void;
+  /** The item's own width, for a row that fits its items to one line. */
+  onLayout?: ViewProps["onLayout"];
 }) {
   const groupAlign = useContext(TooltipAlignContext);
   const sideMode = useContext(TooltipSideContext);
@@ -174,7 +177,8 @@ export function ToolbarItem({
   return (
     // Every web View is its own stacking context (`z-index: 0`), so the name
     // can only rise over the buttons after this one if the button does.
-    <View ref={anchorRef} collapsable={details || onLongPress ? false : undefined} style={[styles.anchor, open && styles.raised]}>
+    <View ref={anchorRef} collapsable={details || onLongPress ? false : undefined} onLayout={onLayout}
+      style={[styles.anchor, open && styles.raised]}>
       <Pressable
         accessibilityRole={onPress ? "button" : "image"}
         accessibilityLabel={accessibilityLabel}

@@ -14,7 +14,7 @@ vi.mock("@getpaseo/plugin/client/react-native", () => ({
 }));
 vi.mock("../../client/ui/disclosure-header", () => ({ DISCLOSURE_HEADER: { icon: 14 } }));
 
-import { AssistantFooter } from "../../client/components/turn-footer";
+import { AssistantFooter, fitOneLine } from "../../client/components/turn-footer";
 import { ProviderLogo } from "../../client/components/provider-logo";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { Animated, StatusBar, StyleSheet } from "./helpers/rn-mock";
@@ -45,9 +45,9 @@ afterEach(() => {
 });
 
 describe("assistant footer", () => {
-  it.each(["ios", "web"].flatMap((platform) => [0, 82000].flatMap((durationMs) =>
+  it.each(["ios", "web"].flatMap((platform) => [0, 1, 82000].flatMap((durationMs) =>
     ["grok", "cursor", "codex"].map((agentName) => ({ platform, durationMs, agentName })))))
-  ("hides unreliable Grok and Cursor timing: $platform $agentName $durationMs", ({ platform, agentName, durationMs }) => {
+  ("hides only replay-collapsed Grok and Cursor timing: $platform $agentName $durationMs", ({ platform, agentName, durationMs }) => {
     const globals = globalThis as { __rnMockOS?: string };
     const previousPlatform = globals.__rnMockOS;
     globals.__rnMockOS = platform;
@@ -57,7 +57,8 @@ describe("assistant footer", () => {
       startedAt: 1000, usage: { outputTokens: 42 },
     })); });
     try {
-      const visible = agentName !== "grok" && agentName !== "cursor";
+      // A replay stamps every item with the load time; a live turn times normally.
+      const visible = (agentName !== "grok" && agentName !== "cursor") || durationMs >= 1000;
       expect(renderer.root.findAllByType("Pressable" as never).some((node) =>
         node.props.accessibilityLabel?.startsWith("Elapsed time:"))).toBe(visible);
       const toolbar = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.testID === "footer-toolbar")!;
@@ -574,7 +575,7 @@ describe("assistant footer", () => {
       const button = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.accessibilityRole === "button")!;
       const style = StyleSheet.flatten(container.props.style);
       expect(style.minHeight).toBe(24);
-      expect(style.flexWrap).toBe("wrap");
+      expect(style.flexWrap).toBe("nowrap");
       expect(style.gap).toBe(8);
       expect(style.marginBottom).toBe(16);
       expect(button.props.hitSlop).toBe(10);
@@ -693,5 +694,66 @@ describe("assistant footer details motion", () => {
       globals.__rnMockOS = previousPlatform;
       motion.reduced = false;
     }
+  });
+});
+
+describe("compact footer on one line", () => {
+  const props = { text, at, tokens, agentName: "claude", modelName: "Opus 5.5", startedAt: at.getTime() - 32000, durationMs: 32000 };
+  const layout = (node: TestRenderer.ReactTestInstance, width: number) =>
+    act(() => { node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 24 } } }); });
+  /** The measured ToolbarItem root that holds the labelled control. */
+  const item = (renderer: TestRenderer.ReactTestRenderer, label: string) => renderer.root.findAll((node) =>
+    node.type === ("View" as never) && typeof node.props.onLayout === "function" &&
+    node.findAll((child) => typeof child.props.accessibilityLabel === "string" &&
+      child.props.accessibilityLabel.startsWith(label)).length > 0)[0]!;
+  const shown = (renderer: TestRenderer.ReactTestRenderer) => ["Copy reply", "Copy model name", "Start time", "Elapsed time:"]
+    .filter((label) => renderer.root.findAll((node) => typeof node.props.accessibilityLabel === "string" &&
+      node.props.accessibilityLabel.startsWith(label)).length > 0);
+
+  it("keeps the elapsed time and drops the clock, then the model name, as the row narrows", () => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, { ...props, compact: true })); });
+    try {
+      const row = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.testID === "footer-toolbar")!;
+      expect(shown(renderer)).toEqual(["Copy reply", "Copy model name", "Start time", "Elapsed time:"]);
+      layout(item(renderer, "Copy reply"), 52);
+      layout(item(renderer, "Copy model name"), 84);
+      layout(item(renderer, "Start time"), 54);
+      layout(item(renderer, "Elapsed time:"), 46);
+      // 52 + 84 + 54 + 46 + 3 gaps of 8 = 260.
+      layout(row, 260);
+      expect(shown(renderer)).toEqual(["Copy reply", "Copy model name", "Start time", "Elapsed time:"]);
+      layout(row, 240);
+      expect(shown(renderer)).toEqual(["Copy reply", "Copy model name", "Elapsed time:"]);
+      layout(row, 150);
+      expect(shown(renderer)).toEqual(["Copy reply", "Elapsed time:"]);
+      // The details still carry what the row dropped.
+      act(() => { row.props.onLongPress(); });
+      for (const label of ["Model name", "Start time", "End time", "Elapsed time"]) {
+        expect(renderer.root.findAllByProps({ testID: `footer-detail-${label}` }).length).toBeGreaterThan(0);
+      }
+      act(() => { renderer.root.findByProps({ accessibilityLabel: "Close preview" }).props.onPress(); });
+      layout(row, 393);
+      expect(shown(renderer)).toEqual(["Copy reply", "Copy model name", "Start time", "Elapsed time:"]);
+    } finally { act(() => renderer.unmount()); }
+  });
+
+  it("wraps on desktop instead of dropping anything", () => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(AssistantFooter, { ...props, compact: false })); });
+    try {
+      const row = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.testID === "footer-toolbar")!;
+      expect(StyleSheet.flatten(row.props.style).flexWrap).toBe("wrap");
+      expect(row.props.onLayout).toBeUndefined();
+      expect(shown(renderer)).toEqual(["Copy reply", "Copy model name", "Start time", "Elapsed time:"]);
+    } finally { act(() => renderer.unmount()); }
+  });
+
+  it("counts only the items it draws", () => {
+    expect(fitOneLine({ copy: 52, model: 84, clock: 54, duration: 46 }, 260, 8)).toEqual({ model: true, clock: true });
+    expect(fitOneLine({ copy: 52, model: 84, clock: 54, duration: 46 }, 259, 8)).toEqual({ model: true, clock: false });
+    // No duration and no model: the clock has the room.
+    expect(fitOneLine({ copy: 52, clock: 54 }, 114, 8)).toEqual({ model: true, clock: true });
+    expect(fitOneLine({ copy: 52, model: 300, clock: 54, duration: 46 }, 200, 8)).toEqual({ model: false, clock: false });
   });
 });

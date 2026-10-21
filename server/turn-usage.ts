@@ -46,10 +46,18 @@ export function createTurnUsageLedger(dir: string) {
       return queued(agentId, async () => {
         const turns = await load(agentId);
         // A completion without usage leaves the agent's previous figure in
-        // place. The same figure again is that stale reading, not a new turn.
-        const last = turns[turns.length - 1];
-        if (last && JSON.stringify(last.usage) === JSON.stringify(turn.usage)) return;
-        turns.push(turn);
+        // place. The same figure again is that stale reading, not this turn's.
+        let entry = turn;
+        if (turn.usage) {
+          const counted = turns.findLast((recorded) => recorded.usage);
+          if (counted && JSON.stringify(counted.usage) === JSON.stringify(turn.usage)) {
+            const { usage: _stale, ...timing } = turn;
+            entry = timing;
+          }
+        }
+        // A turn with neither a figure nor a start adds nothing to the record.
+        if (!entry.usage && entry.startedAt === undefined) return;
+        turns.push(entry);
         await mkdir(dir, { recursive: true });
         const path = join(dir, `${agentId}.json`);
         const temp = `${path}.${process.pid}.tmp`;
@@ -60,25 +68,46 @@ export function createTurnUsageLedger(dir: string) {
   };
 }
 
+/** Turn starts kept in memory until their end; more than this means ends were missed. */
+const STARTS_KEPT = 1_000;
+
 /**
- * Records each completed turn's usage as it ends, and answers `turns.usage`.
- * The daemon updates the agent's `lastUsage` before it announces the end, so
- * the refreshed agent carries this turn's figure.
+ * Records each turn's start and end as the daemon announces them, the usage of
+ * each completed turn, and answers `turns.usage`. The daemon updates the
+ * agent's `lastUsage` before it announces the end, so the refreshed agent
+ * carries this turn's figure.
  */
 export function registerTurnUsageServer(
   server: PluginServerContext,
   ledger = createTurnUsageLedger(turnUsageDir()),
   now = () => Date.now(),
 ): void {
+  const starts = new Map<string, number>();
+  const key = (agentId: string, turnId: string) => `${agentId}\n${turnId}`;
+
+  server.on("agent.turn_started", ({ agent, turnId }) => {
+    if (!turnId) return;
+    starts.set(key(agent.id, turnId), now());
+    if (starts.size > STARTS_KEPT) starts.delete(starts.keys().next().value!);
+  });
+
   server.on("agent.turn_ended", async ({ agent, turnId, outcome }, { paseo }) => {
-    if (outcome.kind !== "completed" || !turnId) return;
+    if (!turnId) return;
     const endedAt = now();
-    try {
-      const usage = turnUsageSchema.safeParse((await paseo.agents.ref(agent.id).refresh())?.agent.lastUsage);
-      if (usage.success && Object.keys(usage.data).length) await ledger.record(agent.id, { turnId, endedAt, usage: usage.data });
-    } catch {
-      // A missed reading costs one turn's figures, never the turn itself.
+    const startedAt = starts.get(key(agent.id, turnId));
+    starts.delete(key(agent.id, turnId));
+    const timing = { turnId, ...(startedAt !== undefined && startedAt <= endedAt ? { startedAt } : {}), endedAt };
+    let usage: RecordedTurn["usage"];
+    if (outcome.kind === "completed") {
+      try {
+        const parsed = turnUsageSchema.safeParse((await paseo.agents.ref(agent.id).refresh())?.agent.lastUsage);
+        if (parsed.success && Object.keys(parsed.data).length) usage = parsed.data;
+      } catch {
+        // A missed reading costs one turn's figures, never its timing.
+      }
     }
+    try { await ledger.record(agent.id, usage ? { ...timing, usage } : timing); }
+    catch { /* A full disk costs the record, never the turn. */ }
   });
 
   server.handle(turnUsageRpc, async ({ agentId, since }) => ({
