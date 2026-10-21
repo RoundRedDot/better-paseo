@@ -2,7 +2,7 @@ import React, { memo, useCallback, useLayoutEffect, useRef } from "react";
 import { Animated, Platform, View, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { probeAnimationLoop } from "../../debug/perf";
-import { holdStepClock } from "../../ui/step-clock";
+import { steppedEasing } from "../../ui/tokens/motion";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import type { StatusKind } from "../model";
 import { taskTokens } from "./tokens";
@@ -56,17 +56,17 @@ const WEB = Platform.OS === "web";
 
 // --- One clock for every ring ------------------------------------------------
 //
-// Native: one Animated.Value stepped by the shared step clock (`ui/step-clock.ts`),
-// held while the first ring is mounted and released when the last one leaves, so
-// every ring is in phase and a board without running cards runs nothing. A
-// native-driver loop changed the arc on every vsync, and many Android devices
-// redraw the whole window for that. Web: each ring runs a Web Animation
+// Native: one Animated.Value on the native driver, started when the first ring
+// mounts and stopped when the last one leaves, so every ring is in phase and a
+// board without running cards runs nothing. Its easing holds each of 12 steps
+// (`steppedEasing`): a smooth turn changed the arc on every vsync, and many
+// Android devices redraw the whole window for that. Web: each ring runs a Web Animation
 // pinned to the document timeline's origin (`startTime = 0`), the host's own
 // approach in `clock.web.ts`, so rings mounted at different times still agree.
 
 let spin: Animated.Value | null = null;
 let rotation: Animated.AnimatedInterpolation<string> | null = null;
-let releaseClock: (() => void) | null = null;
+let loop: Animated.CompositeAnimation | null = null;
 let holders = 0;
 let releaseProbe: (() => void) | null = null;
 
@@ -83,10 +83,17 @@ export function holdStatusRing(): () => void {
   sharedRotation();
   holders += 1;
   if (holders === 1 && spin) {
-    const value = spin;
-    releaseClock = holdStepClock(STATUS_RING_PERIOD_MS, STATUS_RING_STEPS, (step) =>
-      value.setValue(step / STATUS_RING_STEPS),
+    spin.setValue(0);
+    loop = Animated.loop(
+      Animated.timing(spin, {
+        toValue: 1,
+        duration: STATUS_RING_PERIOD_MS,
+        easing: steppedEasing(STATUS_RING_STEPS),
+        useNativeDriver: true,
+        isInteraction: false,
+      }),
     );
+    loop.start();
     releaseProbe = probeAnimationLoop("StatusRing");
   }
   let held = true;
@@ -95,8 +102,8 @@ export function holdStatusRing(): () => void {
     held = false;
     holders -= 1;
     if (holders === 0) {
-      releaseClock?.();
-      releaseClock = null;
+      loop?.stop();
+      loop = null;
       releaseProbe?.();
       releaseProbe = null;
     }
