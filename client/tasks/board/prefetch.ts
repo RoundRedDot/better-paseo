@@ -20,6 +20,13 @@ import { tasksEnabled } from "./enabled";
  * reopening is instant.
  */
 export const INTENT_GRACE_MS = 10_000;
+/**
+ * A pointer must stay on the entry this long before it counts as intent; one
+ * that merely passes over sends nothing. Focus and touch need no wait. A
+ * click sooner than this just opens the board, which loads as it would
+ * without a warm-up.
+ */
+export const HOVER_INTENT_MS = 80;
 export const BOARD_LINGER_MS = 30_000;
 
 /** Intent began: open the board's subscriptions, or keep them open with no deadline. */
@@ -62,8 +69,10 @@ type IntentProps = Pick<ViewProps, "onPointerEnter" | "onPointerLeave" | "onFocu
 /**
  * Handlers for a board entry's wrapper: on web pointer enter / leave and
  * focus / blur (React's focus events bubble from the row's pressable); on
- * iOS and Android touch start / end, the press-in before the press. One
- * hold per store whatever fires, so repeated hovers open nothing twice.
+ * iOS and Android touch start / end, the press-in before the press. A
+ * pointer counts after `HOVER_INTENT_MS` on the entry, focus and touch at
+ * once. One hold per store whatever fires, so repeated hovers open nothing
+ * twice.
  */
 export function useBoardIntent(paseo: PaseoApi): IntentProps {
   const active = useRef(false);
@@ -73,11 +82,29 @@ export function useBoardIntent(paseo: PaseoApi): IntentProps {
     active.current = true;
     warmBoard(latest.current);
   }, []);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelHover = useCallback(() => {
+    if (hoverTimer.current === null) return;
+    clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+  }, []);
+  const startNow = useCallback(() => {
+    cancelHover();
+    start();
+  }, [cancelHover, start]);
+  const hover = useCallback(() => {
+    if (active.current || hoverTimer.current !== null) return;
+    hoverTimer.current = setTimeout(() => {
+      hoverTimer.current = null;
+      start();
+    }, HOVER_INTENT_MS);
+  }, [start]);
   const end = useCallback(() => {
+    cancelHover();
     if (!active.current) return;
     active.current = false;
     coolBoard(latest.current);
-  }, []);
+  }, [cancelHover]);
   useEffect(() => {
     entryApi = paseo;
     return () => {
@@ -88,9 +115,9 @@ export function useBoardIntent(paseo: PaseoApi): IntentProps {
   useEffect(() => end, [end]);
   return useMemo(
     () => (Platform.OS === "web"
-      ? { onPointerEnter: start, onPointerLeave: end, onFocus: start, onBlur: end }
-      : { onTouchStart: start, onTouchEnd: end, onTouchCancel: end }),
-    [start, end],
+      ? { onPointerEnter: hover, onPointerLeave: end, onFocus: startNow, onBlur: end }
+      : { onTouchStart: startNow, onTouchEnd: end, onTouchCancel: end }),
+    [hover, startNow, end],
   );
 }
 
