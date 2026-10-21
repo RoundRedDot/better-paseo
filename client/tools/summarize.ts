@@ -17,6 +17,7 @@
 import { stripAnsi } from "../copy/content";
 import type { ToolCallView } from "./classify";
 import { shortAgentId, summarizeAgentRow } from "./agent-row";
+import { readUserQuestions } from "./user-questions";
 
 export interface ToolSummary {
   verb: string;
@@ -290,6 +291,13 @@ function pushDuration(meta: string[], view: ToolCallView): void {
 function summarizeKind(view: ToolCallView): ToolSummary {
   const { meta, tone } = base(view);
   const settled = view.status !== "running";
+
+  // A question to the reader leads with what it asks, whatever kind carried it.
+  const questions = readUserQuestions(view)?.questions;
+  if (questions) {
+    if (questions.length > 1) meta.push(plural(questions.length, "question"));
+    return { verb: "Ask", target: clip(firstLine(questions[0]?.question), TARGET_MAX), meta, tone };
+  }
 
   switch (view.tool) {
     case "read": {
