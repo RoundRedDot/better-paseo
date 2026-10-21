@@ -28,7 +28,13 @@ vi.mock("../../client/web", async (importOriginal) => ({
 
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const react = await import("react");
-  return { Icon: (props: Record<string, unknown>) => react.createElement("Icon", props) };
+  const rn = await import("./helpers/rn-mock");
+  return {
+    Icon: (props: Record<string, unknown>) => react.createElement("Icon", props),
+    ScrollView: rn.ScrollView,
+    copyText: async () => {},
+    useToast: () => ({ show() {}, error() {} }),
+  };
 });
 
 import "./helpers/quiet-renderer";

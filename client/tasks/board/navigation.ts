@@ -177,7 +177,8 @@ export function sidebarCountText(parts: readonly SidebarCountPart[], language: "
   return parts.map((part) => SIDEBAR_COUNT_TEXT[language][part.lane](part.count)).join(language === "zh" ? "，" : ", ");
 }
 
-export const POPOVER_WIDTH = 288;
+/** The details popover's width (`cards/task-details.tsx` DETAILS.width). */
+export const POPOVER_WIDTH = 320;
 export const POPOVER_MAX_HEIGHT = 420;
 
 export interface Box {

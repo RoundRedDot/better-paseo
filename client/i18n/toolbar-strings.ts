@@ -14,6 +14,8 @@ const ZH: Readonly<Record<string, string>> = {
   Added: "已添加",
   "Couldn't copy": "复制失败",
   "Copy path": "复制路径",
+  "Copy branch name": "复制分支名",
+  "Copy folder name": "复制文件夹名",
   "Copy URL": "复制 URL",
   "Copy command": "复制命令",
   "Copy output": "复制输出",

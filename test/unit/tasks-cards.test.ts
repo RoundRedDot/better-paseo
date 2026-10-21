@@ -32,10 +32,15 @@ vi.mock("react-native", async () => {
   };
 });
 
+const clipboard = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => {}), show: vi.fn(), error: vi.fn() }));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const react = await import("react");
+  const rn = await import("./helpers/rn-mock");
   return {
     Icon: (props: Record<string, unknown>) => react.createElement("Icon", props),
+    ScrollView: rn.ScrollView,
+    copyText: clipboard.copyText,
+    useToast: () => ({ show: clipboard.show, error: clipboard.error }),
   };
 });
 
@@ -48,7 +53,11 @@ import type { PermissionButton, StopPhase } from "../../client/tasks/actions";
 import {
   StatusIcon,
   TaskCardView,
+  DETAILS,
   TaskDetails,
+  branchHint,
+  shortenPath,
+  usageRows,
   buildTaskTokens,
   cardLayout,
   contextTone,
@@ -973,50 +982,126 @@ describe("useTime", () => {
 });
 
 describe("TaskDetails", () => {
-  it("lists location, stats and the open-tab button", async () => {
+  beforeEach(() => {
+    clipboard.copyText.mockClear();
+    clipboard.show.mockClear();
+  });
+
+  it("heads with the status, the title and the agent, and opens the tab from the corner", async () => {
     const onOpen = vi.fn();
     const tree = await render(React.createElement(TaskDetails, { card: sample("sample-running"), theme: LIGHT, now: NOW, onOpen, language: "zh" }));
-    const all = texts(tree.root);
-    expect(all).toEqual(
-      expect.arrayContaining([
-        "feat/tasks-board",
-        "↑3 ↓0 origin · 有未提交改动",
-        "~/code/better-paseo/.worktrees/tasks-board",
-        "#42 feat: Tasks board",
-        "1 小时前",
-        "Bypass",
-        "182k (缓存 120k)",
-        "14k",
-        "$1.84",
-        "172k / 200k",
-        "打开 tab",
-      ]),
-    );
+    const header = hostByTestId(tree.root, "task-details-header");
+    expect(texts(header)).toEqual(["运行中", "12m 30s", "Port the status ring to React Native", "GPT-5.5 Codex", "·", "Medium", "·", "Bypass"]);
+    // No open-tab row any more: one round arrow in the header's corner.
+    expect(texts(tree.root)).not.toContain("打开 tab");
+    const open = hostByTestId(header, "task-details-open");
+    expect(icons(open)).toEqual(["ArrowUpRight"]);
+    expect(flat(open.props.style)).toMatchObject({ width: 28, height: 28, borderRadius: 14, backgroundColor: "transparent" });
+    await act(async () => open.props.onHoverIn());
+    expect(flat(hostByTestId(header, "task-details-open").props.style).backgroundColor).toBe(menuChrome(LIGHT).hover);
     byLabel(tree.root, "打开 tab").props.onPress();
     expect(onOpen).toHaveBeenCalledWith("sample-running");
   });
 
-  it("lays rows out as a fixed key column and a wrapping value column", async () => {
+  it("lists the place, then copyable branch, folder, directory and PR rows, then the usage", async () => {
     const tree = await render(React.createElement(TaskDetails, { card: sample("sample-running"), theme: LIGHT, now: NOW, language: "zh" }));
-    for (const key of ["工作目录", "Workspace", "分支"]) {
-      const row = hostByTestId(tree.root, `detail-row-${key}`);
-      const [keyText, valueColumn] = row.children as ReactTestInstance[];
-      expect(flat(keyText!.props.style)).toMatchObject({ width: 84, flexShrink: 0 });
-      expect(flat(valueColumn!.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
-      for (const text of valueColumn!.findAll((node) => (node.type as unknown) === "Text")) {
-        const style = flat(text.props.style);
-        expect(style.flex).toBeUndefined();
-        expect(style.position).toBeUndefined();
-        expect(text.props.numberOfLines).toBeUndefined();
-      }
+    const location = hostByTestId(tree.root, "task-details-location");
+    expect(texts(hostByTestId(location, "task-details-place"))).toEqual(["B", "better-paseo › tasks-board", "worktree"]);
+    expect(texts(hostByTestId(location, "task-details-branch"))).toEqual(["feat/tasks-board", "未提交", "↑3 ↓0"]);
+    expect(texts(hostByTestId(location, "task-details-folder"))).toEqual(["tasks-board"]);
+    // The directory is cut in its middle to one line.
+    expect(texts(hostByTestId(location, "task-details-cwd"))).toEqual(["…/.worktrees/tasks-board"]);
+    expect(texts(hostByTestId(location, "task-details-pr"))).toEqual(["#42 feat: Tasks board"]);
+    expect(texts(hostByTestId(tree.root, "task-details-usage"))).toEqual(
+      expect.arrayContaining(["创建时间", "1 小时前", "缓存 120k", "182k", "14k", "$1.84", "86%", "172k / 200k"]),
+    );
+
+    const copies: Array<[string, string, string]> = [
+      ["task-details-branch", "feat/tasks-board", "Copy branch name"],
+      ["task-details-folder", "tasks-board", "Copy folder name"],
+      ["task-details-cwd", "/Users/dev/code/better-paseo/.worktrees/tasks-board", "Copy path"],
+      ["task-details-pr", "https://github.com/RoundRedDot/better-paseo/pull/42", "Copy URL"],
+    ];
+    for (const [testID, text, label] of copies) {
+      const row = hostByTestId(tree.root, testID);
+      expect(row.props.accessibilityRole).toBe("button");
+      await act(async () => row.props.onPress());
+      expect(clipboard.copyText).toHaveBeenLastCalledWith(text);
+      expect(clipboard.show).toHaveBeenCalled();
     }
-    expect(texts(hostByTestId(tree.root, "detail-row-工作目录"))).toEqual(["工作目录", "~/code/better-paseo/.worktrees/tasks-board"]);
+    expect(clipboard.copyText).toHaveBeenCalledTimes(4);
+    // The place row only informs.
+    expect(hostByTestId(location, "task-details-place").props.onPress).toBeUndefined();
   });
 
-  it("says a directory is not a git checkout", async () => {
+  it("says nothing beside a clean, level branch", async () => {
+    const base = sample("sample-running");
+    const card = { ...base, location: { ...base.location, git: { dirty: false, ahead: 0, behind: 0 } } };
+    const tree = await render(React.createElement(TaskDetails, { card, theme: LIGHT, now: NOW, language: "zh" }));
+    expect(texts(hostByTestId(tree.root, "task-details-branch"))).toEqual(["feat/tasks-board"]);
+    expect(texts(tree.root).join(" ")).not.toMatch(/无未提交改动|有未提交改动|origin/);
+    expect(branchHint({ dirty: false, ahead: 0, behind: 0 })).toEqual({ sync: null, dirty: false });
+    expect(branchHint({ dirty: true, ahead: null, behind: 2 })).toEqual({ sync: "↑0 ↓2", dirty: true });
+    expect(branchHint(null)).toEqual({ sync: null, dirty: false });
+  });
+
+  it("says a directory is not a git checkout, and has no corner arrow without onOpen", async () => {
     const tree = await render(React.createElement(TaskDetails, { card: sample("sample-done"), theme: LIGHT, now: NOW, language: "en" }));
-    expect(texts(tree.root)).toEqual(expect.arrayContaining(["Not a git directory", "directory"]));
-    expect(texts(tree.root)).not.toContain("Open tab");
+    expect(texts(hostByTestId(tree.root, "task-details-branch"))).toEqual(["Not a git directory"]);
+    expect(hostByTestId(tree.root, "task-details-branch").props.onPress).toBeUndefined();
+    expect(texts(hostByTestId(tree.root, "task-details-place"))).toEqual(["B", "better-paseo › tasks-board", "directory"]);
+    expect(tree.root.findAll((node) => node.props.testID === "task-details-open")).toEqual([]);
+  });
+
+  it("lists the subtasks with their status, and the failure under the title", async () => {
+    const running = await render(React.createElement(TaskDetails, { card: sample("sample-running"), theme: LIGHT, now: NOW, language: "zh" }));
+    expect(texts(hostByTestId(running.root, "task-details-subtasks"))).toEqual([
+      "子任务",
+      "1 / 3 完成",
+      "Measure the sidebar ring",
+      "运行中",
+      "Write the ring geometry test",
+      "运行中",
+      "Collect status colours",
+      "已完成",
+    ]);
+    await act(async () => running.unmount());
+    renderer = null;
+    const failed = await render(React.createElement(TaskDetails, { card: sample("sample-failed"), theme: LIGHT, now: NOW, language: "en" }));
+    expect(texts(hostByTestId(failed.root, "task-details-error"))).toEqual(["Provider exited with code 1: rate limit reached"]);
+    expect(icons(hostByTestId(failed.root, "task-details-error"))).toEqual(["CircleX"]);
+  });
+
+  it("parts its groups with lines one device pixel thin", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    try {
+      const tree = await render(React.createElement(TaskDetails, { card: sample("sample-running"), theme: LIGHT, now: NOW, language: "zh" }));
+      const rules = tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-details-rule");
+      // Under the header, then between location, subtasks and usage.
+      expect(rules).toHaveLength(3);
+      // The mock screen is 3x.
+      for (const rule of rules) expect(flat(rule.props.style)).toMatchObject({ height: 1 / 3, backgroundColor: LIGHT.colors.border });
+    } finally {
+      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+    }
+  });
+
+  it("cuts a path in its middle to fit", () => {
+    expect(shortenPath("~/code/app", 20)).toBe("~/code/app");
+    expect(shortenPath("~/workspace/rrd/ideashell-system/ideashell-android/.worktrees/align-206-integration", 40)).toBe(
+      "…/.worktrees/align-206-integration",
+    );
+    expect(shortenPath("~/a/an-extremely-long-folder-name-that-never-fits", 20)).toBe("…/an-ext…-never-fits");
+    // Wide characters take two columns.
+    expect(shortenPath("~/文档/研究笔记/第二季度", 20)).toBe("…/研究笔记/第二季度");
+  });
+
+  it("shows Updated only once it differs from Created and no turn runs", () => {
+    const done = sample("sample-done");
+    expect(usageRows(done, NOW, "en").map((row) => row.key)).toEqual(["created", "updated", "input", "output", "cost"]);
+    expect(usageRows(sample("sample-running"), NOW, "en").map((row) => row.key)).not.toContain("updated");
+    const fresh = { ...done, timing: { ...done.timing, updatedAt: done.timing.createdAt }, usage: null };
+    expect(usageRows(fresh, NOW, "zh").map((row) => row.label)).toEqual(["创建时间"]);
   });
 });
 
@@ -1274,7 +1359,7 @@ describe("overlays in the board's menu chrome", () => {
   it("frames the details popover and the context tooltip the same way", async () => {
     for (const theme of [LIGHT, DARK]) {
       const details = await render(React.createElement(TaskDetails, { card: sample("sample-running"), theme, now: NOW, language: "zh" }));
-      expect(flat(hostByTestId(details.root, "task-details").props.style)).toMatchObject({ width: 288, ...chromeOf(theme) });
+      expect(flat(hostByTestId(details.root, "task-details").props.style)).toMatchObject({ width: DETAILS.width, ...chromeOf(theme) });
       await act(async () => details.unmount());
       renderer = null;
 
