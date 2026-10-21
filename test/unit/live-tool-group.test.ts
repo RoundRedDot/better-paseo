@@ -337,6 +337,80 @@ describe("live tool groups", () => {
       await act(async () => renderer.unmount());
     });
 
+    describe("the same finished call drawn twice in one list", () => {
+      // The host can hold two items for one call after relabelling its turn;
+      // both say the same, and only where they sit tells them from a copy in
+      // another pane.
+      type Box = { left: number; top: number; width: number; height: number };
+      function laidOut(boxes: Box[]) {
+        let next = 0;
+        return {
+          createNodeMock(element: React.ReactElement) {
+            const { dataSet } = element.props as { dataSet?: Record<string, unknown> };
+            if (!dataSet || !("bcroot" in dataSet)) return null;
+            const box = boxes[next++] ?? { left: 0, top: 0, width: 0, height: 0 };
+            return { getBoundingClientRect: () => box };
+          },
+        };
+      }
+      const column = (left: number, top: number) => ({ left, top, width: 600, height: 24 });
+
+      it("draws the first row only", async () => {
+        let renderer!: ReturnType<typeof TestRenderer.create>;
+        await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+          done("first"), done("second")), laidOut([column(0, 100), column(0, 400)])); });
+        expect(cards(renderer)).toHaveLength(1);
+        await act(async () => renderer.unmount());
+      });
+
+      it("takes back the host's gap under a copy right below it", async () => {
+        let renderer!: ReturnType<typeof TestRenderer.create>;
+        await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+          done("first"), done("second")), laidOut([column(0, 100), column(0, 140)])); });
+        expect(margins(renderer)[0]).toBe(-16);
+        await act(async () => renderer.unmount());
+      });
+
+      it("leaves the gap of a copy with another row between them", async () => {
+        let renderer!: ReturnType<typeof TestRenderer.create>;
+        await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+          done("first"), tool("between", 20_001, "completed", "src/b.ts", "split-agent"), done("second")),
+        laidOut([column(0, 100), column(0, 140), column(0, 180)])); });
+        expect(cards(renderer)).toHaveLength(2);
+        expect(margins(renderer)[0]).not.toBe(-16);
+        await act(async () => renderer.unmount());
+      });
+
+      it("does not read the host's row gap off two rows of one call", async () => {
+        const gap = await import("../../client/host-row-gap");
+        gap.resetHostRowGap();
+        let renderer!: ReturnType<typeof TestRenderer.create>;
+        // The copy touches its row, as a stacking host would draw two rows.
+        await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+          done("first"), done("second")), laidOut([column(0, 100), column(0, 124)])); });
+        expect(gap.hostStacksRows()).toBeNull();
+        await act(async () => renderer.unmount());
+        gap.resetHostRowGap();
+      });
+
+      it("keeps the copy in another column", async () => {
+        let renderer!: ReturnType<typeof TestRenderer.create>;
+        await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+          done("left"), done("right")), laidOut([column(0, 100), column(700, 100)])); });
+        expect(cards(renderer)).toHaveLength(2);
+        await act(async () => renderer.unmount());
+      });
+
+      it("draws the second row again once the first is gone", async () => {
+        let renderer!: ReturnType<typeof TestRenderer.create>;
+        await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+          done("first"), done("second")), laidOut([column(0, 100), column(0, 400)])); });
+        await act(async () => { renderer.update(React.createElement(React.Fragment, null, done("second"))); });
+        expect(cards(renderer)).toHaveLength(1);
+        await act(async () => renderer.unmount());
+      });
+    });
+
     it("leaves the same call id in another agent's chat alone", async () => {
       let renderer!: ReturnType<typeof TestRenderer.create>;
       await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
