@@ -384,12 +384,22 @@ describe("stopped manually", () => {
 describe("lane widths", () => {
   const fixed = (lanes: number, collapsed: number) => 2 * LANES.edge + (lanes - 1) * LANES.gap + collapsed * LANES.collapsed;
 
-  it("shares a wide window among four lanes with no scrolling and no maximum", () => {
-    const layout = laneLayout(2000, 4, 0);
+  it("shares a window among four lanes with no scrolling, up to the maximum", () => {
+    const layout = laneLayout(1300, 4, 0);
     expect(layout.scroll).toBe(false);
-    expect(layout.contentWidth).toBe(2000);
-    expect(layout.laneWidth).toBeCloseTo((2000 - fixed(4, 0)) / 4);
-    expect(layout.laneWidth * 4 + fixed(4, 0)).toBeCloseTo(2000);
+    expect(layout.contentWidth).toBe(1300);
+    expect(layout.laneWidth).toBeCloseTo((1300 - fixed(4, 0)) / 4);
+    expect(layout.laneWidth * 4 + fixed(4, 0)).toBeCloseTo(1300);
+  });
+
+  it("caps a lane at Linear's card width and leaves the rest of a wide window empty", () => {
+    // On web the card is the lane less 8 + 4 of padding and the 6 scrollbar gutter.
+    expect(LANES.max - 8 - 4 - 6).toBe(322);
+    expect(laneLayout(2000, 4, 0)).toEqual({ laneWidth: LANES.max, contentWidth: 2000, scroll: false });
+    expect(laneLayout(fixed(4, 0) + 4 * LANES.max, 4, 0).laneWidth).toBe(LANES.max);
+    expect(laneLayout(fixed(4, 0) + 4 * LANES.max - 4, 4, 0).laneWidth).toBeCloseTo(LANES.max - 1);
+    // Collapsing lanes does not widen the others past the cap.
+    expect(laneLayout(1000, 2, 2).laneWidth).toBe(LANES.max);
   });
 
   it("keeps the minimum and scrolls when four lanes do not fit", () => {
@@ -419,7 +429,7 @@ describe("lane widths", () => {
     expect(one.laneWidth).toBeCloseTo((1000 - fixed(4, 1)) / 3);
     const two = laneLayout(700, 2, 2);
     expect(two).toEqual({ laneWidth: LANES.min, contentWidth: fixed(4, 2) + 2 * LANES.min, scroll: true });
-    expect(laneLayout(1000, 2, 2).laneWidth).toBeCloseTo((1000 - fixed(4, 2)) / 2);
+    expect(laneLayout(700, 2, 1).laneWidth).toBeCloseTo((700 - fixed(3, 1)) / 2);
     expect(laneLayout(1000, 0, 4)).toEqual({ laneWidth: 0, contentWidth: 1000, scroll: false });
   });
 });

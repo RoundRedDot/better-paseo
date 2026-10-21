@@ -216,6 +216,12 @@ export const LANES = {
    * the board, where 300 showed a lane and a half.
    */
   narrow: 220,
+  /**
+   * The widest a lane gets: Linear's card, 322 wide (646 device px at 2x),
+   * plus the panel's padding and, on web, its scrollbar gutter (340 - 8 - 4
+   * - 6 = 322). A wider card only spreads the same rows apart.
+   */
+  max: 340,
   /** A collapsed lane's strip. */
   collapsed: 40,
   /** Between two lanes. */
@@ -242,17 +248,18 @@ export interface LaneLayout {
 }
 
 /**
- * Expanded lanes share the viewport equally, with no maximum: a wide window
- * has no horizontal scrollbar. When they do not fit at `LANES.min`, the row
- * scrolls at the width that keeps two lanes in view, `LANES.min` at most
- * and `LANES.narrow` at least.
+ * Expanded lanes share the viewport equally up to `LANES.max`; past it they
+ * keep that width and sit at the left, as Linear's do, leaving the rest of a
+ * wide window empty. When they do not fit at `LANES.min`, the row scrolls at
+ * the width that keeps two lanes in view, `LANES.min` at most and
+ * `LANES.narrow` at least.
  */
 export function laneLayout(viewport: number, expanded: number, collapsed: number): LaneLayout {
   const lanes = expanded + collapsed;
   const fixed = 2 * LANES.edge + Math.max(0, lanes - 1) * LANES.gap + collapsed * LANES.collapsed;
   if (expanded === 0) return { laneWidth: 0, contentWidth: Math.max(viewport, fixed), scroll: fixed > viewport };
   const share = (viewport - fixed) / expanded;
-  if (share >= LANES.min) return { laneWidth: share, contentWidth: viewport, scroll: false };
+  if (share >= LANES.min) return { laneWidth: Math.min(share, LANES.max), contentWidth: viewport, scroll: false };
   const pair = (viewport - 2 * LANES.edge - LANES.gap) / 2;
   const width = Math.max(LANES.narrow, Math.min(LANES.min, pair));
   if (share >= width) return { laneWidth: share, contentWidth: viewport, scroll: false };
