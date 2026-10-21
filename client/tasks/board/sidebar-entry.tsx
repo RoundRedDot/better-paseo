@@ -6,6 +6,7 @@ import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import type { SidebarCount } from "../../../shared/tasks-settings";
 import { StatusIcon, useTaskTokens } from "../cards";
 import { useTaskCounts } from "../data";
+import { LANE_STATUS } from "../model";
 import { useTasksLanguage } from "../i18n";
 import { useTasksSettings } from "./enabled";
 import { sidebarCountParts, sidebarCountText } from "./navigation";
@@ -18,13 +19,13 @@ const SCREEN_ID = "tasks";
 
 /**
  * The sidebar's Tasks row (prototype 03): highlighted while the board is
- * open, with "running · input" counts on the right per `sidebar.count`.
+ * open, with "input · running · review" counts on the right per `sidebar.count`.
  * Opens the board with the filters it showed last in this session.
  *
  * Nothing at all while the settings load or the board is off: no row, and
  * no agent subscription (the counts live in a child that mounts only when
- * the row shows counts). The host wraps an item only in providers, so a
- * null item leaves no gap.
+ * the row shows counts; only `all` lists the unread and failed agents).
+ * The host wraps an item only in providers, so a null item leaves no gap.
  */
 export function TasksSidebarEntry(props: PluginSidebarItemProps) {
   const settings = useTasksSettings();
@@ -55,28 +56,35 @@ function TasksRow(props: PluginSidebarItemProps & { label: string; trailing?: Re
   );
 }
 
+/** Needs input, running and review, in the board's lane order; needs input in the warning colour. */
 function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: Exclude<SidebarCount, "none"> }) {
   const paseo = usePaseo();
-  const counts = useTaskCounts(paseo);
+  const counts = useTaskCounts(paseo, props.mode === "all");
   const language = useTasksLanguage();
   const parts = sidebarCountParts(counts, counts.ready ? props.mode : "none");
   const colors = props.theme.colors;
   const warning = useTaskTokens(props.theme).status.warning;
   const trailing =
-    parts.running !== null || parts.input !== null ? (
+    parts.length > 0 ? (
       <View accessible accessibilityLabel={sidebarCountText(parts, language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        {parts.running !== null ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-            <StatusIcon kind="running" size={14} theme={props.theme} />
-            <Text style={{ fontSize: 12, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{parts.running}</Text>
-          </View>
-        ) : null}
-        {parts.input !== null ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-            <StatusIcon kind="needs_input" size={14} theme={props.theme} />
-            <Text style={{ fontSize: 12, fontWeight: "600", color: warning, fontVariant: ["tabular-nums"] }}>{parts.input}</Text>
-          </View>
-        ) : null}
+        {parts.map((part) => {
+          const input = part.lane === "needs_input";
+          return (
+            <View key={part.lane} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+              <StatusIcon kind={LANE_STATUS[part.lane]} size={14} theme={props.theme} />
+              <Text
+                style={{
+                  fontSize: 12,
+                  ...(input ? { fontWeight: "600" as const } : null),
+                  color: input ? warning : colors.foregroundMuted,
+                  fontVariant: ["tabular-nums"],
+                }}
+              >
+                {part.count}
+              </Text>
+            </View>
+          );
+        })}
       </View>
     ) : undefined;
   return <TasksRow {...props} trailing={trailing} />;

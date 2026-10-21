@@ -19,7 +19,7 @@ describe("tasks settings", () => {
       card: { ...CARD_PRESETS.standard.fields, labelLimit: "2" },
       mobile: { compactCards: false },
       board: { doneWindow: "24h", hideSubtasks: false, confirmStop: true },
-      sidebar: { count: "running-and-input" },
+      sidebar: { count: "all" },
     });
   });
 
@@ -30,6 +30,11 @@ describe("tasks settings", () => {
     expect(tasksSettingsSchema.parse({ enabled: true }).enabled).toBe(true);
     // Density presets never touch it.
     expect(applyDensity({ ...DEFAULT_TASKS_SETTINGS, enabled: true }, "minimal").enabled).toBe(true);
+  });
+
+  it("reads the old two-count sidebar choice as the three counts", () => {
+    expect(tasksSettingsSchema.parse({ sidebar: { count: "running-and-input" } }).sidebar.count).toBe("all");
+    expect(tasksSettingsSchema.parse({ sidebar: { count: "input-only" } }).sidebar.count).toBe("input-only");
   });
 
   it("degrades one bad value without losing the rest", () => {

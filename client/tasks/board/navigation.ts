@@ -148,24 +148,33 @@ export function defaultLane(needsInput: number, remembered: LaneId | null): Lane
   return needsInput > 0 ? "needs_input" : "running";
 }
 
-/** The sidebar row's trailing counts; a null part is not drawn, so zero counts disappear. */
-export function sidebarCountParts(
-  counts: Pick<BoardCounts, "running" | "needsInput">,
-  mode: SidebarCount,
-): { running: number | null; input: number | null } {
-  if (mode === "none") return { running: null, input: null };
-  return {
-    running: mode === "running-and-input" && counts.running > 0 ? counts.running : null,
-    input: counts.needsInput > 0 ? counts.needsInput : null,
-  };
+/** One trailing count of the sidebar row, in lane order: needs input, running, review. */
+export interface SidebarCountPart {
+  lane: Exclude<LaneId, "done">;
+  count: number;
 }
 
+/** The sidebar row's trailing counts; a zero count is left out, so it disappears. */
+export function sidebarCountParts(
+  counts: Pick<BoardCounts, "needsInput" | "running" | "review">,
+  mode: SidebarCount,
+): SidebarCountPart[] {
+  if (mode === "none") return [];
+  const all: SidebarCountPart[] = [
+    { lane: "needs_input", count: counts.needsInput },
+    ...(mode === "all" ? [{ lane: "running", count: counts.running }, { lane: "review", count: counts.review }] as const : []),
+  ];
+  return all.filter((part) => part.count > 0);
+}
+
+const SIDEBAR_COUNT_TEXT: Record<"en" | "zh", Record<SidebarCountPart["lane"], (count: number) => string>> = {
+  en: { needs_input: (n) => `${n} need input`, running: (n) => `${n} running`, review: (n) => `${n} to review` },
+  zh: { needs_input: (n) => `${n} 个待输入`, running: (n) => `${n} 个运行中`, review: (n) => `${n} 个待查看` },
+};
+
 /** The counts as the row's accessibility text, "" when nothing shows. */
-export function sidebarCountText(parts: { running: number | null; input: number | null }, language: "en" | "zh"): string {
-  const out: string[] = [];
-  if (parts.running !== null) out.push(language === "zh" ? `${parts.running} 个运行中` : `${parts.running} running`);
-  if (parts.input !== null) out.push(language === "zh" ? `${parts.input} 个待输入` : `${parts.input} need input`);
-  return out.join(language === "zh" ? "，" : ", ");
+export function sidebarCountText(parts: readonly SidebarCountPart[], language: "en" | "zh"): string {
+  return parts.map((part) => SIDEBAR_COUNT_TEXT[language][part.lane](part.count)).join(language === "zh" ? "，" : ", ");
 }
 
 export const POPOVER_WIDTH = 288;

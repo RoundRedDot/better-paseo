@@ -203,15 +203,19 @@ describe("phone lanes", () => {
 });
 
 describe("sidebar counts", () => {
-  const counts = { running: 3, needsInput: 2 };
+  const counts = { needsInput: 2, running: 3, review: 4 };
+  const input = (count: number) => ({ lane: "needs_input", count });
+  const running = (count: number) => ({ lane: "running", count });
+  const review = (count: number) => ({ lane: "review", count });
   it.each([
-    ["running-and-input", counts, { running: 3, input: 2 }, "3 running, 2 need input", "3 个运行中，2 个待输入"],
-    ["input-only", counts, { running: null, input: 2 }, "2 need input", "2 个待输入"],
-    ["none", counts, { running: null, input: null }, "", ""],
-    ["running-and-input", { running: 0, needsInput: 1 }, { running: null, input: 1 }, "1 need input", "1 个待输入"],
-    ["running-and-input", { running: 4, needsInput: 0 }, { running: 4, input: null }, "4 running", "4 个运行中"],
-    ["input-only", { running: 4, needsInput: 0 }, { running: null, input: null }, "", ""],
-    ["running-and-input", { running: 0, needsInput: 0 }, { running: null, input: null }, "", ""],
+    ["all", counts, [input(2), running(3), review(4)], "2 need input, 3 running, 4 to review", "2 个待输入，3 个运行中，4 个待查看"],
+    ["input-only", counts, [input(2)], "2 need input", "2 个待输入"],
+    ["none", counts, [], "", ""],
+    ["all", { needsInput: 1, running: 0, review: 0 }, [input(1)], "1 need input", "1 个待输入"],
+    ["all", { needsInput: 0, running: 4, review: 1 }, [running(4), review(1)], "4 running, 1 to review", "4 个运行中，1 个待查看"],
+    ["all", { needsInput: 0, running: 0, review: 5 }, [review(5)], "5 to review", "5 个待查看"],
+    ["input-only", { needsInput: 0, running: 4, review: 1 }, [], "", ""],
+    ["all", { needsInput: 0, running: 0, review: 0 }, [], "", ""],
   ] as const)("%s with %j", (mode, value, parts, en, zh) => {
     const result = sidebarCountParts(value, mode);
     expect(result).toEqual(parts);
