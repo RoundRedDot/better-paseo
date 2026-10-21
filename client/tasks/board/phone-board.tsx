@@ -525,9 +525,8 @@ export function PhoneBoard(props: {
 }
 
 /**
- * The phone's details sheet: the card's details as the sidebar's stack of
- * cards at touch sizes, under a bar that steps to the previous and next card
- * of the same lane.
+ * The phone's details sheet: the sidebar's details card at touch sizes,
+ * under a bar that steps to the previous and next card of the same lane.
  */
 function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme: PluginTheme; onShow(id: string): void; onOpen?(agentId: string): void }) {
   const { card, board, theme } = props;

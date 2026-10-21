@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
@@ -18,13 +18,15 @@ import { contextRingTone } from "./context-ring";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
 import { ActionButton, cardTimer } from "./task-card";
-import { branchHint, shortenPath, usageRows, SUBTASK_ROWS } from "./details-format";
+import { branchHint, shortenPath, timingLine, usageRows, SUBTASK_ROWS } from "./details-format";
 
 /**
- * The details as a stack of Linear sidebar cards (`docs/prototypes/task-details-sidebar.md`):
- * each block its own raised card, radius 12, a hairline and a faint shadow,
- * text 12 from the card's edge. The desktop sidebar draws them at desktop
- * sizes; the phone's sheet and a tablet's touch sidebar at touch sizes.
+ * The details as one raised card, after Linear's issue panel (linear-pake's
+ * `issue-detail.css`): radius 12, a hairline and a faint shadow, the header
+ * on top, then sections (properties, subtasks, usage) each under a small muted
+ * heading and parted by hairlines inset to the text, 12 from the card's edge,
+ * and the times as a footnote. The desktop sidebar draws it at desktop sizes;
+ * the phone's sheet and a tablet's touch sidebar at touch sizes.
  */
 export const DETAIL_CARD = {
   radius: 12,
@@ -59,7 +61,7 @@ export function detailCardFrame(tokens: TaskTokens): ViewStyle {
   } as ViewStyle;
 }
 
-/** One raised card of the stack. */
+/** One raised card of the sidebar. */
 export function DetailCard(props: { tokens: TaskTokens; style?: ViewStyle; testID?: string; children: React.ReactNode }) {
   return (
     <View testID={props.testID} style={[detailCardFrame(props.tokens), { paddingVertical: DETAIL_CARD.padV }, props.style]}>
@@ -114,11 +116,13 @@ export interface TaskDetailCardsProps extends TimeSource {
   onPermission?(button: PermissionButton): void;
   /** A parent or subtask row: show that card. */
   onJump?(agentId: string): void;
+  /** The sections scroll under the fixed header (the sidebar); else the card grows with them (the sheet). */
+  scrollBody?: boolean;
   testID?: string;
 }
 
-/** The header card: what the agent is, what it is doing, and the actions on it. */
-export function DetailHeaderCard(props: TaskDetailCardsProps) {
+/** The header: what the agent is, what it is doing, and the actions on it. */
+function DetailHeader(props: TaskDetailCardsProps) {
   const { card, touch = false } = props;
   const tokens = taskTokens(props.theme);
   const m: Metrics = touch ? TOUCH_CARD : DETAIL_CARD;
@@ -162,7 +166,7 @@ export function DetailHeaderCard(props: TaskDetailCardsProps) {
     : null;
 
   return (
-    <DetailCard tokens={tokens} style={{ paddingHorizontal: m.padH, paddingTop: 8, paddingBottom: 12, gap: 6 }} testID="detail-header">
+    <View style={{ paddingHorizontal: m.padH, paddingTop: 8, paddingBottom: 12, gap: 6 }} testID="detail-header">
       {props.back ? (
         <Pressable
           accessibilityRole="button"
@@ -272,33 +276,70 @@ export function DetailHeaderCard(props: TaskDetailCardsProps) {
           ) : null}
         </View>
       ) : null}
-    </DetailCard>
+    </View>
   );
 }
 
-/** The cards under the header: where the agent works, its subtasks, its usage. */
-export function DetailBodyCards(props: TaskDetailCardsProps) {
+/** The details card: the header, then where the agent works, its subtasks, its usage and its times. */
+export function TaskDetailCards(props: TaskDetailCardsProps) {
+  const { card } = props;
   const tokens = taskTokens(props.theme);
   const m: Metrics = props.touch ? TOUCH_CARD : DETAIL_CARD;
   const now = useTime(props, (time) => time);
+  const timing = timingLine(card, now, props.language);
+  const sections = (
+    <>
+      <LocationSection {...props} m={m} tokens={tokens} />
+      {card.children.length > 0 ? (
+        <>
+          <Divider tokens={tokens} />
+          <SubtasksSection {...props} m={m} tokens={tokens} />
+        </>
+      ) : null}
+      <UsageSection card={card} m={m} tokens={tokens} language={props.language} />
+      {timing ? (
+        <>
+          <Divider tokens={tokens} />
+          <Text testID="detail-timing" style={{ paddingHorizontal: DETAIL_CARD.padH, paddingTop: 10, paddingBottom: 12, fontSize: m.font - 1, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+            {timing}
+          </Text>
+        </>
+      ) : null}
+    </>
+  );
   return (
-    <View style={{ gap: DETAIL_CARD.gap }}>
-      <LocationCard {...props} m={m} tokens={tokens} />
-      {props.card.children.length > 0 ? <SubtasksCard {...props} m={m} tokens={tokens} /> : null}
-      <UsageCard card={props.card} now={now} m={m} tokens={tokens} language={props.language} />
+    <View testID={props.testID ?? "detail-cards"} style={[detailCardFrame(tokens), props.scrollBody ? { flexShrink: 1, minHeight: 0 } : null]}>
+      <DetailHeader {...props} />
+      <Divider tokens={tokens} />
+      {props.scrollBody ? (
+        <ScrollView key={card.id} style={{ flexGrow: 0, flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+          {sections}
+        </ScrollView>
+      ) : (
+        sections
+      )}
     </View>
   );
 }
 
-/** The whole stack, header first. */
-export function TaskDetailCards(props: TaskDetailCardsProps) {
+/** The hairline between two sections, inset to the text. */
+function Divider(props: { tokens: TaskTokens }) {
+  return <View style={{ height: StyleSheet.hairlineWidth, marginHorizontal: DETAIL_CARD.padH, backgroundColor: props.tokens.card.border }} />;
+}
+
+/** A section's small muted heading, with an optional count on the right. */
+function SectionHeading(props: { m: Metrics; tokens: TaskTokens; label: string; trailing?: string }) {
+  const { m, tokens } = props;
+  const scale = useTasksFontScale();
   return (
-    <View style={{ gap: DETAIL_CARD.gap }} testID={props.testID ?? "detail-cards"}>
-      <DetailHeaderCard {...props} />
-      <DetailBodyCards {...props} />
+    <View style={{ height: taskControlHeight(28, scale), paddingHorizontal: DETAIL_CARD.padH, flexDirection: "row", alignItems: "center" }}>
+      <Text style={{ flex: 1, fontSize: m.font - 1, fontWeight: "500", color: tokens.foregroundMuted }}>{props.label}</Text>
+      {props.trailing ? <Text style={{ fontSize: m.font - 1, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{props.trailing}</Text> : null}
     </View>
   );
 }
+
+const SECTION: ViewStyle = { paddingTop: 6, paddingBottom: 8 };
 
 function MetaItem(props: { lead: React.ReactNode; testID: string; children: React.ReactNode }) {
   return (
@@ -493,7 +534,7 @@ function CopyValue(props: { m: Metrics; tokens: TaskTokens; label: string; text:
   );
 }
 
-function LocationCard(props: TaskDetailCardsProps & { m: Metrics; tokens: TaskTokens }) {
+function LocationSection(props: TaskDetailCardsProps & { m: Metrics; tokens: TaskTokens }) {
   const { card, m, tokens } = props;
   const words = props.strings.property;
   const cardText = cardStrings(props.language);
@@ -622,13 +663,14 @@ function LocationCard(props: TaskDetailCardsProps & { m: Metrics; tokens: TaskTo
     );
   }
   return (
-    <DetailCard tokens={tokens} testID="detail-location">
+    <View style={SECTION} testID="detail-location">
+      <SectionHeading m={m} tokens={tokens} label={cardText.details.properties} />
       {rows}
-    </DetailCard>
+    </View>
   );
 }
 
-function SubtasksCard(props: TaskDetailCardsProps & { m: Metrics; tokens: TaskTokens }) {
+function SubtasksSection(props: TaskDetailCardsProps & { m: Metrics; tokens: TaskTokens }) {
   const { card, m, tokens } = props;
   const scale = useTasksFontScale();
   const cardText = cardStrings(props.language);
@@ -636,11 +678,8 @@ function SubtasksCard(props: TaskDetailCardsProps & { m: Metrics; tokens: TaskTo
   const shown = card.children.slice(0, SUBTASK_ROWS * 2);
   const rest = card.children.length - shown.length;
   return (
-    <DetailCard tokens={tokens} testID="detail-subtasks">
-      <View style={{ height: taskControlHeight(30, scale), paddingHorizontal: DETAIL_CARD.padH, flexDirection: "row", alignItems: "center" }}>
-        <Text style={{ flex: 1, fontSize: m.font - 1, fontWeight: "500", color: tokens.foregroundMuted }}>{cardText.details.subtasks}</Text>
-        <Text style={{ fontSize: m.font - 1, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{cardText.details.subtasksDone(done, card.children.length)}</Text>
-      </View>
+    <View style={SECTION} testID="detail-subtasks">
+      <SectionHeading m={m} tokens={tokens} label={cardText.details.subtasks} trailing={cardText.details.subtasksDone(done, card.children.length)} />
       {shown.map((child) => (
         <SubtaskRow key={child.id} m={m} tokens={tokens} theme={props.theme} title={child.title} status={child.status} word={cardText.status[child.status]} onPress={props.onJump ? () => props.onJump?.(child.id) : undefined} />
       ))}
@@ -649,7 +688,7 @@ function SubtasksCard(props: TaskDetailCardsProps & { m: Metrics; tokens: TaskTo
           <Text style={{ fontSize: m.font, color: tokens.foregroundMuted }}>{cardText.more(rest)}</Text>
         </View>
       ) : null}
-    </DetailCard>
+    </View>
   );
 }
 
@@ -685,17 +724,17 @@ function SubtaskRow(props: { m: Metrics; tokens: TaskTokens; theme: PluginTheme;
   );
 }
 
-function UsageCard(props: { card: TaskCard; now: number; m: Metrics; tokens: TaskTokens; language: TasksLanguage }) {
+function UsageSection(props: { card: TaskCard; m: Metrics; tokens: TaskTokens; language: TasksLanguage }) {
   const { card, m, tokens } = props;
   const scale = useTasksFontScale();
   const words = cardStrings(props.language).details;
-  const rows = usageRows(card, props.now, props.language);
+  const rows = usageRows(card, props.language);
   const ratio = contextRatio(card.context);
   const tone = ratio !== null ? contextRingTone(ratio) : "normal";
   const toneColor = tone === "danger" ? tokens.danger : tone === "warning" ? tokens.warning : tokens.foregroundMuted;
   if (rows.length === 0 && !card.context) return null;
   const line = (key: string, label: string, children: React.ReactNode) => (
-    <View key={key} testID={`detail-usage-${key}`} style={{ height: taskControlHeight(m.listRow, scale), paddingHorizontal: DETAIL_CARD.padH, flexDirection: "row", alignItems: "center", gap: 8 }}>
+    <View key={key} testID={`detail-usage-${key}`} style={{ height: taskControlHeight(m.listRow, scale), marginHorizontal: 6, paddingHorizontal: 6, flexDirection: "row", alignItems: "center", gap: 8 }}>
       <Text numberOfLines={1} style={{ flex: 1, fontSize: m.font, color: tokens.foregroundMuted }}>
         {label}
       </Text>
@@ -704,34 +743,38 @@ function UsageCard(props: { card: TaskCard; now: number; m: Metrics; tokens: Tas
   );
   const value = (text: string) => <Text style={{ fontSize: m.font, color: tokens.foreground, fontVariant: ["tabular-nums"] }}>{text}</Text>;
   return (
-    <DetailCard tokens={tokens} testID="detail-usage">
-      {rows.map((row) =>
-        line(
-          row.key,
-          row.label,
-          <>
-            {row.hint ? <Text style={{ fontSize: m.font - 1, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{row.hint}</Text> : null}
-            {value(row.value)}
-          </>,
-        ),
-      )}
-      {card.context ? (
-        <>
-          {line(
-            "context",
-            words.context,
+    <>
+      <Divider tokens={tokens} />
+      <View style={SECTION} testID="detail-usage">
+        <SectionHeading m={m} tokens={tokens} label={words.usage} />
+        {rows.map((row) =>
+          line(
+            row.key,
+            row.label,
             <>
-              {ratio !== null ? <Text style={{ fontSize: m.font, fontWeight: "600", color: toneColor, fontVariant: ["tabular-nums"] }}>{`${Math.round(ratio * 100)}%`}</Text> : null}
-              {value(`${formatTokens(card.context.usedTokens)} / ${formatTokens(card.context.maxTokens)}`)}
+              {row.hint ? <Text style={{ fontSize: m.font - 1, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{row.hint}</Text> : null}
+              {value(row.value)}
             </>,
-          )}
-          {ratio !== null ? (
-            <View testID="detail-context-bar" style={{ height: 4, borderRadius: 2, marginHorizontal: DETAIL_CARD.padH, marginBottom: 8, backgroundColor: tokens.surface2, overflow: "hidden" }}>
-              <View style={{ width: `${Math.round(ratio * 1000) / 10}%`, height: 4, borderRadius: 2, backgroundColor: toneColor }} />
-            </View>
-          ) : null}
-        </>
-      ) : null}
-    </DetailCard>
+          ),
+        )}
+        {card.context ? (
+          <>
+            {line(
+              "context",
+              words.context,
+              <>
+                {ratio !== null ? <Text style={{ fontSize: m.font, fontWeight: "600", color: toneColor, fontVariant: ["tabular-nums"] }}>{`${Math.round(ratio * 100)}%`}</Text> : null}
+                {value(`${formatTokens(card.context.usedTokens)} / ${formatTokens(card.context.maxTokens)}`)}
+              </>,
+            )}
+            {ratio !== null ? (
+              <View testID="detail-context-bar" style={{ height: 4, borderRadius: 2, marginHorizontal: DETAIL_CARD.padH, marginTop: 2, marginBottom: 4, backgroundColor: tokens.surface2, overflow: "hidden" }}>
+                <View style={{ width: `${Math.round(ratio * 1000) / 10}%`, height: 4, borderRadius: 2, backgroundColor: toneColor }} />
+              </View>
+            ) : null}
+          </>
+        ) : null}
+      </View>
+    </>
   );
 }

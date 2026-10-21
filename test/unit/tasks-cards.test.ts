@@ -1001,8 +1001,9 @@ describe("TaskDetailCards", () => {
     expect(onOpen).toHaveBeenCalledWith("sample-running");
     byLabel(tree.root, "取消钉住").props.onPress();
     expect(onTogglePin).toHaveBeenCalled();
-    // Each block is its own raised card: radius 12, a hairline, the card's shadow.
-    expect(flat(header.props.style)).toMatchObject({ borderRadius: 12, borderWidth: 1, boxShadow: taskTokens(LIGHT).card.shadow });
+    // One raised card holds the header and the sections: radius 12, a hairline, the card's shadow.
+    expect(flat(hostByTestId(tree.root, "detail-cards").props.style)).toMatchObject({ borderRadius: 12, borderWidth: 1, boxShadow: taskTokens(LIGHT).card.shadow });
+    expect(flat(header.props.style).borderWidth).toBeUndefined();
   });
 
   it("lists the place, then copyable branch, directory and PR rows, then the usage", async () => {
@@ -1013,9 +1014,13 @@ describe("TaskDetailCards", () => {
     // The directory is cut in its middle to one line.
     expect(texts(hostByTestId(location, "detail-cwd"))).toEqual(["工作目录", "…/.worktrees/tasks-board"]);
     expect(texts(hostByTestId(location, "detail-pr"))).toEqual(["PR", "#42 feat: Tasks board"]);
+    expect(texts(location)[0]).toBe("属性");
     expect(texts(hostByTestId(tree.root, "detail-usage"))).toEqual(
-      expect.arrayContaining(["创建时间", "1 小时前", "缓存 120k", "182k", "14k", "$1.84", "86%", "172k / 200k"]),
+      expect.arrayContaining(["用量", "缓存 120k", "182k", "14k", "$1.84", "86%", "172k / 200k"]),
     );
+    // The times are the card's footnote, not usage.
+    expect(texts(hostByTestId(tree.root, "detail-usage"))).not.toContain("创建时间");
+    expect(texts(hostByTestId(tree.root, "detail-timing"))).toEqual(["1 小时前创建"]);
 
     const copies: Array<[string, string]> = [
       ["detail-branch", "feat/tasks-board"],
