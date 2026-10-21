@@ -32,6 +32,9 @@ vi.mock("react-native", async () => {
   };
 });
 
+const opened = vi.hoisted(() => ({ openLink: vi.fn() }));
+vi.mock("../../client/components/open-link", () => opened);
+
 const clipboard = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => {}), show: vi.fn(), error: vi.fn() }));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const react = await import("react");
@@ -56,8 +59,10 @@ import {
   TaskDetailCards,
   DetailActionBar,
   branchHint,
-  propertyRowWidth,
-  shortenPath,
+  breakable,
+  foldPath,
+  pathLines,
+  pathText,
   buildTaskTokens,
   taskTokens,
   cardLayout,
@@ -165,7 +170,7 @@ function cardElement(card: TaskCard, overrides: Partial<TaskCardViewProps> = {})
 function texts(root: ReactTestInstance): string[] {
   const join = (node: ReactTestInstance | string): string =>
     typeof node === "string"
-      ? node.replace(/\u00a0/g, " ")
+      ? node.replace(/\u00a0/g, " ").replace(/[\u200b\u2060]/g, "")
       : node.children.map((child) => join(child as ReactTestInstance | string)).join("");
   return root
     .findAll((node) => (node.type as unknown) === "Text" && !hasTextAncestor(node))
@@ -1031,54 +1036,52 @@ describe("TaskDetailCards", () => {
     await act(async () => byLabel(asking.root, "收起用量").props.onPress());
   });
 
-  it("lists the place, then copyable branch, directory and PR rows", async () => {
+  it("lists the place, then copyable branch and directory, an openable PR, each state in a note line", async () => {
+    opened.openLink.mockClear();
     const tree = await render(details(sample("sample-running")));
     const location = hostByTestId(tree.root, "detail-location");
     expect(texts(location).slice(0, 2)).toEqual(["属性", "feat/tasks-board"]);
-    expect(texts(hostByTestId(location, "detail-place"))).toEqual(["B", "项目", "better-paseo ›", "tasks-board", "worktree"]);
-    expect(texts(hostByTestId(location, "detail-branch"))).toEqual(["分支", "feat/tasks-board", "↑3 ↓0", "未提交"]);
-    // The directory is cut in its middle to one line.
-    expect(texts(hostByTestId(location, "detail-cwd"))).toEqual(["工作目录", "…/.worktrees/tasks-board"]);
-    expect(texts(hostByTestId(location, "detail-pr"))).toEqual(["PR", "#42", "feat: Tasks board"]);
+    // No label column at the default width; the workspace and its kind are the note line.
+    expect(texts(hostByTestId(location, "detail-place"))).toEqual(["B", "better-paseo", "tasks-board", "·", "worktree"]);
+    expect(texts(hostByTestId(location, "detail-branch"))).toEqual(["feat/tasks-board", "↑3 ↓0", "·", "未提交改动"]);
+    // A branch wraps after "/" and "-"; the directory is whole while it fits two lines.
+    expect(hostByTestId(location, "detail-branch-value").props.children[1]).toBe("feat/\u200btasks-\u200bboard");
+    expect(hostByTestId(location, "detail-branch-value").props.numberOfLines).toBe(3);
+    expect(texts(hostByTestId(location, "detail-cwd"))).toEqual(["~/code/better-paseo/.worktrees/tasks-board"]);
+    expect(texts(hostByTestId(location, "detail-pr"))).toEqual(["#42\u2002feat: Tasks board"]);
 
-    const copies: Array<[string, string]> = [
-      ["detail-branch", "feat/tasks-board"],
-      ["detail-cwd", "/Users/dev/code/better-paseo/.worktrees/tasks-board"],
-      ["detail-pr", "https://github.com/RoundRedDot/better-paseo/pull/42"],
-    ];
-    for (const [testID, text] of copies) {
+    for (const [testID, text] of [["detail-branch", "feat/tasks-board"], ["detail-cwd", "/Users/dev/code/better-paseo/.worktrees/tasks-board"]] as const) {
       const row = hostByTestId(tree.root, testID);
       expect(row.props.accessibilityRole).toBe("button");
       await act(async () => row.props.onPress());
       expect(clipboard.copyText).toHaveBeenLastCalledWith(text);
-      expect(clipboard.show).toHaveBeenCalled();
     }
-    expect(clipboard.copyText).toHaveBeenCalledTimes(3);
+    expect(clipboard.copyText).toHaveBeenCalledTimes(2);
+    // The host's toast confirms a copy; the row keeps its note line.
+    expect(clipboard.show).toHaveBeenCalled();
+    expect(texts(hostByTestId(location, "detail-cwd"))).toEqual(["~/code/better-paseo/.worktrees/tasks-board"]);
+    // A press on the PR opens it.
+    await act(async () => hostByTestId(tree.root, "detail-pr").props.onPress());
+    expect(opened.openLink).toHaveBeenCalledWith("https://github.com/RoundRedDot/better-paseo/pull/42");
     // The place row only informs.
     expect(hostByTestId(location, "detail-place").props.onPress).toBeUndefined();
   });
 
-  it("puts the place and branch side by side only when both show whole in half the width", async () => {
+  it("adds the label column from 448 wide and drops it under 440", async () => {
     const tree = await render(details(sample("sample-running")));
-    const location = hostByTestId(tree.root, "detail-location");
-    const holds = (node: ReactTestInstance) => node.findAll((child) => child.props.testID === "detail-place").length > 0;
-    const properties = location.findAll((node) => typeof node.type === "string" && typeof node.props.onLayout === "function" && holds(node)).at(-1)!;
-    const paired = () => location.findAll((node) => typeof node.type === "string" && node.props.style?.flex === 1 && node.props.style?.minWidth === 0 && holds(node)).length > 0;
+    const properties = hostByTestId(tree.root, "detail-properties");
     const layout = (width: number) => act(async () => properties.props.onLayout({ nativeEvent: { layout: { width, height: 200 } } }));
-    expect(paired()).toBe(false);
-    // Wide enough for two columns, but "better-paseo › tasks-board" and its badge need more than half.
-    await layout(480);
-    expect(paired()).toBe(false);
-    await layout(900);
-    expect(paired()).toBe(true);
-    expect(texts(hostByTestId(location, "detail-place"))).toEqual(["B", "项目", "better-paseo ›", "tasks-board", "worktree"]);
-
-    const touch = { icon: 18, label: 76, font: 15 };
-    // A phone sheet of about 490: "beautiful-chat" and its "本地 checkout" badge take more than half.
-    expect(propertyRowWidth(touch, "beautiful-chat", [{ text: "本地 checkout", lead: true }])).toBeGreaterThan(241);
-    expect(propertyRowWidth(touch, "main", [{ text: "未提交", lead: true }])).toBeLessThan(241);
-    // A wide character counts as two columns.
-    expect(propertyRowWidth(touch, "分支")).toBe(propertyRowWidth(touch, "ab12"));
+    const labelled = () => texts(hostByTestId(tree.root, "detail-cwd"))[0] === "工作目录";
+    expect(labelled()).toBe(false);
+    await layout(520);
+    expect(labelled()).toBe(true);
+    // Inside the 8 between, the column stays as it was.
+    await layout(444);
+    expect(labelled()).toBe(true);
+    await layout(436);
+    expect(labelled()).toBe(false);
+    await layout(444);
+    expect(labelled()).toBe(false);
   });
 
   it("charts the usage: the token mix with Codex's cached input split out, the cost and the last turn", async () => {
@@ -1107,7 +1110,7 @@ describe("TaskDetailCards", () => {
     const base = sample("sample-running");
     const card = { ...base, location: { ...base.location, git: { dirty: false, ahead: 0, behind: 0 } } };
     const tree = await render(details(card));
-    expect(texts(hostByTestId(tree.root, "detail-branch"))).toEqual(["分支", "feat/tasks-board"]);
+    expect(texts(hostByTestId(tree.root, "detail-branch"))).toEqual(["feat/tasks-board"]);
     expect(branchHint({ dirty: false, ahead: 0, behind: 0 })).toEqual({ sync: null, dirty: false });
     expect(branchHint({ dirty: true, ahead: null, behind: 2 })).toEqual({ sync: "↑0 ↓2", dirty: true });
     expect(branchHint(null)).toEqual({ sync: null, dirty: false });
@@ -1115,30 +1118,26 @@ describe("TaskDetailCards", () => {
 
   it("says a directory is not a git checkout, sums up a finished card, and has no open button without onOpen", async () => {
     const tree = await render(details(sample("sample-done"), {}, "en"));
-    expect(texts(hostByTestId(tree.root, "detail-branch"))).toEqual(["Branch", "Not a git directory"]);
+    expect(texts(hostByTestId(tree.root, "detail-branch"))).toEqual(["Not a git directory"]);
     expect(hostByTestId(tree.root, "detail-branch").props.onPress).toBeUndefined();
-    expect(texts(hostByTestId(tree.root, "detail-place"))).toEqual(["B", "Project", "better-paseo ›", "tasks-board", "directory"]);
+    expect(texts(hostByTestId(tree.root, "detail-place"))).toEqual(["B", "better-paseo", "tasks-board", "·", "directory"]);
     expect(tree.root.findAll((node) => node.props.testID === "detail-open")).toEqual([]);
     expect(texts(hostByTestId(tree.root, "detail-summary"))).toEqual(["Last turn", "18m", "Ended 2m ago", "Cost", "$1.84", "Total", "Token", "316k", "38% cached"]);
   });
 
-  it("lists the subtasks under a bar of their statuses, a press showing one", async () => {
+  it("lists the subtasks as Paseo 0.12's subagent rows, a press showing one", async () => {
     const onJump = vi.fn();
     const running = await render(details(sample("sample-running"), { onJump }));
     expect(texts(hostByTestId(running.root, "detail-subtasks"))).toEqual([
       "子任务",
       "1 / 3 完成",
-      "已完成",
-      "1",
-      "运行中",
-      "2",
       "Measure the sidebar ring",
-      "运行中",
+      "Opus 4.7 · High · Bypass · 120k / 200k tokens (60%)",
       "Write the ring geometry test",
-      "运行中",
       "Collect status colours",
-      "已完成",
     ]);
+    // The status rides the provider's mark: a running ring, nothing for a finished one.
+    expect(hostByTestId(running.root, "detail-subtasks").findAll((node) => typeof node.type === "string" && node.props.testID === "status-running")).toHaveLength(2);
     byLabel(running.root, "Measure the sidebar ring 运行中").props.onPress();
     expect(onJump).toHaveBeenCalledWith("sample-child-1");
   });
@@ -1194,11 +1193,27 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(tree.root, "detail-stop"))).toEqual(["确认停止"]);
   });
 
-  it("cuts a path in its middle to fit", () => {
-    expect(shortenPath("~/code/app", 20)).toBe("~/code/app");
-    expect(shortenPath("~/workspace/rrd/ideashell-system/ideashell-android/.worktrees/align-206-integration", 40)).toBe(
-      "…/.worktrees/align-206-integration",
+  it("folds a long path's middle, keeping its head and as much tail as fits", () => {
+    expect(foldPath("~/code/app", 10)).toBe("~/code/app");
+    // Two lines of 26 that break only after "/": the space a break leaves counts.
+    expect(foldPath("~/workspace/rrd/ideashell-system/ideashell-android/.worktrees/align-206-integration", 26)).toBe(
+      "~/workspace/…/.worktrees/align-206-integration",
     );
+    // A segment longer than a line runs on from the "/" before it, so "a/bbbbbbbbbb" wraps as one run.
+    expect(pathLines("~/a/bbbbbbbbbb", 5)).toBe(4);
+    expect(pathLines("~/workspace/…/.worktrees/align-206-integration", 26)).toBe(2);
+    // A last segment longer than a line follows "…/" and wraps inside itself; cut only past the lines.
+    const longLast = "~/bc-tasks/ios/proj/voice-input-native-bridge-runtime-migration-sandbox";
+    expect(foldPath(longLast, 34)).toBe("~/bc-tasks/…/voice-input-native-bridge-runtime-migration-sandbox");
+    expect(pathText("…/voice-input-native-bridge-runtime-migration-sandbox", 34)).toBe("…/voice-input-native-bridge-runtime-migration-sandbox");
+    // A browser breaks a long segment only after its "-": in 35 columns "proj/" no longer fits beside it.
+    const sandbox = "~/bc-tasks/web/proj/voice-input-native-bridge-runtime-migration-sandbox";
+    expect(pathLines("~/bc-tasks/…/proj/voice-input-native-bridge-runtime-migration-sandbox", 35)).toBe(3);
+    expect(foldPath(sandbox, 35)).toBe("~/bc-tasks/…/voice-input-native-bridge-runtime-migration-sandbox");
+    // Two lines of 12 hold 24: the segment is cut once in its middle, nothing repeats.
+    expect(foldPath(longLast, 12)).toBe("…/voice-in…ation-sandbox");
+    expect(pathText("~/a-b/c", 10)).toBe("~/\u200ba-\u2060b/\u200bc");
+    expect(breakable("feat/align-ios")).toBe("feat/\u200balign-\u200bios");
     expect(modeIcon("claude", "Bypass")).toBe("ShieldOff");
     expect(modeIcon("claude", "Plan Mode")).toBe("ShieldEllipsis");
     expect(modeIcon("claude", "Always Ask")).toBe("Shield");

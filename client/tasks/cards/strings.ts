@@ -108,6 +108,8 @@ const en = {
     copyFolder: "Copy folder name",
     copyPath: "Copy path",
     copyLink: "Copy link",
+    uncommittedNote: "uncommitted changes",
+    cannotJump: "can't open",
   },
 };
 
@@ -219,6 +221,8 @@ const zh: CardStrings = {
     copyFolder: "复制文件夹名",
     copyPath: "复制路径",
     copyLink: "复制链接",
+    uncommittedNote: "未提交改动",
+    cannotJump: "无法跳转",
   },
 };
 
