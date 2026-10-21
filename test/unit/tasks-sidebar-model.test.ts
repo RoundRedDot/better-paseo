@@ -13,6 +13,8 @@ import {
   sidebarWidth,
   writeSidebarPreference,
   type SidebarSelection,
+  sheetHeight,
+  sheetRelease,
 } from "../../client/tasks/board/sidebar-model";
 
 describe("sidebar mode", () => {
@@ -28,6 +30,34 @@ describe("sidebar mode", () => {
     expect(sidebarMode(1000, "inline")).toBe("inline");
     expect(sidebarMode(1000, "floating")).toBe("floating");
     expect(sidebarMode(1000, null)).toBe("inline");
+  });
+
+  it("rises from the bottom as a sheet on a board too narrow to float it, with its own 24 px band", () => {
+    expect(sidebarMode(580, null)).toBe("sheet");
+    expect(sidebarMode(SIDEBAR.sheetBelow - 1, "floating")).toBe("sheet");
+    expect(SIDEBAR.floatFrom - SIDEBAR.sheetBelow).toBe(24);
+    expect(sidebarMode(770, "sheet")).toBe("sheet");
+    expect(sidebarMode(770, "floating")).toBe("floating");
+    expect(sidebarMode(770, null)).toBe("floating");
+    expect(sidebarMode(SIDEBAR.floatFrom, "sheet")).toBe("floating");
+    // A sheet that widens past the floating band goes straight to floating, never to a stale sheet.
+    expect(sidebarMode(1000, "sheet")).toBe("floating");
+  });
+});
+
+describe("bottom sheet", () => {
+  it("takes 58% of the lanes' area at half and leaves 8 at full", () => {
+    expect(sheetHeight(700, "half")).toBe(406);
+    expect(sheetHeight(700, "full")).toBe(692);
+  });
+
+  it("moves a height on a long drag or a flick, and closes from half", () => {
+    expect(sheetRelease("half", -80, 0)).toBe("full");
+    expect(sheetRelease("half", -20, -0.8)).toBe("full");
+    expect(sheetRelease("half", 20, 0.1)).toBe("half");
+    expect(sheetRelease("half", 90, 0)).toBe("closed");
+    expect(sheetRelease("full", 90, 0)).toBe("half");
+    expect(sheetRelease("full", -10, 0)).toBe("full");
   });
 });
 

@@ -38,6 +38,10 @@ export function Modal(props: Props) {
 }
 
 export const StatusBar = { currentHeight: 0 };
+/** The handlers land on the view as props, so a test can drive a drag by calling them. */
+export const PanResponder = {
+  create: (config: Record<string, unknown>) => ({ panHandlers: { ...config } }),
+};
 
 export function Pressable(props: Props) {
   const { style, children, ...rest } = props;
