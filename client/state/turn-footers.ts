@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useSyncExternalStore } f
 import type { PaseoApi, PaseoAgentTimelineHandle } from "@getpaseo/client";
 import { useRpc } from "@getpaseo/plugin/client";
 import { turnUsageRpc, type RecordedTurn } from "../../shared/turn-usage-rpc";
+import { createAgentTimelinePageReader, getAgentTimelinePageReader, type AgentTimelinePageReader } from "./agent-timeline-page-reader";
 import { completedTurnFooters, startsTurn, type CompletedTurnFooter, type Entry, type TurnMarks } from "./turn-duration";
 
 type Timeline = Pick<PaseoAgentTimelineHandle, "refetch" | "subscribe">;
@@ -56,7 +57,8 @@ function turnMarks(turns: readonly RecordedTurn[], from: number): TurnMarks | un
  * server's record, which survives reloads. The record also times turns no
  * prompt started and splits history reloaded without turn IDs.
  */
-export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (since: number) => Promise<RecordedTurn[]>) {
+export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (since: number) => Promise<RecordedTurn[]>,
+  pageReader: AgentTimelinePageReader = createAgentTimelinePageReader()) {
   const targets = new Set<Target>();
   const listeners = new Set<() => void>();
   const usageByTurn = new Map<string, Usage>();
@@ -112,7 +114,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
 
   async function read(ticket: number): Promise<void> {
     const timeline = source();
-    let page = await timeline.refetch({ direction: "tail", projection: "projected", limit: 200 });
+    let page = await pageReader.tail(timeline);
     const snapshot = page.agent;
     const hasNewer = page.hasNewer;
     const epoch = page.epoch;
@@ -122,7 +124,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
       if (!page.hasOlder || !needsOlder(items)) break;
       const cursor = page.startCursor;
       if (!cursor) throw new Error("Missing turn footer timeline cursor");
-      page = await timeline.refetch({ direction: "before", cursor, projection: "projected", limit: 200 });
+      page = await pageReader.before(timeline, cursor);
       if (page.reset || !page.entries.length || (page.startCursor && page.startCursor.seq >= cursor.seq)) {
         throw new Error("Turn footer timeline changed while paging");
       }
@@ -292,7 +294,8 @@ export function useTurnFooter(paseo: PaseoApi, agentId: string, at: number, text
     if (!agents) stores.set(paseo, agents = new Map());
     let store = agents.get(agentId);
     if (!store) agents.set(agentId, store = createTurnFooterStore(() => paseo.agents.ref(agentId).timeline,
-      async (since) => (await turnUsageRef.current({ agentId, since })).turns));
+      async (since) => (await turnUsageRef.current({ agentId, since })).turns,
+      getAgentTimelinePageReader(paseo, agentId)));
     return store;
   }, [paseo, agentId]);
   const enabled = typeof running === "boolean";

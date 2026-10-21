@@ -305,6 +305,7 @@ describe("shared turn footer timeline", () => {
     expect(second?.durationMs).toBe(1000);
     expect(store.get(2000, "intermediate")).toBeNull();
     expect(refetch).toHaveBeenCalledTimes(1);
+    expect(refetch).toHaveBeenCalledWith({ direction: "tail", projection: "projected", limit: 50 });
     expect(subscribe).toHaveBeenCalledTimes(1);
     replace([...turns(), prompt(6, "three"), reply(7, "working", "three")]);
     store.setRunning(true);
