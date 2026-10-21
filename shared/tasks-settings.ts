@@ -45,7 +45,8 @@ export type Density = (typeof DENSITIES)[number];
 export const DONE_WINDOWS = ["24h", "7d", "all"] as const;
 export type DoneWindow = (typeof DONE_WINDOWS)[number];
 
-export const SIDEBAR_COUNTS = ["running-and-input", "input-only", "none"] as const;
+/** `all` draws needs input, running and review; records saved as "running-and-input" read as the default, `all`. */
+export const SIDEBAR_COUNTS = ["all", "input-only", "none"] as const;
 export type SidebarCount = (typeof SIDEBAR_COUNTS)[number];
 
 export type CardFieldSwitches = Record<CardField, boolean>;
@@ -157,7 +158,7 @@ export const tasksSettingsSchema = z.object({
       confirmStop: flag(true),
     })
     .catch({ doneWindow: "24h", hideSubtasks: false, confirmStop: true }),
-  sidebar: z.object({ count: z.enum(SIDEBAR_COUNTS).catch("running-and-input") }).catch({ count: "running-and-input" }),
+  sidebar: z.object({ count: z.enum(SIDEBAR_COUNTS).catch("all") }).catch({ count: "all" }),
 });
 
 export type TasksSettings = z.output<typeof tasksSettingsSchema>;

@@ -472,7 +472,7 @@ describe("Tasks data store", () => {
     let counts = { needsInput: 0, running: 0 };
     function BoardAndSidebar() {
       const board = useTasks(fake.paseo, { doneWindow: "24h", includeDone: true });
-      const sidebar = useTaskCounts(fake.paseo);
+      const sidebar = useTaskCounts(fake.paseo, false);
       ready = board.ready && sidebar.ready;
       counts = { needsInput: sidebar.needsInput, running: sidebar.running };
       return null;
@@ -491,11 +491,11 @@ describe("Tasks data store", () => {
   });
 
   describe("sidebar counts", () => {
-    async function mountCounts(fake: Fake) {
+    async function mountCounts(fake: Fake, review = false) {
       let current!: ReturnType<typeof useTaskCounts>;
       let renders = 0;
       function Counts() {
-        current = useTaskCounts(fake.paseo);
+        current = useTaskCounts(fake.paseo, review);
         renders += 1;
         return null;
       }
@@ -524,7 +524,7 @@ describe("Tasks data store", () => {
       });
       const counts = await mountCounts(fake);
       try {
-        expect(counts.current).toEqual({ running: 1, needsInput: 1, ready: true });
+        expect(counts.current).toEqual({ needsInput: 1, running: 1, review: 0, ready: true });
         expect(fake.calls.map((call) => call.method)).toEqual(["agents.list"]);
         expect(fake.calls[0]?.input).toEqual({ filter: { statuses: ["running", "initializing", "error"] }, subscribe: {} });
         expect(fake.openSubscriptions()).toBe(1);
@@ -550,12 +550,12 @@ describe("Tasks data store", () => {
           fake.upsertAgent(activeAgent("b", { status: "running", pendingPermissions: [permission] }));
           await Promise.resolve();
         });
-        expect(counts.current).toEqual({ running: 1, needsInput: 1, ready: true });
+        expect(counts.current).toEqual({ needsInput: 1, running: 1, review: 0, ready: true });
         await act(async () => {
           fake.upsertAgent(activeAgent("a", { status: "idle", requiresAttention: true, attentionReason: "finished" }));
           await Promise.resolve();
         });
-        expect(counts.current).toEqual({ running: 0, needsInput: 1, ready: true });
+        expect(counts.current).toEqual({ needsInput: 1, running: 0, review: 0, ready: true });
       } finally {
         counts.unmount();
       }
@@ -573,16 +573,16 @@ describe("Tasks data store", () => {
       });
       const counts = await mountCounts(fake);
       try {
-        expect(counts.current).toEqual({ running: 1, needsInput: 0, ready: true });
+        expect(counts.current).toEqual({ needsInput: 0, running: 1, review: 0, ready: true });
         const board = await mountTasks(fake);
         expect(board.current.ready).toBe(true);
         expect(board.current.byId.get("running")?.location.branch).toBe("feature/tasks");
-        // The board's attention subscription lists an old daemon's permission wait; the counts follow it.
-        expect(counts.current).toEqual({ running: 1, needsInput: 1, ready: true });
+        // The board's attention subscription lists an old daemon's permission wait and the unread agent; the counts follow it.
+        expect(counts.current).toEqual({ needsInput: 1, running: 1, review: 1, ready: true });
         expect(fake.openSubscriptions()).toBe(5);
         board.unmount();
         expect(fake.openSubscriptions()).toBe(1);
-        expect(counts.current).toEqual({ running: 1, needsInput: 0, ready: true });
+        expect(counts.current).toEqual({ needsInput: 0, running: 1, review: 0, ready: true });
         await act(async () => {
           fake.upsertAgent(activeAgent("second", { status: "running" }));
           await Promise.resolve();
@@ -598,6 +598,42 @@ describe("Tasks data store", () => {
         } finally {
           reopened.unmount();
         }
+      } finally {
+        counts.unmount();
+      }
+      expect(fake.openSubscriptions()).toBe(0);
+    });
+    it("with the review count, list the unread and failed agents too and keep them past a board", async () => {
+      const fake = createFakePaseo({
+        agents: [
+          activeAgent("running", { status: "running" }),
+          activeAgent("asking", { status: "running", pendingPermissions: [permission] }),
+          activeAgent("unread", { status: "idle", requiresAttention: true, attentionReason: "finished" }),
+          activeAgent("failed", { status: "error", requiresAttention: true, attentionReason: "error" }),
+          activeAgent("done", { status: "idle" }),
+        ],
+        workspaces: [workspace()],
+        projects: [PROJECT],
+      });
+      const counts = await mountCounts(fake, true);
+      try {
+        expect(counts.current).toEqual({ needsInput: 1, running: 1, review: 2, ready: true });
+        expect(fake.calls.map((call) => call.input)).toEqual([
+          { filter: { statuses: ["running", "initializing", "error"] }, subscribe: {} },
+          { filter: { requiresAttention: true }, subscribe: {} },
+        ]);
+        expect(fake.openSubscriptions()).toBe(2);
+        const board = await mountTasks(fake);
+        expect(board.current.ready).toBe(true);
+        expect(fake.calls.filter((call) => call.method === "agents.list")).toHaveLength(3);
+        board.unmount();
+        expect(fake.openSubscriptions()).toBe(2);
+        expect(counts.current).toEqual({ needsInput: 1, running: 1, review: 2, ready: true });
+        await act(async () => {
+          fake.upsertAgent(activeAgent("unread", { status: "idle", requiresAttention: false }));
+          await Promise.resolve();
+        });
+        expect(counts.current.review).toBe(1);
       } finally {
         counts.unmount();
       }
@@ -636,7 +672,7 @@ describe("Tasks data store", () => {
     const fake = createFakePaseo({ agents: [activeAgent("a", { status: "running" })], models: { claude: catalog } });
     let renderer!: Renderer;
     function Sidebar() {
-      useTaskCounts(fake.paseo);
+      useTaskCounts(fake.paseo, false);
       return null;
     }
     await act(async () => {
