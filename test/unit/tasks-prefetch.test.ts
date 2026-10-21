@@ -70,8 +70,8 @@ const theme = {
   },
 } as never;
 const hostProps = { theme, host: { id: "host-1", label: "Local" }, layout: { compact: false, platform: "web" as const } };
-/** The status subscription the sidebar's counts keep: the only one with the board closed. */
-const STATUS_ONLY = 1;
+/** The status and attention lists the sidebar's default counts keep: the only ones with the board closed. */
+const COUNTS_ONLY = 2;
 /** Status, attention and done agent lists, workspaces, projects. */
 const BOARD_OPEN = 5;
 
@@ -170,18 +170,18 @@ afterEach(async () => {
 describe("Tasks board prefetch", () => {
   it("opens nothing beyond the counts until the user shows intent", async () => {
     await mountSidebar();
-    expect(boardCalls()).toEqual(["agents.list"]);
+    expect(boardCalls()).toEqual(["agents.list", "agents.list"]);
     await advance(60_000);
-    expect(boardCalls()).toEqual(["agents.list"]);
-    expect(fake.openSubscriptions()).toBe(STATUS_ONLY);
+    expect(boardCalls()).toEqual(["agents.list", "agents.list"]);
+    expect(fake.openSubscriptions()).toBe(COUNTS_ONLY);
   });
 
   it("hover opens the board's subscriptions once, however often it repeats", async () => {
     await mountSidebar();
     const before = fake.calls.length;
     await hover();
-    // Attention and done lists, projects, the model names, workspaces.
-    expect(boardCalls(before).sort()).toEqual(["agents.list", "agents.list", "projects.list", "providers.listModels", "workspaces.list"]);
+    // The done list, projects, the model names, workspaces.
+    expect(boardCalls(before).sort()).toEqual(["agents.list", "projects.list", "providers.listModels", "workspaces.list"]);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
     const warmed = fake.calls.length;
     await fire("onPointerLeave");
@@ -199,7 +199,7 @@ describe("Tasks board prefetch", () => {
     await advance(INTENT_GRACE_MS - 1);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
     await advance(1);
-    expect(fake.openSubscriptions()).toBe(STATUS_ONLY);
+    expect(fake.openSubscriptions()).toBe(COUNTS_ONLY);
   });
 
   it("keeps them while the pointer stays, and a second hover restarts the grace period", async () => {
@@ -214,7 +214,7 @@ describe("Tasks board prefetch", () => {
     await advance(INTENT_GRACE_MS - 1);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
     await advance(1);
-    expect(fake.openSubscriptions()).toBe(STATUS_ONLY);
+    expect(fake.openSubscriptions()).toBe(COUNTS_ONLY);
   });
 
   it("a board opened after the hover sends nothing and draws at once", async () => {
@@ -243,7 +243,7 @@ describe("Tasks board prefetch", () => {
     await advance(BOARD_LINGER_MS - 1);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
     await advance(1);
-    expect(fake.openSubscriptions()).toBe(STATUS_ONLY);
+    expect(fake.openSubscriptions()).toBe(COUNTS_ONLY);
   });
 
   it("a board reopened within the grace period sends nothing", async () => {
@@ -260,7 +260,7 @@ describe("Tasks board prefetch", () => {
     await advance(BOARD_LINGER_MS - 1);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
     await advance(1);
-    expect(fake.openSubscriptions()).toBe(STATUS_ONLY);
+    expect(fake.openSubscriptions()).toBe(COUNTS_ONLY);
   });
 
   it("warms without counts too, and closes everything once the grace runs out", async () => {
@@ -293,11 +293,11 @@ describe("Tasks board prefetch", () => {
     await fire("onPointerLeave");
     await advance(INTENT_GRACE_MS * 2);
     expect(fake.calls.length).toBe(before);
-    expect(fake.openSubscriptions()).toBe(STATUS_ONLY);
+    expect(fake.openSubscriptions()).toBe(COUNTS_ONLY);
     // The cancelled wait does not fire later, nor shorten the next one.
     await fire("onPointerEnter");
     await advance(HOVER_INTENT_MS - 1);
-    expect(fake.openSubscriptions()).toBe(STATUS_ONLY);
+    expect(fake.openSubscriptions()).toBe(COUNTS_ONLY);
     await advance(1);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
   });
@@ -308,7 +308,7 @@ describe("Tasks board prefetch", () => {
     const before = fake.calls.length;
     await fire("onPointerEnter");
     await advance(100);
-    expect(boardCalls(before).sort()).toEqual(["agents.list", "agents.list", "projects.list", "providers.listModels", "workspaces.list"]);
+    expect(boardCalls(before).sort()).toEqual(["agents.list", "projects.list", "providers.listModels", "workspaces.list"]);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
   });
 
@@ -318,7 +318,7 @@ describe("Tasks board prefetch", () => {
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
     await fire("onBlur");
     await advance(INTENT_GRACE_MS);
-    expect(fake.openSubscriptions()).toBe(STATUS_ONLY);
+    expect(fake.openSubscriptions()).toBe(COUNTS_ONLY);
     // Focus while a hover waits takes over; the wait adds nothing.
     await fire("onPointerEnter");
     await fire("onFocus");
@@ -337,7 +337,7 @@ describe("Tasks board prefetch", () => {
     await openBoard();
     await advance(HOVER_INTENT_MS * 2);
     const requests = boardCalls(before).sort();
-    expect(requests).toEqual(["agents.list", "agents.list", "projects.list", "providers.listModels", "workspaces.list"]);
+    expect(requests).toEqual(["agents.list", "projects.list", "providers.listModels", "workspaces.list"]);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
   });
 
@@ -360,7 +360,7 @@ describe("Tasks board prefetch", () => {
       expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
       await fire("onTouchEnd");
       await advance(INTENT_GRACE_MS);
-      expect(fake.openSubscriptions()).toBe(STATUS_ONLY);
+      expect(fake.openSubscriptions()).toBe(COUNTS_ONLY);
       await act(async () => sidebarRenderer!.unmount());
       sidebarRenderer = undefined;
     }

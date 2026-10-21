@@ -1028,7 +1028,7 @@ describe("Tasks sidebar entry", () => {
   }
 
   it.each([
-    ["running-and-input", "2 running, 1 need input", "21"],
+    ["all", "1 need input, 2 running, 2 to review", "122"],
     ["input-only", "1 need input", "1"],
     ["none", null, ""],
   ] as const)("draws the counts for %s", (count, label, text) => {
@@ -1039,7 +1039,15 @@ describe("Tasks sidebar entry", () => {
     expect(textOf(row)).toBe(text);
   });
 
-  it("hides a zero count and draws nothing when both are zero", () => {
+  it("draws needs input, running and review in that order with their lane icons", () => {
+    host.counts = { running: 3, needsInput: 1, review: 2, done: 4 };
+    const row = entry(null);
+    const icons = row.findAll((node) => (node.type as unknown) === "View" && /^status-[a-z_]+$/.test(String(node.props.testID ?? "")));
+    expect(icons.map((node) => node.props.testID)).toEqual(["status-needs_input", "status-running", "status-unread"]);
+    expect(textOf(row)).toBe("132");
+  });
+
+  it("hides a zero count and draws nothing when all are zero", () => {
     host.counts = { running: 0, needsInput: 2, review: 0, done: 0 };
     const row = entry(null);
     expect(textOf(row)).toBe("2");
@@ -1047,7 +1055,7 @@ describe("Tasks sidebar entry", () => {
     expect(row.findAll((node) => node.props.kind === "running")).toHaveLength(0);
     const input = row.findAll((node) => (node.type as unknown) === "Text" && node.props.children === 2)[0]!;
     expect(input.props.style).toMatchObject({ fontWeight: "600" });
-    host.counts = { running: 0, needsInput: 0, review: 3, done: 1 };
+    host.counts = { running: 0, needsInput: 0, review: 0, done: 1 };
     act(() => renderer!.unmount());
     expect(textOf(entry(null))).toBe("");
   });

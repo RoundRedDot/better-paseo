@@ -34,10 +34,11 @@ export interface TasksOptions {
   includeDone: boolean;
 }
 
-/** The sidebar row's two numbers. */
+/** The sidebar row's numbers. */
 export interface SidebarCounts {
-  running: number;
   needsInput: number;
+  running: number;
+  review: number;
   /** False until the first active snapshot arrives. */
   ready: boolean;
 }
@@ -131,7 +132,7 @@ interface ProjectIconValue {
 }
 
 /**
- * The agents in flight. The only subscription the sidebar's counts need: an
+ * The agents in flight; the sidebar's running and needs-input counts: an
  * agent that waits for a permission is mid-turn, so it is running. Both
  * daemons (0.11, 0.12) store attention only for "finished" and "error"; a
  * "permission" reason survives only on records from older daemons, and the
@@ -140,9 +141,9 @@ interface ProjectIconValue {
 const STATUS_KEY = "active-status";
 const STATUS_FILTER: PaseoAgentListOptions["filter"] = { statuses: ["running", "initializing", "error"] };
 /**
- * The unread and failed agents; with the workspaces, labels, projects and
- * model names, opened only while a board is open. Unread agents are most of
- * a busy daemon's active records, and each one is a full snapshot.
+ * The unread and failed agents, opened only while a board is open or the
+ * sidebar shows its review count. Unread agents are most of a busy daemon's
+ * active records, and each one is a full snapshot.
  */
 const ATTENTION_KEY = "active-attention";
 const ATTENTION_FILTER: PaseoAgentListOptions["filter"] = { requiresAttention: true };
@@ -376,21 +377,27 @@ interface SnapshotCache {
   snapshot: TasksSnapshot;
 }
 
-/** What a consumer needs: the counts alone (the sidebar), the board, the board with its done lane. */
+/**
+ * What a consumer needs: the counts alone (the sidebar), the counts with the
+ * review lane's, the board, the board with its done lane.
+ */
 interface TasksDemand {
   board: boolean;
   done: boolean;
+  /** The unread and failed agents without a board; a board always has them. */
+  attention?: boolean;
 }
 
 /**
- * Subscriptions belong to a tier: `base` while anything is mounted, `board`
- * while a board is, `done` while a board shows its done lane. A run is the
- * tier's generation when a request left, so a late answer for a closed tier
- * is released instead of applied.
+ * Subscriptions belong to a tier: `base` while anything is mounted,
+ * `attention` while a board or the sidebar's review count is, `board` while
+ * a board is, `done` while a board shows its done lane. A run is the tier's
+ * generation when a request left, so a late answer for a closed tier is
+ * released instead of applied.
  */
 interface Run {
   generation: number;
-  tier: "base" | "board" | "done";
+  tier: "base" | "attention" | "board" | "done";
   tierRun: number;
 }
 
@@ -441,9 +448,11 @@ function createStore(api: PaseoApi): TaskStore {
   const subscriptions = new Map<string, StoreSubscription>();
   const projectUnsubscribes: Array<() => void> = [];
   let consumers = 0;
+  let attentionConsumers = 0;
   let boardConsumers = 0;
   let doneConsumers = 0;
   let generation = 0;
+  let attentionRun = 0;
   let boardRun = 0;
   let doneRun = 0;
   let statusReady = false;
@@ -655,6 +664,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   function isCurrent(run: Run): boolean {
     if (run.generation !== generation || consumers === 0) return false;
+    if (run.tier === "attention") return attentionConsumers > 0 && run.tierRun === attentionRun;
     if (run.tier === "board") return boardConsumers > 0 && run.tierRun === boardRun;
     if (run.tier === "done") return doneConsumers > 0 && run.tierRun === doneRun;
     return true;
@@ -968,12 +978,16 @@ function createStore(api: PaseoApi): TaskStore {
     void openAgentSubscription(STATUS_KEY, activeOptions(STATUS_FILTER), run);
   }
 
-  function startBoard() {
-    const run: Run = { generation, tier: "board", tierRun: ++boardRun };
+  function startAttention() {
+    const run: Run = { generation, tier: "attention", tierRun: ++attentionRun };
     attentionReady = false;
-    workspacesReady = false;
     sourceMembers.set(ATTENTION_KEY, new Set());
     void openAgentSubscription(ATTENTION_KEY, activeOptions(ATTENTION_FILTER), run);
+  }
+
+  function startBoard() {
+    const run: Run = { generation, tier: "board", tierRun: ++boardRun };
+    workspacesReady = false;
     void startWorkspaceSubscription(run);
     void startLabelSubscription(run);
     void startProjects(run);
@@ -1010,17 +1024,27 @@ function createStore(api: PaseoApi): TaskStore {
     notify();
   }
 
+  /** Neither a board nor the review count left: the records only the attention list held go. */
+  function stopAttention() {
+    attentionRun += 1;
+    stopSubscription(ATTENTION_KEY);
+    sourceMembers.delete(ATTENTION_KEY);
+    attentionReady = false;
+    batchUpdates(() => {
+      for (const id of [...entries.keys()]) dropIfUnreferenced(id);
+      notify();
+    });
+  }
+
   /**
-   * The last board closed: back to the counts' one subscription. Records
-   * only the board listed go, and the rest lose the workspace and project
-   * details that would go stale; a board opened later reads them again.
+   * The last board closed: back to the counts' subscriptions. Records only
+   * the board listed go, and the rest lose the workspace and project details
+   * that would go stale; a board opened later reads them again.
    */
   function stopBoard() {
     boardRun += 1;
-    for (const key of [ATTENTION_KEY, "workspaces", "labels"]) stopSubscription(key);
+    for (const key of ["workspaces", "labels"]) stopSubscription(key);
     for (const unsubscribe of projectUnsubscribes.splice(0)) unsubscribe();
-    sourceMembers.delete(ATTENTION_KEY);
-    attentionReady = false;
     workspacesReady = false;
     workspaces.clear();
     projects.clear();
@@ -1147,15 +1171,23 @@ function createStore(api: PaseoApi): TaskStore {
   function getCounts(): SidebarCounts {
     if (countsDirty || !countsCache) {
       countsDirty = false;
-      let running = 0;
       let needsInput = 0;
+      let running = 0;
+      let review = 0;
       for (const card of cards.values()) {
-        if (card.lane === "running") running += 1;
-        else if (card.lane === "needs_input") needsInput += 1;
+        if (card.lane === "needs_input") needsInput += 1;
+        else if (card.lane === "running") running += 1;
+        else if (card.lane === "review") review += 1;
       }
       // The same object while the numbers hold, so a streaming agent does not re-render the row.
-      if (!countsCache || countsCache.running !== running || countsCache.needsInput !== needsInput || countsCache.ready !== statusReady) {
-        countsCache = { running, needsInput, ready: statusReady };
+      if (
+        !countsCache ||
+        countsCache.needsInput !== needsInput ||
+        countsCache.running !== running ||
+        countsCache.review !== review ||
+        countsCache.ready !== statusReady
+      ) {
+        countsCache = { needsInput, running, review, ready: statusReady };
       }
     }
     return countsCache;
@@ -1240,11 +1272,16 @@ function createStore(api: PaseoApi): TaskStore {
 
   function subscribe(listener: () => void, demand: TasksDemand): () => void {
     const done = demand.board && demand.done;
+    const attention = demand.board || demand.attention === true;
     listeners.add(listener);
     consumers += 1;
     if (consumers === 1) {
       generation += 1;
       startBase();
+    }
+    if (attention) {
+      attentionConsumers += 1;
+      if (attentionConsumers === 1) startAttention();
     }
     if (demand.board) {
       boardConsumers += 1;
@@ -1264,6 +1301,10 @@ function createStore(api: PaseoApi): TaskStore {
       if (demand.board) {
         boardConsumers = Math.max(0, boardConsumers - 1);
         if (boardConsumers === 0 && consumers > 0) stopBoard();
+      }
+      if (attention) {
+        attentionConsumers = Math.max(0, attentionConsumers - 1);
+        if (attentionConsumers === 0 && consumers > 0) stopAttention();
       }
       if (consumers === 0) stopAll();
     };
@@ -1361,14 +1402,17 @@ export function releaseTasksHolds(): void {
 }
 
 /**
- * The sidebar's running and needs-input counts. Alone it opens one agent
- * subscription (running, initializing, error) and nothing else: no
- * workspaces, projects, labels or model names. With a board open it counts
- * the board's cards. Re-renders only when a number changes.
+ * The sidebar's counts. Alone it opens the agents in flight (running,
+ * initializing, error), and with `review` the unread and failed ones too;
+ * nothing else: no workspaces, projects, labels or model names. With a board
+ * open it counts the board's cards. Re-renders only when a number changes.
  */
-export function useTaskCounts(paseo: PaseoApi): SidebarCounts {
+export function useTaskCounts(paseo: PaseoApi, review: boolean): SidebarCounts {
   const store = getStore(paseo);
-  const subscribe = useMemo(() => (listener: () => void) => store.subscribe(listener, { board: false, done: false }), [store]);
+  const subscribe = useMemo(
+    () => (listener: () => void) => store.subscribe(listener, { board: false, done: false, attention: review }),
+    [store, review],
+  );
   return useSyncExternalStore(subscribe, store.getCounts, store.getCounts);
 }
 
