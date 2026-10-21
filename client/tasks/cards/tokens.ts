@@ -27,6 +27,8 @@ export interface TaskTokens {
   accentText: string;
   /** Paseo's `statusDot*` band: running ring, needs-input alert, unread dot, failed dot. */
   status: { running: string; warning: string; success: string; danger: string };
+  /** The branch pill's hue: GitHub's branch-label blue, the same whatever the theme's accent. */
+  branch: string;
   /** The host's `statusWarning`/`statusDanger`, for text and bars (context, timers, errors). */
   warning: string;
   danger: string;
@@ -100,6 +102,8 @@ export interface CardTokens {
 
 const STATUS_LIGHT = { running: "#268ae0", warning: "#b37824", success: "#299f51", danger: "#f12e2f" } as const;
 const STATUS_DARK = { running: "#5caaf6", warning: "#db932e", success: "#35c264", danger: "#f7796d" } as const;
+const BRANCH_LIGHT = "#0969da";
+const BRANCH_DARK = "#4493f8";
 
 /** Relative luminance-ish brightness of a `#rrggbb` colour, 0..1; null when unparseable. */
 function brightness(color: string): number | null {
@@ -166,6 +170,7 @@ export function buildTaskTokens(colors: PluginTheme["colors"]): TaskTokens {
     accent: colors.accent,
     accentText: readableOn(colors.accent, [card.background, card.primaryFill, s0, colors.surface1, colors.surface2, accentSoft], colors.foreground),
     status,
+    branch: isDark ? BRANCH_DARK : BRANCH_LIGHT,
     warning: colors.statusWarning || status.warning,
     danger,
     success: colors.statusSuccess || status.success,
