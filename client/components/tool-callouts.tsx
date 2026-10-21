@@ -46,7 +46,7 @@ import { codeSurface } from "./host-font-escape";
 import { toolCopyPlan, type ResolvePath } from "../tools/copy";
 import type { CopyAction, CopyActionId, CopyPlan } from "../copy/content";
 import { ToolbarButton, ToolbarCopyButton, TooltipAlignContext } from "../ui/toolbar-button";
-import { stringifyValue, type ToolCallView, type ToolKind } from "../tools/classify";
+import { readMcpName, stringifyValue, type ToolCallView, type ToolKind } from "../tools/classify";
 import { summarizeToolCall, summarizeToolGroup } from "../tools/group";
 import { toolHasDetail } from "../tools/detail";
 import { mcpServiceIcon } from "../tools/mcp-service-icon";
@@ -99,8 +99,10 @@ export function toolIconName(tool: ToolKind): string {
 export function toolCallIconName(call: ToolCallView): string {
   if (call.activity) return call.activity.icon;
   if (readUserQuestions(call)) return "MessageCircleQuestion";
+  // An explicit MCP name identifies its service even without a typed MCP body.
+  const mcp = call.mcp ?? (call.name?.startsWith("mcp__") ? readMcpName(call.name, "", undefined) : undefined);
   const shell = call.tool === "bash" || call.tool === "shell";
-  return (call.tool === "mcp" && call.mcp && mcpServiceIcon(call.mcp.server, call.mcp.tool))
+  return (mcp && mcpServiceIcon(mcp.server, mcp.tool))
     || (shell && call.command && commandIcon(call.command))
     || toolIconName(call.tool);
 }

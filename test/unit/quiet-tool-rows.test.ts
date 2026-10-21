@@ -16,6 +16,8 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
 const { rowPalette } = await import("../../client/ui/disclosure-header");
+const { toolCallIconName } = await import("../../client/components/tool-callouts");
+const { classifyTool } = await import("../../client/tools/classify");
 
 // The reference palettes the design was drawn on.
 const LIGHT = {
@@ -30,6 +32,23 @@ const DARK = {
 };
 
 describe("quiet tool rows", () => {
+  it.each(["get_issue", "save_comment", "save_issue"])("keeps the Linear icon for %s across row kinds", (tool) => {
+    const call = classifyTool({
+      name: `mcp__linear-server__${tool}`, status: "completed",
+      detail: { type: "unknown", input: {}, output: "" },
+    });
+    expect(toolCallIconName(call)).toBe("brand:linear");
+    // Service identity is still in the name when no typed MCP record reaches the row.
+    for (const kind of ["unknown", "plain_text"] as const) {
+      expect(toolCallIconName({ ...call, tool: kind, mcp: undefined })).toBe("brand:linear");
+    }
+  });
+
+  it.each(["linear_notes", "linear.txt", "mcp__custom-server__get_issue"])("does not assign Linear's icon to %s", (name) => {
+    const call = classifyTool({ name, status: "completed", detail: { type: "unknown", input: {}, output: "" } });
+    expect(toolCallIconName(call)).toBe(name.startsWith("mcp__") ? "Plug" : "Wrench");
+  });
+
   it("derives the design's light values from the theme", () => {
     const row = buildThemeTokens(LIGHT, undefined, { platform: "web" }).row;
     expect(row).toMatchObject({
