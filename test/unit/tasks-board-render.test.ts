@@ -944,7 +944,7 @@ describe("Tasks board, phone", () => {
     act(() => cell("Running 2").props.onPress());
     expect(cell("Running 2").props.accessibilityState).toEqual({ selected: true });
     expect(cell("Needs input 1").props.accessibilityState).toEqual({ selected: false });
-    expect(StyleSheet.flatten(cell("Running 2").props.style)).toMatchObject({ borderRadius: 10 });
+    expect(StyleSheet.flatten(cell("Running 2").props.style)).toMatchObject({ borderRadius: 8, minHeight: 36 });
   });
 
   it("says when a non-default sort is on, and opens the filters from it", () => {

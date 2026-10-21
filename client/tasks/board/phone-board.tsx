@@ -358,14 +358,14 @@ export function PhoneBoard(props: {
           horizontal
           scrollEnabled={overflowing}
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ flexGrow: 1, minWidth: barWidth, padding: 8, gap: 6 }}
+          contentContainerStyle={{ flexGrow: 1, minWidth: barWidth, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}
         >
           {LANE_ORDER.map((id) => {
             const on = id === lane;
             const count = lanes[id].cards.length;
             const warn = id === "needs_input" && count > 0;
-            // The sidebar's status counts as the lane switch: four cells on
-            // the panel's track, the shown lane's raised as a card.
+            // The status counts as the lane switch, one line each: a segmented
+            // control on the panel's track, the shown lane's cell raised as a card.
             return (
               <Pressable
                 key={id}
@@ -378,17 +378,16 @@ export function PhoneBoard(props: {
                 style={{
                   flexGrow: 1,
                   flexBasis: 0,
-                  minWidth: overflowing ? undefined : (barWidth - 16 - 18) / 4,
-                  minHeight: 54,
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderRadius: 10,
+                  minWidth: overflowing ? undefined : (barWidth - 16 - 12) / 4,
+                  minHeight: 36,
+                  paddingHorizontal: overflowing ? 10 : 4,
+                  borderRadius: 8,
                   borderWidth: HAIRLINE,
-                  borderColor: on ? cardLook.border : warn ? warning : "transparent",
+                  borderColor: on ? cardLook.border : "transparent",
                   backgroundColor: on ? cardLook.background : "transparent",
                   boxShadow: on ? cardLook.shadow : undefined,
+                  alignItems: "center",
                   justifyContent: "center",
-                  gap: 2,
                 } as object}
               >
                 <View
@@ -396,15 +395,17 @@ export function PhoneBoard(props: {
                   style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
                 >
                   <StatusIcon kind={LANE_STATUS[id]} size={13} theme={theme} animated={board.visible} />
-                  <View onLayout={(event: LayoutChangeEvent) => measureTab(id, "label", event.nativeEvent.layout)} style={{ flexShrink: 1 }}>
-                    <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: on ? "600" : "400", color: on ? colors.foreground : colors.foregroundMuted }}>
+                  <View onLayout={(event: LayoutChangeEvent) => measureTab(id, "label", event.nativeEvent.layout)} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: on ? "600" : "500", color: on ? colors.foreground : colors.foregroundMuted }}>
                       {strings.tabs[id]}
                     </Text>
+                    {tasks.ready ? (
+                      <Text style={{ fontSize: 14, fontWeight: warn || on ? "600" : "400", fontVariant: ["tabular-nums"], color: warn ? warning : on ? colors.foreground : colors.foregroundMuted }}>
+                        {count}
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
-                <Text style={{ fontSize: 19, lineHeight: 24, fontWeight: "600", fontVariant: ["tabular-nums"], color: warn ? warning : on ? colors.foreground : colors.foregroundMuted }}>
-                  {tasks.ready ? count : "–"}
-                </Text>
               </Pressable>
             );
           })}
