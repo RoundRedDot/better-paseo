@@ -1,5 +1,5 @@
 import type { TasksLanguage } from "../i18n";
-import type { StatusKind, TaskCard } from "../model";
+import type { StatusKind, TaskCard, TaskChild } from "../model";
 import { contextRatio, formatCost, formatDuration, formatRelative, formatTokens, since } from "./format";
 import { cardStrings } from "./strings";
 
@@ -68,16 +68,29 @@ export function formatSpan(ms: number): string {
 
 // ---- Subtasks --------------------------------------------------------------
 
-export interface SubtaskSegment {
-  status: StatusKind;
-  count: number;
+/**
+ * A subtask row's second line, as Paseo 0.12's subagent row writes it
+ * (`buildAgentFactsLine`): model · thinking · mode · context, the context as
+ * "120k / 200k tokens (60%)". Null until the child has a model.
+ */
+export function childFacts(child: TaskChild): string | null {
+  if (!child.modelLabel) return null;
+  const parts = [child.modelLabel];
+  if (child.thinkingLabel) parts.push(child.thinkingLabel);
+  if (child.modeLabel) parts.push(child.modeLabel);
+  const context = child.context;
+  if (context && Number.isFinite(context.usedTokens) && Number.isFinite(context.maxTokens) && context.usedTokens >= 0 && context.maxTokens > 0) {
+    const share = Math.round(Math.min(100, (context.usedTokens / context.maxTokens) * 100));
+    parts.push(`${hostTokens(context.usedTokens)} / ${hostTokens(context.maxTokens)} tokens (${share}%)`);
+  }
+  return parts.join(" · ");
 }
 
-const SEGMENT_ORDER: StatusKind[] = ["done", "unread", "running", "needs_input", "failed"];
-
-/** The children counted by status, in the bar's order; empty statuses dropped. */
-export function subtaskSegments(card: TaskCard): SubtaskSegment[] {
-  return SEGMENT_ORDER.map((status) => ({ status, count: card.children.filter((child) => child.status === status).length })).filter((segment) => segment.count > 0);
+/** The host's token count (`formatTokenCount`): "950", "120k", "1m". */
+function hostTokens(value: number): string {
+  if (value >= 1_000_000) return `${Math.round(value / 1_000_000)}m`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}k`;
+  return String(Math.round(value));
 }
 
 // ---- Tokens ----------------------------------------------------------------

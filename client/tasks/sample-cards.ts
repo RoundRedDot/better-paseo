@@ -121,9 +121,9 @@ function allSamples(now: number): TaskCard[] {
       timing: { ...timing, turnStartedAt: ago(12 * minute + 30_000) },
       context: { usedTokens: 172_000, maxTokens: 200_000 },
       children: [
-        { id: "sample-child-1", title: "Measure the sidebar ring", status: "running" },
-        { id: "sample-child-2", title: "Write the ring geometry test", status: "running" },
-        { id: "sample-child-3", title: "Collect status colours", status: "done" },
+        { id: "sample-child-1", title: "Measure the sidebar ring", status: "running", provider: "claude", modelLabel: "Opus 4.7", thinkingLabel: "High", modeLabel: "Bypass", context: { usedTokens: 120_000, maxTokens: 200_000 } },
+        { id: "sample-child-2", title: "Write the ring geometry test", status: "running", provider: "codex" },
+        { id: "sample-child-3", title: "Collect status colours", status: "done", provider: "claude" },
       ],
       stoppable: true,
     },

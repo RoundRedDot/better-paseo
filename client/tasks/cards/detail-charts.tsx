@@ -14,7 +14,6 @@ import {
   timelineFractions,
   type ContextView,
   type StatusTone,
-  type SubtaskSegment,
   type SummaryTile,
   type Timeline,
   type TokenMix,
@@ -325,32 +324,6 @@ export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touc
   );
 }
 
-// ---- Subtasks --------------------------------------------------------------
-
-/** The children by status as a segmented bar, with a legend of counts. */
-export function SubtaskBar(props: { segments: SubtaskSegment[]; tokens: TaskTokens; language: TasksLanguage; font: number }) {
-  const { tokens } = props;
-  const status = cardStrings(props.language).status;
-  return (
-    <View testID="detail-subtask-bar" style={{ paddingHorizontal: 6, paddingTop: 2, paddingBottom: 6 }}>
-      <View style={{ flexDirection: "row", gap: 2, height: 6 }}>
-        {props.segments.map((segment) => (
-          <View key={segment.status} style={{ flexGrow: segment.count, flexBasis: 0, borderRadius: 3, backgroundColor: statusColor(segment.status, tokens) }} />
-        ))}
-      </View>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 12, rowGap: 4, marginTop: 8 }}>
-        {props.segments.map((segment) => (
-          <View key={segment.status} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: statusColor(segment.status, tokens) }} />
-            <Text style={{ fontSize: props.font - 1, color: tokens.foregroundMuted }}>{status[segment.status]}</Text>
-            <Text style={{ fontSize: props.font - 1, color: tokens.foreground, fontVariant: ["tabular-nums"] }}>{segment.count}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
 // ---- Activity --------------------------------------------------------------
 
 const LABEL_WIDTH = 96;
@@ -469,19 +442,3 @@ export function Chip(props: { tokens: TaskTokens; lead?: React.ReactNode; text: 
   );
 }
 
-/** A small outlined badge beside a value: "↑2 ↓0", "● 未提交", "本地 checkout". */
-export function Badge(props: { tokens: TaskTokens; text: string; dot?: string; icon?: string; tone?: string; testID?: string }) {
-  const color = props.tone ?? props.tokens.foregroundMuted;
-  return (
-    <View
-      testID={props.testID}
-      style={{ height: 20, paddingHorizontal: 7, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.card.pillBorder, flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 }}
-    >
-      {props.dot ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: props.dot }} /> : null}
-      {props.icon ? <Icon name={props.icon} size={12} color={color} /> : null}
-      <Text numberOfLines={1} style={{ fontSize: 11, color, fontVariant: ["tabular-nums"] }}>
-        {props.text}
-      </Text>
-    </View>
-  );
-}
