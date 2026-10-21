@@ -1,13 +1,15 @@
 import type { TaskCard } from "./model";
 
 /**
- * Made-up cards: the settings page's live preview draws them, and the card and
- * board slices use them until the data layer is wired in. One per lane plus a
- * parent with children, so every block of the card shows up somewhere.
+ * Made-up cards: the settings page's preview of the board draws them, and the
+ * card and board tests use them. `sampleCards` holds one or two per lane plus
+ * a parent with children, so every block of the card shows up somewhere;
+ * `previewSampleCards` adds a question and a card stopped from the board, so
+ * the preview fills every lane with two.
  *
  * `now` anchors the times, so a timer reads "12m 30s" whenever the preview opens.
  */
-export function sampleCards(now: number = Date.now()): TaskCard[] {
+function allSamples(now: number): TaskCard[] {
   const ago = (ms: number) => new Date(now - ms).toISOString();
   const minute = 60_000;
 
@@ -38,7 +40,7 @@ export function sampleCards(now: number = Date.now()): TaskCard[] {
   const base = {
     provider: "claude",
     providerLabel: "Claude",
-    providerMark: "claude",
+    providerMark: "lobe:claude",
     model: "claude-opus-5-5",
     modelLabel: "Opus 5.5",
     thinkingLabel: "High",
@@ -80,13 +82,39 @@ export function sampleCards(now: number = Date.now()): TaskCard[] {
     },
     {
       ...base,
+      id: "sample-question",
+      title: "Pick the date format for the CSV export",
+      lane: "needs_input",
+      status: "needs_input",
+      provider: "gemini",
+      providerLabel: "Gemini",
+      providerMark: "lobe:gemini",
+      model: "gemini-3-pro",
+      modelLabel: "Gemini 3 Pro",
+      thinkingLabel: null,
+      location: { ...location, workspaceName: "export-csv", workspaceTitle: "export-csv", branch: "feat/export-csv", git: { dirty: false, ahead: 1, behind: 2 }, pullRequest: null },
+      labels: [{ name: "api", color: "#10b981" }],
+      timing: { ...timing, attentionAt: ago(1 * minute), turnStartedAt: ago(6 * minute) },
+      context: { usedTokens: 38_000, maxTokens: 1_000_000 },
+      permission: {
+        requestId: "perm-2",
+        kind: "question",
+        title: "Question",
+        summary: "ISO 8601 dates, or the locale's short date?",
+        actions: [],
+        remaining: 0,
+      },
+      stoppable: true,
+    },
+    {
+      ...base,
       id: "sample-running",
       title: "Port the status ring to React Native",
       lane: "running",
       status: "running",
       provider: "codex",
       providerLabel: "Codex",
-      providerMark: "codex",
+      providerMark: "lobe:codex",
       model: "gpt-5.5-codex",
       modelLabel: "GPT-5.5 Codex",
       thinkingLabel: "Medium",
@@ -136,5 +164,34 @@ export function sampleCards(now: number = Date.now()): TaskCard[] {
       location: { ...location, branch: null, workspaceKind: "directory", git: null, folder: "scratch", folderName: "scratch", pullRequest: null },
       context: null,
     },
+    {
+      ...base,
+      id: "sample-stopped",
+      title: "Rewrite the onboarding copy",
+      lane: "done",
+      status: "done",
+      provider: "pi",
+      providerLabel: "Pi",
+      providerMark: "provider:pi",
+      model: "kimi-k2",
+      modelLabel: "Kimi K2",
+      thinkingLabel: null,
+      location: { ...location, workspaceName: "onboarding", workspaceTitle: "onboarding", branch: "copy/onboarding", git: { dirty: true, ahead: 0, behind: 0 }, pullRequest: null },
+      labels: [{ name: "copy", color: "#f59e0b" }],
+      context: { usedTokens: 41_000, maxTokens: 128_000 },
+      error: "Stopped manually",
+      stoppedManually: true,
+    },
   ];
+}
+
+/** Only the preview draws these: the board tests count the others. */
+const PREVIEW_ONLY: ReadonlySet<string> = new Set(["sample-question", "sample-stopped"]);
+
+export function sampleCards(now: number = Date.now()): TaskCard[] {
+  return allSamples(now).filter((card) => !PREVIEW_ONLY.has(card.id));
+}
+
+export function previewSampleCards(now: number = Date.now()): TaskCard[] {
+  return allSamples(now);
 }

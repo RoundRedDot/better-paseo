@@ -55,7 +55,15 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
 
 import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
-import { resetTasksEnabled, setTasksEnabled, setTasksSettingsOpener, tasksEnabled } from "../../client/tasks/board/enabled";
+import {
+  resetTasksEnabled,
+  setTasksEnabled,
+  setTasksSettingsOpener,
+  tasksBoardOpener,
+  tasksEnabled,
+  tasksSettingsOpener,
+} from "../../client/tasks/board/enabled";
+import { SETTINGS_SCREEN_ID, resetSettingsTab, setSettingsTab, settingsTab } from "../../client/settings-tab";
 import { resetTasksLanguage, resolveTasksLanguage } from "../../client/tasks/i18n";
 import { resetHostLanguageForTests } from "../../client/i18n/host-language";
 import { contributeTasks } from "../../client/tasks/contribute";
@@ -208,7 +216,7 @@ describe("Tasks board screen, opt-in", () => {
       for (let tick = 0; tick < 5; tick++) await Promise.resolve();
     });
     expect(textOf(renderer!.root)).toContain("The Tasks board is off");
-    expect(textOf(renderer!.root)).toContain("Settings > Tasks");
+    expect(textOf(renderer!.root)).toContain("Tasks board in Better Paseo's settings");
     expect(rpc).toHaveBeenCalledTimes(1);
     expect(host.settingsHooks).toBe(0);
     expect(fake.openSubscriptions()).toBe(0);
@@ -276,6 +284,7 @@ describe("Tasks registrations, opt-in", () => {
       addSettingsScreen: add("settings"),
       addCommandCenterItem: add("command"),
       openSettings: vi.fn(),
+      openScreen: vi.fn(),
       rpc: vi.fn(read),
     };
     return { value, active, removed, kinds: () => active.map((entry) => entry.kind).sort() };
@@ -285,7 +294,7 @@ describe("Tasks registrations, opt-in", () => {
   };
   const offRecord = () => Promise.resolve({ status: "ready", revision: "1", values: {} });
 
-  it("registers only the settings page and the idle screen while off: no sidebar item, command, timer or listener", async () => {
+  it("registers only the idle screen while off (its options live on the settings page): no sidebar item, command, timer or listener", async () => {
     vi.useFakeTimers();
     const listen = vi.fn();
     const previous = (globalThis as { addEventListener?: unknown }).addEventListener;
@@ -295,7 +304,7 @@ describe("Tasks registrations, opt-in", () => {
       contributeTasks(plugin.value as never);
       await flush();
       expect(plugin.value.rpc).toHaveBeenCalledTimes(1);
-      expect(plugin.kinds()).toEqual(["screen", "settings"]);
+      expect(plugin.kinds()).toEqual(["screen"]);
       expect(tasksEnabled()).toBe(false);
       expect(vi.getTimerCount()).toBe(0);
       expect(listen).not.toHaveBeenCalled();
@@ -311,11 +320,11 @@ describe("Tasks registrations, opt-in", () => {
     const cleanup = contributeTasks(plugin.value as never);
     await flush();
     setTasksEnabled(true);
-    expect(plugin.kinds()).toEqual(["command", "screen", "settings", "sidebar"]);
+    expect(plugin.kinds()).toEqual(["command", "screen", "sidebar"]);
     setTasksEnabled(true);
-    expect(plugin.active).toHaveLength(4);
+    expect(plugin.active).toHaveLength(3);
     setTasksEnabled(false);
-    expect(plugin.kinds()).toEqual(["screen", "settings"]);
+    expect(plugin.kinds()).toEqual(["screen"]);
     expect(plugin.removed.map((entry) => entry.kind).sort()).toEqual(["command", "sidebar"]);
     setTasksEnabled(true);
     cleanup();
@@ -329,22 +338,22 @@ describe("Tasks registrations, opt-in", () => {
   it("seeds from one settings read at startup", async () => {
     const plugin = client(() => Promise.resolve({ status: "ready", revision: "1", values: { enabled: true } }));
     contributeTasks(plugin.value as never);
-    expect(plugin.kinds()).toEqual(["screen", "settings"]);
+    expect(plugin.kinds()).toEqual(["screen"]);
     await flush();
-    expect(plugin.kinds()).toEqual(["command", "screen", "settings", "sidebar"]);
+    expect(plugin.kinds()).toEqual(["command", "screen", "sidebar"]);
   });
 
   it("keeps the board off when the read fails or the record is unusable", async () => {
     const failing = client(() => Promise.reject(new Error("offline")));
     contributeTasks(failing.value as never);
     await flush();
-    expect(failing.kinds()).toEqual(["screen", "settings"]);
+    expect(failing.kinds()).toEqual(["screen"]);
     expect(tasksEnabled()).toBeNull();
     resetTasksEnabled();
     const invalid = client(() => Promise.resolve({ status: "invalid", revision: "1", error: "bad" }));
     contributeTasks(invalid.value as never);
     await flush();
-    expect(invalid.kinds()).toEqual(["screen", "settings"]);
+    expect(invalid.kinds()).toEqual(["screen"]);
   });
 
   it("titles everything in the host's language and re-registers when it changes", async () => {
@@ -353,7 +362,6 @@ describe("Tasks registrations, opt-in", () => {
     contributeTasks(plugin.value as never);
     await flush();
     expect(Object.fromEntries(plugin.active.map((entry) => [entry.kind, typeof entry.title === "function" ? entry.title() : entry.title]))).toEqual({
-      settings: "任务",
       screen: "任务",
       sidebar: "任务",
       command: "打开任务",
@@ -362,14 +370,30 @@ describe("Tasks registrations, opt-in", () => {
     resolveTasksLanguage();
     await flush();
     expect(Object.fromEntries(plugin.active.map((entry) => [entry.kind, typeof entry.title === "function" ? entry.title() : entry.title]))).toEqual({
-      settings: "Tasks",
       screen: "Tasks",
       sidebar: "Tasks",
       command: "Open Tasks",
     });
-    expect(plugin.active).toHaveLength(4);
+    expect(plugin.active).toHaveLength(3);
     // The screen follows in place: registered once, never removed.
     expect(plugin.removed.filter((entry) => entry.kind === "screen")).toEqual([]);
+  });
+
+  it("opens the Tasks half of Better Paseo's settings page, and the board from it", async () => {
+    setSettingsTab("display");
+    const plugin = client(offRecord);
+    const cleanup = contributeTasks(plugin.value as never);
+    await flush();
+    expect(plugin.active.filter((entry) => entry.kind === "settings")).toEqual([]);
+    tasksSettingsOpener()!();
+    expect(settingsTab()).toBe("tasks");
+    expect(plugin.value.openSettings).toHaveBeenCalledWith(SETTINGS_SCREEN_ID);
+    tasksBoardOpener()!();
+    expect(plugin.value.openScreen).toHaveBeenCalledWith({ screenId: "tasks", params: expect.any(Object) });
+    cleanup();
+    expect(tasksSettingsOpener()).toBeNull();
+    expect(tasksBoardOpener()).toBeNull();
+    resetSettingsTab();
   });
 
   it("relabels when the native host's language arrives from AsyncStorage, with nothing of the board mounted", async () => {
@@ -382,7 +406,6 @@ describe("Tasks registrations, opt-in", () => {
     await flush();
     await flush();
     expect(Object.fromEntries(plugin.active.map((entry) => [entry.kind, typeof entry.title === "function" ? entry.title() : entry.title]))).toEqual({
-      settings: "任务",
       screen: "任务",
       sidebar: "任务",
       command: "打开任务",

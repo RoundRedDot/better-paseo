@@ -80,7 +80,7 @@ const en = {
   } as Record<"name" | "time" | "amount" | "length", Record<SortDirection, string>>,
   sortedAmong: (count: number) => `Sorted among the ${count} loaded`,
   boardOff: "The Tasks board is off",
-  boardOffHint: "Turn it on in Settings > Tasks to see your agents by status here.",
+  boardOffHint: "Turn it on under Tasks board in Better Paseo's settings to see your agents by status here.",
   openSettings: "Open settings",
   answerFailed: (message: string) => `Could not answer: ${message}`,
 };
@@ -157,8 +157,8 @@ const zh: typeof en = {
     length: { asc: "短\u2192长", desc: "长\u2192短" },
   },
   sortedAmong: (count) => `仅对已加载的 ${count} 条排序`,
-  boardOff: "任务面板未启用",
-  boardOffHint: "在 设置 > 任务 中开启后，这里会按状态显示你的 agent。",
+  boardOff: "任务看板未启用",
+  boardOffHint: "在 Better Paseo 设置的「任务看板」中开启后，这里会按状态显示你的 agent。",
   openSettings: "打开设置",
   answerFailed: (message) => `回答失败：${message}`,
 };

@@ -2,38 +2,44 @@ import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { settingsRpc } from "@getpaseo/plugin";
 import { TASKS_SETTINGS, tasksSettingsSchema } from "../../shared/tasks-settings";
 import { TasksBoardScreen } from "./board/board-screen";
-import { setTasksEnabled, setTasksSettingsOpener, setTasksStartupRead, subscribeTasksEnabled, tasksEnabled } from "./board/enabled";
+import {
+  setTasksBoardOpener,
+  setTasksEnabled,
+  setTasksSettingsOpener,
+  setTasksStartupRead,
+  subscribeTasksEnabled,
+  tasksEnabled,
+} from "./board/enabled";
 import { encodeBoardParams, lastBoardParams } from "./board/params";
 import { prefetchBoardFromCommand, releaseBoardPrefetch } from "./board/prefetch";
 import { TasksSidebarEntry } from "./board/sidebar-entry";
 import { BOARD_STRINGS } from "./board/strings";
 import { subscribeHostLanguage } from "../i18n/host-language";
 import { onTasksLanguageChange, resolveTasksLanguage } from "./i18n";
-import { TasksSettingsPage } from "./settings/settings-page";
+import { SETTINGS_SCREEN_ID, setSettingsTab } from "../settings-tab";
 
 /** The board's screen id; `openScreen({ screenId: TASKS_SCREEN_ID })` opens it. */
 export const TASKS_SCREEN_ID = "tasks";
 
 const KEYWORDS = ["tasks", "board", "kanban", "agents", "看板", "任务"];
 
+/** The board with the filters it was last shown with. */
+const boardRoute = () => ({ screenId: TASKS_SCREEN_ID, params: encodeBoardParams(lastBoardParams()) });
+
 /**
  * Registers the Tasks board. The board is opt-in (`enabled` in its
- * settings). Always registered: the settings page and the board screen,
- * which mounts only when open and then says the board is off; the only
- * work while off is one settings read at startup. Turning the board on
- * registers the sidebar entry and the Command Center item; turning it off
- * calls their cleanups, so nothing of the board stays mounted. Titles follow
- * the host's language: the screen's in place, the others by registering
- * again. Returns the cleanup.
+ * settings, edited on the Tasks half of Better Paseo's settings page,
+ * `settings-screen.ts`). Always registered: the board screen, which mounts
+ * only when open and then says the board is off; the only work while off is
+ * one settings read at startup. Turning the board on registers the sidebar
+ * entry and the Command Center item; turning it off calls their cleanups, so
+ * nothing of the board stays mounted. Titles follow the host's language: the
+ * screen's in place, the others by registering again. Returns the cleanup.
  */
 export function contributeTasks(client: PluginClientContext): () => void {
   let live = true;
   let language = resolveTasksLanguage();
 
-  const registerSettings = () => {
-    const remove = client.addSettingsScreen({ id: "tasks", title: BOARD_STRINGS[language].name, icon: "SquareKanban", Component: TasksSettingsPage });
-    return () => void remove();
-  };
   const registerBoard = () => {
     const titles = BOARD_STRINGS[language];
     const cleanups = [
@@ -48,7 +54,7 @@ export function contributeTasks(client: PluginClientContext): () => void {
         // The board's requests leave before its screen mounts (`prefetch.ts`).
         onSelect: (context) => {
           prefetchBoardFromCommand();
-          context.openScreen({ screenId: TASKS_SCREEN_ID, params: encodeBoardParams(lastBoardParams()) });
+          context.openScreen(boardRoute());
         },
       }),
     ];
@@ -66,8 +72,13 @@ export function contributeTasks(client: PluginClientContext): () => void {
     title: () => BOARD_STRINGS[resolveTasksLanguage()].name,
     Component: TasksBoardScreen,
   });
-  setTasksSettingsOpener(() => client.openSettings("tasks"));
-  let removeSettings = registerSettings();
+  // The off board's "Open settings" lands on the Tasks half of the page.
+  setTasksSettingsOpener(() => {
+    setSettingsTab("tasks");
+    client.openSettings(SETTINGS_SCREEN_ID);
+  });
+  // The settings page's "Open board", once the switch is on.
+  setTasksBoardOpener(() => client.openScreen(boardRoute()));
   let removeBoard: (() => void) | null = null;
   const applyEnabled = () => {
     const on = live && tasksEnabled() === true;
@@ -83,8 +94,6 @@ export function contributeTasks(client: PluginClientContext): () => void {
     const next = resolveTasksLanguage();
     if (!live || next === language) return;
     language = next;
-    removeSettings();
-    removeSettings = registerSettings();
     if (removeBoard) {
       removeBoard();
       removeBoard = registerBoard();
@@ -125,8 +134,8 @@ export function contributeTasks(client: PluginClientContext): () => void {
     removeBoard?.();
     removeBoard = null;
     releaseBoardPrefetch();
-    removeSettings();
     void removeScreen();
     setTasksSettingsOpener(null);
+    setTasksBoardOpener(null);
   };
 }
