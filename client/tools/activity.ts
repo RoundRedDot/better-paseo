@@ -160,6 +160,15 @@ function readClaude({ name, status, detail, input }: ActivityInput): ActivityDat
         icon: "CalendarClock", sections: section("Prompt", text(input.prompt), "markdown"),
       };
     }
+    case "ListAgents": {
+      const listing = contentText(record(output)?.output) ?? contentText(output);
+      const peers = /Peer sessions \((\d+)\)/.exec(listing ?? "")?.[1];
+      const self = /^This session is (\S+)/.exec(listing ?? "")?.[1];
+      return {
+        verb: "List sessions", target: peers ? `${peers} peer session${peers === "1" ? "" : "s"}` : undefined,
+        meta: self ? [`this is ${self}`] : [], icon: "Users", sections: section(undefined, listing, "code"),
+      };
+    }
     case "TaskStop": {
       const id = text(input.task_id) ?? text(input.shell_id);
       return { verb: "Stop task", target: id, meta: [], icon: "CircleStop", sections: [] };

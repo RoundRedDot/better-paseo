@@ -220,7 +220,7 @@ export function ToolCallout({
   }, [data, resolvePath, copy]);
 
   const running = groupCalls ? groupCalls.some((call) => call.status === "running") : data.status === "running";
-  const failed = data.status === "failed" || summary.tone === "danger";
+  const failed = (data.status === "failed" && !data.rejected) || summary.tone === "danger";
   // An agent row colours its icon, verb and meta together (agent cards design 5.5).
   const agentTone = summary.agent ? summary.tone === "danger" ? tokens.danger : summary.tone === "warning" ? tokens.warning :
     summary.agent.iconTone === "success" ? tokens.success : undefined : undefined;
@@ -373,7 +373,7 @@ export function ToolCallout({
             displayPath={displayPath}
           />
         )}
-        {!groupCalls && data.error && !drawsOwnError(data) ? <CallError text={data.error} tokens={tokens} /> : null}
+        {!groupCalls && data.error && !drawsOwnError(data) ? <CallError text={data.error} tokens={tokens} quiet={data.rejected} /> : null}
       </View>
     </FadeIn>
   ) : null;
@@ -496,7 +496,7 @@ export function ToolPreviewContent({ data, resolvePath, drawsImage = false, page
           agentTool ? <PaseoToolCallout data={data.paseo!} tokens={tokens} raw={raw} compact={rest.compact} error={data.error} /> :
           markdown && !raw ? <MarkdownView text={data.code!} tokens={tokens} variant="document"
           streaming={streaming} size={blockProseBase(tokens.typography)} /> : <ToolBody data={data} {...rest} preview />}
-        {data.error && !drawsOwnError(data) ? <PreviewError text={data.error} tokens={tokens} /> : null}
+        {data.error && !drawsOwnError(data) ? <PreviewError text={data.error} tokens={tokens} quiet={data.rejected} /> : null}
       </HoverPreviewBody>
     </>
   );
@@ -795,23 +795,23 @@ function PreviewFile({ text, ...rest }: Omit<React.ComponentProps<typeof Preview
   return <PreviewLines text={text} lines={lines} {...rest} />;
 }
 
-function useErrorStyle(tokens: ExtendedThemeTokens): TextStyle {
+function useErrorStyle(tokens: ExtendedThemeTokens, quiet = false): TextStyle {
   return useMemo<TextStyle>(() => ({
     fontFamily: tokens.fontMono,
     fontSize: tokens.typography.mono.size,
     lineHeight: tokens.typography.mono.lineHeight,
-    color: tokens.danger,
-  }), [tokens]);
+    color: quiet ? tokens.foregroundMuted : tokens.danger,
+  }), [tokens, quiet]);
 }
 
-/** A call's error in an opened card, set as its output is, in the danger colour. */
-function CallError({ text, tokens }: { text: string; tokens: ExtendedThemeTokens }) {
-  return <SelectableText {...selectionCodeText} style={useErrorStyle(tokens)}>{text}</SelectableText>;
+/** A call's error in an opened card, set as its output is, in the danger colour; a rejection is muted. */
+function CallError({ text, tokens, quiet }: { text: string; tokens: ExtendedThemeTokens; quiet?: boolean }) {
+  return <SelectableText {...selectionCodeText} style={useErrorStyle(tokens, quiet)}>{text}</SelectableText>;
 }
 
-/** A call's error in a preview: line by line as its output is, all in the danger colour. */
-function PreviewError({ text, tokens }: { text: string; tokens: ExtendedThemeTokens }) {
-  const style = useErrorStyle(tokens);
+/** A call's error in a preview: line by line as its output is, all in the danger colour; a rejection is muted. */
+function PreviewError({ text, tokens, quiet }: { text: string; tokens: ExtendedThemeTokens; quiet?: boolean }) {
+  const style = useErrorStyle(tokens, quiet);
   const lines = useMemo(() => terminalLines(text), [text]);
   return <PreviewLines text={text} lines={lines} style={style} tokens={tokens} />;
 }
