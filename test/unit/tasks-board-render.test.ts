@@ -515,6 +515,41 @@ describe("Tasks board, lane widths", () => {
   });
 });
 
+describe("Tasks board, tablet filters", () => {
+  beforeEach(() => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+  });
+
+  it("folds the two toggles behind a plus, and marks the plus while one is on", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(480);
+    const more = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-bar-more");
+    const switches = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch");
+    expect(textOf(renderer!.root)).toContain("Workspace");
+    expect(switches()).toHaveLength(0);
+    expect(more().props).toMatchObject({ accessibilityLabel: "More filters", accessibilityState: { expanded: false } });
+    act(() => more().props.onPress());
+    expect(switches().map((node) => textOf(node))).toEqual(["Open tabs only", "Hide subtasks"]);
+    expect(more().props).toMatchObject({ accessibilityLabel: "Fewer filters", accessibilityState: { expanded: true } });
+    act(() => switches()[1]!.props.onPress());
+    act(() => more().props.onPress());
+    expect(switches()).toHaveLength(0);
+    expect(textOf(more())).toBe("1");
+  });
+
+  it("keeps the toggles in the bar on web", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(480);
+    expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-bar-more")).toHaveLength(0);
+    expect(textOf(renderer!.root)).toContain("Hide subtasks");
+  });
+});
+
 describe("Tasks board, host theme", () => {
   const status = { statusSuccess: "#3f8f4f", statusWarning: "#b7791f", statusDanger: "#c53030" };
   const SEPIA_LIGHT = { surface0: "#fbf6ec", surface1: "#f5eedf", surface2: "#ede3cf", border: "#e2d6bf", foreground: "#3b2f20", foregroundMuted: "#7a6a55", accent: "#a0522d", accentForeground: "#fffaf0", ...status };
