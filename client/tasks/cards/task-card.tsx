@@ -42,8 +42,13 @@ export interface CardCallbacks {
   onPermission?(card: TaskCard, button: PermissionButton): void;
   /** Long press on a phone, hover on desktop: the details sheet or popover. */
   onDetails?(card: TaskCard): void;
-  /** Desktop: the pointer left the card, so the board may close the popover (after its grace delay). */
+  /** Desktop: the pointer left the card. */
   onDetailsEnd?(agentId: string): void;
+  /**
+   * A press on the body chooses the card for the details sidebar instead of
+   * opening its tab; on desktop a second click right after opens the tab.
+   */
+  onSelect?(card: TaskCard): void;
 }
 
 export interface TaskCardViewProps extends CardCallbacks {
@@ -60,6 +65,10 @@ export interface TaskCardViewProps extends CardCallbacks {
   focused: boolean;
   /** The 1 s highlight after a parent link scrolled here. */
   highlighted: boolean;
+  /** The card the details sidebar shows. */
+  current?: boolean;
+  /** ... and it is pinned there. */
+  pinned?: boolean;
   /** A fixed instant (ms) for the timer: previews and tests. Beats `clock`. */
   now?: number;
   /**
@@ -89,7 +98,12 @@ const TOUCH = !WEB;
  * system gives a touch to the innermost Pressable, so it keeps the button role.
  */
 const CONTAINER_ROLE = WEB ? ({ role: "group" } as const) : ({ accessibilityRole: "button" } as const);
-const DETAILS_DELAY_MS = 450;
+/** Desktop: the pointer rests this long on a card before the details sidebar shows it. */
+const HOVER_DETAILS_MS = 150;
+/** Touch: a long press. */
+const LONG_PRESS_MS = 450;
+/** Two clicks on a card this close together open its tab (the first one selected it). */
+const DOUBLE_CLICK_MS = 350;
 const NBSP = "\u00a0";
 /** " > " between meta segments; non-breaking, since a web text box drops a leading space. */
 const SEPARATOR = `${NBSP}\u203a${NBSP}`;
@@ -396,8 +410,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     if (current.stopPhase === "confirming") current.onCancelStop?.(current.card.id);
   }, [hovered]);
 
-  // The details popover: 450 ms of hover on the body, never while the pointer
-  // is on a control, the stop menu is open or a stop is armed or running.
+  // The details sidebar follows a hover of 150 ms on the body, never while the
+  // pointer is on a control, the stop menu is open or a stop is armed or running.
   const detailsWanted =
     hovered && !overControl && !menuOpen && props.stopPhase === "idle" && !!props.onDetails && !compact;
   useEffect(() => {
@@ -406,7 +420,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       detailsTimer.current = null;
       detailsShown.current = true;
       latest.current.onDetails?.(latest.current.card);
-    }, DETAILS_DELAY_MS);
+    }, HOVER_DETAILS_MS);
     return () => {
       clearDetails();
       if (detailsShown.current) {
@@ -416,8 +430,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     };
   }, [detailsWanted]);
 
-  /** The card's fill right now: the highlight, the hover grey, or the card. */
-  const background = props.highlighted ? look.highlight : hovered ? look.hoverBackground : look.background;
+  /** The card's fill right now: the highlight, the hover grey, the sidebar's card, or the card. */
+  const background = props.highlighted ? look.highlight : hovered ? (props.current ? look.current : look.hoverBackground) : props.current ? look.current : look.background;
   const canStop = card.stoppable && !!props.onStop;
   const parentStop = canStop && activeChildren(card) > 0;
   const showStop = canStop && !compact && (TOUCH || hovered || props.stopPhase !== "idle" || menuOpen);
@@ -452,7 +466,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     // and on hover only the fill and shadow change.
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: props.focused || props.highlighted ? tokens.accent : look.border,
+    borderColor: props.focused || props.highlighted ? tokens.accent : props.current ? look.currentBorder : look.border,
     backgroundColor: background,
     boxShadow: shadows.join(", "),
     zIndex: menuOpen ? 30 : hovered ? 2 : 1,
@@ -487,6 +501,11 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const jumpSlot = props.onOpen ? m.jump + JUMP_OVERHANG[compact ? 1 : 0] + GAP : 0;
   const controlsFor = (line: number) => (
     <>
+      {props.pinned ? (
+        <View style={{ height: line, justifyContent: "center" }} testID="task-card-pinned">
+          <Icon name="Pin" size={m.icon + 1} color={tokens.accent} />
+        </View>
+      ) : null}
       {showStop && TOUCH ? <StopControl {...stop} compact={false} line={line} /> : null}
       {props.onOpen ? (
         <JumpButton
@@ -868,13 +887,26 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       </View>
     ) : null;
 
+  const lastPress = useRef(0);
+  const pressBody = props.onSelect
+    ? () => {
+        const at = Date.now();
+        const second = !TOUCH && at - lastPress.current < DOUBLE_CLICK_MS;
+        lastPress.current = second ? 0 : at;
+        if (second) props.onOpen?.(card.id);
+        else props.onSelect?.(card);
+      }
+    : props.onOpen
+      ? () => props.onOpen?.(card.id)
+      : undefined;
+
   return (
     <Pressable
       {...CONTAINER_ROLE}
       accessibilityLabel={card.title}
-      onPress={props.onOpen ? () => props.onOpen?.(card.id) : undefined}
+      onPress={pressBody}
       onLongPress={props.onDetails && (compact || TOUCH) ? () => props.onDetails?.(card) : undefined}
-      delayLongPress={DETAILS_DELAY_MS}
+      delayLongPress={LONG_PRESS_MS}
       ref={rootRef}
       {...(WEB ? null : hoverProps)}
       style={cardStyle}
@@ -1135,7 +1167,7 @@ export function phoneButtonSizing(fontScale: number, yields = false): {
 }
 
 /** A permission answer or "go answer": 28 high, radius 6; 40 and evenly split on a phone. */
-function ActionButton(props: {
+export function ActionButton(props: {
   button: PermissionButton;
   tokens: TaskTokens;
   compact: boolean;

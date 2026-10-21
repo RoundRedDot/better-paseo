@@ -104,6 +104,7 @@ import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS } from "../../client/tasks/board/params";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
+import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
 import { BrandMark, PiMark, TaskCardView, TaskDetails, taskTokens } from "../../client/tasks/cards";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled } from "../../client/tasks/board/enabled";
@@ -170,6 +171,11 @@ function layOut(width: number) {
   }
 }
 
+/** Host nodes with a test id (composites carry the same props). */
+function hostsById(testID: string): ReactTestInstance[] {
+  return renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === testID);
+}
+
 function lanesScroll(): ReactTestInstance {
   return renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.horizontal === true);
 }
@@ -200,6 +206,7 @@ beforeEach(() => {
   host.canStop = false;
   host.rowRenders = 0;
   resetBoardSessions();
+  resetSidebarPreference();
   vi.useFakeTimers();
 });
 afterEach(() => {
@@ -284,7 +291,8 @@ describe("Tasks board, desktop", () => {
       layOut(1600);
       const search = renderer!.root.find((node) => (node.type as unknown) === "TextInput");
       expect(StyleSheet.flatten(search.props.style).fontSize).toBe(20);
-      expect(getItem).not.toHaveBeenCalled();
+      // The sidebar reads its own open state; the appearance is never read.
+      expect(getItem).not.toHaveBeenCalledWith(APP_SETTINGS_KEY);
     } finally {
       act(() => renderer?.unmount());
       renderer = undefined;
@@ -350,52 +358,59 @@ describe("Tasks board, desktop", () => {
     expect(cards().map((card) => card.props.card.id)).toContain("sample-running");
   });
 
-  it("keeps the details popover open once the pointer is in it, whenever the card's leave arrives", async () => {
-    vi.useFakeTimers();
-    try {
-      await act(async () => {
-        const listeners = { addEventListener() {}, removeEventListener() {} };
-        // Every node measures as the window; rows bind their web hover to a document that does nothing.
-        const node = {
-          ...listeners,
-          contains: () => false,
-          ownerDocument: { ...listeners, defaultView: listeners },
-          measureInWindow: (callback: (x: number, y: number, w: number, h: number) => void) => callback(0, 0, 1600, 900),
-        };
-        renderer = TestRenderer.create(screen(false), { createNodeMock: () => node });
-      });
-      layOut(1600);
-      const popover = () => renderer!.root.findAll((node) => (node.type as unknown) === "Animated.View" && typeof node.props.onPointerEnter === "function");
-      const open = async () => {
-        const card = cards()[0]!;
-        await act(async () => {
-          card.props.onDetails(card.props.card);
-          await Promise.resolve();
-          await Promise.resolve();
-        });
-        expect(renderer!.root.findAllByType(TaskDetails)).toHaveLength(1);
-        return card;
-      };
-      // The pointer jumps straight onto the popover: its enter comes before the card's leave.
-      let card = await open();
-      act(() => popover()[0]!.props.onPointerEnter());
-      act(() => card.props.onDetailsEnd(card.props.card.id));
-      act(() => {
-        vi.advanceTimersByTime(500);
-      });
-      expect(renderer!.root.findAllByType(TaskDetails)).toHaveLength(1);
-      act(() => popover()[0]!.props.onPointerLeave());
-      expect(renderer!.root.findAllByType(TaskDetails)).toHaveLength(0);
-      // Leaving the card for anywhere else still closes it after the grace.
-      card = await open();
-      act(() => card.props.onDetailsEnd(card.props.card.id));
-      act(() => {
-        vi.advanceTimersByTime(500);
-      });
-      expect(renderer!.root.findAllByType(TaskDetails)).toHaveLength(0);
-    } finally {
-      vi.useRealTimers();
-    }
+  it("shows the status counts in an inline sidebar that takes its width from the lanes", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2000);
+    expect(hostsById("sidebar-inline")).toHaveLength(1);
+    // The lanes keep the board less the sidebar's 380 and its 12 margin.
+    expect(lanesScroll().props.contentContainerStyle).toMatchObject({ width: 2000 - 380 - 12 });
+    const stats = renderer!.root.findByProps({ testID: "sidebar-stats" });
+    expect(textOf(stats.findByProps({ testID: "sidebar-stat-running" }))).toMatch(/Running\d/);
+    // No card chosen: the groups.
+    expect(hostsById("sidebar-groups").length).toBeGreaterThan(0);
+    // The switch hides it, and the lanes take the whole board.
+    act(() => renderer!.root.findByProps({ testID: "sidebar-switch" }).props.onPress());
+    expect(hostsById("sidebar-inline")).toHaveLength(0);
+    expect(lanesScroll().props.contentContainerStyle).toMatchObject({ width: 2000 });
+    expect(readSidebarPreference().open).toBe(false);
+  });
+
+  it("follows a hover until a click pins a card, and a second click opens its tab", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2000);
+    const card = (id: string) => cards().find((node) => node.props.card.id === id)!;
+    const title = () => textOf(renderer!.root.findByProps({ testID: "detail-title" }));
+    act(() => card("sample-running").props.onDetails(card("sample-running").props.card));
+    expect(title()).toBe(card("sample-running").props.card.title);
+    expect(card("sample-running").props.current).toBe(true);
+    act(() => card("sample-failed").props.onDetails(card("sample-failed").props.card));
+    expect(title()).toBe(card("sample-failed").props.card.title);
+    // A click pins: hovers no longer move it.
+    act(() => card("sample-running").props.onSelect(card("sample-running").props.card));
+    expect(card("sample-running").props.pinned).toBe(true);
+    act(() => card("sample-failed").props.onDetails(card("sample-failed").props.card));
+    expect(title()).toBe(card("sample-running").props.card.title);
+    // Close: back to the groups.
+    act(() => renderer!.root.findByProps({ testID: "detail-close" }).props.onPress());
+    expect(hostsById("detail-title")).toHaveLength(0);
+  });
+
+  it("floats the sidebar over a narrow board, where a hover does not change it", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(900);
+    expect(hostsById("sidebar-floating")).toHaveLength(1);
+    expect(hostsById("sidebar-inline")).toHaveLength(0);
+    const card = cards().find((node) => node.props.card.id === "sample-running")!;
+    act(() => card.props.onDetails(card.props.card));
+    expect(hostsById("detail-title")).toHaveLength(0);
+    act(() => card.props.onSelect(card.props.card));
+    expect(textOf(renderer!.root.findByProps({ testID: "detail-title" }))).toBe(card.props.card.title);
   });
 
   it("wires the cards: open jumps to the agent, a hidden parent toasts", () => {
@@ -618,6 +633,8 @@ describe("Tasks board, sorting", () => {
 describe("Tasks board, lane widths", () => {
   beforeEach(() => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    // The lanes alone; the sidebar's share is tested with it.
+    writeSidebarPreference({ open: false, width: 380 });
   });
 
   it("fills a wide board without a scrollbar and scrolls a narrow one at the minimum", () => {
