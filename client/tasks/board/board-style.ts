@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { PixelRatio, Platform, StyleSheet } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { mix } from "../../components/theme-tokens";
 import { themeKey } from "../../ui/tokens/theme-key";
@@ -14,6 +14,15 @@ import { themeKey } from "../../ui/tokens/theme-key";
  */
 /** Every line the board draws (borders, dividers, pills) is one device pixel, as Linear's are. */
 export const HAIRLINE = StyleSheet.hairlineWidth;
+
+/**
+ * One device pixel, on the web too: react-native-web's `hairlineWidth` is a
+ * whole CSS pixel, two device pixels on a retina screen. Read at render, as
+ * the window can move to a screen of another density.
+ */
+export function devicePixel(): number {
+  return Platform.OS === "web" ? 1 / Math.max(1, PixelRatio.get()) : StyleSheet.hairlineWidth;
+}
 
 /** Checkbox and letter-avatar outlines are part of the glyph, not a divider: a full point keeps them legible. */
 export const GLYPH_LINE = 1;
