@@ -280,6 +280,73 @@ describe("live tool groups", () => {
     await act(async () => renderer.unmount());
   });
 
+  describe("a call the host split over two rows", () => {
+    // The host can leave an early update of a call in a row of its own: a bare
+    // "Agent" or a command still waiting for output, running for good.
+    function row(key: string, at: number, status: string, detail: Record<string, unknown>, agentId = "split-agent") {
+      return React.createElement(LiveToolCallRenderer, {
+        agentId,
+        host: { id: "local", label: "Local" },
+        layout: { compact: false, platform: "web" },
+        theme: { colors: {} } as never,
+        timestamp: new Date(at),
+        item: { type: "plugin", kind: "omp-tool-call", version: 1, data: {
+          name: "Bash", callId: "split", status, phase: status === "running" ? "streaming" : "complete", detail,
+        } },
+        key,
+      } satisfies PluginTimelineItemProps<LiveToolCallPayload> & { key: string });
+    }
+    const early = (key = "early") => row(key, 20_000, "running", { type: "shell", command: "make" });
+    const done = (key = "done") => row(key, 20_005, "completed", { type: "shell", command: "make", output: "ok", exitCode: 0 });
+
+    it("draws only the row that moved on", async () => {
+      let renderer!: ReturnType<typeof TestRenderer.create>;
+      await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null, early(), done())); });
+      expect(cards(renderer).map((card) => card.props.data.status)).toEqual(["completed"]);
+      // The row left behind gives nothing back to the host's gap either.
+      expect(margins(renderer)).toEqual([undefined, undefined]);
+      await act(async () => renderer.unmount());
+    });
+
+    it("draws the row left behind again once it is the only one mounted", async () => {
+      let renderer!: ReturnType<typeof TestRenderer.create>;
+      await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null, early(), done())); });
+      await act(async () => { renderer.update(React.createElement(React.Fragment, null, early())); });
+      expect(cards(renderer).map((card) => card.props.data.status)).toEqual(["running"]);
+      await act(async () => renderer.unmount());
+    });
+
+    it("follows the lead as it changes hands", async () => {
+      const later = (status: string, detail: Record<string, unknown>) => row("later", 20_003, status, detail);
+      let renderer!: ReturnType<typeof TestRenderer.create>;
+      // The early row says more until the later one hears of the result.
+      await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+        early(), later("running", { type: "unknown", input: {} }))); });
+      expect(cards(renderer).map((card) => card.props.data.command)).toEqual(["make"]);
+      await act(async () => { renderer.update(React.createElement(React.Fragment, null,
+        early(), later("completed", { type: "shell", command: "make", output: "ok", exitCode: 0 }))); });
+      expect(cards(renderer).map((card) => card.props.data.status)).toEqual(["completed"]);
+      await act(async () => renderer.unmount());
+    });
+
+    it("keeps both copies of a row the chat draws in two panes", async () => {
+      let renderer!: ReturnType<typeof TestRenderer.create>;
+      const pane = (key: string) => React.createElement(React.Fragment, { key }, early(`${key}-early`), done(`${key}-done`));
+      await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null, pane("left"), pane("right"))); });
+      expect(cards(renderer).map((card) => card.props.data.status)).toEqual(["completed", "completed"]);
+      await act(async () => renderer.unmount());
+    });
+
+    it("leaves the same call id in another agent's chat alone", async () => {
+      let renderer!: ReturnType<typeof TestRenderer.create>;
+      await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+        row("mine", 20_000, "running", { type: "shell", command: "make" }, "split-a"),
+        row("theirs", 20_005, "completed", { type: "shell", command: "make", output: "ok" }, "split-b"))); });
+      expect(cards(renderer)).toHaveLength(2);
+      await act(async () => renderer.unmount());
+    });
+  });
+
   it("keeps a newest run's gap and gives it up once something arrives below its last member", async () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
