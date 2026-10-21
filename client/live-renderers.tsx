@@ -13,7 +13,7 @@ import { observeReasoning, observedDurationMs } from "./reasoning/observed";
 import { useDisclosure } from "./state/disclosure-store";
 import { TaskList, TaskListPanel, useTaskListPanel } from "./components/task-list";
 import { TaskActivityRow } from "./components/task-activity-row";
-import { deriveTodoActivities, todoTaskStatus, useLatestTodoItems, useTodoTimeline, type EmptyGapTakeBack, type TodoTask } from "./state/todo-timeline";
+import { HOST_ITEM_GAP, deriveTodoActivities, todoTaskStatus, useLatestTodoItems, useTodoTimeline, type EmptyGapTakeBack, type TodoTask } from "./state/todo-timeline";
 import { UserMessage } from "./components/user-message";
 import { itemRootFont } from "./components/host-font-escape";
 import { pluginRoot } from "./components/focus-ring";
@@ -126,6 +126,17 @@ const rowGapStyles = StyleSheet.create({
 // while still tracking the full text for a card opened in the middle of a stream.
 const ReasoningCardMemo = memo(ReasoningCard);
 
+/**
+ * The row's own take-back, plus the host's gap under each hidden copy of its
+ * call right below it (`countCopiesBelow`). The host's wrapper stops at zero
+ * height, so the row takes back no more than its own height.
+ */
+function rowGapStyle(compensated: boolean, copiesBelow: number, height: number): ViewStyle | undefined {
+  if (copiesBelow === 0) return compensated ? rowGapStyles.compensated : undefined;
+  const take = (compensated ? ROW_GAP_COMPENSATION : 0) + copiesBelow * HOST_ITEM_GAP;
+  return { marginBottom: -Math.min(take, height) };
+}
+
 /** Whether a row with something below it takes back the gap under it. */
 function compensatesRow(compactRowSpacing: boolean, anythingBelow: boolean, rowBelow: boolean, hostStacks: boolean): boolean {
   return compactRowSpacing && anythingBelow && !(hostStacks && rowBelow);
@@ -165,7 +176,7 @@ function LiveToolCallRendererBody({
   const rootRef = useRef<View>(null);
   // Only a stacking host's compensation depends on whether a row comes next.
   const hostStacks = useHostStacksRows();
-  const { group, anythingBelow, rowBelow } = useTimelineToolGroup(
+  const { group, anythingBelow, rowBelow, copiesBelow, copiesBelowHeight } = useTimelineToolGroup(
     agentId, at, view, data.phase === "complete", rootRef, hostStacks && preferences.compactRowSpacing,
   );
   const groupFailed = group?.some((call) => call.status === "failed") ?? false;
@@ -223,7 +234,10 @@ function LiveToolCallRendererBody({
       ref={rootRef}
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       {...probe.viewProps}
-      style={group !== null && compensatesRow(preferences.compactRowSpacing, anythingBelow, rowBelow, hostStacks) ? rowGapStyles.compensated : undefined}
+      style={group === null ? undefined : rowGapStyle(
+        compensatesRow(preferences.compactRowSpacing, anythingBelow, rowBelow, hostStacks),
+        hostStacks ? 0 : copiesBelow, copiesBelowHeight,
+      )}
     >
       {group !== null ? (
         <>

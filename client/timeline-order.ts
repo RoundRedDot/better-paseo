@@ -80,6 +80,16 @@ interface Entry {
   /** Where the item is drawn, in the window; null when unknown. */
   measure?: () => ViewBox | null;
   tool?: ToolCallView;
+  /**
+   * Found below another row of its call in the same column (`hostDuplicates`).
+   * Kept until it unmounts: hidden, it has no box left to measure.
+   */
+  duplicate?: boolean;
+  /**
+   * Hidden copies of this row's call right under it in its column, and the
+   * row's height then: the row takes back the host's gap under each copy.
+   */
+  copiesBelow?: { count: number; height: number };
   /** Subscribers to this tool row's group (`useTimelineToolGroup`). */
   groupListeners?: Set<() => void>;
 }
@@ -137,6 +147,7 @@ function callProgress(tool: ToolCallView): [number, number] {
 function leftBehind(entries: Iterable<Entry>): { superseded: Set<Entry>; repeated: Set<string> } {
   const byId = new Map<string, Entry[]>();
   for (const entry of entries) {
+    entry.copiesBelow = undefined;
     const id = entry.tool?.callId;
     if (!id) continue;
     const list = byId.get(id);
@@ -154,8 +165,67 @@ function leftBehind(entries: Iterable<Entry>): { superseded: Set<Entry>; repeate
       const own = progress[index]!;
       if (own[0] < best[0] || (own[0] === best[0] && own[1] < best[1])) superseded.add(entry);
     });
+    const copies = hostDuplicates(list.filter((entry) => !superseded.has(entry)));
+    for (const entry of copies) superseded.add(entry);
+    if (copies.length > 0) countCopiesBelow(list, entries);
   }
   return { superseded, repeated };
+}
+
+/**
+ * Rows of one call that say the same and sit in one column: every one but
+ * the topmost.
+ *
+ * The host stamps each event's turn on its newest item, even when the event
+ * updated an older one. A background call from an earlier turn that reports
+ * during this one relabels the newest call; that call's next update no longer
+ * finds its item and appends a second one with the same id. The copies say the
+ * same, so only where they sit tells them from a copy in another pane: one
+ * column is one list. The topmost keeps the call's place in the turn. A row
+ * that cannot be measured (a hidden pane, not laid out yet) is left alone.
+ */
+function hostDuplicates(tied: Entry[]): Entry[] {
+  if (tied.length < 2) return [];
+  const kept: ViewBox[] = [];
+  const placed = tied
+    .filter((entry) => !entry.duplicate)
+    .map((entry) => ({ entry, box: entry.measure?.() ?? null }))
+    .filter((row): row is { entry: Entry; box: ViewBox } => row.box !== null && row.box.height > 0)
+    .sort((a, b) => a.box.top - b.box.top);
+  for (const { entry, box } of placed) {
+    const below = kept.some((other) => Math.abs(other.left - box.left) <= 1 && Math.abs(other.width - box.width) <= 1);
+    if (below) entry.duplicate = true;
+    else kept.push(box);
+  }
+  // With every copy hidden, none is left to draw the call.
+  if (tied.every((entry) => entry.duplicate)) for (const entry of tied) entry.duplicate = false;
+  return tied.filter((entry) => entry.duplicate);
+}
+
+/**
+ * The host hangs its gap under every item, a hidden copy too, so a copy left
+ * a blank gap in the list. A row drawing the call takes back the gaps of the
+ * hidden copies right under it, before any other item of its column; a copy
+ * with something between them is not beside it.
+ */
+function countCopiesBelow(list: Entry[], entries: Iterable<Entry>): void {
+  const placed: { entry: Entry; box: ViewBox }[] = [];
+  for (const entry of entries) {
+    const box = entry.measure?.() ?? null;
+    if (box) placed.push({ entry, box });
+  }
+  placed.sort((a, b) => a.box.top - b.box.top || a.box.height - b.box.height);
+  for (const own of placed) {
+    if (!list.includes(own.entry) || own.entry.duplicate || own.box.height === 0) continue;
+    let count = 0;
+    for (const other of placed) {
+      if (other === own || other.box.top < own.box.top) continue;
+      if (Math.abs(other.box.left - own.box.left) > 1 || Math.abs(other.box.width - own.box.width) > 1) continue;
+      if (!other.entry.duplicate || !list.includes(other.entry)) break;
+      count++;
+    }
+    if (count > 0) own.entry.copiesBelow = { count, height: own.box.height };
+  }
 }
 
 /** The items on screen: every mounted one but the rows left behind. */
@@ -273,22 +343,30 @@ export function viewCentre(view: unknown): number | null {
  * known (`host-row-gap.ts`). Rows are paired as drawn, one under the other in
  * the same column, so a chat in two panes pairs each pane's rows, and a
  * member a merged row draws (no height) pairs with nothing.
+ *
+ * Two rows of one call say nothing about the host: a copy the host appended
+ * is drawn until the next regroup hides it, and its row may already take
+ * back the gap of an earlier copy, so the pair can touch on a spacing host.
+ * Read as a stacking host, every row in the app lost its take-back. A row
+ * taking back its copies' gaps is skipped for the same reason.
  */
 export function probeRowGap(agentId: string): void {
   if (hostStacksRows() !== null) return;
-  const boxes: ViewBox[] = [];
+  const placed: { entry: Entry; box: ViewBox }[] = [];
   for (const entry of timelines.get(agentId)?.entries ?? []) {
     if (!entry.row) continue;
     const box = entry.measure?.() ?? null;
-    if (box !== null && box.height > 0) boxes.push(box);
+    if (box !== null && box.height > 0) placed.push({ entry, box });
   }
-  if (boxes.length < 2) return;
-  boxes.sort((a, b) => a.left - b.left || a.width - b.width || a.top - b.top);
-  for (let index = 1; index < boxes.length; index++) {
-    const above = boxes[index - 1]!;
-    const below = boxes[index]!;
-    if (Math.abs(above.left - below.left) > 1 || Math.abs(above.width - below.width) > 1) continue;
-    noteRowGap(below.top - (above.top + above.height));
+  if (placed.length < 2) return;
+  placed.sort((a, b) => a.box.left - b.box.left || a.box.width - b.box.width || a.box.top - b.box.top);
+  for (let index = 1; index < placed.length; index++) {
+    const above = placed[index - 1]!;
+    const below = placed[index]!;
+    if (Math.abs(above.box.left - below.box.left) > 1 || Math.abs(above.box.width - below.box.width) > 1) continue;
+    const call = above.entry.tool?.callId;
+    if (above.entry.copiesBelow || (call !== undefined && call === below.entry.tool?.callId)) continue;
+    noteRowGap(below.box.top - (above.box.top + above.box.height));
     if (hostStacksRows() !== null) return;
   }
 }
@@ -494,7 +572,14 @@ export function useTimelineToolGroup(
   settled = false,
   view?: RefObject<unknown>,
   followRowBelow = true,
-): { group: readonly ToolCallView[] | null; anythingBelow: boolean; rowBelow: boolean } {
+): {
+  group: readonly ToolCallView[] | null;
+  anythingBelow: boolean;
+  rowBelow: boolean;
+  /** Hidden copies of the call right under this row, and the row's height then (`countCopiesBelow`). */
+  copiesBelow: number;
+  copiesBelowHeight: number;
+} {
   const entry = useMemo<Entry>(() => ({
     at,
     order: KIND_ORDER.tool,
@@ -555,7 +640,16 @@ export function useTimelineToolGroup(
   const anythingBelow = useSyncExternalStore(subscribe, getBelow, getBelow);
   const rowSnapshot = followRowBelow ? getRowBelow : notFollowed;
   const rowBelow = useSyncExternalStore(subscribe, rowSnapshot, rowSnapshot);
-  return { group, anythingBelow, rowBelow };
+  const getCopies = useCallback(() => {
+    const timeline = timelines.get(agentId);
+    if (!timeline?.entries.has(entry)) return 0;
+    toolSlots(timeline);
+    return entry.copiesBelow?.count ?? 0;
+  }, [agentId, entry]);
+  const getCopiesHeight = useCallback(() => entry.copiesBelow?.height ?? 0, [entry]);
+  const copiesBelow = useSyncExternalStore(subscribe, getCopies, getCopies);
+  const copiesBelowHeight = useSyncExternalStore(subscribe, getCopiesHeight, getCopiesHeight);
+  return { group, anythingBelow, rowBelow, copiesBelow, copiesBelowHeight };
 }
 
 /**
