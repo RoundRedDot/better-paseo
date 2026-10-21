@@ -120,9 +120,13 @@ export function DesktopBoard(props: {
   const searchRef = useRef<NativeTextInput>(null);
   const rowRef = useRef<ScrollView | null>(null);
 
-  // The sidebar: open and width as the user left them; inline on a wide
-  // board, floating over its right side on a narrow one. On a touch screen a
-  // tap on a card shows a closed sidebar for the moment, as a floating panel.
+  // The sidebar: open and width as the user left them, inline on a wide
+  // board. A narrow board has no room to keep it beside the lanes, so it
+  // floats over their right side only on demand: a card clicked or tapped,
+  // or the switch. A click or tap outside, Esc or the switch puts it away;
+  // the remembered open state stays the wide board's. On a touch screen a
+  // tap on a card also shows a closed sidebar for the moment, as a floating
+  // panel.
   const touch = Platform.OS !== "web";
   const [preference, setPreferenceState] = useState<SidebarPreference>(readSidebarPreference);
   const setPreference = useCallback((update: (current: SidebarPreference) => SidebarPreference) => {
@@ -132,14 +136,16 @@ export function DesktopBoard(props: {
       return next;
     });
   }, []);
-  const [shownForTap, setShownForTap] = useState(false);
+  // Why a floating panel is up for the moment: a card's click or tap (it goes with its card) or the switch.
+  const [shown, setShown] = useState<"card" | "switch" | null>(null);
   const [selection, dispatch] = useReducer(selectionReducer, NO_SELECTION);
   const [boardWidth, setBoardWidth] = useState(0);
   const modeRef = useRef<SidebarMode | null>(null);
   const mode = boardWidth > 0 ? sidebarMode(boardWidth, modeRef.current) : modeRef.current ?? "inline";
   modeRef.current = boardWidth > 0 ? mode : modeRef.current;
-  const open = preference.open || shownForTap;
-  const floating = open && (mode === "floating" || (!preference.open && shownForTap));
+  const narrow = mode === "floating";
+  const open = shown !== null || (!narrow && preference.open);
+  const floating = open && (narrow || !preference.open);
   const inline = open && !floating;
   const panelWidth = sidebarWidth(boardWidth, preference.width, floating ? "floating" : "inline");
   const lanesWidth = Math.max(0, boardWidth - (inline ? panelWidth + SIDEBAR.gap : 0));
@@ -148,12 +154,12 @@ export function DesktopBoard(props: {
   const coverRoom = floating ? panelWidth + SIDEBAR.gap : 0;
 
   const toggleSidebar = useCallback(() => {
-    if (shownForTap) {
-      setShownForTap(false);
-      return;
-    }
-    setPreference((current) => ({ ...current, open: !current.open }));
-  }, [shownForTap, setPreference]);
+    if (shown) setShown(null);
+    else if (narrow) setShown("switch");
+    else setPreference((current) => ({ ...current, open: !current.open }));
+  }, [shown, narrow, setPreference]);
+  // A panel shown for the moment does not outlive the width it was shown at.
+  useEffect(() => setShown(null), [mode]);
 
   const scrollTo = useCallback((lane: LaneId, index: number) => {
     const list = listRefs.current[lane];
@@ -169,10 +175,10 @@ export function DesktopBoard(props: {
     if (focusLane) scrollTo(focusLane, focusIndex);
   }, [focusLane, focusIndex, scrollTo]);
 
-  // A panel a tap showed goes once its card is closed.
+  // A panel a card showed goes once its card is closed.
   useEffect(() => {
-    if (shownForTap && selection.id === null) setShownForTap(false);
-  }, [shownForTap, selection.id]);
+    if (shown === "card" && selection.id === null) setShown(null);
+  }, [shown, selection.id]);
   // A card that left the data (deleted, archived away) leaves the sidebar to the overview.
   const selectedGone = selection.id !== null && tasks.ready && !tasks.byId.has(selection.id);
   useEffect(() => {
@@ -190,8 +196,25 @@ export function DesktopBoard(props: {
     [collapsed, setCollapsed, layout.laneWidth, lanes],
   );
 
-  const latest = useRef({ board, focus, shapes, menu, selection, floating, open, toggleSidebar });
-  latest.current = { board, focus, shapes, menu, selection, floating, open, toggleSidebar };
+  const floatWidth = sidebarWidth(boardWidth, preference.width, "floating");
+  const latest = useRef({ board, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, floatWidth, laneWidth: layout.laneWidth, collapsed });
+  latest.current = { board, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, floatWidth, laneWidth: layout.laneWidth, collapsed };
+  const rowScrollX = useRef(0);
+
+  // A floating panel lands on the lanes' right side, where the card just
+  // clicked may sit: the row scrolls that card's lane out from under it.
+  const uncover = useCallback((lane: LaneId) => {
+    const now = latest.current;
+    const index = LANE_ORDER.indexOf(lane);
+    const left = LANES.edge + LANE_ORDER.slice(0, index).reduce((sum, id) => sum + (now.collapsed.includes(id) ? LANES.collapsed : now.laneWidth) + LANES.gap, 0);
+    const right = left + now.laneWidth;
+    const visible = now.boardWidth - now.floatWidth - 2 * SIDEBAR.gap;
+    const x = rowScrollX.current;
+    if (right - x <= visible) return;
+    const target = Math.max(0, Math.min(left - LANES.edge, right - visible));
+    // After the render that gives the row its room to scroll under the panel.
+    setTimeout(() => rowRef.current?.scrollTo({ x: target, animated: true }), 50);
+  }, []);
 
   const reveal = useCallback(
     (agentId: string) => {
@@ -219,12 +242,17 @@ export function DesktopBoard(props: {
   };
 
   // Only a click or tap puts a card in the sidebar: no hover, no keyboard focus.
+  // A put-away sidebar comes up for it on a touch screen, and on a narrow
+  // board unless the user switched the sidebar off.
   const showCard = useCallback(
     (card: TaskCard) => {
       dispatch({ type: "click", id: card.id });
-      if (touch && !latest.current.open) setShownForTap(true);
+      const now = latest.current;
+      const show = !now.open && (touch || (now.narrow && now.preferred));
+      if (show) setShown("card");
+      if ((now.open || show) && (now.narrow || !now.preferred)) uncover(card.lane);
     },
-    [touch],
+    [touch, uncover],
   );
   const callbacks = useMemo<CardCallbacks>(() => ({ ...board.callbacks, onSelect: showCard }), [board.callbacks, showCard]);
 
@@ -245,6 +273,7 @@ export function DesktopBoard(props: {
       if (!down || Math.abs(event.nativeEvent.pageX - down.x) > 6 || Math.abs(event.nativeEvent.pageY - down.y) > 6) return;
       dispatch({ type: "clear" });
       setFocus(null);
+      if (latest.current.floating) setShown(null);
     },
     onResponderTerminate: () => {
       blankDown.current = null;
@@ -354,6 +383,10 @@ export function DesktopBoard(props: {
             <ScrollView
               ref={rowRef}
               horizontal
+              onScroll={(event) => {
+                rowScrollX.current = event.nativeEvent.contentOffset.x;
+              }}
+              scrollEventThrottle={32}
               scrollEnabled={layout.scroll || coverRoom > 0}
               showsHorizontalScrollIndicator={layout.scroll || coverRoom > 0}
               style={{ flex: 1 }}

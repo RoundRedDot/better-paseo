@@ -398,17 +398,50 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("detail-title")).toHaveLength(0);
   });
 
-  it("floats the sidebar over a narrow board and shows the clicked card there", () => {
+  it("scrolls a short sidebar as one, so the details' header does not hold the sections to a strip", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2000);
+    const card = cards().find((node) => node.props.card.id === "sample-running")!;
+    act(() => card.props.onSelect(card.props.card));
+    const column = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "details-sidebar");
+    expect(hostsById("details-sidebar-scroll")).toHaveLength(0);
+    act(() => column().props.onLayout({ nativeEvent: { layout: { width: 380, height: 560 } } }));
+    expect(hostsById("details-sidebar-scroll")).toHaveLength(1);
+    expect(textOf(renderer!.root.findByProps({ testID: "detail-title" }))).toBe(card.props.card.title);
+    act(() => column().props.onLayout({ nativeEvent: { layout: { width: 380, height: 900 } } }));
+    expect(hostsById("details-sidebar-scroll")).toHaveLength(0);
+  });
+
+  it("floats the sidebar over a narrow board only on demand, and puts it away on a tap outside", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
     layOut(900);
-    expect(hostsById("sidebar-floating")).toHaveLength(1);
+    // Open as remembered, but a narrow board keeps its lanes clear until asked.
+    expect(readSidebarPreference().open).toBe(true);
+    expect(hostsById("sidebar-floating")).toHaveLength(0);
     expect(hostsById("sidebar-inline")).toHaveLength(0);
     const card = cards().find((node) => node.props.card.id === "sample-running")!;
-    expect(hostsById("detail-title")).toHaveLength(0);
     act(() => card.props.onSelect(card.props.card));
+    expect(hostsById("sidebar-floating")).toHaveLength(1);
     expect(textOf(renderer!.root.findByProps({ testID: "detail-title" }))).toBe(card.props.card.title);
+    // A tap on the lanes' blank space puts it away and lets go of the card.
+    let blank = lanesScroll().parent!;
+    while (!blank.props.onResponderGrant) blank = blank.parent!;
+    act(() => {
+      blank.props.onResponderGrant({ nativeEvent: { pageX: 10, pageY: 10 } });
+      blank.props.onResponderRelease({ nativeEvent: { pageX: 10, pageY: 10 } });
+    });
+    expect(hostsById("sidebar-floating")).toHaveLength(0);
+    // The switch shows the overview for the moment, and leaves the remembered state alone.
+    act(() => renderer!.root.findByProps({ testID: "sidebar-switch" }).props.onPress());
+    expect(hostsById("sidebar-floating")).toHaveLength(1);
+    expect(hostsById("sidebar-groups").length).toBeGreaterThan(0);
+    act(() => renderer!.root.findByProps({ testID: "sidebar-switch" }).props.onPress());
+    expect(hostsById("sidebar-floating")).toHaveLength(0);
+    expect(readSidebarPreference().open).toBe(true);
   });
 
   it("wires the cards: open jumps to the agent, a hidden parent toasts", () => {
