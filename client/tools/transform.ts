@@ -5,7 +5,7 @@
 import type { PluginTimelineTransformResult } from "@getpaseo/plugin";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import { toolErrorText } from "./error-text";
-import { agentMessageFromDetail, agentMessageSchema } from "./agent-message";
+import { agentMessageFromDetail, agentMessageSchema, senderlessAgentMessage } from "./agent-message";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -21,9 +21,11 @@ export function transformToolCall({ item, phase }: {
   // The host's provenance when it passes it on; otherwise the notification's own status line.
   const provenance = item.name === "agent_message"
     ? (item as { agentMessage?: unknown }).agentMessage ?? agentMessageFromDetail(item.detail) : undefined;
-  const message = item.name === "agent_message" ? agentMessageSchema.safeParse(provenance) : undefined;
-  // Claim a message only when its sender and event are known.
+  const message = provenance !== undefined ? agentMessageSchema.safeParse(provenance) : undefined;
+  // A provenance that does not parse stays with the host. A plain message
+  // with none is claimed; its row reads the sender back.
   if (message && !message.success) return undefined;
+  if (item.name === "agent_message" && !message && !senderlessAgentMessage(item.detail)) return undefined;
   // The status rides as the host sent it, `canceled` included. Of the
   // metadata a plan's verdict and structured questions are kept: Claude reports a rejected plan
   // as `completed` with `approved: false`, so the status alone cannot tell.

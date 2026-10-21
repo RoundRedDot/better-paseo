@@ -39,9 +39,21 @@ describe("supervisor status cards", () => {
       expect(summarizeTool(view)).toMatchObject({ verb: AGENT_STATUS_LABEL[status as AgentStatus], target: title });
     });
 
-  it("leaves a plain agent-to-agent message without provenance to the host, which knows its sender", () => {
-    expect(transformToolCall({ item: { type: "tool_call", callId: "paseo-agent-message:m2", name: "agent_message",
-      status: "completed", error: null, detail: { type: "plain_text", text: "Can you rebase first?" } }, phase: "complete" })).toBeUndefined();
+  it("claims a plain agent-to-agent message without provenance and draws it senderless until its row reads the sender", () => {
+    const transformed = transformToolCall({ item: { type: "tool_call", callId: "paseo-agent-message:m2", name: "agent_message",
+      status: "completed", error: null, detail: { type: "plain_text", text: "Can you rebase first?" } }, phase: "complete" });
+    const payload = transformed!.items[0]!.data as unknown as ToolCallPayload;
+    expect(payload).not.toHaveProperty("agentMessage");
+    const view = classifyTool(payload);
+    expect(view.agentStatus).toEqual({ agentId: "", title: "", status: "message", body: "Can you rebase first?" });
+    expect(summarizeTool(view)).toMatchObject({ verb: "Message", target: undefined, agent: { id: undefined } });
+    const resolved = classifyTool({ ...payload, agentMessage: { event: "message", sender: { id: agentId, title }, text: "Can you rebase first?" } });
+    expect(summarizeTool(resolved)).toMatchObject({ verb: "Message", target: title, agent: { id: agentId } });
+  });
+
+  it("leaves an agent message the plugin cannot read to the host", () => {
+    expect(transformToolCall({ item: { type: "tool_call", callId: "paseo-agent-message:m3", name: "agent_message",
+      status: "completed", error: null, detail: { type: "unknown", input: null, output: null } } as never, phase: "complete" })).toBeUndefined();
   });
 
   it("strips the response wrapper even with trailing whitespace", () => {
@@ -72,10 +84,12 @@ describe("supervisor status cards", () => {
   });
 
   it.each(["Done: tests pass", "Agent worker finished.", "Agent worker (Review) will finish.", "Intro\n" + detail().text])(
-    "does not claim an unrecognized agent message: %s", (text) => {
+    "reads an unrecognized agent message as a plain message, not a notification: %s", (text) => {
       expect(readAgentStatus({ type: "plain_text", text })).toBeUndefined();
-      expect(transformToolCall({ item: { type: "tool_call", callId: "m", name: "agent_message",
-        status: "completed", error: null, detail: { type: "plain_text", text } }, phase: "complete" })).toBeUndefined();
+      const transformed = transformToolCall({ item: { type: "tool_call", callId: "m", name: "agent_message",
+        status: "completed", error: null, detail: { type: "plain_text", text } }, phase: "complete" });
+      expect(classifyTool(transformed!.items[0]!.data as unknown as ToolCallPayload).agentStatus)
+        .toEqual({ agentId: "", title: "", status: "message", body: text });
     });
 });
 

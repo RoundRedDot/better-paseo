@@ -66,7 +66,8 @@ export function summarizeAgentRow(view: ToolCallView): AgentRow | undefined {
       meta: [`${questions} question${questions === 1 ? "" : "s"}`], tone: look.tone, icon: "MessageCircleQuestion" };
     const meta = status.status === "errored" ? compact([firstLine(stripTags(status.body))]) :
       permission ? compact([permission.title ?? permission.name]) : [];
-    return { verb: look.verb, agentId: status.agentId, agentTitle: status.title, meta, tone: look.tone,
+    // A message whose sender is not read back yet names no agent.
+    return { verb: look.verb, agentId: status.agentId || undefined, agentTitle: status.title || undefined, meta, tone: look.tone,
       icon: look.icon, iconTone: look.iconTone };
   }
   if (view.tool === "sub_agent" && view.subAgent) {
