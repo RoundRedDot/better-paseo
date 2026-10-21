@@ -1,8 +1,7 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Animated, Platform, StyleSheet, View, type ViewStyle } from "react-native";
 import { probeAnimationLoop } from "../debug/perf";
-import { holdStepClock } from "./step-clock";
-import { runningDot, runningDotOpacity } from "./tokens/motion";
+import { runningDot, runningDotOpacityRange, steppedEasing } from "./tokens/motion";
 import { useReducedMotion } from "./use-reduced-motion";
 
 interface RunningDotProps {
@@ -18,35 +17,43 @@ interface RunningDotProps {
  * running or a model is thinking; unmounting is what stops the loop, so a
  * finished card costs nothing.
  *
- * Opacity only, so the layout never moves. iOS and Android step the opacity on
- * the shared step clock: a native-driver loop changed the dot on every vsync, and
- * many Android devices redraw the whole window for that, so one running tool kept
- * an idle screen at full frame rate. React Native Web has no native driver: an
+ * Opacity only, so the layout never moves. iOS and Android run the loop on the
+ * native driver with a stepped easing: a smooth loop changed the dot on every
+ * vsync, and many Android devices redraw the whole window for that, so one
+ * running tool kept an idle screen at full frame rate. React Native Web has no native driver: an
  * `Animated` loop there re-renders the dot, and commits its whole row, on every
  * frame, so on web the pulse is a CSS animation that React never sees.
  * Under reduced motion the dot is drawn static at full opacity.
  */
 export function RunningDot({ color, size = runningDot.size, accessibilityLabel }: RunningDotProps) {
   const reducedMotion = useReducedMotion();
-  const opacity = useRef(new Animated.Value(runningDot.maxOpacity)).current;
+  const phase = useRef(new Animated.Value(0)).current;
+  const opacity = useMemo(() => phase.interpolate(runningDotOpacityRange), [phase]);
 
   useEffect(() => {
     if (WEB) {
       return reducedMotion ? undefined : probeAnimationLoop("RunningDot");
     }
     if (reducedMotion) {
-      opacity.setValue(runningDot.maxOpacity);
+      phase.setValue(0);
       return;
     }
-    const releaseClock = holdStepClock(runningDot.periodMs, runningDot.steps, (step) =>
-      opacity.setValue(runningDotOpacity(step)),
+    const loop = Animated.loop(
+      Animated.timing(phase, {
+        toValue: 1,
+        duration: runningDot.periodMs,
+        easing: steppedEasing(runningDot.steps),
+        useNativeDriver: true,
+        isInteraction: false,
+      }),
     );
+    loop.start();
     const release = probeAnimationLoop("RunningDot");
     return () => {
-      releaseClock();
+      loop.stop();
       release();
     };
-  }, [opacity, reducedMotion]);
+  }, [phase, reducedMotion]);
 
   const shape = { width: size, height: size, borderRadius: size / 2, backgroundColor: color };
   if (WEB) {
