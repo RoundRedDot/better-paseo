@@ -21,7 +21,7 @@ import { buildHubData } from "../hub-details";
 import { buildGitHubData, buildGitHubDataFromLabel } from "../github-request";
 import { lineDiff } from "../components/diff-lines";
 import type { AgentStatusData } from "./agent-status";
-import { readAgentMessage, type AgentMessage } from "./agent-message";
+import { readAgentMessage, senderlessAgentMessage, type AgentMessage } from "./agent-message";
 import { readSendAgentPrompt } from "./send-agent-prompt";
 import { CATALOG_TOOLS, readPaseoCatalog, type CatalogTool } from "./paseo-catalog";
 import { AGENT_OPERATIONS, readAgentOperation } from "./agent-operation";
@@ -522,7 +522,8 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
   const rawName = (payload.name || "").toLowerCase();
   const detail = asRecord(payload.detail) ?? {};
   const detailType = typeof detail.type === "string" ? detail.type.toLowerCase() : "";
-  const agentStatus = rawName === "agent_message" && payload.agentMessage ? readAgentMessage(payload.agentMessage) : undefined;
+  const agentMessage = rawName === "agent_message" ? payload.agentMessage ?? senderlessAgentMessage(payload.detail) : undefined;
+  const agentStatus = agentMessage ? readAgentMessage(agentMessage) : undefined;
   if (agentStatus) return {
     id: `live-${rawName}`, tool: "plain_text", name: payload.name, callId: payload.callId,
     title: agentStatus.title, status: agentStatus.status === "errored" ? "failed" : "completed",

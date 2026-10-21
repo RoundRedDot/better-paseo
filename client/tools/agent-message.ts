@@ -40,8 +40,8 @@ const EVENT: Record<AgentStatus, AgentMessage["event"] | undefined> = {
  * `agentMessage` (the app's `sourceToolCallTimelineItem` copies only call ID,
  * name, detail, metadata, status and error). A supervisor notification still
  * names its sender and event in its first line, so it is read back from the
- * detail. A plain agent-to-agent message carries no sender there and stays
- * with the host.
+ * detail. A plain agent-to-agent message carries no sender there; see
+ * `senderlessAgentMessage`.
  */
 export function agentMessageFromDetail(detail: unknown): AgentMessage | undefined {
   const status = readAgentStatus(detail);
@@ -50,4 +50,15 @@ export function agentMessageFromDetail(detail: unknown): AgentMessage | undefine
   if (!event) return undefined;
   const text = (detail as { text: string }).text;
   return { event, sender: { id: status.agentId, title: status.title }, text };
+}
+
+/**
+ * A plain agent-to-agent message as the transformer sees it: the text and no
+ * sender. Its row reads the sender back from the timeline
+ * (`state/agent-message-senders.ts`) and draws the message without one until then.
+ */
+export function senderlessAgentMessage(detail: unknown): AgentMessage | undefined {
+  const plain = detail as { type?: unknown; text?: unknown } | null | undefined;
+  if (plain?.type !== "plain_text" || typeof plain.text !== "string") return undefined;
+  return { event: "message", sender: { id: "" }, text: plain.text };
 }

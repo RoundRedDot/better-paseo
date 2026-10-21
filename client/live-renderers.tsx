@@ -26,6 +26,7 @@ import { useEnhancerPreferences } from "./preferences";
 import { PreferenceSyncSlot } from "./state/preference-sync-slot";
 import { useIsLatestPrompt } from "./state/latest-prompt";
 import { useTurnFooter } from "./state/turn-footers";
+import { useAgentMessageSender } from "./state/agent-message-senders";
 import { useFooterModel } from "./state/footer-model";
 import type { AssistantRowData } from "./assistant-transform";
 import { HOST_REWIND_MENU } from "./ui/host-rewind";
@@ -835,8 +836,21 @@ const AssistantMemo = memo(LiveAssistantRendererBody, assistantPropsEqual);
 const NoticeMemo = memo(LiveNoticeRendererBody, noticePropsEqual);
 const UserMessageMemo = memo(LiveUserMessageRendererBody, userMessagePropsEqual);
 
+/** A plain agent message reaches the transformer without its sender; its row reads it back. */
+function SenderlessAgentMessage(props: PluginTimelineItemProps<LiveToolCallPayload> & { callId: string }) {
+  const { callId, ...rest } = props;
+  const sender = useAgentMessageSender(props.agentId, callId);
+  const item = useMemo(() => (sender ? { ...props.item, data: { ...props.item.data, agentMessage: sender } } : props.item),
+    [props.item, sender]);
+  return <ToolCallMemo {...rest} item={item} />;
+}
+
 export function LiveToolCallRenderer(props: PluginTimelineItemProps<LiveToolCallPayload>) {
-  return <ChatComposerContext.Provider value={props.composer}><ToolCallMemo {...props} /></ChatComposerContext.Provider>;
+  const data = props.item.data;
+  return <ChatComposerContext.Provider value={props.composer}>
+    {data.name === "agent_message" && !data.agentMessage && data.callId
+      ? <SenderlessAgentMessage {...props} callId={data.callId} /> : <ToolCallMemo {...props} />}
+  </ChatComposerContext.Provider>;
 }
 
 export function LiveReasoningRenderer(props: PluginTimelineItemProps<LiveReasoningPayload>) {
