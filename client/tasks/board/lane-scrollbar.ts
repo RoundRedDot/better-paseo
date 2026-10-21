@@ -9,6 +9,11 @@ const STYLE_ELEMENT_ID = "better-paseo-lane-scrollbar";
 /** Linear's lane thumb: 12 device px at 2x, flush with the panel's right edge. */
 export const LANE_SCROLLBAR_WIDTH = 6;
 
+/** How long the thumb stays after the last scroll event before it fades. */
+const SCROLL_IDLE_MS = 800;
+const THUMB_VAR = "--bc-lane-thumb";
+const SCROLLING_ATTR = "data-bcscrolling";
+
 /** Marks a lane's list on web, where its scrollbar is restyled below. */
 export const laneScrollProps = { dataSet: { bclane: "" } } as unknown as ViewProps;
 
@@ -24,6 +29,12 @@ export const laneScrollProps = { dataSet: { bclane: "" } } as unknown as ViewPro
  * one: it takes its width out of the list instead of covering the padding.
  * `scrollbar-gutter: stable` keeps that width while a lane fits, so cards do
  * not shift sideways when one starts to overflow.
+ *
+ * The thumb shows only while the lane scrolls, as an overlay one does: it
+ * fades in on scroll and out a moment after, and reveals itself under the
+ * pointer so it can still be grabbed. Scrollbar pseudo-elements take no
+ * transitions, so the fade animates a registered colour property on the lane
+ * that the thumb reads.
  */
 function rules(theme: PluginTheme): string {
   const { panel } = boardPalette(theme);
@@ -31,10 +42,21 @@ function rules(theme: PluginTheme): string {
   const thumb = mix(panel, muted, 0.92);
   const pressed = mix(muted, theme.colors.foreground, 0.35);
   return `
+@property ${THUMB_VAR} {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
 [data-bclane] {
   scrollbar-width: auto;
   scrollbar-color: auto;
   scrollbar-gutter: stable;
+  ${THUMB_VAR}: transparent;
+  transition: ${THUMB_VAR} 400ms ease-out;
+}
+[data-bclane][${SCROLLING_ATTR}] {
+  ${THUMB_VAR}: ${thumb};
+  transition-duration: 100ms;
 }
 [data-bclane]::-webkit-scrollbar {
   width: ${LANE_SCROLLBAR_WIDTH}px;
@@ -45,7 +67,7 @@ function rules(theme: PluginTheme): string {
 }
 [data-bclane]::-webkit-scrollbar-thumb {
   border-radius: ${LANE_SCROLLBAR_WIDTH / 2}px;
-  background: ${thumb};
+  background: var(${THUMB_VAR});
 }
 [data-bclane]::-webkit-scrollbar-thumb:hover,
 [data-bclane]::-webkit-scrollbar-thumb:active {
@@ -55,6 +77,20 @@ function rules(theme: PluginTheme): string {
 }
 
 let mounted = 0;
+
+const idleTimers = new WeakMap<Element, ReturnType<typeof setTimeout>>();
+
+/** Scroll does not bubble, so one capturing listener on the document sees every lane. */
+function markScrolling(event: Event): void {
+  const lane = event.target;
+  if (!(lane instanceof Element) || !lane.hasAttribute("data-bclane")) return;
+  lane.setAttribute(SCROLLING_ATTR, "");
+  clearTimeout(idleTimers.get(lane));
+  idleTimers.set(
+    lane,
+    setTimeout(() => lane.removeAttribute(SCROLLING_ATTR), SCROLL_IDLE_MS),
+  );
+}
 
 /** A real DOM: off web, and in a test's bare `document`, there is nothing to style. */
 const hasDom = () => typeof document !== "undefined" && typeof document.getElementById === "function";
@@ -77,9 +113,12 @@ export function useLaneScrollbar(theme: PluginTheme): void {
   useEffect(() => {
     if (!hasDom()) return;
     mounted += 1;
+    if (mounted === 1) document.addEventListener("scroll", markScrolling, true);
     return () => {
       mounted -= 1;
-      if (mounted === 0) document.getElementById(STYLE_ELEMENT_ID)?.remove();
+      if (mounted > 0) return;
+      document.removeEventListener("scroll", markScrolling, true);
+      document.getElementById(STYLE_ELEMENT_ID)?.remove();
     };
   }, []);
 }
