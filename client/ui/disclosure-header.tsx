@@ -511,12 +511,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   verb: {
+    // Android font padding can offset glyphs inside a vertically centered row.
+    includeFontPadding: false,
+    textAlignVertical: "center",
     fontSize: TYPE.label.size,
     lineHeight: TYPE.label.lineHeight,
     fontWeight: "500",
     flexShrink: 0,
   },
   targetText: {
+    includeFontPadding: false,
+    textAlignVertical: "center",
     flex: 1,
     minWidth: 0,
   },
@@ -541,6 +546,8 @@ const styles = StyleSheet.create({
     paddingLeft: ACTION_GAP,
   },
   metaText: {
+    includeFontPadding: false,
+    textAlignVertical: "center",
     flexShrink: 0,
     maxWidth: "45%",
     fontSize: TYPE.meta.size,
