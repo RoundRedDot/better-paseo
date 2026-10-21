@@ -1,7 +1,8 @@
 import React, { useState, type ReactNode } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
+import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
 import { BrandMark, taskTokens } from "../cards";
 import { Checkbox, LetterAvatar, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
@@ -155,6 +156,7 @@ function ChipWrap({ children }: { children: ReactNode }) {
 
 function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void; leading?: ReactNode; hideCount?: boolean }) {
   const colors = props.theme.colors;
+  const scale = useTasksFontScale();
   const on = props.option.on;
   return (
     <Pressable
@@ -162,7 +164,7 @@ function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void
       accessibilityState={{ checked: on }}
       onPress={props.onPress}
       style={{
-        height: 32,
+        height: taskControlHeight(32, scale),
         maxWidth: "100%",
         paddingLeft: props.leading ? 8 : 12,
         paddingRight: 12,

@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { Platform, Pressable, Text, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
+import { Platform, Pressable, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
+import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { useCopy } from "../../ui/use-copy";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
@@ -394,7 +395,8 @@ function InfoRow(props: {
   children: React.ReactNode;
 }) {
   const { m } = props;
-  const height = props.height ?? m.row;
+  const scale = useTasksFontScale();
+  const height = taskControlHeight(props.height ?? m.row, scale);
   return (
     <View
       testID={props.testID}
@@ -402,13 +404,13 @@ function InfoRow(props: {
         minHeight: height,
         marginHorizontal: m.inset,
         paddingHorizontal: m.padH,
-        paddingVertical: props.wraps ? (height - (m.font + 6)) / 2 : 0,
+        paddingVertical: props.wraps ? (height - Math.round((m.font + 6) * scale)) / 2 : 0,
         flexDirection: "row",
         alignItems: props.wraps ? "flex-start" : "center",
         gap: m.gap,
       }}
     >
-      <View style={{ width: m.icon, height: props.wraps ? m.font + 6 : m.icon, alignItems: "center", justifyContent: "center" }}>{props.lead}</View>
+      <View style={{ width: m.icon, height: props.wraps ? Math.round((m.font + 6) * scale) : m.icon, alignItems: "center", justifyContent: "center" }}>{props.lead}</View>
       <View style={{ flex: 1, minWidth: 0 }}>{props.children}</View>
       {props.hint ? <Text style={{ fontSize: m.small, lineHeight: m.font + 6, color: props.tokens.foregroundMuted }}>{props.hint}</Text> : null}
     </View>
@@ -433,6 +435,7 @@ function CopyRow(props: {
   testID: string;
 }) {
   const { m, tokens } = props;
+  const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
   const { copied, copy } = useCopy();
   // Columns a path may take: measured, about 0.55 of the font size each.
@@ -440,11 +443,11 @@ function CopyRow(props: {
   const font = props.path ? m.small : m.font;
   const onLayout = props.path
     ? (event: LayoutChangeEvent) => {
-        const next = Math.max(8, Math.floor(event.nativeEvent.layout.width / (font * 0.56)));
+        const next = Math.max(8, Math.floor(event.nativeEvent.layout.width / (Math.round(font * scale) * 0.56)));
         setColumns((was) => (was === next ? was : next));
       }
     : undefined;
-  const shown = props.path ? shortenPath(props.text, columns ?? Math.floor((DETAILS.width - 2 * (m.inset + m.padH) - m.icon - m.gap - 22) / (font * 0.56))) : props.text;
+  const shown = props.path ? shortenPath(props.text, columns ?? Math.floor((DETAILS.width - 2 * (m.inset + m.padH) - m.icon - m.gap - 22) / (Math.round(font * scale) * 0.56))) : props.text;
   return (
     <Pressable
       accessibilityRole="button"
@@ -453,7 +456,7 @@ function CopyRow(props: {
       {...hoverProps}
       testID={props.testID}
       style={({ pressed }) => ({
-        height: m.row,
+        height: taskControlHeight(m.row, scale),
         marginHorizontal: m.inset,
         paddingHorizontal: m.padH,
         borderRadius: 6,
@@ -481,12 +484,13 @@ function CopyRow(props: {
 /** Direct children: a titled group, each with its status mark and word; the first five, then a count. */
 function SubtaskGroup(props: { card: TaskCard; m: Metrics; tokens: TaskTokens; theme: PluginTheme; language: TasksLanguage }) {
   const { card, m, tokens } = props;
+  const scale = useTasksFontScale();
   const strings = cardStrings(props.language);
   const done = card.children.filter((child) => child.status === "done").length;
   const rest = card.children.length - SUBTASK_ROWS;
   return (
     <View testID="task-details-subtasks">
-      <View style={{ height: 28, paddingHorizontal: m.inset + m.padH, flexDirection: "row", alignItems: "center" }}>
+      <View style={{ height: taskControlHeight(28, scale), paddingHorizontal: m.inset + m.padH, flexDirection: "row", alignItems: "center" }}>
         <Text style={{ flex: 1, fontSize: m.small - 1, fontWeight: "500", color: tokens.foregroundMuted }}>{strings.details.subtasks}</Text>
         <Text style={{ fontSize: m.small - 1, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{strings.details.subtasksDone(done, card.children.length)}</Text>
       </View>
@@ -536,6 +540,7 @@ export function usageRows(card: TaskCard, now: number, language: TasksLanguage):
 
 function UsageGroup(props: { card: TaskCard; now: number; m: Metrics; tokens: TaskTokens; language: TasksLanguage }) {
   const { card, m, tokens } = props;
+  const scale = useTasksFontScale();
   const strings = cardStrings(props.language).details;
   const rows = usageRows(card, props.now, props.language);
   const ratio = contextRatio(card.context);
@@ -546,7 +551,7 @@ function UsageGroup(props: { card: TaskCard; now: number; m: Metrics; tokens: Ta
     <View
       key={row.key}
       testID={`detail-row-${row.key}`}
-      style={{ height: m.infoRow, marginHorizontal: m.inset, paddingHorizontal: m.padH, flexDirection: "row", alignItems: "center", gap: m.gap }}
+      style={{ height: taskControlHeight(m.infoRow, scale), marginHorizontal: m.inset, paddingHorizontal: m.padH, flexDirection: "row", alignItems: "center", gap: m.gap }}
     >
       <Icon name={row.icon} size={m.icon} color={tokens.foregroundMuted} />
       <Text numberOfLines={1} style={{ flex: 1, fontSize: m.small, color: tokens.foregroundMuted }}>

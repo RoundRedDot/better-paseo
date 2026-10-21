@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Platform, Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Animated, Platform, Pressable, View, type StyleProp, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
+import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
 import type { DoneWindow } from "../../../shared/tasks-settings";
 import { DONE_WINDOWS } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
@@ -16,6 +17,7 @@ const nativeDriver = Platform.OS !== "web";
 
 /** A lane name read top to bottom: Chinese stacks its characters upright, Latin text turns 90°. */
 export function VerticalLabel({ text, color, language }: { text: string; color: string; language: "en" | "zh" }) {
+  const scale = useTasksFontScale();
   const [length, setLength] = useState(0);
   const style = { fontSize: 13, fontWeight: "500" as const, color, lineHeight: 18 };
   if (language === "zh") {
@@ -30,7 +32,7 @@ export function VerticalLabel({ text, color, language }: { text: string; color: 
     );
   }
   return (
-    <View style={{ width: 18, height: Math.max(length, 1), alignItems: "center", justifyContent: "center" }}>
+    <View style={{ width: Math.round(18 * scale), height: Math.max(length, 1), alignItems: "center", justifyContent: "center" }}>
       <View style={{ width: 400, alignItems: "center", transform: [{ rotate: "90deg" }] }}>
         <Text numberOfLines={1} onLayout={(event) => setLength(Math.ceil(event.nativeEvent.layout.width))} style={[style, { letterSpacing: 1 }]}>
           {text}
@@ -71,25 +73,26 @@ export function WindowSegments(props: {
   stretch?: boolean;
 }) {
   const colors = props.theme.colors;
+  const scale = useTasksFontScale();
   // Desktop: a Linear-style 28 pill with square-ish corners; phone: the prototype's round segments.
-  const outer = props.large ? 32 : 28;
+  const outer = taskControlHeight(props.large ? 32 : 28, scale);
   const round = (height: number) => (props.large ? height / 2 : height === outer ? 6 : 4);
   return (
     <View
       accessibilityRole="radiogroup"
       style={{
-        height: props.stretch ? 36 : outer,
+        height: props.stretch ? taskControlHeight(36, scale) : outer,
         flexDirection: "row",
         padding: 2,
         borderWidth: HAIRLINE,
         borderColor: colors.border,
-        borderRadius: round(props.stretch ? 36 : outer),
+        borderRadius: round(props.stretch ? taskControlHeight(36, scale) : outer),
         alignSelf: props.stretch ? "stretch" : "auto",
       }}
     >
       {DONE_WINDOWS.map((window) => {
         const on = window === props.value;
-        const inner = (props.stretch ? 36 : outer) - 6;
+        const inner = (props.stretch ? taskControlHeight(36, scale) : outer) - 6;
         return (
           <Pressable
             key={window}
@@ -168,7 +171,8 @@ export function LoadMoreRow(props: {
   large?: boolean;
 }) {
   const colors = props.theme.colors;
-  const height = props.large ? 36 : 26;
+  const scale = useTasksFontScale();
+  const height = taskControlHeight(props.large ? 36 : 26, scale);
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingTop: props.large ? 4 : 6 }}>
       <Text style={{ flex: 1, fontSize: props.large ? 12 : 11, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>

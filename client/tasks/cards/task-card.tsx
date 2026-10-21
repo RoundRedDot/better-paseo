@@ -1,7 +1,8 @@
 import React, { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
+import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
 import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
 import type { PermissionButton, StopPhase } from "../actions";
@@ -341,6 +342,7 @@ function useControlHover(report: ControlHover | undefined, rowRef?: React.RefObj
 
 function TaskCardViewImpl(props: TaskCardViewProps) {
   const { card, fields, compact, theme } = props;
+  const scale = useTasksFontScale();
   const tokens = taskTokens(theme);
   const look = tokens.card;
   const preferred = useTasksLanguage();
@@ -502,7 +504,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           style={{
             position: "absolute",
             right: jumpSlot,
-            top: (line - m.stopHeight) / 2,
+            top: (Math.round(line * scale) - taskControlHeight(m.stopHeight, scale)) / 2,
             paddingLeft: GAP,
             backgroundColor: background,
           }}
@@ -524,7 +526,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     : null;
   const metaRow = hasMeta ? (
     <View
-      style={{ flexDirection: "row", alignItems: "center", gap: GAP, minHeight: m.metaLine, zIndex: OVERLAY_ROW_Z }}
+      style={{ flexDirection: "row", alignItems: "center", gap: GAP, minHeight: Math.round(m.metaLine * scale), zIndex: OVERLAY_ROW_Z }}
       testID="task-card-meta"
     >
       {avatar ? <ProjectIcon location={location} size={12} hostId={props.hostId} /> : null}
@@ -574,7 +576,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         <StatusIcon
           kind={card.stoppedManually ? "stopped" : card.status}
           size={m.iconBox}
-          height={m.titleLine}
+          height={Math.round(m.titleLine * scale)}
           theme={theme}
           backdrop={background}
           animated={props.animated}
@@ -705,7 +707,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       >
         {SUBTASK_ORDER.filter((kind) => counts.has(kind)).map((kind) => (
           <View key={kind} style={{ flexDirection: "row", alignItems: "center", gap: 3 }} testID={`subtask-count-${kind}`}>
-            <StatusIcon kind={kind} size={m.icon + 2} height={m.pillLine} theme={theme} animated={props.animated} />
+            <StatusIcon kind={kind} size={m.icon + 2} height={Math.round(m.pillLine * scale)} theme={theme} animated={props.animated} />
             <Text style={[{ fontSize: m.pillText, lineHeight: m.pillLine, color: muted }, tabular]}>{counts.get(kind)}</Text>
           </View>
         ))}
@@ -773,7 +775,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     ) : null;
 
   // Lane blocks ------------------------------------------------------------
-  const iconCell: ViewStyle = { width: m.iconSlot, height: m.blockLine, alignItems: "center", justifyContent: "center" };
+  const iconCell: ViewStyle = { width: m.iconSlot, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" };
   const failed = card.status === "failed";
   const failure = layout.failure ? (
     <View style={[block, { flexDirection: "row", alignItems: "flex-start", gap: GAP }]} testID="task-card-reason">
@@ -926,14 +928,14 @@ interface PillProps {
  * Linear's property pill, 24 high (28 on a phone), fully rounded, with a
  * hairline; filled with a light tint of its data colour, or neutral grey.
  */
-export function pillStyle(tokens: TaskTokens, compact: boolean, tint: string | null = null, solid?: AgentPillColors): ViewStyle {
+export function pillStyle(tokens: TaskTokens, compact: boolean, tint: string | null = null, solid?: AgentPillColors, scale = 1): ViewStyle {
   const m = compact ? PHONE : DESKTOP;
   const colors = solid ? { background: solid.background, border: "transparent" } : pillTint(tokens, tint);
   return {
-    height: m.pillHeight,
-    minWidth: m.pillHeight,
+    height: taskControlHeight(m.pillHeight, scale),
+    minWidth: taskControlHeight(m.pillHeight, scale),
     maxWidth: "100%",
-    borderRadius: m.pillHeight / 2,
+    borderRadius: taskControlHeight(m.pillHeight, scale) / 2,
     borderWidth: solid ? 0 : StyleSheet.hairlineWidth,
     borderColor: colors.border,
     backgroundColor: colors.background,
@@ -970,9 +972,10 @@ function PillContent(props: PillProps) {
 }
 
 function Pill(props: PillProps) {
+  const scale = useTasksFontScale();
   return (
     <View
-      style={pillStyle(props.tokens, props.compact, props.tint ?? null, props.solid)}
+      style={pillStyle(props.tokens, props.compact, props.tint ?? null, props.solid, scale)}
       testID={props.testID}
       accessibilityLabel={props.accessibilityLabel}
     >
@@ -982,6 +985,7 @@ function Pill(props: PillProps) {
 }
 
 function PillButton(props: PillProps & { expanded: boolean; report?: ControlHover; onPress(): void }) {
+  const scale = useTasksFontScale();
   const { hovered, hoverProps } = useControlHover(props.report);
   return (
     <Pressable
@@ -992,7 +996,7 @@ function PillButton(props: PillProps & { expanded: boolean; report?: ControlHove
       {...hoverProps}
       testID={props.testID}
       style={[
-        pillStyle(props.tokens, props.compact, props.tint ?? null),
+        pillStyle(props.tokens, props.compact, props.tint ?? null, undefined, scale),
         hovered || props.expanded ? { backgroundColor: mix(pillTint(props.tokens, props.tint ?? null).background, props.tokens.foreground, 0.06) } : null,
         webTransition,
       ]}
@@ -1044,6 +1048,7 @@ function ContextMeter(props: {
   onOpenChange(open: boolean): void;
 }) {
   const { tokens, strings, context } = props;
+  const scale = useTasksFontScale();
   const { hovered, hoverProps } = useControlHover(props.report);
   const open = hovered && !props.compact;
   const { onOpenChange } = props;
@@ -1061,7 +1066,7 @@ function ContextMeter(props: {
       accessibilityLabel={`${strings.contextWindow} ${strings.contextUsed(percent)}`}
       focusable={false}
       {...hoverProps}
-      style={{ height: props.line, justifyContent: "center" }}
+      style={{ height: Math.round(props.line * scale), justifyContent: "center" }}
       testID="task-card-context"
     >
       <ContextRing ratio={props.ratio} color={color} track={withAlpha(tokens.foregroundMuted, 0.25)} />
@@ -1071,7 +1076,7 @@ function ContextMeter(props: {
           style={{
             position: "absolute",
             right: -8,
-            bottom: props.line + 6,
+            bottom: Math.round(props.line * scale) + 6,
             minWidth: 180,
             paddingHorizontal: 10,
             paddingVertical: 8,
@@ -1138,6 +1143,7 @@ function ActionButton(props: {
   onPress(): void;
 }) {
   const { button, tokens, compact } = props;
+  const scale = useTasksFontScale();
   const look = tokens.card;
   const { hovered, hoverProps } = useControlHover(props.report);
   const answer = button.kind === "open";
@@ -1158,7 +1164,7 @@ function ActionButton(props: {
   }
   const icon = button.kind === "open" ? null : button.action.behavior === "allow" ? "Check" : "X";
   const size = compact ? 16 : 13;
-  const sizing = phoneButtonSizing(useWindowDimensions().fontScale ?? 1);
+  const sizing = phoneButtonSizing((useWindowDimensions().fontScale ?? 1) * scale);
   return (
     <Pressable
       accessibilityRole="button"
@@ -1167,7 +1173,7 @@ function ActionButton(props: {
       {...hoverProps}
       style={{
         // A phone's button grows with a large system font.
-        ...(compact ? { minHeight: PHONE.buttonHeight, paddingVertical: 4, ...sizing.box } : { height: DESKTOP.buttonHeight }),
+        ...(compact ? { minHeight: PHONE.buttonHeight, paddingVertical: 4, ...sizing.box } : { height: taskControlHeight(DESKTOP.buttonHeight, scale) }),
         paddingHorizontal: compact ? 14 : 10,
         borderRadius: compact ? 8 : 6,
         borderWidth: answer ? StyleSheet.hairlineWidth : 1,
@@ -1217,6 +1223,7 @@ interface StopControlProps {
  */
 function StopControl(props: StopControlProps) {
   const { tokens, strings, phase, compact } = props;
+  const scale = useTasksFontScale();
   const look = tokens.card;
   const confirming = phase === "confirming";
   const stopping = phase === "stopping";
@@ -1243,11 +1250,11 @@ function StopControl(props: StopControlProps) {
       ],
     },
   ];
-  const sizing = phoneButtonSizing(useWindowDimensions().fontScale ?? 1, true);
+  const sizing = phoneButtonSizing((useWindowDimensions().fontScale ?? 1) * scale, true);
   const color = solid ? look.onStrong : tokens.danger;
   const fill = (hovered: boolean) =>
     solid ? (hovered ? look.dangerStrongHover : tokens.danger) : hovered ? look.dangerFillHover : look.dangerFill;
-  const height = compact ? PHONE.stopHeight : DESKTOP.stopHeight;
+  const height = taskControlHeight(compact ? PHONE.stopHeight : DESKTOP.stopHeight, scale);
   const round = compact ? 8 : height / 2;
   const label = stopping ? strings.stopping : confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
   const segment: ViewStyle = {
@@ -1267,7 +1274,7 @@ function StopControl(props: StopControlProps) {
         // as its label: "Confirm stop" takes more than "Stop". Explicit grow
         // and basis, never the `flex` shorthand beside `flexShrink`.
         ...(compact ? sizing.box : { flexShrink: 0 }),
-        marginVertical: compact ? 0 : (props.line - height) / 2,
+        marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         zIndex: 40,
       }}
       testID="task-card-stop"
@@ -1331,7 +1338,7 @@ function StopControl(props: StopControlProps) {
           sections={stopSections}
           theme={props.theme}
           width={STOP_MENU_WIDTH}
-          top={compact ? -(layoutMenu(stopSections).height + 2 * StyleSheet.hairlineWidth + 6) : height + 4}
+          top={compact ? -(layoutMenu(stopSections, scale).height + 2 * StyleSheet.hairlineWidth + 6) : height + 4}
           align="right"
           onClose={props.onCloseMenu}
           testID="task-card-stop-menu"
@@ -1392,6 +1399,7 @@ function JumpButton(props: {
   onPress(): void;
 }) {
   const { tokens, compact } = props;
+  const scale = useTasksFontScale();
   const { hovered, hoverProps } = useControlHover(props.report);
   const [tip, setTip] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1406,7 +1414,7 @@ function JumpButton(props: {
     <View
       style={{
         flexShrink: 0,
-        marginVertical: (props.line - size) / 2,
+        marginVertical: (Math.round(props.line * scale) - size) / 2,
         marginRight: JUMP_OVERHANG[compact ? 1 : 0],
         zIndex: 45,
       }}
@@ -1449,7 +1457,7 @@ function JumpButton(props: {
             position: "absolute",
             top: size + 6,
             right: 0,
-            height: 26,
+            height: taskControlHeight(26, scale),
             flexDirection: "row",
             alignItems: "center",
             gap: 8,
@@ -1466,7 +1474,7 @@ function JumpButton(props: {
             {props.label}
           </Text>
           <View
-            style={{ height: 16, paddingHorizontal: 4, borderWidth: 1, borderColor: tokens.card.border, borderRadius: 3, justifyContent: "center" }}
+            style={{ height: taskControlHeight(16, scale), paddingHorizontal: 4, borderWidth: 1, borderColor: tokens.card.border, borderRadius: 3, justifyContent: "center" }}
           >
             <Text style={{ fontSize: 11, lineHeight: 14, color: tokens.foregroundMuted }}>Enter</Text>
           </View>
@@ -1491,6 +1499,7 @@ function SubtaskRow(props: {
   onOpen?(agentId: string): void;
 }) {
   const { child, tokens, compact } = props;
+  const scale = useTasksFontScale();
   const m = compact ? PHONE : DESKTOP;
   // DOM hover on web, as the card: the row's own Pressable hover would end
   // when the pointer reaches its jump button, and hide it.
@@ -1522,7 +1531,7 @@ function SubtaskRow(props: {
     >
       {/* The official status icon, centred on the title's first line. */}
       <View style={{ width: m.iconSlot, alignItems: "center" }} testID={`subtask-status-${child.id}`}>
-        <StatusIcon kind={child.status} size={m.iconBox} height={m.blockLine} theme={props.theme} backdrop={fill} animated={props.animated} />
+        <StatusIcon kind={child.status} size={m.iconBox} height={Math.round(m.blockLine * scale)} theme={props.theme} backdrop={fill} animated={props.animated} />
       </View>
       <Text numberOfLines={2} style={{ flex: 1, fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
         {child.title}
@@ -1536,7 +1545,7 @@ function SubtaskRow(props: {
           style={{
             width: size,
             height: size,
-            marginVertical: (m.blockLine - size) / 2,
+            marginVertical: (Math.round(m.blockLine * scale) - size) / 2,
             marginRight: compact ? -8 : 0,
             borderRadius: 5,
             alignItems: "center",

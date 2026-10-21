@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { Animated, Platform, Pressable, ScrollView, Text, View, type FlatList as NativeFlatList, type TextInput as NativeTextInput } from "react-native";
+import { Animated, Platform, Pressable, ScrollView, View, type FlatList as NativeFlatList, type TextInput as NativeTextInput } from "react-native";
 import { FlatList, Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
+import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
 import { StatusIcon, TaskDetails } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -49,6 +50,7 @@ export function DesktopBoard(props: {
   handlers: RefObject<BoardLayoutHandlers | null>;
 }) {
   const { screen, board, rootRef } = props;
+  const scale = useTasksFontScale();
   const theme = screen.theme;
   const colors = theme.colors;
   const hostId = screen.host.id;
@@ -225,7 +227,7 @@ export function DesktopBoard(props: {
 
   return (
     <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0 }}>
-      <DesktopToolbar board={board} theme={theme} searchRef={searchRef} keyHints={viewport === 0 || viewport >= KEY_HINTS_MIN_WIDTH} />
+      <DesktopToolbar board={board} theme={theme} searchRef={searchRef} keyHints={viewport === 0 || viewport >= KEY_HINTS_MIN_WIDTH * Math.max(1, scale)} />
       <DesktopFilterBar board={board} theme={theme} options={options} menu={menu} setMenu={setMenu} />
       <View style={{ flex: 1, minHeight: 0 }} onLayout={(event) => setViewport(Math.floor(event.nativeEvent.layout.width))}>
         {viewport > 0 ? (
@@ -340,6 +342,7 @@ function DesktopLane(props: {
   breathing: Animated.Value;
 }) {
   const { lane, board, theme } = props;
+  const scale = useTasksFontScale();
   const colors = theme.colors;
   const palette = boardPalette(theme);
   const strings = board.strings;
@@ -395,7 +398,7 @@ function DesktopLane(props: {
   const loadingFirst = !ready || (lane.id === "done" && lane.loading && count === 0);
   return (
     <View style={{ width: props.width, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}>
-      <View style={{ height: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 14, paddingRight: 8 }}>
+      <View style={{ height: taskControlHeight(40, scale), flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 14, paddingRight: 8 }}>
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <Text style={{ fontSize: 14, fontWeight: "500", color: colors.foreground }}>{name}</Text>
         {ready ? (

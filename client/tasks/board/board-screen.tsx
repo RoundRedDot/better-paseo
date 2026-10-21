@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import { TasksTypography } from "../typography";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useTasksLanguage } from "../i18n";
@@ -61,14 +62,16 @@ function BoardContent(props: PluginScreenProps) {
   const board = useBoard(props, rootRef, handlers, compact);
   const Layout = compact ? PhoneBoard : DesktopBoard;
   return (
-    <View
-      style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }}
-      onLayout={props.layout.compact ? undefined : (event) => setWidth(Math.floor(event.nativeEvent.layout.width))}
-    >
-      <MenuBoundsContext.Provider value={rootRef}>
-        <Layout screen={props} board={board} rootRef={rootRef} handlers={handlers} />
-      </MenuBoundsContext.Provider>
-    </View>
+    <TasksTypography theme={props.theme}>
+      <View
+        style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }}
+        onLayout={props.layout.compact ? undefined : (event) => setWidth(Math.floor(event.nativeEvent.layout.width))}
+      >
+        <MenuBoundsContext.Provider value={rootRef}>
+          <Layout screen={props} board={board} rootRef={rootRef} handlers={handlers} />
+        </MenuBoundsContext.Provider>
+      </View>
+    </TasksTypography>
   );
 }
 

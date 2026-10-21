@@ -107,6 +107,7 @@ import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { BrandMark, PiMark, TaskCardView, TaskDetails, taskTokens } from "../../client/tasks/cards";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled } from "../../client/tasks/board/enabled";
+import { APP_SETTINGS_KEY, resetHostAppearanceForTests, setNativeSettingsReaderForTests, triggerHostAppearanceCheck } from "../../client/ui/tokens/host-appearance-shim";
 
 // The board is opt-in; these tests draw it turned on (tasks-board-enabled.test.ts covers off).
 const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: true };
@@ -193,6 +194,7 @@ function pressable(label: string): ReactTestInstance {
 }
 
 beforeEach(() => {
+  resetHostAppearanceForTests();
   host.settings = { ...DEFAULT_TASKS_SETTINGS };
   host.counts = null;
   host.canStop = false;
@@ -203,6 +205,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
+  resetHostAppearanceForTests();
   vi.useRealTimers();
   vi.clearAllMocks();
   resetEnhancerPreferences();
@@ -213,6 +216,92 @@ afterEach(() => {
 describe("Tasks board, desktop", () => {
   beforeEach(() => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+  });
+
+  it.each([10, 14, 21])("follows Paseo's %i px UI setting across the toolbar, cards and sort menu", (base) => {
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => key === APP_SETTINGS_KEY ? JSON.stringify({ uiBaseFontSize: base, contentFontSize: 19, codeFontSize: 18 }) : null,
+    });
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(1600);
+      const font = (node: ReactTestInstance) => StyleSheet.flatten(node.props.style).fontSize;
+      const text = (value: string) => renderer!.root.find((node) => (node.type as unknown) === "Text" && textOf(node) === value);
+      expect(font(text("Move"))).toBe(Math.round(11 * base / 14));
+      const search = renderer!.root.find((node) => (node.type as unknown) === "TextInput");
+      expect(font(search)).toBe(Math.round(13 * base / 14));
+      const title = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-title")[0]!;
+      expect(font(title)).toBe(Math.round(13 * base / 14));
+      expect(StyleSheet.flatten(title.props.style).lineHeight).toBe(Math.round(18 * base / 14));
+      const pill = renderer!.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "pill-model")[0]!;
+      expect(StyleSheet.flatten(pill.props.style).height).toBe(Math.round(24 * Math.max(1, base / 14)));
+      const sort = text("Sort").parent!;
+      act(() => hostParentOf(sort)!.props.onPress());
+      expect(font(text("Default order"))).toBe(base);
+      const row = hostParentOf(text("Default order"))!;
+      expect(StyleSheet.flatten(row.props.style).height).toBe(Math.round(32 * Math.max(1, base / 14)));
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("updates memoized cards when only the UI size changes, including a delayed host write", () => {
+    let base = 14;
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => key === APP_SETTINGS_KEY ? JSON.stringify({ uiBaseFontSize: base, contentFontSize: 19 }) : null,
+    });
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(1600);
+      const titleFont = () => {
+        const title = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-title")[0]!;
+        return StyleSheet.flatten(title.props.style).fontSize;
+      };
+      expect(titleFont()).toBe(13);
+      act(() => { triggerHostAppearanceCheck(); });
+      base = 21;
+      act(() => { vi.advanceTimersByTime(700); });
+      expect(titleFont()).toBe(20);
+      base = 10;
+      act(() => { vi.advanceTimersByTime(600); triggerHostAppearanceCheck(); });
+      expect(titleFont()).toBe(9);
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("uses host UI typography directly without reading persisted appearance", () => {
+    const getItem = vi.fn(() => JSON.stringify({ uiBaseFontSize: 10 }));
+    vi.stubGlobal("localStorage", { getItem });
+    try {
+      act(() => {
+        renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: 21 } } }));
+      });
+      layOut(1600);
+      const search = renderer!.root.find((node) => (node.type as unknown) === "TextInput");
+      expect(StyleSheet.flatten(search.props.style).fontSize).toBe(20);
+      expect(getItem).not.toHaveBeenCalled();
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("follows the native host UI setting on the compact board", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    setNativeSettingsReaderForTests(async () => ({ current: JSON.stringify({ uiBaseFontSize: 21, contentFontSize: 14 }), legacy: null }));
+    await act(async () => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    const title = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-title")[0]!;
+    expect(StyleSheet.flatten(title.props.style)).toMatchObject({ fontSize: 24, lineHeight: 33 });
+    const header = renderer!.root.find((node) => (node.type as unknown) === "Text" && textOf(node) === "6 tasks");
+    expect(StyleSheet.flatten(header.props.style).fontSize).toBe(26);
   });
 
   it("draws four lanes with their counts and every sample card", () => {
