@@ -105,7 +105,7 @@ import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS } from "../../client/tasks/board/params";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
-import { BrandMark, PiMark, TaskCardView, TaskDetails, taskTokens } from "../../client/tasks/cards";
+import { BrandMark, PiMark, TaskCardView, TaskDetailCards, TaskDetails, taskTokens } from "../../client/tasks/cards";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled } from "../../client/tasks/board/enabled";
 import { APP_SETTINGS_KEY, resetHostAppearanceForTests, setNativeSettingsReaderForTests, triggerHostAppearanceCheck } from "../../client/ui/tokens/host-appearance-shim";
@@ -649,7 +649,7 @@ describe("Tasks board, lane widths", () => {
   });
 
   it("narrows the lanes to keep two in view, and draws the phone layout on a wide host below that", () => {
-    const tabs = () => renderer!.root.findAllByProps({ testID: "lane-underline" });
+    const tabs = () => hostsById("phone-stat-running");
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
@@ -740,9 +740,9 @@ describe("Tasks board, host theme", () => {
     const style = (node: ReactTestInstance) => StyleSheet.flatten(node.props.style) as Record<string, unknown>;
     const views = renderer!.root.findAll((node) => (node.type as unknown) === "View");
     expect(views.some((node) => style(node).backgroundColor === "#16203a")).toBe(true);
-    // The tab bar is the one row drawn above the lane content (zIndex 5).
+    // The status strip is the one row drawn above the lane content (zIndex 5), on the panel's track.
     const tabs = views.find((node) => style(node).zIndex === 5)!;
-    expect(style(tabs)).toMatchObject({ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BLUE_DARK.border, backgroundColor: BLUE_DARK.surface0 });
+    expect(style(tabs)).toMatchObject({ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BLUE_DARK.border, backgroundColor: "#16203a" });
   });
 });
 
@@ -934,35 +934,17 @@ describe("Tasks board, phone", () => {
     expect(text).toContain("Clear filters");
   });
 
-  it("slides the underline under the label, and lets the tabs scroll when a large font outgrows a quarter", () => {
+  it("switches lanes from the status strip, the shown lane raised as a card", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));
     });
-    const isBar = (node: ReactTestInstance) => (node.type as unknown) === "ScrollView" && node.props.horizontal === true && node.props.testID !== "phone-lane-pager";
-    const bar = renderer!.root.find(isBar);
-    const layout = (node: ReactTestInstance, x: number, width: number) =>
-      act(() => node.props.onLayout({ nativeEvent: { layout: { x, y: 0, width, height: 44 } } }));
-    let outer = bar.parent!;
-    while (!((outer.type as unknown) === "View" && typeof outer.props.onLayout === "function")) outer = outer.parent!;
-    layout(outer, 0, 400);
-    const tab = pressable("Needs input 1");
-    const row = tab.findAll((node) => (node.type as unknown) === "View" && typeof node.props.onLayout === "function")[0]!;
-    const label = row.findAll((node) => (node.type as unknown) === "View" && typeof node.props.onLayout === "function")[1]!;
-    layout(tab, 0, 100);
-    layout(row, 20, 60);
-    layout(label, 18, 42);
-    const underline = () => renderer!.root.findByProps({ testID: "lane-underline" }).props.style.transform;
-    // Centre 20 + 18 + 21 = 59, drawn 100 wide and scaled to 42.
-    expect(underline()[0].translateX.__value).toBe(59 - 50);
-    expect(underline()[1].scaleX.__value).toBeCloseTo(0.42);
-    expect(bar.props.scrollEnabled).toBe(false);
-    expect(tab.props.style.paddingHorizontal).toBe(0);
-    expect(tab.props.style.minWidth).toBe(100);
-    // 1.3x system font: the row no longer fits its quarter.
-    layout(row, 0, 130);
-    expect(renderer!.root.find(isBar).props.scrollEnabled).toBe(true);
-    expect(pressable("Needs input 1").props.style.paddingHorizontal).toBe(10);
-    expect(pressable("Needs input 1").props.style.minHeight).toBe(44);
+    const cell = (label: string) => pressable(label);
+    expect(textOf(cell("Needs input 1"))).toMatch(/Input\s*1/);
+    expect(cell("Needs input 1").props.accessibilityState).toEqual({ selected: true });
+    act(() => cell("Running 2").props.onPress());
+    expect(cell("Running 2").props.accessibilityState).toEqual({ selected: true });
+    expect(cell("Needs input 1").props.accessibilityState).toEqual({ selected: false });
+    expect(StyleSheet.flatten(cell("Running 2").props.style)).toMatchObject({ borderRadius: 10 });
   });
 
   it("says when a non-default sort is on, and opens the filters from it", () => {
@@ -1037,15 +1019,18 @@ describe("Tasks board, phone", () => {
     expect(order().workspace).toBeLessThan(order().sort);
   });
 
-  it("opens the details sheet on a card's long press", () => {
+  it("opens the details sheet on a card's tap or long press instead of its tab", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));
     });
     act(() => cards()[0]!.props.onDetails(cards()[0]!.props.card));
-    const sheet = renderer!.root.find((node) => (node.type as unknown) === "Modal");
-    // The compact details draw the title themselves; the sheet's header says what it is.
-    expect(sheet.props.title).toBe("Details");
-    expect(sheet.findByType(TaskDetails).props).toMatchObject({ compact: true, language: "en", card: { id: "sample-input" } });
+    const sheet = () => renderer!.root.find((node) => (node.type as unknown) === "Modal");
+    // The details draw the title themselves; the sheet's header says what it is.
+    expect(sheet().props.title).toBe("Details");
+    expect(sheet().findByType(TaskDetailCards).props).toMatchObject({ touch: true, language: "en", card: { id: "sample-input" } });
+    act(() => cards()[0]!.props.onSelect(cards()[0]!.props.card));
+    expect(sheet().findByType(TaskDetailCards).props.card.id).toBe("sample-input");
+    expect(openAgent).not.toHaveBeenCalled();
   });
 });
 

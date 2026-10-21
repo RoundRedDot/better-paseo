@@ -13,7 +13,7 @@ import { FlatList, Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/c
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
-import { StatusIcon, TaskDetails, taskTokens, type CardCallbacks } from "../cards";
+import { StatusIcon, TaskDetailCards, taskTokens, type CardCallbacks } from "../cards";
 import { panelChrome } from "../cards/panel";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -61,6 +61,8 @@ export function PhoneBoard(props: {
   const hostId = screen.host.id;
   const { lanes, tasks, strings } = board;
   const reduced = useReducedMotion();
+  const palette = boardPalette(theme);
+  const cardLook = taskTokens(theme).card;
 
   const [chosen, setChosen] = useState<LaneId | null>(() => rememberedLane(hostId));
   const lane = defaultLane(lanes.needs_input.cards.length, chosen);
@@ -237,6 +239,8 @@ export function PhoneBoard(props: {
       onStop: guard(base.onStop),
       onCancelStop: base.onCancelStop,
       onPermission: guard(base.onPermission),
+      // A tap shows the details sheet; the card's arrow still opens the tab.
+      onSelect: guard((card: TaskCard) => setSheet({ kind: "details", id: card.id })),
       onDetails: guard((card: TaskCard) => {
         // A long press: the finger is still down.
         if (swipeStart.current) {
@@ -282,8 +286,6 @@ export function PhoneBoard(props: {
     // Vertical scrolling stays the browser's; horizontal travel is the lane swipe.
     if (node?.style) node.style.touchAction = "pan-y";
   }, []);
-  const palette = boardPalette(theme);
-
   const breathing = useBreathing(!tasks.ready && board.visible);
   const detailsCard = sheet?.kind === "details" ? tasks.byId.get(sheet.id) : undefined;
   const warning = taskTokens(theme).status.warning;
@@ -349,19 +351,21 @@ export function PhoneBoard(props: {
       ) : null}
       <View
         onLayout={(event: LayoutChangeEvent) => setBarWidth(event.nativeEvent.layout.width)}
-        style={{ borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 5, backgroundColor: colors.surface0 }}
+        style={{ borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 5, backgroundColor: palette.panel }}
       >
         <ScrollView
           ref={tabsRef}
           horizontal
           scrollEnabled={overflowing}
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ flexGrow: 1, minWidth: barWidth }}
+          contentContainerStyle={{ flexGrow: 1, minWidth: barWidth, padding: 8, gap: 6 }}
         >
           {LANE_ORDER.map((id) => {
             const on = id === lane;
             const count = lanes[id].cards.length;
             const warn = id === "needs_input" && count > 0;
+            // The sidebar's status counts as the lane switch: four cells on
+            // the panel's track, the shown lane's raised as a card.
             return (
               <Pressable
                 key={id}
@@ -370,59 +374,41 @@ export function PhoneBoard(props: {
                 accessibilityLabel={`${strings.lanes[id]} ${count}`}
                 onPress={() => select(id)}
                 onLayout={(event: LayoutChangeEvent) => measureTab(id, "tab", event.nativeEvent.layout)}
+                testID={`phone-stat-${id}`}
                 style={{
                   flexGrow: 1,
-                  minWidth: barWidth / 4,
-                  minHeight: 44,
-                  paddingHorizontal: overflowing ? 10 : 0,
-                  alignItems: "center",
+                  flexBasis: 0,
+                  minWidth: overflowing ? undefined : (barWidth - 16 - 18) / 4,
+                  minHeight: 54,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 10,
+                  borderWidth: HAIRLINE,
+                  borderColor: on ? cardLook.border : warn ? warning : "transparent",
+                  backgroundColor: on ? cardLook.background : "transparent",
+                  boxShadow: on ? cardLook.shadow : undefined,
                   justifyContent: "center",
-                }}
+                  gap: 2,
+                } as object}
               >
                 <View
                   onLayout={(event: LayoutChangeEvent) => measureTab(id, "row", event.nativeEvent.layout)}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
                 >
-                  <StatusIcon kind={LANE_STATUS[id]} size={14} theme={theme} animated={board.visible} />
-                  <View
-                    onLayout={(event: LayoutChangeEvent) => measureTab(id, "label", event.nativeEvent.layout)}
-                    style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-                  >
-                    <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: on ? "600" : "500", color: on ? colors.foreground : colors.foregroundMuted }}>
+                  <StatusIcon kind={LANE_STATUS[id]} size={13} theme={theme} animated={board.visible} />
+                  <View onLayout={(event: LayoutChangeEvent) => measureTab(id, "label", event.nativeEvent.layout)} style={{ flexShrink: 1 }}>
+                    <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: on ? "600" : "400", color: on ? colors.foreground : colors.foregroundMuted }}>
                       {strings.tabs[id]}
                     </Text>
-                    {tasks.ready ? (
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontVariant: ["tabular-nums"],
-                          fontWeight: warn || on ? "600" : "400",
-                          color: warn ? warning : on ? colors.foreground : colors.foregroundMuted,
-                        }}
-                      >
-                        {count}
-                      </Text>
-                    ) : null}
                   </View>
                 </View>
+                <Text style={{ fontSize: 19, lineHeight: 24, fontWeight: "600", fontVariant: ["tabular-nums"], color: warn ? warning : on ? colors.foreground : colors.foregroundMuted }}>
+                  {tasks.ready ? count : "–"}
+                </Text>
               </Pressable>
             );
           })}
-          {span ? (
-            <Animated.View
-              pointerEvents="none"
-              testID="lane-underline"
-              style={{
-                position: "absolute",
-                left: 0,
-                bottom: 0,
-                width: UNDERLINE_BASE,
-                height: 2,
-                backgroundColor: colors.accent,
-                transform: [{ translateX: underlineX }, { scaleX: underlineScale }],
-              }}
-            />
-          ) : null}
+
         </ScrollView>
       </View>
       {lane === "done" ? (
@@ -516,12 +502,11 @@ export function PhoneBoard(props: {
       <Modal title={strings.details} open={detailsCard !== undefined} onOpenChange={(open) => !open && setSheet(null)}>
         <Modal.Content contentContainerStyle={SHEET_BODY}>
           {detailsCard ? (
-            <TaskDetails
+            <DetailsSheetBody
               card={detailsCard}
+              board={board}
               theme={theme}
-              clock={board.clock}
-              language={board.language}
-              compact
+              onShow={(id) => setSheet({ kind: "details", id })}
               onOpen={
                 board.callbacks.onOpen
                   ? (agentId) => {
@@ -535,6 +520,65 @@ export function PhoneBoard(props: {
         </Modal.Content>
       </Modal>
     </View>
+  );
+}
+
+/**
+ * The phone's details sheet: the card's details as the sidebar's stack of
+ * cards at touch sizes, under a bar that steps to the previous and next card
+ * of the same lane.
+ */
+function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme: PluginTheme; onShow(id: string): void; onOpen?(agentId: string): void }) {
+  const { card, board, theme } = props;
+  const colors = theme.colors;
+  const list = board.lanes[card.lane]?.cards ?? [];
+  const index = list.findIndex((item) => item.id === card.id);
+  const step = (delta: number) => {
+    const next = list[index + delta];
+    if (next) props.onShow(next.id);
+  };
+  const stopAvailable = !!board.callbacks.onStop && card.stoppable;
+  return (
+    <View style={{ paddingHorizontal: 12, gap: 8 }}>
+      {index >= 0 && list.length > 1 ? (
+        <View style={{ minHeight: 40, flexDirection: "row", alignItems: "center" }} testID="sheet-stepper">
+          <SheetStep icon="ChevronLeft" label={board.strings.sidebar.previous} disabled={index <= 0} onPress={() => step(-1)} theme={theme} />
+          <Text style={{ flex: 1, textAlign: "center", fontSize: 13, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+            {`${board.strings.lanes[card.lane]} · ${index + 1} / ${list.length}`}
+          </Text>
+          <SheetStep icon="ChevronRight" label={board.strings.sidebar.next} disabled={index >= list.length - 1} onPress={() => step(1)} theme={theme} />
+        </View>
+      ) : null}
+      <TaskDetailCards
+        card={card}
+        theme={theme}
+        language={board.language}
+        strings={board.strings.sidebar}
+        touch
+        clock={board.clock}
+        onOpen={props.onOpen}
+        stop={stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card) } : null}
+        permissionButtons={board.buttonsFor(card)}
+        onPermission={(button) => board.callbacks.onPermission?.(card, button)}
+        onJump={props.onShow}
+      />
+    </View>
+  );
+}
+
+function SheetStep(props: { icon: string; label: string; disabled: boolean; onPress(): void; theme: PluginTheme }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={props.label}
+      accessibilityState={{ disabled: props.disabled }}
+      disabled={props.disabled}
+      onPress={props.onPress}
+      hitSlop={4}
+      style={{ width: 44, height: 40, alignItems: "center", justifyContent: "center", opacity: props.disabled ? 0.35 : 1 }}
+    >
+      <Icon name={props.icon} size={20} color={props.theme.colors.foreground} />
+    </Pressable>
   );
 }
 
