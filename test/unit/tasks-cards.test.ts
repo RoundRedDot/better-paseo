@@ -76,6 +76,7 @@ import {
   type TaskCardViewProps,
 } from "../../client/tasks/cards";
 import { statusRingHolders } from "../../client/tasks/cards/status-icon";
+import { activeStepClocks } from "../../client/ui/step-clock";
 import { LARGE_FONT_SCALE, OVERLAY_ROW_Z, PHONE_BUTTON_MIN_WIDTH, phoneButtonSizing } from "../../client/tasks/cards/task-card";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
@@ -294,7 +295,7 @@ describe("StatusIcon", () => {
     expect(statusMarkSize(20)).toBe(14);
   });
 
-  it("runs every ring from one shared animation, and stops it when the last ring leaves", async () => {
+  it("turns every ring on one shared step clock, and stops it when the last ring leaves", async () => {
     const tree = await render(
       React.createElement(
         React.Fragment,
@@ -302,9 +303,10 @@ describe("StatusIcon", () => {
         ...[16, 12, 20].map((size) => React.createElement(StatusIcon, { key: size, kind: "running", size, theme: LIGHT })),
       ),
     );
-    expect(motion.loops).toHaveLength(1);
-    expect(motion.loops[0]!.start).toHaveBeenCalledTimes(1);
+    // A frame loop repaints the whole window on many Android devices; the ring steps instead.
+    expect(motion.loops).toHaveLength(0);
     expect(statusRingHolders()).toBe(3);
+    expect(activeStepClocks()).toBe(1);
     const rotations = tree.root
       .findAll((node) => (node.type as unknown) === "Animated.View")
       .map((node) => (flat(node.props.style).transform as Array<{ rotate: unknown }>)[0]!.rotate);
@@ -314,7 +316,7 @@ describe("StatusIcon", () => {
     await act(async () => tree.unmount());
     renderer = null;
     expect(statusRingHolders()).toBe(0);
-    expect(motion.loops[0]!.stop).toHaveBeenCalled();
+    expect(activeStepClocks()).toBe(0);
   });
 
   it("does not animate when told not to, or under reduced motion", async () => {

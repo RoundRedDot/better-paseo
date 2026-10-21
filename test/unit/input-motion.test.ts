@@ -54,6 +54,6 @@ describe("motion tokens", () => {
   });
 
   it("running dot pulses 1.0 <-> 0.3 over 1200 ms at 6px", () => {
-    expect(runningDot).toEqual({ size: 6, periodMs: 1200, minOpacity: 0.3, maxOpacity: 1 });
+    expect(runningDot).toEqual({ size: 6, periodMs: 1200, steps: 4, minOpacity: 0.3, maxOpacity: 1 });
   });
 });

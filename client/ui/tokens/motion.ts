@@ -28,13 +28,24 @@ export function outCubic(t: number): number {
 
 export const easing = { out: outCubic } as const;
 
-/** The running indicator (`RunningDot`): a 6px dot pulsing 1.0 <-> 0.3 every 1200 ms. */
+/**
+ * The running indicator (`RunningDot`): a 6px dot pulsing 1.0 <-> 0.3 every 1200 ms.
+ * Native steps through `steps` opacities per period (see `ui/step-clock.ts`); web
+ * keeps a smooth CSS animation.
+ */
 export const runningDot = {
   size: 6,
   periodMs: 1200,
+  steps: 4,
   minOpacity: 0.3,
   maxOpacity: 1,
 } as const;
+
+/** The dot's opacity at a native step: full, halfway, faint, halfway. */
+export function runningDotOpacity(step: number): number {
+  const middle = (runningDot.maxOpacity + runningDot.minOpacity) / 2;
+  return [runningDot.maxOpacity, middle, runningDot.minOpacity, middle][step % runningDot.steps]!;
+}
 
 /** Every duration collapses to 0 while the system asks for reduced motion. */
 export function motionDuration(ms: number, reducedMotion: boolean): number {

@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Platform, StyleSheet, View, type ViewStyle } from "react-native";
 import { probeAnimationLoop } from "../debug/perf";
-import { easing, runningDot } from "./tokens/motion";
+import { holdStepClock } from "./step-clock";
+import { runningDot, runningDotOpacity } from "./tokens/motion";
 import { useReducedMotion } from "./use-reduced-motion";
 
 interface RunningDotProps {
@@ -17,10 +18,12 @@ interface RunningDotProps {
  * running or a model is thinking; unmounting is what stops the loop, so a
  * finished card costs nothing.
  *
- * Opacity only, so the layout never moves. iOS and Android run the loop on
- * the native driver. React Native Web has no native driver: an `Animated` loop
- * there re-renders the dot, and commits its whole row, on every frame, so on
- * web the pulse is a CSS animation that React never sees.
+ * Opacity only, so the layout never moves. iOS and Android step the opacity on
+ * the shared step clock: a native-driver loop changed the dot on every vsync, and
+ * many Android devices redraw the whole window for that, so one running tool kept
+ * an idle screen at full frame rate. React Native Web has no native driver: an
+ * `Animated` loop there re-renders the dot, and commits its whole row, on every
+ * frame, so on web the pulse is a CSS animation that React never sees.
  * Under reduced motion the dot is drawn static at full opacity.
  */
 export function RunningDot({ color, size = runningDot.size, accessibilityLabel }: RunningDotProps) {
@@ -35,27 +38,12 @@ export function RunningDot({ color, size = runningDot.size, accessibilityLabel }
       opacity.setValue(runningDot.maxOpacity);
       return;
     }
-    const half = runningDot.periodMs / 2;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, {
-          toValue: runningDot.minOpacity,
-          duration: half,
-          easing: easing.out,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: runningDot.maxOpacity,
-          duration: half,
-          easing: easing.out,
-          useNativeDriver: true,
-        }),
-      ]),
+    const releaseClock = holdStepClock(runningDot.periodMs, runningDot.steps, (step) =>
+      opacity.setValue(runningDotOpacity(step)),
     );
-    loop.start();
     const release = probeAnimationLoop("RunningDot");
     return () => {
-      loop.stop();
+      releaseClock();
       release();
     };
   }, [opacity, reducedMotion]);
