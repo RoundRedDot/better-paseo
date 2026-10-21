@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useAgent, usePaseo, useRpc } from "@getpaseo/plugin/client";
-import { useRevealedText } from "@getpaseo/plugin/client/react-native";
+import { useRevealedText } from "./ui/use-revealed-text";
 import { ChatComposerContext, type ComposerTimelineItemProps as PluginTimelineItemProps } from "./ui/chat-composer";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useThemeTokens } from "./components/theme-tokens";
