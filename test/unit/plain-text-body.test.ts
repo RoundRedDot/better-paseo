@@ -1,5 +1,5 @@
 /**
- * A `plain_text` tool call (a task notification, an ACP or Codex result)
+ * A `plain_text` tool call (an ACP or Codex result)
  * carries tool output: its opened body is set in the code face.
  */
 import { afterEach, expect, it, vi } from "vitest";
@@ -58,7 +58,7 @@ it("draws a plain_text body in the monospace face, marked as code", async () => 
   });
   const text = "python3 - <<'EOF'\np='client/components/markdown/render/styles.ts'\nEOF";
   const data = classifyTool({
-    name: "task_notification",
+    name: "run_terminal_command",
     status: "completed",
     callId: "plain-1",
     error: null,

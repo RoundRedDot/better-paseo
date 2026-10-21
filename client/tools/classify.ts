@@ -26,6 +26,8 @@ import { readSendAgentPrompt } from "./send-agent-prompt";
 import { CATALOG_TOOLS, readPaseoCatalog, type CatalogTool } from "./paseo-catalog";
 import { AGENT_OPERATIONS, readAgentOperation } from "./agent-operation";
 import { readPaseoResult } from "./paseo-result";
+import { readActivity, type ActivityData } from "./activity";
+import { normalizeForeignTool } from "./normalize";
 
 function extractStringProp(obj: unknown, key: string): string | undefined {
   if (obj && typeof obj === "object" && key in obj) {
@@ -241,6 +243,7 @@ export type ToolKind =
   | "sub_agent"
   | "plan"
   | "plain_text"
+  | "activity"
   | "unknown";
 
 /** What the transformer hands the renderer for one `tool_call` item. */
@@ -255,6 +258,8 @@ export interface ToolCallPayload {
   /** The host's `metadata.approved`: the verdict on a plan. */
   approved?: boolean;
   questionData?: Record<string, unknown>;
+  /** The few metadata fields a row reads: a task notification's task, status and output file. */
+  metadata?: Record<string, unknown>;
 }
 
 export interface SearchToolData {
@@ -316,6 +321,8 @@ export interface SubAgentToolData {
  */
 export interface ToolCallView extends Omit<ToolCalloutData, "tool"> {
   agentStatus?: AgentStatusData;
+  /** A tool with no card of its own, read into row words and body sections. */
+  activity?: ActivityData;
   questionData?: Record<string, unknown>;
   tool: ToolKind;
   /** The tool's own name as the host reported it ("Read", "mcp__x__y"). */
@@ -489,7 +496,8 @@ function readSubAgent(detail: Record<string, unknown>): SubAgentToolData {
  */
 function readError(error: string | null | undefined): string | undefined {
   if (!error || error === "[object Object]") return undefined;
-  return error;
+  // Claude wraps a refused call's reason in a tag the reader has no use for.
+  return error.replace(/^\s*<tool_use_error>([\s\S]*)<\/tool_use_error>\s*$/, "$1");
 }
 
 /**
@@ -518,7 +526,8 @@ function readPlanOutcome(payload: ToolCallPayload): ToolCallView["planOutcome"] 
  * the tools this plugin knows by name; and `unknown` for everything else —
  * never a terminal card for a call that ran no command.
  */
-export function classifyTool(payload: ToolCallPayload): ToolCallView {
+export function classifyTool(reported: ToolCallPayload): ToolCallView {
+  const payload = normalizeForeignTool(reported);
   const rawName = (payload.name || "").toLowerCase();
   const detail = asRecord(payload.detail) ?? {};
   const detailType = typeof detail.type === "string" ? detail.type.toLowerCase() : "";
@@ -533,6 +542,13 @@ export function classifyTool(payload: ToolCallPayload): ToolCallView {
     asRecord(detail.arguments) ??
     asRecord(detail.args) ??
     {}) as Record<string, unknown>;
+  const activity = readActivity({ name: payload.name, status: payload.status, detail, input, metadata: payload.metadata });
+  if (activity) return {
+    id: `live-${rawName}`, tool: "activity", name: payload.name, callId: payload.callId, title: activity.verb,
+    status: activity.failed ? "failed" : normalizeStatus(payload.status),
+    error: activity.error === null ? undefined : activity.error ?? readError(payload.error),
+    activity,
+  };
   const output = detail.output ?? detail.result ?? detail.content ?? "";
 
   // Universal path extraction across OMP, Paseo, Claude, and Codex formats

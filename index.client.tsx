@@ -9,7 +9,7 @@ import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
 import { followPreference } from "./client/state/follow-preference";
 import { perfSlashCommand } from "./client/debug/perf-command";
-import { transformToolCall } from "./client/tools/transform";
+import { transformCompaction, transformToolCall } from "./client/tools/transform";
 import { agentMessageSchema } from "./client/tools/agent-message";
 import { assistantRows } from "./client/assistant-transform";
 import { embeddedFontsRpc } from "./shared/font-rpc";
@@ -64,6 +64,13 @@ export default function contribute(client: PluginClientContext) {
     transform: transformToolCall,
   });
 
+  // Drawn by the tool row renderer, as a row like a call's.
+  const removeCompactionTransformer = client.addTimelineTransformer({
+    id: "omp-enhanced-compaction",
+    query: { itemType: "compaction" },
+    transform: transformCompaction,
+  });
+
   const removeToolRenderer = client.addTimelineRenderer({
     kind: "omp-tool-call",
     version: 1,
@@ -76,6 +83,7 @@ export default function contribute(client: PluginClientContext) {
       phase: z.string().optional(),
       approved: z.boolean().optional(),
       questionData: z.record(z.string(), z.unknown()).optional(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
       agentMessage: agentMessageSchema.optional(),
     }),
     Component: LiveToolCallRenderer,
@@ -271,6 +279,7 @@ export default function contribute(client: PluginClientContext) {
     removeNoticeStyle();
     removeChatFind();
     removeToolTransformer();
+    removeCompactionTransformer();
     removeToolRenderer();
     removeReasoningTransformer();
     removeReasoningRenderer();
