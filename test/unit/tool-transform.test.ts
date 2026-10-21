@@ -49,12 +49,19 @@ describe("tool_call transformer", () => {
     expect(data(item({ status: "canceled", metadata: {} }))?.status).toBe("canceled");
   });
 
-  it("leaves a message from another agent to the host, which knows its sender", () => {
+  it("claims a message from another agent without the sender the host withholds", () => {
     const message = item({
       callId: "paseo-agent-message:m1",
       name: "agent_message",
       detail: { type: "plain_text", text: "Done: tests pass", icon: "bot" },
     });
-    expect(transformToolCall({ item: message, phase: "complete" })).toBeUndefined();
+    expect(data(message)).toEqual({
+      name: "agent_message",
+      status: "completed",
+      detail: { type: "plain_text", text: "Done: tests pass", icon: "bot" },
+      callId: "paseo-agent-message:m1",
+      error: null,
+      phase: "complete",
+    });
   });
 });
