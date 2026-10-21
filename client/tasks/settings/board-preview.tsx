@@ -71,12 +71,13 @@ export function TasksBoardPreview(props: {
       now={now}
       hostId={props.hostId}
       onReveal={noop}
+      animated={false}
     />
   );
 
   const header = (id: LaneId) => (
     <View style={{ height: 36, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12 }}>
-      <StatusIcon kind={LANE_STATUS[id]} size={14} theme={theme} />
+      <StatusIcon kind={LANE_STATUS[id]} size={14} theme={theme} animated={false} />
       <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: "500", color: colors.foreground }}>
         {strings.lanes[id]}
       </Text>
@@ -137,7 +138,7 @@ export function TasksBoardPreview(props: {
                   borderBottomColor: on ? colors.accent : "transparent",
                 }}
               >
-                <StatusIcon kind={LANE_STATUS[id]} size={13} theme={theme} />
+                <StatusIcon kind={LANE_STATUS[id]} size={13} theme={theme} animated={false} />
                 <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: on ? "600" : "500", color: on ? colors.foreground : colors.foregroundMuted }}>
                   {strings.tabs[id]}
                 </Text>
