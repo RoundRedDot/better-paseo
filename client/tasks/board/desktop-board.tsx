@@ -7,6 +7,7 @@ import { StatusIcon, TaskDetails } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
+import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-scrollbar";
 import { CardCell, HoverPressable, LoadMoreRow, SkeletonCard, VerticalLabel, useBreathing, useFreshIds } from "./board-parts";
 import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type FilterMenu } from "./filter-bar";
 import { buildFilterOptions } from "./filter-options";
@@ -27,6 +28,14 @@ function measure(node: unknown): Promise<Box | null> {
 
 const Separator = () => <View style={{ height: 12 }} />;
 
+/**
+ * 8 around the cards leaves room for the 3 px focus ring inside the list's clip.
+ * On web the lane's scrollbar takes its own gutter at the right edge, as
+ * Linear's does, so the cards keep only 4 to it.
+ */
+const LANE_PAD = Platform.OS === "web" ? { paddingLeft: 8, paddingRight: 4 } : { paddingHorizontal: 8 };
+const SKELETON_PAD = Platform.OS === "web" ? { paddingLeft: 8, paddingRight: 4 + LANE_SCROLLBAR_WIDTH } : { paddingHorizontal: 8 };
+
 /** True while the keyboard types into a text field. */
 function isTyping(active: HTMLElement | null): boolean {
   return !!active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
@@ -44,6 +53,7 @@ export function DesktopBoard(props: {
   const colors = theme.colors;
   const hostId = screen.host.id;
   const { lanes, tasks, strings } = board;
+  useLaneScrollbar(theme);
 
   const [collapsed, setCollapsedState] = useState<LaneId[]>(() => rememberedCollapsed(hostId));
   const setCollapsed = useCallback(
@@ -400,21 +410,21 @@ function DesktopLane(props: {
         </HoverPressable>
       </View>
       {loadingFirst ? (
-        <View style={{ paddingHorizontal: 8, paddingBottom: 8, gap: 12 }}>
+        <View style={{ ...SKELETON_PAD, paddingBottom: 8, gap: 12 }}>
           {[0, 1, 2].map((index) => (
             <SkeletonCard key={index} index={index} theme={theme} opacity={props.breathing} />
           ))}
         </View>
       ) : (
         <FlatList<TaskCard>
+          {...laneScrollProps}
           ref={setList}
           data={lane.cards}
           keyExtractor={(card) => card.id}
           extraData={extraData}
           renderItem={renderItem}
           ItemSeparatorComponent={Separator}
-          // 8 around the cards leaves room for the 3 px focus ring inside the list's clip.
-          contentContainerStyle={{ paddingHorizontal: 8, paddingTop: 2, paddingBottom: 8 }}
+          contentContainerStyle={{ ...LANE_PAD, paddingTop: 2, paddingBottom: 8 }}
           initialNumToRender={8}
           maxToRenderPerBatch={8}
           windowSize={7}
