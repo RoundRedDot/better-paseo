@@ -323,6 +323,8 @@ export interface ToolCallView extends Omit<ToolCalloutData, "tool"> {
   agentStatus?: AgentStatusData;
   /** A tool with no card of its own, read into row words and body sections. */
   activity?: ActivityData;
+  /** The reader turned the call down: not a failure, so it is drawn without the danger colour. */
+  rejected?: boolean;
   questionData?: Record<string, unknown>;
   tool: ToolKind;
   /** The tool's own name as the host reported it ("Read", "mcp__x__y"). */
@@ -494,8 +496,15 @@ function readSubAgent(detail: Record<string, unknown>): SubAgentToolData {
  * item a previous plugin version transformed, and says nothing, so it is
  * dropped here.
  */
+/** Claude's answer for a call the reader turned down: an instruction to the model, not news to the reader. */
+const REJECTED = /^The user doesn't want to proceed with this tool use\. The tool use was rejected/;
+
+/** What a rejected call says instead. */
+export const REJECTED_TEXT = "You rejected this call.";
+
 function readError(error: string | null | undefined): string | undefined {
   if (!error || error === "[object Object]") return undefined;
+  if (REJECTED.test(error)) return REJECTED_TEXT;
   // Claude wraps a refused call's reason in a tag the reader has no use for.
   return error.replace(/^\s*<tool_use_error>([\s\S]*)<\/tool_use_error>\s*$/, "$1");
 }
@@ -725,6 +734,7 @@ export function classifyTool(reported: ToolCallPayload): ToolCallView {
     name: payload.name || undefined,
     callId: payload.callId,
     error: readError(payload.error),
+    ...(readError(payload.error) === REJECTED_TEXT ? { rejected: true } : {}),
     status: normalizeStatus(payload.status),
     filePath,
     language: isShell ? "bash" : languageFromPath(filePath),

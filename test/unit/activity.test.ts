@@ -244,3 +244,50 @@ describe("context compaction", () => {
       .toMatchObject({ verb: "Compacted context", meta: ["from 973K tokens"] });
   });
 });
+
+describe("the rest of the generic rows", () => {
+  const rejection = { type: "tool_result", is_error: true, content: "The user doesn't want to proceed with this tool use. " +
+    "The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing " +
+    "and wait for the user to tell you how to proceed." };
+
+  it("says a call the reader rejected was rejected, quietly, instead of quoting Claude's instruction", () => {
+    const bash = view({ name: "Bash", status: "failed", error: rejection, detail: { type: "shell", command: "sleep 420" } });
+    expect(bash).toMatchObject({ rejected: true, error: "You rejected this call." });
+    expect(summarizeTool(bash)).toMatchObject({ verb: "Bash", target: "sleep 420", meta: ["rejected"], tone: "default" });
+    expect(summarizeTool(bash)).not.toHaveProperty("errorLine");
+    expect(row({ name: "tool", status: "failed", error: rejection, detail: { type: "unknown", input: null, output: null } }))
+      .toEqual({ verb: "Tool call", target: undefined, meta: ["rejected"], tone: "default" });
+    // A real failure keeps its colour and its line.
+    expect(row({ name: "Bash", status: "failed", error: { message: "Exit code 1" }, detail: { type: "shell", command: "false" } }))
+      .toMatchObject({ tone: "danger", errorLine: "Exit code 1" });
+  });
+
+  it("counts the peer sessions ListAgents found", () => {
+    const listing = "This session is align-206-ca [24c068] - the name other sessions use.\n\nPeer sessions (34):\n" +
+      "  beautiful-chat-2e [e4cb66]  ·  interactive  ·  idle";
+    expect(row({ name: "ListAgents", detail: { type: "unknown", input: {}, output: { output: listing } } }))
+      .toEqual({ verb: "List sessions", target: "34 peer sessions", meta: ["this is align-206-ca"], tone: "default" });
+  });
+});
+
+describe("Codex async questions", () => {
+  const questionData = (text: string) => (transform({ name: "request_user_input_async",
+    detail: { type: "plain_text", icon: "brain", text } })!.items[0]!.data as { questionData?: unknown }).questionData;
+
+  it("reads an answered question back into the question card's shape", () => {
+    expect(questionData("Ship the Server first?\nShip the Server, schedule Admin later")).toEqual({
+      questions: [{ question: "Ship the Server first?", options: [] }],
+      answers: ["Ship the Server, schedule Admin later"],
+    });
+  });
+
+  it("keeps a dismissed question's options, and each question of a set", () => {
+    expect(questionData("Which SHA?\nProvide the Web SHA, Patch the old protocol\n\nAnd the docs?\nYes, No\n\nDismissed")).toEqual({
+      questions: [
+        { question: "Which SHA?", options: [{ label: "Provide the Web SHA" }, { label: "Patch the old protocol" }] },
+        { question: "And the docs?", options: [{ label: "Yes" }, { label: "No" }] },
+      ],
+      status: "dismissed",
+    });
+  });
+});

@@ -479,7 +479,8 @@ function summarizeKind(view: ToolCallView): ToolSummary {
     default: {
       pushDuration(meta, view);
       return {
-        verb: clip(view.name, VERB_MAX) ?? clip(view.title, VERB_MAX) ?? "Tool",
+        // Claude names a call it could not attribute just "tool".
+        verb: view.name === "tool" ? "Tool call" : clip(view.name, VERB_MAX) ?? clip(view.title, VERB_MAX) ?? "Tool",
         target: clip(keyArgument(view.input), TARGET_MAX),
         meta,
         tone,
@@ -510,6 +511,8 @@ export function summarizeTool(view: ToolCallView): ToolSummary {
     };
   }
   const summary = summarizeKind(view);
+  // A call the reader turned down did not fail: the row says so quietly, without an error line.
+  if (view.rejected) return { ...summary, meta: [...summary.meta, "rejected"], tone: "default" };
   // An activity's row already says it failed; only a reason of its own adds a line.
   const errorLine = view.tool === "activity" && !view.error ? undefined : errorLineFor(view);
   if (!errorLine) return summary;
