@@ -204,7 +204,7 @@ export function useBoard(
   const tasks = useTasks(paseo, options, lingerBoard);
   const fields = useMemo(() => effectiveCard(settings, compact), [settings, compact]);
 
-  const visible = useBoardVisible(rootRef);
+  const visible = useBoardVisible(rootRef, compact);
   const clock = useBoardClock(visible);
   // Whether an agent still runs or waits, for the stop's check that it took.
   const byIdRef = useRef(tasks.byId);
