@@ -214,6 +214,22 @@ describe("classifyTool", () => {
     expect(agent?.actions).toEqual([{ index: 0, toolName: "Read", summary: "a.ts" }]);
   });
 
+  it("names Claude's Agent call a sub-agent from its input before the host does", () => {
+    const input = { description: "studio perf run", prompt: "Measure the board.", subagent_type: "general-purpose" };
+    const streaming = classifyTool(call("Agent", { type: "unknown", input, output: null }, { status: "running" }));
+    expect(streaming).toMatchObject({ tool: "sub_agent", subAgent: { description: "studio perf run", prompt: "Measure the board.", subAgentType: "general-purpose" } });
+    // The launch answer is the host's bookkeeping, not the subtask's result.
+    const launched = classifyTool(call("Agent", { type: "unknown", input: { ...input, run_in_background: true },
+      output: { output: "Async agent launched successfully.\nagentId: a2b1" } }));
+    expect(launched.tool).toBe("sub_agent");
+    expect(launched.code).toBeUndefined();
+    expect(launched.subAgent?.log).toBe("");
+    expect(classifyTool(call("Task", { type: "unknown", input: { description: "Find x" } })).tool).toBe("sub_agent");
+    // Before its input arrives there is nothing to name; OMP's task tool takes a list.
+    expect(classifyTool(call("Agent", { type: "unknown", input: {}, output: null })).tool).toBe("unknown");
+    expect(classifyTool(call("task", { type: "unknown", input: { tasks: [{ name: "a", task: "do" }] } })).tool).toBe("unknown");
+  });
+
   it("reads a sub-agent's prompt, dropping one that is blank, not text, or only repeats the description", () => {
     const prompt = (value: unknown, description = "Find x") =>
       classifyTool(call("Task", { type: "sub_agent", description, log: "", prompt: value })).subAgent?.prompt;
