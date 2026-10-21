@@ -145,7 +145,8 @@ const styles = StyleSheet.create({
   name: { fontSize: 13, lineHeight: 18, fontWeight: "500" },
   id: { flex: 1, minWidth: 0, fontSize: 11, lineHeight: 16 },
   state: { flexDirection: "row", alignItems: "center", gap: 5, flexShrink: 0 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  // Centres on the lowercase label's x-height, 1px below the line box's centre.
+  dot: { width: 6, height: 6, borderRadius: 3, transform: [{ translateY: 1 }] },
   detail: { fontSize: 12, lineHeight: 17 },
   fact: { fontSize: 12, lineHeight: 18 },
   facts: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: space.md, rowGap: 2, minWidth: 0 },
