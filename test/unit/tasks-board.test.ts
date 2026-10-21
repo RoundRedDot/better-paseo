@@ -32,7 +32,6 @@ import {
   LANES_MIN_BOARD,
   boardIsCompact,
   laneLayout,
-  popoverPlacement,
   type LaneShape,
 } from "../../client/tasks/board/navigation";
 import { activeChips, buildFilterOptions, clearedParams } from "../../client/tasks/board/filter-options";
@@ -305,21 +304,6 @@ describe("filter options", () => {
     expect(chips[0]!.clear(params).labels).toEqual([]);
     expect(chips.find((chip) => chip.key === "win")!.clear(params).doneWindow).toBeNull();
     expect(clearedParams(params)).toEqual(EMPTY_PARAMS);
-  });
-});
-
-describe("details popover placement", () => {
-  const root = { x: 100, y: 50, width: 1200, height: 800 };
-  it("sits 8 px right of the card", () => {
-    expect(popoverPlacement({ x: 110, y: 150, width: 300, height: 120 }, root)).toEqual({ x: 318, y: 100 });
-  });
-  it("flips left near the right edge and drops below when neither side fits", () => {
-    expect(popoverPlacement({ x: 1000, y: 150, width: 290, height: 120 }, root)).toEqual({ x: 900 - 320 - 8, y: 100 });
-    const narrow = { x: 0, y: 0, width: 500, height: 800 };
-    expect(popoverPlacement({ x: 10, y: 20, width: 300, height: 100 }, narrow)).toEqual({ x: 18, y: 126 });
-  });
-  it("stays inside the board vertically", () => {
-    expect(popoverPlacement({ x: 110, y: 790, width: 300, height: 50 }, root).y).toBe(800 - 420);
   });
 });
 

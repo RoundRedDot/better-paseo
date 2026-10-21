@@ -177,35 +177,6 @@ export function sidebarCountText(parts: readonly SidebarCountPart[], language: "
   return parts.map((part) => SIDEBAR_COUNT_TEXT[language][part.lane](part.count)).join(language === "zh" ? "，" : ", ");
 }
 
-/** The details popover's width (`cards/task-details.tsx` DETAILS.width). */
-export const POPOVER_WIDTH = 320;
-export const POPOVER_MAX_HEIGHT = 420;
-
-export interface Box {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-/**
- * The details popover's corner inside the board: 8 px right of the card,
- * else left of it, else under it; kept inside the board (prototype 01).
- */
-export function popoverPlacement(card: Box, root: Box): { x: number; y: number } {
-  const left = card.x - root.x;
-  const top = card.y - root.y;
-  let x = left + card.width + 8;
-  let y = top;
-  if (x + POPOVER_WIDTH > root.width - 8) x = left - POPOVER_WIDTH - 8;
-  if (x < 8) {
-    x = Math.max(12, left + 8);
-    y = top + card.height + 6;
-  }
-  y = Math.max(8, Math.min(y, root.height - POPOVER_MAX_HEIGHT));
-  return { x, y };
-}
-
 /** The desktop lanes' geometry: Linear-style panels on the board's background. */
 export const LANES = {
   /** A lane's width once the lanes scroll; its cards are this less the panel's padding (300 - 2 x 8 = 284). */

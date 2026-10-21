@@ -44,7 +44,7 @@ export interface TaskTokens {
   highlight: string;
   /** The confirm-stop button's fill. */
   dangerSoft: string;
-  /** CSS `box-shadow` for menus, the details popover and toasts only. */
+  /** CSS `box-shadow` for menus and toasts only. */
   popoverShadow: string;
   /** The phone sheet's backdrop; fixed, not a theme colour. */
   scrim: string;

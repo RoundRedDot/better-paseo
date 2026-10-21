@@ -42,7 +42,8 @@ import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { CARD_PRESETS } from "../../shared/tasks-settings";
 import { previewSampleCards as sampleCards } from "../../client/tasks/sample-cards";
 import type { PermissionButton } from "../../client/tasks/actions";
-import { TaskCardView, TaskDetails, type TaskCardViewProps } from "../../client/tasks/cards";
+import { TaskCardView, TaskDetailCards, type TaskCardViewProps } from "../../client/tasks/cards";
+import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
 
 afterAll(() => {
@@ -171,9 +172,22 @@ describe("TaskCardView on web", () => {
     await act(async () => renderer.unmount());
   });
 
-  it("has no nested buttons in the details popover", async () => {
+  it("has no nested buttons in the details cards", async () => {
     const card = sampleCards(NOW).find((candidate) => candidate.id === "sample-running")!;
-    const renderer = await render(React.createElement(TaskDetails, { card, theme: THEME, now: NOW, onOpen: () => {}, language: "zh" }));
+    const renderer = await render(
+      React.createElement(TaskDetailCards, {
+        card,
+        theme: THEME,
+        now: NOW,
+        language: "zh",
+        strings: BOARD_STRINGS.zh.sidebar,
+        onOpen: () => {},
+        onTogglePin: () => {},
+        onClose: () => {},
+        onJump: () => {},
+        stop: { phase: "idle", onPress: () => {} },
+      }),
+    );
     expect(nestedButtons(renderer.root)).toEqual([]);
     await act(async () => renderer.unmount());
   });
