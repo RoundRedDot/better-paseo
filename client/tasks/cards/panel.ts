@@ -5,7 +5,7 @@ import { MENU, menuChrome } from "../board/menu";
 /**
  * A floating panel in the board's Linear menu chrome (`board/menu-model.ts`):
  * radius 12, a hairline border and the menu's soft wide shadow, on the
- * menu's surface. The cards' details popover and context tooltip use it so
+ * menu's surface. The cards' context tooltip uses it so
  * every overlay on the board reads as one family.
  */
 export function panelChrome(theme: PluginTheme): ViewStyle {
