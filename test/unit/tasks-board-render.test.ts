@@ -49,13 +49,15 @@ const host = vi.hoisted(() => ({
   settings: null as Record<string, unknown> | null,
   counts: null as { running: number; needsInput: number; review: number; done: number } | null,
   canStop: false,
+  save: vi.fn(async (_values: unknown, _revision: string) => true),
+  reload: vi.fn(async () => {}),
   /** Rows a lane's list drew, counted by the FlatList mock. */
   rowRenders: 0,
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   usePaseo: () => ({}),
   useRpc: () => () => Promise.resolve({ stop: host.canStop }),
-  useSettings: () => (host.settings ? { status: "ready", values: host.settings, revision: "1", saving: false, saveError: null } : { status: "loading" }),
+  useSettings: () => (host.settings ? { status: "ready", values: host.settings, revision: "1", saving: false, saveError: null, save: host.save, reload: host.reload } : { status: "loading" }),
 }));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const React = await import("react");
@@ -769,7 +771,7 @@ describe("Tasks board, lane widths", () => {
     layOut(480);
     expect(tabs()).toHaveLength(0);
     // No room for the key hints beside the count and the search.
-    expect(textOf(renderer!.root)).not.toContain("Lane");
+    expect(textOf(renderer!.root)).not.toContain("HLLane");
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 224 * 4 } });
     layOut(460);
     expect(tabs().length).toBeGreaterThan(0);
@@ -777,8 +779,45 @@ describe("Tasks board, lane widths", () => {
     expect(textOf(renderer!.root)).not.toContain("Workspace");
     layOut(1600);
     expect(tabs()).toHaveLength(0);
-    expect(textOf(renderer!.root)).toContain("Lane");
+    expect(textOf(renderer!.root)).toContain("HLLane");
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: false, contentContainerStyle: { width: 1600 } });
+  });
+
+  it("switches the lane width from the filter bar, draws it at once and saves it to the settings", async () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(1300);
+    const button = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && textOf(node).startsWith("Lanes · "))[0]!;
+    expect(textOf(button())).toBe("Lanes · Default");
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: false, contentContainerStyle: { width: 1300 } });
+    act(() => button().props.onPress());
+    const menu = renderer!.root.find((node) => node.props.testID === "lane-width-menu");
+    const items = menu.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem");
+    expect(items.map(textOf)).toEqual(["Narrow", "Default", "Wide"]);
+    await act(async () => items[2]!.props.onPress());
+    expect(renderer!.root.findAll((node) => node.props.testID === "lane-width-menu")).toHaveLength(0);
+    expect(textOf(button())).toBe("Lanes · Wide");
+    // 1300 fits four lanes at 300 but not at 360: the row scrolls at the wide width.
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 360 * 4 } });
+    expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, laneWidth: "wide" } }, "1");
+  });
+
+  it("goes back to the saved lane width and says so when the save is refused", async () => {
+    host.save.mockResolvedValueOnce(false);
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(1600);
+    const button = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && textOf(node).startsWith("Lanes · "))[0]!;
+    act(() => button().props.onPress());
+    const narrow = renderer!.root
+      .find((node) => node.props.testID === "lane-width-menu")
+      .findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem")[0]!;
+    await act(async () => narrow.props.onPress());
+    expect(textOf(button())).toBe("Lanes · Default");
+    expect(host.reload).toHaveBeenCalled();
+    expect(host.toast).toHaveBeenCalledWith("Couldn't save the lane width");
   });
 });
 

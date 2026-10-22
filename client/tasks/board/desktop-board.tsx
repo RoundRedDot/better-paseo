@@ -180,7 +180,7 @@ export function DesktopBoard(props: {
   const sheetRoom = inSheet ? sheetHeight(boardHeight, detent) : 0;
   const panelWidth = sidebarWidth(boardWidth, preference.width, floating ? "floating" : "inline");
   const lanesWidth = Math.max(0, boardWidth - (inline ? panelWidth + SIDEBAR.gap : 0));
-  const layout = laneLayout(lanesWidth, LANE_ORDER.length - collapsed.length, collapsed.length, board.settings.board.laneWidth);
+  const layout = laneLayout(lanesWidth, LANE_ORDER.length - collapsed.length, collapsed.length, board.laneWidth);
   // A floating panel covers the lanes' right side: the row scrolls far enough for the last lane to come out from under it.
   const coverRoom = floating && !inSheet ? panelWidth + SIDEBAR.gap : 0;
 
