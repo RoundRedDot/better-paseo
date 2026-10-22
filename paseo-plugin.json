@@ -6,5 +6,5 @@
   "requirements": {
     "paseo": ">=0.8.0"
   },
-  "build": [["npm", "ci", "--include=dev"]]
+  "build": [["npm", "ci", "--omit=dev"]]
 }
