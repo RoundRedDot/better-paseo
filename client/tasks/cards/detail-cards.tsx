@@ -169,6 +169,8 @@ export function TaskDetailCards(props: TaskDetailCardsProps) {
   const m: Metrics = props.touch ? TOUCH_CARD : DETAIL_CARD;
   // Minutes are enough for "8 分钟前"; the running timer reads the clock itself.
   const now = useTime(props, (time) => Math.floor(time / MINUTE) * MINUTE);
+  // The caller's source, for what ticks each second: `now` below is whole minutes.
+  const time: TimeSource = { now: props.now, clock: props.clock };
   const choices = useSectionChoices();
   const { order, closed } = detailSections(card);
   // Two columns: the subtasks sit under the header, everything else on the right.
@@ -184,6 +186,7 @@ export function TaskDetailCards(props: TaskDetailCardsProps) {
       m={m}
       tokens={tokens}
       now={now}
+      time={time}
     />
   );
   const sections = order.map((section) => sectionView(section, true));
@@ -193,7 +196,7 @@ export function TaskDetailCards(props: TaskDetailCardsProps) {
         {/* Plain views share the width (a ScrollView's own flex is not honoured on iOS); each scroll fills its half. */}
         <View style={{ flex: 1.2, minWidth: 0 }}>
           <ScrollView key={`${card.id}-head`} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 4 }} showsVerticalScrollIndicator={false} testID="detail-column-head">
-            <DetailHeader {...props} m={m} tokens={tokens} now={now} />
+            <DetailHeader {...props} m={m} tokens={tokens} now={now} time={time} />
             {leftSections.map((section) => sectionView(section, true))}
           </ScrollView>
         </View>
@@ -208,7 +211,7 @@ export function TaskDetailCards(props: TaskDetailCardsProps) {
   }
   return (
     <View testID={props.testID ?? "detail-cards"} style={[detailCardFrame(tokens), props.scrollBody ? { flexShrink: 1, minHeight: 0 } : null]}>
-      <DetailHeader {...props} m={m} tokens={tokens} now={now} />
+      <DetailHeader {...props} m={m} tokens={tokens} now={now} time={time} />
       {props.scrollBody ? (
         <ScrollView key={card.id} style={{ flexGrow: 0, flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 4 }} showsVerticalScrollIndicator={false}>
           {sections}
@@ -220,7 +223,7 @@ export function TaskDetailCards(props: TaskDetailCardsProps) {
   );
 }
 
-type Inner = TaskDetailCardsProps & { m: Metrics; tokens: TaskTokens; now: number };
+type Inner = TaskDetailCardsProps & { m: Metrics; tokens: TaskTokens; now: number; time: TimeSource };
 
 function stopLabel(props: TaskDetailCardsProps): string | null {
   if (!props.stop) return null;
@@ -375,7 +378,7 @@ function DetailHeader(props: Inner) {
 function StatusSub(props: Inner & { small: number }) {
   const { card, tokens } = props;
   const running = card.lane === "running" && card.timing.turnStartedAt !== null;
-  const text = useTime(props, (time) => {
+  const text = useTime(props.time, (time) => {
     const ran = running ? since(card.timing.turnStartedAt, time) : null;
     if (ran !== null) return cardStrings(props.language).details.turnClock(formatTurnClock(ran));
     return cardTimer(card, props.now, props.language)?.text ?? "";
@@ -391,7 +394,7 @@ function StatusSub(props: Inner & { small: number }) {
 /** The running turn: its clock (ticking each second) and the context ring. */
 function RunningTurn(props: Inner) {
   const { card } = props;
-  const timer = useTime(props, (time) => {
+  const timer = useTime(props.time, (time) => {
     const ran = since(card.timing.turnStartedAt, time);
     return ran === null ? cardStrings(props.language).starting : formatTurnClock(ran);
   });
@@ -979,8 +982,7 @@ function Subtasks(props: Inner & { narrow: boolean }) {
   const { baseline, footnote } = subtaskModels(card, props.language);
   // Finished rows step back while others still need a look; all finished, none does.
   const mixed = card.children.some((child) => !subtaskFinished(child));
-  // The rows' timers follow the board's clock each second; `props.now` is whole minutes.
-  const time: TimeSource = props.clock ? { clock: props.clock } : { now: props.now };
+  const time = props.time;
   const touch = m === TOUCH_CARD;
   return (
     <View>
