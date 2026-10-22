@@ -1132,7 +1132,11 @@ describe("TaskDetailCards", () => {
       "子任务",
       "1 / 3 完成",
       "Measure the sidebar ring",
-      "Opus 4.7 · High · Bypass · 120k / 200k tokens (60%)",
+      // The facts wrap between their parts, never inside one.
+      "Opus 4.7 ·",
+      "High ·",
+      "Bypass ·",
+      "120k / 200k tokens (60%)",
       "Write the ring geometry test",
       "Collect status colours",
     ]);
@@ -1140,6 +1144,25 @@ describe("TaskDetailCards", () => {
     expect(hostByTestId(running.root, "detail-subtasks").findAll((node) => typeof node.type === "string" && node.props.testID === "status-running")).toHaveLength(2);
     byLabel(running.root, "Measure the sidebar ring 运行中").props.onPress();
     expect(onJump).toHaveBeenCalledWith("sample-child-1");
+  });
+
+  it("lists the first ten subtasks and opens the rest on demand, closed again on the next card", async () => {
+    const base = sample("sample-running");
+    const many = (id: string): TaskCard => ({
+      ...base,
+      id,
+      children: Array.from({ length: 24 }, (_, index) => ({ ...base.children[1]!, id: `${id}-child-${index}`, title: `Child ${index}` })),
+    });
+    const titles = (tree: ReactTestRenderer) => texts(hostByTestId(tree.root, "detail-subtasks")).filter((text) => text.startsWith("Child "));
+    const tree = await render(details(many("many-a")));
+    expect(titles(tree)).toHaveLength(10);
+    await act(async () => byLabel(tree.root, "显示全部 24 条").props.onPress());
+    expect(titles(tree)).toHaveLength(24);
+    await act(async () => byLabel(tree.root, "收起").props.onPress());
+    expect(titles(tree)).toHaveLength(10);
+    await act(async () => byLabel(tree.root, "显示全部 24 条").props.onPress());
+    await act(async () => tree.update(details(many("many-b"))));
+    expect(titles(tree)).toHaveLength(10);
   });
 
   it("leads with the error when a card failed, and with a grey line after a manual stop", async () => {

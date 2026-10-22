@@ -26,7 +26,7 @@ import {
   errorLines,
   formatSpan,
   formatTurnClock,
-  childFacts,
+  childFactParts,
   summaryTiles,
   timeline,
   tokenMix,
@@ -852,33 +852,76 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
   );
 }
 
-/** The children as Paseo 0.12's subagent rows: the provider's mark with its status at the corner, the title over its facts line. */
+/**
+ * The children as Paseo 0.12's subagent rows: the provider's mark in grey
+ * with its status at the corner, the title over its facts line. The first
+ * ten show; the rest open on demand, closed again on the next card.
+ */
 function Subtasks(props: Inner) {
   const { card, m, tokens } = props;
   const scale = useTasksFontScale();
   const cardText = cardStrings(props.language);
-  const shown = card.children.slice(0, SUBTASK_ROWS * 2);
-  const rest = card.children.length - shown.length;
+  const [openFor, setOpenFor] = useState<string | null>(null);
+  const open = openFor === card.id;
+  const limit = SUBTASK_ROWS * 2;
+  const shown = open ? card.children : card.children.slice(0, limit);
+  const more = card.children.length > limit;
   return (
     <View>
       {shown.map((child) => (
         <SubtaskRow key={child.id} m={m} tokens={tokens} theme={props.theme} child={child} word={cardText.status[child.status]} onPress={props.onJump ? () => props.onJump?.(child.id) : undefined} />
       ))}
-      {rest > 0 ? (
-        <View style={{ height: taskControlHeight(m.listRow, scale), paddingHorizontal: 6, justifyContent: "center" }}>
-          <Text style={{ fontSize: m.font, color: tokens.foregroundMuted }}>{cardText.more(rest)}</Text>
-        </View>
+      {more ? (
+        <MoreRow
+          m={m}
+          tokens={tokens}
+          label={open ? cardText.showFewer : cardText.showAll(card.children.length)}
+          open={open}
+          onPress={() => setOpenFor(open ? null : card.id)}
+          height={taskControlHeight(m.listRow, scale)}
+        />
       ) : null}
     </View>
   );
 }
 
+function MoreRow(props: { m: Metrics; tokens: TaskTokens; label: string; open: boolean; height: number; onPress(): void }) {
+  const { tokens } = props;
+  const { hovered, hoverProps } = useHover();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={props.label}
+      accessibilityState={{ expanded: props.open }}
+      onPress={props.onPress}
+      {...hoverProps}
+      testID="detail-subtasks-more"
+      style={({ pressed }) => ({
+        minHeight: props.height,
+        paddingHorizontal: 6,
+        borderRadius: 6,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        backgroundColor: hovered || pressed ? detailColors(tokens).rowHover : "transparent",
+      })}
+    >
+      <View style={{ width: 14, alignItems: "center" }}>
+        <Icon name={props.open ? "ChevronUp" : "ChevronDown"} size={14} color={tokens.foregroundMuted} />
+      </View>
+      <Text style={{ fontSize: props.m.font, color: tokens.foregroundMuted }}>{props.label}</Text>
+    </Pressable>
+  );
+}
+
+/** A long title takes a second line; the facts wrap between their parts, never inside one. */
 function SubtaskRow(props: { m: Metrics; tokens: TaskTokens; theme: PluginTheme; child: TaskChild; word: string; onPress?(): void }) {
   const { m, tokens, child } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
-  const facts = childFacts(child);
+  const facts = childFactParts(child);
   const active = props.onPress !== undefined && hovered;
+  const factText: TextStyle = { fontSize: m.font - 1, color: tokens.foregroundMuted };
   return (
     <Pressable
       accessibilityRole="button"
@@ -899,13 +942,17 @@ function SubtaskRow(props: { m: Metrics; tokens: TaskTokens; theme: PluginTheme;
     >
       <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={active ? detailColors(tokens).rowHover : tokens.card.background} />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text numberOfLines={1} style={{ fontSize: m.font, color: tokens.foreground }}>
+        <Text numberOfLines={2} style={{ fontSize: m.font, color: tokens.foreground }}>
           {child.title}
         </Text>
-        {facts ? (
-          <Text numberOfLines={1} style={{ fontSize: m.font - 1, color: tokens.foregroundMuted }} testID={`detail-subtask-facts-${child.id}`}>
-            {facts}
-          </Text>
+        {facts.length > 0 ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 4 }} testID={`detail-subtask-facts-${child.id}`}>
+            {facts.map((fact, index) => (
+              <Text key={index} numberOfLines={1} style={factText}>
+                {index < facts.length - 1 ? `${fact} ·` : fact}
+              </Text>
+            ))}
+          </View>
         ) : null}
       </View>
     </Pressable>
@@ -940,7 +987,7 @@ function ChildMark(props: { child: TaskChild; tokens: TaskTokens; theme: PluginT
   }
   return (
     <View style={{ width: 14, height: 14, flexShrink: 0 }}>
-      {child.provider ? <BrandMark provider={child.provider} size={14} tokens={tokens} /> : <Icon name="Bot" size={14} color={tokens.foregroundMuted} />}
+      {child.provider ? <BrandMark provider={child.provider} size={14} tokens={tokens} mono={tokens.foregroundMuted} /> : <Icon name="Bot" size={14} color={tokens.foregroundMuted} />}
       {corner}
     </View>
   );
