@@ -86,6 +86,20 @@ describe("Claude tools without a card", () => {
     expect(row({ ...call, name: "tool", detail: { ...(call.detail as object), input: null } }).verb).toBe("Load tools");
   });
 
+  it("draws the service's icon when every loaded tool is one service's", () => {
+    const load = (...names: string[]): Call => ({ name: "ToolSearch", detail: { type: "unknown",
+      input: { query: `select:${names.join(",")}` },
+      output: { output: names.map((tool_name) => ({ tool_name, type: "tool_reference" })) } } });
+    expect(view(load("mcp__linear-server__save_issue", "mcp__linear-server__get_issue")).activity?.icon)
+      .toBe("brand:linear");
+    expect(view(load("mcp__linear-server__get_issue", "mcp__github__get_me")).activity?.icon).toBe("Wrench");
+    expect(view(load("mcp__linear-server__get_issue", "WebFetch")).activity?.icon).toBe("Wrench");
+    // A select query draws the icon before its answer lands.
+    const pending = load("mcp__claude_ai_Gmail__get_thread");
+    expect(view({ ...pending, detail: { ...(pending.detail as object), output: null } }).activity?.icon)
+      .toBe("brand:gmail");
+  });
+
   it("draws a message to a subtask with its summary and recipient", () => {
     const call: Call = { name: "SendMessage", detail: { type: "unknown",
       input: { to: "a9ea0ca4b9f9e7846", summary: "Resume the review", message: "Quota reset, **carry on**." },
