@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useRef, useState, type ReactNode }
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import { TaskText as Text, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_LINE, HOST_FONT as F, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -144,27 +144,28 @@ interface Metrics {
   buttonHeight: number;
 }
 
+// Text sizes are steps of the host's type ramp (`HOST_FONT`), which TaskText scales with the user's interface size.
 const DESKTOP: Metrics = {
   padH: 12,
   padTop: 10,
   padBottom: 12,
-  metaSize: 12,
-  metaLine: 16,
+  metaSize: F.sm,
+  metaLine: HOST_LINE.sm,
   titleGap: 5,
-  titleSize: 13,
-  titleLine: 18,
+  titleSize: F.base,
+  titleLine: HOST_LINE.base,
   iconSlot: 14,
   iconBox: 16,
   rowGap: 10,
   pillHeight: 24,
-  pillText: 12,
-  pillLine: 16,
+  pillText: F.sm,
+  pillLine: HOST_LINE.sm,
   pillPad: 10,
   icon: 12,
-  footSize: 12,
-  footLine: 16,
-  blockSize: 12,
-  blockLine: 18,
+  footSize: F.sm,
+  footLine: HOST_LINE.sm,
+  blockSize: F.sm,
+  blockLine: HOST_LINE.sm,
   jump: 20,
   jumpIcon: 14,
   stopHeight: 20,
@@ -175,23 +176,23 @@ const PHONE: Metrics = {
   padH: 14,
   padTop: 12,
   padBottom: 14,
-  metaSize: 13,
-  metaLine: 18,
+  metaSize: F.sm,
+  metaLine: HOST_LINE.sm,
   titleGap: 6,
-  titleSize: 16,
-  titleLine: 22,
+  titleSize: F.lg,
+  titleLine: HOST_LINE.lg,
   iconSlot: 18,
   iconBox: 20,
   rowGap: 12,
   pillHeight: 28,
-  pillText: 13,
-  pillLine: 18,
+  pillText: F.sm,
+  pillLine: HOST_LINE.sm,
   pillPad: 11,
   icon: 14,
-  footSize: 13,
-  footLine: 18,
-  blockSize: 14,
-  blockLine: 20,
+  footSize: F.sm,
+  footLine: HOST_LINE.sm,
+  blockSize: F.base,
+  blockLine: HOST_LINE.base,
   jump: 32,
   jumpIcon: 18,
   stopHeight: 40,
@@ -979,7 +980,7 @@ function PillContent(props: PillProps) {
           style={[
           { fontSize: m.pillText, lineHeight: m.pillLine, color, flexShrink: 1, fontWeight: props.solid ? "500" : "400" },
           props.tabular ? tabular : null,
-          props.mono ? { fontFamily: TASK_MONO, fontSize: m.pillText - 1 } : null,
+          props.mono ? { fontFamily: TASK_MONO } : null,
         ]}
         >
           {props.label}
@@ -1103,13 +1104,13 @@ function ContextMeter(props: {
           } as ViewStyle}
           testID="task-card-context-details"
         >
-          <Text style={{ fontSize: 12, lineHeight: 16, fontWeight: "500", color: tokens.foreground }}>{strings.contextWindow}</Text>
-          <Text style={[{ fontSize: 14, lineHeight: 20, color: tokens.foreground }, tabular]}>{strings.contextUsed(percent)}</Text>
-          <Text style={[{ fontSize: 12, lineHeight: 16, color: tokens.foregroundMuted }, tabular]}>
+          <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, fontWeight: "500", color: tokens.foreground }}>{strings.contextWindow}</Text>
+          <Text style={[{ fontSize: F.base, lineHeight: HOST_LINE.base, color: tokens.foreground }, tabular]}>{strings.contextUsed(percent)}</Text>
+          <Text style={[{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }, tabular]}>
             {strings.contextTokens(formatTokenCount(context.usedTokens), formatTokenCount(context.maxTokens))}
           </Text>
           {cost ? (
-            <Text style={[{ fontSize: 12, lineHeight: 16, color: tokens.foregroundMuted }, tabular]}>{strings.sessionCost(cost)}</Text>
+            <Text style={[{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }, tabular]}>{strings.sessionCost(cost)}</Text>
           ) : null}
         </View>
       ) : null}
@@ -1204,7 +1205,7 @@ export function ActionButton(props: {
       }}
     >
       {icon ? <Icon name={icon} size={size} color={color} /> : null}
-      <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
+      <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? F.base : F.sm, fontWeight: "500", color }}>
         {answer ? button.label.replace(/\s*\u2197\s*$/, "") : button.label}
       </Text>
       {/* The one arrow: a label that still ends in its own is trimmed above. */}
@@ -1322,7 +1323,7 @@ function StopControl(props: StopControlProps) {
         ]}
       >
         {compact && solid ? null : <Icon name="Square" size={compact ? 16 : 12} color={color} />}
-        <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
+        <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? F.base : F.sm, fontWeight: "500", color }}>
           {label}
         </Text>
       </Pressable>
@@ -1478,13 +1479,13 @@ function JumpButton(props: {
             boxShadow: tokens.popoverShadow,
           } as ViewStyle}
         >
-          <Text numberOfLines={1} style={{ fontSize: 12, color: tokens.foreground }}>
+          <Text numberOfLines={1} style={{ fontSize: F.sm, color: tokens.foreground }}>
             {props.label}
           </Text>
           <View
             style={{ height: taskControlHeight(16, scale), paddingHorizontal: 4, borderWidth: 1, borderColor: tokens.card.border, borderRadius: 3, justifyContent: "center" }}
           >
-            <Text style={{ fontSize: 11, lineHeight: 14, color: tokens.foregroundMuted }}>Enter</Text>
+            <Text style={{ fontSize: F.sm, lineHeight: 14, color: tokens.foregroundMuted }}>Enter</Text>
           </View>
         </View>
       ) : null}

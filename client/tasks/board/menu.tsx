@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { Platform, Pressable, View, useWindowDimensions } from "react-native";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { HAIRLINE, devicePixel } from "./board-style";
 import {
   MENU,
@@ -240,7 +240,7 @@ function MenuPanel(props: {
       {section.title ? (
         <View style={{ height: taskControlHeight(MENU.titleHeight, scale), flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: MENU.inset + 8 }}>
           {section.titleLeading}
-          <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "500", color: colors.foregroundMuted }}>
+          <Text numberOfLines={1} style={{ fontSize: F.sm, fontWeight: "500", color: colors.foregroundMuted }}>
             {section.title}
           </Text>
         </View>
@@ -376,7 +376,7 @@ function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome
       <Text numberOfLines={1} style={{ flex: 1, fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : colors.foreground }}>
         {item.label}
       </Text>
-      {item.hint ? <Text style={{ fontSize: 13, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{item.hint}</Text> : null}
+      {item.hint ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{item.hint}</Text> : null}
       {item.checked ? <Icon name="Check" size={14} color={colors.accent} /> : null}
       {item.submenu ? <Icon name="ChevronRight" size={12} color={colors.foregroundMuted} /> : null}
     </Pressable>
