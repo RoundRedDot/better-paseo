@@ -12,5 +12,6 @@ export default defineConfig({
     // the failures spread. 30 s still reports a test that hangs.
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    setupFiles: ["test/unit/helpers/forget-carried.ts"],
   },
 });

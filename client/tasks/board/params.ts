@@ -1,6 +1,7 @@
 import type { PluginScreenParams } from "@getpaseo/plugin/client";
 import { DONE_WINDOWS, type DoneWindow } from "../../../shared/tasks-settings";
-import type { BoardFilters, LaneId } from "../model";
+import { LANE_ORDER, type BoardFilters, type LaneId } from "../model";
+import { carriedSession, carrySession, forgetCarried } from "./carry";
 import { decodeSort, encodeSort, type BoardSort } from "./sort";
 
 /**
@@ -145,8 +146,10 @@ export function toggleItem(list: readonly string[], item: string): string[] {
  * params it was opened with but no way to change them (the host's
  * `openScreen` pushes a new route), so the board keeps what it shows here,
  * and the sidebar entry and the Command Center open it with these params.
- * Module state lives as long as the plugin's client bundle: one evaluation
- * per host, kept across reconnects while the bundle is unchanged.
+ * Module state lives as long as the plugin's client bundle, and a
+ * reconnect evaluates the bundle again, so each change is also carried
+ * (`carry.ts`) in the params' own encoding, and a host's first read after a
+ * reconnect decodes it.
  */
 interface HostSession {
   params: BoardParams;
@@ -158,44 +161,62 @@ interface HostSession {
 const sessions = new Map<string, HostSession>();
 let lastHost: string | null = null;
 
+const isLane = (value: unknown): value is LaneId => LANE_ORDER.includes(value as LaneId);
+
+function reviveSession(raw: unknown): HostSession {
+  const record = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const params = record.params && typeof record.params === "object" ? (record.params as PluginScreenParams) : null;
+  return {
+    params: params && !isEmptyParams(params) ? decodeBoardParams(params) : EMPTY_PARAMS,
+    lane: isLane(record.lane) ? record.lane : null,
+    collapsed: Array.isArray(record.collapsed) ? record.collapsed.filter(isLane) : [],
+  };
+}
+
 function session(hostId: string): HostSession {
   let entry = sessions.get(hostId);
   if (!entry) {
-    entry = { params: EMPTY_PARAMS, lane: null, collapsed: [] };
+    entry = reviveSession(carriedSession(hostId));
     sessions.set(hostId, entry);
   }
   return entry;
 }
 
+function update(hostId: string, change: Partial<HostSession>): void {
+  const entry = Object.assign(session(hostId), change);
+  carrySession(hostId, { params: encodeBoardParams(entry.params), lane: entry.lane, collapsed: entry.collapsed });
+}
+
 export function rememberBoardParams(hostId: string, params: BoardParams): void {
-  session(hostId).params = params;
+  update(hostId, { params });
   lastHost = hostId;
 }
 
 /** The board's last state on this host; the most recent host's when none is given. */
 export function lastBoardParams(hostId?: string | null): BoardParams {
   const id = hostId ?? lastHost;
-  return (id !== null && sessions.get(id)?.params) || EMPTY_PARAMS;
+  return id !== null ? session(id).params : EMPTY_PARAMS;
 }
 
 export function rememberLane(hostId: string, lane: LaneId): void {
-  session(hostId).lane = lane;
+  update(hostId, { lane });
 }
 
 export function rememberedLane(hostId: string): LaneId | null {
-  return sessions.get(hostId)?.lane ?? null;
+  return session(hostId).lane;
 }
 
 export function rememberCollapsed(hostId: string, lanes: LaneId[]): void {
-  session(hostId).collapsed = lanes;
+  update(hostId, { collapsed: lanes });
 }
 
 export function rememberedCollapsed(hostId: string): LaneId[] {
-  return sessions.get(hostId)?.collapsed ?? [];
+  return session(hostId).collapsed;
 }
 
 /** Tests only. */
 export function resetBoardSessions(): void {
   sessions.clear();
   lastHost = null;
+  forgetCarried();
 }

@@ -10,6 +10,7 @@ import { filterLanes, useTasks, type TasksHandle } from "../data";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { LANE_ORDER, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
 import { MOTION } from "./board-style";
+import { carriedSettings, useCarriedTasks } from "./carry";
 import { lingerBoard } from "./prefetch";
 import { nameCompare, sortLaneCards } from "./sort";
 import {
@@ -188,7 +189,8 @@ export function useBoard(
     return { show: (message: string) => post(message, "info"), error: (message: string) => post(message, "error") };
   }, [compact, hostToast]);
   const settingsState = useSettings(TASKS_SETTINGS);
-  const settings = settingsState.status === "ready" ? settingsState.values : DEFAULT_TASKS_SETTINGS;
+  // Until the read lands, the settings this host carried across a reconnect.
+  const settings = settingsState.status === "ready" ? settingsState.values : (carriedSettings(hostId) ?? DEFAULT_TASKS_SETTINGS);
 
   // A width picked on the board draws at once; the record catches up when the save lands.
   const [pickedWidth, setPickedWidth] = useState<LaneWidth | null>(null);
@@ -219,7 +221,8 @@ export function useBoard(
   const { filters, doneWindow } = useMemo(() => resolveBoardParams(params, defaults), [params, defaults]);
   const options = useMemo(() => ({ doneWindow, includeDone: true }), [doneWindow]);
   // Closed, the board's data stays warm a while, so a quick reopen sends nothing.
-  const tasks = useTasks(paseo, options, lingerBoard);
+  // After a reconnect the last cards stand in until the store is ready.
+  const tasks = useCarriedTasks(hostId, options, useTasks(paseo, options, lingerBoard));
   const fields = useMemo(() => effectiveCard(settings, compact), [settings, compact]);
 
   const visible = useBoardVisible(rootRef, compact);

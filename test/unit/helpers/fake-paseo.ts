@@ -167,6 +167,8 @@ export interface FakePaseoOptions {
   labels?: FakeLabelDefinition[];
   /** `data` (base64) and `mimeType` per project id. */
   projectIcons?: Record<string, { data: string; mimeType: string } | null>;
+  /** Subscriptions never answer, as on a host that has not caught up after a reconnect. */
+  stalled?: boolean;
 }
 
 const STATUS_PRIORITY: Record<string, number> = { running: 2, initializing: 3, error: 1, idle: 4, closed: 4 };
@@ -233,7 +235,7 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       get subscriptionId() {
         return sub.released ? null : sub.id;
       },
-      ready: Promise.resolve({ ...snapshot(), subscriptionId: sub.id }),
+      ready: options.stalled ? new Promise<never>(() => {}) : Promise.resolve({ ...snapshot(), subscriptionId: sub.id }),
       subscribe(observer: Observer) {
         sub.observers.add(observer);
         return () => sub.observers.delete(observer);
