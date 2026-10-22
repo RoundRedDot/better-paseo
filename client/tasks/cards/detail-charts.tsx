@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { mix } from "../../components/theme-tokens";
 import { ProgressRing } from "../../ui/progress-ring";
 import type { TasksLanguage } from "../i18n";
 import type { StatusKind } from "../model";
-import { TaskText as Text } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE } from "../typography";
 import {
   formatExact,
   formatShare,
@@ -113,10 +113,10 @@ function Tip(props: { colors: DetailColors; title: string; sub: string; style: V
         props.style,
       ]}
     >
-      <Text numberOfLines={1} style={{ fontSize: 12, lineHeight: 16, fontWeight: "500", color: props.colors.tipText }}>
+      <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, fontWeight: "500", color: props.colors.tipText }}>
         {props.title}
       </Text>
-      <Text numberOfLines={1} style={{ fontSize: 12, lineHeight: 16, color: props.colors.tipMuted }}>
+      <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: props.colors.tipMuted }}>
         {props.sub}
       </Text>
     </View>
@@ -167,7 +167,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; contex
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
   const { tip, bind } = useTip<"context">(props.touch);
-  const small = props.touch ? 13 : 12;
+  const small = props.touch ? F.base : F.sm;
   const tone = context ? contextColor(context, tokens) : tokens.foregroundMuted;
   return (
     <View testID="detail-turn" style={{ flexDirection: "row", borderWidth: 1, borderColor: tokens.border, borderRadius: 10, backgroundColor: colors.sunk }}>
@@ -178,10 +178,10 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; contex
             {words.turnTimer}
           </Text>
         </View>
-        <Text testID="detail-turn-timer" style={{ fontSize: 22, lineHeight: 30, fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] }}>
+        <Text testID="detail-turn-timer" style={{ fontSize: F["3xl"], lineHeight: HOST_LINE["3xl"], fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] }}>
           {props.timer}
         </Text>
-        <Text numberOfLines={1} style={{ fontSize: 11, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+        <Text numberOfLines={1} style={{ fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
           {words.lastTurn(props.lastTurn ?? "—")}
         </Text>
       </View>
@@ -203,13 +203,13 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; contex
           </Text>
           {context ? (
             <>
-              <Text style={{ fontSize: 22, lineHeight: 30, fontWeight: "600", color: context.level === "normal" ? tokens.foreground : tone, fontVariant: ["tabular-nums"] }}>{context.percent}</Text>
-              <Text numberOfLines={1} style={{ fontSize: 11, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+              <Text style={{ fontSize: F["3xl"], lineHeight: HOST_LINE["3xl"], fontWeight: "600", color: context.level === "normal" ? tokens.foreground : tone, fontVariant: ["tabular-nums"] }}>{context.percent}</Text>
+              <Text numberOfLines={1} style={{ fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
                 {context.text}
               </Text>
             </>
           ) : (
-            <Text style={{ fontSize: 13, color: tokens.foregroundMuted }}>{words.notReported}</Text>
+            <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>{words.notReported}</Text>
           )}
         </View>
         {tip === "context" && context ? (
@@ -308,8 +308,8 @@ export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touc
             {tokenMix.segments.map((segment) => (
               <View key={segment.part} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                 <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: colors.tokens[segment.part] }} />
-                <Text style={{ fontSize: props.font - 1, color: tokens.foregroundMuted }}>{words.tokenParts[segment.part]}</Text>
-                <Text style={{ fontSize: props.font - 1, color: tokens.foreground, fontVariant: ["tabular-nums"] }}>{formatTokens(segment.tokens)}</Text>
+                <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>{words.tokenParts[segment.part]}</Text>
+                <Text style={{ fontSize: F.sm, color: tokens.foreground, fontVariant: ["tabular-nums"] }}>{formatTokens(segment.tokens)}</Text>
               </View>
             ))}
           </View>
@@ -317,9 +317,27 @@ export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touc
       ) : (
         <>
           <View style={[dashed(tokens, 8), { marginTop: 8, borderRadius: 2 }]} />
-          <Text style={{ marginTop: 6, fontSize: props.font - 1, color: tokens.foregroundMuted }}>{words.noTokens}</Text>
+          <Text style={{ marginTop: 6, fontSize: F.sm, color: tokens.foregroundMuted }}>{words.noTokens}</Text>
         </>
       )}
+    </View>
+  );
+}
+
+/**
+ * Text in runs a line may break between and nowhere else: each run its own
+ * text in a wrapping row, so a narrow tile breaks a CJK label between its
+ * words rather than leaving one character on a line of its own. A run wider than the row
+ * still wraps inside itself.
+ */
+function Runs(props: { runs: string[]; style: TextStyle }) {
+  return (
+    <View style={{ flexShrink: 1, flexDirection: "row", flexWrap: "wrap" }}>
+      {props.runs.map((run, index) => (
+        <Text key={index} style={props.style}>
+          {run}
+        </Text>
+      ))}
     </View>
   );
 }
@@ -353,7 +371,7 @@ export function TimelineChart(props: { timeline: Timeline; liveColor: string; to
           <Text
             key={`span-${index}`}
             numberOfLines={1}
-            style={{ position: "absolute", top: 0, left: (at[index]! + fractions[index]! / 2) * width - SPAN_WIDTH / 2, width: SPAN_WIDTH, textAlign: "center", fontSize: 11, color: line.live && index === spans.length - 1 ? props.liveColor : tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}
+            style={{ position: "absolute", top: 0, left: (at[index]! + fractions[index]! / 2) * width - SPAN_WIDTH / 2, width: SPAN_WIDTH, textAlign: "center", fontSize: F.sm, color: line.live && index === spans.length - 1 ? props.liveColor : tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}
           >
             {formatSpan(span)}
           </Text>
@@ -383,10 +401,10 @@ export function TimelineChart(props: { timeline: Timeline; liveColor: string; to
                 }}
               />
               <View style={{ position: "absolute", top: 32, left: labelLeft, width: LABEL_WIDTH }} testID={`detail-timeline-${point.key}`}>
-                <Text numberOfLines={1} style={{ fontSize: 11, lineHeight: 15, color: tokens.foregroundMuted, textAlign: edge === "start" ? "left" : edge === "end" ? "right" : "center" }}>
+                <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted, textAlign: edge === "start" ? "left" : edge === "end" ? "right" : "center" }}>
                   {point.name}
                 </Text>
-                <Text numberOfLines={1} style={{ fontSize: 11, lineHeight: 15, color: tokens.foreground, textAlign: edge === "start" ? "left" : edge === "end" ? "right" : "center" }}>
+                <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foreground, textAlign: edge === "start" ? "left" : edge === "end" ? "right" : "center" }}>
                   {point.time}
                 </Text>
               </View>
@@ -404,23 +422,22 @@ export function TimelineChart(props: { timeline: Timeline; liveColor: string; to
 export function SummaryTiles(props: { tiles: SummaryTile[]; tokens: TaskTokens; touch: boolean }) {
   const { tokens } = props;
   const colors = detailColors(tokens);
-  const small = props.touch ? 13 : 12;
+  const small = props.touch ? F.base : F.sm;
   return (
     <View testID="detail-summary" style={{ flexDirection: "row", gap: 1, borderWidth: 1, borderColor: tokens.border, borderRadius: 10, backgroundColor: tokens.border, overflow: "hidden" }}>
       {props.tiles.map((tile) => (
         <View key={tile.key} testID={`detail-summary-${tile.key}`} style={{ flex: 1, minWidth: 0, paddingHorizontal: 12, paddingVertical: 10, gap: 2, backgroundColor: colors.sunk }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <Icon name={tile.icon} size={14} color={tokens.foregroundMuted} />
-            <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: small, color: tokens.foregroundMuted }}>
-              {tile.label}
-            </Text>
+          {/* Labels wrap rather than cut: a larger interface size or a narrow column leaves a tile little room. */}
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 5 }}>
+            <View style={{ height: HOST_LINE.sm, justifyContent: "center" }}>
+              <Icon name={tile.icon} size={14} color={tokens.foregroundMuted} />
+            </View>
+            <Runs runs={tile.labelRuns} style={{ fontSize: small, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }} />
           </View>
-          <Text numberOfLines={1} style={{ fontSize: 18, lineHeight: 26, fontWeight: "600", color: tile.value ? tokens.foreground : tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+          <Text numberOfLines={1} style={{ fontSize: F.xl, lineHeight: HOST_LINE.xl, fontWeight: "600", color: tile.value ? tokens.foreground : tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
             {tile.value ?? "—"}
           </Text>
-          <Text numberOfLines={1} style={{ fontSize: 11, color: tokens.foregroundMuted }}>
-            {tile.sub}
-          </Text>
+          <Runs runs={tile.subRuns} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }} />
         </View>
       ))}
     </View>

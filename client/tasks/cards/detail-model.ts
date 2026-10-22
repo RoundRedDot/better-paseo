@@ -182,6 +182,9 @@ export interface SummaryTile {
   key: "turn" | "cost" | "tokens";
   icon: string;
   label: string;
+  /** The label and sub cut into runs a line may break between; a single run when it needs no cut. */
+  labelRuns: string[];
+  subRuns: string[];
   /** Null when not reported: drawn as "—". */
   value: string | null;
   sub: string;
@@ -193,21 +196,36 @@ export function summaryTiles(card: TaskCard, now: number, language: TasksLanguag
   const mix = tokenMix(card);
   const cached = mix?.segments.find((segment) => segment.part === "cached");
   const cost = card.usage?.totalCostUsd ?? null;
+  const endedWhen = card.timing.lastTurnMs !== null && ended !== null ? formatRelative(ended, language) : null;
+  const cachedShare = cached ? `${Math.round(cached.share * 100)}%` : null;
+  const tokensSub = cachedShare ? words.cacheShare(cachedShare) : mix ? words.total : words.notReported;
   return [
     {
       key: "turn",
       icon: "Hourglass",
       label: words.lastTurnTime,
+      labelRuns: words.runs.lastTurnTime,
       value: card.timing.lastTurnMs !== null ? formatDuration(card.timing.lastTurnMs) : null,
-      sub: card.timing.lastTurnMs !== null && ended !== null ? words.ended(formatRelative(ended, language)) : words.notReported,
+      sub: endedWhen !== null ? words.ended(endedWhen) : words.notReported,
+      subRuns: endedWhen !== null ? words.runs.ended(endedWhen) : [words.notReported],
     },
-    { key: "cost", icon: "Coins", label: words.cost, value: cost !== null ? formatCost(cost) : null, sub: cost !== null ? words.total : words.notReported },
+    {
+      key: "cost",
+      icon: "Coins",
+      label: words.cost,
+      labelRuns: [words.cost],
+      value: cost !== null ? formatCost(cost) : null,
+      sub: cost !== null ? words.total : words.notReported,
+      subRuns: [cost !== null ? words.total : words.notReported],
+    },
     {
       key: "tokens",
       icon: "Layers",
       label: "Token",
+      labelRuns: ["Token"],
       value: mix ? formatTokens(mix.total) : null,
-      sub: cached ? words.cacheShare(`${Math.round(cached.share * 100)}%`) : mix ? words.total : words.notReported,
+      sub: tokensSub,
+      subRuns: cachedShare ? words.runs.cacheShare(cachedShare) : [tokensSub],
     },
   ];
 }
