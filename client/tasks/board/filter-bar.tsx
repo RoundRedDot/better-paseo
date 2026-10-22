@@ -331,7 +331,8 @@ export function DesktopFilterBar(props: {
         </MenuButton>
         <MenuButton
           icon="Columns3"
-          label={strings.laneWidth.button(strings.laneWidth.names[board.laneWidth])}
+          label={strings.laneWidth.names[board.laneWidth]}
+          accessibilityLabel={strings.laneWidth.button(strings.laneWidth.names[board.laneWidth])}
           open={menu === "laneWidth"}
           onPress={() => toggle("laneWidth")}
           theme={theme}
@@ -361,13 +362,14 @@ function Divider({ theme }: { theme: PluginTheme }) {
  * A filter's menu button. Its label stays on one line and ends in an ellipsis
  * rather than overflow the group it sits in, or past `labelMaxWidth`.
  */
-function MenuButton(props: { icon: string; label: string; labelMaxWidth?: number; open: boolean; onPress(): void; theme: PluginTheme; children: ReactNode }) {
+function MenuButton(props: { icon: string; label: string; accessibilityLabel?: string; labelMaxWidth?: number; open: boolean; onPress(): void; theme: PluginTheme; children: ReactNode }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   return (
     <View style={{ zIndex: props.open ? 20 : 0, maxWidth: "100%", flexShrink: 1 }}>
       <HoverPressable
         accessibilityRole="button"
+        accessibilityLabel={props.accessibilityLabel}
         accessibilityState={{ expanded: props.open }}
         onPress={props.onPress}
         style={(hovered) => ({

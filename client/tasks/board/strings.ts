@@ -66,6 +66,7 @@ const en = {
   /** The filter bar's lane width menu; the choice is the Tasks setting, so every client of the host follows it. */
   laneWidth: {
     title: "Lane width",
+    /** Read out for the filter-bar button, which shows only the width's name. */
     button: (name: string) => `Lanes · ${name}`,
     names: { narrow: "Narrow", default: "Default", wide: "Wide" } as Record<LaneWidth, string>,
     saveFailed: "Couldn't save the lane width",
