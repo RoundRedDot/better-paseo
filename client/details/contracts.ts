@@ -114,3 +114,29 @@ export interface BlockPlacement {
   kind: BlockKind;
 }
 export const BlockPlacementContext = createContext<BlockPlacement | null>(null);
+
+/**
+ * What the details shell offers the chrome it draws (header, toolbar): slice B
+ * provides it around the open block, `HoverPreviewHeader` reads it under
+ * `PreviewChromeContext = "details"`.
+ */
+export interface DetailsShellValue {
+  agentId: string;
+  entry: BlockEntry;
+  form: DetailsForm;
+  detent: Detent;
+  fullscreen: boolean;
+  /** Pointer metrics (header 44, buttons 28, toolbar 36) instead of touch (52, 36, 44). */
+  pointer: boolean;
+  /** 1-based position among navigable blocks, 0 when the block is not navigable. */
+  index: number;
+  count: number;
+  canStep: { previous: boolean; next: boolean };
+  step(direction: -1 | 1): void;
+  close(): void;
+  /** Drawer / floating: fit ↔ full. Side: normal ↔ wide. Hidden when the content fits (no full detent). */
+  toggleFullscreen?(): void;
+  /** Spread on the header: vertical drag moves the drawer, horizontal swipe steps (touch only). */
+  headerHandlers?: Record<string, unknown>;
+}
+export const DetailsShellContext = createContext<DetailsShellValue | null>(null);
