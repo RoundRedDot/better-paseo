@@ -778,8 +778,9 @@ describe("Tasks data store", () => {
       ],
       workspaces: [workspace()],
     });
-    const mounted = await mountTasks(fake);
+    // Fake before mounting: the board asks for the last turns on a timer it sets while mounting.
     vi.useFakeTimers({ toFake: ["setTimeout"] });
+    const mounted = await mountTasks(fake);
     try {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(0);
