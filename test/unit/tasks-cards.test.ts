@@ -341,6 +341,43 @@ describe("StatusIcon", () => {
 });
 
 describe("TaskCardView rows", () => {
+  it.each([LIGHT, DARK])("draws a solid blue branch with white text and icon in either theme", async (theme) => {
+    const tree = await render(cardElement(sample("sample-running"), { theme, fields: fields("full") }));
+    const branch = hostByTestId(tree.root, "pill-branch");
+    expect(flat(branch.props.style).backgroundColor).toBe(buildTaskTokens(theme.colors).branch);
+    expect(icons(branch)).toEqual(["GitBranch"]);
+    expect(branch.find((node) => (node.type as unknown) === "Icon").props.color).toBe("#ffffff");
+    const labels = branch.findAll((node) => (node.type as unknown) === "Text");
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) expect(flat(label.props.style).color).toBe("#ffffff");
+  });
+
+  it.each([
+    ["zh", new Date(2026, 9, 22, 12), new Date(2026, 9, 22, 10), "约 8m · 2 小时前"],
+    ["en", new Date(2026, 9, 22, 12), new Date(2026, 9, 22, 10), "~8m · 2h ago"],
+    ["zh", new Date(2026, 9, 22, 0, 5), new Date(2026, 9, 21, 23, 59, 10), "约 8m · 2026-10-21 23:59:10"],
+    ["en", new Date(2026, 9, 22, 12), new Date(2026, 9, 13, 23, 9, 10), "~8m · 2026-10-13 23:09:10"],
+    ["zh", new Date(2026, 9, 22, 12), new Date(2026, 9, 21, 12), "约 8m · 2026-10-21 12:00:00"],
+    ["zh", new Date(2026, 0, 1), new Date(2025, 11, 31, 23, 59, 59), "约 8m · 2025-12-31 23:59:59"],
+  ] as const)("renders the %s footer at %s for an update at %s", async (language, now, updated, expected) => {
+    const card = sample("sample-done");
+    card.timing = { ...card.timing, updatedAt: updated.toISOString(), lastTurnMs: 8 * 60_000 };
+    const tree = await render(cardElement(card, { now: now.getTime(), language }));
+    expect(texts(hostByTestId(tree.root, "task-card-timer"))).toEqual([expected]);
+  });
+
+  it("switches from relative time to a full timestamp when the board clock crosses midnight", async () => {
+    let time = new Date(2026, 9, 21, 23, 59, 59).getTime();
+    const clock = createTaskClock(() => time);
+    const card = sample("sample-done");
+    card.timing = { ...card.timing, updatedAt: new Date(2026, 9, 21, 23, 58, 10).toISOString(), lastTurnMs: null };
+    const tree = await render(cardElement(card, { now: undefined, clock }));
+    expect(texts(hostByTestId(tree.root, "task-card-timer"))).toEqual(["1 分钟前"]);
+    time += 1000;
+    act(() => clock.tick());
+    expect(texts(hostByTestId(tree.root, "task-card-timer"))).toEqual(["2026-10-21 23:58:10"]);
+  });
+
   it("lays the card out as Linear does: meta, title, pills, footer, then the lane blocks", async () => {
     const tree = await render(cardElement(sample("sample-running")));
     expect(rows(tree.root, "sample-running")).toEqual([
@@ -388,7 +425,7 @@ describe("TaskCardView rows", () => {
     expect(pillColors("pill-label-frontend")).toEqual({ background: mix("#ffffff", "#8b5cf6", 0.1), border: mix("#ffffff", "#8b5cf6", 0.26) });
     expect(pillColors("pill-label-board")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
     // The branch: a fixed blue, borderless; folder, path and PR stay neutral.
-    expect(pillColors("pill-branch").background).toBe(mix("#ffffff", tokens.branch, 0.12));
+    expect(pillColors("pill-branch").background).toBe(tokens.branch);
     // The agent pill takes the provider's brand (Codex green); the subtasks pill its dominant status (2 running).
     // The agent pills are borderless, in the brand's colours (Codex green).
     expect(pillColors("pill-model").background).toBe(mix("#ffffff", "#10A37F", 0.12));

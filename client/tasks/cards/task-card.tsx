@@ -5,6 +5,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
 import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
+import { formatFullStamp } from "../../ui/time";
 import type { PermissionButton, StopPhase } from "../actions";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import type { StatusKind, TaskCard, TaskChild } from "../model";
@@ -20,7 +21,7 @@ import {
 } from "./format";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
-import { agentPillColors, BrandMark, neutralPillColors, tintedPillColors, type AgentPillColors } from "./brand-mark";
+import { agentPillColors, BrandMark, neutralPillColors, type AgentPillColors } from "./brand-mark";
 import { THINKING_ICON } from "./mode-icons";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
@@ -286,7 +287,11 @@ export function cardTimer(card: TaskCard, now: number, language: TasksLanguage):
   const parts: string[] = [];
   if (timing.lastTurnMs !== null) parts.push(formatApprox(timing.lastTurnMs, language));
   const ago = since(timing.updatedAt, now);
-  if (ago !== null) parts.push(formatRelative(ago, language));
+  if (ago !== null) {
+    const updated = new Date(timing.updatedAt!);
+    const sameDay = updated.toDateString() === new Date(now).toDateString();
+    parts.push(sameDay && ago < 86_400_000 ? formatRelative(ago, language) : formatFullStamp(updated));
+  }
   return parts.length ? { text: parts.join(" · "), tone: "muted" } : null;
 }
 
@@ -574,8 +579,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   }
   if (layout.branch && location.branch) {
     pills.push(
-      // The branch wears a fixed blue, borderless like the agent pills.
-      <Pill key="branch" {...pill} testID="pill-branch" solid={tintedPillColors(tokens, tokens.branch)} icon="GitBranch" label={location.branch}>
+      // The branch keeps its icon on a solid blue fill with white text.
+      <Pill key="branch" {...pill} testID="pill-branch" solid={{ background: tokens.branch, text: "#ffffff", icon: "#ffffff" }} icon="GitBranch" label={location.branch}>
         {layout.gitStatus && location.git ? (
           <GitStatus git={location.git} tokens={tokens} size={m.pillText} line={m.pillLine} strings={strings} />
         ) : null}
@@ -975,7 +980,7 @@ function GitStatus(props: {
   return (
     <>
       {git.dirty ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: tokens.warning }} /> : null}
-      <Text style={[{ fontSize: props.size, lineHeight: props.line, color: tokens.foregroundMuted }, tabular]}>
+      <Text style={[{ fontSize: props.size, lineHeight: props.line, color: "#ffffff" }, tabular]}>
         {[git.dirty ? props.strings.uncommitted : null, arrows || null].filter(Boolean).join(" ")}
       </Text>
     </>
