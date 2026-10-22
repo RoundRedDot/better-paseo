@@ -390,20 +390,23 @@ export interface UnarchiveControl {
 }
 
 /**
- * One unarchive controller for the whole board. Success needs nothing more:
- * the agent comes back through the board's agent list, so its card returns
- * and the parent row turns into a jump. A failure is an error toast.
+ * One unarchive controller for the whole board. After the RPC answers, the
+ * agent is read again (`verify`): that turns the parent row into a jump (or
+ * an open, for a parent the done window leaves out) and catches a reload
+ * that left it archived. Any failure is an error toast.
  */
 export function useUnarchiveControl(options: {
   available: boolean;
+  /** Read the agent again: whether it is still archived, or null when it is gone. */
+  verify(agentId: string): Promise<boolean | null>;
   toast?: Pick<ReturnType<typeof useToast>, "error">;
 }): UnarchiveControl {
   const unarchiveRpc = useRpc(tasksUnarchiveRpc);
   const hostToast = useToast();
   const language = useTasksLanguage();
   const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(() => new Set());
-  const latest = useRef({ unarchiveRpc, toast: options.toast ?? hostToast, language });
-  latest.current = { unarchiveRpc, toast: options.toast ?? hostToast, language };
+  const latest = useRef({ unarchiveRpc, verify: options.verify, toast: options.toast ?? hostToast, language });
+  latest.current = { unarchiveRpc, verify: options.verify, toast: options.toast ?? hostToast, language };
   const pendingRef = useRef(new Set<string>());
   const mountedRef = useRef(false);
 
@@ -425,15 +428,19 @@ export function useUnarchiveControl(options: {
   const press = useCallback((agentId: string) => {
     if (!options.available || pendingRef.current.has(agentId)) return;
     setPending(agentId, true);
-    const fail = (detail: string) => {
-      const zh = latest.current.language === "zh";
-      latest.current.toast.error(zh ? `取消归档失败：${detail}` : `Could not unarchive: ${detail}`);
-    };
-    const timeoutMessage = latest.current.language === "zh" ? "取消归档请求没有响应。" : "The unarchive request did not answer.";
+    const zh = latest.current.language === "zh";
+    const fail = (detail: string) => latest.current.toast.error(zh ? `取消归档失败：${detail}` : `Could not unarchive: ${detail}`);
+    const timeoutMessage = zh ? "取消归档请求没有响应。" : "The unarchive request did not answer.";
     void withTimeout(Promise.resolve().then(() => latest.current.unarchiveRpc({ agentId })), UNARCHIVE_RPC_TIMEOUT_MS, timeoutMessage)
-      .then((result) => {
+      .then(async (result) => {
+        if (!result.ok) {
+          if (mountedRef.current) fail(result.error ?? (zh ? "未知错误。" : "Unknown error."));
+          return;
+        }
+        const archived = await latest.current.verify(agentId);
         if (!mountedRef.current) return;
-        if (!result.ok) fail(result.error ?? (latest.current.language === "zh" ? "未知错误。" : "Unknown error."));
+        if (archived === null) fail(zh ? "找不到这个任务。" : "The agent no longer exists.");
+        else if (archived) fail(zh ? "任务仍是归档状态。" : "The agent is still archived.");
       })
       .catch((error: unknown) => {
         if (mountedRef.current) fail(shortError(error));

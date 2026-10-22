@@ -118,8 +118,14 @@ export interface TaskParentRef {
   id: string;
   /** Null until resolved; an archived parent may be fetched with `agents.ref(id).refresh()`. */
   title: string | null;
-  /** True when the parent is archived or otherwise not on the board. */
+  /** True when the parent is not on the board: archived, or outside the filters and done window. */
   missing: boolean;
+  /**
+   * Whether the parent is archived. False on the board; for a missing parent,
+   * null until it is read (`resolveParent`). A missing parent that is not
+   * archived only fell out of the loaded set (an old done task).
+   */
+  archived: boolean | null;
 }
 
 export interface TaskChild {
