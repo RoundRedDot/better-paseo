@@ -110,7 +110,7 @@ function textOf(node: ReactTestInstance | string): string {
 
 beforeEach(() => {
   const workspace = makeWorkspace({ id: "wks_1" });
-  const agent = makeAgent({ id: "a1", status: "running" });
+  const agent = makeAgent({ id: "a1", status: "running", workspaceId: "wks_1" });
   fake = createFakePaseo({ workspaces: [workspace], agents: [agent], placements: { a1: makePlacement(agent) } });
   host.paseo = fake.paseo;
   host.settings = null;
@@ -302,7 +302,7 @@ describe("Tasks board across a reconnect", () => {
   it("moves to the fresh cards once the store has caught up", async () => {
     await openOnce();
     const workspace = makeWorkspace({ id: "wks_1" });
-    const agents = [makeAgent({ id: "a1", status: "running" }), makeAgent({ id: "a2", status: "running" })];
+    const agents = [makeAgent({ id: "a1", status: "running", workspaceId: "wks_1" }), makeAgent({ id: "a2", status: "running", workspaceId: "wks_1" })];
     reconnect({ workspaces: [workspace], agents, placements: { a1: makePlacement(agents[0]!), a2: makePlacement(agents[1]!) } });
     await mount(screen());
     expect(textOf(renderer!.root)).toContain("2 tasks");
