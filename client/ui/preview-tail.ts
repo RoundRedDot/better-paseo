@@ -12,6 +12,19 @@
 export const PREVIEW_FOLLOW_SLACK = 24;
 
 /**
+ * How far from the end a follow lets go (`leave`) and how close a scroll back
+ * has to come before it follows again (`resume`). The hover panel uses one
+ * slack for both; the details panel's gap between them keeps a slow drag near
+ * the end from flickering between the two (docs/prototypes/block-details-sheet.md).
+ */
+export interface PreviewFollowBand {
+  leave: number;
+  resume: number;
+}
+export const HOVER_FOLLOW: PreviewFollowBand = { leave: PREVIEW_FOLLOW_SLACK, resume: PREVIEW_FOLLOW_SLACK };
+export const DETAILS_FOLLOW: PreviewFollowBand = { leave: 48, resume: 8 };
+
+/**
  * The time constant of the glide toward new output, in milliseconds. Output
  * arrives in chunks; jumping a chunk's height at once read as a stutter. The
  * glide closes about two thirds of the gap in this time, nearly all of it in
@@ -28,10 +41,18 @@ export function previewTailOffset(viewport: number, extent: number): number {
 /**
  * True when `offset` is on the newest output, or the content still fits.
  * An unmeasured viewport stays pinned, so the first layout can catch the tail.
+ * `following` picks the band's edge: a follow lets go past `leave`, and
+ * starts again within `resume`.
  */
-export function previewFollowsTail(offset: number, viewport: number, extent: number): boolean {
+export function previewFollowsTail(
+  offset: number,
+  viewport: number,
+  extent: number,
+  band: PreviewFollowBand = HOVER_FOLLOW,
+  following = true,
+): boolean {
   if (!(viewport > 0) || !(extent > viewport)) return true;
-  return extent - viewport - offset <= PREVIEW_FOLLOW_SLACK;
+  return extent - viewport - offset <= (following ? band.leave : band.resume);
 }
 
 /**
@@ -62,12 +83,17 @@ export function previewGlideStep(from: number, to: number, elapsed: number, view
  * jump is being applied is ignored: it can still report the old offset. So
  * are the glide's own offsets, reported a frame late; only a move up from
  * where the glide left the body is the reader's.
+ *
+ * `onChange` hears the follow let go and start again, and every growth while
+ * it is let go, with the content's height then.
  */
 export function bindPreviewTail(
   node: HTMLElement,
   pinned: { current: boolean },
   followRef?: { current: (() => void) | null },
+  options: { band?: PreviewFollowBand; onChange?(following: boolean, extent: number): void } = {},
 ): () => void {
+  const band = options.band ?? HOVER_FOLLOW;
   const view = node.ownerDocument?.defaultView;
   const frames = typeof view?.requestAnimationFrame === "function" ? view : null;
   const still = view?.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -76,7 +102,15 @@ export function bindPreviewTail(
   let stamp = 0;
   let left = 0;
   let viewport = node.clientHeight;
+  let extent = node.scrollHeight;
   const tail = () => previewTailOffset(node.clientHeight, node.scrollHeight);
+  const settle = () => {
+    const following = previewFollowsTail(node.scrollTop, node.clientHeight, node.scrollHeight, band, pinned.current);
+    if (following === pinned.current) return;
+    pinned.current = following;
+    extent = node.scrollHeight;
+    options.onChange?.(following, extent);
+  };
   const write = (top: number) => {
     adjusting = true;
     node.scrollTop = top;
@@ -91,7 +125,7 @@ export function bindPreviewTail(
   // the glide left it and is no longer on the tail.
   const taken = () => {
     if (node.scrollTop >= left - 1) return false;
-    pinned.current = previewFollowsTail(node.scrollTop, node.clientHeight, node.scrollHeight);
+    settle();
     return !pinned.current;
   };
   const step = (time: number) => {
@@ -110,7 +144,13 @@ export function bindPreviewTail(
     if (node.scrollTop !== top) write(top);
   };
   const follow = () => {
-    if (!pinned.current) return;
+    if (!pinned.current) {
+      if (node.scrollHeight !== extent) {
+        extent = node.scrollHeight;
+        options.onChange?.(false, extent);
+      }
+      return;
+    }
     const resized = node.clientHeight !== viewport;
     viewport = node.clientHeight;
     const top = tail();
@@ -129,7 +169,7 @@ export function bindPreviewTail(
       if (taken()) stop();
       return;
     }
-    pinned.current = previewFollowsTail(node.scrollTop, node.clientHeight, node.scrollHeight);
+    settle();
   };
   node.addEventListener("scroll", onScroll, { passive: true });
   if (followRef) followRef.current = follow;
@@ -179,7 +219,7 @@ export type PreviewTailScroll = (offset: number | "end", animated: boolean) => v
  * marks that moment; the growth `settle` sees within `PREVIEW_SETTLE_MS` of
  * it is followed once more, if the reader was on the tail.
  */
-export function nativePreviewTail(scroll: PreviewTailScroll, now: () => number = Date.now) {
+export function nativePreviewTail(scroll: PreviewTailScroll, now: () => number = Date.now, band: PreviewFollowBand = HOVER_FOLLOW) {
   let pinned = true;
   let opened = false;
   let gliding: number | null = null;
@@ -229,7 +269,20 @@ export function nativePreviewTail(scroll: PreviewTailScroll, now: () => number =
         if (offset >= gliding - 1) gliding = null;
         return;
       }
-      pinned = previewFollowsTail(offset, viewport, content);
+      pinned = previewFollowsTail(offset, viewport, content, band, pinned);
+    },
+    /** Back to the newest output and following, from the "Back to latest" pill. */
+    resume(viewport: number, content: number, still: boolean) {
+      pinned = true;
+      ended = null;
+      const top = previewTailOffset(viewport, content);
+      if (!(viewport > 0)) {
+        scroll("end", false);
+        return;
+      }
+      // The scroll there reports offsets short of the end; they are not the reader.
+      gliding = still ? null : top;
+      scroll(top, !still);
     },
     drag() {
       gliding = null;
