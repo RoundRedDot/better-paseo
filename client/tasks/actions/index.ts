@@ -125,6 +125,8 @@ function stopIds(card: TaskCard, withChildren: boolean): string[] {
   const ids = [card.id];
   if (withChildren) {
     for (const child of card.children) {
+      // A provider subagent is no Paseo agent: stopping the parent ends its turn, and the provider decides the rest.
+      if (child.kind === "provider") continue;
       if (child.status === "running" || child.status === "needs_input") ids.push(child.id);
     }
   }

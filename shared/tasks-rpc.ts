@@ -50,3 +50,38 @@ export const tasksStoppedRpc = defineRpc({
   input: z.object({}),
   output: z.object({ stops: z.array(z.object({ agentId: z.string(), stoppedAt: z.string() })) }),
 });
+
+/**
+ * A subagent the provider runs inside its parent's session (Claude's Agent
+ * tool, Codex's and Pi's own), as the daemon describes it
+ * (`ProviderSubagentDescriptorPayload`). Not a Paseo agent: no card, no tab,
+ * no `paseo.parent-agent-id` label.
+ */
+export const providerSubagentSchema = z.object({
+  id: z.string(),
+  parentAgentId: z.string(),
+  provider: z.string(),
+  /** The subagent type ("general-purpose"). */
+  title: z.string().nullable(),
+  /** The task it was given ("RRD-10161 desktop native fatal"); names a fan-out's siblings. */
+  description: z.string().nullable(),
+  status: z.enum(["running", "failed"]),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  /** The provider's own facts line: the subagent type, model, effort and tokens, dot-separated. */
+  subtitle: z.string().nullable(),
+});
+export type ProviderSubagent = z.output<typeof providerSubagentSchema>;
+
+/**
+ * The running and failed provider subagents of every agent, as the plugin
+ * server last heard of them. `PaseoApi` cannot list them, so the server
+ * reads the daemon once over its own connection and follows its updates
+ * after that. `version` changes with the list: asked with the version it
+ * last had, the board gets `subagents: null` while nothing changed.
+ */
+export const tasksSubagentsRpc = defineRpc({
+  name: "tasks.subagents",
+  input: z.object({ since: z.string().optional() }),
+  output: z.object({ version: z.string(), subagents: z.array(providerSubagentSchema).nullable() }),
+});

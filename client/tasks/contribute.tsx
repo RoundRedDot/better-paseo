@@ -2,6 +2,7 @@ import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { settingsRpc } from "@getpaseo/plugin";
 import { TASKS_SETTINGS, tasksSettingsSchema } from "../../shared/tasks-settings";
 import { lastTurnsRpc } from "../../shared/turn-usage-rpc";
+import { tasksSubagentsRpc } from "../../shared/tasks-rpc";
 import { TasksBoardScreen } from "./board/board-screen";
 import {
   setTasksBoardOpener,
@@ -18,7 +19,7 @@ import { BOARD_STRINGS } from "./board/strings";
 import { subscribeHostLanguage } from "../i18n/host-language";
 import { onTasksLanguageChange, resolveTasksLanguage } from "./i18n";
 import { SETTINGS_SCREEN_ID, setSettingsTab } from "../settings-tab";
-import { setLastTurnLoader } from "./data";
+import { setLastTurnLoader, setSubagentLoader } from "./data";
 
 /** The board's screen id; `openScreen({ screenId: TASKS_SCREEN_ID })` opens it. */
 export const TASKS_SCREEN_ID = "tasks";
@@ -42,6 +43,8 @@ export function contributeTasks(client: PluginClientContext): () => void {
   let live = true;
   // Cards time the last turn from the server's record of it.
   setLastTurnLoader((agentIds) => client.rpc(lastTurnsRpc, { agentIds }).then((result) => result.turns));
+  // Provider subagents (Claude's Agent tool) come from the server, which reads them off the daemon.
+  setSubagentLoader((since) => client.rpc(tasksSubagentsRpc, since === undefined ? {} : { since }));
   let language = resolveTasksLanguage();
 
   const registerBoard = () => {
@@ -142,5 +145,6 @@ export function contributeTasks(client: PluginClientContext): () => void {
     setTasksSettingsOpener(null);
     setTasksBoardOpener(null);
     setLastTurnLoader(null);
+    setSubagentLoader(null);
   };
 }

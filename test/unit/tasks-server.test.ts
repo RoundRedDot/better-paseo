@@ -31,6 +31,9 @@ async function registerHandlers(): Promise<Map<string, Handler>> {
     on() {
       return () => {};
     },
+    before() {
+      return () => {};
+    },
     handle(contract: { name: string }, handler: Handler) {
       handlers.set(contract.name, handler);
     },
