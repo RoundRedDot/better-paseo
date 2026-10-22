@@ -1274,6 +1274,27 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(tree.root, "detail-stop"))).toEqual(["确认停止"]);
   });
 
+  it("paints the stop button in the danger colour, tinted at rest and solid to confirm", async () => {
+    const tokens = taskTokens(LIGHT);
+    const look = (root: ReactTestInstance, id: string) => {
+      const button = hostByTestId(root, id);
+      const label = button.findAll((node) => typeof node.type === "string" && typeof node.props.children === "string")[0];
+      return { ...pick(flat(button.props.style)), text: flat(label.props.style).color };
+    };
+    const pick = (style: Record<string, unknown>) => ({ fill: style.backgroundColor, border: style.borderColor });
+    const tint = { fill: tokens.card.dangerFill, border: tokens.danger, text: tokens.danger };
+    const solid = { fill: tokens.danger, border: tokens.danger, text: tokens.card.onStrong };
+    const tree = await render(details(sample("sample-running"), { stop: { phase: "idle", onPress: vi.fn() } }));
+    expect(look(tree.root, "detail-stop")).toEqual(tint);
+    await act(async () => tree.update(details(sample("sample-running"), { stop: { phase: "confirming", onPress: vi.fn() } })));
+    expect(look(tree.root, "detail-stop")).toEqual(solid);
+    await act(async () => tree.unmount());
+    renderer = null;
+    const strings = BOARD_STRINGS.zh.sidebar;
+    const bar = await render(React.createElement(DetailActionBar, { card: sample("sample-running"), theme: LIGHT, language: "zh", strings, onOpen: vi.fn(), stop: { phase: "idle", onPress: vi.fn() } }));
+    expect(look(bar.root, "detail-bar-stop")).toEqual(tint);
+  });
+
   it("folds a long path's middle, keeping its head and as much tail as fits", () => {
     expect(foldPath("~/code/app", 10)).toBe("~/code/app");
     // Two lines of 26 that break only after "/": the space a break leaves counts.
