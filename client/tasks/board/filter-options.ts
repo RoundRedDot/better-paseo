@@ -105,17 +105,9 @@ export interface ActiveChip {
 
 export function activeChips(params: BoardParams, defaults: BoardDefaults, options: FilterOptions, strings: BoardStrings): ActiveChip[] {
   const name = (list: FilterOption[], id: string) => list.find((option) => option.id === id)?.label ?? id;
-  const workspaces = options.workspaceGroups.flatMap((group) =>
-    group.items.map((item) => ({ ...item, label: group.projectName === item.label || !group.projectId ? item.label : `${group.projectName} / ${item.label}` })),
-  );
   const chips: ActiveChip[] = [
     ...params.labels.map((id) => ({ key: `label:${id}`, kind: strings.labels, value: id, clear: (p: BoardParams) => ({ ...p, labels: toggleItem(p.labels, id) }) })),
-    ...params.workspaceIds.map((id) => ({
-      key: `ws:${id}`,
-      kind: strings.workspace,
-      value: name(workspaces, id),
-      clear: (p: BoardParams) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, id) }),
-    })),
+    ...workspaceChips(params.workspaceIds, options, strings),
     ...params.providers.map((id) => ({
       key: `agent:${id}`,
       kind: strings.agent,
@@ -128,6 +120,41 @@ export function activeChips(params: BoardParams, defaults: BoardDefaults, option
   if (params.query.trim()) chips.push({ key: "q", kind: strings.titleContains, value: `「${params.query.trim()}」`, clear: (p) => ({ ...p, query: "" }) });
   if (params.doneWindow !== null && params.doneWindow !== defaults.doneWindow) {
     chips.push({ key: "win", kind: strings.doneWindowLabel, value: strings.windows[params.doneWindow], clear: (p) => ({ ...p, doneWindow: null }) });
+  }
+  return chips;
+}
+
+/**
+ * The workspace selection, one chip per project: a whole project picked (the
+ * sidebar's project rows pick every workspace) is "Project payments-svc", a
+ * few of its workspaces "payments-svc · 3", a single one "payments-svc / fix/refund".
+ * Picking a few projects whole must not fill the bar with dozens of chips.
+ */
+function workspaceChips(selected: readonly string[], options: FilterOptions, strings: BoardStrings): ActiveChip[] {
+  const groupOf = new Map<string, FilterOptions["workspaceGroups"][number]>();
+  for (const group of options.workspaceGroups) for (const item of group.items) groupOf.set(item.id, group);
+  const without = (ids: readonly string[]) => (p: BoardParams) => ({ ...p, workspaceIds: p.workspaceIds.filter((id) => !ids.includes(id)) });
+  const chips: ActiveChip[] = [];
+  const done = new Set<string>();
+  for (const id of selected) {
+    const group = groupOf.get(id);
+    if (!group || !group.projectId) {
+      const label = group?.items.find((item) => item.id === id)?.label ?? id;
+      chips.push({ key: `ws:${id}`, kind: strings.workspace, value: label, clear: without([id]) });
+      continue;
+    }
+    if (done.has(group.projectId)) continue;
+    done.add(group.projectId);
+    const picked = group.items.filter((item) => selected.includes(item.id));
+    const ids = picked.map((item) => item.id);
+    if (picked.length > 1 && picked.length === group.items.length) {
+      chips.push({ key: `prj:${group.projectId}`, kind: strings.sidebar.groups.project, value: group.projectName, clear: without(ids) });
+    } else if (picked.length > 1) {
+      chips.push({ key: `prj:${group.projectId}`, kind: strings.workspace, value: `${group.projectName} \u00b7 ${picked.length}`, clear: without(ids) });
+    } else {
+      const item = picked[0]!;
+      chips.push({ key: `ws:${id}`, kind: strings.workspace, value: group.projectName === item.label ? item.label : `${group.projectName} / ${item.label}`, clear: without(ids) });
+    }
   }
   return chips;
 }

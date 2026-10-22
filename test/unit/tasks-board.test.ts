@@ -290,6 +290,29 @@ describe("filter options", () => {
     expect(new Set(pay.items.map((item) => item.label)).size).toBe(pay.items.length);
   });
 
+  it("folds a project's picked workspaces into one chip", () => {
+    const base = handle();
+    const tasks = {
+      ...base,
+      workspaces: [
+        { id: "wks_p1", name: "main", projectId: "prj_pay", projectName: "payments-svc", folder: "payments-svc" },
+        { id: "wks_p2", name: "fix/refund", projectId: "prj_pay", projectName: "payments-svc", folder: "payments-svc-2" },
+        { id: "wks_p3", name: "fix/ledger", projectId: "prj_pay", projectName: "payments-svc", folder: "payments-svc-3" },
+        { id: "wks_o1", name: "main", projectId: "prj_web", projectName: "web", folder: "web" },
+        { id: "wks_o2", name: "feat/nav", projectId: "prj_web", projectName: "web", folder: "web-2" },
+        { id: "wks_o3", name: "feat/footer", projectId: "prj_web", projectName: "web", folder: "web-3" },
+        { id: "wks_s1", name: "solo", projectId: "prj_solo", projectName: "solo", folder: "solo" },
+      ],
+    };
+    const params: BoardParams = { ...EMPTY_PARAMS, workspaceIds: ["wks_p1", "wks_o2", "wks_p2", "wks_s1", "wks_p3", "wks_o3", "wks_gone"] };
+    const chips = activeChips(params, defaults, buildFilterOptions(tasks, params), BOARD_STRINGS.zh);
+    expect(chips.map((chip) => `${chip.kind}|${chip.value}`)).toEqual(["项目|payments-svc", "Workspace|web \u00b7 2", "Workspace|solo", "Workspace|wks_gone"]);
+    expect(chips[0]!.clear(params).workspaceIds).toEqual(["wks_o2", "wks_s1", "wks_o3", "wks_gone"]);
+    expect(chips[1]!.clear(params).workspaceIds).toEqual(["wks_p1", "wks_p2", "wks_s1", "wks_p3", "wks_gone"]);
+    const one = { ...EMPTY_PARAMS, workspaceIds: ["wks_o2"] };
+    expect(activeChips(one, defaults, buildFilterOptions(tasks, one), BOARD_STRINGS.zh).map((chip) => chip.value)).toEqual(["web / feat/nav"]);
+  });
+
   it("lists applied filters as chips that clear one at a time", () => {
     const params: BoardParams = { ...EMPTY_PARAMS, workspaceIds: ["wks_sample"], labels: ["docs"], query: "ring", doneWindow: "all", hideSubtasks: true };
     const options = buildFilterOptions(handle(), params);
