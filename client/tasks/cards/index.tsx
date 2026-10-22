@@ -32,6 +32,7 @@ export {
   formatCost,
   formatDuration,
   formatRelative,
+  formatTokenTotal,
   formatTokens,
   formatWait,
   since,

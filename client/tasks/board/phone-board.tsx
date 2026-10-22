@@ -29,6 +29,7 @@ import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } f
 import { useParentTitle } from "./details-sidebar";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
+import { useSessionTokens } from "../data/session-tokens";
 import { LANE_EMPTY_ICON, sortLabel } from "./strings";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
@@ -557,6 +558,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
   useParentTitle(board, card);
   const firstPrompt = useFirstPrompt(board.paseo, card.id, card.closed !== true);
   const lastMessage = useLastMessage(board.paseo, card.id, lastMessageVersion(card), card.closed !== true);
+  const sessionTokens = useSessionTokens(card.id, card.lane === "running" && card.closed !== true);
   const list = board.lanes[card.lane]?.cards ?? [];
   const index = list.findIndex((item) => item.id === card.id);
   const step = (delta: number) => {
@@ -594,6 +596,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           onJump={props.onShow}
           firstPrompt={firstPrompt}
           lastMessage={lastMessage}
+          sessionTokens={sessionTokens}
           unarchive={board.unarchive.available ? board.unarchive : null}
         />
       </ScrollView>

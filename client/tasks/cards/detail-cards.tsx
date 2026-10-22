@@ -7,11 +7,12 @@ import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTask
 import { useHover } from "../../ui/use-hover";
 import { useCopy } from "../../ui/use-copy";
 import type { TasksLanguage } from "../i18n";
+import type { SessionTokens } from "../../../shared/tasks-rpc";
 import type { PermissionKind, TaskCard, TaskChild } from "../model";
 import type { PermissionButton, StopPhase } from "../actions";
 import type { FirstPrompt } from "../data/first-prompt";
 import type { LastMessage } from "../data/last-message";
-import { formatCost, formatDuration, formatRelative, since, tildePath } from "./format";
+import { formatDuration, formatRelative, formatTokenTotal, since, tildePath } from "./format";
 import { cardStrings } from "./strings";
 import { taskTokens, type TaskTokens } from "./tokens";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
@@ -155,6 +156,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   firstPrompt?: { prompt: FirstPrompt; load(): void } | null;
   /** The agent's latest reply, read from its timeline's tail; absent leaves the section out. */
   lastMessage?: { prompt: LastMessage; load(): void } | null;
+  /** A running task's whole session's tokens, from the provider's session files; absent leaves them out of the running turn. */
+  sessionTokens?: SessionTokens | null;
   /** Unarchive for an archived parent; absent where this host cannot. */
   unarchive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
   /** The sections scroll under the fixed header (the sidebar); else the card grows with them (the sheet). */
@@ -406,7 +409,7 @@ function StatusSub(props: Inner & { small: number }) {
   );
 }
 
-/** The running turn: its clock (ticking each second), the cost so far and the context ring. */
+/** The running turn: its clock (ticking each second), the session's tokens so far and the context ring. */
 function RunningTurn(props: Inner) {
   const { card } = props;
   const timer = useTime(props.time, (time) => {
@@ -417,13 +420,23 @@ function RunningTurn(props: Inner) {
     <TurnHero
       timer={timer}
       lastTurn={card.timing.lastTurnMs !== null ? formatDuration(card.timing.lastTurnMs) : null}
-      cost={card.usage?.totalCostUsd != null ? formatCost(card.usage.totalCostUsd) : null}
+      total={sessionTotal(props.sessionTokens ?? null, props.language)}
       context={contextView(card)}
       tokens={props.tokens}
       touch={props.touch === true}
       language={props.language}
     />
   );
+}
+
+/** The session's tokens as the running turn shows them: the total over the cached share. */
+function sessionTotal(tokens: SessionTokens | null, language: TasksLanguage): { value: string; sub: string } | null {
+  if (!tokens || tokens.total <= 0) return null;
+  const words = cardStrings(language).details;
+  return {
+    value: formatTokenTotal(tokens.total),
+    sub: tokens.cached > 0 ? words.cacheShare(`${Math.round((tokens.cached / tokens.total) * 100)}%`) : words.total,
+  };
 }
 
 const PERMISSION_ICONS: Record<PermissionKind, string> = {
