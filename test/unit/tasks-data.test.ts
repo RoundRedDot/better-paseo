@@ -437,6 +437,27 @@ describe("Tasks data store", () => {
     }
   });
 
+  it("refetches an icon whose project revision moved while the request was in flight", async () => {
+    const host = createFakePaseo({
+      agents: [activeAgent("a", { status: "running" })],
+      workspaces: [workspace()],
+      withLabelsAndIcons: true,
+      projectIcons: { "project-id": { data: "aW1hZ2U=", mimeType: "image/png" } },
+    });
+    const mounted = await mountTasks(host, "24h", false);
+    try {
+      await act(async () => {
+        mounted.current.requestProjectIcon("project-id");
+        host.upsertProject(PROJECT);
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("a")?.location.projectIcon).toBe("data:image/png;base64,aW1hZ2U=");
+      expect(host.calls.filter((call) => call.method === "projects.icon")).toHaveLength(2);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("loads model display names once per provider and preserves unchanged card identities", async () => {
     const catalog: PaseoProviderModelsResult["models"] = [{
       provider: "claude",
