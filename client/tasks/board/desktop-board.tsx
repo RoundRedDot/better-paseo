@@ -821,8 +821,8 @@ function DesktopLane(props: {
   );
   // No clock in here: a tick reaches the timer texts, not the list and its rows.
   const { focusIndex, currentId, callbacks } = props;
-  const { highlighted, stop, fields } = board;
-  const extraData = useMemo(() => ({ focusIndex, highlighted, stop, fields, fresh, currentId }), [focusIndex, highlighted, stop, fields, fresh, currentId]);
+  const { highlighted, stop, read, fields } = board;
+  const extraData = useMemo(() => ({ focusIndex, highlighted, stop, read, fields, fresh, currentId }), [focusIndex, highlighted, stop, read, fields, fresh, currentId]);
   const renderItem = useCallback(
     ({ item, index }: { item: TaskCard; index: number }) => (
       <CardCell

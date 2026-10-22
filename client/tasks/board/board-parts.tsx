@@ -309,6 +309,7 @@ export function CardCell(props: CardCellProps) {
             compact={props.compact}
             permissionButtons={board.buttonsFor(card)}
             stopPhase={board.stop.phase(card.id)}
+            readPending={board.read.pending(card.id)}
             focused={props.focused ?? false}
             current={props.current}
             highlighted={board.highlighted === card.id}

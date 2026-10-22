@@ -2,7 +2,7 @@ import type { PaseoApi } from "@getpaseo/client";
 import { useRpc } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { tasksCapabilitiesRpc, tasksStopRpc, tasksStoppedRpc, tasksUnarchiveRpc } from "../../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksReadRpc, tasksStopRpc, tasksStoppedRpc, tasksUnarchiveRpc } from "../../../shared/tasks-rpc";
 import type { TaskCard, TaskPermission, TaskPermissionAction } from "../model";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 
@@ -378,6 +378,137 @@ export function useStopControl(options: {
     () => ({ available, phase, press, cancel, cancelAll, reconcile, noteRunning, stoppedManually, restored }),
     [available, phase, press, cancel, cancelAll, reconcile, noteRunning, stoppedManually, restored],
   );
+}
+
+/** Mark read for an unread or failed card, in Stop's place. */
+export interface ReadControl {
+  /** False until `tasks.capabilities` reports that the server reaches this host's daemon. */
+  available: boolean;
+  /** The request is out, or the daemon took it and the card has not left review yet. */
+  pending(agentId: string): boolean;
+  press(card: TaskCard): void;
+  /** The board's cards changed: a mark whose card left review is done. */
+  reconcile(): void;
+}
+
+/** A read the daemon accepted must take the card out of review within this long, or it did not take. */
+export const READ_VERIFY_MS = 10_000;
+/** The server gives the daemon 10 s; past this the request has failed. */
+const READ_RPC_TIMEOUT_MS = 15_000;
+
+/**
+ * One mark-read controller for the whole board. Like a stop, a read is
+ * checked twice: the RPC's answer, then the card, which must leave review
+ * (per `isReadable`) within READ_VERIFY_MS. Either failure is an error toast.
+ */
+export function useReadControl(options: {
+  isReadable?: (agentId: string) => boolean;
+  toast?: Pick<ReturnType<typeof useToast>, "error">;
+}): ReadControl {
+  const capabilitiesRpc = useRpc(tasksCapabilitiesRpc);
+  const readRpc = useRpc(tasksReadRpc);
+  const hostToast = useToast();
+  const toast = options.toast ?? hostToast;
+  const language = useTasksLanguage();
+
+  const [available, setAvailable] = useState(false);
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(() => new Set());
+  const pendingRef = useRef<ReadonlySet<string>>(pendingIds);
+  /** Reads the daemon accepted, until their card leaves review. */
+  const verifyingRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const mountedRef = useRef(false);
+  const latest = useRef({ capabilitiesRpc, readRpc, toast, language, isReadable: options.isReadable });
+  latest.current = { capabilitiesRpc, readRpc, toast, language, isReadable: options.isReadable };
+
+  const setPending = useCallback((agentId: string, pending: boolean) => {
+    if (pendingRef.current.has(agentId) === pending) return;
+    const next = new Set(pendingRef.current);
+    if (pending) next.add(agentId);
+    else next.delete(agentId);
+    pendingRef.current = next;
+    setPendingIds(next);
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const verifying = verifyingRef.current;
+    return () => {
+      mountedRef.current = false;
+      for (const timer of verifying.values()) clearTimeout(timer);
+      verifying.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void Promise.resolve()
+      .then(() => latest.current.capabilitiesRpc({}))
+      .then(
+        (result) => {
+          if (active) setAvailable(result.read === true);
+        },
+        () => {
+          if (active) setAvailable(false);
+        },
+      );
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const failed = useCallback((detail: string) => {
+    const zh = latest.current.language === "zh";
+    latest.current.toast.error(zh ? `标为已读失败：${detail}` : `Could not mark as read: ${detail}`);
+  }, []);
+
+  const settle = useCallback((agentId: string) => {
+    const timer = verifyingRef.current.get(agentId);
+    if (timer === undefined) return;
+    clearTimeout(timer);
+    verifyingRef.current.delete(agentId);
+    if (!mountedRef.current) return;
+    if (latest.current.isReadable?.(agentId) === true) {
+      failed(latest.current.language === "zh" ? "任务仍在待查看。" : "the task is still to review.");
+    }
+    setPending(agentId, false);
+  }, [failed, setPending]);
+
+  const reconcile = useCallback(() => {
+    for (const agentId of [...verifyingRef.current.keys()]) {
+      if (latest.current.isReadable?.(agentId) !== true) settle(agentId);
+    }
+  }, [settle]);
+
+  const press = useCallback((card: TaskCard) => {
+    if (!available || card.readable !== true || pendingRef.current.has(card.id)) return;
+    const agentId = card.id;
+    setPending(agentId, true);
+    const timeoutMessage = latest.current.language === "zh" ? "请求没有响应。" : "The request did not answer.";
+    void withTimeout(Promise.resolve().then(() => latest.current.readRpc({ agentIds: [agentId] })), READ_RPC_TIMEOUT_MS, timeoutMessage)
+      .then((result) => {
+        if (!mountedRef.current) return;
+        if (!result.ok) {
+          failed(result.error ?? (latest.current.language === "zh" ? "未知错误。" : "Unknown error."));
+          setPending(agentId, false);
+          return;
+        }
+        if (latest.current.isReadable?.(agentId) !== true) {
+          setPending(agentId, false);
+          return;
+        }
+        // Accepted, but the card is still in review: wait for its update.
+        verifyingRef.current.set(agentId, setTimeout(() => settle(agentId), READ_VERIFY_MS));
+      })
+      .catch((error: unknown) => {
+        if (!mountedRef.current) return;
+        failed(shortError(error));
+        setPending(agentId, false);
+      });
+  }, [available, failed, setPending, settle]);
+
+  const pending = useCallback((agentId: string) => pendingIds.has(agentId), [pendingIds]);
+
+  return useMemo(() => ({ available, pending, press, reconcile }), [available, pending, press, reconcile]);
 }
 
 /** Unarchive for an archived parent, shown in the details' parent row. */

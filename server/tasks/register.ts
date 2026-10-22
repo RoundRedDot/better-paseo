@@ -4,13 +4,15 @@ import { delimiter, join } from "node:path";
 import { execCommand, type PluginServerContext } from "@getpaseo/plugin/server";
 import { TASKS_SETTINGS } from "../../shared/tasks-settings";
 import { createStopMarks, stopMarksPath } from "./stop-marks";
-import { createSubagentWatch, type SubagentWatch } from "./provider-subagents";
-import { tasksCapabilitiesRpc, tasksStopRpc, tasksStoppedRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
+import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon, type SubagentWatch } from "./provider-subagents";
+import { tasksCapabilitiesRpc, tasksReadRpc, tasksStopRpc, tasksStoppedRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const STOP_TIMEOUT_MS = 10_000;
 /** A reload resumes the provider's session, which can take a while (a Codex rollout). */
 const UNARCHIVE_TIMEOUT_MS = 60_000;
+/** The daemon loads an agent from storage before clearing it; one it cannot find gets no answer at all. */
+const READ_TIMEOUT_MS = 10_000;
 
 type CliStopOutput = { stoppedCount: number; agentIds: string[] };
 
@@ -117,8 +119,35 @@ async function unarchiveAgent(cli: string, agentId: string): Promise<{ ok: boole
   }
 }
 
+/** How the server reaches this host's daemon for `tasks.read`; tests pass their own. */
+export interface HostDaemonAccess {
+  available(): boolean;
+  connect(): Promise<HostDaemon | null>;
+}
+
+const hostDaemon: HostDaemonAccess = { available: hasHostDaemon, connect: connectHostDaemon };
+
+async function markRead(host: HostDaemonAccess, agentIds: string[]): Promise<{ ok: boolean; error: string | null }> {
+  if (!agentIds.every((agentId) => AGENT_ID_PATTERN.test(agentId))) return { ok: false, error: "Invalid agent ID." };
+  const daemon = await host.connect();
+  if (!daemon) return { ok: false, error: "Could not reach the Paseo daemon." };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("timeout")), READ_TIMEOUT_MS);
+    });
+    await Promise.race([daemon.clearAgentAttention(agentIds), timeout]);
+    return { ok: true, error: null };
+  } catch {
+    return { ok: false, error: "The Paseo daemon did not mark the agent read." };
+  } finally {
+    clearTimeout(timer);
+    await daemon.close().catch(() => {});
+  }
+}
+
 /**
- * The Tasks board's settings record, stop, subagent and unarchive RPCs. The
+ * The Tasks board's settings record, stop, read, subagent and unarchive RPCs. The
  * stops `tasks.stopped` answers with live in a file under the plugin's data
  * directory, so they outlive a daemon restart; a mark goes when the agent
  * starts a new turn or is archived, and when it is 30 days old. The provider
@@ -128,6 +157,7 @@ export function registerTasksServer(
   server: PluginServerContext,
   stops = createStopMarks(stopMarksPath()),
   subagents: SubagentWatch = createSubagentWatch(),
+  host: HostDaemonAccess = hostDaemon,
 ): void {
   server.registerSettings(TASKS_SETTINGS);
   // A new turn means a new prompt: the agent is no longer "stopped manually".
@@ -145,7 +175,8 @@ export function registerTasksServer(
   });
   server.handle(tasksStoppedRpc, async () => ({ stops: await stops.list() }));
   server.handle(tasksSubagentsRpc, async ({ since }, context) => subagents.read(context?.paseo, since));
-  server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCliPath()) !== null }));
+  server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCliPath()) !== null, read: host.available() }));
+  server.handle(tasksReadRpc, async ({ agentIds }) => await markRead(host, agentIds));
   server.handle(tasksStopRpc, async ({ agentIds }) => {
     const cli = await resolveCliPath();
     const results: Array<{ agentId: string; ok: boolean; error: string | null }> = [];

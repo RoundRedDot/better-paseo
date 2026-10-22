@@ -10,11 +10,14 @@ import { z } from "zod";
  * daemon's machine, so a remote host stops its own agent.
  */
 
-/** Whether this host can stop agents at all; the board hides Stop when not. */
+/**
+ * Whether this host can stop agents at all, and mark them read; the board
+ * hides Stop or Mark read when not. An older server leaves `read` out.
+ */
 export const tasksCapabilitiesRpc = defineRpc({
   name: "tasks.capabilities",
   input: z.object({}),
-  output: z.object({ stop: z.boolean() }),
+  output: z.object({ stop: z.boolean(), read: z.boolean().optional() }),
 });
 
 export const tasksStopResultSchema = z.object({
@@ -34,6 +37,18 @@ export const tasksStopRpc = defineRpc({
   name: "tasks.stop",
   input: z.object({ agentIds: z.array(z.string().min(1)).min(1).max(50) }),
   output: z.object({ results: z.array(tasksStopResultSchema) }),
+});
+
+/**
+ * Clears the agents' attention, as opening one in Paseo does: an unread or
+ * failed card leaves the review lane for done. `PaseoApi` cannot, so the
+ * server asks the daemon over its own connection (`connectHostDaemon`).
+ * The daemon answers all or nothing.
+ */
+export const tasksReadRpc = defineRpc({
+  name: "tasks.read",
+  input: z.object({ agentIds: z.array(z.string().min(1)).min(1).max(50) }),
+  output: z.object({ ok: z.boolean(), error: z.string().nullable() }),
 });
 
 /**

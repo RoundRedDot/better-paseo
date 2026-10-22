@@ -21,7 +21,11 @@ async function executable(directory: string, name = "paseo", mode = 0o755): Prom
   return path;
 }
 
-async function registerHandlers(): Promise<Map<string, Handler>> {
+type HostAccess = import("../../server/tasks/register").HostDaemonAccess;
+
+const noHost: HostAccess = { available: () => false, connect: async () => null };
+
+async function registerHandlers(host: HostAccess = noHost): Promise<Map<string, Handler>> {
   vi.resetModules();
   const { registerTasksServer } = await import("../../server/tasks/register");
   const { createStopMarks } = await import("../../server/tasks/stop-marks");
@@ -38,7 +42,7 @@ async function registerHandlers(): Promise<Map<string, Handler>> {
       handlers.set(contract.name, handler);
     },
   } as unknown as PluginServerContext;
-  registerTasksServer(server, createStopMarks(join(tempRoot, "tasks-stops.json")));
+  registerTasksServer(server, createStopMarks(join(tempRoot, "tasks-stops.json")), undefined, host);
   return handlers;
 }
 
@@ -76,7 +80,7 @@ describe("Tasks server stop RPC", () => {
     execCommand.mockResolvedValue({ stdout: validJson, stderr: "" });
 
     const handlers = await registerHandlers();
-    await expect(invoke(handlers, "tasks.capabilities", {})).resolves.toEqual({ stop: true });
+    await expect(invoke(handlers, "tasks.capabilities", {})).resolves.toEqual({ stop: true, read: false });
     await expect(invoke(handlers, "tasks.stop", { agentIds: ["agent-a"] })).resolves.toEqual({
       results: [{ agentId: "agent-a", ok: true, error: null }],
     });
@@ -98,7 +102,7 @@ describe("Tasks server stop RPC", () => {
     execCommand.mockResolvedValue({ stdout: validJson, stderr: "" });
 
     const handlers = await registerHandlers();
-    await expect(invoke(handlers, "tasks.capabilities", {})).resolves.toEqual({ stop: true });
+    await expect(invoke(handlers, "tasks.capabilities", {})).resolves.toEqual({ stop: true, read: false });
     await invoke(handlers, "tasks.stop", { agentIds: ["agent-a"] });
     expect(execCommand).toHaveBeenCalledWith(firstCandidate, expect.any(Array), expect.any(Object));
   });
@@ -109,7 +113,7 @@ describe("Tasks server stop RPC", () => {
     execCommand.mockResolvedValue({ stdout: validJson, stderr: "" });
     const handlers = await registerHandlers();
 
-    await expect(invoke(handlers, "tasks.capabilities", {})).resolves.toEqual({ stop: true });
+    await expect(invoke(handlers, "tasks.capabilities", {})).resolves.toEqual({ stop: true, read: false });
     process.env.PASEO_CLI = await executable(join(tempRoot, "later"));
     process.env.PATH = "";
     await invoke(handlers, "tasks.stop", { agentIds: ["agent-a"] });
@@ -123,7 +127,7 @@ describe("Tasks server stop RPC", () => {
     process.env.PATH = join(tempRoot, "bin");
     const handlers = await registerHandlers();
 
-    await expect(invoke(handlers, "tasks.capabilities", {})).resolves.toEqual({ stop: false });
+    await expect(invoke(handlers, "tasks.capabilities", {})).resolves.toEqual({ stop: false, read: false });
     await expect(invoke(handlers, "tasks.stop", { agentIds: ["agent-a", "agent-b"] })).resolves.toEqual({
       results: [
         { agentId: "agent-a", ok: false, error: "Paseo CLI is unavailable." },
@@ -232,5 +236,48 @@ describe("Tasks server unarchive RPC", () => {
       ok: false,
       error: "Paseo CLI timed out while unarchiving the agent.",
     });
+  });
+});
+
+describe("Tasks server read RPC", () => {
+  function fakeHost(clear: (agentIds: string | string[]) => Promise<void>) {
+    const close = vi.fn(async () => {});
+    const clearAgentAttention = vi.fn(clear);
+    const host: HostAccess = {
+      available: () => true,
+      connect: async () => ({ clearAgentAttention, close }) as unknown as Awaited<ReturnType<HostAccess["connect"]>>,
+    };
+    return { host, clearAgentAttention, close };
+  }
+
+  it("reports the capability and clears the agents' attention over one connection", async () => {
+    const { host, clearAgentAttention, close } = fakeHost(async () => {});
+    const handlers = await registerHandlers(host);
+
+    await expect(invoke(handlers, "tasks.capabilities", {})).resolves.toEqual({ stop: false, read: true });
+    await expect(invoke(handlers, "tasks.read", { agentIds: ["agent-a", "agent-b"] })).resolves.toEqual({ ok: true, error: null });
+    expect(clearAgentAttention).toHaveBeenCalledWith(["agent-a", "agent-b"]);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a bad id, an unreachable daemon, and a daemon that never answers", async () => {
+    vi.useFakeTimers();
+    try {
+      const { host, clearAgentAttention, close } = fakeHost(() => new Promise<void>(() => {}));
+      let handlers = await registerHandlers(host);
+      await expect(invoke(handlers, "tasks.read", { agentIds: ["bad/id"] })).resolves.toEqual({ ok: false, error: "Invalid agent ID." });
+      expect(clearAgentAttention).not.toHaveBeenCalled();
+
+      // The daemon gives no answer for an agent it cannot find; the server stops waiting.
+      const pending = invoke(handlers, "tasks.read", { agentIds: ["agent-gone"] });
+      await vi.advanceTimersByTimeAsync(10_000);
+      await expect(pending).resolves.toEqual({ ok: false, error: "The Paseo daemon did not mark the agent read." });
+      expect(close).toHaveBeenCalledTimes(1);
+
+      handlers = await registerHandlers(noHost);
+      await expect(invoke(handlers, "tasks.read", { agentIds: ["agent-a"] })).resolves.toEqual({ ok: false, error: "Could not reach the Paseo daemon." });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

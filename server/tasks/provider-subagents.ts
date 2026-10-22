@@ -27,6 +27,12 @@ export interface SeedDaemon {
   close(): Promise<void>;
 }
 
+/** The daemon's own client as the board's server uses it: the seed, and clearing attention. */
+export interface HostDaemon extends SeedDaemon {
+  /** Resolves when the daemon cleared every agent's; it never answers a request naming an unknown agent. */
+  clearAgentAttention(agentId: string | string[]): Promise<void>;
+}
+
 /** A failure stays on the board this long at most; a new prompt to the parent clears it sooner. */
 const FAILED_KEPT_MS = 7 * 24 * 60 * 60 * 1000;
 const SEED_PAGE = 200;
@@ -124,6 +130,21 @@ export function createSubagentRegistry(now = () => Date.now()) {
 
 export type SubagentRegistry = ReturnType<typeof createSubagentRegistry>;
 
+const HOST_MODULES = ["@getpaseo/client/internal/daemon-client", "@getpaseo/server/daemon-control", "ws"] as const;
+
+/** Whether `connectHostDaemon` can build a client here: the host's packages resolve from the plugin process. */
+export function hasHostDaemon(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    const require = createRequire(entry);
+    for (const id of HOST_MODULES) require.resolve(id);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * A short-lived client of this host's daemon, built from the host's own
  * packages so it speaks the daemon's protocol version. The plugin process
@@ -131,17 +152,13 @@ export type SubagentRegistry = ReturnType<typeof createSubagentRegistry>;
  * resolve from there; the daemon's address and local credential come from
  * `PASEO_HOME`, as the CLI finds them. Null where any of it is missing.
  */
-export async function connectHostDaemon(): Promise<SeedDaemon | null> {
+export async function connectHostDaemon(): Promise<HostDaemon | null> {
   const entry = process.argv[1];
   if (!entry) return null;
   try {
     const require = createRequire(entry);
     const load = (id: string) => import(pathToFileURL(require.resolve(id)).href);
-    const [clientModule, control, ws] = await Promise.all([
-      load("@getpaseo/client/internal/daemon-client"),
-      load("@getpaseo/server/daemon-control"),
-      load("ws"),
-    ]);
+    const [clientModule, control, ws] = await Promise.all(HOST_MODULES.map(load));
     const home: string = process.env.PASEO_HOME || control.resolvePaseoHome(process.env);
     const listen = (await control.readDaemonInstance(home))?.listen;
     if (typeof listen !== "string" || !listen.trim()) return null;
@@ -167,7 +184,7 @@ export async function connectHostDaemon(): Promise<SeedDaemon | null> {
       await client.close().catch(() => {});
       return null;
     }
-    return client as SeedDaemon;
+    return client as HostDaemon;
   } catch {
     return null;
   }
