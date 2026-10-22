@@ -315,15 +315,17 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   const zoomRef = useRef(textZoom);
   zoomRef.current = textZoom;
   const contentSize = tokens.typography.content.size;
+  const codeSize = tokens.typography.mono.size;
   const zoom = useMemo<DetailsZoom | undefined>(() => (zooms ? {
     base: contentSize,
+    code: codeSize,
     current: () => zoomRef.current,
     preview: setLiveZoom,
     commit(next) {
       updateEnhancerPreferences({ detailsTextZoom: next });
       setLiveZoom(null);
     },
-  } : undefined), [zooms, contentSize]);
+  } : undefined), [zooms, contentSize, codeSize]);
 
   // Web keys while the panel is open (`keyboard.ts`): only this lease holder's
   // layer, and only while its pane is shown. ← → take the panel's own step.

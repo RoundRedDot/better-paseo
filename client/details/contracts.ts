@@ -119,6 +119,8 @@ export const BlockPlacementContext = createContext<BlockPlacement | null>(null);
 export interface DetailsZoom {
   /** The timeline's body size, which the zoom adds to. */
   base: number;
+  /** The code size, which the zoom adds to as well. */
+  code: number;
   /** The zoom drawn now, mid-pinch included. */
   current(): number;
   /** Draws `zoom` while the fingers move, without saving it. */
