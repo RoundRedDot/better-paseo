@@ -8,6 +8,8 @@ export interface DetailsPagerKeys {
 
 /** Actions supplied by the currently rendered details chrome. */
 export interface DetailsKeyboardActions {
+  /** ← and →: the shell's own step, with its slide and the probe for older rows; the store's otherwise. */
+  step?(direction: -1 | 1): void;
   toggleWrap?(): void;
   toggleRender?(): void;
   toggleFullscreen?(): void;
@@ -65,7 +67,10 @@ export function bindDetailsKeys(agentId: string, isActivePane: ActivePane): () =
     if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && !modified && !event.shiftKey) {
       if (editable || hasHorizontalScroller(target)) return;
       consume(event);
-      detailsApi.step(agentId, event.key === "ArrowLeft" ? -1 : 1);
+      const direction = event.key === "ArrowLeft" ? -1 : 1;
+      const step = actions.get(agentId)?.step;
+      if (step) step(direction);
+      else detailsApi.step(agentId, direction);
       return;
     }
 
