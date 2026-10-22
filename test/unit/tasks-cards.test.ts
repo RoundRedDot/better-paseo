@@ -1112,8 +1112,28 @@ describe("TaskDetailCards", () => {
     const tree = await render(details(card));
     expect(texts(hostByTestId(tree.root, "detail-branch"))).toEqual(["feat/tasks-board"]);
     expect(branchHint({ dirty: false, ahead: 0, behind: 0 })).toEqual({ sync: null, dirty: false });
-    expect(branchHint({ dirty: true, ahead: null, behind: 2 })).toEqual({ sync: "↑0 ↓2", dirty: true });
+    expect(branchHint({ dirty: true, ahead: null, behind: 2 })).toEqual({ sync: { ahead: 0, behind: 2 }, dirty: true });
     expect(branchHint(null)).toEqual({ sync: null, dirty: false });
+  });
+
+  it("draws the branch in the text colour and its ahead count green, behind orange, a zero muted", async () => {
+    const base = sample("sample-running");
+    const card = { ...base, location: { ...base.location, git: { dirty: false, ahead: 1768, behind: 0 } } };
+    const tree = await render(details(card));
+    const tokens = taskTokens(LIGHT);
+    const row = hostByTestId(tree.root, "detail-branch");
+    expect(flat(hostByTestId(row, "detail-branch-value").props.style).color).toBe(tokens.foreground);
+    const textOf = (node: ReactTestInstance | string): string => (typeof node === "string" ? node : node.children.map((child) => textOf(child as ReactTestInstance | string)).join(""));
+    const colorOf = (root: ReactTestInstance, text: string) => {
+      const node = root.find((each) => (each.type as unknown) === "Text" && textOf(each) === text);
+      return flat(node.props.style).color;
+    };
+    expect(colorOf(row, "↑1768")).toBe(tokens.success);
+    expect(colorOf(row, "↑1768 ↓0")).toBe(tokens.foregroundMuted);
+    const behind = { ...base, location: { ...base.location, git: { dirty: false, ahead: 0, behind: 2 } } };
+    const behindRow = hostByTestId((await render(details(behind))).root, "detail-branch");
+    expect(colorOf(behindRow, " ↓2")).toBe(tokens.warning);
+    expect(colorOf(behindRow, "↑0 ↓2")).toBe(tokens.foregroundMuted);
   });
 
   it("says a directory is not a git checkout, sums up a finished card, and has no open button without onOpen", async () => {

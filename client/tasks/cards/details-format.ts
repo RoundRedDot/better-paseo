@@ -127,8 +127,8 @@ export function breakable(text: string): string {
 }
 
 /** Ahead/behind and uncommitted changes beside the branch; a clean, level branch says nothing. */
-export function branchHint(git: TaskCard["location"]["git"]): { sync: string | null; dirty: boolean } {
+export function branchHint(git: TaskCard["location"]["git"]): { sync: { ahead: number; behind: number } | null; dirty: boolean } {
   const ahead = git?.ahead ?? 0;
   const behind = git?.behind ?? 0;
-  return { sync: ahead !== 0 || behind !== 0 ? `↑${ahead} ↓${behind}` : null, dirty: git?.dirty === true };
+  return { sync: ahead !== 0 || behind !== 0 ? { ahead, behind } : null, dirty: git?.dirty === true };
 }
