@@ -32,39 +32,44 @@ function pathPieces(path: string): string[] {
   return parts.map((part, index) => (index < parts.length - 1 ? `${part}/` : part));
 }
 
-/**
- * The unbreakable runs of a path as `pathText` lays it out, as widths: each
- * segment that fits a line is one run, broken after its "/". A segment longer
- * than a line runs on from the "/" before it and breaks only after its own
- * "-" (a browser keeps the letters between them together).
- */
-function pathWords(path: string, columns: number): number[] {
-  const words: number[] = [];
-  for (const piece of pathPieces(path)) {
-    const width = textWidth(piece);
-    if (width <= columns) {
-      words.push(width);
-      continue;
-    }
-    const parts = piece.split("-").map((part, index, all) => (index < all.length - 1 ? `${part}-` : part));
-    parts.forEach((part, index) => {
-      const before = words.length - 1;
-      if (index === 0 && before >= 0) words[before] = (words[before] ?? 0) + textWidth(part);
-      else words.push(textWidth(part));
-    });
-  }
-  return words;
+/** A run of text cut after each "-", the "-" kept on the left part. */
+function hyphenParts(text: string): string[] {
+  return text.split("-").map((part, index, all) => (index < all.length - 1 ? `${part}-` : part));
 }
 
 /**
- * How many lines a path takes in lines of `columns`, laid out as `pathText`
- * lets it break: a run that does not fit the rest of a line moves to the
+ * The runs a path is drawn in, each its own text in a wrapping row, so the
+ * line breaks are the layout's and the same on every platform (iOS, Android
+ * and browsers each read zero-width breaks their own way): a segment that
+ * fits a line is one run with its "/"; a segment longer than a line is cut
+ * after each of its "-", its first part kept on the run before it.
+ */
+export function pathTokens(path: string, columns: number): string[] {
+  const tokens: string[] = [];
+  for (const piece of pathPieces(path)) {
+    if (textWidth(piece) <= columns) {
+      tokens.push(piece);
+      continue;
+    }
+    hyphenParts(piece).forEach((part, index) => {
+      const before = tokens.length - 1;
+      if (index === 0 && before >= 0) tokens[before] = `${tokens[before] ?? ""}${part}`;
+      else tokens.push(part);
+    });
+  }
+  return tokens;
+}
+
+/**
+ * How many lines a path takes in lines of `columns`, laid out from its
+ * `pathTokens`: a run that does not fit the rest of a line moves to the
  * next; a run longer than a whole line breaks inside itself.
  */
 export function pathLines(path: string, columns: number): number {
   let lines = 1;
   let used = 0;
-  for (const width of pathWords(path, columns)) {
+  for (const token of pathTokens(path, columns)) {
+    const width = textWidth(token);
     if (used > 0 && used + width > columns) {
       lines += 1;
       used = 0;
@@ -81,8 +86,9 @@ export function pathLines(path: string, columns: number): number {
 /**
  * A path in `lines` lines of `columns`: whole when it fits, else its head
  * ("~/workspace", "/Users") and as many trailing segments as fit around
- * "…/". The last segment always shows, cut in its middle only when it alone
- * is longer than the lines. Copying still takes the whole path.
+ * "…/". A last segment too long for the lines keeps its first and last
+ * hyphen parts around "…" ("feat-…-input-crash"), cut inside a word only
+ * when it has no hyphens to cut at. Copying still takes the whole path.
  */
 export function foldPath(path: string, columns: number, lines = 2): string {
   const fits = (text: string) => pathLines(text, columns) <= lines;
@@ -92,7 +98,19 @@ export function foldPath(path: string, columns: number, lines = 2): string {
   const head = segments.length > 2 ? segments.slice(0, 2).join("/") : null;
   const rest = head ? segments.slice(2) : segments;
   const lead = head ? `${head}/…/` : "…/";
-  if (!fits(`${lead}${last}`)) return `…/${middle(last, columns * lines - 2)}`;
+  if (!fits(`${lead}${last}`)) {
+    if (fits(`…/${last}`)) return `…/${last}`;
+    const parts = hyphenParts(last);
+    for (let from = 2; from < parts.length; from++) {
+      const candidate = `…/${parts[0]}…${parts.slice(from).join("")}`;
+      if (fits(candidate)) return candidate;
+    }
+    for (let from = 1; from < parts.length; from++) {
+      const candidate = `…/…${parts.slice(from).join("")}`;
+      if (fits(candidate)) return candidate;
+    }
+    return `…/${middle(last, columns * lines - 2)}`;
+  }
   let tail = last;
   for (let index = rest.length - 1; index >= 0; index--) {
     const next = `${rest[index]}/${tail}`;
@@ -100,25 +118,6 @@ export function foldPath(path: string, columns: number, lines = 2): string {
     tail = next;
   }
   return `${lead}${tail}`;
-}
-
-/**
- * A path (already folded) with the breaks `pathLines` counts on: a
- * zero-width space after each "/", a word joiner after each "-" so iOS does
- * not break "native-bridge" at its hyphen. A segment longer than a line
- * keeps neither: it follows the "/" before it on the same line and wraps
- * inside itself.
- */
-export function pathText(path: string, columns: number): string {
-  const pieces = pathPieces(path);
-  const long = pieces.map((piece) => textWidth(piece) > columns);
-  return pieces
-    .map((piece, index) => {
-      const text = long[index] ? piece : piece.replace(/-/g, "-\u2060");
-      const breakAfter = piece.endsWith("/") && index + 1 < pieces.length && !long[index + 1];
-      return breakAfter ? `${text}\u200b` : text;
-    })
-    .join("");
 }
 
 /** Lets a branch or a name wrap after each "/" and "-" before it wraps inside a word. */

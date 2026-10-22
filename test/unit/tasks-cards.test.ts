@@ -62,7 +62,7 @@ import {
   breakable,
   foldPath,
   pathLines,
-  pathText,
+  pathTokens,
   buildTaskTokens,
   taskTokens,
   cardLayout,
@@ -1080,12 +1080,12 @@ describe("TaskDetailCards", () => {
     const location = hostByTestId(tree.root, "detail-location");
     expect(texts(location).slice(0, 2)).toEqual(["属性", "feat/tasks-board"]);
     // No label column at the default width; the workspace and its kind are the note line.
-    expect(texts(hostByTestId(location, "detail-place"))).toEqual(["B", "better-paseo", "tasks-board", "·", "worktree"]);
-    expect(texts(hostByTestId(location, "detail-branch"))).toEqual(["feat/tasks-board", "↑3 ↓0", "·", "未提交改动"]);
+    expect(texts(hostByTestId(location, "detail-place"))).toEqual(["B", "better-paseo", "tasks-board · worktree"]);
+    expect(texts(hostByTestId(location, "detail-branch"))).toEqual(["feat/tasks-board", "↑3 ↓0 · ● 未提交改动"]);
     // A branch wraps after "/" and "-"; the directory is whole while it fits two lines.
     expect(hostByTestId(location, "detail-branch-value").props.children[1]).toBe("feat/\u200btasks-\u200bboard");
     expect(hostByTestId(location, "detail-branch-value").props.numberOfLines).toBe(3);
-    expect(texts(hostByTestId(location, "detail-cwd"))).toEqual(["~/code/better-paseo/.worktrees/tasks-board"]);
+    expect(texts(hostByTestId(location, "detail-cwd")).join("")).toBe("~/code/better-paseo/.worktrees/tasks-board");
     expect(texts(hostByTestId(location, "detail-pr"))).toEqual(["#42\u2002feat: Tasks board"]);
 
     for (const [testID, text] of [["detail-branch", "feat/tasks-board"], ["detail-cwd", "/Users/dev/code/better-paseo/.worktrees/tasks-board"]] as const) {
@@ -1097,7 +1097,7 @@ describe("TaskDetailCards", () => {
     expect(clipboard.copyText).toHaveBeenCalledTimes(2);
     // The host's toast confirms a copy; the row keeps its note line.
     expect(clipboard.show).toHaveBeenCalled();
-    expect(texts(hostByTestId(location, "detail-cwd"))).toEqual(["~/code/better-paseo/.worktrees/tasks-board"]);
+    expect(texts(hostByTestId(location, "detail-cwd")).join("")).toBe("~/code/better-paseo/.worktrees/tasks-board");
     // A press on the PR opens it.
     await act(async () => hostByTestId(tree.root, "detail-pr").props.onPress());
     expect(opened.openLink).toHaveBeenCalledWith("https://github.com/RoundRedDot/better-paseo/pull/42");
@@ -1178,7 +1178,7 @@ describe("TaskDetailCards", () => {
     const tree = await render(details(sample("sample-done"), {}, "en"));
     expect(texts(hostByTestId(tree.root, "detail-branch"))).toEqual(["Not a git directory"]);
     expect(hostByTestId(tree.root, "detail-branch").props.onPress).toBeUndefined();
-    expect(texts(hostByTestId(tree.root, "detail-place"))).toEqual(["B", "better-paseo", "tasks-board", "·", "directory"]);
+    expect(texts(hostByTestId(tree.root, "detail-place"))).toEqual(["B", "better-paseo", "tasks-board · directory"]);
     expect(tree.root.findAll((node) => node.props.testID === "detail-open")).toEqual([]);
     expect(texts(hostByTestId(tree.root, "detail-summary"))).toEqual(["Last turn", "18m", "Ended 2m ago", "Cost", "$1.84", "Total", "Token", "316k", "38% cached"]);
   });
@@ -1286,14 +1286,17 @@ describe("TaskDetailCards", () => {
     // A last segment longer than a line follows "…/" and wraps inside itself; cut only past the lines.
     const longLast = "~/bc-tasks/ios/proj/voice-input-native-bridge-runtime-migration-sandbox";
     expect(foldPath(longLast, 34)).toBe("~/bc-tasks/…/voice-input-native-bridge-runtime-migration-sandbox");
-    expect(pathText("…/voice-input-native-bridge-runtime-migration-sandbox", 34)).toBe("…/voice-input-native-bridge-runtime-migration-sandbox");
+    // Drawn as runs in a wrapping row: a segment longer than a line is cut after each "-", its first part kept with the "…/".
+    expect(pathTokens("…/voice-input-native-bridge-runtime-migration-sandbox", 34)).toEqual(["…/voice-", "input-", "native-", "bridge-", "runtime-", "migration-", "sandbox"]);
     // A browser breaks a long segment only after its "-": in 35 columns "proj/" no longer fits beside it.
     const sandbox = "~/bc-tasks/web/proj/voice-input-native-bridge-runtime-migration-sandbox";
     expect(pathLines("~/bc-tasks/…/proj/voice-input-native-bridge-runtime-migration-sandbox", 35)).toBe(3);
     expect(foldPath(sandbox, 35)).toBe("~/bc-tasks/…/voice-input-native-bridge-runtime-migration-sandbox");
-    // Two lines of 12 hold 24: the segment is cut once in its middle, nothing repeats.
-    expect(foldPath(longLast, 12)).toBe("…/voice-in…ation-sandbox");
-    expect(pathText("~/a-b/c", 10)).toBe("~/\u200ba-\u2060b/\u200bc");
+    // Two lines of 12: the segment keeps its first and last hyphen parts around "…", never cut inside a word.
+    const narrow = foldPath(longLast, 12);
+    expect(narrow).toMatch(/^…\/voice-….*sandbox$/);
+    expect(pathLines(narrow, 12)).toBeLessThanOrEqual(2);
+    expect(pathTokens("~/a-b/c", 10)).toEqual(["~/", "a-b/", "c"]);
     expect(breakable("feat/align-ios")).toBe("feat/\u200balign-\u200bios");
     expect(modeIcon("claude", "Bypass")).toBe("ShieldOff");
     expect(modeIcon("claude", "Plan Mode")).toBe("ShieldEllipsis");
