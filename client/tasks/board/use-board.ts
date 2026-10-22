@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { usePaseo, useSettings } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
-import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type TasksSettings } from "../../../shared/tasks-settings";
+import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type LaneWidth, type TasksSettings } from "../../../shared/tasks-settings";
 import { permissionButtons, respondToPermission, useStopControl, type PermissionButton, type StopControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, useTasks, type TasksHandle } from "../data";
@@ -31,6 +31,10 @@ export interface BoardController {
   language: TasksLanguage;
   strings: BoardStrings;
   settings: TasksSettings;
+  /** The lanes' width: the setting, or the one just picked on the board while it saves. */
+  laneWidth: LaneWidth;
+  /** Saves a lane width to the Tasks settings, so the settings page and every other client follow it. */
+  setLaneWidth(width: LaneWidth): void;
   params: BoardParams;
   setParams(update: (params: BoardParams) => BoardParams): void;
   defaults: BoardDefaults;
@@ -180,6 +184,14 @@ export function useBoard(
   const settingsState = useSettings(TASKS_SETTINGS);
   const settings = settingsState.status === "ready" ? settingsState.values : DEFAULT_TASKS_SETTINGS;
 
+  // A width picked on the board draws at once; the record catches up when the save lands.
+  const [pickedWidth, setPickedWidth] = useState<LaneWidth | null>(null);
+  const savedWidth = settings.board.laneWidth;
+  useEffect(() => setPickedWidth(null), [savedWidth]);
+  const laneWidth = pickedWidth ?? savedWidth;
+  const settingsRef = useRef(settingsState);
+  settingsRef.current = settingsState;
+
   // Opened with params (a deep link, the sidebar, the Command Center): those;
   // else what this board showed last in this session.
   const [params, setParamsState] = useState<BoardParams>(() =>
@@ -250,6 +262,19 @@ export function useBoard(
   // Callbacks read the latest values through a ref, so the memoized cards see stable functions.
   const latest = useRef({ props, paseo, toast, stop, strings, tasks });
   latest.current = { props, paseo, toast, stop, strings, tasks };
+  const setLaneWidth = useCallback((width: LaneWidth) => {
+    const state = settingsRef.current;
+    if (state.status !== "ready") return;
+    setPickedWidth(width);
+    const next = { ...state.values, board: { ...state.values.board, laneWidth: width } };
+    void state.save(next, state.revision).then(async (saved) => {
+      if (saved) return;
+      // Most often a stale revision: show what the host has, and say this one did not take.
+      setPickedWidth(null);
+      await state.reload();
+      latest.current.toast.error(latest.current.strings.laneWidth.saveFailed);
+    });
+  }, []);
   const toastMessage = useCallback((message: string) => latest.current.toast.show(message), []);
   const open = useCallback((agentId: string) => latest.current.props.navigation?.openAgent({ agentId }), []);
   const requestProjectIcon = useCallback((projectId: string) => latest.current.tasks.requestProjectIcon(projectId), []);
@@ -284,6 +309,8 @@ export function useBoard(
     language,
     strings,
     settings,
+    laneWidth,
+    setLaneWidth,
     params,
     setParams,
     defaults,

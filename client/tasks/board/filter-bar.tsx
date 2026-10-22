@@ -9,11 +9,11 @@ import { HAIRLINE } from "./board-style";
 import { activeChips, clearedParams, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
 import { sortLabel } from "./strings";
-import { agentMenuSections, labelMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
+import { agentMenuSections, labelMenuSections, laneWidthMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
 import { CascadeMenu } from "./menu";
 import type { BoardController } from "./use-board";
 
-export type FilterMenu = "workspace" | "agent" | "label" | "sort";
+export type FilterMenu = "workspace" | "agent" | "label" | "sort" | "laneWidth";
 
 /** The narrowest board whose toolbar shows the key hints beside the count and the search. */
 export const KEY_HINTS_MIN_WIDTH = 760;
@@ -279,7 +279,7 @@ export function DesktopFilterBar(props: {
           </>
         ) : null}
       </View>
-      <View testID="filter-bar-end" style={{ flexShrink: 1, maxWidth: "100%", marginLeft: "auto", height: taskControlHeight(28, scale), flexDirection: "row", alignItems: "center", gap: 6, zIndex: menu === "sort" ? 2 : 1 }}>
+      <View testID="filter-bar-end" style={{ flexShrink: 1, maxWidth: "100%", marginLeft: "auto", height: taskControlHeight(28, scale), flexDirection: "row", alignItems: "center", gap: 6, zIndex: menu === "sort" || menu === "laneWidth" ? 2 : 1 }}>
         <Text numberOfLines={1} style={{ fontSize: F.base, color: colors.foregroundMuted }}>{strings.doneWindowLabel}</Text>
         <WindowSegments
           value={resolved.doneWindow}
@@ -305,6 +305,23 @@ export function DesktopFilterBar(props: {
             align="right"
             onClose={() => setMenu(null)}
             testID="sort-menu"
+          />
+        </MenuButton>
+        <MenuButton
+          icon="Columns3"
+          label={strings.laneWidth.button(strings.laneWidth.names[board.laneWidth])}
+          open={menu === "laneWidth"}
+          onPress={() => toggle("laneWidth")}
+          theme={theme}
+        >
+          <CascadeMenu
+            sections={laneWidthMenuSections(board.laneWidth, strings, board.setLaneWidth)}
+            theme={theme}
+            width={180}
+            top={taskControlHeight(28, scale) + 6}
+            align="right"
+            onClose={() => setMenu(null)}
+            testID="lane-width-menu"
           />
         </MenuButton>
       </View>
