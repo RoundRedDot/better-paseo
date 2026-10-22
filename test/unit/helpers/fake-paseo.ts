@@ -205,6 +205,17 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   const agents = new Map<string, Agent>((options.agents ?? []).map((agent) => [agent.id, agent]));
   const placements = new Map<string, Placement>(Object.entries(options.placements ?? {}));
   const workspaces = new Map<string, PaseoWorkspace>((options.workspaces ?? []).map((ws) => [ws.id, ws]));
+  // Without workspaces of its own, a fixture still has each agent's: Paseo
+  // lists every workspace that is not archived, and an agent outside the list
+  // belongs to an archived one.
+  const autoWorkspaces = options.workspaces === undefined;
+  const ensureWorkspace = (agent: Agent) => {
+    if (!autoWorkspaces || !agent.workspaceId || workspaces.has(agent.workspaceId)) return null;
+    const workspace = makeWorkspace({ id: agent.workspaceId });
+    workspaces.set(workspace.id, workspace);
+    return workspace;
+  };
+  for (const agent of agents.values()) ensureWorkspace(agent);
   let projects = [...(options.projects ?? [])];
   let labels = [...(options.labels ?? [])];
   const calls: FakeCall[] = [];
@@ -386,6 +397,8 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     /** Open subscriptions, so a test can check that the board released them. */
     openSubscriptions: () => agentSubs.size + workspaceSubs.size + labelSubs.size + projectSubs.size,
     upsertAgent(agent: Agent, placement?: Placement) {
+      const workspace = ensureWorkspace(agent);
+      if (workspace) this.upsertWorkspace(workspace);
       agents.set(agent.id, agent);
       if (placement) placements.set(agent.id, placement);
       pushAgent(agent, null);
@@ -399,6 +412,7 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       agents.delete(agentId);
     },
     setAgentSilently(agent: Agent, placement?: Placement) {
+      ensureWorkspace(agent);
       agents.set(agent.id, agent);
       if (placement) placements.set(agent.id, placement);
     },
@@ -406,6 +420,14 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       workspaces.set(workspace.id, workspace);
       for (const sub of workspaceSubs) {
         const message = { type: "workspace_update", payload: { subscriptionId: sub.id, kind: "upsert", workspace } };
+        for (const observer of sub.observers) observer.update(message);
+      }
+    },
+    /** Archive a workspace: the list leaves it out, and its agents stay unarchived. */
+    removeWorkspace(id: string) {
+      workspaces.delete(id);
+      for (const sub of workspaceSubs) {
+        const message = { type: "workspace_update", payload: { subscriptionId: sub.id, kind: "remove", id } };
         for (const observer of sub.observers) observer.update(message);
       }
     },

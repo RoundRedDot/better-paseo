@@ -667,6 +667,8 @@ function createStore(api: PaseoApi): TaskStore {
   let statusReady = false;
   let attentionReady = false;
   let workspacesReady = false;
+  /** The workspace list itself arrived, not a failed read: only then does a missing workspace mean archived. */
+  let workspacesListed = false;
   let countsCache: SidebarCounts | null = null;
   let countsDirty = true;
   let loadingDone = false;
@@ -711,9 +713,31 @@ function createStore(api: PaseoApi): TaskStore {
     removeRecord(id);
   }
 
+  /**
+   * An agent of an archived workspace, or of an archived project's, is not
+   * archived itself when Paseo leaves it be, and the agent lists keep it
+   * (Paseo 0.12, `AgentDirectory.list`), but Paseo shows it nowhere. The
+   * workspace list leaves those workspaces out, so this is known only while
+   * the board's workspace subscription is open.
+   */
+  function inArchivedWorkspace(id: string): boolean {
+    const workspaceId = entries.get(id)?.agent.workspaceId;
+    if (!workspacesListed || !workspaceId) return false;
+    const workspace = workspaces.get(workspaceId);
+    return !workspace || Boolean(workspace.archivingAt);
+  }
+
+  /** A card, its parent's list of children, and its children's parent row. */
+  function refreshWithKin(id: string) {
+    refreshFinalCard(id);
+    const parentId = parentByChild.get(id);
+    if (parentId) refreshFinalCard(parentId);
+    for (const childId of childrenByParent.get(id) ?? []) refreshFinalCard(childId);
+  }
+
   function refreshFinalCard(id: string): boolean {
     const base = baseCards.get(id);
-    if (!base) {
+    if (!base || inArchivedWorkspace(id)) {
       return cards.delete(id);
     }
     const parentAgentId = parentByChild.get(id);
@@ -721,7 +745,7 @@ function createStore(api: PaseoApi): TaskStore {
     const parentTitle = parentAgentId
       ? parentEntry?.agent.title?.trim() || resolvedParents.get(parentAgentId)?.title || null
       : null;
-    const parentMissing = parentAgentId ? !baseCards.has(parentAgentId) : false;
+    const parentMissing = parentAgentId ? !baseCards.has(parentAgentId) || inArchivedWorkspace(parentAgentId) : false;
     const childIds = childrenByParent.get(id);
     const next: TaskCard = withReadMark(withSubagents({
       ...withTurnError(base, turnErrors.get(id)),
@@ -738,7 +762,7 @@ function createStore(api: PaseoApi): TaskStore {
       children: childIds
         ? [...childIds]
             .map((childId): TaskChild | null => {
-              const child = cards.get(childId) ?? baseCards.get(childId);
+              const child = inArchivedWorkspace(childId) ? undefined : cards.get(childId) ?? baseCards.get(childId);
               return child
                 ? {
                     id: child.id,
@@ -897,7 +921,9 @@ function createStore(api: PaseoApi): TaskStore {
    * that stays on the board is looked up once its delete has had time to
    * land, and again a little later in case the delete was slow; one that is
    * gone leaves every lane. A daemon restart closes agents too, and those
-   * are found and kept.
+   * are found and kept. An archive reaches the lists only as a remove, so a
+   * card a done page read still holds is let go when the look finds it
+   * archived.
    */
   function checkGone(id: string, attempt = 0) {
     if (goneChecks.has(id)) return;
@@ -912,7 +938,7 @@ function createStore(api: PaseoApi): TaskStore {
       void api.agents.ref(id).refresh().then((result) => {
         if (run !== generation) return;
         goneChecks.delete(id);
-        if (result) {
+        if (result && !isArchived(result.agent)) {
           if (result.agent.status === "closed" && attempt + 1 < GONE_CHECK_DELAYS_MS.length) checkGone(id, attempt + 1);
           return;
         }
@@ -936,6 +962,9 @@ function createStore(api: PaseoApi): TaskStore {
         updateRecord(entry.agent, entry.project ?? null);
       }
       sourceMembers.set(sourceKey, nextMembers);
+      // The done lane starts over from its first page, as `doneCursor` below
+      // does: a page read once hears of no archive made while disconnected.
+      if (sourceKey === DONE_SUBSCRIPTION) for (const key of [...sourceMembers.keys()]) if (key.startsWith("done-page-")) sourceMembers.delete(key);
       for (const id of [...entries.keys()]) if (!nextMembers.has(id) && memberSetsContaining(id).length === 0) dropIfUnreferenced(id);
       if (sourceKey === STATUS_KEY) statusReady = true;
       if (sourceKey === ATTENTION_KEY) attentionReady = true;
@@ -1294,8 +1323,7 @@ function createStore(api: PaseoApi): TaskStore {
       const project = projects.get(workspace.projectId);
       const base = buildBaseCard(entry, workspace, project, colorNames, modelCatalogs.get(entry.agent.provider), projectIcons.get(workspace.projectId));
       baseCards.set(id, base);
-      refreshFinalCard(id);
-      for (const childId of childrenByParent.get(id) ?? []) refreshFinalCard(childId);
+      refreshWithKin(id);
     }
     notify();
   }
@@ -1325,16 +1353,17 @@ function createStore(api: PaseoApi): TaskStore {
             next.add(workspace.id);
             updateWorkspace(workspace);
           }
-          const removed = [...workspaces.keys()].filter((id) => !next.has(id));
-          for (const id of removed) workspaces.delete(id);
-          if (removed.length > 0) {
-            const removedIds = new Set(removed);
-            for (const [id, entry] of entries) {
-              if (!entry.agent.workspaceId || !removedIds.has(entry.agent.workspaceId)) continue;
+          workspacesListed = true;
+          const removedIds = new Set([...workspaces.keys()].filter((id) => !next.has(id)));
+          for (const id of removedIds) workspaces.delete(id);
+          // Gone from the list, or never in it: archived, and its cards leave.
+          for (const [id, entry] of entries) {
+            if (!entry.agent.workspaceId || next.has(entry.agent.workspaceId)) continue;
+            if (removedIds.has(entry.agent.workspaceId)) {
               const project = projectFor(entry, undefined, projects);
               baseCards.set(id, buildBaseCard(entry, undefined, project, colorNames, modelCatalogs.get(entry.agent.provider), project ? projectIcons.get(project.projectId) : undefined));
-              refreshFinalCard(id);
             }
+            refreshWithKin(id);
           }
           notify();
         });
@@ -1348,7 +1377,7 @@ function createStore(api: PaseoApi): TaskStore {
             if (entry.agent.workspaceId !== envelope.payload.id) continue;
             const base = buildBaseCard(entry, undefined, projectFor(entry, undefined, projects), colorNames, modelCatalogs.get(entry.agent.provider), undefined);
             baseCards.set(id, base);
-            refreshFinalCard(id);
+            refreshWithKin(id);
           }
           notify();
         }
@@ -1506,6 +1535,7 @@ function createStore(api: PaseoApi): TaskStore {
   function startBoard() {
     const run: Run = { generation, tier: "board", tierRun: ++boardRun };
     workspacesReady = false;
+    workspacesListed = false;
     void startWorkspaceSubscription(run);
     void startLabelSubscription(run);
     void startProjects(run);
@@ -1568,6 +1598,7 @@ function createStore(api: PaseoApi): TaskStore {
     for (const key of ["workspaces", "labels"]) stopSubscription(key);
     for (const unsubscribe of projectUnsubscribes.splice(0)) unsubscribe();
     workspacesReady = false;
+    workspacesListed = false;
     workspaces.clear();
     projects.clear();
     colorNames.clear();
@@ -1618,6 +1649,7 @@ function createStore(api: PaseoApi): TaskStore {
     statusReady = false;
     attentionReady = false;
     workspacesReady = false;
+    workspacesListed = false;
     doneCursor = null;
     doneTailAt = null;
     loadingDone = false;

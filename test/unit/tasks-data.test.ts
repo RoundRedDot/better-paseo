@@ -488,6 +488,89 @@ describe("Tasks data store", () => {
     }
   });
 
+  it("drops a card archived after the done lane paged it in", async () => {
+    const done = Array.from({ length: 51 }, (_, index) => activeAgent("done-" + index, {
+      status: "idle",
+      requiresAttention: false,
+      updatedAt: recentIso(index * 1_000),
+    }));
+    const fake = createFakePaseo({ agents: done, workspaces: [workspace()] });
+    const mounted = await mountTasks(fake);
+    try {
+      await act(async () => {
+        mounted.current.loadMoreDone();
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.has("done-50")).toBe(true);
+      vi.useFakeTimers({ toFake: ["setTimeout"] });
+      // Only the page read holds "done-50"; the subscriptions just say it left them.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("done-50", { status: "idle", requiresAttention: false, updatedAt: recentIso(50_000), archivedAt: recentIso(0) }));
+        await Promise.resolve();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.has("done-50")).toBe(false);
+      expect(mounted.current.lanes.done.cards).toHaveLength(50);
+    } finally {
+      vi.useRealTimers();
+      mounted.unmount();
+    }
+  });
+
+  it("drops a paged-in done card archived while disconnected", async () => {
+    const done = Array.from({ length: 51 }, (_, index) => activeAgent("done-" + index, {
+      status: "idle",
+      requiresAttention: false,
+      updatedAt: recentIso(index * 1_000),
+    }));
+    const fake = createFakePaseo({ agents: done, workspaces: [workspace()] });
+    const mounted = await mountTasks(fake);
+    try {
+      await act(async () => {
+        mounted.current.loadMoreDone();
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.has("done-50")).toBe(true);
+      fake.setAgentSilently(activeAgent("done-50", { status: "idle", requiresAttention: false, updatedAt: recentIso(50_000), archivedAt: recentIso(0) }));
+      await act(async () => {
+        fake.reconnectSubscriptions();
+        await Promise.resolve();
+      });
+      expect(mounted.current.byId.has("done-50")).toBe(false);
+      expect(mounted.current.lanes.done.cards).toHaveLength(50);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("leaves out the tasks of an archived workspace, and Paseo's agents that outlive one", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("live", { status: "idle", requiresAttention: true, updatedAt: recentIso(1_000) }),
+        // Its workspace was archived without it: Paseo still lists the agent, but no longer the workspace.
+        activeAgent("stale", { status: "idle", requiresAttention: true, updatedAt: recentIso(2_000), workspaceId: "ws-archived" }),
+      ],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake);
+    try {
+      expect(mounted.current.byId.get("live")?.lane).toBe("review");
+      expect(mounted.current.byId.has("stale")).toBe(false);
+      expect(mounted.current.counts.review).toBe(1);
+      await act(async () => {
+        fake.removeWorkspace("ws");
+        await Promise.resolve();
+      });
+      expect(mounted.current.byId.has("live")).toBe(false);
+      expect(mounted.current.counts.review).toBe(0);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("brings an unarchived parent back as a done card the child links to", async () => {
     const fake = createFakePaseo({
       agents: [
