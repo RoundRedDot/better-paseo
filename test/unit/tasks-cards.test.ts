@@ -659,6 +659,14 @@ describe("TaskCardView rows", () => {
     expect(onPermission).toHaveBeenCalledWith(card, buttons[1]);
     expect(onOpen).not.toHaveBeenCalled();
   });
+
+  it("leaves out a permission summary its title already says", async () => {
+    const base = sample("sample-input");
+    const card: TaskCard = { ...base, permission: { ...base.permission!, title: "Run npm run db:migrate", summary: "npm run  db:migrate" } };
+    const all = texts((await render(cardElement(card))).root);
+    expect(all).toContain("Run npm run db:migrate");
+    expect(all.some((text) => text.includes(" · npm run"))).toBe(false);
+  });
 });
 
 describe("ProjectIcon", () => {
