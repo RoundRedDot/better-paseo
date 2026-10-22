@@ -100,6 +100,20 @@ export function distinctLabels(items: FilterOption[], workspaces: readonly { id:
   });
 }
 
+/**
+ * The phone sheet's workspaces, folded: those with an active task or picked,
+ * in their projects, and how many others are left out.
+ */
+export function busyWorkspaceGroups(groups: FilterOptions["workspaceGroups"]): { groups: FilterOptions["workspaceGroups"]; hidden: number } {
+  let hidden = 0;
+  const busy = groups.flatMap((group) => {
+    const items = group.items.filter((item) => item.count > 0 || item.on);
+    hidden += group.items.length - items.length;
+    return items.length ? [{ ...group, items }] : [];
+  });
+  return { groups: busy, hidden };
+}
+
 /** An applied filter as a removable chip on the desktop filter bar. */
 export interface ActiveChip {
   key: string;

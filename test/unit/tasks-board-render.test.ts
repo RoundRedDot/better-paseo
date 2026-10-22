@@ -1359,7 +1359,7 @@ describe("Tasks board, phone", () => {
     const scroll = sheet.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
     const footer = sheet.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-footer");
     expect(scroll.findAll((node) => node === footer)).toHaveLength(0);
-    expect(textOf(footer)).toMatch(/^Show \d+ tasks?$/);
+    expect(textOf(footer)).toMatch(/^ResetShow \d+ tasks?$/);
     const fields = sheet.find((node) => (node.type as unknown) === "View" && node.props.testID === "sort-fields");
     act(() => fields.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 512 } } }));
     const branch = fields.find((node) => (node.type as unknown) === "Pressable" && textOf(node).startsWith("Branch"));
@@ -1389,22 +1389,67 @@ describe("Tasks board, phone", () => {
     expect(notice()).toHaveLength(0);
   });
 
-  it("opens the filter sheet with the sort first from the header's sort pill, and at the workspaces from the filters button", () => {
+  it("opens the filter sheet with the sort first from the header's sort pill, and with the switches first from the filters button", () => {
     const order = () => {
       const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
       const text = textOf(scroll);
-      return { sort: text.indexOf("Sort"), workspace: text.indexOf("Workspace") };
+      return { sort: text.indexOf("Sort"), switches: text.indexOf("Open tabs only"), workspace: text.indexOf("Workspace") };
     };
     act(() => {
       renderer = TestRenderer.create(screen(true, { sort: "branch-desc" }));
     });
     act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "phone-sort-hint").props.onPress());
     expect(order().sort).toBeGreaterThanOrEqual(0);
-    expect(order().sort).toBeLessThan(order().workspace);
+    expect(order().sort).toBeLessThan(order().switches);
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-sort")).toHaveLength(1);
     act(() => renderer!.root.find((node) => (node.type as unknown) === "Modal").props.onOpenChange?.(false));
     act(() => pressable("Filters").props.onPress());
-    expect(order().workspace).toBeLessThan(order().sort);
+    expect(order().switches).toBeLessThan(order().sort);
+    expect(order().sort).toBeLessThan(order().workspace);
+  });
+
+  it("leads the filter sheet with the short filters, the workspaces last with the idle ones folded, Reset by its button", () => {
+    const handle = (data as unknown as { __handle: { workspaces: object[] } }).__handle;
+    const saved = handle.workspaces;
+    handle.workspaces = [...saved, { id: "wks_idle", name: "idle-branch", projectId: "prj_idle", projectName: "idle-project" }];
+    try {
+      act(() => {
+        renderer = TestRenderer.create(screen(true));
+      });
+      act(() => pressable("Filters").props.onPress());
+      const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
+      const text = textOf(scroll);
+      const at = (label: string) => text.indexOf(label);
+      expect(at("Open tabs only")).toBe(0);
+      expect(at("Hide subtasks")).toBeLessThan(at("Agent"));
+      expect(at("Agent")).toBeLessThan(at("Labels"));
+      expect(at("Labels")).toBeLessThan(at("Sort"));
+      expect(at("Sort")).toBeLessThan(at("Workspace"));
+      // Reset sits by the sheet's button, not on a row of its own over the options.
+      expect(scroll.findAll((node) => (node.type as unknown) === "Pressable" && textOf(node) === "Reset")).toHaveLength(0);
+      const reset = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-reset");
+      const workspaces = () => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-workspaces");
+      const chips = () => workspaces().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox");
+      const more = () => workspaces().findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-more-workspaces");
+      const shown = chips().map(textOf);
+      expect(shown.length).toBeGreaterThan(0);
+      expect(shown.every((chip) => !/0$/.test(chip))).toBe(true);
+      expect(more()).toHaveLength(1);
+      expect(textOf(more()[0]!)).toMatch(/^\d+ more workspaces? with nothing active$/);
+      act(() => more()[0]!.props.onPress());
+      expect(chips().length).toBeGreaterThan(shown.length);
+      expect(textOf(more()[0]!)).toBe("Show fewer");
+      // A picked idle workspace counts as busy: nothing is left to fold. Reset folds it again.
+      const idle = chips().find((chip) => /0$/.test(textOf(chip)))!;
+      act(() => idle.props.onPress());
+      expect(more()).toHaveLength(0);
+      expect(chips().map(textOf)).toContain("idle-branch0");
+      act(() => reset.props.onPress());
+      act(() => more()[0]!.props.onPress());
+      expect(chips().map(textOf)).toEqual(shown);
+    } finally {
+      handle.workspaces = saved;
+    }
   });
 
   it("opens the details sheet on a card's tap or long press instead of its tab", () => {
