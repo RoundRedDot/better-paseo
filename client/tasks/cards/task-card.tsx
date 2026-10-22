@@ -300,6 +300,16 @@ export function cardLayout(card: TaskCard, fields: CardSettings, compact: boolea
   };
 }
 
+/**
+ * The request's summary after its title, unless the title already says it:
+ * "Run npm run db:migrate · npm run db:migrate" reads the command twice.
+ */
+function summaryBeyondTitle(title: string, summary: string | null): string | null {
+  if (!summary) return null;
+  const words = (text: string) => text.replace(/\s+/g, " ").trim().toLowerCase();
+  return words(title).includes(words(summary)) ? null : summary;
+}
+
 /** Children that Stop with subtasks would reach. */
 function activeChildren(card: TaskCard): number {
   return card.children.filter((child) => child.status === "running" || child.status === "needs_input").length;
@@ -764,6 +774,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
 
   const permission = card.permission;
   const asksQuestion = permission?.kind === "question" || permission?.kind === "other";
+  const permissionSummary = permission ? summaryBeyondTitle(permission.title, permission.summary) : null;
   const permissionBlock =
     layout.permission && permission ? (
       <View style={[block, { gap: 8, zIndex: answerRow ? ringZ : undefined }]} testID="task-card-permission">
@@ -773,8 +784,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           </View>
           <Text numberOfLines={2} style={[text(m.blockSize, m.blockLine, tokens.foreground), { flex: 1 }]}>
             <Text style={{ fontWeight: asksQuestion ? "500" : "600" }}>{permission.title}</Text>
-            {permission.summary ? <Text style={{ color: muted }}> · </Text> : null}
-            {permission.summary}
+            {permissionSummary ? <Text style={{ color: muted }}> · </Text> : null}
+            {permissionSummary}
           </Text>
           {permission.remaining > 0 ? (
             <Text style={[text(m.blockSize - 1, m.blockLine, muted), tabular]}>{strings.more(permission.remaining)}</Text>
