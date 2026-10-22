@@ -18,7 +18,7 @@ import { useTime, type TimeSource } from "./clock";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
 import { cardTimer } from "./task-card";
-import { branchHint, breakable, foldPath, pathText, SUBTASK_ROWS } from "./details-format";
+import { branchHint, breakable, foldPath, pathTokens, SUBTASK_ROWS } from "./details-format";
 import {
   contextView,
   detailHero,
@@ -65,7 +65,6 @@ const TOUCH_CARD = { ...DETAIL_CARD, row: 44, listRow: 44, heading: 44, font: 15
 
 type Metrics = typeof DETAIL_CARD | typeof TOUCH_CARD;
 
-/** Properties go two columns once the card's content is this wide (a sidebar of about 480) and both rows fit their half. */
 /** The properties get a label column from this width and lose it under `hide`: the 8 between keeps a drag from flickering it. */
 const LABEL_COLUMN = { show: 448, hide: 440 } as const;
 
@@ -129,6 +128,13 @@ export interface TaskDetailCardsProps extends TimeSource {
   onJump?(agentId: string): void;
   /** The sections scroll under the fixed header (the sidebar); else the card grows with them (the sheet). */
   scrollBody?: boolean;
+  /**
+   * Two columns that scroll on their own: the header (with the subtasks, when
+   * the card has them) on the left, the other sections on the right. A
+   * tablet's wide bottom sheet, where one column ran tall and sparse. The
+   * card fills its parent.
+   */
+  columns?: boolean;
   /** False when the actions live elsewhere (the phone's bar under the sheet). */
   actions?: boolean;
   testID?: string;
@@ -145,17 +151,41 @@ export function TaskDetailCards(props: TaskDetailCardsProps) {
   const now = useTime(props, (time) => Math.floor(time / MINUTE) * MINUTE);
   const choices = useSectionChoices();
   const { order, closed } = detailSections(card);
-  const sections = order.map((section) => (
+  // Two columns: the subtasks sit under the header, everything else on the right.
+  const leftSections: DetailSection[] = props.columns ? order.filter((section) => section === "subtasks") : [];
+  const rightOrder = order.filter((section) => !leftSections.includes(section));
+  const sectionView = (section: DetailSection, divider: boolean) => (
     <Section
       key={section}
       section={section}
+      divider={divider}
       closed={sectionClosed(choices, section, closed.includes(section))}
       {...props}
       m={m}
       tokens={tokens}
       now={now}
     />
-  ));
+  );
+  const sections = order.map((section) => sectionView(section, true));
+  if (props.columns) {
+    return (
+      <View testID={props.testID ?? "detail-cards"} style={[detailCardFrame(tokens), { flex: 1, minHeight: 0, flexDirection: "row" }]}>
+        {/* Plain views share the width (a ScrollView's own flex is not honoured on iOS); each scroll fills its half. */}
+        <View style={{ flex: 1.2, minWidth: 0 }}>
+          <ScrollView key={`${card.id}-head`} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 4 }} showsVerticalScrollIndicator={false} testID="detail-column-head">
+            <DetailHeader {...props} m={m} tokens={tokens} now={now} />
+            {leftSections.map((section) => sectionView(section, true))}
+          </ScrollView>
+        </View>
+        <View style={{ width: StyleSheet.hairlineWidth, marginVertical: 12, backgroundColor: tokens.card.border }} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <ScrollView key={`${card.id}-sections`} style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 2, paddingBottom: 4 }} showsVerticalScrollIndicator={false} testID="detail-column-sections">
+            {rightOrder.map((section, index) => sectionView(section, index > 0))}
+          </ScrollView>
+        </View>
+      </View>
+    );
+  }
   return (
     <View testID={props.testID ?? "detail-cards"} style={[detailCardFrame(tokens), props.scrollBody ? { flexShrink: 1, minHeight: 0 } : null]}>
       <DetailHeader {...props} m={m} tokens={tokens} now={now} />
@@ -498,7 +528,7 @@ function ErrorBlock(props: Inner) {
 
 // ---- Sections --------------------------------------------------------------
 
-function Section(props: Inner & { section: DetailSection; closed: boolean }) {
+function Section(props: Inner & { section: DetailSection; closed: boolean; divider: boolean }) {
   const { card, m, tokens, section } = props;
   const words = cardStrings(props.language).details;
   const title = { properties: words.properties, subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
@@ -513,7 +543,7 @@ function Section(props: Inner & { section: DetailSection; closed: boolean }) {
   const testID = { properties: "detail-location", subtasks: "detail-subtasks", usage: "detail-usage", activity: "detail-activity" }[section];
   return (
     <View testID={testID}>
-      <View style={{ height: StyleSheet.hairlineWidth, marginHorizontal: m.padH, backgroundColor: tokens.card.border }} />
+      {props.divider ? <View style={{ height: StyleSheet.hairlineWidth, marginHorizontal: m.padH, backgroundColor: tokens.card.border }} /> : null}
       <View style={{ paddingTop: 4, paddingBottom: 8, paddingHorizontal: m.padH - 6 }}>
         <SectionHeading m={m} tokens={tokens} title={title} summary={summary} summaryStyle={section === "properties" && card.location.branch ? { maxWidth: "60%", fontFamily: MONO } : undefined} closed={props.closed} language={props.language} onPress={() => setSectionClosed(section, !props.closed)} />
         {props.closed ? null : section === "properties" ? (
@@ -560,8 +590,6 @@ function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; 
   );
 }
 
-const WORKSPACE_ICONS = { local_checkout: "Laptop", worktree: "GitFork", checkout: "Laptop", directory: "Folder" } as const;
-
 /**
  * The properties (`docs/prototypes/task-details-properties.md`): one row per
  * field, icon 16 · value · trailing 16, no label column until the card is
@@ -588,7 +616,7 @@ function Properties(props: Inner) {
     const kind = location.workspaceKind;
     const notes: Note[] = [];
     if (location.projectName && location.workspaceName) notes.push({ text: location.workspaceName });
-    if (kind) notes.push({ text: cardText.kind[kind], icon: WORKSPACE_ICONS[kind] });
+    if (kind) notes.push({ text: cardText.kind[kind] });
     rows.push(<PropertyRow {...common} key="place" label={words.project} lead={<ProjectIcon location={location} size={16} />} value={placeName} strong hyphens lines={2} notes={notes} testID="detail-place" />);
   }
 
@@ -669,7 +697,7 @@ function Properties(props: Inner) {
         value={title}
         lines={3}
         muted={parent.missing}
-        notes={parent.missing ? [{ text: details.archived, icon: "Archive" }, { text: details.cannotJump }] : []}
+        notes={parent.missing ? [{ text: details.archived }, { text: details.cannotJump }] : []}
         onPress={jump}
         accessibilityLabel={`${words.parent}: ${title}`}
         testID="detail-parent"
@@ -677,7 +705,7 @@ function Properties(props: Inner) {
     );
   }
   return (
-    <View onLayout={onLayout} style={{ gap: 2 }} testID="detail-properties">
+    <View onLayout={onLayout} testID="detail-properties">
       {rows}
     </View>
   );
@@ -686,8 +714,7 @@ function Properties(props: Inner) {
 /** A part of a property's note line: workspace, kind, ahead/behind, uncommitted, archived. */
 interface Note {
   text: string;
-  icon?: string;
-  /** Uncommitted changes: the warning colour after a 6 dot. */
+  /** Uncommitted changes: the warning colour after a dot. */
   warn?: boolean;
   /** Runs of the text in their own colour: ahead in green, behind in orange, a zero left muted. */
   parts?: { text: string; color?: string }[];
@@ -732,11 +759,12 @@ function PropertyRow(props: {
   const { copy } = useCopy();
   const [columns, setColumns] = useState(36);
   const touch = m === TOUCH_CARD;
-  const font = touch ? 15 : 14;
-  const line = touch ? 22 : 20;
+  // The card's body size (the usage rows, the subtasks): 14 on touch, 13 with a pointer; rows as tight as the usage's.
+  const font = touch ? 14 : 13;
+  const line = touch ? 20 : 18;
   const monoFont = font - 1;
-  const noteFont = touch ? 13 : 12;
-  const rowHeight = taskControlHeight(touch ? 44 : 36, scale);
+  const noteFont = 12;
+  const rowHeight = taskControlHeight(touch ? 36 : 30, scale);
   // The host's toast confirms a copy; the row itself does not change.
   const doCopy = props.copy ? () => void copy(props.copy!.text, { label: props.copy!.toast, feedback: "toast" }) : undefined;
   const doOpen = props.link ? () => openLink(props.link!) : undefined;
@@ -747,8 +775,9 @@ function PropertyRow(props: {
   const actionSlot = touch ? 0 : (props.copy ? 24 : 0) + (props.link ? 26 : 0);
   const showActions = actionSlot > 0 && hovered;
   let shown = props.value;
-  if (props.mono === "path") shown = pathText(foldPath(props.value, columns, props.lines), columns);
-  else if (props.mono === "branch" || props.hyphens) shown = breakable(props.value);
+  if (props.mono === "branch" || props.hyphens) shown = breakable(props.value);
+  // A path wraps as runs in a row, so its breaks are the layout's on every platform.
+  const runs = props.mono === "path" ? pathTokens(foldPath(props.value, columns, props.lines), columns) : null;
   const onValueLayout =
     props.mono === "path"
       ? (event: LayoutChangeEvent) => {
@@ -772,23 +801,20 @@ function PropertyRow(props: {
   else if (touch && props.link) trailing = <Icon name="ArrowUpRight" size={16} color={tokens.foregroundMuted} />;
   else if (touch && props.copy) trailing = <Icon name="Copy" size={14} color={tokens.foregroundMuted} />;
   const notes = props.notes ?? [];
-  const noteText: TextStyle = { fontSize: noteFont, lineHeight: 18, color: tokens.foregroundMuted };
-  const noteLine = notes.length > 0 ? (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 6, marginTop: 2 }}>
-      {notes.map((note, index) => (
-        <React.Fragment key={note.text}>
-          {index > 0 ? <Text style={noteText}>·</Text> : null}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            {note.warn ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: tokens.warning }} /> : null}
-            {note.icon ? <Icon name={note.icon} size={12} color={tokens.foregroundMuted} /> : null}
-            <Text style={[noteText, note.warn ? { color: tokens.warning } : null, note.parts ? { fontVariant: ["tabular-nums"] } : null]}>
-              {note.parts ? note.parts.map((part) => (part.color ? <Text key={part.text} style={{ color: part.color }}>{part.text}</Text> : part.text)) : note.text}
-            </Text>
-          </View>
-        </React.Fragment>
-      ))}
-    </View>
-  ) : null;
+  // One run of text, so a long workspace name wraps and the next part follows it on the same line.
+  const noteText: TextStyle = { fontSize: noteFont, lineHeight: 16, color: tokens.foregroundMuted, marginTop: 1 };
+  const noteLine =
+    notes.length > 0 ? (
+      <Text style={noteText} testID={props.testID ? `${props.testID}-note` : undefined}>
+        {notes.map((note, index) => (
+          <Text key={note.text} style={note.warn ? { color: tokens.warning } : note.parts ? { fontVariant: ["tabular-nums"] } : undefined}>
+            {index > 0 ? <Text style={{ color: tokens.foregroundMuted }}>{" \u00b7 "}</Text> : null}
+            {note.warn ? "\u25cf " : null}
+            {note.parts ? note.parts.map((part) => (part.color ? <Text key={part.text} style={{ color: part.color }}>{part.text}</Text> : part.text)) : note.text}
+          </Text>
+        ))}
+      </Text>
+    ) : null;
   const content = (
     <>
       {props.wide ? (
@@ -800,10 +826,20 @@ function PropertyRow(props: {
         {props.lead ?? (props.icon ? <Icon name={props.icon} size={16} color={tokens.foregroundMuted} /> : null)}
       </View>
       <View style={{ flex: 1, minWidth: 0 }} onLayout={onValueLayout}>
-        <Text numberOfLines={props.lines} style={valueStyle} testID={props.testID ? `${props.testID}-value` : undefined}>
-          {props.pre ? <Text style={{ fontSize: font, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`${props.pre}\u2002`}</Text> : null}
-          {shown}
-        </Text>
+        {runs ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }} testID={props.testID ? `${props.testID}-value` : undefined}>
+            {runs.map((token, index) => (
+              <Text key={index} style={valueStyle}>
+                {token}
+              </Text>
+            ))}
+          </View>
+        ) : (
+          <Text numberOfLines={props.lines} style={valueStyle} testID={props.testID ? `${props.testID}-value` : undefined}>
+            {props.pre ? <Text style={{ fontSize: font, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`${props.pre}\u2002`}</Text> : null}
+            {shown}
+          </Text>
+        )}
         {noteLine}
       </View>
       {trailing ? <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }}>{trailing}</View> : null}
@@ -817,7 +853,7 @@ function PropertyRow(props: {
   );
   const style: ViewStyle = {
     minHeight: rowHeight,
-    paddingHorizontal: touch ? 12 : 8,
+    paddingHorizontal: 8,
     paddingVertical: Math.max(4, Math.floor((rowHeight - line) / 2)),
     borderRadius: 8,
     flexDirection: "row",
@@ -931,7 +967,9 @@ function SubtaskRow(props: { m: Metrics; tokens: TaskTokens; theme: PluginTheme;
   const { hovered, hoverProps } = useHover();
   const facts = childFactParts(child);
   const active = props.onPress !== undefined && hovered;
-  const factText: TextStyle = { fontSize: m.font - 1, color: tokens.foregroundMuted };
+  // The card's body size, as the properties and the usage rows: 14 on touch, 13 with a pointer.
+  const font = m === TOUCH_CARD ? 14 : 13;
+  const factText: TextStyle = { fontSize: 12, color: tokens.foregroundMuted };
   return (
     <Pressable
       accessibilityRole="button"
@@ -952,7 +990,7 @@ function SubtaskRow(props: { m: Metrics; tokens: TaskTokens; theme: PluginTheme;
     >
       <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={active ? detailColors(tokens).rowHover : tokens.card.background} />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text numberOfLines={2} style={{ fontSize: m.font, color: tokens.foreground }}>
+        <Text numberOfLines={2} style={{ fontSize: font, color: tokens.foreground }}>
           {child.title}
         </Text>
         {facts.length > 0 ? (
