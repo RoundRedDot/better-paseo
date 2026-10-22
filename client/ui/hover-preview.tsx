@@ -34,7 +34,16 @@ export const HoverPreviewContext = createContext(false);
  * has none: an opened row, a web pointer, previews turned off.
  */
 export const RowLongPressContext = createContext<(() => void) | undefined>(undefined);
-const PreviewActionsContext = createContext<{
+/**
+ * Which chrome a preview's content draws in: the hover / press panel, or the
+ * block details drawer and panels (`client/details`), whose header and toolbar
+ * `HoverPreviewHeader` renders from the same props.
+ */
+export type PreviewChrome = "hover" | "details";
+export const PreviewChromeContext = createContext<PreviewChrome>("hover");
+
+/** What a preview shell offers its content: window actions, wrap, remount memory. */
+export interface PreviewActions {
   /** The desktop panel can always grow to the window; a phone's cannot. */
   maximizable: boolean;
   maximized: boolean;
@@ -52,7 +61,10 @@ const PreviewActionsContext = createContext<{
   wrap?: { on: boolean; disabled?: boolean; toggle(): void; tokens: ExtendedThemeTokens };
   /** Question transcripts always wrap, including their toolbar title. */
   alwaysWrap?: boolean;
-} | null>(null);
+  /** Move this preview into the block details panel (desktop hover only; set when blockDetails is on). */
+  openInPanel?(): void;
+}
+export const PreviewActionsContext = createContext<PreviewActions | null>(null);
 
 /** Keep prose wrapped; optionally leave the wrap control visible and disabled. */
 export function AlwaysWrapPreview({ children, keepControl = false }: { children: ReactNode; keepControl?: boolean }) {
@@ -248,7 +260,7 @@ export function useHoverPreview(enabled: boolean, memoryKey?: string, options?: 
  * A panel's line wrap: the reader's setting when it opens (Preview panel
  * settings), then this panel's own toggle until it closes.
  */
-function usePanelWrap(remembered: boolean | null = null): [boolean, () => void] {
+export function usePanelWrap(remembered: boolean | null = null): [boolean, () => void] {
   const { previewWrap } = useEnhancerPreferences();
   const [on, setOn] = useState(remembered ?? previewWrap);
   // A change to the setting applies; mounting does not undo a remembered toggle.
