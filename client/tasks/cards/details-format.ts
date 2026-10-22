@@ -305,8 +305,9 @@ export interface SubtaskMetaPart {
 export function subtaskMeta(child: TaskChild, baseline: SubtaskModel | null, now: number, language: TasksLanguage, narrow = false): SubtaskMetaPart[] {
   const words = cardStrings(language).details;
   const parts: SubtaskMetaPart[] = [];
-  // A provider subagent's own line (its type, model, effort, tokens), as Paseo's track prints it.
-  if (child.kind === "provider" && child.subtitle && !narrow) parts.push({ text: child.subtitle, tone: null });
+  // A provider subagent's own line (its type, model, effort, tokens), as Paseo's track prints it,
+  // led by its agent's mark as a model part is: the line names the model.
+  if (child.kind === "provider" && child.subtitle && !narrow) parts.push({ text: child.subtitle, tone: null, provider: child.provider ?? null });
   const model = modelOf(child);
   if (model && (!baseline || modelKey(model) !== modelKey(baseline))) {
     const text = narrow ? model.model : [model.model, model.thinking].filter(Boolean).join(" \u00b7 ");

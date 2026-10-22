@@ -181,6 +181,8 @@ describe("details card model", () => {
     const provider: TaskChild = { id: "p", title: "t", status: "failed", kind: "provider", subtitle: "general-purpose \u00b7 Opus 5.5 \u00b7 189.7k tokens", provider: "claude", lane: "review", timing };
     expect(text(provider, false, "en")).toEqual(["general-purpose \u00b7 Opus 5.5 \u00b7 189.7k tokens", "Failed", "Last turn 3m 2s"]);
     expect(text(provider, true, "en")).toEqual(["Failed", "Last turn 3m 2s"]);
+    // The line names the model, so the subagent's mark leads it.
+    expect(subtaskMeta(provider, baseline, NOW, "en")[0]).toEqual({ text: "general-purpose \u00b7 Opus 5.5 \u00b7 189.7k tokens", tone: null, provider: "claude" });
   });
 
   it("times a subtask row: a running timer, else when it ended", () => {
