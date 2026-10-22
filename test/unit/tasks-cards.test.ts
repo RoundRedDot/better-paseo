@@ -1182,8 +1182,9 @@ describe("TaskDetailCards", () => {
     const tree = await render(details({ ...sample("sample-running"), usage: null }));
     expect(texts(hostByTestId(tree.root, "detail-turn"))).toEqual(["本轮计时", "12:30", "上一轮 18m", "上下文", "86%", "172k / 200k"]);
     expect(tree.root.findAll((node) => node.props.testID === "detail-turn-cost")).toHaveLength(0);
-    // The timer and the context share one row at any width.
-    expect(flat(hostByTestId(tree.root, "detail-context").props.style)).toMatchObject({ flex: 1, borderLeftWidth: 1 });
+    // The timer beside the context, its ring at full size.
+    expect(flat(hostByTestId(tree.root, "detail-context").props.style)).toMatchObject({ flex: 1, flexDirection: "row", borderLeftWidth: 1 });
+    expect(tree.root.findAll((node) => (node.type as { name?: string }).name === "ProgressRing")[0]!.props).toMatchObject({ size: 44 });
   });
 
   it("heads with the status, the title, the agent's chips and the actions, then the running turn", async () => {
@@ -1195,12 +1196,11 @@ describe("TaskDetailCards", () => {
     const turn = hostByTestId(tree.root, "detail-turn");
     expect(texts(turn)).toEqual(["本轮计时", "12:30", "上一轮 18m", "费用", "$1.84", "累计", "上下文", "86%", "172k / 200k"]);
     expect(turn.findAll((node) => (node.type as { name?: string }).name === "ProgressRing")).toHaveLength(1);
-    // Narrow: the timer and the cost share a row, the context takes the row under them; wide: one row of three.
-    const contextStyle = () => flat(hostByTestId(tree.root, "detail-context").props.style);
-    expect(contextStyle()).toMatchObject({ borderTopWidth: 1 });
-    await act(async () => turn.props.onLayout({ nativeEvent: { layout: { width: 480, height: 80 } } }));
-    expect(contextStyle()).toMatchObject({ flex: 1.4, borderLeftWidth: 1 });
-    expect(contextStyle().borderTopWidth).toBeUndefined();
+    // One row of three alike cells: the ring shrinks to the context's label icon.
+    const ring = turn.findAll((node) => (node.type as { name?: string }).name === "ProgressRing")[0]!;
+    expect(ring.props).toMatchObject({ size: 14, stroke: 2 });
+    expect(flat(hostByTestId(tree.root, "detail-context").props.style)).toMatchObject({ flex: 1, borderLeftWidth: 1 });
+    expect(flat(hostByTestId(tree.root, "detail-context").props.style).flexDirection).toBeUndefined();
     // Its tab is open somewhere: the button switches to it.
     byLabel(tree.root, "切换到 tab").props.onPress();
     expect(onOpen).toHaveBeenCalledWith("sample-running");
