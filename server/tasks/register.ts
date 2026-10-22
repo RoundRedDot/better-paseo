@@ -127,6 +127,24 @@ export interface HostDaemonAccess {
 
 const hostDaemon: HostDaemonAccess = { available: hasHostDaemon, connect: connectHostDaemon };
 
+async function directoryExists(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether the daemon can clear the agent: it resumes a stored ("closed") agent
+ * first, which fails where its working directory is gone (a worktree the
+ * agent removed), and then sends no answer at all.
+ */
+async function isClearable(daemon: HostDaemon, agentId: string): Promise<boolean> {
+  const agent = (await daemon.fetchAgent(agentId))?.agent;
+  return !agent || agent.status !== "closed" || (await directoryExists(agent.cwd));
+}
+
 async function markRead(host: HostDaemonAccess, agentIds: string[]): Promise<{ ok: boolean; error: string | null }> {
   if (!agentIds.every((agentId) => AGENT_ID_PATTERN.test(agentId))) return { ok: false, error: "Invalid agent ID." };
   const daemon = await host.connect();
@@ -136,7 +154,13 @@ async function markRead(host: HostDaemonAccess, agentIds: string[]): Promise<{ o
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new Error("timeout")), READ_TIMEOUT_MS);
     });
-    await Promise.race([daemon.clearAgentAttention(agentIds), timeout]);
+    const clear = async () => {
+      const clearable = await Promise.all(agentIds.map((agentId) => isClearable(daemon, agentId)));
+      // One the daemon cannot load keeps its attention there; the board's read mark moves its card.
+      const ids = agentIds.filter((_, index) => clearable[index]);
+      if (ids.length > 0) await daemon.clearAgentAttention(ids);
+    };
+    await Promise.race([clear(), timeout]);
     return { ok: true, error: null };
   } catch {
     return { ok: false, error: "The Paseo daemon did not mark the agent read." };
