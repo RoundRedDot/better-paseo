@@ -21,10 +21,15 @@ import { PreviewScrollerContext, type PreviewScroller } from "./preview-scroller
 import { ToolbarButton, ToolbarIcon, TooltipAlignContext } from "./toolbar-button";
 import { Glyph } from "../components/glyph";
 import { RunningDot } from "./running-dot";
-import { bindPreviewTail, nativePreviewTail, PREVIEW_SETTLE_MS, previewFollowsTail } from "./preview-tail";
+import { bindPreviewTail, DETAILS_FOLLOW, HOVER_FOLLOW, nativePreviewTail, PREVIEW_SETTLE_MS, previewFollowsTail, type PreviewFollowBand } from "./preview-tail";
 import { forgetPreview, holdPreview, recallPreview, rememberPreview, type PreviewMemory } from "./preview-memory";
 import { useReducedMotion } from "./use-reduced-motion";
 import { usePreviewEntrance } from "./use-preview-entrance";
+import { BlockPlacementContext, DetailsShellContext, type DetailsShellValue } from "../details/contracts";
+import { detailsApi } from "../details/details-store";
+import { DetailsHeader } from "../details/chrome/details-header";
+import { DetailsToolbar, type DetailsWrap } from "../details/chrome/details-toolbar";
+import { BackToLatestPill } from "../details/chrome/back-to-latest";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
@@ -103,9 +108,13 @@ export const PREVIEW_CLOSE_MS = 150;
  * `memoryKey` names the row across remounts. The host draws a finished
  * thought as a new row; a preview open then is opened again by that row as the
  * reader left it, so only the reader closes it (`preview-memory.ts`).
+ *
+ * `agentId` is the chat the row belongs to, for "Open in panel"; the
+ * timeline item's `BlockPlacementContext` gives it when the caller does not.
  */
-export function useHoverPreview(enabled: boolean, memoryKey?: string, options?: { windowOnly?: boolean }) {
+export function useHoverPreview(enabled: boolean, memoryKey?: string, options?: { windowOnly?: boolean; agentId?: string }) {
   const parentPreview = useContext(HoverPreviewContext);
+  const placement = useContext(BlockPlacementContext);
   const capabilities = useInputCapabilities();
   const preferences = useEnhancerPreferences();
   const delay = Math.round(preferences.hoverDelaySeconds * 1000);
@@ -253,6 +262,8 @@ export function useHoverPreview(enabled: boolean, memoryKey?: string, options?: 
     press: pressActive ? press : undefined,
     /** Opens the preview as a window from a button; absent inside another preview. */
     pop: enabled && !parentPreview ? pop : undefined,
+    /** The chat this row is in, when known. */
+    agentId: options?.agentId ?? placement?.agentId,
   };
 }
 
@@ -310,6 +321,13 @@ function WebPreview({ preview, tokens, wraps = true, wrapDisabled, children }: {
   memoryKeyRef.current = memoryKey;
   const quiet = useRef(preview.quiet);
   quiet.current = preview.quiet;
+  // With block details on, the row's preview moves into the side panel; its memory key is the block's id.
+  const { blockDetails } = useEnhancerPreferences();
+  const { agentId, close } = preview;
+  const openInPanel = useMemo(() => blockDetails && memoryKey && agentId ? () => {
+    detailsApi.open(agentId, memoryKey, { form: "side" });
+    close();
+  } : undefined, [blockDetails, memoryKey, agentId, close]);
   useLayoutEffect(() => {
     const unbind = bindPreviewPointer(panelRef.current, preview.enter, preview.leave);
     const release = openPreviewLayer(panelRef.current, preview.anchorRef.current, preview.close, {
@@ -354,6 +372,7 @@ function WebPreview({ preview, tokens, wraps = true, wrapDisabled, children }: {
         wrap: wraps ? { on: wrapDisabled || wrapOn, disabled: wrapDisabled ?? linesFit, toggle: toggleWrap, tokens } : undefined,
         memoryKey,
         remembered,
+        openInPanel,
       }}>
         <View
           ref={panelRef}
@@ -600,8 +619,17 @@ function measureWidth(node: unknown, done: (width: number) => void) {
  * While `streaming`, the same pulsing dot a running row uses sits in that
  * middle, in front of the name when there is one. Hover and the maximized
  * window share this bar.
+ *
+ * In the block details panel (`PreviewChromeContext` "details") the same props
+ * draw its header and toolbar instead (`client/details/chrome`).
  */
-export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, streaming = false, fitControls = false, children }: {
+export function HoverPreviewHeader(props: HoverPreviewHeaderProps) {
+  const chrome = useContext(PreviewChromeContext);
+  const shell = useContext(DetailsShellContext);
+  return chrome === "details" && shell ? <DetailsPreviewHeader {...props} shell={shell} /> : <HoverPanelHeader {...props} />;
+}
+
+interface HoverPreviewHeaderProps {
   tokens: ExtendedThemeTokens;
   /** A glyph name or the content's own icon, beside its name or size in the centre. */
   icon?: ReactNode;
@@ -610,12 +638,21 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, stre
   /** Controls after the line-wrap button, such as a grouped tool's pager. */
   left?: ReactNode;
   center?: ReactNode;
+  /**
+   * Facts about the content, such as a picture's size: in the hover bar's
+   * centre, in the details header's subtitle. A picture's preview may still
+   * pass them as `center` with the "Image" icon.
+   */
+  meta?: ReactNode;
   /** The block is still writing. A pulsing dot joins the centre of the title bar. */
   streaming?: boolean;
   /** Give wider question controls their own space before truncating the title. */
   fitControls?: boolean;
   children?: ReactNode;
-}) {
+}
+
+function HoverPanelHeader({ tokens, icon, iconLabel, left, center: centerProp, meta, streaming = false, fitControls = false, children }: HoverPreviewHeaderProps) {
+  const center = centerProp ?? meta;
   const actions = useContext(PreviewActionsContext);
   const toolbarDrag = useContext(PreviewDragContext);
   const [toolbar, ...rest] = React.Children.toArray(children);
@@ -631,6 +668,10 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, stre
       onPress={actions.maximized ? actions.close : actions.maximize}
       tokens={tokens}
     />
+  ) : null;
+  // Block details on: the preview can move into the side panel.
+  const panelButton = actions?.openInPanel ? (
+    <ToolbarButton icon="PanelRight" label="Open in panel" onPress={actions.openInPanel} tokens={tokens} />
   ) : null;
   // A popped-out window ignores presses outside it; this is its way out.
   const closeButton = actions?.popped && actions.maximizable && !actions.maximized ? (
@@ -691,6 +732,7 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, stre
           {/* The group ends at the panel's right edge: names open leftwards. */}
           <TooltipAlignContext.Provider value="end">
             {toolbar}
+            {panelButton}
             {windowButton}
             {closeButton}
           </TooltipAlignContext.Provider>
@@ -701,16 +743,67 @@ export function HoverPreviewHeader({ tokens, icon, iconLabel, left, center, stre
   );
 }
 
-export function HoverPreviewBody({ children, streaming = false }: { children: ReactNode; streaming?: boolean }) {
+/**
+ * The details panel's header and toolbar from the hover bar's props: the
+ * block names itself in the header (title, icon and subtitle from the shell's
+ * entry, the content's own as a fallback); the toolbar keeps wrap and `left`,
+ * then the copies and full screen. What the bar drew under itself stays under
+ * the toolbar.
+ */
+function DetailsPreviewHeader({ tokens, icon, iconLabel, left, center, meta, streaming = false, children, shell }: HoverPreviewHeaderProps & {
+  shell: DetailsShellValue;
+}) {
   const actions = useContext(PreviewActionsContext);
+  const [toolbar, ...rest] = React.Children.toArray(children);
+  // A picture's size, which the hover bar draws in its middle, joins the subtitle.
+  const facts = meta ?? (icon === "Image" ? center : undefined);
+  return (
+    <View testID="details-chrome" style={[styles.detailsChrome, { backgroundColor: tokens.surface0 }]}>
+      <DetailsHeader shell={shell} tokens={tokens} icon={icon} titleText={iconLabel}
+        title={facts === center ? undefined : center} meta={facts} streaming={streaming} />
+      <DetailsToolbar shell={shell} tokens={tokens} wrap={detailsWrap(actions, shell.entry.kind)} left={left}>
+        {toolbar}
+      </DetailsToolbar>
+      {rest}
+    </View>
+  );
+}
+
+/**
+ * The details toolbar's wrap toggle. Content that always wraps (rendered
+ * Markdown, a question, a checklist) keeps it in place, on and disabled, as
+ * does content whose lines all fit (the shell's `wrap.disabled`).
+ */
+function detailsWrap(actions: PreviewActions | null, kind: DetailsShellValue["entry"]["kind"]): DetailsWrap | undefined {
   const wrap = actions?.wrap;
-  const fill = actions?.fill ?? false;
+  if (actions?.alwaysWrap || kind === "todo") return { on: true, disabled: true, toggle: wrap?.toggle ?? noop };
+  if (!wrap) return undefined;
+  return { on: wrap.on, disabled: wrap.disabled ?? false, toggle: wrap.toggle };
+}
+
+/**
+ * The scrolling part of a preview. In the details panel it fills the panel,
+ * and a stream it follows lets go past 48 from the end and follows again
+ * within 8; while let go, "Back to latest" counts the lines that came since.
+ * The hover panel keeps its one slack unless `follow` sets a band.
+ */
+export function HoverPreviewBody({ children, streaming = false, follow }: {
+  children: ReactNode;
+  streaming?: boolean;
+  follow?: PreviewFollowBand;
+}) {
+  const actions = useContext(PreviewActionsContext);
+  const details = useContext(PreviewChromeContext) === "details";
+  const wrap = actions?.wrap;
+  const fill = details || (actions?.fill ?? false);
   const memoryKey = actions?.memoryKey;
   const remembered = actions?.remembered ?? null;
-  const scroller = usePreviewScroller(streaming, memoryKey, remembered);
+  const band = follow ?? (details ? DETAILS_FOLLOW : HOVER_FOLLOW);
+  const behind = useBehindLatest(details && streaming, wrap?.tokens.typography.mono.lineHeight ?? DEFAULT_LINE_HEIGHT);
+  const scroller = usePreviewScroller(streaming, memoryKey, remembered, band, behind.onChange);
   const webBody = useRef<View>(null);
-  const following = useStreamingTail(streaming, webBody);
-  useWebScrollMemory(webBody, memoryKey, remembered, streaming, following);
+  const tail = useStreamingTail(streaming, webBody, band, behind.onChange);
+  useWebScrollMemory(webBody, memoryKey, remembered, streaming, tail.pinned);
   // Lines keep their length; the body scrolls sideways, with a track under it
   // only while it is wider than the panel. The track keeps clear of the last
   // line's descenders, sits down near the panel's bottom edge, and is up only
@@ -722,6 +815,32 @@ export function HoverPreviewBody({ children, streaming = false }: { children: Re
       <View style={[styles.unwrapped, Platform.OS !== "web" && styles.unwrappedNative]}>{children}</View>
     </HScroll>
   ) : children;
+  const pill = behind.lines !== null && wrap ? (
+    <BackToLatestPill lines={behind.lines} tokens={wrap.tokens} onPress={() => {
+      behind.reset();
+      if (Platform.OS === "web") tail.resume();
+      else scroller.resume();
+    }} />
+  ) : null;
+  if (details) {
+    return (
+      <View testID="details-body" style={styles.detailsBody}>
+        {Platform.OS !== "web" ? (
+          <ScrollView ref={scroller.ref} testID="hover-preview-body" style={[styles.pressBody, styles.pressBodyFill]} contentContainerStyle={styles.pressBodyContent}
+            scrollEnabled={!scroller.held} scrollEventThrottle={16} {...scroller.props}>
+            <PreviewScrollerContext.Provider value={scroller.value}>
+              <ProseSelectionContext.Provider value>{content}</ProseSelectionContext.Provider>
+            </PreviewScrollerContext.Provider>
+          </ScrollView>
+        ) : (
+          <View ref={webBody} testID="hover-preview-body" style={[styles.body, styles.bodyFill, styles.detailsScroll]}>
+            {content}
+          </View>
+        )}
+        {pill}
+      </View>
+    );
+  }
   if (Platform.OS !== "web") {
     // The panel's height is capped; the body scrolls inside it. Its text takes
     // a long press as the start of a selection, with a cursor and handles.
@@ -760,9 +879,18 @@ function previewTrack(): ViewStyle {
  * the commit does not see (fonts, highlighting), pulls the tail into view
  * while the reader is already there.
  */
-function useStreamingTail(streaming: boolean, ref: RefObject<View | null>) {
+function useStreamingTail(
+  streaming: boolean,
+  ref: RefObject<View | null>,
+  band: PreviewFollowBand,
+  onChange: (following: boolean, extent: number) => void,
+) {
   const pinned = useRef(true);
   const follow = useRef<(() => void) | null>(null);
+  const changed = useRef(onChange);
+  changed.current = onChange;
+  const bandRef = useRef(band);
+  bandRef.current = band;
   useLayoutEffect(() => {
     if (!streaming) {
       pinned.current = true;
@@ -772,12 +900,60 @@ function useStreamingTail(streaming: boolean, ref: RefObject<View | null>) {
     if (Platform.OS !== "web") return;
     const node = ref.current as unknown as HTMLElement | null;
     if (!node || typeof node.addEventListener !== "function" || typeof node.scrollHeight !== "number") return;
-    return bindPreviewTail(node, pinned, follow);
+    return bindPreviewTail(node, pinned, follow, {
+      band: bandRef.current,
+      onChange: (following, extent) => changed.current(following, extent),
+    });
   }, [streaming, ref]);
   useLayoutEffect(() => {
     if (streaming) follow.current?.();
   });
-  return pinned;
+  // Back on the newest output and following it again.
+  const resume = useCallback(() => {
+    pinned.current = true;
+    follow.current?.();
+  }, []);
+  return { pinned, resume };
+}
+
+/** Line height a body without one of its own counts new output in. */
+const DEFAULT_LINE_HEIGHT = 18;
+
+/**
+ * Whether the reader has scrolled up from a stream the body follows, and how
+ * many lines of output have come since: the content's growth from that moment,
+ * in lines. Null while the body follows it.
+ */
+function useBehindLatest(enabled: boolean, lineHeight: number) {
+  const [lines, setLines] = useState<number | null>(null);
+  const behind = useRef(false);
+  const base = useRef(0);
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
+  const onChange = useCallback((following: boolean, extent: number) => {
+    if (!enabledRef.current) return;
+    if (following) {
+      if (!behind.current) return;
+      behind.current = false;
+      setLines(null);
+      return;
+    }
+    if (!behind.current) {
+      behind.current = true;
+      base.current = extent;
+      setLines(0);
+      return;
+    }
+    setLines(Math.max(0, Math.round((extent - base.current) / lineHeight)));
+  }, [lineHeight]);
+  const reset = useCallback(() => {
+    behind.current = false;
+    setLines(null);
+  }, []);
+  useEffect(() => {
+    if (!enabled) reset();
+  }, [enabled, reset]);
+  return { lines: enabled ? lines : null, onChange, reset };
 }
 
 /**
@@ -831,7 +1007,13 @@ function useWebScrollMemory(
  * over a remounted row's preview starts where that one was, or on the newest
  * output if it was there.
  */
-function usePreviewScroller(streaming: boolean, memoryKey?: string, remembered: PreviewMemory | null = null) {
+function usePreviewScroller(
+  streaming: boolean,
+  memoryKey?: string,
+  remembered: PreviewMemory | null = null,
+  band: PreviewFollowBand = HOVER_FOLLOW,
+  onChange?: (following: boolean, extent: number) => void,
+) {
   const ref = useRef<ScrollView>(null);
   const memoryKeyRef = useRef(memoryKey);
   memoryKeyRef.current = memoryKey;
@@ -844,10 +1026,12 @@ function usePreviewScroller(streaming: boolean, memoryKey?: string, remembered: 
   streamingRef.current = streaming;
   const still = useRef(false);
   still.current = useReducedMotion();
+  const changed = useRef(onChange);
+  changed.current = onChange;
   const [tail] = useState(() => nativePreviewTail((offset, animated) => {
     if (offset === "end") ref.current?.scrollToEnd({ animated });
     else ref.current?.scrollTo({ y: offset, animated });
-  }));
+  }, Date.now, band));
   const wasStreaming = useRef(streaming);
   if (wasStreaming.current && !streaming) tail.end();
   wasStreaming.current = streaming;
@@ -890,7 +1074,11 @@ function usePreviewScroller(streaming: boolean, memoryKey?: string, remembered: 
       const viewport = native.layoutMeasurement?.height ?? state.current.viewport;
       const content = native.contentSize?.height ?? state.current.content;
       if (!state.current.held) state.current.offset = offset;
-      if (streamingRef.current) tail.scrolled(offset, viewport, content);
+      if (streamingRef.current) {
+        const was = tail.pinned;
+        tail.scrolled(offset, viewport, content);
+        if (tail.pinned !== was) changed.current?.(tail.pinned, content);
+      }
       const key = memoryKeyRef.current;
       if (key && !state.current.held) {
         rememberPreview(key, { offset, tail: streamingRef.current ? tail.pinned : previewFollowsTail(offset, viewport, content) });
@@ -914,10 +1102,15 @@ function usePreviewScroller(streaming: boolean, memoryKey?: string, remembered: 
         tail.settle(state.current.viewport, height, state.current.offset, still.current);
         return;
       }
+      if (!tail.pinned) changed.current?.(false, height);
       tail.grow(state.current.viewport, height, state.current.offset, still.current);
     },
   }), [tail]);
-  return { ref, held, value, props };
+  // Back on the newest output and following it again.
+  const resume = useCallback(() => {
+    tail.resume(state.current.viewport, state.current.content, still.current);
+  }, [tail]);
+  return { ref, held, value, props, resume };
 }
 
 const styles = StyleSheet.create({
@@ -959,6 +1152,10 @@ const styles = StyleSheet.create({
   edges: { zIndex: 2 },
   hidden: { opacity: 0 },
   pressBody: { flexGrow: 0, flexShrink: 1 },
+  // The details panel's body takes the panel's height under its chrome; the pill floats over its foot.
+  detailsChrome: { flexShrink: 0, zIndex: 1 },
+  detailsBody: { flex: 1, minHeight: 0, position: "relative" },
+  detailsScroll: { flex: 1 },
   pressBodyFill: { flexGrow: 1, minHeight: 0 },
   pressBodyContent: { padding: space.md, gap: space.sm },
   unwrappedScroll: { flexGrow: 1 },
