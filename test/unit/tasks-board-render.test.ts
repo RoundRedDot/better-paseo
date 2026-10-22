@@ -427,6 +427,16 @@ describe("Tasks board, desktop", () => {
     expect(textOf(renderer!.root.findByProps({ testID: "detail-title" }))).toBe(card.props.card.title);
     // A card in the sheet leaves the counts out; each lane's list scrolls its last card above the half sheet (800 x 0.58).
     expect(hostsById("sidebar-stats")).toHaveLength(0);
+    // A tablet's sheet (680 wide): the header with the first section on the left, the rest on the right, each scrolling.
+    const column = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "details-sidebar");
+    act(() => column().props.onLayout({ nativeEvent: { layout: { width: 680, height: 464 } } }));
+    expect(hostsById("detail-column-head")).toHaveLength(1);
+    expect(hostsById("detail-column-sections")).toHaveLength(1);
+    expect(hostsById("details-sidebar-scroll")).toHaveLength(0);
+    // A foldable's (580): one column again, scrolling as one.
+    act(() => column().props.onLayout({ nativeEvent: { layout: { width: 580, height: 464 } } }));
+    expect(hostsById("detail-column-head")).toHaveLength(0);
+    expect(hostsById("details-sidebar-scroll")).toHaveLength(1);
     const list = renderer!.root.findAll((node) => typeof node.props.renderItem === "function" && node.props.contentContainerStyle !== undefined)[0]!;
     expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(8 + 464);
     // The handle switches to full height and back.

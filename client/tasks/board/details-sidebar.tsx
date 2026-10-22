@@ -41,6 +41,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
   const { board, theme, selection, dispatch } = props;
   const tokens = taskTokens(theme);
   const [height, setHeight] = useState(0);
+  const [width, setWidth] = useState(0);
   const card = selection.id ? board.tasks.byId.get(selection.id) : undefined;
   useParentTitle(board, card);
   const shown = card && selection.id ? findCard(board.lanes, selection.id) !== null : false;
@@ -80,20 +81,24 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
   // A short column (an iPad in landscape, a low window) has no room to hold
   // the header still: the fixed part left the sections a strip of 80. There
   // the whole column scrolls as one.
-  const short = props.scrollAll === true || (height > 0 && height < SHORT_COLUMN);
+  // A wide sheet lays a card out in two columns that scroll on their own, so the header stays in view.
+  const columns = props.scrollAll === true && detailProps !== null && width >= SHEET_COLUMNS;
+  const short = !columns && (props.scrollAll === true || (height > 0 && height < SHORT_COLUMN));
   const content = (
     <>
       {props.stats === false ? null : <StatsCard board={board} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} />}
       {detailProps ? (
-        <TaskDetailCards {...detailProps} scrollBody={!short} />
+        <TaskDetailCards {...detailProps} scrollBody={!short && !columns} columns={columns} />
       ) : (
         <GroupCard board={board} theme={theme} tokens={tokens} touch={props.touch} />
       )}
     </>
   );
-  const onLayout = (event: { nativeEvent: { layout: { height: number } } }) => {
+  const onLayout = (event: { nativeEvent: { layout: { width: number; height: number } } }) => {
     const next = Math.round(event.nativeEvent.layout.height);
+    const across = Math.round(event.nativeEvent.layout.width);
     setHeight((was) => (was === next ? was : next));
+    setWidth((was) => (was === across ? was : across));
   };
   if (short) {
     return (
@@ -122,6 +127,9 @@ export function useParentTitle(board: BoardController, card: TaskCard | undefine
     if (parentId) board.tasks.resolveParent(parentId);
   }, [board.tasks, parentId]);
 }
+
+/** A bottom sheet this wide (a tablet's, not a phone's or a foldable's) lays the details out in two columns of about 340 and 300. */
+const SHEET_COLUMNS = 640;
 
 /** Under this height the sidebar scrolls as one instead of holding the details' header still. */
 const SHORT_COLUMN = 640;
