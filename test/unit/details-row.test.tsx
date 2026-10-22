@@ -124,7 +124,7 @@ describe("details row press zones and registration", () => {
     render(header({ verb: "Read", target: <PathText path="/w/a.ts" tokens={tokens} /> }));
     const path = () => buttons("/w/a.ts")[0]!;
     act(() => path().props.onPress()); expect(state.open).toHaveBeenCalledWith("agent", "call:preview");
-    act(() => path().props.onLongPress()); expect(menuLabels()).toEqual(["Open details", "Expand in timeline", "Copy command"]);
+    act(() => path().props.onLongPress()); expect(menuLabels()).toEqual(["Copy command", "Open details", "Expand in timeline"]);
     expect(state.copy).not.toHaveBeenCalled();
   });
   it("gives an inert row only a 120 ms press and Copy title", () => {
@@ -173,18 +173,19 @@ describe("details row press zones and registration", () => {
     const event = { preventDefault: vi.fn(), stopPropagation: vi.fn() };
     act(() => state.handlers.get("contextmenu")!.forEach((fn) => fn(event)));
     expect(event.preventDefault).toHaveBeenCalled(); expect(state.showPopover).toHaveBeenCalledOnce();
-    expect(menuLabels()).toEqual(["Open details", "Expand in timeline", "Copy command"]);
+    expect(menuLabels()).toEqual(["Copy command", "Open details", "Expand in timeline"]);
     act(() => buttons("Close menu")[0]!.props.onPress()); expect(state.hidePopover).toHaveBeenCalledOnce();
     act(() => renderer!.unmount()); renderer = undefined;
     expect(state.handlers.get("contextmenu")!.size).toBe(0);
   });
-  it("copies the requested item and expands a menu row only when folded", async () => {
+  it("copies the requested item and expands a folded row or collapses an opened one", async () => {
     const toggle = vi.fn(); render(header({ onToggle: toggle }));
     act(() => row().props.onLongPress());
     await act(async () => buttons("Copy command")[0]!.props.onPress()); expect(state.copy).toHaveBeenCalledWith("npm test");
     act(() => row().props.onLongPress()); act(() => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.accessibilityRole === "menuitem" && node.props.accessibilityLabel === "Expand in timeline").props.onPress()); expect(toggle).toHaveBeenCalledOnce();
     act(() => renderer!.update(wrap(header({ expanded: true, onToggle: toggle }))));
-    act(() => row().props.onLongPress()); act(() => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.accessibilityRole === "menuitem" && node.props.accessibilityLabel === "Expand in timeline").props.onPress()); expect(toggle).toHaveBeenCalledOnce();
+    act(() => row().props.onLongPress()); expect(buttons("Expand in timeline")).toHaveLength(0);
+    act(() => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.accessibilityRole === "menuitem" && node.props.accessibilityLabel === "Collapse in timeline").props.onPress()); expect(toggle).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -209,7 +210,7 @@ describe("tool menu copy order", () => {
   it.each(fixtures)("renders %s copies in design order", (_name, data, expected) => {
     render(<ToolCallout data={data} tokens={tokens} previewKey="tool:preview" />);
     act(() => row().props.onLongPress());
-    expect(menuLabels()).toEqual(["Open details", "Expand in timeline", ...expected]);
+    expect(menuLabels()).toEqual([...expected, "Open details", "Expand in timeline"]);
   });
   it("adds send-agent prompt first and gives create-agent only its prompt", () => {
     const base = fixtures[5]![1];
@@ -227,20 +228,20 @@ describe("tool menu copy order", () => {
     const data = classifyTool({ name: `paseo.${name}`, status: "completed", detail: { type: "unknown", input, output } });
     render(<ToolCallout data={data} tokens={tokens} previewKey="paseo:preview" />);
     act(() => row().props.onLongPress());
-    expect(menuLabels()).toEqual(["Open details", "Expand in timeline", ...labels]);
+    expect(menuLabels()).toEqual([...labels, "Open details", "Expand in timeline"]);
   });
-  it("opens an image viewer on tap and puts metadata above View image", () => {
+  it("opens an image viewer on tap and puts View image first after the copies", () => {
     const data = call("Read", { type: "read", filePath: "/w/screen.png" });
     render(<ToolCallout data={data} tokens={tokens} previewKey="image:preview" imageFile={{ dataUri: "data:image/png;base64,AA", width: 1440, height: 900, bytes: 219136, error: null }} />);
     act(() => row().props.onPress()); expect(state.open).not.toHaveBeenCalled();
     expect(renderer!.root.findAllByType("ImageViewer" as never)).toHaveLength(1);
-    act(() => row().props.onLongPress()); expect(menuLabels()[0]).toBe("View image");
+    act(() => row().props.onLongPress()); expect(menuLabels().slice(-3)).toEqual(["View image", "Open details", "Expand in timeline"]);
     expect(textOf(renderer!.root)).toContain("1440 × 900 · PNG · 214 KB");
   });
   it("registers only the merged head and copies the head's command", () => {
     const head = fixtures[0]![1]; render(<ToolCallout data={head} groupCalls={[head, head]} tokens={tokens} previewKey="merged:preview" />);
     expect(state.register).toHaveBeenCalledTimes(1);
-    act(() => row().props.onLongPress()); expect(menuLabels()).toEqual(["Open details", "Expand in timeline", "Copy command", "Copy output", "Copy command and output"]);
+    act(() => row().props.onLongPress()); expect(menuLabels()).toEqual(["Copy command", "Copy output", "Copy command and output", "Open details", "Expand in timeline"]);
   });
 });
 
@@ -249,21 +250,21 @@ describe("other detail callers", () => {
   it("registers a thought and its Copy item", () => {
     render(<ReasoningCard segmentation={{ kind: "prose", body: "Long thought ".repeat(20) }} streaming={false} durationMs={2000}
       expanded={false} onToggle={() => {}} tokens={tokens} storeKey="thought" copyText="Full thought" />);
-    act(() => row().props.onLongPress()); expect(menuLabels()).toEqual(["Open details", "Expand in timeline", "Copy"]);
+    act(() => row().props.onLongPress()); expect(menuLabels()).toEqual(["Copy", "Open details", "Expand in timeline"]);
     expect(state.register.mock.calls[0]![0].copies()[0].text).toBe("Full thought");
   });
   it("registers a todo checklist and copies its plain checklist", () => {
     render(<TaskList data={todo} tokens={tokens} />);
     const entry = state.register.mock.calls[0]![0] as BlockEntry;
     expect(entry.kind).toBe("todo"); expect(entry.copies()[0]!.text).toBe("- [ ] Fix the bug");
-    act(() => row().props.onLongPress()); expect(menuLabels()).toEqual(["Open details", "Expand in timeline", "Copy"]);
+    act(() => row().props.onLongPress()); expect(menuLabels()).toEqual(["Copy", "Open details", "Collapse in timeline"]);
   });
   it("opens the checklist row menu from a task title instead of the old press preview", () => {
     render(<TaskList data={todo} tokens={tokens} />);
     const title = renderer!.root.find((node) => String(node.type) === "Text" && node.props.onLongPress && textOf(node) === "Fix the bug");
     expect(title.props.delayLongPress).toBe(500);
     act(() => title.props.onLongPress());
-    expect(menuLabels()).toEqual(["Open details", "Expand in timeline", "Copy"]);
+    expect(menuLabels()).toEqual(["Copy", "Open details", "Collapse in timeline"]);
     expect(StyleSheet.flatten(row().props.style).backgroundColor).toBe(tokens.v2.surface2);
     expect(renderer!.root.findAll((node) => node.props.testID === "hover-preview")).toHaveLength(0);
   });
@@ -272,7 +273,7 @@ describe("other detail callers", () => {
     const id = state.register.mock.calls[0]![0].id;
     act(() => renderer!.update(wrap(<TaskActivityRow activities={[{ type: "completed", task: "Fix the bug" }]} data={todo} tokens={tokens} />)));
     expect(state.register).toHaveBeenCalledOnce(); expect(state.update.mock.calls.at(-1)![0].id).toBe(id);
-    act(() => row().props.onLongPress()); expect(menuLabels()).toEqual(["Open details", "Expand in timeline", "Copy"]);
+    act(() => row().props.onLongPress()); expect(menuLabels()).toEqual(["Copy", "Open details", "Expand in timeline"]);
   });
   it("opens a touch Markdown block at full detent, outside navigation", () => {
     render(<MarkdownView text={'```markdown\n# Title\n```'} tokens={tokens} variant="document" />);

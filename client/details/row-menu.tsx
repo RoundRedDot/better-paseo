@@ -10,6 +10,9 @@ import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { useEnhancerPreferences } from "../preferences";
 import type { CopyItem } from "./contracts";
 
+/** A group divider: a hairline with 4 above and below, as Paseo's menus. */
+const SEPARATOR = 9;
+
 export interface RowMenuAnchor { x: number; y: number; width: number; height: number }
 export interface RowMenuProps {
   anchor: RowMenuAnchor;
@@ -18,14 +21,24 @@ export interface RowMenuProps {
   hasBody: boolean;
   readsImage?: boolean;
   copyItems: readonly CopyItem[];
+  /** The body is open in the timeline: the menu offers to close it. */
+  expanded?: boolean;
+  /** The row is the one the details panel shows: no "Open details". */
+  detailsOpen?: boolean;
   tokens: ExtendedThemeTokens;
   onOpen(): void;
-  onExpand(): void;
+  onToggle(): void;
   onViewImage?(): void;
   onClose(): void;
 }
 
-/** A top-layer menu on web; a separate native window above the scrolling list. */
+/**
+ * A top-layer menu on web; a separate native window above the scrolling list.
+ *
+ * Copies come first, in the order the row gives them: a tap already opens
+ * the row, so what the menu adds is mostly getting text out. A hairline
+ * splits them from the ways to look at the row (image, details, timeline).
+ */
 export function RowMenu(props: RowMenuProps) {
   const { anchor, tokens, onClose } = props;
   const { copy } = useCopy();
@@ -48,16 +61,20 @@ export function RowMenu(props: RowMenuProps) {
   const touch = useInputCapabilities().touch;
   const rowHeight = touch ? 44 : block.label.lineHeight + 10;
   const copies = props.hasBody ? props.copyItems : [{ id: "title", label: "Copy title", icon: "Copy", text: props.title }];
-  const actions = [
-    ...(props.readsImage && props.onViewImage ? [{ id: "viewer", label: "View image", icon: "Image", run: props.onViewImage }] : []),
-    ...(props.hasBody ? [
-      { id: "details", label: "Open details", icon: "PanelRight", run: props.onOpen },
-      { id: "expand", label: "Expand in timeline", icon: "ChevronDown", run: props.onExpand },
-    ] : []),
-    ...copies.filter((item) => item.text).map((item) => ({ ...item, run: () => void copy(item.text, { feedback: "toast", label: item.label }) })),
-  ];
+  const groups = [
+    copies.filter((item) => item.text).map((item) => ({ ...item, run: () => void copy(item.text, { feedback: "toast", label: item.label }) })),
+    [
+      ...(props.readsImage && props.onViewImage ? [{ id: "viewer", label: "View image", icon: "Image", run: props.onViewImage }] : []),
+      ...(props.hasBody && !props.detailsOpen ? [{ id: "details", label: "Open details", icon: "PanelRight", run: props.onOpen }] : []),
+      ...(props.hasBody ? [props.expanded
+        ? { id: "collapse", label: "Collapse in timeline", icon: "ChevronUp", run: props.onToggle }
+        : { id: "expand", label: "Expand in timeline", icon: "ChevronDown", run: props.onToggle }] : []),
+    ],
+  ].filter((group) => group.length > 0);
+  const rows = groups.reduce((count, group) => count + group.length, 0);
   const header = props.readsImage ? props.subtitle?.join(" · ") : undefined;
-  const height = Math.min(window.height - 16, actions.length * rowHeight + 12 + (header ? rowHeight : 0));
+  const height = Math.min(window.height - 16,
+    rows * rowHeight + (groups.length - 1) * SEPARATOR + 12 + (header ? rowHeight : 0));
   const left = Math.max(8, Math.min(anchor.x, window.width - width - 8));
   const top = Math.max(8, Math.min(anchor.y + anchor.height, window.height - height - 8));
   useEffect(() => {
@@ -100,9 +117,14 @@ export function RowMenu(props: RowMenuProps) {
             <Text numberOfLines={1} style={{ paddingHorizontal: 14, height: rowHeight, lineHeight: rowHeight, color: tokens.foregroundMuted,
               fontFamily: tokens.fontUi, fontSize: block.caption.size }}>{header}</Text>
           ) : null}
-          {actions.map((item) => (
-            <RowMenuItem key={item.id} label={label(item.label)} icon={item.icon} height={rowHeight} iconSize={touch ? 16 : 14}
-              tokens={tokens} onPress={() => { onClose(); item.run(); }} />
+          {groups.map((group, index) => (
+            <React.Fragment key={group[0]!.id}>
+              {index > 0 ? <View style={{ height: StyleSheet.hairlineWidth, marginVertical: (SEPARATOR - 1) / 2, backgroundColor: tokens.v2.border }} /> : null}
+              {group.map((item) => (
+                <RowMenuItem key={item.id} label={label(item.label)} icon={item.icon} height={rowHeight} iconSize={touch ? 16 : 14}
+                  tokens={tokens} onPress={() => { onClose(); item.run(); }} />
+              ))}
+            </React.Fragment>
           ))}
         </ScrollView>
       </Animated.View>
