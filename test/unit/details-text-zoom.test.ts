@@ -155,3 +155,15 @@ describe("detailsTextZoom", () => {
     expect(seen[2]).not.toBe(seen[0]);
   });
 });
+
+describe("zoomCap", () => {
+  it("keeps one tall iOS text under 2^18 pixels, and never forces a smaller size", async () => {
+    const { zoomCap } = await import("../../client/details/shell/pinch-zoom");
+    // 2,852 output lines at 12/18 (51,336pt) at 3x: up to 19pt, 82,700pt.
+    expect(zoomCap(12, 0, 51336, 3, "ios")).toBe(7);
+    // Already as tall as it may be: it stays.
+    expect(zoomCap(12, 8, 85560, 3, "ios")).toBe(8);
+    expect(zoomCap(12, 0, 2000, 3, "ios")).toBeGreaterThan(100);
+    expect(zoomCap(12, 0, 51336, 3, "android")).toBe(Infinity);
+  });
+});

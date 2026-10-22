@@ -33,6 +33,7 @@ import { DetailsToolbar, type DetailsWrap } from "../details/chrome/details-tool
 import { BackToLatestPill } from "../details/chrome/back-to-latest";
 import { ZoomBadge } from "../details/chrome/zoom-badge";
 import { usePinchZoom } from "../details/shell/pinch-zoom";
+import { TextZoomContext } from "./text-zoom";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
@@ -823,6 +824,10 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
   // The drawer at rest after sliding in: the content mounts again in place.
   const [drawn, setDrawn] = useState(0);
   useEffect(() => report?.onRedraw(() => setDrawn((count) => count + 1)), [report]);
+  // iOS text sets its size only as it draws, so a new zoom mounts the content
+  // again: text kept the old size's frame, and a command band cut its last line.
+  const textZoom = useContext(TextZoomContext);
+  const redrawKey = Platform.OS === "ios" ? `${drawn}:${textZoom}` : String(drawn);
   const detailsScroll = useMemo(() => (report ? {
     ...scroller.props,
     onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
@@ -875,7 +880,7 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
             scrollEnabled={!scroller.held && !(pulls && bodyTop)} scrollEventThrottle={16} {...detailsScroll}
             bounces={!(pulls && bodyTop)} disableScrollViewPanResponder={pulls && bodyTop}>
             <PreviewScrollerContext.Provider value={scroller.value}>
-              <ProseSelectionContext.Provider key={drawn} value>{content}</ProseSelectionContext.Provider>
+              <ProseSelectionContext.Provider key={redrawKey} value>{content}</ProseSelectionContext.Provider>
             </PreviewScrollerContext.Provider>
           </ScrollView>
         ) : (

@@ -1406,18 +1406,42 @@ describe("a pinch in the phone drawer", () => {
     expect(byTestId(renderer, "details-zoom-badge")).toBeNull();
   });
 
+  it("lays a long body out only as the fingers lift", () => {
+    const { renderer, body, panel, shown } = drawer("pinch-long", 3000);
+    act(() => {
+      body().onContentSizeChange!(390, 9000);
+      body().onScroll!({ nativeEvent: { contentOffset: { y: 3000 }, layoutMeasurement: { height: 300 }, contentSize: { height: 9000 } } });
+    });
+    act(() => {
+      panel().onTouchStart!(fingers(500, 600));
+      panel().onTouchMove!(fingers(475, 625));
+    });
+    // The badge counts; the text waits.
+    const words = () => byTestId(renderer, "details-zoom-badge")!.findAll((node) => typeof node.props.children === "string").map((node) => node.props.children);
+    expect(words()).toContain("Text size 24");
+    expect(shown()).toBe("0");
+    act(() => { panel().onTouchEnd!(fingers(475)); });
+    expect(shown()).toBe("8");
+    // 3150 of 9000 under the midpoint: at 13500 that is 4725, 150 into the body.
+    act(() => { body().onContentSizeChange!(390, 13500); });
+    expect(web.scrolls.at(-1)).toBe(4575);
+  });
+
   it("keeps the saved size within -4 and +10 points", () => {
     const { panel, shown } = drawer("pinch-far");
     act(() => {
       panel().onTouchStart!(fingers(500, 600));
       panel().onTouchMove!(fingers(300, 800));
+      panel().onTouchEnd!(fingers());
     });
     expect(shown()).toBe("10");
     act(() => {
+      panel().onTouchStart!(fingers(500, 600));
       panel().onTouchMove!(fingers(545, 555));
       panel().onTouchEnd!(fingers());
     });
     expect(getEnhancerPreferences().detailsTextZoom).toBe(-4);
+    expect(shown()).toBe("-4");
   });
 
   it("lets go of the drawer's pull once a second finger comes down", () => {
