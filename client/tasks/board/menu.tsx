@@ -377,7 +377,7 @@ function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome
         {item.label}
       </Text>
       {item.hint ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{item.hint}</Text> : null}
-      {item.checked ? <Icon name="Check" size={14} color={colors.accent} /> : null}
+      {item.checked ? <Icon name="Check" size={14} color={colors.accent} /> : item.checked === false ? <View style={{ width: 14 }} /> : null}
       {item.submenu ? <Icon name="ChevronRight" size={12} color={colors.foregroundMuted} /> : null}
     </Pressable>
   );

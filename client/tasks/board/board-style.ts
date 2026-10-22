@@ -24,7 +24,7 @@ export function devicePixel(): number {
   return Platform.OS === "web" ? 1 / Math.max(1, PixelRatio.get()) : StyleSheet.hairlineWidth;
 }
 
-/** Checkbox and letter-avatar outlines are part of the glyph, not a divider: a full point keeps them legible. */
+/** Letter-avatar outlines are part of the glyph, not a divider: a full point keeps them legible. */
 export const GLYPH_LINE = 1;
 
 /** Linear's lane panel corner: a 10 device px arc at 2x. */

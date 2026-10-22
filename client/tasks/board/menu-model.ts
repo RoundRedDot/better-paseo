@@ -41,11 +41,11 @@ export interface MenuItem {
   label: string;
   /** A Lucide icon name, drawn 16 in the muted colour. */
   icon?: string;
-  /** Drawn before the label instead of `icon`: a checkbox, a brand mark, a label dot. */
+  /** Drawn before the label instead of `icon`: a brand mark, a label dot. */
   leading?: ReactNode;
   /** Muted text at the right: a count, the active direction. */
   hint?: string;
-  /** A check mark at the right: the current choice. */
+  /** A check mark at the right: the current choice. `false` keeps its room, so a column of hints stays aligned. */
   checked?: boolean;
   submenu?: MenuSection[];
   onSelect?(): void;
