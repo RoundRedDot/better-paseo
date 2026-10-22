@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from "react";
+import React, { createContext, useContext, useMemo, useRef } from "react";
 import { View } from "react-native";
 import type { ExtendedThemeTokens } from "../theme-tokens";
 import { selectionSurface } from "../selection-actions";
@@ -13,6 +13,13 @@ import { MdBlock } from "./render/md-block";
 import { buildStyles, variantMetrics, type MarkdownVariant } from "./render/styles";
 
 export { MARKDOWN_VARIANTS, type MarkdownVariant } from "./render/styles";
+
+/**
+ * True inside the phone's details drawer: block prose (a view given `size`)
+ * reads at the timeline's body size there, the reply's content size without
+ * the block size setting or `quiet`'s step down. `quiet` still mutes it.
+ */
+export const TimelineProseContext = createContext(false);
 
 export interface MarkdownViewProps {
   text: string;
@@ -122,7 +129,10 @@ export function MarkdownView({
   // Sizes follow the host's content size (S7 §2.3); the metrics object is
   // cached per input, so the context — and every finished block — stays put
   // while the reply streams.
-  const metrics = variantMetrics(variant, size ?? tokens.typography.content.size, compact, quiet);
+  const timelineProse = useContext(TimelineProseContext) && size !== undefined;
+  const metrics = timelineProse
+    ? variantMetrics(variant, tokens.typography.content.size, compact)
+    : variantMetrics(variant, size ?? tokens.typography.content.size, compact, quiet);
   const styles = useMemo(() => buildStyles(tokens, variant, metrics, quiet), [tokens, variant, metrics, quiet]);
   const context = useMemo<RenderContext>(
     () => ({
