@@ -34,6 +34,8 @@ export interface CardCallbacks {
   /** Stop, if the card is stoppable and Stop is available. */
   onStop?(card: TaskCard, options?: { withChildren?: boolean }): void;
   onCancelStop?(agentId: string): void;
+  /** Mark read, if the card is readable and the server reaches the daemon. */
+  onRead?(card: TaskCard): void;
   onPermission?(card: TaskCard, button: PermissionButton): void;
   /** A long press on a phone or touch screen: the details sheet or sidebar. */
   onDetails?(card: TaskCard): void;
@@ -54,6 +56,8 @@ export interface TaskCardViewProps extends CardCallbacks {
   /** The permission buttons for `card.permission` (from `permissionButtons`). */
   permissionButtons: PermissionButton[];
   stopPhase: StopPhase;
+  /** A mark read is on its way: the button waits, disabled. */
+  readPending?: boolean;
   /** Keyboard focus ring. */
   focused: boolean;
   /** The 1 s highlight after a parent link scrolled here. */
@@ -390,8 +394,15 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const canStop = card.stoppable && !!props.onStop;
   const parentStop = canStop && activeChildren(card) > 0;
   const showStop = canStop && !compact && (TOUCH || hovered || props.stopPhase !== "idle" || menuOpen);
+  // Mark read takes Stop's place: a card is never both (Stop needs a running
+  // or waiting agent, Mark read one in review).
+  const canRead = !canStop && card.readable === true && !!props.onRead;
+  const readPending = props.readPending === true;
+  const showRead = canRead && !compact && (TOUCH || hovered || readPending);
+  const showControl = showStop || showRead;
   const reducedMotion = useReducedMotion();
-  const stopLeaving = useLeaving(showStop && !TOUCH, reducedMotion ? 0 : STOP_EXIT_MS);
+  const controlLeaving = useLeaving(showControl && !TOUCH, reducedMotion ? 0 : STOP_EXIT_MS);
+  const read = { tokens, strings, pending: readPending, onPress: () => props.onRead?.(card) };
   const pressStop = (withChildren: boolean) => {
     setMenuOpen(false);
     setStopAll(withChildren);
@@ -693,9 +704,9 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     ) : null;
   // The ring's details card opens upwards over the rows above, and Stop's menu
   // downwards over the blocks below, so whichever row holds the footer is raised while either shows.
-  const footerZ = ringOpen ? OVERLAY_ROW_Z + 1 : showStop || stopLeaving ? OVERLAY_ROW_Z : undefined;
-  // A stoppable card keeps the footer even when it has nothing else, so Stop has a place to appear.
-  const stopSlot = canStop && !compact;
+  const footerZ = ringOpen ? OVERLAY_ROW_Z + 1 : showControl || controlLeaving ? OVERLAY_ROW_Z : undefined;
+  // A stoppable or readable card keeps the footer even when it has nothing else, so Stop or Mark read has a place to appear.
+  const stopSlot = (canStop || canRead) && !compact;
   // A desktop request's buttons take the footer in on their row: the wait sits
   // beside the answer it waits for, as the details sidebar shows it, rather
   // than above the divider with the buttons alone on a row of their own.
@@ -719,19 +730,19 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           </View>
         ) : null}
         {/* Bottom right, where Linear keeps nothing else; it stays there without a timer. */}
-        {showStop && TOUCH ? (
+        {showControl && TOUCH ? (
           <View style={{ marginLeft: "auto" }}>
-            <StopControl {...stop} compact={false} line={m.footLine} />
+            {canStop ? <StopControl {...stop} compact={false} line={m.footLine} /> : <ReadControl {...read} compact={false} line={m.footLine} />}
           </View>
         ) : null}
-        {ring ? <View style={{ marginLeft: showStop && TOUCH ? 0 : "auto" }}>{ring}</View> : null}
-        {(showStop || stopLeaving) && !TOUCH ? (
+        {ring ? <View style={{ marginLeft: showControl && TOUCH ? 0 : "auto" }}>{ring}</View> : null}
+        {(showControl || controlLeaving) && !TOUCH ? (
           // On web Stop appears on hover, so it floats over the ring (the card's
           // fill behind it hides what it covers) instead of taking room from the
           // row: hovering must not move anything. Native shows it all the time, in flow.
           <View
-            pointerEvents={stopLeaving ? "none" : "auto"}
-            aria-hidden={stopLeaving || undefined}
+            pointerEvents={controlLeaving ? "none" : "auto"}
+            aria-hidden={controlLeaving || undefined}
             style={[
               {
                 position: "absolute",
@@ -742,11 +753,11 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
                 backgroundColor: background,
                 ...webTransition,
               },
-              reducedMotion ? null : stopLeaving ? stopMotion?.exit : stopMotion?.enter,
+              reducedMotion ? null : controlLeaving ? stopMotion?.exit : stopMotion?.enter,
             ]}
-            testID="task-card-stop-overlay"
+            testID={canStop ? "task-card-stop-overlay" : "task-card-read-overlay"}
           >
-            <StopControl {...stop} compact={false} line={m.stopHeight} />
+            {canStop ? <StopControl {...stop} compact={false} line={m.stopHeight} /> : <ReadControl {...read} compact={false} line={m.stopHeight} />}
           </View>
         ) : null}
       </>
@@ -842,7 +853,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   // Phone action bar -------------------------------------------------------
   const buttons = compact && layout.permission ? props.permissionButtons : [];
   const actionBar =
-    compact && (buttons.length > 0 || canStop) ? (
+    compact && (buttons.length > 0 || canStop || canRead) ? (
       // One row: no flexWrap, whose Yoga layout left a phantom second row's
       // height under the buttons on Android.
       <View style={{ flexDirection: "row", gap: 8, marginTop: m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
@@ -856,6 +867,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           />
         ))}
         {canStop ? <StopControl {...stop} compact line={m.stopHeight} /> : null}
+        {canRead ? <ReadControl {...read} compact line={m.stopHeight} /> : null}
       </View>
     ) : null;
 
@@ -1248,6 +1260,60 @@ export function CardButton(props: {
       </Text>
       {/* The one arrow: a label that still ends in its own is trimmed by the caller. */}
       {answer ? <Icon name="ArrowUpRight" size={size} color={color} /> : null}
+    </Pressable>
+  );
+}
+
+/**
+ * Mark read: Stop's shape and size led by Lucide's CheckCheck (a read
+ * receipt), in the plain outline of a card button, since clearing a card is
+ * no alarm. While the request is out it says so, dimmed, and takes no second press.
+ */
+function ReadControl(props: {
+  tokens: TaskTokens;
+  strings: ReturnType<typeof cardStrings>;
+  pending: boolean;
+  compact: boolean;
+  /** The line it sits on, so it centres without growing the row. */
+  line: number;
+  onPress(): void;
+}) {
+  const { tokens, strings, pending, compact } = props;
+  const scale = useTasksFontScale();
+  const look = tokens.card;
+  const { hovered, hoverProps } = useHover();
+  const sizing = phoneButtonSizing((useWindowDimensions().fontScale ?? 1) * scale, true);
+  const height = taskControlHeight(compact ? PHONE.stopHeight : DESKTOP.stopHeight, scale);
+  const label = pending ? strings.markingRead : strings.markRead;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={pending ? { disabled: true, busy: true } : undefined}
+      disabled={pending}
+      onPress={props.onPress}
+      {...hoverProps}
+      testID="task-card-read"
+      style={{
+        ...(compact ? { ...sizing.box, minHeight: height, paddingVertical: 4 } : { flexShrink: 0, height }),
+        marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
+        paddingHorizontal: compact ? 14 : 8,
+        borderRadius: compact ? 8 : 5,
+        borderWidth: 1,
+        borderColor: look.pillBorder,
+        backgroundColor: hovered && !pending ? look.controlHover : "transparent",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: compact ? 6 : 4,
+        opacity: pending ? 0.6 : 1,
+        ...webTransition,
+      }}
+    >
+      <Icon name="CheckCheck" size={compact ? 16 : 12} color={tokens.foreground} />
+      <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? F.base : F.sm, fontWeight: "500", color: tokens.foreground }}>
+        {label}
+      </Text>
     </Pressable>
   );
 }

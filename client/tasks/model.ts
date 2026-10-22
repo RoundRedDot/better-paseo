@@ -185,6 +185,14 @@ export interface TaskCard {
   openTab: boolean;
   /** False when the agent is idle or closed; Stop shows only when true. */
   stoppable: boolean;
+  /**
+   * In the review lane for its attention alone, so clearing it moves the card
+   * to done: unread, or failed by the daemon's attention reason. A failure the
+   * board reads elsewhere (an `error` status, a kept `lastError`, a turn that
+   * ended on an error, a failed provider subagent) stays in review either way.
+   * Mark read shows only when true.
+   */
+  readable?: boolean;
   /** The daemon has not loaded the agent: reading its timeline would resume it. */
   closed?: boolean;
 }

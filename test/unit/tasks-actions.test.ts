@@ -7,8 +7,11 @@ import {
   respondToPermission,
   STOP_RPC_TIMEOUT_MS,
   STOP_VERIFY_MS,
+  READ_VERIFY_MS,
+  useReadControl,
   useStopControl,
   useUnarchiveControl,
+  type ReadControl,
   type StopControl,
   type UnarchiveControl,
 } from "../../client/tasks/actions";
@@ -20,13 +23,15 @@ const mocks = vi.hoisted(() => ({
   stop: vi.fn(),
   stopped: vi.fn(),
   unarchive: vi.fn(),
+  read: vi.fn(),
   toastError: vi.fn(),
-  language: vi.fn(() => "en" as const),
+  language: vi.fn((): "en" | "zh" => "en"),
 }));
 
 vi.mock("@getpaseo/plugin/client", () => ({
   useRpc(contract: { name: string }) {
     if (contract.name === "tasks.unarchive") return mocks.unarchive;
+    if (contract.name === "tasks.read") return mocks.read;
     return contract.name === "tasks.capabilities" ? mocks.capabilities : contract.name === "tasks.stopped" ? mocks.stopped : mocks.stop;
   },
 }));
@@ -430,5 +435,115 @@ describe("Tasks unarchive control", () => {
     verify.mockRejectedValueOnce(new Error("agent fetch failed"));
     await press(control, "parent");
     expect(mocks.toastError).toHaveBeenLastCalledWith("Could not unarchive: agent fetch failed");
+  });
+});
+
+describe("Tasks read control", () => {
+  let renderers: ReactTestRenderer[];
+  let control: ReadControl | undefined;
+  const readable = new Set<string>();
+
+  function ReadProbe() {
+    control = useReadControl({ isReadable: (agentId) => readable.has(agentId) });
+    return React.createElement("probe");
+  }
+
+  const card = (id: string, isReadable = true) => ({ id, readable: isReadable }) as unknown as TaskCard;
+  const current = () => {
+    if (!control) throw new Error("Read control did not render");
+    return control;
+  };
+  const flush = async () => {
+    for (let i = 0; i < 4; i += 1) await Promise.resolve();
+  };
+
+  beforeEach(() => {
+    renderers = [];
+    control = undefined;
+    readable.clear();
+    mocks.capabilities.mockReset().mockResolvedValue({ stop: true, read: true });
+    mocks.read.mockReset().mockResolvedValue({ ok: true, error: null });
+    mocks.toastError.mockReset();
+    mocks.language.mockReturnValue("en");
+  });
+
+  afterEach(() => {
+    for (const renderer of renderers) act(() => renderer.unmount());
+    vi.useRealTimers();
+  });
+
+  async function mount() {
+    await act(async () => {
+      renderers.push(TestRenderer.create(React.createElement(ReadProbe)));
+      await flush();
+    });
+  }
+
+  it("is available only when the server says it reaches the daemon", async () => {
+    mocks.capabilities.mockResolvedValue({ stop: true });
+    await mount();
+    expect(current().available).toBe(false);
+    act(() => current().press(card("agent-a")));
+    expect(mocks.read).not.toHaveBeenCalled();
+  });
+
+  it("stays pending until the card leaves review, then is done without a toast", async () => {
+    readable.add("agent-a");
+    await mount();
+    expect(current().available).toBe(true);
+
+    await act(async () => {
+      current().press(card("agent-a"));
+      await flush();
+    });
+    expect(mocks.read).toHaveBeenCalledWith({ agentIds: ["agent-a"] });
+    expect(current().pending("agent-a")).toBe(true);
+    // A second press while it waits sends nothing.
+    act(() => current().press(card("agent-a")));
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+
+    readable.delete("agent-a");
+    act(() => current().reconcile());
+    expect(current().pending("agent-a")).toBe(false);
+    expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  it("says so when the daemon accepted but the card is still in review", async () => {
+    vi.useFakeTimers();
+    readable.add("agent-a");
+    await mount();
+    await act(async () => {
+      current().press(card("agent-a"));
+      await flush();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(READ_VERIFY_MS);
+    });
+    expect(current().pending("agent-a")).toBe(false);
+    expect(mocks.toastError).toHaveBeenCalledWith("Could not mark as read: the task is still to review.");
+  });
+
+  it("toasts the server's error and a rejected RPC, and ignores a card that is not readable", async () => {
+    readable.add("agent-a");
+    mocks.language.mockReturnValue("zh");
+    await mount();
+    act(() => current().press(card("agent-a", false)));
+    expect(mocks.read).not.toHaveBeenCalled();
+
+    mocks.read.mockResolvedValueOnce({ ok: false, error: "Could not reach the Paseo daemon." });
+    await act(async () => {
+      current().press(card("agent-a"));
+      await flush();
+    });
+    expect(mocks.toastError).toHaveBeenLastCalledWith("标为已读失败：Could not reach the Paseo daemon.");
+    expect(current().pending("agent-a")).toBe(false);
+
+    mocks.read.mockRejectedValueOnce(new Error("socket closed"));
+    await act(async () => {
+      current().press(card("agent-a"));
+      await flush();
+    });
+    expect(mocks.toastError).toHaveBeenLastCalledWith("标为已读失败：socket closed");
+    expect(current().pending("agent-a")).toBe(false);
   });
 });
