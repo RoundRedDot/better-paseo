@@ -10,6 +10,9 @@ lanes. The performance section compares the timeline with Paseo’s own.
 
 <img alt="Better Paseo, a Paseo plugin: a clear, fast chat timeline on a desktop window and a phone" src="images/hero-cover.png">
 
+<picture><source media="(prefers-color-scheme: dark)" srcset="images/tasks-board-dark.png"><img alt="The Tasks board: every agent in four lanes, with a card's subtasks, properties and usage in the details sidebar" src="images/tasks-board-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="images/timeline-dark.png"><img alt="A chat timeline of compact tool rows and a checklist, with an edit's diff open in the block details side panel" src="images/timeline-light.png"></picture>
+
 https://github.com/user-attachments/assets/56d25aed-062c-41ed-8aa8-174e23bd3395
 
 > Better Paseo is a fork of [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat),
@@ -391,7 +394,7 @@ workspace status sorts them: **needs input** (oldest wait first), **running** (l
   does not stretch it.
 - Filter by workspace, agent, label, open tabs or hidden subtasks, and search titles. Sort by
   workspace, project, branch, folder, title, created, updated, context or duration; the sort covers
-  the cards already loaded. A **Lanes** menu beside the sort draws narrow, default or wide lanes.
+  the cards already loaded. A lane width menu beside the sort draws narrow, default or wide lanes.
   Keyboard on desktop: J/K, H/L, Enter, /, I for the sidebar and Esc.
 - The arrow on every card opens the agent's tab. A child card links back to its parent. A parent
   carries a subtask pill with a count per status; pressing it lists the children on the card, each
@@ -418,10 +421,11 @@ Where the sidebar goes depends on the board's width:
 - On a wide board the sidebar sits beside the lanes and its width is dragged from a split line.
 - A narrower board floats it over the lanes only for a clicked card or the sidebar switch; a click
   on blank lane space puts it away.
-- Under 760pt (a foldable, or a small tablet with the host's sidebar open) it rises from the
-  bottom as a non-modal sheet: half height by default, full from its handle, closed by a drag
-  down, a click on blank lanes, the close button or Esc. From 640pt wide the sheet lays the card out
-  in two columns.
+- Under 760pt (a foldable, or a small tablet with the host's sidebar open) the board's header
+  shrinks to one row, with the filters, done window, sort and lane width in a sheet, and the lanes
+  keep their width and scroll sideways. The details rise from the bottom as a non-modal sheet:
+  half height by default, full from its handle, closed by a drag down, a click on blank lanes, the
+  close button or Esc. From 640pt wide the sheet lays the card out in two columns.
 - On a phone one lane shows at a time behind a strip of lane counts; swipe or tap to switch. A card
   opens a details sheet that steps to the previous and next card of its lane, with Stop and the
   permission buttons pinned at thumb height.
@@ -504,7 +508,7 @@ same way as the chat settings above.
 | Cards | Labels shown | 2 | 1, 2, 3 or all before the rest fold into +N. |
 | Phone | Use minimal cards on phones | Off | On, phones draw the Minimal card whatever the density. |
 | Board | Done lane window | Last 24 hours | Last 24 hours, last 7 days or all. |
-| Board | Lane width | Default | Narrow, Default or Wide on desktop, web and tablets; a narrow window still keeps two lanes in view. Phones show one lane at a time. |
+| Board | Lane width | Default | Narrow, Default or Wide on desktop, web and tablets; a board too narrow for them scrolls the lanes sideways. Phones show one lane at a time and hide this option. |
 | Board | Hide subtasks by default | Off | Running, waiting and failed subtasks still show in their lane. |
 | Board | Confirm before stopping | On | Stop asks for a second press. |
 | Sidebar | Sidebar entry count | Needs input · Running · Review | Or needs input only, or hidden. |
