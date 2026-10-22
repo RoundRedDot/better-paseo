@@ -357,6 +357,11 @@ export function ReasoningCard({
       onToggle={onToggle}
       scrollAnchor={scrollAnchor}
       previewKey={`${storeKey}:preview`}
+      detailsTitle={label.preview || label.verb}
+      detailsSubtitle={[streaming ? "Thinking" : "Completed", ...label.meta]}
+      detailsTone={streaming ? "accent" : "muted"}
+      detailsIcon="Lightbulb"
+      copyItems={() => [{ id: "text", label: "Copy", icon: "Copy", text: copySource() }]}
       tokens={tokens}
       compact={compact}
       inert={inert}

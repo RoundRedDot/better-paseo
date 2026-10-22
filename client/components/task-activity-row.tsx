@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import { StyleSheet } from "react-native";
 import type { ExtendedThemeTokens } from "./theme-tokens";
-import { TaskList, TaskListPreview } from "./task-list";
+import { TaskList, TaskListPreview, taskListCopyText } from "./task-list";
 import { DisclosureHeader, RowIcon } from "../ui/disclosure-header";
 import { FadeIn } from "../ui/fade-in";
 import type { TodoActivity } from "../state/todo-timeline";
+import { BlockPlacementContext } from "../details/contracts";
 import type { TaskListData } from "../../shared/contracts";
 
 interface TaskActivityRowProps {
@@ -51,6 +52,7 @@ const styles = StyleSheet.create({
  */
 export function TaskActivityRow({ activities, data, tokens, compact = false }: TaskActivityRowProps) {
   const [expanded, setExpanded] = useState(false);
+  const placement = useContext(BlockPlacementContext);
   const first = activities[0];
   const done = data.tasks.filter((task) => task.status === "completed").length;
   const meta: string[] = [];
@@ -63,6 +65,11 @@ export function TaskActivityRow({ activities, data, tokens, compact = false }: T
   return (
     <>
       <DisclosureHeader
+        previewKey={`${placement?.agentId ?? "static"}:${placement?.at ?? data.id}:todo-activity:preview`}
+        detailsTitle={label || "Tasks"}
+        detailsSubtitle={meta}
+        detailsIcon={first ? ACTIVITY_ICON[first.type] : "ListChecks"}
+        copyItems={() => [{ id: "text", label: "Copy", icon: "Copy", text: taskListCopyText(data) }]}
         expanded={expanded}
         onToggle={() => setExpanded((prev) => !prev)}
         tokens={tokens}
@@ -76,7 +83,7 @@ export function TaskActivityRow({ activities, data, tokens, compact = false }: T
       />
       {expanded ? (
         <FadeIn style={styles.body}>
-          <TaskList data={data} tokens={tokens} compact={compact} />
+          <BlockPlacementContext.Provider value={null}><TaskList data={data} tokens={tokens} compact={compact} /></BlockPlacementContext.Provider>
         </FadeIn>
       ) : null}
     </>
