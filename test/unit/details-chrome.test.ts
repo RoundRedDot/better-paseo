@@ -394,7 +394,7 @@ describe("details body", () => {
         scrollTo: (options: unknown) => scrolls.push(options), scrollToEnd: (options: unknown) => scrolls.push(["end", options]) }) });
     });
     const root = renderer!.root;
-    expect(byId(root, "details-body").props.style).toMatchObject({ flex: 1, minHeight: 0 });
+    expect(byId(root, "details-body").props.style).toMatchObject({ flexGrow: 1, flexShrink: 1, minHeight: 0 });
     const body = () => hosts(root, "hover-preview-body")[0]!;
     act(() => body().props.onLayout({ nativeEvent: { layout: { height: 200 } } }));
     act(() => body().props.onContentSizeChange(0, 1000));

@@ -114,6 +114,20 @@ describe("details keyboard routing", () => {
     expect(doc.removeEventListener).toHaveBeenCalledWith("keydown", expect.any(Function), true);
   });
 
+  it("steps ← → through the shell's own step while one is registered", () => {
+    const { key } = setup();
+    const storeStep = vi.spyOn(detailsApi, "step");
+    const step = vi.fn();
+    const dropActions = registerDetailsKeyboardActions("agent-1", { step });
+    const release = bindDetailsKeys("agent-1", () => true);
+    key("ArrowLeft");
+    key("ArrowRight");
+    expect(step.mock.calls).toEqual([[-1], [1]]);
+    expect(storeStep).not.toHaveBeenCalled();
+    release();
+    dropActions();
+  });
+
   it("yields arrows to inputs and horizontally scrollable code", () => {
     const { target, key } = setup();
     const step = vi.spyOn(detailsApi, "step");
