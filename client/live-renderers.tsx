@@ -39,6 +39,8 @@ import { parseSystemEnvelope } from "./system-envelope";
 import { useTextItemTailKey } from "./timeline-tail";
 import { useHasEntryAfter, useNextEntryIsRow, useTimelineEntry, useTimelineToolGroup } from "./timeline-order";
 import { useHostStacksRows } from "./host-row-gap";
+import { BlockPlacementContext, type BlockKind } from "./details/contracts";
+import { DetailsHostSlot } from "./details/shell/details-host-slot";
 import type { TaskListData, TaskItemData, NoticeCalloutData } from "../shared/contracts";
 import { revealPathRpc } from "../shared/file-rpc";
 import { isImagePath, useImageFile } from "./image-file";
@@ -140,6 +142,17 @@ function rowGapStyle(compensated: boolean, copiesBelow: number, height: number):
 /** Whether a row with something below it takes back the gap under it. */
 function compensatesRow(compactRowSpacing: boolean, anythingBelow: boolean, rowBelow: boolean, hostStacks: boolean): boolean {
   return compactRowSpacing && anythingBelow && !(hostStacks && rowBelow);
+}
+
+function BlockPlacement({ agentId, timestamp, kind, children }: {
+  agentId: string;
+  timestamp: Date;
+  kind: BlockKind;
+  children: React.ReactNode;
+}) {
+  const at = timestamp.getTime();
+  const value = useMemo(() => ({ agentId, at, kind }), [agentId, at, kind]);
+  return <BlockPlacementContext.Provider value={value}>{children}</BlockPlacementContext.Provider>;
 }
 
 function LiveToolCallRendererBody({
@@ -258,6 +271,7 @@ function LiveToolCallRendererBody({
           </PathContext.Provider>
         </>
       ) : null}
+      <DetailsHostSlot agentId={agentId} itemKey={itemKey} tokens={tokens} compact={layout.compact} />
       <TimelineTailHub
         agentId={agentId}
         tokens={tokens}
@@ -317,6 +331,7 @@ function LiveReasoningRendererBody({
   // Duration only from what this client saw stream (see reasoning/observed.ts).
   observeReasoning(storeKey, streaming, timestamp.getTime());
   const durationMs = streaming ? null : observedDurationMs(storeKey);
+  const hostSlotKey = useRef(`thought:${agentId}:${timestamp.getTime()}`).current;
 
   // A thought gives up its gap once something of this agent's arrived below
   // it, whatever its phase: the host can mark a thought loading again while
@@ -345,6 +360,7 @@ function LiveReasoningRendererBody({
         storeKey={storeKey}
         copyText={text}
       />
+      <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />
     </View>
   );
 }
@@ -401,6 +417,7 @@ function LiveTodoRendererBody({
   );
 
   const taskListData = useMemo(() => todoTaskListData(items), [items]);
+  const hostSlotKey = `todo:${agentId}:${timestamp.getTime()}`;
 
   // The checklist's panel lives here, not in the list: when the next update
   // arrives this item folds to a row and its list unmounts, but the item
@@ -420,7 +437,9 @@ function LiveTodoRendererBody({
 
   // Empty plugin slots still carry the host's 16pt gap; the item drawing the
   // update takes it back for them, unless the host stacks rows and hangs none.
-  if (role === "hidden") return <View ref={rootRef} />;
+  if (role === "hidden") return <View ref={rootRef}>
+    <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />
+  </View>;
 
   return (
     <View
@@ -443,6 +462,7 @@ function LiveTodoRendererBody({
         <TaskActivityRow activities={activities} data={taskListData} tokens={tokens} compact={layout.compact} />
       )}
       <TaskListPanel panel={panel} data={panelData} tokens={tokens} compact={layout.compact} />
+      <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />
     </View>
   );
 }
@@ -488,6 +508,7 @@ function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp }: Plu
     void revealPath({ cwd: cwd ?? "", path }).catch(() => {});
   }, [cwd, revealPath]);
   const probe = probeCard("assistant", textItemKey("assistant", item.data.text), false);
+  const hostSlotKey = useRef(`assistant:${agentId}:${timestamp.getTime()}:${item.data.blockIndex ?? "block"}`).current;
   return <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}
     style={assistantBlockStyles.continuation}>
     {probe.node}
@@ -496,6 +517,7 @@ function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp }: Plu
       compact={layout.compact} firstBlock={item.data.blockIndex === 0} onRevealPath={onRevealPath}
       listContinuation={item.data.listContinuation}
       probeId={`assistant:${timestamp.getTime()}:${item.data.blockIndex}`} />
+    <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />
   </View>;
 }
 
@@ -525,6 +547,7 @@ function LiveAssistantMessageRenderer({
   // The jobs hub still follows the conversation tail. Completed-turn footers
   // are independent: each turn keeps one under its last model reply.
   const itemKey = useTextItemTailKey(agentId, "assistant", timestamp.getTime(), messageText);
+  const hostSlotKey = useRef(`assistant:${agentId}:${timestamp.getTime()}`).current;
 
   // Paseo's own reply sits 16pt above the tool row that follows it (its 12pt
   // padding plus a 4pt gap), the same 16pt the host hangs under a plugin item.
@@ -596,6 +619,7 @@ function LiveAssistantMessageRenderer({
           streaming={streaming}
         />
       ) : null}
+      <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />
       <TimelineTailHub
         agentId={agentId}
         tokens={tokens}
@@ -686,12 +710,14 @@ function LiveNoticeRendererBody({
     }),
     [data.message, data.fatal, level],
   );
+  const hostSlotKey = useRef(`notice:${agentId}:${timestamp.getTime()}`).current;
 
   return (
     <View ref={rootRef} {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}>
       {probe.node}
       <PreferenceSyncSlot />
       <NoticeCallout data={noticeData} tokens={tokens} at={timestamp} compact={layout.compact} />
+      <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />
     </View>
   );
 }
@@ -788,6 +814,7 @@ function LiveUserMessageRendererBody({
   );
   const atMs = timestamp.getTime();
   const promptKey = item.data.messageId ?? `at:${atMs}`;
+  const hostSlotKey = useRef(`prompt:${agentId}:${item.data.messageId ?? atMs}`).current;
 
   // The same envelopes reach this item kind on some hosts and on history
   // replay. A job result is not something the user said, so it never takes the
@@ -831,6 +858,7 @@ function LiveUserMessageRendererBody({
           }
         />
       )}
+      <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />
     </View>
   );
 }
@@ -862,28 +890,40 @@ function SenderlessAgentMessage(props: PluginTimelineItemProps<LiveToolCallPaylo
 
 export function LiveToolCallRenderer(props: PluginTimelineItemProps<LiveToolCallPayload>) {
   const data = props.item.data;
-  return <ChatComposerContext.Provider value={props.composer}>
-    {data.name === "agent_message" && !data.agentMessage && data.callId
-      ? <SenderlessAgentMessage {...props} callId={data.callId} /> : <ToolCallMemo {...props} />}
-  </ChatComposerContext.Provider>;
+  return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="tool">
+    <ChatComposerContext.Provider value={props.composer}>
+      {data.name === "agent_message" && !data.agentMessage && data.callId
+        ? <SenderlessAgentMessage {...props} callId={data.callId} /> : <ToolCallMemo {...props} />}
+    </ChatComposerContext.Provider>
+  </BlockPlacement>;
 }
 
 export function LiveReasoningRenderer(props: PluginTimelineItemProps<LiveReasoningPayload>) {
-  return <ChatComposerContext.Provider value={props.composer}><ReasoningMemo {...props} /></ChatComposerContext.Provider>;
+  return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="thought">
+    <ChatComposerContext.Provider value={props.composer}><ReasoningMemo {...props} /></ChatComposerContext.Provider>
+  </BlockPlacement>;
 }
 
 export function LiveTodoRenderer(props: PluginTimelineItemProps<LiveTodoPayload>) {
-  return <ChatComposerContext.Provider value={props.composer}><TodoMemo {...props} /></ChatComposerContext.Provider>;
+  return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="todo">
+    <ChatComposerContext.Provider value={props.composer}><TodoMemo {...props} /></ChatComposerContext.Provider>
+  </BlockPlacement>;
 }
 
 export function LiveAssistantRenderer(props: PluginTimelineItemProps<LiveAssistantPayload>) {
-  return <ChatComposerContext.Provider value={props.composer}><AssistantMemo {...props} /></ChatComposerContext.Provider>;
+  return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="activity">
+    <ChatComposerContext.Provider value={props.composer}><AssistantMemo {...props} /></ChatComposerContext.Provider>
+  </BlockPlacement>;
 }
 
 export function LiveNoticeRenderer(props: PluginTimelineItemProps<LiveNoticePayload>) {
-  return <ChatComposerContext.Provider value={props.composer}><NoticeMemo {...props} /></ChatComposerContext.Provider>;
+  return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="activity">
+    <ChatComposerContext.Provider value={props.composer}><NoticeMemo {...props} /></ChatComposerContext.Provider>
+  </BlockPlacement>;
 }
 
 export function LiveUserMessageRenderer(props: PluginTimelineItemProps<LiveUserMessagePayload>) {
-  return <ChatComposerContext.Provider value={props.composer}><UserMessageMemo {...props} /></ChatComposerContext.Provider>;
+  return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="activity">
+    <ChatComposerContext.Provider value={props.composer}><UserMessageMemo {...props} /></ChatComposerContext.Provider>
+  </BlockPlacement>;
 }

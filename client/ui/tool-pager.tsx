@@ -1,12 +1,15 @@
-import { useEffect, useRef } from "react";
+import { useContext, useEffect, useRef } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { unselectable } from "../components/selection";
 import { ToolbarButton } from "./toolbar-button";
 import { usePreviewPanel } from "./hover-preview";
 import { bindPreviewPaging } from "../web";
+import { DetailsShellContext } from "../details/contracts";
+import { registerDetailsPager } from "../details/keyboard";
+import { useEnhancerPreferences } from "../preferences";
 
-/** `‹ 2 / 3 ›`: shared by grouped calls and questions, including maximized arrow-key paging. */
+/** `‹ 2 / 3 ›`: shared by grouped calls and questions, including maximized keyboard paging. */
 export function ToolPager({ index, count, onChange, tokens, subject = "operation" }: {
   subject?: "operation" | "question";
   index: number;
@@ -16,13 +19,18 @@ export function ToolPager({ index, count, onChange, tokens, subject = "operation
 }) {
   const pagerRef = useRef<View>(null);
   const maximized = usePreviewPanel()?.maximized ?? false;
+  const blockDetails = useEnhancerPreferences().blockDetails;
+  const details = useContext(DetailsShellContext);
   useEffect(() => {
-    if (!maximized) return;
-    return bindPreviewPaging(pagerRef.current, (direction) => {
+    const step = (direction: -1 | 1) => {
       const next = index + direction;
       if (next >= 0 && next < count) onChange(next);
-    });
-  }, [maximized, index, count, onChange]);
+    };
+    if (details) {
+      return registerDetailsPager(details.agentId, { prev: () => step(-1), next: () => step(1) });
+    }
+    if (maximized) return bindPreviewPaging(pagerRef.current, step, blockDetails ? "brackets" : "arrows");
+  }, [details?.agentId, maximized, blockDetails, index, count, onChange]);
   return (
     <View ref={pagerRef} style={styles.pager}>
       <ToolbarButton icon="ChevronLeft" label={`Previous ${subject}`} disabled={index === 0}
