@@ -1124,6 +1124,31 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(tree.root, "detail-turn"))).toContain("12:31");
   });
 
+  it("shows a scrollbar on the scrolling sections that keeps clear of the text", async () => {
+    const sectionPad = (root: ReactTestInstance) => {
+      const section = hostByTestId(root, "detail-usage");
+      const [divider, body] = section.children as ReactTestInstance[];
+      return { divider: flat(divider!.props.style), body: flat(body!.props.style) };
+    };
+    const native = await render(details(sample("sample-done"), { scrollBody: true }));
+    expect(hostByTestId(native.root, "detail-body-scroll").props.showsVerticalScrollIndicator).toBe(true);
+    expect(sectionPad(native.root)).toMatchObject({ divider: { marginLeft: 12, marginRight: 12 }, body: { paddingLeft: 6, paddingRight: 6 } });
+    await act(async () => native.unmount());
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    try {
+      const web = await render(details(sample("sample-done"), { scrollBody: true }));
+      const scroll = hostByTestId(web.root, "detail-body-scroll");
+      expect(scroll.props).toMatchObject({ showsVerticalScrollIndicator: true, dataSet: { bcdetails: "inset" } });
+      // The scrollbar's 6 gutter comes out of the right padding: the text keeps the header's edge.
+      expect(sectionPad(web.root)).toMatchObject({ divider: { marginLeft: 12, marginRight: 6 }, body: { paddingLeft: 6, paddingRight: 0 } });
+      expect(flat(hostByTestId(web.root, "detail-header").props.style)).toMatchObject({ paddingLeft: 12, paddingRight: 12 });
+      await act(async () => web.unmount());
+    } finally {
+      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+    }
+    renderer = null;
+  });
+
   it("heads with the status, the title, the agent's chips and the actions, then the running turn", async () => {
     const onOpen = vi.fn();
     const tree = await render(details(sample("sample-running"), { onOpen }));

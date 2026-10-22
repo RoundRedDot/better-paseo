@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { ViewProps } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { mix } from "../../components/theme-tokens";
+import { DETAIL_SCROLLBAR, taskTokens, type DetailScrollbarKind } from "../cards";
 import { boardPalette } from "./board-style";
 
 const STYLE_ELEMENT_ID = "better-paseo-lane-scrollbar";
@@ -73,7 +74,56 @@ function rules(theme: PluginTheme): string {
 [data-bclane]::-webkit-scrollbar-thumb:active {
   background: ${pressed};
 }
+${detailRules("inset", theme)}
+${detailRules("column", theme)}
 `;
+}
+
+/**
+ * The details' scrollbars (`cards/detail-scrollbar.ts`): a classic one in a
+ * stable gutter, so it never lies over the text and the text does not shift
+ * when the details start to overflow. Unlike a lane's it stays while the
+ * details overflow, a sign that there is more below.
+ *
+ * The thumb draws narrower than its gutter through transparent borders. A
+ * border shrinks the inner radius by its width, so each side's outer radius
+ * adds its border back: the visible thumb stays a round-ended pill even when
+ * it sits off centre. The track keeps clear of the card's rounded corner.
+ */
+function detailRules(kind: DetailScrollbarKind, theme: PluginTheme): string {
+  const { gutter, left, right } = DETAIL_SCROLLBAR[kind];
+  const selector = `[data-bcdetails="${kind}"]`;
+  const background = kind === "inset" ? taskTokens(theme).card.background : boardPalette(theme).panel;
+  const muted = theme.colors.foregroundMuted;
+  const thumb = mix(background, muted, 0.55);
+  const pressed = mix(muted, theme.colors.foreground, 0.35);
+  const round = (gutter - left - right) / 2;
+  return `
+${selector} {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+  scrollbar-gutter: stable;
+}
+${selector}::-webkit-scrollbar {
+  width: ${gutter}px;
+  background: transparent;
+}
+${selector}::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 2px 0 ${kind === "inset" ? 8 : 2}px;
+}
+${selector}::-webkit-scrollbar-thumb {
+  border: solid transparent;
+  border-width: 0 ${right}px 0 ${left}px;
+  border-radius: ${left + round}px ${right + round}px ${right + round}px ${left + round}px / ${round}px;
+  background: ${thumb};
+  background-clip: padding-box;
+}
+${selector}::-webkit-scrollbar-thumb:hover,
+${selector}::-webkit-scrollbar-thumb:active {
+  background: ${pressed};
+  background-clip: padding-box;
+}`;
 }
 
 let mounted = 0;
@@ -95,7 +145,7 @@ function markScrolling(event: Event): void {
 /** A real DOM: off web, and in a test's bare `document`, there is nothing to style. */
 const hasDom = () => typeof document !== "undefined" && typeof document.getElementById === "function";
 
-/** Installs the lane scrollbar rules for the current theme while a desktop board is up. Off web a no-op. */
+/** Installs the lane and details scrollbar rules for the current theme while a desktop board is up. Off web a no-op. */
 export function useLaneScrollbar(theme: PluginTheme): void {
   const css = hasDom() ? rules(theme) : "";
 
