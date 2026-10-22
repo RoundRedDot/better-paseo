@@ -16,14 +16,14 @@ const readmes = ["README.md", "README-zh.md"].map(file => ({
 }));
 
 test("every README screenshot has matching, verified light and dark assets", () => {
-  assert.equal(manifest.assets.length, 52);
-  assert.equal(published.size, 52);
+  assert.equal(manifest.assets.length, 50);
+  assert.equal(published.size, 50);
   assert.equal(manifest.defaultTheme, "light");
   const referenced = new Set();
   for (const { file, text } of readmes) {
     assert.doesNotMatch(text, /!\[[^\]]*\]\([^)]*\.png\)/, file);
     const pictures = [...text.matchAll(/<picture>[\s\S]*?<\/picture>/g)];
-    assert.equal(pictures.length, 24, file);
+    assert.equal(pictures.length, 23, file);
     for (const [picture] of pictures) {
       assert.match(picture, /media="\(prefers-color-scheme: dark\)"/);
       const dark = picture.match(/srcset="([^"]+)"/)?.[1];
@@ -40,7 +40,7 @@ test("every README screenshot has matching, verified light and dark assets", () 
       assert.notEqual(a.sha256, b.sha256, light);
     }
   }
-  assert.equal(referenced.size, 52);
+  assert.equal(referenced.size, 50);
   for (const asset of manifest.assets) {
     const bytes = readFileSync(join(repo, asset.path));
     assert.equal(createHash("sha256").update(bytes).digest("hex"), asset.sha256, asset.path);
@@ -70,7 +70,7 @@ test("both READMEs load light images and switch to dark without reloading", asyn
         await page.emulateMedia({ colorScheme: theme });
         await page.waitForFunction(theme => [...document.images].every(img =>
           img.complete && img.naturalWidth > 0 && img.currentSrc.endsWith(`-${theme}.png`)), theme);
-        assert.equal(await page.locator("picture img").count(), 24, `${file}: ${theme}`);
+        assert.equal(await page.locator("picture img").count(), 23, `${file}: ${theme}`);
       }
     }
   } finally {
