@@ -407,6 +407,7 @@ describe("TaskCardView rows", () => {
     const agent = hostByTestId(tree.root, "pill-model");
     expect(texts(agent)).toEqual(["GPT-5.5 Codex", "·", "Medium"]);
     expect(icons(agent)).toEqual(["Brain"]);
+    expect(flat(hostByTestId(agent, "agent-pill-dot").props.style).marginHorizontal).toBe(-3);
     expect(agent.props.accessibilityLabel).toBe("Codex GPT-5.5 Codex Medium");
     // The turn's start behind a clock, then how long it has run behind an hourglass, as the turn footer draws them.
     const footer = hostByTestId(tree.root, "task-card-footer");
