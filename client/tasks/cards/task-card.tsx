@@ -1318,7 +1318,8 @@ export function CardButton(props: {
 /**
  * Mark read: a card button's size, as Stop and "Answer" are, led by
  * Lucide's CheckCheck (a read receipt), in the plain outline, since clearing a card is
- * no alarm. While the request is out it says so, dimmed, and takes no second press.
+ * no alarm. While the request is out a spinner takes the icon's place, the
+ * label says so, dimmed, and the button takes no second press.
  */
 function ReadControl(props: {
   tokens: TaskTokens;
@@ -1336,6 +1337,7 @@ function ReadControl(props: {
   const sizing = phoneButtonSizing((useWindowDimensions().fontScale ?? 1) * scale, true);
   const height = taskControlHeight(compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, scale);
   const label = pending ? strings.markingRead : strings.markRead;
+  const iconSize = compact ? 16 : 13;
   return (
     <Pressable
       accessibilityRole="button"
@@ -1361,7 +1363,14 @@ function ReadControl(props: {
         ...webTransition,
       }}
     >
-      <Icon name="CheckCheck" size={compact ? 16 : 13} color={tokens.foreground} />
+      {pending ? (
+        // The platform's small spinner is 20; scaled into the icon's box so the button keeps its width.
+        <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="small" color={tokens.foreground} style={{ transform: [{ scale: iconSize / 20 }] }} testID="task-card-read-spinner" />
+        </View>
+      ) : (
+        <Icon name="CheckCheck" size={iconSize} color={tokens.foreground} />
+      )}
       <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? F.base : F.sm, fontWeight: "500", color: tokens.foreground }}>
         {label}
       </Text>

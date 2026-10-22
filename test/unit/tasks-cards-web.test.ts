@@ -265,7 +265,7 @@ describe("TaskCardView on web", () => {
     // Pending, it stays after the pointer leaves, until the card moves on.
     await act(async () => renderer.update(element({ readPending: true })));
     await act(async () => hovers.get(`task-card-${card.id}`)!.leave());
-    expect(root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "标记中…")).toHaveLength(1);
+    expect(root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "标记中")).toHaveLength(1);
 
     await act(async () => renderer.update(element({ readPending: false })));
     expect(overlay()?.props.pointerEvents).toBe("none");
