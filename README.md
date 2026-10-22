@@ -21,14 +21,18 @@ https://github.com/user-attachments/assets/56d25aed-062c-41ed-8aa8-174e23bd3395
 
 - **Measured performance.** Against Paseo 0.12.0, 198 Web and iOS replays; the long reply costs a fifth of the host's main-thread time. Details in [Performance](#performance).
 - **Measured memory.** The same round records post-GC JS heap and signed MB differences against no plugin. [Memory comparison](#memory-comparison).
-- **One row per tool call.** Calls start collapsed to a 26pt row with a typed summary, open on a
-  press, and stay open or closed across completion, history and remounts.
+- **One row per tool call.** Calls start collapsed to a 26pt row with a typed summary and stay
+  open or closed across completion, history and remounts.
+- **Block details.** Tap a row, or pick **Open in panel** in a desktop hover preview, to read it in
+  a drawer on a phone, a floating panel on a tablet or a side panel beside a wide chat, and step through the turn's blocks from its header. See
+  [Block details](#block-details).
 - **Block-by-block streaming replies.** Finished Markdown blocks are cached while growing code and tables are repaired. This round’s layout-shift readings are in the [performance comparison](#performance).
-- **Previews without opening.** Hover a collapsed row or a path on desktop, or long-press a
-  collapsed row on a phone, to read its content in a scrollable panel. Images open in a full-screen viewer.
+- **Previews without opening.** Hover a collapsed row or a path on desktop to read its content in
+  a scrollable panel. Images open in a full-screen viewer.
 - **Tasks board.** One sidebar entry shows every agent by state (needs input, running, to review,
   done), with the parent/child links, model and thinking level, and Stop and permission buttons on
-  the card. See [Tasks board](#tasks-board).
+  the card. A click opens the card's properties, usage, activity and subtasks in a sidebar beside
+  the lanes. See [Tasks board](#tasks-board).
 - **Follows Paseo.** Fonts, sizes and colours follow the host by default; settings are stored on
   the daemon and shared by desktop, web, iOS and Android. The settings page is in English and
   Simplified Chinese.
@@ -206,7 +210,8 @@ data, it gets a question transcript; otherwise it stays a generic text card.
 
 - Every call starts as one borderless row, 26pt on desktop and 28pt on touch, with a summary built
   for its type: the command, the path and line range, `+4 −2` for an edit, the exit code and
-  duration. A press opens the card.
+  duration. A click expands the card in place. On a touch screen a tap opens its
+  [details](#block-details) instead, and a tap on the icon at the row's start expands it.
 - The open or closed state is kept per call (`agentId:callId`) outside the component, so it
   survives completion, scrolling into history and remounts. On iOS the header stays where it was
   pressed and the content opens below it.
@@ -312,8 +317,34 @@ On desktop, resting the pointer on a collapsed tool row, thought row, image or p
 scrollable preview after a delay you set (0–10 s). It can wrap lines, show line numbers and
 alternating shading, and can be moved, resized or maximized. A checklist can open its live list in a
 floating window, and a Markdown code block can open its own maximized preview. When a preview is
-following live output, it glides along as the content grows. On a phone, long-press a collapsed row
-to open the same preview without covering the top bar or composer.
+following live output, it glides along as the content grows. With block details on, the preview's
+header gains **Open in panel**. With block details off, long-press a collapsed row on a phone to
+open the same preview without covering the top bar or composer.
+
+### Block details
+
+On a touch screen, a tap on a tool, thought, activity, checklist or code block row opens that
+block's details. With a pointer a click still expands the row, so the panel opens from the hover
+preview's **Open in panel** or the row menu's **Open details**. The form follows the room the chat has: a bottom drawer with a scrim under 600pt wide, a centred
+floating panel up to 760pt wide, or a side panel on the right when the chat keeps at least 400pt
+beside it. On web the panel is not modal, so the rows behind it stay clickable; on iOS and Android
+it is a sheet that Android's back button closes.
+
+- The header carries the row's icon, a title that grows to four lines, the block's status and its
+  place in the turn, and previous, next and close. Swipe the header to step between blocks; the
+  timeline scrolls the open row into view and marks it.
+- The toolbar holds wrap, the pager and render toggles, full screen and the tool's copy actions,
+  folded into **More** when they do not fit. A streaming block follows its tail, with a pill back
+  to the latest output once you scroll up.
+- The drawer's height follows its content; drag the handle or the header, or pull down once the
+  body is at its top.
+- A long press, or a right-click, opens the row's menu: the tool's copies first, then view image,
+  open details and expand or collapse in the timeline. A tap on an image row still opens the image
+  viewer.
+- Keys on web while a panel is open: ← and → step blocks, `[` and `]` page a merged row, W wraps,
+  R renders, F goes full screen, Cmd/Ctrl+C copies the main content and Esc closes.
+- Turn **Block details panel** off to go back to tap-to-expand and the long-press preview on touch
+  screens.
 
 ### Paths, copying and selection
 
@@ -349,26 +380,55 @@ Permission requests are not redrawn: Paseo draws them and owns the approve and d
 
 ### Tasks board
 
-**Tasks** sits in the sidebar's top group (with a running · needs-input count) and in the Command
-Center. It opens a board of every agent on the host in four lanes, sorted the way the sidebar's
+**Tasks** sits in the sidebar's top group (counting needs input · running · to review) and in the
+Command Center. It opens a board of every agent on the host in four lanes, sorted the way the sidebar's
 workspace status sorts them: **needs input** (oldest wait first), **running** (longest first),
 **to review** (finished unread or failed) and **done** (last 24 hours by default, 50 at a time).
 
 - Cards are grouped: title and "agent · model · thinking", then "project › workspace" and
   "branch · folder", then labels and the timer. The status icons are Paseo's own sidebar marks.
-- Filter by workspace, agent, label, open tabs or hidden subtasks, and search titles. Keyboard on
-  desktop: J/K, H/L, Enter, / and Esc. On a phone one lane shows at a time; swipe or tap the tabs,
-  and long-press a card for its details.
-- The arrow on every card opens the agent's tab. A child card links back to its parent, and a
-  parent lists its direct children.
+  The timer of a finished turn comes from the turn's recorded end, so opening an old agent's tab
+  does not stretch it.
+- Filter by workspace, agent, label, open tabs or hidden subtasks, and search titles. Sort by
+  workspace, project, branch, folder, title, created, updated, context or duration; the sort covers
+  the cards already loaded. A **Lanes** menu beside the sort draws narrow, default or wide lanes.
+  Keyboard on desktop: J/K, H/L, Enter, /, I for the sidebar and Esc.
+- The arrow on every card opens the agent's tab. A child card links back to its parent. A parent
+  carries a subtask pill with a count per status; pressing it lists the children on the card, each
+  led by its agent mark with the status on the corner and ending in its start and run time.
 - **Stop** (hover on desktop, always on phones) asks for a second press, and a parent can stop
   with its running children. Tool, plan and mode permission requests can be allowed or denied on the
   card; questions jump to the tab.
-- The board is off until you turn it on: **Tasks board** heads Better Paseo's settings page
-  (Settings → Plugins → Better Paseo), with a preview of the board beside the switch. Its
-  **Tasks board** tab picks the card fields and density (minimal, standard, full or custom), the
-  phone card, the done-lane window, subtasks, the stop confirmation and the sidebar count, over a
-  live preview of all four lanes.
+
+**Card details.** A click or tap on a card opens it in the details sidebar; with no card chosen the
+sidebar groups the board by agent, project and label, and a click on a group filters by it. The
+details card leads with what the card needs first (the running turn and its clock, the pending
+permission, the error of a failed run, or a summary), then:
+
+- **Subtasks**, drawn like Paseo 0.12's subagent rows (the provider's mark, the title over model,
+  thinking, mode and context) under a progress ring like the timeline checklist's. Ten show until
+  the count line opens the rest.
+- **Properties**: project, workspace, branch with ahead and behind, folder or path, PR, labels,
+  parent and mode. Branch names and paths copy from their row; long paths fold their middle.
+- **Usage**: a token mix chart, cost and context.
+- **Activity**: created, turn started, waiting and ended.
+
+Where the sidebar goes depends on the board's width:
+
+- On a wide board the sidebar sits beside the lanes and its width is dragged from a split line.
+- A narrower board floats it over the lanes only for a clicked card or the sidebar switch; a click
+  on blank lane space puts it away.
+- Under 760pt (a foldable, or a small tablet with the host's sidebar open) it rises from the
+  bottom as a non-modal sheet: half height by default, full from its handle, closed by a drag
+  down, a click on blank lanes, the close button or Esc. From 640pt wide the sheet lays the card out
+  in two columns.
+- On a phone one lane shows at a time behind a strip of lane counts; swipe or tap to switch. A card
+  opens a details sheet that steps to the previous and next card of its lane, with Stop and the
+  permission buttons pinned at thumb height.
+
+The board is off until you turn it on: **Tasks board** heads Better Paseo's settings page
+(Settings → Plugins → Better Paseo), with a preview of the board beside the switch. Its options are
+listed under [Tasks board settings](#tasks-board-settings).
 
 Limits: Stop runs `paseo agent stop` through the CLI that Paseo hands the plugin, because the
 plugin API has no cancel; without that CLI the button is hidden. "Open tabs only" relies on a label
@@ -381,7 +441,8 @@ Codex sub-tasks) are not Paseo agents and do not appear.
 
 ## Settings
 
-**Settings → Plugins → Better Paseo.** A sample turn drawn with the timeline's own components follows
+**Settings → Plugins → Better Paseo.** The page has two tabs, **Chat presentation** and **Tasks
+board**; the switch that turns the board on sits at the top of both. On the chat tab a sample turn drawn with the timeline's own components follows
 every change: beside the options on a wide desktop window, above them elsewhere. The Read row's
 hover preview is drawn open in it. On web and desktop a **Desktop / Mobile** switch draws the same
 turn at phone width with iOS styling and the inline-code colour you picked.
@@ -409,7 +470,8 @@ Options whose parent is off are dimmed, and **Reset** asks for a second press.
 | Messages | Plugin markdown for replies | On | Off hands replies to Paseo, restoring its full footer and enabling mermaid, host images and Paseo's file links. |
 | Messages | Markdown style | Document | Document, Compact or Terminal (body in the code font). |
 | Messages | Selection toolbar | On | Web and desktop: Copy and Add to chat on selected text; the bar closes on scroll. |
-| Hover previews | Hover previews | On | Preview collapsed rows and paths on desktop hover; long-press a collapsed row on a phone. |
+| Hover previews | Hover previews | On | Preview collapsed rows and paths on desktop hover; with block details off, long-press a collapsed row on a phone. |
+| Hover previews | Block details panel | On | On a touch screen a tap opens a row's [details](#block-details) in a drawer or panel, and a long press shows the row's actions; on desktop the hover preview and right-click menu open the panel. Off, a tap expands the row and a long press previews it. |
 | Hover previews | Delay | 1 s | 0–10 s, saved to tenths of a second, before the desktop preview opens. |
 | Hover previews | Wrap lines | On | Wrap long lines in preview panels, including raw text in maximized code previews; turn off to scroll horizontally. |
 | Hover previews | Line numbers | On | Show line numbers beside files, diffs and command output; diffs use the file's own line numbers. |
@@ -427,6 +489,26 @@ switch once.
 state changes. The daemon stores the value and syncs it to other connected clients; reloading the chat
 is not needed. **Open failed calls** uses the saved per-call choice when there is one, and otherwise
 sets the call's initial state.
+
+### Tasks board settings
+
+The **Tasks board** tab draws sample agents in all four lanes and redraws them as each option
+changes. The record is `tasks` in `shared/tasks-settings.ts`, stored and shared the
+same way as the chat settings above.
+
+| Group | Setting | Default | Effect |
+| --- | --- | --- | --- |
+| Tasks board | Enable the Tasks board | Off | Adds Tasks to the sidebar and the Command Center. Off, there is no entry and no agent subscription. |
+| Cards | Card density | Standard | Minimal, Standard or Full sets every field switch at once; editing one switch makes it Custom. |
+| Cards | Fields | Standard's set | Agent brand mark, model, thinking level, project, project icon, workspace name, branch, Git status, folder, full path, labels, linked PR, timer, context usage ring and subtask summary. Standard leaves Git status, full path and linked PR off; Minimal keeps model, thinking and the timer. |
+| Cards | Labels shown | 2 | 1, 2, 3 or all before the rest fold into +N. |
+| Phone | Use minimal cards on phones | Off | On, phones draw the Minimal card whatever the density. |
+| Board | Done lane window | Last 24 hours | Last 24 hours, last 7 days or all. |
+| Board | Lane width | Default | Narrow, Default or Wide on desktop, web and tablets; a narrow window still keeps two lanes in view. Phones show one lane at a time. |
+| Board | Hide subtasks by default | Off | Running, waiting and failed subtasks still show in their lane. |
+| Board | Confirm before stopping | On | Stop asks for a second press. |
+| Sidebar | Sidebar entry count | Needs input · Running · Review | Or needs input only, or hidden. |
+| Reset | Restore the Tasks defaults | — | Puts every Tasks option back; the board stays on or off. Asks for a second press. |
 
 ---
 
