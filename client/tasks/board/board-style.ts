@@ -105,6 +105,10 @@ export const MOTION = {
   flyMs: 300,
   /** A card that left the board fades where it was. */
   leaveMs: 160,
+  /** A desktop lane collapsed, expanded or switched to another width eases to its new width. */
+  resizeMs: 220,
+  /** The strip or list swapped in as a lane collapses or expands fades in. */
+  swapMs: 160,
   /** The skeleton breathes from 1 to 0.5 and back. */
   skeletonMs: 1200,
   highlightMs: 1000,

@@ -93,6 +93,10 @@ function makeValue(initial: number) {
     interpolate() {
       return value;
     },
+    addListener() {
+      return "listener";
+    },
+    removeListener() {},
     get __value() {
       return value;
     },
