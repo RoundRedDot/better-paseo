@@ -139,7 +139,8 @@ import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { DetailsHostSlot } from "../../client/details/shell/details-host-slot";
 import { DetailsShellContext, type DetailsShellValue } from "../../client/details/contracts";
 import { HoverPreviewContext, PreviewActionsContext, PreviewChromeContext, type PreviewActions } from "../../client/ui/hover-preview";
-import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import { getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import { TextZoomContext } from "../../client/ui/text-zoom";
 import { resetSafeInsets } from "../../client/details/shell/safe-area";
 import { resetSideWidth } from "../../client/details/shell/side-panel";
 import { registerHostList, resetTimelineSync, syncDelta } from "../../client/details/shell/timeline-sync";
@@ -1347,3 +1348,114 @@ describe("iOS text after the slide in", () => {
   });
 });
 
+
+describe("a pinch in the phone drawer", () => {
+  type Handlers = Record<string, (...args: unknown[]) => unknown>;
+  const zooms: number[] = [];
+  function ZoomProbe() {
+    const zoom = useContext(TextZoomContext);
+    zooms.push(zoom);
+    return createElement("Text", { testID: "zoom-probe" }, String(zoom));
+  }
+  const zoomed = () => createElement(HoverPreviewBody, null, createElement(ZoomProbe));
+  const fingers = (...ys: number[]) => ({ nativeEvent: { pageX: 100, pageY: ys[0], timestamp: 0, touches: ys.map((pageY) => ({ pageX: 100, pageY })) } });
+  /** A drawer whose body is 300 tall from 400 down, over 900 of content scrolled to `offset`. */
+  function drawer(id: string, offset = 300) {
+    fake.box.blocks = [block(id, 1, { render: zoomed })];
+    const renderer = render(slot());
+    open(id);
+    layOut(renderer, "details-drawer", 462);
+    const body = () => byTestId(renderer, "hover-preview-body")!.props as Record<string, unknown> & Handlers;
+    const panel = () => byTestId(renderer, "details-body")!.props as Handlers;
+    act(() => {
+      body().onLayout!({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 300 } } });
+      body().onContentSizeChange!(390, 900);
+      body().onScroll!({ nativeEvent: { contentOffset: { y: offset }, layoutMeasurement: { height: 300 }, contentSize: { height: 900 } } });
+    });
+    const shown = () => byTestId(renderer, "zoom-probe")!.props.children as string;
+    return { renderer, body, panel, shown };
+  }
+
+  beforeEach(() => {
+    zooms.length = 0;
+  });
+
+  it("sets the text size live, keeps the line under the fingers, and saves it as they lift", () => {
+    const { renderer, body, panel, shown } = drawer("pinch");
+    expect(body().scrollEnabled).toBe(true);
+    act(() => { panel().onTouchStart!(fingers(500, 600)); });
+    // Held still: the fingers moving apart do not scroll the body.
+    expect(body().scrollEnabled).toBe(false);
+    expect(byTestId(renderer, "details-zoom-badge")).not.toBeNull();
+    // 100 apart to 150: the 16 of the timeline's body to 24.
+    act(() => { panel().onTouchMove!(fingers(475, 625)); });
+    expect(shown()).toBe("8");
+    expect(getEnhancerPreferences().detailsTextZoom).toBe(0);
+    // The midpoint, 150 into the body, was half way down the content: still there at 1350.
+    act(() => { body().onContentSizeChange!(390, 1350); });
+    expect(web.scrolls.at(-1)).toBe(525);
+    act(() => { panel().onTouchEnd!(fingers(475)); });
+    expect(getEnhancerPreferences().detailsTextZoom).toBe(8);
+    expect(shown()).toBe("8");
+    expect(body().scrollEnabled).toBe(true);
+    const words = byTestId(renderer, "details-zoom-badge")!.findAll((node) => typeof node.props.children === "string").map((node) => node.props.children);
+    expect(words).toEqual(expect.arrayContaining(["Text size 24", "Reset"]));
+    act(() => { (byTestId(renderer, "details-zoom-reset")!.props.onPress as () => void)(); });
+    expect(getEnhancerPreferences().detailsTextZoom).toBe(0);
+    expect(shown()).toBe("0");
+    expect(byTestId(renderer, "details-zoom-badge")).toBeNull();
+  });
+
+  it("keeps the saved size within -4 and +10 points", () => {
+    const { panel, shown } = drawer("pinch-far");
+    act(() => {
+      panel().onTouchStart!(fingers(500, 600));
+      panel().onTouchMove!(fingers(300, 800));
+    });
+    expect(shown()).toBe("10");
+    act(() => {
+      panel().onTouchMove!(fingers(545, 555));
+      panel().onTouchEnd!(fingers());
+    });
+    expect(getEnhancerPreferences().detailsTextZoom).toBe(-4);
+  });
+
+  it("lets go of the drawer's pull once a second finger comes down", () => {
+    const { renderer, panel } = drawer("pinch-pull", 0);
+    act(() => {
+      panel().onStartShouldSetPanResponderCapture!(event(100, 560, 1000));
+      expect(panel().onMoveShouldSetPanResponderCapture!(event(100, 577, 1030))).toBe(true);
+      panel().onPanResponderGrant!(event(100, 577, 1030), {});
+      panel().onPanResponderMove!(event(100, 700, 1100), {});
+    });
+    const frame = () => value((flat(byTestId(renderer, "details-drawer-frame")!.props.style).transform as { translateY: unknown }[])[0]!.translateY);
+    expect(frame()).toBeGreaterThan(0);
+    act(() => {
+      panel().onTouchStart!(fingers(700, 760));
+      panel().onPanResponderMove!({ nativeEvent: { ...fingers(700, 760).nativeEvent, timestamp: 1150 } }, {});
+    });
+    // Back at rest, and the rest of the touch moves nothing.
+    expect(frame()).toBe(0);
+    act(() => {
+      panel().onPanResponderMove!(event(100, 820, 1200), {});
+      panel().onPanResponderRelease!(event(100, 820, 1230), { vx: 0, vy: 0 });
+    });
+    expect(frame()).toBe(0);
+    expect(fake.api.close).not.toHaveBeenCalled();
+  });
+
+  it("draws the saved size in the drawer, and none in the side panel or on web", () => {
+    updateEnhancerPreferences({ detailsTextZoom: 3 });
+    const { panel, shown } = drawer("pinch-saved");
+    expect(shown()).toBe("3");
+    expect(panel().onTouchStart).toBeDefined();
+    act(() => mounted.splice(0).forEach((renderer) => renderer.unmount()));
+    screen.width = 1194;
+    screen.height = 834;
+    fake.box.blocks = [block("pinch-side", 1, { render: zoomed })];
+    const side = render(slot());
+    open("pinch-side");
+    expect(byTestId(side, "zoom-probe")!.props.children).toBe("0");
+    expect(byTestId(side, "details-body")!.props.onTouchStart).toBeUndefined();
+  });
+});

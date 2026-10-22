@@ -63,6 +63,8 @@ const ZH: Readonly<Record<string, string>> = {
   "Open in panel": "在面板中打开",
   More: "更多",
   "Back to latest": "回到最新",
+  "Text size": "字号",
+  Reset: "复原",
   Streaming: "输出中",
   "Copy model name": "复制模型名称",
   "Agent": "Agent",

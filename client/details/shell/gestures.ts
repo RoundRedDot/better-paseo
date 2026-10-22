@@ -19,6 +19,9 @@
  * tells JS nothing: a long press on iOS and Android selects, the finger may
  * go on to extend the range, and on iOS the handles it leaves are dragged by
  * later touches inside the text.
+ *
+ * A second finger is a pinch (`pinch-zoom.ts`): the drag the first one began
+ * is cancelled, and the panel takes nothing more from that touch.
  */
 import { PanResponder, type GestureResponderEvent, type PanResponderGestureState } from "react-native";
 import { AXIS_LOCK_DISTANCE, axisLock } from "../gesture-model";
@@ -125,7 +128,18 @@ export function panelResponder(options: {
     dy: event.nativeEvent.pageY - y0,
   });
   const target = () => chosen;
+  // A second finger came down: the touch is a pinch, not the panel's.
+  const abort = () => {
+    refused = true;
+    if (!chosen) return;
+    release();
+    release = () => {};
+    chosen.cancel();
+    axis = null;
+    chosen = null;
+  };
   const decide = (event: GestureResponderEvent) => {
+    if (fingers(event) > 1) abort();
     if (refused || contentOwnsTouch()) return false;
     const { dx, dy } = travel(event);
     const lock = axisLock(dx, dy);
@@ -153,6 +167,10 @@ export function panelResponder(options: {
     return true;
   };
   const record = (event: GestureResponderEvent) => {
+    if (fingers(event) > 1) {
+      abort();
+      return false;
+    }
     x0 = event.nativeEvent.pageX;
     y0 = event.nativeEvent.pageY;
     t0 = stampOf(event);
@@ -205,6 +223,8 @@ export function panelResponder(options: {
       if (chosen) start();
     },
     onPanResponderMove: (event) => {
+      if (fingers(event) > 1) abort();
+      if (refused) return;
       sample(event);
       if (!chosen) {
         if (!early || !decide(event)) return;
@@ -224,6 +244,10 @@ export function panelResponder(options: {
   });
   if (!options.pullDown) return pan;
   return { panHandlers: { ...pan.panHandlers, onTouchEndCapture: lifted } };
+}
+
+function fingers(event: GestureResponderEvent): number {
+  return event.nativeEvent.touches?.length ?? 1;
 }
 
 function stampOf(event: GestureResponderEvent): number {

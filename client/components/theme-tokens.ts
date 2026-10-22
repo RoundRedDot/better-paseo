@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import type { PluginTheme } from "@getpaseo/plugin";
 import {
   DEFAULT_PREFERENCES,
@@ -434,13 +434,25 @@ export function useThemeTokens(
   // The value keeps its identity until it changes. H1 takes precedence and
   // the hook stops reading.
   const appearance = useHostAppearance(readHostTypography(theme) === null, theme);
+  // The drawer's pinch zoom is no part of the tokens: saving it must not
+  // restyle every row of the timeline.
+  const drawn = useRef(preferences);
+  if (drawn.current !== preferences && !sameButZoom(drawn.current, preferences)) drawn.current = preferences;
+  const tokenPreferences = drawn.current;
   return useMemo(
     () => {
       // Inter is installed only once a reader picks it.
-      ensureEmbeddedFonts(preferences, resolvedPlatform);
-      return buildThemeTokens(theme.colors, preferences, { platform, theme, appearance });
+      ensureEmbeddedFonts(tokenPreferences, resolvedPlatform);
+      return buildThemeTokens(theme.colors, tokenPreferences, { platform, theme, appearance });
     },
     // `theme` is read through `key`; its identity is exactly what must not count.
-    [key, preferences, platform, appearance],
+    [key, tokenPreferences, platform, appearance],
   );
+}
+
+function sameButZoom(a: EnhancerPreferences, b: EnhancerPreferences): boolean {
+  for (const key of Object.keys(b) as Array<keyof EnhancerPreferences>) {
+    if (key !== "detailsTextZoom" && a[key] !== b[key]) return false;
+  }
+  return Object.keys(a).length === Object.keys(b).length;
 }
