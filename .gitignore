@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# Generated at install by scripts/build-client.mjs; a copy here would shadow index.client.tsx.
+/index.client.ts
 *.tsbuildinfo
 .showcase/showcase.js
 .showcase/tools/collect.cjs
