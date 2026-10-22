@@ -341,15 +341,16 @@ describe("StatusIcon", () => {
 });
 
 describe("TaskCardView rows", () => {
-  it.each([LIGHT, DARK])("draws a solid blue branch with white text and icon in either theme", async (theme) => {
+  it.each([LIGHT, DARK])("draws the branch on a faint blue fill with a blue icon and a monospace name in either theme", async (theme) => {
     const tree = await render(cardElement(sample("sample-running"), { theme, fields: fields("full") }));
+    const tokens = buildTaskTokens(theme.colors);
     const branch = hostByTestId(tree.root, "pill-branch");
-    expect(flat(branch.props.style).backgroundColor).toBe(buildTaskTokens(theme.colors).branch);
+    expect(flat(branch.props.style).backgroundColor).toBe(mix(tokens.card.background, tokens.branch, tokens.isDark ? 0.14 : 0.08));
     expect(icons(branch)).toEqual(["GitBranch"]);
-    expect(branch.find((node) => (node.type as unknown) === "Icon").props.color).toBe("#ffffff");
-    const labels = branch.findAll((node) => (node.type as unknown) === "Text");
-    expect(labels.length).toBeGreaterThan(0);
-    for (const label of labels) expect(flat(label.props.style).color).toBe("#ffffff");
+    expect(branch.find((node) => (node.type as unknown) === "Icon").props.color).toBe(tokens.branch);
+    const name = branch.findAll((node) => (node.type as unknown) === "Text")[0];
+    expect(flat(name.props.style).color).toBe(tokens.foreground);
+    expect(flat(name.props.style).fontFamily).toMatch(/mono|Menlo/i);
   });
 
   it.each([
@@ -424,8 +425,8 @@ describe("TaskCardView rows", () => {
     };
     expect(pillColors("pill-label-frontend")).toEqual({ background: mix("#ffffff", "#8b5cf6", 0.1), border: mix("#ffffff", "#8b5cf6", 0.26) });
     expect(pillColors("pill-label-board")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
-    // The branch: a fixed blue, borderless; folder, path and PR stay neutral.
-    expect(pillColors("pill-branch").background).toBe(tokens.branch);
+    // The branch: a faint fixed blue, borderless; folder, path and PR stay neutral.
+    expect(pillColors("pill-branch").background).toBe(mix("#ffffff", tokens.branch, 0.08));
     // The agent pill takes the provider's brand (Codex green); the subtasks pill its dominant status (2 running).
     // The agent pills are borderless, in the brand's colours (Codex green).
     expect(pillColors("pill-model").background).toBe(mix("#ffffff", "#10A37F", 0.12));

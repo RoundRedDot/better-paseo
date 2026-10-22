@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useRef, useState, type ReactNode }
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
 import { formatFullStamp } from "../../ui/time";
@@ -21,7 +21,7 @@ import {
 } from "./format";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
-import { agentPillColors, BrandMark, neutralPillColors, type AgentPillColors } from "./brand-mark";
+import { agentPillColors, BrandMark, branchPillColors, neutralPillColors, type AgentPillColors } from "./brand-mark";
 import { THINKING_ICON } from "./mode-icons";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
@@ -579,8 +579,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   }
   if (layout.branch && location.branch) {
     pills.push(
-      // The branch keeps its icon on a solid blue fill with white text.
-      <Pill key="branch" {...pill} testID="pill-branch" solid={{ background: tokens.branch, text: "#ffffff", icon: "#ffffff" }} icon="GitBranch" label={location.branch}>
+      // The branch: a faint blue fill, a blue icon and the name in monospace.
+      <Pill key="branch" {...pill} testID="pill-branch" solid={branchPillColors(tokens)} icon="GitBranch" label={location.branch} mono>
         {layout.gitStatus && location.git ? (
           <GitStatus git={location.git} tokens={tokens} size={m.pillText} line={m.pillLine} strings={strings} />
         ) : null}
@@ -878,6 +878,8 @@ interface PillProps {
   /** A borderless filled pill (the agent pills): its fill, label and icon colours. */
   solid?: AgentPillColors;
   tabular?: boolean;
+  /** The label in monospace, a size down (a branch name). */
+  mono?: boolean;
   accessibilityLabel?: string;
   testID?: string;
   children?: ReactNode;
@@ -920,6 +922,7 @@ function PillContent(props: PillProps) {
           style={[
           { fontSize: m.pillText, lineHeight: m.pillLine, color, flexShrink: 1, fontWeight: props.solid ? "500" : "400" },
           props.tabular ? tabular : null,
+          props.mono ? { fontFamily: TASK_MONO, fontSize: m.pillText - 1 } : null,
         ]}
         >
           {props.label}
@@ -980,7 +983,7 @@ function GitStatus(props: {
   return (
     <>
       {git.dirty ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: tokens.warning }} /> : null}
-      <Text style={[{ fontSize: props.size, lineHeight: props.line, color: "#ffffff" }, tabular]}>
+      <Text style={[{ fontSize: props.size, lineHeight: props.line, color: tokens.foregroundMuted }, tabular]}>
         {[git.dirty ? props.strings.uncommitted : null, arrows || null].filter(Boolean).join(" ")}
       </Text>
     </>

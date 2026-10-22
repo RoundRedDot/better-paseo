@@ -1,8 +1,11 @@
 import React, { createContext, useContext, type ReactNode } from "react";
-import { StyleSheet, Text, type TextProps, type TextStyle } from "react-native";
+import { Platform, StyleSheet, Text, type TextProps, type TextStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { HOST_UI_FONT_SIZE, useHostAppearance } from "../ui/tokens/host-appearance-shim";
 import { readHostTypography } from "../ui/tokens/typography";
+
+/** The face for branches, paths and commands. */
+export const TASK_MONO = Platform.select({ ios: "Menlo", android: "monospace", default: "ui-monospace, SFMono-Regular, Menlo, monospace" });
 
 const TasksFontScale = createContext(1);
 
