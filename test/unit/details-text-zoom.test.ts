@@ -167,3 +167,29 @@ describe("zoomCap", () => {
     expect(zoomCap(12, 0, 51336, 3, "android")).toBe(Infinity);
   });
 });
+
+describe("createPinch", () => {
+  it("holds the touch from the body's text while two fingers are down", async () => {
+    const { createPinch } = await import("../../client/details/shell/pinch-zoom");
+    const calls: string[] = [];
+    const pinch = createPinch({
+      zoom: () => ({ base: 16, code: 12, current: () => 0, preview() {}, commit() {} }),
+      scroller: () => null,
+      changed() {},
+      hold: () => {
+        calls.push("hold");
+        return () => calls.push("release");
+      },
+    });
+    const at = (...ys: number[]) => ({ nativeEvent: { touches: ys.map((pageY) => ({ pageX: 100, pageY })) } }) as never;
+    pinch.start(at(500));
+    expect(calls).toEqual([]);
+    pinch.start(at(500, 600));
+    pinch.move(at(480, 620));
+    expect(calls).toEqual(["hold"]);
+    pinch.end(at(480));
+    expect(calls).toEqual(["hold", "release"]);
+    pinch.end(at());
+    expect(calls).toEqual(["hold", "release"]);
+  });
+});
