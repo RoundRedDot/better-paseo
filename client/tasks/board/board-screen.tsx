@@ -7,6 +7,7 @@ import { useTasksLanguage } from "../i18n";
 import { HAIRLINE } from "./board-style";
 import { DesktopBoard } from "./desktop-board";
 import { MenuBoundsContext } from "./menu";
+import { carriedSettings } from "./carry";
 import { tasksSettingsOpener, useTasksEnabledStore, useTasksSettings } from "./enabled";
 import { boardIsCompact } from "./navigation";
 import { PhoneBoard } from "./phone-board";
@@ -31,14 +32,18 @@ export function TasksBoardScreen(props: PluginScreenProps) {
   const store = useTasksEnabledStore();
   // Off, as the startup read or the settings page said: say so, and read nothing more.
   if (store.enabled === false) return <BoardOff {...props} />;
-  // The startup read is still out: wait for it rather than read a second time.
-  if (store.enabled === null && store.startupRead === "pending") return <BoardBlank {...props} />;
+  // The startup read is still out: wait for it rather than read a second time,
+  // unless this host's board was on before a reconnect (`carry.ts`): then draw
+  // it now, from what it carried, and let the board's own read catch up.
+  if (store.enabled === null && store.startupRead === "pending" && carriedSettings(props.host.id)?.enabled !== true) {
+    return <BoardBlank {...props} />;
+  }
   return <BoardReader {...props} />;
 }
 
 /** The settings, read (or shared with the board's own read when on), and followed. */
 function BoardReader(props: PluginScreenProps) {
-  const settings = useTasksSettings();
+  const settings = useTasksSettings(props.host.id);
   if (!settings) return <BoardBlank {...props} />;
   if (!settings.enabled) return <BoardOff {...props} />;
   return <BoardContent {...props} />;

@@ -29,7 +29,7 @@ const SCREEN_ID = "tasks";
  * The host wraps an item only in providers, so a null item leaves no gap.
  */
 export function TasksSidebarEntry(props: PluginSidebarItemProps) {
-  const settings = useTasksSettings();
+  const settings = useTasksSettings(props.host.id);
   const language = useTasksLanguage();
   if (!settings?.enabled) return null;
   const mode = settings.sidebar.count;

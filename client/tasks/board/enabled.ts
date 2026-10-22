@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { useSettings } from "@getpaseo/plugin/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, type TasksSettings } from "../../../shared/tasks-settings";
+import { carriedSettings, carrySettings } from "./carry";
 
 /**
  * Whether the Tasks board is on (`enabled` in the tasks settings), for what
@@ -62,17 +63,24 @@ export function subscribeTasksEnabled(listener: () => void): () => void {
   };
 }
 
-/** The tasks settings for a component, and the store kept in step with them. Null until they load. */
-export function useTasksSettings(): TasksSettings | null {
+/**
+ * The tasks settings for a component, and the store kept in step with them.
+ * Until they load, the ones this host last read (`carry.ts`: a reconnect
+ * evaluates the bundle again); null when there are none.
+ */
+export function useTasksSettings(hostId: string): TasksSettings | null {
   const state = useSettings(TASKS_SETTINGS);
   const values = state.status === "ready" ? state.values : null;
   const on = values?.enabled ?? null;
   useEffect(() => {
     if (on !== null) setTasksEnabled(on);
   }, [on]);
+  useEffect(() => {
+    if (values) carrySettings(hostId, values);
+  }, [hostId, values]);
   // A record the schema rejects keeps the board off rather than guessing.
   if (state.status === "invalid") return { ...DEFAULT_TASKS_SETTINGS, enabled: false };
-  return values;
+  return values ?? carriedSettings(hostId);
 }
 
 /**
