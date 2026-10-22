@@ -3,7 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEve
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { openLink } from "../../components/open-link";
-import { TaskText as Text, TASK_MONO as MONO, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { useCopy } from "../../ui/use-copy";
 import { ProgressRing } from "../../ui/progress-ring";
@@ -55,17 +55,22 @@ export const DETAIL_CARD = {
   row: 32,
   listRow: 30,
   heading: 32,
-  font: 13,
-  title: 15,
+  /** Body text: the host's base step. */
+  font: F.base,
+  /** The card's title: the host's large step. */
+  title: F.lg,
   icon: 16,
   chip: 22,
   button: 32,
   round: 28,
 } as const;
 
-const TOUCH_CARD = { ...DETAIL_CARD, row: 44, listRow: 44, heading: 44, font: 15, title: 17, icon: 18, chip: 28, button: 44, round: 36 } as const;
+const TOUCH_CARD = { ...DETAIL_CARD, row: 44, listRow: 44, heading: 44, icon: 18, chip: 28, button: 44, round: 36 } as const;
 
 type Metrics = typeof DETAIL_CARD | typeof TOUCH_CARD;
+
+/** Code lines (a permission's command, an error), 1.5 of their size as the host spaces its diff lines. */
+const CODE_LINE = Math.round(F.sm * 1.5);
 
 /** The properties get a label column from this width and lose it under `hide`: the 8 between keeps a drag from flickering it. */
 const LABEL_COLUMN = { show: 448, hide: 440 } as const;
@@ -221,8 +226,8 @@ function openLabel(props: TaskDetailCardsProps): string {
 function DetailHeader(props: Inner) {
   const { card, m, tokens, touch = false } = props;
   const cardText = cardStrings(props.language);
-  const small = touch ? 14 : 12;
-  const chipFont = touch ? 14 : 12;
+  const small = touch ? F.base : F.sm;
+  const chipFont = touch ? F.base : F.sm;
   const iconSize = touch ? 16 : 14;
   const kind = card.stoppedManually ? "stopped" : card.status;
   const hero = detailHero(card);
@@ -268,7 +273,7 @@ function DetailHeader(props: Inner) {
         <View style={{ flex: 1 }} />
         {props.onClose ? <RoundIcon icon="X" label={props.strings.close} size={m.round} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
       </View>
-      <Text style={{ marginTop: 2, fontSize: m.title, lineHeight: Math.round(m.title * 1.45), fontWeight: "600", color: tokens.foreground }} testID="detail-title">
+      <Text style={{ marginTop: 2, fontSize: m.title, lineHeight: HOST_LINE.lg, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
         {card.title}
       </Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }} testID="detail-agent">
@@ -364,7 +369,7 @@ function StatusSub(props: Inner & { small: number }) {
   });
   if (!text) return null;
   return (
-    <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: props.small, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+    <Text numberOfLines={2} style={{ flexShrink: 1, fontSize: props.small, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
       {text}
     </Text>
   );
@@ -403,7 +408,7 @@ function PermissionBlock(props: Inner) {
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
   const permission = card.permission!;
-  const small = props.touch ? 14 : 12;
+  const small = props.touch ? F.base : F.sm;
   const waited = since(card.timing.attentionAt, props.now) ?? since(card.timing.turnStartedAt, props.now);
   const buttons = props.actions !== false && props.onPermission ? (props.permissionButtons ?? []) : [];
   return (
@@ -417,7 +422,7 @@ function PermissionBlock(props: Inner) {
       </View>
       {permission.summary ? (
         <View style={{ marginHorizontal: 12, marginTop: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6, borderWidth: 1, borderColor: tokens.border, backgroundColor: tokens.card.background }}>
-          <Text style={{ fontSize: 12, lineHeight: 18, fontFamily: MONO, color: tokens.foreground }}>{permission.summary}</Text>
+          <Text style={{ fontSize: F.sm, lineHeight: CODE_LINE, fontFamily: MONO, color: tokens.foreground }}>{permission.summary}</Text>
         </View>
       ) : null}
       {buttons.length > 0 ? (
@@ -429,7 +434,7 @@ function PermissionBlock(props: Inner) {
           {waited !== null ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
               <Icon name="Hourglass" size={12} color={tokens.foregroundMuted} />
-              <Text style={{ fontSize: 11, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{formatSpan(waited)}</Text>
+              <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{formatSpan(waited)}</Text>
             </View>
           ) : null}
         </View>
@@ -464,7 +469,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
         justifyContent: "center",
       }}
     >
-      <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "500", color: solid ? tokens.card.onStrong : danger ? tokens.danger : tokens.foreground }}>
+      <Text numberOfLines={1} style={{ fontSize: F.sm, fontWeight: "500", color: solid ? tokens.card.onStrong : danger ? tokens.danger : tokens.foreground }}>
         {button.label}
       </Text>
     </Pressable>
@@ -514,12 +519,12 @@ function ErrorBlock(props: Inner) {
       </View>
       {body ? (
         <>
-          <Text numberOfLines={open ? undefined : 3} style={{ marginTop: 4, fontSize: 12, lineHeight: 18, fontFamily: MONO, color: tokens.foreground }}>
+          <Text numberOfLines={open ? undefined : 3} style={{ marginTop: 4, fontSize: F.sm, lineHeight: CODE_LINE, fontFamily: MONO, color: tokens.foreground }}>
             {body}
           </Text>
           {long ? (
             <Pressable accessibilityRole="button" onPress={() => setOpen((was) => !was)} hitSlop={4} style={{ marginTop: 6, alignSelf: "flex-start" }}>
-              <Text style={{ fontSize: props.touch ? 14 : 12, color: tokens.foregroundMuted }}>{open ? words.showLess : words.showAll(lines.length)}</Text>
+              <Text style={{ fontSize: props.touch ? F.base : F.sm, color: tokens.foregroundMuted }}>{open ? words.showLess : words.showAll(lines.length)}</Text>
             </Pressable>
           ) : null}
         </>
@@ -589,7 +594,7 @@ function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; 
   const { hovered, hoverProps } = useHover();
   const words = cardStrings(props.language).details;
   const color = hovered ? tokens.foreground : tokens.foregroundMuted;
-  const font = m === TOUCH_CARD ? 13 : 12;
+  const font = F.sm;
   return (
     <Pressable
       accessibilityRole="button"
@@ -783,11 +788,11 @@ function PropertyRow(props: {
   const { copy } = useCopy();
   const [columns, setColumns] = useState(36);
   const touch = m === TOUCH_CARD;
-  // The card's body size (the usage rows, the subtasks): 14 on touch, 13 with a pointer; rows as tight as the usage's.
-  const font = touch ? 14 : 13;
-  const line = touch ? 20 : 18;
-  const monoFont = font - 1;
-  const noteFont = 12;
+  // The host's steps: base for the value (as the usage rows and subtasks), small for code and the note.
+  const font = F.base;
+  const line = HOST_LINE.base;
+  const monoFont = F.sm;
+  const noteFont = F.sm;
   const rowHeight = taskControlHeight(touch ? 36 : 30, scale);
   // The host's toast confirms a copy; the row itself does not change.
   const doCopy = props.copy ? () => void copy(props.copy!.text, { label: props.copy!.toast, feedback: "toast" }) : undefined;
@@ -826,7 +831,7 @@ function PropertyRow(props: {
   else if (touch && props.copy) trailing = <Icon name="Copy" size={14} color={tokens.foregroundMuted} />;
   const notes = props.notes ?? [];
   // One run of text, so a long workspace name wraps and the next part follows it on the same line.
-  const noteText: TextStyle = { fontSize: noteFont, lineHeight: 16, color: tokens.foregroundMuted, marginTop: 1 };
+  const noteText: TextStyle = { fontSize: noteFont, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted, marginTop: 1 };
   const noteLine =
     notes.length > 0 ? (
       <Text style={noteText} testID={props.testID ? `${props.testID}-note` : undefined}>
@@ -842,7 +847,7 @@ function PropertyRow(props: {
   const content = (
     <>
       {props.wide ? (
-        <Text numberOfLines={1} style={{ width: 72, fontSize: touch ? 14 : 13, lineHeight: line, color: tokens.foregroundMuted }}>
+        <Text numberOfLines={1} style={{ width: 72, fontSize: F.sm, lineHeight: line, color: tokens.foregroundMuted }}>
           {props.label}
         </Text>
       ) : null}
@@ -991,9 +996,9 @@ function SubtaskRow(props: { m: Metrics; tokens: TaskTokens; theme: PluginTheme;
   const { hovered, hoverProps } = useHover();
   const facts = childFactParts(child);
   const active = props.onPress !== undefined && hovered;
-  // The card's body size, as the properties and the usage rows: 14 on touch, 13 with a pointer.
-  const font = m === TOUCH_CARD ? 14 : 13;
-  const factText: TextStyle = { fontSize: 12, color: tokens.foregroundMuted };
+  // The host's steps, as Paseo's subagent row: base for the title, small for the facts.
+  const font = F.base;
+  const factText: TextStyle = { fontSize: F.sm, color: tokens.foregroundMuted };
   return (
     <Pressable
       accessibilityRole="button"
@@ -1035,7 +1040,7 @@ function Usage(props: Inner) {
   const { card, m, tokens } = props;
   const words = cardStrings(props.language).details;
   const touch = props.touch === true;
-  const font = touch ? 14 : 13;
+  const font = F.base;
   const cost = card.usage?.totalCostUsd ?? null;
   const line = (key: string, icon: string, label: string, value: string, strong: boolean) => (
     <View key={key} testID={`detail-usage-${key}`} style={{ height: touch ? 32 : 24, flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -1068,7 +1073,7 @@ function Activity(props: Inner) {
 function KeyCap(props: { label: string; tokens: TaskTokens }) {
   return (
     <View style={{ height: 16, paddingHorizontal: 4, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.border, borderRadius: 3, justifyContent: "center" }}>
-      <Text style={{ fontSize: 11, color: props.tokens.foregroundMuted }}>{props.label}</Text>
+      <Text style={{ fontSize: F.sm, color: props.tokens.foregroundMuted }}>{props.label}</Text>
     </View>
   );
 }
@@ -1104,7 +1109,7 @@ function OpenHint(props: { tokens: TaskTokens; label: string }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
       <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: props.tokens.success }} />
-      <Text style={{ fontSize: 11, color: props.tokens.foregroundMuted }}>{props.label}</Text>
+      <Text style={{ fontSize: F.sm, color: props.tokens.foregroundMuted }}>{props.label}</Text>
     </View>
   );
 }
@@ -1259,7 +1264,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; stop?: DangerLook
     >
       {props.icon ? <Icon name={props.icon} size={18} color={props.primary || stop ? text : tokens.foregroundMuted} /> : null}
       {props.square ? null : (
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 16, fontWeight: "600", color: text }}>
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.lg, fontWeight: "600", color: text }}>
           {props.label}
         </Text>
       )}

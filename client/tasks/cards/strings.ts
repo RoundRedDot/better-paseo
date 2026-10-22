@@ -69,6 +69,13 @@ const en = {
     lastTurn: (value: string) => `Last turn ${value}`,
     lastTurnTime: "Last turn",
     ended: (when: string) => `Ended ${when}`,
+    /** The same words cut where a narrow tile may break its line, so a CJK label breaks between its words, never before its last character. */
+    // English breaks at its spaces on its own: one run each.
+    runs: {
+      lastTurnTime: ["Last turn"],
+      ended: (when: string) => [`Ended ${when}`],
+      cacheShare: (share: string) => [`${share} cached`],
+    } as { lastTurnTime: string[]; ended(when: string): string[]; cacheShare(share: string): string[] },
     totalCost: "Total cost",
     total: "Total",
     cacheShare: (share: string) => `${share} cached`,
@@ -184,6 +191,11 @@ const zh: CardStrings = {
     lastTurn: (value) => `上一轮 ${value}`,
     lastTurnTime: "上一轮耗时",
     ended: (when) => `${when}结束`,
+    runs: {
+      lastTurnTime: ["上一轮", "耗时"],
+      ended: (when) => [when, "结束"],
+      cacheShare: (share) => ["缓存占", ` ${share}`],
+    },
     totalCost: "累计费用",
     total: "累计",
     cacheShare: (share) => `缓存占 ${share}`,

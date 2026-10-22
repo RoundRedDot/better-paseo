@@ -12,7 +12,7 @@ import {
 import { FlatList, Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, TasksTypography, useTasksFontScale, taskControlHeight } from "../typography";
 import { DetailActionBar, StatusIcon, TaskDetailCards, taskTokens, type CardCallbacks } from "../cards";
 import { panelChrome } from "../cards/panel";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
@@ -496,29 +496,34 @@ export function PhoneBoard(props: {
           </Pressable>
         </View>
       ) : null}
+      {/* The host draws a sheet in its own portal, outside the board's type scale: each sheet carries its own. */}
       <Modal title={strings.filters} open={sheet?.kind === "filters"} onOpenChange={(open) => !open && setSheet(null)}>
         <Modal.Content contentContainerStyle={SHEET_FILTER_BODY} scrollable={false}>
-          {sheet?.kind === "filters" ? <FilterSheetBody board={board} theme={theme} options={options} focus={sheet.focus} onDone={() => setSheet(null)} /> : null}
+          <TasksTypography theme={theme}>
+            {sheet?.kind === "filters" ? <FilterSheetBody board={board} theme={theme} options={options} focus={sheet.focus} onDone={() => setSheet(null)} /> : null}
+          </TasksTypography>
         </Modal.Content>
       </Modal>
       <Modal title={strings.details} open={detailsCard !== undefined} onOpenChange={(open) => !open && setSheet(null)}>
         <Modal.Content contentContainerStyle={SHEET_FILTER_BODY} scrollable={false}>
-          {detailsCard ? (
-            <DetailsSheetBody
-              card={detailsCard}
-              board={board}
-              theme={theme}
-              onShow={(id) => setSheet({ kind: "details", id })}
-              onOpen={
-                board.callbacks.onOpen
-                  ? (agentId) => {
-                      setSheet(null);
-                      board.callbacks.onOpen?.(agentId);
-                    }
-                  : undefined
-              }
-            />
-          ) : null}
+          <TasksTypography theme={theme}>
+            {detailsCard ? (
+              <DetailsSheetBody
+                card={detailsCard}
+                board={board}
+                theme={theme}
+                onShow={(id) => setSheet({ kind: "details", id })}
+                onOpen={
+                  board.callbacks.onOpen
+                    ? (agentId) => {
+                        setSheet(null);
+                        board.callbacks.onOpen?.(agentId);
+                      }
+                    : undefined
+                }
+              />
+            ) : null}
+          </TasksTypography>
         </Modal.Content>
       </Modal>
     </View>

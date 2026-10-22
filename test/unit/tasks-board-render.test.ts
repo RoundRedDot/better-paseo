@@ -155,6 +155,9 @@ function textOf(node: ReactTestInstance | string): string {
  * it; this lays every View out at `width`, again while that mounts Views
  * that wait for one.
  */
+/** A size on iOS or Android with no interface size set: the host's native default is 15 against its 14 ramp. */
+const NATIVE = (size: number) => Math.round(size * 15 / 14);
+
 function layOut(width: number) {
   const laidOut = new Set<unknown>();
   for (let pass = 0; pass < 4; pass++) {
@@ -247,6 +250,31 @@ describe("Tasks board, desktop", () => {
       expect(font(text("Default order"))).toBe(base);
       const row = hostParentOf(text("Default order"))!;
       expect(StyleSheet.flatten(row.props.style).height).toBe(Math.round(32 * Math.max(1, base / 14)));
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([10, 14, 21])("sizes the details from Paseo's type ramp at its %i px UI setting", (base) => {
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => key === APP_SETTINGS_KEY ? JSON.stringify({ uiBaseFontSize: base }) : null,
+    });
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(2000);
+      const card = cards().find((node) => node.props.card.id === "sample-running")!;
+      act(() => card.props.onSelect(card.props.card));
+      const font = (node: ReactTestInstance) => StyleSheet.flatten(node.props.style).fontSize;
+      // Each a step of the host's ramp (sm 12, base 14, lg 16) scaled and rounded as the host scales it.
+      const step = (size: number) => Math.round(size * base / 14);
+      const host = (id: string) => renderer!.root.find((node) => (node.type as unknown) === "Text" && node.props.testID === id);
+      expect(font(host("detail-title"))).toBe(step(16));
+      const cwd = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "detail-cwd-value");
+      expect(font(cwd.findAll((node) => (node.type as unknown) === "Text")[0]!)).toBe(step(12));
+      expect(font(host("detail-branch-note"))).toBe(step(12));
+      expect(font(host("detail-place-value"))).toBe(step(14));
     } finally {
       act(() => renderer?.unmount());
       renderer = undefined;
@@ -672,7 +700,7 @@ describe("Tasks board, sorting", () => {
     expect(runningOrder()).toEqual(["sample-running", "sample-child-1"]);
     expect(textOf(renderer!.root)).toContain("Showing 1");
     const pill = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false && textOf(node) === "Sort")[0]!;
-    expect(StyleSheet.flatten(pill.props.style)).toMatchObject({ height: 28, borderRadius: 6, borderWidth: StyleSheet.hairlineWidth });
+    expect(StyleSheet.flatten(pill.props.style)).toMatchObject({ height: NATIVE(28), borderRadius: 6, borderWidth: StyleSheet.hairlineWidth });
     act(() => pill.props.onPress());
     const menu = renderer!.root.find((node) => node.props.testID === "sort-menu");
     const item = (label: string, within: ReactTestInstance = menu) =>
@@ -812,7 +840,7 @@ describe("Tasks board, host theme", () => {
       expect(style(lane).boxShadow).toBeUndefined();
     }
     const pill = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false)[0]!;
-    expect(style(pill)).toMatchObject({ height: 28, borderRadius: 6, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth });
+    expect(style(pill)).toMatchObject({ height: NATIVE(28), borderRadius: 6, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth });
   });
 
   it("draws the phone board on the theme's panel with a hairline under the tabs", () => {
