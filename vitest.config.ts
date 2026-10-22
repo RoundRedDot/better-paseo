@@ -2,7 +2,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    include: ["test/unit/**/*.test.ts"],
+    include: ["test/unit/**/*.test.ts", "test/unit/**/*.test.tsx"],
     environment: "node",
     // Several render tests reset the module registry and import the client
     // graph again (`tool-callouts`, `live-renderers`) for every case. That
