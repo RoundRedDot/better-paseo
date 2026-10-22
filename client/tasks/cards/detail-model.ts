@@ -74,7 +74,13 @@ export function formatSpan(ms: number): string {
  * "120k / 200k tokens (60%)". Null until the child has a model.
  */
 export function childFacts(child: TaskChild): string | null {
-  if (!child.modelLabel) return null;
+  const parts = childFactParts(child);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/** `childFacts` as its parts, so a narrow row can wrap between them rather than inside one. */
+export function childFactParts(child: TaskChild): string[] {
+  if (!child.modelLabel) return [];
   const parts = [child.modelLabel];
   if (child.thinkingLabel) parts.push(child.thinkingLabel);
   if (child.modeLabel) parts.push(child.modeLabel);
@@ -83,7 +89,7 @@ export function childFacts(child: TaskChild): string | null {
     const share = Math.round(Math.min(100, (context.usedTokens / context.maxTokens) * 100));
     parts.push(`${hostTokens(context.usedTokens)} / ${hostTokens(context.maxTokens)} tokens (${share}%)`);
   }
-  return parts.join(" · ");
+  return parts;
 }
 
 /** The host's token count (`formatTokenCount`): "950", "120k", "1m". */
