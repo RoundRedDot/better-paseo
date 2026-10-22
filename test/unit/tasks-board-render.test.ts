@@ -833,6 +833,14 @@ describe("Tasks board, sorting", () => {
     expect(textOf(filters)).toContain("AgentCodex");
   });
 
+  it("leaves out Clear all while only the switches or the done window are set", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false, { sub: "1", tabs: "1", win: "7d" }));
+    });
+    layOut(1600);
+    expect(textOf(renderer!.root)).not.toContain("Clear all");
+  });
+
   it("picks a sort from the dropdown, keeps it for the session, and counts the done lane plainly by default", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
