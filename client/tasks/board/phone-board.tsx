@@ -21,6 +21,7 @@ import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { findHostHorizontalScroll } from "../../ui/host-horizontal-scroll";
 import { HAIRLINE, MOTION, boardPalette } from "./board-style";
 import { CardCell, RoundButton, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
+import { LaneMotionLayer, LaneMotionProvider, useLaneCovered, useLaneMotion } from "./lane-motion";
 import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
 import { defaultLane, laneAfter, swallowsTap, swipeStep, tabUnderline, tabsOverflow, type TabBox } from "./navigation";
@@ -288,6 +289,12 @@ export function PhoneBoard(props: {
     if (node?.style) node.style.touchAction = "pan-y";
   }, []);
   const breathing = useBreathing(!tasks.ready && board.visible);
+  // One lane on screen: its cards close the gap a card leaves, and the card fades where it was.
+  const motion = useLaneMotion(lanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.params, flights: false });
+  const renderCopy = useCallback(
+    (card: TaskCard) => <CardCell board={board} card={card} theme={theme} compact fresh={false} copy callbacks={callbacks} />,
+    [board, theme, callbacks],
+  );
   const detailsCard = sheet?.kind === "details" ? tasks.byId.get(sheet.id) : undefined;
   const warning = taskTokens(theme).status.warning;
 
@@ -420,50 +427,54 @@ export function PhoneBoard(props: {
         </View>
       ) : null}
       <View ref={gridRef} collapsable={false} style={{ flex: 1, minHeight: 0, overflow: "hidden", backgroundColor: palette.panel }} {...gesture}>
-        {isNative() ? (
-          <LanePager
-            lane={lane}
-            board={board}
-            theme={theme}
-            callbacks={callbacks}
-            listRef={listRef}
-            breathing={breathing}
-            reduced={reduced}
-            locked={pagerLocked}
-            onDrag={markSwiped}
-            onSettle={settle}
-          />
-        ) : (
-        <Animated.View style={{ flex: 1, opacity: enterOpacity, transform: [{ translateX: enterX }] }}>
-          <PhoneLane
-            key={lane}
-            lane={lanes[lane]}
-            board={board}
-            theme={theme}
-            callbacks={callbacks}
-            listRef={listRef}
-            breathing={breathing}
-          />
-        </Animated.View>
-        )}
-        {!isNative() && leaving ? (
-          <Animated.View
-            pointerEvents="none"
-            style={{ position: "absolute", top: 0, left: 0, right: 0, padding: 12, gap: 12, opacity: leaveOpacity, transform: [{ translateX: leaveX }] }}
-          >
-            {leaving.cards.map((card) => (
-              <CardCell
-                board={board}
-                key={card.id}
-                card={card}
-                theme={theme}
-                compact
-                callbacks={callbacks}
-                fresh={false}
-              />
-            ))}
+        <LaneMotionProvider value={motion}>
+          {isNative() ? (
+            <LanePager
+              lane={lane}
+              board={board}
+              theme={theme}
+              callbacks={callbacks}
+              listRef={listRef}
+              breathing={breathing}
+              reduced={reduced}
+              locked={pagerLocked}
+              onDrag={markSwiped}
+              onSettle={settle}
+            />
+          ) : (
+          <Animated.View style={{ flex: 1, opacity: enterOpacity, transform: [{ translateX: enterX }] }}>
+            <PhoneLane
+              key={lane}
+              lane={lanes[lane]}
+              board={board}
+              theme={theme}
+              callbacks={callbacks}
+              listRef={listRef}
+              breathing={breathing}
+            />
           </Animated.View>
-        ) : null}
+          )}
+          {!isNative() && leaving ? (
+            <Animated.View
+              pointerEvents="none"
+              style={{ position: "absolute", top: 0, left: 0, right: 0, padding: 12, gap: 12, opacity: leaveOpacity, transform: [{ translateX: leaveX }] }}
+            >
+              {leaving.cards.map((card) => (
+                <CardCell
+                  board={board}
+                  key={card.id}
+                  card={card}
+                  theme={theme}
+                  compact
+                  callbacks={callbacks}
+                  fresh={false}
+                  copy
+                />
+              ))}
+            </Animated.View>
+          ) : null}
+          <LaneMotionLayer store={motion} renderCard={renderCopy} />
+        </LaneMotionProvider>
       </View>
       {board.notice ? (
         // The board's messages sit at its bottom: the host's toast, at the
@@ -719,7 +730,10 @@ function PhoneLane(props: {
   const fresh = useFreshIds(
     lane.cards.map((card) => card.id),
     ready,
+    board.params,
   );
+  // Hidden under copies of its cards while they move (native lane motion).
+  const covered = useLaneCovered(lane.id);
   // No clock in here: a tick reaches the timer texts, not the list and its rows.
   const { callbacks } = props;
   const { highlighted, stop, fields } = board;
@@ -741,6 +755,7 @@ function PhoneLane(props: {
   return (
     <FlatList<TaskCard>
       ref={props.listRef}
+      style={covered ? { opacity: 0 } : undefined}
       data={lane.cards}
       keyExtractor={(card) => card.id}
       extraData={extraData}

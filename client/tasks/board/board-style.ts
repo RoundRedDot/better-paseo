@@ -96,8 +96,15 @@ export const MOTION = {
   laneOutMs: 120,
   /** How far lane content travels on a switch. */
   laneShift: 24,
-  /** A card that changed lanes fades in. */
+  /** A card that came into a lane from out of view fades in, once the cards below are half way out of its place. */
   fadeMs: 120,
+  fadeDelayMs: 120,
+  /** A card moved within its lane (one above it left or came in) slides to its new place. */
+  slideMs: 240,
+  /** A card that changed lanes travels from its old place to its new one. */
+  flyMs: 300,
+  /** A card that left the board fades where it was. */
+  leaveMs: 160,
   /** The skeleton breathes from 1 to 0.5 and back. */
   skeletonMs: 1200,
   highlightMs: 1000,
