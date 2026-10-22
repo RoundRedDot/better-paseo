@@ -21,7 +21,7 @@ import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { findHostHorizontalScroll } from "../../ui/host-horizontal-scroll";
 import { HAIRLINE, MOTION, boardPalette } from "./board-style";
 import { CardCell, RollingCount, RoundButton, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
-import { LaneMotionLayer, LaneMotionProvider, useLaneCovered, useLaneMotion } from "./lane-motion";
+import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
 import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
 import { defaultLane, laneAfter, swallowsTap, swipeStep, tabUnderline, tabsOverflow, type TabBox } from "./navigation";
@@ -744,6 +744,17 @@ function PhoneLane(props: {
   );
   // Hidden under copies of its cards while they move (native lane motion).
   const covered = useLaneCovered(lane.id);
+  // Its list is what the lane shows: a card that leaves its end lets the list scroll back.
+  const listRef = useRef<NativeFlatList<TaskCard> | null>(null);
+  useLaneTarget(lane.id, () => scrollNode(listRef.current));
+  const { listRef: shared } = props;
+  const setList = useCallback(
+    (list: NativeFlatList<TaskCard> | null) => {
+      listRef.current = list;
+      if (shared) shared.current = list;
+    },
+    [shared],
+  );
   // No clock in here: a tick reaches the timer texts, not the list and its rows.
   const { callbacks } = props;
   const { highlighted, stop, read, fields } = board;
@@ -764,7 +775,7 @@ function PhoneLane(props: {
   const filtered = activeFilterCount(board.params, board.defaults) > 0;
   return (
     <FlatList<TaskCard>
-      ref={props.listRef}
+      ref={setList}
       style={covered ? { opacity: 0 } : undefined}
       data={lane.cards}
       keyExtractor={(card) => card.id}

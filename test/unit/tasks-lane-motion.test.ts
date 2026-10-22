@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inView, planLaneMotion, sameOrder, toward, type MotionFrame, type Rect } from "../../client/tasks/board/lane-motion-plan";
+import { inView, planLaneMotion, sameOrder, scrollBack, toward, type MotionFrame, type Rect } from "../../client/tasks/board/lane-motion-plan";
 import type { LaneId } from "../../client/tasks/model";
 
 const rect = (x: number, y: number, width = 300, height = 80): Rect => ({ x, y, width, height });
@@ -95,6 +95,20 @@ describe("planLaneMotion", () => {
 describe("toward", () => {
   it("keeps the height it left from when its new place is unknown", () => {
     expect(toward(rect(340, 300), null, rect(660, 40, 320, 600))).toEqual(rect(670, 300));
+  });
+});
+
+describe("scrollBack", () => {
+  const list = rect(0, 100, 300, 400);
+  it("is how far a list scrolled past its new end", () => {
+    // Offset 80 into content now 420 tall: its end is at 20, so 60 back.
+    expect(scrollBack(list, rect(0, 20, 300, 420))).toBe(60);
+    // Shorter than the list: all the way to the top.
+    expect(scrollBack(list, rect(0, 20, 300, 300))).toBe(80);
+  });
+  it("is nothing while the offset still fits", () => {
+    expect(scrollBack(list, rect(0, 20, 300, 480))).toBe(0);
+    expect(scrollBack(list, rect(0, 100, 300, 200))).toBe(0);
   });
 });
 
