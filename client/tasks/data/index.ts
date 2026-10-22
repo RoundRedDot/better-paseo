@@ -1372,7 +1372,12 @@ function createStore(api: PaseoApi): TaskStore {
     const run = generation;
     void iconApi.icon(projectId).then((result) => {
       iconRequests.delete(requestKey);
-      if (run !== generation || (projects.get(projectId)?.projectIconRevision ?? null) !== revision) return;
+      if (run !== generation) return;
+      // The project arrived or changed its icon meanwhile; the card asks only once, so ask again for the new revision.
+      if ((projects.get(projectId)?.projectIconRevision ?? null) !== revision) {
+        requestProjectIcon(projectId);
+        return;
+      }
       const data = result.icon;
       const uri = data ? `data:${data.mimeType};base64,${data.data}` : null;
       projectIcons.set(projectId, { revision, uri });
