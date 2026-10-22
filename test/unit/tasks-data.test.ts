@@ -188,6 +188,23 @@ describe("Tasks data store", () => {
     }
   });
 
+  it("gives no Stop to a review card the daemon is resuming for a Mark read", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("resuming", { status: "initializing", requiresAttention: true, attentionReason: "finished" }),
+        activeAgent("starting", { status: "initializing", activeTurn: { turnId: "t1", startedAt: at(1) } }),
+      ],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake);
+    try {
+      expect(mounted.current.byId.get("resuming")).toMatchObject({ lane: "review", readable: true, stoppable: false });
+      expect(mounted.current.byId.get("starting")).toMatchObject({ lane: "running", stoppable: true });
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("keeps a card marked read in review when something failed after the mark", () => {
     const card = { ...sampleCards(Date.parse("2026-10-22T10:00:00.000Z")).find((sample) => sample.id === "sample-failed")! };
     const prompted = Date.parse(card.timing.lastUserMessageAt ?? "2026-10-22T09:00:00.000Z");
