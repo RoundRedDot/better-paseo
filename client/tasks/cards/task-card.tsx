@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
@@ -95,8 +95,12 @@ const TOUCH = !WEB;
 const CONTAINER_ROLE = WEB ? ({ role: "group" } as const) : ({ accessibilityRole: "button" } as const);
 /** Touch: a long press. */
 const LONG_PRESS_MS = 450;
-/** Two clicks on a card this close together open its tab (the first one selected it). */
-const DOUBLE_CLICK_MS = 350;
+/**
+ * The card whose body took the last click. A double click opens a card's tab
+ * only when its first click landed on the same card: choosing a card can
+ * scroll the lanes, so the second click may fall on another card.
+ */
+let lastClicked: string | null = null;
 const NBSP = "\u00a0";
 /** " > " between meta segments; non-breaking, since a web text box drops a leading space. */
 const SEPARATOR = `${NBSP}\u203a${NBSP}`;
@@ -868,12 +872,13 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       </View>
     ) : null;
 
-  const lastPress = useRef(0);
   const pressBody = props.onSelect
-    ? () => {
-        const at = Date.now();
-        const second = !TOUCH && at - lastPress.current < DOUBLE_CLICK_MS;
-        lastPress.current = second ? 0 : at;
+    ? (event?: GestureResponderEvent) => {
+        // On web the press is the DOM click, whose `detail` counts the clicks at
+        // the system's double-click speed; Enter on a focused card counts 0.
+        const clicks = (event?.nativeEvent as { detail?: number } | undefined)?.detail ?? 0;
+        const second = WEB && clicks >= 2 && lastClicked === card.id;
+        lastClicked = second ? null : card.id;
         if (second) props.onOpen?.(card.id);
         else props.onSelect?.(card);
       }
