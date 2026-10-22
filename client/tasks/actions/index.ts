@@ -2,7 +2,7 @@ import type { PaseoApi } from "@getpaseo/client";
 import { useRpc } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { tasksCapabilitiesRpc, tasksStopRpc, tasksStoppedRpc } from "../../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksStopRpc, tasksStoppedRpc, tasksUnarchiveRpc } from "../../../shared/tasks-rpc";
 import type { TaskCard, TaskPermission, TaskPermissionAction } from "../model";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 
@@ -115,6 +115,8 @@ const CONFIRMATION_MS = 3_000;
 export const STOP_VERIFY_MS = 10_000;
 /** A stop RPC with no answer by then has failed. */
 export const STOP_RPC_TIMEOUT_MS = 30_000;
+/** The server waits up to 60 s for the reload; past this the unarchive has failed. */
+const UNARCHIVE_RPC_TIMEOUT_MS = 75_000;
 
 function shortError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -376,4 +378,71 @@ export function useStopControl(options: {
     () => ({ available, phase, press, cancel, cancelAll, reconcile, noteRunning, stoppedManually, restored }),
     [available, phase, press, cancel, cancelAll, reconcile, noteRunning, stoppedManually, restored],
   );
+}
+
+/** Unarchive for an archived parent, shown in the details' parent row. */
+export interface UnarchiveControl {
+  /** False without the Paseo CLI on the daemon's machine, as for Stop. */
+  available: boolean;
+  /** The request is out; the row says so and takes no second press. */
+  pending(agentId: string): boolean;
+  press(agentId: string): void;
+}
+
+/**
+ * One unarchive controller for the whole board. Success needs nothing more:
+ * the agent comes back through the board's agent list, so its card returns
+ * and the parent row turns into a jump. A failure is an error toast.
+ */
+export function useUnarchiveControl(options: {
+  available: boolean;
+  toast?: Pick<ReturnType<typeof useToast>, "error">;
+}): UnarchiveControl {
+  const unarchiveRpc = useRpc(tasksUnarchiveRpc);
+  const hostToast = useToast();
+  const language = useTasksLanguage();
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(() => new Set());
+  const latest = useRef({ unarchiveRpc, toast: options.toast ?? hostToast, language });
+  latest.current = { unarchiveRpc, toast: options.toast ?? hostToast, language };
+  const pendingRef = useRef(new Set<string>());
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const setPending = useCallback((agentId: string, on: boolean) => {
+    const next = new Set(pendingRef.current);
+    if (on) next.add(agentId);
+    else next.delete(agentId);
+    pendingRef.current = next;
+    setPendingIds(next);
+  }, []);
+
+  const press = useCallback((agentId: string) => {
+    if (!options.available || pendingRef.current.has(agentId)) return;
+    setPending(agentId, true);
+    const fail = (detail: string) => {
+      const zh = latest.current.language === "zh";
+      latest.current.toast.error(zh ? `取消归档失败：${detail}` : `Could not unarchive: ${detail}`);
+    };
+    const timeoutMessage = latest.current.language === "zh" ? "取消归档请求没有响应。" : "The unarchive request did not answer.";
+    void withTimeout(Promise.resolve().then(() => latest.current.unarchiveRpc({ agentId })), UNARCHIVE_RPC_TIMEOUT_MS, timeoutMessage)
+      .then((result) => {
+        if (!mountedRef.current) return;
+        if (!result.ok) fail(result.error ?? (latest.current.language === "zh" ? "未知错误。" : "Unknown error."));
+      })
+      .catch((error: unknown) => {
+        if (mountedRef.current) fail(shortError(error));
+      })
+      .finally(() => {
+        if (mountedRef.current) setPending(agentId, false);
+      });
+  }, [options.available, setPending]);
+
+  const pending = useCallback((agentId: string) => pendingIds.has(agentId), [pendingIds]);
+  return useMemo(() => ({ available: options.available, pending, press }), [options.available, pending, press]);
 }

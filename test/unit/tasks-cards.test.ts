@@ -1134,6 +1134,43 @@ describe("TaskDetailCards", () => {
     expect(hostByTestId(location, "detail-place").props.onPress).toBeUndefined();
   });
 
+  it("offers Unarchive for an archived parent where the host can, else says it cannot open", async () => {
+    const orphan = { ...sample("sample-child-1"), parent: { id: "gone", title: "多设备连接", missing: true } };
+    const plain = await render(details(orphan, { onJump: vi.fn() }));
+    expect(texts(hostByTestId(plain.root, "detail-parent"))).toEqual(["多设备连接", "已归档 · 无法跳转"]);
+    expect(plain.root.findAll((node) => node.props.testID === "detail-parent-unarchive")).toHaveLength(0);
+    await act(async () => plain.unmount());
+    renderer = null;
+
+    const unarchive = { pending: vi.fn(() => false), press: vi.fn() };
+    const tree = await render(details(orphan, { onJump: vi.fn(), unarchive }));
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "已归档", "取消归档"]);
+    // The card's Allow look: the accent tint and its icon.
+    const card = taskTokens(LIGHT).card;
+    expect(flat(hostByTestId(tree.root, "detail-parent-unarchive").props.style)).toMatchObject({ backgroundColor: card.primaryFill, borderColor: card.primaryFill, borderRadius: 6 });
+    expect(icons(hostByTestId(tree.root, "detail-parent"))).toContain("ArchiveRestore");
+    // The row itself still does nothing: only the button acts.
+    expect(hostByTestId(tree.root, "detail-parent").props.onPress).toBeUndefined();
+    await act(async () => hostByTestId(tree.root, "detail-parent-unarchive").props.onPress());
+    expect(unarchive.press).toHaveBeenCalledWith("gone");
+
+    unarchive.pending.mockReturnValue(true);
+    await act(async () => tree.update(details(orphan, { onJump: vi.fn(), unarchive: { ...unarchive } })));
+    const button = hostByTestId(tree.root, "detail-parent-unarchive");
+    // Working: the same label, a spinner where the icon was, no second press.
+    expect(texts(button)).toEqual(["取消归档"]);
+    expect(button.props.accessibilityState).toEqual({ disabled: true, busy: true });
+    expect(icons(button)).not.toContain("ArchiveRestore");
+    expect(hostByTestId(tree.root, "detail-parent-unarchive-spinner")).toBeTruthy();
+
+    // Back on the board: the row jumps and offers nothing more.
+    const onJump = vi.fn();
+    await act(async () => tree.update(details({ ...orphan, parent: { id: "gone", title: "多设备连接", missing: false } }, { onJump, unarchive })));
+    expect(tree.root.findAll((node) => node.props.testID === "detail-parent-unarchive")).toHaveLength(0);
+    await act(async () => hostByTestId(tree.root, "detail-parent").props.onPress());
+    expect(onJump).toHaveBeenCalledWith("gone");
+  });
+
   it("adds the label column from 448 wide and drops it under 440", async () => {
     const tree = await render(details(sample("sample-running")));
     const properties = hostByTestId(tree.root, "detail-properties");

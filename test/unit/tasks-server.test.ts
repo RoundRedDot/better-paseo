@@ -188,3 +188,49 @@ describe("Tasks server stopped record", () => {
     for (const stop of stops) expect(Number.isFinite(Date.parse(stop.stoppedAt))).toBe(true);
   });
 });
+
+describe("Tasks server unarchive RPC", () => {
+  it("reloads an archived agent, the way Paseo's own Unarchive does", async () => {
+    const cli = await executable(tempRoot);
+    process.env.PASEO_CLI = cli;
+    execCommand.mockImplementation(async (_cli: string, args: string[]) =>
+      args[1] === "inspect" ? { stdout: JSON.stringify({ Id: "agent-a", Archived: true }), stderr: "" } : { stdout: "{}", stderr: "" });
+    const handlers = await registerHandlers();
+
+    await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" })).resolves.toEqual({ ok: true, error: null });
+    expect(execCommand.mock.calls.map((call) => call[1])).toEqual([
+      ["agent", "inspect", "agent-a", "--json"],
+      ["agent", "reload", "agent-a", "--json"],
+    ]);
+    expect(execCommand.mock.calls[1]?.[2]).toEqual({ timeout: 60_000, env: process.env });
+  });
+
+  it("leaves an agent that is not archived alone: a reload would interrupt it", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    execCommand.mockResolvedValue({ stdout: JSON.stringify({ Id: "agent-a", Archived: false }), stderr: "" });
+    const handlers = await registerHandlers();
+
+    await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" })).resolves.toEqual({ ok: true, error: null });
+    expect(execCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a missing CLI, a bad id, an unexpected answer and a failed reload", async () => {
+    let handlers = await registerHandlers();
+    await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" })).resolves.toEqual({ ok: false, error: "Paseo CLI is unavailable." });
+
+    process.env.PASEO_CLI = await executable(tempRoot);
+    handlers = await registerHandlers();
+    await expect(invoke(handlers, "tasks.unarchive", { agentId: "bad/id" })).resolves.toEqual({ ok: false, error: "Invalid agent ID." });
+
+    execCommand.mockResolvedValueOnce({ stdout: JSON.stringify({ Id: "agent-a" }), stderr: "" });
+    await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" })).resolves.toEqual({ ok: false, error: "Paseo CLI returned an unexpected response." });
+
+    execCommand
+      .mockResolvedValueOnce({ stdout: JSON.stringify({ Id: "agent-a", Archived: true }), stderr: "" })
+      .mockRejectedValueOnce(Object.assign(new Error("timed out"), { code: "ETIMEDOUT" }));
+    await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" })).resolves.toEqual({
+      ok: false,
+      error: "Paseo CLI timed out while unarchiving the agent.",
+    });
+  });
+});

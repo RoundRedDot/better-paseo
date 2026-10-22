@@ -435,6 +435,28 @@ describe("Tasks data store", () => {
     }
   });
 
+  it("brings an unarchived parent back as a done card the child links to", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("orphan", { status: "running", labels: { "paseo.parent-agent-id": "archived-parent" } }),
+        makeAgent({ id: "archived-parent", status: "idle", title: "Archived parent", archivedAt: at(4) }),
+      ],
+    });
+    const mounted = await mountTasks(fake, "all");
+    try {
+      expect(mounted.current.byId.get("orphan")?.parent).toMatchObject({ id: "archived-parent", missing: true });
+      // Paseo's unarchive clears archivedAt and stamps updatedAt, so the done lane takes it.
+      await act(async () => {
+        fake.upsertAgent(makeAgent({ id: "archived-parent", status: "idle", title: "Archived parent", archivedAt: null, updatedAt: at(20) }));
+        await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("orphan")?.parent).toEqual({ id: "archived-parent", title: "Archived parent", missing: false });
+      expect(mounted.current.byId.get("archived-parent")?.children.map((child) => child.id)).toEqual(["orphan"]);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("detects optional labels and icons, maps tag colours, and caches icons by revision", async () => {
     const agent = activeAgent("a", { status: "running", labels: { "paseo.open-agent-tab.a": "true" } });
     const oldHost = createFakePaseo({ agents: [agent], workspaces: [workspace(["bug"])] });

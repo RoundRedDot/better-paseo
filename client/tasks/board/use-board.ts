@@ -4,7 +4,7 @@ import { usePaseo, useSettings } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
 import type { PaseoApi } from "@getpaseo/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type LaneWidth, type TasksSettings } from "../../../shared/tasks-settings";
-import { permissionButtons, respondToPermission, useStopControl, type PermissionButton, type StopControl } from "../actions";
+import { permissionButtons, respondToPermission, useStopControl, useUnarchiveControl, type PermissionButton, type StopControl, type UnarchiveControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, useTasks, type TasksHandle } from "../data";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
@@ -51,6 +51,8 @@ export interface BoardController {
   clock: TaskClock;
   visible: boolean;
   stop: StopControl;
+  /** Unarchive for an archived parent in the details. */
+  unarchive: UnarchiveControl;
   callbacks: CardCallbacks;
   buttonsFor(card: TaskCard): PermissionButton[];
   /** Fetch a rendered card's project icon; undefined when cards draw no project image (phone, or the field is off). */
@@ -229,6 +231,8 @@ export function useBoard(
     return card !== undefined && (card.lane === "running" || card.lane === "needs_input");
   }, []);
   const stop = useStopControl({ confirmStop: settings.board.confirmStop, isActive, toast });
+  // Unarchive runs through the same CLI as Stop.
+  const unarchive = useUnarchiveControl({ available: stop.available, toast });
   const { stoppedManually, noteRunning, reconcile, restored } = stop;
   const stoppedIds = useMemo(() => restoredStops(stoppedManually, restored, tasks.byId), [stoppedManually, restored, tasks.byId]);
   const filtered = useMemo(
@@ -326,6 +330,7 @@ export function useBoard(
     clock,
     visible,
     stop,
+    unarchive,
     callbacks,
     buttonsFor,
     requestIcon: fields.projectIcon && !compact ? requestProjectIcon : undefined,

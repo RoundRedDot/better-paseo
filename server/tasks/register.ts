@@ -5,10 +5,12 @@ import { execCommand, type PluginServerContext } from "@getpaseo/plugin/server";
 import { TASKS_SETTINGS } from "../../shared/tasks-settings";
 import { createStopMarks, stopMarksPath } from "./stop-marks";
 import { createSubagentWatch, type SubagentWatch } from "./provider-subagents";
-import { tasksCapabilitiesRpc, tasksStopRpc, tasksStoppedRpc, tasksSubagentsRpc } from "../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksStopRpc, tasksStoppedRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const STOP_TIMEOUT_MS = 10_000;
+/** A reload resumes the provider's session, which can take a while (a Codex rollout). */
+const UNARCHIVE_TIMEOUT_MS = 60_000;
 
 type CliStopOutput = { stoppedCount: number; agentIds: string[] };
 
@@ -52,16 +54,16 @@ function isCliStopOutput(value: unknown): value is CliStopOutput {
   );
 }
 
-function cliErrorMessage(error: unknown): string {
+function cliErrorMessage(error: unknown, doing = "stopping", verb = "stop"): string {
   if (typeof error === "object" && error !== null) {
     const failure = error as { code?: unknown; message?: unknown };
     if (failure.code === "ETIMEDOUT" || /timed? out/i.test(String(failure.message ?? ""))) {
-      return "Paseo CLI timed out while stopping the agent.";
+      return `Paseo CLI timed out while ${doing} the agent.`;
     }
     if (typeof failure.code === "number") return `Paseo CLI exited with code ${failure.code}.`;
     if (failure.code === "ENOENT") return "Paseo CLI could not be started.";
   }
-  return "Paseo CLI failed to stop the agent.";
+  return `Paseo CLI failed to ${verb} the agent.`;
 }
 
 async function stopAgent(cli: string, agentId: string): Promise<{ ok: boolean; error: string | null }> {
@@ -86,9 +88,38 @@ async function stopAgent(cli: string, agentId: string): Promise<{ ok: boolean; e
   }
 }
 
+async function unarchiveAgent(cli: string, agentId: string): Promise<{ ok: boolean; error: string | null }> {
+  if (!AGENT_ID_PATTERN.test(agentId)) return { ok: false, error: "Invalid agent ID." };
+
+  try {
+    // A reload interrupts a live agent: only an archived one is reloaded.
+    const { stdout } = await execCommand(cli, ["agent", "inspect", agentId, "--json"], {
+      timeout: STOP_TIMEOUT_MS,
+      env: process.env,
+    });
+    let inspected: unknown;
+    try {
+      inspected = JSON.parse(stdout);
+    } catch {
+      return { ok: false, error: "Paseo CLI returned invalid JSON." };
+    }
+    const archived = (inspected as { Archived?: unknown } | null)?.Archived;
+    if (typeof archived !== "boolean") return { ok: false, error: "Paseo CLI returned an unexpected response." };
+    if (!archived) return { ok: true, error: null };
+
+    await execCommand(cli, ["agent", "reload", agentId, "--json"], {
+      timeout: UNARCHIVE_TIMEOUT_MS,
+      env: process.env,
+    });
+    return { ok: true, error: null };
+  } catch (error) {
+    return { ok: false, error: cliErrorMessage(error, "unarchiving", "unarchive") };
+  }
+}
+
 /**
- * The Tasks board's settings record, stop and subagent RPCs. The stops
- * `tasks.stopped` answers with live in a file under the plugin's data
+ * The Tasks board's settings record, stop, subagent and unarchive RPCs. The
+ * stops `tasks.stopped` answers with live in a file under the plugin's data
  * directory, so they outlive a daemon restart; a mark goes when the agent
  * starts a new turn or is archived, and when it is 30 days old. The provider
  * subagents `tasks.subagents` answers with live in memory, as the daemon's do.
@@ -131,5 +162,10 @@ export function registerTasksServer(
     }
 
     return { results };
+  });
+  server.handle(tasksUnarchiveRpc, async ({ agentId }) => {
+    const cli = await resolveCliPath();
+    if (!cli) return { ok: false, error: "Paseo CLI is unavailable." };
+    return await unarchiveAgent(cli, agentId);
   });
 }

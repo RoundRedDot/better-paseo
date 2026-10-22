@@ -36,6 +36,7 @@ import {
   type SubtaskMetaPart,
   type SubtaskSummaryPart,
 } from "./details-format";
+import { CardButton } from "./task-card";
 import {
   contextView,
   detailHero,
@@ -149,6 +150,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   onJump?(agentId: string): void;
   /** The task's first prompt, read from its timeline; absent leaves the section out (the settings preview). */
   firstPrompt?: { prompt: FirstPrompt; load(): void } | null;
+  /** Unarchive for an archived parent; absent where this host cannot. */
+  unarchive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
   /** The sections scroll under the fixed header (the sidebar); else the card grows with them (the sheet). */
   scrollBody?: boolean;
   /**
@@ -758,6 +761,11 @@ function Properties(props: Inner) {
     const parent = card.parent;
     const title = parent.title ?? (parent.missing ? cardText.parentArchived : cardText.parentUnknown);
     const jump = props.onJump && !parent.missing ? () => props.onJump?.(parent.id) : undefined;
+    const unarchive = parent.missing ? props.unarchive : null;
+    const unarchiving = unarchive?.pending(parent.id) === true;
+    let notes: Note[] = [];
+    // An archived parent can be brought back; once it is, the row turns into a jump.
+    if (parent.missing) notes = unarchive ? [{ text: details.archived }] : [{ text: details.archived }, { text: details.cannotJump }];
     rows.push(
       <PropertyRow
         {...common}
@@ -767,7 +775,21 @@ function Properties(props: Inner) {
         value={title}
         lines={3}
         muted={parent.missing}
-        notes={parent.missing ? [{ text: details.archived }, { text: details.cannotJump }] : []}
+        notes={notes}
+        button={
+          unarchive ? (
+            <CardButton
+              look="primary"
+              icon="ArchiveRestore"
+              label={details.unarchive}
+              busy={unarchiving}
+              tokens={tokens}
+              compact={false}
+              onPress={() => unarchive.press(parent.id)}
+              testID="detail-parent-unarchive"
+            />
+          ) : undefined
+        }
         onPress={jump}
         accessibilityLabel={`${words.parent}: ${title}`}
         testID="detail-parent"
@@ -815,6 +837,8 @@ function PropertyRow(props: {
   hyphens?: boolean;
   lines: number;
   notes?: Note[];
+  /** A button at the row's end, in the card's style: an archived parent's Unarchive. */
+  button?: React.ReactNode;
   copy?: { text: string; toast: string; label: string };
   link?: string;
   onPress?(): void;
@@ -912,6 +936,7 @@ function PropertyRow(props: {
         {noteLine}
       </View>
       {trailing ? <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }}>{trailing}</View> : null}
+      {props.button ? <View style={{ alignSelf: "center" }}>{props.button}</View> : null}
       {actionSlot > 0 ? (
         <View style={{ width: actionSlot, height: line, marginRight: -4, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
           {showActions && props.copy ? <RowAction icon="Copy" label={props.copy.label} tokens={tokens} onPress={doCopy!} /> : null}
