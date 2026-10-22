@@ -931,6 +931,32 @@ describe("Tasks data store", () => {
     }
   });
 
+  it("fills a running card's missing cost from the server's record", async () => {
+    const loader = vi.fn(async (ids: string[]) => ids.map((agentId) => ({ agentId, endedAt: Date.now() - 60_000, totalCostUsd: 0.25 })));
+    setLastTurnLoader(loader);
+    const fake = createFakePaseo({
+      agents: [
+        // Claude's context update while it works replaced the usage, cost and all.
+        activeAgent("working", { status: "running", lastUserMessageAt: recentIso(30_000), activeTurn: { turnId: "t", startedAt: recentIso(30_000) }, lastUsage: { contextWindowUsedTokens: 30_000, contextWindowMaxTokens: 200_000 } }),
+        activeAgent("costed", { status: "running", lastUserMessageAt: recentIso(30_000), activeTurn: { turnId: "t", startedAt: recentIso(30_000) }, lastUsage: { outputTokens: 10, totalCostUsd: 0.4 } }),
+      ],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake);
+    try {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("working")?.usage).toEqual({ inputTokens: null, cachedInputTokens: null, outputTokens: null, totalCostUsd: 0.25 });
+      // The agent's own figure wins.
+      expect(mounted.current.byId.get("costed")?.usage?.totalCostUsd).toBe(0.4);
+    } finally {
+      mounted.unmount();
+      setLastTurnLoader(null);
+    }
+  });
+
   it("fails a task whose last turn ended on an error, until it is prompted again", async () => {
     const prompt = Date.now() - 10 * 60_000;
     const iso = (ms: number) => new Date(ms).toISOString();

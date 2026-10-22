@@ -18,7 +18,7 @@ import { MARK_IDS } from "../../components/marks";
 import { normalizeProvider } from "../../components/provider-logo";
 import { classifyAgent } from "../agent-state-bucket";
 import { resolveTasksLanguage } from "../i18n";
-import { LANE_ORDER, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming } from "../model";
+import { LANE_ORDER, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming, type TaskUsage } from "../model";
 
 export interface WorkspaceOption {
   id: string;
@@ -385,6 +385,16 @@ export function withLastTurn(timing: TaskTiming, turn: TurnSpan | undefined, wor
 }
 
 /**
+ * The card's usage with the cost the plugin server recorded when its latest
+ * costed turn ended, when the agent reports none of its own: Claude's context
+ * updates while it works replace the daemon's usage and drop the cost.
+ */
+export function withRecordedCost(usage: TaskUsage | null, cost: number | undefined): TaskUsage | null {
+  if (cost === undefined || usage?.totalCostUsd != null) return usage;
+  return { inputTokens: usage?.inputTokens ?? null, cachedInputTokens: usage?.cachedInputTokens ?? null, outputTokens: usage?.outputTokens ?? null, totalCostUsd: cost };
+}
+
+/**
  * A card whose latest turn stopped on an error (Claude's session limit, which
  * the daemon passes off as a finished turn) is a failed task, not a done one:
  * the review lane's red dot with the error as its reason. A prompt since that
@@ -626,6 +636,8 @@ function createStore(api: PaseoApi): TaskStore {
   const lastTurns = new Map<string, TurnSpan>();
   /** The plugin server's error for each agent's latest recorded turn, when it had one. */
   const turnErrors = new Map<string, TurnError>();
+  /** The cost each agent's latest costed turn ended on, as the plugin server recorded it. */
+  const turnCosts = new Map<string, number>();
   /** The prompt (and whether the agent worked) each agent's turn was last asked for, so it is asked once. */
   const lastTurnAsked = new Map<string, string>();
   let lastTurnQueue = new Set<string>();
@@ -713,6 +725,7 @@ function createStore(api: PaseoApi): TaskStore {
     const childIds = childrenByParent.get(id);
     const next: TaskCard = withReadMark(withSubagents({
       ...withTurnError(base, turnErrors.get(id)),
+      usage: withRecordedCost(base.usage, turnCosts.get(id)),
       timing: withLastTurn(base.timing, lastTurns.get(id), base.lane === "running" || base.lane === "needs_input"),
       parent: parentAgentId
         ? {
@@ -1056,10 +1069,12 @@ function createStore(api: PaseoApi): TaskStore {
               if (turn.error) turnErrors.set(turn.agentId, { endedAt: turn.endedAt, message: turn.error });
               else turnErrors.delete(turn.agentId);
             }
+            const costChanged = turn.totalCostUsd !== undefined && turnCosts.get(turn.agentId) !== turn.totalCostUsd;
+            if (costChanged) turnCosts.set(turn.agentId, turn.totalCostUsd!);
             const known = lastTurns.get(turn.agentId);
             const newer = !known || known.endedAt < turn.endedAt;
             if (newer) lastTurns.set(turn.agentId, { startedAt: turn.startedAt ?? null, endedAt: turn.endedAt });
-            if (!newer && !errorChanged) continue;
+            if (!newer && !errorChanged && !costChanged) continue;
             refreshFinalCard(turn.agentId);
             const parent = parentByChild.get(turn.agentId);
             if (parent) refreshFinalCard(parent);
@@ -1588,6 +1603,7 @@ function createStore(api: PaseoApi): TaskStore {
     iconRequests.clear();
     lastTurns.clear();
     turnErrors.clear();
+    turnCosts.clear();
     lastTurnAsked.clear();
     lastTurnQueue = new Set();
     workingSince.clear();

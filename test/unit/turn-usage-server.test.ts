@@ -141,6 +141,20 @@ describe("turn timing ledger", () => {
       { agentId: "agent-b", startedAt: 2000, endedAt: 2500 },
     ]);
   });
+
+  it("answers the cost the latest costed turn ended on", async () => {
+    let usage: unknown = { outputTokens: 5, totalCostUsd: 0.25 };
+    const server = register(() => usage);
+    await server.end("turn-1", "completed", 1000);
+    // A turn without a new figure keeps the earlier cost.
+    usage = undefined;
+    server.start("turn-2", 2000);
+    await server.end("turn-2", "completed", 3000);
+    expect((await server.last(["agent-a"])).turns).toEqual([{ agentId: "agent-a", startedAt: 2000, endedAt: 3000, totalCostUsd: 0.25 }]);
+    usage = { outputTokens: 9, totalCostUsd: 0.4 };
+    await server.end("turn-3", "completed", 4000);
+    expect((await server.last(["agent-a"])).turns).toEqual([{ agentId: "agent-a", endedAt: 4000, totalCostUsd: 0.4 }]);
+  });
 });
 
 describe("turn errors", () => {

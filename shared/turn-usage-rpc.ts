@@ -52,11 +52,18 @@ export const lastTurnSchema = z.object({
   endedAt: z.number(),
   /** The recorded turn's `error`. */
   error: z.string().optional(),
+  /**
+   * The cost the latest turn that reported one ended on. Claude's context
+   * updates while it works replace the agent's usage on the daemon and drop
+   * the cost, so a running agent has none of its own.
+   */
+  totalCostUsd: z.number().optional(),
 });
 export type LastTurn = z.output<typeof lastTurnSchema>;
 
 /**
- * Each agent's latest recorded turn, for the Tasks board's "last turn" time.
+ * Each agent's latest recorded turn, for the Tasks board's "last turn" time
+ * and the cost a running card shows.
  * The agent's `updatedAt` moves whenever the daemon touches it (a resume, a
  * mode change), so it cannot say when a turn ended. Agents without a record
  * are left out.
