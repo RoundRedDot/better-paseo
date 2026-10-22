@@ -752,6 +752,11 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const footerZ = ringOpen ? OVERLAY_ROW_Z + 1 : showControl || controlLeaving ? OVERLAY_ROW_Z : undefined;
   // A stoppable or readable card keeps the footer even when it has nothing else, so Stop or Mark read has a place to appear.
   const stopSlot = (canStop || canRead) && !compact;
+  // The footer is as tall as the hover Stop or Mark read on a desktop card that
+  // can show one, hovered or not, so the button sits inside it with the card's
+  // own gaps above and below instead of overhanging the pills, and hovering
+  // still moves nothing.
+  const footHeight = stopSlot && !TOUCH ? taskControlHeight(m.buttonHeight, scale) : Math.round(m.footLine * scale);
   // A desktop request's buttons take the footer in on their row: the wait sits
   // beside the answer it waits for, as the details sidebar shows it, rather
   // than above the divider with the buttons alone on a row of their own.
@@ -792,7 +797,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
               {
                 position: "absolute",
                 right: 0,
-                top: (Math.round(m.footLine * scale) - taskControlHeight(m.buttonHeight, scale)) / 2,
+                top: (footHeight - taskControlHeight(m.buttonHeight, scale)) / 2,
                 paddingLeft: GAP,
                 // Follows the card's fill as it eases back from the hover grey.
                 backgroundColor: background,
@@ -807,10 +812,9 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         ) : null}
       </>
     ) : null;
-  const footLine = Math.round(m.footLine * scale);
   const footer =
     footerContent && !answerRow ? (
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: footLine, marginTop: m.rowGap, zIndex: footerZ }} testID="task-card-footer">
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: footHeight, marginTop: m.rowGap, zIndex: footerZ }} testID="task-card-footer">
         {footerContent}
       </View>
     ) : null;
@@ -863,7 +867,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
               />
             ))}
             {footerContent ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: footLine, marginLeft: "auto" }} testID="task-card-footer">
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: footHeight, marginLeft: "auto" }} testID="task-card-footer">
                 {footerContent}
               </View>
             ) : null}
