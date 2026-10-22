@@ -18,6 +18,7 @@
 import { createContext, useContext, useEffect, useRef, type Context } from "react";
 import { Platform, VirtualizedList } from "react-native";
 import { detailsApi } from "../details-store";
+import { setOrderShift } from "../block-registry";
 import { nearestScroller } from "./web-layer";
 import { DETAILS_EASE } from "./motion";
 
@@ -58,14 +59,23 @@ export interface HostList {
   viewport(): Promise<{ top: number; bottom: number } | null>;
   /** Moves the content up by `delta` (down when negative) over `ms`; returns how far it can move. */
   scroll(delta: number, ms: number): number;
+  /**
+   * What turns a row's window top into its place in the list's content: the
+   * scroll offset, negated for the inverted native list. Null when unknown.
+   */
+  shift?(): number | null;
 }
 
 const lists = new Map<string, HostList>();
 
 export function registerHostList(agentId: string, list: HostList): () => void {
   lists.set(agentId, list);
+  const shift = list.shift;
+  if (shift) setOrderShift(agentId, () => shift.call(list));
   return () => {
-    if (lists.get(agentId) === list) lists.delete(agentId);
+    if (lists.get(agentId) !== list) return;
+    lists.delete(agentId);
+    if (shift) setOrderShift(agentId, null);
   };
 }
 
@@ -219,6 +229,13 @@ export function nativeHostList(read: () => ListContextValue | null): HostList {
       glide(metrics.offset, to, ms, (offset) => ref.scrollToOffset?.({ offset, animated: false }));
       return ref.props?.inverted ? -moved : moved;
     },
+    shift() {
+      const list = read();
+      const offset = list?.getScrollMetrics?.().offset;
+      if (typeof offset !== "number") return null;
+      // Inverted: scrolling to older rows raises the offset and moves every row down the screen.
+      return list?.getOutermostParentListRef?.()?.props?.inverted ? -offset : offset;
+    },
   };
 }
 
@@ -239,6 +256,9 @@ export function webHostList(anchor: () => unknown): HostList {
       if (Math.abs(to - from) < 1) return 0;
       glide(from, to, ms, (top) => { scroller.scrollTop = top; });
       return to - from;
+    },
+    shift() {
+      return nearestScroller(anchor())?.scrollTop ?? null;
     },
   };
 }

@@ -16,6 +16,43 @@ export const HOST_EDGE = 20;
 /** How far past the last detent, or the first and last block, a drag still follows the finger. */
 export const OVERDRAG = 0.3;
 
+/** The release velocity is the finger's over about this long, not the last move's alone. */
+export const VELOCITY_WINDOW_MS = 100;
+/** Moves closer together than this are too short a span to time. */
+const VELOCITY_MIN_SPAN_MS = 30;
+
+interface Sample {
+  t: number;
+  x: number;
+  y: number;
+}
+
+/**
+ * The finger's velocity in px/ms at release, over the last 100 ms of its
+ * moves. PanResponder's own `vx` / `vy` time only the last two moves, and a
+ * slow drag whose moves arrive bunched (a busy JS thread, a host that
+ * coalesces touches) read as a fling there: a slow pull down from full closed
+ * the drawer instead of settling at fit.
+ */
+export function releaseVelocity(samples: readonly Sample[]): { vx: number; vy: number } {
+  const last = samples[samples.length - 1];
+  if (!last) return { vx: 0, vy: 0 };
+  // The oldest move inside the window; when that spans too little time, the first one before it.
+  let from: Sample | undefined;
+  for (let index = samples.length - 2; index >= 0; index -= 1) {
+    const earlier = samples[index]!;
+    if (last.t - earlier.t > VELOCITY_WINDOW_MS) {
+      if (!from || last.t - from.t < VELOCITY_MIN_SPAN_MS) from = earlier;
+      break;
+    }
+    from = earlier;
+  }
+  if (!from) return { vx: 0, vy: 0 };
+  const span = last.t - from.t;
+  if (span <= 0) return { vx: 0, vy: 0 };
+  return { vx: (last.x - from.x) / span, vy: (last.y - from.y) / span };
+}
+
 export interface DragTarget {
   begin(): void;
   /** `travel` down is positive, from where the finger went down. */
@@ -39,6 +76,12 @@ export function panelResponder(options: {
   let y0 = 0;
   let axis: "x" | "y" | null = null;
   let release = () => {};
+  let samples: Sample[] = [];
+  const sample = (event: GestureResponderEvent) => {
+    const stamp = event.nativeEvent.timestamp;
+    samples.push({ t: typeof stamp === "number" && stamp > 0 ? stamp : Date.now(), x: event.nativeEvent.pageX, y: event.nativeEvent.pageY });
+    if (samples.length > 24) samples = samples.slice(-12);
+  };
   // PanResponder counts from the grant, which a busy JS thread delays: measure from where the finger went down.
   const travel = (event: GestureResponderEvent) => ({
     dx: event.nativeEvent.pageX - x0,
@@ -63,15 +106,19 @@ export function panelResponder(options: {
     x0 = event.nativeEvent.pageX;
     y0 = event.nativeEvent.pageY;
     axis = null;
+    samples = [];
+    sample(event);
     return false;
   };
-  const finish = (event: GestureResponderEvent, gesture: PanResponderGestureState) => {
+  const finish = (event: GestureResponderEvent, _gesture: PanResponderGestureState) => {
     release();
     release = () => {};
     const drag = target();
     const { dx, dy } = travel(event);
-    if (axis === "x") drag?.end(dx, gesture.vx);
-    else drag?.end(dy, gesture.vy);
+    sample(event);
+    const { vx, vy } = releaseVelocity(samples);
+    if (axis === "x") drag?.end(dx, vx);
+    else drag?.end(dy, vy);
     axis = null;
   };
   return PanResponder.create({
@@ -86,6 +133,7 @@ export function panelResponder(options: {
       target()?.begin();
     },
     onPanResponderMove: (event) => {
+      sample(event);
       const { dx, dy } = travel(event);
       target()?.move(axis === "x" ? dx : dy);
     },

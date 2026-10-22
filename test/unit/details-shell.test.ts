@@ -11,7 +11,7 @@ import "./helpers/quiet-renderer";
 const screen = vi.hoisted(() => ({ width: 390, height: 844 }));
 const caps = vi.hoisted(() => ({ hover: false, touch: true }));
 const motion = vi.hoisted(() => ({ reduced: false }));
-const timings = vi.hoisted(() => [] as { toValue: number; duration: number }[]);
+const timings = vi.hoisted(() => [] as { toValue: number; duration: number; native?: boolean }[]);
 
 vi.mock("react-native", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -22,9 +22,9 @@ vi.mock("react-native", async () => {
     // Every animation lands at once, so a close or a switch completes inside `act`.
     Animated: {
       ...rn.Animated,
-      timing: (value: { setValue(next: number): void }, config: { toValue: number; duration: number }) => ({
+      timing: (value: { setValue(next: number): void }, config: { toValue: number; duration: number; useNativeDriver: boolean }) => ({
         start(done?: (result: { finished: boolean }) => void) {
-          timings.push({ toValue: config.toValue, duration: config.duration });
+          timings.push({ toValue: config.toValue, duration: config.duration, native: config.useNativeDriver });
           value.setValue(config.toValue);
           done?.({ finished: true });
         },
@@ -128,6 +128,7 @@ vi.mock("../../client/details/block-registry", async () => {
   const find = (id: string | null) => (id === null ? null : fake.box.blocks.find((entry) => entry.id === id) ?? null);
   return {
     registerBlock: () => ({ update() {}, release() {} }),
+    setOrderShift: vi.fn(),
     useBlockList: () => useSyncExternalStore(fake.subscribe, () => fake.box.blocks, () => fake.box.blocks),
     useBlock: (_agent: string, id: string | null) => useSyncExternalStore(fake.subscribe, () => find(id), () => find(id)),
     getBlock: (_agent: string, id: string) => find(id),
@@ -275,19 +276,24 @@ function webDesktop() {
   };
 }
 
-const event = (pageX: number, pageY: number) => ({ nativeEvent: { pageX, pageY } });
+const event = (pageX: number, pageY: number, timestamp = 0) => ({ nativeEvent: { pageX, pageY, timestamp } });
 
-/** A drag on the header from (100, 500) by `dy`, released at `vy` px/ms. */
-function dragHeader(dy: number, vy: number): boolean {
+/**
+ * A drag on the header from (100, 500) by `dy`, timed so the finger moves at
+ * `vy` px/ms (2 s when 0). `reported` is the PanResponder's own velocity at
+ * release, which the panel no longer trusts.
+ */
+function dragHeader(dy: number, vy: number, reported = vy): boolean {
   const handlers = seen.shell!.headerHandlers as Record<string, (...args: unknown[]) => unknown>;
+  const ms = vy === 0 ? 2000 : Math.max(1, Math.abs(dy / vy));
   let claimed = false;
   act(() => {
-    handlers.onStartShouldSetPanResponderCapture!(event(100, 500));
-    claimed = Boolean(handlers.onMoveShouldSetPanResponder!(event(100, 500 + dy)));
+    handlers.onStartShouldSetPanResponderCapture!(event(100, 500, 1000));
+    claimed = Boolean(handlers.onMoveShouldSetPanResponder!(event(100, 500 + dy, 1000 + ms)));
     if (!claimed) return;
-    handlers.onPanResponderGrant!(event(100, 500 + dy), {});
-    handlers.onPanResponderMove!(event(100, 500 + dy), {});
-    handlers.onPanResponderRelease!(event(100, 500 + dy), { vx: 0, vy });
+    handlers.onPanResponderGrant!(event(100, 500 + dy, 1000 + ms), {});
+    handlers.onPanResponderMove!(event(100, 500 + dy, 1000 + ms), {});
+    handlers.onPanResponderRelease!(event(100, 500 + dy, 1000 + ms), { vx: 0, vy: reported });
   });
   return claimed;
 }
@@ -483,6 +489,24 @@ describe("drawer", () => {
     }
   });
 
+  it("settles a slow pull down from full at fit, though the last move reads as a fling", () => {
+    const renderer = render(slot());
+    open("a", { detent: "full" });
+    layOut(renderer, "details-drawer", 600);
+    // 140 over 1.2 s, with PanResponder's two-move velocity spiking to 3 px/ms.
+    expect(dragHeader(140, 140 / 1200, 3)).toBe(true);
+    expect(fake.api.close).not.toHaveBeenCalled();
+    expect(fake.api.setDetent).toHaveBeenCalledWith(AGENT, "fit");
+  });
+
+  it("still closes from full on a fast fling", () => {
+    const renderer = render(slot());
+    open("a", { detent: "full" });
+    layOut(renderer, "details-drawer", 600);
+    dragHeader(150, 2);
+    expect(fake.api.close).toHaveBeenCalledWith(AGENT);
+  });
+
   it("stays at fit with no full detent, whatever the pull up", () => {
     const renderer = render(slot());
     open("a");
@@ -518,6 +542,44 @@ describe("drawer", () => {
   });
 });
 
+describe("first open on a phone", () => {
+  // Native text and images laid out while the drawer sat off the screen, under
+  // JS-driven frames, stayed blank until a later layout (QA round 1, bug 1).
+  it("lays the drawer out in place and unseen, then slides it up on the native driver", () => {
+    const renderer = render(slot());
+    open("a");
+    const frame = () => flat(byTestId(renderer, "details-drawer-frame")!.props.style);
+    expect(value(frame().opacity)).toBe(0);
+    expect(value((frame().transform as { translateY: unknown }[])[0]!.translateY)).toBe(0);
+    timings.length = 0;
+    layOut(renderer, "details-drawer", 266);
+    expect(value(frame().opacity)).toBe(1);
+    expect(timings).toContainEqual({ toValue: 0, duration: 280, native: true });
+    expect(timings.filter((timing) => !timing.native)).toEqual([]);
+  });
+
+  it("keeps the height on its own view, apart from the moving frame", () => {
+    const renderer = render(slot());
+    open("a");
+    layOut(renderer, "details-drawer", 462);
+    act(() => seen.shell!.toggleFullscreen!());
+    const frame = flat(byTestId(renderer, "details-drawer-frame")!.props.style);
+    const box = flat(byTestId(renderer, "details-drawer")!.props.style);
+    expect(frame.height).toBeUndefined();
+    expect(value(box.height)).toBe(789);
+    expect(box.transform).toBeUndefined();
+  });
+
+  it("moves the step's slide and the side panel on the native driver too", () => {
+    render(slot());
+    open("b");
+    timings.length = 0;
+    act(() => seen.shell!.step(1));
+    expect(timings.length).toBeGreaterThan(0);
+    expect(timings.every((timing) => timing.native)).toBe(true);
+  });
+});
+
 describe("floating panel", () => {
   // 1194 tall, insets 47 / 34, 12 above the bottom: 1101 available, a fit cap of 551, full at 1077.
   it("opens at min(content, 0.5 × available) and goes full at available − 24", () => {
@@ -545,7 +607,7 @@ describe("block switch height", () => {
     expect(value(flat(byTestId(renderer, "details-drawer")!.props.style).height)).toBe(266);
     timings.length = 0;
     act(() => seen.body!.contentSized(120));
-    expect(timings).toContainEqual({ toValue: 186, duration: 240 });
+    expect(timings).toContainEqual({ toValue: 186, duration: 240, native: false });
     // Settled: the panel lays itself out again.
     const style = flat(byTestId(renderer, "details-drawer")!.props.style);
     expect(style.height).toBeUndefined();
@@ -689,7 +751,7 @@ describe("lease handover", () => {
     expect(seen.actions!.wrap!.on).toBe(false);
     expect(seen.actions!.remembered).not.toBeNull();
     // No entrance: the panel is there before it is measured.
-    expect(value(flat(byTestId(renderer, "details-drawer")!.props.style).opacity)).toBe(1);
+    expect(value(flat(byTestId(renderer, "details-drawer-frame")!.props.style).opacity)).toBe(1);
     expect(fake.api.close).not.toHaveBeenCalled();
   });
 });

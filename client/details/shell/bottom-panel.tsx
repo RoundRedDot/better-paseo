@@ -19,7 +19,7 @@ import type { Detent } from "../contracts";
 import { detentHeights, releaseDetent, settleMs } from "../detent-model";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
 import { useEnhancerPreferences } from "../../preferences";
-import { DETAILS_MOTION, animate, panelShadow } from "./motion";
+import { DETAILS_MOTION, animate, animateLayout, panelShadow } from "./motion";
 import { OVERDRAG, panelResponder, type DragTarget } from "./gestures";
 import { detailsPalette } from "./scrim";
 import type { Insets } from "./safe-area";
@@ -124,11 +124,14 @@ export function BottomPanel(props: BottomPanelProps) {
   const heightsRef = useRef(heights);
   heightsRef.current = heights;
   const height = useRef(new Animated.Value(0)).current;
-  const translate = useRef(new Animated.Value(props.entrance === "slide" && !reduced ? props.stage.height : 0)).current;
-  const opacity = useRef(new Animated.Value(props.entrance === "none" || (props.entrance === "slide" && !reduced) ? 1 : 0)).current;
+  // The first layout (the measure) happens in place and unseen, as the press
+  // preview's does: never translated off the screen, where native text and
+  // images laid out there stayed blank until a later layout.
+  const translate = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(props.entrance === "none" ? 1 : 0)).current;
   const backdrop = useRef(new Animated.Value(props.entrance === "none" ? 1 : 0)).current;
   // What the values hold; Animated values are not read back while they move.
-  const now = useRef({ height: 0, translate: props.entrance === "slide" && !reduced ? props.stage.height : 0 });
+  const now = useRef({ height: 0, translate: 0 });
   const entered = useRef(false);
   const dragging = useRef(false);
   // A drag ends with a press on the handle it moved with: that press must not switch the detent back.
@@ -153,7 +156,7 @@ export function BottomPanel(props: BottomPanelProps) {
       done?.();
       return;
     }
-    animate(height, to, ms, done);
+    animateLayout(height, to, ms, done);
   }, [height]);
   const fix = useCallback(() => {
     if (fixedRef.current) return;
@@ -187,12 +190,13 @@ export function BottomPanel(props: BottomPanelProps) {
     }
     const panel = now.current.height;
     if (now0.entrance === "slide" && !now0.reduced) {
+      // Laid out where it rests; now below the edge, shown, and up.
       setTranslate(panel);
+      opacity.setValue(1);
       now.current.translate = 0;
       animate(translate, 0, DETAILS_MOTION.openMs);
       animate(backdrop, 1, DETAILS_MOTION.scrimMs, undefined, "linear");
     } else if (now0.entrance !== "none") {
-      setTranslate(0);
       const ms = now0.reduced ? DETAILS_MOTION.reducedMs : DETAILS_MOTION.formInMs;
       animate(opacity, 1, ms);
       animate(backdrop, 1, ms, undefined, "linear");
@@ -387,49 +391,58 @@ export function BottomPanel(props: BottomPanelProps) {
   return (
     <>
       {props.behind?.(backdrop)}
+      {/* The frame moves and fades (native driver); the box inside it takes the height (layout). */}
       <Animated.View
-        ref={panelRef}
-        testID={props.testID}
-        accessibilityViewIsModal={Platform.OS !== "web"}
-        onLayout={onLayout}
-        {...bodyPan.panHandlers}
+        testID={`${props.testID}-frame`}
         style={[
-          styles.panel,
+          styles.frame,
           cornerStyle,
-          props.corners === "top" && styles.openBottom,
           {
             left: props.frame.left,
             width: props.frame.width,
             bottom: props.frame.bottom,
-            backgroundColor: tokens.surface0,
-            borderColor: palette.border,
             boxShadow: panelShadow(tokens.isDark, props.corners === "top"),
             opacity,
             transform: [{ translateY: translate }],
           },
-          fixed ? { height } : { maxHeight: cap },
         ] as never}
       >
-        <View testID="details-handle-zone" {...handlePan.panHandlers} style={[styles.handle, Platform.OS === "web" && styles.grab]}>
-          <Pressable
-            testID="details-handle"
-            accessibilityRole="button"
-            accessibilityLabel={toolbarLabel(full ? "Shrink details" : "Expand details", language)}
-            onPress={toggle}
-            style={styles.handlePress}
-          >
-            <View style={[styles.grabber, { backgroundColor: palette.grabber }]} />
-          </Pressable>
-        </View>
-        <View style={[styles.content, fixed && styles.contentFill]}>{props.children}</View>
-        {props.bottomPad > 0 ? <View style={{ height: props.bottomPad }} /> : null}
+        <Animated.View
+          ref={panelRef}
+          testID={props.testID}
+          accessibilityViewIsModal={Platform.OS !== "web"}
+          onLayout={onLayout}
+          {...bodyPan.panHandlers}
+          style={[
+            styles.panel,
+            cornerStyle,
+            props.corners === "top" && styles.openBottom,
+            { backgroundColor: tokens.surface0, borderColor: palette.border },
+            fixed ? { height } : { maxHeight: cap },
+          ] as never}
+        >
+          <View testID="details-handle-zone" {...handlePan.panHandlers} style={[styles.handle, Platform.OS === "web" && styles.grab]}>
+            <Pressable
+              testID="details-handle"
+              accessibilityRole="button"
+              accessibilityLabel={toolbarLabel(full ? "Shrink details" : "Expand details", language)}
+              onPress={toggle}
+              style={styles.handlePress}
+            >
+              <View style={[styles.grabber, { backgroundColor: palette.grabber }]} />
+            </Pressable>
+          </View>
+          <View style={[styles.content, fixed && styles.contentFill]}>{props.children}</View>
+          {props.bottomPad > 0 ? <View style={{ height: props.bottomPad }} /> : null}
+        </Animated.View>
       </Animated.View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  panel: { position: "absolute", overflow: "hidden", borderWidth: StyleSheet.hairlineWidth },
+  frame: { position: "absolute" },
+  panel: { overflow: "hidden", borderWidth: StyleSheet.hairlineWidth },
   // The drawer meets the screen's bottom edge.
   openBottom: { borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0 },
   handle: { height: HANDLE, flexShrink: 0, alignItems: "stretch" },
