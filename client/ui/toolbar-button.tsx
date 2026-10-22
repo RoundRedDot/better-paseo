@@ -79,6 +79,15 @@ export interface CopyOverflow {
 }
 export const CopyOverflowContext = createContext<CopyOverflow | null>(null);
 
+/**
+ * Buttons under it speak their label in the reader's language too. Toolbar
+ * buttons elsewhere keep an English accessibility label and translate only
+ * the name they show; the block details header and toolbar, drawn on a
+ * phone where nothing is shown on hover, are spoken in Chinese with a
+ * Chinese host.
+ */
+export const SpokenLabelsContext = createContext(false);
+
 interface ToolbarButtonProps {
   icon: string;
   /** Accessibility label; shown on hover in the settings page's language. */
@@ -153,6 +162,7 @@ export function ToolbarItem({
   const detailsRef = useRef<View>(null);
   const [side, setSide] = useState<TooltipPlacement>("below");
   const preferences = useEnhancerPreferences();
+  const spoken = useContext(SpokenLabelsContext);
   const capabilities = useInputCapabilities();
   const align = alignProp ?? groupAlign;
   // A disabled Pressable suppresses hover; its outer slot still receives it.
@@ -222,7 +232,7 @@ export function ToolbarItem({
       style={[styles.anchor, open && styles.raised]}>
       <Pressable
         accessibilityRole={onPress ? "button" : "image"}
-        accessibilityLabel={accessibilityLabel}
+        accessibilityLabel={spoken ? toolbarLabel(accessibilityLabel, preferences.language) : accessibilityLabel}
         accessibilityState={onPress ? checked === undefined ? { disabled } : { disabled, checked } : undefined}
         focusable={onPress ? undefined : false}
         disabled={disabled}
