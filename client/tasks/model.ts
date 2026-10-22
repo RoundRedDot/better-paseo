@@ -125,6 +125,9 @@ export interface TaskChild {
   thinkingLabel?: string | null;
   modeLabel?: string | null;
   context?: TaskContext | null;
+  /** The child's lane and timing, for its row's start and timer as the card footer draws them. */
+  lane?: LaneId;
+  timing?: TaskTiming;
 }
 
 export interface TaskCard {

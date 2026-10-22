@@ -27,6 +27,7 @@ import { agentPillColors, BrandMark, branchPillColors, neutralPillColors, type A
 import { THINKING_ICON } from "./mode-icons";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
+import { ChildMark } from "./child-mark";
 import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
 import { layoutMenu } from "../board/menu-model";
 import { panelChrome } from "./panel";
@@ -313,7 +314,10 @@ interface TimerView {
 }
 
 /** The footer's timer at `now`; null when there is nothing to count. */
-export function cardTimer(card: TaskCard, now: number, language: TasksLanguage): TimerView | null {
+/** Timed by its lane and timing alone, so a subtask row passes its child. */
+type Timed = Pick<TaskCard, "lane" | "timing">;
+
+export function cardTimer(card: Timed, now: number, language: TasksLanguage): TimerView | null {
   const timing = card.timing;
   if (card.lane === "needs_input") {
     const waited = since(timing.attentionAt, now) ?? since(timing.turnStartedAt, now);
@@ -337,7 +341,7 @@ export function cardTimer(card: TaskCard, now: number, language: TasksLanguage):
 }
 
 /** When the running turn started, in local time; null outside the running lane or before the turn has a start. */
-export function cardStart(card: TaskCard, now: number): string | null {
+export function cardStart(card: Timed, now: number): string | null {
   if (card.lane !== "running" || !card.timing.turnStartedAt) return null;
   const at = Date.parse(card.timing.turnStartedAt);
   return Number.isNaN(at) ? null : formatClockTime(at, now);
@@ -837,6 +841,9 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
             openLabel={strings.openInWorkspace}
             backdrop={background}
             animated={props.animated}
+            language={language}
+            now={props.now}
+            clock={props.clock}
             onReveal={props.onReveal}
             onOpen={props.onOpen}
           />
@@ -1485,16 +1492,20 @@ function JumpButton(props: {
   );
 }
 
-/** One expanded child: press reveals it on the board; the jump button opens its tab. */
-function SubtaskRow(props: {
+/**
+ * One expanded child: its agent's mark, the title, then its start and timer
+ * at the end. Press reveals it on the board; the jump button opens its tab.
+ */
+function SubtaskRow(props: TimeSource & {
   child: TaskChild;
   theme: PluginTheme;
   tokens: TaskTokens;
   compact: boolean;
   openLabel: string;
-  /** The card's fill, under the row's status icon while it is not hovered. */
+  /** The card's fill, under the mark's status corner while the row is not hovered. */
   backdrop: string;
   animated?: boolean;
+  language: TasksLanguage;
   onReveal(agentId: string): void;
   onOpen?(agentId: string): void;
 }) {
@@ -1529,13 +1540,23 @@ function SubtaskRow(props: {
         ...webTransition,
       }}
     >
-      {/* The official status icon, centred on the title's first line. */}
-      <View style={{ width: m.iconSlot, alignItems: "center" }} testID={`subtask-status-${child.id}`}>
-        <StatusIcon kind={child.status} size={m.iconBox} height={Math.round(m.blockLine * scale)} theme={props.theme} backdrop={fill} animated={props.animated} />
+      {/* The agent's mark with its status on the corner, as the details' subtask rows, centred on the title's first line. */}
+      <View style={{ width: m.iconSlot, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" }} testID={`subtask-status-${child.id}`}>
+        <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={fill} animated={props.animated} />
       </View>
       <Text numberOfLines={2} style={{ flex: 1, fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
         {child.title}
       </Text>
+      {child.lane && child.timing ? (
+        <SubtaskTime
+          timed={{ lane: child.lane, timing: child.timing }}
+          language={props.language}
+          now={props.now}
+          clock={props.clock}
+          style={[{ fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foregroundMuted, flexShrink: 0 }, tabular]}
+          testID={`subtask-time-${child.id}`}
+        />
+      ) : null}
       {props.onOpen ? (
         <Pressable
           accessibilityRole="button"
@@ -1569,6 +1590,17 @@ function TimerText(props: TimeSource & { card: TaskCard; language: TasksLanguage
   const { card, language } = props;
   const value = useTime(props, (now) => cardTimer(card, now, language)?.text ?? "");
   return <Text style={props.style}>{value}</Text>;
+}
+
+/** A subtask's "14:41 · 14m 14s" while it runs, else its timer as a card footer reads it. */
+function SubtaskTime(props: TimeSource & { timed: Timed; language: TasksLanguage; style: StyleProp<TextStyle>; testID?: string }) {
+  const { timed, language } = props;
+  const value = useTime(props, (now) => [cardStart(timed, now), cardTimer(timed, now, language)?.text].filter(Boolean).join(" · "));
+  return value ? (
+    <Text numberOfLines={1} style={props.style} testID={props.testID}>
+      {value}
+    </Text>
+  ) : null;
 }
 
 /** The running turn's start; it follows the clock only to add the date after midnight. */

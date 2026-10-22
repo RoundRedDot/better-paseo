@@ -922,12 +922,17 @@ describe("TaskCardView actions", () => {
     byLabel(tree.root, "Measure the sidebar ring").props.onPress();
     expect(onReveal).toHaveBeenCalledWith("sample-child-1");
     const list = hostByTestId(tree.root, "task-card-subtasks");
-    // Each row: the official status icon on the left, aligned with the title's first line; no state words.
+    // Each row: the agent's mark on the left, aligned with the title's first line, its status on the
+    // corner while it runs; no state words.
     for (const child of sample("sample-running").children) {
       const slot = hostByTestId(list, `subtask-status-${child.id}`);
-      expect(hostByTestId(slot, `status-${child.status}`).props.style).toMatchObject({ height: 18 });
+      expect(slot.props.style).toMatchObject({ height: 18 });
+      expect(slot.findAll((node) => typeof node.type === "string" && node.props.testID === "status-running")).toHaveLength(child.status === "running" ? 1 : 0);
     }
-    expect(texts(list)).toEqual(["Measure the sidebar ring", "Write the ring geometry test", "Collect status colours"]);
+    // A running child's start and timer at the end, as the footer; a finished one's last turn and when.
+    expect(texts(hostByTestId(list, "subtask-time-sample-child-1"))).toEqual([`${formatClockTime(NOW - 3 * 60_000, NOW)} · 3m`]);
+    expect(texts(hostByTestId(list, "subtask-time-sample-child-2"))).toEqual([`${formatClockTime(NOW - 312_000, NOW)} · 5m 12s`]);
+    expect(texts(list).filter((text) => !text.includes(" · "))).toEqual(["Measure the sidebar ring", "Write the ring geometry test", "Collect status colours"]);
     for (const word of ["运行中", "已完成", "待输入"]) expect(texts(list)).not.toContain(word);
   });
 
