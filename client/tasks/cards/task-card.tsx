@@ -1274,7 +1274,7 @@ interface StopControlProps {
 /**
  * Stop, its confirm state, and a parent's "only this / with subtasks" menu:
  * the details sidebar's stop button at card size, a rounded rectangle led by
- * Lucide's Square. At rest a danger tint with danger text and outline; armed,
+ * Lucide's Power. At rest a danger tint with danger text and outline; armed,
  * a solid danger fill with white text; the parent's chevron is its end.
  */
 function StopControl(props: StopControlProps) {
@@ -1293,7 +1293,7 @@ function StopControl(props: StopControlProps) {
         {
           key: "only",
           label: strings.stopOnlyThis,
-          icon: "Square",
+          icon: "Power",
           onSelect: () => props.onPick(false),
         },
         {
@@ -1360,7 +1360,7 @@ function StopControl(props: StopControlProps) {
           },
         ]}
       >
-        {compact && solid ? null : <Icon name="Square" size={compact ? 16 : 12} color={color} />}
+        {compact && solid ? null : <Icon name="Power" size={compact ? 16 : 12} color={color} />}
         <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? F.base : F.sm, fontWeight: "500", color }}>
           {label}
         </Text>
