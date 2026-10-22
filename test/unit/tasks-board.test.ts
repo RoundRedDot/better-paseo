@@ -249,6 +249,7 @@ function handle(): TasksHandle {
     loadMoreDone() {},
     resolveParent() {},
     refreshParent: async () => false,
+    refreshReads() {},
     requestProjectIcon() {},
   };
 }

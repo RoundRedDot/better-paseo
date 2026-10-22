@@ -42,7 +42,7 @@ async function registerHandlers(host: HostAccess = noHost): Promise<Map<string, 
       handlers.set(contract.name, handler);
     },
   } as unknown as PluginServerContext;
-  registerTasksServer(server, createStopMarks(join(tempRoot, "tasks-stops.json")), undefined, host);
+  registerTasksServer(server, createStopMarks(join(tempRoot, "tasks-stops.json")), undefined, host, createStopMarks(join(tempRoot, "tasks-reads.json")));
   return handlers;
 }
 
@@ -258,6 +258,10 @@ describe("Tasks server read RPC", () => {
     await expect(invoke(handlers, "tasks.read", { agentIds: ["agent-a", "agent-b"] })).resolves.toEqual({ ok: true, error: null });
     expect(clearAgentAttention).toHaveBeenCalledWith(["agent-a", "agent-b"]);
     expect(close).toHaveBeenCalledTimes(1);
+    // Recorded, so a failure the attention does not carry moves too.
+    const { reads } = await invoke<{ reads: Array<{ agentId: string; readAt: string }> }>(handlers, "tasks.reads", {});
+    expect(reads.map((read) => read.agentId)).toEqual(["agent-a", "agent-b"]);
+    expect(Number.isFinite(Date.parse(reads[0]!.readAt))).toBe(true);
   });
 
   it("reports a bad id, an unreachable daemon, and a daemon that never answers", async () => {
@@ -276,6 +280,8 @@ describe("Tasks server read RPC", () => {
 
       handlers = await registerHandlers(noHost);
       await expect(invoke(handlers, "tasks.read", { agentIds: ["agent-a"] })).resolves.toEqual({ ok: false, error: "Could not reach the Paseo daemon." });
+      // A read that did not take leaves no mark.
+      await expect(invoke(handlers, "tasks.reads", {})).resolves.toEqual({ reads: [] });
     } finally {
       vi.useRealTimers();
     }

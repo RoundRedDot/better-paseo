@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { filterLanes, setLastTurnLoader, setSubagentLoader, useTaskCounts, useTasks, withLastTurn, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import { filterLanes, setLastTurnLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withLastTurn, withReadMark, withSubagents, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -122,7 +122,7 @@ describe("Tasks data store", () => {
       expect(mounted.current.byId.get("input-late")?.permission).toMatchObject({ requestId: "p", summary: "npm test", remaining: 0 });
       expect(mounted.current.byId.get("failed")?.error).toBe("tool crashed");
       // Mark read only where clearing the attention moves the card: a daemon error stays failed.
-      expect([...mounted.current.byId.values()].filter((card) => card.readable).map((card) => card.id)).toEqual(["unread"]);
+      expect([...mounted.current.byId.values()].filter((card) => card.readable).map((card) => card.id).sort()).toEqual(["failed", "unread"]);
       expect(mounted.current.byId.get("done")?.context).toBeNull();
       expect(mounted.current.byId.get("running-early")?.location).toMatchObject({
         projectId: "project-id",
@@ -147,24 +147,55 @@ describe("Tasks data store", () => {
     }
   });
 
-  it("offers Mark read where clearing the attention takes the card to done", async () => {
+  it("offers Mark read on every review card, and moves a card marked since its prompt to done", async () => {
+    const prompt = Date.now() - 10 * 60_000;
+    const iso = (ms: number) => new Date(ms).toISOString();
     const fake = createFakePaseo({
       agents: [
-        activeAgent("unread", { status: "idle", requiresAttention: true, attentionReason: "finished" }),
-        activeAgent("turn-error", { status: "idle", requiresAttention: true, attentionReason: "error" }),
-        activeAgent("closed-unread", { status: "closed", requiresAttention: true, attentionReason: "finished" }),
-        activeAgent("kept-error", { status: "idle", requiresAttention: true, attentionReason: "finished", lastError: "usage limit" }),
-        activeAgent("daemon-error", { status: "error", requiresAttention: true, attentionReason: "error" }),
+        activeAgent("unread", { status: "idle", requiresAttention: true, attentionReason: "finished", lastUserMessageAt: iso(prompt) }),
+        activeAgent("kept-error", { status: "idle", lastError: "usage limit", lastUserMessageAt: iso(prompt) }),
+        activeAgent("daemon-error", { status: "error", requiresAttention: true, attentionReason: "error", lastError: "crashed", lastUserMessageAt: iso(prompt) }),
+        // Marked, then prompted again: the mark is for an earlier failure.
+        activeAgent("prompted", { status: "error", lastError: "crashed again", lastUserMessageAt: iso(prompt + 60_000) }),
       ],
       workspaces: [workspace()],
     });
-    const mounted = await mountTasks(fake);
+    const loader = vi.fn(async () => [
+      { agentId: "kept-error", readAt: iso(prompt + 30_000) },
+      { agentId: "daemon-error", readAt: iso(prompt + 30_000) },
+      { agentId: "prompted", readAt: iso(prompt + 30_000) },
+    ]);
+    setReadMarksLoader(loader);
+    const mounted = await mountTasks(fake, "all");
     try {
-      expect(mounted.current.lanes.review.cards.map((card) => card.id).sort()).toEqual(["closed-unread", "daemon-error", "kept-error", "turn-error", "unread"]);
-      expect(mounted.current.lanes.review.cards.filter((card) => card.readable).map((card) => card.id).sort()).toEqual(["closed-unread", "turn-error", "unread"]);
+      expect(mounted.current.lanes.review.cards.map((card) => card.id).sort()).toEqual(["daemon-error", "kept-error", "prompted", "unread"]);
+      expect(mounted.current.lanes.review.cards.every((card) => card.readable)).toBe(true);
+      expect(mounted.current.lanes.running.cards.some((card) => card.readable)).toBe(false);
+
+      await act(async () => {
+        mounted.current.refreshReads();
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(loader).toHaveBeenCalled();
+      // Done, the reason kept for the grey line; no Mark read there.
+      expect(mounted.current.byId.get("kept-error")).toMatchObject({ lane: "done", status: "done", error: "usage limit", readable: false });
+      expect(mounted.current.byId.get("daemon-error")).toMatchObject({ lane: "done", status: "done", error: "crashed" });
+      expect(mounted.current.byId.get("prompted")).toMatchObject({ lane: "review", status: "failed", readable: true });
+      expect(mounted.current.counts.review).toBe(2);
     } finally {
       mounted.unmount();
+      setReadMarksLoader(null);
     }
+  });
+
+  it("keeps a card marked read in review when something failed after the mark", () => {
+    const card = { ...sampleCards(Date.parse("2026-10-22T10:00:00.000Z")).find((sample) => sample.id === "sample-failed")! };
+    const prompted = Date.parse(card.timing.lastUserMessageAt ?? "2026-10-22T09:00:00.000Z");
+    const marked = prompted + 60_000;
+    expect(withReadMark(card, marked, marked - 1)).toMatchObject({ lane: "done", status: "done", readable: false });
+    expect(withReadMark(card, marked, marked + 1)).toMatchObject({ lane: "review", status: "failed", readable: true });
+    expect(withReadMark(card, undefined, Number.NEGATIVE_INFINITY)).toMatchObject({ lane: "review", readable: true });
+    expect(withReadMark({ ...card, lane: "running", status: "running" }, marked, 0).readable).toBeFalsy();
   });
 
   it.each(["feature/tasks", "feature-tasks"])("hides a workspace name that repeats branch %s", async (workspaceName) => {
@@ -930,9 +961,9 @@ describe("Tasks data store", () => {
         await vi.advanceTimersByTimeAsync(0);
         for (let index = 0; index < 4; index += 1) await Promise.resolve();
       });
-      expect(mounted.current.byId.get("limited")).toMatchObject({ lane: "review", status: "failed", error: limit, readable: false });
+      expect(mounted.current.byId.get("limited")).toMatchObject({ lane: "review", status: "failed", error: limit, readable: true });
       expect(mounted.current.byId.get("prompted")).toMatchObject({ lane: "done", status: "done", error: null });
-      expect(mounted.current.byId.get("codex-limit")).toMatchObject({ lane: "review", status: "failed", error: "You've hit your usage limit.", readable: false });
+      expect(mounted.current.byId.get("codex-limit")).toMatchObject({ lane: "review", status: "failed", error: "You've hit your usage limit.", readable: true });
       expect(mounted.current.counts.review).toBe(2);
 
       // A turn the board sees end is asked about once the server has recorded it.
@@ -1003,8 +1034,7 @@ describe("Tasks data store", () => {
 
     it("marks a finished parent failed in review, with a row per failure since its prompt", () => {
       const card = withSubagents(doneCard(), [subagent("b", { createdAt: "2026-10-22T09:13:00.000Z" }), subagent("a"), subagent("c", { status: "running", createdAt: "2026-10-22T09:14:00.000Z" })]);
-      // Clearing the parent's attention would leave it here: no Mark read.
-      expect(card).toMatchObject({ lane: "review", status: "failed", error: "2 subagents failed", readable: false });
+      expect(card).toMatchObject({ lane: "review", status: "failed", error: "2 subagents failed" });
       expect(card.children.map((child) => [child.id, child.kind, child.status, child.title])).toEqual([
         ["a", "provider", "failed", "RRD-a task"],
         ["b", "provider", "failed", "RRD-b task"],

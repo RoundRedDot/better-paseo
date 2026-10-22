@@ -403,6 +403,8 @@ const READ_RPC_TIMEOUT_MS = 15_000;
  */
 export function useReadControl(options: {
   isReadable?: (agentId: string) => boolean;
+  /** The server took the read: the board reads its marks again, so a failed card moves too. */
+  onRead?: (agentId: string) => void;
   toast?: Pick<ReturnType<typeof useToast>, "error">;
 }): ReadControl {
   const capabilitiesRpc = useRpc(tasksCapabilitiesRpc);
@@ -417,8 +419,8 @@ export function useReadControl(options: {
   /** Reads the daemon accepted, until their card leaves review. */
   const verifyingRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const mountedRef = useRef(false);
-  const latest = useRef({ capabilitiesRpc, readRpc, toast, language, isReadable: options.isReadable });
-  latest.current = { capabilitiesRpc, readRpc, toast, language, isReadable: options.isReadable };
+  const latest = useRef({ capabilitiesRpc, readRpc, toast, language, isReadable: options.isReadable, onRead: options.onRead });
+  latest.current = { capabilitiesRpc, readRpc, toast, language, isReadable: options.isReadable, onRead: options.onRead };
 
   const setPending = useCallback((agentId: string, pending: boolean) => {
     if (pendingRef.current.has(agentId) === pending) return;
@@ -492,6 +494,7 @@ export function useReadControl(options: {
           setPending(agentId, false);
           return;
         }
+        latest.current.onRead?.(agentId);
         if (latest.current.isReadable?.(agentId) !== true) {
           setPending(agentId, false);
           return;

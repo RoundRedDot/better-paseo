@@ -3,9 +3,9 @@ import { access, stat } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { execCommand, type PluginServerContext } from "@getpaseo/plugin/server";
 import { TASKS_SETTINGS } from "../../shared/tasks-settings";
-import { createStopMarks, stopMarksPath } from "./stop-marks";
+import { createStopMarks, readMarksPath, stopMarksPath } from "./stop-marks";
 import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon, type SubagentWatch } from "./provider-subagents";
-import { tasksCapabilitiesRpc, tasksReadRpc, tasksStopRpc, tasksStoppedRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksReadRpc, tasksReadsRpc, tasksStopRpc, tasksStoppedRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const STOP_TIMEOUT_MS = 10_000;
@@ -148,9 +148,10 @@ async function markRead(host: HostDaemonAccess, agentIds: string[]): Promise<{ o
 
 /**
  * The Tasks board's settings record, stop, read, subagent and unarchive RPCs. The
- * stops `tasks.stopped` answers with live in a file under the plugin's data
- * directory, so they outlive a daemon restart; a mark goes when the agent
- * starts a new turn or is archived, and when it is 30 days old. The provider
+ * stops `tasks.stopped` answers with, and the reads `tasks.reads` answers
+ * with, live in files under the plugin's data directory, so they outlive a
+ * daemon restart; a mark goes when the agent starts a new turn or is
+ * archived, and when it is 30 days old. The provider
  * subagents `tasks.subagents` answers with live in memory, as the daemon's do.
  */
 export function registerTasksServer(
@@ -158,25 +159,33 @@ export function registerTasksServer(
   stops = createStopMarks(stopMarksPath()),
   subagents: SubagentWatch = createSubagentWatch(),
   host: HostDaemonAccess = hostDaemon,
+  reads = createStopMarks(readMarksPath()),
 ): void {
   server.registerSettings(TASKS_SETTINGS);
-  // A new turn means a new prompt: the agent is no longer "stopped manually".
-  server.on("agent.turn_started", ({ agent }, context) => {
+  // A new turn means a new prompt: the agent is no longer "stopped manually", nor read.
+  server.on("agent.turn_started", async ({ agent }, context) => {
     void subagents.ensure(context?.paseo);
-    return stops.clear(agent.id);
+    await Promise.all([stops.clear(agent.id), reads.clear(agent.id)]);
   });
   // A session opened from storage replays its subagents without an update; read its list after.
   server.before("agent.session_open", ({ request }, context) => {
     if (request.purpose === "interactive" && request.reason !== "create") subagents.loaded(context?.paseo, request.agentId);
   });
-  server.on("agent.archived", ({ agent }) => {
+  server.on("agent.archived", async ({ agent }) => {
     subagents.dropParent(agent.id);
-    return stops.clear(agent.id);
+    await Promise.all([stops.clear(agent.id), reads.clear(agent.id)]);
   });
   server.handle(tasksStoppedRpc, async () => ({ stops: await stops.list() }));
   server.handle(tasksSubagentsRpc, async ({ since }, context) => subagents.read(context?.paseo, since));
   server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCliPath()) !== null, read: host.available() }));
-  server.handle(tasksReadRpc, async ({ agentIds }) => await markRead(host, agentIds));
+  server.handle(tasksReadRpc, async ({ agentIds }) => {
+    const result = await markRead(host, agentIds);
+    if (result.ok) for (const agentId of agentIds) await reads.mark(agentId);
+    return result;
+  });
+  server.handle(tasksReadsRpc, async () => ({
+    reads: (await reads.list()).map(({ agentId, stoppedAt }) => ({ agentId, readAt: stoppedAt })),
+  }));
   server.handle(tasksStopRpc, async ({ agentIds }) => {
     const cli = await resolveCliPath();
     const results: Array<{ agentId: string; ok: boolean; error: string | null }> = [];
