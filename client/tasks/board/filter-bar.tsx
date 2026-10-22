@@ -188,10 +188,9 @@ export function DesktopFilterBar(props: {
   const strings = board.strings;
   const { params, setParams, defaults } = board;
   const resolved = resolveBoardParams(params, defaults);
-  const applied = activeChips(params, defaults, options, strings);
   // The two switches and the done window show their state on their own
   // controls; a chip beside them would only cost the bar a row.
-  const chips = groupChips(applied.filter((chip) => !BAR_OWN_CONTROLS.has(chip.key)), strings);
+  const chips = groupChips(activeChips(params, defaults, options, strings).filter((chip) => !BAR_OWN_CONTROLS.has(chip.key)), strings);
   // A folded chip whose picks dropped to one is a plain chip again: its menu goes with it.
   const groupGone = !!menu?.startsWith("chips:") && !chips.some((entry) => entry.key === `group:${menu.slice(6)}`);
   useEffect(() => {
@@ -281,9 +280,12 @@ export function DesktopFilterBar(props: {
             />
           </>
         ) : null}
-        {applied.length ? (
+        {/* "Clear all" follows the chips: with only the switches or the done
+            window set, it would stand alone beside controls that already
+            show their state. */}
+        {chips.length ? (
           <>
-            {chips.length ? <Divider theme={theme} /> : null}
+            <Divider theme={theme} />
             {chips.map((entry) =>
               isChipGroup(entry) ? (
                 <GroupChip
