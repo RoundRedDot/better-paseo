@@ -97,7 +97,7 @@ function row(t,r,o){
  if(o.extra&&o.extra[r.k])extra+=o.extra[r.k];
  return `<div style="padding:0 8px;position:relative;z-index:${o.extra&&o.extra[r.k]?30:1}"><div style="height:${h}px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:6px;background:${gh?t.acS:bg};opacity:1;position:relative">
 ${cur?`<div style="position:absolute;left:0;top:5px;bottom:5px;width:2px;border-radius:1px;background:${t.ac}"></div>`:''}${gh?`<div style="position:absolute;left:0;top:5px;bottom:5px;width:2px;border-radius:1px;background:${t.ac};opacity:.35"></div>`:''}
-${r.nobody?'<div style="width:16px;flex-shrink:0"></div>':ic(o.exp===r.k?'chevD':'chevR',16,t.mu)}${ic(r.icon,14,t.mu)}
+${r.nobody?'<div style="width:16px;flex-shrink:0"></div>':ic(o.exp===r.k?'chevD':'chevR',16,t.mu)}${ic(r.icon,14,r.tone?t[r.tone]:t.mu)}
 <div style="flex:1;min-width:0;font-family:${MONO};font-size:12.5px;color:${t.fg};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.title)}</div>
 <div style="display:flex;align-items:center;gap:4px;font-family:${MONO};font-size:12px;color:${t.mu};flex-shrink:0">${statusHtml(t,r)}</div>
 </div>${extra}</div>`;

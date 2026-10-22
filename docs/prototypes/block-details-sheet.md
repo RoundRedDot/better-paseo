@@ -1,18 +1,22 @@
 # Block 详情抽屉 · Claude Design 原型
 
-- 来源：[Claude Design 项目「Better Paseo · Block 详情抽屉」](https://claude.ai/design/p/90391a2a-11fa-4284-a012-251dd27b9a05)，导出日期 2026-10-22（第 1 版）
-- 原稿在 [block-details-sheet/](block-details-sheet/)：
-  - 内容：`.dc.html`、`support.js`，以及 Claude Design 自己写的生成脚本 `tools/gen-*.js`。改稿时它会改这些脚本，再重新生成。
-  - 导出方式：Share → Project HTML → Project archive（免费）。zip 解开后，除去 `uploads/`（与 refs 重复）和 `.thumbnail`，其余文件按字节原样保存。
-  - 打开方式：`.dc.html` 和 `support.js` 放在同一目录，可以直接用浏览器打开。
-  - SHA-256：zip 为 `a0ed360ea5cc81cbf19224359659aa47745030334bf0f8713ce6f818ea26a2ad`，`.dc.html` 为 `6d7bfa17be6a0b364040838b7b904f40ee44a0744247a4357817eb5521522591`。
-- 画板截图在 [block-details-sheet-boards/](block-details-sheet-boards/)，共五块：
-  1. 手机 390，浅色和深色各一套；
-  2. 平板，只有浅色；
-  3. 桌面，只有浅色；
-  4. 交互细节；
-  5. 移植规格。
-- 提示词：[block-details-sheet-prompt.md](block-details-sheet-prompt.md)。附件在 [block-details-sheet-refs/](block-details-sheet-refs/)，包括桌面时间线 Block、桌面预览窗口，以及任务看板手机详情 sheet。
+- 来源：[Claude Design 项目「Better Paseo · Block 详情抽屉」](https://claude.ai/design/p/90391a2a-11fa-4284-a012-251dd27b9a05)
+- 版本：第 2 版，2026-10-22 导出。两轮要求：
+  - [初稿提示词](block-details-sheet-prompt.md)；
+  - [第 1 轮修改](block-details-sheet-followup-1.md)：保留现有工具栏上的全部操作。
+- 原稿在 [block-details-sheet/](block-details-sheet/)。Claude Design 为了减小体积，拆成了 4 个互相链接的文件：
+  - `Block Detail Drawer.dc.html`：总览，以及画板 1 手机浅色；
+  - `… - Phone Dark`：画板 1 手机深色；
+  - `… - Tablet Desktop`：画板 2 平板、画板 3 桌面；
+  - `… - Interaction Specs`：画板 4 交互细节、画板 5 移植规格。
+
+  这些文件和 `support.js` 放在同一目录，用浏览器直接打开。`tools/gen-*.js` 是 Claude Design 的生成脚本。导出方式是 Share → Project HTML → Project archive；zip 解开后去掉 `uploads/` 和 `.thumbnail`，其余按字节原样保存。zip 的 SHA-256 为 `64c2fdbce048a4be7d812d50b60b20eb514f8ac952f98867e23c367daaf9c8e1`。
+- 截图在 [block-details-sheet-boards/](block-details-sheet-boards/)，有以下几张：
+  - 手机浅色、手机深色；
+  - 平板、桌面，只有浅色；
+  - 交互细节；
+  - 移植规格（含 5.8 现有操作对照表、5.9 复制按钮表）。
+- 附件在 [block-details-sheet-refs/](block-details-sheet-refs/)。
 
 用户的要求有三条：
 - 把手机上「长按 Block 弹出居中浮层」改成「单击 Block 打开底部抽屉」，交互参照任务详情 sheet；
@@ -56,15 +60,7 @@
   - 右边是 ‹ › × 三个按钮，触屏 36、桌面 28。
 - **工具栏**：触屏高 44、桌面高 36。
   - 左：换行、渲染 / 原文、合并行分页器。
-  - 右：复制（主操作加下拉）、全屏（右侧面板里是宽面板），对应原来的最大化。
-  - 复制的内容按工具决定：
-    - Bash：命令、输出或全部；
-    - Read：内容或路径；
-    - Edit：diff、新内容或路径；
-    - Search：结果或匹配文件列表；
-    - Fetch：Markdown 或 URL；
-    - Agent：结果或整段对话；
-    - 思考、提问、todo：Markdown。
+  - 右：一排并排的复制图标按钮（触屏 36、桌面 28，见下面的「复制按钮」），最后是全屏（右侧面板里是宽面板），对应原来的最大化。
 - **正文**：
   - 路径行 12，等宽，muted；
   - 代码 12/18，行号列宽 40，行号字号 11，隔行 surface1；
@@ -72,6 +68,48 @@
   - Markdown 14/22；
   - 错误单独一节，上边框，标题 danger 色。
 - **运行中的 Block**：自动跟随到底部。离底超过 48 停止跟随，出现「回到最新 · N 行新输出」胶囊；回到离底 8 以内恢复跟随。
+
+## 复制按钮（第 2 版）
+
+和现在一样，每种复制一个独立的图标按钮，顺序就是优先级，第一个是主操作。内容相同的两项只留一个，值为空的不显示。放不下时从最后一个开始收进「⋯」，第一个始终可见。复制成功后图标变为 success 色的 check，保持 1.2s。长按菜单里的复制项用同一张表。
+
+| 工具 | 按钮 |
+| --- | --- |
+| Bash / shell / git | 复制命令、复制输出、复制命令和输出 |
+| Read / Write | 复制路径、复制文件内容 |
+| Edit | 复制路径、复制 patch、复制新内容 |
+| Search | 复制查询、复制摘要、复制文件列表 |
+| Fetch | 复制 URL、复制结果 |
+| MCP、hub、github、未知工具 | 复制结果、复制参数 |
+| Paseo · 给 agent 发消息 | 复制 prompt、复制结果、复制参数 |
+| Paseo · 创建 agent | 复制 prompt |
+| Paseo · agent 操作 / 目录查询 / agent 状态 | 复制结果、复制参数 |
+| 提问 | 复制结果（答案）、复制参数（问题） |
+| worktree 设置 | 复制路径、复制日志 |
+| 子 agent | 复制描述、复制 prompt、复制日志 |
+| 思考 / plan / 纯文本 / activity / todo | 复制（todo 的复制按钮是新增的，现在的 todo 预览没有） |
+| Markdown 代码块 | 复制代码 |
+| 文件路径、图片头部（仅桌面悬停） | 复制路径 |
+
+## 补画的预览（第 2 版）
+
+- **提问**：工具栏左侧有一个按钮，在原文和问题两个视图之间切换（file-json ↔ messages-square），和现在一样；后面是问题分页器「‹ 1 / 3 ›」。只有一个问题时没有分页器，切到原文后分页器隐藏。正文总是换行，所以换行按钮置灰。
+- **Todo「Tasks 3/5」**：内容不到半屏，按内容高度打开，没有全屏档。
+- **Markdown 代码块**：
+  - 手机打开在抽屉全屏档；
+  - 平板 600–959 宽打开在浮动面板全屏档；
+  - ≥ 960 宽打开在右侧面板。
+
+  头部没有 ‹ ›，代码块不参与 Block 切换。
+- **子 agent / agent 卡片**：标题用文字，例如「Running · tasks C」；图标按状态着色。
+- **读图片**：单击直接打开查看器。尺寸、格式、体积放在长按菜单头部，以及查看器顶栏的副标题。
+- **换行按钮置灰**：所有行都放得下，或内容总是换行（Markdown 渲染态、提问、Todo）时，按钮显示但不可点。画在 4f「工具栏状态」。
+
+## 桌面悬停浮层（第 2 版）
+
+- **全部保留**：最大化（maximize-2，最大化后变成 ×，上下各留 16）、双击工具栏最大化、pop 窗口最右边的 ×、拖工具栏移动、拖 8 个边角缩放（最小 240×120）。
+- **新增「在面板中打开」**（panel-right）：放在最大化左边，点击后转到右侧面板。
+- **键盘**：最大化窗口和右侧面板共用一套，← → 切换 Block，[ / ] 给合并行翻页。
 
 ## 切换 Block
 
