@@ -353,7 +353,14 @@ describe("TaskCardView details", () => {
     vi.useRealTimers();
   });
 
-  it("opens a card's tab on a double click whose first click chose the same card", async () => {
+  it("opens the card a double click's first click chose, wherever its second click lands", async () => {
+    // The document's capture listeners run first; one that stops the click keeps it from its target.
+    const listeners: Array<(event: MouseEvent) => void> = [];
+    vi.stubGlobal("document", {
+      addEventListener: (type: string, listener: (event: MouseEvent) => void, capture: boolean) => {
+        if (type === "click" && capture) listeners.push(listener);
+      },
+    });
     const onOpen = vi.fn();
     const onSelect = vi.fn();
     const renderer = await render(
@@ -365,7 +372,13 @@ describe("TaskCardView details", () => {
       ),
     );
     const surface = (id: string) => renderer.root.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${id}`);
-    const click = (id: string, detail: number) => surface(id).props.onPress({ nativeEvent: { detail } });
+    /** A click with the system's count, on a card or on something else (the details panel). */
+    const click = (id: string | null, detail: number) => {
+      let stopped = false;
+      const event = { detail, preventDefault() {}, stopPropagation: () => void (stopped = true) } as unknown as MouseEvent;
+      for (const listener of listeners) listener(event);
+      if (!stopped && id) surface(id).props.onPress({ nativeEvent: event });
+    };
     const chosen = () => onSelect.mock.calls.map(([card]) => card.id);
 
     // The system's click count decides, however slow its double-click speed.
@@ -374,17 +387,28 @@ describe("TaskCardView details", () => {
     expect(chosen()).toEqual(["sample-running"]);
     expect(onOpen).toHaveBeenCalledWith("sample-running");
 
-    // The lanes moved under the pointer: the second click chooses the card it hit.
-    onOpen.mockClear();
-    click("sample-running", 1);
-    click("sample-child-1", 2);
-    expect(chosen()).toEqual(["sample-running", "sample-running", "sample-child-1"]);
-    expect(onOpen).not.toHaveBeenCalled();
+    // The first click brought in the panel and scrolled the lanes: the second
+    // click lands on the panel or on another card, and still opens the first card.
+    for (const second of [null, "sample-child-1"]) {
+      onOpen.mockClear();
+      onSelect.mockClear();
+      click("sample-child-1", 1);
+      click(second === null ? null : "sample-running", 2);
+      expect(chosen()).toEqual(["sample-child-1"]);
+      expect(onOpen.mock.calls).toEqual([["sample-child-1"]]);
+    }
 
-    // Enter on a focused card is a click with no count: it only chooses.
+    // A third click, a click elsewhere in between, and Enter (no count) open nothing.
+    onOpen.mockClear();
+    click("sample-running", 3);
+    click("sample-running", 1);
+    click(null, 1);
+    click("sample-running", 2);
     surface("sample-child-1").props.onPress({ nativeEvent: { detail: 0 } });
+    click(null, 2);
     expect(onOpen).not.toHaveBeenCalled();
     await act(async () => renderer.unmount());
+    vi.unstubAllGlobals();
   });
 
   it("never asks for the sidebar on a hover: only a click chooses a card", async () => {

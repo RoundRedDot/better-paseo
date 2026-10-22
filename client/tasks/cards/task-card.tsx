@@ -96,11 +96,33 @@ const CONTAINER_ROLE = WEB ? ({ role: "group" } as const) : ({ accessibilityRole
 /** Touch: a long press. */
 const LONG_PRESS_MS = 450;
 /**
- * The card whose body took the last click. A double click opens a card's tab
- * only when its first click landed on the same card: choosing a card can
- * scroll the lanes, so the second click may fall on another card.
+ * The card a single click just chose, and how to open its tab. Choosing a card
+ * can bring in the floating details panel and scroll the lanes clear of it, so
+ * a double click's second click often lands on the panel or on another card. A
+ * capture listener on the document takes that second click, wherever it lands,
+ * and opens the card the first one chose. Any other click disarms it.
  */
-let lastClicked: string | null = null;
+let armedOpen: { id: string; open(agentId: string): void } | null = null;
+let doubleClickListening = false;
+
+function armDoubleClick(id: string, open: (agentId: string) => void) {
+  armedOpen = { id, open };
+  if (doubleClickListening || typeof document === "undefined") return;
+  doubleClickListening = true;
+  document.addEventListener(
+    "click",
+    (event) => {
+      const armed = armedOpen;
+      armedOpen = null;
+      // `detail` counts the clicks at the system's double-click speed.
+      if (!armed || event.detail !== 2) return;
+      event.preventDefault();
+      event.stopPropagation();
+      armed.open(armed.id);
+    },
+    true,
+  );
+}
 const NBSP = "\u00a0";
 /** " > " between meta segments; non-breaking, since a web text box drops a leading space. */
 const SEPARATOR = `${NBSP}\u203a${NBSP}`;
@@ -896,13 +918,13 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
 
   const pressBody = props.onSelect
     ? (event?: GestureResponderEvent) => {
-        // On web the press is the DOM click, whose `detail` counts the clicks at
-        // the system's double-click speed; Enter on a focused card counts 0.
+        // On web the press is the DOM click. The document's listener takes a
+        // double click's second click, so a later one (a triple click) changes
+        // nothing here; Enter on a focused card counts 0 and only chooses it.
         const clicks = (event?.nativeEvent as { detail?: number } | undefined)?.detail ?? 0;
-        const second = WEB && clicks >= 2 && lastClicked === card.id;
-        lastClicked = second ? null : card.id;
-        if (second) props.onOpen?.(card.id);
-        else props.onSelect?.(card);
+        if (WEB && clicks >= 2) return;
+        if (WEB && clicks === 1 && props.onOpen) armDoubleClick(card.id, props.onOpen);
+        props.onSelect?.(card);
       }
     : props.onOpen
       ? () => props.onOpen?.(card.id)
