@@ -12,3 +12,10 @@ dist/
 docs/bench/
 
 /.playwright-mcp
+
+# Archive: old delivery reports, plans and unused screenshots. Kept on disk, out of the clone.
+.archive/
+
+# Prototypes: the .md specs stay tracked (code cites them); boards, refs and HTML stay local.
+docs/prototypes/*
+!docs/prototypes/*.md
