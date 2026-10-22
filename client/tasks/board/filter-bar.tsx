@@ -369,14 +369,25 @@ export function DesktopFilterBar(props: {
 }
 
 
-/** An applied filter: its muted kind, its value and an X that clears it. */
+/**
+ * An applied filter: its kind, its value and an X that clears it. A
+ * multi-select filter's kind is its unit's icon, as on its folded chip; the
+ * rest ("Title has", "Done") keep the muted word.
+ */
 function Chip(props: { chip: ActiveChip; onClear(): void; clearLabel: string; theme: PluginTheme }) {
   const { chip, theme } = props;
   const colors = theme.colors;
   const scale = useTasksFontScale();
+  const unit = chip.unit ?? chip.group;
   return (
     <View style={{ height: taskControlHeight(28, scale), maxWidth: "100%", flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 10, paddingRight: 4, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 6 }}>
-      {chip.kind ? <Text numberOfLines={1} style={{ fontSize: F.base, color: colors.foregroundMuted }}>{chip.kind}</Text> : null}
+      {unit ? (
+        <View accessible accessibilityLabel={chip.kind}>
+          <Icon name={FILTER_ICONS[unit]} size={14} color={colors.foregroundMuted} />
+        </View>
+      ) : chip.kind ? (
+        <Text numberOfLines={1} style={{ fontSize: F.base, color: colors.foregroundMuted }}>{chip.kind}</Text>
+      ) : null}
       <Text numberOfLines={1} style={{ fontSize: F.base, color: colors.foreground, maxWidth: 220, flexShrink: 1 }}>
         {chip.value}
       </Text>
