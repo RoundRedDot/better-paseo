@@ -552,7 +552,10 @@ function buildBaseCard(
     parent: null,
     children: [],
     openTab: Object.entries(agent.labels ?? {}).some(([key, value]) => key.startsWith("paseo.open-agent-tab.") && value === "true"),
-    stoppable: agent.status === "running" || agent.status === "initializing" || pendingPermissions.length > 0,
+    // A closed agent with attention that Mark read (or a tab) resumes is
+    // initializing for a moment while it stays in review: it is loading, not
+    // working, so it gets no Stop to flash in Mark read's place.
+    stoppable: agent.status === "running" || (agent.status === "initializing" && classification.lane === "running") || pendingPermissions.length > 0,
     closed: agent.status === "closed",
   };
 }
