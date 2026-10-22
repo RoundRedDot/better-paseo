@@ -45,11 +45,36 @@ describe("row menu", () => {
       renderer = TestRenderer.create(createElement(RowMenu, {
         anchor: { x: 0, y: 300, width: 390, height: 28 }, title: "npm test", hasBody: true,
         copyItems: [{ id: "output", label: "Copy output", icon: "Copy", text: "ok" }], tokens,
-        onOpen() {}, onExpand() {}, onClose() {},
+        onOpen() {}, onToggle() {}, onClose() {},
       }));
     });
     const scroller = renderer.root.findAll((node) => (node.type as unknown) === "ScrollView")[0]!;
     expect(scroller.props.showsVerticalScrollIndicator).toBe(false);
     act(() => renderer.unmount());
+  });
+
+  function menuLabels(props: Partial<Parameters<typeof RowMenu>[0]>) {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => {
+      renderer = TestRenderer.create(createElement(RowMenu, {
+        anchor: { x: 0, y: 300, width: 390, height: 28 }, title: "npm test", hasBody: true,
+        copyItems: [
+          { id: "command", label: "Copy command", icon: "SquareTerminal", text: "npm test" },
+          { id: "output", label: "Copy output", icon: "Copy", text: "ok" },
+        ], tokens, onOpen() {}, onToggle() {}, onClose() {}, ...props,
+      }));
+    });
+    const labels = renderer.root.findAll((node) => node.props.accessibilityRole === "menuitem" && typeof node.type !== "string")
+      .map((node) => node.props.accessibilityLabel as string);
+    act(() => renderer.unmount());
+    return [...new Set(labels)];
+  }
+
+  it("puts the copies first, in the row's order, before the ways to look at it", () => {
+    expect(menuLabels({})).toEqual(["Copy command", "Copy output", "Open details", "Expand in timeline"]);
+  });
+
+  it("offers to collapse an opened row and drops Open details for the row on show", () => {
+    expect(menuLabels({ expanded: true, detailsOpen: true })).toEqual(["Copy command", "Copy output", "Collapse in timeline"]);
   });
 });
