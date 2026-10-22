@@ -575,7 +575,11 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       >
         {thinking ? (
           <>
-            <Text style={{ fontSize: m.pillText, lineHeight: m.pillLine, color: mix(agentColors.background, agentColors.text, 0.7) }} testID="agent-pill-dot">
+            {/* The dot sits closer than the pill's gap: the glyph brings its own side bearings. */}
+            <Text
+              style={{ fontSize: m.pillText, lineHeight: m.pillLine, color: mix(agentColors.background, agentColors.text, 0.7), marginHorizontal: -3 }}
+              testID="agent-pill-dot"
+            >
               ·
             </Text>
             <Icon name={THINKING_ICON} size={m.icon} color={agentColors.icon} />
