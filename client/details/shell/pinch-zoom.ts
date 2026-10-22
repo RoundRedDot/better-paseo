@@ -15,12 +15,17 @@
  * scaled places afterwards. Either way the line under the fingers' midpoint
  * stays under it, the body scrolling to keep that point at the same share of
  * the content once a new height is reported. Only the last size is saved.
+ *
+ * On Android the body is made the JS responder for the rest of the pinch
+ * (`holdHostGestures`): fingers resting mid-pinch otherwise started the
+ * text's own long-press selection, and the scroller could still take them.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PixelRatio, Platform, type GestureResponderEvent } from "react-native";
+import { PixelRatio, Platform, type GestureResponderEvent, type View } from "react-native";
 import type { DetailsZoom } from "../contracts";
 import type { PreviewScroller } from "../../ui/preview-scroller";
 import { pinchZoom } from "../../ui/text-zoom";
+import { holdHostGestures } from "../../ui/hold-host-gestures";
 
 /** How long the size stays up after the fingers lift, with its reset. */
 export const ZOOM_BADGE_MS = 2000;
@@ -57,6 +62,8 @@ export interface PinchOptions {
   scroller(): PreviewScroller | null;
   /** The size the badge shows, while a pinch moves and as it ends. */
   changed(zoom: number, pinching: boolean): void;
+  /** Keeps the touch from the body's text and scroller while two fingers are down; returns its release. */
+  hold?(): () => void;
 }
 
 export interface Pinch {
@@ -73,6 +80,7 @@ export function createPinch(options: PinchOptions): Pinch {
   // Where the midpoint was, as a share of the content, for the next height.
   let anchor: { share: number; focus: number; until: number } | null = null;
   let height = 0;
+  let release = () => {};
   const keep = (mid: number, top: number) => {
     const scroller = options.scroller();
     if (!scroller || height <= 0) return;
@@ -86,6 +94,7 @@ export function createPinch(options: PinchOptions): Pinch {
     const from = zoom.current();
     gesture = { distance, from, zoom: from, top: 0, live: height <= LIVE_LIMIT, mid: midpoint(touches).y, cap: zoomCap(Math.min(zoom.base, zoom.code), from, height) };
     anchor = null;
+    release = options.hold?.() ?? (() => {});
     const scroller = options.scroller();
     scroller?.hold(true);
     scroller?.measure((top) => {
@@ -110,6 +119,8 @@ export function createPinch(options: PinchOptions): Pinch {
     if (!gesture) return;
     const { from, zoom: reached, live, mid, top } = gesture;
     gesture = null;
+    release();
+    release = () => {};
     if (!live && reached !== from) keep(mid, top);
     if (anchor) anchor.until = Date.now() + SETTLE_MS;
     options.scroller()?.hold(false);
@@ -148,6 +159,8 @@ export function createPinch(options: PinchOptions): Pinch {
 export function usePinchZoom(zoom: DetailsZoom | undefined, scroller: PreviewScroller | null) {
   const latest = useRef({ zoom, scroller });
   latest.current = { zoom, scroller };
+  // The body the pinch's touches land on.
+  const body = useRef<View>(null);
   // The size on the badge; null hides it.
   const [badge, setBadge] = useState<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -160,6 +173,7 @@ export function usePinchZoom(zoom: DetailsZoom | undefined, scroller: PreviewScr
       setBadge(next);
       if (!pinching) timer.current = setTimeout(() => setBadge(null), ZOOM_BADGE_MS);
     },
+    hold: () => (Platform.OS === "android" ? holdHostGestures(body.current) : () => {}),
   }), []);
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
@@ -175,7 +189,7 @@ export function usePinchZoom(zoom: DetailsZoom | undefined, scroller: PreviewScr
     timer.current = null;
     setBadge(null);
   };
-  return { handlers, badge, contentSized: pinch.contentSized, hide };
+  return { handlers, badge, body, contentSized: pinch.contentSized, hide };
 }
 
 function touchesOf(event: GestureResponderEvent): Point[] {
