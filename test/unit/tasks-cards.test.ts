@@ -1046,6 +1046,18 @@ describe("TaskDetailCards", () => {
   const details = (card: TaskCard, more: Record<string, unknown> = {}, language: "zh" | "en" = "zh") =>
     React.createElement(TaskDetailCards, { card, theme: LIGHT, now: NOW, language, strings: BOARD_STRINGS[language].sidebar, ...more });
 
+  it("ticks the header's turn clock each second with the board's clock", async () => {
+    let time = NOW;
+    const clock = createTaskClock(() => time);
+    const tree = await render(details(sample("sample-running"), { now: undefined, clock }));
+    expect(texts(hostByTestId(tree.root, "detail-header"))).toContain("本轮 12:30");
+    expect(texts(hostByTestId(tree.root, "detail-turn"))).toContain("12:30");
+    time = NOW + 1000;
+    act(() => clock.tick());
+    expect(texts(hostByTestId(tree.root, "detail-header"))).toContain("本轮 12:31");
+    expect(texts(hostByTestId(tree.root, "detail-turn"))).toContain("12:31");
+  });
+
   it("heads with the status, the title, the agent's chips and the actions, then the running turn", async () => {
     const onOpen = vi.fn();
     const tree = await render(details(sample("sample-running"), { onOpen }));
