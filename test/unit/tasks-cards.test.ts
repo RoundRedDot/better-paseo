@@ -618,8 +618,7 @@ describe("TaskCardView rows", () => {
     expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 1, flexBasis: "auto" });
     // No `flex` beside `flexShrink`: React Native Web warns when they update together.
     expect(stop().flex).toBeUndefined();
-    const squares = (node: ReactTestInstance) => node.findAll((child) => (child.type as unknown) === "View" && child.props.testID === "stop-square");
-    expect(squares(byLabel(tree.root, "Stop"))).toHaveLength(1);
+    expect(icons(byLabel(tree.root, "Stop"))).toEqual(["Square"]);
     await act(async () => tree.update(element("confirming")));
     expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 1, flexBasis: "auto" });
     expect(stop().flex).toBeUndefined();
@@ -627,7 +626,7 @@ describe("TaskCardView rows", () => {
     expect(flat(confirm.props.style)).toMatchObject({ minHeight: 40, paddingHorizontal: 10 });
     expect(confirm.find((node) => (node.type as unknown) === "Text").props).toMatchObject({ numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.75 });
     // Armed, the pill drops its square to fit "Confirm stop" at full size.
-    expect(squares(confirm)).toHaveLength(0);
+    expect(icons(confirm)).toEqual([]);
   });
 
   it("lets a phone label wrap between words only with an enlarged system font", () => {
@@ -876,25 +875,25 @@ describe("TaskCardView actions", () => {
     expect(onStop).toHaveBeenCalledWith(card, { withChildren: false });
   });
 
-  it("draws Stop's icon as a solid rounded square in the pill's colour", async () => {
+  it("draws Stop like the details sidebar's: a rounded rectangle led by Lucide's Square", async () => {
     const tokens = buildTaskTokens(LIGHT.colors);
     const square = (root: ReactTestInstance, label: string) =>
-      flat(byLabel(root, label).find((node) => typeof node.type === "string" && node.props.testID === "stop-square").props.style);
+      byLabel(root, label).find((node) => (node.type as unknown) === "Icon" && node.props.name === "Square").props;
     const tree = await render(cardElement(sample("sample-running"), { onStop: () => {} }));
-    expect(square(tree.root, "停止")).toMatchObject({ width: 10, height: 10, borderRadius: 2, backgroundColor: tokens.danger });
-    expect(icons(byLabel(tree.root, "停止"))).toEqual([]);
+    expect(square(tree.root, "停止")).toMatchObject({ size: 12, color: tokens.danger });
+    expect(flat(byLabel(tree.root, "停止").props.style)).toMatchObject({ height: 20, borderTopLeftRadius: 5, borderBottomLeftRadius: 5 });
     await act(async () => tree.update(cardElement(sample("sample-running"), { onStop: () => {}, stopPhase: "confirming" })));
-    expect(square(tree.root, "确认停止").backgroundColor).toBe(LIGHT.colors.accentForeground);
-    // The parent's menu leads "stop only this" with the same square.
+    expect(square(tree.root, "确认停止").color).toBe(LIGHT.colors.accentForeground);
+    // The parent's menu leads "stop only this" with the same icon.
     await act(async () => byLabel(tree.root, "停止选项").props.onPress());
     const [only] = tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
     expect(texts(only!)).toEqual(["仅停止此任务"]);
-    expect(only!.findAll((node) => typeof node.type === "string" && node.props.testID === "stop-square")).toHaveLength(1);
+    expect(icons(only!)).toEqual(["Square"]);
     await act(async () => tree.unmount());
     renderer = null;
 
     const phone = await render(cardElement(sample("sample-child-1"), { onStop: () => {}, compact: true }));
-    expect(square(phone.root, "停止")).toMatchObject({ width: 12, height: 12, borderRadius: 2, backgroundColor: tokens.danger });
+    expect(square(phone.root, "停止")).toMatchObject({ size: 16, color: tokens.danger });
   });
 
   it("offers a parent with running children the stop-with-subtasks menu", async () => {
@@ -1259,7 +1258,7 @@ describe("TaskDetailCards", () => {
     const bar = (card: TaskCard, more: Record<string, unknown> = {}) =>
       React.createElement(DetailActionBar, { card, theme: LIGHT, language: "zh", strings, onOpen: vi.fn(), ...more });
     const running = await render(bar(sample("sample-running"), { stop: { phase: "idle", onPress: vi.fn() } }));
-    expect(texts(hostByTestId(running.root, "detail-action-bar"))).toEqual(["切换到 tab", "停止运行"]);
+    expect(texts(hostByTestId(running.root, "detail-action-bar"))).toEqual(["切换到 tab", "停止"]);
     await act(async () => running.unmount());
     renderer = null;
     const card = sample("sample-input");
@@ -1272,7 +1271,7 @@ describe("TaskDetailCards", () => {
   it("names the stop button by its phase", async () => {
     const onPress = vi.fn();
     const tree = await render(details(sample("sample-running"), { stop: { phase: "idle", onPress } }));
-    expect(texts(hostByTestId(tree.root, "detail-stop"))).toEqual(["停止运行"]);
+    expect(texts(hostByTestId(tree.root, "detail-stop"))).toEqual(["停止"]);
     hostByTestId(tree.root, "detail-stop").props.onPress();
     expect(onPress).toHaveBeenCalled();
     await act(async () => tree.update(details(sample("sample-running"), { stop: { phase: "confirming", onPress } })));
@@ -1366,8 +1365,8 @@ describe("overlays in the board's menu chrome", () => {
       const rows = menu.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
       expect(rows.map((row) => texts(row))).toEqual([["仅停止此任务"], ["连同子任务一起停止", "2"]]);
       for (const row of rows) expect(flat(row.props.style)).toMatchObject({ height: 32, borderRadius: 6, marginHorizontal: 6 });
-      // Leading marks: the solid stop square; the tree with a stop square at its corner.
-      expect(rows[0]!.findAll((node) => typeof node.type === "string" && node.props.testID === "stop-square")).toHaveLength(1);
+      // Leading marks: Stop's Square; the tree with a stop square at its corner.
+      expect(icons(rows[0]!)).toEqual(["Square"]);
       expect(icons(rows[1]!)).toEqual(["ListTree"]);
       await act(async () => rows[1]!.props.onPress());
       expect(onStop).toHaveBeenCalledWith(card, { withChildren: true });

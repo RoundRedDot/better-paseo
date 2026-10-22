@@ -202,7 +202,7 @@ const zh: typeof en = {
     groupHint: "点一行加入筛选，再点一次移除",
     noGroups: "暂无可分组的项",
     noLabel: "无标签",
-    stopRun: "停止运行",
+    stopRun: "停止",
     openTab: "打开 tab",
     openToAnswer: "打开 tab 处理",
     archived: "已归档 · 已从看板移除",
