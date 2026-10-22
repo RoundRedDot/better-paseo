@@ -2,7 +2,7 @@ import React, { useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { BrandMark, taskTokens } from "../cards";
 import { Checkbox, LetterAvatar, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
@@ -42,7 +42,7 @@ export function FilterSheetBody(props: {
         <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
           <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
             <Pressable accessibilityRole="button" onPress={() => setParams(clearedParams)} style={{ height: 36, paddingHorizontal: 4, justifyContent: "center" }}>
-              <Text style={{ fontSize: 15, color: colors.foregroundMuted }}>{strings.reset}</Text>
+              <Text style={{ fontSize: F.base, color: colors.foregroundMuted }}>{strings.reset}</Text>
             </Pressable>
           </View>
           {sortFirst ? (
@@ -59,7 +59,7 @@ export function FilterSheetBody(props: {
             <View key={group.projectId || "missing"}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 10, paddingBottom: 6 }}>
                 <LetterAvatar name={group.projectName} theme={theme} size={16} />
-                <Text style={{ fontSize: 13, color: colors.foreground }}>{group.projectName}</Text>
+                <Text style={{ fontSize: F.sm, color: colors.foreground }}>{group.projectName}</Text>
               </View>
               <ChipWrap>
                 {group.items.map((item) => (
@@ -117,7 +117,7 @@ export function FilterSheetBody(props: {
             theme={theme}
             onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
           />
-          <Text style={{ paddingTop: 12, paddingBottom: 8, fontSize: 12, fontWeight: "500", color: colors.foregroundMuted }}>{strings.doneRange}</Text>
+          <Text style={{ paddingTop: 12, paddingBottom: 8, fontSize: F.sm, fontWeight: "500", color: colors.foregroundMuted }}>{strings.doneRange}</Text>
           <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
           {sortFirst ? null : (
             <View testID="filter-sheet-sort">
@@ -133,7 +133,7 @@ export function FilterSheetBody(props: {
           onPress={props.onDone}
           style={{ height: 44, borderRadius: 22, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" }}
         >
-          <Text style={{ fontSize: 15, fontWeight: "600", color: colors.accentForeground, fontVariant: ["tabular-nums"] }}>{strings.show(board.total)}</Text>
+          <Text style={{ fontSize: F.base, fontWeight: "600", color: colors.accentForeground, fontVariant: ["tabular-nums"] }}>{strings.show(board.total)}</Text>
         </Pressable>
       </View>
     </View>
@@ -142,12 +142,12 @@ export function FilterSheetBody(props: {
 
 function SectionTitle({ text, theme, first }: { text: string; theme: PluginTheme; first?: boolean }) {
   return (
-    <Text style={{ paddingTop: first ? 0 : 16, paddingBottom: first ? 0 : 8, fontSize: 12, fontWeight: "500", color: theme.colors.foregroundMuted }}>{text}</Text>
+    <Text style={{ paddingTop: first ? 0 : 16, paddingBottom: first ? 0 : 8, fontSize: F.sm, fontWeight: "500", color: theme.colors.foregroundMuted }}>{text}</Text>
   );
 }
 
 function Muted({ text, theme }: { text: string; theme: PluginTheme }) {
-  return <Text style={{ paddingVertical: 6, fontSize: 13, color: theme.colors.foregroundMuted }}>{text}</Text>;
+  return <Text style={{ paddingVertical: 6, fontSize: F.sm, color: theme.colors.foregroundMuted }}>{text}</Text>;
 }
 
 function ChipWrap({ children }: { children: ReactNode }) {
@@ -178,11 +178,11 @@ function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void
       }}
     >
       {props.leading}
-      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 14, color: on ? taskTokens(props.theme).accentText : colors.foreground }}>
+      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.base, color: on ? taskTokens(props.theme).accentText : colors.foreground }}>
         {props.option.label}
       </Text>
       {props.hideCount ? null : (
-        <Text style={{ fontSize: 12, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{props.option.count}</Text>
+        <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{props.option.count}</Text>
       )}
     </Pressable>
   );
@@ -199,8 +199,8 @@ function ToggleRow(props: { icon: string; label: string; hint?: string; on: bool
     >
       <Icon name={props.icon} size={18} color={colors.foregroundMuted} />
       <View style={{ flex: 1, paddingVertical: 6 }}>
-        <Text style={{ fontSize: 15, color: colors.foreground }}>{props.label}</Text>
-        {props.hint ? <Text style={{ fontSize: 12, lineHeight: 16, color: colors.foregroundMuted }}>{props.hint}</Text> : null}
+        <Text style={{ fontSize: F.base, color: colors.foreground }}>{props.label}</Text>
+        {props.hint ? <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: colors.foregroundMuted }}>{props.hint}</Text> : null}
       </View>
       <Checkbox on={props.on} theme={props.theme} size={20} />
     </Pressable>
@@ -279,8 +279,8 @@ function SortRow(props: { icon: string; label: string; hint?: string; checked?: 
       style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 12 }}
     >
       <Icon name={props.icon} size={18} color={colors.foregroundMuted} />
-      <Text style={{ flex: 1, fontSize: 15, color: colors.foreground }}>{props.label}</Text>
-      {props.hint ? <Text style={{ fontSize: 14, color: colors.foregroundMuted }}>{props.hint}</Text> : null}
+      <Text style={{ flex: 1, fontSize: F.base, color: colors.foreground }}>{props.label}</Text>
+      {props.hint ? <Text style={{ fontSize: F.base, color: colors.foregroundMuted }}>{props.hint}</Text> : null}
       {props.checked ? <Icon name="Check" size={18} color={colors.accent} /> : null}
       {props.drills ? <Icon name="ChevronRight" size={16} color={colors.foregroundMuted} /> : null}
     </Pressable>

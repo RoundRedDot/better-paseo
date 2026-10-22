@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { BrandMark, DETAIL_CARD, DetailCard, StatusIcon, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type TaskCard } from "../model";
@@ -144,9 +144,9 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
   return (
     <DetailCard tokens={tokens} style={{ paddingHorizontal: 8, paddingTop: 8, paddingBottom: 8, gap: 6 }} testID="sidebar-stats">
       <View style={{ paddingHorizontal: 4, gap: 2 }}>
-        <Text style={{ fontSize: 14, fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] }}>{board.strings.total(board.total)}</Text>
+        <Text style={{ fontSize: F.base, fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] }}>{board.strings.total(board.total)}</Text>
         {summary ? (
-          <Text numberOfLines={1} style={{ fontSize: 12, color: tokens.foregroundMuted }}>
+          <Text numberOfLines={1} style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>
             {summary}
           </Text>
         ) : null}
@@ -208,16 +208,16 @@ function StatCell(props: {
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
         <StatusIcon kind={LANE_STATUS[props.lane]} size={13} theme={props.theme} animated={props.animated} />
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 12, color: tokens.foregroundMuted }}>
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted }}>
           {props.label}
         </Text>
       </View>
       <View style={{ flexDirection: "row", alignItems: "baseline", gap: 4 }}>
-        <Text style={{ fontSize: 20, lineHeight: 26, fontWeight: "600", color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums"] }}>
+        <Text style={{ fontSize: F["2xl"], lineHeight: HOST_LINE["2xl"], fontWeight: "600", color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums"] }}>
           {props.count ?? "–"}
         </Text>
         {props.hint ? (
-          <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 11, color: tokens.foregroundMuted }}>
+          <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted }}>
             {props.hint}
           </Text>
         ) : null}
@@ -294,13 +294,13 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
       </View>
       <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
         {rows.length === 0 ? (
-          <Text style={{ paddingHorizontal: DETAIL_CARD.padH, paddingVertical: 12, fontSize: 13, color: tokens.foregroundMuted }}>{strings.noGroups}</Text>
+          <Text style={{ paddingHorizontal: DETAIL_CARD.padH, paddingVertical: 12, fontSize: F.sm, color: tokens.foregroundMuted }}>{strings.noGroups}</Text>
         ) : (
           rows.map((row) => <GroupRowView key={row.id} row={row} tokens={tokens} touch={props.touch} />)
         )}
       </ScrollView>
       {rows.length > 0 && Platform.OS === "web" && !props.touch ? (
-        <Text style={{ paddingHorizontal: DETAIL_CARD.padH, paddingTop: 6, fontSize: 11, color: tokens.foregroundMuted }}>{strings.groupHint}</Text>
+        <Text style={{ paddingHorizontal: DETAIL_CARD.padH, paddingTop: 6, fontSize: F.sm, color: tokens.foregroundMuted }}>{strings.groupHint}</Text>
       ) : null}
     </DetailCard>
   );
@@ -313,6 +313,7 @@ function pick(option: FilterOption): Pick<GroupRow, "id" | "label" | "count" | "
 function Initial(props: { name: string; tokens: TaskTokens }) {
   return (
     <View style={{ width: 16, height: 16, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: props.tokens.surface2 }}>
+      {/* A glyph sized to its 16 badge, as an icon is, not a step of the text ramp. */}
       <Text style={{ fontSize: 10, fontWeight: "600", color: props.tokens.foregroundMuted }}>{[...props.name][0]?.toUpperCase() ?? "?"}</Text>
     </View>
   );
@@ -341,7 +342,7 @@ function Segment(props: { label: string; on: boolean; tokens: TaskTokens; touch:
         justifyContent: "center",
       }}
     >
-      <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: props.on ? "600" : "400", color: props.on ? tokens.foreground : tokens.foregroundMuted }}>
+      <Text numberOfLines={1} style={{ fontSize: F.base, fontWeight: props.on ? "600" : "400", color: props.on ? tokens.foreground : tokens.foregroundMuted }}>
         {props.label}
       </Text>
     </Pressable>
@@ -371,11 +372,11 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
       })}
     >
       <View style={{ width: 20, alignItems: "center" }}>{row.lead}</View>
-      <Text numberOfLines={1} style={{ flex: 1, fontSize: 14, color: tokens.foreground }}>
+      <Text numberOfLines={1} style={{ flex: 1, fontSize: F.base, color: tokens.foreground }}>
         {row.label}
       </Text>
       {row.on ? <Icon name="Check" size={14} color={tokens.foreground} /> : null}
-      <Text style={{ fontSize: 13, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{row.count}</Text>
+      <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{row.count}</Text>
     </Pressable>
   );
 }
