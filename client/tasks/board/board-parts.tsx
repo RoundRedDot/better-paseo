@@ -12,6 +12,7 @@ import type { TaskCard } from "../model";
 import { GLYPH_LINE, HAIRLINE, MOTION } from "./board-style";
 import type { BoardStrings } from "./strings";
 import type { BoardController } from "./use-board";
+import { useCardMotion } from "./lane-motion";
 
 const nativeDriver = Platform.OS !== "web";
 
@@ -218,7 +219,10 @@ export function LoadMoreRow(props: {
   );
 }
 
-/** Opacity 0 → 1 once on mount; a card that just changed lanes. No motion when reduced. */
+/**
+ * Opacity 0 -> 1 once on mount: a card that came into the lane without a
+ * flight. It waits while the cards below slide out of its way. No motion when reduced.
+ */
 function FadeOnMount({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   const reduced = useReducedMotion();
   // Decided at mount: switching the wrapper later would remount the card.
@@ -226,7 +230,7 @@ function FadeOnMount({ enabled, children }: { enabled: boolean; children: ReactN
   const opacity = useRef(new Animated.Value(play ? 0 : 1)).current;
   useEffect(() => {
     if (!play) return;
-    const animation = Animated.timing(opacity, { toValue: 1, duration: MOTION.fadeMs, useNativeDriver: nativeDriver });
+    const animation = Animated.timing(opacity, { toValue: 1, duration: MOTION.fadeMs, delay: MOTION.fadeDelayMs, useNativeDriver: nativeDriver });
     animation.start();
     return () => animation.stop();
   }, [play, opacity]);
@@ -255,16 +259,19 @@ export interface CardCellProps {
   register?(agentId: string, node: unknown): void;
   /** Overrides the board's callbacks (the phone swallows taps after a swipe). */
   callbacks?: CardCallbacks;
+  /** A copy of a card (one in the air, the phone's outgoing lane): it takes no part in the lane motion. */
+  copy?: boolean;
 }
 
 /**
- * One card in a lane: the card, its fade-in, and its project icon request.
+ * One card in a lane: the card, its fade-in, its lane motion, and its project icon request.
  * It re-renders with the board, not with the clock; `TaskCardView`'s own
  * memo skips the cards a board update does not change.
  */
 export function CardCell(props: CardCellProps) {
   const { card, board, register } = props;
   const nodeRef = useRef<View>(null);
+  const motion = useCardMotion(card.id, nodeRef, props.copy ?? false);
   useEffect(() => {
     if (!register) return;
     register(card.id, nodeRef.current);
@@ -276,26 +283,29 @@ export function CardCell(props: CardCellProps) {
   useEffect(() => {
     if (requestIcon && projectId) requestIcon(projectId);
   }, [requestIcon, projectId]);
+  // The slot is what the lane motion measures; the card inside it is what moves.
   return (
     <View ref={nodeRef} collapsable={false}>
-      <FadeOnMount enabled={props.fresh}>
-        <TaskCardView
-          card={card}
-          fields={board.fields}
-          theme={props.theme}
-          compact={props.compact}
-          permissionButtons={board.buttonsFor(card)}
-          stopPhase={board.stop.phase(card.id)}
-          focused={props.focused ?? false}
-          current={props.current}
-          highlighted={board.highlighted === card.id}
-          clock={board.clock}
-          language={board.language}
-          animated={board.visible}
-          hostId={board.hostId}
-          {...(props.callbacks ?? board.callbacks)}
-        />
-      </FadeOnMount>
+      <Animated.View style={motion ? { opacity: motion.opacity, transform: [{ translateX: motion.x }, { translateY: motion.y }] } : undefined}>
+        <FadeOnMount enabled={props.fresh}>
+          <TaskCardView
+            card={card}
+            fields={board.fields}
+            theme={props.theme}
+            compact={props.compact}
+            permissionButtons={board.buttonsFor(card)}
+            stopPhase={board.stop.phase(card.id)}
+            focused={props.focused ?? false}
+            current={props.current}
+            highlighted={board.highlighted === card.id}
+            clock={board.clock}
+            language={board.language}
+            animated={board.visible}
+            hostId={board.hostId}
+            {...(props.callbacks ?? board.callbacks)}
+          />
+        </FadeOnMount>
+      </Animated.View>
     </View>
   );
 }
@@ -304,15 +314,20 @@ export function CardCell(props: CardCellProps) {
  * The ids a lane has not shown before, so only a card that arrives (a status
  * change, a new agent) fades in; scrolling a virtualised list back to a card
  * does not. The first ready render seeds the set without fading anything.
+ * A card that leaves the lane is forgotten, so it fades in again when it comes
+ * back, unless the user's own `scope` (filters, sort, search) took it away and
+ * brought it back.
  */
-export function useFreshIds(ids: readonly string[], ready: boolean): ReadonlySet<string> {
+export function useFreshIds(ids: readonly string[], ready: boolean, scope?: unknown): ReadonlySet<string> {
   const seen = useRef<Set<string> | null>(null);
+  const seenScope = useRef<unknown>(scope);
   const last = useRef<ReadonlySet<string>>(NO_IDS);
   const fresh = new Set<string>();
   if (ready && seen.current) for (const id of ids) if (!seen.current.has(id)) fresh.add(id);
   useEffect(() => {
     if (!ready) return;
-    if (!seen.current) seen.current = new Set();
+    if (!seen.current || seenScope.current === scope) seen.current = new Set();
+    seenScope.current = scope;
     for (const id of ids) seen.current.add(id);
   });
   // The same set while its ids hold, so a list's `extraData` does not change for nothing.

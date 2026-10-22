@@ -16,6 +16,7 @@ import { buildFilterOptions } from "./filter-options";
 import { LANES, boardKeyReducer, clampFocus, laneLayout, type BoardFocus, type LaneShape } from "./navigation";
 import { menuChrome } from "./menu-model";
 import { DetailsSidebar } from "./details-sidebar";
+import { LaneMotionLayer, LaneMotionProvider, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
 import {
   NO_SELECTION,
   SIDEBAR,
@@ -412,6 +413,13 @@ export function DesktopBoard(props: {
   }, [board.visible, rootRef]);
 
   const breathing = useBreathing(!tasks.ready && board.visible);
+  const reduced = useReducedMotion();
+  // Filters, sort and search are the user's: lanes that change with them take their new order at once.
+  const motion = useLaneMotion(lanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.params, flights: true });
+  const renderCopy = useCallback(
+    (card: TaskCard) => <CardCell board={board} card={card} theme={theme} compact={false} fresh={false} copy callbacks={callbacks} />,
+    [board, theme, callbacks],
+  );
   const unfilteredEmpty = tasks.ready && LANE_ORDER.every((id) => tasks.lanes[id].cards.length === 0);
   const sidebarToggle = { open, onToggle: toggleSidebar, floating };
   const sidebar = (
@@ -463,38 +471,41 @@ export function DesktopBoard(props: {
         }}
       >
         <View style={{ flex: 1, minWidth: 0, minHeight: 0 }} {...blankPress}>
-          {boardWidth > 0 ? (
-            <ScrollView
-              ref={rowRef}
-              horizontal
-              onScroll={(event) => {
-                rowScrollX.current = event.nativeEvent.contentOffset.x;
-              }}
-              scrollEventThrottle={32}
-              scrollEnabled={layout.scroll || coverRoom > 0}
-              showsHorizontalScrollIndicator={layout.scroll || coverRoom > 0}
-              style={{ flex: 1 }}
-              contentContainerStyle={{ width: layout.contentWidth + coverRoom, gap: LANES.gap, paddingLeft: LANES.edge, paddingRight: LANES.edge + coverRoom, paddingTop: 4, paddingBottom: 12 }}
-            >
-              {LANE_ORDER.map((id) => (
-                <DesktopLane
-                  key={id}
-                  lane={lanes[id]}
-                  width={layout.laneWidth}
-                  collapsed={collapsed.includes(id)}
-                  onToggle={() => setCollapsed((current) => (current.includes(id) ? current.filter((lane) => lane !== id) : [...current, id]))}
-                  board={board}
-                  callbacks={callbacks}
-                  theme={theme}
-                  focusIndex={focus?.lane === id ? focus.index : null}
-                  currentId={open ? selection.id : null}
-                  listRef={publishList[id]}
-                  breathing={breathing}
-                  bottomRoom={sheetRoom}
-                />
-              ))}
-            </ScrollView>
-          ) : null}
+          <LaneMotionProvider value={motion}>
+            {boardWidth > 0 ? (
+              <ScrollView
+                ref={rowRef}
+                horizontal
+                onScroll={(event) => {
+                  rowScrollX.current = event.nativeEvent.contentOffset.x;
+                }}
+                scrollEventThrottle={32}
+                scrollEnabled={layout.scroll || coverRoom > 0}
+                showsHorizontalScrollIndicator={layout.scroll || coverRoom > 0}
+                style={{ flex: 1 }}
+                contentContainerStyle={{ width: layout.contentWidth + coverRoom, gap: LANES.gap, paddingLeft: LANES.edge, paddingRight: LANES.edge + coverRoom, paddingTop: 4, paddingBottom: 12 }}
+              >
+                {LANE_ORDER.map((id) => (
+                  <DesktopLane
+                    key={id}
+                    lane={lanes[id]}
+                    width={layout.laneWidth}
+                    collapsed={collapsed.includes(id)}
+                    onToggle={() => setCollapsed((current) => (current.includes(id) ? current.filter((lane) => lane !== id) : [...current, id]))}
+                    board={board}
+                    callbacks={callbacks}
+                    theme={theme}
+                    focusIndex={focus?.lane === id ? focus.index : null}
+                    currentId={open ? selection.id : null}
+                    listRef={publishList[id]}
+                    breathing={breathing}
+                    bottomRoom={sheetRoom}
+                  />
+                ))}
+              </ScrollView>
+            ) : null}
+            <LaneMotionLayer store={motion} renderCard={renderCopy} />
+          </LaneMotionProvider>
           {unfilteredEmpty ? <BoardEmpty board={board} theme={theme} /> : null}
         </View>
         {inline ? (
@@ -677,6 +688,15 @@ function BoardEmpty({ board, theme }: { board: BoardController; theme: PluginThe
   );
 }
 
+/** A list under copies of its cards while they move (native lane motion). */
+const HIDDEN = { opacity: 0 };
+
+/** A list's scrolling node: the element on the web, the native scroll view's instance elsewhere. */
+function scrollNode(list: NativeFlatList<TaskCard> | null): unknown {
+  const scroller = list as unknown as { getScrollableNode?(): unknown; getNativeScrollRef?(): unknown } | null;
+  return Platform.OS === "web" ? scroller?.getScrollableNode?.() : scroller?.getNativeScrollRef?.();
+}
+
 function DesktopLane(props: {
   lane: LaneModel;
   width: number;
@@ -704,8 +724,13 @@ function DesktopLane(props: {
   const fresh = useFreshIds(
     lane.cards.map((card) => card.id),
     ready,
+    board.params,
   );
   const listRef = useRef<NativeFlatList<TaskCard> | null>(null);
+  const pillRef = useRef<View | null>(null);
+  // Cards that change lanes fly to the list, or to the pill of a collapsed lane.
+  useLaneTarget(lane.id, () => (props.collapsed ? pillRef.current : scrollNode(listRef.current)));
+  const covered = useLaneCovered(lane.id);
   const { listRef: publish } = props;
   const setList = useCallback(
     (list: NativeFlatList<TaskCard> | null) => {
@@ -737,6 +762,7 @@ function DesktopLane(props: {
   if (props.collapsed) {
     return (
       <HoverPressable
+        ref={pillRef}
         accessibilityRole="button"
         accessibilityLabel={`${strings.expand}: ${name}`}
         onPress={props.onToggle}
@@ -797,6 +823,7 @@ function DesktopLane(props: {
         <FlatList<TaskCard>
           {...laneScrollProps}
           ref={setList}
+          style={covered ? HIDDEN : undefined}
           data={lane.cards}
           keyExtractor={(card) => card.id}
           extraData={extraData}
