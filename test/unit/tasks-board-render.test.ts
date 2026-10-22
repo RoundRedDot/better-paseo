@@ -503,6 +503,70 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("board-sheet")).toHaveLength(0);
   });
 
+  it("keeps the blank-tap responder off the lanes' scroll views on touch, and above them on web", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(1600);
+    const card = () => cards().find((node) => node.props.card.id === "sample-running")!;
+    act(() => card().props.onSelect(card().props.card));
+    expect(card().props.current).toBe(true);
+    // A tap on a lane's header, then under a lane's cards, lets go of the card.
+    act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "lane-header-review").props.onPress());
+    expect(card().props.current).toBe(false);
+    act(() => card().props.onSelect(card().props.card));
+    act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "lane-blank-running").props.onPress());
+    expect(card().props.current).toBe(false);
+    // The gap between two lanes is a blank too.
+    act(() => card().props.onSelect(card().props.card));
+    act(() => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "lane-gap")[0]!.props.onPress());
+    expect(card().props.current).toBe(false);
+    // A quick swipe that starts on a lane's collapse button scrolls, it does not fold the lane.
+    const collapse = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Collapse lane")[1]!;
+    act(() => {
+      collapse().props.onPressIn({ nativeEvent: { pageX: 600, pageY: 40 } });
+      collapse().props.onPress({ nativeEvent: { pageX: 350, pageY: 42 } });
+    });
+    expect(cards().map((node) => node.props.card.id)).toContain("sample-running");
+    // A tap folds it.
+    act(() => {
+      collapse().props.onPressIn({ nativeEvent: { pageX: 600, pageY: 40 } });
+      collapse().props.onPress({ nativeEvent: { pageX: 602, pageY: 41 } });
+    });
+    expect(cards().map((node) => node.props.card.id)).not.toContain("sample-running");
+    act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Expand lane: Running").props.onPress());
+    // Touch: no responder above the scroll row (it held its drags back), the header and the space under the cards take the tap.
+    const above = () => {
+      let node = lanesScroll().parent;
+      while (node && !node.props.onResponderGrant) node = node.parent;
+      return node;
+    };
+    expect(above()).toBeNull();
+    expect(renderer!.root.findAll((node) => node.props.testID === "lane-blank-running").length).toBeGreaterThan(0);
+    act(() => renderer!.unmount());
+    // Web: the board's own responder above the row, with the scrollbar check; no touch-only blanks.
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    try {
+      act(() => {
+        renderer = TestRenderer.create(screen(false));
+      });
+      layOut(1600);
+      const webCard = cards().find((node) => node.props.card.id === "sample-running")!;
+      act(() => webCard.props.onSelect(webCard.props.card));
+      expect(cards().find((node) => node.props.card.id === "sample-running")!.props.current).toBe(true);
+      const blank = above()!;
+      act(() => {
+        blank.props.onResponderGrant({ nativeEvent: { pageX: 10, pageY: 10 } });
+        blank.props.onResponderRelease({ nativeEvent: { pageX: 10, pageY: 10 } });
+      });
+      expect(cards().find((node) => node.props.card.id === "sample-running")!.props.current).toBe(false);
+      expect(renderer!.root.findAll((node) => node.props.testID === "lane-blank-running")).toHaveLength(0);
+    } finally {
+      (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    }
+  });
+
   it("floats the sidebar over a narrow board only on demand, and puts it away on a tap outside", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
