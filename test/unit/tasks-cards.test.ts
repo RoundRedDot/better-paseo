@@ -1043,7 +1043,7 @@ describe("TaskDetailCards", () => {
     expect(texts(header).slice(0, 11)).toEqual(["运行中", "本轮 12:30", "Port the status ring to React Native", "GPT-5.5 Codex", "Medium", "Bypass", "frontend", "p1", "board", "切换到 tab", "已打开"]);
     // The turn's block: its clock and the context ring (86% is past the warning line).
     expect(texts(hostByTestId(tree.root, "detail-turn"))).toEqual(["本轮计时", "12:30", "上一轮 18m", "上下文", "86%", "172k / 200k"]);
-    expect(tree.root.findAll((node) => (node.type as { name?: string }).name === "ProgressRing")).toHaveLength(1);
+    expect(hostByTestId(tree.root, "detail-turn").findAll((node) => (node.type as { name?: string }).name === "ProgressRing")).toHaveLength(1);
     // Its tab is open somewhere: the button switches to it.
     byLabel(tree.root, "切换到 tab").props.onPress();
     expect(onOpen).toHaveBeenCalledWith("sample-running");
@@ -1197,6 +1197,12 @@ describe("TaskDetailCards", () => {
       "Write the ring geometry test",
       "Collect status colours",
     ]);
+    // The heading's mark is the timeline checklist's: a ring at 1 of 3, a checked circle once all are done.
+    const heading = byLabel(running.root, "收起子任务");
+    expect(heading.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "progressbar").map((node) => node.props.accessibilityValue)).toEqual([{ min: 0, max: 3, now: 1 }]);
+    const allDone = sample("sample-running");
+    const finished = await render(details({ ...allDone, children: allDone.children.map((child) => ({ ...child, status: "done" as const })) }));
+    expect(byLabel(finished.root, "收起子任务").findAll((node) => node.props.name === "CircleCheck").length).toBeGreaterThan(0);
     // The status rides the provider's mark: a running ring, nothing for a finished one.
     expect(hostByTestId(running.root, "detail-subtasks").findAll((node) => typeof node.type === "string" && node.props.testID === "status-running")).toHaveLength(2);
     byLabel(running.root, "Measure the sidebar ring 运行中").props.onPress();
