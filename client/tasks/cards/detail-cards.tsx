@@ -517,7 +517,7 @@ function Section(props: Inner & { section: DetailSection; closed: boolean }) {
     <View testID={testID}>
       <View style={{ height: StyleSheet.hairlineWidth, marginHorizontal: m.padH, backgroundColor: tokens.card.border }} />
       <View style={{ paddingTop: 4, paddingBottom: 8, paddingHorizontal: m.padH - 6 }}>
-        <SectionHeading m={m} tokens={tokens} title={title} summary={summary} summaryStyle={section === "properties" && card.location.branch ? { maxWidth: "60%", fontFamily: MONO, color: tokens.branch } : undefined} closed={props.closed} language={props.language} onPress={() => setSectionClosed(section, !props.closed)} />
+        <SectionHeading m={m} tokens={tokens} title={title} summary={summary} summaryStyle={section === "properties" && card.location.branch ? { maxWidth: "60%", fontFamily: MONO } : undefined} closed={props.closed} language={props.language} onPress={() => setSectionClosed(section, !props.closed)} />
         {props.closed ? null : section === "properties" ? (
           <Properties {...props} />
         ) : section === "subtasks" ? (
@@ -597,7 +597,16 @@ function Properties(props: Inner) {
   if (location.branch) {
     const hint = branchHint(location.git);
     const notes: Note[] = [];
-    if (hint.sync) notes.push({ text: hint.sync });
+    if (hint.sync) {
+      const { ahead, behind } = hint.sync;
+      notes.push({
+        text: `↑${ahead} ↓${behind}`,
+        parts: [
+          { text: `↑${ahead}`, color: ahead > 0 ? tokens.success : undefined },
+          { text: ` ↓${behind}`, color: behind > 0 ? tokens.warning : undefined },
+        ],
+      });
+    }
     if (hint.dirty) notes.push({ text: details.uncommittedNote, warn: true });
     rows.push(
       <PropertyRow
@@ -682,6 +691,8 @@ interface Note {
   icon?: string;
   /** Uncommitted changes: the warning colour after a 6 dot. */
   warn?: boolean;
+  /** Runs of the text in their own colour: ahead in green, behind in orange, a zero left muted. */
+  parts?: { text: string; color?: string }[];
 }
 
 /**
@@ -750,7 +761,6 @@ function PropertyRow(props: {
       : undefined;
   let color = tokens.foreground;
   if (props.muted) color = tokens.foregroundMuted;
-  else if (props.mono === "branch") color = tokens.branch;
   const valueStyle: TextStyle = {
     fontSize: props.mono ? monoFont : font,
     lineHeight: line,
@@ -773,7 +783,9 @@ function PropertyRow(props: {
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
             {note.warn ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: tokens.warning }} /> : null}
             {note.icon ? <Icon name={note.icon} size={12} color={tokens.foregroundMuted} /> : null}
-            <Text style={[noteText, note.warn ? { color: tokens.warning } : null]}>{note.text}</Text>
+            <Text style={[noteText, note.warn ? { color: tokens.warning } : null, note.parts ? { fontVariant: ["tabular-nums"] } : null]}>
+              {note.parts ? note.parts.map((part) => (part.color ? <Text key={part.text} style={{ color: part.color }}>{part.text}</Text> : part.text)) : note.text}
+            </Text>
           </View>
         </React.Fragment>
       ))}
