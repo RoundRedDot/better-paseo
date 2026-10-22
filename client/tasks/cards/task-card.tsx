@@ -135,7 +135,6 @@ interface Metrics {
   blockLine: number;
   jump: number;
   jumpIcon: number;
-  stopHeight: number;
   buttonHeight: number;
 }
 
@@ -164,7 +163,6 @@ const DESKTOP: Metrics = {
   blockLine: HOST_LINE.sm,
   jump: 20,
   jumpIcon: 14,
-  stopHeight: 20,
   buttonHeight: 28,
 };
 
@@ -191,7 +189,6 @@ const PHONE: Metrics = {
   blockLine: HOST_LINE.smRead,
   jump: 32,
   jumpIcon: 18,
-  stopHeight: 40,
   buttonHeight: 40,
 };
 
@@ -747,7 +744,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
               {
                 position: "absolute",
                 right: 0,
-                top: (Math.round(m.footLine * scale) - taskControlHeight(m.stopHeight, scale)) / 2,
+                top: (Math.round(m.footLine * scale) - taskControlHeight(m.buttonHeight, scale)) / 2,
                 paddingLeft: GAP,
                 // Follows the card's fill as it eases back from the hover grey.
                 backgroundColor: background,
@@ -757,7 +754,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
             ]}
             testID={canStop ? "task-card-stop-overlay" : "task-card-read-overlay"}
           >
-            {canStop ? <StopControl {...stop} compact={false} line={m.stopHeight} /> : <ReadControl {...read} compact={false} line={m.stopHeight} />}
+            {canStop ? <StopControl {...stop} compact={false} line={m.buttonHeight} /> : <ReadControl {...read} compact={false} line={m.buttonHeight} />}
           </View>
         ) : null}
       </>
@@ -866,8 +863,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
             onPress={() => props.onPermission?.(card, button)}
           />
         ))}
-        {canStop ? <StopControl {...stop} compact line={m.stopHeight} /> : null}
-        {canRead ? <ReadControl {...read} compact line={m.stopHeight} /> : null}
+        {canStop ? <StopControl {...stop} compact line={m.buttonHeight} /> : null}
+        {canRead ? <ReadControl {...read} compact line={m.buttonHeight} /> : null}
       </View>
     ) : null;
 
@@ -1265,8 +1262,8 @@ export function CardButton(props: {
 }
 
 /**
- * Mark read: Stop's shape and size led by Lucide's CheckCheck (a read
- * receipt), in the plain outline of a card button, since clearing a card is
+ * Mark read: a card button's size, as Stop and "Answer" are, led by
+ * Lucide's CheckCheck (a read receipt), in the plain outline, since clearing a card is
  * no alarm. While the request is out it says so, dimmed, and takes no second press.
  */
 function ReadControl(props: {
@@ -1283,7 +1280,7 @@ function ReadControl(props: {
   const look = tokens.card;
   const { hovered, hoverProps } = useHover();
   const sizing = phoneButtonSizing((useWindowDimensions().fontScale ?? 1) * scale, true);
-  const height = taskControlHeight(compact ? PHONE.stopHeight : DESKTOP.stopHeight, scale);
+  const height = taskControlHeight(compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, scale);
   const label = pending ? strings.markingRead : strings.markRead;
   return (
     <Pressable
@@ -1297,20 +1294,20 @@ function ReadControl(props: {
       style={{
         ...(compact ? { ...sizing.box, minHeight: height, paddingVertical: 4 } : { flexShrink: 0, height }),
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
-        paddingHorizontal: compact ? 14 : 8,
-        borderRadius: compact ? 8 : 5,
+        paddingHorizontal: compact ? 14 : 10,
+        borderRadius: compact ? 8 : 6,
         borderWidth: 1,
         borderColor: look.pillBorder,
         backgroundColor: hovered && !pending ? look.controlHover : "transparent",
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        gap: compact ? 6 : 4,
+        gap: compact ? 6 : 5,
         opacity: pending ? 0.6 : 1,
         ...webTransition,
       }}
     >
-      <Icon name="CheckCheck" size={compact ? 16 : 12} color={tokens.foreground} />
+      <Icon name="CheckCheck" size={compact ? 16 : 13} color={tokens.foreground} />
       <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? F.base : F.sm, fontWeight: "500", color: tokens.foreground }}>
         {label}
       </Text>
@@ -1339,8 +1336,8 @@ interface StopControlProps {
 
 /**
  * Stop, its confirm state, and a parent's "only this / with subtasks" menu:
- * the details sidebar's stop button at card size, a rounded rectangle led by
- * Lucide's Power. At rest a danger tint with danger text and outline; armed,
+ * the details sidebar's stop button at a card button's size ("Answer"'s 28,
+ * radius 6), a rounded rectangle led by Lucide's Power. At rest a danger tint with danger text and outline; armed,
  * a solid danger fill with white text; the parent's chevron is its end.
  */
 function StopControl(props: StopControlProps) {
@@ -1376,9 +1373,9 @@ function StopControl(props: StopControlProps) {
   const color = solid ? look.onStrong : tokens.danger;
   const fill = (hovered: boolean) =>
     solid ? (hovered ? look.dangerStrongHover : tokens.danger) : hovered ? look.dangerFillHover : look.dangerFill;
-  const height = taskControlHeight(compact ? PHONE.stopHeight : DESKTOP.stopHeight, scale);
-  // The sidebar's 8 at 32 tall; 5 at the card's 20, like the jump button.
-  const round = compact ? 8 : 5;
+  const height = taskControlHeight(compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, scale);
+  // A card button's: 8 at a phone's 40, 6 at the desktop's 28, as "Answer" is.
+  const round = compact ? 8 : 6;
   const label = stopping ? strings.stopping : confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
   const segment: ViewStyle = {
     ...(compact ? { minHeight: height, paddingVertical: 4 } : { height }),
@@ -1412,11 +1409,11 @@ function StopControl(props: StopControlProps) {
           segment,
           {
             ...(compact ? { flexGrow: 1, flexShrink: 1, flexBasis: "auto" } : null),
-            gap: compact ? 6 : 4,
+            gap: compact ? 6 : 5,
             // Armed on a phone the solid pill says what it does in words; its
             // square goes and its padding narrows, so "Confirm stop" fits
             // beside Allow and Deny at full size on a 360 pt phone.
-            paddingHorizontal: compact ? (solid ? 10 : 14) : 8,
+            paddingHorizontal: compact ? (solid ? 10 : 14) : 10,
             backgroundColor: fill(stopHover.hovered),
             borderTopLeftRadius: round,
             borderBottomLeftRadius: round,
@@ -1426,7 +1423,7 @@ function StopControl(props: StopControlProps) {
           },
         ]}
       >
-        {compact && solid ? null : <Icon name="Power" size={compact ? 16 : 12} color={color} />}
+        {compact && solid ? null : <Icon name="Power" size={compact ? 16 : 13} color={color} />}
         <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? F.base : F.sm, fontWeight: "500", color }}>
           {label}
         </Text>
@@ -1441,7 +1438,7 @@ function StopControl(props: StopControlProps) {
           style={[
             segment,
             {
-              width: compact ? 44 : 20,
+              width: compact ? 44 : 26,
               borderLeftWidth: 1,
               borderLeftColor: solid ? withAlpha(look.onStrong, 0.4) : withAlpha(tokens.danger, 0.4),
               marginLeft: -1,
@@ -1451,7 +1448,7 @@ function StopControl(props: StopControlProps) {
             },
           ]}
         >
-          <Icon name={compact ? "ChevronUp" : "ChevronDown"} size={compact ? 16 : 12} color={color} />
+          <Icon name={compact ? "ChevronUp" : "ChevronDown"} size={compact ? 16 : 13} color={color} />
         </Pressable>
       ) : null}
       {props.parent && props.menuOpen ? (
