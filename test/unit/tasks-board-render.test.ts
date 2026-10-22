@@ -856,7 +856,10 @@ describe("Tasks board, sorting", () => {
     while (typeof bar.type !== "string") bar = bar.parent!;
     const filters = bar.findAll((node) => (node.type as unknown) === "View" && hostParentOf(node) === bar).find((child) => child !== end)!;
     const text = textOf(filters);
-    expect(text).toContain("Labelsapi");
+    // A single pick's chip draws its filter's icon, not the word, and reads the word out.
+    expect(text).toContain("Labels · 1Open tabs onlyHide subtasksapi");
+    const kind = filters.find((node) => (node.type as unknown) === "View" && node.props.accessibilityLabel === "Labels");
+    expect(kind.findAll((node) => node.props.name === "Tag")).not.toHaveLength(0);
     // The switch and the done window show themselves: no chip, no hint line.
     expect(text).not.toContain("still show");
     expect(text.match(/Hide subtasks/g)).toHaveLength(1);
@@ -876,7 +879,8 @@ describe("Tasks board, sorting", () => {
     expect(lastBoardParams("host-1").providers).toEqual(["codex"]);
     // One left: a plain chip again, and the menu closed with the group.
     expect(renderer!.root.findAll((node) => node.props.testID === "chip-group-menu")).toHaveLength(0);
-    expect(textOf(filters)).toContain("AgentCodex");
+    expect(textOf(filters)).toContain("apiCodex");
+    expect(filters.find((node) => (node.type as unknown) === "View" && node.props.accessibilityLabel === "Agent").findAll((node) => node.props.name === "Bot")).not.toHaveLength(0);
   });
 
   it("leaves out Clear all while only the switches or the done window are set", () => {
