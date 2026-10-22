@@ -28,6 +28,7 @@ import { floatingWidth } from "../layout-model";
 import { swipeDecision } from "../gesture-model";
 import { HoverPreviewContext, PreviewActionsContext, PreviewChromeContext, usePanelWrap, type PreviewActions } from "../../ui/hover-preview";
 import { PathContext, usePathContextValue } from "../../ui/path-text";
+import { TimelineProseContext } from "../../components/markdown/markdown-view";
 import { forgetPreview, holdPreview, recallPreview, rememberPreview, PREVIEW_HANDOVER_MS, type PreviewMemory } from "../../ui/preview-memory";
 import { useInputCapabilities } from "../../ui/use-input-capabilities";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -362,9 +363,11 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
           <PathContext.Provider value={paths}>
             <PreviewActionsContext.Provider value={actions}>
               <DetailsBodyContext.Provider value={bodyScroll}>
-                <Animated.View testID="details-content" style={[styles.content, { opacity: slideOpacity, transform: [{ translateX: slide }] }] as never}>
-                  {entry.render()}
-                </Animated.View>
+                <TimelineProseContext.Provider value={form === "drawer"}>
+                  <Animated.View testID="details-content" style={[styles.content, { opacity: slideOpacity, transform: [{ translateX: slide }] }] as never}>
+                    {entry.render()}
+                  </Animated.View>
+                </TimelineProseContext.Provider>
               </DetailsBodyContext.Provider>
             </PreviewActionsContext.Provider>
           </PathContext.Provider>
