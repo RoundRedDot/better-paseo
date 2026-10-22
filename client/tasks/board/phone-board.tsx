@@ -588,6 +588,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           onPermission={onPermission}
           onJump={props.onShow}
           firstPrompt={firstPrompt}
+          unarchive={board.unarchive.available ? board.unarchive : null}
         />
       </ScrollView>
       <DetailActionBar

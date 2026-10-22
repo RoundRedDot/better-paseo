@@ -85,3 +85,15 @@ export const tasksSubagentsRpc = defineRpc({
   input: z.object({ since: z.string().optional() }),
   output: z.object({ version: z.string(), subagents: z.array(providerSubagentSchema).nullable() }),
 });
+
+/**
+ * Brings an archived agent back, as Paseo's own "Unarchive" does
+ * (`refreshAgent`): the server runs `paseo agent reload <id>`, but only
+ * after `paseo agent inspect` says the agent is archived, since a reload
+ * interrupts a live agent. One that is no longer archived is a success.
+ */
+export const tasksUnarchiveRpc = defineRpc({
+  name: "tasks.unarchive",
+  input: z.object({ agentId: z.string().min(1) }),
+  output: z.object({ ok: z.boolean(), error: z.string().nullable() }),
+});

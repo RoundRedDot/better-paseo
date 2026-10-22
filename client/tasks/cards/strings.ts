@@ -135,6 +135,7 @@ const en = {
     copyLink: "Copy link",
     uncommittedNote: "uncommitted changes",
     cannotJump: "can't open",
+    unarchive: "Unarchive",
   },
 };
 
@@ -271,6 +272,7 @@ const zh: CardStrings = {
     copyLink: "复制链接",
     uncommittedNote: "未提交改动",
     cannotJump: "无法跳转",
+    unarchive: "取消归档",
   },
 };
 

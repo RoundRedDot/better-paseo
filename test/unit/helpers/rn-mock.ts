@@ -3,9 +3,9 @@
  *
  * Every primitive renders a host element named after itself, so
  * `react-test-renderer` produces the tree a native renderer would: one node
- * per View, Text, Pressable, ScrollView, Image or Animated.View. Behaviour is
- * the minimum the plugin's components touch while rendering; nothing lays
- * out or animates. `Platform.OS` reads `globalThis.__rnMockOS` (default
+ * per View, Text, Pressable, ScrollView, Image, ActivityIndicator or
+ * Animated.View. Behaviour is the minimum the plugin's components touch
+ * while rendering; nothing lays out or animates. `Platform.OS` reads `globalThis.__rnMockOS` (default
  * "ios"), so one test file can count both a native and a web tree.
  */
 import React from "react";
@@ -30,6 +30,7 @@ export const Image = host("Image");
 export const ScrollView = host("ScrollView");
 export const TextInput = host("TextInput");
 export const SafeAreaView = host("SafeAreaView");
+export const ActivityIndicator = host("ActivityIndicator");
 
 /** Its children while visible, as a host element in place. */
 export function Modal(props: Props) {
@@ -162,6 +163,7 @@ export default {
   ScrollView,
   TextInput,
   SafeAreaView,
+  ActivityIndicator,
   Modal,
   StatusBar,
   Pressable,
