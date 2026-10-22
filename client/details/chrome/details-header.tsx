@@ -14,6 +14,8 @@ import { Glyph } from "../../components/glyph";
 import { RunningDot } from "../../ui/running-dot";
 import { ToolbarButton, ToolbarMetricsContext, TooltipAlignContext, type ToolbarMetrics } from "../../ui/toolbar-button";
 import type { BlockEntry, DetailsShellValue } from "../contracts";
+import { useEnhancerPreferences } from "../../preferences";
+import { toolbarLabel } from "../../i18n/toolbar-strings";
 
 /** Header height and its buttons: touch, then pointer. */
 export const DETAILS_HEADER = { touch: 52, pointer: 44 } as const;
@@ -38,6 +40,8 @@ export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, str
   streaming?: boolean;
 }) {
   const { entry, pointer } = shell;
+  // Spoken as well as shown in the reader's language: the button's label is its accessibility label.
+  const { language } = useEnhancerPreferences();
   const metrics = HEADER_BUTTONS[pointer ? "pointer" : "touch"];
   // A tap shows up to four lines; another block starts on one again.
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -101,12 +105,12 @@ export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, str
         <TooltipAlignContext.Provider value="end">
           <View style={styles.buttons}>
             {navigable ? <>
-              <ToolbarButton icon="ChevronLeft" label="Previous block" disabled={!shell.canStep.previous}
+              <ToolbarButton icon="ChevronLeft" label={toolbarLabel("Previous block", language)} disabled={!shell.canStep.previous}
                 onPress={() => shell.step(-1)} tokens={tokens} />
-              <ToolbarButton icon="ChevronRight" label="Next block" disabled={!shell.canStep.next}
+              <ToolbarButton icon="ChevronRight" label={toolbarLabel("Next block", language)} disabled={!shell.canStep.next}
                 onPress={() => shell.step(1)} tokens={tokens} />
             </> : null}
-            <ToolbarButton icon="X" label="Close details" onPress={shell.close} tokens={tokens} />
+            <ToolbarButton icon="X" label={toolbarLabel("Close details", language)} onPress={shell.close} tokens={tokens} />
           </View>
         </TooltipAlignContext.Provider>
       </ToolbarMetricsContext.Provider>

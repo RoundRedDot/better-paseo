@@ -62,13 +62,17 @@ export function bindDetailsLayer(node: unknown): () => void {
 /**
  * Whether the panel's keys are this layer's: it is shown (Paseo keeps hidden
  * panes mounted, and a layer in one must not react), and for Escape no hover
- * preview is open over it. That preview takes the key first, so one Escape
- * closes one layer (`openPreviewLayer` asks `hasActiveDetailsKeyboard`).
+ * preview or the panel's copy menu is open over it. Those take the key
+ * first, so one Escape closes one layer (`openPreviewLayer` asks
+ * `hasActiveDetailsKeyboard`).
  */
 export function layerTakesKey(node: unknown, event?: KeyboardEvent): boolean {
   const layer = node as HTMLElement | null;
   if (!layer || typeof layer.getClientRects !== "function" || layer.getClientRects().length === 0) return false;
-  return !(event?.key === "Escape" && previewOpenBesides(layer));
+  if (event?.key !== "Escape") return true;
+  // The copy menu's own Escape closes the menu, not the panel.
+  if (layer.querySelector?.('[data-testid="details-copy-menu"]')) return false;
+  return !previewOpenBesides(layer);
 }
 
 /** The scroller a row sits in: its nearest ancestor that scrolls vertically, within its own pane. */
