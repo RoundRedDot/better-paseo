@@ -27,6 +27,7 @@ import { FilterSheetBody } from "./filter-sheet";
 import { defaultLane, laneAfter, swallowsTap, swipeStep, tabUnderline, tabsOverflow, type TabBox } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
 import { useParentTitle } from "./details-sidebar";
+import { useFirstPrompt } from "../data/first-prompt";
 import { LANE_EMPTY_ICON, sortLabel } from "./strings";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
@@ -550,6 +551,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
   const { card, board, theme } = props;
   const colors = theme.colors;
   useParentTitle(board, card);
+  const firstPrompt = useFirstPrompt(board.paseo, card.id, card.closed !== true);
   const list = board.lanes[card.lane]?.cards ?? [];
   const index = list.findIndex((item) => item.id === card.id);
   const step = (delta: number) => {
@@ -585,6 +587,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           permissionButtons={board.buttonsFor(card)}
           onPermission={onPermission}
           onJump={props.onShow}
+          firstPrompt={firstPrompt}
         />
       </ScrollView>
       <DetailActionBar

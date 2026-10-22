@@ -54,8 +54,12 @@ const host = vi.hoisted(() => ({
   /** Rows a lane's list drew, counted by the FlatList mock. */
   rowRenders: 0,
 }));
+// The details read a card's first prompt from its timeline: one stable client whose timelines are empty.
+const paseo = vi.hoisted(() => ({
+  agents: { ref: () => ({ timeline: { refetch: () => Promise.resolve({ error: null, entries: [] }) } }) },
+}));
 vi.mock("@getpaseo/plugin/client", () => ({
-  usePaseo: () => ({}),
+  usePaseo: () => paseo,
   useRpc: () => () => Promise.resolve({ stop: host.canStop }),
   useSettings: () => (host.settings ? { status: "ready", values: host.settings, revision: "1", saving: false, saveError: null, save: host.save, reload: host.reload } : { status: "loading" }),
 }));

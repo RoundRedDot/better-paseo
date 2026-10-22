@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { usePaseo, useSettings } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
+import type { PaseoApi } from "@getpaseo/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type LaneWidth, type TasksSettings } from "../../../shared/tasks-settings";
 import { permissionButtons, respondToPermission, useStopControl, type PermissionButton, type StopControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
@@ -40,6 +41,8 @@ export interface BoardController {
   defaults: BoardDefaults;
   filters: BoardFilters;
   tasks: TasksHandle;
+  /** The host's client, for what the details read on demand (a task's first prompt). */
+  paseo: PaseoApi;
   /** The lanes after the filter bar and search. */
   lanes: Record<LaneId, LaneModel>;
   total: number;
@@ -316,6 +319,7 @@ export function useBoard(
     defaults,
     filters,
     tasks,
+    paseo,
     lanes,
     total,
     fields,
