@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createTurnUsageLedger, registerTurnUsageServer } from "../../server/turn-usage";
+import { createTurnUsageLedger, registerTurnUsageServer, turnError } from "../../server/turn-usage";
 
 type TurnEnded = (event: unknown, context: unknown) => Promise<void>;
 type TurnStarted = (event: unknown, context: unknown) => void;
@@ -28,7 +28,7 @@ function register(lastUsage: () => unknown) {
   } as unknown as PluginServerContext;
   let clock = 1000;
   registerTurnUsageServer(server, ledger, () => clock);
-  const refresh = vi.fn(async () => ({ agent: { lastUsage: lastUsage() } }));
+  const refresh = vi.fn(async (): Promise<unknown> => ({ agent: { lastUsage: lastUsage() } }));
   const paseo = { agents: { ref: () => ({ refresh }) } };
   return {
     refresh,
@@ -36,9 +36,10 @@ function register(lastUsage: () => unknown) {
       clock = at;
       started!({ agent: { id: agentId }, turnId }, { paseo });
     },
-    end: (turnId: string | null, kind = "completed", at = clock, agentId = "agent-a") => {
+    end: (turnId: string | null, kind = "completed", at = clock, agentId = "agent-a", extra: { provider?: string; timeline?: unknown[]; error?: string } = {}) => {
       clock = at;
-      return ended!({ agent: { id: agentId }, turnId, outcome: { kind } }, { paseo });
+      const outcome = extra.error ? { kind, error: { message: extra.error } } : { kind };
+      return ended!({ agent: { id: agentId, provider: extra.provider ?? "claude" }, turnId, outcome, timeline: extra.timeline ?? [] }, { paseo });
     },
     read: (input: unknown) => handlers.get("turns.usage")!(input) as Promise<{ turns: unknown[] }>,
     last: (agentIds: string[]) => handlers.get("turns.last")!({ agentIds }) as Promise<{ turns: unknown[] }>,
@@ -139,5 +140,48 @@ describe("turn timing ledger", () => {
       { agentId: "agent-a", startedAt: 9000, endedAt: 12_000 },
       { agentId: "agent-b", startedAt: 2000, endedAt: 2500 },
     ]);
+  });
+});
+
+describe("turn errors", () => {
+  const limit = "You've hit your session limit · resets 5:20pm (Asia/Singapore)";
+  const reply = (text: string) => ({ type: "assistant_message", text });
+
+  it("reads Claude's error reply and the daemon's failure, and nothing else", () => {
+    const completed = { kind: "completed" } as const;
+    expect(turnError("claude", completed, [{ type: "tool_call" }, reply(limit)])).toBe(limit);
+    expect(turnError("claude", completed, [reply("API Error: 529 Overloaded")])).toBe("API Error: 529 Overloaded");
+    expect(turnError("claude", completed, [reply("Claude AI usage limit reached|1792660800")])).toBe("Claude AI usage limit reached|1792660800");
+    // A real answer that quotes the error, an error the turn moved past, another provider.
+    expect(turnError("claude", completed, [reply(`The banner said: ${limit}`)])).toBeUndefined();
+    expect(turnError("claude", completed, [reply(limit), { type: "tool_call" }])).toBeUndefined();
+    expect(turnError("codex", completed, [reply(limit)])).toBeUndefined();
+    expect(turnError("claude", completed, [])).toBeUndefined();
+    expect(turnError("codex", { kind: "failed", error: { message: " You've hit your usage limit. " } }, [])).toBe("You've hit your usage limit.");
+  });
+
+  it("records the error with the turn and answers it as the latest turn's", async () => {
+    // The limit reply arrives with zero usage, so the turn has no new figure.
+    const server = register(() => ({ inputTokens: 0, outputTokens: 0 }));
+    await server.end("turn-1", "completed", 1000, "agent-a", { timeline: [reply("Done.")] });
+    server.start("turn-2", 2000);
+    await server.end("turn-2", "completed", 2500, "agent-a", { timeline: [reply(limit)] });
+    await server.end("turn-b", "failed", 3000, "agent-b", { provider: "codex", error: "You've hit your usage limit." });
+    expect((await server.read({ agentId: "agent-a" })).turns.at(-1)).toEqual({ turnId: "turn-2", startedAt: 2000, endedAt: 2500, error: limit });
+    expect((await server.last(["agent-a", "agent-b"])).turns).toEqual([
+      { agentId: "agent-a", startedAt: 2000, endedAt: 2500, error: limit },
+      { agentId: "agent-b", endedAt: 3000, error: "You've hit your usage limit." },
+    ]);
+  });
+
+  it("answers a turn end that is still being recorded", async () => {
+    const server = register(() => ({ outputTokens: 0 }));
+    let release!: () => void;
+    server.refresh.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve({ agent: {} }); }));
+    const ending = server.end("turn-1", "completed", 1000, "agent-a", { timeline: [reply(limit)] });
+    const asked = server.last(["agent-a"]);
+    release();
+    await ending;
+    expect((await asked).turns).toEqual([{ agentId: "agent-a", endedAt: 1000, error: limit }]);
   });
 });

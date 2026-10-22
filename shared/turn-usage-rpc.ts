@@ -30,6 +30,12 @@ export const recordedTurnSchema = z.object({
   endedAt: z.number(),
   /** Absent when the turn reported no new figure. */
   usage: turnUsageSchema.optional(),
+  /**
+   * Why the turn stopped short: the daemon's failure, or the provider's own
+   * error that the daemon passed off as the turn's reply (Claude's "You've
+   * hit your session limit"). Absent when the turn finished its work.
+   */
+  error: z.string().optional(),
 });
 export type RecordedTurn = z.output<typeof recordedTurnSchema>;
 
@@ -44,6 +50,8 @@ export const lastTurnSchema = z.object({
   agentId: z.string(),
   startedAt: z.number().optional(),
   endedAt: z.number(),
+  /** The recorded turn's `error`. */
+  error: z.string().optional(),
 });
 export type LastTurn = z.output<typeof lastTurnSchema>;
 

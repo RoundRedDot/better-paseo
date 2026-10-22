@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { PluginServerContext } from "@getpaseo/plugin/server";
+import type { PluginServerContext, PluginTurnOutcome } from "@getpaseo/plugin/server";
 import { z } from "zod";
 import { pluginDataDir } from "./plugin-data";
 import { lastTurnsRpc, recordedTurnSchema, turnUsageRpc, turnUsageSchema, type LastTurn, type RecordedTurn } from "../shared/turn-usage-rpc";
@@ -55,8 +55,8 @@ export function createTurnUsageLedger(dir: string) {
             entry = timing;
           }
         }
-        // A turn with neither a figure nor a start adds nothing to the record.
-        if (!entry.usage && entry.startedAt === undefined) return;
+        // A turn with neither a figure, a start nor an error adds nothing to the record.
+        if (!entry.usage && entry.startedAt === undefined && entry.error === undefined) return;
         turns.push(entry);
         await mkdir(dir, { recursive: true });
         const path = join(dir, `${agentId}.json`);
@@ -66,6 +66,29 @@ export function createTurnUsageLedger(dir: string) {
       });
     },
   };
+}
+
+/**
+ * The errors Claude Code writes as a synthetic assistant reply (its JSONL marks
+ * them `isApiErrorMessage`). The SDK reports such a turn as `success` with
+ * `is_error: true`, and the daemon reads only the subtype, so the turn
+ * "completes" with the error as its answer and the agent idles as if done.
+ */
+const CLAUDE_ERROR_REPLY = /^(?:You've hit your [^\n]*limit|You're out of extra usage|Claude AI usage limit reached|API Error:|Credit balance is too low|Prompt is too long|Invalid API key)/;
+
+interface TurnItem {
+  type: string;
+  text?: unknown;
+}
+
+/** Why a turn stopped short, or undefined when it finished its work. */
+export function turnError(provider: string, outcome: PluginTurnOutcome, timeline: readonly TurnItem[]): string | undefined {
+  if (outcome.kind === "failed") return outcome.error?.message?.trim() || undefined;
+  if (outcome.kind !== "completed" || provider !== "claude") return undefined;
+  const last = timeline.at(-1);
+  if (last?.type !== "assistant_message" || typeof last.text !== "string") return undefined;
+  const text = last.text.trim();
+  return CLAUDE_ERROR_REPLY.test(text) ? text : undefined;
 }
 
 /** Turn starts kept in memory until their end; more than this means ends were missed. */
@@ -83,6 +106,8 @@ export function registerTurnUsageServer(
   now = () => Date.now(),
 ): void {
   const starts = new Map<string, number>();
+  /** Each agent's turn end still being recorded, so `turns.last` answers with it. */
+  const ending = new Map<string, Promise<void>>();
   const key = (agentId: string, turnId: string) => `${agentId}\n${turnId}`;
 
   server.on("agent.turn_started", ({ agent, turnId }) => {
@@ -91,23 +116,34 @@ export function registerTurnUsageServer(
     if (starts.size > STARTS_KEPT) starts.delete(starts.keys().next().value!);
   });
 
-  server.on("agent.turn_ended", async ({ agent, turnId, outcome }, { paseo }) => {
+  server.on("agent.turn_ended", ({ agent, turnId, outcome, timeline }, { paseo }) => {
     if (!turnId) return;
     const endedAt = now();
     const startedAt = starts.get(key(agent.id, turnId));
     starts.delete(key(agent.id, turnId));
-    const timing = { turnId, ...(startedAt !== undefined && startedAt <= endedAt ? { startedAt } : {}), endedAt };
-    let usage: RecordedTurn["usage"];
-    if (outcome.kind === "completed") {
-      try {
-        const parsed = turnUsageSchema.safeParse((await paseo.agents.ref(agent.id).refresh())?.agent.lastUsage);
-        if (parsed.success && Object.keys(parsed.data).length) usage = parsed.data;
-      } catch {
-        // A missed reading costs one turn's figures, never its timing.
+    const error = turnError(agent.provider, outcome, timeline ?? []);
+    const timing = {
+      turnId,
+      ...(startedAt !== undefined && startedAt <= endedAt ? { startedAt } : {}),
+      endedAt,
+      ...(error !== undefined ? { error } : {}),
+    };
+    const done = (async () => {
+      let usage: RecordedTurn["usage"];
+      if (outcome.kind === "completed") {
+        try {
+          const parsed = turnUsageSchema.safeParse((await paseo.agents.ref(agent.id).refresh())?.agent.lastUsage);
+          if (parsed.success && Object.keys(parsed.data).length) usage = parsed.data;
+        } catch {
+          // A missed reading costs one turn's figures, never its timing.
+        }
       }
-    }
-    try { await ledger.record(agent.id, usage ? { ...timing, usage } : timing); }
-    catch { /* A full disk costs the record, never the turn. */ }
+      try { await ledger.record(agent.id, usage ? { ...timing, usage } : timing); }
+      catch { /* A full disk costs the record, never the turn. */ }
+    })();
+    ending.set(agent.id, done);
+    void done.finally(() => { if (ending.get(agent.id) === done) ending.delete(agent.id); });
+    return done;
   });
 
   server.handle(turnUsageRpc, async ({ agentId, since }) => ({
@@ -116,8 +152,16 @@ export function registerTurnUsageServer(
 
   server.handle(lastTurnsRpc, async ({ agentIds }) => {
     const turns = await Promise.all([...new Set(agentIds)].map(async (agentId): Promise<LastTurn | null> => {
+      await ending.get(agentId);
       const last = (await ledger.read(agentId)).at(-1);
-      return last ? { agentId, ...(last.startedAt !== undefined ? { startedAt: last.startedAt } : {}), endedAt: last.endedAt } : null;
+      return last
+        ? {
+            agentId,
+            ...(last.startedAt !== undefined ? { startedAt: last.startedAt } : {}),
+            endedAt: last.endedAt,
+            ...(last.error !== undefined ? { error: last.error } : {}),
+          }
+        : null;
     }));
     return { turns: turns.filter((turn): turn is LastTurn => turn !== null) };
   });

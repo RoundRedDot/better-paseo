@@ -51,6 +51,15 @@ describe("classifyAgent", () => {
     expect(classifyAgent({ status: "initializing" })).toEqual({ lane: "running", status: "running" });
   });
 
+  it("fails a settled agent that kept its last error", () => {
+    expect(classifyAgent({ status: "idle", lastError: "Rate limit exceeded." })).toEqual({ lane: "review", status: "failed" });
+    expect(classifyAgent({ status: "closed", lastError: "Individual quota reached." })).toEqual({ lane: "review", status: "failed" });
+    expect(classifyAgent({ status: "idle", requiresAttention: true, attentionReason: "finished", lastError: "x" }).status).toBe("failed");
+    expect(classifyAgent({ status: "running", lastError: "x" }).lane).toBe("running");
+    expect(classifyAgent({ status: "idle", pendingPermissionCount: 1, lastError: "x" }).lane).toBe("needs_input");
+    expect(classifyAgent({ status: "idle", lastError: null })).toEqual({ lane: "done", status: "done" });
+  });
+
   it("still lets a permission or an error outrank initializing", () => {
     expect(classifyAgent({ status: "initializing", pendingPermissionCount: 1 }).lane).toBe("needs_input");
     expect(classifyAgent({ status: "initializing", attentionReason: "error" }).status).toBe("failed");
