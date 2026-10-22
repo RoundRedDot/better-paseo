@@ -101,7 +101,6 @@ function signature(item: CopyOverflowItem): string {
 /** "⋯" and its menu of the copies that did not fit. */
 export function CopyOverflowMenu({ items, tokens }: { items: readonly CopyOverflowItem[]; tokens: ExtendedThemeTokens }) {
   const [open, setOpen] = useState(false);
-  const { language } = useEnhancerPreferences();
   const anchorRef = useRef<View>(null);
   const close = useCallback(() => setOpen(false), []);
   useEffect(() => {
@@ -118,7 +117,7 @@ export function CopyOverflowMenu({ items, tokens }: { items: readonly CopyOverfl
   const menu = <CopyMenu items={items} tokens={tokens} close={close} />;
   return (
     <View ref={anchorRef} collapsable={false} testID="details-copy-overflow" style={styles.anchor}>
-      <ToolbarButton icon="Ellipsis" label={toolbarLabel("More", language)} checked={open} onPress={() => setOpen((value) => !value)} tokens={tokens} align="end" />
+      <ToolbarButton icon="Ellipsis" label="More" checked={open} onPress={() => setOpen((value) => !value)} tokens={tokens} align="end" />
       {open ? Platform.OS === "web" ? (
         <View style={[styles.dropdown, menuLook(tokens)]}>{menu}</View>
       ) : (

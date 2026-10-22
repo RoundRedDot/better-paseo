@@ -580,6 +580,24 @@ describe("first open on a phone", () => {
   });
 });
 
+describe("Android bottom inset", () => {
+  it("keeps the drawer's last line above the navigation bar under edge-to-edge", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+    resetSafeInsets(null);
+    const renderer = render(slot());
+    open("a");
+    // The probe: the stage fills the screen (844, the window too: edge to edge), the status bar pads nothing here.
+    const stage = renderer.root.findAll((node) => (node.type as unknown) === "View" && node.props.pointerEvents === "none" && typeof node.props.onLayout === "function")[0]!;
+    act(() => {
+      stage.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 844 } } });
+      byTestId(renderer, "details-inset-probe")!.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 844 } } });
+    });
+    const drawer = byTestId(renderer, "details-drawer")!;
+    const pad = drawer.findAll((node) => (node.type as unknown) === "View" && flat(node.props.style).height === 24);
+    expect(pad.length).toBe(1);
+  });
+});
+
 describe("floating panel", () => {
   // 1194 tall, insets 47 / 34, 12 above the bottom: 1101 available, a fit cap of 551, full at 1077.
   it("opens at min(content, 0.5 × available) and goes full at available − 24", () => {

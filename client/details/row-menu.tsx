@@ -81,7 +81,8 @@ export function RowMenu(props: RowMenuProps) {
         opacity: progress, transformOrigin: [Math.max(0, anchor.x - left), anchor.y + anchor.height / 2 - top, 0],
         transform: reduced ? undefined : [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
       }}>
-        <ScrollView contentContainerStyle={{ paddingVertical: 6 }}>
+        {/* Scrolls only when the menu is taller than the room; no track drawn beside it (Android drew one always). */}
+        <ScrollView contentContainerStyle={{ paddingVertical: 6 }} showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false}>
           {header ? <Text style={{ paddingHorizontal: 14, height: 32, color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 12 }}>{header}</Text> : null}
           {actions.map((item) => (
             <Pressable key={item.id} accessibilityRole="menuitem" accessibilityLabel={label(item.label)}

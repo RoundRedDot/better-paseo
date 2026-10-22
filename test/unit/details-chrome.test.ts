@@ -34,6 +34,8 @@ import { ToolbarButton, ToolbarCopyButton } from "../../client/ui/toolbar-button
 import { DetailsShellContext, type BlockEntry, type DetailsShellValue } from "../../client/details/contracts";
 import { copySlots, foldCopies } from "../../client/details/chrome/copy-overflow";
 import { backToLatestText } from "../../client/details/chrome/back-to-latest";
+import { DetailsHeader } from "../../client/details/chrome/details-header";
+import { seedMarkBitmaps } from "../../client/components/marks";
 import { classifyTool } from "../../client/tools/classify";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
@@ -178,6 +180,30 @@ describe("details header", () => {
     const root = mount(details(rowPreview(callout(bash))));
     expect(labels(byId(root, "details-header"))).toEqual(expect.arrayContaining(["上一个区块", "下一个区块", "关闭详情"]));
     expect(labels(byId(root, "details-toolbar"))).toEqual(expect.arrayContaining(["不自动换行", "全屏"]));
+  });
+
+  it("draws a brand-marked block's mark in its tile, as its row does (QA round 2: an npm call's tile was empty)", () => {
+    seedMarkBitmaps({ "brand:npm": "data:image/png;base64,AAAA" });
+    const root = mount(h(DetailsHeader, { shell: shell({ entry: entry({ icon: "brand:npm" }) }), tokens }));
+    const tile = byId(root, "details-header-icon");
+    expect(tile.findAll((node) => (node.type as unknown) === "Image" && node.props.source?.uri === "data:image/png;base64,AAAA").length).toBe(1);
+    // Never handed to the host's Lucide icon (a View here), which knows no such name.
+    expect(tile.findAll((node) => (node.type as unknown) === "View" && node.props.name === "brand:npm").length).toBe(0);
+  });
+
+  it("speaks its copy buttons and the streaming dot in the reader's language", () => {
+    updateEnhancerPreferences({ language: "zh" });
+    const root = mount(h("View", null,
+      h(DetailsHeader, { shell: shell(), tokens, streaming: true }),
+      details(rowPreview(callout(bash)))));
+    expect(labels(byId(root, "details-toolbar-end"))).toContain("复制输出");
+    expect(root.findAll((node) => node.props.accessibilityLabel === "输出中").length).toBeGreaterThan(0);
+  });
+
+  it("leaves toolbar buttons outside the details chrome speaking English", () => {
+    updateEnhancerPreferences({ language: "zh" });
+    const root = mount(h("View", null, h(ToolbarCopyButton, { text: "out", label: "Copy output", tokens })));
+    expect(labels(root)).toEqual(["Copy output"]);
   });
 
   it("uses pointer sizes: header 44, buttons 28, toolbar 36", () => {
