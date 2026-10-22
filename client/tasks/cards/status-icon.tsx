@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useLayoutEffect, useRef } from "react";
 import { Animated, Platform, View, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import { probeAnimationLoop } from "../../debug/perf";
 import { steppedEasing } from "../../ui/tokens/motion";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -240,21 +241,22 @@ export const StatusIcon = memo(function StatusIcon(props: StatusIconProps) {
     );
   }
 
-  // The prototype's dots: unread 6, failed 8, done 6 at 30%.
+  if (props.kind === "done") {
+    // Done is a green circled check (the user's call), not the prototype's
+    // grey dot: a finished run reads as a success at a glance.
+    return (
+      <View style={box} testID="status-done" {...a11y}>
+        <Icon name="CircleCheck" size={size} color={tokens.status.success} />
+      </View>
+    );
+  }
+
+  // The prototype's dots: unread 6, failed 8.
   const dot = (props.kind === "failed" ? 8 : 6) * scale;
-  const color =
-    props.kind === "unread" ? tokens.status.success : props.kind === "failed" ? tokens.status.danger : tokens.foregroundMuted;
+  const color = props.kind === "unread" ? tokens.status.success : tokens.status.danger;
   return (
     <View style={box} testID={`status-${props.kind}`} {...a11y}>
-      <View
-        style={{
-          width: dot,
-          height: dot,
-          borderRadius: dot / 2,
-          backgroundColor: color,
-          opacity: props.kind === "done" ? 0.3 : 1,
-        }}
-      />
+      <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: color }} />
     </View>
   );
 });

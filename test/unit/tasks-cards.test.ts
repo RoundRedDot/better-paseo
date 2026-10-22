@@ -256,9 +256,11 @@ describe("StatusIcon", () => {
     const alert = box("needs_input");
     expect(flat((alert.children[0] as ReactTestInstance).props.style)).toMatchObject({ width: 12, borderWidth: 1.5, borderColor: "#b37824" });
 
-    expect(flat((box("unread").children[0] as ReactTestInstance).props.style)).toMatchObject({ width: 6, backgroundColor: "#299f51", opacity: 1 });
+    expect(flat((box("unread").children[0] as ReactTestInstance).props.style)).toMatchObject({ width: 6, backgroundColor: "#299f51" });
     expect(flat((box("failed").children[0] as ReactTestInstance).props.style)).toMatchObject({ width: 8, backgroundColor: "#f12e2f" });
-    expect(flat((box("done").children[0] as ReactTestInstance).props.style)).toMatchObject({ width: 6, backgroundColor: "#6b6b75", opacity: 0.3 });
+    const done = box("done");
+    expect(icons(done)).toEqual(["CircleCheck"]);
+    expect(done.findByProps({ name: "CircleCheck" }).props).toMatchObject({ size: 16, color: "#299f51" });
   });
 
   it("draws needs-input as a hollow amber ring, unlike the running ring, at 12, 16 and 20 px", async () => {
