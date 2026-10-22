@@ -75,7 +75,6 @@ export function laneWidthMenuSections(current: LaneWidth, strings: BoardStrings,
   return [
     {
       key: "lane-width",
-      title: strings.laneWidth.title,
       items: LANE_WIDTHS.map((width) => ({
         key: width,
         label: strings.laneWidth.names[width],

@@ -802,6 +802,7 @@ describe("Tasks board, lane widths", () => {
     const menu = renderer!.root.find((node) => node.props.testID === "lane-width-menu");
     const items = menu.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem");
     expect(items.map(textOf)).toEqual(["Narrow", "Default", "Wide"]);
+    expect(textOf(menu)).not.toContain("Lane width");
     await act(async () => items[2]!.props.onPress());
     expect(renderer!.root.findAll((node) => node.props.testID === "lane-width-menu")).toHaveLength(0);
     expect(textOf(button())).toBe("Wide");
