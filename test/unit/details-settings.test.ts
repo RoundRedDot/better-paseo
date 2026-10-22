@@ -77,26 +77,25 @@ beforeEach(() => {
 });
 
 describe("block details settings", () => {
-  it("turns details on by default and accepts both stored row-click choices", () => {
-    expect(DEFAULT_PREFERENCES).toMatchObject({ blockDetails: true, rowClick: "details" });
-    expect(preferencesSchema.parse({})).toMatchObject({ blockDetails: true, rowClick: "details" });
+  it("turns details on by default and drops a stored row-click choice", () => {
+    expect(DEFAULT_PREFERENCES).toMatchObject({ blockDetails: true });
+    expect(DEFAULT_PREFERENCES).not.toHaveProperty("rowClick");
+    expect(preferencesSchema.parse({})).toMatchObject({ blockDetails: true });
     expect(preferencesSchema.parse({ blockDetails: false })).toMatchObject({ blockDetails: false });
-    expect(preferencesSchema.parse({ blockDetails: true, rowClick: "expand" })).toMatchObject({ blockDetails: true, rowClick: "expand" });
-    expect(preferencesSchema.parse({ blockDetails: true, rowClick: "invalid" })).toMatchObject({ blockDetails: true, rowClick: "details" });
+    for (const rowClick of ["details", "expand", "invalid"]) {
+      const parsed = preferencesSchema.parse({ blockDetails: true, rowClick, previewWrap: false });
+      expect(parsed).toMatchObject({ blockDetails: true, previewWrap: false });
+      expect(parsed).not.toHaveProperty("rowClick");
+    }
   });
 
-  it("shows the toggle, then the pointer-only row choice when enabled", () => {
+  it("shows the toggle, and no row-click choice with a pointer or without", () => {
     updateEnhancerPreferences({ blockDetails: false });
     const renderer = renderPage();
     expect(switchControl(renderer.root, "Block details panel (preview)").props["aria-checked"]).toBe(false);
-    expect(choiceGroup(renderer.root)).toBeUndefined();
-
     act(() => switchControl(renderer.root, "Block details panel (preview)").props.onPress());
     expect(getEnhancerPreferences().blockDetails).toBe(true);
-    const group = choiceGroup(renderer.root)!;
-    const radios = group.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio");
-    expect(radios.map(textOf)).toEqual(["Opens details", "Expands in place"]);
-    expect(radios[0]!.props.accessibilityState.selected).toBe(true);
+    expect(choiceGroup(renderer.root)).toBeUndefined();
 
     state.pointer = false;
     act(() => renderer.update(React.createElement(BetterPaseoSettingsPage, {
@@ -114,9 +113,7 @@ describe("block details settings", () => {
     const text = renderer.root.findAll((node) => typeof node.type === "string" && (node.type as unknown) === "Text").map(textOf).join("\n");
     expect(text).toContain("区块详情面板（预览）");
     expect(text).toContain("点按行可在抽屉或面板中阅读；长按可显示操作。");
-    expect(choiceGroup(renderer.root, "点击行身")?.props.accessibilityLabel).toBe("点击行身");
-    const radios = choiceGroup(renderer.root, "点击行身")!.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio");
-    expect(radios.map(textOf)).toEqual(["打开详情", "在原地展开"]);
+    expect(text).not.toContain("点击行身");
     act(() => renderer.unmount());
   });
 

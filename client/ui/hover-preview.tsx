@@ -804,12 +804,30 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
   const scroller = usePreviewScroller(streaming, memoryKey, remembered, band, behind.onChange);
   // Under the details chrome the drawer reads the phone body's offset and sizes:
   // a pull down at its top moves the drawer, and a block switch animates its height.
-  const report = useDetailsBodyScroll();
+  const report = useDetailsBodyScroll(scroller.value);
+  // In the drawer and the floating panel, a phone body at its top does not
+  // scroll itself, bounce, or take the finger as a scroller: a native scroller
+  // there took a pull down before the drawer could (iOS scrolled it into the
+  // bounce and became the responder; Android intercepted it past its touch
+  // slop and cancelled the touch). The drawer takes the finger instead and
+  // scrolls the body up itself. Scrolled down, it is a scroller like any other.
+  const shell = useContext(DetailsShellContext);
+  const pulls = Boolean(report) && Platform.OS !== "web" && shell !== null && shell.form !== "side";
+  const [bodyTop, setBodyTop] = useState(true);
+  const bodyTopRef = useRef(true);
+  // The drawer at rest after sliding in: the content mounts again in place.
+  const [drawn, setDrawn] = useState(0);
+  useEffect(() => report?.onRedraw(() => setDrawn((count) => count + 1)), [report]);
   const detailsScroll = useMemo(() => (report ? {
     ...scroller.props,
     onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
       scroller.props.onScroll(event);
-      report.scrolled(event.nativeEvent.contentOffset.y);
+      const offset = event.nativeEvent.contentOffset.y;
+      report.scrolled(offset);
+      if (bodyTopRef.current !== offset <= 0) {
+        bodyTopRef.current = offset <= 0;
+        setBodyTop(offset <= 0);
+      }
     },
     onLayout(event: LayoutChangeEvent) {
       scroller.props.onLayout(event);
@@ -842,13 +860,16 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
     }} />
   ) : null;
   if (details) {
+    // The drawer's and the floating panel's pull, on the body alone.
+    const pan = shell && shell.form !== "side" ? report?.panHandlers() : undefined;
     return (
-      <View testID="details-body" style={styles.detailsBody}>
+      <View testID="details-body" {...pan} style={styles.detailsBody}>
         {Platform.OS !== "web" ? (
           <ScrollView ref={scroller.ref} testID="hover-preview-body" style={[styles.pressBody, styles.pressBodyFill]} contentContainerStyle={styles.pressBodyContent}
-            scrollEnabled={!scroller.held} scrollEventThrottle={16} {...detailsScroll}>
+            scrollEnabled={!scroller.held && !(pulls && bodyTop)} scrollEventThrottle={16} {...detailsScroll}
+            bounces={!(pulls && bodyTop)} disableScrollViewPanResponder={pulls && bodyTop}>
             <PreviewScrollerContext.Provider value={scroller.value}>
-              <ProseSelectionContext.Provider value>{content}</ProseSelectionContext.Provider>
+              <ProseSelectionContext.Provider key={drawn} value>{content}</ProseSelectionContext.Provider>
             </PreviewScrollerContext.Provider>
           </ScrollView>
         ) : (
@@ -1064,13 +1085,13 @@ function usePreviewScroller(
       (ref.current as unknown as View | null)?.measure?.((_x, _y, _width, height, _pageX, pageY) => done(pageY, height));
     },
     offset: () => state.current.offset,
-    scrollBy(delta) {
+    scrollBy(delta, glide = false) {
       const current = state.current;
       const next = Math.max(0, Math.min(current.content - current.viewport, current.offset + delta));
       const moved = next - current.offset;
       if (moved === 0) return 0;
       current.offset = next;
-      ref.current?.scrollTo({ y: next, animated: false });
+      ref.current?.scrollTo({ y: next, animated: glide });
       return moved;
     },
   }), []);

@@ -103,6 +103,22 @@ describe("row hover recovery", () => {
     expect(userSelect(target!)).toBe("text");
     expect(target!.props.children).toBe("选文件后取消并切回主题");
   });
+  it("keeps the target mounted as the pointer arrives and leaves, so a click that comes with the pointer lands", () => {
+    // A press before the hover commit and a release after it: the browser
+    // fires no click when the pressed node was replaced in between.
+    const mounts = { count: 0 };
+    function Target() {
+      React.useEffect(() => { mounts.count += 1; }, []);
+      return React.createElement("Text", null, "src/a.ts");
+    }
+    act(() => renderer.update(React.createElement(DisclosureHeader, { expanded: false, onToggle() {}, tokens, verb: "Edit", target: React.createElement(Target), actions: React.createElement("Action") })));
+    expect(mounts.count).toBe(1);
+    enter();
+    fire(node, "pointerleave");
+    expectRest();
+    enter();
+    expect(mounts.count).toBe(1);
+  });
   it("removes active listeners on unmount", () => {
     enter();
     const remove = vi.spyOn(node.ownerDocument, "removeEventListener");

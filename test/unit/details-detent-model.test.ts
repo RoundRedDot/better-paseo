@@ -6,10 +6,11 @@ import { SHEET } from "../../client/tasks/board/sidebar-model";
 import { dampOverdrag, detentHeights, releaseDetent, settleMs } from "../../client/details/detent-model";
 
 describe("details detents", () => {
-  it("fits content to 58% and offers full only when the content exceeds it", () => {
+  it("fits content to 58% and always offers full, for short content too", () => {
     expect(SHEET.half).toBe(0.58);
     expect(SHEET.fullGap).toBe(8);
-    expect(detentHeights(300, 700)).toEqual({ fit: 300, full: null });
+    expect(detentHeights(60, 700)).toEqual({ fit: 60, full: 692 });
+    expect(detentHeights(300, 700)).toEqual({ fit: 300, full: 692 });
     expect(detentHeights(500, 700)).toEqual({ fit: 406, full: 692 });
   });
 

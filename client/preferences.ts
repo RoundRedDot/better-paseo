@@ -69,7 +69,6 @@ export type MonoFontPreference = "host" | "custom";
 /** Tool cards start collapsed; `expand-failed` opens failed ones by default. */
 export type ToolDetailPreference = "collapsed" | "expand-failed";
 export type PathDisplayPreference = "relative" | "absolute";
-export type RowClickPreference = "details" | "expand";
 export type RowLabelStylePreference = "icon" | "label" | "both";
 
 export interface EnhancerPreferences {
@@ -106,8 +105,6 @@ export interface EnhancerPreferences {
    * On by default; off brings back the long-press preview and tap-to-expand.
    */
   blockDetails: boolean;
-  /** With a pointer and blockDetails on: a click on a row opens its details, or expands it in place. */
-  rowClick: RowClickPreference;
   /** Number the lines of a file, diff or command output in a preview panel. */
   previewLineNumbers: boolean;
   /** Shade every other line of a file, diff or command output in a preview panel. */
@@ -209,7 +206,6 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   hoverDelaySeconds: HOVER_DELAY_DEFAULT,
   previewWrap: true,
   blockDetails: true,
-  rowClick: "details",
   previewLineNumbers: true,
   previewStripes: true,
   enhancedUserBubble: false,

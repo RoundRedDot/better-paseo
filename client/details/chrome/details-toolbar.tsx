@@ -89,7 +89,8 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
 
 /**
  * Full screen, the hover panel's maximize: the drawer and the floating panel
- * grow to full height, the side panel widens. Absent where the content fits.
+ * grow to full height, whatever the content's, the side panel widens. Absent
+ * only where the shell offers no toggle.
  */
 function fullscreenButton(shell: DetailsShellValue): { icon: string; label: string; onPress(): void } | null {
   const toggle = shell.toggleFullscreen;

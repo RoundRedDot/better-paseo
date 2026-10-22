@@ -134,7 +134,7 @@ export interface DetailsShellValue {
   canStep: { previous: boolean; next: boolean };
   step(direction: -1 | 1): void;
   close(): void;
-  /** Drawer / floating: fit ↔ full. Side: normal ↔ wide. Hidden when the content fits (no full detent). */
+  /** Drawer / floating: fit to full and back, offered for every block. Side: normal to wide and back. */
   toggleFullscreen?(): void;
   /** Spread on the header: vertical drag moves the drawer, horizontal swipe steps (touch only). */
   headerHandlers?: Record<string, unknown>;
