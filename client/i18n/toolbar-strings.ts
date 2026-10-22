@@ -36,6 +36,27 @@ const ZH: Readonly<Record<string, string>> = {
   "Copy thought": "复制思考",
   "Copy section": "复制段落",
   "Copy reply": "复制回复",
+  "Copy title": "复制标题",
+  "Open details": "打开详情",
+  "Expand in timeline": "在时间线中展开",
+  "Collapse in timeline": "在时间线中收起",
+  "View image": "查看图片",
+  "Close menu": "关闭菜单",
+  Code: "代码",
+  running: "运行中",
+  completed: "已完成",
+  failed: "失败",
+  Thinking: "思考中",
+  Completed: "已完成",
+  "Previous block": "上一个区块",
+  "Next block": "下一个区块",
+  "Close details": "关闭详情",
+  "Full screen": "全屏",
+  "Exit full screen": "退出全屏",
+  "Wide panel": "宽面板",
+  "Open in panel": "在面板中打开",
+  More: "更多",
+  "Back to latest": "回到最新",
   "Copy model name": "复制模型名称",
   "Agent": "Agent",
   "Model name": "模型名称",
@@ -80,6 +101,13 @@ const ZH: Readonly<Record<string, string>> = {
 /** A button's English label as the reader's chosen language shows it; an unknown label stays English. */
 export function toolbarLabel(label: string, preference: SettingsLanguagePreference, locale?: string | null): string {
   if (resolveLanguage(preference, locale) !== "zh") return label;
+  const latestCount = /^Back to latest\s*[·,]\s*(\d+) new lines?$/.exec(label);
+  if (latestCount) return `回到最新 · ${latestCount[1]} 行新输出`;
+  if (/^Back to latest\s*[·,]\s*\{n\} new lines?$/.test(label)) return "回到最新 · {n} 行新输出";
+  const newLines = /^(\d+) new lines?$/.exec(label);
+  if (newLines) return `${newLines[1]} 行新输出`;
+  const lineTemplate = /^\{n\} new lines?$/.exec(label);
+  if (lineTemplate) return "{n} 行新输出";
   return ZH[label] ?? label;
 }
 
