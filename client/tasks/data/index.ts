@@ -425,6 +425,7 @@ function buildBaseCard(
     children: [],
     openTab: Object.entries(agent.labels ?? {}).some(([key, value]) => key.startsWith("paseo.open-agent-tab.") && value === "true"),
     stoppable: agent.status === "running" || agent.status === "initializing" || pendingPermissions.length > 0,
+    closed: agent.status === "closed",
   };
 }
 

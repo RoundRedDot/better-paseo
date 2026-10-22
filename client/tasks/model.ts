@@ -171,6 +171,8 @@ export interface TaskCard {
   openTab: boolean;
   /** False when the agent is idle or closed; Stop shows only when true. */
   stoppable: boolean;
+  /** The daemon has not loaded the agent: reading its timeline would resume it. */
+  closed?: boolean;
 }
 
 /** One lane's cards in display order, with what the done lane still has to load. */
