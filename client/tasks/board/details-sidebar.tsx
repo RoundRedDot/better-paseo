@@ -12,7 +12,7 @@ import { toggleItem } from "./params";
 import type { SelectionAction, SidebarSelection } from "./sidebar-model";
 import { findCard, type BoardController } from "./use-board";
 
-type GroupKind = "agent" | "project" | "label";
+type GroupKind = "agent" | "project" | "workspace" | "label";
 
 export interface DetailsSidebarProps {
   board: BoardController;
@@ -225,10 +225,12 @@ interface GroupRow {
   count: number;
   on: boolean;
   lead: React.ReactNode;
+  /** Muted after the label: a workspace's project. */
+  detail?: string;
   toggle(): void;
 }
 
-/** With no card chosen: Agent, Project and Label counts (active cards), a row a filter. */
+/** With no card chosen: Agent, Project, Workspace and Label counts (active cards), a row a filter. */
 function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: TaskTokens; touch: boolean }) {
   const { board, tokens } = props;
   const strings = board.strings.sidebar;
@@ -256,6 +258,19 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
           toggle: () => board.setParams((params) => ({ ...params, labels: toggleItem(params.labels, option.id) })),
         }));
     }
+    if (kind === "workspace") {
+      return options.workspaceGroups
+        .flatMap((group) =>
+          group.items.map((item) => ({
+            ...pick(item),
+            lead: <Initial name={group.projectId ? group.projectName : item.label} tokens={tokens} />,
+            detail: group.projectId && group.projectName !== item.label ? group.projectName : undefined,
+            toggle: () => board.setParams((params) => ({ ...params, workspaceIds: toggleItem(params.workspaceIds, item.id) })),
+          })),
+        )
+        .filter((row) => row.count > 0 || row.on)
+        .sort(byCount);
+    }
     return options.workspaceGroups
       .filter((group) => group.projectId !== "")
       .map((group) => {
@@ -281,7 +296,7 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
   return (
     <DetailCard tokens={tokens} style={{ flexShrink: 1, minHeight: 0, paddingTop: 10, paddingBottom: 6 }} testID="sidebar-groups">
       <View style={{ flexDirection: "row", gap: 6, paddingHorizontal: 10, paddingBottom: 6 }}>
-        {(["agent", "project", "label"] as const).map((id) => (
+        {(["agent", "project", "workspace", "label"] as const).map((id) => (
           <Segment key={id} label={strings.groups[id]} on={kind === id} tokens={tokens} touch={props.touch} onPress={() => setKind(id)} />
         ))}
       </View>
@@ -350,7 +365,7 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
     <Pressable
       accessibilityRole="checkbox"
       accessibilityState={{ checked: row.on }}
-      accessibilityLabel={`${row.label} ${row.count}`}
+      accessibilityLabel={`${row.label}${row.detail ? ` ${row.detail}` : ""} ${row.count}`}
       onPress={row.toggle}
       {...hoverProps}
       style={({ pressed }) => ({
@@ -367,6 +382,7 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
       <View style={{ width: 20, alignItems: "center" }}>{row.lead}</View>
       <Text numberOfLines={1} style={{ flex: 1, fontSize: F.base, color: tokens.foreground }}>
         {row.label}
+        {row.detail ? <Text style={{ fontSize: 12, color: tokens.foregroundMuted }}>{`  ${row.detail}`}</Text> : null}
       </Text>
       {row.on ? <Icon name="Check" size={14} color={tokens.foreground} /> : null}
       <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{row.count}</Text>

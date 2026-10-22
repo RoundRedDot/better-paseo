@@ -452,6 +452,24 @@ describe("Tasks board, desktop", () => {
     expect(bar()).toMatchObject({ width: 1.5, height: 5.5 });
   });
 
+  it("counts the active cards by workspace in the sidebar's groups, a row a workspace filter", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2000);
+    const groups = () => renderer!.root.findByProps({ testID: "sidebar-groups" });
+    act(() => groups().findByProps({ accessibilityRole: "tab", accessibilityLabel: "Workspace" }).props.onPress());
+    const row = () => groups().findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function")[0]!;
+    // The workspace, its project muted after it, and the active (not done) cards in it.
+    const active = (["needs_input", "running", "review"] as const).reduce((sum, lane) => sum + (data as unknown as { __handle: { lanes: Record<string, { cards: unknown[] }> } }).__handle.lanes[lane]!.cards.length, 0);
+    expect(row().props.accessibilityLabel).toBe(`tasks-board better-paseo ${active}`);
+    act(() => row().props.onPress());
+    expect(lastBoardParams("host-1").workspaceIds).toEqual(["wks_sample"]);
+    expect(row().props.accessibilityState).toEqual({ checked: true });
+    act(() => row().props.onPress());
+    expect(lastBoardParams("host-1").workspaceIds).toEqual([]);
+  });
+
   it("shows a card only once it is clicked, and the next clicked card after it", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
