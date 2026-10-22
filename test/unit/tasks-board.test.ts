@@ -34,7 +34,7 @@ import {
   laneLayout,
   type LaneShape,
 } from "../../client/tasks/board/navigation";
-import { activeChips, buildFilterOptions, clearedParams } from "../../client/tasks/board/filter-options";
+import { activeChips, buildFilterOptions, clearedParams, groupChips, isChipGroup, type ChipGroup } from "../../client/tasks/board/filter-options";
 import { boardPalette, cubicBezier } from "../../client/tasks/board/board-style";
 import { restoredStops, withStopReasons } from "../../client/tasks/board/use-board";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -311,6 +311,33 @@ describe("filter options", () => {
     expect(chips[1]!.clear(params).workspaceIds).toEqual(["wks_p1", "wks_p2", "wks_s1", "wks_p3", "wks_gone"]);
     const one = { ...EMPTY_PARAMS, workspaceIds: ["wks_o2"] };
     expect(activeChips(one, defaults, buildFilterOptions(tasks, one), BOARD_STRINGS.zh).map((chip) => chip.value)).toEqual(["web / feat/nav"]);
+  });
+
+  it("folds several chips of one filter into a group where its first chip stood", () => {
+    const base = handle();
+    const tasks = {
+      ...base,
+      workspaces: [
+        { id: "wks_p1", name: "main", projectId: "prj_pay", projectName: "payments-svc", folder: "payments-svc" },
+        { id: "wks_p2", name: "fix/refund", projectId: "prj_pay", projectName: "payments-svc", folder: "payments-svc-2" },
+        { id: "wks_w1", name: "main", projectId: "prj_web", projectName: "web", folder: "web" },
+        { id: "wks_w2", name: "feat/nav", projectId: "prj_web", projectName: "web", folder: "web-2" },
+        { id: "wks_s1", name: "solo", projectId: "prj_solo", projectName: "solo", folder: "solo" },
+      ],
+    };
+    const params: BoardParams = { ...EMPTY_PARAMS, labels: ["docs", "api"], workspaceIds: ["wks_p1", "wks_p2", "wks_w1", "wks_w2", "wks_s1"], providers: ["claude"], query: "ring" };
+    const entries = groupChips(activeChips(params, defaults, buildFilterOptions(tasks, params), BOARD_STRINGS.zh), BOARD_STRINGS.zh);
+    expect(entries.map((entry) => (isChipGroup(entry) ? `[${entry.label}]` : `${entry.kind}|${entry.value}`))).toEqual([
+      "[已选择 2 个标签]",
+      "[已选择 2 个项目和 1 个 Workspace]",
+      "Agent|Claude",
+      "标题包含|「ring」",
+    ]);
+    const workspaces = entries[1] as ChipGroup;
+    expect(workspaces.clear(params)).toMatchObject({ workspaceIds: [], labels: ["docs", "api"] });
+    expect((entries[0] as ChipGroup).clear(params).labels).toEqual([]);
+    const en = groupChips(activeChips(params, defaults, buildFilterOptions(tasks, params), BOARD_STRINGS.en), BOARD_STRINGS.en);
+    expect((en[1] as ChipGroup).label).toBe("2 projects and 1 workspace selected");
   });
 
   it("lists applied filters as chips that clear one at a time", () => {

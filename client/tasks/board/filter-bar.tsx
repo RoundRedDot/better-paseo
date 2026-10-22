@@ -1,4 +1,4 @@
-import React, { useState, type ReactNode, type Ref } from "react";
+import React, { useEffect, useState, type ReactNode, type Ref } from "react";
 import { Platform, Pressable, View, type TextInput as NativeTextInput } from "react-native";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -6,14 +6,14 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskCon
 import { taskTokens } from "../cards";
 import { HoverPressable, WindowSegments, RoundButton } from "./board-parts";
 import { HAIRLINE } from "./board-style";
-import { activeChips, clearedParams, type FilterOptions } from "./filter-options";
+import { activeChips, clearedParams, groupChips, isChipGroup, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
 import { sortLabel } from "./strings";
-import { agentMenuSections, labelMenuSections, laneWidthMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
+import { agentMenuSections, chipGroupMenuSections, labelMenuSections, laneWidthMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
 import { CascadeMenu } from "./menu";
 import type { BoardController } from "./use-board";
 
-export type FilterMenu = "workspace" | "agent" | "label" | "sort" | "laneWidth";
+export type FilterMenu = "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
 
 /** The narrowest board whose toolbar shows the key hints beside the count and the search. */
 export const KEY_HINTS_MIN_WIDTH = 760;
@@ -167,6 +167,8 @@ function KeyHint({ text, theme, last }: { text: string; theme: PluginTheme; last
  * one column whose buttons overlap the window.
  */
 const FILTERS_MIN_WIDTH = 240;
+/** Applied filters whose own control on the bar already shows them on. */
+const BAR_OWN_CONTROLS = new Set(["tabs", "sub", "win"]);
 /** A long sort ("Duration shortest first") ends in an ellipsis past this. */
 const SORT_LABEL_MAX_WIDTH = 160;
 
@@ -186,7 +188,15 @@ export function DesktopFilterBar(props: {
   const strings = board.strings;
   const { params, setParams, defaults } = board;
   const resolved = resolveBoardParams(params, defaults);
-  const chips = activeChips(params, defaults, options, strings);
+  const applied = activeChips(params, defaults, options, strings);
+  // The two switches and the done window show their state on their own
+  // controls; a chip beside them would only cost the bar a row.
+  const chips = groupChips(applied.filter((chip) => !BAR_OWN_CONTROLS.has(chip.key)), strings);
+  // A folded chip whose picks dropped to one is a plain chip again: its menu goes with it.
+  const groupGone = !!menu?.startsWith("chips:") && !chips.some((entry) => entry.key === `group:${menu.slice(6)}`);
+  useEffect(() => {
+    if (groupGone) setMenu(null);
+  }, [groupGone, setMenu]);
   const count = (list: readonly string[]) => (list.length ? ` · ${list.length}` : "");
   const toggle = (menuId: FilterMenu) => setMenu(menu === menuId ? null : menuId);
   const folds = foldsToggles();
@@ -269,32 +279,36 @@ export function DesktopFilterBar(props: {
               onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
               theme={theme}
             />
-            {resolved.filters.openTabsOnly ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{strings.openTabsHint}</Text> : null}
-            {resolved.filters.hideSubtasks ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{strings.hideSubtasksHint}</Text> : null}
           </>
         ) : null}
-        {chips.length ? (
+        {applied.length ? (
           <>
-            <Divider theme={theme} />
-            {chips.map((chip) => (
-              <View
-                key={chip.key}
-                style={{ height: taskControlHeight(28, scale), maxWidth: "100%", flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 10, paddingRight: 4, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 6 }}
-              >
-                {chip.kind ? <Text numberOfLines={1} style={{ fontSize: F.base, color: colors.foregroundMuted }}>{chip.kind}</Text> : null}
-                <Text numberOfLines={1} style={{ fontSize: F.base, color: colors.foreground, maxWidth: 220, flexShrink: 1 }}>
-                  {chip.value}
-                </Text>
-                <HoverPressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${strings.clear} ${chip.value}`}
-                  onPress={() => setParams(chip.clear)}
-                  style={(hovered) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? colors.surface2 : "transparent" })}
+            {chips.length ? <Divider theme={theme} /> : null}
+            {chips.map((entry) =>
+              isChipGroup(entry) ? (
+                <GroupChip
+                  key={entry.key}
+                  group={entry}
+                  open={menu === `chips:${entry.kind}`}
+                  onPress={() => toggle(`chips:${entry.kind}`)}
+                  onClear={() => setParams(entry.clear)}
+                  clearLabel={`${strings.clear} ${entry.label}`}
+                  theme={theme}
                 >
-                  <Icon name="X" size={12} color={colors.foregroundMuted} />
-                </HoverPressable>
-              </View>
-            ))}
+                  <CascadeMenu
+                    sections={chipGroupMenuSections(entry, theme, strings, setParams)}
+                    theme={theme}
+                    width={320}
+                    top={taskControlHeight(28, scale) + 6}
+                    align="left"
+                    onClose={() => setMenu(null)}
+                    testID="chip-group-menu"
+                  />
+                </GroupChip>
+              ) : (
+                <Chip key={entry.key} chip={entry} onClear={() => setParams(entry.clear)} clearLabel={`${strings.clear} ${entry.value}`} theme={theme} />
+              ),
+            )}
             <HoverPressable accessibilityRole="button" onPress={() => setParams(clearedParams)} style={() => ({ height: taskControlHeight(28, scale), paddingHorizontal: 4, justifyContent: "center" })}>
               <Text numberOfLines={1} style={{ fontSize: F.base, color: colors.foregroundMuted }}>{strings.clearAll}</Text>
             </HoverPressable>
@@ -352,6 +366,86 @@ export function DesktopFilterBar(props: {
   );
 }
 
+
+/** An applied filter: its muted kind, its value and an X that clears it. */
+function Chip(props: { chip: ActiveChip; onClear(): void; clearLabel: string; theme: PluginTheme }) {
+  const { chip, theme } = props;
+  const colors = theme.colors;
+  const scale = useTasksFontScale();
+  return (
+    <View style={{ height: taskControlHeight(28, scale), maxWidth: "100%", flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 10, paddingRight: 4, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 6 }}>
+      {chip.kind ? <Text numberOfLines={1} style={{ fontSize: F.base, color: colors.foregroundMuted }}>{chip.kind}</Text> : null}
+      <Text numberOfLines={1} style={{ fontSize: F.base, color: colors.foreground, maxWidth: 220, flexShrink: 1 }}>
+        {chip.value}
+      </Text>
+      <ClearButton label={props.clearLabel} onPress={props.onClear} theme={theme} />
+    </View>
+  );
+}
+
+/**
+ * Several picks of one filter as one chip, "3 projects selected": a press
+ * opens the menu that lists and removes them, the X clears them all.
+ */
+function GroupChip(props: { group: ChipGroup; open: boolean; onPress(): void; onClear(): void; clearLabel: string; theme: PluginTheme; children: ReactNode }) {
+  const colors = props.theme.colors;
+  const scale = useTasksFontScale();
+  return (
+    <View style={{ zIndex: props.open ? 20 : 0, maxWidth: "100%", flexShrink: 1 }}>
+      <View
+        style={{
+          height: taskControlHeight(28, scale),
+          maxWidth: "100%",
+          flexDirection: "row",
+          alignItems: "center",
+          paddingRight: 4,
+          borderWidth: HAIRLINE,
+          borderColor: colors.border,
+          borderRadius: 6,
+          backgroundColor: props.open ? colors.surface1 : "transparent",
+        }}
+      >
+        <HoverPressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: props.open }}
+          onPress={props.onPress}
+          testID={`chip-group-${props.group.kind}`}
+          style={(hovered) => ({
+            height: "100%",
+            flexShrink: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 4,
+            paddingLeft: 10,
+            paddingRight: 4,
+            borderTopLeftRadius: 6,
+            borderBottomLeftRadius: 6,
+            backgroundColor: hovered && !props.open ? colors.surface1 : "transparent",
+          })}
+        >
+          <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.base, color: colors.foreground }}>{props.group.label}</Text>
+          <Icon name="ChevronDown" size={12} color={colors.foregroundMuted} />
+        </HoverPressable>
+        <ClearButton label={props.clearLabel} onPress={props.onClear} theme={props.theme} />
+      </View>
+      {props.open ? props.children : null}
+    </View>
+  );
+}
+
+function ClearButton(props: { label: string; onPress(): void; theme: PluginTheme }) {
+  const colors = props.theme.colors;
+  return (
+    <HoverPressable
+      accessibilityRole="button"
+      accessibilityLabel={props.label}
+      onPress={props.onPress}
+      style={(hovered) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? colors.surface2 : "transparent" })}
+    >
+      <Icon name="X" size={12} color={colors.foregroundMuted} />
+    </HoverPressable>
+  );
+}
 
 function Divider({ theme }: { theme: PluginTheme }) {
   return <View style={{ width: HAIRLINE, height: 16, marginHorizontal: 4, backgroundColor: theme.colors.border }} />;
