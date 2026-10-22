@@ -234,7 +234,7 @@ export function DesktopFilterBar(props: {
           <CascadeMenu
             sections={agentMenuSections(options, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) })))}
             theme={theme}
-            width={240}
+            width={200}
             top={taskControlHeight(28, scale) + 6}
             align="left"
             onClose={() => setMenu(null)}
@@ -244,7 +244,7 @@ export function DesktopFilterBar(props: {
           <CascadeMenu
             sections={labelMenuSections(options, theme, strings, (id) => setParams((p) => ({ ...p, labels: toggleItem(p.labels, id) })))}
             theme={theme}
-            width={240}
+            width={200}
             top={taskControlHeight(28, scale) + 6}
             align="left"
             onClose={() => setMenu(null)}
