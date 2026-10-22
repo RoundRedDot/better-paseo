@@ -7,6 +7,7 @@
  *
  * Pure: no React, no host hooks.
  */
+import { mcpServiceIcon } from "./mcp-service-icon";
 import { readTaskNotification } from "./task-notification";
 
 export interface ActivitySection {
@@ -94,20 +95,40 @@ function section(label: string | undefined, value: string | undefined, format: A
 
 /* ------------------------------------------------------------------ Claude */
 
-/** Tools Claude loaded by name: `mcp__cua-driver__list_windows` reads `cua-driver / list_windows`. */
+/** The names of the tools Claude loaded, as it calls them (`mcp__cua-driver__list_windows`). */
 function readToolReferences(output: unknown): string[] | undefined {
   const list = record(output)?.output;
   if (!Array.isArray(list) || !list.length) return undefined;
   const names = list.map((entry) => text(record(entry)?.tool_name)).filter((name): name is string => Boolean(name));
-  if (names.length !== list.length) return undefined;
-  return names.map((name) => name.startsWith("mcp__") ? name.slice(5).split("__").join(" / ") : name);
+  return names.length === list.length ? names : undefined;
+}
+
+/** The tools a `select:` query names, before its answer lands. */
+function readSelectedTools(query: string | undefined): string[] | undefined {
+  const names = query?.startsWith("select:") ? query.slice(7).split(",").map((name) => name.trim()).filter(Boolean) : [];
+  return names.length ? names : undefined;
+}
+
+/** `mcp__cua-driver__list_windows` reads `cua-driver / list_windows`. */
+const toolLabel = (name: string) => name.startsWith("mcp__") ? name.slice(5).split("__").join(" / ") : name;
+
+/** The service icon every loaded tool shares (all Linear's draw Linear's mark), else the wrench. */
+function toolsIcon(names: string[]): string {
+  const icons = new Set(names.map((name) => {
+    if (!name.startsWith("mcp__")) return undefined;
+    const [server = "", ...tool] = name.slice(5).split("__");
+    return mcpServiceIcon(server, tool.join("__"));
+  }));
+  const [icon] = icons;
+  return icons.size === 1 && icon ? icon : "Wrench";
 }
 
 function loadTools(names: string[], query?: string): ActivityData {
+  const labels = names.map(toolLabel);
   return {
-    verb: "Load tools", target: names.join(", "), meta: names.length > 1 ? [plural(names.length, "tool")] : [],
-    icon: "Wrench",
-    sections: [...section("Tools", names.map((name) => `- ${name}`).join("\n"), "markdown"),
+    verb: "Load tools", target: labels.join(", "), meta: names.length > 1 ? [plural(names.length, "tool")] : [],
+    icon: toolsIcon(names),
+    sections: [...section("Tools", labels.map((name) => `- ${name}`).join("\n"), "markdown"),
       ...(query && !query.startsWith("select:") ? section("Query", query, "code") : [])],
   };
 }
@@ -119,7 +140,9 @@ function readClaude({ name, status, detail, input }: ActivityInput): ActivityDat
       const names = readToolReferences(output);
       const query = text(input.query);
       if (names) return loadTools(names, query);
-      return { verb: "Search tools", target: query?.replace(/^select:/, ""), meta: [], icon: "Wrench", sections: [] };
+      const selected = readSelectedTools(query);
+      return { verb: "Search tools", target: query?.replace(/^select:/, ""), meta: [],
+        icon: selected ? toolsIcon(selected) : "Wrench", sections: [] };
     }
     case "tool": {
       // An unnamed call: Claude's tool loading, or a call the reader turned down.
