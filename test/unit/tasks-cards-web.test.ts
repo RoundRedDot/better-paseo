@@ -231,6 +231,10 @@ describe("TaskCardView on web", () => {
     await act(async () => hovers.get(`task-card-${card.id}`)!.leave());
     expect(onCancelStop).toHaveBeenCalledWith(card.id);
     await act(async () => renderer.update(element({ stopPhase: "idle" })));
+    // It fades out first, out of reach, then unmounts.
+    const overlay = () => root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop-overlay")[0];
+    expect(overlay()?.props.pointerEvents).toBe("none");
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 200)));
     expect(stopButton()).toBeUndefined();
     await act(async () => renderer.unmount());
   });
