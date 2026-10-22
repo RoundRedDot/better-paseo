@@ -23,6 +23,7 @@ export const UI_FONTS = ["host", "inter", "system"] as const;
 export const MONO_FONTS = ["host", "custom"] as const;
 export const TOOL_DETAILS = ["collapsed", "expand-failed"] as const;
 export const PATH_DISPLAYS = ["relative", "absolute"] as const;
+export const ROW_CLICKS = ["details", "expand"] as const;
 export const ROW_LABEL_STYLES = ["icon", "label", "both"] as const;
 export const MARKDOWN_VARIANTS_STORED = ["document", "compact", "terminal"] as const;
 export const SETTINGS_LANGUAGES = ["system", "en", "zh"] as const;
@@ -110,6 +111,8 @@ export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrate
     .transform(clampHoverDelay)
     .catch(HOVER_DELAY_DEFAULT),
   previewWrap: flag(true),
+  blockDetails: flag(false),
+  rowClick: z.enum(ROW_CLICKS).catch("details"),
   previewLineNumbers: flag(true),
   previewStripes: flag(true),
   enhancedUserBubble: flag(false),
