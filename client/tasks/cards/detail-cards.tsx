@@ -1065,7 +1065,15 @@ function Usage(props: Inner) {
 function Activity(props: Inner) {
   const line = timeline(props.card, props.now, props.language);
   if (!line) return null;
-  return <TimelineChart timeline={line} liveColor={statusColor(props.card.status, props.tokens)} tokens={props.tokens} />;
+  const kind = props.card.stoppedManually ? "stopped" : props.card.status;
+  return (
+    <TimelineChart
+      timeline={line}
+      liveColor={statusColor(props.card.status, props.tokens)}
+      tokens={props.tokens}
+      endMark={<StatusIcon kind={kind} size={14} theme={props.theme} />}
+    />
+  );
 }
 
 // ---- Buttons ---------------------------------------------------------------
