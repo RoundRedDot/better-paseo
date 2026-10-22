@@ -13,8 +13,8 @@ export interface PreviewScroller {
   measure(done: (top: number, height: number) => void): void;
   /** How far the body has scrolled. */
   offset(): number;
-  /** Scrolls by `delta`, kept within the content; returns the distance moved. */
-  scrollBy(delta: number): number;
+  /** Scrolls by `delta`, kept within the content, at once or gliding there; returns the distance moved. */
+  scrollBy(delta: number, glide?: boolean): number;
 }
 
 export const PreviewScrollerContext = createContext<PreviewScroller | null>(null);

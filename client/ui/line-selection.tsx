@@ -8,6 +8,7 @@ import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { useCopy } from "./use-copy";
 import { PreviewScrollerContext } from "./preview-scroller";
+import { claimContentTouch } from "../details/touch-claim";
 
 const HOLD_MS = 400;
 const MOVE_SLOP = 8;
@@ -79,6 +80,9 @@ interface Gesture {
  * cannot set a native selection from a plugin, so they draw the range and
  * offer their own Copy. There a held drag keeps the body still, and scrolls
  * it only while the finger is past the body's top or bottom edge.
+ *
+ * A touch on the gutter is the gutter's from its start to its end: in the
+ * block details drawer it never moves the drawer, before the hold either.
  */
 export function useLineSelection({ enabled, lines, tops, bottom, contentRef }: {
   enabled: boolean;
@@ -97,6 +101,7 @@ export function useLineSelection({ enabled, lines, tops, bottom, contentRef }: {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const frame = useRef<number | null>(null);
   const holding = useRef(false);
+  const claim = useRef<(() => void) | null>(null);
   const latest = useRef({ tops, lines, scroller });
   latest.current = { tops, lines, scroller };
   const stopTimer = () => {
@@ -106,6 +111,13 @@ export function useLineSelection({ enabled, lines, tops, bottom, contentRef }: {
     frame.current = null;
     if (holding.current) latest.current.scroller?.hold(false);
     holding.current = false;
+  };
+  const own = () => {
+    if (!claim.current) claim.current = claimContentTouch();
+  };
+  const disown = () => {
+    claim.current?.();
+    claim.current = null;
   };
   const dismiss = () => { setRange(null); setMenu(false); };
   const cancel = () => { stopTimer(); gesture.current = null; dismiss(); };
@@ -200,7 +212,7 @@ export function useLineSelection({ enabled, lines, tops, bottom, contentRef }: {
   const text = lines.join("\n");
   useEffect(() => {
     cancel();
-    return () => { stopTimer(); gesture.current = null; };
+    return () => { stopTimer(); gesture.current = null; disown(); };
   }, [enabled, text]);
 
   // Mouse capture also covers a drag that leaves the gutter. Touch pointers
@@ -219,6 +231,7 @@ export function useLineSelection({ enabled, lines, tops, bottom, contentRef }: {
       // Keeps the press from collapsing the selection it is about to make.
       if (!touch) event.preventDefault();
       event.stopPropagation();
+      own();
       begin(event.clientY - gutter.getBoundingClientRect().top, event.clientY, touch);
       gutter.setPointerCapture(pointer);
     };
@@ -230,10 +243,12 @@ export function useLineSelection({ enabled, lines, tops, bottom, contentRef }: {
     const up = (event: PointerEvent) => {
       if (event.pointerId !== pointer) return;
       finish();
+      disown();
       pointer = null;
     };
     const lost = () => {
       pointer = null;
+      disown();
       if (gesture.current) cancel();
     };
     // The numbers mark the lines only while the page still selects exactly
@@ -259,6 +274,7 @@ export function useLineSelection({ enabled, lines, tops, bottom, contentRef }: {
     return () => {
       stopTimer();
       gesture.current = null;
+      disown();
       gutter.style.touchAction = previousTouchAction;
       gutter.removeEventListener("pointerdown", down);
       gutter.removeEventListener("pointermove", drag);
@@ -269,7 +285,11 @@ export function useLineSelection({ enabled, lines, tops, bottom, contentRef }: {
     };
   }, [enabled, text]);
 
+  // The claim spans the touch, which may outlive the gutter's responder.
   const gutterProps: ViewProps = web ? {} : {
+    onTouchStart: () => { if (enabled) own(); },
+    onTouchEnd: disown,
+    onTouchCancel: disown,
     onStartShouldSetResponder: () => enabled,
     onResponderGrant: (event) => begin(event.nativeEvent.locationY, event.nativeEvent.pageY, true),
     onResponderMove: (event) => move(event.nativeEvent.pageY),

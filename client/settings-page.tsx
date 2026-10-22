@@ -38,7 +38,6 @@ import {
 } from "./ui/tokens/typography";
 import { usePreferenceSettings } from "./state/preference-sync-slot";
 import { useWideHostColumn } from "./ui/wide-host-column";
-import { useInputCapabilities } from "./ui/use-input-capabilities";
 import { SettingsPreview } from "./settings-preview";
 import { PlainButton, Section, SectionNote, Segmented, SettingRow, Toggle, controlStyles, type PageLook } from "./settings-controls";
 import { setSettingsTab, useSettingsTab, type SettingsTab } from "./settings-tab";
@@ -521,7 +520,6 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
     layout?.platform ?? (Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : "web");
   const native = platform !== "web";
   const compact = layout?.compact ?? native;
-  const { hover: pointer } = useInputCapabilities(compact);
   const hostTypography = useMemo(() => readHostTypography(theme) !== null, [theme]);
   // Plan D10 level 2: Paseo's Appearance mono settings (web, without H1).
   const appearance = useHostAppearance(platform === "web" && !hostTypography, theme);
@@ -889,26 +887,6 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           }
           look={look}
         />
-        {preferences.blockDetails && pointer ? (
-          <SettingRow
-            title={t.rowClickTitle}
-            description={t.rowClickDescription}
-            control={
-              <Segmented
-                label={t.rowClickTitle}
-                value={preferences.rowClick}
-                options={[
-                  { value: "details", label: t.rowClickDetails },
-                  { value: "expand", label: t.rowClickExpand },
-                ]}
-                onChange={(rowClick) => updateEnhancerPreferences({ rowClick })}
-                look={look}
-              />
-            }
-            look={look}
-            stacked
-          />
-        ) : null}
         {native ? null : (
           <SettingRow
             title={t.hoverDelayTitle}
