@@ -4,7 +4,8 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
 import { BrandMark, taskTokens } from "../cards";
 import { Checkbox, LetterAvatar } from "./board-parts";
-import type { FilterOption, FilterOptions } from "./filter-options";
+import type { ChipGroup, FilterOption, FilterOptions } from "./filter-options";
+import type { BoardParams } from "./params";
 import type { MenuItem, MenuSection } from "./menu-model";
 import { NAME_KEYS, sameSort, type BoardSort, type SortDirection, type SortKey } from "./sort";
 import { sortOrderLabel, type BoardStrings } from "./strings";
@@ -133,5 +134,28 @@ export function labelMenuSections(options: FilterOptions, theme: PluginTheme, st
         optionItem(label, theme, toggle, <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: label.color ?? theme.colors.foregroundMuted }} />),
       ),
     },
+  ];
+}
+
+/**
+ * A folded chip's menu: each of its filters as a checked row that a click
+ * removes (the menu stays open for the next), then one row that clears them
+ * all. A workspace group says which rows are whole projects.
+ */
+export function chipGroupMenuSections(group: ChipGroup, theme: PluginTheme, strings: BoardStrings, apply: (change: (params: BoardParams) => BoardParams) => void): MenuSection[] {
+  const mixed = new Set(group.chips.map((chip) => chip.unit)).size > 1;
+  return [
+    {
+      key: "chips",
+      items: group.chips.map((chip) => ({
+        key: chip.key,
+        label: chip.value,
+        leading: <Checkbox on theme={theme} />,
+        hint: mixed ? chip.kind : undefined,
+        keepOpen: true,
+        onSelect: () => apply(chip.clear),
+      })),
+    },
+    { key: "clear", items: [{ key: "clear", label: strings.clearFilters, icon: "X", onSelect: () => apply(group.clear) }] },
   ];
 }
