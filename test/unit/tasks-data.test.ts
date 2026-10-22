@@ -238,7 +238,7 @@ describe("Tasks data store", () => {
     const child = (id: string, sampleId: string): TaskCard => ({
       ...samples.get(sampleId)!,
       id,
-      parent: { id: parentId, title: "Orchestrator parent", missing: false },
+      parent: { id: parentId, title: "Orchestrator parent", missing: false, archived: false },
     });
     const children = [
       child("child-running", "sample-child-1"),
@@ -373,8 +373,8 @@ describe("Tasks data store", () => {
     const mounted = await mountTasks(fake, "24h", false);
     try {
       expect(mounted.current.byId.get("parent")?.children).toEqual([{ id: "child", title: "Child task", status: "running", provider: "claude", modelLabel: "claude-opus-5-5", thinkingLabel: null, modeLabel: "Default", context: null, lane: "running", timing: expect.objectContaining({ turnStartedAt: null }) }]);
-      expect(mounted.current.byId.get("child")?.parent).toEqual({ id: "parent", title: "Parent task", missing: false });
-      expect(mounted.current.byId.get("orphan")?.parent).toEqual({ id: "archived-parent", title: null, missing: true });
+      expect(mounted.current.byId.get("child")?.parent).toEqual({ id: "parent", title: "Parent task", missing: false, archived: false });
+      expect(mounted.current.byId.get("orphan")?.parent).toEqual({ id: "archived-parent", title: null, missing: true, archived: null });
       await act(async () => {
         fake.upsertAgent(activeAgent("later-child", { status: "running", title: "Later child", labels: { "paseo.parent-agent-id": "parent" } }));
         await Promise.resolve();
@@ -384,7 +384,7 @@ describe("Tasks data store", () => {
         mounted.current.resolveParent("archived-parent");
         for (let index = 0; index < 4; index += 1) await Promise.resolve();
       });
-      expect(mounted.current.byId.get("orphan")?.parent).toEqual({ id: "archived-parent", title: "Archived parent", missing: true });
+      expect(mounted.current.byId.get("orphan")?.parent).toEqual({ id: "archived-parent", title: "Archived parent", missing: true, archived: true });
       expect(fake.calls.filter((call) => call.method === "agents.ref.refresh")).toHaveLength(1);
       mounted.current.resolveParent("archived-parent");
       expect(fake.calls.filter((call) => call.method === "agents.ref.refresh")).toHaveLength(1);
@@ -450,8 +450,38 @@ describe("Tasks data store", () => {
         fake.upsertAgent(makeAgent({ id: "archived-parent", status: "idle", title: "Archived parent", archivedAt: null, updatedAt: at(20) }));
         await Promise.resolve();
       });
-      expect(mounted.current.byId.get("orphan")?.parent).toEqual({ id: "archived-parent", title: "Archived parent", missing: false });
+      expect(mounted.current.byId.get("orphan")?.parent).toEqual({ id: "archived-parent", title: "Archived parent", missing: false, archived: false });
       expect(mounted.current.byId.get("archived-parent")?.children.map((child) => child.id)).toEqual(["orphan"]);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("tells a parent the done window left out from an archived one, and reads it again on demand", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("child", { status: "running", labels: { "paseo.parent-agent-id": "old-parent" } }),
+        makeAgent({ id: "old-parent", status: "idle", title: "Old parent", updatedAt: at(4) }),
+      ],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(mounted.current.byId.get("child")?.parent).toEqual({ id: "old-parent", title: null, missing: true, archived: null });
+      await act(async () => {
+        mounted.current.resolveParent("old-parent");
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      // Off the board, but not archived: nothing to unarchive.
+      expect(mounted.current.byId.get("child")?.parent).toEqual({ id: "old-parent", title: "Old parent", missing: true, archived: false });
+
+      // Archived elsewhere, then read again (as after an unarchive): the answer and the card follow.
+      fake.upsertAgent(makeAgent({ id: "old-parent", status: "idle", title: "Old parent", updatedAt: at(4), archivedAt: at(5) }));
+      let archived: boolean | null = null;
+      await act(async () => {
+        archived = await mounted.current.refreshParent("old-parent");
+      });
+      expect(archived).toBe(true);
+      expect(mounted.current.byId.get("child")?.parent).toMatchObject({ missing: true, archived: true });
     } finally {
       mounted.unmount();
     }

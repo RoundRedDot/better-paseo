@@ -122,11 +122,13 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
 }
 
 /**
- * A parent that left the loaded set (archived) has no title until it is read
- * once: the details ask for it, as the card's "show parent" link does.
+ * A parent that left the loaded set (archived, or an old done task) has no
+ * title, and no word on whether it is archived, until it is read once: the
+ * details ask for it, as the card's "show parent" link does.
  */
 export function useParentTitle(board: BoardController, card: TaskCard | undefined): void {
-  const parentId = card?.parent && card.parent.title === null ? card.parent.id : null;
+  const parent = card?.parent;
+  const parentId = parent && (parent.title === null || (parent.missing && parent.archived === null)) ? parent.id : null;
   useEffect(() => {
     if (parentId) board.tasks.resolveParent(parentId);
   }, [board.tasks, parentId]);

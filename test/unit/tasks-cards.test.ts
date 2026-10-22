@@ -519,9 +519,13 @@ describe("TaskCardView rows", () => {
     byLabel(tree.root, "定位到父任务").props.onPress();
     expect(onReveal).toHaveBeenCalledWith("sample-running");
 
-    const orphan = { ...sample("sample-child-1"), parent: { id: "gone", title: null, missing: true } };
+    const orphan = { ...sample("sample-child-1"), parent: { id: "gone", title: null, missing: true, archived: true } };
     await act(async () => tree.update(cardElement(orphan, { onReveal, fields: fields("minimal") })));
     expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["↳ 父任务（已归档）"]);
+    // Off the board but not archived (an old done task): its title, never "archived".
+    const old = { ...orphan, parent: { id: "old", title: "多设备连接", missing: true, archived: false } };
+    await act(async () => tree.update(cardElement(old, { onReveal, fields: fields("minimal") })));
+    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["↳ 多设备连接"]);
   });
 
   it("draws the failure reason in the danger colour", async () => {
@@ -1135,7 +1139,7 @@ describe("TaskDetailCards", () => {
   });
 
   it("offers Unarchive for an archived parent where the host can, else says it cannot open", async () => {
-    const orphan = { ...sample("sample-child-1"), parent: { id: "gone", title: "多设备连接", missing: true } };
+    const orphan = { ...sample("sample-child-1"), parent: { id: "gone", title: "多设备连接", missing: true, archived: true } };
     const plain = await render(details(orphan, { onJump: vi.fn() }));
     expect(texts(hostByTestId(plain.root, "detail-parent"))).toEqual(["多设备连接", "已归档 · 无法跳转"]);
     expect(plain.root.findAll((node) => node.props.testID === "detail-parent-unarchive")).toHaveLength(0);
@@ -1165,10 +1169,29 @@ describe("TaskDetailCards", () => {
 
     // Back on the board: the row jumps and offers nothing more.
     const onJump = vi.fn();
-    await act(async () => tree.update(details({ ...orphan, parent: { id: "gone", title: "多设备连接", missing: false } }, { onJump, unarchive })));
+    await act(async () => tree.update(details({ ...orphan, parent: { id: "gone", title: "多设备连接", missing: false, archived: false } }, { onJump, unarchive })));
     expect(tree.root.findAll((node) => node.props.testID === "detail-parent-unarchive")).toHaveLength(0);
     await act(async () => hostByTestId(tree.root, "detail-parent").props.onPress());
     expect(onJump).toHaveBeenCalledWith("gone");
+  });
+
+  it("opens a parent that is only off the board, and says nothing until it is known to be archived", async () => {
+    const unarchive = { pending: vi.fn(() => false), press: vi.fn() };
+    const onOpen = vi.fn();
+    const onJump = vi.fn();
+    // Read, not archived: a done task older than the board's window.
+    const old = { ...sample("sample-child-1"), parent: { id: "old", title: "多设备连接", missing: true, archived: false } };
+    const tree = await render(details(old, { onJump, onOpen, unarchive }));
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "不在看板上"]);
+    expect(tree.root.findAll((node) => node.props.testID === "detail-parent-unarchive")).toHaveLength(0);
+    await act(async () => hostByTestId(tree.root, "detail-parent").props.onPress());
+    expect(onOpen).toHaveBeenCalledWith("old");
+    expect(onJump).not.toHaveBeenCalled();
+
+    // Not read yet: neither archived nor an Unarchive button.
+    await act(async () => tree.update(details({ ...old, parent: { ...old.parent, archived: null } }, { onJump, onOpen, unarchive })));
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接"]);
+    expect(tree.root.findAll((node) => node.props.testID === "detail-parent-unarchive")).toHaveLength(0);
   });
 
   it("adds the label column from 448 wide and drops it under 440", async () => {

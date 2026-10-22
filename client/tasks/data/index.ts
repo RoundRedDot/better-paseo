@@ -65,8 +65,10 @@ export interface TasksSnapshot {
 export interface TasksHandle extends TasksSnapshot {
   /** Fetch the done lane's next page (50). */
   loadMoreDone(): void;
-  /** Resolve a parent that is not on the board (archived): `agents.ref(id).refresh()`. */
+  /** Resolve a parent that is not on the board (archived, or an old done task): `agents.ref(id).refresh()`. */
   resolveParent(agentId: string): void;
+  /** Read the parent again, as after an unarchive: whether it is archived, or null when it is gone. */
+  refreshParent(agentId: string): Promise<boolean | null>;
   /** Fetch the icon for a visible card's project. */
   requestProjectIcon(projectId: string): void;
 }
@@ -569,6 +571,7 @@ interface TaskStore {
   getCounts(): SidebarCounts;
   loadMoreDone(window: DoneWindow): void;
   resolveParent(id: string): void;
+  refreshParent(id: string): Promise<boolean | null>;
   requestProjectIcon(projectId: string): void;
 }
 
@@ -589,7 +592,8 @@ function createStore(api: PaseoApi): TaskStore {
   const cards = new Map<string, TaskCard>();
   const childrenByParent = new Map<string, Set<string>>();
   const parentByChild = new Map<string, string>();
-  const resolvedParentTitles = new Map<string, string | null>();
+  /** Parents read by id because they are not on the board: their title and whether they are archived. */
+  const resolvedParents = new Map<string, { title: string | null; archived: boolean | null }>();
   const projectIcons = new Map<string, ProjectIconValue>();
   const iconRequests = new Set<string>();
   const lastTurns = new Map<string, TurnSpan>();
@@ -674,14 +678,20 @@ function createStore(api: PaseoApi): TaskStore {
     const parentAgentId = parentByChild.get(id);
     const parentEntry = parentAgentId ? entries.get(parentAgentId) : undefined;
     const parentTitle = parentAgentId
-      ? parentEntry?.agent.title?.trim() || resolvedParentTitles.get(parentAgentId) || null
+      ? parentEntry?.agent.title?.trim() || resolvedParents.get(parentAgentId)?.title || null
       : null;
+    const parentMissing = parentAgentId ? !baseCards.has(parentAgentId) : false;
     const childIds = childrenByParent.get(id);
     const next: TaskCard = withSubagents({
       ...withTurnError(base, turnErrors.get(id)),
       timing: withLastTurn(base.timing, lastTurns.get(id), base.lane === "running" || base.lane === "needs_input"),
       parent: parentAgentId
-        ? { id: parentAgentId, title: parentTitle, missing: !baseCards.has(parentAgentId) }
+        ? {
+            id: parentAgentId,
+            title: parentTitle,
+            missing: parentMissing,
+            archived: !parentMissing ? false : parentEntry ? isArchived(parentEntry.agent) : (resolvedParents.get(parentAgentId)?.archived ?? null),
+          }
         : null,
       children: childIds
         ? [...childIds]
@@ -1495,7 +1505,7 @@ function createStore(api: PaseoApi): TaskStore {
     cards.clear();
     childrenByParent.clear();
     parentByChild.clear();
-    resolvedParentTitles.clear();
+    resolvedParents.clear();
     workspaces.clear();
     projects.clear();
     colorNames.clear();
@@ -1598,6 +1608,7 @@ function createStore(api: PaseoApi): TaskStore {
       error,
       loadMoreDone: () => { if (options.includeDone) loadMoreDone(options.doneWindow); },
       resolveParent,
+      refreshParent,
       requestProjectIcon,
     };
     snapshotCaches.push({ key: cacheKey, snapshot });
@@ -1670,16 +1681,21 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function resolveParent(id: string) {
-    if (resolvedParentTitles.has(id)) return;
-    resolvedParentTitles.set(id, null);
+    if (resolvedParents.has(id)) return;
+    refreshParent(id).catch(subscriptionError);
+  }
+
+  function refreshParent(id: string): Promise<boolean | null> {
+    if (!resolvedParents.has(id)) resolvedParents.set(id, { title: null, archived: null });
     const run = generation;
-    void api.agents.ref(id).refresh().then((result) => {
-      if (run !== generation) return;
-      if (!result) return;
-      resolvedParentTitles.set(id, result.agent.title?.trim() || null);
+    return api.agents.ref(id).refresh().then((result) => {
+      const archived = result ? isArchived(result.agent) : null;
+      if (run !== generation || !result) return archived;
+      resolvedParents.set(id, { title: result.agent.title?.trim() || null, archived });
       for (const childId of childrenByParent.get(id) ?? []) refreshFinalCard(childId);
       notify();
-    }).catch(subscriptionError);
+      return archived;
+    });
   }
 
   function requestProjectIcon(projectId: string) {
@@ -1797,6 +1813,7 @@ function createStore(api: PaseoApi): TaskStore {
     getCounts,
     loadMoreDone,
     resolveParent,
+    refreshParent,
     requestProjectIcon,
   };
   return store;

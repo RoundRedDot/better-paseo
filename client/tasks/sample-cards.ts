@@ -136,7 +136,7 @@ function allSamples(now: number): TaskCard[] {
       status: "running",
       labels: [],
       timing: { ...timing, turnStartedAt: ago(3 * minute) },
-      parent: { id: "sample-running", title: "Port the status ring to React Native", missing: false },
+      parent: { id: "sample-running", title: "Port the status ring to React Native", missing: false, archived: false },
       stoppable: true,
     },
     {

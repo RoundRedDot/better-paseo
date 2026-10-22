@@ -8,7 +8,9 @@ import {
   STOP_RPC_TIMEOUT_MS,
   STOP_VERIFY_MS,
   useStopControl,
+  useUnarchiveControl,
   type StopControl,
+  type UnarchiveControl,
 } from "../../client/tasks/actions";
 import type { TaskCard, TaskPermission, TaskPermissionAction } from "../../client/tasks/model";
 import { createFakePaseo, makeAgent } from "./helpers/fake-paseo";
@@ -17,12 +19,14 @@ const mocks = vi.hoisted(() => ({
   capabilities: vi.fn(),
   stop: vi.fn(),
   stopped: vi.fn(),
+  unarchive: vi.fn(),
   toastError: vi.fn(),
   language: vi.fn(() => "en" as const),
 }));
 
 vi.mock("@getpaseo/plugin/client", () => ({
   useRpc(contract: { name: string }) {
+    if (contract.name === "tasks.unarchive") return mocks.unarchive;
     return contract.name === "tasks.capabilities" ? mocks.capabilities : contract.name === "tasks.stopped" ? mocks.stopped : mocks.stop;
   },
 }));
@@ -354,5 +358,77 @@ describe("Tasks stop control", () => {
       await Promise.resolve();
     });
     expect(mocks.toastError).toHaveBeenCalledWith("Could not stop task: RPC unavailable");
+  });
+});
+
+describe("Tasks unarchive control", () => {
+  let renderer: ReactTestRenderer | null = null;
+
+  beforeEach(() => {
+    mocks.unarchive.mockReset();
+    mocks.toastError.mockReset();
+    mocks.language.mockReturnValue("en");
+  });
+
+  afterEach(async () => {
+    if (renderer) await act(async () => renderer?.unmount());
+    renderer = null;
+  });
+
+  async function mountUnarchive(verify: (agentId: string) => Promise<boolean | null>) {
+    let control: UnarchiveControl | null = null;
+    function Probe() {
+      control = useUnarchiveControl({ available: true, verify });
+      return null;
+    }
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Probe));
+    });
+    return () => control!;
+  }
+
+  async function press(control: () => UnarchiveControl, agentId: string) {
+    await act(async () => {
+      control().press(agentId);
+      for (let index = 0; index < 6; index += 1) await Promise.resolve();
+    });
+  }
+
+  it("reads the agent again after the RPC, and is quiet when it is back", async () => {
+    mocks.unarchive.mockResolvedValue({ ok: true, error: null });
+    const verify = vi.fn(async () => false);
+    const control = await mountUnarchive(verify);
+    await press(control, "parent");
+    expect(mocks.unarchive).toHaveBeenCalledWith({ agentId: "parent" });
+    expect(verify).toHaveBeenCalledWith("parent");
+    expect(mocks.toastError).not.toHaveBeenCalled();
+    expect(control().pending("parent")).toBe(false);
+  });
+
+  it("says so when the RPC answered ok but the agent is still archived or gone", async () => {
+    mocks.unarchive.mockResolvedValue({ ok: true, error: null });
+    const verify = vi.fn<(agentId: string) => Promise<boolean | null>>(async () => true);
+    const control = await mountUnarchive(verify);
+    await press(control, "parent");
+    expect(mocks.toastError).toHaveBeenLastCalledWith("Could not unarchive: The agent is still archived.");
+    verify.mockResolvedValueOnce(null);
+    await press(control, "parent");
+    expect(mocks.toastError).toHaveBeenLastCalledWith("Could not unarchive: The agent no longer exists.");
+  });
+
+  it("toasts the server's error, a rejected RPC and a failed read", async () => {
+    const verify = vi.fn<(agentId: string) => Promise<boolean | null>>(async () => false);
+    const control = await mountUnarchive(verify);
+    mocks.unarchive.mockResolvedValueOnce({ ok: false, error: "Paseo CLI exited with code 1." });
+    await press(control, "parent");
+    expect(mocks.toastError).toHaveBeenLastCalledWith("Could not unarchive: Paseo CLI exited with code 1.");
+    expect(verify).not.toHaveBeenCalled();
+    mocks.unarchive.mockRejectedValueOnce(new Error("socket closed"));
+    await press(control, "parent");
+    expect(mocks.toastError).toHaveBeenLastCalledWith("Could not unarchive: socket closed");
+    mocks.unarchive.mockResolvedValueOnce({ ok: true, error: null });
+    verify.mockRejectedValueOnce(new Error("agent fetch failed"));
+    await press(control, "parent");
+    expect(mocks.toastError).toHaveBeenLastCalledWith("Could not unarchive: agent fetch failed");
   });
 });

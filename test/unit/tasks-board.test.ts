@@ -248,6 +248,7 @@ function handle(): TasksHandle {
     error: null,
     loadMoreDone() {},
     resolveParent() {},
+    refreshParent: async () => false,
     requestProjectIcon() {},
   };
 }

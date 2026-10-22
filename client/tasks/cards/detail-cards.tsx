@@ -759,13 +759,19 @@ function Properties(props: Inner) {
 
   if (card.parent) {
     const parent = card.parent;
-    const title = parent.title ?? (parent.missing ? cardText.parentArchived : cardText.parentUnknown);
-    const jump = props.onJump && !parent.missing ? () => props.onJump?.(parent.id) : undefined;
-    const unarchive = parent.missing ? props.unarchive : null;
+    const archived = parent.missing && parent.archived === true;
+    // Off the board but not archived: an old done task the window left out. Its tab still opens.
+    const offBoard = parent.missing && parent.archived === false;
+    const title = parent.title ?? (archived ? cardText.parentArchived : cardText.parentUnknown);
+    let jump: (() => void) | undefined;
+    if (!parent.missing) jump = props.onJump ? () => props.onJump?.(parent.id) : undefined;
+    else if (offBoard) jump = props.onOpen ? () => props.onOpen?.(parent.id) : undefined;
+    const unarchive = archived ? props.unarchive : null;
     const unarchiving = unarchive?.pending(parent.id) === true;
     let notes: Note[] = [];
     // An archived parent can be brought back; once it is, the row turns into a jump.
-    if (parent.missing) notes = unarchive ? [{ text: details.archived }] : [{ text: details.archived }, { text: details.cannotJump }];
+    if (archived) notes = unarchive ? [{ text: details.archived }] : [{ text: details.archived }, { text: details.cannotJump }];
+    else if (offBoard) notes = [{ text: details.offBoard }];
     rows.push(
       <PropertyRow
         {...common}
