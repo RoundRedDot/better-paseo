@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { TasksTypography } from "../typography";
+import { TasksTypography, HOST_FONT as F, HOST_LINE } from "../typography";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useTasksLanguage } from "../i18n";
@@ -83,15 +83,15 @@ function BoardOff(props: PluginScreenProps) {
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: colors.surface0 }}>
       <View style={{ maxWidth: 360, alignItems: "center", gap: 8 }}>
         <Icon name="SquareKanban" size={20} color={colors.foregroundMuted} />
-        <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>{strings.boardOff}</Text>
-        <Text style={{ fontSize: 13, lineHeight: 19, color: colors.foregroundMuted, textAlign: "center" }}>{strings.boardOffHint}</Text>
+        <Text style={{ fontSize: F.lg, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>{strings.boardOff}</Text>
+        <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: colors.foregroundMuted, textAlign: "center" }}>{strings.boardOffHint}</Text>
         {open ? (
           <Pressable
             accessibilityRole="button"
             onPress={open}
             style={{ marginTop: 6, height: 32, paddingHorizontal: 14, borderRadius: 6, borderWidth: HAIRLINE, borderColor: colors.border, justifyContent: "center" }}
           >
-            <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground }}>{strings.openSettings}</Text>
+            <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{strings.openSettings}</Text>
           </Pressable>
         ) : null}
       </View>

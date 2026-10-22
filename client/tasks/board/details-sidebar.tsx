@@ -212,15 +212,12 @@ function StatCell(props: {
           {props.label}
         </Text>
       </View>
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 4 }}>
+      {/* The hint ("24 hours") moves under the count when a larger interface size leaves it no room beside it. */}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", columnGap: 4 }}>
         <Text style={{ fontSize: F["2xl"], lineHeight: HOST_LINE["2xl"], fontWeight: "600", color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums"] }}>
           {props.count ?? "–"}
         </Text>
-        {props.hint ? (
-          <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted }}>
-            {props.hint}
-          </Text>
-        ) : null}
+        {props.hint ? <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>{props.hint}</Text> : null}
       </View>
     </Pressable>
   );

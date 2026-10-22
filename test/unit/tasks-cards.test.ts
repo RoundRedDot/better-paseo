@@ -392,7 +392,7 @@ describe("TaskCardView rows", () => {
     const title = hostByTestId(tree.root, "task-card-title");
     expect(title.props.numberOfLines).toBe(2);
     expect(title.props.ellipsizeMode).toBe("tail");
-    expect(flat(title.props.style)).toMatchObject({ fontSize: 13, fontWeight: "500" });
+    expect(flat(title.props.style)).toMatchObject({ fontSize: 14, fontWeight: "500" });
     expect(pills(tree.root)).toEqual([
       ["pill-model", "GPT-5.5 Codex"],
       ["pill-thinking", "Medium"],
@@ -926,7 +926,7 @@ describe("TaskCardView actions", () => {
     // corner while it runs; no state words.
     for (const child of sample("sample-running").children) {
       const slot = hostByTestId(list, `subtask-status-${child.id}`);
-      expect(slot.props.style).toMatchObject({ height: 18 });
+      expect(slot.props.style).toMatchObject({ height: 16 });
       expect(slot.findAll((node) => typeof node.type === "string" && node.props.testID === "status-running")).toHaveLength(child.status === "running" ? 1 : 0);
     }
     // A running child's start and timer at the end, as the footer; a finished one's last turn and when.

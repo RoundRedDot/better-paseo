@@ -2,7 +2,7 @@ import React, { useState, type ReactNode, type Ref } from "react";
 import { Platform, Pressable, View, type TextInput as NativeTextInput } from "react-native";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { taskTokens } from "../cards";
 import { HoverPressable, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
@@ -38,7 +38,7 @@ export function DesktopToolbar(props: {
   const strings = board.strings;
   return (
     <View style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
-      <Text numberOfLines={1} style={{ flexShrink: 0, fontSize: 14, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>{strings.total(board.total)}</Text>
+      <Text numberOfLines={1} style={{ flexShrink: 0, fontSize: F.base, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>{strings.total(board.total)}</Text>
       <View style={{ flex: 1 }} />
       {Platform.OS === "web" && props.keyHints ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -84,7 +84,7 @@ export function DesktopToolbar(props: {
           placeholder={strings.search}
           placeholderTextColor={colors.foregroundMuted}
           accessibilityLabel={strings.search}
-          style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(13 * scale), color: colors.foreground }}
+          style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground }}
         />
       </View>
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
@@ -129,13 +129,13 @@ function KeyCap({ label, theme }: { label: string; theme: PluginTheme }) {
   const scale = useTasksFontScale();
   return (
     <View style={{ minWidth: 16, height: taskControlHeight(16, scale), paddingHorizontal: 3, borderWidth: HAIRLINE, borderColor: theme.colors.border, borderRadius: 3, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ fontSize: 11, color: theme.colors.foregroundMuted }}>{label}</Text>
+      <Text style={{ fontSize: F.sm, color: theme.colors.foregroundMuted }}>{label}</Text>
     </View>
   );
 }
 
 function KeyHint({ text, theme, last }: { text: string; theme: PluginTheme; last?: boolean }) {
-  return <Text style={{ fontSize: 11, color: theme.colors.foregroundMuted, marginRight: last ? 0 : 6 }}>{text}</Text>;
+  return <Text style={{ fontSize: F.sm, color: theme.colors.foregroundMuted, marginRight: last ? 0 : 6 }}>{text}</Text>;
 }
 
 /**
@@ -247,8 +247,8 @@ export function DesktopFilterBar(props: {
               onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
               theme={theme}
             />
-            {resolved.filters.openTabsOnly ? <Text style={{ fontSize: 11, color: colors.foregroundMuted }}>{strings.openTabsHint}</Text> : null}
-            {resolved.filters.hideSubtasks ? <Text style={{ fontSize: 11, color: colors.foregroundMuted }}>{strings.hideSubtasksHint}</Text> : null}
+            {resolved.filters.openTabsOnly ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{strings.openTabsHint}</Text> : null}
+            {resolved.filters.hideSubtasks ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{strings.hideSubtasksHint}</Text> : null}
           </>
         ) : null}
         {chips.length ? (
@@ -259,8 +259,8 @@ export function DesktopFilterBar(props: {
                 key={chip.key}
                 style={{ height: taskControlHeight(28, scale), maxWidth: "100%", flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 10, paddingRight: 4, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 6 }}
               >
-                {chip.kind ? <Text numberOfLines={1} style={{ fontSize: 13, color: colors.foregroundMuted }}>{chip.kind}</Text> : null}
-                <Text numberOfLines={1} style={{ fontSize: 13, color: colors.foreground, maxWidth: 220, flexShrink: 1 }}>
+                {chip.kind ? <Text numberOfLines={1} style={{ fontSize: F.base, color: colors.foregroundMuted }}>{chip.kind}</Text> : null}
+                <Text numberOfLines={1} style={{ fontSize: F.base, color: colors.foreground, maxWidth: 220, flexShrink: 1 }}>
                   {chip.value}
                 </Text>
                 <HoverPressable
@@ -274,13 +274,13 @@ export function DesktopFilterBar(props: {
               </View>
             ))}
             <HoverPressable accessibilityRole="button" onPress={() => setParams(clearedParams)} style={() => ({ height: taskControlHeight(28, scale), paddingHorizontal: 4, justifyContent: "center" })}>
-              <Text numberOfLines={1} style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.clearAll}</Text>
+              <Text numberOfLines={1} style={{ fontSize: F.base, color: colors.foregroundMuted }}>{strings.clearAll}</Text>
             </HoverPressable>
           </>
         ) : null}
       </View>
       <View testID="filter-bar-end" style={{ flexShrink: 1, maxWidth: "100%", marginLeft: "auto", height: taskControlHeight(28, scale), flexDirection: "row", alignItems: "center", gap: 6, zIndex: menu === "sort" ? 2 : 1 }}>
-        <Text numberOfLines={1} style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.doneWindowLabel}</Text>
+        <Text numberOfLines={1} style={{ fontSize: F.base, color: colors.foregroundMuted }}>{strings.doneWindowLabel}</Text>
         <WindowSegments
           value={resolved.doneWindow}
           onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))}
@@ -345,7 +345,7 @@ function MenuButton(props: { icon: string; label: string; labelMaxWidth?: number
         })}
       >
         <Icon name={props.icon} size={13} color={colors.foregroundMuted} />
-        <Text numberOfLines={1} style={{ flexShrink: 1, maxWidth: props.labelMaxWidth, fontSize: 13, fontWeight: "500", color: colors.foreground }}>{props.label}</Text>
+        <Text numberOfLines={1} style={{ flexShrink: 1, maxWidth: props.labelMaxWidth, fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{props.label}</Text>
         <Icon name="ChevronDown" size={12} color={colors.foregroundMuted} />
       </HoverPressable>
       {props.open ? props.children : null}
@@ -388,7 +388,7 @@ function MoreButton(props: { open: boolean; on: number; label: string; onPress()
       })}
     >
       <Icon name={props.open ? "X" : "Plus"} size={14} color={tint} />
-      {marked ? <Text style={{ fontSize: 13, fontWeight: "500", color: tint, fontVariant: ["tabular-nums"] }}>{props.on}</Text> : null}
+      {marked ? <Text style={{ fontSize: F.base, fontWeight: "500", color: tint, fontVariant: ["tabular-nums"] }}>{props.on}</Text> : null}
     </HoverPressable>
   );
 }
@@ -418,7 +418,7 @@ function ToggleChip(props: { icon: string; label: string; hint?: string; on: boo
       })}
     >
       <Icon name={props.icon} size={13} color={tint} />
-      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 13, fontWeight: "500", color: tint }}>{props.label}</Text>
+      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.base, fontWeight: "500", color: tint }}>{props.label}</Text>
     </HoverPressable>
   );
 }
