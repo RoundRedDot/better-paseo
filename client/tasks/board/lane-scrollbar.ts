@@ -12,7 +12,7 @@ export const LANE_SCROLLBAR_WIDTH = 6;
 
 /** How long the thumb stays after the last scroll event before it fades. */
 const SCROLL_IDLE_MS = 800;
-const THUMB_VAR = "--bc-lane-thumb";
+const THUMB_VAR = "--bc-scroll-thumb";
 const SCROLLING_ATTR = "data-bcscrolling";
 
 /** Marks a lane's list on web, where its scrollbar is restyled below. */
@@ -82,8 +82,8 @@ ${detailRules("column", theme)}
 /**
  * The details' scrollbars (`cards/detail-scrollbar.ts`): a classic one in a
  * stable gutter, so it never lies over the text and the text does not shift
- * when the details start to overflow. Unlike a lane's it stays while the
- * details overflow, a sign that there is more below.
+ * when the details start to overflow. Like a lane's, the thumb shows only
+ * while the details scroll or under the pointer.
  *
  * The thumb draws narrower than its gutter through transparent borders. A
  * border shrinks the inner radius by its width, so each side's outer radius
@@ -103,6 +103,12 @@ ${selector} {
   scrollbar-width: auto;
   scrollbar-color: auto;
   scrollbar-gutter: stable;
+  ${THUMB_VAR}: transparent;
+  transition: ${THUMB_VAR} 400ms ease-out;
+}
+${selector}[${SCROLLING_ATTR}] {
+  ${THUMB_VAR}: ${thumb};
+  transition-duration: 100ms;
 }
 ${selector}::-webkit-scrollbar {
   width: ${gutter}px;
@@ -116,7 +122,7 @@ ${selector}::-webkit-scrollbar-thumb {
   border: solid transparent;
   border-width: 0 ${right}px 0 ${left}px;
   border-radius: ${left + round}px ${right + round}px ${right + round}px ${left + round}px / ${round}px;
-  background: ${thumb};
+  background: var(${THUMB_VAR});
   background-clip: padding-box;
 }
 ${selector}::-webkit-scrollbar-thumb:hover,
@@ -130,15 +136,15 @@ let mounted = 0;
 
 const idleTimers = new WeakMap<Element, ReturnType<typeof setTimeout>>();
 
-/** Scroll does not bubble, so one capturing listener on the document sees every lane. */
+/** Scroll does not bubble, so one capturing listener on the document sees every lane and details scroller. */
 function markScrolling(event: Event): void {
-  const lane = event.target;
-  if (!(lane instanceof Element) || !lane.hasAttribute("data-bclane")) return;
-  lane.setAttribute(SCROLLING_ATTR, "");
-  clearTimeout(idleTimers.get(lane));
+  const scroller = event.target;
+  if (!(scroller instanceof Element) || !(scroller.hasAttribute("data-bclane") || scroller.hasAttribute("data-bcdetails"))) return;
+  scroller.setAttribute(SCROLLING_ATTR, "");
+  clearTimeout(idleTimers.get(scroller));
   idleTimers.set(
-    lane,
-    setTimeout(() => lane.removeAttribute(SCROLLING_ATTR), SCROLL_IDLE_MS),
+    scroller,
+    setTimeout(() => scroller.removeAttribute(SCROLLING_ATTR), SCROLL_IDLE_MS),
   );
 }
 
