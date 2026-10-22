@@ -120,8 +120,23 @@ function SidebarSwitch(props: { open: boolean; onToggle(): void; theme: PluginTh
         justifyContent: "center",
       }}
     >
-      <Icon name="PanelRight" size={15} color={props.open ? colors.foreground : colors.foregroundMuted} />
+      <PanelMark open={props.open} color={props.open ? colors.foreground : colors.foregroundMuted} />
     </Pressable>
+  );
+}
+
+/**
+ * Linear's panel mark at the host's 1.5 stroke: a rounded frame with a thin
+ * bar at its right while the sidebar hides, a solid block while it shows.
+ */
+function PanelMark(props: { open: boolean; color: string }) {
+  return (
+    <View
+      testID="panel-mark"
+      style={{ width: 15, height: 12, borderWidth: 1.5, borderRadius: 3.5, borderColor: props.color, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", paddingRight: 2.5 }}
+    >
+      <View style={props.open ? { width: 4, height: 6.5, borderRadius: 1, backgroundColor: props.color } : { width: 1.5, height: 5.5, borderRadius: 0.75, backgroundColor: props.color }} />
+    </View>
   );
 }
 
