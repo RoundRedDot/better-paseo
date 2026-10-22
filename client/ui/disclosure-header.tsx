@@ -357,8 +357,12 @@ export function DisclosureHeader({
   const persistentActions =
     actions !== undefined &&
     (actionsAlwaysVisible || (capabilities.touch && !capabilities.hover && expanded));
-  const hoverActions =
-    actions !== undefined && !persistentActions && capabilities.hover && (hover.hovered || actionsActive);
+  // A row whose actions show on hover keeps its target in their box from the
+  // start: wrapping it as the pointer arrived remounted the text under it, and
+  // a click that came with the pointer (its press before that commit, its
+  // release after) lost its target and never fired.
+  const hoverSlot = actions !== undefined && !persistentActions && capabilities.hover;
+  const hoverActions = hoverSlot && (hover.hovered || actionsActive);
   // An opened row shows which way it went; a status icon (running, failed)
   // keeps its place, since it says more than the direction.
   const showChevron = !inert && ((capabilities.hover && hovered) || (expanded && !iconIsStatus));
@@ -403,11 +407,9 @@ export function DisclosureHeader({
   const closeMenu = useCallback(() => setMenuAnchor(null), []);
   useEffect(() => { if (menuOpen && readsImage) onPreviewOpen?.(); }, [menuOpen, readsImage, onPreviewOpen]);
   const longPress = detailsEnabled ? openMenu : legacyLongPress;
-  const bodyPress = (event?: GestureResponderEvent) => {
+  const bodyPress = () => {
     if (menuOpen || moved.current) return;
-    const native = event?.nativeEvent as unknown as { metaKey?: boolean; ctrlKey?: boolean } | undefined;
-    const action = rowPressAction({ pointer: capabilities.hover, rowClick: preferences.rowClick,
-      modifier: Boolean(native?.metaKey || native?.ctrlKey), hasBody: !inert, readsImage,
+    const action = rowPressAction({ pointer: capabilities.hover, hasBody: !inert, readsImage,
       isCurrent, form: details.openId ? details.form : null });
     switch (action) {
       case "details": preview.close(); detailsApi.open(placement!.agentId, previewKey!); break;
@@ -561,12 +563,14 @@ export function DisclosureHeader({
                     {verb}
                   </Text>
                 ) : null}
-                {hoverActions ? (
+                {hoverActions || (hoverSlot && countedTarget) ? (
                   <View style={styles.targetBox}>
                     {countedTarget ?? <View style={styles.fill} />}
-                    <View style={[styles.overlay, { backgroundColor: inert ? tokens.v2.surface0 : tokens.v2.surface1 }]}>
-                      <RowTooltips>{actions}</RowTooltips>
-                    </View>
+                    {hoverActions ? (
+                      <View style={[styles.overlay, { backgroundColor: inert ? tokens.v2.surface0 : tokens.v2.surface1 }]}>
+                        <RowTooltips>{actions}</RowTooltips>
+                      </View>
+                    ) : null}
                   </View>
                 ) : (
                   countedTarget

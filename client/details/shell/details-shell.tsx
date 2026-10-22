@@ -258,25 +258,27 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
       lockList(false);
     };
   }, [lockList]);
+  // Taken as the touch starts where no button inside takes it: the Modal's
+  // root would take it otherwise, and never offer its moves to the header.
   const headerPan = useMemo(() => panelResponder({
     vertical: () => (latest.current.form === "side" ? null : dragRef.current),
     horizontal: () => swipe,
     hold,
+    claimAtStart: () => Platform.OS !== "web",
   }), [swipe, hold]);
   const touch = capabilities.touch;
 
-  // Reported by the drawer or floating panel once it has measured its content; a new frame reports again.
-  const [hasFull, setHasFull] = useState(false);
   const setDetent = useCallback((next: Detent) => {
     detailsApi.setDetent(agentId, next);
     detailsApi.setFullscreen(agentId, next === "full");
   }, [agentId]);
-  const toggleFullscreen = useMemo(() => {
-    if (form === "side") return () => detailsApi.setFullscreen(agentId, !latest.current.fullscreen);
-    if (!hasFull) return undefined;
-    return () => setDetent(latest.current.detent === "full" ? "fit" : "full");
-  }, [agentId, form, hasFull, setDetent]);
-  const fullscreenOn = form === "side" ? fullscreen : detent === "full" && hasFull;
+  // Every block can go full screen, short ones too; the side panel widens instead.
+  const toggleFullscreen = useCallback(() => {
+    const now = latest.current;
+    if (now.form === "side") detailsApi.setFullscreen(agentId, !now.fullscreen);
+    else setDetent(now.detent === "full" ? "fit" : "full");
+  }, [agentId, setDetent]);
+  const fullscreenOn = form === "side" ? fullscreen : detent === "full";
 
   // The timeline follows: on open and on each switch, once the panel's top is known.
   const pendingSync = useRef(true);
@@ -312,10 +314,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
     const unregister = registerDetailsKeyboardActions(agentId, {
       step: (direction) => keys.current.step(direction),
       toggleWrap: () => keys.current.toggleWrap(),
-      // Absent while the content fits: F then does nothing and goes on to the page.
-      get toggleFullscreen() {
-        return keys.current.toggleFullscreen;
-      },
+      toggleFullscreen: () => keys.current.toggleFullscreen(),
       copyPrimary: () => {
         const primary = latest.current.entry.copies()[0];
         if (primary?.text) void keys.current.copy(primary.text, { label: primary.label });
@@ -345,9 +344,9 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
     headerHandlers: touch ? (headerPan.panHandlers as unknown as Record<string, unknown>) : undefined,
   }), [agentId, entry, form, detent, fullscreenOn, pointer, nav.index, nav.count, canStep, step, close, toggleFullscreen, touch, headerPan]);
   const actions = useMemo<PreviewActions>(() => ({
-    maximizable: toggleFullscreen !== undefined,
+    maximizable: true,
     maximized: fullscreenOn,
-    maximize: toggleFullscreen ?? noop,
+    maximize: toggleFullscreen,
     close,
     popped: false,
     memoryKey: entry.id,
@@ -404,7 +403,6 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
     onExited,
     onDetent: setDetent,
     onClose: close,
-    onHasFull: setHasFull,
     onTop,
     dragRef,
     hold,
@@ -447,8 +445,6 @@ function WebLayer({ layerRef, catches, children }: {
     </View>
   );
 }
-
-function noop(): void {}
 
 const styles = StyleSheet.create({
   content: { flexGrow: 1, flexShrink: 1, minHeight: 0 },

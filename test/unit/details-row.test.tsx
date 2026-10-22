@@ -105,11 +105,16 @@ describe("details row press zones and registration", () => {
     act(() => renderer!.unmount()); renderer = undefined;
     expect(state.release).toHaveBeenCalledTimes(1);
   });
-  it.each([true, false])("opens details from the body and expands from a %s touch zone", (touch) => {
+  it.each([true, false])("opens details from the body on touch, and expands from a %s touch zone", (touch) => {
     if (!touch) (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const toggle = vi.fn(); render(header({ onToggle: toggle }));
     act(() => row().props.onPress());
-    expect(state.open).toHaveBeenCalledWith("agent", "call:preview"); expect(toggle).not.toHaveBeenCalled();
+    if (touch) {
+      expect(state.open).toHaveBeenCalledWith("agent", "call:preview"); expect(toggle).not.toHaveBeenCalled();
+    } else {
+      // A pointer click expands in place; the panel opens from the menu or the hover preview.
+      expect(state.open).not.toHaveBeenCalled(); expect(toggle).toHaveBeenCalledOnce(); toggle.mockClear();
+    }
     const chevron = renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "details-chevron");
     expect(StyleSheet.flatten(chevron.props.style)).toMatchObject({ width: touch ? 44 : 28, top: 0, bottom: 0 });
     const event = { stopPropagation: vi.fn() };
@@ -132,14 +137,17 @@ describe("details row press zones and registration", () => {
     expect(state.register.mock.calls[0]![0]).toMatchObject({ hasBody: false, navigable: false });
     act(() => row().props.onLongPress()); expect(menuLabels()).toEqual(["Copy title"]);
   });
-  it("uses the desktop setting, modifier and current-row close action", () => {
+  it("expands on every pointer click, Cmd/Ctrl and the panel's current row included", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const toggle = vi.fn(); render(header({ onToggle: toggle }));
     act(() => row().props.onPress({ nativeEvent: { metaKey: true } })); expect(toggle).toHaveBeenCalledOnce();
-    act(() => updateEnhancerPreferences({ rowClick: "expand" }));
-    act(() => row().props.onPress()); expect(toggle).toHaveBeenCalledTimes(2);
-    act(() => { updateEnhancerPreferences({ rowClick: "details" }); state.current = "call:preview"; renderer!.update(wrap(header({ onToggle: toggle }))); });
-    act(() => row().props.onPress()); expect(state.close).toHaveBeenCalledWith("agent");
+    act(() => row().props.onPress({ nativeEvent: { ctrlKey: true } })); expect(toggle).toHaveBeenCalledTimes(2);
+    // Opened on purpose from the menu, the panel marks this row; a click on it expands, the panel stays.
+    act(() => row().props.onLongPress()); act(() => buttons("Open details")[0]!.props.onPress());
+    expect(state.open).toHaveBeenCalledWith("agent", "call:preview");
+    act(() => { state.current = "call:preview"; renderer!.update(wrap(header({ onToggle: toggle }))); });
+    act(() => row().props.onPress()); expect(toggle).toHaveBeenCalledTimes(3);
+    expect(state.close).not.toHaveBeenCalled(); expect(state.open).toHaveBeenCalledOnce();
   });
   it.each(["flag off", "no placement"])("preserves the legacy toggle for %s", (mode) => {
     if (mode === "flag off") updateEnhancerPreferences({ blockDetails: false });

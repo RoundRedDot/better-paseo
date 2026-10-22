@@ -5,11 +5,11 @@
  * At fit the panel is as tall as its content up to a cap (0.58 of the
  * available height for the drawer, 0.5 for the floating panel), and lays
  * itself out: a `maxHeight` of that cap, so a running block that grows grows
- * the panel up to it. Its measured height says whether the content passes
- * the cap, and so whether a full detent (available − 8, or − 24 floating) is
- * offered. At full, and while a finger or a settle moves it, the height is
- * set. The panel opens off-screen, so its first layout (the measure) is never
- * seen; then it slides up. A switch to another block at fit holds the old
+ * the panel up to it. The full detent (available - 8, or - 24 floating) is
+ * always offered: three long unwrapped lines want the room as much as a long
+ * output does. At full, and while a finger or a settle moves it, the height
+ * is set. The panel opens off-screen, so its first layout (the measure) is
+ * never seen; then it slides up. A switch to another block at fit holds the old
  * height, measures the new content in it, and moves there over 240 ms.
  */
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
@@ -37,21 +37,24 @@ export type BottomForm = "drawer" | "floating";
 
 /**
  * The fit and full heights in whole points: the drawer's from the detent
- * model (0.58, available − 8), the floating panel's 0.5 and available − 24.
+ * model (0.58, available - 8), the floating panel's 0.5 and available - 24.
  */
-export function panelHeights(form: BottomForm, content: number, available: number): { fit: number; full: number | null } {
+export function panelHeights(form: BottomForm, content: number, available: number): { fit: number; full: number } {
   if (form === "drawer") {
     const { fit, full } = detentHeights(content, available);
-    return { fit: Math.round(fit), full: full === null ? null : Math.round(full) };
+    return { fit: Math.round(fit), full: Math.max(0, Math.round(full)) };
   }
   const cap = Math.round(available * FLOATING.fit);
   return {
     fit: Math.round(Math.min(content, cap)),
-    full: content > cap ? Math.max(0, Math.round(available - FLOATING.fullGap)) : null,
+    full: Math.max(0, Math.round(available - FLOATING.fullGap)),
   };
 }
 
 export type Entrance = "slide" | "fade" | "none";
+
+/** A drag up from the body's top that leaves faster than this (px/ms) glides on for about this long's worth of its speed. */
+const GLIDE = { speed: 0.3, ms: 300 } as const;
 
 /** How long a block switch waits for the new content's height before letting the panel lay itself out. */
 const STEP_MEASURE_MS = 400;
@@ -75,8 +78,6 @@ export interface BottomPanelProps {
   onDetent(detent: Detent): void;
   /** A drag down closed it. */
   onClose(): void;
-  /** Whether a full detent is offered, once the content is measured. */
-  onHasFull(has: boolean): void;
   /** The panel's resting top in the stage, for the timeline sync. */
   onTop(top: number): void;
   /** Filled with the vertical drag, for the header's handlers. */
@@ -116,10 +117,11 @@ export function BottomPanel(props: BottomPanelProps) {
   const [measured, setMeasured] = useState<number | null>(null);
   // Set height (full, a drag, a settle) rather than the content's, up to the cap.
   const [fixed, setFixed] = useState(false);
-  const hasFull = measured !== null && measured >= cap - 1;
+  // A height within a point of the cap is the cap: the content passes it.
+  const capped = measured !== null && measured >= cap - 1;
   const heights = useMemo(
-    () => panelHeights(props.form, hasFull ? Number.POSITIVE_INFINITY : measured ?? 0, available),
-    [props.form, hasFull, measured, available],
+    () => panelHeights(props.form, capped ? Number.POSITIVE_INFINITY : measured ?? 0, available),
+    [props.form, capped, measured, available],
   );
   const heightsRef = useRef(heights);
   heightsRef.current = heights;
@@ -169,7 +171,7 @@ export function BottomPanel(props: BottomPanelProps) {
     setFixed(false);
   }, []);
 
-  const restHeight = (d: Detent) => (d === "full" && heightsRef.current.full !== null ? heightsRef.current.full : heightsRef.current.fit);
+  const restHeight = (d: Detent) => (d === "full" ? heightsRef.current.full : heightsRef.current.fit);
 
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     const laid = Math.round(event.nativeEvent.layout.height);
@@ -183,7 +185,7 @@ export function BottomPanel(props: BottomPanelProps) {
     if (measured === null || entered.current) return;
     entered.current = true;
     const now0 = latest.current;
-    if (now0.detent === "full" && heightsRef.current.full !== null) {
+    if (now0.detent === "full") {
       fixedRef.current = true;
       setFixed(true);
       setHeight(heightsRef.current.full);
@@ -194,7 +196,11 @@ export function BottomPanel(props: BottomPanelProps) {
       setTranslate(panel);
       opacity.setValue(1);
       now.current.translate = 0;
-      animate(translate, 0, DETAILS_MOTION.openMs);
+      // iOS draws a selectable text's string when it is next displayed; one
+      // that changed while the panel was below the screen (highlighting that
+      // landed late) stayed blank until a relayout. At rest, the body draws
+      // its content again.
+      animate(translate, 0, DETAILS_MOTION.openMs, Platform.OS === "ios" ? () => latest.current.body.redraw() : undefined);
       animate(backdrop, 1, DETAILS_MOTION.scrimMs, undefined, "linear");
     } else if (now0.entrance !== "none") {
       const ms = now0.reduced ? DETAILS_MOTION.reducedMs : DETAILS_MOTION.formInMs;
@@ -202,10 +208,6 @@ export function BottomPanel(props: BottomPanelProps) {
       animate(backdrop, 1, ms, undefined, "linear");
     }
   }, [measured, opacity, backdrop, translate, setHeight, setTranslate]);
-
-  useEffect(() => {
-    latest.current.onHasFull(hasFull);
-  }, [hasFull]);
 
   // The resting top, for the timeline sync: the stage's height less the panel's resting box.
   const restingTop = measured === null ? null
@@ -219,7 +221,7 @@ export function BottomPanel(props: BottomPanelProps) {
     if (!entered.current || dragging.current) return;
     if (settling.current === detent) return;
     const ms = latest.current.reduced ? 0 : DETAILS_MOTION.detentMs;
-    if (detent === "full" && heights.full !== null) {
+    if (detent === "full") {
       fix();
       moveHeight(heights.full, ms);
     } else if (fixedRef.current) {
@@ -336,9 +338,8 @@ export function BottomPanel(props: BottomPanelProps) {
       move(travel) {
         const { fit, full } = heightsRef.current;
         const want = visible - travel;
-        const top = full ?? fit;
-        if (want > top) {
-          setHeight(top + (want - top) * OVERDRAG);
+        if (want > full) {
+          setHeight(full + (want - full) * OVERDRAG);
           setTranslate(0);
         } else if (want >= fit) {
           setHeight(want);
@@ -351,8 +352,7 @@ export function BottomPanel(props: BottomPanelProps) {
       end(travel, velocity) {
         dragging.current = false;
         setTimeout(() => { dragged.current = false; }, 300);
-        let next = releaseDetent(latest.current.detent, travel, velocity);
-        if (next === "full" && heightsRef.current.full === null) next = "fit";
+        const next = releaseDetent(latest.current.detent, travel, velocity);
         if (next === "closed") {
           latest.current.onClose();
           return;
@@ -372,19 +372,46 @@ export function BottomPanel(props: BottomPanelProps) {
     vertical: () => drag,
     hold: () => latest.current.hold(),
   }), [drag]);
+  // A drag up from a phone body at its top, which does not scroll itself
+  // there: the body follows the finger, and a fling glides on.
+  const lift = useMemo<DragTarget>(() => {
+    let scrolled = 0;
+    const scroller = () => latest.current.body.scroller();
+    return {
+      begin() {
+        scrolled = 0;
+      },
+      move(travel) {
+        const body = scroller();
+        if (body) scrolled += body.scrollBy(-travel - scrolled);
+      },
+      end(_travel, velocity) {
+        if (velocity < -GLIDE.speed) scroller()?.scrollBy(-velocity * GLIDE.ms, true);
+      },
+      cancel() {},
+    };
+  }, []);
+  // On the body itself, not the panel: the header, the toolbar and the
+  // handle above it drag the drawer their own way. On iOS and Android a body
+  // at its top takes the touch as it starts (see `claimAtStart`).
   const bodyPan = useMemo(() => panelResponder({
     vertical: () => drag,
     hold: () => latest.current.hold(),
     pullDown: () => latest.current.bodyAtTop() === true,
-  }), [drag]);
+    ...(Platform.OS === "web" ? {} : {
+      pullUp: () => lift,
+      claimAtStart: () => latest.current.bodyAtTop() === true,
+    }),
+  }), [drag, lift]);
+  props.body.setPanHandlers(bodyPan.panHandlers as unknown as Record<string, unknown>);
 
   const toggle = useCallback(() => {
-    if (dragged.current || !heightsRef.current.full) return;
+    if (dragged.current) return;
     latest.current.onDetent(latest.current.detent === "full" ? "fit" : "full");
   }, []);
 
   const palette = detailsPalette(tokens);
-  const full = detent === "full" && heights.full !== null;
+  const full = detent === "full";
   const cornerStyle: ViewStyle = props.corners === "top"
     ? { borderTopLeftRadius: CORNER, borderTopRightRadius: CORNER }
     : { borderRadius: CORNER };
@@ -412,7 +439,6 @@ export function BottomPanel(props: BottomPanelProps) {
           testID={props.testID}
           accessibilityViewIsModal={Platform.OS !== "web"}
           onLayout={onLayout}
-          {...bodyPan.panHandlers}
           style={[
             styles.panel,
             cornerStyle,

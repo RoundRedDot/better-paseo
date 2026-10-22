@@ -1,11 +1,11 @@
 import { SHEET } from "../tasks/board/sidebar-model";
 import type { Detent } from "./contracts";
 
-export function detentHeights(content: number, available: number): { fit: number; full: number | null } {
-  const fit = Math.min(content, SHEET.half * available);
+/** Fit is the content up to 0.58 of the height; full (available - 8) is always there, for short content too. */
+export function detentHeights(content: number, available: number): { fit: number; full: number } {
   return {
-    fit,
-    full: content > SHEET.half * available ? available - SHEET.fullGap : null,
+    fit: Math.min(content, SHEET.half * available),
+    full: available - SHEET.fullGap,
   };
 }
 

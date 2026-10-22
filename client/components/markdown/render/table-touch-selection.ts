@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { Platform, type GestureResponderEvent, type View, type ViewProps } from "react-native";
 import { holdHostGestures } from "../../../ui/hold-host-gestures";
+import { claimContentTouch } from "../../../details/touch-claim";
 import { useListScrollLock, useScrollDismiss } from "../../../ui/scroll-anchor";
 import { cellRange, indexAt, sameCell, type CellPos, type CellRange } from "./table-range";
 import { HOLD_MS, MOVE_SLOP } from "./table-selection";
@@ -44,7 +45,8 @@ type FrameTouchProps = Pick<ViewProps, "onTouchStart" | "onTouchMove" | "onTouch
  * copy menu waits for the release. Native gestures are recognised here, on
  * the table's frame, which finds the cell under the finger from its rows and
  * column starts, so a cell needs no view of its own; web pointers are
- * recognised in `bindTableCellSelection`.
+ * recognised in `bindTableCellSelection`. A range being drawn is the table's
+ * touch: in the block details drawer it does not move the drawer.
  */
 export function useTableCellSelection(source: string, geometry: TableGeometry) {
   const [selection, setSelection] = useState<{ anchor: CellPos; focus: CellPos } | null>(null);
@@ -53,19 +55,28 @@ export function useTableCellSelection(source: string, geometry: TableGeometry) {
   const press = useRef<Press | null>(null);
   const previous = useRef<Tap | null>(null);
   const locked = useRef<(() => void) | null>(null);
+  const claim = useRef<(() => void) | null>(null);
   const latest = useRef(geometry);
   latest.current = geometry;
 
-  const dismiss = useCallback(() => { setSelection(null); setDragging(false); }, []);
+  const own = () => {
+    if (!claim.current) claim.current = claimContentTouch();
+  };
+  const disown = () => {
+    claim.current?.();
+    claim.current = null;
+  };
+  const dismiss = useCallback(() => { disown(); setSelection(null); setDragging(false); }, []);
   const select = useCallback((cell: CellPos) => { setSelection({ anchor: cell, focus: cell }); setDragging(false); }, []);
-  const begin = useCallback((cell: CellPos) => { setSelection({ anchor: cell, focus: cell }); setDragging(true); }, []);
+  const begin = useCallback((cell: CellPos) => { own(); setSelection({ anchor: cell, focus: cell }); setDragging(true); }, []);
   const extend = useCallback((cell: CellPos) => {
     setSelection((current) => current && !sameCell(current.focus, cell) ? { ...current, focus: cell } : current);
   }, []);
-  const end = useCallback(() => setDragging(false), []);
+  const end = useCallback(() => { disown(); setDragging(false); }, []);
   useScrollDismiss(selection !== null, dismiss);
 
   const unlock = () => {
+    disown();
     const release = locked.current;
     if (!release) return;
     locked.current = null;
@@ -116,6 +127,7 @@ export function useTableCellSelection(source: string, geometry: TableGeometry) {
     if (press.current !== current) return;
     current.active = true;
     previous.current = null;
+    own();
     lockList(true);
     locked.current = holdHostGestures(latest.current.frame.current);
     measure((cells) => {

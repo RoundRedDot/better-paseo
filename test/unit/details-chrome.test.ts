@@ -290,12 +290,11 @@ describe("details toolbar", () => {
       { id: "2", title: "Write the chrome", phase: "x", status: "in_progress" as const },
     ] };
     const root = mount(details(h(TaskListPreview, { data, tokens }),
-      shell({ entry: entry({ kind: "todo", title: "Tasks 1/2", titleMono: false, subtitle: ["1 done", "1 in progress"], tone: undefined }),
-        toggleFullscreen: undefined })));
+      shell({ entry: entry({ kind: "todo", title: "Tasks 1/2", titleMono: false, subtitle: ["1 done", "1 in progress"], tone: undefined }) })));
     expect(wrapButton(root)!.props).toMatchObject({ checked: true, disabled: true });
     expect(textOf(byId(root, "details-header-title"))).toBe("Tasks 1/2");
-    // The content fits: no full screen.
-    expect(labels(byId(root, "details-toolbar-end"))).not.toContain("Full screen");
+    // Short as it is, it can go full screen.
+    expect(labels(byId(root, "details-toolbar-end")).at(-1)).toBe("Full screen");
   });
 
   it("draws a Markdown code block: render / raw at the left, copy code, wrap disabled while rendered", () => {
