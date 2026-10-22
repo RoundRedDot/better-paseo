@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
-import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import React, { useCallback, useContext, useEffect, useState, useMemo, useRef } from "react";
+import { View, Text, Pressable, StyleSheet, Platform, type GestureResponderEvent } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { space } from "./theme-tokens";
 import { selectableSurface, unselectable } from "./selection";
@@ -15,10 +15,14 @@ import {
 import { RunningDot } from "../ui/running-dot";
 import { ProgressRing } from "../ui/progress-ring";
 import { FadeIn } from "../ui/fade-in";
-import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
+import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon } from "../ui/disclosure-header";
 import { HoverPreview, HoverPreviewBody, HoverPreviewHeader, useHoverPreview, usePreviewWraps } from "../ui/hover-preview";
-import { ToolbarButton, TooltipAlignContext, TooltipSideContext } from "../ui/toolbar-button";
+import { ToolbarCopyButton, ToolbarButton, TooltipAlignContext, TooltipSideContext } from "../ui/toolbar-button";
 import { bindPreviewPointer } from "../web";
+import { BlockPlacementContext } from "../details/contracts";
+import { useEnhancerPreferences } from "../preferences";
+import { detailsApi } from "../details/details-store";
+import { RowMenu, type RowMenuAnchor } from "../details/row-menu";
 
 /** The checklist's floating panel: the row preview's own (`useHoverPreview`). */
 export type TaskListPanelControl = ReturnType<typeof useHoverPreview>;
@@ -81,26 +85,39 @@ const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
 export function TaskList({ data, tokens, compact = false, onToggleTask, panel: shared, full = false }: TaskListProps) {
   // The host's list is the source of truth and is re-read on every update; a
   // tap only overrides a task until the host reports a new status for it.
+  const placement = useContext(BlockPlacementContext);
+  const detailsEnabled = useEnhancerPreferences().blockDetails && placement !== null && !full;
+  const [listExpanded, setListExpanded] = useState(true);
   const [overrides, setOverrides] = useState<TaskOverrides>(NO_OVERRIDES);
   const tasks = useMemo(() => applyTaskOverrides(data.tasks, overrides), [data.tasks, overrides]);
   const [expandedBlockedId, setExpandedBlockedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(NO_EXPANDED);
   const unwrapped = full && !usePreviewWraps();
-  const own = useTaskListPanel(!shared && !full);
+  const own = useTaskListPanel(!shared && !full && !detailsEnabled);
   const panel = shared ?? own;
-  const longPress = full ? undefined : panel.press;
+  const [menuAnchor, setMenuAnchor] = useState<RowMenuAnchor | null>(null);
   const headerRef = useRef<View | null>(null);
   const ownAnchor = own.anchorRef;
   const setHeader = useCallback((node: View | null) => {
     headerRef.current = node;
     if (!shared) ownAnchor.current = node;
   }, [shared, ownAnchor]);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const moved = useRef(false);
+  const openMenu = useCallback(() => {
+    if (moved.current) return;
+    headerRef.current?.measureInWindow((x, y, width, height) => setMenuAnchor({ x, y, width, height }));
+  }, []);
+  const closeMenu = useCallback(() => setMenuAnchor(null), []);
+  const longPress = full ? undefined : detailsEnabled ? openMenu : panel.press;
+  const detailsKey = `${placement?.agentId}:${placement?.at}:todo:preview`;
+  useEffect(() => { if (!detailsEnabled) setMenuAnchor(null); }, [detailsEnabled]);
   // A shared panel is anchored elsewhere, so the header binds its hover here.
   const sharedEnter = shared?.enter;
   const sharedLeave = shared?.leave;
   useEffect(() => {
-    if (sharedEnter && sharedLeave) return bindPreviewPointer(headerRef.current, sharedEnter, sharedLeave);
-  }, [sharedEnter, sharedLeave]);
+    if (!detailsEnabled && sharedEnter && sharedLeave) return bindPreviewPointer(headerRef.current, sharedEnter, sharedLeave);
+  }, [detailsEnabled, sharedEnter, sharedLeave]);
 
   const completedCount = tasks.filter((t) => t.status === "completed").length;
   const totalCount = tasks.length;
@@ -294,8 +311,28 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
   );
 
   return (
-    <View {...selectionSurface} style={styles.container}>
-      {full ? null : longPress ? (
+    <View {...selectionSurface} style={styles.container}
+      {...(detailsEnabled ? {
+        onTouchStart: (event: GestureResponderEvent) => {
+          touchStart.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY }; moved.current = false;
+        },
+        onTouchMove: (event: GestureResponderEvent) => {
+          const start = touchStart.current;
+          if (start && Math.hypot(event.nativeEvent.pageX - start.x, event.nativeEvent.pageY - start.y) >= 10) moved.current = true;
+        },
+      } : {})}>
+      {detailsEnabled ? (
+        <BlockPlacementContext.Provider value={{ ...placement!, kind: "todo" }}>
+          <View ref={setHeader}>
+            <DisclosureHeader expanded={listExpanded} onToggle={() => setListExpanded((value) => !value)}
+            tokens={tokens} compact={compact} verb="Tasks" target={`${completedCount}/${totalCount}`}
+            icon={<RowIcon name="ListChecks" />} detailsTitle="Tasks" detailsSubtitle={[`${completedCount}/${totalCount}`]}
+            detailsIcon="ListChecks" previewKey={detailsKey} actionsActive={menuAnchor !== null}
+            previewContent={() => <TaskListPreview data={data} tokens={tokens} compact={compact} />}
+            copyItems={() => [{ id: "text", label: "Copy", icon: "Copy", text: taskListCopyText(data) }]} />
+          </View>
+        </BlockPlacementContext.Provider>
+      ) : full ? null : longPress ? (
         <Pressable ref={setHeader} accessible={false} onLongPress={longPress} style={[styles.row, styles.rowClosed]}>
           {header}
         </Pressable>
@@ -305,7 +342,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
         </View>
       )}
 
-      {tasks.map((task) => {
+      {(!detailsEnabled || listExpanded ? tasks : []).map((task) => {
         const isDone = task.status === "completed";
         const isActive = task.status === "in_progress";
         const isBlocked = task.status === "blocked";
@@ -332,6 +369,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
                   hitSlop={compact ? 6 : 0}
                   onPress={() => toggleStatus(task)}
                   onLongPress={longPress}
+                  delayLongPress={detailsEnabled ? 500 : undefined}
                   style={[styles.slot, isOpen && styles.slotOpen]}
                 >
                   {mark}
@@ -350,6 +388,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
                       "aria-expanded": isOpen,
                       onPress: () => toggleExpanded(task.id),
                       onLongPress: longPress,
+                      delayLongPress: detailsEnabled ? 500 : undefined,
                     })}
                 style={[styles.title, unwrapped ? styles.titleUnwrapped : styles.titleFill, isDone && styles.titleDone]}
               >
@@ -382,6 +421,10 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
           </React.Fragment>
         );
       })}
+      {detailsEnabled && menuAnchor ? <RowMenu anchor={menuAnchor} title="Tasks" hasBody
+        copyItems={[{ id: "text", label: "Copy", icon: "Copy", text: taskListCopyText(data) }]}
+        tokens={tokens} onOpen={() => detailsApi.open(placement!.agentId, detailsKey)}
+        onExpand={() => setListExpanded(true)} onClose={closeMenu} /> : null}
       {shared || full ? null : <TaskListPanel panel={own} data={data} tokens={tokens} compact={compact} />}
     </View>
   );
@@ -423,6 +466,7 @@ export function TaskListPreview({ data, tokens, compact = false }: {
   tokens: ExtendedThemeTokens;
   compact?: boolean;
 }) {
+  const detailsEnabled = useEnhancerPreferences().blockDetails;
   const done = data.tasks.filter((task) => task.status === "completed").length;
   return (
     <>
@@ -439,10 +483,17 @@ export function TaskListPreview({ data, tokens, compact = false }: {
             {`Tasks ${done}/${data.tasks.length}`}
           </Text>
         }
-      />
+      >
+        {detailsEnabled ? <ToolbarCopyButton text={taskListCopyText(data)} label="Copy" tokens={tokens} /> : null}
+      </HoverPreviewHeader>
       <HoverPreviewBody>
         <TaskList data={data} tokens={tokens} compact={compact} full />
       </HoverPreviewBody>
     </>
   );
+}
+
+/** Raw checklist content shared by the preview toolbar and row menu. */
+export function taskListCopyText(data: TaskListData): string {
+  return data.tasks.map((task) => `- [${task.status === "completed" ? "x" : " "}] ${task.title}`).join("\n");
 }

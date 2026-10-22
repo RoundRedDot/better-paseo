@@ -22,7 +22,7 @@ import { UI_SCALE } from "./tokens/typography";
 import { liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement } from "./tooltip-placement";
 import { HoverPreview, HoverPreviewBody, HoverPreviewHeader, RowLongPressContext, useHoverPreview } from "./hover-preview";
 import { ToolbarCopyButton } from "./toolbar-button";
-import { RowPaletteContext } from "./disclosure-header";
+import { RowBodyPressContext, RowPaletteContext } from "./disclosure-header";
 import { useContainerButton } from "./container-button";
 
 /** Where paths are made relative to, for one renderer (plan §3.9 item 3). */
@@ -160,6 +160,7 @@ export function PathText({
   // In a collapsed row on a phone the long press opens the row's preview: the
   // path fills most of a Read row, so it would otherwise swallow every one.
   const rowLongPress = useContext(RowLongPressContext);
+  const rowBodyPress = useContext(RowBodyPressContext);
   const palette = useContext(RowPaletteContext);
 
   const formatted = useMemo(() => formatPath(path, context), [path, context]);
@@ -235,7 +236,8 @@ export function PathText({
         accessibilityRole={button.accessibilityRole}
         accessibilityLabel={formatted.absolutePath}
         accessibilityHint={touchFirst || !reveal ? "Copies the path" : "Reveals the file"}
-        onPress={onPress}
+        onPress={rowBodyPress ?? onPress}
+        delayLongPress={rowBodyPress ? 500 : undefined}
         onLongPress={rowLongPress ?? (capabilities.touch ? copyAbsolute : undefined)}
         {...(Platform.OS === "web" ? null : hoverProps)}
         ref={button.ref}

@@ -1,5 +1,5 @@
-import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, type TextProps } from "react-native";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type TextProps } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
@@ -18,6 +18,13 @@ import { TooltipAlignContext, TooltipSideContext } from "./toolbar-button";
 import { HoverPreview, HoverPreviewContext, RowLongPressContext, useHoverPreview } from "./hover-preview";
 import { useScrollAnchor, type ScrollAnchor } from "./scroll-anchor";
 import { useContainerButton } from "./container-button";
+import { BlockPlacementContext, type BlockEntry, type CopyItem } from "../details/contracts";
+import { registerBlock, type BlockRegistration } from "../details/block-registry";
+import { detailsApi, useDetails } from "../details/details-store";
+import { rowPressAction } from "../details/click-model";
+import { CurrentMarker } from "../details/current-marker";
+import { RowMenu, type RowMenuAnchor } from "../details/row-menu";
+import { toolbarLabel } from "../i18n/toolbar-strings";
 
 /**
  * Row geometry (S7 design spec §2.5, F0 "Row heights and hit areas").
@@ -97,6 +104,9 @@ export function rowPalette(tokens: ExtendedThemeTokens, tone: RowTone, lit: bool
  */
 export const RowPaletteContext = createContext<RowPalette | null>(null);
 
+/** Paths inside a details row share its body press instead of taking the tap. */
+export const RowBodyPressContext = createContext<((event?: GestureResponderEvent) => void) | undefined>(undefined);
+
 /**
  * A tool icon in the row's icon colour, unless `color` sets a status. A
  * `provider:*` name draws that harness's mark as a one-colour silhouette, so
@@ -128,6 +138,13 @@ const ACTION_GAP = space.xs;
 export interface DisclosureHeaderProps {
   expanded: boolean;
   onToggle(): void;
+  detailsTitle?: string | { text: string; mono: boolean };
+  detailsSubtitle?: readonly string[];
+  detailsTone?: BlockEntry["tone"];
+  detailsIcon?: string;
+  copyItems?(): CopyItem[];
+  readsImage?: boolean;
+  onViewImage?(): void;
   tokens: ExtendedThemeTokens;
   /** `layout.compact`. */
   compact?: boolean;
@@ -275,16 +292,31 @@ export function DisclosureHeader({
   keepVerb = false,
   verbColor,
   metaFont = "mono",
+  detailsTitle,
+  detailsSubtitle,
+  detailsTone,
+  detailsIcon,
+  copyItems,
+  readsImage = false,
+  onViewImage,
 }: DisclosureHeaderProps) {
+  const preferences = useEnhancerPreferences();
+  const placement = useContext(BlockPlacementContext);
   const previewOwner = useContext(HoverPreviewContext);
-  const preview = useHoverPreview(Boolean(previewContent) && !expanded && !actionsActive && !inert, previewKey);
+  const detailsEnabled = Boolean(preferences.blockDetails && placement && previewKey && !previewOwner);
+  const details = useDetails(detailsEnabled ? placement!.agentId : "");
+  const isCurrent = detailsEnabled && details.openId === previewKey;
+  const [menuAnchor, setMenuAnchor] = useState<RowMenuAnchor | null>(null);
+  const menuOpen = menuAnchor !== null;
+  useEffect(() => { if (!detailsEnabled) setMenuAnchor(null); }, [detailsEnabled]);
+  const preview = useHoverPreview(Boolean(previewContent) && !expanded && !actionsActive && !inert && !isCurrent && !menuOpen, previewKey);
   useEffect(() => {
     if (preview.open) onPreviewOpen?.();
   }, [preview.open, onPreviewOpen]);
   const ownAnchor = useScrollAnchor(expanded);
   const anchor = scrollAnchor ?? ownAnchor;
   const { anchorRef } = preview;
-  const longPress = (pressPreview ? preview.press : undefined) ?? onLongPress;
+  const legacyLongPress = (pressPreview ? preview.press : undefined) ?? onLongPress;
   const rowRef = useCallback(
     (node: View | null) => {
       anchorRef.current = node;
@@ -294,7 +326,7 @@ export function DisclosureHeader({
   );
   // The row holds its copy buttons and a pressable path, so on web it is a
   // <div> with role="button" rather than a <button> (see `useContainerButton`).
-  const button = useContainerButton(!inert, rowRef);
+  const button = useContainerButton(detailsEnabled || !inert, rowRef);
   const toggle = useCallback(() => {
     anchor.arm();
     onToggle();
@@ -310,8 +342,8 @@ export function DisclosureHeader({
     anchor.hold();
   }, [anchor]);
   const pressOut = useCallback(() => setPressed(false), []);
-  const palette = rowPalette(tokens, tone, hovered || pressed || expanded);
-  const rowLabelStyle = useEnhancerPreferences().rowLabelStyle;
+  const palette = rowPalette(tokens, tone, hovered || pressed || expanded || menuOpen || isCurrent);
+  const rowLabelStyle = preferences.rowLabelStyle;
   // Icon-only rows still need words: a row with no target keeps its verb.
   const hasTarget = target !== undefined && target !== null && target !== "";
   const showVerb = keepVerb || rowLabelStyle !== "icon" || !hasTarget;
@@ -320,7 +352,7 @@ export function DisclosureHeader({
   const height = compact ? block.rowHeight.compact : block.rowHeight.desktop;
   const slop = capabilities.touch ? Math.max(0, (DISCLOSURE_HEADER.hit - height) / 2) : 0;
   const targetType = block.target;
-  const textSelect = inert ? selectableTextStyle : unselectable;
+  const textSelect = inert && !detailsEnabled ? selectableTextStyle : unselectable;
 
   const persistentActions =
     actions !== undefined &&
@@ -333,6 +365,71 @@ export function DisclosureHeader({
 
   const baseLabel = accessibilityLabel ?? (typeof target === "string" && target ? `${verb} ${target}` : verb);
   const label = count && count > 1 ? `${baseLabel}, ${count} operations` : baseLabel;
+  const title = typeof detailsTitle === "object" ? detailsTitle.text : detailsTitle ?? baseLabel;
+  const registration = useRef<BlockRegistration | null>(null);
+  const entry = useRef<BlockEntry | null>(null);
+  entry.current = detailsEnabled ? {
+    id: previewKey!, agentId: placement!.agentId, at: placement!.at, kind: placement!.kind,
+    seq: 0, mounted: true, navigable: !inert, hasBody: !inert,
+    title, titleMono: typeof detailsTitle === "object" ? detailsTitle.mono : typeof target === "string",
+    subtitle: (detailsSubtitle ?? meta?.filter((part): part is string => typeof part === "string") ?? [])
+      .map((part) => toolbarLabel(part, preferences.language)),
+    tone: detailsTone, icon: detailsIcon ?? "FileText", readsImage,
+    render: previewContent ?? (() => null), copies: copyItems ?? (() => []), onOpen: onPreviewOpen,
+    measure: () => new Promise((resolve) => {
+      const node = anchorRef.current;
+      if (!node) return resolve(null);
+      node.measureInWindow((_x, top, _width, height) => resolve({ top, height }));
+    }),
+  } : null;
+  useEffect(() => {
+    if (!entry.current) return;
+    const handle = registerBlock(entry.current);
+    registration.current = handle;
+    return () => { handle.release(); registration.current = null; };
+  }, [detailsEnabled, placement?.agentId, previewKey]);
+  useEffect(() => {
+    if (entry.current) registration.current?.update(entry.current);
+  });
+  const pressedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (pressedTimer.current) clearTimeout(pressedTimer.current); }, []);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const moved = useRef(false);
+  const openMenu = useCallback(() => {
+    if (moved.current) return;
+    const node = anchorRef.current;
+    node?.measureInWindow((x, y, width, height) => setMenuAnchor({ x, y, width, height }));
+  }, [anchorRef]);
+  const closeMenu = useCallback(() => setMenuAnchor(null), []);
+  useEffect(() => { if (menuOpen && readsImage) onPreviewOpen?.(); }, [menuOpen, readsImage, onPreviewOpen]);
+  const longPress = detailsEnabled ? openMenu : legacyLongPress;
+  const bodyPress = (event?: GestureResponderEvent) => {
+    if (menuOpen || moved.current) return;
+    const native = event?.nativeEvent as unknown as { metaKey?: boolean; ctrlKey?: boolean } | undefined;
+    const action = rowPressAction({ pointer: capabilities.hover, rowClick: preferences.rowClick,
+      modifier: Boolean(native?.metaKey || native?.ctrlKey), hasBody: !inert, readsImage,
+      isCurrent, form: details.openId ? details.form : null });
+    switch (action) {
+      case "details": preview.close(); detailsApi.open(placement!.agentId, previewKey!); break;
+      case "viewer": preview.close(); onViewImage?.(); break;
+      case "expand": toggle(); break;
+      case "close": detailsApi.close(placement!.agentId); break;
+      case "none":
+        setPressed(true);
+        if (pressedTimer.current) clearTimeout(pressedTimer.current);
+        pressedTimer.current = setTimeout(() => setPressed(false), 120);
+        break;
+    }
+  };
+  useEffect(() => {
+    if (!detailsEnabled || Platform.OS !== "web") return;
+    const node = anchorRef.current as unknown as HTMLElement | null;
+    const contextMenu = (event: MouseEvent) => {
+      event.preventDefault(); event.stopPropagation(); moved.current = false; openMenu();
+    };
+    node?.addEventListener?.("contextmenu", contextMenu);
+    return () => node?.removeEventListener?.("contextmenu", contextMenu);
+  }, [detailsEnabled, anchorRef, openMenu]);
   const budget = compact
     ? DISCLOSURE_HEADER.targetBudget.compact
     : DISCLOSURE_HEADER.targetBudget.desktop;
@@ -341,7 +438,7 @@ export function DisclosureHeader({
     typeof target === "string" ? (
       <Text
         {...((inert ? surfaceProps(selectionSurface, codeSurface) : codeSurface) as object)}
-        selectable={inert}
+        selectable={inert && !detailsEnabled}
         numberOfLines={1}
         style={[
           styles.targetText,
@@ -399,79 +496,105 @@ export function DisclosureHeader({
     <>
       <RowPaletteContext.Provider value={palette}>
         <HoverPreviewContext.Provider value={previewOwner || (Boolean(previewContent) && !expanded)}>
-          <RowLongPressContext.Provider value={pressPreview ? preview.press : longPress}>
-            <Pressable
-              ref={button.ref}
-              accessibilityRole={button.accessibilityRole}
-              accessibilityLabel={label}
-              accessibilityState={inert ? undefined : { expanded }}
-              // React Native Web reads the ARIA prop, not `accessibilityState`.
-              aria-expanded={inert ? undefined : expanded}
-              disabled={inert}
-              onPressIn={pressIn}
-              onPressOut={pressOut}
-              onPress={toggle}
-              onLongPress={longPress}
-              hitSlop={slop > 0 ? { top: slop, bottom: slop } : undefined}
-              {...(pointerProps as object)}
-              style={({ pressed }) => [
-                styles.row,
-                { height },
-                hovered && { backgroundColor: tokens.v2.surface1 },
-                pressed && { backgroundColor: tokens.v2.surface2 },
-              ]}
-            >
-              <View style={styles.slot}>
-                {showChevron ? (
-                  <Icon
-                    name={expanded ? "ChevronDown" : "ChevronRight"}
-                    size={DISCLOSURE_HEADER.chevron}
-                    color={palette.icon}
-                  />
-                ) : showIcon ? (
-                  icon
+          <RowBodyPressContext.Provider value={detailsEnabled ? bodyPress : undefined}>
+            <RowLongPressContext.Provider value={detailsEnabled ? openMenu : pressPreview ? preview.press : longPress}>
+              <Pressable
+                ref={button.ref}
+                accessibilityRole={button.accessibilityRole}
+                accessibilityLabel={label}
+                accessibilityState={inert ? undefined : { expanded }}
+                // React Native Web reads the ARIA prop, not `accessibilityState`.
+                aria-expanded={inert ? undefined : expanded}
+                disabled={inert && !detailsEnabled}
+                onPressIn={pressIn}
+                onPressOut={pressOut}
+                onPress={detailsEnabled ? bodyPress : toggle}
+                onLongPress={longPress}
+                {...(detailsEnabled ? {
+                  delayLongPress: 500,
+                  onTouchStart: (event: GestureResponderEvent) => {
+                    touchStart.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
+                    moved.current = false;
+                  },
+                  onTouchMove: (event: GestureResponderEvent) => {
+                    const start = touchStart.current;
+                    if (start && Math.hypot(event.nativeEvent.pageX - start.x, event.nativeEvent.pageY - start.y) >= 10) moved.current = true;
+                  },
+                } : {})}
+                hitSlop={slop > 0 ? { top: slop, bottom: slop } : undefined}
+                {...(pointerProps as object)}
+                style={({ pressed: pressedState }) => [
+                  styles.row,
+                  { height },
+                  hovered && { backgroundColor: tokens.v2.surface1 },
+                  (pressedState || (detailsEnabled && (menuOpen || actionsActive || pressed))) && { backgroundColor: tokens.v2.surface2 },
+                ]}
+              >
+                {detailsEnabled ? <CurrentMarker agentId={placement!.agentId} id={previewKey!} tokens={tokens} /> : null}
+                <View style={styles.slot}>
+                  {showChevron ? (
+                    <Icon
+                      name={expanded ? "ChevronDown" : "ChevronRight"}
+                      size={DISCLOSURE_HEADER.chevron}
+                      color={palette.icon}
+                    />
+                  ) : showIcon ? (
+                    icon
+                  ) : null}
+                </View>
+                {showVerb ? (
+                  <Text
+                    {...((inert ? selectionSurface : {}) as object)}
+                    selectable={inert && !detailsEnabled}
+                    numberOfLines={1}
+                    style={[
+                      styles.verb,
+                      textSelect,
+                      {
+                        color: verbColor ?? palette.target,
+                        fontFamily: tokens.fontUi,
+                        fontSize: block.label.size,
+                        lineHeight: block.label.lineHeight,
+                      },
+                    ]}
+                  >
+                    {verb}
+                  </Text>
                 ) : null}
-              </View>
-              {showVerb ? (
-                <Text
-                  {...((inert ? selectionSurface : {}) as object)}
-                  selectable={inert}
-                  numberOfLines={1}
-                  style={[
-                    styles.verb,
-                    textSelect,
-                    {
-                      color: verbColor ?? palette.target,
-                      fontFamily: tokens.fontUi,
-                      fontSize: block.label.size,
-                      lineHeight: block.label.lineHeight,
-                    },
-                  ]}
-                >
-                  {verb}
-                </Text>
-              ) : null}
-              {hoverActions ? (
-                <View style={styles.targetBox}>
-                  {countedTarget ?? <View style={styles.fill} />}
-                  <View style={[styles.overlay, { backgroundColor: inert ? tokens.v2.surface0 : tokens.v2.surface1 }]}>
+                {hoverActions ? (
+                  <View style={styles.targetBox}>
+                    {countedTarget ?? <View style={styles.fill} />}
+                    <View style={[styles.overlay, { backgroundColor: inert ? tokens.v2.surface0 : tokens.v2.surface1 }]}>
+                      <RowTooltips>{actions}</RowTooltips>
+                    </View>
+                  </View>
+                ) : (
+                  countedTarget
+                )}
+                {metaLead}
+                {metaText}
+                {persistentActions ? (
+                  <View style={styles.inlineActions}>
                     <RowTooltips>{actions}</RowTooltips>
                   </View>
-                </View>
-              ) : (
-                countedTarget
-              )}
-              {metaLead}
-              {metaText}
-              {persistentActions ? (
-                <View style={styles.inlineActions}>
-                  <RowTooltips>{actions}</RowTooltips>
-                </View>
-              ) : null}
-            </Pressable>
-          </RowLongPressContext.Provider>
+                ) : null}
+                {detailsEnabled && !inert ? (
+                  <Pressable testID="details-chevron" accessibilityRole="button"
+                    accessibilityLabel={toolbarLabel(expanded ? "Collapse in timeline" : "Expand in timeline", preferences.language)}
+                    onLongPress={openMenu} delayLongPress={500}
+                    onPress={(event) => { event.stopPropagation(); toggle(); }}
+                    hitSlop={slop > 0 ? { top: slop, bottom: slop } : undefined}
+                    style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: capabilities.hover ? 28 : 44 }} />
+                ) : null}
+              </Pressable>
+            </RowLongPressContext.Provider>
+          </RowBodyPressContext.Provider>
         </HoverPreviewContext.Provider>
       </RowPaletteContext.Provider>
+      {detailsEnabled && menuAnchor ? <RowMenu anchor={menuAnchor} title={title}
+        subtitle={detailsSubtitle} hasBody={!inert} readsImage={readsImage} copyItems={copyItems?.() ?? []}
+        tokens={tokens} onOpen={() => detailsApi.open(placement!.agentId, previewKey!)}
+        onExpand={() => { if (!expanded) toggle(); }} onViewImage={onViewImage} onClose={closeMenu} /> : null}
       {preview.open && previewContent ? (
         <HoverPreview preview={preview} tokens={tokens} wraps={previewWraps}>{previewContent()}</HoverPreview>
       ) : null}
