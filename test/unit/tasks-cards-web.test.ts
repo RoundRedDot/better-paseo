@@ -278,7 +278,8 @@ describe("TaskCardView on web", () => {
       );
     const zOf = (node: ReactTestInstance) => Number(flat(node.props.style).zIndex ?? 0);
 
-    // Desktop: the stop menu and the jump tooltip live in the meta row, above the rows after it.
+    // Desktop: the jump tooltip lives in the meta row and the stop menu in the
+    // footer, each above the rows between it and the next raised row.
     const renderer = await render(React.createElement(TaskCardView, props("sample-running")));
     const root = renderer.root;
     await act(async () => hovers.get("task-card-sample-running")!.enter());
@@ -286,13 +287,15 @@ describe("TaskCardView on web", () => {
       root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "停止选项").props.onPress(),
     );
     const header = host(root, "task-card-meta");
+    const footer = host(root, "task-card-footer");
     expect(OVERLAY_ROW_Z).toBeGreaterThan(0);
     expect(zOf(header)).toBe(OVERLAY_ROW_Z);
+    expect(zOf(footer)).toBe(OVERLAY_ROW_Z);
     const rows = hostChildren(host(root, "task-card-sample-running"));
-    const after = rows.slice(rows.indexOf(header) + 1);
-    expect(after.length).toBeGreaterThan(0);
-    for (const row of after) expect(zOf(row)).toBeLessThan(OVERLAY_ROW_Z);
-    const items = header.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
+    const between = rows.slice(rows.indexOf(header) + 1, rows.indexOf(footer));
+    expect(between.length).toBeGreaterThan(0);
+    for (const row of [...between, ...rows.slice(rows.indexOf(footer) + 1)]) expect(zOf(row)).toBeLessThan(OVERLAY_ROW_Z);
+    const items = footer.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
     expect(items).toHaveLength(2);
     await act(async () => renderer.unmount());
 
