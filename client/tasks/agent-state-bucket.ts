@@ -48,14 +48,25 @@ const BY_BUCKET: Readonly<Record<WorkspaceStateBucket, TaskClassification>> = {
   done: { lane: "done", status: "done" },
 };
 
+export interface TaskClassificationInput extends AgentStateBucketInput {
+  lastError?: string | null;
+}
+
 /**
- * The lane and status icon of one agent. Follows the protocol bucket, with one
- * deliberate difference: the spec's rule 3 puts `initializing` in the running
- * lane, where upstream's workspace bucket counts it as done. An agent that is
- * starting up is work in flight, not a finished task.
+ * The lane and status icon of one agent. Follows the protocol bucket, with two
+ * deliberate differences. The spec's rule 3 puts `initializing` in the running
+ * lane, where upstream's workspace bucket counts it as done: an agent that is
+ * starting up is work in flight, not a finished task. And a settled agent that
+ * still carries `lastError` is failed even once its attention is cleared or the
+ * daemon restarted: the daemon clears the error when a turn starts, completes
+ * or is canceled, and restores it with the agent, but leaves it idle, not
+ * `error` (a Codex usage limit, an Antigravity quota).
  */
-export function classifyAgent(input: AgentStateBucketInput): TaskClassification {
+export function classifyAgent(input: TaskClassificationInput): TaskClassification {
   const bucket = deriveAgentStateBucket(input);
   if (bucket === "done" && input.status === "initializing") return BY_BUCKET.running;
+  if ((bucket === "done" || bucket === "attention") && input.lastError && (input.status === "idle" || input.status === "closed")) {
+    return BY_BUCKET.failed;
+  }
   return BY_BUCKET[bucket];
 }

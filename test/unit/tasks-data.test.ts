@@ -756,6 +756,66 @@ describe("Tasks data store", () => {
     }
   });
 
+  it("fails a task whose last turn ended on an error, until it is prompted again", async () => {
+    const prompt = Date.now() - 10 * 60_000;
+    const iso = (ms: number) => new Date(ms).toISOString();
+    const limit = "You've hit your session limit · resets 5:20pm (Asia/Singapore)";
+    const loader = vi.fn(async (ids: string[]) => ids.flatMap((agentId) => {
+      if (agentId === "limited") return [{ agentId, startedAt: prompt, endedAt: prompt + 2_000, error: limit }];
+      if (agentId === "prompted") return [{ agentId, endedAt: prompt - 60_000, error: limit }];
+      if (agentId === "working" && loader.mock.calls.length > 1) return [{ agentId, endedAt: Date.now(), error: "API Error: 529 Overloaded" }];
+      return [];
+    }));
+    setLastTurnLoader(loader);
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("limited", { status: "idle", lastUserMessageAt: iso(prompt), updatedAt: iso(prompt + 2_000) }),
+        // Prompted again after the limit: that turn is someone else's story.
+        activeAgent("prompted", { status: "idle", lastUserMessageAt: iso(prompt), updatedAt: iso(prompt + 2_000) }),
+        // A Codex usage limit: idle once its attention is cleared, `lastError` kept.
+        activeAgent("codex-limit", { provider: "codex", status: "idle", lastError: "You've hit your usage limit.", updatedAt: iso(prompt) }),
+        activeAgent("working", { status: "running", lastUserMessageAt: recentIso(30_000), activeTurn: { turnId: "t", startedAt: recentIso(30_000) } }),
+      ],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake);
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("limited")).toMatchObject({ lane: "review", status: "failed", error: limit });
+      expect(mounted.current.byId.get("prompted")).toMatchObject({ lane: "done", status: "done", error: null });
+      expect(mounted.current.byId.get("codex-limit")).toMatchObject({ lane: "review", status: "failed", error: "You've hit your usage limit." });
+      expect(mounted.current.counts.review).toBe(2);
+
+      // A turn the board sees end is asked about once the server has recorded it.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("working", { status: "idle", lastUserMessageAt: recentIso(30_000), activeTurn: null, updatedAt: iso(Date.now()) }));
+        await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("working")?.lane).toBe("done");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_000);
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(loader.mock.calls.at(-1)?.[0]).toEqual(["working"]);
+      expect(mounted.current.byId.get("working")).toMatchObject({ lane: "review", status: "failed", error: "API Error: 529 Overloaded" });
+
+      // Prompted again: working, then done once the server's record has no error.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("limited", { status: "running", lastUserMessageAt: iso(Date.now()), activeTurn: { turnId: "t2", startedAt: iso(Date.now()) } }));
+        await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("limited")).toMatchObject({ lane: "running", error: null });
+    } finally {
+      vi.useRealTimers();
+      mounted.unmount();
+      setLastTurnLoader(null);
+    }
+  });
+
   it("matches a recorded turn to the latest prompt", () => {
     const timing = {
       createdAt: "2026-10-20T00:00:00.000Z",

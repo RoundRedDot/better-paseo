@@ -245,6 +245,8 @@ export type LastTurnLoader = (agentIds: string[]) => Promise<LastTurn[]>;
 let lastTurnLoader: LastTurnLoader | null = null;
 /** The most agents one `turns.last` call asks about. */
 const LAST_TURN_BATCH = 200;
+/** How long after a turn the board saw end it asks the plugin server how the turn ended. */
+const TURN_END_ASK_DELAY_MS = 1_500;
 
 /** `contribute` sets the loader, since only the plugin context can call RPCs outside a component. */
 export function setLastTurnLoader(next: LastTurnLoader | null): void {
@@ -254,6 +256,11 @@ export function setLastTurnLoader(next: LastTurnLoader | null): void {
 interface TurnSpan {
   startedAt: number | null;
   endedAt: number;
+}
+
+interface TurnError {
+  endedAt: number;
+  message: string;
 }
 
 /**
@@ -269,6 +276,19 @@ export function withLastTurn(timing: TaskTiming, turn: TurnSpan | undefined, wor
   const startedAt = turn.startedAt ?? (prompted <= turn.endedAt ? prompted : null);
   if (startedAt === null || startedAt > turn.endedAt) return timing;
   return { ...timing, lastTurnMs: turn.endedAt - startedAt, lastTurnEndedAt: new Date(turn.endedAt).toISOString() };
+}
+
+/**
+ * A card whose latest turn stopped on an error (Claude's session limit, which
+ * the daemon passes off as a finished turn) is a failed task, not a done one:
+ * the review lane's red dot with the error as its reason. A prompt since that
+ * turn, or the agent working again, drops it.
+ */
+export function withTurnError(card: TaskCard, turnError: TurnError | undefined): TaskCard {
+  if (!turnError || card.status === "failed" || (card.lane !== "done" && card.lane !== "review")) return card;
+  const prompted = card.timing.lastUserMessageAt ? Date.parse(card.timing.lastUserMessageAt) : Number.NaN;
+  if (turnError.endedAt < prompted) return card;
+  return { ...card, lane: "review", status: "failed", error: turnError.message };
 }
 
 function shallowCardEqual(left: TaskCard | undefined, right: TaskCard): boolean {
@@ -295,6 +315,7 @@ function buildBaseCard(
     pendingPermissionCount: pendingPermissions.length,
     requiresAttention: agent.requiresAttention,
     attentionReason: agent.attentionReason,
+    lastError: agent.lastError,
   });
   const workspaceTitle = workspace?.title?.trim() || workspace?.name || placement?.workspaceName || null;
   const projectName = workspace?.projectCustomName?.trim() || workspace?.projectDisplayName ||
@@ -479,6 +500,8 @@ function createStore(api: PaseoApi): TaskStore {
   const projectIcons = new Map<string, ProjectIconValue>();
   const iconRequests = new Set<string>();
   const lastTurns = new Map<string, TurnSpan>();
+  /** The plugin server's error for each agent's latest recorded turn, when it had one. */
+  const turnErrors = new Map<string, TurnError>();
   /** The prompt (and whether the agent worked) each agent's turn was last asked for, so it is asked once. */
   const lastTurnAsked = new Map<string, string>();
   let lastTurnQueue = new Set<string>();
@@ -553,7 +576,7 @@ function createStore(api: PaseoApi): TaskStore {
       : null;
     const childIds = childrenByParent.get(id);
     const next: TaskCard = {
-      ...base,
+      ...withTurnError(base, turnErrors.get(id)),
       timing: withLastTurn(base.timing, lastTurns.get(id), base.lane === "running" || base.lane === "needs_input"),
       parent: parentAgentId
         ? { id: parentAgentId, title: parentTitle, missing: !baseCards.has(parentAgentId) }
@@ -623,6 +646,7 @@ function createStore(api: PaseoApi): TaskStore {
       workingSince.delete(agent.id);
       const endedAt = Date.parse(agent.updatedAt);
       if (Number.isFinite(endedAt)) lastTurns.set(agent.id, { startedAt, endedAt });
+      askAfterTurnEnd(agent.id);
     }
     entries.set(agent.id, { agent, placement });
     const newParent = parentIdOf(agent);
@@ -812,6 +836,21 @@ function createStore(api: PaseoApi): TaskStore {
     lastTurnQueue.add(agent.id);
   }
 
+  /**
+   * A turn the board saw end is timed already, but only the plugin server knows
+   * whether it ended on an error. Ask once it has had a moment to record it;
+   * `turns.last` waits for a record still being written.
+   */
+  function askAfterTurnEnd(agentId: string) {
+    if (!lastTurnLoader || boardConsumers === 0) return;
+    const run = generation;
+    setTimeout(() => {
+      if (run !== generation || !entries.has(agentId)) return;
+      if (lastTurnQueue.size === 0) setTimeout(() => { if (run === generation) flushLastTurns(run); }, 0);
+      lastTurnQueue.add(agentId);
+    }, TURN_END_ASK_DELAY_MS);
+  }
+
   function flushLastTurns(run: number) {
     const loader = lastTurnLoader;
     const ids = [...lastTurnQueue];
@@ -822,9 +861,18 @@ function createStore(api: PaseoApi): TaskStore {
         if (run !== generation) return;
         batchUpdates(() => {
           for (const turn of turns) {
+            const knownError = turnErrors.get(turn.agentId);
+            const errorChanged = turn.error
+              ? knownError?.message !== turn.error || knownError.endedAt !== turn.endedAt
+              : knownError !== undefined && knownError.endedAt <= turn.endedAt;
+            if (errorChanged) {
+              if (turn.error) turnErrors.set(turn.agentId, { endedAt: turn.endedAt, message: turn.error });
+              else turnErrors.delete(turn.agentId);
+            }
             const known = lastTurns.get(turn.agentId);
-            if (known && known.endedAt >= turn.endedAt) continue;
-            lastTurns.set(turn.agentId, { startedAt: turn.startedAt ?? null, endedAt: turn.endedAt });
+            const newer = !known || known.endedAt < turn.endedAt;
+            if (newer) lastTurns.set(turn.agentId, { startedAt: turn.startedAt ?? null, endedAt: turn.endedAt });
+            if (!newer && !errorChanged) continue;
             refreshFinalCard(turn.agentId);
             const parent = parentByChild.get(turn.agentId);
             if (parent) refreshFinalCard(parent);
@@ -1196,6 +1244,7 @@ function createStore(api: PaseoApi): TaskStore {
     projectIcons.clear();
     iconRequests.clear();
     lastTurns.clear();
+    turnErrors.clear();
     lastTurnAsked.clear();
     lastTurnQueue = new Set();
     workingSince.clear();
