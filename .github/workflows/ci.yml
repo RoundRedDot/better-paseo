@@ -6,21 +6,22 @@ on:
   pull_request:
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  # Every push to main is checked; only a superseded PR run is cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      # The full suite takes 130-155 s locally; vitest.config.ts allows 30 s per case.
+      # The full suite takes about 170 s locally; vitest.config.ts allows 30 s per case.
       - run: npx vitest run
         timeout-minutes: 15
