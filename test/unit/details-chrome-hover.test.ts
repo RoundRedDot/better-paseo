@@ -62,6 +62,7 @@ const placed = (child: React.ReactElement) => React.createElement(BlockPlacement
 
 describe("hover panel: open in panel", () => {
   it("is not offered while block details is off", () => {
+    updateEnhancerPreferences({ blockDetails: false });
     const root = open(placed(React.createElement(Row, { memoryKey: "agent-1:tool:1:preview" })));
     expect(labels(root)).toContain("Maximize preview");
     expect(labels(root)).not.toContain("Open in panel");

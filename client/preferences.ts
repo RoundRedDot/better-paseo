@@ -103,7 +103,7 @@ export interface EnhancerPreferences {
   previewWrap: boolean;
   /**
    * Tap a row to open its details in a drawer or panel (docs/prototypes/block-details-sheet.md).
-   * Off keeps the long-press preview; on until the new path has been checked on every device.
+   * On by default; off brings back the long-press preview and tap-to-expand.
    */
   blockDetails: boolean;
   /** With a pointer and blockDetails on: a click on a row opens its details, or expands it in place. */
@@ -208,7 +208,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   hoverPreview: true,
   hoverDelaySeconds: HOVER_DELAY_DEFAULT,
   previewWrap: true,
-  blockDetails: false,
+  blockDetails: true,
   rowClick: "details",
   previewLineNumbers: true,
   previewStripes: true,
