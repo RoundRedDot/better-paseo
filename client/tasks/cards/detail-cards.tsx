@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
@@ -6,7 +6,6 @@ import { openLink } from "../../components/open-link";
 import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { useCopy } from "../../ui/use-copy";
-import { ProgressRing } from "../../ui/progress-ring";
 import type { TasksLanguage } from "../i18n";
 import type { PermissionKind, TaskCard, TaskChild } from "../model";
 import type { PermissionButton, StopPhase } from "../actions";
@@ -15,12 +14,27 @@ import { cardStrings } from "./strings";
 import { taskTokens, type TaskTokens } from "./tokens";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { BrandMark } from "./brand-mark";
-import { ChildMark } from "./child-mark";
 import { useTime, type TimeSource } from "./clock";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
-import { cardTimer } from "./task-card";
-import { branchHint, breakable, foldPath, pathTokens, SUBTASK_ROWS } from "./details-format";
+import { cardTimer } from "./card-time";
+import {
+  branchHint,
+  breakable,
+  foldPath,
+  NARROW_SUBTASKS,
+  pathTokens,
+  sortSubtasks,
+  SUBTASK_ROWS,
+  subtaskFinished,
+  subtaskHeading,
+  subtaskMeta,
+  subtaskModels,
+  subtaskTime,
+  titlePrefix,
+  type SubtaskMetaPart,
+  type SubtaskSummaryPart,
+} from "./details-format";
 import {
   contextView,
   detailHero,
@@ -28,7 +42,6 @@ import {
   errorLines,
   formatSpan,
   formatTurnClock,
-  childFactParts,
   summaryTiles,
   timeline,
   tokenMix,
@@ -539,27 +552,37 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
   const { card, m, tokens, section } = props;
   const words = cardStrings(props.language).details;
   const title = { properties: words.properties, subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
-  // A child whose turn finished is done, read or not: the green corner dot is "unread", not still at work.
-  const done = card.children.filter((child) => child.status === "done" || child.status === "unread").length;
+  // A narrow card's subtasks drop the running count, the start times and the low context shares.
+  const [narrow, setNarrow] = useState(false);
+  const onLayout =
+    section === "subtasks"
+      ? (event: LayoutChangeEvent) => {
+          const next = event.nativeEvent.layout.width <= NARROW_SUBTASKS;
+          setNarrow((was) => (was === next ? was : next));
+        }
+      : undefined;
   const created = since(card.timing.createdAt, props.now);
+  const heading = section === "subtasks" ? subtaskHeading(card.children, props.language, narrow) : null;
   const summary = {
     properties: card.location.branch ?? (card.location.git === null ? words.notGit : ""),
-    subtasks: words.subtasksDone(done, card.children.length),
+    subtasks: heading && heading.parts.length > 0 ? <SubtaskSummaryText parts={heading.parts} tokens={tokens} /> : "",
     usage: usageSummary(card, props.language),
     activity: created !== null ? words.createdAgo(formatRelative(created, props.language)) : "",
   }[section];
   const testID = { properties: "detail-location", subtasks: "detail-subtasks", usage: "detail-usage", activity: "detail-activity" }[section];
+  // The last subtask row keeps 8 (touch 10) above the next hairline.
+  const bottom = section === "subtasks" && m === TOUCH_CARD ? 10 : 8;
   return (
-    <View testID={testID}>
+    <View testID={testID} onLayout={onLayout}>
       {props.divider ? <View style={{ height: StyleSheet.hairlineWidth, marginHorizontal: m.padH, backgroundColor: tokens.card.border }} /> : null}
-      <View style={{ paddingTop: 4, paddingBottom: 8, paddingHorizontal: m.padH - 6 }}>
+      <View style={{ paddingTop: 4, paddingBottom: bottom, paddingHorizontal: m.padH - 6 }}>
         <SectionHeading
           m={m}
           tokens={tokens}
           title={title}
           summary={summary}
           summaryStyle={section === "properties" && card.location.branch ? { maxWidth: "60%", fontFamily: MONO } : undefined}
-          trailing={section === "subtasks" && card.children.length > 0 ? <SubtaskProgress done={done} total={card.children.length} tokens={tokens} /> : undefined}
+          trailing={heading?.check ? <Icon name="CircleCheck" size={14} color={tokens.success} /> : undefined}
           closed={props.closed}
           language={props.language}
           onPress={() => setSectionClosed(section, !props.closed)}
@@ -567,7 +590,7 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
         {props.closed ? null : section === "properties" ? (
           <Properties {...props} />
         ) : section === "subtasks" ? (
-          <Subtasks {...props} />
+          <Subtasks {...props} narrow={narrow} />
         ) : section === "usage" ? (
           <Usage {...props} />
         ) : (
@@ -578,17 +601,26 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
   );
 }
 
-/**
- * The timeline checklist's header mark (`components/task-list.tsx`): a 14
- * ring filling in the accent, a green checked circle once every child is done.
- */
-function SubtaskProgress(props: { done: number; total: number; tokens: TaskTokens }) {
+/** "1 needs input · 2 running · 4/8 done": each count in its status's colour and the words muted; a lone status word in its colour. */
+function SubtaskSummaryText(props: { parts: SubtaskSummaryPart[]; tokens: TaskTokens }) {
   const { tokens } = props;
-  if (props.done >= props.total) return <Icon name="CircleCheck" size={14} color={tokens.success} />;
-  return <ProgressRing value={props.done} max={props.total} size={14} stroke={2} color={tokens.accent} trackColor={detailColors(tokens).track} />;
+  return (
+    <>
+      {props.parts.map((part, index) => {
+        const color = part.tone ? statusColor(part.tone, tokens) : undefined;
+        return (
+          <React.Fragment key={index}>
+            {index > 0 ? " \u00b7 " : null}
+            {part.count !== null ? <Text style={{ color }}>{part.count}</Text> : null}
+            {part.count !== null ? ` ${part.text}` : color ? <Text style={{ color }}>{part.text}</Text> : part.text}
+          </React.Fragment>
+        );
+      })}
+    </>
+  );
 }
 
-function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; summary: string; summaryStyle?: TextStyle; trailing?: React.ReactNode; closed: boolean; language: TasksLanguage; onPress(): void }) {
+function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; summary: React.ReactNode; summaryStyle?: TextStyle; trailing?: React.ReactNode; closed: boolean; language: TasksLanguage; onPress(): void }) {
   const { m, tokens } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
@@ -928,110 +960,226 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
 }
 
 /**
- * The children as Paseo 0.12's subagent rows: the provider's mark in grey
- * with its status at the corner, the title over its facts line. The first
- * ten show; the rest open on demand, closed again on the next card.
+ * The children (`docs/prototypes/task-subtasks.md`), most urgent first: each
+ * row's status icon on its title's first line, the time at the line's end,
+ * a muted meta line under it. A model the rows share is left out and, when
+ * it is not the parent's, named once under them. The first ten show; the
+ * rest open on demand, closed again on the next card.
  */
-function Subtasks(props: Inner) {
+function Subtasks(props: Inner & { narrow: boolean }) {
   const { card, m, tokens } = props;
   const scale = useTasksFontScale();
   const cardText = cardStrings(props.language);
+  const words = cardText.details;
   const [openFor, setOpenFor] = useState<string | null>(null);
   const open = openFor === card.id;
-  const limit = SUBTASK_ROWS * 2;
-  const shown = open ? card.children : card.children.slice(0, limit);
-  const more = card.children.length > limit;
+  const sorted = sortSubtasks(card.children);
+  const hidden = sorted.slice(SUBTASK_ROWS);
+  const shown = open ? sorted : sorted.slice(0, SUBTASK_ROWS);
+  const { baseline, footnote } = subtaskModels(card, props.language);
+  // Finished rows step back while others still need a look; all finished, none does.
+  const mixed = card.children.some((child) => !subtaskFinished(child));
+  // The rows' timers follow the board's clock each second; `props.now` is whole minutes.
+  const time: TimeSource = props.clock ? { clock: props.clock } : { now: props.now };
+  const touch = m === TOUCH_CARD;
   return (
     <View>
       {shown.map((child) => (
-        <SubtaskRow key={child.id} m={m} tokens={tokens} theme={props.theme} child={child} word={cardText.status[child.status]} onPress={props.onJump ? () => props.onJump?.(child.id) : undefined} />
-      ))}
-      {more ? (
-        <MoreRow
+        <SubtaskRow
+          key={child.id}
           m={m}
           tokens={tokens}
-          label={open ? cardText.showFewer : cardText.showAll(card.children.length)}
+          theme={props.theme}
+          language={props.language}
+          child={child}
+          meta={subtaskMeta(child, baseline, props.now, props.language, props.narrow)}
+          muted={mixed && child.status === "done"}
+          time={time}
+          word={cardText.status[child.status]}
+          openLabel={props.strings.openTab}
+          onPress={props.onJump ? () => props.onJump?.(child.id) : undefined}
+          onOpen={props.onOpen ? () => props.onOpen?.(child.id) : undefined}
+        />
+      ))}
+      {hidden.length > 0 ? (
+        <MoreRow
+          tokens={tokens}
+          label={open ? cardText.showFewer : words.subtasksShowAll(sorted.length)}
+          note={open ? null : hidden.every(subtaskFinished) ? words.subtasksHiddenDone(hidden.length) : words.subtasksHidden(hidden.length)}
           open={open}
           onPress={() => setOpenFor(open ? null : card.id)}
-          height={taskControlHeight(m.listRow, scale)}
+          height={taskControlHeight(touch ? 44 : 32, scale)}
         />
+      ) : null}
+      {footnote ? (
+        <View style={{ marginHorizontal: -2, paddingTop: 6, paddingLeft: 34, paddingRight: 8, flexDirection: "row", alignItems: "center", gap: 4 }} testID="detail-subtasks-footnote">
+          {footnote.provider ? <BrandMark provider={footnote.provider} size={14} tokens={tokens} mono={tokens.foregroundMuted} /> : null}
+          <Text style={{ flexShrink: 1, fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }}>{footnote.text}</Text>
+        </View>
       ) : null}
     </View>
   );
 }
 
-function MoreRow(props: { m: Metrics; tokens: TaskTokens; label: string; open: boolean; height: number; onPress(): void }) {
+/** "Show all 14" and what the hidden rows are, or "Show fewer"; the chevron in the rows' status column. */
+function MoreRow(props: { tokens: TaskTokens; label: string; note: string | null; open: boolean; height: number; onPress(): void }) {
   const { tokens } = props;
   const { hovered, hoverProps } = useHover();
+  const colors = detailColors(tokens);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={props.label}
+      accessibilityLabel={props.note ? `${props.label} ${props.note}` : props.label}
       accessibilityState={{ expanded: props.open }}
       onPress={props.onPress}
       {...hoverProps}
       testID="detail-subtasks-more"
       style={({ pressed }) => ({
         minHeight: props.height,
-        paddingHorizontal: 6,
-        borderRadius: 6,
+        marginHorizontal: -2,
+        paddingHorizontal: 8,
+        borderRadius: 8,
         flexDirection: "row",
         alignItems: "center",
-        gap: 8,
-        backgroundColor: hovered || pressed ? detailColors(tokens).rowHover : "transparent",
+        gap: 10,
+        backgroundColor: pressed ? colors.rowPress : hovered ? colors.rowHover : "transparent",
       })}
     >
-      <View style={{ width: 14, alignItems: "center" }}>
+      <View style={{ width: 16, alignItems: "center" }}>
         <Icon name={props.open ? "ChevronUp" : "ChevronDown"} size={14} color={tokens.foregroundMuted} />
       </View>
-      <Text style={{ fontSize: props.m.font, color: tokens.foregroundMuted }}>{props.label}</Text>
+      <View style={{ flexShrink: 1, flexDirection: "row", flexWrap: "wrap", columnGap: 6 }}>
+        <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, fontWeight: "500", color: tokens.foregroundMuted }}>{props.label}</Text>
+        {props.note ? <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }}>{props.note}</Text> : null}
+      </View>
     </Pressable>
   );
 }
 
-/** A long title takes a second line; the facts wrap between their parts, never inside one. */
-function SubtaskRow(props: { m: Metrics; tokens: TaskTokens; theme: PluginTheme; child: TaskChild; word: string; onPress?(): void }) {
+/** A row's sizes: the details body's small step, the title on the reading line; touch only adds padding and a 44 floor. */
+const SUBTASK_TEXT = {
+  desktop: { title: F.sm, titleLine: HOST_LINE.smRead, meta: F.sm, metaLine: HOST_LINE.sm, padV: 7, minHeight: 0 },
+  touch: { title: F.sm, titleLine: HOST_LINE.smRead, meta: F.sm, metaLine: HOST_LINE.sm, padV: 10, minHeight: 44 },
+} as const;
+
+/**
+ * One child: its status icon (the board's) centred on the title's first line;
+ * the title, its leading tag or Linear id muted, over the meta line, which
+ * wraps between its parts, never inside one; the time at the first line's
+ * end. A press shows the child here. With a pointer, hovering shows ↗,
+ * which opens its tab; on touch a long press does.
+ */
+function SubtaskRow(props: {
+  m: Metrics;
+  tokens: TaskTokens;
+  theme: PluginTheme;
+  language: TasksLanguage;
+  child: TaskChild;
+  meta: SubtaskMetaPart[];
+  muted: boolean;
+  time: TimeSource;
+  word: string;
+  openLabel: string;
+  onPress?(): void;
+  onOpen?(): void;
+}) {
   const { m, tokens, child } = props;
   const scale = useTasksFontScale();
-  const { hovered, hoverProps } = useHover();
-  const facts = childFactParts(child);
-  const active = props.onPress !== undefined && hovered;
-  // The host's steps, as Paseo's subagent row: base for the title, small for the facts.
-  const font = F.sm;
-  const factText: TextStyle = { fontSize: F.sm, color: tokens.foregroundMuted };
+  const touch = m === TOUCH_CARD;
+  const size = touch ? SUBTASK_TEXT.touch : SUBTASK_TEXT.desktop;
+  // DOM hover on web, as the board card's subtask row: the row's own Pressable
+  // hover would end when the pointer reaches ↗, and hide it.
+  const rowRef = useRef<View>(null);
+  const { hovered, hoverProps } = useHover(rowRef);
+  const colors = detailColors(tokens);
+  const active = !!props.onPress && hovered && !touch;
+  const showOpen = !touch && hovered && !!props.onOpen;
+  const { prefix, rest } = titlePrefix(child.title);
+  const line = Math.round(size.titleLine * scale);
+  const metaText: TextStyle = { fontSize: size.meta, lineHeight: size.metaLine, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] };
+  const toneColor = (part: SubtaskMetaPart) => (part.tone === "danger" ? tokens.danger : part.tone === "warning" ? tokens.warning : tokens.foregroundMuted);
   return (
     <Pressable
-      accessibilityRole="button"
+      {...(!touch && props.onOpen ? ROW_ROLE : { accessibilityRole: "button" as const })}
       accessibilityLabel={`${child.title} ${props.word}`}
-      disabled={!props.onPress}
+      disabled={!props.onPress && !props.onOpen}
       onPress={props.onPress}
-      {...hoverProps}
+      onLongPress={touch ? props.onOpen : undefined}
+      delayLongPress={450}
+      ref={rowRef}
+      {...(Platform.OS === "web" ? null : hoverProps)}
+      testID={`detail-subtask-${child.id}`}
       style={({ pressed }) => ({
-        minHeight: taskControlHeight(m.listRow, scale),
-        paddingHorizontal: 6,
-        paddingVertical: m === TOUCH_CARD ? 6 : 4,
-        borderRadius: 6,
+        minHeight: size.minHeight ? taskControlHeight(size.minHeight, scale) : undefined,
+        marginHorizontal: -2,
+        paddingHorizontal: 8,
+        paddingVertical: size.padV,
+        borderRadius: 8,
         flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
-        backgroundColor: props.onPress && (active || pressed) ? detailColors(tokens).rowHover : "transparent",
+        alignItems: "flex-start",
+        gap: 10,
+        backgroundColor: props.onPress && pressed ? colors.rowPress : active ? colors.rowHover : "transparent",
       })}
     >
-      <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={active ? detailColors(tokens).rowHover : tokens.card.background} />
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text numberOfLines={2} style={{ fontSize: font, color: tokens.foreground }}>
-          {child.title}
-        </Text>
-        {facts.length > 0 ? (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 4 }} testID={`detail-subtask-facts-${child.id}`}>
-            {facts.map((fact, index) => (
-              <Text key={index} numberOfLines={1} style={factText}>
-                {index < facts.length - 1 ? `${fact} ·` : fact}
-              </Text>
+      <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }} testID={`detail-subtask-status-${child.id}`}>
+        <StatusIcon kind={child.status} size={14} theme={props.theme} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+          <Text numberOfLines={2} style={{ flex: 1, fontSize: size.title, lineHeight: size.titleLine, color: props.muted ? tokens.foregroundMuted : tokens.foreground }}>
+            {prefix ? <Text style={{ color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`${prefix} `}</Text> : null}
+            {rest}
+          </Text>
+          <View style={{ height: line, flexDirection: "row", alignItems: "center", gap: 6, marginRight: showOpen ? -3 : 0 }}>
+            <SubtaskTime child={child} language={props.language} source={props.time} tokens={tokens} lineHeight={size.titleLine} />
+            {showOpen ? <OpenChild tokens={tokens} label={props.openLabel} onPress={props.onOpen!} /> : null}
+          </View>
+        </View>
+        {props.meta.length > 0 ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 4 }} testID={`detail-subtask-meta-${child.id}`}>
+            {props.meta.map((part, index) => (
+              <View key={index} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                {part.provider ? <BrandMark provider={part.provider} size={14} tokens={tokens} mono={tokens.foregroundMuted} /> : null}
+                <Text numberOfLines={1} style={metaText}>
+                  <Text style={part.tone ? { color: toneColor(part) } : undefined}>{part.text}</Text>
+                  {index < props.meta.length - 1 ? " ·" : null}
+                </Text>
+              </View>
             ))}
           </View>
         ) : null}
       </View>
+    </Pressable>
+  );
+}
+
+/** A row's time: a running child's timer in the foreground colour, each second; else when it ended, muted. */
+function SubtaskTime(props: { child: TaskChild; language: TasksLanguage; source: TimeSource; tokens: TaskTokens; lineHeight: number }) {
+  const { child, language } = props;
+  const value = useTime(props.source, (now) => subtaskTime(child, now, language)?.text ?? "");
+  if (!value) return null;
+  const live = child.status === "running";
+  return (
+    <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: props.lineHeight, color: live ? props.tokens.foreground : props.tokens.foregroundMuted, fontVariant: ["tabular-nums"] }} testID={`detail-subtask-time-${child.id}`}>
+      {value}
+    </Text>
+  );
+}
+
+/** ↗ after a hovered row's time: opens the child's tab. */
+function OpenChild(props: { tokens: TaskTokens; label: string; onPress(): void }) {
+  const { tokens } = props;
+  const { hovered, hoverProps } = useHover();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={props.label}
+      onPress={props.onPress}
+      {...hoverProps}
+      testID="detail-subtask-open"
+      style={{ width: 20, height: 20, borderRadius: 5, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? detailColors(tokens).track : "transparent" }}
+    >
+      <Icon name="ArrowUpRight" size={14} color={tokens.foreground} />
     </Pressable>
   );
 }

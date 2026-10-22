@@ -1192,52 +1192,88 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(tree.root, "detail-summary"))).toEqual(["Last turn", "18m", "Ended 2m ago", "Cost", "$1.84", "Total", "Token", "316k", "38% cached"]);
   });
 
-  it("lists the subtasks as Paseo 0.12's subagent rows, a press showing one", async () => {
+  it("lists the subtasks most urgent first, each with its status, time and meta line, a press showing one", async () => {
     const onJump = vi.fn();
-    const running = await render(details(sample("sample-running"), { onJump }));
-    expect(texts(hostByTestId(running.root, "detail-subtasks"))).toEqual([
+    const onOpen = vi.fn();
+    const running = await render(details(sample("sample-running"), { onJump, onOpen }));
+    const section = hostByTestId(running.root, "detail-subtasks");
+    const start = (ms: number) => formatClockTime(NOW - ms, NOW);
+    expect(texts(section)).toEqual([
       "子任务",
-      "1 / 3 完成",
-      "Measure the sidebar ring",
-      // The facts wrap between their parts, never inside one.
-      "Opus 4.7 ·",
-      "High ·",
-      "Bypass ·",
-      "120k / 200k tokens (60%)",
+      "2 运行中 · 1/3 完成",
+      // The longest run first; the meta wraps between its parts, never inside one.
       "Write the ring geometry test",
+      "5m 12s",
+      `${start(312_000)} 开始`,
+      "Measure the sidebar ring",
+      "3m",
+      `${start(3 * 60_000)} 开始 ·`,
+      "上下文 60%",
       "Collect status colours",
+      "2 分钟前",
+      "上一轮 18m",
+      // Only one child names its model, and it is not the parent's GPT-5.5 Codex.
+      "均为 Opus 4.7 · High · Bypass",
     ]);
-    // The heading's mark is the timeline checklist's: a ring at 1 of 3, a checked circle once all are done.
-    const heading = byLabel(running.root, "收起子任务");
-    expect(heading.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "progressbar").map((node) => node.props.accessibilityValue)).toEqual([{ min: 0, max: 3, now: 1 }]);
-    const allDone = sample("sample-running");
-    // A finished child still unread (the green corner dot) counts as done.
-    const finished = await render(details({ ...allDone, children: allDone.children.map((child, index) => ({ ...child, status: index === 0 ? ("unread" as const) : ("done" as const) })) }));
-    expect(texts(hostByTestId(finished.root, "detail-subtasks"))).toContain("3 / 3 完成");
-    expect(byLabel(finished.root, "收起子任务").findAll((node) => node.props.name === "CircleCheck").length).toBeGreaterThan(0);
-    // The status rides the provider's mark: a running ring, nothing for a finished one.
-    expect(hostByTestId(running.root, "detail-subtasks").findAll((node) => typeof node.type === "string" && node.props.testID === "status-running")).toHaveLength(2);
+    // The running count is in the status colour, the rest muted.
+    const summary = hostByTestId(running.root, "detail-subtasks").findAll((node) => (node.type as unknown) === "Text" && node.props.children === 2);
+    expect(flat(summary[0]!.props.style).color).toBe(taskTokens(LIGHT).status.running);
+    // The board's status icon leads each row; a running timer is in the foreground colour, a finished row's title muted.
+    const tokens = taskTokens(LIGHT);
+    expect(hostByTestId(section, "detail-subtask-status-sample-child-3").findAll((node) => node.props.testID === "status-done").length).toBeGreaterThan(0);
+    expect(flat(hostByTestId(section, "detail-subtask-time-sample-child-2").props.style).color).toBe(tokens.foreground);
+    expect(flat(hostByTestId(section, "detail-subtask-time-sample-child-3").props.style).color).toBe(tokens.foregroundMuted);
+    const doneTitle = hostByTestId(section, "detail-subtask-sample-child-3").find((node) => (node.type as unknown) === "Text" && node.props.numberOfLines === 2);
+    expect(flat(doneTitle.props.style).color).toBe(tokens.foregroundMuted);
+    // No progress ring any more: the counts say it.
+    expect(byLabel(running.root, "收起子任务").findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "progressbar")).toEqual([]);
     byLabel(running.root, "Measure the sidebar ring 运行中").props.onPress();
     expect(onJump).toHaveBeenCalledWith("sample-child-1");
+    // Hovering a row shows its open-tab button after the time.
+    const row = hostByTestId(section, "detail-subtask-sample-child-1");
+    expect(section.findAll((node) => node.props.testID === "detail-subtask-open")).toEqual([]);
+    await act(async () => row.props.onHoverIn());
+    await act(async () => hostByTestId(running.root, "detail-subtask-open").props.onPress());
+    expect(onOpen).toHaveBeenCalledWith("sample-child-1");
+
+    const allDone = sample("sample-running");
+    // A finished child still unread (the green dot) counts as done.
+    const finished = await render(details({ ...allDone, children: allDone.children.map((child, index) => ({ ...child, status: index === 0 ? ("unread" as const) : ("done" as const), lane: "done" as const })) }));
+    expect(texts(hostByTestId(finished.root, "detail-subtasks"))).toContain("3 个全部完成");
+    expect(icons(byLabel(finished.root, "收起子任务"))).toContain("CircleCheck");
+    // All finished: no title steps back.
+    const title = hostByTestId(finished.root, "detail-subtask-sample-child-3").find((node) => (node.type as unknown) === "Text" && node.props.numberOfLines === 2);
+    expect(flat(title.props.style).color).toBe(tokens.foreground);
   });
 
-  it("lists the first ten subtasks and opens the rest on demand, closed again on the next card", async () => {
+  it("lists the first ten subtasks after sorting and opens the rest on demand, closed again on the next card", async () => {
     const base = sample("sample-running");
     const many = (id: string): TaskCard => ({
       ...base,
       id,
-      children: Array.from({ length: 24 }, (_, index) => ({ ...base.children[1]!, id: `${id}-child-${index}`, title: `Child ${index}` })),
+      children: Array.from({ length: 14 }, (_, index) => ({ ...base.children[2]!, id: `${id}-child-${index}`, title: `Child ${index}`, status: index === 12 ? ("needs_input" as const) : ("done" as const) })),
     });
     const titles = (tree: ReactTestRenderer) => texts(hostByTestId(tree.root, "detail-subtasks")).filter((text) => text.startsWith("Child "));
     const tree = await render(details(many("many-a")));
-    expect(titles(tree)).toHaveLength(10);
-    await act(async () => byLabel(tree.root, "显示全部 24 条").props.onPress());
-    expect(titles(tree)).toHaveLength(24);
+    // The one asking for input moves to the top; the four hidden are all done.
+    expect(titles(tree)).toEqual(["Child 12", ...Array.from({ length: 9 }, (_, index) => `Child ${index}`)]);
+    expect(texts(hostByTestId(tree.root, "detail-subtasks-more"))).toEqual(["显示全部 14 个", "其余 4 个已完成"]);
+    await act(async () => byLabel(tree.root, "显示全部 14 个 其余 4 个已完成").props.onPress());
+    expect(titles(tree)).toHaveLength(14);
     await act(async () => byLabel(tree.root, "收起").props.onPress());
     expect(titles(tree)).toHaveLength(10);
-    await act(async () => byLabel(tree.root, "显示全部 24 条").props.onPress());
+    await act(async () => byLabel(tree.root, "显示全部 14 个 其余 4 个已完成").props.onPress());
     await act(async () => tree.update(details(many("many-b"))));
     expect(titles(tree)).toHaveLength(10);
+  });
+
+  it("drops the running count, the start and a low context share in a narrow card", async () => {
+    const tree = await render(details(sample("sample-running")));
+    const section = hostByTestId(tree.root, "detail-subtasks");
+    await act(async () => section.props.onLayout({ nativeEvent: { layout: { width: 320, height: 400 } } }));
+    const shown = texts(hostByTestId(tree.root, "detail-subtasks"));
+    expect(shown[1]).toBe("1/3 完成");
+    expect(shown.filter((text) => text.includes("开始") || text.includes("上下文 60%"))).toEqual([]);
   });
 
   it("leads with the error when a card failed, and with a grey line after a manual stop", async () => {

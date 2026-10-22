@@ -7,20 +7,11 @@ import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settin
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { duration, PREVIEW_REVEAL } from "../../ui/tokens/motion";
-import { formatFullStamp } from "../../ui/time";
 import type { PermissionButton, StopPhase } from "../actions";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import type { StatusKind, TaskCard, TaskChild } from "../model";
-import {
-  contextRatio,
-  formatApprox,
-  formatClockTime,
-  formatDuration,
-  formatRelative,
-  formatWait,
-  since,
-  tildePath,
-} from "./format";
+import { contextRatio, tildePath } from "./format";
+import { cardStart, cardTimer, type Timed } from "./card-time";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
 import { agentPillColors, BrandMark, branchPillColors, neutralPillColors, type AgentPillColors } from "./brand-mark";
@@ -307,46 +298,6 @@ export function cardLayout(card: TaskCard, fields: CardSettings, compact: boolea
     failure: (card.lane === "review" || card.lane === "done") && !!card.error,
     permission: card.lane === "needs_input" && card.permission !== null,
   };
-}
-
-interface TimerView {
-  text: string;
-  /** "warning" draws the clock icon in the warning colour. */
-  tone: "muted" | "warning" | "running";
-}
-
-/** The footer's timer at `now`; null when there is nothing to count. */
-/** Timed by its lane and timing alone, so a subtask row passes its child. */
-type Timed = Pick<TaskCard, "lane" | "timing">;
-
-export function cardTimer(card: Timed, now: number, language: TasksLanguage): TimerView | null {
-  const timing = card.timing;
-  if (card.lane === "needs_input") {
-    const waited = since(timing.attentionAt, now) ?? since(timing.turnStartedAt, now);
-    return waited === null ? null : { text: formatWait(waited, language), tone: "warning" };
-  }
-  if (card.lane === "running") {
-    const ran = since(timing.turnStartedAt, now);
-    return ran === null
-      ? { text: cardStrings(language).starting, tone: "running" }
-      : { text: formatDuration(ran), tone: "muted" };
-  }
-  const parts: string[] = [];
-  if (timing.lastTurnMs !== null) parts.push(formatApprox(timing.lastTurnMs, language));
-  const ago = since(timing.updatedAt, now);
-  if (ago !== null) {
-    const updated = new Date(timing.updatedAt!);
-    const sameDay = updated.toDateString() === new Date(now).toDateString();
-    parts.push(sameDay && ago < 86_400_000 ? formatRelative(ago, language) : formatFullStamp(updated));
-  }
-  return parts.length ? { text: parts.join(" · "), tone: "muted" } : null;
-}
-
-/** When the running turn started, in local time; null outside the running lane or before the turn has a start. */
-export function cardStart(card: Timed, now: number): string | null {
-  if (card.lane !== "running" || !card.timing.turnStartedAt) return null;
-  const at = Date.parse(card.timing.turnStartedAt);
-  return Number.isNaN(at) ? null : formatClockTime(at, now);
 }
 
 /** Children that Stop with subtasks would reach. */
@@ -1556,7 +1507,7 @@ function SubtaskRow(props: TimeSource & {
         ...webTransition,
       }}
     >
-      {/* The agent's mark with its status on the corner, as the details' subtask rows, centred on the title's first line. */}
+      {/* The agent's mark with its status on the corner, centred on the title's first line. */}
       <View style={{ width: m.iconSlot, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" }} testID={`subtask-status-${child.id}`}>
         <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={fill} animated={props.animated} />
       </View>

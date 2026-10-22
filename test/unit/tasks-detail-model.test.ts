@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { previewSampleCards } from "../../client/tasks/sample-cards";
-import type { TaskCard } from "../../client/tasks/model";
+import type { TaskCard, TaskChild } from "../../client/tasks/model";
 import {
   contextView,
   detailHero,
@@ -8,12 +8,13 @@ import {
   formatShare,
   formatSpan,
   formatTurnClock,
-  childFacts,
   timeline,
   timelineFractions,
   tokenMix,
   usageSummary,
 } from "../../client/tasks/cards/detail-model";
+import { sortSubtasks, subtaskHeading, subtaskMeta, subtaskModels, subtaskTime, titlePrefix } from "../../client/tasks/cards/details-format";
+import { formatClockTime } from "../../client/tasks/cards/format";
 
 const NOW = Date.parse("2026-10-20T09:00:00.000Z");
 const MINUTE = 60_000;
@@ -65,11 +66,126 @@ describe("details card model", () => {
     expect(usageSummary({ ...sample("sample-done"), usage: null }, "en")).toBe("Not reported");
   });
 
-  it("writes a subtask's facts line as Paseo 0.12's subagent row does", () => {
-    const child = { id: "c", title: "t", status: "running" as const, modelLabel: "Opus 5.5", thinkingLabel: "High", modeLabel: "Bypass", context: { usedTokens: 225_312, maxTokens: 1_000_000 } };
-    expect(childFacts(child)).toBe("Opus 5.5 · High · Bypass · 225k / 1m tokens (23%)");
-    expect(childFacts({ ...child, thinkingLabel: null, context: null })).toBe("Opus 5.5 · Bypass");
-    expect(childFacts({ ...child, modelLabel: null })).toBeNull();
+  it("sorts the subtasks by what needs a person, the longest run first, the rest in their order", () => {
+    const timing = sample("sample-done").timing;
+    const child = (id: string, status: TaskChild["status"], startedMinutesAgo?: number): TaskChild => ({
+      id,
+      title: id,
+      status,
+      lane: status === "running" ? "running" : "done",
+      timing: { ...timing, turnStartedAt: startedMinutesAgo === undefined ? null : ago(startedMinutesAgo * MINUTE) },
+    });
+    const children = [
+      child("done-a", "done"),
+      child("run-short", "running", 3),
+      child("unread", "unread"),
+      child("failed", "failed"),
+      child("run-unstarted", "running"),
+      child("done-b", "done"),
+      child("run-long", "running", 14),
+      child("input", "needs_input"),
+    ];
+    expect(sortSubtasks(children).map((item) => item.id)).toEqual(["input", "failed", "run-long", "run-short", "run-unstarted", "unread", "done-a", "done-b"]);
+    // The given list is left as it was.
+    expect(children[0]!.id).toBe("done-a");
+  });
+
+  it("sums the subtasks up in the heading: counts while mixed, a check when all are done, one child's word", () => {
+    const of = (...statuses: TaskChild["status"][]) => statuses.map((status, index): TaskChild => ({ id: `c${index}`, title: "t", status }));
+    const flat = (heading: ReturnType<typeof subtaskHeading>) => heading.parts.map((part) => (part.count !== null ? `${part.count} ${part.text}` : part.text)).join(" \u00b7 ");
+    const mixed = of("needs_input", "failed", "running", "running", "unread", "done", "done", "done");
+    expect(flat(subtaskHeading(mixed, "zh"))).toBe("1 待输入 · 1 失败 · 2 运行中 · 4/8 完成");
+    expect(subtaskHeading(mixed, "zh").parts.map((part) => part.tone)).toEqual(["needs_input", "failed", "running", null]);
+    expect(subtaskHeading(mixed, "zh").check).toBe(false);
+    // Narrow: the rows' timers carry the running count.
+    expect(flat(subtaskHeading(mixed, "zh", true))).toBe("1 待输入 · 1 失败 · 4/8 完成");
+    expect(flat(subtaskHeading(of("running", "running", "running"), "zh"))).toBe("3 运行中");
+    expect(flat(subtaskHeading(of("running", "running", "running"), "zh", true))).toBe("3 运行中");
+    // Unread counts as done, as the board does.
+    expect(subtaskHeading(of("done", "unread", "done", "done"), "zh")).toEqual({ parts: [{ count: null, text: "4 个全部完成", tone: null }], check: true });
+    expect(flat(subtaskHeading(of("done", "done"), "en"))).toBe("All 2 done");
+    expect(subtaskHeading(of("running"), "zh")).toEqual({ parts: [{ count: null, text: "运行中", tone: "running" }], check: false });
+    expect(subtaskHeading(of("done"), "zh").check).toBe(true);
+    expect(flat(subtaskHeading(of("needs_input", "running", "done"), "en"))).toBe("1 needs input · 1 running · 1/3 done");
+  });
+
+  it("splits a leading tag or Linear id off a subtask title", () => {
+    expect(titlePrefix("[Handoff] 非 agent 项目 Node 安全修复")).toEqual({ prefix: "Handoff", rest: "非 agent 项目 Node 安全修复" });
+    expect(titlePrefix("RRD-11366 cypht PHP 8.4.27")).toEqual({ prefix: "RRD-11366", rest: "cypht PHP 8.4.27" });
+    expect(titlePrefix("RRD-11366: cypht")).toEqual({ prefix: "RRD-11366", rest: "cypht" });
+    expect(titlePrefix("Measure the sidebar ring")).toEqual({ prefix: null, rest: "Measure the sidebar ring" });
+    // A tag or id alone is the title, and a lower-case word is not an id.
+    expect(titlePrefix("[Handoff]")).toEqual({ prefix: null, rest: "[Handoff]" });
+    expect(titlePrefix("RRD-1")).toEqual({ prefix: null, rest: "RRD-1" });
+    expect(titlePrefix("utf-8 fix")).toEqual({ prefix: null, rest: "utf-8 fix" });
+  });
+
+  it("leaves the shared model unsaid and names it once when it is not the parent's", () => {
+    const parent = sample("sample-running");
+    const opus = { provider: "claude", modelLabel: "Opus 5.5", thinkingLabel: "High", modeLabel: "Bypass" };
+    const gpt = { provider: "codex", modelLabel: "GPT-5.5 Codex", thinkingLabel: "Medium", modeLabel: "Auto" };
+    const kids = (...models: (typeof opus)[]) => models.map((model, index): TaskChild => ({ id: `c${index}`, title: "t", status: "done", ...model }));
+    // The parent runs GPT-5.5 Codex · Medium · Bypass: all on Opus says so once.
+    const allOpus = subtaskModels({ ...parent, children: kids(opus, opus, opus) }, "zh");
+    expect(allOpus.baseline).toMatchObject({ model: "Opus 5.5", thinking: "High", mode: "Bypass" });
+    expect(allOpus.footnote).toEqual({ text: "均为 Opus 5.5 · High · Bypass", provider: "claude" });
+    const mostly = subtaskModels({ ...parent, children: kids(opus, gpt, opus) }, "en");
+    expect(mostly.footnote).toEqual({ text: "Others on Opus 5.5 · High · Bypass", provider: "claude" });
+    // The parent's own model is never repeated.
+    expect(subtaskModels({ ...parent, ...opus, children: kids(opus, opus) }, "zh").footnote).toBeNull();
+    // One child compares with its parent, without a footnote.
+    const single = subtaskModels({ ...parent, children: kids(opus) }, "zh");
+    expect(single).toEqual({ baseline: { provider: "codex", model: "GPT-5.5 Codex", thinking: "Medium", mode: "Bypass" }, footnote: null });
+    // A tie goes to the first seen; children without a model leave no baseline.
+    expect(subtaskModels({ ...parent, children: kids(gpt, opus) }, "zh").baseline?.model).toBe("GPT-5.5 Codex");
+    expect(subtaskModels({ ...parent, children: [{ id: "x", title: "t", status: "done" }, { id: "y", title: "t", status: "done" }] }, "zh")).toEqual({ baseline: null, footnote: null });
+  });
+
+  it("writes a subtask's meta line: its model when it differs, its status, the last turn, the context", () => {
+    const timing = { ...sample("sample-done").timing, lastTurnMs: 182_000 };
+    const baseline = { provider: "claude", model: "Opus 5.5", thinking: "High", mode: "Bypass" };
+    const base: TaskChild = { id: "c", title: "t", status: "done", provider: "claude", modelLabel: "Opus 5.5", thinkingLabel: "High", modeLabel: "Bypass", lane: "done", timing, context: { usedTokens: 290_000, maxTokens: 1_000_000 } };
+    const text = (child: TaskChild, narrow = false, language: "zh" | "en" = "zh") => subtaskMeta(child, baseline, NOW, language, narrow).map((part) => part.text);
+    expect(text(base)).toEqual(["上一轮 3m 2s", "上下文 29%"]);
+    expect(text(base, false, "en")).toEqual(["Last turn 3m 2s", "Context 29%"]);
+    expect(subtaskMeta({ ...base, status: "needs_input", lane: "needs_input" }, baseline, NOW, "zh")).toEqual([
+      { text: "等待输入", tone: "warning" },
+      { text: "上一轮 3m 2s", tone: null },
+      { text: "上下文 29%", tone: null },
+    ]);
+    expect(subtaskMeta({ ...base, status: "failed", context: null }, baseline, NOW, "zh")).toEqual([
+      { text: "失败", tone: "danger" },
+      { text: "上一轮 3m 2s", tone: null },
+    ]);
+    expect(text({ ...base, status: "unread" })).toEqual(["待查看", "上一轮 3m 2s", "上下文 29%"]);
+    // Running: its start, no last turn; the context goes amber from 75% and red from 90%.
+    const running: TaskChild = { ...base, status: "running", lane: "running", timing: { ...timing, turnStartedAt: ago(14 * MINUTE) }, context: { usedTokens: 940_000, maxTokens: 1_000_000 } };
+    expect(subtaskMeta(running, baseline, NOW, "zh")).toEqual([
+      { text: `${formatClockTime(NOW - 14 * MINUTE, NOW)} 开始`, tone: null },
+      { text: "上下文 94%", tone: "danger" },
+    ]);
+    expect(subtaskMeta({ ...base, context: { usedTokens: 780_000, maxTokens: 1_000_000 } }, baseline, NOW, "zh")[1]).toEqual({ text: "上下文 78%", tone: "warning" });
+    // A different model leads, with its provider's mark; narrow, the name alone.
+    const codex: TaskChild = { ...base, provider: "codex", modelLabel: "GPT-5.5 Codex", thinkingLabel: "Medium" };
+    expect(subtaskMeta(codex, baseline, NOW, "zh")[0]).toEqual({ text: "GPT-5.5 Codex · Medium", tone: null, provider: "codex" });
+    expect(subtaskMeta(codex, baseline, NOW, "zh", true)[0]).toEqual({ text: "GPT-5.5 Codex", tone: null, provider: "codex" });
+    // Narrow: no start, and the context only from 75%.
+    expect(text(running, true)).toEqual(["上下文 94%"]);
+    expect(text(base, true)).toEqual(["上一轮 3m 2s"]);
+    // Done with nothing known says nothing.
+    expect(text({ id: "x", title: "t", status: "done" })).toEqual([]);
+  });
+
+  it("times a subtask row: a running timer, else when it ended", () => {
+    const timing = sample("sample-done").timing;
+    const running: TaskChild = { id: "r", title: "t", status: "running", lane: "running", timing: { ...timing, turnStartedAt: ago(14 * MINUTE + 14_000) } };
+    expect(subtaskTime(running, NOW, "zh")).toEqual({ text: "14m 14s", live: true });
+    expect(subtaskTime({ id: "d", title: "t", status: "done", lane: "done", timing: { ...timing, lastTurnEndedAt: ago(12 * MINUTE) } }, NOW, "zh")).toEqual({ text: "12 分钟前", live: false });
+    // Asking for input: since the request.
+    expect(subtaskTime({ id: "i", title: "t", status: "needs_input", lane: "needs_input", timing: { ...timing, attentionAt: ago(2 * MINUTE), lastTurnEndedAt: ago(9 * MINUTE) } }, NOW, "en")).toEqual({ text: "2m ago", live: false });
+    // Without a recorded end, the last update, as the board card reads it.
+    expect(subtaskTime({ id: "u", title: "t", status: "unread", lane: "review", timing: { ...timing, lastTurnEndedAt: null, updatedAt: ago(5 * MINUTE) } }, NOW, "zh")).toEqual({ text: "5 分钟前", live: false });
+    expect(subtaskTime({ id: "x", title: "t", status: "done" }, NOW, "zh")).toBeNull();
   });
 
   it("formats the turn's clock and the timeline's spans", () => {
