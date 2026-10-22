@@ -175,7 +175,7 @@ Paseo 0.12.0 Release 构建，iPhone 17 Pro / iOS 26.5 模拟器，每次冷启�
 
 截图于 2026-10-17 基于 `b9dfae6` 的离线 Web showcase 重拍。全部产品截图默认浅色，并随阅读器主题自动切换深色；手机外框为示意。性能版本及条件见上文。[截图清单](docs/images/screenshots.json)。
 
-以下功能都建立在 Beautiful Chat 已有的能力之上：按类型区分的工具卡片、Shiki 高亮、读图、在文件管理器中显示，以及插件自己的查找栏。
+以下功能都建立在 Beautiful Chat 已有的能力之上：按类型区分的工具卡片、Shiki 高亮、读图、用默认应用打开文件，以及插件自己的查找栏。
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="images/thread-dark.png"><img alt="完整的一轮对话，从上到下" src="images/thread-light.png"></picture>
 
@@ -245,7 +245,7 @@ Oh My Pi 的 `hub` 工具和它的 GitHub 设备调用按工具名识别，有�
 ### 图片
 
 - 读图时画出文件本身：从文件头读出的尺寸和大小、按内容撑满的缩略图，以及一个显示/隐藏开关，切换时行头停在按下的位置。
-- 全屏查看器支持按钮、滚轮或双指以指针为中心缩放，拖动平移，双击复位，并可在文件管理器中显示。手机上长按这一行会直接打开查看器。
+- 全屏查看器支持按钮、滚轮或双指以指针为中心缩放，拖动平移，双击复位，并可用默认应用打开。手机上长按这一行会直接打开查看器。
 - 图片数据在第一次展开、预览或长按时从 daemon（`file.image`）读取。支持 PNG、JPEG、GIF、WebP、AVIF、BMP、ICO 和 SVG；超过 3MB 的文件只显示大小，不内联。
 - 多个读图卡片引用同一张图片时，每个卡片都会显示它。
 
@@ -381,7 +381,7 @@ Paseo 自带的聊天查找（Ctrl/Cmd+F）定位不到插件绘制的行，因�
 
 ## 打开文件
 
-读、写、编辑结果和代码块里的文件名都是链接。在桌面上，它调用 daemon 端的 `file.reveal`，按 agent 的工作目录解析路径，并在文件管理器中显示：Windows 用 `explorer.exe /select,`，macOS 用 `open -R`，其他系统用 `xdg-open <目录>`。在触控设备上，同样的点按改为复制绝对路径，因为手机打不开 daemon 那台机器的文件管理器。
+读、写、编辑结果和代码块里的文件名都是链接。在桌面上，它调用 daemon 端的 `file.reveal`，按 agent 的工作目录解析路径，在 daemon 那台机器上打开：macOS 用 `open` 以默认应用打开文件、在访达中打开文件夹；应用、脚本和可执行文件只用 `open -R` 定位，点按不会运行它们。Windows 用 `explorer.exe /select,` 选中文件，其他系统用 `xdg-open` 打开所在目录。在触控设备上，同样的点按改为复制绝对路径，因为手机看不到 daemon 那台机器的屏幕。
 
 ## 常见问题
 
