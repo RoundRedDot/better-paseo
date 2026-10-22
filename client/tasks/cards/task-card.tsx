@@ -752,13 +752,15 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         onOpenChange={setRingOpen}
       />
     ) : null;
-  const footer =
+  // Its details card opens upwards over the rows above, so whichever row holds it is raised while it shows.
+  const ringZ = ringOpen ? OVERLAY_ROW_Z + 1 : undefined;
+  // A desktop request's buttons take the footer in on their row: the wait sits
+  // beside the answer it waits for, as the details sidebar shows it, rather
+  // than above the divider with the buttons alone on a row of their own.
+  const answerRow = layout.permission && card.permission !== null && !compact && props.permissionButtons.length > 0;
+  const footerContent =
     timer || ring ? (
-      <View
-        // Its details card opens upwards over the rows above, so the row is raised while it shows.
-        style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: m.rowGap, zIndex: ringOpen ? OVERLAY_ROW_Z + 1 : undefined }}
-        testID="task-card-footer"
-      >
+      <>
         {timer ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             {started ? (
@@ -776,6 +778,12 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         ) : null}
         {/* Bottom right, where Linear keeps nothing else; it stays there without a timer. */}
         {ring ? <View style={{ marginLeft: "auto" }}>{ring}</View> : null}
+      </>
+    ) : null;
+  const footer =
+    footerContent && !answerRow ? (
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: m.rowGap, zIndex: ringZ }} testID="task-card-footer">
+        {footerContent}
       </View>
     ) : null;
 
@@ -800,7 +808,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const asksQuestion = permission?.kind === "question" || permission?.kind === "other";
   const permissionBlock =
     layout.permission && permission ? (
-      <View style={[block, { gap: 8 }]} testID="task-card-permission">
+      <View style={[block, { gap: 8, zIndex: answerRow ? ringZ : undefined }]} testID="task-card-permission">
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }}>
           <View style={iconCell}>
             <Icon name={permissionIcon(permission.kind)} size={m.icon + 1} color={tokens.status.warning} />
@@ -814,7 +822,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
             <Text style={[text(m.blockSize - 1, m.blockLine, muted), tabular]}>{strings.more(permission.remaining)}</Text>
           ) : null}
         </View>
-        {!compact && props.permissionButtons.length > 0 ? (
+        {answerRow ? (
           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: GAP, paddingLeft: m.iconSlot + GAP }}>
             {props.permissionButtons.map((button) => (
               <ActionButton
@@ -825,6 +833,11 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
                 onPress={() => props.onPermission?.(card, button)}
               />
             ))}
+            {footerContent ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginLeft: "auto" }} testID="task-card-footer">
+                {footerContent}
+              </View>
+            ) : null}
           </View>
         ) : null}
       </View>

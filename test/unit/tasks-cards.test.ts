@@ -651,6 +651,9 @@ describe("TaskCardView rows", () => {
     expect(all).toContain("Bash · npm run db:migrate -- --env staging");
     expect(all).toContain("还有 1 条");
     expect(all).toContain("等待 4m");
+    // The wait sits on the buttons' row, under the divider, not on a footer row above it.
+    expect(rows(tree.root, "sample-input")).not.toContain("task-card-footer");
+    expect(texts(hostByTestId(hostByTestId(tree.root, "task-card-permission"), "task-card-footer"))).toEqual(["等待 4m"]);
     byLabel(tree.root, "拒绝").props.onPress();
     expect(onPermission).toHaveBeenCalledWith(card, buttons[1]);
     expect(onOpen).not.toHaveBeenCalled();
