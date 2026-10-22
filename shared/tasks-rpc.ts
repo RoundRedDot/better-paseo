@@ -127,3 +127,22 @@ export const tasksUnarchiveRpc = defineRpc({
   input: z.object({ agentId: z.string().min(1) }),
   output: z.object({ ok: z.boolean(), error: z.string().nullable() }),
 });
+
+export const sessionTokensSchema = z.object({
+  /** Every token the session used: input, cache writes and reads, output. */
+  total: z.number(),
+  /** The part read from the provider's prompt cache. */
+  cached: z.number(),
+});
+export type SessionTokens = z.output<typeof sessionTokensSchema>;
+
+/**
+ * The tokens an agent's whole session has used so far, read from the
+ * provider's own session files (Claude and Codex); null for another provider
+ * or before the session has any usage.
+ */
+export const tasksSessionTokensRpc = defineRpc({
+  name: "tasks.session-tokens",
+  input: z.object({ agentId: z.string().min(1) }),
+  output: z.object({ tokens: sessionTokensSchema.nullable() }),
+});

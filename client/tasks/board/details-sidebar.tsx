@@ -8,6 +8,7 @@ import { BrandMark, DETAIL_CARD, DetailCard, detailScrollProps, ProjectIcon, Sta
 import { LANE_ORDER, LANE_STATUS, type LaneId, type TaskCard } from "../model";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
+import { useSessionTokens } from "../data/session-tokens";
 import { FILTER_ICONS, activeChips, buildFilterOptions, clearedParams, type FilterOption } from "./filter-options";
 import { RollingCount } from "./board-parts";
 import { toggleItem } from "./params";
@@ -63,6 +64,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
   };
   const firstPrompt = useFirstPrompt(board.paseo, card?.id ?? "", card !== undefined && card.closed !== true);
   const lastMessage = useLastMessage(board.paseo, card?.id ?? "", card ? lastMessageVersion(card) : "", card !== undefined && card.closed !== true);
+  const sessionTokens = useSessionTokens(card?.id ?? "", card?.lane === "running" && card.closed !== true);
   const stopAvailable = !!board.callbacks.onStop && card?.stoppable === true;
   const detailProps = card
     ? {
@@ -81,6 +83,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
         onPermission: (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button),
         onJump: jump,
         firstPrompt,
+        sessionTokens,
         lastMessage,
         unarchive: board.unarchive.available ? board.unarchive : null,
       }

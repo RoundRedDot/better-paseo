@@ -2,7 +2,7 @@ import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { settingsRpc } from "@getpaseo/plugin";
 import { TASKS_SETTINGS, tasksSettingsSchema } from "../../shared/tasks-settings";
 import { lastTurnsRpc } from "../../shared/turn-usage-rpc";
-import { tasksReadsRpc, tasksSubagentsRpc } from "../../shared/tasks-rpc";
+import { tasksReadsRpc, tasksSessionTokensRpc, tasksSubagentsRpc } from "../../shared/tasks-rpc";
 import { TasksBoardScreen } from "./board/board-screen";
 import {
   setTasksBoardOpener,
@@ -20,6 +20,7 @@ import { subscribeHostLanguage } from "../i18n/host-language";
 import { onTasksLanguageChange, resolveTasksLanguage } from "./i18n";
 import { SETTINGS_SCREEN_ID, setSettingsTab } from "../settings-tab";
 import { setLastTurnLoader, setReadMarksLoader, setSubagentLoader } from "./data";
+import { setSessionTokensLoader } from "./data/session-tokens";
 
 /** The board's screen id; `openScreen({ screenId: TASKS_SCREEN_ID })` opens it. */
 export const TASKS_SCREEN_ID = "tasks";
@@ -47,6 +48,8 @@ export function contributeTasks(client: PluginClientContext): () => void {
   setSubagentLoader((since) => client.rpc(tasksSubagentsRpc, since === undefined ? {} : { since }));
   // Cards marked read from a board, failures included: the server keeps the marks.
   setReadMarksLoader(() => client.rpc(tasksReadsRpc, {}).then((result) => result.reads));
+  // A running task's session tokens, read by the server from the provider's session files.
+  setSessionTokensLoader((agentId) => client.rpc(tasksSessionTokensRpc, { agentId }).then((result) => result.tokens));
   let language = resolveTasksLanguage();
 
   const registerBoard = () => {
@@ -149,5 +152,6 @@ export function contributeTasks(client: PluginClientContext): () => void {
     setLastTurnLoader(null);
     setSubagentLoader(null);
     setReadMarksLoader(null);
+    setSessionTokensLoader(null);
   };
 }
