@@ -43,9 +43,9 @@ ${tbl(['形态','宽','高 / 档位','圆角','内边距 / 结构'],[
  ['底部抽屉（手机、窄窗）','= 屏宽','可用高 = 屏高 − 顶部安全区。初始 min(内容, 0.58 × 可用)；全屏 可用 − 8','上 16','把手 28（抓手 36 × 5，距顶 8）· 头部 52 · 工具栏 44 · 正文 · 底部安全区 34（Android 按系统 inset）'],
  ['浮动底部面板','min(W − 32, 760)，居中','初始 min(内容, 0.5 × 可用)；全屏 可用 − 24','16（四角）','距底 12 + 安全区；结构同抽屉，无底部安全区占位'],
  ['右侧面板','P = clamp(0.36W, 420, 640)；若内容列右侧空白 ≥ 436 则取空白 − 16（≤ 640）','贴满状态栏以下到底','0，左边框 1','无把手；头部 52 / 44（桌面）· 工具栏 44 / 36 · 正文；左缘 8 宽拖拽区，宽 360 – 0.6W'],
- ['悬停预览（指针）','= 内容列宽，若右侧面板打开则收窄到面板左侧 − 12','≤ 360，最小 240 × 120','10','工具栏 36（surface1）；拖动 / 8 向缩放 / 最大化逻辑沿用；最大化按钮改为「在面板中打开」'],
+ ['悬停预览（指针）','= 内容列宽，若右侧面板打开则收窄到面板左侧 − 12','≤ 360，最小 240 × 120','10','工具栏 36（surface1）。左：换行 / 分页 / 渲染切换；中：图标 + 名字；右：复制按钮 · 在面板中打开（panel-right，新增）· 最大化（maximize-2，最大化后变成 ×）· pop 时最右 ×。拖工具栏移动，8 个边角缩放，双击工具栏最大化；最大化 = 窗口内容区上下各留 16'],
  ['头部','—','触屏 52 / 桌面 44','图标块 28，圆角 7','左 16 · 图标块 · 间距 10 · 标题 14/600（命令类 13 等宽）+ 副标题 12 · ‹ › × 按钮 36 / 28'],
- ['工具栏','—','触屏 44 / 桌面 36','分段 / 分页 / 复制 高 32 / 24','左：换行、渲染 / 原文、合并分页器；右：复制（主操作 + 下拉）、全屏 / 宽面板'],
+ ['工具栏','—','触屏 44 / 桌面 36','分段 / 分页 / 复制 高 32 / 24','左：换行（开 / 关 / 置灰）、渲染 / 原文、提问原文切换、分页器；右：复制图标按钮（5.9，放不下从末尾收进 ⋯）、全屏'],
  ['正文','—','—','代码条 4','路径行 12 等宽 muted；代码 12/18，行号列 40（11 号），隔行 surface1；diff 行号 36（桌面双列）、符号列 16；Markdown 14/22；错误分节：上边框 + danger 标题']
 ],['180px','minmax(0,1fr)','minmax(0,1fr)','120px','minmax(0,1.4fr)'])}
 ${h3('5.3 手势阈值')}
@@ -67,10 +67,10 @@ ${tbl(['操作','触屏（手机 / 平板 / 触屏 Web）','指针（桌面 / iP
  ['长按 500ms / 右键','操作菜单：打开详情、在时间线中展开、复制（按工具）','右键同一菜单'],
  ['悬停','—','1s（设置 0–10s）弹预览；离开 150ms 关闭；面板已显示该行时不弹'],
  ['无正文行','无 chevron；单击只有 120ms 按压态，不开面板；长按菜单仅「复制标题」','无悬停预览，单击无响应，光标保持默认'],
- ['读图片的行','单击直接开图片查看器；长按菜单首项「查看图片」','同左'],
+ ['读图片的行','单击直接开图片查看器（顶栏副标题显示尺寸 · 格式 · 体积）；长按菜单头部同样显示','单击同左；悬停浮层工具栏中部仍显示尺寸'],['Markdown 代码块的最大化按钮','手机：抽屉直接打开在全屏档。平板 600–959：浮动面板全屏档；≥ 960：右侧面板。头部无 ‹ ›','右侧面板；W < 960 时按断点用浮动面板 / 抽屉'],
  ['面板打开时单击其它行','手机：点在蒙层上 → 关闭。平板浮动 / 右侧面板：直接切换内容','直接切换内容'],
  ['单击当前行','（被蒙层覆盖）','关闭面板'],
- ['复制内容','Bash：命令 / 输出 / 全部；Read：内容 / 路径；Edit：diff / 新内容 / 路径；Search：结果 / 匹配文件列表；Fetch：Markdown / URL；Agent：结果 / 全部对话；思考、提问、todo：Markdown','主按钮执行第一项，下拉选其它']
+ ['复制','工具栏上并排的图标按钮，一次点击复制，按钮集合见 5.9；长按菜单同一组','同左，悬停显示名称']
 ],['200px','minmax(0,1fr)','minmax(0,1fr)'])}
 ${h3('5.5 动画参数（缓动统一 cubic-bezier(0.2, 0, 0, 1)）')}
 ${tbl(['动作','时长','做法'],[
@@ -97,18 +97,18 @@ ${tbl(['名称','公式','浅色','深色','用途'],[
  ['直接使用','surface0 面板底；surface1 隔行 / 头部图标块 / 关闭按钮；surface2 按压 / 代码条 / 激活按钮；border 分隔；accent 标记、跟随箭头；success / danger 状态与 diff 符号',sw(T.L.s1),sw(T.D.s1),'不新增其它颜色']
 ],['130px','minmax(0,1fr)','190px','190px','minmax(0,0.8fr)'])}
 ${h3('5.7 键盘（iPad 外接键盘 / 桌面）')}
-${tbl(['按键','行为'],[['← / →','上一个 / 下一个 Block（焦点在正文横向滚动区时让给滚动）'],['↑ / ↓、Space','滚动正文'],['Esc','关闭面板或悬停预览'],['W','切换换行'],['R','渲染 / 原文'],['[ / ]','合并行分页'],['⌘C / Ctrl+C','无文本选择时复制主内容'],['F','抽屉 / 浮动面板切全屏档；右侧面板切宽面板']],['200px','minmax(0,1fr)'])}
+${tbl(['按键','行为'],[['← / →','上一个 / 下一个 Block。右侧面板和最大化的悬停窗口用同一套（焦点在横向滚动区时让给滚动）'],['↑ / ↓、Space','滚动正文'],['Esc','关闭面板或悬停预览'],['W','切换换行'],['R','渲染 / 原文'],['[ / ]','合并行分页、提问分页（原来最大化窗口里的 ← → 翻页改到这里）'],['⌘C / Ctrl+C','无文本选择时复制主内容'],['F','抽屉 / 浮动面板切全屏档；右侧面板切宽面板'],['双击工具栏','桌面悬停窗口最大化 / 还原']],['200px','minmax(0,1fr)'])}${extraSpec()}
 </div>`;}
 
 // ---------- summary ----------
 function summary(){const c=[
  ['1 点击模型','单击行身打开详情，chevron 区（热区 44 宽）保留原地展开。详情是读长内容的主路径，给最大的热区；原地展开是扫读用的，chevron 本来就是展开的视觉暗示。长按改为操作菜单。无正文行不显示 chevron，单击只有按压态。图片行单击直接看图。'],
  ['2 抽屉档位','自适应 + 全屏：初始高 = min(内容高, 0.58 × 可用高)，内容超过半屏才有全屏档（可用高 − 8）。3 行输出约 266 高；2000 行输出开在 462。工具栏「全屏」对应原来的「最大化」。'],
- ['3 头部与工具栏','头部：图标块、单行标题（单击展开多行）、状态 · 时长 · 序号，右侧 ‹ › ×。工具栏：换行、渲染 / 原文、合并分页器，右侧「复制 ▾」按工具给出不同复制项。'],
+ ['3 头部与工具栏','头部：图标块、单行标题（单击展开多行）、状态 · 时长 · 序号，右侧 ‹ › ×。工具栏：换行（可置灰）、渲染 / 原文、提问原文切换、分页器，右侧是按工具并排的复制图标按钮（5.9），放不下从末尾收进 ⋯。'],
  ['4 切换 Block','范围是整个会话的可预览 Block（合并行算 1 个，无正文跳过）。头部横滑或 ‹ ›；时间线同步滚动，当前行用 accentSoft 底 + 2px accent 竖条标记。'],
  ['5 手势','只有把手和头部能拖抽屉；头部横滑切换。工具栏只点。正文只滚动，滚到顶后下拉才移交抽屉；正文横滑只滚代码。'],
  ['6 平板','< 600 底部抽屉；600–959 浮动底部面板（居中，最宽 760）；≥ 960 且 S − P ≥ 400 右侧面板。回差 16。浮动和右侧面板无蒙层，背后可点：点其它行直接切换。'],
- ['7 桌面','保留悬停预览；单击行身改为打开右侧面板，和平板一致，设置里可改回旧行为。chevron 与 ⌘ / Ctrl 单击原地展开。窄于 960 用浮动面板，窄于 600 用抽屉。'],
+ ['7 桌面','保留悬停预览及其最大化、双击最大化、pop、拖动缩放，新增「在面板中打开」；单击行身改为打开右侧面板，和平板一致，设置里可改回旧行为。chevron 与 ⌘ / Ctrl 单击原地展开。窄于 960 用浮动面板，窄于 600 用抽屉。'],
  ['8 触屏 Web','与原生同一套。行上禁用系统长按（-webkit-touch-callout: none、user-select: none），自己实现 500ms 长按；面板正文里文字仍可选择。'],
  ['9 动画','打开 280 / 切档 240 / 关闭 200 / 切换 220，cubic-bezier(0.2, 0, 0, 1)。减少动态效果时一律 120ms 淡入淡出。']];
  return `<div style="padding:80px 80px 64px"><div style="font-size:13px;color:${DOC.mu}">Better Paseo · 设计稿 · 2026-10-22</div><div style="font-size:48px;font-weight:700;letter-spacing:-1px;color:${DOC.fg};margin-top:8px">Block 详情抽屉</div><div style="font-size:16px;line-height:26px;color:${DOC.mu};max-width:980px;margin-top:12px;text-wrap:pretty">替换手机上「长按 Block 弹居中浮层」。单击 Block 打开详情：手机为底部抽屉，平板按宽度用浮动底部面板或右侧面板，桌面保留悬停预览并增加右侧面板。交互沿用任务看板详情 sheet 的参数。</div>
@@ -116,17 +116,17 @@ function summary(){const c=[
 <div style="display:flex;gap:20px;margin-top:28px;font-size:13px;color:${DOC.mu}">${[['ab1','画板 1 · 手机'],['ab2','画板 2 · 平板'],['ab3','画板 3 · 桌面'],['ab4','画板 4 · 交互细节'],['ab5','画板 5 · 移植规格']].map(a=>`<a href="#${a[0]}" style="color:${DOC.fg}">${a[1]}</a>`).join('')}</div></div>`;}
 
 function build(){
- const ph=t=>rowOf(phoneScreens(t).map(s=>frameCap({...s,id:s.id+(t===T.D?'·深':'')})),40);
+ const ph=t=>rowOf(phoneScreens(t).concat(phoneExtra(t)).map(s=>frameCap({...s,id:s.id+(t===T.D?'·深':'')})),40);
  const ab1=artboard('ab1','画板 1 · 手机 390','iPhone 390 × 844，顶部安全区 47、底部 34，宿主顶栏 56、输入框 104。上排浅色、下排深色，内容一致。',
   `<div style="font-size:18px;font-weight:700;color:${DOC.fg};margin-bottom:20px">浅色</div>${ph(T.L)}<div style="font-size:18px;font-weight:700;color:${DOC.fg};margin:64px 0 20px">深色</div>${ph(T.D)}<div style="font-size:18px;font-weight:700;color:${DOC.fg};margin:64px 0 20px">横屏</div>${frameCap({id:'1i',label:'手机横屏 · 844 × 390',note:'高度 < 500 时底部抽屉只剩一条缝，改用右侧面板（宽 400，贴右，高度贴满，底部安全区 21）。无蒙层，左侧时间线可滚可点，当前行可见。',capW:860,html:landscape(T.L)})}`);
- const ab2=artboard('ab2','画板 2 · 平板','浅色。每张都画出时间线与面板的关系：竖屏用浮动底部面板，与内容列同宽居中；横屏用右侧面板，盖在会话区右侧，左侧保留可读的时间线。',rowOf(tablets(T.L).map(s=>frameCap({...s,capW:620})),56));
- const ab3=artboard('ab3','画板 3 · 桌面','浅色。单击 = 详情（右侧面板），悬停 = 预览，两者可同时出现；预览不会盖到面板上。',rowOf(desktops(T.L).map(s=>frameCap({...s,capW:620})),56));
+ const ab2=artboard('ab2','画板 2 · 平板','浅色。每张都画出时间线与面板的关系：竖屏用浮动底部面板，与内容列同宽居中；横屏用右侧面板，盖在会话区右侧，左侧保留可读的时间线。',rowOf(tablets(T.L).concat(tabletsExtra(T.L)).map(s=>frameCap({...s,capW:620})),56));
+ const ab3=artboard('ab3','画板 3 · 桌面','浅色。单击 = 详情（右侧面板），悬停 = 预览，两者可同时出现。悬停浮层的最大化、pop、拖动缩放全部保留，「在面板中打开」是新增按钮。',rowOf(desktops(T.L).concat(desktopsExtra(T.L)).map(s=>frameCap({...s,capW:620})),56));
  const ab4=artboard('ab4','画板 4 · 交互细节','',
   `<div style="font-size:20px;font-weight:700;color:${DOC.fg};margin-bottom:20px">4a 手势分区</div>${zoneBoard()}
 <div style="font-size:20px;font-weight:700;color:${DOC.fg};margin:72px 0 20px">4b 当前 Block 的标记</div>${markerBoard()}
 <div style="font-size:20px;font-weight:700;color:${DOC.fg};margin:72px 0 20px">4c 档位切换</div>${detentBoard()}
 <div style="font-size:20px;font-weight:700;color:${DOC.fg};margin:72px 0 20px">4d 关闭方式</div>${closeBoard()}
-<div style="font-size:20px;font-weight:700;color:${DOC.fg};margin:72px 0 20px">4e 切换 Block 时时间线同步</div>${syncBoard()}`);
+<div style="font-size:20px;font-weight:700;color:${DOC.fg};margin:72px 0 20px">4e 切换 Block 时时间线同步</div>${syncBoard()}${board4f()}`);
  const ab5=artboard('ab5','画板 5 · 移植规格','所有尺寸单位为 pt / px（RN 逻辑像素）。',specBoard());
  return `<helmet><meta name="design_doc_mode" content="canvas"><style>body{margin:0;background:${DOC.bg};font-family:${SANS};-webkit-font-smoothing:antialiased} a{color:#18181b;text-decoration:underline;text-underline-offset:3px} a:hover{color:#2563eb}</style></helmet>
 <div style="background:${DOC.bg};min-width:3700px;font-family:${SANS}">${summary()}${ab1}${ab2}${ab3}${ab4}${ab5}<div style="height:120px"></div></div>`;}
