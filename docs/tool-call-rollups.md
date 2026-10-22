@@ -1,6 +1,6 @@
 # Tool call rollups
 
-Open Better Paseo settings → Tools → **Tool call rollups** (「合并工具调用」).
+Open Better Paseo settings → **Tool calls** → **Tool call rollups** (「合并工具调用」).
 The switch defaults to **Off** and applies to all clients connected to the same
 host. Turn it On to collapse consecutive tool calls under **Called N tools**;
 a singleton says **Called 1 tool**. Running and failed counts stay visible.
@@ -27,6 +27,23 @@ settings document (host scope, schema version 1). Missing or invalid values fall
 back to `false`. Disclosure choices survive card remounts in the current client,
 but not a client reload. They are keyed to the group head, so a changed head can
 select a different saved choice.
+
+## Demo
+
+Offline fixtures, not a user conversation or native-device acceptance. The
+failure is deliberate fixture text, not a result of the validation below.
+
+Collapsed, with running and failed counts:
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="images/tool-rollups-dark-collapsed.png"><img alt="Collapsed tool rollup: seven calls, one running and one failed" src="images/tool-rollups-light-collapsed.png"></picture>
+
+Expanded, with the original cards in their source slots:
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="images/tool-rollups-dark-expanded.png"><img alt="Expanded rollup showing all seven original tool cards" src="images/tool-rollups-light-expanded.png"></picture>
+
+[Capture provenance](images/tool-rollups-provenance.json) records the source
+commit, fixture hashes, dimensions and image hashes. Counts and spacing have the
+limits below.
 
 ## Limits
 
@@ -74,3 +91,25 @@ canonical screenshot capture commands and Hermes runtime restrictions.
 
 API references: [plugin reference](https://paseo.sh/docs/plugins/reference.md)
 and the installed `@getpaseo/plugin`/`@getpaseo/client` 0.12.0 contracts.
+
+## Validation
+
+Checked on Linux, Node 22.22.2/npm 10.9.7, at source revision
+`9e7997908be4575d7f14c03b13dd3bea4168aa3e`. Repository CI uses Node 24.
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | Passed |
+| `npm test` | 3602 passed, 1 existing macOS-only test skipped on Linux; 192 suites passed, 1 skipped |
+| `npm run build:client` | Passed |
+| `npm run check:hermes` | Source and install-built client/Tasks chunk compile passed; VM evaluation skipped because no Hermes VM is installed |
+| Rollup browser smoke | Passed light/dark × desktop/440px; zero-height empty wrappers, all seven cards restored, counts retained, no browser errors |
+| Canonical screenshot recapture | Completed all scenes in light/dark, Chinese settings and 2× hero captures in private output directories |
+| Rollup documentation images | All four PNG hashes/dimensions verified; both pictures switch light/dark/light in Chromium |
+| Existing README screenshot tests | Both fail on this revision and unchanged maintainer main `2209968`: hardcoded 23 pictures versus 25 actual; media-selection harness times out. The test, existing assets and README picture blocks are unchanged |
+
+The README harness manifest omits the existing Tasks board/timeline image references.
+These unrelated baseline failures were not suppressed or changed.
+
+No iOS/Android device runtime was tested. Synthetic screenshots do not establish
+SDK integration, native spacing parity or stable whole-turn counts.
