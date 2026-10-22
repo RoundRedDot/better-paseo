@@ -14,7 +14,7 @@ export interface FilterOption {
 }
 
 export interface FilterOptions {
-  workspaceGroups: { projectId: string; projectName: string; items: FilterOption[] }[];
+  workspaceGroups: { projectId: string; projectName: string; projectKey: string | null; projectIcon: string | null; items: FilterOption[] }[];
   agents: FilterOption[];
   labels: FilterOption[];
 }
@@ -38,7 +38,13 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
   for (const workspace of tasks.workspaces) {
     let group = groups.get(workspace.projectId);
     if (!group) {
-      group = { projectId: workspace.projectId, projectName: workspace.projectName, items: [] };
+      group = {
+        projectId: workspace.projectId,
+        projectName: workspace.projectName,
+        projectKey: workspace.projectKey ?? null,
+        projectIcon: workspace.projectIcon ?? null,
+        items: [],
+      };
       groups.set(workspace.projectId, group);
     }
     group.items.push({
@@ -52,7 +58,7 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
   const known = new Set(tasks.workspaces.map((workspace) => workspace.id));
   const missing = params.workspaceIds.filter((id) => !known.has(id));
   if (missing.length) {
-    groups.set("", { projectId: "", projectName: "—", items: missing.map((id) => ({ id, label: id, count: 0, on: true })) });
+    groups.set("", { projectId: "", projectName: "—", projectKey: null, projectIcon: null, items: missing.map((id) => ({ id, label: id, count: 0, on: true })) });
   }
 
   const agents: FilterOption[] = tasks.providers.map((provider) => ({

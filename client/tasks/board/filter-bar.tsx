@@ -222,7 +222,7 @@ export function DesktopFilterBar(props: {
       <View style={{ flex: 1, minWidth: FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
         <MenuButton icon="Folder" label={strings.workspace + count(params.workspaceIds)} open={menu === "workspace"} onPress={() => toggle("workspace")} theme={theme}>
           <CascadeMenu
-            sections={workspaceMenuSections(options, theme, strings, (id) => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, id) })))}
+            sections={workspaceMenuSections(options, theme, strings, board.hostId, (id) => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, id) })))}
             theme={theme}
             width={300}
             top={taskControlHeight(28, scale) + 6}

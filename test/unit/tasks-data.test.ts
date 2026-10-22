@@ -479,6 +479,33 @@ describe("Tasks data store", () => {
     }
   });
 
+  it("gives the workspace options their project's key and loaded icon, so filter rows match the cards", async () => {
+    const host = createFakePaseo({
+      agents: [activeAgent("a", { status: "running" })],
+      workspaces: [workspace()],
+      projects: [PROJECT],
+      withLabelsAndIcons: true,
+      projectIcons: { "project-id": { data: "aW1hZ2U=", mimeType: "image/png" } },
+    });
+    const mounted = await mountTasks(host, "24h", false);
+    try {
+      expect(mounted.current.workspaces[0]).toMatchObject({ id: "ws", projectKey: "project-key", projectIcon: null });
+      await act(async () => {
+        mounted.current.requestProjectIcon("project-id");
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.workspaces[0]!.projectIcon).toBe("data:image/png;base64,aW1hZ2U=");
+      // A new revision drops the stale icon until it is fetched again.
+      await act(async () => {
+        host.upsertProject({ ...PROJECT, projectIconRevision: "rev-2" });
+        await Promise.resolve();
+      });
+      expect(mounted.current.workspaces[0]!.projectIcon).toBeNull();
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("refetches an icon whose project revision moved while the request was in flight", async () => {
     const host = createFakePaseo({
       agents: [activeAgent("a", { status: "running" })],

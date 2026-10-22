@@ -378,16 +378,6 @@ function sameIds(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean
 }
 
 
-export function LetterAvatar({ name, theme, size = 14 }: { name: string; theme: PluginTheme; size?: number }) {
-  return (
-    <View
-      style={{ width: size, height: size, borderRadius: 3, borderWidth: GLYPH_LINE, borderColor: theme.colors.foregroundMuted, alignItems: "center", justifyContent: "center" }}
-    >
-      <Text style={{ fontSize: size - 6, fontWeight: "600", color: theme.colors.foregroundMuted }}>{(name.trim()[0] ?? "?").toUpperCase()}</Text>
-    </View>
-  );
-}
-
 /** A 36 round icon button in a 44 target, with a count badge: the phone's search and filters, a narrow tablet board's filters. */
 export function RoundButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; active?: boolean; badge?: number; testID?: string }) {
   const colors = props.theme.colors;
