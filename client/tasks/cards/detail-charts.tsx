@@ -34,6 +34,8 @@ import type { TaskTokens } from "./tokens";
 export interface DetailColors {
   sunk: string;
   rowHover: string;
+  /** A pressed row: a step past the hover. */
+  rowPress: string;
   track: string;
   pastSpan: string;
   tokens: Record<TokenPart, string>;
@@ -54,6 +56,7 @@ export function detailColors(tokens: TaskTokens): DetailColors {
     colors = {
       sunk: mix(card, fg, 0.025),
       rowHover: mix(card, fg, 0.05),
+      rowPress: mix(card, fg, 0.08),
       track: mix(card, fg, 0.09),
       pastSpan: mix(card, fg, 0.16),
       tokens: { cached: mix(card, tokens.accent, 0.32), input: tokens.accent, output: mix(card, fg, 0.45) },

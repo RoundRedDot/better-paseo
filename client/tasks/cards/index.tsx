@@ -14,12 +14,12 @@ export { StatusIcon, statusMarkSize, STATUS_RING_PERIOD_MS, type StatusIconProps
 export {
   TaskCardView,
   cardLayout,
-  cardTimer,
   sameCardProps,
   type CardCallbacks,
   type CardLayout,
   type TaskCardViewProps,
 } from "./task-card";
+export { cardStart, cardTimer, formatEnded } from "./card-time";
 export { DETAIL_CARD, DetailActionBar, DetailCard, RoundIcon, TaskDetailCards, detailCardFrame, type DetailCardsStrings, type DetailNotice, type TaskDetailCardsProps } from "./detail-cards";
 export { SUBTASK_ROWS, branchHint, breakable, foldPath, pathLines, pathTokens } from "./details-format";
 export { buildTaskTokens, taskTokens, useTaskTokens, type TaskTokens } from "./tokens";
