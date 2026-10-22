@@ -533,7 +533,8 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
   const { card, m, tokens, section } = props;
   const words = cardStrings(props.language).details;
   const title = { properties: words.properties, subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
-  const done = card.children.filter((child) => child.status === "done").length;
+  // A child whose turn finished is done, read or not: the green corner dot is "unread", not still at work.
+  const done = card.children.filter((child) => child.status === "done" || child.status === "unread").length;
   const created = since(card.timing.createdAt, props.now);
   const summary = {
     properties: card.location.branch ?? (card.location.git === null ? words.notGit : ""),
