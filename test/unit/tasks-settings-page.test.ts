@@ -111,6 +111,14 @@ describe("Tasks half of the settings page", () => {
     expect(api.save).not.toHaveBeenCalled();
   });
 
+  it("the lane width saves narrow, default or wide and keeps the other board options", async () => {
+    const api = makeSettings();
+    const r = panel();
+    expect(textOf(r.root)).toContain("Phones show one lane at a time.");
+    await act(async () => radio(r, "Lane width", "Wide").props.onPress());
+    expect(lastSaved(api).board).toEqual({ ...DEFAULT_TASKS_SETTINGS.board, laneWidth: "wide" });
+  });
+
   it("a field chip flips its field and makes the density custom", async () => {
     const api = makeSettings();
     const r = panel();

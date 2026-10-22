@@ -30,6 +30,7 @@ import {
   tabsOverflow,
   LANES,
   LANES_MIN_BOARD,
+  LANE_SIZES,
   boardIsCompact,
   laneLayout,
   type LaneShape,
@@ -415,6 +416,42 @@ describe("lane widths", () => {
     expect(two).toEqual({ laneWidth: LANES.min, contentWidth: fixed(4, 2) + 2 * LANES.min, scroll: true });
     expect(laneLayout(700, 2, 1).laneWidth).toBeCloseTo((700 - fixed(3, 1)) / 2);
     expect(laneLayout(1000, 0, 4)).toEqual({ laneWidth: 0, contentWidth: 1000, scroll: false });
+  });
+
+  it("draws the default lane width as before the setting", () => {
+    expect(LANE_SIZES.default).toEqual({ min: LANES.min, max: LANES.max });
+    for (const viewport of [400, 480, 632, 1000, 1300, 2000]) {
+      expect(laneLayout(viewport, 4, 0, "default")).toEqual(laneLayout(viewport, 4, 0));
+    }
+  });
+
+  it("caps and scrolls narrow and wide lanes at their own widths", () => {
+    // Narrow: four lanes fit a 1440 laptop's board (1120 beside the host's sidebar) without scrolling, where the default scrolls.
+    expect(laneLayout(1120, 4, 0, "narrow")).toEqual({ laneWidth: 268, contentWidth: 1120, scroll: false });
+    expect(laneLayout(1120, 4, 0, "default").scroll).toBe(true);
+    // And a 1920 screen's with the details sidebar open (1208): capped at 280.
+    expect(laneLayout(1208, 4, 0, "narrow")).toEqual({ laneWidth: 280, contentWidth: 1208, scroll: false });
+    expect(laneLayout(fixed(4, 0) + 4 * 260, 4, 0, "narrow").scroll).toBe(false);
+    expect(laneLayout(1000, 4, 0, "narrow")).toEqual({ laneWidth: 260, contentWidth: fixed(4, 0) + 4 * 260, scroll: true });
+    // Wide: lanes grow to 420 on a big screen and scroll at 360 below it.
+    expect(laneLayout(2000, 4, 0, "wide")).toEqual({ laneWidth: 420, contentWidth: 2000, scroll: false });
+    expect(laneLayout(1600, 4, 0, "wide").laneWidth).toBeCloseTo((1600 - fixed(4, 0)) / 4);
+    expect(laneLayout(1300, 4, 0, "wide")).toEqual({ laneWidth: 360, contentWidth: fixed(4, 0) + 4 * 360, scroll: true });
+    // Every width keeps its cards readable: the narrow preset's widest card is 262 on web.
+    expect(LANE_SIZES.narrow.max - 8 - 4 - 6).toBe(262);
+    expect(LANE_SIZES.wide.max - 8 - 4 - 6).toBe(402);
+  });
+
+  it("keeps two lanes in view on a tablet at every lane width", () => {
+    // An iPad in landscape with the host's sidebar open: about 700 for the board.
+    expect(laneLayout(700, 4, 0, "wide").laneWidth).toBe((700 - 2 * LANES.edge - LANES.gap) / 2);
+    expect(laneLayout(700, 4, 0, "default").laneWidth).toBe(LANES.min);
+    expect(laneLayout(700, 4, 0, "narrow").laneWidth).toBe(260);
+    // At the phone layout's threshold all three are the same, so the setting never moves it.
+    for (const size of ["narrow", "default", "wide"] as const) {
+      expect(laneLayout(LANES_MIN_BOARD, 4, 0, size).laneWidth).toBe(LANES.narrow);
+      expect(laneLayout(480, 4, 0, size).laneWidth).toBe(224);
+    }
   });
 });
 
