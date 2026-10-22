@@ -2,7 +2,8 @@
 
 Measured against `@getpaseo/plugin` 0.8.0 and the Paseo 0.8.0 desktop build; entries 15–18 were
 checked on 2026-10-20 against `@getpaseo/plugin` 0.11.2 and the Paseo 0.12.0 desktop build while
-planning a Tasks board. Each entry names the evidence and the workaround this plugin uses or plans.
+planning a Tasks board, and still hold for `@getpaseo/plugin` 0.12.0 (re-checked 2026-10-22). Each
+entry names the evidence and the workaround this plugin uses.
 
 1. **No file navigation.** Timeline renderer props are exactly `{agentId, theme, host, layout,
 timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurface`,
@@ -64,10 +65,12 @@ timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurfac
     Workaround: the plugin's own find bar, described in [Finding text](../README.md#finding-text).
 15. **No way to stop an agent.** The `PaseoApi` agent handle offers `send`, `run`, `archive` and
     `detach`, but no cancel; `DaemonClient.cancelAgent` exists and is not exposed, on `main` either.
-    `send()` would interrupt the turn, but only by posting another message. Planned workaround: a
-    plugin RPC on the server side runs `paseo agent stop <id>`. The plugin process inherits
-    `PASEO_CLI` (`/Applications/Paseo.app/Contents/Resources/bin/paseo`) and `PASEO_HOME`, and it runs
-    on the daemon's machine, so it stops the right agent for remote hosts too.
+    `send()` would interrupt the turn, but only by posting another message. Workaround: the Tasks
+    board's Stop calls the plugin RPC `tasks.stop`, whose server side runs `paseo agent stop <id>`
+    (`server/tasks/register.ts`). The plugin process inherits `PASEO_CLI`
+    (`/Applications/Paseo.app/Contents/Resources/bin/paseo`) and `PASEO_HOME`, falling back to
+    `paseo` on `PATH`, and it runs on the daemon's machine, so it stops the right agent for remote
+    hosts too.
 16. **Workspace label colours and project icons are out of reach.** Workspace descriptors carry
     their `projectId` and the names of their assigned `labels`, nothing more. The colours live in the
     label definitions (`DaemonClient.listWorkspaceLabels` / `observeWorkspaceLabels`) and the icon
