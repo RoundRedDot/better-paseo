@@ -737,15 +737,20 @@ interface LaneFlash {
 }
 
 const LANE_FLASH = {
-  /** The accent's strength over the lane's fill at a pulse's peak. */
-  peak: 0.14,
-  /** Two pulses, each in then out. */
-  pulseMs: 220,
+  /** The accent's strength over the lane's fill at a pulse's peak: a pale tint. */
+  peak: 0.07,
+  /** Each of the two pulses swells this long, */
+  inMs: 600,
+  /** then fades this long. */
+  outMs: 800,
   /** The row's animated scroll comes first. */
   afterScrollMs: 300,
 } as const;
 
-/** The flash's opacity: two pulses of the accent, or one still beat under reduced motion. */
+/** A breath: slow at both ends, with no edge to the swell or the fade. */
+const breathe = (t: number) => (1 - Math.cos(Math.PI * t)) / 2;
+
+/** The flash's opacity: two slow pulses of a pale accent, or one still beat under reduced motion. */
 function useLaneFlash(flash: LaneFlash | null): Animated.Value {
   const reduced = useReducedMotion();
   const value = useRef(new Animated.Value(0)).current;
@@ -754,10 +759,10 @@ function useLaneFlash(flash: LaneFlash | null): Animated.Value {
   useEffect(() => {
     value.setValue(0);
     if (key === 0) return;
-    const to = (toValue: number, duration: number, wait = 0) => Animated.timing(value, { toValue, duration, delay: wait, easing: MOTION.ease, useNativeDriver: nativeDriver });
-    const { peak, pulseMs } = LANE_FLASH;
+    const to = (toValue: number, duration: number, wait = 0) => Animated.timing(value, { toValue, duration, delay: wait, easing: breathe, useNativeDriver: nativeDriver });
+    const { peak, inMs, outMs } = LANE_FLASH;
     const animation = Animated.sequence(
-      reduced ? [to(peak, 0, delay), to(0, 0, MOTION.highlightMs)] : [to(peak, pulseMs, delay), to(0, pulseMs), to(peak, pulseMs), to(0, pulseMs)],
+      reduced ? [to(peak, 0, delay), to(0, 0, MOTION.highlightMs)] : [to(peak, inMs, delay), to(0, outMs), to(peak, inMs), to(0, outMs)],
     );
     animation.start();
     return () => animation.stop();
