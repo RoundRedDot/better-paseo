@@ -39,3 +39,22 @@ export const turnUsageRpc = defineRpc({
   input: z.object({ agentId: z.string().min(1), since: z.number().optional() }),
   output: z.object({ turns: z.array(recordedTurnSchema) }),
 });
+
+export const lastTurnSchema = z.object({
+  agentId: z.string(),
+  startedAt: z.number().optional(),
+  endedAt: z.number(),
+});
+export type LastTurn = z.output<typeof lastTurnSchema>;
+
+/**
+ * Each agent's latest recorded turn, for the Tasks board's "last turn" time.
+ * The agent's `updatedAt` moves whenever the daemon touches it (a resume, a
+ * mode change), so it cannot say when a turn ended. Agents without a record
+ * are left out.
+ */
+export const lastTurnsRpc = defineRpc({
+  name: "turns.last",
+  input: z.object({ agentIds: z.array(z.string().min(1)).max(200) }),
+  output: z.object({ turns: z.array(lastTurnSchema) }),
+});

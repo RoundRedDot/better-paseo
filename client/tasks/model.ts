@@ -70,8 +70,15 @@ export interface TaskTiming {
   /** `attentionTimestamp`; the needs-input timer counts from it. */
   attentionAt: string | null;
   lastUserMessageAt: string | null;
-  /** `updatedAt − lastUserMessageAt` in ms, drawn as "约 8m"; null when unknown. */
+  /**
+   * The latest turn's length in ms, drawn as "约 8m", from the plugin server's
+   * record of each turn or a turn end the board saw. Null when neither has the
+   * turn: `updatedAt` also moves when the daemon resumes the agent, so it
+   * cannot time one.
+   */
   lastTurnMs: number | null;
+  /** When that turn ended; null with `lastTurnMs`. */
+  lastTurnEndedAt: string | null;
 }
 
 export interface TaskContext {

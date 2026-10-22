@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { z } from "zod";
 import { pluginDataDir } from "./plugin-data";
-import { recordedTurnSchema, turnUsageRpc, turnUsageSchema, type RecordedTurn } from "../shared/turn-usage-rpc";
+import { lastTurnsRpc, recordedTurnSchema, turnUsageRpc, turnUsageSchema, type LastTurn, type RecordedTurn } from "../shared/turn-usage-rpc";
 
 /** A file-name safe agent ID; anything else is neither read nor written. */
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
@@ -113,4 +113,12 @@ export function registerTurnUsageServer(
   server.handle(turnUsageRpc, async ({ agentId, since }) => ({
     turns: (await ledger.read(agentId)).filter((turn) => since === undefined || turn.endedAt >= since),
   }));
+
+  server.handle(lastTurnsRpc, async ({ agentIds }) => {
+    const turns = await Promise.all([...new Set(agentIds)].map(async (agentId): Promise<LastTurn | null> => {
+      const last = (await ledger.read(agentId)).at(-1);
+      return last ? { agentId, ...(last.startedAt !== undefined ? { startedAt: last.startedAt } : {}), endedAt: last.endedAt } : null;
+    }));
+    return { turns: turns.filter((turn): turn is LastTurn => turn !== null) };
+  });
 }
