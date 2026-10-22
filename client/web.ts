@@ -13,6 +13,27 @@ import { hasActiveDetailsKeyboard } from "./details/keyboard";
 
 export { PREVIEW_REVEAL } from "./ui/tokens/motion";
 
+/**
+ * ponytail: Paseo 0.12 owns a 16pt margin outside every plugin row. A zero
+ * height child cannot cancel it with a negative margin (the wrapper clamps
+ * at zero). On web/desktop hide only the wrapper of our empty rollup members,
+ * including the host's display:contents bridge. Grouping itself is native.
+ * Native spacing hosts retain these gaps; upgrade to a host API for hiding a
+ * source slot (or source-preserving grouped projection) to remove them there.
+ */
+export function installToolRollupSpacing(): () => void {
+  if (Platform.OS !== "web" || typeof document === "undefined") return () => {};
+  const style = document.createElement("style");
+  style.textContent = `
+    div:has(> [data-bcrollupempty="true"]),
+    div:has(> [style*="display: contents"] > [data-bcrollupempty="true"]) {
+      display: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+  return () => style.remove();
+}
+
 /** The selection bar floats outside a preview but acts on its text, so it counts as part of it. */
 function onSelectionBar(target: EventTarget | null): boolean {
   return Boolean((target as Element | null)?.closest?.(SELECTION_BAR_SELECTOR));

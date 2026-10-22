@@ -1,5 +1,26 @@
 import type { ToolCallView } from "./classify";
 import { summarizeTool, type ToolSummary } from "./summarize";
+import type { ToolRollupPosition } from "../state/tool-rollup-order";
+import { readPermissionRequest } from "./agent-status";
+
+/** Category and result never affect membership; source identity is required. */
+export function canRollupTool(view: ToolCallView): boolean {
+  return Boolean(view.callId);
+}
+
+export function toolRollupFailed(view: ToolCallView): boolean {
+  return view.status === "failed" || view.rollupStatus === "error" ||
+    Boolean(view.error && !view.rejected) || summarizeToolCall(view).tone === "danger";
+}
+
+/** These are the two ToolBody paths that render answer/permission controls. */
+export function toolPermissionTargets(view: ToolCallView): string[] {
+  const status = view.agentStatus;
+  const notification = status?.status === "needs permission" && readPermissionRequest(status.body)?.requestId
+    ? [status.agentId] : [];
+  const list = view.paseo?.agentOperation?.permissions?.filter((entry) => entry.requestId).map((entry) => entry.agentId) ?? [];
+  return [...new Set([...notification, ...list])];
+}
 
 /** File operations share a header only when both the operation and path match. */
 export function toolGroupKey(view: ToolCallView | undefined): string | undefined {
@@ -9,7 +30,7 @@ export function toolGroupKey(view: ToolCallView | undefined): string | undefined
 }
 
 /** Input is in timeline order; a non-file entry always ends the current run. */
-export function groupAdjacentTools<T extends { tool?: ToolCallView }>(
+export function groupAdjacentTools<T extends { tool?: ToolCallView; rollup?: ToolRollupPosition | null }>(
   entries: readonly T[],
 ): Map<T, readonly ToolCallView[] | null> {
   const result = new Map<T, readonly ToolCallView[] | null>();
@@ -21,11 +42,27 @@ export function groupAdjacentTools<T extends { tool?: ToolCallView }>(
     run = [];
   };
   for (const entry of entries) {
+    if (entry.rollup !== undefined) {
+      flush();
+      key = undefined;
+      if (entry.tool) result.set(entry, [entry.tool]);
+      continue;
+    }
     const nextKey = toolGroupKey(entry.tool);
     if (!nextKey || nextKey !== key) flush();
     key = nextKey;
     if (entry.tool) run.push(entry);
     if (!nextKey) flush();
+  }
+  flush();
+  // Source adjacency is authoritative, even when native text isn't mounted in
+  // our registry or React Native mounts an inverted window newest-first.
+  const ordered = entries.filter((entry) => entry.rollup && entry.tool && canRollupTool(entry.tool))
+    .sort((a, b) => a.rollup!.order - b.rollup!.order);
+  run = [];
+  for (const entry of ordered) {
+    if (run.length && entry.rollup!.previous !== run[run.length - 1]!.tool!.callId) flush();
+    run.push(entry);
   }
   flush();
   return result;

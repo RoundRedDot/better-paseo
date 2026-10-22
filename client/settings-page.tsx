@@ -762,6 +762,19 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           }
           look={look}
         />
+        <SettingRow
+          title={t.toolCallRollupsTitle}
+          description={t.toolCallRollupsDescription}
+          control={
+            <Toggle
+              value={preferences.toolCallRollups}
+              onChange={(toolCallRollups) => updateEnhancerPreferences({ toolCallRollups })}
+              label={t.toolCallRollupsTitle}
+              look={look}
+            />
+          }
+          look={look}
+        />
       </Section>
 
       <Section title={t.sectionSpacing} look={look}>

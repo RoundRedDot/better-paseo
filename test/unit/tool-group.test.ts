@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { classifyTool } from "../../client/tools/classify";
-import { groupAdjacentTools, summarizeToolCall, summarizeToolGroup, toolGroupKey } from "../../client/tools/group";
+import { canRollupTool, groupAdjacentTools, summarizeToolCall, summarizeToolGroup, toolGroupKey, toolPermissionTargets } from "../../client/tools/group";
+import type { ToolCallView } from "../../client/tools/classify";
 import { summarizeTool } from "../../client/tools/summarize";
 
 function call(id: string, path = "src/a.ts", tool = "edit", status = "completed") {
@@ -59,5 +60,35 @@ describe("consecutive file operations", () => {
     } });
     expect(summarizeToolGroup([first, call("2")]).meta).toEqual(["+4 −2"]);
     expect(summarizeToolGroup([first, longer]).meta).toEqual(["+5 −2"]);
+  });
+});
+
+describe("all-tool rollup membership", () => {
+  it("does not filter any category, tool name, failure, rejection or canceled outcome", () => {
+    const entries = (["read", "paseo", "sub_agent", "hub", "activity", "mcp", "unknown", "plan", "plain_text"] as const)
+      .map((tool, index) => ({
+        tool: { ...call(String(index)), tool, name: "request_user_input", status: "failed", error: "denied",
+          rejected: true, planOutcome: "canceled", questionData: {} } as ToolCallView,
+        rollup: { order: index, previous: index ? String(index - 1) : undefined },
+      }));
+    expect(entries.every((entry) => canRollupTool(entry.tool))).toBe(true);
+    const groups = groupAdjacentTools(entries);
+    expect(groups.get(entries[0]!)).toHaveLength(entries.length);
+    for (const entry of entries.slice(1)) expect(groups.get(entry)).toBeNull();
+  });
+
+  it("finds only cards that actually render permission controls", () => {
+    expect(toolPermissionTargets({ ...call("q"), questionData: { questions: [{}] } })).toEqual([]);
+    expect(toolPermissionTargets({ ...call("a"), agentStatus: {
+      agentId: "child", title: "Child", status: "finished", body: "Done",
+    } })).toEqual([]);
+    expect(toolPermissionTargets({ ...call("a"), agentStatus: {
+      agentId: "child", title: "Child", status: "needs permission",
+      body: '<permission-request>{"requestId":"r","request":{"kind":"question"}}</permission-request>',
+    } })).toEqual(["child"]);
+    const list = { ...call("list"), paseo: { tool: "list_pending_permissions", agentOperation: { permissions: [
+      { agentId: "a", requestId: "r1" }, { agentId: "b", requestId: "r2" }, { agentId: "a", requestId: "r3" },
+    ] } } } as unknown as ToolCallView;
+    expect(toolPermissionTargets(list)).toEqual(["a", "b"]);
   });
 });

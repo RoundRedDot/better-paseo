@@ -3,10 +3,12 @@
  * the real components and the mockups' own fixture text, so each capture can
  * sit beside its mockup board. `compact` is the touch layout (`?layout=compact`).
  */
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import type { ExtendedThemeTokens } from "../client/components/theme-tokens";
 import { ToolCallout } from "../client/components/tool-callouts";
+import { ToolRollup } from "../client/components/tool-rollup";
+import { installToolRollupSpacing } from "../client/web";
 import { ReasoningCard } from "../client/components/reasoning-trace";
 import { TaskList } from "../client/components/task-list";
 import { NoticeCallout } from "../client/components/notice-callout";
@@ -164,6 +166,30 @@ function Tool({ view, tokens, compact, expanded = false }: { view: ToolCallView;
   return <ToolCallout data={view} tokens={tokens} compact={compact} defaultExpanded={expanded} />;
 }
 
+/** Real summary/cards inside the observed 0.12 host wrapper shape; not a host integration test. */
+function Rollups({ tokens, compact }: { tokens: ExtendedThemeTokens; compact: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  useEffect(installToolRollupSpacing, []);
+  const calls = [...TURN_TOOLS.slice(0, 5), TURN_TOOLS[8]!, TURN_TOOLS[9]!];
+  return <PathContext.Provider value={PATHS}>
+    <View>
+      <Text style={{ color: tokens.foreground, marginBottom: 16 }}>I’ll inspect the parser and check the types.</Text>
+      {calls.map((view, index) => <View key={view.callId} testID={`rollup-source-${index}`}>
+        <View style={{ marginBottom: 16 }}>
+          <div style={{ display: "contents" }}>
+            <View {...(!expanded && index > 0 ? { dataSet: { bcrollupempty: "true" } } as import("react-native").ViewProps : {})}>
+              {index === 0 ? <ToolRollup calls={calls} tokens={tokens} compact={compact}
+                expanded={expanded} onExpandedChange={setExpanded} /> : null}
+              {expanded ? <Tool view={view} tokens={tokens} compact={compact} /> : null}
+            </View>
+          </div>
+        </View>
+      </View>)}
+      <Text testID="rollup-next-update" style={{ color: tokens.foreground, marginBottom: 16 }}>The types pass; one check failed and another is running. Expand the tools for details.</Text>
+    </View>
+  </PathContext.Provider>;
+}
+
 export function FullTurn({ tokens, compact }: { tokens: ExtendedThemeTokens; compact: boolean }) {
   return (
     <PathContext.Provider value={PATHS}>
@@ -313,6 +339,7 @@ export const S7_GROUPS: ReadonlyArray<{
   id: string;
   render(tokens: ExtendedThemeTokens, compact: boolean): React.ReactElement;
 }> = [
+  { id: "rollups", render: (tokens, compact) => <Rollups tokens={tokens} compact={compact} /> },
   { id: "full-turn", render: (tokens, compact) => <FullTurn tokens={tokens} compact={compact} /> },
   { id: "tool-rows", render: (tokens, compact) => <ToolRows tokens={tokens} compact={compact} /> },
   { id: "reasoning", render: (tokens, compact) => <Reasoning tokens={tokens} compact={compact} /> },

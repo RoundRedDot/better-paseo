@@ -320,6 +320,8 @@ export interface SubAgentToolData {
  * the showcase's hand-written cards still type-check.
  */
 export interface ToolCallView extends Omit<ToolCalloutData, "tool"> {
+  /** Raw source status for the rollup; individual cards keep their existing normalization. */
+  rollupStatus?: string;
   agentStatus?: AgentStatusData;
   /** A tool with no card of its own, read into row words and body sections. */
   activity?: ActivityData;

@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useSyncExternalStore, type RefObject } from "react";
 import type { ToolCallView } from "./tools/classify";
+import type { ToolRollupPosition } from "./state/tool-rollup-order";
 import { groupAdjacentTools, toolGroupKey } from "./tools/group";
 import { hostStacksRows, noteRowGap } from "./host-row-gap";
 
@@ -80,6 +81,8 @@ interface Entry {
   /** Where the item is drawn, in the window; null when unknown. */
   measure?: () => ViewBox | null;
   tool?: ToolCallView;
+  /** Undefined: original file grouping; null: rollups on, source order unknown. */
+  rollup?: ToolRollupPosition | null;
   /**
    * Found below another row of its call in the same column (`hostDuplicates`).
    * Kept until it unmounts: hidden, it has no box left to measure.
@@ -441,17 +444,16 @@ function toolSlots(timeline: AgentTimeline): Map<Entry, ToolSlot> {
     }
     run.viewers = [head, ...(copies.get(head) ?? [])];
   };
+  const byCall = new Map(unique.filter((entry) => entry.tool).map((entry) => [entry.tool!, entry]));
   for (const entry of unique) {
     const calls = groups.get(entry);
-    if (calls === undefined) continue;
-    if (calls !== null) {
-      close();
-      run = { calls, members: [], viewers: [], anythingBelow: false, rowBelow: false };
+    if (!calls) continue;
+    run = { calls, members: calls.map((call) => byCall.get(call)!), viewers: [], anythingBelow: false, rowBelow: false };
+    for (const [index, member] of run.members.entries()) {
+      slots.set(member, { run, index });
     }
-    slots.set(entry, { run: run!, index: run!.members.length });
-    run!.members.push(entry);
+    close();
   }
-  close();
   for (const [first, list] of copies) {
     const slot = slots.get(first);
     if (slot) for (const copy of list) slots.set(copy, slot);
@@ -572,6 +574,7 @@ export function useTimelineToolGroup(
   settled = false,
   view?: RefObject<unknown>,
   followRowBelow = true,
+  rollup?: ToolRollupPosition | null,
 ): {
   group: readonly ToolCallView[] | null;
   anythingBelow: boolean;
@@ -579,6 +582,7 @@ export function useTimelineToolGroup(
   /** Hidden copies of the call right under this row, and the row's height then (`countCopiesBelow`). */
   copiesBelow: number;
   copiesBelowHeight: number;
+  rollupHead: string | null;
 } {
   const entry = useMemo<Entry>(() => ({
     at,
@@ -586,6 +590,7 @@ export function useTimelineToolGroup(
     row: true,
     sequence: sequence++,
     tool,
+    rollup,
     settledKey: settled ? tool.callId : undefined,
     callId: tool.callId,
     measure: view ? () => viewBox(view.current) : undefined,
@@ -593,6 +598,13 @@ export function useTimelineToolGroup(
   const single = useMemo(() => [tool], [tool]);
   useLayoutEffect(() => addEntry(agentId, entry), [agentId, entry]);
   useLayoutEffect(() => probeRowGap(agentId), [agentId, entry]);
+  useLayoutEffect(() => {
+    if (entry.rollup !== rollup) {
+      entry.rollup = rollup;
+      const timeline = timelines.get(agentId);
+      if (timeline) invalidate(timeline);
+    }
+  }, [agentId, entry, rollup]);
   useLayoutEffect(() => {
     if (entry.tool === tool) return;
     const previous = entry.tool;
@@ -637,6 +649,12 @@ export function useTimelineToolGroup(
     return !superseded() && nextEntryIsRow(agentId, at, "tool");
   }, [slotOf, superseded, agentId, at]);
   const group = useSyncExternalStore(subscribe, getGroup, getGroup);
+  const getRollupHead = useCallback(() => {
+    const slot = slotOf();
+    return entry.rollup && !superseded() && slot
+      ? slot.run.calls[0]!.callId ?? null : null;
+  }, [slotOf, superseded, entry]);
+  const rollupHead = useSyncExternalStore(subscribe, getRollupHead, getRollupHead);
   const anythingBelow = useSyncExternalStore(subscribe, getBelow, getBelow);
   const rowSnapshot = followRowBelow ? getRowBelow : notFollowed;
   const rowBelow = useSyncExternalStore(subscribe, rowSnapshot, rowSnapshot);
@@ -649,7 +667,7 @@ export function useTimelineToolGroup(
   const getCopiesHeight = useCallback(() => entry.copiesBelow?.height ?? 0, [entry]);
   const copiesBelow = useSyncExternalStore(subscribe, getCopies, getCopies);
   const copiesBelowHeight = useSyncExternalStore(subscribe, getCopiesHeight, getCopiesHeight);
-  return { group, anythingBelow, rowBelow, copiesBelow, copiesBelowHeight };
+  return { group, anythingBelow, rowBelow, copiesBelow, copiesBelowHeight, rollupHead };
 }
 
 /**

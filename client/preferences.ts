@@ -72,6 +72,8 @@ export type PathDisplayPreference = "relative" | "absolute";
 export type RowLabelStylePreference = "icon" | "label" | "both";
 
 export interface EnhancerPreferences {
+  /** Fold consecutive tool calls between source timeline boundaries. Opt-in. */
+  toolCallRollups: boolean;
   accent: AccentPreset;
   uiFont: UiFontPreference;
   /** Inline code text off the web; the web keeps its filled chip. */
@@ -206,6 +208,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   codeFontSize: null,
   blockFontSize: BLOCK_FONT_SIZE_DEFAULT,
   toolDetail: "collapsed",
+  toolCallRollups: false,
   pathDisplay: "relative",
   hoverPreview: true,
   hoverDelaySeconds: HOVER_DELAY_DEFAULT,
