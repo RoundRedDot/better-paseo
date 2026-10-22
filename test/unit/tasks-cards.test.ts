@@ -1200,7 +1200,9 @@ describe("TaskDetailCards", () => {
     const heading = byLabel(running.root, "收起子任务");
     expect(heading.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "progressbar").map((node) => node.props.accessibilityValue)).toEqual([{ min: 0, max: 3, now: 1 }]);
     const allDone = sample("sample-running");
-    const finished = await render(details({ ...allDone, children: allDone.children.map((child) => ({ ...child, status: "done" as const })) }));
+    // A finished child still unread (the green corner dot) counts as done.
+    const finished = await render(details({ ...allDone, children: allDone.children.map((child, index) => ({ ...child, status: index === 0 ? ("unread" as const) : ("done" as const) })) }));
+    expect(texts(hostByTestId(finished.root, "detail-subtasks"))).toContain("3 / 3 完成");
     expect(byLabel(finished.root, "收起子任务").findAll((node) => node.props.name === "CircleCheck").length).toBeGreaterThan(0);
     // The status rides the provider's mark: a running ring, nothing for a finished one.
     expect(hostByTestId(running.root, "detail-subtasks").findAll((node) => typeof node.type === "string" && node.props.testID === "status-running")).toHaveLength(2);
