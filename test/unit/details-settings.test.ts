@@ -77,14 +77,16 @@ beforeEach(() => {
 });
 
 describe("block details settings", () => {
-  it("keeps details off by default and accepts both stored row-click choices", () => {
-    expect(DEFAULT_PREFERENCES).toMatchObject({ blockDetails: false, rowClick: "details" });
-    expect(preferencesSchema.parse({})).toMatchObject({ blockDetails: false, rowClick: "details" });
+  it("turns details on by default and accepts both stored row-click choices", () => {
+    expect(DEFAULT_PREFERENCES).toMatchObject({ blockDetails: true, rowClick: "details" });
+    expect(preferencesSchema.parse({})).toMatchObject({ blockDetails: true, rowClick: "details" });
+    expect(preferencesSchema.parse({ blockDetails: false })).toMatchObject({ blockDetails: false });
     expect(preferencesSchema.parse({ blockDetails: true, rowClick: "expand" })).toMatchObject({ blockDetails: true, rowClick: "expand" });
     expect(preferencesSchema.parse({ blockDetails: true, rowClick: "invalid" })).toMatchObject({ blockDetails: true, rowClick: "details" });
   });
 
   it("shows the toggle, then the pointer-only row choice when enabled", () => {
+    updateEnhancerPreferences({ blockDetails: false });
     const renderer = renderPage();
     expect(switchControl(renderer.root, "Block details panel (preview)").props["aria-checked"]).toBe(false);
     expect(choiceGroup(renderer.root)).toBeUndefined();

@@ -111,7 +111,7 @@ export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrate
     .transform(clampHoverDelay)
     .catch(HOVER_DELAY_DEFAULT),
   previewWrap: flag(true),
-  blockDetails: flag(false),
+  blockDetails: flag(true),
   rowClick: z.enum(ROW_CLICKS).catch("details"),
   previewLineNumbers: flag(true),
   previewStripes: flag(true),

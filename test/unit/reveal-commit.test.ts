@@ -66,6 +66,8 @@ async function load(os: "web" | "ios", settleInEffect = false) {
   const TestRenderer = (await import("react-test-renderer")).default;
   const { act } = await import("react-test-renderer");
   const renderers = await import("../../client/live-renderers");
+  // These cases open a thought in place; with block details on, the tap opens the panel instead.
+  (await import("../../client/preferences")).updateEnhancerPreferences({ blockDetails: false });
   return { TestRenderer, act, renderers, revealCalls, reasoningRenders };
 }
 
