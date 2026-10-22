@@ -126,6 +126,14 @@ export interface TaskChild {
   id: string;
   title: string;
   status: StatusKind;
+  /**
+   * "provider": a subagent the provider runs inside the parent's session
+   * (Claude's Agent tool), not a Paseo agent. It has no card or tab, so its
+   * row opens the parent. Absent: a Paseo agent with its own card.
+   */
+  kind?: "agent" | "provider";
+  /** A provider row's facts line, written by the provider: subagent type, model, effort, tokens. */
+  subtitle?: string | null;
   /** The child's own agent, for its row's mark and facts line (Paseo 0.12's subagent row). */
   provider?: string;
   modelLabel?: string | null;

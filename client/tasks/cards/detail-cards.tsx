@@ -1004,8 +1004,8 @@ function Subtasks(props: Inner & { narrow: boolean }) {
           time={time}
           word={cardText.status[child.status]}
           openLabel={props.strings.openTab}
-          onPress={props.onJump ? () => props.onJump?.(child.id) : undefined}
-          onOpen={props.onOpen ? () => props.onOpen?.(child.id) : undefined}
+          onPress={subtaskPress(props, child)}
+          onOpen={props.onOpen && child.kind !== "provider" ? () => props.onOpen?.(child.id) : undefined}
         />
       ))}
       {hidden.length > 0 ? (
@@ -1026,6 +1026,12 @@ function Subtasks(props: Inner & { narrow: boolean }) {
       ) : null}
     </View>
   );
+}
+
+/** A Paseo child jumps to its card; a provider subagent has none, so it opens the parent's tab. */
+function subtaskPress(props: Inner, child: TaskChild): (() => void) | undefined {
+  if (child.kind === "provider") return props.onOpen ? () => props.onOpen?.(props.card.id) : undefined;
+  return props.onJump ? () => props.onJump?.(child.id) : undefined;
 }
 
 /** "Show all 14" and what the hidden rows are, or "Show fewer"; the chevron in the rows' status column. */

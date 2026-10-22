@@ -101,6 +101,7 @@ describe("brand marks", () => {
     contribute({
       registerSettings() {},
       on() { return () => {}; },
+      before() { return () => {}; },
       handle(contract: { name: string }, handler: (input: unknown) => Promise<unknown>) {
         handlers.set(contract.name, handler);
       },

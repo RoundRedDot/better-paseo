@@ -122,6 +122,7 @@ describe("tasks stop marks on the server", () => {
     const server = {
       registerSettings() {},
       on(name: string, handler: (event: unknown) => unknown) { events.set(name, handler); return () => {}; },
+      before() { return () => {}; },
       handle(contract: { name: string }, handler: (input: unknown) => Promise<unknown>) { handlers.set(contract.name, handler); },
     } as unknown as PluginServerContext;
     registerTasksServer(server, createStopMarks(path, now));

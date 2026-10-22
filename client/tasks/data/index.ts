@@ -12,6 +12,7 @@ import type {
 } from "@getpaseo/client";
 import { doneWindowMs, type DoneWindow } from "../../../shared/tasks-settings";
 import type { LastTurn } from "../../../shared/turn-usage-rpc";
+import type { ProviderSubagent } from "../../../shared/tasks-rpc";
 import { footerModel } from "../../state/footer-model";
 import { MARK_IDS } from "../../components/marks";
 import { normalizeProvider } from "../../components/provider-logo";
@@ -268,6 +269,92 @@ interface TurnError {
   message: string;
 }
 
+/** `tasks.subagents`: the provider subagents, or null while `since` is still the server's version. */
+export type SubagentLoader = (since?: string) => Promise<{ version: string; subagents: ProviderSubagent[] | null }>;
+
+let subagentLoader: SubagentLoader | null = null;
+/** How often the provider subagents are read again: a board shows them, the sidebar only counts their parents. */
+const SUBAGENT_POLL_BOARD_MS = 15_000;
+const SUBAGENT_POLL_MS = 60_000;
+/** Agent updates often travel together; one read follows a burst. */
+const SUBAGENT_SETTLE_MS = 1_500;
+/** A parent off the board that this many failures bring in, at most; the rest wait for the board. */
+const SUBAGENT_PARENTS_FETCHED = 20;
+const SUBAGENT_KEY = "provider-subagents";
+
+/** `contribute` sets the loader, as the last turn's. */
+export function setSubagentLoader(next: SubagentLoader | null): void {
+  subagentLoader = next;
+}
+
+function epoch(value: string | null | undefined): number {
+  const parsed = value ? Date.parse(value) : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
+/**
+ * A parent's provider subagents worth a row: the running ones, and the
+ * failures since its latest prompt. A prompt after a failure is the person
+ * acting on it, so the failure leaves the card then.
+ */
+export function shownSubagents(subagents: readonly ProviderSubagent[] | undefined, lastUserMessageAt: string | null): ProviderSubagent[] {
+  if (!subagents?.length) return [];
+  const prompted = epoch(lastUserMessageAt);
+  return subagents
+    .filter((subagent) => subagent.status === "running" || epoch(subagent.updatedAt) > prompted)
+    .sort((left, right) => epoch(left.createdAt) - epoch(right.createdAt));
+}
+
+function subagentError(count: number): string {
+  if (resolveTasksLanguage() === "zh") return `${count} 个 subagent 失败`;
+  return count === 1 ? "1 subagent failed" : `${count} subagents failed`;
+}
+
+/** A provider subagent as a subtask row: no card or tab of its own, so the row opens its parent. */
+function subagentChild(subagent: ProviderSubagent, parent: TaskCard): TaskChild {
+  const running = subagent.status === "running";
+  const startedAt = epoch(subagent.createdAt);
+  const endedAt = epoch(subagent.updatedAt);
+  return {
+    id: subagent.id,
+    title: subagent.description?.trim() || subagent.title?.trim() || "Subagent",
+    status: running ? "running" : "failed",
+    kind: "provider",
+    subtitle: subagent.subtitle,
+    provider: parent.provider,
+    lane: running ? "running" : "review",
+    timing: {
+      createdAt: subagent.createdAt,
+      updatedAt: subagent.updatedAt,
+      turnStartedAt: running ? subagent.createdAt : null,
+      attentionAt: null,
+      lastUserMessageAt: null,
+      lastTurnMs: !running && Number.isFinite(startedAt) && Number.isFinite(endedAt) && endedAt >= startedAt ? endedAt - startedAt : null,
+      lastTurnEndedAt: running ? null : subagent.updatedAt,
+    },
+  };
+}
+
+/**
+ * The card with its provider subagents: their rows after the Paseo
+ * children, and a failure since the latest prompt marks a finished parent
+ * failed and moves it to review. A parent still at work keeps its lane;
+ * its rows say what failed.
+ */
+export function withSubagents(card: TaskCard, subagents: readonly ProviderSubagent[] | undefined): TaskCard {
+  const shown = shownSubagents(subagents, card.timing.lastUserMessageAt);
+  if (shown.length === 0) return card;
+  const failed = shown.filter((subagent) => subagent.status === "failed").length;
+  const finished = card.lane === "review" || card.lane === "done";
+  return {
+    ...card,
+    ...(failed > 0 && finished
+      ? { lane: "review" as const, status: "failed" as const, error: card.error ?? subagentError(failed) }
+      : null),
+    children: [...card.children, ...shown.map((subagent) => subagentChild(subagent, card))],
+  };
+}
+
 /**
  * The card's timing with its latest turn. A turn that ended before the latest
  * prompt is an earlier one: while the agent works that is its last turn, after
@@ -515,6 +602,13 @@ function createStore(api: PaseoApi): TaskStore {
   const workingSince = new Map<string, number | null>();
   /** Agents whose closing is being checked for a delete (`checkGone`). */
   const goneChecks = new Set<string>();
+  /** Provider subagents by parent, as `tasks.subagents` last answered. */
+  const subagentsByParent = new Map<string, ProviderSubagent[]>();
+  let subagentVersion: string | undefined;
+  let subagentTimer: ReturnType<typeof setTimeout> | null = null;
+  let subagentReading = false;
+  /** Failed parents asked for by id, once per version of the list. */
+  const subagentParentsAsked = new Set<string>();
   const subscriptions = new Map<string, StoreSubscription>();
   const projectUnsubscribes: Array<() => void> = [];
   let consumers = 0;
@@ -583,7 +677,7 @@ function createStore(api: PaseoApi): TaskStore {
       ? parentEntry?.agent.title?.trim() || resolvedParentTitles.get(parentAgentId) || null
       : null;
     const childIds = childrenByParent.get(id);
-    const next: TaskCard = {
+    const next: TaskCard = withSubagents({
       ...withTurnError(base, turnErrors.get(id)),
       timing: withLastTurn(base.timing, lastTurns.get(id), base.lane === "running" || base.lane === "needs_input"),
       parent: parentAgentId
@@ -611,7 +705,7 @@ function createStore(api: PaseoApi): TaskStore {
             .filter((child): child is TaskChild => child !== null)
             .sort((left, right) => left.title.localeCompare(right.title))
         : [],
-    };
+    }, subagentsByParent.get(id));
     const previous = cards.get(id);
     if (shallowCardEqual(previous, next)) return false;
     cards.set(id, next);
@@ -675,6 +769,12 @@ function createStore(api: PaseoApi): TaskStore {
     if (newParent) affected.add(newParent);
     for (const childId of childrenByParent.get(agent.id) ?? []) affected.add(childId);
     for (const affectedId of affected) refreshFinalCard(affectedId);
+    // A prompt after the failure is the person acting on it: the parent may go.
+    const subagentMembers = sourceMembers.get(SUBAGENT_KEY);
+    if (subagentsByParent.has(agent.id) && subagentMembers) {
+      if (failsBySubagent(agent.id, agent.lastUserMessageAt)) subagentMembers.add(agent.id);
+      else subagentMembers.delete(agent.id);
+    }
     notify();
   }
 
@@ -707,6 +807,8 @@ function createStore(api: PaseoApi): TaskStore {
 
   function applyAgentUpdate(sourceKey: string, update: AgentUpdateEnvelope) {
     if (update.type !== "agent_update" || !update.payload) return;
+    // A subagent's start or end usually moves its parent too.
+    scheduleSubagents(SUBAGENT_SETTLE_MS);
     const payload = update.payload;
     if (payload.kind === "upsert" && payload.agent) {
       const agent = payload.agent;
@@ -729,6 +831,8 @@ function createStore(api: PaseoApi): TaskStore {
     }
     if (payload.kind === "remove" && payload.agentId) {
       sourceMembers.get(sourceKey)?.delete(payload.agentId);
+      // Held for a subagent failure, it stays; the list it left had its latest state, so read it again.
+      if (sourceMembers.get(SUBAGENT_KEY)?.has(payload.agentId)) fetchSubagentParent(payload.agentId, generation);
       dropIfUnreferenced(payload.agentId);
       if (entries.has(payload.agentId)) checkGone(payload.agentId);
     }
@@ -927,6 +1031,116 @@ function createStore(api: PaseoApi): TaskStore {
         // An older server without `turns.last`, or a failed read: the cards say "—".
       });
     }
+  }
+
+  /**
+   * Reads the provider subagents again in `delay`, unless a read is due
+   * sooner. A burst of agent updates moves it up to `SUBAGENT_SETTLE_MS`;
+   * a read schedules the next poll.
+   */
+  let subagentDueAt = Number.POSITIVE_INFINITY;
+  function scheduleSubagents(delay: number) {
+    if (!subagentLoader || consumers === 0) return;
+    const due = Date.now() + delay;
+    if (subagentTimer !== null && subagentDueAt <= due) return;
+    if (subagentTimer !== null) clearTimeout(subagentTimer);
+    subagentDueAt = due;
+    const run = generation;
+    subagentTimer = setTimeout(() => {
+      subagentTimer = null;
+      subagentDueAt = Number.POSITIVE_INFINITY;
+      if (run === generation) void readSubagents(run);
+    }, delay);
+  }
+
+  async function readSubagents(run: number) {
+    const loader = subagentLoader;
+    if (!loader || subagentReading) return;
+    subagentReading = true;
+    try {
+      const result = await loader(subagentVersion);
+      if (run !== generation) return;
+      if (result.subagents) applySubagents(result.version, result.subagents);
+      else subagentVersion = result.version;
+    } catch {
+      // An older server without `tasks.subagents`, or a failed read: no rows until the next one.
+    } finally {
+      subagentReading = false;
+      if (run === generation) scheduleSubagents(boardConsumers > 0 ? SUBAGENT_POLL_BOARD_MS : SUBAGENT_POLL_MS);
+    }
+  }
+
+  function applySubagents(version: string, subagents: ProviderSubagent[]) {
+    subagentVersion = version;
+    subagentParentsAsked.clear();
+    const affected = new Set(subagentsByParent.keys());
+    subagentsByParent.clear();
+    for (const subagent of subagents) {
+      let list = subagentsByParent.get(subagent.parentAgentId);
+      if (!list) subagentsByParent.set(subagent.parentAgentId, list = []);
+      list.push(subagent);
+      affected.add(subagent.parentAgentId);
+    }
+    batchUpdates(() => {
+      for (const id of affected) {
+        refreshFinalCard(id);
+        const parent = parentByChild.get(id);
+        if (parent) refreshFinalCard(parent);
+      }
+      syncSubagentParents();
+      notify();
+    });
+  }
+
+  /** Whether the agent's card would show a provider subagent failure. */
+  function failsBySubagent(id: string, lastUserMessageAt: string | null): boolean {
+    return shownSubagents(subagentsByParent.get(id), lastUserMessageAt).some((subagent) => subagent.status === "failed");
+  }
+
+  /**
+   * Keeps every parent with a failure since its latest prompt on the board,
+   * and in the sidebar's review count, whether or not a list holds it: one
+   * the lists do not hold is fetched by id. A parent whose failures are gone
+   * or acted on is let go.
+   */
+  function syncSubagentParents() {
+    let members = sourceMembers.get(SUBAGENT_KEY);
+    if (!members) sourceMembers.set(SUBAGENT_KEY, members = new Set());
+    for (const id of [...members]) {
+      const entry = entries.get(id);
+      if (entry && failsBySubagent(id, entry.agent.lastUserMessageAt)) continue;
+      members.delete(id);
+      dropIfUnreferenced(id);
+    }
+    let budget = SUBAGENT_PARENTS_FETCHED;
+    for (const [id, subagents] of subagentsByParent) {
+      if (!subagents.some((subagent) => subagent.status === "failed")) continue;
+      const entry = entries.get(id);
+      if (entry) {
+        if (failsBySubagent(id, entry.agent.lastUserMessageAt)) members.add(id);
+        continue;
+      }
+      if (subagentParentsAsked.has(id) || budget <= 0) continue;
+      subagentParentsAsked.add(id);
+      budget -= 1;
+      fetchSubagentParent(id, generation);
+    }
+  }
+
+  /** A failed parent no list holds, or one a list let go: read by id, kept while its failure shows. */
+  function fetchSubagentParent(id: string, run: number) {
+    void api.agents.ref(id).refresh().then((result) => {
+      if (run !== generation) return;
+      const members = sourceMembers.get(SUBAGENT_KEY);
+      if (!result || isArchived(result.agent) || !failsBySubagent(id, result.agent.lastUserMessageAt)) {
+        if (members?.delete(id)) dropIfUnreferenced(id);
+        return;
+      }
+      members?.add(id);
+      updateRecord(result.agent, result.project ?? null);
+    }).catch(() => {
+      // Gone meanwhile: the next list drops it.
+    });
   }
 
   function requestModelCatalog(provider: string, run: number) {
@@ -1181,6 +1395,7 @@ function createStore(api: PaseoApi): TaskStore {
     statusReady = false;
     sourceMembers.set(STATUS_KEY, new Set());
     void openAgentSubscription(STATUS_KEY, activeOptions(STATUS_FILTER), run);
+    scheduleSubagents(0);
   }
 
   function startAttention() {
@@ -1200,6 +1415,7 @@ function createStore(api: PaseoApi): TaskStore {
       requestModelCatalogFor(entry.agent);
       requestLastTurnFor(entry.agent);
     }
+    scheduleSubagents(0);
   }
 
   function startDone() {
@@ -1293,6 +1509,12 @@ function createStore(api: PaseoApi): TaskStore {
     lastTurnQueue = new Set();
     workingSince.clear();
     goneChecks.clear();
+    if (subagentTimer !== null) clearTimeout(subagentTimer);
+    subagentTimer = null;
+    subagentDueAt = Number.POSITIVE_INFINITY;
+    subagentsByParent.clear();
+    subagentParentsAsked.clear();
+    subagentVersion = undefined;
     statusReady = false;
     attentionReady = false;
     workspacesReady = false;
