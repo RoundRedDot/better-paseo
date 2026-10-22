@@ -2,7 +2,7 @@ import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { settingsRpc } from "@getpaseo/plugin";
 import { TASKS_SETTINGS, tasksSettingsSchema } from "../../shared/tasks-settings";
 import { lastTurnsRpc } from "../../shared/turn-usage-rpc";
-import { tasksSubagentsRpc } from "../../shared/tasks-rpc";
+import { tasksReadsRpc, tasksSubagentsRpc } from "../../shared/tasks-rpc";
 import { TasksBoardScreen } from "./board/board-screen";
 import {
   setTasksBoardOpener,
@@ -19,7 +19,7 @@ import { BOARD_STRINGS } from "./board/strings";
 import { subscribeHostLanguage } from "../i18n/host-language";
 import { onTasksLanguageChange, resolveTasksLanguage } from "./i18n";
 import { SETTINGS_SCREEN_ID, setSettingsTab } from "../settings-tab";
-import { setLastTurnLoader, setSubagentLoader } from "./data";
+import { setLastTurnLoader, setReadMarksLoader, setSubagentLoader } from "./data";
 
 /** The board's screen id; `openScreen({ screenId: TASKS_SCREEN_ID })` opens it. */
 export const TASKS_SCREEN_ID = "tasks";
@@ -45,6 +45,8 @@ export function contributeTasks(client: PluginClientContext): () => void {
   setLastTurnLoader((agentIds) => client.rpc(lastTurnsRpc, { agentIds }).then((result) => result.turns));
   // Provider subagents (Claude's Agent tool) come from the server, which reads them off the daemon.
   setSubagentLoader((since) => client.rpc(tasksSubagentsRpc, since === undefined ? {} : { since }));
+  // Cards marked read from a board, failures included: the server keeps the marks.
+  setReadMarksLoader(() => client.rpc(tasksReadsRpc, {}).then((result) => result.reads));
   let language = resolveTasksLanguage();
 
   const registerBoard = () => {
@@ -146,5 +148,6 @@ export function contributeTasks(client: PluginClientContext): () => void {
     setTasksBoardOpener(null);
     setLastTurnLoader(null);
     setSubagentLoader(null);
+    setReadMarksLoader(null);
   };
 }

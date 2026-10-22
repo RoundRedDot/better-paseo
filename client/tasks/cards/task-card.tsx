@@ -824,7 +824,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           // Stopped: the stop pill's solid square, not Lucide's hollow one.
           <View style={{ width: m.icon - 4, height: m.icon - 4, borderRadius: 2, backgroundColor: muted }} testID="task-card-reason-stopped" />
         ) : (
-          <Icon name={failed ? "CircleX" : "Square"} size={m.icon} color={failed ? tokens.danger : muted} />
+          // A failure, in red; one marked read is done, in grey.
+          <Icon name="CircleX" size={m.icon} color={failed ? tokens.danger : muted} />
         )}
       </View>
       <Text style={[text(m.blockSize, m.blockLine, failed ? tokens.danger : muted), { flex: 1 }]}>{card.error}</Text>

@@ -233,7 +233,8 @@ export function useBoard(
   }, []);
   const stop = useStopControl({ confirmStop: settings.board.confirmStop, isActive, toast });
   const isReadable = useCallback((agentId: string) => byIdRef.current.get(agentId)?.readable === true, []);
-  const read = useReadControl({ isReadable, toast });
+  const afterRead = useCallback(() => latest.current.tasks.refreshReads(), []);
+  const read = useReadControl({ isReadable, onRead: afterRead, toast });
   const reconcileRead = read.reconcile;
   // Unarchive runs through the same CLI as Stop.
   const verifyUnarchive = useCallback((agentId: string) => latest.current.tasks.refreshParent(agentId), []);

@@ -550,6 +550,18 @@ describe("TaskCardView rows", () => {
     expect(icons(tree.root)).toContain("CircleX");
   });
 
+  it("draws a failure marked read in grey in the done lane, with the same mark", async () => {
+    const card = { ...sample("sample-failed"), lane: "done" as const, status: "done" as const };
+    const tree = await render(cardElement(card));
+    const reason = tree.root.find(
+      (node) => (node.type as unknown) === "Text" && node.props.children === "Provider exited with code 1: rate limit reached",
+    );
+    expect(flat(reason.props.style).color).toBe("#6b6b75");
+    const mark = tree.root.find((node) => (node.type as unknown) === "Icon" && node.props.name === "CircleX");
+    expect(mark.props.color).toBe("#6b6b75");
+    expect(icons(tree.root)).not.toContain("Square");
+  });
+
   it("draws a manual stop's reason muted, in the review and the done lane", async () => {
     for (const lane of ["review", "done"] as const) {
       const card = { ...sample("sample-done"), lane, status: lane === "review" ? ("unread" as const) : ("done" as const), error: "已手动停止", stoppedManually: true };
