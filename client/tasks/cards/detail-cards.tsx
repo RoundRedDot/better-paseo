@@ -52,6 +52,7 @@ import {
   type DetailSection,
 } from "./detail-model";
 import { Chip, ContextBar, SummaryTiles, TimelineChart, TokenBar, TurnHero, detailColors, statusColor } from "./detail-charts";
+import { detailGutter, detailScrollProps } from "./detail-scrollbar";
 import { sectionClosed, setSectionClosed, useSectionChoices } from "./detail-collapse";
 
 /**
@@ -185,6 +186,8 @@ export function TaskDetailCards(props: TaskDetailCardsProps) {
   // Two columns: the subtasks sit under the header, everything else on the right.
   const leftSections: DetailSection[] = props.columns ? order.filter((section) => section === "subtasks") : [];
   const rightOrder = order.filter((section) => !leftSections.includes(section));
+  // A scroller's content gives its scrollbar the right edge of its padding (`detail-scrollbar.ts`).
+  const gutter = props.columns || props.scrollBody ? detailGutter("inset") : 0;
   const sectionView = (section: DetailSection, divider: boolean) => (
     <Section
       key={section}
@@ -196,6 +199,7 @@ export function TaskDetailCards(props: TaskDetailCardsProps) {
       tokens={tokens}
       now={now}
       time={time}
+      gutter={gutter}
     />
   );
   const sections = order.map((section) => sectionView(section, true));
@@ -204,14 +208,14 @@ export function TaskDetailCards(props: TaskDetailCardsProps) {
       <View testID={props.testID ?? "detail-cards"} style={[detailCardFrame(tokens), { flex: 1, minHeight: 0, flexDirection: "row" }]}>
         {/* Plain views share the width (a ScrollView's own flex is not honoured on iOS); each scroll fills its half. */}
         <View style={{ flex: 1.2, minWidth: 0 }}>
-          <ScrollView key={`${card.id}-head`} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 4 }} showsVerticalScrollIndicator={false} testID="detail-column-head">
-            <DetailHeader {...props} m={m} tokens={tokens} now={now} time={time} />
+          <ScrollView key={`${card.id}-head`} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 4 }} {...detailScrollProps("inset")} testID="detail-column-head">
+            <DetailHeader {...props} m={m} tokens={tokens} now={now} time={time} gutter={gutter} />
             {leftSections.map((section) => sectionView(section, true))}
           </ScrollView>
         </View>
         <View style={{ width: StyleSheet.hairlineWidth, marginVertical: 12, backgroundColor: tokens.card.border }} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <ScrollView key={`${card.id}-sections`} style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 2, paddingBottom: 4 }} showsVerticalScrollIndicator={false} testID="detail-column-sections">
+          <ScrollView key={`${card.id}-sections`} style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 2, paddingBottom: 4 }} {...detailScrollProps("inset")} testID="detail-column-sections">
             {rightOrder.map((section, index) => sectionView(section, index > 0))}
           </ScrollView>
         </View>
@@ -222,7 +226,7 @@ export function TaskDetailCards(props: TaskDetailCardsProps) {
     <View testID={props.testID ?? "detail-cards"} style={[detailCardFrame(tokens), props.scrollBody ? { flexShrink: 1, minHeight: 0 } : null]}>
       <DetailHeader {...props} m={m} tokens={tokens} now={now} time={time} />
       {props.scrollBody ? (
-        <ScrollView key={card.id} style={{ flexGrow: 0, flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 4 }} showsVerticalScrollIndicator={false}>
+        <ScrollView key={card.id} style={{ flexGrow: 0, flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 4 }} {...detailScrollProps("inset")} testID="detail-body-scroll">
           {sections}
         </ScrollView>
       ) : (
@@ -232,7 +236,8 @@ export function TaskDetailCards(props: TaskDetailCardsProps) {
   );
 }
 
-type Inner = TaskDetailCardsProps & { m: Metrics; tokens: TaskTokens; now: number; time: TimeSource };
+/** `gutter`: the room a scroller's scrollbar takes from the right padding (0 outside one). */
+type Inner = TaskDetailCardsProps & { m: Metrics; tokens: TaskTokens; now: number; time: TimeSource; gutter?: number };
 
 function stopLabel(props: TaskDetailCardsProps): string | null {
   if (!props.stop) return null;
@@ -260,7 +265,7 @@ function DetailHeader(props: Inner) {
   const stop = stopLabel(props);
   const showActions = props.actions !== false && (!!props.onOpen || !!stop);
   return (
-    <View style={{ paddingHorizontal: m.padH, paddingTop: 8, paddingBottom: 12 }} testID="detail-header">
+    <View style={{ paddingLeft: m.padH, paddingRight: m.padH - (props.gutter ?? 0), paddingTop: 8, paddingBottom: 12 }} testID="detail-header">
       {props.back ? (
         <Pressable
           accessibilityRole="button"
@@ -561,7 +566,7 @@ function ErrorBlock(props: Inner) {
 // ---- Sections --------------------------------------------------------------
 
 function Section(props: Inner & { section: DetailSection; closed: boolean; divider: boolean }) {
-  const { card, m, tokens, section } = props;
+  const { card, m, tokens, section, gutter = 0 } = props;
   const words = cardStrings(props.language).details;
   const title = { prompt: words.prompt, message: words.message, properties: words.properties, subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
   // A narrow card's subtasks drop the running count, the start times and the low context shares.
@@ -588,8 +593,8 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
   const bottom = section === "subtasks" && m === TOUCH_CARD ? 10 : 8;
   return (
     <View testID={testID} onLayout={onLayout}>
-      {props.divider ? <View style={{ height: StyleSheet.hairlineWidth, marginHorizontal: m.padH, backgroundColor: tokens.card.border }} /> : null}
-      <View style={{ paddingTop: 4, paddingBottom: bottom, paddingHorizontal: m.padH - 6 }}>
+      {props.divider ? <View style={{ height: StyleSheet.hairlineWidth, marginLeft: m.padH, marginRight: m.padH - gutter, backgroundColor: tokens.card.border }} /> : null}
+      <View style={{ paddingTop: 4, paddingBottom: bottom, paddingLeft: m.padH - 6, paddingRight: m.padH - 6 - gutter }}>
         <SectionHeading
           m={m}
           tokens={tokens}

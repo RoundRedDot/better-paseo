@@ -4,7 +4,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
-import { BrandMark, DETAIL_CARD, DetailCard, ProjectIcon, StatusIcon, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
+import { BrandMark, DETAIL_CARD, DetailCard, detailScrollProps, ProjectIcon, StatusIcon, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type TaskCard } from "../model";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
@@ -111,7 +111,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
     return (
       <View style={{ flex: 1, minHeight: 0 }} onLayout={onLayout} testID={props.testID ?? "details-sidebar"}>
         {/* Keyed by the card: a jump to the parent or back starts at the top. */}
-        <ScrollView key={selection.id ?? ""} style={{ flex: 1 }} contentContainerStyle={{ gap: DETAIL_CARD.gap }} showsVerticalScrollIndicator={false} testID="details-sidebar-scroll">
+        <ScrollView key={selection.id ?? ""} style={{ flex: 1 }} contentContainerStyle={{ gap: DETAIL_CARD.gap }} {...detailScrollProps("column")} testID="details-sidebar-scroll">
           {content}
         </ScrollView>
       </View>
