@@ -240,12 +240,16 @@ describe("Tasks server unarchive RPC", () => {
 });
 
 describe("Tasks server read RPC", () => {
-  function fakeHost(clear: (agentIds: string | string[]) => Promise<void>) {
+  function fakeHost(
+    clear: (agentIds: string | string[]) => Promise<void>,
+    agents: Record<string, { cwd: string; status: string }> = {},
+  ) {
     const close = vi.fn(async () => {});
     const clearAgentAttention = vi.fn(clear);
+    const fetchAgent = vi.fn(async (agentId: string) => ({ agent: agents[agentId] ?? { cwd: tempRoot, status: "idle" } }));
     const host: HostAccess = {
       available: () => true,
-      connect: async () => ({ clearAgentAttention, close }) as unknown as Awaited<ReturnType<HostAccess["connect"]>>,
+      connect: async () => ({ clearAgentAttention, fetchAgent, close }) as unknown as Awaited<ReturnType<HostAccess["connect"]>>,
     };
     return { host, clearAgentAttention, close };
   }
@@ -262,6 +266,25 @@ describe("Tasks server read RPC", () => {
     const { reads } = await invoke<{ reads: Array<{ agentId: string; readAt: string }> }>(handlers, "tasks.reads", {});
     expect(reads.map((read) => read.agentId)).toEqual(["agent-a", "agent-b"]);
     expect(Number.isFinite(Date.parse(reads[0]!.readAt))).toBe(true);
+  });
+
+  it("marks a stored agent whose working directory is gone on the board only: the daemon cannot load it", async () => {
+    const gone = join(tempRoot, "removed-worktree");
+    const { host, clearAgentAttention, close } = fakeHost(async () => {}, {
+      "agent-stored": { cwd: gone, status: "closed" },
+      "agent-live": { cwd: gone, status: "idle" },
+      "agent-kept": { cwd: tempRoot, status: "closed" },
+    });
+    const handlers = await registerHandlers(host);
+
+    await expect(invoke(handlers, "tasks.read", { agentIds: ["agent-stored"] })).resolves.toEqual({ ok: true, error: null });
+    expect(clearAgentAttention).not.toHaveBeenCalled();
+    // A loaded agent, or a stored one with its directory, the daemon clears.
+    await expect(invoke(handlers, "tasks.read", { agentIds: ["agent-stored", "agent-live", "agent-kept"] })).resolves.toEqual({ ok: true, error: null });
+    expect(clearAgentAttention).toHaveBeenCalledWith(["agent-live", "agent-kept"]);
+    expect(close).toHaveBeenCalledTimes(2);
+    const { reads } = await invoke<{ reads: Array<{ agentId: string }> }>(handlers, "tasks.reads", {});
+    expect(reads.map((read) => read.agentId).sort()).toEqual(["agent-kept", "agent-live", "agent-stored"]);
   });
 
   it("reports a bad id, an unreachable daemon, and a daemon that never answers", async () => {
