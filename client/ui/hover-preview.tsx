@@ -874,7 +874,7 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
     // The drawer's and the floating panel's pull, on the body alone.
     const pan = shell && shell.form !== "side" ? report?.panHandlers() : undefined;
     return (
-      <View testID="details-body" {...pan} {...pinch.handlers} style={styles.detailsBody}>
+      <View testID="details-body" ref={pinch.body} collapsable={false} {...pan} {...pinch.handlers} style={styles.detailsBody}>
         {Platform.OS !== "web" ? (
           <ScrollView ref={scroller.ref} testID="hover-preview-body" style={[styles.pressBody, styles.pressBodyFill]} contentContainerStyle={styles.pressBodyContent}
             scrollEnabled={!scroller.held && !(pulls && bodyTop)} scrollEventThrottle={16} {...detailsScroll}
