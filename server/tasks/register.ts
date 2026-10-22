@@ -5,7 +5,8 @@ import { execCommand, type PluginServerContext } from "@getpaseo/plugin/server";
 import { TASKS_SETTINGS } from "../../shared/tasks-settings";
 import { createStopMarks, readMarksPath, stopMarksPath } from "./stop-marks";
 import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon, type SubagentWatch } from "./provider-subagents";
-import { tasksCapabilitiesRpc, tasksReadRpc, tasksReadsRpc, tasksStopRpc, tasksStoppedRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
+import { createSessionTokenReader, type SessionTokenReader } from "./session-tokens";
+import { tasksCapabilitiesRpc, tasksReadRpc, tasksReadsRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const STOP_TIMEOUT_MS = 10_000;
@@ -184,6 +185,7 @@ export function registerTasksServer(
   subagents: SubagentWatch = createSubagentWatch(),
   host: HostDaemonAccess = hostDaemon,
   reads = createStopMarks(readMarksPath()),
+  tokens: SessionTokenReader = createSessionTokenReader(),
 ): void {
   server.registerSettings(TASKS_SETTINGS);
   // A new turn means a new prompt: the agent is no longer "stopped manually", nor read.
@@ -200,6 +202,10 @@ export function registerTasksServer(
     await Promise.all([stops.clear(agent.id), reads.clear(agent.id)]);
   });
   server.handle(tasksStoppedRpc, async () => ({ stops: await stops.list() }));
+  server.handle(tasksSessionTokensRpc, async ({ agentId }, context) => {
+    const agent = context?.paseo ? (await context.paseo.agents.ref(agentId).refresh().catch(() => null))?.agent : null;
+    return { tokens: agent ? await tokens.read(agent) : null };
+  });
   server.handle(tasksSubagentsRpc, async ({ since }, context) => subagents.read(context?.paseo, since));
   server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCliPath()) !== null, read: host.available() }));
   server.handle(tasksReadRpc, async ({ agentIds }) => {

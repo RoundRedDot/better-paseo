@@ -78,6 +78,17 @@ export function formatTokens(count: number): string {
   return String(Math.round(count));
 }
 
+/** A large count in three figures at most, for a narrow cell: 812k, 15.3M, 354M, 1.23B. */
+export function formatTokenTotal(count: number): string {
+  for (const [unit, size] of [["B", 1e9], ["M", 1e6], ["k", 1e3]] as const) {
+    if (count >= size * 0.9995) {
+      const scaled = count / size;
+      return `${scaled >= 99.95 ? Math.round(scaled) : scaled >= 9.995 ? scaled.toFixed(1) : scaled.toFixed(2)}${unit}`;
+    }
+  }
+  return String(Math.round(count));
+}
+
 export function formatCost(usd: number): string {
   return `$${usd.toFixed(2)}`;
 }

@@ -165,16 +165,16 @@ const dashed = (tokens: TaskTokens, height: number): ViewStyle => ({ height, bor
 // ---- The running turn ------------------------------------------------------
 
 /**
- * Running: the turn's timer beside the context ring in one sunk box. With a
- * reported cost the box holds three alike cells in one row, timer, cost and
- * context, and the ring shrinks to the context's label icon.
+ * Running: the turn's timer beside the context ring in one sunk box. With the
+ * session's tokens the box holds three alike cells in one row, timer, tokens
+ * and context, and the ring shrinks to the context's label icon.
  */
-export function TurnHero(props: { timer: string; lastTurn: string | null; cost: string | null; context: ContextView | null; tokens: TaskTokens; touch: boolean; language: TasksLanguage }) {
+export function TurnHero(props: { timer: string; lastTurn: string | null; total: { value: string; sub: string } | null; context: ContextView | null; tokens: TaskTokens; touch: boolean; language: TasksLanguage }) {
   const { tokens, context } = props;
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
   const { tip, bind } = useTip<"context">(props.touch);
-  const compact = props.cost !== null;
+  const compact = props.total !== null;
   const small = F.sm;
   const tone = context ? contextColor(context, tokens) : tokens.foregroundMuted;
   const cell: ViewStyle = { flex: 1, minWidth: 0, paddingHorizontal: 12, paddingVertical: 10, gap: 2 };
@@ -217,13 +217,13 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; cost: 
         </Text>
       </View>
       {compact ? (
-        <View testID="detail-turn-cost" style={[cell, divided]}>
-          {head(<Icon name="Coins" size={14} color={tokens.foregroundMuted} />, words.cost)}
+        <View testID="detail-turn-tokens" style={[cell, divided]}>
+          {head(<Icon name="Layers" size={14} color={tokens.foregroundMuted} />, words.sessionTokens)}
           <Text numberOfLines={1} style={big}>
-            {props.cost}
+            {props.total?.value}
           </Text>
           <Text numberOfLines={1} style={sub}>
-            {words.total}
+            {props.total?.sub}
           </Text>
         </View>
       ) : null}

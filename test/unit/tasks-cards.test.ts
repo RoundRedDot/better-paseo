@@ -71,6 +71,7 @@ import {
   formatClockTime,
   formatDuration,
   formatRelative,
+  formatTokenTotal,
   formatTokens,
   formatWait,
   tildePath,
@@ -1178,10 +1179,10 @@ describe("TaskDetailCards", () => {
     renderer = null;
   });
 
-  it("leaves the cost out of the running turn when none is reported", async () => {
-    const tree = await render(details({ ...sample("sample-running"), usage: null }));
+  it("leaves the session's tokens out of the running turn when none are read", async () => {
+    const tree = await render(details(sample("sample-running"), { sessionTokens: null }));
     expect(texts(hostByTestId(tree.root, "detail-turn"))).toEqual(["本轮计时", "12:30", "上一轮 18m", "上下文", "86%", "172k / 200k"]);
-    expect(tree.root.findAll((node) => node.props.testID === "detail-turn-cost")).toHaveLength(0);
+    expect(tree.root.findAll((node) => node.props.testID === "detail-turn-tokens")).toHaveLength(0);
     // The timer beside the context, its ring at full size.
     expect(flat(hostByTestId(tree.root, "detail-context").props.style)).toMatchObject({ flex: 1, flexDirection: "row", borderLeftWidth: 1 });
     expect(tree.root.findAll((node) => (node.type as { name?: string }).name === "ProgressRing")[0]!.props).toMatchObject({ size: 44 });
@@ -1189,12 +1190,12 @@ describe("TaskDetailCards", () => {
 
   it("heads with the status, the title, the agent's chips and the actions, then the running turn", async () => {
     const onOpen = vi.fn();
-    const tree = await render(details(sample("sample-running"), { onOpen }));
+    const tree = await render(details(sample("sample-running"), { onOpen, sessionTokens: { total: 15_322_587, cached: 14_943_278 } }));
     const header = hostByTestId(tree.root, "detail-header");
     expect(texts(header).slice(0, 11)).toEqual(["运行中", "本轮 12:30", "Port the status ring to React Native", "GPT-5.5 Codex", "Medium", "Bypass", "frontend", "p1", "board", "切换到 tab", "已打开"]);
-    // The turn's block: its clock, the cost so far and the context ring (86% is past the warning line).
+    // The turn's block: its clock, the session's tokens so far and the context ring (86% is past the warning line).
     const turn = hostByTestId(tree.root, "detail-turn");
-    expect(texts(turn)).toEqual(["本轮计时", "12:30", "上一轮 18m", "费用", "$1.84", "累计", "上下文", "86%", "172k / 200k"]);
+    expect(texts(turn)).toEqual(["本轮计时", "12:30", "上一轮 18m", "累计 token", "15.3M", "缓存占 98%", "上下文", "86%", "172k / 200k"]);
     expect(turn.findAll((node) => (node.type as { name?: string }).name === "ProgressRing")).toHaveLength(1);
     // One row of three alike cells: the ring shrinks to the context's label icon.
     const ring = turn.findAll((node) => (node.type as { name?: string }).name === "ProgressRing")[0]!;
@@ -1828,6 +1829,8 @@ describe("formatters", () => {
     expect(formatTokens(950)).toBe("950");
     expect(formatTokens(182_000)).toBe("182k");
     expect(formatTokens(1_250_000)).toBe("1.25M");
+    // Three figures at most, rounding up to the next unit.
+    expect([950, 12_345, 812_000, 999_600, 15_322_587, 354_800_101, 1_234_000_000].map(formatTokenTotal)).toEqual(["950", "12.3k", "812k", "1.00M", "15.3M", "355M", "1.23B"]);
   });
 
   it("shows the home directory as ~", () => {
