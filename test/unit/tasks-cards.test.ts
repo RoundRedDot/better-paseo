@@ -591,12 +591,13 @@ describe("TaskCardView rows", () => {
     }
   });
 
-  it("leaves Allow and Deny as they were", async () => {
+  it("tints Allow with the accent and Deny with the danger colour", async () => {
     const buttons = permissionButtons(sample("sample-input").permission!, "zh");
     const tree = await render(cardElement(sample("sample-input"), { permissionButtons: buttons }));
     const tokens = buildTaskTokens(LIGHT.colors);
     expect(flat(byLabel(tree.root, "允许").props.style)).toMatchObject({ backgroundColor: tokens.card.primaryFill, borderColor: tokens.card.primaryFill });
-    expect(flat(byLabel(tree.root, "拒绝").props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: tokens.card.pillBorder });
+    expect(flat(byLabel(tree.root, "拒绝").props.style)).toMatchObject({ backgroundColor: tokens.card.dangerFill, borderColor: tokens.card.dangerFill });
+    expect(byLabel(tree.root, "拒绝").findAll((node) => (node.type as unknown) === "Icon").map((node) => node.props.color)).toEqual([tokens.danger]);
     expect(icons(byLabel(tree.root, "允许"))).toEqual(["Check"]);
   });
 

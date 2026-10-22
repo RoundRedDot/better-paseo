@@ -1180,7 +1180,8 @@ export function ActionButton(props: {
   const { hovered, hoverProps } = useHover();
   const answer = button.kind === "open";
   const primary = button.variant === "primary" && !answer;
-  const danger = button.variant === "danger" && !answer;
+  // Deny pairs with Allow: Allow's accent tint, Deny the Stop button's danger tint.
+  const danger = !answer && !primary && (button.variant === "danger" || button.action.behavior === "deny");
   // "Answer" opens the tab for a question: it wears the needs-input icon's
   // amber (the statusDot band), tinted, with a hairline of the same hue; its
   // label is that amber pulled until it reads at 4.5:1.
