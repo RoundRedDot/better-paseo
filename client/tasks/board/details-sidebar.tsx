@@ -7,7 +7,7 @@ import { useHover } from "../../ui/use-hover";
 import { BrandMark, DETAIL_CARD, DetailCard, ProjectIcon, StatusIcon, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type TaskCard } from "../model";
 import { useFirstPrompt } from "../data/first-prompt";
-import { activeChips, buildFilterOptions, clearedParams, type FilterOption } from "./filter-options";
+import { FILTER_ICONS, activeChips, buildFilterOptions, clearedParams, type FilterOption } from "./filter-options";
 import { toggleItem } from "./params";
 import type { SelectionAction, SidebarSelection } from "./sidebar-model";
 import { findCard, type BoardController } from "./use-board";
@@ -307,7 +307,7 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
     <DetailCard tokens={tokens} style={{ flexShrink: 1, minHeight: 0, paddingTop: 10, paddingBottom: 6 }} testID="sidebar-groups">
       <View style={{ flexDirection: "row", gap: 6, paddingHorizontal: 10, paddingBottom: 6 }}>
         {(["agent", "project", "workspace", "label"] as const).map((id) => (
-          <Segment key={id} label={strings.groups[id]} on={kind === id} tokens={tokens} touch={props.touch} onPress={() => setKind(id)} />
+          <Segment key={id} icon={FILTER_ICONS[id]} label={strings.groups[id]} on={kind === id} tokens={tokens} touch={props.touch} onPress={() => setKind(id)} />
         ))}
       </View>
       <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
@@ -338,7 +338,7 @@ function Initial(props: { name: string; tokens: TaskTokens }) {
 }
 
 /** Linear's segmented pills: outlined, grey when chosen. */
-function Segment(props: { label: string; on: boolean; tokens: TaskTokens; touch: boolean; onPress(): void }) {
+function Segment(props: { icon: string; label: string; on: boolean; tokens: TaskTokens; touch: boolean; onPress(): void }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
@@ -350,17 +350,23 @@ function Segment(props: { label: string; on: boolean; tokens: TaskTokens; touch:
       onPress={props.onPress}
       {...hoverProps}
       style={{
-        flex: 1,
+        // Grown from each label's width, not split evenly: "Workspace" needs more room than "Agent" beside its icon.
+        flexGrow: 1,
+        flexShrink: 1,
         height: taskControlHeight(props.touch ? 36 : 28, scale),
         borderRadius: 999,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: props.on ? tokens.surface2 : tokens.card.pillBorder,
         backgroundColor: props.on ? tokens.surface2 : hovered ? tokens.card.controlHover : "transparent",
+        flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
+        gap: 4,
+        paddingHorizontal: 6,
       }}
     >
-      <Text numberOfLines={1} style={{ fontSize: F.base, fontWeight: props.on ? "600" : "400", color: props.on ? tokens.foreground : tokens.foregroundMuted }}>
+      <Icon name={props.icon} size={14} color={props.on ? tokens.foreground : tokens.foregroundMuted} />
+      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.base, fontWeight: props.on ? "600" : "400", color: props.on ? tokens.foreground : tokens.foregroundMuted }}>
         {props.label}
       </Text>
     </Pressable>

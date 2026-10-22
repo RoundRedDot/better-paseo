@@ -43,26 +43,6 @@ export function VerticalLabel({ text, color, language }: { text: string; color: 
   );
 }
 
-export function Checkbox({ on, theme, size = 14 }: { on: boolean; theme: PluginTheme; size?: number }) {
-  const colors = theme.colors;
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size > 16 ? 4 : 3,
-        borderWidth: GLYPH_LINE,
-        borderColor: on ? colors.accent : taskTokens(theme).borderStrong,
-        backgroundColor: on ? colors.accent : "transparent",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      {on ? <Icon name="Check" size={size - 4} color={colors.accentForeground} /> : null}
-    </View>
-  );
-}
-
 /** The done window as a segmented control (24 h / 7 d / all). */
 export function WindowSegments(props: {
   value: DoneWindow;

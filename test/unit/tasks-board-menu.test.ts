@@ -48,7 +48,7 @@ describe("the sort menu's structure", () => {
       expect(item.submenu?.[0]?.items).toHaveLength(2);
     }
     expect(fields.flatMap((group) => group.items).map((item) => item.icon)).toEqual([
-      "AppWindow", "FolderKanban", "GitBranch", "Folder", "Type", "CalendarPlus", "History", "Gauge", "Timer",
+      "FolderGit2", "FolderKanban", "GitBranch", "Folder", "Type", "CalendarPlus", "History", "Gauge", "Timer",
     ]);
   });
 
