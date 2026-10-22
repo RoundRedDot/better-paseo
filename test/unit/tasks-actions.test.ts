@@ -442,9 +442,10 @@ describe("Tasks read control", () => {
   let renderers: ReactTestRenderer[];
   let control: ReadControl | undefined;
   const readable = new Set<string>();
+  const onRead = vi.fn();
 
   function ReadProbe() {
-    control = useReadControl({ isReadable: (agentId) => readable.has(agentId) });
+    control = useReadControl({ isReadable: (agentId) => readable.has(agentId), onRead });
     return React.createElement("probe");
   }
 
@@ -461,6 +462,7 @@ describe("Tasks read control", () => {
     renderers = [];
     control = undefined;
     readable.clear();
+    onRead.mockReset();
     mocks.capabilities.mockReset().mockResolvedValue({ stop: true, read: true });
     mocks.read.mockReset().mockResolvedValue({ ok: true, error: null });
     mocks.toastError.mockReset();
@@ -497,6 +499,8 @@ describe("Tasks read control", () => {
       await flush();
     });
     expect(mocks.read).toHaveBeenCalledWith({ agentIds: ["agent-a"] });
+    // The board reads the marks again, so a failure the attention does not carry moves too.
+    expect(onRead).toHaveBeenCalledWith("agent-a");
     expect(current().pending("agent-a")).toBe(true);
     // A second press while it waits sends nothing.
     act(() => current().press(card("agent-a")));
@@ -536,6 +540,7 @@ describe("Tasks read control", () => {
       await flush();
     });
     expect(mocks.toastError).toHaveBeenLastCalledWith("标为已读失败：Could not reach the Paseo daemon.");
+    expect(onRead).not.toHaveBeenCalled();
     expect(current().pending("agent-a")).toBe(false);
 
     mocks.read.mockRejectedValueOnce(new Error("socket closed"));

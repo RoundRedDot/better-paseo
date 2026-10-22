@@ -40,8 +40,9 @@ export const tasksStopRpc = defineRpc({
 });
 
 /**
- * Clears the agents' attention, as opening one in Paseo does: an unread or
- * failed card leaves the review lane for done. `PaseoApi` cannot, so the
+ * Clears the agents' attention, as opening one in Paseo does, and records
+ * the read (`tasks.reads`): an unread or failed card leaves the review lane
+ * for done. `PaseoApi` cannot, so the
  * server asks the daemon over its own connection (`connectHostDaemon`).
  * The daemon answers all or nothing.
  */
@@ -49,6 +50,20 @@ export const tasksReadRpc = defineRpc({
   name: "tasks.read",
   input: z.object({ agentIds: z.array(z.string().min(1)).min(1).max(50) }),
   output: z.object({ ok: z.boolean(), error: z.string().nullable() }),
+});
+
+/**
+ * The agents marked read through `tasks.read`, with when. A failure the board
+ * reads from elsewhere (a turn that ended on an error, a failed provider
+ * subagent, a kept `lastError`, an `error` status) survives clearing the
+ * daemon's attention, so the board moves a card it marked read to done
+ * until the next prompt, unless something failed after the mark. Kept like
+ * the stops: in a file, until the agent's next turn or archive, 30 days at most.
+ */
+export const tasksReadsRpc = defineRpc({
+  name: "tasks.reads",
+  input: z.object({}),
+  output: z.object({ reads: z.array(z.object({ agentId: z.string(), readAt: z.string() })) }),
 });
 
 /**

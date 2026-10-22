@@ -69,6 +69,8 @@ export interface TasksHandle extends TasksSnapshot {
   resolveParent(agentId: string): void;
   /** Read the parent again, as after an unarchive: whether it is archived, or null when it is gone. */
   refreshParent(agentId: string): Promise<boolean | null>;
+  /** Read the server's read marks again, as after a Mark read. */
+  refreshReads(): void;
   /** Fetch the icon for a visible card's project. */
   requestProjectIcon(projectId: string): void;
 }
@@ -289,6 +291,16 @@ export function setSubagentLoader(next: SubagentLoader | null): void {
   subagentLoader = next;
 }
 
+/** `tasks.reads`: the agents marked read from a board, with when. */
+export type ReadMarksLoader = () => Promise<Array<{ agentId: string; readAt: string }>>;
+
+let readMarksLoader: ReadMarksLoader | null = null;
+
+/** `contribute` sets the loader; the marks are read with the subagents and after a Mark read. */
+export function setReadMarksLoader(next: ReadMarksLoader | null): void {
+  readMarksLoader = next;
+}
+
 function epoch(value: string | null | undefined): number {
   const parsed = value ? Date.parse(value) : Number.NaN;
   return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
@@ -351,7 +363,7 @@ export function withSubagents(card: TaskCard, subagents: readonly ProviderSubage
   return {
     ...card,
     ...(failed > 0 && finished
-      ? { lane: "review" as const, status: "failed" as const, error: card.error ?? subagentError(failed), readable: false }
+      ? { lane: "review" as const, status: "failed" as const, error: card.error ?? subagentError(failed) }
       : null),
     children: [...card.children, ...shown.map((subagent) => subagentChild(subagent, card))],
   };
@@ -382,7 +394,21 @@ export function withTurnError(card: TaskCard, turnError: TurnError | undefined):
   if (!turnError || card.status === "failed" || (card.lane !== "done" && card.lane !== "review")) return card;
   const prompted = card.timing.lastUserMessageAt ? Date.parse(card.timing.lastUserMessageAt) : Number.NaN;
   if (turnError.endedAt < prompted) return card;
-  return { ...card, lane: "review", status: "failed", error: turnError.message, readable: false };
+  return { ...card, lane: "review", status: "failed", error: turnError.message };
+}
+
+/**
+ * The card with its read mark. A mark taken since the latest prompt moves a
+ * review card to done, its reason kept in grey, unless a turn or a provider
+ * subagent failed after the mark (`failedAt`, the latest failure the board
+ * knows the time of). Every review card can be marked read; no other can.
+ */
+export function withReadMark(card: TaskCard, readAt: number | undefined, failedAt: number): TaskCard {
+  if (card.lane !== "review") return card.readable ? { ...card, readable: false } : card;
+  if (readAt !== undefined && readAt >= epoch(card.timing.lastUserMessageAt) && failedAt <= readAt) {
+    return { ...card, lane: "done", status: "done", readable: false };
+  }
+  return card.readable ? card : { ...card, readable: true };
 }
 
 function shallowCardEqual(left: TaskCard | undefined, right: TaskCard): boolean {
@@ -404,16 +430,13 @@ function buildBaseCard(
 ): TaskCard {
   const { agent, placement } = entry;
   const pendingPermissions = agent.pendingPermissions ?? [];
-  const classifyInput = {
+  const classification = classifyAgent({
     status: agent.status,
     pendingPermissionCount: pendingPermissions.length,
     requiresAttention: agent.requiresAttention,
     attentionReason: agent.attentionReason,
     lastError: agent.lastError,
-  };
-  const classification = classifyAgent(classifyInput);
-  // Where the card goes once its attention is cleared (the daemon drops the reason with it).
-  const read = classifyAgent({ ...classifyInput, requiresAttention: false, attentionReason: null });
+  });
   const workspaceTitle = workspace?.title?.trim() || workspace?.name || placement?.workspaceName || null;
   const projectName = workspace?.projectCustomName?.trim() || workspace?.projectDisplayName ||
     project?.projectCustomName?.trim() || project?.projectDisplayName || placement?.projectName || null;
@@ -520,7 +543,6 @@ function buildBaseCard(
     children: [],
     openTab: Object.entries(agent.labels ?? {}).some(([key, value]) => key.startsWith("paseo.open-agent-tab.") && value === "true"),
     stoppable: agent.status === "running" || agent.status === "initializing" || pendingPermissions.length > 0,
-    readable: classification.lane === "review" && read.lane === "done",
     closed: agent.status === "closed",
   };
 }
@@ -576,6 +598,7 @@ interface TaskStore {
   loadMoreDone(window: DoneWindow): void;
   resolveParent(id: string): void;
   refreshParent(id: string): Promise<boolean | null>;
+  refreshReads(): void;
   requestProjectIcon(projectId: string): void;
 }
 
@@ -615,6 +638,8 @@ function createStore(api: PaseoApi): TaskStore {
   let subagentVersion: string | undefined;
   let subagentTimer: ReturnType<typeof setTimeout> | null = null;
   let subagentReading = false;
+  /** The server's read marks (`tasks.reads`), as epoch ms by agent. */
+  const readMarks = new Map<string, number>();
   /** Failed parents asked for by id, once per version of the list. */
   const subagentParentsAsked = new Set<string>();
   const subscriptions = new Map<string, StoreSubscription>();
@@ -686,7 +711,7 @@ function createStore(api: PaseoApi): TaskStore {
       : null;
     const parentMissing = parentAgentId ? !baseCards.has(parentAgentId) : false;
     const childIds = childrenByParent.get(id);
-    const next: TaskCard = withSubagents({
+    const next: TaskCard = withReadMark(withSubagents({
       ...withTurnError(base, turnErrors.get(id)),
       timing: withLastTurn(base.timing, lastTurns.get(id), base.lane === "running" || base.lane === "needs_input"),
       parent: parentAgentId
@@ -719,7 +744,7 @@ function createStore(api: PaseoApi): TaskStore {
             .filter((child): child is TaskChild => child !== null)
             .sort((left, right) => left.title.localeCompare(right.title))
         : [],
-    }, subagentsByParent.get(id));
+    }, subagentsByParent.get(id)), readMarks.get(id), latestFailure(id));
     const previous = cards.get(id);
     if (shallowCardEqual(previous, next)) return false;
     cards.set(id, next);
@@ -1072,6 +1097,7 @@ function createStore(api: PaseoApi): TaskStore {
     if (!loader || subagentReading) return;
     subagentReading = true;
     try {
+      await readReads(run);
       const result = await loader(subagentVersion);
       if (run !== generation) return;
       if (result.subagents) applySubagents(result.version, result.subagents);
@@ -1106,9 +1132,52 @@ function createStore(api: PaseoApi): TaskStore {
     });
   }
 
-  /** Whether the agent's card would show a provider subagent failure. */
+  /** Whether the agent's card would show a provider subagent failure: one since its prompt, and since a read mark taken after it. */
   function failsBySubagent(id: string, lastUserMessageAt: string | null): boolean {
-    return shownSubagents(subagentsByParent.get(id), lastUserMessageAt).some((subagent) => subagent.status === "failed");
+    const readAt = readMarks.get(id);
+    const seen = readAt !== undefined && readAt >= epoch(lastUserMessageAt) ? readAt : Number.NEGATIVE_INFINITY;
+    return shownSubagents(subagentsByParent.get(id), lastUserMessageAt).some((subagent) => subagent.status === "failed" && epoch(subagent.updatedAt) > seen);
+  }
+
+  /** The latest failure the board knows the time of: the last turn's error, or a provider subagent's. */
+  function latestFailure(id: string): number {
+    let at = turnErrors.get(id)?.endedAt ?? Number.NEGATIVE_INFINITY;
+    for (const subagent of subagentsByParent.get(id) ?? []) {
+      if (subagent.status === "failed") at = Math.max(at, epoch(subagent.updatedAt));
+    }
+    return at;
+  }
+
+  /** The server's read marks; a changed one moves its card (and lets a failed parent go). */
+  async function readReads(run: number) {
+    const loader = readMarksLoader;
+    if (!loader) return;
+    try {
+      const marks = await loader();
+      if (run !== generation) return;
+      const next = new Map<string, number>();
+      for (const mark of marks) {
+        const at = Date.parse(mark.readAt);
+        if (Number.isFinite(at)) next.set(mark.agentId, at);
+      }
+      const changed = new Set<string>();
+      for (const [id, at] of next) if (readMarks.get(id) !== at) changed.add(id);
+      for (const id of readMarks.keys()) if (!next.has(id)) changed.add(id);
+      if (changed.size === 0) return;
+      readMarks.clear();
+      for (const [id, at] of next) readMarks.set(id, at);
+      batchUpdates(() => {
+        for (const id of changed) {
+          refreshFinalCard(id);
+          const parent = parentByChild.get(id);
+          if (parent) refreshFinalCard(parent);
+        }
+        syncSubagentParents();
+        notify();
+      });
+    } catch {
+      // An older server without `tasks.reads`, or a failed read: the marks stay as they were.
+    }
   }
 
   /**
@@ -1529,6 +1598,7 @@ function createStore(api: PaseoApi): TaskStore {
     subagentsByParent.clear();
     subagentParentsAsked.clear();
     subagentVersion = undefined;
+    readMarks.clear();
     statusReady = false;
     attentionReady = false;
     workspacesReady = false;
@@ -1613,6 +1683,7 @@ function createStore(api: PaseoApi): TaskStore {
       loadMoreDone: () => { if (options.includeDone) loadMoreDone(options.doneWindow); },
       resolveParent,
       refreshParent,
+      refreshReads,
       requestProjectIcon,
     };
     snapshotCaches.push({ key: cacheKey, snapshot });
@@ -1687,6 +1758,10 @@ function createStore(api: PaseoApi): TaskStore {
   function resolveParent(id: string) {
     if (resolvedParents.has(id)) return;
     refreshParent(id).catch(subscriptionError);
+  }
+
+  function refreshReads(): void {
+    void readReads(generation);
   }
 
   function refreshParent(id: string): Promise<boolean | null> {
@@ -1818,6 +1893,7 @@ function createStore(api: PaseoApi): TaskStore {
     loadMoreDone,
     resolveParent,
     refreshParent,
+    refreshReads,
     requestProjectIcon,
   };
   return store;

@@ -116,6 +116,8 @@ describe("tasks stop marks", () => {
 });
 
 describe("tasks stop marks on the server", () => {
+  const readsPath = () => join(dir, "tasks-reads.json");
+
   function setup() {
     const handlers = new Map<string, (input: unknown) => Promise<unknown>>();
     const events = new Map<string, (event: unknown) => unknown>();
@@ -125,9 +127,10 @@ describe("tasks stop marks on the server", () => {
       before() { return () => {}; },
       handle(contract: { name: string }, handler: (input: unknown) => Promise<unknown>) { handlers.set(contract.name, handler); },
     } as unknown as PluginServerContext;
-    registerTasksServer(server, createStopMarks(path, now));
+    registerTasksServer(server, createStopMarks(path, now), undefined, undefined, createStopMarks(readsPath(), now));
     return {
       stopped: async () => ((await handlers.get("tasks.stopped")!({})) as { stops: Array<{ agentId: string }> }).stops.map((stop) => stop.agentId),
+      reads: async () => ((await handlers.get("tasks.reads")!({})) as { reads: Array<{ agentId: string }> }).reads.map((read) => read.agentId),
       event: async (name: string, id: string) => { await events.get(name)!({ agent: { id } }); },
     };
   }
@@ -145,5 +148,17 @@ describe("tasks stop marks on the server", () => {
     await server.event("agent.turn_started", "agent-unknown");
     expect(await server.stopped()).toEqual(["agent-b"]);
     expect(await ids(createStopMarks(path, now))).toEqual(["agent-b"]);
+  });
+
+  it("clears a read mark the same way: the next turn or the archive", async () => {
+    const reads = createStopMarks(readsPath(), now);
+    await reads.mark("agent-a");
+    await reads.mark("agent-b");
+    await reads.mark("agent-c");
+    const server = setup();
+    expect(await server.reads()).toEqual(["agent-a", "agent-b", "agent-c"]);
+    await server.event("agent.turn_started", "agent-a");
+    await server.event("agent.archived", "agent-c");
+    expect(await server.reads()).toEqual(["agent-b"]);
   });
 });
