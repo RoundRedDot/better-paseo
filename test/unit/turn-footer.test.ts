@@ -399,7 +399,7 @@ describe("assistant footer", () => {
     try {
       const metadata = renderer.root.findAllByType("Pressable" as never).filter((node) => node.props.accessibilityRole === "image");
       expect(metadata).toHaveLength(2);
-      expect(labels()).toEqual(["Copy", "15:05", language === "zh" ? "3分56秒" : "3m 56s"]);
+      expect(labels()).toEqual([language === "zh" ? "复制" : "Copy", "15:05", language === "zh" ? "3分56秒" : "3m 56s"]);
       const timeLabel = startedAt != null ? (language === "zh" ? "开始时间" : "Start time")
         : (language === "zh" ? "结束时间" : "End time");
       const timeStamp = startedAt != null ? formatFullStamp(new Date(startedAt)) : "2026-10-15 15:05:03";
@@ -498,7 +498,7 @@ describe("assistant footer", () => {
     try {
       const labels = renderer.root.findAllByType("Text" as never)
         .map((node) => [node.props.children].flat().join(""));
-      expect(labels).toEqual(["Copy", "GPT-6.1-Sol", "15:05", "2分18秒"]);
+      expect(labels).toEqual(["复制", "GPT-6.1-Sol", "15:05", "2分18秒"]);
       expect(renderer.root.findAllByType("Icon" as never).map((node) => node.props.name))
         .toEqual(["Copy", "Clock", "Hourglass"]);
       const image = renderer.root.findByType("Image" as never);
