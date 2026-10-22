@@ -23,7 +23,7 @@ interface SyntaxHighlightProps {
   showLineNumbers?: boolean;
   filename?: string;
   compact?: boolean;
-  /** Shows the file in the machine's own file manager. Omitted: plain label. */
+  /** Opens the file on the daemon's machine (`file.reveal`). Omitted: plain label. */
   onRevealFile?: () => void;
   /**
    * Drawn in the header in place of the filename label, e.g. a `PathText` that
@@ -753,7 +753,7 @@ export function SyntaxHighlightBlock({
             <Pressable
               onPress={onRevealFile}
               accessibilityRole="link"
-              accessibilityLabel={`Show ${filename} in the file manager`}
+              accessibilityLabel={`Open ${filename}`}
               style={styles.filenameSlot}
             >
               <Text numberOfLines={1} style={[styles.filename, styles.filenameLink]}>

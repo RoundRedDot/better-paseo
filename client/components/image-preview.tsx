@@ -29,7 +29,7 @@ interface ImagePreviewProps {
   /** Null while the daemon is still reading the file. */
   file: ImageFile | null;
   tokens: ExtendedThemeTokens;
-  /** Shows the file in the machine's own file manager. */
+  /** Opens the file on the daemon's machine (`file.reveal`). */
   onReveal?: () => void;
   /**
    * In prose, outdent the card the way a tool row is outdented, so its icon

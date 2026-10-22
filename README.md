@@ -305,7 +305,7 @@ data, it gets a question transcript; otherwise it stays a generic text card.
 - An image read draws the file: dimensions and size from its header, a thumbnail sized to its
   content, and an eye toggle that keeps the header where it was pressed.
 - The full-screen viewer zooms with buttons, the wheel or a pinch about the pointer, pans by drag,
-  resets on double press, and reveals the file in the file manager. On a phone, a long press on the
+  resets on double press, and opens the file in its default app. On a phone, a long press on the
   row opens it directly.
 - Bytes come from the daemon (`file.image`) the first time a row is opened, previewed or
   long-pressed. PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG are recognised; files over 3 MB report
@@ -533,10 +533,12 @@ plugin.
 ## Opening files
 
 A file name in a read, write, edit or code block is a link. On desktop it calls the daemon-side
-`file.reveal`, which resolves the path against the agent's working directory and shows it in the
-file manager: `explorer.exe /select,` on Windows, `open -R` on macOS, `xdg-open <directory>`
-elsewhere. On a touch device the same press copies the absolute path instead, since a phone cannot
-open the daemon machine's file manager.
+`file.reveal`, which resolves the path against the agent's working directory and opens it on the
+daemon's machine. On macOS `open` shows a file in its default app and a folder in Finder; an app,
+a script or an executable file is only revealed with `open -R`, so a press never runs it. Windows
+selects the file with `explorer.exe /select,`, and other systems open its directory with
+`xdg-open`. On a touch device the same press copies the absolute path instead, since a phone cannot
+reach the daemon machine's screen.
 
 ## Troubleshooting
 

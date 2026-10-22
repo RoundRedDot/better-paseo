@@ -36,7 +36,7 @@ interface ImageViewerProps {
   height: number | null;
   label: string;
   tokens: ExtendedThemeTokens;
-  /** Shows the file in the machine's own file manager. */
+  /** Opens the file on the daemon's machine (`file.reveal`). */
   onReveal?: () => void;
 }
 
@@ -365,7 +365,7 @@ function ViewerBody({ onClose, uri, width, height, label, tokens, onReveal }: Im
     },
     { icon: "Scan", label: "Reset zoom", onPress: reset, disabled: transform.scale === 1 },
   ];
-  if (onReveal) actions.push({ icon: "FolderOpen", label: "Show in file manager", onPress: onReveal });
+  if (onReveal) actions.push({ icon: "ExternalLink", label: "Open in default app", onPress: onReveal });
   actions.push({ icon: "X", label: "Close the image", onPress: onClose });
 
   const backdropOpacity = dismissOffset.interpolate({
