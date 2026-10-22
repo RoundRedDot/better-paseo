@@ -60,9 +60,11 @@ export function brandTint(provider: string): string | null {
  * A provider's mark on a theme-following surface: Pi in its own three
  * colours; coloured brands keep their hue; monochrome marks (Oh My Pi,
  * Cursor, Grok, Ollama, Paseo) take the theme's foreground, where their
- * configured near-white or indigo would vanish or mislead.
+ * configured near-white or indigo would vanish or mislead. With `mono`,
+ * every mark is a silhouette in that one colour.
  */
-export function BrandMark(props: { provider: string; size: number; tokens: TaskTokens }) {
+export function BrandMark(props: { provider: string; size: number; tokens: TaskTokens; mono?: string }) {
+  if (props.mono) return <ProviderLogo provider={props.provider} size={props.size} color={props.mono} />;
   if (multicolour(props.provider)) return <PiMark size={props.size} />;
   const brand = providerBrand(props.provider);
   return <ProviderLogo provider={props.provider} size={props.size} color={brand.monochrome ? props.tokens.foreground : undefined} />;
