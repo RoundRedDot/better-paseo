@@ -45,6 +45,10 @@ export type Density = (typeof DENSITIES)[number];
 export const DONE_WINDOWS = ["24h", "7d", "all"] as const;
 export type DoneWindow = (typeof DONE_WINDOWS)[number];
 
+/** How wide the desktop board draws its lanes; `default` is Linear's. Phones draw one lane at a time and ignore it. */
+export const LANE_WIDTHS = ["narrow", "default", "wide"] as const;
+export type LaneWidth = (typeof LANE_WIDTHS)[number];
+
 /** `all` draws needs input, running and review; records saved as "running-and-input" read as the default, `all`. */
 export const SIDEBAR_COUNTS = ["all", "input-only", "none"] as const;
 export type SidebarCount = (typeof SIDEBAR_COUNTS)[number];
@@ -156,8 +160,9 @@ export const tasksSettingsSchema = z.object({
       doneWindow: z.enum(DONE_WINDOWS).catch("24h"),
       hideSubtasks: flag(false),
       confirmStop: flag(true),
+      laneWidth: z.enum(LANE_WIDTHS).catch("default"),
     })
-    .catch({ doneWindow: "24h", hideSubtasks: false, confirmStop: true }),
+    .catch({ doneWindow: "24h", hideSubtasks: false, confirmStop: true, laneWidth: "default" }),
   sidebar: z.object({ count: z.enum(SIDEBAR_COUNTS).catch("all") }).catch({ count: "all" }),
 });
 

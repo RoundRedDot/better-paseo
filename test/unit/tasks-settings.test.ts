@@ -18,7 +18,7 @@ describe("tasks settings", () => {
       density: "standard",
       card: { ...CARD_PRESETS.standard.fields, labelLimit: "2" },
       mobile: { compactCards: false },
-      board: { doneWindow: "24h", hideSubtasks: false, confirmStop: true },
+      board: { doneWindow: "24h", hideSubtasks: false, confirmStop: true, laneWidth: "default" },
       sidebar: { count: "all" },
     });
   });
@@ -41,12 +41,20 @@ describe("tasks settings", () => {
     const parsed = tasksSettingsSchema.parse({
       density: "loud",
       card: { provider: false, labelLimit: "9" },
-      board: { doneWindow: "7d", confirmStop: "yes" },
+      board: { doneWindow: "7d", confirmStop: "yes", laneWidth: "huge" },
     });
     expect(parsed.density).toBe("standard");
     expect(parsed.card.provider).toBe(false);
     expect(parsed.card.labelLimit).toBe("2");
-    expect(parsed.board).toEqual({ doneWindow: "7d", hideSubtasks: false, confirmStop: true });
+    expect(parsed.board).toEqual({ doneWindow: "7d", hideSubtasks: false, confirmStop: true, laneWidth: "default" });
+    // A record saved before the lane width existed keeps its other board options.
+    expect(tasksSettingsSchema.parse({ board: { doneWindow: "all", hideSubtasks: true } }).board).toEqual({
+      doneWindow: "all",
+      hideSubtasks: true,
+      confirmStop: true,
+      laneWidth: "default",
+    });
+    expect(tasksSettingsSchema.parse({ board: { laneWidth: "wide" } }).board.laneWidth).toBe("wide");
   });
 
   it("writes every switch from a preset", () => {
