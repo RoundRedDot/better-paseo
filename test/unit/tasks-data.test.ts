@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { filterLanes, useTaskCounts, useTasks, type TasksHandle } from "../../client/tasks/data";
+import { filterLanes, setLastTurnLoader, useTaskCounts, useTasks, withLastTurn, type TasksHandle } from "../../client/tasks/data";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { at, createFakePaseo, makeAgent, makePlacement, makeWorkspace } from "./helpers/fake-paseo";
@@ -691,5 +691,66 @@ describe("Tasks data store", () => {
     } finally {
       act(() => renderer.unmount());
     }
+  });
+
+  it("times the last turn from the server's record, not from a later updatedAt", async () => {
+    const prompt = Date.now() - 2 * 24 * 60 * 60 * 1000;
+    const iso = (ms: number) => new Date(ms).toISOString();
+    const loader = vi.fn(async (ids: string[]) => ids.includes("resumed")
+      ? [{ agentId: "resumed", startedAt: prompt + 50, endedAt: prompt + 4 * 60_000 }]
+      : []);
+    setLastTurnLoader(loader);
+    const fake = createFakePaseo({
+      agents: [
+        // Resumed a day after its turn ended: updatedAt moved, the turn did not.
+        activeAgent("resumed", { status: "idle", lastUserMessageAt: iso(prompt), updatedAt: recentIso(60_000) }),
+        activeAgent("unrecorded", { status: "idle", lastUserMessageAt: iso(prompt), updatedAt: recentIso(60_000) }),
+        activeAgent("working", { status: "running", lastUserMessageAt: recentIso(30_000), activeTurn: { turnId: "t", startedAt: recentIso(30_000) } }),
+      ],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake);
+    try {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(loader).toHaveBeenCalledTimes(1);
+      expect(mounted.current.byId.get("resumed")?.timing).toMatchObject({ lastTurnMs: 4 * 60_000 - 50, lastTurnEndedAt: iso(prompt + 4 * 60_000) });
+      expect(mounted.current.byId.get("unrecorded")?.timing).toMatchObject({ lastTurnMs: null, lastTurnEndedAt: null });
+
+      // A turn the board sees end is timed from its start to the update that ends it.
+      const ended = Date.now();
+      await act(async () => {
+        fake.upsertAgent(activeAgent("working", { status: "idle", lastUserMessageAt: recentIso(30_000), activeTurn: null, updatedAt: iso(ended) }));
+        await Promise.resolve();
+      });
+      const working = mounted.current.byId.get("working")!.timing;
+      expect(working.lastTurnEndedAt).toBe(iso(ended));
+      expect(working.lastTurnMs).toBeGreaterThanOrEqual(30_000);
+      expect(working.lastTurnMs).toBeLessThan(31_000);
+    } finally {
+      mounted.unmount();
+      setLastTurnLoader(null);
+    }
+  });
+
+  it("matches a recorded turn to the latest prompt", () => {
+    const timing = {
+      createdAt: "2026-10-20T00:00:00.000Z",
+      updatedAt: "2026-10-21T07:55:10.540Z",
+      turnStartedAt: null,
+      attentionAt: null,
+      lastUserMessageAt: "2026-10-20T06:50:56.205Z",
+      lastTurnMs: null,
+      lastTurnEndedAt: null,
+    };
+    const prompt = Date.parse(timing.lastUserMessageAt);
+    // No recorded start: timed from the prompt.
+    expect(withLastTurn(timing, { startedAt: null, endedAt: prompt + 246_063 }, false).lastTurnMs).toBe(246_063);
+    // Ended before the prompt: an earlier turn, unknown once the agent is done, the last one while it works.
+    expect(withLastTurn(timing, { startedAt: prompt - 9_000, endedAt: prompt - 1_000 }, false)).toBe(timing);
+    expect(withLastTurn(timing, { startedAt: prompt - 9_000, endedAt: prompt - 1_000 }, true).lastTurnMs).toBe(8_000);
+    expect(withLastTurn(timing, { startedAt: null, endedAt: prompt - 1_000 }, true)).toBe(timing);
   });
 });

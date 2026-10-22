@@ -36,6 +36,7 @@ function allSamples(now: number): TaskCard[] {
     attentionAt: null,
     lastUserMessageAt: ago(20 * minute),
     lastTurnMs: 18 * minute,
+    lastTurnEndedAt: ago(2 * minute),
   };
   const base = {
     provider: "claude",
