@@ -153,13 +153,16 @@ export function registerTurnUsageServer(
   server.handle(lastTurnsRpc, async ({ agentIds }) => {
     const turns = await Promise.all([...new Set(agentIds)].map(async (agentId): Promise<LastTurn | null> => {
       await ending.get(agentId);
-      const last = (await ledger.read(agentId)).at(-1);
+      const turns = await ledger.read(agentId);
+      const last = turns.at(-1);
+      const cost = turns.findLast((turn) => turn.usage?.totalCostUsd !== undefined)?.usage?.totalCostUsd;
       return last
         ? {
             agentId,
             ...(last.startedAt !== undefined ? { startedAt: last.startedAt } : {}),
             endedAt: last.endedAt,
             ...(last.error !== undefined ? { error: last.error } : {}),
+            ...(cost !== undefined ? { totalCostUsd: cost } : {}),
           }
         : null;
     }));
