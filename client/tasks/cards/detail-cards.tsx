@@ -369,7 +369,7 @@ function DetailHeader(props: Inner) {
             />
           ) : null}
           {stop && props.stop ? (
-            <OutlineButton icon="Square" danger={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} height={m.button} font={m.font} tokens={tokens} onPress={props.stop.onPress} testID="detail-stop" />
+            <OutlineButton icon="Power" danger={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} height={m.button} font={m.font} tokens={tokens} onPress={props.stop.onPress} testID="detail-stop" />
           ) : null}
         </View>
       ) : null}
@@ -1497,7 +1497,7 @@ export function DetailActionBar(props: {
       ) : (
         <>
           {props.onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} primary onPress={open} testID="detail-bar-open" /> : null}
-          {stop && props.stop ? <BarButton tokens={tokens} icon="Square" stop={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" /> : null}
+          {stop && props.stop ? <BarButton tokens={tokens} icon="Power" stop={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" /> : null}
         </>
       )}
     </View>

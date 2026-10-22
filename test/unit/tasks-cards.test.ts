@@ -625,7 +625,7 @@ describe("TaskCardView rows", () => {
     expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 1, flexBasis: "auto" });
     // No `flex` beside `flexShrink`: React Native Web warns when they update together.
     expect(stop().flex).toBeUndefined();
-    expect(icons(byLabel(tree.root, "Stop"))).toEqual(["Square"]);
+    expect(icons(byLabel(tree.root, "Stop"))).toEqual(["Power"]);
     await act(async () => tree.update(element("confirming")));
     expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 1, flexBasis: "auto" });
     expect(stop().flex).toBeUndefined();
@@ -893,10 +893,10 @@ describe("TaskCardView actions", () => {
     expect(onStop).toHaveBeenCalledWith(card, { withChildren: false });
   });
 
-  it("draws Stop like the details sidebar's: a rounded rectangle led by Lucide's Square", async () => {
+  it("draws Stop like the details sidebar's: a rounded rectangle led by Lucide's Power", async () => {
     const tokens = buildTaskTokens(LIGHT.colors);
     const square = (root: ReactTestInstance, label: string) =>
-      byLabel(root, label).find((node) => (node.type as unknown) === "Icon" && node.props.name === "Square").props;
+      byLabel(root, label).find((node) => (node.type as unknown) === "Icon" && node.props.name === "Power").props;
     const tree = await render(cardElement(sample("sample-running"), { onStop: () => {} }));
     expect(square(tree.root, "停止")).toMatchObject({ size: 12, color: tokens.danger });
     expect(flat(byLabel(tree.root, "停止").props.style)).toMatchObject({ height: 20, borderTopLeftRadius: 5, borderBottomLeftRadius: 5 });
@@ -906,7 +906,7 @@ describe("TaskCardView actions", () => {
     await act(async () => byLabel(tree.root, "停止选项").props.onPress());
     const [only] = tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
     expect(texts(only!)).toEqual(["仅停止此任务"]);
-    expect(icons(only!)).toEqual(["Square"]);
+    expect(icons(only!)).toEqual(["Power"]);
     await act(async () => tree.unmount());
     renderer = null;
 
@@ -1541,8 +1541,8 @@ describe("overlays in the board's menu chrome", () => {
       const rows = menu.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
       expect(rows.map((row) => texts(row))).toEqual([["仅停止此任务"], ["连同子任务一起停止", "2"]]);
       for (const row of rows) expect(flat(row.props.style)).toMatchObject({ height: 32, borderRadius: 6, marginHorizontal: 6 });
-      // Leading marks: Stop's Square; the tree with a stop square at its corner.
-      expect(icons(rows[0]!)).toEqual(["Square"]);
+      // Leading marks: Stop's Power; the tree with a stop square at its corner.
+      expect(icons(rows[0]!)).toEqual(["Power"]);
       expect(icons(rows[1]!)).toEqual(["ListTree"]);
       await act(async () => rows[1]!.props.onPress());
       expect(onStop).toHaveBeenCalledWith(card, { withChildren: true });
