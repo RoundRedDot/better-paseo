@@ -231,17 +231,6 @@ export function DesktopBoard(props: {
     if (selectedGone) dispatch({ type: "clear" });
   }, [selectedGone]);
 
-  const showLane = useCallback(
-    (lane: LaneId) => {
-      if (collapsed.includes(lane)) setCollapsed((current) => current.filter((id) => id !== lane));
-      const index = LANE_ORDER.indexOf(lane);
-      const before = LANE_ORDER.slice(0, index).reduce((sum, id) => sum + (collapsed.includes(id) && id !== lane ? LANES.collapsed : layout.laneWidth) + LANES.gap, 0);
-      rowRef.current?.scrollTo({ x: Math.max(0, before - LANES.edge), animated: true });
-      if (lanes[lane].cards.length > 0) setFocus({ lane, index: 0 });
-    },
-    [collapsed, setCollapsed, layout.laneWidth, lanes],
-  );
-
   const floatWidth = sidebarWidth(boardWidth, preference.width, "floating");
   const latest = useRef({ board, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, floatWidth, laneWidth: layout.laneWidth, collapsed });
   latest.current = { board, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, floatWidth, laneWidth: layout.laneWidth, collapsed };
@@ -254,18 +243,37 @@ export function DesktopBoard(props: {
   // clicked may sit: the row scrolls that card's lane out from under it. A
   // sheet covers no lane's side (`cover` 0), but a lane clicked at the
   // board's edge still comes into view whole.
-  const uncover = useCallback((lane: LaneId, cover: number) => {
+  // `laneWidth` is the lanes' width once a lane about to open has opened. True when the row scrolls.
+  const uncover = useCallback((lane: LaneId, cover: number, laneWidth = latest.current.laneWidth) => {
     const now = latest.current;
     const index = LANE_ORDER.indexOf(lane);
-    const left = LANES.edge + LANE_ORDER.slice(0, index).reduce((sum, id) => sum + (now.collapsed.includes(id) ? LANES.collapsed : now.laneWidth) + LANES.gap, 0);
-    const right = left + now.laneWidth;
+    const left = LANES.edge + LANE_ORDER.slice(0, index).reduce((sum, id) => sum + (now.collapsed.includes(id) ? LANES.collapsed : laneWidth) + LANES.gap, 0);
+    const right = left + laneWidth;
     const visible = now.boardWidth - cover;
     const x = rowScrollX.current;
-    if (right - x <= visible && left - LANES.edge >= x) return;
+    if (right - x <= visible && left - LANES.edge >= x) return false;
     const target = Math.max(0, Math.min(left - LANES.edge, right - visible));
     // After the render that gives the row its room to scroll under the panel.
     setTimeout(() => rowRef.current?.scrollTo({ x: target, animated: true }), 50);
+    return true;
   }, []);
+
+  // A stat in the sidebar: its lane opens if folded, scrolls into view if it
+  // is not all in view (beside the inline sidebar, or out from under a
+  // floating one), then its background flashes.
+  const [flash, setFlash] = useState<LaneFlash | null>(null);
+  const showLane = useCallback(
+    (lane: LaneId) => {
+      const now = latest.current;
+      const folded = now.collapsed.includes(lane);
+      if (folded) setCollapsed((current) => current.filter((id) => id !== lane));
+      const laneWidth = folded ? laneLayout(lanesWidth, LANE_ORDER.length - now.collapsed.length + 1, now.collapsed.length - 1, board.laneWidth).laneWidth : now.laneWidth;
+      const cover = inSheet ? LANES.edge : floating ? now.floatWidth + 2 * SIDEBAR.gap : now.boardWidth - lanesWidth;
+      const scrolled = uncover(lane, cover, laneWidth);
+      setFlash((was) => ({ lane, key: (was?.key ?? 0) + 1, delay: scrolled ? LANE_FLASH.afterScrollMs : 0 }));
+    },
+    [setCollapsed, lanesWidth, board.laneWidth, inSheet, floating, uncover],
+  );
 
   const reveal = useCallback(
     (agentId: string) => {
@@ -515,6 +523,7 @@ export function DesktopBoard(props: {
                       breathing={breathing}
                       bottomRoom={sheetRoom}
                       onBlank={touch ? letGo : undefined}
+                      flash={flash?.lane === id ? flash : null}
                     />
                   </React.Fragment>
                 ))}
@@ -719,6 +728,43 @@ function scrollNode(list: NativeFlatList<TaskCard> | null): unknown {
   return Platform.OS === "web" ? scroller?.getScrollableNode?.() : scroller?.getNativeScrollRef?.();
 }
 
+interface LaneFlash {
+  lane: LaneId;
+  /** A new key flashes again. */
+  key: number;
+  /** Wait for the row's scroll before flashing. */
+  delay: number;
+}
+
+const LANE_FLASH = {
+  /** The accent's strength over the lane's fill at a pulse's peak. */
+  peak: 0.14,
+  /** Two pulses, each in then out. */
+  pulseMs: 220,
+  /** The row's animated scroll comes first. */
+  afterScrollMs: 300,
+} as const;
+
+/** The flash's opacity: two pulses of the accent, or one still beat under reduced motion. */
+function useLaneFlash(flash: LaneFlash | null): Animated.Value {
+  const reduced = useReducedMotion();
+  const value = useRef(new Animated.Value(0)).current;
+  const key = flash?.key ?? 0;
+  const delay = flash?.delay ?? 0;
+  useEffect(() => {
+    value.setValue(0);
+    if (key === 0) return;
+    const to = (toValue: number, duration: number, wait = 0) => Animated.timing(value, { toValue, duration, delay: wait, easing: MOTION.ease, useNativeDriver: nativeDriver });
+    const { peak, pulseMs } = LANE_FLASH;
+    const animation = Animated.sequence(
+      reduced ? [to(peak, 0, delay), to(0, 0, MOTION.highlightMs)] : [to(peak, pulseMs, delay), to(0, pulseMs), to(peak, pulseMs), to(0, pulseMs)],
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [key, delay, reduced, value]);
+  return value;
+}
+
 function DesktopLane(props: {
   lane: LaneModel;
   width: number;
@@ -738,10 +784,13 @@ function DesktopLane(props: {
   bottomRoom: number;
   /** Touch only: a tap on the header or under the cards lets go of the selection (see `letGo`). */
   onBlank?(): void;
+  /** A stat pressed for this lane: its background flashes. */
+  flash: LaneFlash | null;
 }) {
   const { lane, board, theme } = props;
   const scale = useTasksFontScale();
   const colors = theme.colors;
+  const flashOpacity = useLaneFlash(props.flash);
   const palette = boardPalette(theme);
   const strings = board.strings;
   const ready = board.tasks.ready;
@@ -827,6 +876,8 @@ function DesktopLane(props: {
   const loadingFirst = !ready || (lane.id === "done" && lane.loading && count === 0);
   return clip(
     <View style={{ width: props.width, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}>
+      {/* Under the header and the cards: only the lane's own fill flashes. */}
+      <Animated.View pointerEvents="none" testID={`lane-flash-${lane.id}`} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: colors.accent, opacity: flashOpacity }} />
       <Pressable
         accessible={false}
         disabled={!props.onBlank}

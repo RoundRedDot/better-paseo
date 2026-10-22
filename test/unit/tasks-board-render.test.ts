@@ -496,6 +496,26 @@ describe("Tasks board, desktop", () => {
     }
   });
 
+  it("flashes a stat's lane, opening it if folded, without focusing a card", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2000);
+    const lane = (id: string) => renderer!.root.find((node) => node.props.lane?.id === id && "flash" in node.props);
+    const stat = (id: string) => renderer!.root.findByProps({ testID: `sidebar-stat-${id}` });
+    const collapse = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Collapse lane");
+    act(() => collapse[1]!.props.onPress());
+    expect(lane("running").props.collapsed).toBe(true);
+    act(() => stat("running").props.onPress());
+    expect(lane("running").props.collapsed).toBe(false);
+    expect(lane("running").props.flash).toMatchObject({ lane: "running", key: 1 });
+    expect(lane("review").props.flash).toBeNull();
+    expect(cards().some((card) => card.props.focused)).toBe(false);
+    // Again: a new key flashes it again.
+    act(() => stat("running").props.onPress());
+    expect(lane("running").props.flash).toMatchObject({ key: 2 });
+  });
+
   it("shows a card only once it is clicked, and the next clicked card after it", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
