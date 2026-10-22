@@ -4,8 +4,8 @@ import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
-import { BrandMark, taskTokens } from "../cards";
-import { Checkbox, LetterAvatar, Segments, WindowSegments } from "./board-parts";
+import { BrandMark, ProjectIcon, taskTokens } from "../cards";
+import { Checkbox, Segments, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
@@ -97,7 +97,7 @@ export function FilterSheetBody(props: {
           {options.workspaceGroups.map((group) => (
             <View key={group.projectId || "missing"}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 10, paddingBottom: 6 }}>
-                <LetterAvatar name={group.projectName} theme={theme} size={16} />
+                {group.projectId ? <ProjectIcon location={group} size={16} hostId={board.hostId} /> : null}
                 <Text style={{ fontSize: F.sm, color: colors.foreground }}>{group.projectName}</Text>
               </View>
               <ChipWrap>

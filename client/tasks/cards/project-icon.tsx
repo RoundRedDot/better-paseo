@@ -47,13 +47,16 @@ export function projectInitial(displayName: string): string {
  * `projectKey` when it has one, else Paseo's `[hostId, projectId]`, else the
  * project id alone.
  */
-export function projectViewKey(location: TaskLocation, hostId?: string | null): string {
+export function projectViewKey(location: ProjectIconLocation, hostId?: string | null): string {
   if (location.projectKey) return location.projectKey;
   if (hostId && location.projectId) return JSON.stringify([hostId, location.projectId]);
   return location.projectId ?? location.projectName ?? "";
 }
 
-export function ProjectIcon(props: { location: TaskLocation; size: number; hostId?: string | null }) {
+/** What the icon reads: a card's location, or a filter row's project. */
+export type ProjectIconLocation = Pick<TaskLocation, "projectId" | "projectKey" | "projectName" | "projectIcon">;
+
+export function ProjectIcon(props: { location: ProjectIconLocation; size: number; hostId?: string | null }) {
   const { location, size } = props;
   if (location.projectIcon) {
     return <Image source={{ uri: location.projectIcon }} style={{ width: size, height: size }} testID="project-icon-image" />;

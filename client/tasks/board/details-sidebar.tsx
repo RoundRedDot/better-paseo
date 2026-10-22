@@ -4,7 +4,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
-import { BrandMark, DETAIL_CARD, DetailCard, StatusIcon, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
+import { BrandMark, DETAIL_CARD, DetailCard, ProjectIcon, StatusIcon, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type TaskCard } from "../model";
 import { useFirstPrompt } from "../data/first-prompt";
 import { activeChips, buildFilterOptions, clearedParams, type FilterOption } from "./filter-options";
@@ -227,6 +227,8 @@ interface GroupRow {
   lead: React.ReactNode;
   /** Muted after the label: a workspace's project. */
   detail?: string;
+  /** A project row whose uploaded icon is not loaded yet. */
+  iconFor?: string;
   toggle(): void;
 }
 
@@ -263,7 +265,8 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
         .flatMap((group) =>
           group.items.map((item) => ({
             ...pick(item),
-            lead: <Initial name={group.projectId ? group.projectName : item.label} tokens={tokens} />,
+            lead: group.projectId ? <ProjectIcon location={group} size={16} hostId={board.hostId} /> : <Initial name={item.label} tokens={tokens} />,
+            iconFor: group.projectId && group.projectIcon === null ? group.projectId : undefined,
             detail: group.projectId && group.projectName !== item.label ? group.projectName : undefined,
             toggle: () => board.setParams((params) => ({ ...params, workspaceIds: toggleItem(params.workspaceIds, item.id) })),
           })),
@@ -281,7 +284,8 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
           label: group.projectName,
           count: group.items.reduce((sum, item) => sum + item.count, 0),
           on,
-          lead: <Initial name={group.projectName} tokens={tokens} />,
+          lead: <ProjectIcon location={group} size={16} hostId={board.hostId} />,
+          iconFor: group.projectIcon === null ? group.projectId : undefined,
           toggle: () =>
             board.setParams((params) => ({
               ...params,
@@ -292,6 +296,12 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
       .filter((row) => row.count > 0 || row.on)
       .sort(byCount);
   }, [kind, options, board, tokens]);
+  // The rows' projects may have no card on screen to fetch their icon; the data layer dedupes the fetch.
+  const iconsFor = [...new Set(rows.flatMap((row) => (row.iconFor ? [row.iconFor] : [])))].join("\n");
+  const { requestProjectIcon } = board.tasks;
+  useEffect(() => {
+    if (iconsFor) for (const projectId of iconsFor.split("\n")) requestProjectIcon(projectId);
+  }, [iconsFor, requestProjectIcon]);
 
   return (
     <DetailCard tokens={tokens} style={{ flexShrink: 1, minHeight: 0, paddingTop: 10, paddingBottom: 6 }} testID="sidebar-groups">
