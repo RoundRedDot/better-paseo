@@ -81,6 +81,10 @@ export interface CardTokens {
   /** The card the details sidebar shows: the accent at 7% over the card, and its border mixed 45% towards the accent. */
   current: string;
   currentBorder: string;
+  /** A failed card: the danger hue at 5% over the card (8% dark), a step more on hover, and its border and divider mixed towards it. */
+  failed: string;
+  failedHover: string;
+  failedBorder: string;
   /** Primary (accent-tinted) and danger buttons, at rest and hovered. */
   primaryFill: string;
   primaryFillHover: string;
@@ -215,6 +219,9 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
     highlight: mix(background, colors.accent, isDark ? 0.12 : 0.08),
     current: mix(background, colors.accent, isDark ? 0.1 : 0.07),
     currentBorder: mix(colors.border, colors.accent, 0.45),
+    failed: mix(background, danger, isDark ? 0.08 : 0.05),
+    failedHover: mix(background, danger, isDark ? 0.12 : 0.08),
+    failedBorder: mix(colors.border, danger, isDark ? 0.4 : 0.35),
     primaryFill,
     primaryFillHover,
     primaryText: readableOn(colors.accent, [primaryFill, primaryFillHover], fg),
