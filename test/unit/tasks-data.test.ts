@@ -2,7 +2,8 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { filterLanes, setLastTurnLoader, useTaskCounts, useTasks, withLastTurn, type TasksHandle } from "../../client/tasks/data";
+import { filterLanes, setLastTurnLoader, setSubagentLoader, useTaskCounts, useTasks, withLastTurn, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { at, createFakePaseo, makeAgent, makePlacement, makeWorkspace } from "./helpers/fake-paseo";
@@ -903,5 +904,115 @@ describe("Tasks data store", () => {
     expect(withLastTurn(timing, { startedAt: prompt - 9_000, endedAt: prompt - 1_000 }, false)).toBe(timing);
     expect(withLastTurn(timing, { startedAt: prompt - 9_000, endedAt: prompt - 1_000 }, true).lastTurnMs).toBe(8_000);
     expect(withLastTurn(timing, { startedAt: null, endedAt: prompt - 1_000 }, true)).toBe(timing);
+  });
+
+  describe("provider subagents", () => {
+    const PROMPT = "2026-10-22T09:10:56.339Z";
+    function subagent(id: string, overrides: Partial<ProviderSubagent> = {}): ProviderSubagent {
+      return {
+        id,
+        parentAgentId: "parent",
+        provider: "claude",
+        title: "general-purpose",
+        description: `RRD-${id} task`,
+        status: "failed",
+        createdAt: "2026-10-22T09:12:00.000Z",
+        updatedAt: "2026-10-22T09:18:55.000Z",
+        subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens",
+        ...overrides,
+      };
+    }
+    function doneCard(): TaskCard {
+      const card = sampleCards(Date.parse("2026-10-22T10:00:00.000Z")).find((sample) => sample.lane === "done")!;
+      return { ...card, id: "parent", status: "done", error: null, children: [], timing: { ...card.timing, lastUserMessageAt: PROMPT } };
+    }
+
+    it("marks a finished parent failed in review, with a row per failure since its prompt", () => {
+      const card = withSubagents(doneCard(), [subagent("b", { createdAt: "2026-10-22T09:13:00.000Z" }), subagent("a"), subagent("c", { status: "running", createdAt: "2026-10-22T09:14:00.000Z" })]);
+      expect(card).toMatchObject({ lane: "review", status: "failed", error: "2 subagents failed" });
+      expect(card.children.map((child) => [child.id, child.kind, child.status, child.title])).toEqual([
+        ["a", "provider", "failed", "RRD-a task"],
+        ["b", "provider", "failed", "RRD-b task"],
+        ["c", "provider", "running", "RRD-c task"],
+      ]);
+      expect(card.children[0]).toMatchObject({ provider: card.provider, subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens", lane: "review" });
+      expect(card.children[0]!.timing).toMatchObject({ lastTurnMs: 6 * 60_000 + 55_000, lastTurnEndedAt: "2026-10-22T09:18:55.000Z" });
+    });
+
+    it("lets a failure go once the parent is prompted after it, and keeps a working parent's lane", () => {
+      const prompted = { ...doneCard(), timing: { ...doneCard().timing, lastUserMessageAt: "2026-10-22T09:30:00.000Z" } };
+      expect(withSubagents(prompted, [subagent("a")])).toBe(prompted);
+      const running = { ...doneCard(), lane: "running" as const, status: "running" as const };
+      const shown = withSubagents(running, [subagent("a")]);
+      expect(shown).toMatchObject({ lane: "running", status: "running", error: null });
+      expect(shown.children.map((child) => child.status)).toEqual(["failed"]);
+      // A failure of its own keeps its own reason.
+      const failed = { ...doneCard(), lane: "review" as const, status: "failed" as const, error: "API error" };
+      expect(withSubagents(failed, [subagent("a")]).error).toBe("API error");
+    });
+
+    it("moves a done parent to review on the board and drops it when the failures go", async () => {
+      let answer: ProviderSubagent[] = [subagent("a"), subagent("b")];
+      let version = 1;
+      const loader = vi.fn(async (since?: string) => (since === String(version) ? { version: String(version), subagents: null } : { version: String(version), subagents: answer }));
+      setSubagentLoader(loader);
+      const fake = createFakePaseo({
+        agents: [activeAgent("parent", { status: "idle", lastUserMessageAt: PROMPT, updatedAt: recentIso(60_000) })],
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake);
+      try {
+        await act(async () => {
+          await vi.waitFor(() => expect(mounted.current.lanes.review.cards.map((card) => card.id)).toEqual(["parent"]));
+        });
+        expect(mounted.current.byId.get("parent")).toMatchObject({ status: "failed", error: "2 subagents failed" });
+        expect(mounted.current.counts).toMatchObject({ review: 1, done: 0 });
+
+        answer = [];
+        version = 2;
+        // An agent update brings the next read forward.
+        await act(async () => {
+          fake.upsertAgent(activeAgent("other", { status: "running" }));
+          await new Promise((resolve) => setTimeout(resolve, 1_600));
+        });
+        await act(async () => {
+          await vi.waitFor(() => expect(mounted.current.byId.get("parent")).toMatchObject({ lane: "done", status: "done", error: null, children: [] }));
+        });
+      } finally {
+        mounted.unmount();
+        setSubagentLoader(null);
+      }
+    });
+
+    it("brings a failed parent no list holds into the review count, by id", async () => {
+      setSubagentLoader(async () => ({ version: "1", subagents: [subagent("a")] }));
+      const fake = createFakePaseo({
+        agents: [
+          activeAgent("parent", { status: "idle", lastUserMessageAt: PROMPT }),
+          activeAgent("running", { status: "running" }),
+        ],
+      });
+      let current!: ReturnType<typeof useTaskCounts>;
+      function Counts() {
+        current = useTaskCounts(fake.paseo, true);
+        return null;
+      }
+      let renderer!: Renderer;
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(Counts));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      try {
+        await act(async () => {
+          await vi.waitFor(() => expect(current.review).toBe(1));
+        });
+        expect(current).toEqual({ needsInput: 0, running: 1, review: 1, ready: true });
+        expect(fake.calls.filter((call) => call.method === "agents.ref.refresh").map((call) => call.input)).toEqual([{ agentId: "parent" }]);
+      } finally {
+        act(() => renderer.unmount());
+        setSubagentLoader(null);
+      }
+    });
   });
 });

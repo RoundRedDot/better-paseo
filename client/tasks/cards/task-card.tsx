@@ -312,7 +312,7 @@ function summaryBeyondTitle(title: string, summary: string | null): string | nul
 
 /** Children that Stop with subtasks would reach. */
 function activeChildren(card: TaskCard): number {
-  return card.children.filter((child) => child.status === "running" || child.status === "needs_input").length;
+  return card.children.filter((child) => child.kind !== "provider" && (child.status === "running" || child.status === "needs_input")).length;
 }
 
 /** The subtasks pill's groups, most urgent first. */
@@ -819,6 +819,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           <SubtaskRow
             key={child.id}
             child={child}
+            parentId={card.id}
             theme={theme}
             tokens={tokens}
             compact={compact}
@@ -1480,9 +1481,12 @@ function JumpButton(props: {
 /**
  * One expanded child: its agent's mark, the title, then its start and timer
  * at the end. Press reveals it on the board; the jump button opens its tab.
+ * A provider subagent has neither, so press opens the parent's tab, where
+ * Paseo's subagent track lists it.
  */
 function SubtaskRow(props: TimeSource & {
   child: TaskChild;
+  parentId: string;
   theme: PluginTheme;
   tokens: TaskTokens;
   compact: boolean;
@@ -1501,14 +1505,15 @@ function SubtaskRow(props: TimeSource & {
   // when the pointer reaches its jump button, and hide it.
   const rowRef = useRef<View>(null);
   const { hovered, hoverProps } = useHover(rowRef);
-  const showJump = !!props.onOpen && (compact || TOUCH || hovered);
+  const provider = child.kind === "provider";
+  const showJump = !provider && !!props.onOpen && (compact || TOUCH || hovered);
   const fill = hovered && !compact ? tokens.card.controlHover : props.backdrop;
   const size = compact ? 32 : 22;
   return (
     <Pressable
       {...CONTAINER_ROLE}
       accessibilityLabel={child.title}
-      onPress={() => props.onReveal(child.id)}
+      onPress={() => (provider ? props.onOpen?.(props.parentId) : props.onReveal(child.id))}
       ref={rowRef}
       {...(WEB ? null : hoverProps)}
       style={{
@@ -1542,7 +1547,7 @@ function SubtaskRow(props: TimeSource & {
           testID={`subtask-time-${child.id}`}
         />
       ) : null}
-      {props.onOpen ? (
+      {props.onOpen && !provider ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={props.openLabel}
