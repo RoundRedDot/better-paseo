@@ -164,114 +164,96 @@ const dashed = (tokens: TaskTokens, height: number): ViewStyle => ({ height, bor
 
 // ---- The running turn ------------------------------------------------------
 
-/** With a cost, the running turn's box: one row of three from this width up, under it the context drops to a row of its own (hysteresis like the properties' label column). */
-const TURN_ROW = { show: 420, hide: 412 };
-
 /**
- * Running: the turn's timer, the cost so far and the context ring, cells in
- * one sunk box. A narrow box keeps the timer and the cost side by side and
- * gives the context, ring and all, the row under them. Without a reported
- * cost there is no cost cell: the timer beside the context.
+ * Running: the turn's timer beside the context ring in one sunk box. With a
+ * reported cost the box holds three alike cells in one row, timer, cost and
+ * context, and the ring shrinks to the context's label icon.
  */
 export function TurnHero(props: { timer: string; lastTurn: string | null; cost: string | null; context: ContextView | null; tokens: TaskTokens; touch: boolean; language: TasksLanguage }) {
   const { tokens, context } = props;
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
   const { tip, bind } = useTip<"context">(props.touch);
-  const [row, setRow] = useState(false);
-  const onLayout = (event: LayoutChangeEvent) => {
-    const width = event.nativeEvent.layout.width;
-    setRow((was) => (width >= TURN_ROW.show ? true : width < TURN_ROW.hide ? false : was));
-  };
+  const compact = props.cost !== null;
   const small = F.sm;
   const tone = context ? contextColor(context, tokens) : tokens.foregroundMuted;
   const cell: ViewStyle = { flex: 1, minWidth: 0, paddingHorizontal: 12, paddingVertical: 10, gap: 2 };
+  const divided: ViewStyle = { borderLeftWidth: 1, borderLeftColor: tokens.border };
   const big: TextStyle = { fontSize: F["2xl"], lineHeight: HOST_LINE["2xl"], fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] };
   const sub: TextStyle = { fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] };
-  const head = (icon: string, label: string) => (
+  const head = (lead: React.ReactNode, label: string) => (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-      <Icon name={icon} size={14} color={tokens.foregroundMuted} />
+      {lead}
       <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: small, color: tokens.foregroundMuted }}>
         {label}
       </Text>
     </View>
   );
-  const timer = (
-    <View style={cell}>
-      {head("Timer", words.turnTimer)}
-      <Text testID="detail-turn-timer" numberOfLines={1} style={big}>
-        {props.timer}
-      </Text>
+  const ring = (size: number, stroke: number) =>
+    context ? (
+      <ProgressRing value={context.ratio} max={1} size={size} stroke={stroke} color={tone} trackColor={colors.track} />
+    ) : (
+      <View style={{ width: size, height: size, borderRadius: size / 2, borderWidth: compact ? 1.5 : 2, borderStyle: "dashed", borderColor: tokens.border }} />
+    );
+  const figures = context ? (
+    <>
+      <Text numberOfLines={1} style={[big, context.level === "normal" ? null : { color: tone }]}>{context.percent}</Text>
       <Text numberOfLines={1} style={sub}>
-        {words.lastTurn(props.lastTurn ?? "—")}
+        {context.text}
       </Text>
-    </View>
-  );
-  const cost = props.cost === null ? null : (
-    <View testID="detail-turn-cost" style={[cell, { borderLeftWidth: 1, borderLeftColor: tokens.border }]}>
-      {head("Coins", words.cost)}
-      <Text numberOfLines={1} style={big}>
-        {props.cost}
-      </Text>
-      <Text numberOfLines={1} style={sub}>
-        {words.total}
-      </Text>
-    </View>
-  );
-  const stacked = cost !== null && !row;
-  const contextCell = (
-    <Pressable
-      accessibilityRole={props.touch ? "button" : undefined}
-      accessibilityLabel={context ? `${words.context} ${context.percent}` : undefined}
-      {...(context ? bind("context") : {})}
-      testID="detail-context"
-      style={[
-        { minWidth: 0, paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12 },
-        stacked ? { borderTopWidth: 1, borderTopColor: tokens.border } : { flex: cost ? 1.4 : 1, borderLeftWidth: 1, borderLeftColor: tokens.border },
-      ]}
-    >
-      {context ? (
-        <ProgressRing value={context.ratio} max={1} size={44} stroke={4} color={tone} trackColor={colors.track} />
-      ) : (
-        <View style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderStyle: "dashed", borderColor: tokens.border }} />
-      )}
-      <View style={{ flexShrink: 1, minWidth: 0, gap: 2 }}>
-        <Text numberOfLines={1} style={{ fontSize: small, color: tokens.foregroundMuted }}>
-          {words.context}
-        </Text>
-        {context ? (
-          <>
-            <Text style={[big, context.level === "normal" ? null : { color: tone }]}>{context.percent}</Text>
-            <Text numberOfLines={1} style={sub}>
-              {context.text}
-            </Text>
-          </>
-        ) : (
-          <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>{words.notReported}</Text>
-        )}
-      </View>
-      {tip === "context" && context ? (
-        <Tip colors={colors} title={`${words.context} · ${context.percent}`} sub={words.tokensUnit(context.exact)} style={{ bottom: "100%", left: 12, marginBottom: 6 }} testID="detail-context-tip" />
-      ) : null}
-    </Pressable>
+    </>
+  ) : (
+    <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>{words.notReported}</Text>
   );
   return (
-    <View testID="detail-turn" onLayout={onLayout} style={{ borderWidth: 1, borderColor: tokens.border, borderRadius: 10, backgroundColor: colors.sunk }}>
-      {!stacked ? (
-        <View style={{ flexDirection: "row" }}>
-          {timer}
-          {cost}
-          {contextCell}
+    <View testID="detail-turn" style={{ flexDirection: "row", borderWidth: 1, borderColor: tokens.border, borderRadius: 10, backgroundColor: colors.sunk }}>
+      <View style={cell}>
+        {head(<Icon name="Timer" size={14} color={tokens.foregroundMuted} />, words.turnTimer)}
+        <Text testID="detail-turn-timer" numberOfLines={1} style={big}>
+          {props.timer}
+        </Text>
+        <Text numberOfLines={1} style={sub}>
+          {words.lastTurn(props.lastTurn ?? "—")}
+        </Text>
+      </View>
+      {compact ? (
+        <View testID="detail-turn-cost" style={[cell, divided]}>
+          {head(<Icon name="Coins" size={14} color={tokens.foregroundMuted} />, words.cost)}
+          <Text numberOfLines={1} style={big}>
+            {props.cost}
+          </Text>
+          <Text numberOfLines={1} style={sub}>
+            {words.total}
+          </Text>
         </View>
-      ) : (
-        <>
-          <View style={{ flexDirection: "row" }}>
-            {timer}
-            {cost}
-          </View>
-          {contextCell}
-        </>
-      )}
+      ) : null}
+      <Pressable
+        accessibilityRole={props.touch ? "button" : undefined}
+        accessibilityLabel={context ? `${words.context} ${context.percent}` : undefined}
+        {...(context ? bind("context") : {})}
+        testID="detail-context"
+        style={[compact ? cell : { flex: 1, minWidth: 0, paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12 }, divided]}
+      >
+        {compact ? (
+          <>
+            {head(ring(14, 2), words.context)}
+            {figures}
+          </>
+        ) : (
+          <>
+            {ring(44, 4)}
+            <View style={{ flexShrink: 1, minWidth: 0, gap: 2 }}>
+              <Text numberOfLines={1} style={{ fontSize: small, color: tokens.foregroundMuted }}>
+                {words.context}
+              </Text>
+              {figures}
+            </View>
+          </>
+        )}
+        {tip === "context" && context ? (
+          <Tip colors={colors} title={`${words.context} · ${context.percent}`} sub={words.tokensUnit(context.exact)} style={{ bottom: "100%", left: 12, marginBottom: 6 }} testID="detail-context-tip" />
+        ) : null}
+      </Pressable>
     </View>
   );
 }
