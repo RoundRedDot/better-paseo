@@ -7,6 +7,7 @@ import { useHover } from "../../ui/use-hover";
 import { BrandMark, DETAIL_CARD, DetailCard, ProjectIcon, StatusIcon, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type TaskCard } from "../model";
 import { useFirstPrompt } from "../data/first-prompt";
+import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { FILTER_ICONS, activeChips, buildFilterOptions, clearedParams, type FilterOption } from "./filter-options";
 import { toggleItem } from "./params";
 import type { SelectionAction, SidebarSelection } from "./sidebar-model";
@@ -60,6 +61,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
     props.onReveal(agentId);
   };
   const firstPrompt = useFirstPrompt(board.paseo, card?.id ?? "", card !== undefined && card.closed !== true);
+  const lastMessage = useLastMessage(board.paseo, card?.id ?? "", card ? lastMessageVersion(card) : "", card !== undefined && card.closed !== true);
   const stopAvailable = !!board.callbacks.onStop && card?.stoppable === true;
   const detailProps = card
     ? {
@@ -78,6 +80,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
         onPermission: (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button),
         onJump: jump,
         firstPrompt,
+        lastMessage,
         unarchive: board.unarchive.available ? board.unarchive : null,
       }
     : null;

@@ -28,6 +28,7 @@ import { defaultLane, laneAfter, swallowsTap, swipeStep, tabUnderline, tabsOverf
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
 import { useParentTitle } from "./details-sidebar";
 import { useFirstPrompt } from "../data/first-prompt";
+import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { LANE_EMPTY_ICON, sortLabel } from "./strings";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
@@ -552,6 +553,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
   const colors = theme.colors;
   useParentTitle(board, card);
   const firstPrompt = useFirstPrompt(board.paseo, card.id, card.closed !== true);
+  const lastMessage = useLastMessage(board.paseo, card.id, lastMessageVersion(card), card.closed !== true);
   const list = board.lanes[card.lane]?.cards ?? [];
   const index = list.findIndex((item) => item.id === card.id);
   const step = (delta: number) => {
@@ -588,6 +590,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           onPermission={onPermission}
           onJump={props.onShow}
           firstPrompt={firstPrompt}
+          lastMessage={lastMessage}
           unarchive={board.unarchive.available ? board.unarchive : null}
         />
       </ScrollView>
