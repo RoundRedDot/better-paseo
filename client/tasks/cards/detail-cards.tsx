@@ -6,6 +6,7 @@ import { openLink } from "../../components/open-link";
 import { TaskText as Text, TASK_MONO as MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { useCopy } from "../../ui/use-copy";
+import { ProgressRing } from "../../ui/progress-ring";
 import type { TasksLanguage } from "../i18n";
 import type { PermissionKind, TaskCard, TaskChild } from "../model";
 import type { PermissionButton, StopPhase } from "../actions";
@@ -545,7 +546,17 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
     <View testID={testID}>
       {props.divider ? <View style={{ height: StyleSheet.hairlineWidth, marginHorizontal: m.padH, backgroundColor: tokens.card.border }} /> : null}
       <View style={{ paddingTop: 4, paddingBottom: 8, paddingHorizontal: m.padH - 6 }}>
-        <SectionHeading m={m} tokens={tokens} title={title} summary={summary} summaryStyle={section === "properties" && card.location.branch ? { maxWidth: "60%", fontFamily: MONO } : undefined} closed={props.closed} language={props.language} onPress={() => setSectionClosed(section, !props.closed)} />
+        <SectionHeading
+          m={m}
+          tokens={tokens}
+          title={title}
+          summary={summary}
+          summaryStyle={section === "properties" && card.location.branch ? { maxWidth: "60%", fontFamily: MONO } : undefined}
+          trailing={section === "subtasks" && card.children.length > 0 ? <SubtaskProgress done={done} total={card.children.length} tokens={tokens} /> : undefined}
+          closed={props.closed}
+          language={props.language}
+          onPress={() => setSectionClosed(section, !props.closed)}
+        />
         {props.closed ? null : section === "properties" ? (
           <Properties {...props} />
         ) : section === "subtasks" ? (
@@ -560,7 +571,17 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
   );
 }
 
-function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; summary: string; summaryStyle?: TextStyle; closed: boolean; language: TasksLanguage; onPress(): void }) {
+/**
+ * The timeline checklist's header mark (`components/task-list.tsx`): a 14
+ * ring filling in the accent, a green checked circle once every child is done.
+ */
+function SubtaskProgress(props: { done: number; total: number; tokens: TaskTokens }) {
+  const { tokens } = props;
+  if (props.done >= props.total) return <Icon name="CircleCheck" size={14} color={tokens.success} />;
+  return <ProgressRing value={props.done} max={props.total} size={14} stroke={2} color={tokens.accent} trackColor={detailColors(tokens).track} />;
+}
+
+function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; summary: string; summaryStyle?: TextStyle; trailing?: React.ReactNode; closed: boolean; language: TasksLanguage; onPress(): void }) {
   const { m, tokens } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
@@ -586,6 +607,7 @@ function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; 
           {props.summary}
         </Text>
       ) : null}
+      {props.trailing ? <View style={{ marginLeft: 2 }}>{props.trailing}</View> : null}
     </Pressable>
   );
 }
