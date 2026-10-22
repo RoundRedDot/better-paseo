@@ -125,6 +125,19 @@ function clamp(value: number, low: number, high: number): number {
   return Math.min(Math.max(value, low), Math.max(low, high));
 }
 
+/**
+ * How far a list's content still drops once its scroll view sees the content
+ * got shorter: scrolled past the new end (the last card left), the view takes
+ * its offset back to that end, and every card in it moves down by the
+ * difference. `viewport` is the list and `content` what it scrolls, both as
+ * just laid out, with the offset the list had before.
+ */
+export function scrollBack(viewport: Rect, content: Rect): number {
+  const offset = viewport.y - content.y;
+  const end = Math.max(0, content.height - viewport.height);
+  return offset - end >= STILL ? offset - end : 0;
+}
+
 /** The lanes hold the same cards in the same order: nothing moved, whatever else changed on the cards. */
 export function sameOrder<Lane extends { cards: readonly { id: string }[] }>(left: Record<LaneId, Lane>, right: Record<LaneId, Lane>, lanes: readonly LaneId[]): boolean {
   return lanes.every((lane) => sameCards(left[lane].cards, right[lane].cards));
