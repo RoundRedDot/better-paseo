@@ -346,14 +346,16 @@ function Runs(props: { runs: string[]; style: TextStyle }) {
 
 const LABEL_WIDTH = 96;
 const SPAN_WIDTH = 64;
+/** The end point's status icon box, backed by the card so the track stops short of a ring. */
+const END_MARK = 14;
 
 /**
  * The card's life on one track: a point per moment with its name and time
  * under it, each span's length above it. Spans are as long as their time but
  * never so short that the labels collide; the last one takes the status
- * colour while it is still going.
+ * colour while it is still going. `endMark` replaces the last point's dot.
  */
-export function TimelineChart(props: { timeline: Timeline; liveColor: string; tokens: TaskTokens }) {
+export function TimelineChart(props: { timeline: Timeline; liveColor: string; tokens: TaskTokens; endMark?: React.ReactNode }) {
   const { timeline: line, tokens } = props;
   const colors = detailColors(tokens);
   const [measured, onLayout] = useWidth();
@@ -387,19 +389,38 @@ export function TimelineChart(props: { timeline: Timeline; liveColor: string; to
           const labelLeft = edge === "start" ? 0 : edge === "end" ? width - LABEL_WIDTH : at[index]! * width - LABEL_WIDTH / 2;
           return (
             <React.Fragment key={point.key}>
-              <View
-                style={{
-                  position: "absolute",
-                  top: 17,
-                  left: at[index]! * width - 4,
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  borderWidth: 1.5,
-                  borderColor: color ?? tokens.foregroundMuted,
-                  backgroundColor: color ?? tokens.card.background,
-                }}
-              />
+              {last && props.endMark ? (
+                <View
+                  testID="detail-timeline-end-mark"
+                  style={{
+                    position: "absolute",
+                    top: 21 - END_MARK / 2,
+                    left: at[index]! * width - END_MARK / 2,
+                    width: END_MARK,
+                    height: END_MARK,
+                    borderRadius: END_MARK / 2,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: tokens.card.background,
+                  }}
+                >
+                  {props.endMark}
+                </View>
+              ) : (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 17,
+                    left: at[index]! * width - 4,
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    borderWidth: 1.5,
+                    borderColor: color ?? tokens.foregroundMuted,
+                    backgroundColor: color ?? tokens.card.background,
+                  }}
+                />
+              )}
               <View style={{ position: "absolute", top: 32, left: labelLeft, width: LABEL_WIDTH }} testID={`detail-timeline-${point.key}`}>
                 <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted, textAlign: edge === "start" ? "left" : edge === "end" ? "right" : "center" }}>
                   {point.name}
