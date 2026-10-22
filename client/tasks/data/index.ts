@@ -247,6 +247,8 @@ let lastTurnLoader: LastTurnLoader | null = null;
 const LAST_TURN_BATCH = 200;
 /** How long after a turn the board saw end it asks the plugin server how the turn ended. */
 const TURN_END_ASK_DELAY_MS = 1_500;
+/** When a closed agent is looked up for a delete: soon after it closed, then once more for a slow delete. */
+const GONE_CHECK_DELAYS_MS = [1_000, 3_000];
 
 /** `contribute` sets the loader, since only the plugin context can call RPCs outside a component. */
 export function setLastTurnLoader(next: LastTurnLoader | null): void {
@@ -507,6 +509,8 @@ function createStore(api: PaseoApi): TaskStore {
   let lastTurnQueue = new Set<string>();
   /** The running turns' starts, by agent, so the update that ends one can time it. */
   const workingSince = new Map<string, number | null>();
+  /** Agents whose closing is being checked for a delete (`checkGone`). */
+  const goneChecks = new Set<string>();
   const subscriptions = new Map<string, StoreSubscription>();
   const projectUnsubscribes: Array<() => void> = [];
   let consumers = 0;
@@ -716,12 +720,48 @@ function createStore(api: PaseoApi): TaskStore {
         }
       }
       updateRecord(agent, payload.project ?? null);
+      if (agent.status === "closed") checkGone(agent.id);
       return;
     }
     if (payload.kind === "remove" && payload.agentId) {
       sourceMembers.get(sourceKey)?.delete(payload.agentId);
       dropIfUnreferenced(payload.agentId);
+      if (entries.has(payload.agentId)) checkGone(payload.agentId);
     }
+  }
+
+  /**
+   * A delete reaches only the client that made it: every other client sees
+   * the agent close and hears nothing more (Paseo 0.12, `deleteAgent` in the
+   * daemon's session), so its card would stay until a reload. A closed agent
+   * that stays on the board is looked up once its delete has had time to
+   * land, and again a little later in case the delete was slow; one that is
+   * gone leaves every lane. A daemon restart closes agents too, and those
+   * are found and kept.
+   */
+  function checkGone(id: string, attempt = 0) {
+    if (goneChecks.has(id)) return;
+    goneChecks.add(id);
+    const run = generation;
+    setTimeout(() => {
+      if (run !== generation) return;
+      if (!entries.has(id)) {
+        goneChecks.delete(id);
+        return;
+      }
+      void api.agents.ref(id).refresh().then((result) => {
+        if (run !== generation) return;
+        goneChecks.delete(id);
+        if (result) {
+          if (result.agent.status === "closed" && attempt + 1 < GONE_CHECK_DELAYS_MS.length) checkGone(id, attempt + 1);
+          return;
+        }
+        for (const members of sourceMembers.values()) members.delete(id);
+        removeRecord(id);
+      }).catch(() => {
+        if (run === generation) goneChecks.delete(id);
+      });
+    }, GONE_CHECK_DELAYS_MS[attempt]);
   }
 
   function matchingEntries(result: PaseoAgentListResult | { entries: PaseoAgentListResult["entries"] }) {
@@ -1248,6 +1288,7 @@ function createStore(api: PaseoApi): TaskStore {
     lastTurnAsked.clear();
     lastTurnQueue = new Set();
     workingSince.clear();
+    goneChecks.clear();
     statusReady = false;
     attentionReady = false;
     workspacesReady = false;

@@ -392,6 +392,10 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       agents.delete(agentId);
       pushAgent(null, agentId);
     },
+    /** Drop an agent without telling any subscription, as a delete made by another client looks to this one. */
+    forgetAgent(agentId: string) {
+      agents.delete(agentId);
+    },
     setAgentSilently(agent: Agent, placement?: Placement) {
       agents.set(agent.id, agent);
       if (placement) placements.set(agent.id, placement);
