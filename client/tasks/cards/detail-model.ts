@@ -14,7 +14,7 @@ const MINUTE = 60_000;
 /** The block under the header, by what the card needs first. */
 export type DetailHero = "turn" | "permission" | "error" | "summary";
 
-export type DetailSection = "properties" | "subtasks" | "usage" | "activity";
+export type DetailSection = "prompt" | "properties" | "subtasks" | "usage" | "activity";
 
 export function detailHero(card: TaskCard): DetailHero {
   if (card.lane === "needs_input" && card.permission) return "permission";
@@ -23,8 +23,12 @@ export function detailHero(card: TaskCard): DetailHero {
   return "summary";
 }
 
-/** The sections after the hero, in order, and the ones closed unless the user opened them. */
-export function detailSections(card: TaskCard): { order: DetailSection[]; closed: DetailSection[] } {
+/**
+ * The sections after the hero, in order, and the ones closed unless the user
+ * opened them. `prompt` leads them when the details can read the task's first
+ * prompt: the title is only its first line, cut short.
+ */
+export function detailSections(card: TaskCard, prompt = false): { order: DetailSection[]; closed: DetailSection[] } {
   const hero = detailHero(card);
   let order: DetailSection[];
   if (hero === "turn") order = ["subtasks", "properties", "usage", "activity"];
@@ -32,6 +36,7 @@ export function detailSections(card: TaskCard): { order: DetailSection[]; closed
   else if (hero === "error") order = ["properties", "activity", "usage", "subtasks"];
   else order = ["subtasks", "properties", "usage", "activity"];
   if (card.children.length === 0) order = order.filter((section) => section !== "subtasks");
+  if (prompt) order = ["prompt", ...order];
   const closed: DetailSection[] = hero === "permission" || hero === "error" ? ["usage"] : [];
   return { order, closed };
 }

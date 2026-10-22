@@ -35,6 +35,9 @@ describe("details card model", () => {
     expect(detailSections(sample("sample-input"))).toEqual({ order: ["properties", "usage", "activity"], closed: ["usage"] });
     expect(detailSections(sample("sample-failed"))).toEqual({ order: ["properties", "activity", "usage"], closed: ["usage"] });
     expect(detailSections(sample("sample-done"))).toEqual({ order: ["properties", "usage", "activity"], closed: [] });
+    // The first prompt leads every state's sections when the details can read it.
+    expect(detailSections(sample("sample-running"), true).order).toEqual(["prompt", "subtasks", "properties", "usage", "activity"]);
+    expect(detailSections(sample("sample-failed"), true).order).toEqual(["prompt", "properties", "activity", "usage"]);
   });
 
   it("splits Codex's cached input out of its input, and leaves Claude's as reported", () => {
