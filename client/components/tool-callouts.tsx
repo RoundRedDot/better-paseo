@@ -277,16 +277,20 @@ export function ToolCallout({
   const drawsImage =
     (data.tool === "read" || data.tool === "write") && imageFile !== undefined && isImagePath(data.filePath);
 
-  // A path in the body reveals the file on a pointer device; on touch it
-  // copies, because `file.reveal` would open a window on the daemon's machine.
+  // A path in the body opens in the file pane when the host passed `openFile`.
+  // Otherwise a pointer reveals it in the file manager, and touch copies,
+  // because `file.reveal` would open a window on the daemon's machine.
   const filePath = data.filePath;
   const reveal = onRevealPath ?? pathContext.reveal;
+  const openInPane = pathContext.openInPane;
   const revealFile = useMemo(() => {
     if (!filePath) return undefined;
-    const absolutePath = resolvePath(filePath);
+    const formatted = formatPath(filePath, pathContext);
+    if (openInPane) return () => openInPane(formatted.absolutePath, formatted.suffix);
+    const absolutePath = formatted.absolutePath;
     if (touchFirst) return () => void copy(absolutePath, { feedback: "toast", label: "Copy path" });
     return reveal ? () => reveal(absolutePath) : undefined;
-  }, [filePath, resolvePath, touchFirst, copy, reveal]);
+  }, [filePath, pathContext, openInPane, touchFirst, copy, reveal]);
   const displayPath = filePath ? formatPath(filePath, pathContext).displayPath : undefined;
 
   // On a phone a long press on an image read opens the picture in the viewer,

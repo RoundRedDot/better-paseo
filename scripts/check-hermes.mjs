@@ -66,7 +66,7 @@ if (!PLATFORM_DIR || !existsSync(hermesc)) {
 
 // --- 1. Bundle like the host -----------------------------------------------
 
-const { buildSync } = loadEsbuild();
+const { buildSync, transformSync } = loadEsbuild();
 const built = buildSync({
   entryPoints: [entry],
   bundle: true,
@@ -96,10 +96,27 @@ const built = buildSync({
 });
 const jsFile = built.outputFiles.find((file) => file.path.endsWith(".js"));
 const mapFile = built.outputFiles.find((file) => file.path.endsWith(".map"));
-// The host's two post-passes, verbatim in effect.
+// The host's post-passes, verbatim in effect: eager interop, then whitespace and
+// syntax minify. Minify runs after the replace because whitespace minify rewrites
+// `get: () => from[key]`, which is the string the replace matches. Identifier
+// minify stays off so that helper is not rewritten into a getter again.
 const PREFIX = "(function(require) {\nconst module = { exports: {} };\nconst exports = module.exports;\n";
 const PREFIX_LINES = 3;
-const body = jsFile.text.replaceAll("get: () => from[key]", "value: from[key]");
+const eager = jsFile.text.replaceAll("get: () => from[key]", "value: from[key]");
+const minified = transformSync(eager, {
+  minifyWhitespace: true,
+  minifySyntax: true,
+  minifyIdentifiers: false,
+  target: "es2020",
+  supported: { "async-await": false },
+  charset: "ascii",
+  legalComments: "none",
+});
+const body = minified.code;
+if (body.includes("get:()=>from[key]") || body.includes("get: () => from[key]")) {
+  console.error("check:hermes: FAIL — minify restored a lazy CommonJS interop getter");
+  process.exit(1);
+}
 const bundle = `${PREFIX}${body}\nreturn module.exports;\n})`;
 
 const dir = mkdtempSync(path.join(tmpdir(), "bc-hermes-"));
@@ -170,6 +187,12 @@ for (const [index, text] of jsFile.text.split("\n").entries()) {
       nonAscii.push({ line: index + 1, column, char: text[column], text });
       break;
     }
+  }
+}
+for (let column = 0; column < body.length; column++) {
+  if (body.charCodeAt(column) > 0x7f) {
+    console.error("check:hermes: FAIL — minified client bundle contains a non-ASCII character");
+    process.exit(1);
   }
 }
 if (nonAscii.length > 0) {

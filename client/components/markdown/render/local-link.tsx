@@ -8,9 +8,9 @@ import type { RenderContext } from "./context";
 
 /**
  * A link in the prose that points at a file. It behaves as a path does
- * everywhere else (plan §3.9): a pointer reveals the file in the file
- * manager, and touch copies the absolute path, because revealing would open
- * a window on the daemon's machine rather than the phone in hand.
+ * everywhere else (plan §3.9): the host file pane when this app passed
+ * `openFile`, otherwise a pointer reveals the file in the file manager and
+ * touch copies the absolute path.
  */
 export function LocalLink({
   path,
@@ -24,9 +24,11 @@ export function LocalLink({
   const pathContext = useContext(PathContext);
   const capabilities = useInputCapabilities();
   const { copy } = useCopy();
-  const absolutePath = formatPath(path, pathContext).absolutePath;
+  const formatted = formatPath(path, pathContext);
+  const absolutePath = formatted.absolutePath;
   const reveal = context.onRevealPath ?? pathContext.reveal;
-  const copies = (capabilities.touch && !capabilities.hover) || !reveal;
+  const openInPane = pathContext.openInPane;
+  const copies = !openInPane && ((capabilities.touch && !capabilities.hover) || !reveal);
   // `onPress` on a Text, as for a web link: a View mid sentence would break
   // the line box.
   return (
@@ -34,8 +36,15 @@ export function LocalLink({
       selectable
       accessibilityRole="link"
       accessibilityLabel={absolutePath}
-      accessibilityHint={copies ? "Copies the path" : "Reveals the file"}
-      onPress={() => (copies ? void copy(absolutePath, { feedback: "toast", label: "Copy path" }) : reveal(absolutePath))}
+      accessibilityHint={openInPane ? "Opens the file" : copies ? "Copies the path" : "Reveals the file"}
+      onPress={() => {
+        if (openInPane) {
+          openInPane(absolutePath, formatted.suffix);
+          return;
+        }
+        if (copies || !reveal) void copy(absolutePath, { feedback: "toast", label: "Copy path" });
+        else reveal(absolutePath);
+      }}
       style={context.styles.link}
     >
       {children}

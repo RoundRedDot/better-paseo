@@ -43,6 +43,7 @@ import { BlockPlacementContext, type BlockKind } from "./details/contracts";
 import { DetailsHostSlot } from "./details/shell/details-host-slot";
 import type { TaskListData, TaskItemData, NoticeCalloutData } from "../shared/contracts";
 import { revealPathRpc } from "../shared/file-rpc";
+import { openHostOrReveal, rememberHostOpenFile, type HostOpenFile } from "./host-open-file";
 import { isImagePath, useImageFile } from "./image-file";
 import { classifyTool } from "./tools/classify";
 import { defaultToolExpanded, toolDisclosureKey } from "./tools/disclosure";
@@ -200,9 +201,11 @@ function LiveToolCallRendererBody({
   const pathCwdRef = useRef<string | undefined>(undefined);
   const handleRevealPath = useCallback(
     (path: string) => {
-      void revealPath({ cwd: pathCwdRef.current ?? "", path }).catch(() => {});
+      openHostOrReveal(agentId, path, (file) => {
+        void revealPath({ cwd: pathCwdRef.current ?? "", path: file }).catch(() => {});
+      });
     },
-    [revealPath],
+    [agentId, revealPath],
   );
   // Roots for relative paths (plan §3.9): workspace, project, agent cwd.
   const pathContext = usePathContextValue(agentId, handleRevealPath);
@@ -505,8 +508,10 @@ function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp }: Plu
   const revealPath = useRpc(revealPathRpc);
   const cwd = useAgent(agentId, (agent) => agent.cwd);
   const onRevealPath = useCallback((path: string) => {
-    void revealPath({ cwd: cwd ?? "", path }).catch(() => {});
-  }, [cwd, revealPath]);
+    openHostOrReveal(agentId, path, (file) => {
+      void revealPath({ cwd: cwd ?? "", path: file }).catch(() => {});
+    });
+  }, [agentId, cwd, revealPath]);
   const probe = probeCard("assistant", textItemKey("assistant", item.data.text), false);
   const hostSlotKey = useRef(`assistant:${agentId}:${timestamp.getTime()}:${item.data.blockIndex ?? "block"}`).current;
   return <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}
@@ -576,9 +581,11 @@ function LiveAssistantMessageRenderer({
   const cwd = useAgent(agentId, (agent) => agent.cwd);
   const handleRevealPath = useCallback(
     (path: string) => {
-      void revealPath({ cwd: cwd ?? "", path }).catch(() => {});
+      openHostOrReveal(agentId, path, (file) => {
+        void revealPath({ cwd: cwd ?? "", path: file }).catch(() => {});
+      });
     },
-    [cwd, revealPath],
+    [agentId, cwd, revealPath],
   );
 
   return (
@@ -888,7 +895,13 @@ function SenderlessAgentMessage(props: PluginTimelineItemProps<LiveToolCallPaylo
   return <ToolCallMemo {...rest} item={item} />;
 }
 
+function noteHostOpenFile(props: { agentId: string }): void {
+  const openFile = (props as { openFile?: HostOpenFile }).openFile;
+  rememberHostOpenFile(props.agentId, typeof openFile === "function" ? openFile : undefined);
+}
+
 export function LiveToolCallRenderer(props: PluginTimelineItemProps<LiveToolCallPayload>) {
+  noteHostOpenFile(props);
   const data = props.item.data;
   return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="tool">
     <ChatComposerContext.Provider value={props.composer}>
@@ -899,30 +912,35 @@ export function LiveToolCallRenderer(props: PluginTimelineItemProps<LiveToolCall
 }
 
 export function LiveReasoningRenderer(props: PluginTimelineItemProps<LiveReasoningPayload>) {
+  noteHostOpenFile(props);
   return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="thought">
     <ChatComposerContext.Provider value={props.composer}><ReasoningMemo {...props} /></ChatComposerContext.Provider>
   </BlockPlacement>;
 }
 
 export function LiveTodoRenderer(props: PluginTimelineItemProps<LiveTodoPayload>) {
+  noteHostOpenFile(props);
   return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="todo">
     <ChatComposerContext.Provider value={props.composer}><TodoMemo {...props} /></ChatComposerContext.Provider>
   </BlockPlacement>;
 }
 
 export function LiveAssistantRenderer(props: PluginTimelineItemProps<LiveAssistantPayload>) {
+  noteHostOpenFile(props);
   return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="activity">
     <ChatComposerContext.Provider value={props.composer}><AssistantMemo {...props} /></ChatComposerContext.Provider>
   </BlockPlacement>;
 }
 
 export function LiveNoticeRenderer(props: PluginTimelineItemProps<LiveNoticePayload>) {
+  noteHostOpenFile(props);
   return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="activity">
     <ChatComposerContext.Provider value={props.composer}><NoticeMemo {...props} /></ChatComposerContext.Provider>
   </BlockPlacement>;
 }
 
 export function LiveUserMessageRenderer(props: PluginTimelineItemProps<LiveUserMessagePayload>) {
+  noteHostOpenFile(props);
   return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="activity">
     <ChatComposerContext.Provider value={props.composer}><UserMessageMemo {...props} /></ChatComposerContext.Provider>
   </BlockPlacement>;

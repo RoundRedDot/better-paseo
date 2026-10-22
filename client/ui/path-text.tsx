@@ -8,6 +8,7 @@ import { codeSurface } from "../components/host-font-escape";
 import { unselectable } from "../components/selection";
 import { ProseSpan } from "./prose-text";
 import { useEnhancerPreferences } from "../preferences";
+import { linesFromSuffix, readHostOpenFile } from "../host-open-file";
 import {
   formatPath,
   pathRootsFor,
@@ -32,6 +33,11 @@ export interface PathContextValue {
   mode: PathDisplayMode;
   /** `file.reveal` with an absolute path; absent where the renderer has none. */
   reveal?(absolutePath: string): void;
+  /**
+   * Opens the path in this stream's file pane. Present when the host passed
+   * `openFile`. Press uses it on touch as well as on a pointer.
+   */
+  openInPane?(absolutePath: string, suffix: string): void;
 }
 
 const NO_ROOTS: PathContextValue = { roots: [], mode: "relative" };
@@ -57,14 +63,22 @@ export function usePathContextValue(
     (workspace) => workspace.projectDisplayName,
   );
   const mode = useEnhancerPreferences().pathDisplay;
+  const openFile = readHostOpenFile(agentId);
+  const openInPane = useCallback(
+    (absolutePath: string, suffix: string) => {
+      openFile?.({ path: absolutePath, ...linesFromSuffix(suffix) });
+    },
+    [openFile],
+  );
   return useMemo(
     () => ({
       roots: pathRootsFor({ directory, projectRootPath, projectDisplayName, cwd }),
       cwd,
       mode,
       reveal,
+      openInPane: openFile ? openInPane : undefined,
     }),
-    [cwd, directory, projectRootPath, projectDisplayName, mode, reveal],
+    [cwd, directory, projectRootPath, projectDisplayName, mode, reveal, openFile, openInPane],
   );
 }
 
@@ -126,12 +140,13 @@ export interface PathTextProps {
  *
  * | | hover device | touch device |
  * |---|---|---|
- * | press | reveal in the file manager | copy the absolute path + toast |
+ * | press | file pane when the host passed `openFile`, otherwise the file manager | file pane when `openFile` exists, otherwise copy the absolute path + toast |
  * | long-press | — | copy the absolute path + toast; in a collapsed row, the row's preview |
  * | hover | full path after 400 ms, copy icon | — |
  *
- * Press copies on touch because `file.reveal` runs on the daemon's machine:
- * from a phone it would open a window on the desktop and show nothing here.
+ * Press copies on touch when the host has no `openFile`: `file.reveal` runs on
+ * the daemon's machine and would open a window on the desktop. With `openFile`,
+ * the same press opens the file pane on the phone.
  */
 export function PathText({
   path,
@@ -165,6 +180,7 @@ export function PathText({
 
   const formatted = useMemo(() => formatPath(path, context), [path, context]);
   const reveal = onReveal ?? context.reveal;
+  const openInPane = context.openInPane;
   const touchFirst = capabilities.touch && !capabilities.hover;
 
   // `fit`: the slot's width, in whole points; 0 until the first layout.
@@ -199,6 +215,10 @@ export function PathText({
 
   const copyAbsolute = () => void copy(formatted.absolutePath, { feedback: "toast", label: "Copy path" });
   const onPress = () => {
+    if (openInPane) {
+      openInPane(formatted.absolutePath, formatted.suffix);
+      return;
+    }
     if (touchFirst || !reveal) copyAbsolute();
     else reveal(formatted.absolutePath);
   };
@@ -235,7 +255,7 @@ export function PathText({
         // it is a <div> with role="button" (see `useContainerButton`).
         accessibilityRole={button.accessibilityRole}
         accessibilityLabel={formatted.absolutePath}
-        accessibilityHint={touchFirst || !reveal ? "Copies the path" : "Reveals the file"}
+        accessibilityHint={openInPane ? "Opens the file" : touchFirst || !reveal ? "Copies the path" : "Reveals the file"}
         onPress={rowBodyPress ?? onPress}
         delayLongPress={rowBodyPress ? 500 : undefined}
         onLongPress={rowLongPress ?? (capabilities.touch ? copyAbsolute : undefined)}
