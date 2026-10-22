@@ -53,7 +53,12 @@ const ZH: Readonly<Record<string, string>> = {
   "Close details": "关闭详情",
   "Full screen": "全屏",
   "Exit full screen": "退出全屏",
-  "Wide panel": "宽面板",
+  "Widen panel": "加宽面板",
+  "Restore panel width": "恢复面板宽度",
+  "Expand details": "展开详情",
+  "Shrink details": "收起详情",
+  "Resize details panel": "调整详情面板宽度",
+  "{count} new lines": "{count} 行新输出",
   "Open in panel": "在面板中打开",
   More: "更多",
   "Back to latest": "回到最新",
@@ -101,13 +106,11 @@ const ZH: Readonly<Record<string, string>> = {
 /** A button's English label as the reader's chosen language shows it; an unknown label stays English. */
 export function toolbarLabel(label: string, preference: SettingsLanguagePreference, locale?: string | null): string {
   if (resolveLanguage(preference, locale) !== "zh") return label;
-  const latestCount = /^Back to latest\s*[·,]\s*(\d+) new lines?$/.exec(label);
+  const latestCount = /^Back to latest\s*[\u00B7,]\s*(\d+) new lines?$/.exec(label);
   if (latestCount) return `回到最新 · ${latestCount[1]} 行新输出`;
-  if (/^Back to latest\s*[·,]\s*\{n\} new lines?$/.test(label)) return "回到最新 · {n} 行新输出";
+  // "1 new line", "5 new lines"; the pill's template is "{count} new lines" (`backToLatestText`).
   const newLines = /^(\d+) new lines?$/.exec(label);
   if (newLines) return `${newLines[1]} 行新输出`;
-  const lineTemplate = /^\{n\} new lines?$/.exec(label);
-  if (lineTemplate) return "{n} 行新输出";
   return ZH[label] ?? label;
 }
 

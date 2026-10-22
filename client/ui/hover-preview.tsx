@@ -24,6 +24,7 @@ import { RunningDot } from "./running-dot";
 import { bindPreviewTail, DETAILS_FOLLOW, HOVER_FOLLOW, nativePreviewTail, PREVIEW_SETTLE_MS, previewFollowsTail, type PreviewFollowBand } from "./preview-tail";
 import { forgetPreview, holdPreview, recallPreview, rememberPreview, type PreviewMemory } from "./preview-memory";
 import { useReducedMotion } from "./use-reduced-motion";
+import { useDetailsBodyScroll } from "../details/shell/body-handover";
 import { usePreviewEntrance } from "./use-preview-entrance";
 import { BlockPlacementContext, DetailsShellContext, type DetailsShellValue } from "../details/contracts";
 import { detailsApi } from "../details/details-store";
@@ -801,6 +802,24 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
   const band = follow ?? (details ? DETAILS_FOLLOW : HOVER_FOLLOW);
   const behind = useBehindLatest(details && streaming, wrap?.tokens.typography.mono.lineHeight ?? DEFAULT_LINE_HEIGHT);
   const scroller = usePreviewScroller(streaming, memoryKey, remembered, band, behind.onChange);
+  // Under the details chrome the drawer reads the phone body's offset and sizes:
+  // a pull down at its top moves the drawer, and a block switch animates its height.
+  const report = useDetailsBodyScroll();
+  const detailsScroll = useMemo(() => (report ? {
+    ...scroller.props,
+    onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
+      scroller.props.onScroll(event);
+      report.scrolled(event.nativeEvent.contentOffset.y);
+    },
+    onLayout(event: LayoutChangeEvent) {
+      scroller.props.onLayout(event);
+      report.laidOut(event.nativeEvent.layout.height);
+    },
+    onContentSizeChange(width: number, height: number) {
+      scroller.props.onContentSizeChange(width, height);
+      report.contentSized(height);
+    },
+  } : scroller.props), [report, scroller.props]);
   const webBody = useRef<View>(null);
   const tail = useStreamingTail(streaming, webBody, band, behind.onChange);
   useWebScrollMemory(webBody, memoryKey, remembered, streaming, tail.pinned);
@@ -827,7 +846,7 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
       <View testID="details-body" style={styles.detailsBody}>
         {Platform.OS !== "web" ? (
           <ScrollView ref={scroller.ref} testID="hover-preview-body" style={[styles.pressBody, styles.pressBodyFill]} contentContainerStyle={styles.pressBodyContent}
-            scrollEnabled={!scroller.held} scrollEventThrottle={16} {...scroller.props}>
+            scrollEnabled={!scroller.held} scrollEventThrottle={16} {...detailsScroll}>
             <PreviewScrollerContext.Provider value={scroller.value}>
               <ProseSelectionContext.Provider value>{content}</ProseSelectionContext.Provider>
             </PreviewScrollerContext.Provider>
@@ -1154,8 +1173,10 @@ const styles = StyleSheet.create({
   pressBody: { flexGrow: 0, flexShrink: 1 },
   // The details panel's body takes the panel's height under its chrome; the pill floats over its foot.
   detailsChrome: { flexShrink: 0, zIndex: 1 },
-  detailsBody: { flex: 1, minHeight: 0, position: "relative" },
-  detailsScroll: { flex: 1 },
+  // Grow into a panel of set height, but from the content's own height: a drawer
+  // at its fit detent sizes itself to its content, which a 0 basis would collapse.
+  detailsBody: { flexGrow: 1, flexShrink: 1, minHeight: 0, position: "relative" },
+  detailsScroll: { flexGrow: 1, flexShrink: 1, minHeight: 0 },
   pressBodyFill: { flexGrow: 1, minHeight: 0 },
   pressBodyContent: { padding: space.md, gap: space.sm },
   unwrappedScroll: { flexGrow: 1 },

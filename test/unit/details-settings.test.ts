@@ -122,11 +122,12 @@ describe("block details settings", () => {
     const labels = [
       "Open details", "Expand in timeline", "Collapse in timeline", "View image", "Copy title", "Close menu", "Code",
       "running", "completed", "failed", "Thinking", "Completed", "Previous block", "Next block",
-      "Close details", "Full screen", "Exit full screen", "Wide panel", "Open in panel", "More", "Back to latest",
+      "Close details", "Full screen", "Exit full screen", "Widen panel", "Restore panel width", "Open in panel", "More", "Back to latest",
     ];
     for (const label of labels) expect(toolbarLabel(label, "zh")).not.toBe(label);
     expect(toolbarLabel("5 new lines", "zh")).toBe("5 行新输出");
     expect(toolbarLabel("Back to latest · 5 new lines", "zh")).toBe("回到最新 · 5 行新输出");
-    expect(toolbarLabel("Back to latest · {n} new lines", "zh")).toBe("回到最新 · {n} 行新输出");
+    expect(toolbarLabel("{count} new lines", "zh")).toBe("{count} 行新输出");
+    expect(toolbarLabel("1 new line", "zh")).toBe("1 行新输出");
   });
 });
