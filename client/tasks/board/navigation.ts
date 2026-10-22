@@ -1,4 +1,4 @@
-import type { SidebarCount } from "../../../shared/tasks-settings";
+import type { LaneWidth, SidebarCount } from "../../../shared/tasks-settings";
 import { LANE_ORDER, type BoardCounts, type LaneId } from "../model";
 
 /**
@@ -179,18 +179,20 @@ export function sidebarCountText(parts: readonly SidebarCountPart[], language: "
 
 /** The desktop lanes' geometry: Linear-style panels on the board's background. */
 export const LANES = {
-  /** A lane's width once the lanes scroll; its cards are this less the panel's padding (300 - 2 x 8 = 284). */
+  /** A lane's width once the lanes scroll, at the default lane width; its cards are this less the panel's padding (300 - 2 x 8 = 284). */
   min: 300,
   /**
    * The narrowest a lane gets so that two still sit side by side (cards
    * 220 - 2 x 8 = 204): a tablet with the sidebar open has about 480 for
-   * the board, where 300 showed a lane and a half.
+   * the board, where 300 showed a lane and a half. The same at every lane
+   * width, so the setting never moves where the phone layout takes over.
    */
   narrow: 220,
   /**
-   * The widest a lane gets: Linear's card, 322 wide (646 device px at 2x),
-   * plus the panel's padding and, on web, its scrollbar gutter (340 - 8 - 4
-   * - 6 = 322). A wider card only spreads the same rows apart.
+   * The widest a lane gets at the default lane width: Linear's card, 322
+   * wide (646 device px at 2x), plus the panel's padding and, on web, its
+   * scrollbar gutter (340 - 8 - 4 - 6 = 322). A wider card only spreads the
+   * same rows apart.
    */
   max: 340,
   /** A collapsed lane's strip. */
@@ -200,6 +202,18 @@ export const LANES = {
   /** Around the row of lanes, left and right. */
   edge: 12,
 } as const;
+
+/**
+ * Each `board.laneWidth`'s scroll width and widest lane. Four lanes stop
+ * scrolling on a board 1088 wide at narrow (4 x 260 + 48), 1248 at default
+ * and 1488 at wide; the widest cards are 262, 322 and 402. All three narrow
+ * to `LANES.narrow` on a cramped board, so two lanes stay in view on a tablet.
+ */
+export const LANE_SIZES: Readonly<Record<LaneWidth, { min: number; max: number }>> = {
+  narrow: { min: 260, max: 280 },
+  default: { min: LANES.min, max: LANES.max },
+  wide: { min: 360, max: 420 },
+};
 
 /** The narrowest board that draws lanes side by side: two at `LANES.narrow`. Below it the phone layout's tabs read better. */
 export const LANES_MIN_BOARD = 2 * LANES.narrow + LANES.gap + 2 * LANES.edge;
@@ -219,20 +233,21 @@ export interface LaneLayout {
 }
 
 /**
- * Expanded lanes share the viewport equally up to `LANES.max`; past it they
- * keep that width and sit at the left, as Linear's do, leaving the rest of a
- * wide window empty. When they do not fit at `LANES.min`, the row scrolls at
- * the width that keeps two lanes in view, `LANES.min` at most and
+ * Expanded lanes share the viewport equally up to the lane width's `max`;
+ * past it they keep that width and sit at the left, as Linear's do, leaving
+ * the rest of a wide window empty. When they do not fit at its `min`, the row
+ * scrolls at the width that keeps two lanes in view, `min` at most and
  * `LANES.narrow` at least.
  */
-export function laneLayout(viewport: number, expanded: number, collapsed: number): LaneLayout {
+export function laneLayout(viewport: number, expanded: number, collapsed: number, size: LaneWidth = "default"): LaneLayout {
+  const { min, max } = LANE_SIZES[size];
   const lanes = expanded + collapsed;
   const fixed = 2 * LANES.edge + Math.max(0, lanes - 1) * LANES.gap + collapsed * LANES.collapsed;
   if (expanded === 0) return { laneWidth: 0, contentWidth: Math.max(viewport, fixed), scroll: fixed > viewport };
   const share = (viewport - fixed) / expanded;
-  if (share >= LANES.min) return { laneWidth: Math.min(share, LANES.max), contentWidth: viewport, scroll: false };
+  if (share >= min) return { laneWidth: Math.min(share, max), contentWidth: viewport, scroll: false };
   const pair = (viewport - 2 * LANES.edge - LANES.gap) / 2;
-  const width = Math.max(LANES.narrow, Math.min(LANES.min, pair));
+  const width = Math.max(LANES.narrow, Math.min(min, pair));
   if (share >= width) return { laneWidth: share, contentWidth: viewport, scroll: false };
   return { laneWidth: width, contentWidth: fixed + expanded * width, scroll: true };
 }

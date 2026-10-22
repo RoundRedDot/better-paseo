@@ -6,6 +6,7 @@ import {
   DENSITY_PRESETS,
   DONE_WINDOWS,
   LABEL_LIMITS,
+  LANE_WIDTHS,
   SIDEBAR_COUNTS,
   applyDensity,
   setCardSetting,
@@ -13,6 +14,7 @@ import {
   type Density,
   type DoneWindow,
   type LabelLimit,
+  type LaneWidth,
   type SidebarCount,
   type TasksSettings,
 } from "../../../shared/tasks-settings";
@@ -392,6 +394,21 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
           }
           look={look}
           first
+          stacked
+        />
+        <SettingRow
+          title={strings.laneWidth}
+          description={strings.laneWidthHint}
+          control={
+            <Segmented<LaneWidth>
+              label={strings.laneWidth}
+              value={values.board.laneWidth}
+              options={options(LANE_WIDTHS, strings.laneWidths)}
+              onChange={(next) => void commit({ ...values, board: { ...values.board, laneWidth: next } })}
+              look={look}
+            />
+          }
+          look={look}
           stacked
         />
         <SettingRow

@@ -1,4 +1,4 @@
-import type { CardField, Density, DoneWindow, LabelLimit, SidebarCount } from "../../../shared/tasks-settings";
+import type { CardField, Density, DoneWindow, LabelLimit, LaneWidth, SidebarCount } from "../../../shared/tasks-settings";
 import type { TasksLanguage } from "../i18n";
 
 /** The words of the Tasks board's half of the settings page. */
@@ -46,6 +46,10 @@ export interface TasksSettingsStrings {
   hideSubtasks: string;
   hideSubtasksHint: string;
   confirmStop: string;
+  laneWidth: string;
+  /** Says the phone ignores it: there one lane fills the screen. */
+  laneWidthHint: string;
+  laneWidths: Record<LaneWidth, string>;
   sidebarTitle: string;
   sidebarCount: string;
   sidebarCounts: Record<SidebarCount, string>;
@@ -117,6 +121,9 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     hideSubtasks: "Hide subtasks by default",
     hideSubtasksHint: "Running, waiting and failed subtasks still show in their lane.",
     confirmStop: "Confirm before stopping",
+    laneWidth: "Lane width",
+    laneWidthHint: "On desktop, web and tablets; a narrow window still keeps two lanes in view. Phones show one lane at a time.",
+    laneWidths: { narrow: "Narrow", default: "Default", wide: "Wide" },
     sidebarTitle: "Sidebar",
     sidebarCount: "Sidebar entry count",
     sidebarCounts: { all: "Needs input · Running · Review", "input-only": "Needs input only", none: "Hidden" },
@@ -185,6 +192,9 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     hideSubtasks: "默认隐藏子任务",
     hideSubtasksHint: "运行中、待输入和失败的子任务仍会显示在各自的泳道。",
     confirmStop: "停止前二次确认",
+    laneWidth: "泳道宽度",
+    laneWidthHint: "用于桌面、网页和平板；窗口较窄时仍保证能看到两条泳道。手机上每次只显示一条泳道，不受影响。",
+    laneWidths: { narrow: "窄", default: "默认", wide: "宽" },
     sidebarTitle: "侧边栏",
     sidebarCount: "侧边栏入口计数",
     sidebarCounts: { all: "待输入 · 运行中 · 待查看", "input-only": "只显示待输入", none: "不显示" },
