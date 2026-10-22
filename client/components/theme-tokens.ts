@@ -159,6 +159,14 @@ export interface ExtendedThemeTokens {
     outputText: string;
   };
 
+  /** Block details palette from docs/prototypes/block-details-sheet.md §5.6. */
+  details: {
+    accentSoft: string;
+    grabber: string;
+    scrim: string;
+    shadow: string;
+  };
+
   /**
    * Token v2 (plan §3.6), added beside the tokens above so existing
    * components render unchanged until their own slice moves them over.
@@ -370,6 +378,13 @@ export function buildThemeTokens(
       diffDel: mix(danger, colors.foregroundMuted, 0.35),
       outputBg: mix(colors.surface1, colors.surface0, 0.3),
       outputText: mix(fg, colors.foregroundMuted, 0.25),
+    },
+
+    details: {
+      accentSoft: mix(colors.surface0, accent, 0.1),
+      grabber: withAlpha(colors.foregroundMuted, 0.35),
+      scrim: withAlpha("#000000", isDark ? 0.5 : 0.2),
+      shadow: `0 8px 32px rgba(0, 0, 0, ${isDark ? 0.5 : 0.12})`,
     },
 
     v2: {
