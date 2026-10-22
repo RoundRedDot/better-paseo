@@ -17,14 +17,14 @@ function register(lastUsage: () => unknown) {
   const ledger = createTurnUsageLedger(dir);
   let ended: TurnEnded | null = null;
   let started: TurnStarted | null = null;
-  let read: ((input: unknown) => Promise<unknown>) | null = null;
+  const handlers = new Map<string, (input: unknown) => Promise<unknown>>();
   const server = {
     on(name: string, handler: TurnEnded & TurnStarted) {
       if (name === "agent.turn_ended") ended = handler;
       if (name === "agent.turn_started") started = handler;
       return () => {};
     },
-    handle(_contract: unknown, handler: (input: unknown) => Promise<unknown>) { read = handler; },
+    handle(contract: { name: string }, handler: (input: unknown) => Promise<unknown>) { handlers.set(contract.name, handler); },
   } as unknown as PluginServerContext;
   let clock = 1000;
   registerTurnUsageServer(server, ledger, () => clock);
@@ -36,11 +36,12 @@ function register(lastUsage: () => unknown) {
       clock = at;
       started!({ agent: { id: agentId }, turnId }, { paseo });
     },
-    end: (turnId: string | null, kind = "completed", at = clock) => {
+    end: (turnId: string | null, kind = "completed", at = clock, agentId = "agent-a") => {
       clock = at;
-      return ended!({ agent: { id: "agent-a" }, turnId, outcome: { kind } }, { paseo });
+      return ended!({ agent: { id: agentId }, turnId, outcome: { kind } }, { paseo });
     },
-    read: (input: unknown) => read!(input) as Promise<{ turns: unknown[] }>,
+    read: (input: unknown) => handlers.get("turns.usage")!(input) as Promise<{ turns: unknown[] }>,
+    last: (agentIds: string[]) => handlers.get("turns.last")!({ agentIds }) as Promise<{ turns: unknown[] }>,
   };
 }
 
@@ -124,5 +125,19 @@ describe("turn timing ledger", () => {
     server.start("t1", 500);
     await server.end("t1", "completed", 800);
     expect((await server.read({ agentId: "agent-a" })).turns).toEqual([{ turnId: "t1", startedAt: 500, endedAt: 800 }]);
+  });
+
+  it("answers each agent's latest turn, leaving out agents without one", async () => {
+    const server = register(() => undefined);
+    server.start("turn-1", 1000);
+    await server.end("turn-1", "completed", 4000);
+    server.start("turn-2", 9000);
+    await server.end("turn-2", "completed", 12_000);
+    server.start("turn-b", 2000, "agent-b");
+    await server.end("turn-b", "completed", 2500, "agent-b");
+    expect((await server.last(["agent-a", "agent-b", "agent-none", "agent-a"])).turns).toEqual([
+      { agentId: "agent-a", startedAt: 9000, endedAt: 12_000 },
+      { agentId: "agent-b", startedAt: 2000, endedAt: 2500 },
+    ]);
   });
 });

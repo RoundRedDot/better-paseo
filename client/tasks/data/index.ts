@@ -11,12 +11,13 @@ import type {
   PaseoWorkspaceListResult,
 } from "@getpaseo/client";
 import { doneWindowMs, type DoneWindow } from "../../../shared/tasks-settings";
+import type { LastTurn } from "../../../shared/turn-usage-rpc";
 import { footerModel } from "../../state/footer-model";
 import { MARK_IDS } from "../../components/marks";
 import { normalizeProvider } from "../../components/provider-logo";
 import { classifyAgent } from "../agent-state-bucket";
 import { resolveTasksLanguage } from "../i18n";
-import { LANE_ORDER, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel } from "../model";
+import { LANE_ORDER, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming } from "../model";
 
 export interface WorkspaceOption {
   id: string;
@@ -238,6 +239,38 @@ function providerCatalog(api: PaseoApi, provider: string): Promise<PaseoProvider
   return api.providers.listModels(provider);
 }
 
+/** Each agent's latest turn the plugin server recorded; agents without one are left out. */
+export type LastTurnLoader = (agentIds: string[]) => Promise<LastTurn[]>;
+
+let lastTurnLoader: LastTurnLoader | null = null;
+/** The most agents one `turns.last` call asks about. */
+const LAST_TURN_BATCH = 200;
+
+/** `contribute` sets the loader, since only the plugin context can call RPCs outside a component. */
+export function setLastTurnLoader(next: LastTurnLoader | null): void {
+  lastTurnLoader = next;
+}
+
+interface TurnSpan {
+  startedAt: number | null;
+  endedAt: number;
+}
+
+/**
+ * The card's timing with its latest turn. A turn that ended before the latest
+ * prompt is an earlier one: while the agent works that is its last turn, after
+ * it the prompt's own turn is not known. A turn without a recorded start is
+ * timed from the prompt it followed.
+ */
+export function withLastTurn(timing: TaskTiming, turn: TurnSpan | undefined, working: boolean): TaskTiming {
+  if (!turn) return timing;
+  const prompted = timing.lastUserMessageAt ? Date.parse(timing.lastUserMessageAt) : Number.NaN;
+  if (!working && turn.endedAt < prompted) return timing;
+  const startedAt = turn.startedAt ?? (prompted <= turn.endedAt ? prompted : null);
+  if (startedAt === null || startedAt > turn.endedAt) return timing;
+  return { ...timing, lastTurnMs: turn.endedAt - startedAt, lastTurnEndedAt: new Date(turn.endedAt).toISOString() };
+}
+
 function shallowCardEqual(left: TaskCard | undefined, right: TaskCard): boolean {
   return left !== undefined && JSON.stringify(left) === JSON.stringify(right);
 }
@@ -290,7 +323,6 @@ function buildBaseCard(
   const hasGitState = workspace ? workspace.gitRuntime != null : placement?.checkout.isGit === true;
   const pullRequest = workspace?.githubRuntime?.pullRequest;
   const permission = pendingPermissions[0];
-  const timingDelta = agent.lastUserMessageAt ? Date.parse(agent.updatedAt) - Date.parse(agent.lastUserMessageAt) : Number.NaN;
 
   return {
     id: agent.id,
@@ -336,7 +368,8 @@ function buildBaseCard(
       turnStartedAt: agent.activeTurn?.startedAt ?? null,
       attentionAt: agent.attentionTimestamp ?? null,
       lastUserMessageAt: agent.lastUserMessageAt,
-      lastTurnMs: Number.isFinite(timingDelta) ? timingDelta : null,
+      lastTurnMs: null,
+      lastTurnEndedAt: null,
     },
     context,
     usage: agent.lastUsage
@@ -445,6 +478,12 @@ function createStore(api: PaseoApi): TaskStore {
   const resolvedParentTitles = new Map<string, string | null>();
   const projectIcons = new Map<string, ProjectIconValue>();
   const iconRequests = new Set<string>();
+  const lastTurns = new Map<string, TurnSpan>();
+  /** The prompt (and whether the agent worked) each agent's turn was last asked for, so it is asked once. */
+  const lastTurnAsked = new Map<string, string>();
+  let lastTurnQueue = new Set<string>();
+  /** The running turns' starts, by agent, so the update that ends one can time it. */
+  const workingSince = new Map<string, number | null>();
   const subscriptions = new Map<string, StoreSubscription>();
   const projectUnsubscribes: Array<() => void> = [];
   let consumers = 0;
@@ -515,6 +554,7 @@ function createStore(api: PaseoApi): TaskStore {
     const childIds = childrenByParent.get(id);
     const next: TaskCard = {
       ...base,
+      timing: withLastTurn(base.timing, lastTurns.get(id), base.lane === "running" || base.lane === "needs_input"),
       parent: parentAgentId
         ? { id: parentAgentId, title: parentTitle, missing: !baseCards.has(parentAgentId) }
         : null,
@@ -572,6 +612,18 @@ function createStore(api: PaseoApi): TaskStore {
       return;
     }
     const oldParent = parentByChild.get(agent.id) ?? null;
+    // A turn seen ending: the update that ends it carries its end. The agent
+    // can leave the running subscription before it joins another, so its
+    // start outlives its entry.
+    if (agent.status === "running") {
+      const startedAt = agent.activeTurn?.startedAt ? Date.parse(agent.activeTurn.startedAt) : Number.NaN;
+      workingSince.set(agent.id, Number.isFinite(startedAt) ? startedAt : null);
+    } else if (workingSince.has(agent.id)) {
+      const startedAt = workingSince.get(agent.id)!;
+      workingSince.delete(agent.id);
+      const endedAt = Date.parse(agent.updatedAt);
+      if (Number.isFinite(endedAt)) lastTurns.set(agent.id, { startedAt, endedAt });
+    }
     entries.set(agent.id, { agent, placement });
     const newParent = parentIdOf(agent);
     replaceParentLink(agent.id, newParent);
@@ -585,6 +637,7 @@ function createStore(api: PaseoApi): TaskStore {
     if (!shallowCardEqual(oldBase, base)) baseCards.set(agent.id, base);
     else if (!oldBase) baseCards.set(agent.id, base);
     requestModelCatalogFor(agent);
+    requestLastTurnFor(agent);
     const affected = new Set<string>([agent.id]);
     if (oldParent) affected.add(oldParent);
     if (newParent) affected.add(newParent);
@@ -735,6 +788,53 @@ function createStore(api: PaseoApi): TaskStore {
   function requestModelCatalogFor(agent: PaseoAgent) {
     if (boardConsumers === 0 || !agent.model || modelCatalogs.has(agent.provider) || modelRequests.has(agent.provider)) return;
     requestModelCatalog(agent.provider, generation);
+  }
+
+  /**
+   * The last turn shows on cards only, so it is read while a board is open:
+   * once per agent and prompt, unless the board saw the turn end. Asks wait
+   * a tick so one snapshot's agents go together.
+   */
+  function requestLastTurnFor(agent: PaseoAgent) {
+    if (!lastTurnLoader || boardConsumers === 0) return;
+    const prompt = agent.lastUserMessageAt ?? "";
+    const working = agent.status === "running";
+    const known = lastTurns.get(agent.id);
+    if (known && (working || !(known.endedAt < Date.parse(prompt)))) return;
+    // Asked while the agent worked, the answer was the turn before: ask again once it is done.
+    const ask = working ? `${prompt} running` : prompt;
+    if (lastTurnAsked.get(agent.id) === ask) return;
+    lastTurnAsked.set(agent.id, ask);
+    if (lastTurnQueue.size === 0) {
+      const run = generation;
+      setTimeout(() => { if (run === generation) flushLastTurns(run); }, 0);
+    }
+    lastTurnQueue.add(agent.id);
+  }
+
+  function flushLastTurns(run: number) {
+    const loader = lastTurnLoader;
+    const ids = [...lastTurnQueue];
+    lastTurnQueue = new Set();
+    if (!loader) return;
+    for (let start = 0; start < ids.length; start += LAST_TURN_BATCH) {
+      void loader(ids.slice(start, start + LAST_TURN_BATCH)).then((turns) => {
+        if (run !== generation) return;
+        batchUpdates(() => {
+          for (const turn of turns) {
+            const known = lastTurns.get(turn.agentId);
+            if (known && known.endedAt >= turn.endedAt) continue;
+            lastTurns.set(turn.agentId, { startedAt: turn.startedAt ?? null, endedAt: turn.endedAt });
+            refreshFinalCard(turn.agentId);
+            const parent = parentByChild.get(turn.agentId);
+            if (parent) refreshFinalCard(parent);
+          }
+          notify();
+        });
+      }).catch(() => {
+        // An older server without `turns.last`, or a failed read: the cards say "—".
+      });
+    }
   }
 
   function requestModelCatalog(provider: string, run: number) {
@@ -1004,7 +1104,10 @@ function createStore(api: PaseoApi): TaskStore {
     void startWorkspaceSubscription(run);
     void startLabelSubscription(run);
     void startProjects(run);
-    for (const entry of entries.values()) requestModelCatalogFor(entry.agent);
+    for (const entry of entries.values()) {
+      requestModelCatalogFor(entry.agent);
+      requestLastTurnFor(entry.agent);
+    }
   }
 
   function startDone() {
@@ -1092,6 +1195,10 @@ function createStore(api: PaseoApi): TaskStore {
     modelRequests.clear();
     projectIcons.clear();
     iconRequests.clear();
+    lastTurns.clear();
+    lastTurnAsked.clear();
+    lastTurnQueue = new Set();
+    workingSince.clear();
     statusReady = false;
     attentionReady = false;
     workspacesReady = false;

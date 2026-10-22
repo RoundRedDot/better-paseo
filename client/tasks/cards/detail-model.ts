@@ -192,7 +192,7 @@ export interface SummaryTile {
 
 export function summaryTiles(card: TaskCard, now: number, language: TasksLanguage): SummaryTile[] {
   const words = cardStrings(language).details;
-  const ended = since(card.timing.updatedAt, now);
+  const ended = since(card.timing.lastTurnEndedAt, now);
   const mix = tokenMix(card);
   const cached = mix?.segments.find((segment) => segment.part === "cached");
   const cost = card.usage?.totalCostUsd ?? null;
