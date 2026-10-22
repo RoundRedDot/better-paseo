@@ -1,4 +1,4 @@
-import type { DoneWindow } from "../../../shared/tasks-settings";
+import type { DoneWindow, LaneWidth } from "../../../shared/tasks-settings";
 import type { LaneId } from "../model";
 import { NAME_KEYS, type BoardSort, type SortDirection, type SortKey } from "./sort";
 import type { TasksLanguage } from "../i18n";
@@ -63,6 +63,13 @@ const en = {
   closeMenu: "Close menu",
   sort: "Sort",
   sortDefault: "Default order",
+  /** The filter bar's lane width menu; the choice is the Tasks setting, so every client of the host follows it. */
+  laneWidth: {
+    title: "Lane width",
+    button: (name: string) => `Lanes · ${name}`,
+    names: { narrow: "Narrow", default: "Default", wide: "Wide" } as Record<LaneWidth, string>,
+    saveFailed: "Couldn't save the lane width",
+  },
   back: "Back",
   sortKeys: {
     workspace: "Workspace",
@@ -165,6 +172,12 @@ const zh: typeof en = {
   closeMenu: "关闭菜单",
   sort: "排序",
   sortDefault: "默认顺序",
+  laneWidth: {
+    title: "泳道宽度",
+    button: (name: string) => `泳道 · ${name}`,
+    names: { narrow: "紧凑", default: "默认", wide: "宽松" } as Record<LaneWidth, string>,
+    saveFailed: "泳道宽度没有保存成功",
+  },
   back: "返回",
   sortKeys: {
     workspace: "Workspace",

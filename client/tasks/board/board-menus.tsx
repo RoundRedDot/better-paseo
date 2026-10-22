@@ -1,6 +1,7 @@
 import React from "react";
 import { View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
+import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
 import { BrandMark, taskTokens } from "../cards";
 import { Checkbox, LetterAvatar } from "./board-parts";
 import type { FilterOption, FilterOptions } from "./filter-options";
@@ -64,6 +65,25 @@ export function sortMenuSections(current: BoardSort | null, strings: BoardString
   return [
     { key: "default", items: [{ key: "default", label: strings.sortDefault, icon: SORT_ICONS.default, checked: current === null, onSelect: () => choose(null) }] },
     ...SORT_GROUPS.map((keys, index) => ({ key: `group-${index}`, items: keys.map(field) })),
+  ];
+}
+
+const LANE_WIDTH_ICONS: Record<LaneWidth, string> = { narrow: "FoldHorizontal", default: "Columns3", wide: "UnfoldHorizontal" };
+
+/** The lane width menu: the three widths, the current one checked. */
+export function laneWidthMenuSections(current: LaneWidth, strings: BoardStrings, choose: (width: LaneWidth) => void): MenuSection[] {
+  return [
+    {
+      key: "lane-width",
+      title: strings.laneWidth.title,
+      items: LANE_WIDTHS.map((width) => ({
+        key: width,
+        label: strings.laneWidth.names[width],
+        icon: LANE_WIDTH_ICONS[width],
+        checked: width === current,
+        onSelect: () => choose(width),
+      })),
+    },
   ];
 }
 

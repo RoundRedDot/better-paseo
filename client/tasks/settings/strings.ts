@@ -194,7 +194,7 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     confirmStop: "停止前二次确认",
     laneWidth: "泳道宽度",
     laneWidthHint: "用于桌面、网页和平板；窗口较窄时仍保证能看到两条泳道。手机上每次只显示一条泳道，不受影响。",
-    laneWidths: { narrow: "窄", default: "默认", wide: "宽" },
+    laneWidths: { narrow: "紧凑", default: "默认", wide: "宽松" },
     sidebarTitle: "侧边栏",
     sidebarCount: "侧边栏入口计数",
     sidebarCounts: { all: "待输入 · 运行中 · 待查看", "input-only": "只显示待输入", none: "不显示" },
