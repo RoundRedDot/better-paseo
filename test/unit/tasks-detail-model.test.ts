@@ -170,10 +170,10 @@ describe("details card model", () => {
       { text: "上下文 94%", tone: "danger" },
     ]);
     expect(subtaskMeta({ ...base, context: { usedTokens: 780_000, maxTokens: 1_000_000 } }, baseline, NOW, "zh")[1]).toEqual({ text: "上下文 78%", tone: "warning" });
-    // A different model leads, with its provider's mark; narrow, the name alone.
+    // A different model leads; narrow, the name alone. The row's own mark names the agent, so no part carries one.
     const codex: TaskChild = { ...base, provider: "codex", modelLabel: "GPT-5.5 Codex", thinkingLabel: "Medium" };
-    expect(subtaskMeta(codex, baseline, NOW, "zh")[0]).toEqual({ text: "GPT-5.5 Codex · Medium", tone: null, provider: "codex" });
-    expect(subtaskMeta(codex, baseline, NOW, "zh", true)[0]).toEqual({ text: "GPT-5.5 Codex", tone: null, provider: "codex" });
+    expect(subtaskMeta(codex, baseline, NOW, "zh")[0]).toEqual({ text: "GPT-5.5 Codex · Medium", tone: null });
+    expect(subtaskMeta(codex, baseline, NOW, "zh", true)[0]).toEqual({ text: "GPT-5.5 Codex", tone: null });
     // Narrow: no start, and the context only from 75%.
     expect(text(running, true)).toEqual(["上下文 94%"]);
     expect(text(base, true)).toEqual(["上一轮 3m 2s"]);
@@ -183,8 +183,6 @@ describe("details card model", () => {
     const provider: TaskChild = { id: "p", title: "t", status: "failed", kind: "provider", subtitle: "general-purpose \u00b7 Opus 5.5 \u00b7 189.7k tokens", provider: "claude", lane: "review", timing };
     expect(text(provider, false, "en")).toEqual(["general-purpose \u00b7 Opus 5.5 \u00b7 189.7k tokens", "Failed", "Last turn 3m 2s"]);
     expect(text(provider, true, "en")).toEqual(["Failed", "Last turn 3m 2s"]);
-    // The line names the model, so the subagent's mark leads it.
-    expect(subtaskMeta(provider, baseline, NOW, "en")[0]).toEqual({ text: "general-purpose \u00b7 Opus 5.5 \u00b7 189.7k tokens", tone: null, provider: "claude" });
   });
 
   it("times a subtask row: a running timer, else when it ended", () => {

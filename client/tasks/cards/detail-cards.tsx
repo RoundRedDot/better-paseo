@@ -16,6 +16,7 @@ import { cardStrings } from "./strings";
 import { taskTokens, type TaskTokens } from "./tokens";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { BrandMark } from "./brand-mark";
+import { ChildMark } from "./child-mark";
 import { useTime, type TimeSource } from "./clock";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
@@ -1118,8 +1119,9 @@ const SUBTASK_TEXT = {
 } as const;
 
 /**
- * One child: its status icon (the board's) centred on the title's first line;
- * the title, its leading tag or Linear id muted, over the meta line, which
+ * One child: its agent's mark, its status on the corner, centred on the
+ * title's first line; the title, its leading tag or Linear id muted, over
+ * the meta line, which
  * wraps between its parts, never inside one; the time at the first line's
  * end. A press shows the child here. With a pointer, hovering shows ↗,
  * which opens its tab; on touch a long press does.
@@ -1177,7 +1179,7 @@ function SubtaskRow(props: {
       })}
     >
       <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }} testID={`detail-subtask-status-${child.id}`}>
-        <StatusIcon kind={child.status} size={14} theme={props.theme} />
+        <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={active ? colors.rowHover : tokens.card.background} />
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
@@ -1193,13 +1195,10 @@ function SubtaskRow(props: {
         {props.meta.length > 0 ? (
           <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 4 }} testID={`detail-subtask-meta-${child.id}`}>
             {props.meta.map((part, index) => (
-              <View key={index} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                {part.provider ? <BrandMark provider={part.provider} size={14} tokens={tokens} mono={tokens.foregroundMuted} /> : null}
-                <Text numberOfLines={1} style={metaText}>
-                  <Text style={part.tone ? { color: toneColor(part) } : undefined}>{part.text}</Text>
-                  {index < props.meta.length - 1 ? " ·" : null}
-                </Text>
-              </View>
+              <Text key={index} numberOfLines={1} style={metaText}>
+                <Text style={part.tone ? { color: toneColor(part) } : undefined}>{part.text}</Text>
+                {index < props.meta.length - 1 ? " ·" : null}
+              </Text>
             ))}
           </View>
         ) : null}
