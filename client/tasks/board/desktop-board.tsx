@@ -17,6 +17,7 @@ import { LANES, boardKeyReducer, clampFocus, laneLayout, type BoardFocus, type L
 import { menuChrome } from "./menu-model";
 import { DetailsSidebar } from "./details-sidebar";
 import { LaneMotionLayer, LaneMotionProvider, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
+import { LaneSwap, useLaneWidth } from "./lane-resize";
 import {
   NO_SELECTION,
   SIDEBAR,
@@ -189,6 +190,8 @@ export function DesktopBoard(props: {
   const panelWidth = sidebarWidth(boardWidth, dragWidth ?? preference.width, floating ? "floating" : "inline");
   const lanesWidth = Math.max(0, boardWidth - (inline ? panelWidth + SIDEBAR.gap : 0));
   const layout = laneLayout(lanesWidth, LANE_ORDER.length - collapsed.length, collapsed.length, board.laneWidth);
+  // What the user sized the lanes with: a change to it eases the lanes to their new widths.
+  const sizing = `${collapsed.join()}|${board.laneWidth}`;
   // A floating panel covers the lanes' right side: the row scrolls far enough for the last lane to come out from under it.
   const coverRoom = floating && !inSheet ? panelWidth + SIDEBAR.gap : 0;
 
@@ -501,6 +504,7 @@ export function DesktopBoard(props: {
                       lane={lanes[id]}
                       width={layout.laneWidth}
                       collapsed={collapsed.includes(id)}
+                      sizing={sizing}
                       onToggle={() => setCollapsed((current) => (current.includes(id) ? current.filter((lane) => lane !== id) : [...current, id]))}
                       board={board}
                       callbacks={callbacks}
@@ -719,6 +723,8 @@ function DesktopLane(props: {
   lane: LaneModel;
   width: number;
   collapsed: boolean;
+  /** Changes when the user collapses, expands or resizes lanes: the lane eases to its new width. */
+  sizing: string;
   onToggle(): void;
   board: BoardController;
   callbacks: CardCallbacks;
@@ -783,9 +789,19 @@ function DesktopLane(props: {
   const headerTap = useTap();
   const collapseTap = useTap();
   const blankTap = useTap();
+  const target = props.collapsed ? LANES.collapsed : props.width;
+  const resized = useLaneWidth(target, props.sizing);
+  // The lane's clip eases to its width; the strip or list inside it has its own at once.
+  const clip = (content: React.ReactNode) => (
+    <Animated.View testID={`lane-${lane.id}`} style={{ width: resized.width, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}>
+      <LaneSwap key={props.collapsed ? "strip" : "list"} fade={resized.moving} width={target}>
+        {content}
+      </LaneSwap>
+    </Animated.View>
+  );
 
   if (props.collapsed) {
-    return (
+    return clip(
       <HoverPressable
         ref={pillRef}
         accessibilityRole="button"
@@ -804,12 +820,12 @@ function DesktopLane(props: {
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <VerticalLabel text={name} color={colors.foreground} language={board.language} />
         <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{ready ? count : ""}</Text>
-      </HoverPressable>
+      </HoverPressable>,
     );
   }
 
   const loadingFirst = !ready || (lane.id === "done" && lane.loading && count === 0);
-  return (
+  return clip(
     <View style={{ width: props.width, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}>
       <Pressable
         accessible={false}
@@ -898,6 +914,6 @@ function DesktopLane(props: {
           }
         />
       )}
-    </View>
+    </View>,
   );
 }
