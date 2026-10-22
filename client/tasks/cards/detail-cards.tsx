@@ -1066,14 +1066,9 @@ function Activity(props: Inner) {
   const line = timeline(props.card, props.now, props.language);
   if (!line) return null;
   const kind = props.card.stoppedManually ? "stopped" : props.card.status;
-  return (
-    <TimelineChart
-      timeline={line}
-      liveColor={statusColor(props.card.status, props.tokens)}
-      tokens={props.tokens}
-      endMark={<StatusIcon kind={kind} size={14} theme={props.theme} />}
-    />
-  );
+  // A run that ended well closes on a green check, not the board's grey done dot.
+  const endMark = kind === "done" ? <Icon name="CircleCheck" size={14} color={props.tokens.success} /> : <StatusIcon kind={kind} size={14} theme={props.theme} />;
+  return <TimelineChart timeline={line} liveColor={statusColor(props.card.status, props.tokens)} tokens={props.tokens} endMark={endMark} />;
 }
 
 // ---- Buttons ---------------------------------------------------------------
