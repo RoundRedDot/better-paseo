@@ -199,7 +199,7 @@ const webTransition = (WEB
 
 /**
  * Stop's hover entrance on web: a fade with the preview's 4px drift in from
- * the jump button's side, then a plain fade out. RNW compiles keyframes only
+ * the card's right edge, then a plain fade out. RNW compiles keyframes only
  * through `StyleSheet.create`. Native shows Stop all the time, so has none.
  */
 const STOP_EXIT_MS = duration.fast;
@@ -443,54 +443,24 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     borderTopColor: failed && !props.current && !props.highlighted ? look.failedBorder : look.border,
   };
 
-  // Controls: Stop (hover, confirming) and the jump button, on the meta row,
-  // or on the title row when the meta row has nothing to say.
+  // The jump button, on the meta row, or on the title row when the meta row
+  // has nothing to say. Stop sits in the footer, away from it.
   const location = card.location;
   const metaParts: string[] = [];
   if (layout.project && location.projectName) metaParts.push(location.projectName);
   if (layout.workspace && location.workspaceName) metaParts.push(location.workspaceName);
   const metaText = metaParts.join(SEPARATOR);
   const hasMeta = metaText !== "" || card.parent !== null;
-  // On web Stop appears on hover, so it floats over the row's end (the card's
-  // fill behind it hides the text it covers) instead of taking room from the
-  // row: hovering must not move anything. Native shows it all the time, in flow.
-  const jumpSlot = props.onOpen ? m.jump + JUMP_OVERHANG[compact ? 1 : 0] + GAP : 0;
-  const controlsFor = (line: number) => (
-    <>
-      {showStop && TOUCH ? <StopControl {...stop} compact={false} line={line} /> : null}
-      {props.onOpen ? (
-        <JumpButton
-          tokens={tokens}
-          compact={compact}
-          line={line}
-          label={strings.openInWorkspace}
-          onPress={() => props.onOpen?.(card.id)}
-        />
-      ) : null}
-      {/* Last, so it adds nothing before an in-flow element. */}
-      {(showStop || stopLeaving) && !TOUCH ? (
-        <View
-          pointerEvents={stopLeaving ? "none" : "auto"}
-          aria-hidden={stopLeaving || undefined}
-          style={[
-            {
-              position: "absolute",
-              right: jumpSlot,
-              top: (Math.round(line * scale) - taskControlHeight(m.stopHeight, scale)) / 2,
-              paddingLeft: GAP,
-              // Follows the card's fill as it eases back from the hover grey.
-              backgroundColor: background,
-              ...webTransition,
-            },
-            reducedMotion ? null : stopLeaving ? stopMotion?.exit : stopMotion?.enter,
-          ]}
-          testID="task-card-stop-overlay"
-        >
-          <StopControl {...stop} compact={false} line={m.stopHeight} />
-        </View>
-      ) : null}
-    </>
-  );
+  const controlsFor = (line: number) =>
+    props.onOpen ? (
+      <JumpButton
+        tokens={tokens}
+        compact={compact}
+        line={line}
+        label={strings.openInWorkspace}
+        onPress={() => props.onOpen?.(card.id)}
+      />
+    ) : null;
 
   // Meta row ---------------------------------------------------------------
   const avatar = layout.projectAvatar;
@@ -721,14 +691,17 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         onOpenChange={setRingOpen}
       />
     ) : null;
-  // Its details card opens upwards over the rows above, so whichever row holds it is raised while it shows.
-  const ringZ = ringOpen ? OVERLAY_ROW_Z + 1 : undefined;
+  // The ring's details card opens upwards over the rows above, and Stop's menu
+  // downwards over the blocks below, so whichever row holds the footer is raised while either shows.
+  const footerZ = ringOpen ? OVERLAY_ROW_Z + 1 : showStop || stopLeaving ? OVERLAY_ROW_Z : undefined;
+  // A stoppable card keeps the footer even when it has nothing else, so Stop has a place to appear.
+  const stopSlot = canStop && !compact;
   // A desktop request's buttons take the footer in on their row: the wait sits
   // beside the answer it waits for, as the details sidebar shows it, rather
   // than above the divider with the buttons alone on a row of their own.
   const answerRow = layout.permission && card.permission !== null && !compact && props.permissionButtons.length > 0;
   const footerContent =
-    timer || ring ? (
+    timer || ring || stopSlot ? (
       <>
         {timer ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -746,12 +719,42 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           </View>
         ) : null}
         {/* Bottom right, where Linear keeps nothing else; it stays there without a timer. */}
-        {ring ? <View style={{ marginLeft: "auto" }}>{ring}</View> : null}
+        {showStop && TOUCH ? (
+          <View style={{ marginLeft: "auto" }}>
+            <StopControl {...stop} compact={false} line={m.footLine} />
+          </View>
+        ) : null}
+        {ring ? <View style={{ marginLeft: showStop && TOUCH ? 0 : "auto" }}>{ring}</View> : null}
+        {(showStop || stopLeaving) && !TOUCH ? (
+          // On web Stop appears on hover, so it floats over the ring (the card's
+          // fill behind it hides what it covers) instead of taking room from the
+          // row: hovering must not move anything. Native shows it all the time, in flow.
+          <View
+            pointerEvents={stopLeaving ? "none" : "auto"}
+            aria-hidden={stopLeaving || undefined}
+            style={[
+              {
+                position: "absolute",
+                right: 0,
+                top: (Math.round(m.footLine * scale) - taskControlHeight(m.stopHeight, scale)) / 2,
+                paddingLeft: GAP,
+                // Follows the card's fill as it eases back from the hover grey.
+                backgroundColor: background,
+                ...webTransition,
+              },
+              reducedMotion ? null : stopLeaving ? stopMotion?.exit : stopMotion?.enter,
+            ]}
+            testID="task-card-stop-overlay"
+          >
+            <StopControl {...stop} compact={false} line={m.stopHeight} />
+          </View>
+        ) : null}
       </>
     ) : null;
+  const footLine = Math.round(m.footLine * scale);
   const footer =
     footerContent && !answerRow ? (
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: m.rowGap, zIndex: ringZ }} testID="task-card-footer">
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: footLine, marginTop: m.rowGap, zIndex: footerZ }} testID="task-card-footer">
         {footerContent}
       </View>
     ) : null;
@@ -777,7 +780,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const permissionSummary = permission ? summaryBeyondTitle(permission.title, permission.summary) : null;
   const permissionBlock =
     layout.permission && permission ? (
-      <View style={[block, { gap: 8, zIndex: answerRow ? ringZ : undefined }]} testID="task-card-permission">
+      <View style={[block, { gap: 8, zIndex: answerRow ? footerZ : undefined }]} testID="task-card-permission">
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }}>
           <View style={iconCell}>
             <Icon name={permissionIcon(permission.kind)} size={m.icon + 1} color={tokens.status.warning} />
@@ -803,7 +806,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
               />
             ))}
             {footerContent ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginLeft: "auto" }} testID="task-card-footer">
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: footLine, marginLeft: "auto" }} testID="task-card-footer">
                 {footerContent}
               </View>
             ) : null}
