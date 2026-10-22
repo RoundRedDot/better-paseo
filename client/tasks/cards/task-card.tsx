@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
@@ -1144,36 +1144,79 @@ export function ActionButton(props: {
   compact: boolean;
   onPress(): void;
 }) {
-  const { button, tokens, compact } = props;
-  const scale = useTasksFontScale();
-  const look = tokens.card;
-  const { hovered, hoverProps } = useHover();
+  const { button } = props;
   const answer = button.kind === "open";
   const primary = button.variant === "primary" && !answer;
   // Deny pairs with Allow: Allow's accent tint, Deny the Stop button's danger tint.
   const danger = !answer && !primary && (button.variant === "danger" || button.action.behavior === "deny");
+  let look: CardButtonLook = "plain";
+  if (answer) look = "answer";
+  else if (primary) look = "primary";
+  else if (danger) look = "danger";
+  return (
+    <CardButton
+      label={answer ? button.label.replace(/\s*\u2197\s*$/, "") : button.label}
+      accessibilityLabel={button.label}
+      look={look}
+      icon={answer ? null : button.action.behavior === "allow" ? "Check" : "X"}
+      tokens={props.tokens}
+      compact={props.compact}
+      onPress={props.onPress}
+    />
+  );
+}
+
+export type CardButtonLook = "primary" | "plain" | "danger" | "answer";
+
+/**
+ * The card's button: Allow's accent tint, a plain outline, the Stop button's
+ * danger tint, or "Answer" in the needs-input amber with its arrow. A busy
+ * one keeps its look and swaps its icon for a spinner, as Paseo's own
+ * loading buttons do.
+ */
+export function CardButton(props: {
+  label: string;
+  /** The label read out, when it differs from the one drawn. */
+  accessibilityLabel?: string;
+  look: CardButtonLook;
+  icon?: string | null;
+  tokens: TaskTokens;
+  compact: boolean;
+  /** Working: a spinner in place of the icon, and no second press. */
+  busy?: boolean;
+  onPress(): void;
+  testID?: string;
+}) {
+  const { tokens, compact, look: kind } = props;
+  const scale = useTasksFontScale();
+  const look = tokens.card;
+  const { hovered: hover, hoverProps } = useHover();
+  const hovered = hover && !props.busy;
+  const answer = kind === "answer";
   // "Answer" opens the tab for a question: it wears the needs-input icon's
   // amber (the statusDot band), tinted, with a hairline of the same hue; its
   // label is that amber pulled until it reads at 4.5:1.
-  let color = primary ? look.primaryText : danger ? tokens.danger : tokens.foreground;
+  let color = kind === "primary" ? look.primaryText : kind === "danger" ? tokens.danger : tokens.foreground;
   let fill = hovered ? look.controlHover : "transparent";
   let border = look.pillBorder;
-  if (primary) fill = border = hovered ? look.primaryFillHover : look.primaryFill;
-  if (danger) fill = border = hovered ? look.dangerFillHover : look.dangerFill;
+  if (kind === "primary") fill = border = hovered ? look.primaryFillHover : look.primaryFill;
+  if (kind === "danger") fill = border = hovered ? look.dangerFillHover : look.dangerFill;
   if (answer) {
     color = look.answerText;
     fill = hovered ? look.answerFillHover : look.answerFill;
     border = look.answerBorder;
   }
-  const icon = button.kind === "open" ? null : button.action.behavior === "allow" ? "Check" : "X";
   const size = compact ? 16 : 13;
   const sizing = phoneButtonSizing((useWindowDimensions().fontScale ?? 1) * scale);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={button.label}
+      accessibilityLabel={props.accessibilityLabel ?? props.label}
+      accessibilityState={props.busy ? { disabled: true, busy: true } : undefined}
+      disabled={props.busy}
       onPress={props.onPress}
       {...hoverProps}
+      testID={props.testID}
       style={{
         // A phone's button grows with a large system font.
         ...(compact ? { minHeight: PHONE.buttonHeight, paddingVertical: 4, ...sizing.box } : { height: taskControlHeight(DESKTOP.buttonHeight, scale) }),
@@ -1189,11 +1232,18 @@ export function ActionButton(props: {
         ...webTransition,
       }}
     >
-      {icon ? <Icon name={icon} size={size} color={color} /> : null}
+      {props.busy ? (
+        // The platform's small spinner is 20; scaled into the icon's box so the button keeps its width.
+        <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="small" color={color} style={{ transform: [{ scale: size / 20 }] }} testID={props.testID ? `${props.testID}-spinner` : undefined} />
+        </View>
+      ) : props.icon ? (
+        <Icon name={props.icon} size={size} color={color} />
+      ) : null}
       <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? F.base : F.sm, fontWeight: "500", color }}>
-        {answer ? button.label.replace(/\s*\u2197\s*$/, "") : button.label}
+        {props.label}
       </Text>
-      {/* The one arrow: a label that still ends in its own is trimmed above. */}
+      {/* The one arrow: a label that still ends in its own is trimmed by the caller. */}
       {answer ? <Icon name="ArrowUpRight" size={size} color={color} /> : null}
     </Pressable>
   );

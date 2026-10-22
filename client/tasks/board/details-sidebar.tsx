@@ -78,6 +78,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
         onPermission: (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button),
         onJump: jump,
         firstPrompt,
+        unarchive: board.unarchive.available ? board.unarchive : null,
       }
     : null;
 
