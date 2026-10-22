@@ -1319,7 +1319,7 @@ export function CardButton(props: {
  * Mark read: a card button's size, as Stop and "Answer" are, led by
  * Lucide's CheckCheck (a read receipt), in the plain outline, since clearing a card is
  * no alarm. While the request is out a spinner takes the icon's place, the
- * label says so, dimmed, and the button takes no second press.
+ * label stays, dimmed, and the button takes no second press.
  */
 function ReadControl(props: {
   tokens: TaskTokens;
@@ -1336,7 +1336,7 @@ function ReadControl(props: {
   const { hovered, hoverProps } = useHover();
   const sizing = phoneButtonSizing((useWindowDimensions().fontScale ?? 1) * scale, true);
   const height = taskControlHeight(compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, scale);
-  const label = pending ? strings.markingRead : strings.markRead;
+  const label = strings.markRead;
   const iconSize = compact ? 16 : 13;
   return (
     <Pressable

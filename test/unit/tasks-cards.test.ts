@@ -958,12 +958,13 @@ describe("TaskCardView actions", () => {
     expect(onRead).toHaveBeenCalledWith(card);
 
     await act(async () => tree.update(cardElement(card, { onRead, readPending: true })));
-    const pending = byLabel(tree.root, "标记中");
+    const pending = byLabel(tree.root, "标为已读");
     expect(pending.props.disabled).toBe(true);
-    // A spinner in the icon's place, and no ellipsis after the label.
+    expect(pending.props.accessibilityState).toMatchObject({ busy: true });
+    // A spinner in the icon's place; the label stays as it was.
     expect(icons(pending)).toEqual([]);
     expect(pending.findAll((node) => node.props.testID === "task-card-read-spinner").length).toBeGreaterThan(0);
-    expect(texts(pending)).toEqual(["标记中"]);
+    expect(texts(pending)).toEqual(["标为已读"]);
     expect(flat(pending.props.style)).toMatchObject({ opacity: 0.6 });
     await act(async () => tree.unmount());
     renderer = null;
