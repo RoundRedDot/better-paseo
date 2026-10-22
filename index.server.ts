@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { open, stat, type FileHandle } from "node:fs/promises";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { PREFERENCES_SETTINGS } from "./shared/preferences-settings";
 import { revealPathRpc } from "./shared/file-rpc";
@@ -14,6 +14,7 @@ import { MARK_BITMAPS } from "./server/mark-bitmaps";
 import { writePerfDump } from "./server/perf-dump";
 import { registerTasksServer } from "./server/tasks/register";
 import { registerTurnUsageServer } from "./server/turn-usage";
+import { shellOpenCommand, type PathEntry } from "./server/open-path";
 
 /**
  * Image types worth inlining, and the mime each one needs in its data URI.
@@ -120,28 +121,10 @@ async function resolveSelector(path: string, cwd: string): Promise<string> {
   return stripSelector(path);
 }
 
-/**
- * Reveals a path with the platform shell. Windows Explorer selects the file
- * itself; macOS Finder does the same with `-R`; every other platform opens the
- * containing directory, because `xdg-open` on a file launches its editor.
- */
-function revealWithShell(target: string, isDirectory: boolean): void {
-  const child =
-    process.platform === "win32"
-      ? spawn("explorer.exe", isDirectory ? [target] : [`/select,${target}`], {
-          detached: true,
-          stdio: "ignore",
-          windowsVerbatimArguments: true,
-        })
-      : process.platform === "darwin"
-        ? spawn("open", isDirectory ? [target] : ["-R", target], {
-            detached: true,
-            stdio: "ignore",
-          })
-        : spawn("xdg-open", [isDirectory ? target : dirname(target)], {
-            detached: true,
-            stdio: "ignore",
-          });
+/** Runs the path press's shell command (`shellOpenCommand`), detached. */
+function openWithShell(target: string, entry: PathEntry): void {
+  const { command, args, windowsVerbatimArguments } = shellOpenCommand(process.platform, target, entry);
+  const child = spawn(command, args, { detached: true, stdio: "ignore", ...(windowsVerbatimArguments ? { windowsVerbatimArguments } : null) });
   // Explorer reports a non-zero exit even when it opened the window, so the
   // result is never read. Detaching keeps the daemon free of a zombie child.
   child.on("error", () => {});
@@ -489,7 +472,7 @@ export default function contribute(server: PluginServerContext) {
     const target = isAbsolute(requested) ? requested : resolve(input.cwd, requested);
     try {
       const entry = await stat(target);
-      revealWithShell(target, entry.isDirectory());
+      openWithShell(target, entry);
       return { revealed: target, error: null };
     } catch (error) {
       return {
