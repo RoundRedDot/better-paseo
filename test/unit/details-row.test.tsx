@@ -253,6 +253,17 @@ describe("other detail callers", () => {
     act(() => row().props.onLongPress()); expect(menuLabels()).toEqual(["Copy", "Open details", "Expand in timeline"]);
     expect(state.register.mock.calls[0]![0].copies()[0].text).toBe("Full thought");
   });
+  it("draws a finished thought's verb and step count in the reader's language", () => {
+    updateEnhancerPreferences({ language: "zh" });
+    render(<ReasoningCard segmentation={{ kind: "sections", steps: 3, sections: [{ title: "Look", body: "a" }, { title: "Fix", body: "b" }, { title: "Test", body: "c" }] } as never}
+      streaming={false} durationMs={12_000} expanded={false} onToggle={() => {}} tokens={tokens} storeKey="thought-zh" copyText="Full thought" />);
+    const drawn = renderer!.root.findAll((node) => String(node.type) === "Text").map(textOf);
+    expect(drawn).toContain("思考");
+    expect(drawn.some((text) => text.startsWith("3 步"))).toBe(true);
+    expect(drawn).not.toContain("Thought");
+    expect(state.register.mock.calls[0]![0].subtitle).toEqual(["已完成", "3 步", "12s"]);
+    expect(state.register.mock.calls[0]![0].title).toBe("思考");
+  });
   it("registers a todo checklist and copies its plain checklist", () => {
     render(<TaskList data={todo} tokens={tokens} />);
     const entry = state.register.mock.calls[0]![0] as BlockEntry;

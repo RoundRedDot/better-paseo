@@ -157,7 +157,7 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
             size={DISCLOSURE_HEADER.icon}
             color={copied ? tokens.success : tokens.foregroundMuted}
           />
-          <Text style={styles.copyLabel}>Copy</Text>
+          <Text style={styles.copyLabel}>{toolbarLabel("Copy", language)}</Text>
         </ToolbarItem>
         {modelName && fit.model ? (
           <ToolbarItem

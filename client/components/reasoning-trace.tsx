@@ -28,6 +28,8 @@ import {
   type ReasoningSegmentation,
 } from "../reasoning/segment";
 import { plainInline, reasoningHeaderText } from "../reasoning/preview";
+import { toolbarLabel } from "../i18n/toolbar-strings";
+import { useEnhancerPreferences } from "../preferences";
 import { fitsRow } from "../tools/detail";
 import { CLAMPED_LINES, splitBodyRuns, type BodyRun } from "../reasoning/paragraphs";
 import { TYPE, blockProseBase } from "../ui/tokens/typography";
@@ -332,6 +334,7 @@ export function ReasoningCard({
   copyText,
 }: ReasoningCardProps) {
   const label = reasoningHeaderText(segmentation, streaming, durationMs);
+  const { language } = useEnhancerPreferences();
   // A finished one-sentence thought is all on the row already: nothing to open.
   const budget = compact ? DISCLOSURE_HEADER.targetBudget.compact : DISCLOSURE_HEADER.targetBudget.desktop;
   const inert =
@@ -357,7 +360,7 @@ export function ReasoningCard({
       onToggle={onToggle}
       scrollAnchor={scrollAnchor}
       previewKey={`${storeKey}:preview`}
-      detailsTitle={label.preview || label.verb}
+      detailsTitle={label.preview || toolbarLabel(label.verb, language)}
       detailsSubtitle={[streaming ? "Thinking" : "Completed", ...label.meta]}
       detailsTone={streaming ? "accent" : "muted"}
       detailsIcon="Lightbulb"
@@ -374,7 +377,7 @@ export function ReasoningCard({
       }
       iconIsStatus={streaming}
       tone={streaming ? "active" : "quiet"}
-      verb={label.verb}
+      verb={toolbarLabel(label.verb, language)}
       target={
         label.preview ? (
           <RowText
@@ -395,7 +398,7 @@ export function ReasoningCard({
           </RowText>
         ) : undefined
       }
-      meta={label.meta}
+      meta={label.meta.map((part) => toolbarLabel(part, language))}
       actions={<ToolbarCopyButton text={copySource} tokens={tokens} label="Copy thought" />}
       onLongPress={onLongPress}
       accessibilityLabel={label.preview ? `${label.verb}: ${label.preview}` : label.verb}

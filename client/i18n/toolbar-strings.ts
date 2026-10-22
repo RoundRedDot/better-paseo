@@ -47,6 +47,7 @@ const ZH: Readonly<Record<string, string>> = {
   completed: "已完成",
   failed: "失败",
   Thinking: "思考中",
+  Thought: "思考",
   Completed: "已完成",
   "Previous block": "上一个区块",
   "Next block": "下一个区块",
@@ -112,6 +113,9 @@ export function toolbarLabel(label: string, preference: SettingsLanguagePreferen
   // "1 new line", "5 new lines"; the pill's template is "{count} new lines" (`backToLatestText`).
   const newLines = /^(\d+) new lines?$/.exec(label);
   if (newLines) return `${newLines[1]} 行新输出`;
+  // A thought's sections: "1 step", "4 steps".
+  const steps = /^(\d+) steps?$/.exec(label);
+  if (steps) return `${steps[1]} 步`;
   return ZH[label] ?? label;
 }
 
