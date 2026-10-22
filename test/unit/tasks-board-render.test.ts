@@ -107,6 +107,7 @@ import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS } from "../../client/tasks/board/params";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
+import { LANE_ORDER } from "../../client/tasks/model";
 import { BrandMark, PiMark, TaskCardView, TaskDetailCards, taskTokens } from "../../client/tasks/cards";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled } from "../../client/tasks/board/enabled";
@@ -390,6 +391,38 @@ describe("Tasks board, desktop", () => {
     expect(StyleSheet.flatten(pressable("Expand lane: Running").props.style)).toMatchObject({ width: 40, borderRadius: 5 });
     act(() => pressable("Expand lane: Running").props.onPress());
     expect(cards().map((card) => card.props.card.id)).toContain("sample-running");
+  });
+
+  it("eases the lanes to the widths the user picked, and follows the board's own at once", async () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    // The inline sidebar takes 380 and its 12 margin.
+    layOut(2400);
+    /** A lane's clip width: a number when it holds still, the eased value (at its start) while it moves. */
+    const clip = (lane: string) => {
+      const width = StyleSheet.flatten(hostsById(`lane-${lane}`)[0]!.props.style).width as number | { __value: number };
+      return typeof width === "number" ? width : { easing: width.__value };
+    };
+    expect(LANE_ORDER.map(clip)).toEqual([340, 340, 340, 340]);
+    act(() => hostsById("lane-needs_input")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Collapse lane")[0]!.props.onPress());
+    // The collapsed lane eases from 340 to its strip; the strip inside has its 40 at once and fades in.
+    expect(clip("needs_input")).toEqual({ easing: 340 });
+    const swap = hostParentOf(pressable("Expand lane: Needs input").findAll((node) => typeof node.type === "string")[0]!)!;
+    expect(StyleSheet.flatten(swap.props.style)).toMatchObject({ width: 40, opacity: { __value: 0 } });
+    expect(clip("running")).toBe(340);
+    // The board's own width (a window resize, the sidebar's edge dragged) is followed at once.
+    const share = (1400 - 392 - 2 * 12 - 3 * 8 - 40) / 3;
+    layOut(1400);
+    expect(clip("running")).toBe(share);
+    // A lane width the user switched to: every expanded lane eases there.
+    const button = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && String(node.props.accessibilityLabel).startsWith("Lanes · "))[0]!;
+    act(() => button().props.onPress());
+    const wide = renderer!.root.find((node) => node.props.testID === "lane-width-menu").findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem")[2]!;
+    await act(async () => wide.props.onPress());
+    expect(clip("running")).toEqual({ easing: share });
+    expect(clip("done")).toEqual({ easing: share });
+    expect(clip("needs_input")).toEqual({ easing: 340 });
   });
 
   it("shows the status counts in an inline sidebar that takes its width from the lanes", () => {
