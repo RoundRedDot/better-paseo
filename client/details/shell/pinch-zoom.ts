@@ -7,13 +7,17 @@
  * native scroller. As the second finger lands the body is held still, so the
  * fingers moving apart do not scroll it; the scroller is let go as they lift.
  *
- * The text lays out again at each whole point the pinch passes, and the line
- * under the fingers' midpoint stays under it: the body scrolls to keep that
- * point at the same share of the content once its new height is reported.
- * Only the last size is saved, as the fingers lift.
+ * A body of ordinary length lays out again at each whole point the pinch
+ * passes. A longer one (`LIVE_LIMIT`) only counts the size on the badge until
+ * the fingers lift and then lays out once: a 2,852-line output took over a
+ * second per point on the iOS simulator. A preview scale was no way out: one
+ * text that tall drew nothing while scaled, and its line numbers kept the
+ * scaled places afterwards. Either way the line under the fingers' midpoint
+ * stays under it, the body scrolling to keep that point at the same share of
+ * the content once a new height is reported. Only the last size is saved.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { GestureResponderEvent } from "react-native";
+import { PixelRatio, Platform, type GestureResponderEvent } from "react-native";
 import type { DetailsZoom } from "../contracts";
 import type { PreviewScroller } from "../../ui/preview-scroller";
 import { pinchZoom } from "../../ui/text-zoom";
@@ -22,6 +26,26 @@ import { pinchZoom } from "../../ui/text-zoom";
 export const ZOOM_BADGE_MS = 2000;
 /** Heights reported this long after the lift are still the pinch's last layout. */
 const SETTLE_MS = 500;
+/** Content taller than this lays out only as the fingers lift. */
+export const LIVE_LIMIT = 4000;
+/**
+ * On iOS one text taller than about this many pixels draws nothing and takes
+ * no pinch: a 2,852-line output drew at 20pt (85,500pt, 256,500px at 3x) and
+ * stayed blank at 22pt (94,000pt, 282,000px). A pinch does not grow the body
+ * past it; at most it stays as tall as it already is.
+ */
+export const IOS_TEXT_LIMIT_PX = 2 ** 18;
+
+/**
+ * The largest zoom that keeps content `height` tall at zoom `from` within the
+ * iOS limit. `base` is the smaller of the body and code sizes: the smaller
+ * one grows fastest by a point.
+ */
+export function zoomCap(base: number, from: number, height: number, scale = PixelRatio.get(), os = Platform.OS): number {
+  if (os !== "ios" || height <= 0) return Infinity;
+  const fits = Math.floor(((base + from) * IOS_TEXT_LIMIT_PX * 0.95) / (height * scale)) - base;
+  return Math.max(from, fits);
+}
 
 interface Point {
   x: number;
@@ -31,7 +55,7 @@ interface Point {
 export interface PinchOptions {
   zoom(): DetailsZoom | undefined;
   scroller(): PreviewScroller | null;
-  /** The size the drawer draws at, while a pinch moves and as it ends. */
+  /** The size the badge shows, while a pinch moves and as it ends. */
   changed(zoom: number, pinching: boolean): void;
 }
 
@@ -42,20 +66,25 @@ export interface Pinch {
   cancel(): void;
   /** The body's content height, each time it is reported. */
   contentSized(height: number): void;
-  active(): boolean;
 }
 
 export function createPinch(options: PinchOptions): Pinch {
-  let gesture: { distance: number; from: number; zoom: number; top: number } | null = null;
+  let gesture: { distance: number; from: number; zoom: number; top: number; live: boolean; mid: number; cap: number } | null = null;
   // Where the midpoint was, as a share of the content, for the next height.
   let anchor: { share: number; focus: number; until: number } | null = null;
   let height = 0;
+  const keep = (mid: number, top: number) => {
+    const scroller = options.scroller();
+    if (!scroller || height <= 0) return;
+    const focus = mid - top;
+    anchor = { share: (scroller.offset() + focus) / height, focus, until: Infinity };
+  };
   const begin = (touches: readonly Point[]) => {
     const zoom = options.zoom();
     const distance = spread(touches);
     if (!zoom || distance <= 0) return;
     const from = zoom.current();
-    gesture = { distance, from, zoom: from, top: 0 };
+    gesture = { distance, from, zoom: from, top: 0, live: height <= LIVE_LIMIT, mid: midpoint(touches).y, cap: zoomCap(Math.min(zoom.base, zoom.code), from, height) };
     anchor = null;
     const scroller = options.scroller();
     scroller?.hold(true);
@@ -67,21 +96,21 @@ export function createPinch(options: PinchOptions): Pinch {
   const move = (touches: readonly Point[]) => {
     const zoom = options.zoom();
     if (!gesture || !zoom || touches.length < 2) return;
-    const next = pinchZoom(zoom.base, gesture.from, spread(touches) / gesture.distance);
+    gesture.mid = midpoint(touches).y;
+    const next = Math.min(gesture.cap, pinchZoom(zoom.base, gesture.from, spread(touches) / gesture.distance));
     if (next === gesture.zoom) return;
     gesture.zoom = next;
-    const scroller = options.scroller();
-    if (scroller && height > 0) {
-      const focus = midpoint(touches).y - gesture.top;
-      anchor = { share: (scroller.offset() + focus) / height, focus, until: Infinity };
+    if (gesture.live) {
+      keep(gesture.mid, gesture.top);
+      zoom.preview(next);
     }
-    zoom.preview(next);
     options.changed(next, true);
   };
   const finish = () => {
     if (!gesture) return;
-    const { from, zoom: reached } = gesture;
+    const { from, zoom: reached, live, mid, top } = gesture;
     gesture = null;
+    if (!live && reached !== from) keep(mid, top);
     if (anchor) anchor.until = Date.now() + SETTLE_MS;
     options.scroller()?.hold(false);
     if (reached !== from) options.zoom()?.commit(reached);
@@ -109,7 +138,6 @@ export function createPinch(options: PinchOptions): Pinch {
       if (!anchor || !scroller || next <= 0) return;
       scroller.scrollBy(anchor.share * next - anchor.focus - scroller.offset());
     },
-    active: () => gesture !== null,
   };
 }
 
