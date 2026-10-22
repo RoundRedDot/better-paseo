@@ -440,7 +440,7 @@ export function DesktopBoard(props: {
     [board, theme, callbacks],
   );
   const unfilteredEmpty = tasks.ready && LANE_ORDER.every((id) => tasks.lanes[id].cards.length === 0);
-  const sidebarToggle = { open, onToggle: toggleSidebar, floating };
+  const sidebarToggle = { open, onToggle: toggleSidebar, floating, sheet: mode === "sheet" };
   const sidebar = (
     <DetailsSidebar
       board={board}

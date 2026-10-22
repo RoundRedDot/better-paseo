@@ -436,6 +436,7 @@ describe("Tasks board, desktop", () => {
     });
     layOut(2000);
     expect(hostsById("sidebar-inline")).toHaveLength(1);
+    expect(renderer!.root.findByProps({ testID: "sidebar-switch" }).find((node) => node.props.side !== undefined).props.side).toBe("right");
     // The lanes keep the board less the sidebar's 380 and its 12 margin.
     expect(lanesScroll().props.contentContainerStyle).toMatchObject({ width: 2000 - 380 - 12 });
     const stats = renderer!.root.findByProps({ testID: "sidebar-stats" });
@@ -559,6 +560,9 @@ describe("Tasks board, desktop", () => {
     });
     layOut(600);
     expect(hostsById("board-sheet")).toHaveLength(0);
+    // The switch's mark shows the panel at the bottom, where the details will rise.
+    const switchSide = () => renderer!.root.findByProps({ testID: "sidebar-switch" }).find((node) => node.props.side !== undefined).props.side;
+    expect(switchSide()).toBe("bottom");
     const card = cards().find((node) => node.props.card.id === "sample-running")!;
     act(() => card.props.onSelect(card.props.card));
     expect(hostsById("board-sheet")).toHaveLength(1);

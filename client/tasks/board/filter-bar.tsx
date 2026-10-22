@@ -29,8 +29,8 @@ export function DesktopToolbar(props: {
   theme: PluginTheme;
   searchRef: Ref<NativeTextInput>;
   keyHints: boolean;
-  /** The details sidebar's switch at the bar's right end. */
-  sidebar?: { open: boolean; onToggle(): void };
+  /** The details sidebar's switch at the bar's right end; `sheet` when the details rise from the bottom. */
+  sidebar?: { open: boolean; onToggle(): void; sheet?: boolean };
   /**
    * A narrow board's one-row header: the filter bar folds into this button
    * (its count of active filters on a badge), which opens the filter sheet,
@@ -94,13 +94,13 @@ export function DesktopToolbar(props: {
         />
       </View>
       {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} testID="toolbar-filters" /> : null}
-      {props.sidebar ? <SidebarSwitch open={props.sidebar.open} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
+      {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
     </View>
   );
 }
 
 /** Linear's panel switch: a 28 round button, outlined, filled grey while the sidebar shows. */
-function SidebarSwitch(props: { open: boolean; onToggle(): void; theme: PluginTheme; label: string }) {
+function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void; theme: PluginTheme; label: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   const size = taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
@@ -127,22 +127,35 @@ function SidebarSwitch(props: { open: boolean; onToggle(): void; theme: PluginTh
         justifyContent: "center",
       }}
     >
-      <PanelMark open={props.open} color={props.open ? colors.foreground : colors.foregroundMuted} />
+      <PanelMark open={props.open} side={props.sheet ? "bottom" : "right"} color={props.open ? colors.foreground : colors.foregroundMuted} />
     </Pressable>
   );
 }
 
 /**
  * Linear's panel mark at the host's 1.5 stroke: a rounded frame with a thin
- * bar at its right while the sidebar hides, a solid block while it shows.
+ * bar on the side the details come from (right, or bottom when they rise as
+ * a sheet) while the sidebar hides, a solid block while it shows.
  */
-function PanelMark(props: { open: boolean; color: string }) {
+function PanelMark(props: { open: boolean; side: "right" | "bottom"; color: string }) {
+  const bottom = props.side === "bottom";
+  const bar = props.open ? { long: 6.5, short: 4, radius: 1 } : { long: 5.5, short: 1.5, radius: 0.75 };
   return (
     <View
       testID="panel-mark"
-      style={{ width: 15, height: 12, borderWidth: 1.5, borderRadius: 3.5, borderColor: props.color, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", paddingRight: 2.5 }}
+      style={{
+        width: 15,
+        height: 12,
+        borderWidth: 1.5,
+        borderRadius: 3.5,
+        borderColor: props.color,
+        flexDirection: bottom ? "column" : "row",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        ...(bottom ? { paddingBottom: 2 } : { paddingRight: 2.5 }),
+      }}
     >
-      <View style={props.open ? { width: 4, height: 6.5, borderRadius: 1, backgroundColor: props.color } : { width: 1.5, height: 5.5, borderRadius: 0.75, backgroundColor: props.color }} />
+      <View style={{ width: bottom ? bar.long + 1.5 : bar.short, height: bottom ? (props.open ? 3.5 : bar.short) : bar.long, borderRadius: bar.radius, backgroundColor: props.color }} />
     </View>
   );
 }
