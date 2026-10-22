@@ -238,6 +238,40 @@ function FadeOnMount({ enabled, children }: { enabled: boolean; children: ReactN
 }
 
 /** A `Pressable` whose style follows the pointer on web and on native pointers. */
+/**
+ * A press that is a tap, not the start of a scroll: on iOS a quick swipe that
+ * starts on a button can end as that button's press before the scroll view
+ * takes the touch (a fast drag from a lane's collapse button folded the
+ * lane). Spread `pressIn` on the Pressable and wrap its handler in `tap`; a
+ * release more than 10 from where the finger went down does nothing.
+ */
+export function useTap(): {
+  pressIn: { onPressIn(event: { nativeEvent: { pageX: number; pageY: number } }): void };
+  tap(handler?: () => void): ((event?: { nativeEvent?: { pageX: number; pageY: number } }) => void) | undefined;
+} {
+  const down = useRef<{ x: number; y: number } | null>(null);
+  return {
+    pressIn: {
+      onPressIn(event) {
+        down.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
+      },
+    },
+    tap(handler) {
+      if (!handler) return undefined;
+      return (event) => {
+        const start = down.current;
+        const end = event?.nativeEvent;
+        down.current = null;
+        // A release without coordinates (a keyboard or an accessibility action) is a tap.
+        if (start && end && Math.hypot(end.pageX - start.x, end.pageY - start.y) > TAP_SLOP) return;
+        handler();
+      };
+    },
+  };
+}
+
+const TAP_SLOP = 10;
+
 export function HoverPressable(
   props: Omit<React.ComponentProps<typeof Pressable>, "style"> & { style(hovered: boolean): StyleProp<ViewStyle> },
 ) {

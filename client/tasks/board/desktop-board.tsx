@@ -10,7 +10,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
 import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-scrollbar";
 import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
-import { CardCell, HoverPressable, LoadMoreRow, SkeletonCard, VerticalLabel, useBreathing, useFreshIds } from "./board-parts";
+import { CardCell, HoverPressable, LoadMoreRow, SkeletonCard, VerticalLabel, useBreathing, useFreshIds, useTap } from "./board-parts";
 import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type FilterMenu } from "./filter-bar";
 import { buildFilterOptions } from "./filter-options";
 import { LANES, boardKeyReducer, clampFocus, laneLayout, type BoardFocus, type LaneShape } from "./navigation";
@@ -316,6 +316,16 @@ export function DesktopBoard(props: {
   // gaps, a lane's empty space, its header. It lets go of the selected card
   // and the keyboard's. A drag (a scroll) moves too far to count, and a press
   // on a scrollbar, which Chromium sends to the list as well, does not count.
+  //
+  // On iOS and Android a responder above the lanes' scroll views held their
+  // drags back (a drag from a lane's header did not scroll the row): there
+  // each lane's header and the space under its cards take the tap instead,
+  // inside the scroll views, as a card does.
+  const letGo = useCallback(() => {
+    dispatch({ type: "clear" });
+    setFocus(null);
+    if (latest.current.floating) setShown(null);
+  }, []);
   const blankDown = useRef<{ x: number; y: number } | null>(null);
   const blankPress = {
     onStartShouldSetResponder: () => true,
@@ -327,9 +337,7 @@ export function DesktopBoard(props: {
       const down = blankDown.current;
       blankDown.current = null;
       if (!down || Math.abs(event.nativeEvent.pageX - down.x) > 6 || Math.abs(event.nativeEvent.pageY - down.y) > 6) return;
-      dispatch({ type: "clear" });
-      setFocus(null);
-      if (latest.current.floating) setShown(null);
+      letGo();
     },
     onResponderTerminate: () => {
       blankDown.current = null;
@@ -470,7 +478,7 @@ export function DesktopBoard(props: {
           setBoardHeight(Math.floor(event.nativeEvent.layout.height));
         }}
       >
-        <View style={{ flex: 1, minWidth: 0, minHeight: 0 }} {...blankPress}>
+        <View style={{ flex: 1, minWidth: 0, minHeight: 0 }} {...(touch ? null : blankPress)}>
           <LaneMotionProvider value={motion}>
             {boardWidth > 0 ? (
               <ScrollView
@@ -483,24 +491,28 @@ export function DesktopBoard(props: {
                 scrollEnabled={layout.scroll || coverRoom > 0}
                 showsHorizontalScrollIndicator={layout.scroll || coverRoom > 0}
                 style={{ flex: 1 }}
-                contentContainerStyle={{ width: layout.contentWidth + coverRoom, gap: LANES.gap, paddingLeft: LANES.edge, paddingRight: LANES.edge + coverRoom, paddingTop: 4, paddingBottom: 12 }}
+                contentContainerStyle={{ width: layout.contentWidth + coverRoom, gap: touch ? 0 : LANES.gap, paddingLeft: LANES.edge, paddingRight: LANES.edge + coverRoom, paddingTop: 4, paddingBottom: 12 }}
               >
-                {LANE_ORDER.map((id) => (
-                  <DesktopLane
-                    key={id}
-                    lane={lanes[id]}
-                    width={layout.laneWidth}
-                    collapsed={collapsed.includes(id)}
-                    onToggle={() => setCollapsed((current) => (current.includes(id) ? current.filter((lane) => lane !== id) : [...current, id]))}
-                    board={board}
-                    callbacks={callbacks}
-                    theme={theme}
-                    focusIndex={focus?.lane === id ? focus.index : null}
-                    currentId={open ? selection.id : null}
-                    listRef={publishList[id]}
-                    breathing={breathing}
-                    bottomRoom={sheetRoom}
-                  />
+                {LANE_ORDER.map((id, index) => (
+                  <React.Fragment key={id}>
+                    {/* On touch the gap between two lanes is a blank to tap too, inside the scroll row. */}
+                    {touch && index > 0 ? <LaneGap onPress={letGo} /> : null}
+                    <DesktopLane
+                      lane={lanes[id]}
+                      width={layout.laneWidth}
+                      collapsed={collapsed.includes(id)}
+                      onToggle={() => setCollapsed((current) => (current.includes(id) ? current.filter((lane) => lane !== id) : [...current, id]))}
+                      board={board}
+                      callbacks={callbacks}
+                      theme={theme}
+                      focusIndex={focus?.lane === id ? focus.index : null}
+                      currentId={open ? selection.id : null}
+                      listRef={publishList[id]}
+                      breathing={breathing}
+                      bottomRoom={sheetRoom}
+                      onBlank={touch ? letGo : undefined}
+                    />
+                  </React.Fragment>
                 ))}
               </ScrollView>
             ) : null}
@@ -542,6 +554,12 @@ export function DesktopBoard(props: {
       ) : null}
     </View>
   );
+}
+
+/** The gap between two lanes on touch: a blank to tap, as the lanes' headers and empty space are. */
+function LaneGap(props: { onPress(): void }) {
+  const { pressIn, tap } = useTap();
+  return <Pressable accessible={false} {...pressIn} onPress={tap(props.onPress)} testID="lane-gap" style={{ width: LANES.gap, alignSelf: "stretch" }} />;
 }
 
 /**
@@ -712,6 +730,8 @@ function DesktopLane(props: {
   breathing: Animated.Value;
   /** The bottom sheet's height over the lanes: the list scrolls its last card above it. */
   bottomRoom: number;
+  /** Touch only: a tap on the header or under the cards lets go of the selection (see `letGo`). */
+  onBlank?(): void;
 }) {
   const { lane, board, theme } = props;
   const scale = useTasksFontScale();
@@ -759,13 +779,19 @@ function DesktopLane(props: {
     [board, theme, focusIndex, currentId, fresh, callbacks],
   );
 
+  // Taps that a quick swipe starting on them must not fire (see `useTap`).
+  const headerTap = useTap();
+  const collapseTap = useTap();
+  const blankTap = useTap();
+
   if (props.collapsed) {
     return (
       <HoverPressable
         ref={pillRef}
         accessibilityRole="button"
         accessibilityLabel={`${strings.expand}: ${name}`}
-        onPress={props.onToggle}
+        {...collapseTap.pressIn}
+        onPress={collapseTap.tap(props.onToggle)}
         style={(hovered) => ({
           width: LANES.collapsed,
           alignItems: "center",
@@ -785,7 +811,14 @@ function DesktopLane(props: {
   const loadingFirst = !ready || (lane.id === "done" && lane.loading && count === 0);
   return (
     <View style={{ width: props.width, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}>
-      <View style={{ height: taskControlHeight(40, scale), flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 14, paddingRight: 8 }}>
+      <Pressable
+        accessible={false}
+        disabled={!props.onBlank}
+        {...headerTap.pressIn}
+        onPress={headerTap.tap(props.onBlank)}
+        testID={`lane-header-${lane.id}`}
+        style={{ height: taskControlHeight(40, scale), flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 14, paddingRight: 8 }}
+      >
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <Text style={{ fontSize: F.sm, fontWeight: "500", color: colors.foreground }}>{name}</Text>
         {ready ? (
@@ -800,7 +833,8 @@ function DesktopLane(props: {
         <HoverPressable
           accessibilityRole="button"
           accessibilityLabel={strings.collapse}
-          onPress={props.onToggle}
+          {...collapseTap.pressIn}
+          onPress={collapseTap.tap(props.onToggle)}
           style={(hovered) => ({
             width: 24,
             height: 24,
@@ -812,7 +846,7 @@ function DesktopLane(props: {
         >
           <Icon name="FoldHorizontal" size={14} color={colors.foregroundMuted} />
         </HoverPressable>
-      </View>
+      </Pressable>
       {loadingFirst ? (
         <View style={{ ...SKELETON_PAD, paddingBottom: 8, gap: 12 }}>
           {[0, 1, 2].map((index) => (
@@ -829,7 +863,7 @@ function DesktopLane(props: {
           extraData={extraData}
           renderItem={renderItem}
           ItemSeparatorComponent={Separator}
-          contentContainerStyle={{ ...LANE_PAD, paddingTop: 2, paddingBottom: 8 + props.bottomRoom }}
+          contentContainerStyle={{ ...LANE_PAD, paddingTop: 2, paddingBottom: 8 + props.bottomRoom, ...(props.onBlank ? { flexGrow: 1 } : null) }}
           initialNumToRender={8}
           maxToRenderPerBatch={8}
           windowSize={7}
@@ -853,10 +887,14 @@ function DesktopLane(props: {
               <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{strings.laneEmpty[lane.id]}</Text>
             </View>
           }
+          ListFooterComponentStyle={props.onBlank ? { flexGrow: 1 } : undefined}
           ListFooterComponent={
-            lane.id === "done" && count > 0 && (lane.hasMore || lane.loading) ? (
-              <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} />
-            ) : null
+            <>
+              {lane.id === "done" && count > 0 && (lane.hasMore || lane.loading) ? (
+                <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} />
+              ) : null}
+              {props.onBlank ? <Pressable accessible={false} {...blankTap.pressIn} onPress={blankTap.tap(props.onBlank)} testID={`lane-blank-${lane.id}`} style={{ flexGrow: 1, minHeight: 48 }} /> : null}
+            </>
           }
         />
       )}
