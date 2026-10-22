@@ -427,9 +427,8 @@ describe("TaskCardView rows", () => {
     expect(pillColors("pill-label-board")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
     // The branch: a faint fixed blue, borderless; folder, path and PR stay neutral.
     expect(pillColors("pill-branch").background).toBe(mix("#ffffff", tokens.branch, 0.08));
-    // The agent pill takes the provider's brand (Codex green); the subtasks pill its dominant status (2 running).
-    // The agent pills are borderless, in the brand's colours (Codex green).
-    expect(pillColors("pill-model").background).toBe(mix("#ffffff", "#10A37F", 0.12));
+    // Codex's mark is monochrome, like the ChatGPT app's, so its agent pill is the neutral one; the subtasks pill its dominant status (2 running).
+    expect(pillColors("pill-model").background).toBe(mix("#ffffff", LIGHT.colors.foreground, 0.06));
     expect(pillColors("pill-thinking").background).toBe(mix("#ffffff", LIGHT.colors.foreground, 0.06));
     expect(pillColors("pill-subtasks").background).toBe(mix("#ffffff", tokens.status.running, 0.1));
     const dot = (name: string) =>
