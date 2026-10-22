@@ -59,6 +59,7 @@ import {
   resetTasksEnabled,
   setTasksEnabled,
   setTasksSettingsOpener,
+  setTasksStartupRead,
   tasksBoardOpener,
   tasksEnabled,
   tasksSettingsOpener,
@@ -262,6 +263,66 @@ describe("Tasks board screen, opt-in", () => {
     // The board itself: its toolbar counts the one running agent.
     expect(textOf(renderer!.root)).toContain("1 task");
     expect(fake.openSubscriptions()).toBeGreaterThan(0);
+  });
+});
+
+describe("Tasks board across a reconnect", () => {
+  // Paseo disposes the plugin when the host drops and evaluates it again on
+  // reconnect: module state starts over, the startup read and the settings
+  // are out again, and the new store has not caught up.
+  async function openOnce() {
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, enabled: true };
+    await mount(screen());
+    expect(textOf(renderer!.root)).toContain("1 task");
+    await act(async () => renderer!.unmount());
+    renderer = undefined;
+  }
+
+  function reconnect(options: Parameters<typeof createFakePaseo>[0] = {}) {
+    resetTasksEnabled();
+    setTasksStartupRead("pending");
+    host.settings = null;
+    fake = createFakePaseo(options);
+    host.paseo = fake.paseo;
+  }
+
+  function carriedBoard() {
+    const carry = (globalThis as Record<string, unknown>).__betterPaseoTasksCarry as Map<string, Record<string, unknown>>;
+    return carry.get("host-1")!;
+  }
+
+  it("draws the last cards at once, before the startup read, the settings or the lists answer", async () => {
+    await openOnce();
+    reconnect({ stalled: true });
+    await mount(screen());
+    expect(textOf(renderer!.root)).toContain("1 task");
+    expect(fake.openSubscriptions()).toBeGreaterThan(0);
+  });
+
+  it("moves to the fresh cards once the store has caught up", async () => {
+    await openOnce();
+    const workspace = makeWorkspace({ id: "wks_1" });
+    const agents = [makeAgent({ id: "a1", status: "running" }), makeAgent({ id: "a2", status: "running" })];
+    reconnect({ workspaces: [workspace], agents, placements: { a1: makePlacement(agents[0]!), a2: makePlacement(agents[1]!) } });
+    await mount(screen());
+    expect(textOf(renderer!.root)).toContain("2 tasks");
+  });
+
+  it("drops cards another version of the plugin carried, and waits as on a first open", async () => {
+    await openOnce();
+    (carriedBoard().board as { shape: string }).shape = "another bundle";
+    reconnect({ stalled: true });
+    await mount(screen());
+    expect(textOf(renderer!.root)).not.toContain("1 task");
+  });
+
+  it("waits for the startup read when the carried settings no longer say the board is on", async () => {
+    await openOnce();
+    carriedBoard().settings = { enabled: "yes" };
+    reconnect({ stalled: true });
+    await mount(screen());
+    expect(textOf(renderer!.root)).toBe("");
+    expect(fake.openSubscriptions()).toBe(0);
   });
 });
 

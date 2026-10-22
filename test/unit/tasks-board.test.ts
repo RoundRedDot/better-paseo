@@ -111,6 +111,32 @@ describe("board params", () => {
     expect(rememberedLane("h1")).toBe("review");
     expect(rememberedLane("h2")).toBeNull();
   });
+
+  it("brings each host's board state back after the bundle is evaluated again", async () => {
+    rememberBoardParams("h1", { ...EMPTY_PARAMS, query: "ring", providers: ["codex"], sort: { key: "title", direction: "desc" } });
+    rememberLane("h1", "review");
+    // A reconnect evaluates the bundle again: fresh module state, the same global.
+    vi.resetModules();
+    const again = await import("../../client/tasks/board/params");
+    again.rememberCollapsed("h2", ["done"]);
+    vi.resetModules();
+    const third = await import("../../client/tasks/board/params");
+    expect(again).not.toBe(third);
+    expect(third.lastBoardParams("h1")).toEqual({ ...EMPTY_PARAMS, query: "ring", providers: ["codex"], sort: { key: "title", direction: "desc" } });
+    expect(third.rememberedLane("h1")).toBe("review");
+    expect(third.rememberedCollapsed("h2")).toEqual(["done"]);
+    expect(third.lastBoardParams("h3")).toBe(third.EMPTY_PARAMS);
+  });
+
+  it("drops what an earlier version carried that no longer decodes", async () => {
+    const carry = new Map([["h1", { session: { params: { q: 3 }, lane: "backlog", collapsed: ["done", "nope", 7] } }]]);
+    (globalThis as Record<string, unknown>).__betterPaseoTasksCarry = carry;
+    vi.resetModules();
+    const fresh = await import("../../client/tasks/board/params");
+    expect(fresh.lastBoardParams("h1")).toBe(fresh.EMPTY_PARAMS);
+    expect(fresh.rememberedLane("h1")).toBeNull();
+    expect(fresh.rememberedCollapsed("h1")).toEqual(["done"]);
+  });
 });
 
 describe("board keyboard", () => {
