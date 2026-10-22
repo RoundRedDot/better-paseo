@@ -595,6 +595,30 @@ describe("TaskCardView rows", () => {
     }
   });
 
+  it("sizes Stop and Mark read like the answer button beside them", async () => {
+    const box = (style: unknown) => {
+      const flatStyle = flat(style);
+      return {
+        height: flatStyle.height,
+        radius: flatStyle.borderRadius ?? flatStyle.borderTopLeftRadius,
+        padding: flatStyle.paddingHorizontal,
+        gap: flatStyle.gap,
+      };
+    };
+    const card = {
+      ...sample("sample-input"),
+      permission: { requestId: "q", kind: "question" as const, title: "Which database?", summary: null, actions: [], remaining: 0 },
+    };
+    const buttons = permissionButtons(card.permission, "zh");
+    const tree = await render(cardElement(card, { permissionButtons: buttons, onStop: () => {} }));
+    const answer = box(byLabel(tree.root, "去回答").props.style);
+    expect(answer).toEqual({ height: 28, radius: 6, padding: 10, gap: 5 });
+    expect(box(byLabel(tree.root, "停止").props.style)).toEqual(answer);
+    await act(async () => tree.update(cardElement({ ...sample("sample-unread"), readable: true }, { onRead: () => {} })));
+    expect(box(byLabel(tree.root, "标为已读").props.style)).toEqual(answer);
+    expect(icons(byLabel(tree.root, "标为已读"))[0]).toBe("CheckCheck");
+  });
+
   it("tints Allow with the accent and Deny with the danger colour", async () => {
     const buttons = permissionButtons(sample("sample-input").permission!, "zh");
     const tree = await render(cardElement(sample("sample-input"), { permissionButtons: buttons }));
@@ -905,7 +929,7 @@ describe("TaskCardView actions", () => {
     await act(async () => tree.update(cardElement(card, { onRead })));
     const button = byLabel(tree.root, "标为已读");
     expect(icons(button)).toEqual(["CheckCheck"]);
-    expect(flat(button.props.style)).toMatchObject({ height: 20, borderRadius: 5, borderWidth: 1 });
+    expect(flat(button.props.style)).toMatchObject({ height: 28, borderRadius: 6, borderWidth: 1 });
     button.props.onPress();
     expect(onRead).toHaveBeenCalledWith(card);
 
@@ -928,8 +952,8 @@ describe("TaskCardView actions", () => {
     const square = (root: ReactTestInstance, label: string) =>
       byLabel(root, label).find((node) => (node.type as unknown) === "Icon" && node.props.name === "Power").props;
     const tree = await render(cardElement(sample("sample-running"), { onStop: () => {} }));
-    expect(square(tree.root, "停止")).toMatchObject({ size: 12, color: tokens.danger });
-    expect(flat(byLabel(tree.root, "停止").props.style)).toMatchObject({ height: 20, borderTopLeftRadius: 5, borderBottomLeftRadius: 5 });
+    expect(square(tree.root, "停止")).toMatchObject({ size: 13, color: tokens.danger });
+    expect(flat(byLabel(tree.root, "停止").props.style)).toMatchObject({ height: 28, borderTopLeftRadius: 6, borderBottomLeftRadius: 6 });
     await act(async () => tree.update(cardElement(sample("sample-running"), { onStop: () => {}, stopPhase: "confirming" })));
     expect(square(tree.root, "确认停止").color).toBe(LIGHT.colors.accentForeground);
     // The parent's menu leads "stop only this" with the same icon.
@@ -1565,7 +1589,7 @@ describe("overlays in the board's menu chrome", () => {
       const tree = await render(cardElement(card, { theme, onStop }));
       await act(async () => byLabel(tree.root, "停止选项").props.onPress());
       const menu = hostByTestId(tree.root, "task-card-stop-menu");
-      expect(flat(menu.props.style)).toMatchObject({ position: "absolute", right: 0, top: 24, width: 220 });
+      expect(flat(menu.props.style)).toMatchObject({ position: "absolute", right: 0, top: 32, width: 220 });
       const panel = hostByTestId(menu, "menu-panel");
       expect(flat(panel.props.style)).toMatchObject(chromeOf(theme));
       const rows = menu.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
