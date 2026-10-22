@@ -79,7 +79,7 @@ daemon: the `better-paseo` plugin there belongs to whoever is measuring the UI.
 ## 3. Install a Better Paseo build into the bench daemon
 
 Better Paseo is also a directory plugin; install the checkout you want to measure (its manifest
-build runs `npm ci --include=dev`):
+build runs `npm ci --omit=dev`):
 
 ```bash
 paseo --home "$H" plugin install /path/to/better-paseo    # e.g. a worktree
