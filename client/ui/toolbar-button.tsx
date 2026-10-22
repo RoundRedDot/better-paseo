@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle, type StyleProp, type ViewProps } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
@@ -41,6 +41,44 @@ export const TooltipAlignContext = createContext<TooltipAlign>("center");
  */
 export const TooltipSideContext = createContext<"below" | "auto">("below");
 
+/**
+ * The size of a toolbar's buttons and their icons. The hover panel's are 24
+ * with a 14 icon; the details panel's header and toolbar set 36 on touch and
+ * 28 with a pointer (docs/prototypes/block-details-sheet.md, table 5.2).
+ */
+export interface ToolbarMetrics {
+  button: number;
+  icon: number;
+}
+export const TOOLBAR_METRICS: ToolbarMetrics = { button: 24, icon: 14 };
+export const ToolbarMetricsContext = createContext<ToolbarMetrics>(TOOLBAR_METRICS);
+
+/** One copy button as a toolbar that folds them into "⋯" knows it. */
+export interface CopyOverflowItem {
+  label: string;
+  icon: string;
+  /** The text, or undefined when it is built only on a press: such a button is never dropped as empty. */
+  text: string | undefined;
+  copy(): void;
+}
+
+/**
+ * A toolbar that lays out its copy buttons itself (the details toolbar,
+ * `client/details/chrome/copy-overflow.tsx`): each `ToolbarCopyButton` under
+ * it registers, in the order it mounts, and draws only while `shows` says so.
+ * The others are folded into the toolbar's "⋯" menu, or dropped as empty or
+ * a repeat of an earlier one.
+ */
+export interface CopyOverflow {
+  register(key: string, read: () => CopyOverflowItem): () => void;
+  /** The button's label, icon or text changed. */
+  update(key: string): void;
+  shows(key: string): boolean;
+  /** Icon colour while a button shows its check. */
+  copiedColor?: string;
+}
+export const CopyOverflowContext = createContext<CopyOverflow | null>(null);
+
 interface ToolbarButtonProps {
   icon: string;
   /** Accessibility label; shown on hover in the settings page's language. */
@@ -61,8 +99,9 @@ interface ToolbarButtonProps {
  * name underneath; touch has no hover, so there the label is only spoken.
  */
 export function ToolbarButton({ icon, color, tokens, ...props }: ToolbarButtonProps) {
+  const metrics = useContext(ToolbarMetricsContext);
   return <ToolbarItem {...props} tokens={tokens}>
-    <Icon name={icon} size={14} color={color ?? tokens.foregroundMuted} />
+    <Icon name={icon} size={metrics.icon} color={color ?? tokens.foregroundMuted} />
   </ToolbarItem>;
 }
 
@@ -108,6 +147,8 @@ export function ToolbarItem({
 }) {
   const groupAlign = useContext(TooltipAlignContext);
   const sideMode = useContext(TooltipSideContext);
+  const metrics = useContext(ToolbarMetricsContext);
+  const sized = metrics.button !== TOOLBAR_METRICS.button;
   const anchorRef = useRef<View>(null);
   const detailsRef = useRef<View>(null);
   const [side, setSide] = useState<TooltipPlacement>("below");
@@ -197,6 +238,7 @@ export function ToolbarItem({
         {...hoverProps}
         style={({ pressed }) => [
           styles.button,
+          sized && { width: metrics.button, height: metrics.button, borderRadius: radiusV2.block },
           Platform.OS === "web" && onPress && styles.pointer,
           outlined && styles.outlined,
           outlined && { borderColor: tokens.v2.border },
@@ -213,6 +255,7 @@ export function ToolbarItem({
       ) : open ? (
         <View pointerEvents={details ? "box-none" : "none"}
           style={[styles.tooltipSlot, side === "above" ? styles.above : styles.below, ALIGN[align],
+            sized && align === "center" && { left: metrics.button / 2 - TOOLTIP_SLOT / 2 },
             details ? { width: detailsWidth, marginTop: 0, marginBottom: 0 } : null]}>
           {details ? (
             <Pressable ref={detailsRef} accessible={false} focusable={false}
@@ -322,7 +365,11 @@ export function ToolbarDetailsFrame({ tokens, children, side = "above", ready = 
   </Animated.View>;
 }
 
-/** A toolbar button that copies; its icon turns into a check for 1.2 s once the text is on the clipboard. */
+/**
+ * A toolbar button that copies; its icon turns into a check for 1.2 s once the
+ * text is on the clipboard. Under a `CopyOverflowContext` it draws only while
+ * that toolbar has room for it and it is not empty or a repeat.
+ */
 export function ToolbarCopyButton({ text, icon = "Copy", label, tokens, align, outlined }: {
   /** The raw text, or a function that builds it only when pressed. */
   text: string | (() => string);
@@ -337,11 +384,23 @@ export function ToolbarCopyButton({ text, icon = "Copy", label, tokens, align, o
     const value = typeof text === "function" ? text() : text;
     if (value) void copy(value, { feedback: "icon", label });
   }, [copy, text]);
+  const overflow = useContext(CopyOverflowContext);
+  const key = useId();
+  const latest = useRef<CopyOverflowItem>(null!);
+  latest.current = { label, icon, text: typeof text === "string" ? text : undefined, copy: onPress };
+  // Registered once, so the button keeps its place while its text grows.
+  const register = overflow?.register;
+  const update = overflow?.update;
+  useLayoutEffect(() => register?.(key, () => latest.current), [register, key]);
+  useLayoutEffect(() => {
+    update?.(key);
+  }, [update, key, label, icon, text]);
+  if (overflow && !overflow.shows(key)) return null;
   return (
     <ToolbarButton
       icon={copied ? "Check" : icon}
       label={copied ? "Copied" : label}
-      color={copied ? tokens.foreground : undefined}
+      color={copied ? overflow?.copiedColor ?? tokens.foreground : undefined}
       onPress={onPress}
       tokens={tokens}
       align={align}
