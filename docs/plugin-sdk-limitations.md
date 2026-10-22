@@ -2,7 +2,8 @@
 
 Measured against `@getpaseo/plugin` 0.8.0 and the Paseo 0.8.0 desktop build; entries 15–18 were
 checked on 2026-10-20 against `@getpaseo/plugin` 0.11.2 and the Paseo 0.12.0 desktop build while
-planning a Tasks board, and still hold for `@getpaseo/plugin` 0.12.0 (re-checked 2026-10-22). Each
+planning a Tasks board, and still hold for `@getpaseo/plugin` 0.12.0 (re-checked 2026-10-22).
+Entry 19 was checked against the 0.12.0 contracts/runtime. Each
 entry names the evidence and the workaround this plugin uses.
 
 1. **No file navigation.** Timeline renderer props are exactly `{agentId, theme, host, layout,
@@ -90,3 +91,11 @@ timestamp, item}`, and plugin navigation offers only `openSettings`, `openSurfac
     snapshot (`availableModes`, `features`, permissions), and a daemon with 340 unarchived agents
     sends all of them again after each reconnect. Workaround: subscribe to active statuses only and
     page finished agents when the view is open.
+19. **No host slot-hiding or grouped projection API.** The opt-in
+    [tool call rollups](tool-call-rollups.md) use SDK source order and mounted rows;
+    counts can change or split under virtualization. Bounded reads leave unknown or
+    incomplete history standalone. Web/desktop CSS hides explicitly marked empty
+    member wrappers, depending on host shape and `:has`; native outer margins can
+    remain. A source-preserving grouped projection/slot-hiding API is the upgrade
+    path. The rollup switch updates renderer state; it does not invalidate cached
+    transformer results for other preferences.

@@ -96,4 +96,30 @@ describe("authoritative tool rollup order", () => {
     expect(store.get("t1")).toBeNull();
     release();
   });
+
+  it.each([
+    ["gap", { gap: true }],
+    ["stale cursor", { staleCursor: true }],
+    ["changed epoch", { epoch: "new" }],
+    ["reset", { reset: true }],
+  ] as const)("clears previously usable positions on %s while paging", async (_name, incomplete) => {
+    const { store, refetch, settle } = setup([tool(2), tool(3)]);
+    const release = store.retain("t3");
+    await settle();
+    expect(store.get("t3")).toEqual({ order: 3, previous: "t2" });
+
+    refetch.mockClear();
+    refetch.mockResolvedValueOnce(page([tool(2), tool(3)], { hasOlder: true }));
+    refetch.mockResolvedValueOnce(page([tool(1)], incomplete));
+    const releaseOlder = store.retain("t1");
+    await settle();
+
+    expect(refetch).toHaveBeenCalledTimes(2);
+    expect(refetch.mock.calls[1]![0]?.direction).toBe("before");
+    // Neither the prior adjacency nor the partial new page may group cards.
+    expect(store.get("t3")).toBeNull();
+    expect(store.get("t1")).toBeNull();
+    releaseOlder();
+    release();
+  });
 });

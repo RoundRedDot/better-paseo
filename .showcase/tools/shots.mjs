@@ -33,6 +33,7 @@ await build({
     "react-native": path.join(show, "node_modules/react-native-web"),
     "@getpaseo/plugin/client/react-native": path.join(show, "shims/plugin-react-native.tsx"),
     "@getpaseo/plugin/client": path.join(show, "shims/plugin-client.tsx"),
+    "@getpaseo/plugin/client/ui": path.join(show, "shims/plugin-ui.tsx"),
   },
   logLevel: "warning",
 });
