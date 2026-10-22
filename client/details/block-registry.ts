@@ -78,6 +78,8 @@ export function registerBlock(entry: BlockEntry): BlockRegistration {
   const previous = registry.entries.get(entry.id);
   const mountedEntry = { ...entry, mounted: true };
   if (previous) {
+    // A tombstone mounting again: its row is back on screen and can be placed.
+    if (previous.owners.size === 0) scheduleOrderMeasure(entry.agentId);
     previous.owners.add(owner);
     if (!sameEntry(previous.entry, mountedEntry)) {
       preserveMeasurement(previous.entry, mountedEntry);
@@ -89,6 +91,7 @@ export function registerBlock(entry: BlockEntry): BlockRegistration {
     registry.entries.set(entry.id, { entry: mountedEntry, owners: new Set([owner]), age: sequence++ });
     const removed = pruneOldTombstones(registry);
     publish(registry, [entry.id, ...removed]);
+    scheduleOrderMeasure(entry.agentId);
   }
 
   let active = true;
@@ -136,6 +139,91 @@ export async function measureBlockForOrder(agentId: string, id: string): Promise
   rememberBlockMeasurement(entry, box);
   registry.list = orderBlocks(Array.from(registry.entries.values(), (record) => record.entry));
   notify(registry.listListeners);
+}
+
+/**
+ * Rows sharing a timestamp (a replayed history, a burst of calls in one
+ * millisecond) are ordered by where they sit on screen. Registration order
+ * cannot stand in for it: the native list is inverted, so its rows mount
+ * newest first and a tie would read backwards there.
+ *
+ * Positions are only comparable within one moment of one list, so every
+ * mounted row of a tie is measured together, and each top is moved into the
+ * list's content coordinates by the list's scroll position at that moment
+ * (`orderShift`). That keeps a row measured now comparable with a tombstone
+ * measured before a scroll. The shell lends the shift while a panel is open,
+ * which is when the order is shown and stepped through; without it nothing
+ * is measured and the order stays as it was.
+ */
+const orderShifts = new Map<string, () => number | null>();
+const orderTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const orderRunning = new Map<string, boolean>();
+/** Registrations arrive a row at a time while a list mounts: one measure for the lot. */
+export const ORDER_MEASURE_MS = 120;
+
+/** The host list's scroll position, for the order's measurements; null when the list is gone. */
+export function setOrderShift(agentId: string, shift: (() => number | null) | null): void {
+  if (!shift) {
+    orderShifts.delete(agentId);
+    const timer = orderTimers.get(agentId);
+    if (timer !== undefined) clearTimeout(timer);
+    orderTimers.delete(agentId);
+    return;
+  }
+  orderShifts.set(agentId, shift);
+  void measureBlocksForOrder(agentId);
+}
+
+function scheduleOrderMeasure(agentId: string): void {
+  if (!orderShifts.has(agentId) || orderTimers.has(agentId)) return;
+  orderTimers.set(agentId, setTimeout(() => {
+    orderTimers.delete(agentId);
+    void measureBlocksForOrder(agentId);
+  }, ORDER_MEASURE_MS));
+}
+
+/** The mounted rows whose timestamp ties with another known row's. */
+function tiedMounted(registry: AgentRegistry): BlockEntry[] {
+  const all = Array.from(registry.entries.values(), (record) => record.entry).sort((a, b) => a.at - b.at);
+  return all.filter((entry, index) => entry.mounted && entry.measure !== undefined && (
+    (index > 0 && entry.at - all[index - 1]!.at <= 1) ||
+    (index < all.length - 1 && all[index + 1]!.at - entry.at <= 1)
+  ));
+}
+
+/** Measures every tied mounted row of the agent in one go and orders the list by it. */
+export async function measureBlocksForOrder(agentId: string): Promise<void> {
+  const registry = registries.get(agentId);
+  const shift = orderShifts.get(agentId);
+  if (!registry || !shift) return;
+  if (orderRunning.get(agentId)) {
+    scheduleOrderMeasure(agentId);
+    return;
+  }
+  const tied = tiedMounted(registry);
+  if (tied.length === 0) return;
+  orderRunning.set(agentId, true);
+  try {
+    const boxes = await Promise.all(tied.map((entry) => entry.measure!().catch(() => null)));
+    const offset = shift();
+    if (offset === null || orderShifts.get(agentId) !== shift) return;
+    let changed = false;
+    tied.forEach((entry, index) => {
+      const box = boxes[index];
+      // The row may have rendered (a new entry object) while it was measured.
+      const current = getBlock(agentId, entry.id);
+      if (!box || box.height <= 0 || !current?.mounted) return;
+      const top = Math.round(box.top + offset);
+      if (cachedBlockMeasurement(current) === top) return;
+      rememberBlockMeasurement(current, { top, height: box.height });
+      changed = true;
+    });
+    if (!changed) return;
+    registry.list = orderBlocks(Array.from(registry.entries.values(), (record) => record.entry));
+    notify(registry.listListeners);
+  } finally {
+    orderRunning.set(agentId, false);
+  }
 }
 
 function subscribeList(agentId: string, listener: () => void): () => void {

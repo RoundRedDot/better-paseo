@@ -35,16 +35,27 @@ export const DETAILS_EASE = cubicBezier(0.2, 0, 0, 1);
 const linear = (t: number) => t;
 
 /**
- * Animates `value` to `to` and calls `done` when it got there. The JS driver
- * throughout: heights and the swipe's offset are read back while a finger
- * moves them, and a native-driven value cannot be read.
+ * Animates a transform or an opacity: `value` to `to`, then `done`. On iOS and
+ * Android on the native driver, as the press preview's entrance is: a
+ * JS-driven value commits a new tree on every frame, and the panel's first
+ * frames are when its content (selectable text, images) gets its native
+ * state. The values are never read back; `now` refs keep what they hold.
  */
 export function animate(value: Animated.Value, to: number, ms: number, done?: () => void, ease: "ease" | "linear" = "ease"): Animated.CompositeAnimation {
+  return run(value, to, ms, done, ease, Platform.OS !== "web");
+}
+
+/** Animates a layout value (a height), which only the JS driver can move. */
+export function animateLayout(value: Animated.Value, to: number, ms: number, done?: () => void): Animated.CompositeAnimation {
+  return run(value, to, ms, done, "ease", false);
+}
+
+function run(value: Animated.Value, to: number, ms: number, done: (() => void) | undefined, ease: "ease" | "linear", native: boolean) {
   const animation = Animated.timing(value, {
     toValue: to,
     duration: ms,
     easing: ease === "linear" ? linear : DETAILS_EASE,
-    useNativeDriver: false,
+    useNativeDriver: native,
   });
   animation.start(({ finished }) => {
     if (finished) done?.();

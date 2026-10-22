@@ -8,6 +8,8 @@
 import React from "react";
 import { Animated, Pressable, StyleSheet } from "react-native";
 import { withAlpha, type ExtendedThemeTokens } from "../../components/theme-tokens";
+import { toolbarLabel } from "../../i18n/toolbar-strings";
+import { useEnhancerPreferences } from "../../preferences";
 
 /** Colours the design adds (table 5.6), from the theme. */
 export function detailsPalette(tokens: ExtendedThemeTokens) {
@@ -24,12 +26,13 @@ export function Scrim({ tokens, opacity, onPress }: {
   opacity: Animated.Value;
   onPress(): void;
 }) {
+  const { language } = useEnhancerPreferences();
   return (
     <Animated.View style={[StyleSheet.absoluteFill, { opacity }]}>
       <Pressable
         testID="details-scrim"
         accessibilityRole="button"
-        accessibilityLabel="Close details"
+        accessibilityLabel={toolbarLabel("Close details", language)}
         onPress={onPress}
         style={[StyleSheet.absoluteFill, { backgroundColor: detailsPalette(tokens).scrim }]}
       />

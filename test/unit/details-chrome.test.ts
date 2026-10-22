@@ -35,7 +35,7 @@ import { DetailsShellContext, type BlockEntry, type DetailsShellValue } from "..
 import { copySlots, foldCopies } from "../../client/details/chrome/copy-overflow";
 import { backToLatestText } from "../../client/details/chrome/back-to-latest";
 import { classifyTool } from "../../client/tools/classify";
-import { resetEnhancerPreferences } from "../../client/preferences";
+import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const h = React.createElement;
@@ -171,6 +171,13 @@ describe("details header", () => {
     expect(value.step).toHaveBeenCalledWith(1);
     expect(value.close).toHaveBeenCalledOnce();
     expect(byId(root, "details-header").props.onResponderGrant).toBe(onResponderGrant);
+  });
+
+  it("speaks its buttons in the reader's language", () => {
+    updateEnhancerPreferences({ language: "zh" });
+    const root = mount(details(rowPreview(callout(bash))));
+    expect(labels(byId(root, "details-header"))).toEqual(expect.arrayContaining(["上一个区块", "下一个区块", "关闭详情"]));
+    expect(labels(byId(root, "details-toolbar"))).toEqual(expect.arrayContaining(["不自动换行", "全屏"]));
   });
 
   it("uses pointer sizes: header 44, buttons 28, toolbar 36", () => {

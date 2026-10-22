@@ -15,6 +15,8 @@ import { space } from "../../components/theme-tokens";
 import { CopyOverflowContext, ToolbarButton, ToolbarMetricsContext, TooltipAlignContext } from "../../ui/toolbar-button";
 import type { DetailsShellValue } from "../contracts";
 import { HEADER_BUTTONS } from "./details-header";
+import { useEnhancerPreferences } from "../../preferences";
+import { toolbarLabel } from "../../i18n/toolbar-strings";
 import { copySlots, CopyOverflowMenu, useCopyOverflow } from "./copy-overflow";
 
 export const DETAILS_TOOLBAR = { touch: 44, pointer: 36 } as const;
@@ -40,6 +42,8 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
   children?: ReactNode;
 }) {
   const metrics = HEADER_BUTTONS[shell.pointer ? "pointer" : "touch"];
+  // The labels are the buttons' accessibility labels too: in the reader's language.
+  const { language } = useEnhancerPreferences();
   const [width, setWidth] = useState<number | null>(null);
   const [leftWidth, setLeftWidth] = useState(0);
   const fullscreen = fullscreenButton(shell);
@@ -61,7 +65,7 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
             {wrap ? (
               <ToolbarButton
                 icon={wrap.on ? "WrapText" : "AlignLeft"}
-                label={wrap.on ? "Do not wrap lines" : "Wrap lines"}
+                label={toolbarLabel(wrap.on ? "Do not wrap lines" : "Wrap lines", language)}
                 checked={wrap.on}
                 disabled={wrap.disabled}
                 onPress={wrap.toggle}
@@ -77,7 +81,7 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
             <CopyOverflowContext.Provider value={overflow}>{children}</CopyOverflowContext.Provider>
             <CopyOverflowMenu items={folded} tokens={tokens} />
             {fullscreen ? (
-              <ToolbarButton icon={fullscreen.icon} label={fullscreen.label} checked={shell.fullscreen}
+              <ToolbarButton icon={fullscreen.icon} label={toolbarLabel(fullscreen.label, language)} checked={shell.fullscreen}
                 onPress={fullscreen.onPress} tokens={tokens} />
             ) : null}
           </TooltipAlignContext.Provider>
