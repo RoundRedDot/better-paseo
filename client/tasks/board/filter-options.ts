@@ -101,17 +101,33 @@ export interface ActiveChip {
   kind: string;
   value: string;
   clear(params: BoardParams): BoardParams;
+  /** A multi-select filter's chip: several of one group fold into a `ChipGroup`. */
+  group?: ChipGroupKind;
+  /** A workspace chip: a whole project or workspaces in it. */
+  unit?: "project" | "workspace";
+}
+
+export type ChipGroupKind = "workspace" | "label" | "agent";
+
+/** Several chips of one filter as one "3 projects selected" chip; its menu lists them. */
+export interface ChipGroup {
+  key: `group:${ChipGroupKind}`;
+  kind: ChipGroupKind;
+  label: string;
+  chips: ActiveChip[];
+  clear(params: BoardParams): BoardParams;
 }
 
 export function activeChips(params: BoardParams, defaults: BoardDefaults, options: FilterOptions, strings: BoardStrings): ActiveChip[] {
   const name = (list: FilterOption[], id: string) => list.find((option) => option.id === id)?.label ?? id;
   const chips: ActiveChip[] = [
-    ...params.labels.map((id) => ({ key: `label:${id}`, kind: strings.labels, value: id, clear: (p: BoardParams) => ({ ...p, labels: toggleItem(p.labels, id) }) })),
+    ...params.labels.map((id) => ({ key: `label:${id}`, kind: strings.labels, value: id, group: "label" as const, clear: (p: BoardParams) => ({ ...p, labels: toggleItem(p.labels, id) }) })),
     ...workspaceChips(params.workspaceIds, options, strings),
     ...params.providers.map((id) => ({
       key: `agent:${id}`,
       kind: strings.agent,
       value: name(options.agents, id),
+      group: "agent" as const,
       clear: (p: BoardParams) => ({ ...p, providers: toggleItem(p.providers, id) }),
     })),
   ];
@@ -140,7 +156,7 @@ function workspaceChips(selected: readonly string[], options: FilterOptions, str
     const group = groupOf.get(id);
     if (!group || !group.projectId) {
       const label = group?.items.find((item) => item.id === id)?.label ?? id;
-      chips.push({ key: `ws:${id}`, kind: strings.workspace, value: label, clear: without([id]) });
+      chips.push({ key: `ws:${id}`, kind: strings.workspace, value: label, group: "workspace", unit: "workspace", clear: without([id]) });
       continue;
     }
     if (done.has(group.projectId)) continue;
@@ -148,15 +164,66 @@ function workspaceChips(selected: readonly string[], options: FilterOptions, str
     const picked = group.items.filter((item) => selected.includes(item.id));
     const ids = picked.map((item) => item.id);
     if (picked.length > 1 && picked.length === group.items.length) {
-      chips.push({ key: `prj:${group.projectId}`, kind: strings.sidebar.groups.project, value: group.projectName, clear: without(ids) });
+      chips.push({ key: `prj:${group.projectId}`, kind: strings.sidebar.groups.project, value: group.projectName, group: "workspace", unit: "project", clear: without(ids) });
     } else if (picked.length > 1) {
-      chips.push({ key: `prj:${group.projectId}`, kind: strings.workspace, value: `${group.projectName} \u00b7 ${picked.length}`, clear: without(ids) });
+      chips.push({ key: `prj:${group.projectId}`, kind: strings.workspace, value: `${group.projectName} \u00b7 ${picked.length}`, group: "workspace", unit: "workspace", clear: without(ids) });
     } else {
       const item = picked[0]!;
-      chips.push({ key: `ws:${id}`, kind: strings.workspace, value: group.projectName === item.label ? item.label : `${group.projectName} / ${item.label}`, clear: without(ids) });
+      chips.push({
+        key: `ws:${id}`,
+        kind: strings.workspace,
+        value: group.projectName === item.label ? item.label : `${group.projectName} / ${item.label}`,
+        group: "workspace",
+        unit: "workspace",
+        clear: without(ids),
+      });
     }
   }
   return chips;
+}
+
+/**
+ * The bar's chips with each multi-select filter that has more than one chip
+ * folded into a group where its first chip stood: "2 projects and 1
+ * workspace selected" instead of a row of project chips.
+ */
+export function groupChips(chips: readonly ActiveChip[], strings: BoardStrings): (ActiveChip | ChipGroup)[] {
+  const members = new Map<ChipGroupKind, ActiveChip[]>();
+  for (const chip of chips) if (chip.group) members.set(chip.group, [...(members.get(chip.group) ?? []), chip]);
+  const entries: (ActiveChip | ChipGroup)[] = [];
+  const placed = new Set<ChipGroupKind>();
+  for (const chip of chips) {
+    const same = chip.group ? members.get(chip.group)! : [];
+    if (!chip.group || same.length < 2) {
+      entries.push(chip);
+      continue;
+    }
+    if (placed.has(chip.group)) continue;
+    placed.add(chip.group);
+    const kind = chip.group;
+    const group: ChipGroup = {
+      key: `group:${kind}`,
+      kind,
+      label: groupLabel(kind, same, strings),
+      chips: same,
+      clear: (params) => same.reduce((next, member) => member.clear(next), params),
+    };
+    entries.push(group);
+  }
+  return entries;
+}
+
+export function isChipGroup(entry: ActiveChip | ChipGroup): entry is ChipGroup {
+  return "chips" in entry;
+}
+
+function groupLabel(kind: ChipGroupKind, chips: readonly ActiveChip[], strings: BoardStrings): string {
+  const units = strings.selectedUnits;
+  if (kind === "label") return strings.selected([units.label(chips.length)]);
+  if (kind === "agent") return strings.selected([units.agent(chips.length)]);
+  const projects = chips.filter((chip) => chip.unit === "project").length;
+  const workspaces = chips.length - projects;
+  return strings.selected([...(projects ? [units.project(projects)] : []), ...(workspaces ? [units.workspace(workspaces)] : [])]);
 }
 
 /** "Clear all": no selections, switches and window back to the settings. */

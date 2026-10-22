@@ -803,6 +803,36 @@ describe("Tasks board, sorting", () => {
     expect(text).not.toContain("Showing 1");
   });
 
+  it("folds several picks of one filter into a chip whose menu removes them one at a time", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false, { agent: "claude,codex", label: "api", sub: "1", win: "7d" }));
+    });
+    layOut(1600);
+    const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
+    let bar = end.parent!;
+    while (typeof bar.type !== "string") bar = bar.parent!;
+    const filters = bar.findAll((node) => (node.type as unknown) === "View" && hostParentOf(node) === bar).find((child) => child !== end)!;
+    const text = textOf(filters);
+    expect(text).toContain("2 agents selected");
+    expect(text).toContain("Labelsapi");
+    // The switch and the done window show themselves: no chip, no hint line.
+    expect(text).not.toContain("still show");
+    expect(text.match(/Hide subtasks/g)).toHaveLength(1);
+    expect(text).not.toContain("7 days");
+    expect(text).toContain("Clear all");
+
+    const chip = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "chip-group-agent");
+    act(() => chip.props.onPress());
+    const menu = renderer!.root.find((node) => node.props.testID === "chip-group-menu");
+    const rows = menu.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem");
+    expect(rows.map(textOf)).toEqual(["Claude", "Codex", "Clear filters"]);
+    act(() => rows[0]!.props.onPress());
+    expect(lastBoardParams("host-1").providers).toEqual(["codex"]);
+    // One left: a plain chip again, and the menu closed with the group.
+    expect(renderer!.root.findAll((node) => node.props.testID === "chip-group-menu")).toHaveLength(0);
+    expect(textOf(filters)).toContain("AgentCodex");
+  });
+
   it("picks a sort from the dropdown, keeps it for the session, and counts the done lane plainly by default", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));

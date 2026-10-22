@@ -44,6 +44,14 @@ const en = {
   doneWindowLabel: "Done",
   clear: "Clear",
   clearAll: "Clear all",
+  /** Several picks of one filter folded into one chip: "2 projects and 1 workspace selected". */
+  selected: (parts: string[]) => `${parts.join(" and ")} selected`,
+  selectedUnits: {
+    project: (count: number) => `${count} ${count === 1 ? "project" : "projects"}`,
+    workspace: (count: number) => `${count} ${count === 1 ? "workspace" : "workspaces"}`,
+    label: (count: number) => `${count} ${count === 1 ? "label" : "labels"}`,
+    agent: (count: number) => `${count} ${count === 1 ? "agent" : "agents"}`,
+  },
   keys: { move: "Move", lane: "Lane", open: "Open", search: "Search" },
   collapse: "Collapse lane",
   expand: "Expand lane",
@@ -154,6 +162,13 @@ const zh: typeof en = {
   doneWindowLabel: "已完成",
   clear: "清除",
   clearAll: "清除全部",
+  selected: (parts) => `已选择 ${parts.join("和 ")}`,
+  selectedUnits: {
+    project: (count) => `${count} 个项目`,
+    workspace: (count) => `${count} 个 Workspace`,
+    label: (count) => `${count} 个标签`,
+    agent: (count) => `${count} 个 Agent`,
+  },
   keys: { move: "移动", lane: "换列", open: "打开", search: "搜索" },
   collapse: "折叠此列",
   expand: "展开此列",
