@@ -10,9 +10,10 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { space } from "../../components/theme-tokens";
 import { unselectable } from "../../components/selection";
-import { Glyph } from "../../components/glyph";
+import { BrandMark, Glyph } from "../../components/glyph";
+import { ProviderLogo } from "../../components/provider-logo";
 import { RunningDot } from "../../ui/running-dot";
-import { ToolbarButton, ToolbarMetricsContext, TooltipAlignContext, type ToolbarMetrics } from "../../ui/toolbar-button";
+import { SpokenLabelsContext, ToolbarButton, ToolbarMetricsContext, TooltipAlignContext, type ToolbarMetrics } from "../../ui/toolbar-button";
 import type { BlockEntry, DetailsShellValue } from "../contracts";
 import { useEnhancerPreferences } from "../../preferences";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
@@ -24,6 +25,7 @@ export const HEADER_BUTTONS: Readonly<Record<"touch" | "pointer", ToolbarMetrics
   pointer: { button: 28, icon: 16 },
 };
 const ICON_TILE = 28;
+const TILE_ICON = 16;
 const TITLE_LINES = 4;
 
 export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, streaming = false }: {
@@ -40,7 +42,6 @@ export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, str
   streaming?: boolean;
 }) {
   const { entry, pointer } = shell;
-  // Spoken as well as shown in the reader's language: the button's label is its accessibility label.
   const { language } = useEnhancerPreferences();
   const metrics = HEADER_BUTTONS[pointer ? "pointer" : "touch"];
   // A tap shows up to four lines; another block starts on one again.
@@ -64,8 +65,8 @@ export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, str
       style={[styles.header, { minHeight: DETAILS_HEADER[pointer ? "pointer" : "touch"] }]}
     >
       <View testID="details-header-icon" style={[styles.tile, { backgroundColor: tokens.v2.surface1 }]}>
-        {entry.icon ? <Glyph name={entry.icon} size={16} color={entry.iconColor ?? tokens.foregroundMuted} />
-          : typeof icon === "string" ? <Glyph name={icon} size={16} color={tokens.foregroundMuted} /> : icon}
+        {entry.icon ? <TileIcon name={entry.icon} color={entry.iconColor ?? tokens.foregroundMuted} />
+          : typeof icon === "string" ? <TileIcon name={icon} color={tokens.foregroundMuted} /> : icon}
       </View>
       <View style={styles.text}>
         {text ? (
@@ -83,7 +84,7 @@ export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, str
           <View testID="details-header-subtitle" style={styles.subtitle}>
             {streaming ? (
               <View testID="details-header-streaming" style={styles.dot}>
-                <RunningDot color={tokens.accent} accessibilityLabel="Streaming" />
+                <RunningDot color={tokens.accent} accessibilityLabel={toolbarLabel("Streaming", language)} />
               </View>
             ) : null}
             {subtitle.length > 0 ? (
@@ -100,20 +101,20 @@ export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, str
           </View>
         ) : null}
       </View>
-      <ToolbarMetricsContext.Provider value={metrics}>
+      <SpokenLabelsContext.Provider value><ToolbarMetricsContext.Provider value={metrics}>
         {/* The group ends at the panel's right edge: names open leftwards. */}
         <TooltipAlignContext.Provider value="end">
           <View style={styles.buttons}>
             {navigable ? <>
-              <ToolbarButton icon="ChevronLeft" label={toolbarLabel("Previous block", language)} disabled={!shell.canStep.previous}
+              <ToolbarButton icon="ChevronLeft" label="Previous block" disabled={!shell.canStep.previous}
                 onPress={() => shell.step(-1)} tokens={tokens} />
-              <ToolbarButton icon="ChevronRight" label={toolbarLabel("Next block", language)} disabled={!shell.canStep.next}
+              <ToolbarButton icon="ChevronRight" label="Next block" disabled={!shell.canStep.next}
                 onPress={() => shell.step(1)} tokens={tokens} />
             </> : null}
-            <ToolbarButton icon="X" label={toolbarLabel("Close details", language)} onPress={shell.close} tokens={tokens} />
+            <ToolbarButton icon="X" label="Close details" onPress={shell.close} tokens={tokens} />
           </View>
         </TooltipAlignContext.Provider>
-      </ToolbarMetricsContext.Provider>
+      </ToolbarMetricsContext.Provider></SpokenLabelsContext.Provider>
     </View>
   );
 }
@@ -133,6 +134,18 @@ function toneColor(tone: BlockEntry["tone"], tokens: ExtendedThemeTokens): strin
     case "danger": return tokens.danger;
     default: return tokens.foregroundMuted;
   }
+}
+
+/**
+ * The block's icon in its tile, by the name its row draws (`RowIcon`): a
+ * `brand:` name is a daemon raster (the npm mark of a Bash call), `provider:`
+ * a harness logo, anything else a Lucide icon. `Glyph` alone knows only the
+ * bare brand names, and drew a `brand:` one as an unknown Lucide icon: nothing.
+ */
+function TileIcon({ name, color }: { name: string; color: string }) {
+  if (name.startsWith("brand:")) return <BrandMark id={name.toLowerCase()} size={TILE_ICON} color={color} />;
+  if (name.startsWith("provider:")) return <ProviderLogo provider={name.slice(9)} size={TILE_ICON} color={color} />;
+  return <Glyph name={name} size={TILE_ICON} color={color} />;
 }
 
 const styles = StyleSheet.create({
