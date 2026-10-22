@@ -348,7 +348,7 @@ describe("TaskCardView rows", () => {
     expect(flat(branch.props.style).backgroundColor).toBe(mix(tokens.card.background, tokens.branch, tokens.isDark ? 0.14 : 0.08));
     expect(icons(branch)).toEqual(["GitBranch"]);
     expect(branch.find((node) => (node.type as unknown) === "Icon").props.color).toBe(tokens.branch);
-    const name = branch.findAll((node) => (node.type as unknown) === "Text")[0];
+    const name = branch.findAll((node) => (node.type as unknown) === "Text")[0]!;
     expect(flat(name.props.style).color).toBe(tokens.foreground);
     expect(flat(name.props.style).fontFamily).toMatch(/mono|Menlo/i);
   });
@@ -1289,7 +1289,7 @@ describe("TaskDetailCards", () => {
     const tokens = taskTokens(LIGHT);
     const look = (root: ReactTestInstance, id: string) => {
       const button = hostByTestId(root, id);
-      const label = button.findAll((node) => typeof node.type === "string" && typeof node.props.children === "string")[0];
+      const label = button.findAll((node) => typeof node.type === "string" && typeof node.props.children === "string")[0]!;
       return { ...pick(flat(button.props.style)), text: flat(label.props.style).color };
     };
     const pick = (style: Record<string, unknown>) => ({ fill: style.backgroundColor, border: style.borderColor });
