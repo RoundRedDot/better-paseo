@@ -1227,8 +1227,9 @@ interface StopControlProps {
 
 /**
  * Stop, its confirm state, and a parent's "only this / with subtasks" menu:
- * one red pill. At rest a danger tint with danger text and outline; armed, a
- * solid danger fill with white text; the parent's chevron is the pill's end.
+ * the details sidebar's stop button at card size, a rounded rectangle led by
+ * Lucide's Square. At rest a danger tint with danger text and outline; armed,
+ * a solid danger fill with white text; the parent's chevron is its end.
  */
 function StopControl(props: StopControlProps) {
   const { tokens, strings, phase, compact } = props;
@@ -1246,7 +1247,7 @@ function StopControl(props: StopControlProps) {
         {
           key: "only",
           label: strings.stopOnlyThis,
-          leading: <MenuGlyph><StopSquare compact={false} color={tokens.foregroundMuted} /></MenuGlyph>,
+          icon: "Square",
           onSelect: () => props.onPick(false),
         },
         {
@@ -1264,7 +1265,8 @@ function StopControl(props: StopControlProps) {
   const fill = (hovered: boolean) =>
     solid ? (hovered ? look.dangerStrongHover : tokens.danger) : hovered ? look.dangerFillHover : look.dangerFill;
   const height = taskControlHeight(compact ? PHONE.stopHeight : DESKTOP.stopHeight, scale);
-  const round = compact ? 8 : height / 2;
+  // The sidebar's 8 at 32 tall; 5 at the card's 20, like the jump button.
+  const round = compact ? 8 : 5;
   const label = stopping ? strings.stopping : confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
   const segment: ViewStyle = {
     ...(compact ? { minHeight: height, paddingVertical: 4 } : { height }),
@@ -1312,7 +1314,7 @@ function StopControl(props: StopControlProps) {
           },
         ]}
       >
-        {compact && solid ? null : <StopSquare compact={compact} color={color} />}
+        {compact && solid ? null : <Icon name="Square" size={compact ? 16 : 12} color={color} />}
         <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? 15 : 12, fontWeight: "500", color }}>
           {label}
         </Text>
@@ -1355,15 +1357,6 @@ function StopControl(props: StopControlProps) {
       ) : null}
     </View>
   );
-}
-
-/**
- * The media stop: a solid rounded square (10 px, 12 on a phone, radius 2)
- * in the pill's colour. CircleStop's ring-and-square read poorly at 12 px.
- */
-function StopSquare(props: { compact: boolean; color: string; small?: boolean }) {
-  const size = (props.compact ? 12 : 10) - (props.small ? 1 : 0);
-  return <View style={{ width: size, height: size, borderRadius: 2, backgroundColor: props.color }} testID="stop-square" />;
 }
 
 const STOP_MENU_WIDTH = 220;
