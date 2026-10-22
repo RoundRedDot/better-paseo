@@ -45,6 +45,33 @@ paseo plugin reload better-paseo
 Paseo installs the plugin from GitHub, so a change on a local branch is not what a client runs
 until it is pushed and the plugin is updated (`paseo plugin update better-paseo`).
 
+## Install build
+
+The app downloads every plugin's client bundle again on each reconnect (inside
+the plugin catalog, decrypted in JS behind the relay), so its size shows as the
+"This plugin surface is unavailable." pause on a phone. The manifest's last
+build step, `node scripts/build-client.mjs --install`, runs on installs and
+updates from Git or npm (never for a directory source, and never on reload) and
+writes two files into the install:
+
+- `index.client.ts`, which Paseo takes before `index.client.tsx`: the bundle,
+  minified with the host's options and carried in a string the file evaluates
+  with `new Function`, so the host's own compile does not print it back out.
+- `server/tasks-chunk.ts`: the Tasks board's code (`client/tasks/chunk/entry.ts`),
+  left out of the bundle. The plugin server sends it when the board, its
+  sidebar entry or its settings first show (`tasksChunkRpc`), and the client
+  keeps its code on the JS global by build id, so a reconnect evaluates it
+  again without asking (`client/tasks/chunk/remote-chunk.ts`).
+
+Modules both halves need stay in the bundle and reach the chunk by id
+(`bc-tasks-shared`), so there is one enabled store, one board session and one
+language. In a checkout, in tests and for a directory install, `chunk/source.ts`
+imports the chunk directly and nothing is generated. `node scripts/build-client.mjs`
+prints the sizes; `--out <dir>` writes the files elsewhere. `--install` refuses
+to run outside Paseo's staging directory: an `index.client.ts` left in a
+checkout would shadow the source. To try an install build on a private daemon,
+commit, then `paseo --home <home> plugin install git:file://<checkout> --ref <full sha>`.
+
 ## Hermes check
 
 On iOS and Android the client bundle runs on Hermes without Metro or Babel:
@@ -58,7 +85,9 @@ the host's options and compiles it with `hermesc` from the `react-native`
 devDependency. Any error is mapped back to its source file and line. The
 script then evaluates the bundle in the bundled `hermes` VM against stub
 modules, calls `contribute`, and checks the host's registration rules. Pass
-`--no-run` to compile only. esbuild is a root devDependency, pinned to the
+`--no-run` to compile only. `npm run check:hermes` then runs it again with
+`--built` on the install build: the minified bundle and the Tasks chunk each
+compile on their own, and the VM evaluates the chunk too. esbuild is a root devDependency, pinned to the
 same release vitest resolves, so the check does not hang on a transitive
 install.
 

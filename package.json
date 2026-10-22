@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "replay": "node .showcase/tools/replay.mjs",
-    "check:hermes": "node scripts/check-hermes.mjs"
+    "check:hermes": "node scripts/check-hermes.mjs && node scripts/check-hermes.mjs --built",
+    "build:client": "node scripts/build-client.mjs"
   },
   "dependencies": {
     "@getpaseo/client": "0.12.0",
@@ -17,6 +18,7 @@
     "@shikijs/engine-javascript": "^4.0.2",
     "@shikijs/langs": "^4.0.2",
     "@shikijs/themes": "^4.0.2",
+    "esbuild": "^0.28.2",
     "remend": "1.4.0"
   },
   "devDependencies": {
@@ -25,7 +27,6 @@
     "@types/node": "^22.15.3",
     "@types/react": "~19.2.0",
     "@types/react-test-renderer": "19.1.0",
-    "esbuild": "^0.28.2",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-test-renderer": "19.1.0",

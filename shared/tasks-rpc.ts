@@ -146,3 +146,15 @@ export const tasksSessionTokensRpc = defineRpc({
   input: z.object({ agentId: z.string().min(1) }),
   output: z.object({ tokens: sessionTokensSchema.nullable() }),
 });
+
+/**
+ * The Tasks chunk an install built (`scripts/build-client.mjs`): the code the
+ * board, its sidebar entry and its settings draw with, kept out of the client
+ * bundle. The client asks for the build its own bundle was made with; `code`
+ * is null when this server holds another (or none: a checkout has none).
+ */
+export const tasksChunkRpc = defineRpc({
+  name: "tasks.chunk",
+  input: z.object({ id: z.string().min(1) }),
+  output: z.object({ code: z.string().nullable() }),
+});

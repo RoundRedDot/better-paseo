@@ -41,7 +41,7 @@ import { useWideHostColumn } from "./ui/wide-host-column";
 import { SettingsPreview } from "./settings-preview";
 import { PlainButton, Section, SectionNote, Segmented, SettingRow, Toggle, controlStyles, type PageLook } from "./settings-controls";
 import { setSettingsTab, useSettingsTab, type SettingsTab } from "./settings-tab";
-import { TasksEntrySection, TasksSettingsPanel } from "./tasks/settings/tasks-panel";
+import { TasksEntrySection, TasksSettingsPanel } from "./tasks/chunk/load";
 import type { SyncStatus } from "./state/preference-sync";
 import {
   SETTINGS_STRINGS,
