@@ -337,7 +337,7 @@ function DetailHeader(props: Inner) {
             />
           ) : null}
           {stop && props.stop ? (
-            <OutlineButton icon="Square" iconColor={tokens.danger} label={stop} height={m.button} font={m.font} tokens={tokens} onPress={props.stop.onPress} testID="detail-stop" />
+            <OutlineButton icon="Square" danger={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} height={m.button} font={m.font} tokens={tokens} onPress={props.stop.onPress} testID="detail-stop" />
           ) : null}
         </View>
       ) : null}
@@ -1121,8 +1121,9 @@ function OpenHint(props: { tokens: TaskTokens; label: string }) {
 
 function OutlineButton(props: {
   icon: string;
-  iconColor?: string;
   label: string;
+  /** The stop button: the card's stop pill colours, tinted at rest and solid to confirm. */
+  danger?: DangerLook;
   hint?: React.ReactNode;
   trailing?: string;
   height: number;
@@ -1135,6 +1136,7 @@ function OutlineButton(props: {
   const { tokens } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
+  const danger = props.danger ? dangerColors(tokens, props.danger, hovered) : null;
   return (
     <Pressable
       accessibilityRole="button"
@@ -1150,15 +1152,15 @@ function OutlineButton(props: {
         paddingHorizontal: props.grow ? 10 : 12,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: tokens.border,
-        backgroundColor: hovered ? detailColors(tokens).rowHover : tokens.card.background,
+        borderColor: danger?.border ?? tokens.border,
+        backgroundColor: danger?.fill ?? (hovered ? detailColors(tokens).rowHover : tokens.card.background),
         flexDirection: "row",
         alignItems: "center",
         gap: props.grow ? 8 : 6,
       }}
     >
-      <Icon name={props.icon} size={15} color={props.iconColor ?? tokens.foregroundMuted} />
-      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: props.font, fontWeight: "500", color: tokens.foreground }}>
+      <Icon name={props.icon} size={15} color={danger?.text ?? tokens.foregroundMuted} />
+      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: props.font, fontWeight: "500", color: danger?.text ?? tokens.foreground }}>
         {props.label}
       </Text>
       {props.hint}
@@ -1170,6 +1172,15 @@ function OutlineButton(props: {
       ) : null}
     </Pressable>
   );
+}
+
+type DangerLook = "tint" | "solid";
+
+/** The card's stop pill: the danger tinted over the card with a danger border, or solid with light text. */
+function dangerColors(tokens: TaskTokens, look: DangerLook, hovered: boolean): { fill: string; border: string; text: string } {
+  const card = tokens.card;
+  if (look === "solid") return { fill: hovered ? card.dangerStrongHover : tokens.danger, border: tokens.danger, text: card.onStrong };
+  return { fill: hovered ? card.dangerFillHover : card.dangerFill, border: tokens.danger, text: tokens.danger };
 }
 
 // ---- The phone's action bar ------------------------------------------------
@@ -1220,18 +1231,19 @@ export function DetailActionBar(props: {
       ) : (
         <>
           {props.onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} primary onPress={open} testID="detail-bar-open" /> : null}
-          {stop && props.stop ? <BarButton tokens={tokens} icon="Square" iconColor={tokens.danger} label={stop} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" /> : null}
+          {stop && props.stop ? <BarButton tokens={tokens} icon="Square" stop={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" /> : null}
         </>
       )}
     </View>
   );
 }
 
-function BarButton(props: { tokens: TaskTokens; icon?: string; iconColor?: string; label: string; primary?: boolean; danger?: boolean; square?: boolean; grow?: boolean; onPress(): void; testID?: string }) {
+function BarButton(props: { tokens: TaskTokens; icon?: string; stop?: DangerLook; label: string; primary?: boolean; danger?: boolean; square?: boolean; grow?: boolean; onPress(): void; testID?: string }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
   const height = taskControlHeight(48, scale);
-  const text = props.primary ? tokens.card.onStrong : props.danger ? tokens.danger : tokens.foreground;
+  const stop = props.stop ? dangerColors(tokens, props.stop, false) : null;
+  const text = stop?.text ?? (props.primary ? tokens.card.onStrong : props.danger ? tokens.danger : tokens.foreground);
   return (
     <Pressable
       accessibilityRole="button"
@@ -1246,8 +1258,8 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; iconColor?: strin
         paddingHorizontal: props.square ? 0 : 16,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: props.primary ? tokens.accent : tokens.border,
-        backgroundColor: props.primary ? tokens.accent : tokens.card.background,
+        borderColor: stop?.border ?? (props.primary ? tokens.accent : tokens.border),
+        backgroundColor: stop?.fill ?? (props.primary ? tokens.accent : tokens.card.background),
         opacity: pressed ? 0.85 : 1,
         flexDirection: "row",
         alignItems: "center",
@@ -1255,7 +1267,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; iconColor?: strin
         gap: 8,
       })}
     >
-      {props.icon ? <Icon name={props.icon} size={18} color={props.primary ? text : props.iconColor ?? tokens.foregroundMuted} /> : null}
+      {props.icon ? <Icon name={props.icon} size={18} color={props.primary || stop ? text : tokens.foregroundMuted} /> : null}
       {props.square ? null : (
         <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 16, fontWeight: "600", color: text }}>
           {props.label}
