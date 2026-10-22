@@ -31,6 +31,8 @@ import { detailsApi } from "../details/details-store";
 import { DetailsHeader } from "../details/chrome/details-header";
 import { DetailsToolbar, type DetailsWrap } from "../details/chrome/details-toolbar";
 import { BackToLatestPill } from "../details/chrome/back-to-latest";
+import { ZoomBadge } from "../details/chrome/zoom-badge";
+import { usePinchZoom } from "../details/shell/pinch-zoom";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
 export const HoverPreviewContext = createContext(false);
@@ -813,6 +815,9 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
   // scrolls the body up itself. Scrolled down, it is a scroller like any other.
   const shell = useContext(DetailsShellContext);
   const pulls = Boolean(report) && Platform.OS !== "web" && shell !== null && shell.form !== "side";
+  // The phone drawer's pinch sets its text size.
+  const zoom = report ? shell?.zoom : undefined;
+  const pinch = usePinchZoom(zoom, report ? scroller.value : null);
   const [bodyTop, setBodyTop] = useState(true);
   const bodyTopRef = useRef(true);
   // The drawer at rest after sliding in: the content mounts again in place.
@@ -836,8 +841,9 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
     onContentSizeChange(width: number, height: number) {
       scroller.props.onContentSizeChange(width, height);
       report.contentSized(height);
+      pinch.contentSized(height);
     },
-  } : scroller.props), [report, scroller.props]);
+  } : scroller.props), [report, scroller.props, pinch.contentSized]);
   const webBody = useRef<View>(null);
   const tail = useStreamingTail(streaming, webBody, band, behind.onChange);
   useWebScrollMemory(webBody, memoryKey, remembered, streaming, tail.pinned);
@@ -863,7 +869,7 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
     // The drawer's and the floating panel's pull, on the body alone.
     const pan = shell && shell.form !== "side" ? report?.panHandlers() : undefined;
     return (
-      <View testID="details-body" {...pan} style={styles.detailsBody}>
+      <View testID="details-body" {...pan} {...pinch.handlers} style={styles.detailsBody}>
         {Platform.OS !== "web" ? (
           <ScrollView ref={scroller.ref} testID="hover-preview-body" style={[styles.pressBody, styles.pressBodyFill]} contentContainerStyle={styles.pressBodyContent}
             scrollEnabled={!scroller.held && !(pulls && bodyTop)} scrollEventThrottle={16} {...detailsScroll}
@@ -878,6 +884,12 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
           </View>
         )}
         {pill}
+        {zoom && pinch.badge !== null && wrap ? (
+          <ZoomBadge size={zoom.base + pinch.badge} zoom={pinch.badge} tokens={wrap.tokens} onReset={() => {
+            zoom.commit(0);
+            pinch.hide();
+          }} />
+        ) : null}
       </View>
     );
   }

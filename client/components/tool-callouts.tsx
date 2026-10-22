@@ -52,6 +52,7 @@ import { toolHasDetail } from "../tools/detail";
 import { mcpServiceIcon } from "../tools/mcp-service-icon";
 import { commandIcon } from "../tools/command-icon";
 import type { CopyItem } from "../details/contracts";
+import { useZoomedTokens } from "../ui/text-zoom";
 
 /**
  * The muted icon a settled call shows in the row's status slot: one Lucide
@@ -848,7 +849,7 @@ function useErrorStyle(tokens: ExtendedThemeTokens, quiet = false): TextStyle {
 
 /** A call's error in an opened card, set as its output is, in the danger colour; a rejection is muted. */
 function CallError({ text, tokens, quiet }: { text: string; tokens: ExtendedThemeTokens; quiet?: boolean }) {
-  return <SelectableText {...selectionCodeText} style={useErrorStyle(tokens, quiet)}>{text}</SelectableText>;
+  return <SelectableText {...selectionCodeText} style={useErrorStyle(useZoomedTokens(tokens), quiet)}>{text}</SelectableText>;
 }
 
 /** A call's error in a preview: line by line as its output is, all in the danger colour; a rejection is muted. */
@@ -858,7 +859,9 @@ function PreviewError({ text, tokens, quiet }: { text: string; tokens: ExtendedT
   return <PreviewLines text={text} lines={lines} style={style} tokens={tokens} />;
 }
 
-function ToolBody({ data, tokens, compact, imageFile, revealFile, displayPath, preview = false, raw = false, onViewImage }: ToolBodyProps) {
+function ToolBody({ data, tokens: given, compact, imageFile, revealFile, displayPath, preview = false, raw = false, onViewImage }: ToolBodyProps) {
+  // In the phone drawer, its pinch zoom: the styles and every child below read these.
+  const tokens = useZoomedTokens(given);
   const styles = useBodyStyles(tokens, compact);
   const isRunning = data.status === "running";
   const questions = useMemo(() => raw ? undefined : readUserQuestions(data), [data, raw]);

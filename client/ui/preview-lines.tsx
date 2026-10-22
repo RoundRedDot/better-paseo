@@ -1,4 +1,4 @@
-import React, { Fragment, useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import React, { Fragment, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Platform,
   StyleSheet,
@@ -18,6 +18,7 @@ import { unselectable } from "../components/selection";
 import { useEnhancerPreferences } from "../preferences";
 import { usePreviewWraps } from "./hover-preview";
 import { SelectableSpan, SelectableText } from "./prose-text";
+import { TextZoomContext, isZoomed, zoomTextStyle, zoomTokens } from "./text-zoom";
 import { LineSelectionMenu, useLineSelection } from "./line-selection";
 
 /** A line as laid out: its text, ending in `\n` where a source line ends, and its box where the platform says. */
@@ -131,7 +132,13 @@ interface PreviewLinesProps {
  * too. The shading is drawn behind it and the numbers in a column of their
  * own beside it, both placed from where the text laid each line out.
  */
-export function PreviewLines({ text, lines, style, tokens, renderLine, diff = false, lineBackgrounds, firstLine = 1, numbered = true }: PreviewLinesProps) {
+export function PreviewLines({ text, lines, style: given, tokens: rowTokens, renderLine, diff = false, lineBackgrounds, firstLine = 1, numbered = true }: PreviewLinesProps) {
+  // The drawer's pinch zoom. A caller that built `style` from unzoomed tokens
+  // gets it moved here; one that zoomed its tokens built a zoomed style.
+  const zoom = useContext(TextZoomContext);
+  const tokens = zoomTokens(rowTokens, zoom);
+  const ownZoom = isZoomed(rowTokens) ? 0 : zoom;
+  const style = useMemo(() => zoomTextStyle(given, ownZoom), [given, ownZoom]);
   const { previewLineNumbers, previewStripes } = useEnhancerPreferences();
   const wraps = usePreviewWraps();
   const lineHeight = tokens.typography.mono.lineHeight;

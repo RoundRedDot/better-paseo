@@ -14,6 +14,7 @@ import { perfCount } from "../debug/perf";
 import { CopyButton } from "../ui/copy-button";
 import { ToolbarButton } from "../ui/toolbar-button";
 import { SelectableSpan } from "../ui/prose-text";
+import { useZoomedTokens } from "../ui/text-zoom";
 import type { HighlightLine, HighlightToken } from "../../shared/highlight-rpc";
 
 interface SyntaxHighlightProps {
@@ -487,7 +488,7 @@ function renderCssTokens(
 export function SyntaxHighlightBlock({
   code,
   language = "typescript",
-  tokens,
+  tokens: given,
   showLineNumbers = false,
   filename,
   compact = false,
@@ -499,6 +500,7 @@ export function SyntaxHighlightBlock({
   bare = false,
   onOpenPreview,
 }: SyntaxHighlightProps) {
+  const tokens = useZoomedTokens(given);
   const lines = useMemo(() => code.trimEnd().split("\n"), [code]);
   const total = lines.length;
   const { shown, expanding, expanded, showAll, showLess } = useBatchedRows(total, initialLines);

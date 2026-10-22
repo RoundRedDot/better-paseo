@@ -4,6 +4,7 @@ import { radiusV2, space } from "../components/theme-tokens";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { selectionCodeText } from "../components/selection-actions";
 import { SelectableText } from "./prose-text";
+import { useZoomedTokens } from "./text-zoom";
 
 /**
  * The band a shell or git call's command sits on: one line on its own fill,
@@ -30,7 +31,8 @@ export function CommandBand({ tokens, style, children }: {
 }
 
 /** The whole path at the top of a preview, on the command's band. */
-export function PreviewPath({ path, tokens }: { path: string; tokens: ExtendedThemeTokens }) {
+export function PreviewPath({ path, tokens: given }: { path: string; tokens: ExtendedThemeTokens }) {
+  const tokens = useZoomedTokens(given);
   return (
     <CommandBand tokens={tokens}>
       <SelectableText
