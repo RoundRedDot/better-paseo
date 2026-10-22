@@ -9,6 +9,7 @@ import { LANE_ORDER, LANE_STATUS, type LaneId, type TaskCard } from "../model";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { FILTER_ICONS, activeChips, buildFilterOptions, clearedParams, type FilterOption } from "./filter-options";
+import { RollingCount } from "./board-parts";
 import { toggleItem } from "./params";
 import type { SelectionAction, SidebarSelection } from "./sidebar-model";
 import { findCard, type BoardController } from "./use-board";
@@ -166,6 +167,7 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
             lane={id}
             label={board.strings.lanes[id]}
             count={board.tasks.ready ? board.lanes[id].cards.length : null}
+            scope={board.params}
             theme={props.theme}
             tokens={tokens}
             animated={board.visible}
@@ -182,6 +184,8 @@ function StatCell(props: {
   lane: LaneId;
   label: string;
   count: number | null;
+  /** The board's params: a count rolls to its new value only while they hold. */
+  scope: unknown;
   theme: PluginTheme;
   tokens: TaskTokens;
   animated: boolean;
@@ -192,6 +196,7 @@ function StatCell(props: {
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
   const alert = props.lane === "needs_input" && (props.count ?? 0) > 0;
+  const countStyle = { fontSize: F.xl, lineHeight: HOST_LINE.xl, fontWeight: "600" as const, color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums" as const] };
   return (
     <Pressable
       accessibilityRole="button"
@@ -218,9 +223,11 @@ function StatCell(props: {
           {props.label}
         </Text>
       </View>
-      <Text style={{ fontSize: F.xl, lineHeight: HOST_LINE.xl, fontWeight: "600", color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums"] }}>
-        {props.count ?? "–"}
-      </Text>
+      {props.count === null ? (
+        <Text style={countStyle}>–</Text>
+      ) : (
+        <RollingCount value={props.count} scope={props.scope} style={countStyle} />
+      )}
     </Pressable>
   );
 }

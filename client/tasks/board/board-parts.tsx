@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Platform, Pressable, View, type StyleProp, type ViewStyle } from "react-native";
+import { Animated, Platform, Pressable, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
@@ -358,6 +358,77 @@ function sameIds(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean
   return true;
 }
 
+
+/** A count on its way from `from` to `to`; `t` runs 0 → 1, null once it has arrived. */
+interface Roll {
+  from: number;
+  to: number;
+  scope: unknown;
+  t: Animated.Value | null;
+}
+
+/**
+ * A lane's count that rolls to its new value: the new number comes in from
+ * below as the old one leaves upward when the count grows, the other way when
+ * it shrinks. Only a change within the same `scope` rolls; new filters, a new
+ * sort or a new search show the new count at once, as their cards do. No
+ * motion when reduced.
+ *
+ * The roll is decided in render, so the frame that shows the new lanes starts
+ * it from its first value (on iOS a layout effect lands a frame late). The new
+ * number keeps the slot's width; the old one draws over it, out of the flow.
+ */
+export function RollingCount(props: { value: number; scope?: unknown; align?: "left" | "center"; style: StyleProp<TextStyle> }) {
+  const { value, scope } = props;
+  const reduced = useReducedMotion();
+  const [roll, setRoll] = useState<Roll>(() => ({ from: value, to: value, scope, t: null }));
+  if (roll.to !== value || roll.scope !== scope) {
+    const play = roll.to !== value && roll.scope === scope && !reduced;
+    setRoll({ from: roll.to, to: value, scope, t: play ? new Animated.Value(0) : null });
+  }
+  const t = roll.t;
+  useEffect(() => {
+    if (!t) return;
+    const animation = Animated.timing(t, { toValue: 1, duration: MOTION.countMs, easing: MOTION.ease, useNativeDriver: nativeDriver });
+    animation.start(({ finished }) => {
+      if (finished) setRoll((current) => (current.t === t ? { ...current, t: null } : current));
+    });
+    return () => animation.stop();
+  }, [t]);
+  if (!t) return <Text style={props.style}>{value}</Text>;
+  const shift = roll.to > roll.from ? MOTION.countShift : -MOTION.countShift;
+  const center = props.align === "center";
+  return (
+    <View>
+      <Animated.View style={{ opacity: t, transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [shift, 0] }) }] }}>
+        <Text style={props.style}>{roll.to}</Text>
+      </Animated.View>
+      {/* Wider than the slot, so a longer old number is not cut or wrapped. */}
+      <Animated.View
+        pointerEvents="none"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={{
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          left: center ? -COUNT_SPILL : 0,
+          right: -COUNT_SPILL,
+          alignItems: center ? "center" : "flex-start",
+          opacity: t.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+          transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [0, -shift] }) }],
+        }}
+      >
+        <Text numberOfLines={1} style={props.style}>
+          {roll.from}
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+/** How far past the slot an old, longer count may draw. */
+const COUNT_SPILL = 40;
 
 /** A 36 round icon button in a 44 target, with a count badge: the phone's search and filters, a narrow tablet board's filters. */
 export function RoundButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; active?: boolean; badge?: number; testID?: string }) {

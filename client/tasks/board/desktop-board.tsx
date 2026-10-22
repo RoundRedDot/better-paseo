@@ -10,7 +10,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
 import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-scrollbar";
 import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
-import { CardCell, HoverPressable, LoadMoreRow, SkeletonCard, VerticalLabel, useBreathing, useFreshIds, useTap } from "./board-parts";
+import { CardCell, HoverPressable, LoadMoreRow, RollingCount, SkeletonCard, VerticalLabel, useBreathing, useFreshIds, useTap } from "./board-parts";
 import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type FilterMenu } from "./filter-bar";
 import { buildFilterOptions } from "./filter-options";
 import { LANES, boardKeyReducer, clampFocus, laneLayout, type BoardFocus, type LaneShape } from "./navigation";
@@ -801,6 +801,7 @@ function DesktopLane(props: {
   const ready = board.tasks.ready;
   const name = strings.lanes[lane.id];
   const count = lane.cards.length;
+  const countStyle = { fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums" as const] };
   const fresh = useFreshIds(
     lane.cards.map((card) => card.id),
     ready,
@@ -873,7 +874,7 @@ function DesktopLane(props: {
       >
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <VerticalLabel text={name} color={colors.foreground} language={board.language} />
-        <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{ready ? count : ""}</Text>
+        {ready ? <RollingCount value={count} scope={board.params} align="center" style={countStyle} /> : <Text style={countStyle}>{""}</Text>}
       </HoverPressable>,
     );
   }
@@ -894,7 +895,7 @@ function DesktopLane(props: {
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <Text style={{ fontSize: F.sm, fontWeight: "500", color: colors.foreground }}>{name}</Text>
         {ready ? (
-          <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{count}</Text>
+          <RollingCount value={count} scope={board.params} style={countStyle} />
         ) : (
           <View style={{ width: 14, height: 10, borderRadius: 2, backgroundColor: colors.surface2 }} />
         )}
