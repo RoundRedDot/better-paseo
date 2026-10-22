@@ -140,7 +140,6 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
   const options = useMemo(() => buildFilterOptions(board.tasks, board.params), [board.tasks, board.params]);
   const chips = activeChips(board.params, board.defaults, options, board.strings).filter((chip) => chip.key !== "win");
   const summary = chips.map((chip) => (chip.kind ? `${chip.kind}: ${chip.value}` : chip.value)).join(" · ");
-  const windowLabel = board.strings.windows[board.params.doneWindow ?? board.defaults.doneWindow];
   return (
     <DetailCard tokens={tokens} style={{ paddingHorizontal: 8, paddingTop: 8, paddingBottom: 8, gap: 6 }} testID="sidebar-stats">
       <View style={{ paddingHorizontal: 4, gap: 2 }}>
@@ -158,7 +157,6 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
             lane={id}
             label={board.strings.lanes[id]}
             count={board.tasks.ready ? board.lanes[id].cards.length : null}
-            hint={id === "done" ? windowLabel : null}
             theme={props.theme}
             tokens={tokens}
             animated={board.visible}
@@ -175,7 +173,6 @@ function StatCell(props: {
   lane: LaneId;
   label: string;
   count: number | null;
-  hint: string | null;
   theme: PluginTheme;
   tokens: TaskTokens;
   animated: boolean;
@@ -212,13 +209,9 @@ function StatCell(props: {
           {props.label}
         </Text>
       </View>
-      {/* The hint ("24 hours") moves under the count when a larger interface size leaves it no room beside it. */}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", columnGap: 4 }}>
-        <Text style={{ fontSize: F["2xl"], lineHeight: HOST_LINE["2xl"], fontWeight: "600", color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums"] }}>
-          {props.count ?? "–"}
-        </Text>
-        {props.hint ? <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>{props.hint}</Text> : null}
-      </View>
+      <Text style={{ fontSize: F["2xl"], lineHeight: HOST_LINE["2xl"], fontWeight: "600", color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums"] }}>
+        {props.count ?? "–"}
+      </Text>
     </Pressable>
   );
 }
