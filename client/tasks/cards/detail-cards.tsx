@@ -858,7 +858,6 @@ function PropertyRow(props: {
     color,
     fontWeight: props.strong ? "500" : "400",
     ...(props.mono ? { fontFamily: MONO } : null),
-    ...(props.onPress && hovered && !touch ? { textDecorationLine: "underline", textDecorationColor: tokens.card.border } : null),
   };
   let trailing: React.ReactNode = null;
   if (props.onPress) trailing = <Icon name="ChevronRight" size={14} color={tokens.foregroundMuted} />;
