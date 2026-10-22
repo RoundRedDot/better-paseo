@@ -232,7 +232,8 @@ export function useBoard(
   }, []);
   const stop = useStopControl({ confirmStop: settings.board.confirmStop, isActive, toast });
   // Unarchive runs through the same CLI as Stop.
-  const unarchive = useUnarchiveControl({ available: stop.available, toast });
+  const verifyUnarchive = useCallback((agentId: string) => latest.current.tasks.refreshParent(agentId), []);
+  const unarchive = useUnarchiveControl({ available: stop.available, verify: verifyUnarchive, toast });
   const { stoppedManually, noteRunning, reconcile, restored } = stop;
   const stoppedIds = useMemo(() => restoredStops(stoppedManually, restored, tasks.byId), [stoppedManually, restored, tasks.byId]);
   const filtered = useMemo(

@@ -91,6 +91,7 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
     error: null,
     loadMoreDone: vi.fn(),
     resolveParent: vi.fn(),
+    refreshParent: vi.fn(async () => false),
     requestProjectIcon: vi.fn(),
   };
   return {

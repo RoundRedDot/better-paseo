@@ -496,7 +496,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const avatar = layout.projectAvatar;
   const metaStyle = text(m.metaSize, m.metaLine, muted);
   const parentLabel = card.parent
-    ? card.parent.missing
+    ? card.parent.missing && card.parent.archived === true
       ? strings.parentArchived
       : card.parent.title ?? strings.parentUnknown
     : null;
