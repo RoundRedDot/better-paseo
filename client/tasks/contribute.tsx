@@ -1,6 +1,7 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { settingsRpc } from "@getpaseo/plugin";
 import { TASKS_SETTINGS, tasksSettingsSchema } from "../../shared/tasks-settings";
+import { lastTurnsRpc } from "../../shared/turn-usage-rpc";
 import { TasksBoardScreen } from "./board/board-screen";
 import {
   setTasksBoardOpener,
@@ -17,6 +18,7 @@ import { BOARD_STRINGS } from "./board/strings";
 import { subscribeHostLanguage } from "../i18n/host-language";
 import { onTasksLanguageChange, resolveTasksLanguage } from "./i18n";
 import { SETTINGS_SCREEN_ID, setSettingsTab } from "../settings-tab";
+import { setLastTurnLoader } from "./data";
 
 /** The board's screen id; `openScreen({ screenId: TASKS_SCREEN_ID })` opens it. */
 export const TASKS_SCREEN_ID = "tasks";
@@ -38,6 +40,8 @@ const boardRoute = () => ({ screenId: TASKS_SCREEN_ID, params: encodeBoardParams
  */
 export function contributeTasks(client: PluginClientContext): () => void {
   let live = true;
+  // Cards time the last turn from the server's record of it.
+  setLastTurnLoader((agentIds) => client.rpc(lastTurnsRpc, { agentIds }).then((result) => result.turns));
   let language = resolveTasksLanguage();
 
   const registerBoard = () => {
@@ -137,5 +141,6 @@ export function contributeTasks(client: PluginClientContext): () => void {
     void removeScreen();
     setTasksSettingsOpener(null);
     setTasksBoardOpener(null);
+    setLastTurnLoader(null);
   };
 }
