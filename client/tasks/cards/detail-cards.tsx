@@ -11,7 +11,7 @@ import type { PermissionKind, TaskCard, TaskChild } from "../model";
 import type { PermissionButton, StopPhase } from "../actions";
 import type { FirstPrompt } from "../data/first-prompt";
 import type { LastMessage } from "../data/last-message";
-import { formatDuration, formatRelative, since, tildePath } from "./format";
+import { formatCost, formatDuration, formatRelative, since, tildePath } from "./format";
 import { cardStrings } from "./strings";
 import { taskTokens, type TaskTokens } from "./tokens";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
@@ -406,7 +406,7 @@ function StatusSub(props: Inner & { small: number }) {
   );
 }
 
-/** The running turn: its clock (ticking each second) and the context ring. */
+/** The running turn: its clock (ticking each second), the cost so far and the context ring. */
 function RunningTurn(props: Inner) {
   const { card } = props;
   const timer = useTime(props.time, (time) => {
@@ -417,6 +417,7 @@ function RunningTurn(props: Inner) {
     <TurnHero
       timer={timer}
       lastTurn={card.timing.lastTurnMs !== null ? formatDuration(card.timing.lastTurnMs) : null}
+      cost={card.usage?.totalCostUsd != null ? formatCost(card.usage.totalCostUsd) : null}
       context={contextView(card)}
       tokens={props.tokens}
       touch={props.touch === true}

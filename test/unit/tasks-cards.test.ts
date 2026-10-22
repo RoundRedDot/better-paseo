@@ -1177,14 +1177,29 @@ describe("TaskDetailCards", () => {
     renderer = null;
   });
 
+  it("leaves the cost out of the running turn when none is reported", async () => {
+    const tree = await render(details({ ...sample("sample-running"), usage: null }));
+    expect(texts(hostByTestId(tree.root, "detail-turn"))).toEqual(["本轮计时", "12:30", "上一轮 18m", "上下文", "86%", "172k / 200k"]);
+    expect(tree.root.findAll((node) => node.props.testID === "detail-turn-cost")).toHaveLength(0);
+    // The timer and the context share one row at any width.
+    expect(flat(hostByTestId(tree.root, "detail-context").props.style)).toMatchObject({ flex: 1, borderLeftWidth: 1 });
+  });
+
   it("heads with the status, the title, the agent's chips and the actions, then the running turn", async () => {
     const onOpen = vi.fn();
     const tree = await render(details(sample("sample-running"), { onOpen }));
     const header = hostByTestId(tree.root, "detail-header");
     expect(texts(header).slice(0, 11)).toEqual(["运行中", "本轮 12:30", "Port the status ring to React Native", "GPT-5.5 Codex", "Medium", "Bypass", "frontend", "p1", "board", "切换到 tab", "已打开"]);
-    // The turn's block: its clock and the context ring (86% is past the warning line).
-    expect(texts(hostByTestId(tree.root, "detail-turn"))).toEqual(["本轮计时", "12:30", "上一轮 18m", "上下文", "86%", "172k / 200k"]);
-    expect(hostByTestId(tree.root, "detail-turn").findAll((node) => (node.type as { name?: string }).name === "ProgressRing")).toHaveLength(1);
+    // The turn's block: its clock, the cost so far and the context ring (86% is past the warning line).
+    const turn = hostByTestId(tree.root, "detail-turn");
+    expect(texts(turn)).toEqual(["本轮计时", "12:30", "上一轮 18m", "费用", "$1.84", "累计", "上下文", "86%", "172k / 200k"]);
+    expect(turn.findAll((node) => (node.type as { name?: string }).name === "ProgressRing")).toHaveLength(1);
+    // Narrow: the timer and the cost share a row, the context takes the row under them; wide: one row of three.
+    const contextStyle = () => flat(hostByTestId(tree.root, "detail-context").props.style);
+    expect(contextStyle()).toMatchObject({ borderTopWidth: 1 });
+    await act(async () => turn.props.onLayout({ nativeEvent: { layout: { width: 480, height: 80 } } }));
+    expect(contextStyle()).toMatchObject({ flex: 1.4, borderLeftWidth: 1 });
+    expect(contextStyle().borderTopWidth).toBeUndefined();
     // Its tab is open somewhere: the button switches to it.
     byLabel(tree.root, "切换到 tab").props.onPress();
     expect(onOpen).toHaveBeenCalledWith("sample-running");
