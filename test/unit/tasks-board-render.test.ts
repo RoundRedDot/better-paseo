@@ -795,8 +795,8 @@ describe("Tasks board, lane widths", () => {
       renderer = TestRenderer.create(screen(false));
     });
     layOut(1300);
-    const button = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && textOf(node).startsWith("Lanes · "))[0]!;
-    expect(textOf(button())).toBe("Lanes · Default");
+    const button = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && String(node.props.accessibilityLabel).startsWith("Lanes · "))[0]!;
+    expect(textOf(button())).toBe("Default");
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: false, contentContainerStyle: { width: 1300 } });
     act(() => button().props.onPress());
     const menu = renderer!.root.find((node) => node.props.testID === "lane-width-menu");
@@ -804,7 +804,8 @@ describe("Tasks board, lane widths", () => {
     expect(items.map(textOf)).toEqual(["Narrow", "Default", "Wide"]);
     await act(async () => items[2]!.props.onPress());
     expect(renderer!.root.findAll((node) => node.props.testID === "lane-width-menu")).toHaveLength(0);
-    expect(textOf(button())).toBe("Lanes · Wide");
+    expect(textOf(button())).toBe("Wide");
+    expect(button().props.accessibilityLabel).toBe("Lanes · Wide");
     // 1300 fits four lanes at 300 but not at 360: the row scrolls at the wide width.
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 360 * 4 } });
     expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, laneWidth: "wide" } }, "1");
@@ -816,13 +817,13 @@ describe("Tasks board, lane widths", () => {
       renderer = TestRenderer.create(screen(false));
     });
     layOut(1600);
-    const button = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && textOf(node).startsWith("Lanes · "))[0]!;
+    const button = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && String(node.props.accessibilityLabel).startsWith("Lanes · "))[0]!;
     act(() => button().props.onPress());
     const narrow = renderer!.root
       .find((node) => node.props.testID === "lane-width-menu")
       .findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem")[0]!;
     await act(async () => narrow.props.onPress());
-    expect(textOf(button())).toBe("Lanes · Default");
+    expect(textOf(button())).toBe("Default");
     expect(host.reload).toHaveBeenCalled();
     expect(host.toast).toHaveBeenCalledWith("Couldn't save the lane width");
   });
