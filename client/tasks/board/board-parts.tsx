@@ -72,6 +72,20 @@ export function WindowSegments(props: {
   large?: boolean;
   stretch?: boolean;
 }) {
+  return <Segments items={DONE_WINDOWS} label={(window) => props.strings.windows[window]} {...props} />;
+}
+
+/** A row of choices, one picked: the done window's segments, and the lane width's in the filter sheet. */
+export function Segments<T extends string>(props: {
+  items: readonly T[];
+  label(item: T): string;
+  value: T;
+  onChange(value: T): void;
+  theme: PluginTheme;
+  large?: boolean;
+  stretch?: boolean;
+  testID?: string;
+}) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   // Desktop: a Linear-style 28 pill with square-ish corners; phone: the prototype's round segments.
@@ -80,6 +94,7 @@ export function WindowSegments(props: {
   return (
     <View
       accessibilityRole="radiogroup"
+      testID={props.testID}
       style={{
         height: props.stretch ? taskControlHeight(36, scale) : outer,
         flexDirection: "row",
@@ -90,7 +105,7 @@ export function WindowSegments(props: {
         alignSelf: props.stretch ? "stretch" : "auto",
       }}
     >
-      {DONE_WINDOWS.map((window) => {
+      {props.items.map((window) => {
         const on = window === props.value;
         const inner = (props.stretch ? taskControlHeight(36, scale) : outer) - 6;
         return (
@@ -110,7 +125,7 @@ export function WindowSegments(props: {
             }}
           >
             <Text style={{ fontSize: F.base, fontWeight: "500", color: on ? colors.foreground : colors.foregroundMuted }}>
-              {props.strings.windows[window]}
+              {props.label(window)}
             </Text>
           </Pressable>
         );
@@ -323,3 +338,54 @@ export function LetterAvatar({ name, theme, size = 14 }: { name: string; theme: 
     </View>
   );
 }
+
+/** A 36 round icon button in a 44 target, with a count badge: the phone's search and filters, a narrow tablet board's filters. */
+export function RoundButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; active?: boolean; badge?: number; testID?: string }) {
+  const colors = props.theme.colors;
+  const scale = useTasksFontScale();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={props.label}
+      onPress={props.onPress}
+      testID={props.testID}
+      style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+    >
+      <View
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          borderWidth: HAIRLINE,
+          borderColor: props.active ? colors.accent : colors.border,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Icon name={props.icon} size={18} color={colors.foreground} />
+      </View>
+      {props.badge ? (
+        <View
+          style={{
+            // 16 by 16 inside a 2 px ring of the surface.
+            position: "absolute",
+            top: 0,
+            right: 0,
+            minWidth: taskControlHeight(20, scale),
+            height: taskControlHeight(20, scale),
+            paddingHorizontal: 2,
+            borderRadius: 10,
+            backgroundColor: colors.accent,
+            borderWidth: 2,
+            borderColor: colors.surface0,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Text style={{ fontSize: F.sm, lineHeight: 14, fontWeight: "600", color: colors.accentForeground, fontVariant: ["tabular-nums"] }}>{props.badge}</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+

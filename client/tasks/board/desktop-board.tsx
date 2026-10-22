@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from "react";
 import { Animated, Platform, Pressable, ScrollView, View, type FlatList as NativeFlatList, type TextInput as NativeTextInput } from "react-native";
-import { FlatList, Icon } from "@getpaseo/plugin/client/react-native";
+import { FlatList, Icon, Modal } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, TasksTypography, useTasksFontScale, taskControlHeight } from "../typography";
 import { StatusIcon, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -32,11 +32,15 @@ import {
   type SidebarPreference,
 } from "./sidebar-model";
 import { BoardSheet } from "./board-sheet";
-import { rememberCollapsed, rememberedCollapsed } from "./params";
+import { activeFilterCount, rememberCollapsed, rememberedCollapsed } from "./params";
+import { FilterSheetBody } from "./filter-sheet";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
 
 const nativeDriver = Platform.OS !== "web";
+
+/** The filter sheet's body inside the host's sheet, as the phone's: the body pads itself and bounds its own scroll. */
+const FILTER_SHEET_BODY = { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, gap: 0, flex: 1, minHeight: 0 } as const;
 
 const Separator = () => <View style={{ height: 12 }} />;
 
@@ -129,6 +133,7 @@ export function DesktopBoard(props: {
   const [focusState, setFocus] = useState<BoardFocus | null>(null);
   const focus = clampFocus(focusState, shapes);
   const [menu, setMenu] = useState<FilterMenu | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const options = useMemo(() => buildFilterOptions(tasks, board.params), [tasks, board.params]);
 
   const listRefs = useRef<Partial<Record<LaneId, NativeFlatList<TaskCard> | null>>>({});
@@ -429,8 +434,25 @@ export function DesktopBoard(props: {
         searchRef={searchRef}
         keyHints={boardWidth === 0 || boardWidth >= KEY_HINTS_MIN_WIDTH * Math.max(1, scale)}
         sidebar={sidebarToggle}
+        filters={sheetMode ? { count: activeFilterCount(board.params, board.defaults), onPress: () => setFiltersOpen(true) } : undefined}
       />
-      <DesktopFilterBar board={board} theme={theme} options={options} menu={menu} setMenu={setMenu} />
+      {sheetMode ? null : <DesktopFilterBar board={board} theme={theme} options={options} menu={menu} setMenu={setMenu} />}
+      {/* A narrow board's filters, sort and lane width, behind the header's one button; the host draws the sheet in its own portal. */}
+      <Modal title={strings.filters} open={sheetMode && filtersOpen} onOpenChange={(open) => !open && setFiltersOpen(false)}>
+        <Modal.Content contentContainerStyle={FILTER_SHEET_BODY} scrollable={false}>
+          <TasksTypography theme={theme}>
+            {sheetMode && filtersOpen ? (
+              <FilterSheetBody
+                board={board}
+                theme={theme}
+                options={options}
+                laneWidth={{ value: board.laneWidth, onChange: board.setLaneWidth }}
+                onDone={() => setFiltersOpen(false)}
+              />
+            ) : null}
+          </TasksTypography>
+        </Modal.Content>
+      </Modal>
       <View
         style={{ flex: 1, minHeight: 0, flexDirection: "row" }}
         onLayout={(event) => {
@@ -734,9 +756,9 @@ function DesktopLane(props: {
     <View style={{ width: props.width, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}>
       <View style={{ height: taskControlHeight(40, scale), flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 14, paddingRight: 8 }}>
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
-        <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{name}</Text>
+        <Text style={{ fontSize: F.sm, fontWeight: "500", color: colors.foreground }}>{name}</Text>
         {ready ? (
-          <Text style={{ fontSize: F.base, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{count}</Text>
+          <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{count}</Text>
         ) : (
           <View style={{ width: 14, height: 10, borderRadius: 2, backgroundColor: colors.surface2 }} />
         )}

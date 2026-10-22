@@ -4,7 +4,7 @@ import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { taskTokens } from "../cards";
-import { HoverPressable, WindowSegments } from "./board-parts";
+import { HoverPressable, WindowSegments, RoundButton } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { activeChips, clearedParams, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
@@ -31,6 +31,12 @@ export function DesktopToolbar(props: {
   keyHints: boolean;
   /** The details sidebar's switch at the bar's right end. */
   sidebar?: { open: boolean; onToggle(): void };
+  /**
+   * A narrow board's one-row header: the filter bar folds into this button
+   * (its count of active filters on a badge), which opens the filter sheet,
+   * so the lanes keep the height two more rows took.
+   */
+  filters?: { count: number; onPress(): void };
 }) {
   const { board, theme } = props;
   const scale = useTasksFontScale();
@@ -87,6 +93,7 @@ export function DesktopToolbar(props: {
           style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground }}
         />
       </View>
+      {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} testID="toolbar-filters" /> : null}
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
     </View>
   );

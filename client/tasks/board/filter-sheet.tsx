@@ -2,9 +2,10 @@ import React, { useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
+import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { BrandMark, taskTokens } from "../cards";
-import { Checkbox, LetterAvatar, WindowSegments } from "./board-parts";
+import { Checkbox, LetterAvatar, Segments, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
@@ -23,6 +24,8 @@ export function FilterSheetBody(props: {
   theme: PluginTheme;
   options: FilterOptions;
   onDone(): void;
+  /** The lane width, on a tablet's narrow board (its lanes scroll); a phone shows one lane and has none. */
+  laneWidth?: { value: LaneWidth; onChange(width: LaneWidth): void };
   /**
    * Opened from the header's sort pill: the sort comes first. (Scrolling
    * there does not hold: the host's sheet opens half high and keeps its
@@ -36,6 +39,36 @@ export function FilterSheetBody(props: {
   const strings = board.strings;
   const { setParams, defaults } = board;
   const resolved = resolveBoardParams(board.params, defaults);
+  // A tablet's sheet (it has the lane width) leads with how the board looks: a long workspace list
+  // otherwise pushed the done window, the lane width and the sort many screens down.
+  const viewFirst = props.laneWidth !== undefined && !sortFirst;
+  const viewControls = (
+    <View testID="filter-sheet-view">
+      <Text style={{ paddingTop: viewFirst ? 0 : 12, paddingBottom: 8, fontSize: F.sm, fontWeight: "500", color: colors.foregroundMuted }}>{strings.doneRange}</Text>
+      <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
+      {props.laneWidth ? (
+        <>
+          <Text style={{ paddingTop: 16, paddingBottom: 8, fontSize: F.sm, fontWeight: "500", color: colors.foregroundMuted }}>{strings.laneWidth.title}</Text>
+          <Segments
+            items={LANE_WIDTHS}
+            label={(width) => strings.laneWidth.names[width]}
+            value={props.laneWidth.value}
+            onChange={props.laneWidth.onChange}
+            theme={theme}
+            large
+            stretch
+            testID="filter-sheet-lane-width"
+          />
+        </>
+      ) : null}
+      {sortFirst ? null : (
+        <View testID="filter-sheet-sort">
+          <SectionTitle text={strings.sort} theme={theme} />
+          <SortDrillDown board={board} theme={theme} />
+        </View>
+      )}
+    </View>
+  );
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
       <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" testID="filter-sheet-scroll">
@@ -53,7 +86,13 @@ export function FilterSheetBody(props: {
               <SortDrillDown board={board} theme={theme} />
             </View>
           ) : null}
-          <SectionTitle text={strings.workspace} theme={theme} first={!sortFirst} />
+          {viewFirst ? (
+            <View style={{ paddingBottom: 8 }}>
+              {viewControls}
+              <View style={{ height: HAIRLINE, marginTop: 16, backgroundColor: colors.border }} />
+            </View>
+          ) : null}
+          <SectionTitle text={strings.workspace} theme={theme} first={!sortFirst && !viewFirst} />
           {options.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
           {options.workspaceGroups.map((group) => (
             <View key={group.projectId || "missing"}>
@@ -117,14 +156,7 @@ export function FilterSheetBody(props: {
             theme={theme}
             onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
           />
-          <Text style={{ paddingTop: 12, paddingBottom: 8, fontSize: F.sm, fontWeight: "500", color: colors.foregroundMuted }}>{strings.doneRange}</Text>
-          <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
-          {sortFirst ? null : (
-            <View testID="filter-sheet-sort">
-              <SectionTitle text={strings.sort} theme={theme} />
-              <SortDrillDown board={board} theme={theme} />
-            </View>
-          )}
+          {viewFirst ? null : viewControls}
         </View>
       </ScrollView>
       <View testID="filter-sheet-footer" style={{ paddingTop: 12, paddingHorizontal: 16, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
