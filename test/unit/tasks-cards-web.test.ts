@@ -353,6 +353,40 @@ describe("TaskCardView details", () => {
     vi.useRealTimers();
   });
 
+  it("opens a card's tab on a double click whose first click chose the same card", async () => {
+    const onOpen = vi.fn();
+    const onSelect = vi.fn();
+    const renderer = await render(
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(TaskCardView, props("sample-running", { onOpen, onSelect })),
+        React.createElement(TaskCardView, props("sample-child-1", { onOpen, onSelect })),
+      ),
+    );
+    const surface = (id: string) => renderer.root.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${id}`);
+    const click = (id: string, detail: number) => surface(id).props.onPress({ nativeEvent: { detail } });
+    const chosen = () => onSelect.mock.calls.map(([card]) => card.id);
+
+    // The system's click count decides, however slow its double-click speed.
+    click("sample-running", 1);
+    click("sample-running", 2);
+    expect(chosen()).toEqual(["sample-running"]);
+    expect(onOpen).toHaveBeenCalledWith("sample-running");
+
+    // The lanes moved under the pointer: the second click chooses the card it hit.
+    onOpen.mockClear();
+    click("sample-running", 1);
+    click("sample-child-1", 2);
+    expect(chosen()).toEqual(["sample-running", "sample-running", "sample-child-1"]);
+    expect(onOpen).not.toHaveBeenCalled();
+
+    // Enter on a focused card is a click with no count: it only chooses.
+    surface("sample-child-1").props.onPress({ nativeEvent: { detail: 0 } });
+    expect(onOpen).not.toHaveBeenCalled();
+    await act(async () => renderer.unmount());
+  });
+
   it("never asks for the sidebar on a hover: only a click chooses a card", async () => {
     vi.useFakeTimers();
     const onDetails = vi.fn();
