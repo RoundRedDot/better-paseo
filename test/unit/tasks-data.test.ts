@@ -392,6 +392,48 @@ describe("Tasks data store", () => {
     }
   });
 
+  it("drops a card whose agent another client deleted, and keeps one that only closed", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("gone", { status: "idle", requiresAttention: true, updatedAt: recentIso(60_000) }),
+        activeAgent("resting", { status: "idle", requiresAttention: true, updatedAt: recentIso(60_000) }),
+      ],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake);
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    try {
+      expect(mounted.current.byId.get("gone")?.lane).toBe("review");
+      // Another client deletes "gone": this session sees it close, then nothing more.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("gone", { status: "closed", requiresAttention: true, updatedAt: recentIso(1_000) }));
+        fake.forgetAgent("gone");
+        // "resting" closes for good reasons and stays.
+        fake.upsertAgent(activeAgent("resting", { status: "closed", requiresAttention: true, updatedAt: recentIso(1_000) }));
+        await Promise.resolve();
+      });
+      expect(mounted.current.byId.has("gone")).toBe(true);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.has("gone")).toBe(false);
+      expect(mounted.current.counts.review).toBe(1);
+      expect(mounted.current.byId.get("resting")?.lane).toBe("review");
+      // One look for the deleted agent; the closed one is asked again once in case its delete was slow, then left alone.
+      const refreshes = (id: string) => fake.calls.filter((call) => call.method === "agents.ref.refresh" && (call.input as { agentId: string }).agentId === id).length;
+      expect(refreshes("gone")).toBe(1);
+      expect(refreshes("resting")).toBe(2);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(refreshes("resting")).toBe(2);
+    } finally {
+      vi.useRealTimers();
+      mounted.unmount();
+    }
+  });
+
   it("detects optional labels and icons, maps tag colours, and caches icons by revision", async () => {
     const agent = activeAgent("a", { status: "running", labels: { "paseo.open-agent-tab.a": "true" } });
     const oldHost = createFakePaseo({ agents: [agent], workspaces: [workspace(["bug"])] });
