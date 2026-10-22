@@ -51,6 +51,7 @@ import { summarizeToolCall, summarizeToolGroup } from "../tools/group";
 import { toolHasDetail } from "../tools/detail";
 import { mcpServiceIcon } from "../tools/mcp-service-icon";
 import { commandIcon } from "../tools/command-icon";
+import type { CopyItem } from "../details/contracts";
 
 /**
  * The muted icon a settled call shows in the row's status slot: one Lucide
@@ -206,6 +207,7 @@ export function ToolCallout({
 
   const summary = useMemo(() => groupCalls ? summarizeToolGroup(groupCalls) : summarizeTool(data), [data, groupCalls]);
   const iconName = useMemo(() => toolCallIconName(data), [data]);
+  const agentTarget = useAgentRowTarget(summary);
   const pathContext = useContext(PathContext);
   const capabilities = useInputCapabilities(compact);
   const touchFirst = capabilities.touch && !capabilities.hover;
@@ -347,6 +349,16 @@ export function ToolCallout({
       previewWraps={!drawsImage}
       pressPreview={!viewsImage}
       previewKey={previewKey}
+      detailsTitle={{ text: summary.agent ? [summary.verb, agentTarget.text].filter(Boolean).join(" · ")
+        : groupCalls ? [summary.verb, summary.target].filter(Boolean).join(" ")
+        : data.shell?.command || data.command || (summary.targetIsPath ? data.filePath : undefined) || summary.target || summary.verb,
+        mono: !summary.agent && Boolean(summary.targetIsPath || data.command || data.shell?.command) }}
+      detailsSubtitle={drawsImage ? imageMenuSubtitle(imageFile, filePath) : [data.status, ...summary.meta]}
+      detailsTone={running ? "accent" : failed ? "danger" : summary.tone === "warning" ? "warning" : "muted"}
+      detailsIcon={summary.agent?.icon ?? iconName}
+      copyItems={() => toolRowCopyItems(data, resolvePath)}
+      readsImage={drawsImage}
+      onViewImage={openViewer}
       previewContent={() => (
         groupCalls ? (
           <GroupedPreview calls={groupCalls} resolvePath={resolvePath} tokens={tokens} compact={compact} imageFile={imageFile}
@@ -587,6 +599,33 @@ export function previewCopyActions(plan: CopyPlan): CopyAction[] {
     seen.add(`text:${action.text}`);
     return true;
   });
+}
+
+/** The row menu uses the preview's copy order, including Paseo's prompt-only card. */
+export function toolRowCopyItems(call: ToolCallView, resolvePath: ResolvePath): CopyItem[] {
+  const plan = toolCopyPlan(call, resolvePath);
+  const prompt = call.paseo?.sendAgentPrompt?.prompt;
+  const create = call.tool === "paseo" ? call.paseo?.createAgent : undefined;
+  const actions: CopyAction[] = prompt
+    ? [{ id: "prompt", label: "Copy prompt", text: prompt }, ...previewCopyActions(plan)]
+    : create ? [{ id: "prompt", label: "Copy prompt", text: create.initialPrompt }]
+    : previewCopyActions(plan);
+  const seen = new Set<string>();
+  return actions.filter((action) => {
+    if (!action.text || seen.has(action.text)) return false;
+    seen.add(action.text);
+    return true;
+  }).map((action) => ({ ...action, icon: COPY_ICON[action.id] }));
+}
+
+function imageMenuSubtitle(file: ImageFile | null | undefined, path: string | undefined): string[] {
+  const parts: string[] = [];
+  if (file?.width && file.height) parts.push(`${file.width} × ${file.height}`);
+  const format = path?.split(".").pop()?.toUpperCase();
+  if (format) parts.push(format);
+  if (file?.bytes != null) parts.push(file.bytes < 1024 ? `${file.bytes} B` : file.bytes < 1024 * 1024
+    ? `${Math.round(file.bytes / 1024)} KB` : `${(file.bytes / (1024 * 1024)).toFixed(1)} MB`);
+  return parts;
 }
 
 /**
