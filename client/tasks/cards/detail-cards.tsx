@@ -15,6 +15,7 @@ import { cardStrings } from "./strings";
 import { taskTokens, type TaskTokens } from "./tokens";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { BrandMark } from "./brand-mark";
+import { ChildMark } from "./child-mark";
 import { useTime, type TimeSource } from "./clock";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
@@ -1027,40 +1028,6 @@ function SubtaskRow(props: { m: Metrics; tokens: TaskTokens; theme: PluginTheme;
         ) : null}
       </View>
     </Pressable>
-  );
-}
-
-/**
- * Paseo 0.12's `WorkspaceTabIcon` at 14: the provider's mark, its status on
- * the bottom-right corner over a knockout of the row's fill. Running is the
- * 12 ring in a 14 frame, unread and failed an 8 dot (6 and a 1 px knockout),
- * needs input the board's hollow amber ring; a finished child has none.
- */
-function ChildMark(props: { child: TaskChild; tokens: TaskTokens; theme: PluginTheme; backdrop: string }) {
-  const { child, tokens } = props;
-  const status = child.status;
-  let corner: React.ReactNode = null;
-  if (status === "running" || status === "needs_input") {
-    corner = (
-      <View style={{ position: "absolute", right: -5, bottom: -5, width: 14, height: 14, borderRadius: 7, backgroundColor: props.backdrop, alignItems: "center", justifyContent: "center" }}>
-        <View style={{ margin: -1 }}>
-          <StatusIcon kind={status} size={16} theme={props.theme} />
-        </View>
-      </View>
-    );
-  } else if (status === "unread" || status === "failed") {
-    corner = (
-      <View
-        testID={`status-${status}`}
-        style={{ position: "absolute", right: -2, bottom: -2, width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: props.backdrop, backgroundColor: status === "failed" ? tokens.status.danger : tokens.status.success }}
-      />
-    );
-  }
-  return (
-    <View style={{ width: 14, height: 14, flexShrink: 0 }}>
-      {child.provider ? <BrandMark provider={child.provider} size={14} tokens={tokens} mono={tokens.foregroundMuted} /> : <Icon name="Bot" size={14} color={tokens.foregroundMuted} />}
-      {corner}
-    </View>
   );
 }
 

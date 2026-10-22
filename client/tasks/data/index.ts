@@ -532,6 +532,8 @@ function createStore(api: PaseoApi): TaskStore {
                     thinkingLabel: child.thinkingLabel,
                     modeLabel: child.modeLabel,
                     context: child.context,
+                    lane: child.lane,
+                    timing: child.timing,
                   }
                 : null;
             })
