@@ -397,13 +397,17 @@ describe("TaskCardView rows", () => {
     expect(flat(title.props.style)).toMatchObject({ fontSize: 12, fontWeight: "500" });
     expect(pills(tree.root)).toEqual([
       ["pill-model", "GPT-5.5 Codex"],
-      ["pill-thinking", "Medium"],
       ["pill-branch", "feat/tasks-board"],
       ["pill-label-frontend", "frontend"],
       ["pill-label-p1", "p1"],
       ["pill-labels-more", "+1"],
       ["pill-subtasks", "2"],
     ]);
+    // Model and thinking share one pill, each with its icon, joined by a middle dot.
+    const agent = hostByTestId(tree.root, "pill-model");
+    expect(texts(agent)).toEqual(["GPT-5.5 Codex", "·", "Medium"]);
+    expect(icons(agent)).toEqual(["Brain"]);
+    expect(agent.props.accessibilityLabel).toBe("Codex GPT-5.5 Codex Medium");
     // The turn's start behind a clock, then how long it has run behind an hourglass, as the turn footer draws them.
     const footer = hostByTestId(tree.root, "task-card-footer");
     expect(texts(footer)).toEqual([RUNNING_START, "12m 30s"]);
@@ -416,7 +420,7 @@ describe("TaskCardView rows", () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: fields("standard", { labelLimit: "all" }) }));
     for (const [id] of pills(tree.root)) {
       // borderWidth is StyleSheet.hairlineWidth, which rn-mock reports as 1; the agent pills have none.
-      const agent = id === "pill-model" || id === "pill-thinking" || id === "pill-branch";
+      const agent = id === "pill-model" || id === "pill-branch";
       expect(flat(hostByTestId(tree.root, id).props.style)).toMatchObject({ height: 24, borderRadius: 12, borderWidth: agent ? 0 : 1 });
     }
     // Tints: a label's colour at 10% over the card with a stronger hairline; neutral grey without one.
@@ -431,7 +435,6 @@ describe("TaskCardView rows", () => {
     expect(pillColors("pill-branch").background).toBe(mix("#ffffff", tokens.branch, 0.08));
     // Codex's mark is monochrome, like the ChatGPT app's, so its agent pill is the neutral one; the subtasks pill its dominant status (2 running).
     expect(pillColors("pill-model").background).toBe(mix("#ffffff", LIGHT.colors.foreground, 0.06));
-    expect(pillColors("pill-thinking").background).toBe(mix("#ffffff", LIGHT.colors.foreground, 0.06));
     expect(pillColors("pill-subtasks").background).toBe(mix("#ffffff", tokens.status.running, 0.1));
     const dot = (name: string) =>
       flat((hostByTestId(tree.root, `pill-label-${name}`).findAll((node) => typeof node.type === "string" && flat(node.props.style).width === 8)[0])!.props.style)
@@ -448,9 +451,8 @@ describe("TaskCardView rows", () => {
     // Minimal: the model and thinking switches are on, the provider's mark is off.
     expect(pills(tree.root)).toEqual([
       ["pill-model", "GPT-5.5 Codex"],
-      ["pill-thinking", "Medium"],
     ]);
-    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex", "Medium", RUNNING_START, "12m 30s"]);
+    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex", "·", "Medium", RUNNING_START, "12m 30s"]);
     expect(hostByTestId(tree.root, "pill-model").findAll((node) => (node.type as unknown) === "Image")).toHaveLength(0);
     // With no meta row, the jump button moves up to the title row, which then holds the overlays.
     expect(icons(hostByTestId(tree.root, "task-card-title-row"))).toContain("ArrowUpRight");
@@ -464,10 +466,20 @@ describe("TaskCardView rows", () => {
     expect(texts(tree.root)).toEqual(["Port the status ring to React Native"]);
   });
 
-  it("names the provider in the model pill when the model is off, and drops the thinking pill", async () => {
+  it("names the provider in the model pill when the model is off, and drops the thinking level", async () => {
     const tree = await render(cardElement(sample("sample-done"), { fields: fields("standard", { model: false, thinking: false }) }));
     expect(pills(tree.root)[0]).toEqual(["pill-model", "Claude"]);
-    expect(pills(tree.root).map(([id]) => id)).not.toContain("pill-thinking");
+    expect(texts(hostByTestId(tree.root, "pill-model"))).toEqual(["Claude"]);
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "agent-pill-dot")).toHaveLength(0);
+  });
+
+  it("keeps the thinking level in a pill of its own when the model pill is off", async () => {
+    const tree = await render(cardElement(sample("sample-running"), { fields: fields("standard", { provider: false, model: false }) }));
+    expect(pills(tree.root).slice(0, 2)).toEqual([
+      ["pill-thinking", "Medium"],
+      ["pill-branch", "feat/tasks-board"],
+    ]);
+    expect(icons(hostByTestId(tree.root, "pill-thinking"))).toEqual(["Brain"]);
   });
 
   it("adds git status, the full path and the PR at full", async () => {
@@ -856,7 +868,6 @@ describe("TaskCardView compact tiers", () => {
     const all = texts(tree.root);
     expect(pills(tree.root)).toEqual([
       ["pill-model", "GPT-5.5 Codex"],
-      ["pill-thinking", "Medium"],
       ["pill-branch", "feat/tasks-board"],
       ["pill-label-frontend", "frontend"],
       ["pill-labels-more", "+2"],
