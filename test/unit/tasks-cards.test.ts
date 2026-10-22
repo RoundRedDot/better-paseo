@@ -1389,6 +1389,20 @@ describe("TaskDetailCards", () => {
     expect(tree.root.findAll((node) => node.props.testID === "detail-prompt")).toHaveLength(0);
   });
 
+  it("shows the latest reply under the first prompt, copyable, with its own empty note", async () => {
+    const load = vi.fn();
+    const firstPrompt = { prompt: { state: "ready", text: "Fix the board" } as const, load };
+    const tree = await render(details(sample("sample-failed"), { firstPrompt, lastMessage: { prompt: { state: "ready", text: "Four subagents failed." }, load } }, "en"));
+    const sections = tree.root.findAll((node) => typeof node.type === "string" && ["detail-prompt", "detail-message", "detail-location"].includes(node.props.testID));
+    expect(sections.map((node) => node.props.testID)).toEqual(["detail-prompt", "detail-message", "detail-location"]);
+    expect(texts(hostByTestId(tree.root, "detail-message"))).toEqual(["Latest message", "Four subagents failed."]);
+    await act(async () => byLabel(tree.root, "Copy message").props.onPress());
+    expect(clipboard.copyText).toHaveBeenLastCalledWith("Four subagents failed.");
+
+    await act(async () => tree.update(details(sample("sample-failed"), { firstPrompt, lastMessage: { prompt: { state: "none" }, load } }, "zh")));
+    expect(texts(hostByTestId(tree.root, "detail-message"))).toEqual(["最近一条消息", "agent 还没有回复"]);
+  });
+
   it("leads with the error when a card failed, and with a grey line after a manual stop", async () => {
     const failed = await render(details(sample("sample-failed"), {}, "en"));
     expect(texts(hostByTestId(failed.root, "detail-error"))).toEqual(["Run failed", "Provider exited with code 1: rate limit reached"]);

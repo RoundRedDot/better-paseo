@@ -10,6 +10,7 @@ import type { TasksLanguage } from "../i18n";
 import type { PermissionKind, TaskCard, TaskChild } from "../model";
 import type { PermissionButton, StopPhase } from "../actions";
 import type { FirstPrompt } from "../data/first-prompt";
+import type { LastMessage } from "../data/last-message";
 import { formatDuration, formatRelative, since, tildePath } from "./format";
 import { cardStrings } from "./strings";
 import { taskTokens, type TaskTokens } from "./tokens";
@@ -58,7 +59,7 @@ import { sectionClosed, setSectionClosed, useSectionChoices } from "./detail-col
  * (`docs/prototypes/task-details-rich.md`): the header (status, title, the
  * agent's chips and labels, the actions), then the block the card needs
  * first (the running turn, the permission request, the error, or a summary),
- * then collapsible sections: the first prompt, properties, subtasks, usage and activity, in an
+ * then collapsible sections: the first prompt, the latest reply, properties, subtasks, usage and activity, in an
  * order that follows the state. The desktop sidebar draws it at desktop
  * sizes; the phone's sheet and a tablet's touch sidebar at touch sizes.
  */
@@ -150,6 +151,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   onJump?(agentId: string): void;
   /** The task's first prompt, read from its timeline; absent leaves the section out (the settings preview). */
   firstPrompt?: { prompt: FirstPrompt; load(): void } | null;
+  /** The agent's latest reply, read from its timeline's tail; absent leaves the section out. */
+  lastMessage?: { prompt: LastMessage; load(): void } | null;
   /** Unarchive for an archived parent; absent where this host cannot. */
   unarchive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
   /** The sections scroll under the fixed header (the sidebar); else the card grows with them (the sheet). */
@@ -178,7 +181,7 @@ export function TaskDetailCards(props: TaskDetailCardsProps) {
   // The caller's source, for what ticks each second: `now` below is whole minutes.
   const time: TimeSource = { now: props.now, clock: props.clock };
   const choices = useSectionChoices();
-  const { order, closed } = detailSections(card, !!props.firstPrompt);
+  const { order, closed } = detailSections(card, !!props.firstPrompt, !!props.lastMessage);
   // Two columns: the subtasks sit under the header, everything else on the right.
   const leftSections: DetailSection[] = props.columns ? order.filter((section) => section === "subtasks") : [];
   const rightOrder = order.filter((section) => !leftSections.includes(section));
@@ -560,7 +563,7 @@ function ErrorBlock(props: Inner) {
 function Section(props: Inner & { section: DetailSection; closed: boolean; divider: boolean }) {
   const { card, m, tokens, section } = props;
   const words = cardStrings(props.language).details;
-  const title = { prompt: words.prompt, properties: words.properties, subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
+  const title = { prompt: words.prompt, message: words.message, properties: words.properties, subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
   // A narrow card's subtasks drop the running count, the start times and the low context shares.
   const [narrow, setNarrow] = useState(false);
   const onLayout =
@@ -574,12 +577,13 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
   const heading = section === "subtasks" ? subtaskHeading(card.children, props.language, narrow) : null;
   const summary = {
     prompt: "",
+    message: "",
     properties: card.location.branch ?? (card.location.git === null ? words.notGit : ""),
     subtasks: heading && heading.parts.length > 0 ? <SubtaskSummaryText parts={heading.parts} tokens={tokens} /> : "",
     usage: usageSummary(card, props.language),
     activity: created !== null ? words.createdAgo(formatRelative(created, props.language)) : "",
   }[section];
-  const testID = { prompt: "detail-prompt", properties: "detail-location", subtasks: "detail-subtasks", usage: "detail-usage", activity: "detail-activity" }[section];
+  const testID = { prompt: "detail-prompt", message: "detail-message", properties: "detail-location", subtasks: "detail-subtasks", usage: "detail-usage", activity: "detail-activity" }[section];
   // The last subtask row keeps 8 (touch 10) above the next hairline.
   const bottom = section === "subtasks" && m === TOUCH_CARD ? 10 : 8;
   return (
@@ -598,7 +602,9 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
           onPress={() => setSectionClosed(section, !props.closed)}
         />
         {props.closed ? null : section === "prompt" ? (
-          <PromptBody {...props} />
+          <TimelineTextBody {...props} read={props.firstPrompt} id="detail-prompt" none={words.promptNone} error={words.promptError} copyLabel={words.copyPrompt} copyToast="Copy prompt" />
+        ) : section === "message" ? (
+          <TimelineTextBody {...props} read={props.lastMessage} id="detail-message" none={words.messageNone} error={words.messageError} copyLabel={words.copyMessage} copyToast="Copy message" />
         ) : section === "properties" ? (
           <Properties {...props} />
         ) : section === "subtasks" ? (
@@ -1228,32 +1234,33 @@ function OpenChild(props: { tokens: TaskTokens; label: string; onPress(): void }
   );
 }
 
-/** The prompt's lines shown before "show all". */
+/** The lines a prompt or reply shows before "show all". */
 const PROMPT_LINES = 4;
 
 /**
- * The task's first prompt in full, the title being only its first line:
- * four lines, then "show all"; copyable, selectable on the web. A closed
- * agent waits for "Load", since reading its timeline resumes it.
+ * Text read from the task's timeline: the first prompt in full (the title
+ * being only its first line), or the agent's latest reply. Four lines, then
+ * "show all"; copyable, selectable on the web. A closed agent waits for
+ * "Load", since reading its timeline resumes it.
  */
-function PromptBody(props: Inner) {
-  const { tokens } = props;
+function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt; load(): void } | null | undefined; id: string; none: string; error: string; copyLabel: string; copyToast: string }) {
+  const { tokens, id } = props;
   const words = cardStrings(props.language).details;
   const [open, setOpen] = useState(false);
   const { copied, copy } = useCopy();
-  const first = props.firstPrompt;
+  const first = props.read;
   if (!first) return null;
   const font = props.touch ? 15 : 13;
   const small = props.touch ? 14 : 12;
   const prompt = first.prompt;
   if (prompt.state !== "ready") {
     const retry = prompt.state === "idle" || prompt.state === "error";
-    const note = prompt.state === "loading" ? words.promptLoading : prompt.state === "none" ? words.promptNone : prompt.state === "error" ? words.promptError : null;
+    const note = prompt.state === "loading" ? words.promptLoading : prompt.state === "none" ? props.none : prompt.state === "error" ? props.error : null;
     return (
-      <View style={{ minHeight: props.touch ? 36 : 28, paddingHorizontal: 6, flexDirection: "row", alignItems: "center", gap: 8 }} testID="detail-prompt-state">
+      <View style={{ minHeight: props.touch ? 36 : 28, paddingHorizontal: 6, flexDirection: "row", alignItems: "center", gap: 8 }} testID={`${id}-state`}>
         {note ? <Text style={{ flexShrink: 1, fontSize: small, color: tokens.foregroundMuted }}>{note}</Text> : null}
         {retry ? (
-          <Pressable accessibilityRole="button" onPress={first.load} hitSlop={6} testID="detail-prompt-load">
+          <Pressable accessibilityRole="button" onPress={first.load} hitSlop={6} testID={`${id}-load`}>
             <Text style={{ fontSize: small, fontWeight: "500", color: tokens.accentText }}>{words.promptLoad}</Text>
           </Pressable>
         ) : null}
@@ -1266,23 +1273,23 @@ function PromptBody(props: Inner) {
   return (
     <View style={{ paddingHorizontal: 6, paddingTop: 2 }}>
       <View style={{ borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: detailColors(tokens).sunk }}>
-        <Text selectable numberOfLines={open ? undefined : PROMPT_LINES} style={{ fontSize: font, lineHeight: Math.round(font * 1.55), color: tokens.foreground }} testID="detail-prompt-text">
+        <Text selectable numberOfLines={open ? undefined : PROMPT_LINES} style={{ fontSize: font, lineHeight: Math.round(font * 1.55), color: tokens.foreground }} testID={`${id}-text`}>
           {text}
         </Text>
       </View>
       <View style={{ minHeight: props.touch ? 36 : 28, flexDirection: "row", alignItems: "center", gap: 8 }}>
         {long ? (
-          <Pressable accessibilityRole="button" onPress={() => setOpen((was) => !was)} hitSlop={4} testID="detail-prompt-more">
+          <Pressable accessibilityRole="button" onPress={() => setOpen((was) => !was)} hitSlop={4} testID={`${id}-more`}>
             <Text style={{ fontSize: small, color: tokens.foregroundMuted }}>{open ? words.showLess : words.showAll(lines.length)}</Text>
           </Pressable>
         ) : null}
         <View style={{ flex: 1 }} />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={words.copyPrompt}
-          onPress={() => void copy(text, { label: "Copy prompt" })}
+          accessibilityLabel={props.copyLabel}
+          onPress={() => void copy(text, { label: props.copyToast })}
           hitSlop={6}
-          testID="detail-prompt-copy"
+          testID={`${id}-copy`}
           style={{ width: 24, height: 24, marginRight: -4, alignItems: "center", justifyContent: "center", borderRadius: 6 }}
         >
           <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : tokens.foregroundMuted} />
