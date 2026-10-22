@@ -3,8 +3,7 @@ import { View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
 import { BrandMark, ProjectIcon, taskTokens } from "../cards";
-import { Checkbox } from "./board-parts";
-import type { ChipGroup, FilterOption, FilterOptions } from "./filter-options";
+import { FILTER_ICONS, type ActiveChip, type ChipGroup, type FilterOption, type FilterOptions } from "./filter-options";
 import type { BoardParams } from "./params";
 import type { MenuItem, MenuSection } from "./menu-model";
 import { NAME_KEYS, sameSort, type BoardSort, type SortDirection, type SortKey } from "./sort";
@@ -19,8 +18,8 @@ export const SORT_GROUPS: readonly (readonly SortKey[])[] = [
 
 export const SORT_ICONS: Readonly<Record<SortKey | "default", string>> = {
   default: "ListOrdered",
-  workspace: "AppWindow",
-  project: "FolderKanban",
+  workspace: FILTER_ICONS.workspace,
+  project: FILTER_ICONS.project,
   branch: "GitBranch",
   folder: "Folder",
   title: "Type",
@@ -87,18 +86,18 @@ export function laneWidthMenuSections(current: LaneWidth, strings: BoardStrings,
   ];
 }
 
-/** A multi-select option as a row: its checkbox, then whatever marks it, then the label and its count. */
-function optionItem(option: FilterOption, theme: PluginTheme, toggle: (id: string) => void, mark?: React.ReactNode): MenuItem {
+/**
+ * A multi-select option as a row: its mark, the label and its count, and a
+ * check at the right while it is picked, as the sort menu shows its choice.
+ * Without a mark of its own, the row draws `icon`.
+ */
+function optionItem(option: FilterOption, toggle: (id: string) => void, mark: { leading: React.ReactNode } | { icon: string }): MenuItem {
   return {
     key: option.id,
     label: option.label,
-    leading: (
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <Checkbox on={option.on} theme={theme} />
-        {mark}
-      </View>
-    ),
+    ...mark,
     hint: String(option.count),
+    checked: option.on,
     keepOpen: true,
     onSelect: () => toggle(option.id),
   };
@@ -115,14 +114,14 @@ export function workspaceMenuSections(options: FilterOptions, theme: PluginTheme
     key: group.projectId || "missing",
     title: group.projectName,
     titleLeading: group.projectId ? <ProjectIcon location={group} size={14} hostId={hostId} /> : undefined,
-    items: group.items.map((item) => optionItem(item, theme, toggle)),
+    items: group.items.map((item) => optionItem(item, toggle, { icon: FILTER_ICONS.workspace })),
   }));
 }
 
 export function agentMenuSections(options: FilterOptions, theme: PluginTheme, strings: BoardStrings, toggle: (id: string) => void): MenuSection[] {
   if (options.agents.length === 0) return emptySection(strings.noOptions);
   const tokens = taskTokens(theme);
-  return [{ key: "agents", items: options.agents.map((agent) => optionItem(agent, theme, toggle, <BrandMark provider={agent.id} size={16} tokens={tokens} />)) }];
+  return [{ key: "agents", items: options.agents.map((agent) => optionItem(agent, toggle, { leading: <BrandMark provider={agent.id} size={16} tokens={tokens} /> })) }];
 }
 
 export function labelMenuSections(options: FilterOptions, theme: PluginTheme, strings: BoardStrings, toggle: (id: string) => void): MenuSection[] {
@@ -131,10 +130,16 @@ export function labelMenuSections(options: FilterOptions, theme: PluginTheme, st
     {
       key: "labels",
       items: options.labels.map((label) =>
-        optionItem(label, theme, toggle, <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: label.color ?? theme.colors.foregroundMuted }} />),
+        optionItem(label, toggle, { leading: <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: label.color ?? theme.colors.foregroundMuted }} /> }),
       ),
     },
   ];
+}
+
+/** A folded chip row's mark: the icon of what it filters on, as the folded chip draws it. */
+function chipIcon(chip: ActiveChip): string {
+  if (chip.group === "workspace") return FILTER_ICONS[chip.unit ?? "workspace"];
+  return FILTER_ICONS[chip.group ?? "label"];
 }
 
 /**
@@ -142,7 +147,7 @@ export function labelMenuSections(options: FilterOptions, theme: PluginTheme, st
  * removes (the menu stays open for the next), then one row that clears them
  * all. A workspace group says which rows are whole projects.
  */
-export function chipGroupMenuSections(group: ChipGroup, theme: PluginTheme, strings: BoardStrings, apply: (change: (params: BoardParams) => BoardParams) => void): MenuSection[] {
+export function chipGroupMenuSections(group: ChipGroup, strings: BoardStrings, apply: (change: (params: BoardParams) => BoardParams) => void): MenuSection[] {
   const mixed = new Set(group.chips.map((chip) => chip.unit)).size > 1;
   return [
     {
@@ -150,8 +155,9 @@ export function chipGroupMenuSections(group: ChipGroup, theme: PluginTheme, stri
       items: group.chips.map((chip) => ({
         key: chip.key,
         label: chip.value,
-        leading: <Checkbox on theme={theme} />,
+        icon: chipIcon(chip),
         hint: mixed ? chip.kind : undefined,
+        checked: true,
         keepOpen: true,
         onSelect: () => apply(chip.clear),
       })),

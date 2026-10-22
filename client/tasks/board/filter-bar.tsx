@@ -6,7 +6,7 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskCon
 import { taskTokens } from "../cards";
 import { HoverPressable, WindowSegments, RoundButton } from "./board-parts";
 import { HAIRLINE } from "./board-style";
-import { activeChips, clearedParams, groupChips, isChipGroup, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
+import { FILTER_ICONS, activeChips, clearedParams, groupChips, isChipGroup, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
 import { sortLabel } from "./strings";
 import { agentMenuSections, chipGroupMenuSections, labelMenuSections, laneWidthMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
@@ -220,7 +220,7 @@ export function DesktopFilterBar(props: {
           FILTERS_MIN_WIDTH beside them, and wrap below them, still at the
           right, when they do not. */}
       <View style={{ flex: 1, minWidth: FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
-        <MenuButton icon="Folder" label={strings.workspace + count(params.workspaceIds)} open={menu === "workspace"} onPress={() => toggle("workspace")} theme={theme}>
+        <MenuButton icon={FILTER_ICONS.workspace} label={strings.workspace + count(params.workspaceIds)} open={menu === "workspace"} onPress={() => toggle("workspace")} theme={theme}>
           <CascadeMenu
             sections={workspaceMenuSections(options, theme, strings, board.hostId, (id) => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, id) })))}
             theme={theme}
@@ -230,7 +230,7 @@ export function DesktopFilterBar(props: {
             onClose={() => setMenu(null)}
           />
         </MenuButton>
-        <MenuButton icon="Bot" label={strings.agent + count(params.providers)} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
+        <MenuButton icon={FILTER_ICONS.agent} label={strings.agent + count(params.providers)} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
           <CascadeMenu
             sections={agentMenuSections(options, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) })))}
             theme={theme}
@@ -240,7 +240,7 @@ export function DesktopFilterBar(props: {
             onClose={() => setMenu(null)}
           />
         </MenuButton>
-        <MenuButton icon="Tag" label={strings.labels + count(params.labels)} open={menu === "label"} onPress={() => toggle("label")} theme={theme}>
+        <MenuButton icon={FILTER_ICONS.label} label={strings.labels + count(params.labels)} open={menu === "label"} onPress={() => toggle("label")} theme={theme}>
           <CascadeMenu
             sections={labelMenuSections(options, theme, strings, (id) => setParams((p) => ({ ...p, labels: toggleItem(p.labels, id) })))}
             theme={theme}
@@ -298,7 +298,7 @@ export function DesktopFilterBar(props: {
                   theme={theme}
                 >
                   <CascadeMenu
-                    sections={chipGroupMenuSections(entry, theme, strings, setParams)}
+                    sections={chipGroupMenuSections(entry, strings, setParams)}
                     theme={theme}
                     width={320}
                     top={taskControlHeight(28, scale) + 6}
@@ -410,6 +410,7 @@ function GroupChip(props: { group: ChipGroup; open: boolean; onPress(): void; on
         <HoverPressable
           accessibilityRole="button"
           accessibilityState={{ expanded: props.open }}
+          accessibilityLabel={props.group.label}
           onPress={props.onPress}
           testID={`chip-group-${props.group.kind}`}
           style={(hovered) => ({
@@ -425,7 +426,12 @@ function GroupChip(props: { group: ChipGroup; open: boolean; onPress(): void; on
             backgroundColor: hovered && !props.open ? colors.surface1 : "transparent",
           })}
         >
-          <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.base, color: colors.foreground }}>{props.group.label}</Text>
+          {props.group.counts.map(({ unit, count }) => (
+            <View key={unit} style={{ flexDirection: "row", alignItems: "center", gap: 4, marginRight: 4 }}>
+              <Icon name={FILTER_ICONS[unit]} size={14} color={colors.foregroundMuted} />
+              <Text style={{ fontSize: F.base, color: colors.foreground, fontVariant: ["tabular-nums"] }}>{count}</Text>
+            </View>
+          ))}
           <Icon name="ChevronDown" size={12} color={colors.foregroundMuted} />
         </HoverPressable>
         <ClearButton label={props.clearLabel} onPress={props.onClear} theme={props.theme} />

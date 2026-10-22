@@ -856,7 +856,6 @@ describe("Tasks board, sorting", () => {
     while (typeof bar.type !== "string") bar = bar.parent!;
     const filters = bar.findAll((node) => (node.type as unknown) === "View" && hostParentOf(node) === bar).find((child) => child !== end)!;
     const text = textOf(filters);
-    expect(text).toContain("2 agents selected");
     expect(text).toContain("Labelsapi");
     // The switch and the done window show themselves: no chip, no hint line.
     expect(text).not.toContain("still show");
@@ -864,7 +863,11 @@ describe("Tasks board, sorting", () => {
     expect(text).not.toContain("7 days");
     expect(text).toContain("Clear all");
 
+    // The folded chip draws the agent icon and the count; the sentence is read out.
     const chip = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "chip-group-agent");
+    expect(chip.props.accessibilityLabel).toBe("2 agents selected");
+    expect(textOf(chip)).toBe("2");
+    expect(chip.findAll((node) => node.props.name === "Bot")).not.toHaveLength(0);
     act(() => chip.props.onPress());
     const menu = renderer!.root.find((node) => node.props.testID === "chip-group-menu");
     const rows = menu.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem");

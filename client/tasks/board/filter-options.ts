@@ -115,11 +115,25 @@ export interface ActiveChip {
 
 export type ChipGroupKind = "workspace" | "label" | "agent";
 
+/** What a filter picks, as the folded chips and the sidebar's groups count it. */
+export type FilterUnit = "agent" | "project" | "workspace" | "label";
+
+/** Each unit's Lucide icon, the same in the filter buttons, folded chips, chip menus and the sidebar's groups. */
+export const FILTER_ICONS: Readonly<Record<FilterUnit, string>> = {
+  agent: "Bot",
+  project: "FolderKanban",
+  workspace: "FolderGit2",
+  label: "Tag",
+};
+
 /** Several chips of one filter as one "3 projects selected" chip; its menu lists them. */
 export interface ChipGroup {
   key: `group:${ChipGroupKind}`;
   kind: ChipGroupKind;
+  /** Read out: "3 projects and 1 workspace selected". */
   label: string;
+  /** Drawn: an icon and a count per unit, projects before workspaces. */
+  counts: { unit: FilterUnit; count: number }[];
   chips: ActiveChip[];
   clear(params: BoardParams): BoardParams;
 }
@@ -211,6 +225,7 @@ export function groupChips(chips: readonly ActiveChip[], strings: BoardStrings):
       key: `group:${kind}`,
       kind,
       label: groupLabel(kind, same, strings),
+      counts: groupCounts(kind, same),
       chips: same,
       clear: (params) => same.reduce((next, member) => member.clear(next), params),
     };
@@ -221,6 +236,13 @@ export function groupChips(chips: readonly ActiveChip[], strings: BoardStrings):
 
 export function isChipGroup(entry: ActiveChip | ChipGroup): entry is ChipGroup {
   return "chips" in entry;
+}
+
+function groupCounts(kind: ChipGroupKind, chips: readonly ActiveChip[]): ChipGroup["counts"] {
+  if (kind !== "workspace") return [{ unit: kind, count: chips.length }];
+  const projects = chips.filter((chip) => chip.unit === "project").length;
+  const workspaces = chips.length - projects;
+  return [...(projects ? [{ unit: "project" as const, count: projects }] : []), ...(workspaces ? [{ unit: "workspace" as const, count: workspaces }] : [])];
 }
 
 function groupLabel(kind: ChipGroupKind, chips: readonly ActiveChip[], strings: BoardStrings): string {

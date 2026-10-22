@@ -5,7 +5,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { BrandMark, ProjectIcon, taskTokens } from "../cards";
-import { Checkbox, Segments, WindowSegments } from "./board-parts";
+import { Segments, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
@@ -234,7 +234,7 @@ function ToggleRow(props: { icon: string; label: string; hint?: string; on: bool
         <Text style={{ fontSize: F.base, color: colors.foreground }}>{props.label}</Text>
         {props.hint ? <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: colors.foregroundMuted }}>{props.hint}</Text> : null}
       </View>
-      <Checkbox on={props.on} theme={props.theme} size={20} />
+      {props.on ? <Icon name="Check" size={18} color={colors.accent} /> : null}
     </Pressable>
   );
 }
