@@ -16,7 +16,7 @@ import { buildFilterOptions } from "./filter-options";
 import { LANES, boardKeyReducer, clampFocus, laneLayout, type BoardFocus, type LaneShape } from "./navigation";
 import { menuChrome } from "./menu-model";
 import { DetailsSidebar } from "./details-sidebar";
-import { LaneMotionLayer, LaneMotionProvider, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
+import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
 import { LaneSwap, useLaneWidth } from "./lane-resize";
 import {
   NO_SELECTION,
@@ -721,12 +721,6 @@ function BoardEmpty({ board, theme }: { board: BoardController; theme: PluginThe
 
 /** A list under copies of its cards while they move (native lane motion). */
 const HIDDEN = { opacity: 0 };
-
-/** A list's scrolling node: the element on the web, the native scroll view's instance elsewhere. */
-function scrollNode(list: NativeFlatList<TaskCard> | null): unknown {
-  const scroller = list as unknown as { getScrollableNode?(): unknown; getNativeScrollRef?(): unknown } | null;
-  return Platform.OS === "web" ? scroller?.getScrollableNode?.() : scroller?.getNativeScrollRef?.();
-}
 
 interface LaneFlash {
   lane: LaneId;

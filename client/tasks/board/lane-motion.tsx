@@ -24,12 +24,19 @@
  *   cards where they were. The effect then moves the copies to the measured new
  *   places, and the lists show again, under copies that match them, once every
  *   copy has arrived.
+ *
+ * A list scrolled to its end that loses its last card scrolls back on its own
+ * once the native view takes the shorter content, after the effect has
+ * measured: the measure still has the old offset. Native moves its copies to
+ * where the cards will be after that scroll (`scrollBack`), so the cards above
+ * slide down into the gap instead of the whole list dropping as it shows
+ * again. The browser scrolls back during layout, so the web measures it.
  */
 import React, { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Animated, Platform, View } from "react-native";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { MOTION } from "./board-style";
-import { inView, planLaneMotion, sameCards, sameOrder, type LaneMove, type MotionFrame, type Rect } from "./lane-motion-plan";
+import { inView, planLaneMotion, sameCards, sameOrder, scrollBack, type LaneMove, type MotionFrame, type Rect } from "./lane-motion-plan";
 
 /** JS-driven: the cover's copies and the web's offsets are set from JS in the frame they belong to. */
 const nativeDriver = false;
@@ -57,6 +64,12 @@ export function measureNow(node: unknown): Rect | null {
   }
   const out = rect as Rect | null;
   return out && (out.width > 0 || out.height > 0) ? out : null;
+}
+
+/** A list's scrolling node: the element on the web, the native scroll view's instance elsewhere. */
+export function scrollNode(list: unknown): unknown {
+  const scroller = list as { getScrollableNode?(): unknown; getNativeScrollRef?(): unknown } | null;
+  return Platform.OS === "web" ? scroller?.getScrollableNode?.() : scroller?.getNativeScrollRef?.();
 }
 
 /** A web card's own offset and visibility. */
@@ -200,6 +213,19 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
     return out;
   }
 
+  /** Native: how far each lane's list will scroll back on its own, for content that got shorter. */
+  function scrollBacks(rects: ReadonlyMap<LaneId, Rect>): Map<LaneId, number> {
+    const out = new Map<LaneId, number>();
+    for (const [id, node] of lanes) {
+      const viewport = rects.get(id);
+      const scroller = node() as { getInnerViewRef?(): unknown } | null;
+      const content = viewport ? measureNow(scroller?.getInnerViewRef?.()) : null;
+      const shift = viewport && content ? scrollBack(viewport, content) : 0;
+      if (shift > 0) out.set(id, shift);
+    }
+    return out;
+  }
+
   function slide(id: string, values: CellValues, dx: number, dy: number, at: number): void {
     slides.get(id)?.animation.stop();
     values.x.setValue(dx);
@@ -253,7 +279,7 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
   }
 
   /** Native: every copy under the cover heads for its card's new place, and new cards fade in over theirs. */
-  function playCover(moves: LaneMove[], after: MotionFrame, at: number, cardOf: (move: LaneMove) => TaskCard | undefined, current: ReadonlyMap<string, TaskCard>): void {
+  function playCover(moves: LaneMove[], before: MotionFrame, after: MotionFrame, at: number, cardOf: (move: LaneMove) => TaskCard | undefined, current: ReadonlyMap<string, TaskCard>): void {
     const byId = new Map(moves.map((move) => [move.id, move]));
     const next: Ghost[] = [];
     for (const ghost of ghostList) {
@@ -279,8 +305,11 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
       if (present.has(id) || lane === undefined || !coveredLanes.has(lane)) continue;
       const card = current.get(id);
       if (!card || !inView(to, after.lanes.get(lane) ?? null, after.viewport)) continue;
+      const from = before.laneOf.get(id) === lane ? before.cards.get(id) : undefined;
+      // Laid out just out of view, it slides in with the cards around it (the list scrolled back).
+      if (from) next.push({ key: id, card, from, to, fade: "none", reveal: false, start: at, duration: MOTION.slideMs, origin });
       // Came in from out of view: it fades in once the cards around it are on their way.
-      next.push({ key: id, card, from: to, to, fade: "in", reveal: false, start: at + MOTION.fadeDelayMs, duration: MOTION.fadeMs, origin });
+      else next.push({ key: id, card, from: to, to, fade: "in", reveal: false, start: at + MOTION.fadeDelayMs, duration: MOTION.fadeMs, origin });
     }
     if (!next.some((ghost) => Number.isFinite(ghost.start))) {
       uncover();
@@ -360,19 +389,23 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
     },
     play(before, next) {
       const at = now();
+      const { laneOf, byId } = index(next);
+      const laneAt = laneRects();
+      const back = COVER ? scrollBacks(laneAt) : null;
       const cards = new Map<string, Rect>();
       for (const [id, cell] of cells) {
         const rect = measureNow(cell.node);
-        if (rect) cards.set(id, rect);
+        const lane = laneOf.get(id);
+        const shift = back && lane !== undefined ? back.get(lane) ?? 0 : 0;
+        if (rect) cards.set(id, shift ? { ...rect, y: rect.y + shift } : rect);
       }
-      const { laneOf, byId } = index(next);
       const viewport = measureNow(store.layer);
-      const after: MotionFrame = { cards, lanes: laneRects(), laneOf, viewport };
+      const after: MotionFrame = { cards, lanes: laneAt, laneOf, viewport };
       const moves = planLaneMotion(before.frame, after, { flights, flying: before.flying });
       // A card that leaves draws as it was; one that flies, as it will be where it lands.
       const cardOf = (move: LaneMove) => (move.kind === "leave" ? before.cards.get(move.id) : byId.get(move.id) ?? before.cards.get(move.id));
       if (COVER) {
-        if (coveredLanes.size > 0) playCover(moves, after, at, cardOf, byId);
+        if (coveredLanes.size > 0) playCover(moves, before.frame, after, at, cardOf, byId);
       } else if (moves.length > 0) {
         playOnCards(moves, at, cardOf, viewport);
       }
