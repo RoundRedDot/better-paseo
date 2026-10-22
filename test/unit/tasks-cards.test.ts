@@ -51,7 +51,7 @@ import "./helpers/quiet-renderer";
 import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { CARD_PRESETS, type CardSettings, type DensityPreset } from "../../shared/tasks-settings";
 import { previewSampleCards, sampleCards } from "../../client/tasks/sample-cards";
-import type { TaskCard } from "../../client/tasks/model";
+import type { TaskCard, TaskChild } from "../../client/tasks/model";
 import type { PermissionButton, StopPhase } from "../../client/tasks/actions";
 import {
   StatusIcon,
@@ -1345,6 +1345,15 @@ describe("TaskDetailCards", () => {
     await act(async () => byLabel(tree.root, "显示全部 14 个 其余 4 个已完成").props.onPress());
     await act(async () => tree.update(details(many("many-b"))));
     expect(titles(tree)).toHaveLength(10);
+  });
+
+  it("leads a failed provider subagent's own line with its agent's mark", async () => {
+    const base = sample("sample-done");
+    const subagent: TaskChild = { id: "sub-1", title: "RRD-10161 desktop native fatal", status: "failed", kind: "provider", subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens", provider: "claude", lane: "review", timing: sample("sample-running").children[2]!.timing };
+    const tree = await render(details({ ...base, children: [subagent] }));
+    const meta = hostByTestId(tree.root, "detail-subtask-meta-sub-1");
+    expect(texts(meta)[0]).toBe("general-purpose · Opus 5.5 · High · 189.7k tokens ·");
+    expect(meta.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(1);
   });
 
   it("drops the running count, the start and a low context share in a narrow card", async () => {
