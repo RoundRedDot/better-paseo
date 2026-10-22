@@ -115,6 +115,18 @@ export interface BlockPlacement {
 }
 export const BlockPlacementContext = createContext<BlockPlacement | null>(null);
 
+/** The drawer's text zoom, in points over the timeline's body size (`detailsTextZoom`). */
+export interface DetailsZoom {
+  /** The timeline's body size, which the zoom adds to. */
+  base: number;
+  /** The zoom drawn now, mid-pinch included. */
+  current(): number;
+  /** Draws `zoom` while the fingers move, without saving it. */
+  preview(zoom: number): void;
+  /** Saves `zoom` as the reader's, as the pinch ends. */
+  commit(zoom: number): void;
+}
+
 /**
  * What the details shell offers the chrome it draws (header, toolbar): slice B
  * provides it around the open block, `HoverPreviewHeader` reads it under
@@ -138,5 +150,7 @@ export interface DetailsShellValue {
   toggleFullscreen?(): void;
   /** Spread on the header: vertical drag moves the drawer, horizontal swipe steps (touch only). */
   headerHandlers?: Record<string, unknown>;
+  /** The phone drawer's text zoom, which a pinch on its body sets; absent elsewhere. */
+  zoom?: DetailsZoom;
 }
 export const DetailsShellContext = createContext<DetailsShellValue | null>(null);

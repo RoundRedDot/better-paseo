@@ -40,6 +40,15 @@ export function clampCodeFontSize(value: number): number {
   return Math.min(CODE_FONT_SIZE_MAX, Math.max(CODE_FONT_SIZE_MIN, Math.round(value)));
 }
 
+/** Points the phone drawer's text sits above or below the timeline's, set by a pinch. */
+export const DETAILS_TEXT_ZOOM_MIN = -4;
+export const DETAILS_TEXT_ZOOM_MAX = 10;
+
+export function clampDetailsTextZoom(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(DETAILS_TEXT_ZOOM_MAX, Math.max(DETAILS_TEXT_ZOOM_MIN, Math.round(value)));
+}
+
 /**
  * Text in tool rows, thoughts, checklists and notices. 13 is the built-in
  * row label. The smallest step a reader can pick is 9.
@@ -110,6 +119,11 @@ export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrate
     .transform(clampHoverDelay)
     .catch(HOVER_DELAY_DEFAULT),
   previewWrap: flag(true),
+  detailsTextZoom: z
+    .number()
+    .refine((value) => Number.isFinite(value))
+    .transform(clampDetailsTextZoom)
+    .catch(0),
   // A stored `rowClick` (what a pointer click on a row did) is dropped like any unknown key.
   blockDetails: flag(true),
   previewLineNumbers: flag(true),

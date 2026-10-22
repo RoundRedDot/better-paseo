@@ -11,6 +11,7 @@ import { repairTail } from "./repair";
 import type { RenderContext } from "./render/context";
 import { MdBlock } from "./render/md-block";
 import { buildStyles, variantMetrics, type MarkdownVariant } from "./render/styles";
+import { useZoomedTokens } from "../../ui/text-zoom";
 
 export { MARKDOWN_VARIANTS, type MarkdownVariant } from "./render/styles";
 
@@ -81,7 +82,7 @@ export function MarkdownView({
   text,
   firstBlock = true,
   listContinuation = false,
-  tokens,
+  tokens: given,
   variant,
   streaming = false,
   collapseCode = false,
@@ -91,6 +92,8 @@ export function MarkdownView({
   onRevealPath,
   probeId,
 }: MarkdownViewProps) {
+  // The phone drawer's pinch zoom, when inside it.
+  const tokens = useZoomedTokens(given);
   // One cache per message, owned by this component: never shared with
   // another reply that streams at the same time.
   const cacheRef = useRef<BlockCache | null>(null);

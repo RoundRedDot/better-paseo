@@ -21,7 +21,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { Animated, Modal, Platform, StyleSheet, View, type ViewStyle } from "react-native";
 import { useRpc } from "@getpaseo/plugin/client";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
-import { DetailsShellContext, type BlockEntry, type Detent, type DetailsForm, type DetailsShellValue } from "../contracts";
+import { DetailsShellContext, type BlockEntry, type Detent, type DetailsForm, type DetailsShellValue, type DetailsZoom } from "../contracts";
 import { useBlock, useBlockList } from "../block-registry";
 import { detailsApi, useDetails } from "../details-store";
 import { floatingWidth } from "../layout-model";
@@ -29,6 +29,8 @@ import { swipeDecision } from "../gesture-model";
 import { HoverPreviewContext, PreviewActionsContext, PreviewChromeContext, usePanelWrap, type PreviewActions } from "../../ui/hover-preview";
 import { PathContext, usePathContextValue } from "../../ui/path-text";
 import { TimelineProseContext } from "../../components/markdown/markdown-view";
+import { TextZoomContext } from "../../ui/text-zoom";
+import { updateEnhancerPreferences, useEnhancerPreferences } from "../../preferences";
 import { forgetPreview, holdPreview, recallPreview, rememberPreview, PREVIEW_HANDOVER_MS, type PreviewMemory } from "../../ui/preview-memory";
 import { useInputCapabilities } from "../../ui/use-input-capabilities";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -305,6 +307,24 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
 
   const bodyScroll = useMemo(() => createBodyScroll(), []);
 
+  // The phone drawer's text zoom: drawn live while a pinch moves, saved as it ends.
+  const { detailsTextZoom } = useEnhancerPreferences();
+  const [liveZoom, setLiveZoom] = useState<number | null>(null);
+  const zooms = form === "drawer" && Platform.OS !== "web";
+  const textZoom = zooms ? liveZoom ?? detailsTextZoom : 0;
+  const zoomRef = useRef(textZoom);
+  zoomRef.current = textZoom;
+  const contentSize = tokens.typography.content.size;
+  const zoom = useMemo<DetailsZoom | undefined>(() => (zooms ? {
+    base: contentSize,
+    current: () => zoomRef.current,
+    preview: setLiveZoom,
+    commit(next) {
+      updateEnhancerPreferences({ detailsTextZoom: next });
+      setLiveZoom(null);
+    },
+  } : undefined), [zooms, contentSize]);
+
   // Web keys while the panel is open (`keyboard.ts`): only this lease holder's
   // layer, and only while its pane is shown. ← → take the panel's own step.
   const { copy } = useCopy();
@@ -343,7 +363,8 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
     close,
     toggleFullscreen,
     headerHandlers: touch ? (headerPan.panHandlers as unknown as Record<string, unknown>) : undefined,
-  }), [agentId, entry, form, detent, fullscreenOn, pointer, nav.index, nav.count, canStep, step, close, toggleFullscreen, touch, headerPan]);
+    zoom,
+  }), [agentId, entry, form, detent, fullscreenOn, pointer, nav.index, nav.count, canStep, step, close, toggleFullscreen, touch, headerPan, zoom]);
   const actions = useMemo<PreviewActions>(() => ({
     maximizable: true,
     maximized: fullscreenOn,
@@ -364,9 +385,11 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
             <PreviewActionsContext.Provider value={actions}>
               <DetailsBodyContext.Provider value={bodyScroll}>
                 <TimelineProseContext.Provider value={form === "drawer"}>
-                  <Animated.View testID="details-content" style={[styles.content, { opacity: slideOpacity, transform: [{ translateX: slide }] }] as never}>
-                    {entry.render()}
-                  </Animated.View>
+                  <TextZoomContext.Provider value={textZoom}>
+                    <Animated.View testID="details-content" style={[styles.content, { opacity: slideOpacity, transform: [{ translateX: slide }] }] as never}>
+                      {entry.render()}
+                    </Animated.View>
+                  </TextZoomContext.Provider>
                 </TimelineProseContext.Provider>
               </DetailsBodyContext.Provider>
             </PreviewActionsContext.Provider>
