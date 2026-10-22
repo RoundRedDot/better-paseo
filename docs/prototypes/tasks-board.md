@@ -1,5 +1,7 @@
 # Tasks 泳道看板 · Claude Design 原型
 
+设计记录：本文摘录 2026-10-20 的原型，实现以代码和 [../tasks-board.md](../tasks-board.md) 为准。实现时已有改动，例如卡片改成 Linear issue 卡片式的排法，悬停详情浮层换成详情侧栏和底部 sheet，手机的细线 tab 换成状态条，设置并入 Better Paseo 的设置页。
+
 - 来源：[Claude Design 项目「Paseo Tasks 泳道看板」](https://claude.ai/design/p/5f122bf6-c1af-43e3-9f28-eecb8d286e18?file=Paseo+Tasks+%E6%B3%B3%E9%81%93%E7%9C%8B%E6%9D%BF.dc.html)
 - 导出日期：2026-10-20
 - 原稿：`docs/prototypes/tasks-board.html`，由 Claude Design 的 Export HTML → Standalone HTML 导出，按字节原样保存，可离线打开，看板可交互。这是第八版（首轮 + 七轮追加修改）。文件 3.7 MB（内嵌 1.7 MB 的 SVG 和多套字体），**只留在本地、不进 Git**（见 `.gitignore`）；新 clone 里没有它，从上面的 Claude Design 项目再导出一份即可（重新导出的文件字节不一定与上面的 SHA-256 相同）。
