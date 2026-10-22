@@ -1389,9 +1389,11 @@ describe("TaskDetailCards", () => {
     // The running count is in the status colour, the rest muted.
     const summary = hostByTestId(running.root, "detail-subtasks").findAll((node) => (node.type as unknown) === "Text" && node.props.children === 2);
     expect(flat(summary[0]!.props.style).color).toBe(taskTokens(LIGHT).status.running);
-    // The board's status icon leads each row; a running timer is in the foreground colour, a finished row's title muted.
+    // The agent's mark leads each row, its status on the corner while it runs and none once done;
+    // a running timer is in the foreground colour, a finished row's title muted.
     const tokens = taskTokens(LIGHT);
-    expect(hostByTestId(section, "detail-subtask-status-sample-child-3").findAll((node) => node.props.testID === "status-done").length).toBeGreaterThan(0);
+    expect(hostByTestId(section, "detail-subtask-status-sample-child-2").findAll((node) => node.props.testID === "status-running").length).toBeGreaterThan(0);
+    expect(hostByTestId(section, "detail-subtask-status-sample-child-3").findAll((node) => typeof node.props.testID === "string" && node.props.testID.startsWith("status-"))).toEqual([]);
     expect(flat(hostByTestId(section, "detail-subtask-time-sample-child-2").props.style).color).toBe(tokens.foreground);
     expect(flat(hostByTestId(section, "detail-subtask-time-sample-child-3").props.style).color).toBe(tokens.foregroundMuted);
     const doneTitle = hostByTestId(section, "detail-subtask-sample-child-3").find((node) => (node.type as unknown) === "Text" && node.props.numberOfLines === 2);
@@ -1438,13 +1440,16 @@ describe("TaskDetailCards", () => {
     expect(titles(tree)).toHaveLength(10);
   });
 
-  it("leads a failed provider subagent's own line with its agent's mark", async () => {
+  it("merges a failed provider subagent's status into its agent's mark, off its own line", async () => {
     const base = sample("sample-done");
     const subagent: TaskChild = { id: "sub-1", title: "RRD-10161 desktop native fatal", status: "failed", kind: "provider", subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens", provider: "claude", lane: "review", timing: sample("sample-running").children[2]!.timing };
     const tree = await render(details({ ...base, children: [subagent] }));
     const meta = hostByTestId(tree.root, "detail-subtask-meta-sub-1");
     expect(texts(meta)[0]).toBe("general-purpose · Opus 5.5 · High · 189.7k tokens ·");
-    expect(meta.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(1);
+    expect(meta.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(0);
+    const mark = hostByTestId(tree.root, "detail-subtask-status-sub-1");
+    expect(mark.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(1);
+    expect(mark.findAll((node) => typeof node.type === "string" && node.props.testID === "status-failed")).toHaveLength(1);
   });
 
   it("drops the running count, the start and a low context share in a narrow card", async () => {
