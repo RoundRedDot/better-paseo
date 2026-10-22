@@ -20,7 +20,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { findHostHorizontalScroll } from "../../ui/host-horizontal-scroll";
 import { HAIRLINE, MOTION, boardPalette } from "./board-style";
-import { CardCell, RoundButton, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
+import { CardCell, RollingCount, RoundButton, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
 import { LaneMotionLayer, LaneMotionProvider, useLaneCovered, useLaneMotion } from "./lane-motion";
 import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
@@ -411,9 +411,11 @@ export function PhoneBoard(props: {
                       {strings.tabs[id]}
                     </Text>
                     {tasks.ready ? (
-                      <Text style={{ fontSize: F.base, fontWeight: warn || on ? "600" : "400", fontVariant: ["tabular-nums"], color: warn ? warning : on ? colors.foreground : colors.foregroundMuted }}>
-                        {count}
-                      </Text>
+                      <RollingCount
+                        value={count}
+                        scope={board.params}
+                        style={{ fontSize: F.base, fontWeight: warn || on ? "600" : "400", fontVariant: ["tabular-nums"], color: warn ? warning : on ? colors.foreground : colors.foregroundMuted }}
+                      />
                     ) : null}
                   </View>
                 </View>
