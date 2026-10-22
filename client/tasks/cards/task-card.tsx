@@ -367,8 +367,16 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     if (current.stopPhase === "confirming") current.onCancelStop?.(current.card.id);
   }, [hovered]);
 
-  /** The card's fill right now: the highlight, the hover grey, the sidebar's card, or the card. */
-  const background = props.highlighted ? look.highlight : hovered ? (props.current ? look.current : look.hoverBackground) : props.current ? look.current : look.background;
+  // A failed card stands out in danger red; the highlight and the sidebar's card still win.
+  const failed = card.status === "failed";
+  /** The card's fill right now: the highlight, the sidebar's card, the failure tint, the hover grey, or the card. */
+  const background = props.highlighted
+    ? look.highlight
+    : props.current
+      ? look.current
+      : failed
+        ? hovered ? look.failedHover : look.failed
+        : hovered ? look.hoverBackground : look.background;
   const canStop = card.stoppable && !!props.onStop;
   const parentStop = canStop && activeChildren(card) > 0;
   const showStop = canStop && !compact && (TOUCH || hovered || props.stopPhase !== "idle" || menuOpen);
@@ -404,7 +412,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     // and on hover only the fill and shadow change.
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: props.focused || props.highlighted ? tokens.accent : props.current ? look.currentBorder : look.border,
+    borderColor: props.focused || props.highlighted ? tokens.accent : props.current ? look.currentBorder : failed ? look.failedBorder : look.border,
     backgroundColor: background,
     boxShadow: shadows.join(", "),
     zIndex: menuOpen ? 30 : hovered ? 2 : 1,
@@ -422,7 +430,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     marginTop: m.rowGap,
     paddingTop: m.rowGap,
     borderTopWidth: 1,
-    borderTopColor: look.border,
+    borderTopColor: failed && !props.current && !props.highlighted ? look.failedBorder : look.border,
   };
 
   // Controls: Stop (hover, confirming) and the jump button, on the meta row,
@@ -740,7 +748,6 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
 
   // Lane blocks ------------------------------------------------------------
   const iconCell: ViewStyle = { width: m.iconSlot, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" };
-  const failed = card.status === "failed";
   const failure = layout.failure ? (
     <View style={[block, { flexDirection: "row", alignItems: "flex-start", gap: GAP }]} testID="task-card-reason">
       <View style={iconCell}>

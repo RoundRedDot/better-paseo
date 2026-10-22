@@ -1474,6 +1474,19 @@ describe("TaskCardView chrome", () => {
     expect(hovered.boxShadow).toBe(tokens.card.shadowHover);
     expect({ ...hovered, backgroundColor: 0, boxShadow: 0, zIndex: 0 }).toEqual({ ...rest, backgroundColor: 0, boxShadow: 0, zIndex: 0 });
   });
+
+  it("tints a failed card in danger red, unless it is the sidebar's card", async () => {
+    const tokens = buildTaskTokens(LIGHT.colors);
+    const failed = { ...sample("sample-done"), lane: "review" as const, status: "failed" as const, error: "You've hit your session limit" };
+    const tree = await render(cardElement(failed));
+    const surface = () => flat(hostByTestId(tree.root, "task-card-sample-done").props.style);
+    expect(surface()).toMatchObject({ backgroundColor: tokens.card.failed, borderColor: tokens.card.failedBorder });
+    expect(flat(hostByTestId(tree.root, "task-card-reason").props.style).borderTopColor).toBe(tokens.card.failedBorder);
+    await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onHoverIn());
+    expect(surface().backgroundColor).toBe(tokens.card.failedHover);
+    await act(async () => tree.update(cardElement(failed, { current: true })));
+    expect(surface()).toMatchObject({ backgroundColor: tokens.card.current, borderColor: tokens.card.currentBorder });
+  });
 });
 
 /** Paseo v0.12.0's default themes as the plugin sees them, and two palettes of our own. */
