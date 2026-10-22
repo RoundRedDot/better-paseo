@@ -394,7 +394,7 @@ describe("TaskCardView rows", () => {
     const title = hostByTestId(tree.root, "task-card-title");
     expect(title.props.numberOfLines).toBe(2);
     expect(title.props.ellipsizeMode).toBe("tail");
-    expect(flat(title.props.style)).toMatchObject({ fontSize: 14, fontWeight: "500" });
+    expect(flat(title.props.style)).toMatchObject({ fontSize: 12, fontWeight: "500" });
     expect(pills(tree.root)).toEqual([
       ["pill-model", "GPT-5.5 Codex"],
       ["pill-thinking", "Medium"],
@@ -824,7 +824,7 @@ describe("TaskCardView compact tiers", () => {
     ]);
     // The brand stays on a phone even with the provider switched off.
     expect(flat(hostByTestId(tree.root, "pill-model").props.style)).toMatchObject({ height: 28, borderRadius: 14 });
-    expect(flat(hostByTestId(tree.root, "task-card-title").props.style)).toMatchObject({ fontSize: 16 });
+    expect(flat(hostByTestId(tree.root, "task-card-title").props.style)).toMatchObject({ fontSize: 14 });
     expect(all).toContain("better-paseo › tasks-board");
     expect(all).toContain("12m 30s");
     expect(all.some((text) => text.includes("/Users/dev"))).toBe(false);

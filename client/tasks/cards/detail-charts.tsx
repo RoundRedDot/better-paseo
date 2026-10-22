@@ -167,7 +167,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; contex
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
   const { tip, bind } = useTip<"context">(props.touch);
-  const small = props.touch ? F.base : F.sm;
+  const small = F.sm;
   const tone = context ? contextColor(context, tokens) : tokens.foregroundMuted;
   return (
     <View testID="detail-turn" style={{ flexDirection: "row", borderWidth: 1, borderColor: tokens.border, borderRadius: 10, backgroundColor: colors.sunk }}>
@@ -178,7 +178,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; contex
             {words.turnTimer}
           </Text>
         </View>
-        <Text testID="detail-turn-timer" style={{ fontSize: F["3xl"], lineHeight: HOST_LINE["3xl"], fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] }}>
+        <Text testID="detail-turn-timer" style={{ fontSize: F["2xl"], lineHeight: HOST_LINE["2xl"], fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] }}>
           {props.timer}
         </Text>
         <Text numberOfLines={1} style={{ fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
@@ -203,7 +203,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; contex
           </Text>
           {context ? (
             <>
-              <Text style={{ fontSize: F["3xl"], lineHeight: HOST_LINE["3xl"], fontWeight: "600", color: context.level === "normal" ? tokens.foreground : tone, fontVariant: ["tabular-nums"] }}>{context.percent}</Text>
+              <Text style={{ fontSize: F["2xl"], lineHeight: HOST_LINE["2xl"], fontWeight: "600", color: context.level === "normal" ? tokens.foreground : tone, fontVariant: ["tabular-nums"] }}>{context.percent}</Text>
               <Text numberOfLines={1} style={{ fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
                 {context.text}
               </Text>
@@ -443,7 +443,7 @@ export function TimelineChart(props: { timeline: Timeline; liveColor: string; to
 export function SummaryTiles(props: { tiles: SummaryTile[]; tokens: TaskTokens; touch: boolean }) {
   const { tokens } = props;
   const colors = detailColors(tokens);
-  const small = props.touch ? F.base : F.sm;
+  const small = F.sm;
   return (
     <View testID="detail-summary" style={{ flexDirection: "row", gap: 1, borderWidth: 1, borderColor: tokens.border, borderRadius: 10, backgroundColor: tokens.border, overflow: "hidden" }}>
       {props.tiles.map((tile) => (
@@ -455,7 +455,7 @@ export function SummaryTiles(props: { tiles: SummaryTile[]; tokens: TaskTokens; 
             </View>
             <Runs runs={tile.labelRuns} style={{ fontSize: small, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }} />
           </View>
-          <Text numberOfLines={1} style={{ fontSize: F.xl, lineHeight: HOST_LINE.xl, fontWeight: "600", color: tile.value ? tokens.foreground : tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+          <Text numberOfLines={1} style={{ fontSize: F.lg, lineHeight: HOST_LINE.lg, fontWeight: "600", color: tile.value ? tokens.foreground : tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
             {tile.value ?? "—"}
           </Text>
           <Runs runs={tile.subRuns} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }} />

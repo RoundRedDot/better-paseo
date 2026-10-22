@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef } from "react";
 import { Pressable, Text, View } from "react-native";
 import { TasksTypography, HOST_FONT as F, HOST_LINE } from "../typography";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
@@ -14,9 +14,9 @@ import { BOARD_STRINGS } from "./strings";
 import { useBoard, type BoardLayoutHandlers } from "./use-board";
 
 /**
- * The Tasks board (`addScreen` id `tasks`): four lanes side by side on wide
- * layouts, one lane behind a tab bar on a phone or a board too narrow for
- * two lanes (`boardIsCompact`). Filters
+ * The Tasks board (`addScreen` id `tasks`): the lanes side by side, scrolling
+ * sideways when the board is narrow; one lane behind a tab bar only on a
+ * phone, the host's compact layout (`boardIsCompact`). Filters
  * live in the session per host and travel as the screen's params; see
  * `params.ts`.
  *
@@ -48,25 +48,16 @@ function BoardBlank(props: PluginScreenProps) {
   return <View style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }} />;
 }
 
-/**
- * The layout follows the board's own width as well as the host's: a wide
- * host whose board is too narrow for two lanes (a split pane) switches to
- * the phone layout once measured. Until then it draws as the host says, so
- * a warm board still draws at once.
- */
+/** The layout follows the host's: the phone layout on its compact layout, the lanes everywhere else. */
 function BoardContent(props: PluginScreenProps) {
   const rootRef = useRef<View>(null);
   const handlers = useRef<BoardLayoutHandlers | null>(null);
-  const [width, setWidth] = useState(0);
-  const compact = boardIsCompact(props.layout.compact, width);
+  const compact = boardIsCompact(props.layout.compact);
   const board = useBoard(props, rootRef, handlers, compact);
   const Layout = compact ? PhoneBoard : DesktopBoard;
   return (
     <TasksTypography theme={props.theme}>
-      <View
-        style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }}
-        onLayout={props.layout.compact ? undefined : (event) => setWidth(Math.floor(event.nativeEvent.layout.width))}
-      >
+      <View style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }}>
         <MenuBoundsContext.Provider value={rootRef}>
           <Layout screen={props} board={board} rootRef={rootRef} handlers={handlers} />
         </MenuBoundsContext.Provider>

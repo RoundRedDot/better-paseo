@@ -29,7 +29,6 @@ import {
   tabUnderline,
   tabsOverflow,
   LANES,
-  LANES_MIN_BOARD,
   LANE_SIZES,
   boardIsCompact,
   laneLayout,
@@ -396,15 +395,15 @@ describe("lane widths", () => {
     expect(LANES.min - 16).toBeGreaterThanOrEqual(280);
   });
 
-  it("narrows the scrolled lanes to keep two in view, down to LANES.narrow", () => {
-    // A tablet with the sidebar open: two lanes of 224.
-    expect(laneLayout(480, 4, 0)).toEqual({ laneWidth: 224, contentWidth: fixed(4, 0) + 4 * 224, scroll: true });
-    // Wide enough for two at 300: 300, as before.
+  it("keeps the lane width on a board too narrow for it, and scrolls the row", () => {
+    // A foldable with the host's sidebar open (about 540): lanes stay 300 and the row scrolls, no squeeze to fit two.
+    expect(laneLayout(540, 4, 0)).toEqual({ laneWidth: LANES.min, contentWidth: fixed(4, 0) + 4 * LANES.min, scroll: true });
     expect(laneLayout(632, 4, 0).laneWidth).toBe(LANES.min);
-    expect(laneLayout(LANES_MIN_BOARD, 4, 0).laneWidth).toBe(LANES.narrow);
-    expect(laneLayout(400, 4, 0).laneWidth).toBe(LANES.narrow);
-    // Two expanded lanes that fit at the narrowed width share the board without scrolling.
-    expect(laneLayout(480, 2, 0)).toEqual({ laneWidth: 224, contentWidth: 480, scroll: false });
+    // Two expanded lanes that do not fit at 300 scroll too.
+    expect(laneLayout(480, 2, 0)).toEqual({ laneWidth: LANES.min, contentWidth: fixed(2, 0) + 2 * LANES.min, scroll: true });
+    // Never wider than the board less its edges, never under LANES.narrow.
+    expect(laneLayout(280, 4, 0).laneWidth).toBe(280 - 2 * LANES.edge);
+    expect(laneLayout(200, 4, 0).laneWidth).toBe(LANES.narrow);
     expect(LANES.narrow - 16).toBeGreaterThanOrEqual(200);
   });
 
@@ -442,27 +441,23 @@ describe("lane widths", () => {
     expect(LANE_SIZES.wide.max - 8 - 4 - 6).toBe(402);
   });
 
-  it("keeps two lanes in view on a tablet at every lane width", () => {
+  it("shows each lane width on a tablet's narrow board, scrolling the row", () => {
     // An iPad in landscape with the host's sidebar open: about 700 for the board.
-    expect(laneLayout(700, 4, 0, "wide").laneWidth).toBe((700 - 2 * LANES.edge - LANES.gap) / 2);
+    expect(laneLayout(700, 4, 0, "wide").laneWidth).toBe(360);
     expect(laneLayout(700, 4, 0, "default").laneWidth).toBe(LANES.min);
     expect(laneLayout(700, 4, 0, "narrow").laneWidth).toBe(260);
-    // At the phone layout's threshold all three are the same, so the setting never moves it.
-    for (const size of ["narrow", "default", "wide"] as const) {
-      expect(laneLayout(LANES_MIN_BOARD, 4, 0, size).laneWidth).toBe(LANES.narrow);
-      expect(laneLayout(480, 4, 0, size).laneWidth).toBe(224);
-    }
+    // A foldable's (540): the three widths differ, so the setting shows.
+    expect([...new Set((["narrow", "default", "wide"] as const).map((size) => laneLayout(540, 4, 0, size).laneWidth))]).toEqual([260, 300, 360]);
   });
 });
 
 describe("compact board", () => {
-  it("draws the phone layout on a compact host, or a board too narrow for two lanes at their minimum", () => {
-    expect(LANES_MIN_BOARD).toBe(2 * LANES.edge + LANES.gap + 2 * LANES.narrow);
-    expect(boardIsCompact(true, 2000)).toBe(true);
-    expect(boardIsCompact(false, LANES_MIN_BOARD - 1)).toBe(true);
-    expect(boardIsCompact(false, LANES_MIN_BOARD)).toBe(false);
-    // Not measured yet: the host decides.
-    expect(boardIsCompact(false, 0)).toBe(false);
+  it("draws the phone layout only on a compact host; a narrow board keeps its lanes and scrolls them", () => {
+    expect(boardIsCompact(true)).toBe(true);
+    expect(boardIsCompact(false)).toBe(false);
+    const narrow = laneLayout(400, 4, 0);
+    expect(narrow.laneWidth).toBe(LANES.min);
+    expect(narrow.scroll).toBe(true);
   });
 });
 

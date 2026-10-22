@@ -209,7 +209,7 @@ function StatCell(props: {
           {props.label}
         </Text>
       </View>
-      <Text style={{ fontSize: F["2xl"], lineHeight: HOST_LINE["2xl"], fontWeight: "600", color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums"] }}>
+      <Text style={{ fontSize: F.xl, lineHeight: HOST_LINE.xl, fontWeight: "600", color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums"] }}>
         {props.count ?? "–"}
       </Text>
     </Pressable>

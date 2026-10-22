@@ -20,7 +20,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { findHostHorizontalScroll } from "../../ui/host-horizontal-scroll";
 import { HAIRLINE, MOTION, boardPalette } from "./board-style";
-import { CardCell, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
+import { CardCell, RoundButton, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
 import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
 import { defaultLane, laneAfter, swallowsTap, swipeStep, tabUnderline, tabsOverflow, type TabBox } from "./navigation";
@@ -606,53 +606,6 @@ function SheetStep(props: { icon: string; label: string; disabled: boolean; onPr
   );
 }
 
-function RoundButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; active?: boolean; badge?: number }) {
-  const colors = props.theme.colors;
-  const scale = useTasksFontScale();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={props.label}
-      onPress={props.onPress}
-      style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
-    >
-      <View
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 18,
-          borderWidth: HAIRLINE,
-          borderColor: props.active ? colors.accent : colors.border,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Icon name={props.icon} size={18} color={colors.foreground} />
-      </View>
-      {props.badge ? (
-        <View
-          style={{
-            // 16 by 16 inside a 2 px ring of the surface.
-            position: "absolute",
-            top: 0,
-            right: 0,
-            minWidth: taskControlHeight(20, scale),
-            height: taskControlHeight(20, scale),
-            paddingHorizontal: 2,
-            borderRadius: 10,
-            backgroundColor: colors.accent,
-            borderWidth: 2,
-            borderColor: colors.surface0,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Text style={{ fontSize: F.sm, lineHeight: 14, fontWeight: "600", color: colors.accentForeground, fontVariant: ["tabular-nums"] }}>{props.badge}</Text>
-        </View>
-      ) : null}
-    </Pressable>
-  );
-}
 
 /**
  * The phone's lanes on iOS and Android: one page each in a native paging

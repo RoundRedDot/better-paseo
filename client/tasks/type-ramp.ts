@@ -12,5 +12,5 @@
  */
 export const HOST_FONT = { sm: 12, base: 14, lg: 16, xl: 18, "2xl": 20, "3xl": 22 } as const;
 
-/** Line heights for the ramp's steps, about 1.4 of the size on the 2 px grid. */
-export const HOST_LINE = { sm: 16, base: 20, lg: 22, xl: 26, "2xl": 28, "3xl": 30 } as const;
+/** Line heights for the ramp's steps, about 1.4 of the size on the 2 px grid; `smRead` gives small text that wraps (titles, values) room to read. */
+export const HOST_LINE = { sm: 16, smRead: 18, base: 20, lg: 22, xl: 26, "2xl": 28, "3xl": 30 } as const;

@@ -181,12 +181,7 @@ export function sidebarCountText(parts: readonly SidebarCountPart[], language: "
 export const LANES = {
   /** A lane's width once the lanes scroll, at the default lane width; its cards are this less the panel's padding (300 - 2 x 8 = 284). */
   min: 300,
-  /**
-   * The narrowest a lane gets so that two still sit side by side (cards
-   * 220 - 2 x 8 = 204): a tablet with the sidebar open has about 480 for
-   * the board, where 300 showed a lane and a half. The same at every lane
-   * width, so the setting never moves where the phone layout takes over.
-   */
+  /** The narrowest a lane ever gets (cards 220 - 2 x 8 = 204): a board narrower than its lane width plus the edges. */
   narrow: 220,
   /**
    * The widest a lane gets at the default lane width: Linear's card, 322
@@ -206,8 +201,9 @@ export const LANES = {
 /**
  * Each `board.laneWidth`'s scroll width and widest lane. Four lanes stop
  * scrolling on a board 1088 wide at narrow (4 x 260 + 48), 1248 at default
- * and 1488 at wide; the widest cards are 262, 322 and 402. All three narrow
- * to `LANES.narrow` on a cramped board, so two lanes stay in view on a tablet.
+ * and 1488 at wide; the widest cards are 262, 322 and 402. On a narrower
+ * board each keeps its own width and the row scrolls, so the setting shows
+ * on a tablet as on the desktop.
  */
 export const LANE_SIZES: Readonly<Record<LaneWidth, { min: number; max: number }>> = {
   narrow: { min: 260, max: 280 },
@@ -215,12 +211,15 @@ export const LANE_SIZES: Readonly<Record<LaneWidth, { min: number; max: number }
   wide: { min: 360, max: 420 },
 };
 
-/** The narrowest board that draws lanes side by side: two at `LANES.narrow`. Below it the phone layout's tabs read better. */
-export const LANES_MIN_BOARD = 2 * LANES.narrow + LANES.gap + 2 * LANES.edge;
-
-/** True when the board draws the phone layout: the host's compact layout, or a board measured too narrow for two lanes. */
-export function boardIsCompact(hostCompact: boolean, width: number): boolean {
-  return hostCompact || (width > 0 && width < LANES_MIN_BOARD);
+/**
+ * True when the board draws the phone layout: the host's compact layout only.
+ * A tablet whose board is narrow (a foldable with the host's sidebar open, a
+ * split screen) keeps the desktop lanes at their lane width and scrolls
+ * them sideways, as the desktop does, rather than switching to the phone's
+ * one-lane tabs.
+ */
+export function boardIsCompact(hostCompact: boolean): boolean {
+  return hostCompact;
 }
 
 export interface LaneLayout {
@@ -235,9 +234,10 @@ export interface LaneLayout {
 /**
  * Expanded lanes share the viewport equally up to the lane width's `max`;
  * past it they keep that width and sit at the left, as Linear's do, leaving
- * the rest of a wide window empty. When they do not fit at its `min`, the row
- * scrolls at the width that keeps two lanes in view, `min` at most and
- * `LANES.narrow` at least.
+ * the rest of a wide window empty. When they do not fit at its `min`, each
+ * keeps that width, the lane width the user picked, and the row scrolls
+ * sideways: a narrow tablet board shows its lanes as the desktop does
+ * rather than squeezing them (never wider than the board itself).
  */
 export function laneLayout(viewport: number, expanded: number, collapsed: number, size: LaneWidth = "default"): LaneLayout {
   const { min, max } = LANE_SIZES[size];
@@ -246,8 +246,6 @@ export function laneLayout(viewport: number, expanded: number, collapsed: number
   if (expanded === 0) return { laneWidth: 0, contentWidth: Math.max(viewport, fixed), scroll: fixed > viewport };
   const share = (viewport - fixed) / expanded;
   if (share >= min) return { laneWidth: Math.min(share, max), contentWidth: viewport, scroll: false };
-  const pair = (viewport - 2 * LANES.edge - LANES.gap) / 2;
-  const width = Math.max(LANES.narrow, Math.min(min, pair));
-  if (share >= width) return { laneWidth: share, contentWidth: viewport, scroll: false };
+  const width = Math.max(LANES.narrow, Math.min(min, viewport - 2 * LANES.edge));
   return { laneWidth: width, contentWidth: fixed + expanded * width, scroll: true };
 }

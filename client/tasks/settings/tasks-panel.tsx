@@ -396,21 +396,24 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
           first
           stacked
         />
-        <SettingRow
-          title={strings.laneWidth}
-          description={strings.laneWidthHint}
-          control={
-            <Segmented<LaneWidth>
-              label={strings.laneWidth}
-              value={values.board.laneWidth}
-              options={options(LANE_WIDTHS, strings.laneWidths)}
-              onChange={(next) => void commit({ ...values, board: { ...values.board, laneWidth: next } })}
-              look={look}
-            />
-          }
-          look={look}
-          stacked
-        />
+        {/* A phone shows one lane at a time: its lane width has nothing to change there. */}
+        {look.compact ? null : (
+          <SettingRow
+            title={strings.laneWidth}
+            description={strings.laneWidthHint}
+            control={
+              <Segmented<LaneWidth>
+                label={strings.laneWidth}
+                value={values.board.laneWidth}
+                options={options(LANE_WIDTHS, strings.laneWidths)}
+                onChange={(next) => void commit({ ...values, board: { ...values.board, laneWidth: next } })}
+                look={look}
+              />
+            }
+            look={look}
+            stacked
+          />
+        )}
         <SettingRow
           title={strings.hideSubtasks}
           description={strings.hideSubtasksHint}
