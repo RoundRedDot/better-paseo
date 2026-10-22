@@ -3,7 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEve
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { openLink } from "../../components/open-link";
-import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, TASK_MONO as MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { useCopy } from "../../ui/use-copy";
 import type { TasksLanguage } from "../i18n";
@@ -68,8 +68,6 @@ type Metrics = typeof DETAIL_CARD | typeof TOUCH_CARD;
 /** Properties go two columns once the card's content is this wide (a sidebar of about 480) and both rows fit their half. */
 /** The properties get a label column from this width and lose it under `hide`: the 8 between keeps a drag from flickering it. */
 const LABEL_COLUMN = { show: 448, hide: 440 } as const;
-
-const MONO = Platform.select({ ios: "Menlo", android: "monospace", default: "ui-monospace, SFMono-Regular, Menlo, monospace" });
 
 /**
  * On the web a row with buttons inside is a focusable `group`, not a button:

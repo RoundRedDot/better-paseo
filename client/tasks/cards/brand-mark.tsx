@@ -95,6 +95,15 @@ export function tintedPillColors(tokens: TaskTokens, hue: string): AgentPillColo
   return { background, text, icon: hue };
 }
 
+/**
+ * The branch pill: a quieter tint than an agent's, the hue at 8% (14% on a
+ * dark theme) with only the icon in the hue, so the name reads in the text
+ * colour and the pill sets itself apart without pulling the eye.
+ */
+export function branchPillColors(tokens: TaskTokens): AgentPillColors {
+  return { background: mix(tokens.card.background, tokens.branch, tokens.isDark ? 0.14 : 0.08), text: tokens.foreground, icon: tokens.branch };
+}
+
 /** The neutral borderless pill: the foreground at 6%, a foreground label and a muted icon. */
 export function neutralPillColors(tokens: TaskTokens, icon: string = tokens.foreground): AgentPillColors {
   return { background: mix(tokens.card.background, tokens.foreground, 0.06), text: tokens.foreground, icon };
