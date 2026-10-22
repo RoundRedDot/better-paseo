@@ -103,6 +103,10 @@ export const MOTION = {
   slideMs: 240,
   /** A card that changed lanes travels from its old place to its new one. */
   flyMs: 300,
+  /** A lane's count rolls to its new value while a card flies between lanes: the old number leaves, the new one comes in. */
+  countMs: 300,
+  /** How far the old and new counts travel, up when the count grows and down when it shrinks. */
+  countShift: 6,
   /** A card that left the board fades where it was. */
   leaveMs: 160,
   /** A desktop lane collapsed, expanded or switched to another width eases to its new width. */
