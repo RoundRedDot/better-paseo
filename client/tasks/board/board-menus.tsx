@@ -2,8 +2,8 @@ import React from "react";
 import { View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
-import { BrandMark, taskTokens } from "../cards";
-import { Checkbox, LetterAvatar } from "./board-parts";
+import { BrandMark, ProjectIcon, taskTokens } from "../cards";
+import { Checkbox } from "./board-parts";
 import type { ChipGroup, FilterOption, FilterOptions } from "./filter-options";
 import type { BoardParams } from "./params";
 import type { MenuItem, MenuSection } from "./menu-model";
@@ -109,12 +109,12 @@ function emptySection(text: string): MenuSection[] {
 }
 
 /** Workspaces under a titled group per project (Linear's section headers), not a submenu per project: one click per workspace. */
-export function workspaceMenuSections(options: FilterOptions, theme: PluginTheme, strings: BoardStrings, toggle: (id: string) => void): MenuSection[] {
+export function workspaceMenuSections(options: FilterOptions, theme: PluginTheme, strings: BoardStrings, hostId: string, toggle: (id: string) => void): MenuSection[] {
   if (options.workspaceGroups.length === 0) return emptySection(strings.noOptions);
   return options.workspaceGroups.map((group) => ({
     key: group.projectId || "missing",
     title: group.projectName,
-    titleLeading: <LetterAvatar name={group.projectName} theme={theme} />,
+    titleLeading: group.projectId ? <ProjectIcon location={group} size={14} hostId={hostId} /> : undefined,
     items: group.items.map((item) => optionItem(item, theme, toggle)),
   }));
 }

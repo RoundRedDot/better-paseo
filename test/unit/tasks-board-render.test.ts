@@ -470,6 +470,31 @@ describe("Tasks board, desktop", () => {
     expect(lastBoardParams("host-1").workspaceIds).toEqual([]);
   });
 
+  it("draws the sidebar's project and workspace rows with the cards' project icon", () => {
+    const handle = (data as unknown as { __handle: { workspaces: object[]; requestProjectIcon: ReturnType<typeof vi.fn> } }).__handle;
+    const saved = handle.workspaces;
+    handle.workspaces = [{ ...saved[0], projectKey: "remote:github.com/RoundRedDot/better-paseo", projectIcon: null }];
+    handle.requestProjectIcon.mockClear();
+    try {
+      act(() => {
+        renderer = TestRenderer.create(screen(false));
+      });
+      layOut(2000);
+      const groups = () => renderer!.root.findByProps({ testID: "sidebar-groups" });
+      const fill = (node: ReturnType<typeof groups>) => StyleSheet.flatten(node.findByProps({ testID: "project-icon-generated" }).props.style).backgroundColor;
+      const cardIcon = renderer!.root.findAllByProps({ testID: "project-icon-generated" }).find((node) => !groups().findAll((inner) => inner === node).length)!;
+      const cardFill = StyleSheet.flatten(cardIcon.props.style).backgroundColor;
+      for (const tab of ["Project", "Workspace"]) {
+        act(() => groups().findByProps({ accessibilityRole: "tab", accessibilityLabel: tab }).props.onPress());
+        expect(fill(groups())).toBe(cardFill);
+      }
+      // The rows ask for the uploaded icon themselves: their project may have no card on screen.
+      expect(handle.requestProjectIcon).toHaveBeenCalledWith("prj_sample");
+    } finally {
+      handle.workspaces = saved;
+    }
+  });
+
   it("shows a card only once it is clicked, and the next clicked card after it", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));

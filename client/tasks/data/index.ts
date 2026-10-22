@@ -24,6 +24,9 @@ export interface WorkspaceOption {
   name: string;
   projectId: string;
   projectName: string;
+  /** The project's key and loaded icon, so a filter row draws the same icon as the project's cards. */
+  projectKey?: string | null;
+  projectIcon?: string | null;
   /** The last segment of the workspace's directory, to tell same-named workspaces apart. */
   folder?: string | null;
 }
@@ -1303,13 +1306,19 @@ function createStore(api: PaseoApi): TaskStore {
   function upsertWorkspacesOptions(): WorkspaceOption[] {
     return [...workspaces.values()]
       .filter((workspace) => !workspace.archivingAt)
-      .map((workspace) => ({
-        id: workspace.id,
-        name: workspace.title?.trim() || workspace.name,
-        projectId: workspace.projectId,
-        projectName: workspace.projectCustomName?.trim() || workspace.projectDisplayName,
-        folder: typeof workspace.workspaceDirectory === "string" ? pathTail(workspace.workspaceDirectory) : null,
-      }))
+      .map((workspace) => {
+        const project = projects.get(workspace.projectId);
+        const icon = projectIcons.get(workspace.projectId);
+        return {
+          id: workspace.id,
+          name: workspace.title?.trim() || workspace.name,
+          projectId: workspace.projectId,
+          projectName: workspace.projectCustomName?.trim() || workspace.projectDisplayName,
+          projectKey: project?.projectKey || null,
+          projectIcon: icon && icon.revision === (project?.projectIconRevision ?? null) ? icon.uri : null,
+          folder: typeof workspace.workspaceDirectory === "string" ? pathTail(workspace.workspaceDirectory) : null,
+        };
+      })
       .sort((a, b) => a.projectName.localeCompare(b.projectName) || a.name.localeCompare(b.name));
   }
 
