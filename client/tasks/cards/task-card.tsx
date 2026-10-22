@@ -555,11 +555,14 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   // Pills ------------------------------------------------------------------
   const pill = { tokens, compact };
   const pills: ReactNode[] = [];
-  // Model and thinking as the composer shows them: two items, each with its icon,
-  // in the brand's borderless status-pill colours.
+  // Model and thinking in one item, in the brand's borderless status-pill colours:
+  // the mark and the model, a middle dot, then the Brain icon and the thinking level. With the model
+  // pill off the thinking level keeps a neutral pill of its own.
   const agentColors = agentPillColors(tokens, card.provider);
+  const thinking = layout.thinking ? card.thinkingLabel : null;
   if (layout.modelPill) {
     const model = layout.model && card.modelLabel ? card.modelLabel : card.providerLabel;
+    const name = model === card.providerLabel ? model : `${card.providerLabel} ${model}`;
     pills.push(
       <Pill
         key="model"
@@ -568,11 +571,26 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         solid={agentColors}
         lead={layout.brand ? <BrandMark provider={card.provider} size={m.icon} tokens={tokens} /> : undefined}
         label={model}
-        accessibilityLabel={model === card.providerLabel ? model : `${card.providerLabel} ${model}`}
-      />,
+        accessibilityLabel={thinking ? `${name} ${thinking}` : name}
+      >
+        {thinking ? (
+          <>
+            <Text style={{ fontSize: m.pillText, lineHeight: m.pillLine, color: mix(agentColors.background, agentColors.text, 0.7) }} testID="agent-pill-dot">
+              ·
+            </Text>
+            <Icon name={THINKING_ICON} size={m.icon} color={agentColors.icon} />
+            <Text
+              numberOfLines={1}
+              style={{ fontSize: m.pillText, lineHeight: m.pillLine, color: agentColors.text, flexShrink: 0 }}
+              testID="agent-pill-thinking"
+            >
+              {thinking}
+            </Text>
+          </>
+        ) : null}
+      </Pill>,
     );
-  }
-  if (layout.thinking && card.thinkingLabel) {
+  } else if (thinking) {
     pills.push(
       <Pill
         key="thinking"
@@ -580,7 +598,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         testID="pill-thinking"
         solid={neutralPillColors(tokens, muted)}
         icon={THINKING_ICON}
-        label={card.thinkingLabel}
+        label={thinking}
       />,
     );
   }
