@@ -58,7 +58,7 @@ export function brandTint(provider: string): string | null {
 
 /**
  * A provider's mark on a theme-following surface: Pi in its own three
- * colours; coloured brands keep their hue; monochrome marks (Oh My Pi,
+ * colours; coloured brands keep their hue; monochrome marks (Codex, Oh My Pi,
  * Cursor, Grok, Ollama, Paseo) take the theme's foreground, where their
  * configured near-white or indigo would vanish or mislead. With `mono`,
  * every mark is a silhouette in that one colour.

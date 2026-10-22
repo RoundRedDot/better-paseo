@@ -29,7 +29,7 @@ interface ProviderLogoProps {
   color?: string;
   /** Colours only the label, leaving the mark in its brand hue. */
   labelColor?: string;
-  /** Replaces a near-white brand hue that would vanish on a light surface. */
+  /** Replaces a near-white or black brand hue that would vanish on one of the themes. */
   neutralColor?: string;
 }
 
@@ -130,11 +130,12 @@ export function ProviderLogo({ provider, size = 14, showLabel = false, color, la
 
 /**
  * Marks drawn in one colour: the theme's foreground suits them on any
- * surface, where their configured hue (a near-white grey, an indigo) does not.
+ * surface, where their configured hue (a near-white grey, black, an indigo) does not.
  * Pi is not one of them: its mark is three colours (see the Tasks cards' PiMark).
  */
 const MONOCHROME_PROVIDERS: ReadonlySet<KnownProvider> = new Set([
   "paseo",
+  "codex",
   "omp",
   "grok",
   "cursor",
@@ -156,14 +157,14 @@ interface ProviderMeta {
   displayName: string;
   /** Also the fill for a monochrome mark, so it stays legible on either theme. */
   brandColor: string;
-  /** The brand hue is a light grey, legible only on a dark surface. */
+  /** The brand hue is a light grey or black, legible on only one of the themes. */
   neutral?: boolean;
 }
 
 const PROVIDER_CONFIGS: Record<KnownProvider, ProviderMeta> = {
   paseo: { displayName: "Paseo", brandColor: "#6366F1" },
   claude: { displayName: "Claude", brandColor: "#D97757" },
-  codex: { displayName: "Codex", brandColor: "#10A37F" },
+  codex: { displayName: "Codex", brandColor: "#000000", neutral: true },
   omp: { displayName: "Oh My Pi", brandColor: "#818CF8" },
   pi: { displayName: "Pi", brandColor: "#818CF8" },
   gemini: { displayName: "Gemini", brandColor: "#4285F4" },
