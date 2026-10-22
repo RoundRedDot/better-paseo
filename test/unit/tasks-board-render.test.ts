@@ -402,11 +402,15 @@ describe("Tasks board, desktop", () => {
     expect(textOf(stats.findByProps({ testID: "sidebar-stat-running" }))).toMatch(/Running\d/);
     // No card chosen: the groups.
     expect(hostsById("sidebar-groups").length).toBeGreaterThan(0);
+    // The switch's mark: a solid block in the frame while the sidebar shows, a thin bar once it hides.
+    const bar = () => StyleSheet.flatten(renderer!.root.findByProps({ testID: "panel-mark" }).findAll((node) => (node.type as unknown) === "View")[1]!.props.style);
+    expect(bar()).toMatchObject({ width: 4, height: 6.5 });
     // The switch hides it, and the lanes take the whole board.
     act(() => renderer!.root.findByProps({ testID: "sidebar-switch" }).props.onPress());
     expect(hostsById("sidebar-inline")).toHaveLength(0);
     expect(lanesScroll().props.contentContainerStyle).toMatchObject({ width: 2000 });
     expect(readSidebarPreference().open).toBe(false);
+    expect(bar()).toMatchObject({ width: 1.5, height: 5.5 });
   });
 
   it("shows a card only once it is clicked, and the next clicked card after it", () => {
