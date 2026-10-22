@@ -9,6 +9,7 @@ import { SELECTION_BAR_SELECTOR } from "./components/selection-actions";
 import { FLOAT_EASE } from "./ui/tokens/float";
 import { PREVIEW_REVEAL } from "./ui/tokens/motion";
 import { radiusV2 } from "./components/theme-tokens";
+import { hasActiveDetailsKeyboard } from "./details/keyboard";
 
 export { PREVIEW_REVEAL } from "./ui/tokens/motion";
 
@@ -197,22 +198,34 @@ export function bindPreviewMaximize(node: unknown, maximize: () => void): () => 
   return () => toolbar.removeEventListener("dblclick", onDoubleClick);
 }
 
-/** Arrow keys page a maximized preview while focus stays in its panel. */
-export function bindPreviewPaging(node: unknown, step: (direction: -1 | 1) => void): () => void {
+/** Page a maximized preview while focus stays in its panel. */
+export function bindPreviewPaging(
+  node: unknown,
+  step: (direction: -1 | 1) => void,
+  keys: "arrows" | "brackets" = "arrows",
+): () => void {
   if (Platform.OS !== "web") return () => {};
   const pager = node as HTMLElement | null;
   if (!pager) return () => {};
-  const panel = pager.closest<HTMLElement>('[data-testid="hover-preview"]')!;
+  const panel = pager.closest<HTMLElement>('[data-testid="hover-preview"]');
+  if (!panel) return () => {};
   const doc = pager.ownerDocument;
   const onKey = (event: KeyboardEvent) => {
     if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    const previousKey = keys === "arrows" ? "ArrowLeft" : "[";
+    const nextKey = keys === "arrows" ? "ArrowRight" : "]";
+    if (event.key !== previousKey && event.key !== nextKey) return;
     const target = event.target as HTMLElement;
     if (!panel.contains(target) || target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return;
     event.preventDefault();
     event.stopPropagation();
-    step(event.key === "ArrowLeft" ? -1 : 1);
+    step(event.key === previousKey ? -1 : 1);
   };
+  if (keys === "brackets") {
+    doc.addEventListener("keydown", onKey, true);
+    return () => doc.removeEventListener("keydown", onKey, true);
+  }
+  // Preserve the legacy hover window's bubbling listener when details are off.
   doc.addEventListener("keydown", onKey);
   return () => doc.removeEventListener("keydown", onKey);
 }
@@ -544,6 +557,9 @@ export function openPreviewLayer(node: unknown, anchor: unknown, close: () => vo
   // Escape closes the panel and goes no further.
   const onKey = (event: KeyboardEvent) => {
     if (event.key === "Escape" && !event.isComposing) {
+      // The details shell owns Escape while open; its capture handler closes
+      // that pane and stops the legacy hover popover from closing as well.
+      if (hasActiveDetailsKeyboard(event)) return;
       event.preventDefault();
       event.stopPropagation();
       close();
