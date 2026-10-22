@@ -244,8 +244,9 @@ describe("Tasks board, desktop", () => {
       const search = renderer!.root.find((node) => (node.type as unknown) === "TextInput");
       expect(font(search)).toBe(Math.round(14 * base / 14));
       const title = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-title")[0]!;
-      expect(font(title)).toBe(Math.round(14 * base / 14));
-      expect(StyleSheet.flatten(title.props.style).lineHeight).toBe(Math.round(20 * base / 14));
+      // A card's title sits a step under the host's list rows: its small step, on an 18 reading line.
+      expect(font(title)).toBe(Math.round(12 * base / 14));
+      expect(StyleSheet.flatten(title.props.style).lineHeight).toBe(Math.round(18 * base / 14));
       const pill = renderer!.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "pill-model")[0]!;
       expect(StyleSheet.flatten(pill.props.style).height).toBe(Math.round(24 * Math.max(1, base / 14)));
       const sort = text("Sort").parent!;
@@ -270,14 +271,14 @@ describe("Tasks board, desktop", () => {
       const card = cards().find((node) => node.props.card.id === "sample-running")!;
       act(() => card.props.onSelect(card.props.card));
       const font = (node: ReactTestInstance) => StyleSheet.flatten(node.props.style).fontSize;
-      // Each a step of the host's ramp (sm 12, base 14, lg 16) scaled and rounded as the host scales it.
+      // Each a step of the host's ramp (sm 12, base 14) scaled and rounded as the host scales it; the details sit a step under its rows.
       const step = (size: number) => Math.round(size * base / 14);
       const host = (id: string) => renderer!.root.find((node) => (node.type as unknown) === "Text" && node.props.testID === id);
-      expect(font(host("detail-title"))).toBe(step(16));
+      expect(font(host("detail-title"))).toBe(step(14));
       const cwd = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "detail-cwd-value");
       expect(font(cwd.findAll((node) => (node.type as unknown) === "Text")[0]!)).toBe(step(12));
       expect(font(host("detail-branch-note"))).toBe(step(12));
-      expect(font(host("detail-place-value"))).toBe(step(14));
+      expect(font(host("detail-place-value"))).toBe(step(12));
     } finally {
       act(() => renderer?.unmount());
       renderer = undefined;
@@ -297,14 +298,14 @@ describe("Tasks board, desktop", () => {
         const title = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-title")[0]!;
         return StyleSheet.flatten(title.props.style).fontSize;
       };
-      expect(titleFont()).toBe(14);
+      expect(titleFont()).toBe(12);
       act(() => { triggerHostAppearanceCheck(); });
       base = 21;
       act(() => { vi.advanceTimersByTime(700); });
-      expect(titleFont()).toBe(21);
+      expect(titleFont()).toBe(18);
       base = 10;
       act(() => { vi.advanceTimersByTime(600); triggerHostAppearanceCheck(); });
-      expect(titleFont()).toBe(10);
+      expect(titleFont()).toBe(9);
     } finally {
       act(() => renderer?.unmount());
       renderer = undefined;
@@ -338,7 +339,8 @@ describe("Tasks board, desktop", () => {
       renderer = TestRenderer.create(screen(true));
     });
     const title = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-title")[0]!;
-    expect(StyleSheet.flatten(title.props.style)).toMatchObject({ fontSize: 24, lineHeight: 33 });
+    // The phone card's title: the host's base step (14) at 21 / 14.
+    expect(StyleSheet.flatten(title.props.style)).toMatchObject({ fontSize: 21, lineHeight: 30 });
     const header = renderer!.root.find((node) => (node.type as unknown) === "Text" && textOf(node) === "6 tasks");
     // The host's large step (16) at 21 / 14.
     expect(StyleSheet.flatten(header.props.style).fontSize).toBe(24);
@@ -766,21 +768,22 @@ describe("Tasks board, lane widths", () => {
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 300 * 4 } });
   });
 
-  it("narrows the lanes to keep two in view, and draws the phone layout on a wide host below that", () => {
+  it("keeps the lanes at their width on a tablet's narrow board and scrolls them, never the phone tabs", () => {
     const tabs = () => hostsById("phone-stat-running");
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
-    // A tablet with the sidebar open: two lanes of 224 side by side, the rest scrolled to.
+    // A tablet with the sidebar open: lanes stay 300, the rest scrolled to.
     layOut(480);
     expect(tabs()).toHaveLength(0);
     // No room for the key hints beside the count and the search.
     expect(textOf(renderer!.root)).not.toContain("HLLane");
-    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 224 * 4 } });
-    layOut(460);
-    expect(tabs().length).toBeGreaterThan(0);
-    expect(cards()[0]!.props.compact).toBe(true);
-    expect(textOf(renderer!.root)).not.toContain("Workspace");
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 300 * 4 } });
+    // Narrower still (a foldable with the host's sidebar wide): still the desk lanes, still 300.
+    layOut(400);
+    expect(tabs()).toHaveLength(0);
+    expect(cards()[0]!.props.compact).toBe(false);
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 300 * 4 } });
     layOut(1600);
     expect(tabs()).toHaveLength(0);
     expect(textOf(renderer!.root)).toContain("HLLane");
@@ -830,11 +833,29 @@ describe("Tasks board, tablet filters", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
   });
 
+  it("folds a narrow board's header into one row, its filters, sort and lane width behind one button", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(600);
+    // No filter bar: Workspace, Agent and the sort live in the sheet behind the header's button.
+    expect(renderer!.root.findAll((node) => node.props.testID === "filter-bar-end")).toHaveLength(0);
+    const button = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-filters");
+    expect(hostsById("filter-sheet-lane-width")).toHaveLength(0);
+    act(() => button().props.onPress());
+    expect(hostsById("filter-sheet-lane-width")).toHaveLength(1);
+    expect(hostsById("filter-sheet-sort").length).toBeGreaterThan(0);
+    // A wide board keeps its filter bar and no button.
+    layOut(1600);
+    expect(renderer!.root.findAll((node) => node.props.testID === "filter-bar-end").length).toBeGreaterThan(0);
+    expect(renderer!.root.findAll((node) => node.props.testID === "toolbar-filters")).toHaveLength(0);
+  });
+
   it("folds the two toggles behind a plus, and marks the plus while one is on", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
-    layOut(480);
+    layOut(800);
     const more = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-bar-more");
     const switches = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch");
     expect(textOf(renderer!.root)).toContain("Workspace");
@@ -854,7 +875,7 @@ describe("Tasks board, tablet filters", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
-    layOut(480);
+    layOut(800);
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-bar-more")).toHaveLength(0);
     expect(textOf(renderer!.root)).toContain("Hide subtasks");
   });

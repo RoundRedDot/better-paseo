@@ -56,9 +56,9 @@ export const DETAIL_CARD = {
   listRow: 30,
   heading: 32,
   /** Body text: the host's base step. */
-  font: F.base,
+  font: F.sm,
   /** The card's title: the host's large step. */
-  title: F.lg,
+  title: F.base,
   icon: 16,
   chip: 22,
   button: 32,
@@ -226,8 +226,8 @@ function openLabel(props: TaskDetailCardsProps): string {
 function DetailHeader(props: Inner) {
   const { card, m, tokens, touch = false } = props;
   const cardText = cardStrings(props.language);
-  const small = touch ? F.base : F.sm;
-  const chipFont = touch ? F.base : F.sm;
+  const small = F.sm;
+  const chipFont = F.sm;
   const iconSize = touch ? 16 : 14;
   const kind = card.stoppedManually ? "stopped" : card.status;
   const hero = detailHero(card);
@@ -273,7 +273,7 @@ function DetailHeader(props: Inner) {
         <View style={{ flex: 1 }} />
         {props.onClose ? <RoundIcon icon="X" label={props.strings.close} size={m.round} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
       </View>
-      <Text style={{ marginTop: 2, fontSize: m.title, lineHeight: HOST_LINE.lg, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
+      <Text style={{ marginTop: 2, fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
         {card.title}
       </Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }} testID="detail-agent">
@@ -408,7 +408,7 @@ function PermissionBlock(props: Inner) {
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
   const permission = card.permission!;
-  const small = props.touch ? F.base : F.sm;
+  const small = F.sm;
   const waited = since(card.timing.attentionAt, props.now) ?? since(card.timing.turnStartedAt, props.now);
   const buttons = props.actions !== false && props.onPermission ? (props.permissionButtons ?? []) : [];
   return (
@@ -524,7 +524,7 @@ function ErrorBlock(props: Inner) {
           </Text>
           {long ? (
             <Pressable accessibilityRole="button" onPress={() => setOpen((was) => !was)} hitSlop={4} style={{ marginTop: 6, alignSelf: "flex-start" }}>
-              <Text style={{ fontSize: props.touch ? F.base : F.sm, color: tokens.foregroundMuted }}>{open ? words.showLess : words.showAll(lines.length)}</Text>
+              <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>{open ? words.showLess : words.showAll(lines.length)}</Text>
             </Pressable>
           ) : null}
         </>
@@ -789,8 +789,8 @@ function PropertyRow(props: {
   const [columns, setColumns] = useState(36);
   const touch = m === TOUCH_CARD;
   // The host's steps: base for the value (as the usage rows and subtasks), small for code and the note.
-  const font = F.base;
-  const line = HOST_LINE.base;
+  const font = F.sm;
+  const line = HOST_LINE.smRead;
   const monoFont = F.sm;
   const noteFont = F.sm;
   const rowHeight = taskControlHeight(touch ? 36 : 30, scale);
@@ -997,7 +997,7 @@ function SubtaskRow(props: { m: Metrics; tokens: TaskTokens; theme: PluginTheme;
   const facts = childFactParts(child);
   const active = props.onPress !== undefined && hovered;
   // The host's steps, as Paseo's subagent row: base for the title, small for the facts.
-  const font = F.base;
+  const font = F.sm;
   const factText: TextStyle = { fontSize: F.sm, color: tokens.foregroundMuted };
   return (
     <Pressable
@@ -1040,7 +1040,7 @@ function Usage(props: Inner) {
   const { card, m, tokens } = props;
   const words = cardStrings(props.language).details;
   const touch = props.touch === true;
-  const font = F.base;
+  const font = F.sm;
   const cost = card.usage?.totalCostUsd ?? null;
   const line = (key: string, icon: string, label: string, value: string, strong: boolean) => (
     <View key={key} testID={`detail-usage-${key}`} style={{ height: touch ? 32 : 24, flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -1272,7 +1272,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; stop?: DangerLook
     >
       {props.icon ? <Icon name={props.icon} size={18} color={props.primary || stop ? text : tokens.foregroundMuted} /> : null}
       {props.square ? null : (
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.lg, fontWeight: "600", color: text }}>
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.base, fontWeight: "600", color: text }}>
           {props.label}
         </Text>
       )}
