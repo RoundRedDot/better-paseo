@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Platform, Pressable, View, type StyleProp, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import type { DoneWindow } from "../../../shared/tasks-settings";
 import { DONE_WINDOWS } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
@@ -19,7 +19,7 @@ const nativeDriver = Platform.OS !== "web";
 export function VerticalLabel({ text, color, language }: { text: string; color: string; language: "en" | "zh" }) {
   const scale = useTasksFontScale();
   const [length, setLength] = useState(0);
-  const style = { fontSize: 13, fontWeight: "500" as const, color, lineHeight: 18 };
+  const style = { fontSize: F.base, fontWeight: "500" as const, color, lineHeight: HOST_LINE.base };
   if (language === "zh") {
     return (
       <View style={{ alignItems: "center" }}>
@@ -109,7 +109,7 @@ export function WindowSegments(props: {
               justifyContent: "center",
             }}
           >
-            <Text style={{ fontSize: props.large ? (props.stretch ? 14 : 13) : 13, fontWeight: "500", color: on ? colors.foreground : colors.foregroundMuted }}>
+            <Text style={{ fontSize: F.base, fontWeight: "500", color: on ? colors.foreground : colors.foregroundMuted }}>
               {props.strings.windows[window]}
             </Text>
           </Pressable>
@@ -175,7 +175,7 @@ export function LoadMoreRow(props: {
   const height = taskControlHeight(props.large ? 36 : 26, scale);
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingTop: props.large ? 4 : 6 }}>
-      <Text style={{ flex: 1, fontSize: props.large ? 12 : 11, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+      <Text style={{ flex: 1, fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>
         {props.sortedLoadedOnly ? props.strings.sortedAmong(props.shown) : props.strings.shown(props.shown)}
       </Text>
       <HoverPressable
@@ -195,7 +195,7 @@ export function LoadMoreRow(props: {
         })}
       >
         {props.loading ? <Icon name="LoaderCircle" size={12} color={colors.foregroundMuted} /> : null}
-        <Text style={{ fontSize: props.large ? 14 : 12, fontWeight: "500", color: props.loading ? colors.foregroundMuted : colors.foreground }}>
+        <Text style={{ fontSize: props.large ? F.base : F.sm, fontWeight: "500", color: props.loading ? colors.foregroundMuted : colors.foreground }}>
           {props.loading ? props.strings.loading : props.strings.loadMore}
         </Text>
       </HoverPressable>

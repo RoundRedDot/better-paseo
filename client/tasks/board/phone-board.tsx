@@ -12,7 +12,7 @@ import {
 import { FlatList, Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { TaskText as Text, TasksTypography, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, TasksTypography, useTasksFontScale, taskControlHeight } from "../typography";
 import { DetailActionBar, StatusIcon, TaskDetailCards, taskTokens, type CardCallbacks } from "../cards";
 import { panelChrome } from "../cards/panel";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
@@ -294,7 +294,7 @@ export function PhoneBoard(props: {
   return (
     <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0 }}>
       <View style={{ minHeight: 52, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 16, paddingRight: 6 }}>
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 17, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.lg, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>
           {strings.total(board.total)}
         </Text>
         {board.params.sort ? (
@@ -318,7 +318,7 @@ export function PhoneBoard(props: {
             }}
           >
             <Icon name="ArrowUpDown" size={13} color={colors.foregroundMuted} />
-            <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 13, fontWeight: "500", color: colors.foreground }}>
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.base, fontWeight: "500", color: colors.foreground }}>
               {sortLabel(board.params.sort, strings)}
             </Text>
           </Pressable>
@@ -345,7 +345,7 @@ export function PhoneBoard(props: {
               placeholderTextColor={colors.foregroundMuted}
               accessibilityLabel={strings.search}
               returnKeyType="search"
-              style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(15 * scale), color: colors.foreground }}
+              style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground }}
             />
           </View>
         </View>
@@ -397,11 +397,11 @@ export function PhoneBoard(props: {
                 >
                   <StatusIcon kind={LANE_STATUS[id]} size={13} theme={theme} animated={board.visible} />
                   <View onLayout={(event: LayoutChangeEvent) => measureTab(id, "label", event.nativeEvent.layout)} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: on ? "600" : "500", color: on ? colors.foreground : colors.foregroundMuted }}>
+                    <Text numberOfLines={1} style={{ fontSize: F.base, fontWeight: on ? "600" : "500", color: on ? colors.foreground : colors.foregroundMuted }}>
                       {strings.tabs[id]}
                     </Text>
                     {tasks.ready ? (
-                      <Text style={{ fontSize: 14, fontWeight: warn || on ? "600" : "400", fontVariant: ["tabular-nums"], color: warn ? warning : on ? colors.foreground : colors.foregroundMuted }}>
+                      <Text style={{ fontSize: F.base, fontWeight: warn || on ? "600" : "400", fontVariant: ["tabular-nums"], color: warn ? warning : on ? colors.foreground : colors.foregroundMuted }}>
                         {count}
                       </Text>
                     ) : null}
@@ -415,7 +415,7 @@ export function PhoneBoard(props: {
       </View>
       {lane === "done" ? (
         <View style={{ minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
-          <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.timeRange}</Text>
+          <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{strings.timeRange}</Text>
           <WindowSegments value={doneWindow} onChange={(value) => board.setParams((params) => ({ ...params, doneWindow: value }))} theme={theme} strings={strings} large />
         </View>
       ) : null}
@@ -492,7 +492,7 @@ export function PhoneBoard(props: {
               size={16}
               color={board.notice.tone === "error" ? taskTokens(theme).danger : colors.foregroundMuted}
             />
-            <Text style={{ flexShrink: 1, fontSize: 14, lineHeight: 20, color: colors.foreground }}>{board.notice.message}</Text>
+            <Text style={{ flexShrink: 1, fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground }}>{board.notice.message}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -553,7 +553,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
       {index >= 0 && list.length > 1 ? (
         <View style={{ minHeight: 40, paddingHorizontal: 12, flexDirection: "row", alignItems: "center" }} testID="sheet-stepper">
           <SheetStep icon="ChevronLeft" label={board.strings.sidebar.previous} disabled={index <= 0} onPress={() => step(-1)} theme={theme} />
-          <Text style={{ flex: 1, textAlign: "center", fontSize: 13, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+          <Text style={{ flex: 1, textAlign: "center", fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>
             {`${board.strings.lanes[card.lane]} · ${index + 1} / ${list.length}`}
           </Text>
           <SheetStep icon="ChevronRight" label={board.strings.sidebar.next} disabled={index >= list.length - 1} onPress={() => step(1)} theme={theme} />
@@ -647,7 +647,7 @@ function RoundButton(props: { icon: string; label: string; theme: PluginTheme; o
             justifyContent: "center",
           }}
         >
-          <Text style={{ fontSize: 11, lineHeight: 12, fontWeight: "600", color: colors.accentForeground, fontVariant: ["tabular-nums"] }}>{props.badge}</Text>
+          <Text style={{ fontSize: F.sm, lineHeight: 14, fontWeight: "600", color: colors.accentForeground, fontVariant: ["tabular-nums"] }}>{props.badge}</Text>
         </View>
       ) : null}
     </Pressable>
@@ -819,15 +819,15 @@ function PhoneLane(props: {
           }}
         >
           <Icon name={LANE_EMPTY_ICON[lane.id]} size={20} color={colors.foregroundMuted} />
-          <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>{strings.laneEmpty[lane.id]}</Text>
-          <Text style={{ fontSize: 13, lineHeight: 19, color: colors.foregroundMuted, textAlign: "center" }}>{strings.laneEmptyHint[lane.id]}</Text>
+          <Text style={{ fontSize: F.lg, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>{strings.laneEmpty[lane.id]}</Text>
+          <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: colors.foregroundMuted, textAlign: "center" }}>{strings.laneEmptyHint[lane.id]}</Text>
           {filtered ? (
             <Pressable
               accessibilityRole="button"
               onPress={() => board.setParams(clearedParams)}
               style={{ marginTop: 6, height: 36, paddingHorizontal: 16, borderRadius: 18, borderWidth: HAIRLINE, borderColor: colors.border, justifyContent: "center" }}
             >
-              <Text style={{ fontSize: 14, fontWeight: "500", color: colors.foreground }}>{strings.clearFilters}</Text>
+              <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{strings.clearFilters}</Text>
             </Pressable>
           ) : null}
         </View>

@@ -237,12 +237,13 @@ describe("Tasks board, desktop", () => {
       layOut(1600);
       const font = (node: ReactTestInstance) => StyleSheet.flatten(node.props.style).fontSize;
       const text = (value: string) => renderer!.root.find((node) => (node.type as unknown) === "Text" && textOf(node) === value);
-      expect(font(text("Move"))).toBe(Math.round(11 * base / 14));
+      // Every size is a step of the host's ramp (sm 12, base 14), scaled as the host scales it.
+      expect(font(text("Move"))).toBe(Math.round(12 * base / 14));
       const search = renderer!.root.find((node) => (node.type as unknown) === "TextInput");
-      expect(font(search)).toBe(Math.round(13 * base / 14));
+      expect(font(search)).toBe(Math.round(14 * base / 14));
       const title = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-title")[0]!;
-      expect(font(title)).toBe(Math.round(13 * base / 14));
-      expect(StyleSheet.flatten(title.props.style).lineHeight).toBe(Math.round(18 * base / 14));
+      expect(font(title)).toBe(Math.round(14 * base / 14));
+      expect(StyleSheet.flatten(title.props.style).lineHeight).toBe(Math.round(20 * base / 14));
       const pill = renderer!.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "pill-model")[0]!;
       expect(StyleSheet.flatten(pill.props.style).height).toBe(Math.round(24 * Math.max(1, base / 14)));
       const sort = text("Sort").parent!;
@@ -294,14 +295,14 @@ describe("Tasks board, desktop", () => {
         const title = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-title")[0]!;
         return StyleSheet.flatten(title.props.style).fontSize;
       };
-      expect(titleFont()).toBe(13);
+      expect(titleFont()).toBe(14);
       act(() => { triggerHostAppearanceCheck(); });
       base = 21;
       act(() => { vi.advanceTimersByTime(700); });
-      expect(titleFont()).toBe(20);
+      expect(titleFont()).toBe(21);
       base = 10;
       act(() => { vi.advanceTimersByTime(600); triggerHostAppearanceCheck(); });
-      expect(titleFont()).toBe(9);
+      expect(titleFont()).toBe(10);
     } finally {
       act(() => renderer?.unmount());
       renderer = undefined;
@@ -318,7 +319,7 @@ describe("Tasks board, desktop", () => {
       });
       layOut(1600);
       const search = renderer!.root.find((node) => (node.type as unknown) === "TextInput");
-      expect(StyleSheet.flatten(search.props.style).fontSize).toBe(20);
+      expect(StyleSheet.flatten(search.props.style).fontSize).toBe(21);
       // The sidebar reads its own open state; the appearance is never read.
       expect(getItem).not.toHaveBeenCalledWith(APP_SETTINGS_KEY);
     } finally {
@@ -337,7 +338,8 @@ describe("Tasks board, desktop", () => {
     const title = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-title")[0]!;
     expect(StyleSheet.flatten(title.props.style)).toMatchObject({ fontSize: 24, lineHeight: 33 });
     const header = renderer!.root.find((node) => (node.type as unknown) === "Text" && textOf(node) === "6 tasks");
-    expect(StyleSheet.flatten(header.props.style).fontSize).toBe(26);
+    // The host's large step (16) at 21 / 14.
+    expect(StyleSheet.flatten(header.props.style).fontSize).toBe(24);
   });
 
   it("draws four lanes with their counts and every sample card", () => {
@@ -1305,7 +1307,7 @@ describe("Tasks sidebar entry", () => {
     expect(row.findAll((node) => (node.type as unknown) === "View" && node.props.accessibilityLabel !== undefined).map((node) => node.props.accessibilityLabel)).toEqual(["2 need input"]);
     expect(row.findAll((node) => node.props.kind === "running")).toHaveLength(0);
     const input = row.findAll((node) => (node.type as unknown) === "Text" && node.props.children === 2)[0]!;
-    expect(input.props.style).toMatchObject({ fontWeight: "600" });
+    expect(StyleSheet.flatten(input.props.style)).toMatchObject({ fontWeight: "600" });
     host.counts = { running: 0, needsInput: 0, review: 0, done: 1 };
     act(() => renderer!.unmount());
     expect(textOf(entry(null))).toBe("");

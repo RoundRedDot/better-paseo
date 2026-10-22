@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { mix } from "../../components/theme-tokens";
 import { themeKey } from "../../ui/tokens/theme-key";
+import { HOST_FONT } from "../type-ramp";
 
 /**
  * The board's menus, after Linear's (measured at 2x on its light theme):
@@ -22,7 +23,8 @@ export const MENU = {
   rowRadius: 6,
   icon: 16,
   gap: 8,
-  fontSize: 14,
+  /** The host's base step; TaskText scales it with the interface size. */
+  fontSize: HOST_FONT.base,
   /** A group title row. */
   titleHeight: 28,
   /** Space above and below a group's hairline. */

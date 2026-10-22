@@ -3,7 +3,7 @@ import { Animated, Platform, Pressable, ScrollView, View, type FlatList as Nativ
 import { FlatList, Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { TaskText as Text, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { StatusIcon, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -643,8 +643,8 @@ function BoardEmpty({ board, theme }: { board: BoardController; theme: PluginThe
     <View pointerEvents="box-none" style={{ position: "absolute", top: 40, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center" }}>
       <View style={{ alignItems: "center", gap: 8, paddingVertical: 20, paddingHorizontal: 28, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 8, backgroundColor: colors.surface0 }}>
         <Icon name="SquareKanban" size={20} color={colors.foregroundMuted} />
-        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{board.strings.boardEmpty}</Text>
-        <Text style={{ fontSize: 12, color: colors.foregroundMuted }}>{board.strings.boardEmptyHint}</Text>
+        <Text style={{ fontSize: F.base, fontWeight: "600", color: colors.foreground }}>{board.strings.boardEmpty}</Text>
+        <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{board.strings.boardEmptyHint}</Text>
       </View>
     </View>
   );
@@ -724,7 +724,7 @@ function DesktopLane(props: {
       >
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <VerticalLabel text={name} color={colors.foreground} language={board.language} />
-        <Text style={{ fontSize: 13, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{ready ? count : ""}</Text>
+        <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{ready ? count : ""}</Text>
       </HoverPressable>
     );
   }
@@ -734,15 +734,15 @@ function DesktopLane(props: {
     <View style={{ width: props.width, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}>
       <View style={{ height: taskControlHeight(40, scale), flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 14, paddingRight: 8 }}>
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
-        <Text style={{ fontSize: 14, fontWeight: "500", color: colors.foreground }}>{name}</Text>
+        <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{name}</Text>
         {ready ? (
-          <Text style={{ fontSize: 14, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{count}</Text>
+          <Text style={{ fontSize: F.base, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{count}</Text>
         ) : (
           <View style={{ width: 14, height: 10, borderRadius: 2, backgroundColor: colors.surface2 }} />
         )}
         <View style={{ flex: 1 }} />
         {lane.id === "done" ? (
-          <Text style={{ fontSize: 12, color: colors.foregroundMuted }}>{strings.windows[board.params.doneWindow ?? board.defaults.doneWindow]}</Text>
+          <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{strings.windows[board.params.doneWindow ?? board.defaults.doneWindow]}</Text>
         ) : null}
         <HoverPressable
           accessibilityRole="button"
@@ -796,7 +796,7 @@ function DesktopLane(props: {
           }}
           ListEmptyComponent={
             <View style={{ height: 64, borderWidth: HAIRLINE, borderStyle: "dashed", borderColor: colors.border, borderRadius: PANEL_RADIUS, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 13, color: colors.foregroundMuted }}>{strings.laneEmpty[lane.id]}</Text>
+              <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{strings.laneEmpty[lane.id]}</Text>
             </View>
           }
           ListFooterComponent={

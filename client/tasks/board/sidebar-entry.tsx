@@ -1,5 +1,5 @@
 import React, { type ReactNode } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import type { PluginSidebarItemProps } from "@getpaseo/plugin/client";
 import { usePaseo } from "@getpaseo/plugin/client";
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
@@ -7,6 +7,7 @@ import type { SidebarCount } from "../../../shared/tasks-settings";
 import { StatusIcon, useTaskTokens } from "../cards";
 import { useTaskCounts } from "../data";
 import { LANE_STATUS } from "../model";
+import { HOST_FONT, TaskText as Text, TasksTypography } from "../typography";
 import { useTasksLanguage } from "../i18n";
 import { useTasksSettings } from "./enabled";
 import { sidebarCountParts, sidebarCountText } from "./navigation";
@@ -66,26 +67,29 @@ function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: 
   const warning = useTaskTokens(props.theme).status.warning;
   const trailing =
     parts.length > 0 ? (
-      <View accessible accessibilityLabel={sidebarCountText(parts, language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        {parts.map((part) => {
-          const input = part.lane === "needs_input";
-          return (
-            <View key={part.lane} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-              <StatusIcon kind={LANE_STATUS[part.lane]} size={14} theme={props.theme} />
-              <Text
-                style={{
-                  fontSize: 12,
-                  ...(input ? { fontWeight: "600" as const } : null),
-                  color: input ? warning : colors.foregroundMuted,
-                  fontVariant: ["tabular-nums"],
-                }}
-              >
-                {part.count}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
+      // The host's row scales its own label with the interface size; the counts follow the same ramp.
+      <TasksTypography theme={props.theme}>
+        <View accessible accessibilityLabel={sidebarCountText(parts, language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {parts.map((part) => {
+            const input = part.lane === "needs_input";
+            return (
+              <View key={part.lane} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                <StatusIcon kind={LANE_STATUS[part.lane]} size={14} theme={props.theme} />
+                <Text
+                  style={{
+                    fontSize: HOST_FONT.sm,
+                    ...(input ? { fontWeight: "600" as const } : null),
+                    color: input ? warning : colors.foregroundMuted,
+                    fontVariant: ["tabular-nums"],
+                  }}
+                >
+                  {part.count}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      </TasksTypography>
     ) : undefined;
   return <TasksRow {...props} trailing={trailing} />;
 }
