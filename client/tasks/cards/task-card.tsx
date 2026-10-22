@@ -5,6 +5,8 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
+import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { duration, PREVIEW_REVEAL } from "../../ui/tokens/motion";
 import { formatFullStamp } from "../../ui/time";
 import type { PermissionButton, StopPhase } from "../actions";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
@@ -201,6 +203,45 @@ const webTransition = (WEB
   ? { transitionProperty: "background-color, border-color, box-shadow, color, opacity", transitionDuration: "120ms", transitionTimingFunction: "ease-out" }
   : {}) as ViewStyle;
 
+/**
+ * Stop's hover entrance on web: a fade with the preview's 4px drift in from
+ * the jump button's side, then a plain fade out. RNW compiles keyframes only
+ * through `StyleSheet.create`. Native shows Stop all the time, so has none.
+ */
+const STOP_EXIT_MS = duration.fast;
+const stopMotion = WEB
+  ? StyleSheet.create({
+      enter: {
+        // A string: RNW drops an array transform inside keyframes.
+        animationKeyframes: [{ from: { opacity: 0, transform: `translateX(${PREVIEW_REVEAL.shift}px)` } }],
+        animationDuration: `${PREVIEW_REVEAL.ms}ms`,
+        animationTimingFunction: "cubic-bezier(0.33, 1, 0.68, 1)",
+      } as ViewStyle,
+      exit: {
+        animationKeyframes: [{ to: { opacity: 0 } }],
+        animationDuration: `${STOP_EXIT_MS}ms`,
+        animationTimingFunction: "ease-out",
+        animationFillMode: "forwards",
+      } as ViewStyle,
+    })
+  : null;
+
+/** True for `ms` after `shown` turns false, so a control can fade out before it unmounts. */
+function useLeaving(shown: boolean, ms: number): boolean {
+  const [was, setWas] = useState(shown);
+  const [leaving, setLeaving] = useState(false);
+  if (was !== shown) {
+    setWas(shown);
+    setLeaving(!shown && ms > 0);
+  }
+  useEffect(() => {
+    if (!leaving) return;
+    const timer = setTimeout(() => setLeaving(false), ms);
+    return () => clearTimeout(timer);
+  }, [leaving, ms]);
+  return leaving;
+}
+
 // --- What the card shows ----------------------------------------------------
 
 /** The rows and pills a card draws for a field set; pure, so tier and collapse rules are testable. */
@@ -374,6 +415,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const canStop = card.stoppable && !!props.onStop;
   const parentStop = canStop && activeChildren(card) > 0;
   const showStop = canStop && !compact && (TOUCH || hovered || props.stopPhase !== "idle" || menuOpen);
+  const reducedMotion = useReducedMotion();
+  const stopLeaving = useLeaving(showStop && !TOUCH, reducedMotion ? 0 : STOP_EXIT_MS);
   const pressStop = (withChildren: boolean) => {
     setMenuOpen(false);
     setStopAll(withChildren);
@@ -450,15 +493,22 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         />
       ) : null}
       {/* Last, so it adds nothing before an in-flow element. */}
-      {showStop && !TOUCH ? (
+      {(showStop || stopLeaving) && !TOUCH ? (
         <View
-          style={{
-            position: "absolute",
-            right: jumpSlot,
-            top: (Math.round(line * scale) - taskControlHeight(m.stopHeight, scale)) / 2,
-            paddingLeft: GAP,
-            backgroundColor: background,
-          }}
+          pointerEvents={stopLeaving ? "none" : "auto"}
+          aria-hidden={stopLeaving || undefined}
+          style={[
+            {
+              position: "absolute",
+              right: jumpSlot,
+              top: (Math.round(line * scale) - taskControlHeight(m.stopHeight, scale)) / 2,
+              paddingLeft: GAP,
+              // Follows the card's fill as it eases back from the hover grey.
+              backgroundColor: background,
+              ...webTransition,
+            },
+            reducedMotion ? null : stopLeaving ? stopMotion?.exit : stopMotion?.enter,
+          ]}
           testID="task-card-stop-overlay"
         >
           <StopControl {...stop} compact={false} line={m.stopHeight} />
