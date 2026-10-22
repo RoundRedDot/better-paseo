@@ -60,6 +60,9 @@ const en = {
   shown: (count: number) => `Showing ${count}`,
   filters: "Filters",
   reset: "Reset",
+  /** The phone sheet folds the workspaces without an active task under this. */
+  moreWorkspaces: (count: number) => `${count} more ${count === 1 ? "workspace" : "workspaces"} with nothing active`,
+  fewerWorkspaces: "Show fewer",
   show: (count: number) => `Show ${count} ${count === 1 ? "task" : "tasks"}`,
   timeRange: "Time range",
   doneRange: "Done time range",
@@ -177,6 +180,8 @@ const zh: typeof en = {
   shown: (count) => `已显示 ${count}`,
   filters: "筛选",
   reset: "重置",
+  moreWorkspaces: (count) => `另有 ${count} 个 Workspace 没有进行中的任务`,
+  fewerWorkspaces: "收起",
   show: (count) => `显示 ${count} 个任务`,
   timeRange: "时间范围",
   doneRange: "已完成时间范围",

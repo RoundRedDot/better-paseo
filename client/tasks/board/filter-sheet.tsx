@@ -7,7 +7,7 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskCon
 import { BrandMark, ProjectIcon, taskTokens } from "../cards";
 import { Segments, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
-import { clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
+import { busyWorkspaceGroups, clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
 import { SORT_GROUPS, SORT_ICONS, sortDirectionIcon, sortDirections } from "./board-menus";
 import { sameSort, type BoardSort, type SortKey } from "./sort";
@@ -17,7 +17,9 @@ import type { BoardController } from "./use-board";
 /**
  * The phone's filters (prototype 04 sheet), drawn inside the host's bottom
  * sheet as a bounded body (`Modal.Content scrollable={false}`): the options
- * scroll, the "Show N tasks" button stays pinned under them.
+ * scroll, Reset and "Show N tasks" stay pinned under them. The short
+ * filters come first; the workspaces, often dozens, come last and show only
+ * those with an active task or picked until unfolded.
  */
 export function FilterSheetBody(props: {
   board: BoardController;
@@ -39,79 +41,36 @@ export function FilterSheetBody(props: {
   const strings = board.strings;
   const { setParams, defaults } = board;
   const resolved = resolveBoardParams(board.params, defaults);
-  // A tablet's sheet (it has the lane width) leads with how the board looks: a long workspace list
-  // otherwise pushed the done window, the lane width and the sort many screens down.
-  const viewFirst = props.laneWidth !== undefined && !sortFirst;
-  const viewControls = (
-    <View testID="filter-sheet-view">
-      <Text style={{ paddingTop: viewFirst ? 0 : 12, paddingBottom: 8, fontSize: F.sm, fontWeight: "500", color: colors.foregroundMuted }}>{strings.doneRange}</Text>
-      <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
-      {props.laneWidth ? (
-        <>
-          <Text style={{ paddingTop: 16, paddingBottom: 8, fontSize: F.sm, fontWeight: "500", color: colors.foregroundMuted }}>{strings.laneWidth.title}</Text>
-          <Segments
-            items={LANE_WIDTHS}
-            label={(width) => strings.laneWidth.names[width]}
-            value={props.laneWidth.value}
-            onChange={props.laneWidth.onChange}
-            theme={theme}
-            large
-            stretch
-            testID="filter-sheet-lane-width"
-          />
-        </>
-      ) : null}
-      {sortFirst ? null : (
-        <View testID="filter-sheet-sort">
-          <SectionTitle text={strings.sort} theme={theme} />
-          <SortDrillDown board={board} theme={theme} />
-        </View>
-      )}
+  const [allWorkspaces, setAllWorkspaces] = useState(false);
+  const busy = busyWorkspaceGroups(options.workspaceGroups);
+  const workspaceGroups = allWorkspaces ? options.workspaceGroups : busy.groups;
+  const sort = (
+    <View testID="filter-sheet-sort">
+      <SectionTitle text={strings.sort} theme={theme} first={sortFirst} />
+      <SortDrillDown board={board} theme={theme} />
     </View>
   );
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
       <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" testID="filter-sheet-scroll">
-        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-          <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-            <Pressable accessibilityRole="button" onPress={() => setParams(clearedParams)} style={{ height: 36, paddingHorizontal: 4, justifyContent: "center" }}>
-              <Text style={{ fontSize: F.base, color: colors.foregroundMuted }}>{strings.reset}</Text>
-            </Pressable>
-          </View>
-          {sortFirst ? (
-            <View testID="filter-sheet-sort" style={{ paddingBottom: 8 }}>
-              <View style={{ paddingBottom: 8 }}>
-                <SectionTitle text={strings.sort} theme={theme} first />
-              </View>
-              <SortDrillDown board={board} theme={theme} />
-            </View>
-          ) : null}
-          {viewFirst ? (
-            <View style={{ paddingBottom: 8 }}>
-              {viewControls}
-              <View style={{ height: HAIRLINE, marginTop: 16, backgroundColor: colors.border }} />
-            </View>
-          ) : null}
-          <SectionTitle text={strings.workspace} theme={theme} first={!sortFirst && !viewFirst} />
-          {options.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
-          {options.workspaceGroups.map((group) => (
-            <View key={group.projectId || "missing"}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 10, paddingBottom: 6 }}>
-                {group.projectId ? <ProjectIcon location={group} size={16} hostId={board.hostId} /> : null}
-                <Text style={{ fontSize: F.sm, color: colors.foreground }}>{group.projectName}</Text>
-              </View>
-              <ChipWrap>
-                {group.items.map((item) => (
-                  <Chip
-                    key={item.id}
-                    option={item}
-                    theme={theme}
-                    onPress={() => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, item.id) }))}
-                  />
-                ))}
-              </ChipWrap>
-            </View>
-          ))}
+        <View style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4, paddingBottom: 8 }}>
+          {sortFirst ? <View style={{ paddingBottom: 8 }}>{sort}</View> : null}
+          <ToggleRow
+            icon="AppWindow"
+            label={strings.openTabs}
+            hint={strings.openTabsHint}
+            on={resolved.filters.openTabsOnly}
+            theme={theme}
+            onPress={() => setParams((p) => ({ ...p, openTabsOnly: !p.openTabsOnly }))}
+          />
+          <ToggleRow
+            icon="ListTree"
+            label={strings.hideSubtasks}
+            hint={strings.hideSubtasksHint}
+            on={resolved.filters.hideSubtasks}
+            theme={theme}
+            onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
+          />
           <SectionTitle text={strings.agent} theme={theme} />
           {options.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
           <ChipWrap>
@@ -139,31 +98,75 @@ export function FilterSheetBody(props: {
               />
             ))}
           </ChipWrap>
-          <View style={{ height: HAIRLINE, marginTop: 16, marginBottom: 4, backgroundColor: colors.border }} />
-          <ToggleRow
-            icon="AppWindow"
-            label={strings.openTabs}
-            hint={strings.openTabsHint}
-            on={resolved.filters.openTabsOnly}
-            theme={theme}
-            onPress={() => setParams((p) => ({ ...p, openTabsOnly: !p.openTabsOnly }))}
-          />
-          <ToggleRow
-            icon="ListTree"
-            label={strings.hideSubtasks}
-            hint={strings.hideSubtasksHint}
-            on={resolved.filters.hideSubtasks}
-            theme={theme}
-            onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
-          />
-          {viewFirst ? null : viewControls}
+          <SectionTitle text={strings.doneRange} theme={theme} />
+          <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
+          {props.laneWidth ? (
+            <>
+              <SectionTitle text={strings.laneWidth.title} theme={theme} />
+              <Segments
+                items={LANE_WIDTHS}
+                label={(width) => strings.laneWidth.names[width]}
+                value={props.laneWidth.value}
+                onChange={props.laneWidth.onChange}
+                theme={theme}
+                large
+                stretch
+                testID="filter-sheet-lane-width"
+              />
+            </>
+          ) : null}
+          {sortFirst ? null : sort}
+          <View testID="filter-sheet-workspaces">
+            <SectionTitle text={strings.workspace} theme={theme} />
+            {options.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+            {workspaceGroups.map((group, index) => (
+              <View key={group.projectId || "missing"}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: index === 0 ? 0 : 10, paddingBottom: 6 }}>
+                  {group.projectId ? <ProjectIcon location={group} size={16} hostId={board.hostId} /> : null}
+                  <Text style={{ fontSize: F.sm, color: colors.foreground }}>{group.projectName}</Text>
+                </View>
+                <ChipWrap>
+                  {group.items.map((item) => (
+                    <Chip
+                      key={item.id}
+                      option={item}
+                      theme={theme}
+                      onPress={() => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, item.id) }))}
+                    />
+                  ))}
+                </ChipWrap>
+              </View>
+            ))}
+            {busy.hidden > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: allWorkspaces }}
+                onPress={() => setAllWorkspaces((all) => !all)}
+                testID="filter-sheet-more-workspaces"
+                style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8, marginTop: workspaceGroups.length ? 4 : 0 }}
+              >
+                <Icon name={allWorkspaces ? "ChevronUp" : "ChevronDown"} size={16} color={colors.foregroundMuted} />
+                <Text style={{ flexShrink: 1, fontSize: F.base, color: colors.foregroundMuted }}>
+                  {allWorkspaces ? strings.fewerWorkspaces : strings.moreWorkspaces(busy.hidden)}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
       </ScrollView>
-      <View testID="filter-sheet-footer" style={{ paddingTop: 12, paddingHorizontal: 16, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
+      <View testID="filter-sheet-footer" style={{ paddingTop: 12, paddingHorizontal: 16, flexDirection: "row", gap: 10, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setParams(clearedParams)}
+          testID="filter-sheet-reset"
+          style={{ height: 44, paddingHorizontal: 18, borderRadius: 22, borderWidth: HAIRLINE, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
+        >
+          <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{strings.reset}</Text>
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           onPress={props.onDone}
-          style={{ height: 44, borderRadius: 22, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" }}
+          style={{ flex: 1, height: 44, borderRadius: 22, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" }}
         >
           <Text style={{ fontSize: F.base, fontWeight: "600", color: colors.accentForeground, fontVariant: ["tabular-nums"] }}>{strings.show(board.total)}</Text>
         </Pressable>
@@ -174,7 +177,7 @@ export function FilterSheetBody(props: {
 
 function SectionTitle({ text, theme, first }: { text: string; theme: PluginTheme; first?: boolean }) {
   return (
-    <Text style={{ paddingTop: first ? 0 : 16, paddingBottom: first ? 0 : 8, fontSize: F.sm, fontWeight: "500", color: theme.colors.foregroundMuted }}>{text}</Text>
+    <Text style={{ paddingTop: first ? 0 : 16, paddingBottom: 8, fontSize: F.sm, fontWeight: "500", color: theme.colors.foregroundMuted }}>{text}</Text>
   );
 }
 
