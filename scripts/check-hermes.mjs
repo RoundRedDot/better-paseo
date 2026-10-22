@@ -30,9 +30,19 @@ const option = (name, fallback) => {
   const index = args.indexOf(`--${name}`);
   return index >= 0 ? args[index + 1] : fallback;
 };
-const entry = path.resolve(root, option("entry", "index.client.tsx"));
+let entry = path.resolve(root, option("entry", "index.client.tsx"));
 const run = !args.includes("--no-run");
 const keep = args.includes("--keep");
+// `--built`: what an install compiles instead (`scripts/build-client.mjs`):
+// the minified bundle inside a generated `index.client.ts`, and the Tasks
+// chunk the plugin server sends. Both run through `new Function`, so hermesc
+// compiles each on its own and the VM evaluates the chunk too.
+const installBuild = args.includes("--built") ? await import("./build-client.mjs").then((m) => m.buildClient({ root }).then((b) => ({ ...b, entry: m.clientEntry(b.main) }))) : null;
+if (installBuild) {
+  const builtDir = mkdtempSync(path.join(tmpdir(), "bc-built-"));
+  entry = path.join(builtDir, "index.client.ts");
+  writeFileSync(entry, installBuild.entry);
+}
 
 // esbuild: a root devDependency (the release vitest resolves); the showcase
 // install is the fallback for a checkout that skipped the root install.
@@ -204,6 +214,22 @@ if (compiled.status !== 0) {
   process.exit(1);
 }
 console.log(`check:hermes: compile OK (${bundle.length} bytes, ${path.relative(root, hermesc)})`);
+if (installBuild) {
+  for (const [name, code] of [["bundle", installBuild.main], ["Tasks chunk", installBuild.chunk]]) {
+    const file = path.join(dir, `${name.replace(/\W+/g, "-")}.js`);
+    writeFileSync(file, `(function (require, module, exports) {\n${code}\n})`);
+    // Minified lines are long, and hermesc echoes each line it warns about.
+    const result = spawnSync(hermesc, ["-emit-binary", "-out", `${file}.hbc`, file], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+    if (result.status !== 0) {
+      console.error(`check:hermes: FAIL — Hermes cannot compile the built ${name} (minified; rebuild without minify to locate)`);
+      const errors = (result.stderr || result.stdout || String(result.error)).split("\n").filter((line) => line.includes(": error:"));
+      console.error(errors.slice(0, 20).map((line) => `  ${line.slice(0, 300)}`).join("\n"));
+      console.error(`  kept at ${file}`);
+      process.exit(1);
+    }
+  }
+  console.log(`check:hermes: built bundle and Tasks chunk compile OK (chunk ${installBuild.chunk.length} bytes, ${installBuild.shared.size} shared modules)`);
+}
 
 // --- 3. Evaluate in the Hermes VM (smoke) ------------------------------------
 
@@ -305,6 +331,21 @@ try {
   var setup = exp && (exp.default || exp);
   if (typeof setup !== "function") throw new Error("client bundle exports no contribute function");
   var dispose = setup(client);
+  if (CHUNK !== null) {
+    // The chunk as remote.ts evaluates it: shared modules from the bundle, the rest from the host.
+    stage = "chunk";
+    var chunk = { exports: {} };
+    new Function("require", "module", "exports", CHUNK)(function (id) {
+      return id.indexOf("bc-shared:") === 0 ? makeStub(id) : runtimeRequire(id);
+    }, chunk, chunk.exports);
+    var names = ["TasksBoardScreen", "TasksSidebarEntry", "TasksEntrySection", "TasksSettingsPanel", "startTasksData", "prefetchBoardFromCommand", "releaseBoardPrefetch"];
+    for (var n = 0; n < names.length; n++) {
+      if (typeof chunk.exports[names[n]] !== "function") problems.push("Tasks chunk exports no " + names[n]);
+    }
+    stage = "chunk start";
+    var stopData = chunk.exports.startTasksData(client);
+    if (typeof stopData === "function") stopData();
+  }
   stage = "dispose";
   if (typeof dispose === "function") dispose();
 } catch (e) {
@@ -317,7 +358,7 @@ for (var i = 0; i < problems.length; i++) print("PROBLEM " + problems[i]);
 // header hook (bc/sticky): feature detection must work both ways.
 for (const shape of ["stock", "sticky"]) {
   const harnessPath = path.join(dir, `harness-${shape}.js`);
-  writeFileSync(harnessPath, `var SOURCE = ${JSON.stringify(bundle)};\nvar SHAPE = ${JSON.stringify(shape)};\n${harness}`);
+  writeFileSync(harnessPath, `var SOURCE = ${JSON.stringify(bundle)};\nvar SHAPE = ${JSON.stringify(shape)};\nvar CHUNK = ${JSON.stringify(installBuild ? installBuild.chunk : null)};\n${harness}`);
   const ran = spawnSync(hermes, [harnessPath], { encoding: "utf8" });
   const output = `${ran.stdout ?? ""}${ran.stderr ?? ""}`.trim();
   const problems = output.split("\n").filter((line) => line.startsWith("PROBLEM "));

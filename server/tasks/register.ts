@@ -6,7 +6,8 @@ import { TASKS_SETTINGS } from "../../shared/tasks-settings";
 import { createStopMarks, readMarksPath, stopMarksPath } from "./stop-marks";
 import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon, type SubagentWatch } from "./provider-subagents";
 import { createSessionTokenReader, type SessionTokenReader } from "./session-tokens";
-import { tasksCapabilitiesRpc, tasksReadRpc, tasksReadsRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksChunkRpc, tasksReadRpc, tasksReadsRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
+import { TASKS_CHUNK } from "../tasks-chunk";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const STOP_TIMEOUT_MS = 10_000;
@@ -207,6 +208,7 @@ export function registerTasksServer(
     return { tokens: agent ? await tokens.read(agent) : null };
   });
   server.handle(tasksSubagentsRpc, async ({ since }, context) => subagents.read(context?.paseo, since));
+  server.handle(tasksChunkRpc, ({ id }) => ({ code: TASKS_CHUNK?.id === id ? TASKS_CHUNK.code : null }));
   server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCliPath()) !== null, read: host.available() }));
   server.handle(tasksReadRpc, async ({ agentIds }) => {
     const result = await markRead(host, agentIds);

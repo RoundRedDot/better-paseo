@@ -1,9 +1,6 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { settingsRpc } from "@getpaseo/plugin";
 import { TASKS_SETTINGS, tasksSettingsSchema } from "../../shared/tasks-settings";
-import { lastTurnsRpc } from "../../shared/turn-usage-rpc";
-import { tasksReadsRpc, tasksSessionTokensRpc, tasksSubagentsRpc } from "../../shared/tasks-rpc";
-import { TasksBoardScreen } from "./board/board-screen";
 import {
   setTasksBoardOpener,
   setTasksEnabled,
@@ -13,14 +10,11 @@ import {
   tasksEnabled,
 } from "./board/enabled";
 import { encodeBoardParams, lastBoardParams } from "./board/params";
-import { prefetchBoardFromCommand, releaseBoardPrefetch } from "./board/prefetch";
-import { TasksSidebarEntry } from "./board/sidebar-entry";
 import { BOARD_STRINGS } from "./board/strings";
 import { subscribeHostLanguage } from "../i18n/host-language";
 import { onTasksLanguageChange, resolveTasksLanguage } from "./i18n";
 import { SETTINGS_SCREEN_ID, setSettingsTab } from "../settings-tab";
-import { setLastTurnLoader, setReadMarksLoader, setSubagentLoader } from "./data";
-import { setSessionTokensLoader } from "./data/session-tokens";
+import { TasksBoardScreen, TasksSidebarEntry, chunkNow, requestChunk, setChunkClient, subscribeChunk } from "./chunk/load";
 
 /** The board's screen id; `openScreen({ screenId: TASKS_SCREEN_ID })` opens it. */
 export const TASKS_SCREEN_ID = "tasks";
@@ -42,14 +36,17 @@ const boardRoute = () => ({ screenId: TASKS_SCREEN_ID, params: encodeBoardParams
  */
 export function contributeTasks(client: PluginClientContext): () => void {
   let live = true;
-  // Cards time the last turn from the server's record of it.
-  setLastTurnLoader((agentIds) => client.rpc(lastTurnsRpc, { agentIds }).then((result) => result.turns));
-  // Provider subagents (Claude's Agent tool) come from the server, which reads them off the daemon.
-  setSubagentLoader((since) => client.rpc(tasksSubagentsRpc, since === undefined ? {} : { since }));
-  // Cards marked read from a board, failures included: the server keeps the marks.
-  setReadMarksLoader(() => client.rpc(tasksReadsRpc, {}).then((result) => result.reads));
-  // A running task's session tokens, read by the server from the provider's session files.
-  setSessionTokensLoader((agentId) => client.rpc(tasksSessionTokensRpc, { agentId }).then((result) => result.tokens));
+  // The board's code comes in a chunk (`chunk/entry.ts`): here at once in a
+  // checkout, or after a reconnect; otherwise fetched once something shows
+  // it. Its data layer reads from this host's plugin server once it is here.
+  setChunkClient(client);
+  let stopData: (() => void) | null = null;
+  const startData = () => {
+    const chunk = chunkNow();
+    if (live && chunk && !stopData) stopData = chunk.startTasksData(client);
+  };
+  const unsubscribeChunk = subscribeChunk(startData);
+  startData();
   let language = resolveTasksLanguage();
 
   const registerBoard = () => {
@@ -65,7 +62,7 @@ export function contributeTasks(client: PluginClientContext): () => void {
         // The context names no host; this bundle runs per host, so the last board shown is this host's.
         // The board's requests leave before its screen mounts (`prefetch.ts`).
         onSelect: (context) => {
-          prefetchBoardFromCommand();
+          chunkNow()?.prefetchBoardFromCommand();
           context.openScreen(boardRoute());
         },
       }),
@@ -94,12 +91,15 @@ export function contributeTasks(client: PluginClientContext): () => void {
   let removeBoard: (() => void) | null = null;
   const applyEnabled = () => {
     const on = live && tasksEnabled() === true;
-    if (on && !removeBoard) removeBoard = registerBoard();
-    else if (!on && removeBoard) {
+    if (on && !removeBoard) {
+      removeBoard = registerBoard();
+      // The sidebar entry draws with the chunk: ask for it now.
+      requestChunk();
+    } else if (!on && removeBoard) {
       removeBoard();
       removeBoard = null;
       // No warm subscription outlives the entry points.
-      releaseBoardPrefetch();
+      chunkNow()?.releaseBoardPrefetch();
     }
   };
   const relabel = () => {
@@ -145,13 +145,13 @@ export function contributeTasks(client: PluginClientContext): () => void {
     unsubscribeHostLanguage();
     removeBoard?.();
     removeBoard = null;
-    releaseBoardPrefetch();
+    chunkNow()?.releaseBoardPrefetch();
     void removeScreen();
     setTasksSettingsOpener(null);
     setTasksBoardOpener(null);
-    setLastTurnLoader(null);
-    setSubagentLoader(null);
-    setReadMarksLoader(null);
-    setSessionTokensLoader(null);
+    unsubscribeChunk();
+    stopData?.();
+    stopData = null;
+    setChunkClient(null);
   };
 }
