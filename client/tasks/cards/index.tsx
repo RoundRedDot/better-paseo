@@ -21,6 +21,7 @@ export {
 } from "./task-card";
 export { cardStart, cardTimer, formatEnded } from "./card-time";
 export { DETAIL_CARD, DetailActionBar, DetailCard, RoundIcon, TaskDetailCards, detailCardFrame, type DetailCardsStrings, type DetailNotice, type TaskDetailCardsProps } from "./detail-cards";
+export { DETAIL_SCROLLBAR, detailGutter, detailScrollProps, type DetailScrollbarKind } from "./detail-scrollbar";
 export { SUBTASK_ROWS, branchHint, breakable, foldPath, pathLines, pathTokens } from "./details-format";
 export { buildTaskTokens, taskTokens, useTaskTokens, type TaskTokens } from "./tokens";
 export {
