@@ -65,12 +65,16 @@ describe("streamed tail", () => {
     expect(repairTail("```\n1")).toBe("```\n1");
   });
 
-  it("keeps every block's kind across any reveal jump (D5)", () => {
+  it("keeps every block's kind across any reveal jump (D5)", async () => {
     const flips: string[] = [];
     for (const item of texts) {
       const cache = createBlockCache();
       const lastKind: string[] = [];
       for (let at = 1; at <= item.text.length; at++) {
+        // The sweep runs 40 s here and 83 s on a CI runner. Without a turn of
+        // the event loop the worker misses vitest's 60 s RPC deadline
+        // ("Timeout calling onTaskUpdate") and the run fails with every test green.
+        if (at % 256 === 0) await new Promise((resolve) => setImmediate(resolve));
         drawn(item.text.slice(0, at), cache).forEach((tokens, index) => {
           const kind = blockKind(tokens);
           if (kind === "empty") return;
