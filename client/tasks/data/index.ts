@@ -351,7 +351,7 @@ export function withSubagents(card: TaskCard, subagents: readonly ProviderSubage
   return {
     ...card,
     ...(failed > 0 && finished
-      ? { lane: "review" as const, status: "failed" as const, error: card.error ?? subagentError(failed) }
+      ? { lane: "review" as const, status: "failed" as const, error: card.error ?? subagentError(failed), readable: false }
       : null),
     children: [...card.children, ...shown.map((subagent) => subagentChild(subagent, card))],
   };
@@ -382,7 +382,7 @@ export function withTurnError(card: TaskCard, turnError: TurnError | undefined):
   if (!turnError || card.status === "failed" || (card.lane !== "done" && card.lane !== "review")) return card;
   const prompted = card.timing.lastUserMessageAt ? Date.parse(card.timing.lastUserMessageAt) : Number.NaN;
   if (turnError.endedAt < prompted) return card;
-  return { ...card, lane: "review", status: "failed", error: turnError.message };
+  return { ...card, lane: "review", status: "failed", error: turnError.message, readable: false };
 }
 
 function shallowCardEqual(left: TaskCard | undefined, right: TaskCard): boolean {
@@ -404,13 +404,16 @@ function buildBaseCard(
 ): TaskCard {
   const { agent, placement } = entry;
   const pendingPermissions = agent.pendingPermissions ?? [];
-  const classification = classifyAgent({
+  const classifyInput = {
     status: agent.status,
     pendingPermissionCount: pendingPermissions.length,
     requiresAttention: agent.requiresAttention,
     attentionReason: agent.attentionReason,
     lastError: agent.lastError,
-  });
+  };
+  const classification = classifyAgent(classifyInput);
+  // Where the card goes once its attention is cleared (the daemon drops the reason with it).
+  const read = classifyAgent({ ...classifyInput, requiresAttention: false, attentionReason: null });
   const workspaceTitle = workspace?.title?.trim() || workspace?.name || placement?.workspaceName || null;
   const projectName = workspace?.projectCustomName?.trim() || workspace?.projectDisplayName ||
     project?.projectCustomName?.trim() || project?.projectDisplayName || placement?.projectName || null;
@@ -517,6 +520,7 @@ function buildBaseCard(
     children: [],
     openTab: Object.entries(agent.labels ?? {}).some(([key, value]) => key.startsWith("paseo.open-agent-tab.") && value === "true"),
     stoppable: agent.status === "running" || agent.status === "initializing" || pendingPermissions.length > 0,
+    readable: classification.lane === "review" && read.lane === "done",
     closed: agent.status === "closed",
   };
 }

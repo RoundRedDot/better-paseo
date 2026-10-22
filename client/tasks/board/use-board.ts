@@ -4,7 +4,7 @@ import { usePaseo, useSettings } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
 import type { PaseoApi } from "@getpaseo/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type LaneWidth, type TasksSettings } from "../../../shared/tasks-settings";
-import { permissionButtons, respondToPermission, useStopControl, useUnarchiveControl, type PermissionButton, type StopControl, type UnarchiveControl } from "../actions";
+import { permissionButtons, respondToPermission, useReadControl, useStopControl, useUnarchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, useTasks, type TasksHandle } from "../data";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
@@ -51,6 +51,7 @@ export interface BoardController {
   clock: TaskClock;
   visible: boolean;
   stop: StopControl;
+  read: ReadControl;
   /** Unarchive for an archived parent in the details. */
   unarchive: UnarchiveControl;
   callbacks: CardCallbacks;
@@ -231,6 +232,9 @@ export function useBoard(
     return card !== undefined && (card.lane === "running" || card.lane === "needs_input");
   }, []);
   const stop = useStopControl({ confirmStop: settings.board.confirmStop, isActive, toast });
+  const isReadable = useCallback((agentId: string) => byIdRef.current.get(agentId)?.readable === true, []);
+  const read = useReadControl({ isReadable, toast });
+  const reconcileRead = read.reconcile;
   // Unarchive runs through the same CLI as Stop.
   const verifyUnarchive = useCallback((agentId: string) => latest.current.tasks.refreshParent(agentId), []);
   const unarchive = useUnarchiveControl({ available: stop.available, verify: verifyUnarchive, toast });
@@ -255,6 +259,8 @@ export function useBoard(
       if (card && (card.lane === "running" || card.lane === "needs_input")) noteRunning(id);
     }
   }, [tasks.byId, stoppedManually, noteRunning, reconcile]);
+  // A read is done once its card has left review.
+  useEffect(() => reconcileRead(), [tasks.byId, reconcileRead]);
 
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -268,8 +274,8 @@ export function useBoard(
   }, []);
 
   // Callbacks read the latest values through a ref, so the memoized cards see stable functions.
-  const latest = useRef({ props, paseo, toast, stop, strings, tasks });
-  latest.current = { props, paseo, toast, stop, strings, tasks };
+  const latest = useRef({ props, paseo, toast, stop, read, strings, tasks });
+  latest.current = { props, paseo, toast, stop, read, strings, tasks };
   const setLaneWidth = useCallback((width: LaneWidth) => {
     const state = settingsRef.current;
     if (state.status !== "ready") return;
@@ -289,6 +295,7 @@ export function useBoard(
   const buttonsFor = useCallback((card: TaskCard) => buttonsIn(card, language), [language]);
   const hasNavigation = props.navigation !== undefined;
   const stopAvailable = stop.available;
+  const readAvailable = read.available;
   const callbacks = useMemo<CardCallbacks>(
     () => ({
       onOpen: hasNavigation ? open : undefined,
@@ -296,6 +303,8 @@ export function useBoard(
       // No CLI on the daemon's machine (`tasks.capabilities`): no Stop on any card.
       onStop: stopAvailable ? (card, stopOptions) => latest.current.stop.press(card, stopOptions) : undefined,
       onCancelStop: (agentId) => latest.current.stop.cancel(agentId),
+      // The server cannot reach the daemon itself: no Mark read either.
+      onRead: readAvailable ? (card) => latest.current.read.press(card) : undefined,
       onPermission: (card, button) => {
         if (button.kind === "open") {
           open(card.id);
@@ -309,7 +318,7 @@ export function useBoard(
       },
       onDetails: (card) => handlers.current?.details(card),
     }),
-    [hasNavigation, stopAvailable, open, handlers],
+    [hasNavigation, stopAvailable, readAvailable, open, handlers],
   );
 
   return {
@@ -331,6 +340,7 @@ export function useBoard(
     clock,
     visible,
     stop,
+    read,
     unarchive,
     callbacks,
     buttonsFor,

@@ -893,6 +893,36 @@ describe("TaskCardView actions", () => {
     expect(onStop).toHaveBeenCalledWith(card, { withChildren: false });
   });
 
+  it("shows Mark read only for a readable card with onRead, in Stop's shape, and holds it while pending", async () => {
+    const onRead = vi.fn();
+    const card: TaskCard = { ...sample("sample-unread"), readable: true };
+    const tree = await render(cardElement(card));
+    expect(texts(tree.root)).not.toContain("标为已读");
+
+    await act(async () => tree.update(cardElement({ ...card, readable: false }, { onRead })));
+    expect(texts(tree.root)).not.toContain("标为已读");
+
+    await act(async () => tree.update(cardElement(card, { onRead })));
+    const button = byLabel(tree.root, "标为已读");
+    expect(icons(button)).toEqual(["CheckCheck"]);
+    expect(flat(button.props.style)).toMatchObject({ height: 20, borderRadius: 5, borderWidth: 1 });
+    button.props.onPress();
+    expect(onRead).toHaveBeenCalledWith(card);
+
+    await act(async () => tree.update(cardElement(card, { onRead, readPending: true })));
+    const pending = byLabel(tree.root, "标记中…");
+    expect(pending.props.disabled).toBe(true);
+    expect(flat(pending.props.style)).toMatchObject({ opacity: 0.6 });
+    await act(async () => tree.unmount());
+    renderer = null;
+
+    // A phone puts it in the action bar, at Stop's touch size.
+    const phone = await render(cardElement(card, { onRead, compact: true }));
+    const bar = phone.root.find((node) => node.props.testID === "task-card-actions");
+    expect(texts(bar)).toEqual(["标为已读"]);
+    expect(flat(byLabel(bar, "标为已读").props.style)).toMatchObject({ minHeight: 40, borderRadius: 8 });
+  });
+
   it("draws Stop like the details sidebar's: a rounded rectangle led by Lucide's Power", async () => {
     const tokens = buildTaskTokens(LIGHT.colors);
     const square = (root: ReactTestInstance, label: string) =>

@@ -242,6 +242,7 @@ export function PhoneBoard(props: {
       onReveal: guard(base.onReveal),
       onStop: guard(base.onStop),
       onCancelStop: base.onCancelStop,
+      onRead: base.onRead ? guard(base.onRead) : undefined,
       onPermission: guard(base.onPermission),
       // A tap shows the details sheet; the card's arrow still opens the tab.
       onSelect: guard((card: TaskCard) => setSheet({ kind: "details", id: card.id })),
@@ -743,8 +744,8 @@ function PhoneLane(props: {
   const covered = useLaneCovered(lane.id);
   // No clock in here: a tick reaches the timer texts, not the list and its rows.
   const { callbacks } = props;
-  const { highlighted, stop, fields } = board;
-  const extraData = useMemo(() => ({ highlighted, stop, fields, fresh, callbacks }), [highlighted, stop, fields, fresh, callbacks]);
+  const { highlighted, stop, read, fields } = board;
+  const extraData = useMemo(() => ({ highlighted, stop, read, fields, fresh, callbacks }), [highlighted, stop, read, fields, fresh, callbacks]);
   const renderItem = useCallback(
     ({ item }: { item: TaskCard }) => <CardCell board={board} card={item} theme={theme} compact callbacks={callbacks} fresh={fresh.has(item.id)} />,
     [board, theme, callbacks, fresh],

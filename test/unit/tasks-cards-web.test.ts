@@ -42,6 +42,7 @@ import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { CARD_PRESETS } from "../../shared/tasks-settings";
 import { previewSampleCards as sampleCards } from "../../client/tasks/sample-cards";
 import type { PermissionButton } from "../../client/tasks/actions";
+import type { TaskCard } from "../../client/tasks/model";
 import { TaskCardView, TaskDetailCards, type TaskCardViewProps } from "../../client/tasks/cards";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
@@ -236,6 +237,40 @@ describe("TaskCardView on web", () => {
     expect(overlay()?.props.pointerEvents).toBe("none");
     await act(async () => new Promise((resolve) => setTimeout(resolve, 200)));
     expect(stopButton()).toBeUndefined();
+    await act(async () => renderer.unmount());
+  });
+
+  it("floats Mark read over the row's end on hover, keeps it while pending, and fades it out", async () => {
+    const onRead = vi.fn();
+    const card: TaskCard = { ...sampleCards(NOW).find((candidate) => candidate.id === "sample-unread")!, readable: true };
+    const element = (overrides: Partial<TaskCardViewProps> = {}) =>
+      React.createElement(TaskCardView, { ...props(card.id, { onRead, ...overrides }), card });
+    const renderer = await render(element());
+    const root = renderer.root;
+    const readButton = () =>
+      root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "标为已读")[0];
+    const overlay = () => root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-read-overlay")[0];
+    expect(readButton()).toBeUndefined();
+    expect(nestedButtons(root)).toEqual([]);
+
+    await act(async () => hovers.get(`task-card-${card.id}`)!.enter());
+    // Stop's place: the footer's right end, over the context ring.
+    expect(Object.assign({}, ...[overlay()?.props.style].flat())).toMatchObject({ position: "absolute", right: 0 });
+    const footer = root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-footer");
+    expect(footer.findAll((node) => node === overlay())).toHaveLength(1);
+    await act(async () => readButton()!.props.onPress());
+    expect(onRead).toHaveBeenCalledWith(card);
+    expect(nestedButtons(root)).toEqual([]);
+
+    // Pending, it stays after the pointer leaves, until the card moves on.
+    await act(async () => renderer.update(element({ readPending: true })));
+    await act(async () => hovers.get(`task-card-${card.id}`)!.leave());
+    expect(root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "标记中…")).toHaveLength(1);
+
+    await act(async () => renderer.update(element({ readPending: false })));
+    expect(overlay()?.props.pointerEvents).toBe("none");
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 200)));
+    expect(readButton()).toBeUndefined();
     await act(async () => renderer.unmount());
   });
 
