@@ -177,6 +177,52 @@ describe("preference sync (S5 fix round 1)", () => {
     expect(daemon.record?.values.toolDetail).toBe("expand-failed");
   });
 
+  it("applies the startup read before the settings hook reports, and never saves against it", async () => {
+    const stored = { ...DEFAULTS, assistantMarkdown: false, accent: "rose" as const };
+    const daemon = fakeDaemon({ revision: "r0", values: stored });
+    const { sync, applied } = setup();
+    sync.prime(daemon.state());
+    expect(applied).toEqual([stored]);
+    // A change made before any row mounts waits for the hook's revision.
+    sync.request({ ...stored, codeFontSize: 14 });
+    await flushPromises();
+    expect(daemon.saves).toEqual([]);
+    sync.report(daemon.state(), daemon.actions);
+    await flushPromises();
+    expect(daemon.saves).toEqual([{ values: { ...stored, codeFontSize: 14 }, against: "r0" }]);
+  });
+
+  it("applies the startup read while the hook is still loading", () => {
+    const stored = { ...DEFAULTS, assistantMarkdown: false };
+    const daemon = fakeDaemon({ revision: "r0", values: stored });
+    const { sync, applied } = setup();
+    sync.report({ status: "loading" }, daemon.actions);
+    sync.prime(daemon.state());
+    expect(applied).toEqual([stored]);
+  });
+
+  it("ignores a startup read once the hook has spoken or a change is pending", () => {
+    const daemon = fakeDaemon({ revision: "r1", values: { ...DEFAULTS, accent: "jade" } });
+    const late = { status: "ready", revision: "r0", values: { ...DEFAULTS, accent: "rose" } } as const;
+    const first = setup();
+    first.sync.report(daemon.state(), daemon.actions);
+    first.sync.prime(late);
+    expect(first.applied).toEqual([{ ...DEFAULTS, accent: "jade" }]);
+
+    const second = setup();
+    second.sync.request({ ...DEFAULTS, accent: "violet" });
+    second.sync.prime(late);
+    expect(second.applied).toEqual([]);
+  });
+
+  it("leaves a record the daemon does not hold yet, or cannot read, to the hook", () => {
+    const { sync, applied } = setup({ ...DEFAULTS, accent: "jade" });
+    sync.prime({ status: "ready", revision: MISSING_REVISION, values: DEFAULTS });
+    sync.prime({ status: "invalid", revision: "bad", error: "Unexpected token" });
+    sync.prime({ status: "error", error: "offline" });
+    expect(applied).toEqual([]);
+  });
+
   it("keeps the last-known values while the daemon is unreachable", () => {
     const daemon = fakeDaemon({ revision: "r0", values: DEFAULTS });
     const { sync, applied } = setup();
