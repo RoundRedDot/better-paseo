@@ -251,7 +251,7 @@ describe("TaskCardView on web", () => {
     await act(async () => renderer.unmount());
   });
 
-  it("floats Stop then Open tab in the corner on hover, and Open tab alone on a card with neither", async () => {
+  it("floats Stop, Open parent on a subtask, then Open tab in the corner on hover, and Open tab alone on a card with neither", async () => {
     const onOpen = vi.fn();
     const running = await render(React.createElement(TaskCardView, props("sample-child-1", { onOpen, onStop: () => {} })));
     const label = (root: ReactTestInstance, text: string) =>
@@ -260,9 +260,11 @@ describe("TaskCardView on web", () => {
     await act(async () => hovers.get("task-card-sample-child-1")!.enter());
     const overlay = running.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-stop-overlay");
     const order = overlay.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel);
-    expect(order).toEqual(["停止", "打开 tab"]);
+    expect(order).toEqual(["停止", "打开父任务", "打开 tab"]);
     await act(async () => label(running.root, "打开 tab")!.props.onPress());
     expect(onOpen).toHaveBeenCalledWith("sample-child-1");
+    await act(async () => label(running.root, "打开父任务")!.props.onPress());
+    expect(onOpen).toHaveBeenLastCalledWith("sample-running");
     await act(async () => running.unmount());
 
     const done = await render(React.createElement(TaskCardView, props("sample-done", { onOpen })));

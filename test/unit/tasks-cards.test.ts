@@ -1162,7 +1162,8 @@ describe("TaskCardView actions", () => {
     expect(texts(hostByTestId(tree.root, "task-card-footer"))).not.toContain("停止");
     const row = hostByTestId(tree.root, "task-card-control-row");
     expect(flat(row.props.style)).toMatchObject({ flexDirection: "row", justifyContent: "flex-end" });
-    expect(texts(row)).toEqual(["停止", "打开 tab"]);
+    // A subtask's Open parent sits before Open tab.
+    expect(texts(row)).toEqual(["停止", "打开父任务", "打开 tab"]);
   });
 
   it("leaves Open tab out beside a question's Answer, which opens the tab itself", async () => {
@@ -1183,6 +1184,17 @@ describe("TaskCardView actions", () => {
     byLabel(running.root, "打开 tab").props.onPress();
     expect(onOpen).toHaveBeenCalledWith("sample-running");
     await act(async () => running.unmount());
+
+    // A subtask adds Open parent before Open tab; the two share the room Stop leaves.
+    const child = await render(cardElement(sample("sample-child-1"), { compact: true, onOpen, onStop: () => {} }));
+    expect(texts(hostByTestId(child.root, "task-card-actions"))).toEqual(["停止", "打开父任务", "打开 tab"]);
+    expect(flat(byLabel(child.root, "打开父任务").props.style)).toMatchObject({ flexGrow: 1 });
+    byLabel(child.root, "打开父任务").props.onPress();
+    expect(onOpen).toHaveBeenLastCalledWith("sample-running");
+    // An archived parent has no tab Paseo would show: no Open parent.
+    await act(async () => child.update(cardElement({ ...sample("sample-child-1"), parent: { id: "sample-running", title: "Port", missing: true, archived: true } }, { compact: true, onOpen, onStop: () => {} })));
+    expect(texts(hostByTestId(child.root, "task-card-actions"))).toEqual(["停止", "打开 tab"]);
+    await act(async () => child.unmount());
 
     // A done card has nothing else to do, so Open tab stands alone.
     const done = await render(cardElement(sample("sample-done"), { compact: true }));
@@ -1410,13 +1422,16 @@ describe("TaskCardView actions", () => {
     // Chosen for the details as any card; Open goes through the board, which opens the parent's.
     expect(onSelect).toHaveBeenCalledWith(card);
     expect(onOpen).not.toHaveBeenCalled();
-    // It has no tab of its own, so its Open says it opens the parent.
-    expect(texts(hostByTestId(tree.root, "task-card-open-tab"))).toEqual(["打开父任务"]);
+    // As any subtask: Open tab, and Open parent before it, both opening the parent's tab, since a subagent has none of its own.
+    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["打开父任务", "打开 tab"]);
+    await act(async () => byLabel(tree.root, "打开父任务").props.onPress());
+    expect(onOpen).toHaveBeenCalledWith(base.id);
     expect(texts(hostByTestId(tree.root, "task-card-meta-parent"))).toEqual([`↳ ${base.title}`]);
     // Its id is a tool call's: the menu copies no session ID.
     const keys = cardMenuSections(card, cardStrings("en"), { copy: () => {}, open: () => {}, children: 0 }).flatMap((section) => section.items.map((item) => item.key));
     expect(keys).toEqual(["open", "copy-title", "copy-workspace", "copy-project"]);
-    expect(cardMenuSections(card, cardStrings("en"), { copy: () => {}, open: () => {}, children: 0 })[0]?.items[0]?.label).toBe("Open parent task");
+    const open = cardMenuSections(card, cardStrings("zh"), { copy: () => {}, open: () => {}, openParent: () => {}, children: 0 })[0]?.items.map((item) => item.label);
+    expect(open).toEqual(["打开 tab", "打开父任务"]);
   });
 
   it("ends a subtask row that finished on another day with a short stamp, leaving the title room", async () => {
