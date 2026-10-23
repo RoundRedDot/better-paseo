@@ -265,16 +265,16 @@ describe("Markdown table cell ranges", () => {
     expect(rangeText(table, [])).toBe("");
   });
 
-  it("lines up ranges added beside each other under the widest columns", () => {
-    const one = cellRange({ row: 1, column: 0 }, { row: 1, column: 2 });
+  it("lines up ranges added beside each other under the last one's columns", () => {
+    const wide = cellRange({ row: 1, column: 0 }, { row: 1, column: 2 });
     const narrow = cellRange({ row: 3, column: 1 }, { row: 3, column: 1 });
-    expect(alignColumns([one])).toEqual([one]);
-    expect(alignColumns([one, narrow])).toEqual([one, { top: 3, left: 0, bottom: 3, right: 2 }]);
-    // A later wider range widens the earlier ones.
-    expect(alignColumns([narrow, one])).toEqual([{ top: 3, left: 0, bottom: 3, right: 2 }, one]);
-    // Ranges side by side meet at their outer edges.
-    expect(alignColumns([cellRange({ row: 1, column: 0 }, { row: 2, column: 0 }), narrow])).toEqual([
-      { top: 1, left: 0, bottom: 2, right: 1 }, { top: 3, left: 0, bottom: 3, right: 1 }]);
+    expect(alignColumns([wide])).toEqual([wide]);
+    // A narrower last range narrows the earlier ones...
+    expect(alignColumns([wide, narrow])).toEqual([{ top: 1, left: 1, bottom: 1, right: 1 }, narrow]);
+    // ...and a wider one widens them.
+    expect(alignColumns([narrow, wide])).toEqual([{ top: 3, left: 0, bottom: 3, right: 2 }, wide]);
+    expect(alignColumns([cellRange({ row: 1, column: 0 }, { row: 2, column: 0 }), wide, narrow])).toEqual([
+      { top: 1, left: 1, bottom: 2, right: 1 }, { top: 1, left: 1, bottom: 1, right: 1 }, narrow]);
   });
 
   it("finds the row or column a point falls in", () => {

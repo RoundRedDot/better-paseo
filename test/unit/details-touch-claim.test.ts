@@ -154,12 +154,12 @@ describe("a table's cell range", () => {
     act(() => view.state.begin({ row: 0, column: 0 }));
     act(() => view.state.extend({ row: 0, column: 1 }));
     act(() => view.state.end());
-    // A narrower added range is drawn as wide as the first, also while dragging.
+    // Every range follows the columns of the one being drawn, while it is drawn.
     act(() => view.state.begin({ row: 1, column: 1 }, true));
-    expect(view.state.ranges).toEqual([{ top: 0, left: 0, bottom: 0, right: 1 }, { top: 1, left: 0, bottom: 1, right: 1 }]);
+    expect(view.state.ranges).toEqual([{ top: 0, left: 1, bottom: 0, right: 1 }, { top: 1, left: 1, bottom: 1, right: 1 }]);
     act(() => view.state.extend({ row: 1, column: 2 }));
     act(() => view.state.end());
-    expect(view.state.ranges).toEqual([{ top: 0, left: 0, bottom: 0, right: 2 }, { top: 1, left: 0, bottom: 1, right: 2 }]);
+    expect(view.state.ranges).toEqual([{ top: 0, left: 1, bottom: 0, right: 2 }, { top: 1, left: 1, bottom: 1, right: 2 }]);
     act(() => view.state.select({ row: 1, column: 1 }));
     expect(view.state.ranges).toEqual([{ top: 1, left: 1, bottom: 1, right: 1 }]);
     act(() => view.state.dismiss());
