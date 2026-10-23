@@ -9,7 +9,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { duration, PREVIEW_REVEAL } from "../../ui/tokens/motion";
 import type { PermissionButton, StopPhase } from "../actions";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
-import type { StatusKind, TaskCard, TaskChild } from "../model";
+import { turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
 import { contextRatio, tildePath } from "./format";
 import { cardStart, cardTimer, type Timed } from "./card-time";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
@@ -333,7 +333,7 @@ export function cardLayout(card: TaskCard, fields: CardSettings, compact: boolea
     labels: fields.labels ? card.labels.length : 0,
     labelLimit: compact ? 1 : labelLimitCount(fields.labelLimit),
     timer: compact || fields.timer,
-    context: card.lane === "running" && ratio !== null && (compact ? ratio > 0.8 : fields.context),
+    context: turnRunning(card) && ratio !== null && (compact ? ratio > 0.8 : fields.context),
     subtasks: fields.subtasks && card.children.length > 0,
     // Review: a failure or a manual stop. Done: the board's "Stopped manually" after a stop the daemon filed as idle.
     failure: (card.lane === "review" || card.lane === "done") && !!card.error,
@@ -1676,7 +1676,7 @@ function SubtaskRow(props: TimeSource & {
       </Text>
       {child.lane && child.timing ? (
         <SubtaskTime
-          timed={{ lane: child.lane, timing: child.timing }}
+          timed={{ lane: child.lane, timing: child.timing, waitingOnSubtasks: child.waitingOnSubtasks }}
           language={props.language}
           now={props.now}
           clock={props.clock}

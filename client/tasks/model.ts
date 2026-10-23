@@ -149,6 +149,8 @@ export interface TaskChild {
   /** The child's lane and timing, for its row's start and timer as the card footer draws them. */
   lane?: LaneId;
   timing?: TaskTiming;
+  /** The child is idle but its own subtasks still run (`TaskCard.waitingOnSubtasks`). */
+  waitingOnSubtasks?: boolean;
 }
 
 export interface TaskCard {
@@ -181,6 +183,12 @@ export interface TaskCard {
   parent: TaskParentRef | null;
   /** Direct children only; grandchildren unfold on the child's own card. */
   children: TaskChild[];
+  /**
+   * The agent is idle but a subtask still runs or waits for input, so the
+   * task is not done: the card sits in the running lane with the running ring
+   * while its own turn has ended. `turnRunning` tells the two apart.
+   */
+  waitingOnSubtasks?: boolean;
   /** Some client reports an open tab for it (`paseo.open-agent-tab.*` is "true"). */
   openTab: boolean;
   /** False when the agent is idle or closed; Stop shows only when true. */
@@ -193,6 +201,11 @@ export interface TaskCard {
   readable?: boolean;
   /** The daemon has not loaded the agent: reading its timeline would resume it. */
   closed?: boolean;
+}
+
+/** The agent's own turn runs: in the running lane, and not only for its subtasks. */
+export function turnRunning(card: { lane?: LaneId; waitingOnSubtasks?: boolean }): boolean {
+  return card.lane === "running" && card.waitingOnSubtasks !== true;
 }
 
 /** One lane's cards in display order, with what the done lane still has to load. */

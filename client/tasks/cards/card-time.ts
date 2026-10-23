@@ -1,6 +1,6 @@
 import { formatFullStamp } from "../../ui/time";
 import type { TasksLanguage } from "../i18n";
-import type { TaskCard } from "../model";
+import { turnRunning, type TaskCard } from "../model";
 import { formatApprox, formatClockTime, formatDuration, formatRelative, formatWait, since } from "./format";
 import { cardStrings } from "./strings";
 
@@ -17,7 +17,7 @@ export interface TimerView {
 }
 
 /** Timed by its lane and timing alone, so a subtask row passes its child. */
-export type Timed = Pick<TaskCard, "lane" | "timing">;
+export type Timed = Pick<TaskCard, "lane" | "timing" | "waitingOnSubtasks">;
 
 /** "12m ago" on the day of `now`, the full stamp before it; null when absent or unparseable. */
 export function formatEnded(iso: string | null, now: number, language: TasksLanguage): string | null {
@@ -35,7 +35,7 @@ export function cardTimer(card: Timed, now: number, language: TasksLanguage): Ti
     const waited = since(timing.attentionAt, now) ?? since(timing.turnStartedAt, now);
     return waited === null ? null : { text: formatWait(waited, language), tone: "warning" };
   }
-  if (card.lane === "running") {
+  if (turnRunning(card)) {
     const ran = since(timing.turnStartedAt, now);
     return ran === null
       ? { text: cardStrings(language).starting, tone: "running" }
@@ -48,9 +48,9 @@ export function cardTimer(card: Timed, now: number, language: TasksLanguage): Ti
   return parts.length ? { text: parts.join(" · "), tone: "muted" } : null;
 }
 
-/** When the running turn started, in local time; null outside the running lane or before the turn has a start. */
+/** When the running turn started, in local time; null without a running turn or before the turn has a start. */
 export function cardStart(card: Timed, now: number): string | null {
-  if (card.lane !== "running" || !card.timing.turnStartedAt) return null;
+  if (!turnRunning(card) || !card.timing.turnStartedAt) return null;
   const at = Date.parse(card.timing.turnStartedAt);
   return Number.isNaN(at) ? null : formatClockTime(at, now);
 }

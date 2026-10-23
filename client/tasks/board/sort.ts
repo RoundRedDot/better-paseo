@@ -1,5 +1,5 @@
 import type { TasksLanguage } from "../i18n";
-import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../model";
+import { LANE_ORDER, turnRunning, type LaneId, type LaneModel, type TaskCard } from "../model";
 
 /**
  * Sorting the lanes. One sort applies to every lane; without one each lane
@@ -116,7 +116,7 @@ function sortValue(card: TaskCard, key: SortKey, now: number): string | number |
     case "context":
       return card.context && card.context.maxTokens > 0 ? card.context.usedTokens / card.context.maxTokens : null;
     case "duration":
-      if (card.lane === "running") return since(card.timing.turnStartedAt, now);
+      if (turnRunning(card)) return since(card.timing.turnStartedAt, now);
       if (card.lane === "needs_input") return since(card.timing.attentionAt, now);
       return card.timing.lastTurnMs;
   }

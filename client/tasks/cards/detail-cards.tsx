@@ -8,7 +8,7 @@ import { useHover } from "../../ui/use-hover";
 import { useCopy } from "../../ui/use-copy";
 import type { TasksLanguage } from "../i18n";
 import type { SessionTokens } from "../../../shared/tasks-rpc";
-import type { PermissionKind, TaskCard, TaskChild } from "../model";
+import { turnRunning, type PermissionKind, type TaskCard, type TaskChild } from "../model";
 import type { PermissionButton, StopPhase } from "../actions";
 import type { FirstPrompt } from "../data/first-prompt";
 import type { LastMessage } from "../data/last-message";
@@ -395,7 +395,7 @@ function DetailHeader(props: Inner) {
 /** Beside the status: the running turn's clock, else the card's timer ("等待 3m", "约 8m · 12 分钟前"). */
 function StatusSub(props: Inner & { small: number }) {
   const { card, tokens } = props;
-  const running = card.lane === "running" && card.timing.turnStartedAt !== null;
+  const running = turnRunning(card) && card.timing.turnStartedAt !== null;
   const text = useTime(props.time, (time) => {
     const ran = running ? since(card.timing.turnStartedAt, time) : null;
     if (ran !== null) return cardStrings(props.language).details.turnClock(formatTurnClock(ran));

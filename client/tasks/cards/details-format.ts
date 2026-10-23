@@ -315,7 +315,7 @@ export function subtaskMeta(child: TaskChild, baseline: SubtaskModel | null, now
   else if (child.status === "failed") parts.push({ text: words.subtaskFailed, tone: "danger" });
   else if (child.status === "unread") parts.push({ text: words.subtaskUnread, tone: null });
   if (child.status === "running") {
-    const start = !narrow && child.lane && child.timing ? cardStart({ lane: child.lane, timing: child.timing }, now) : null;
+    const start = !narrow && child.lane && child.timing ? cardStart({ lane: child.lane, timing: child.timing, waitingOnSubtasks: child.waitingOnSubtasks }, now) : null;
     if (start) parts.push({ text: words.subtaskStarted(start), tone: null });
   } else if (child.timing?.lastTurnMs != null) {
     parts.push({ text: words.lastTurn(formatDuration(child.timing.lastTurnMs)), tone: null });
@@ -336,7 +336,7 @@ export function subtaskTime(child: TaskChild, now: number, language: TasksLangua
   const timing = child.timing;
   if (!timing) return null;
   if (child.status === "running") {
-    const timer = child.lane ? cardTimer({ lane: child.lane, timing }, now, language) : null;
+    const timer = child.lane ? cardTimer({ lane: child.lane, timing, waitingOnSubtasks: child.waitingOnSubtasks }, now, language) : null;
     return timer ? { text: timer.text, live: true } : null;
   }
   const ended = child.status === "needs_input" ? (timing.attentionAt ?? timing.lastTurnEndedAt) : timing.lastTurnEndedAt;
