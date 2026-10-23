@@ -44,7 +44,29 @@ export function VerticalLabel({ text, color, language }: { text: string; color: 
   );
 }
 
-/** The done window as a segmented control (24 h / 7 d / all). */
+/** Each done window's mark in the desktop filter bar: its count and a smaller unit, infinity for all. */
+export const WINDOW_MARKS: Readonly<Record<DoneWindow, { value: string; unit?: string }>> = {
+  "24h": { value: "24", unit: "h" },
+  "7d": { value: "7", unit: "d" },
+  all: { value: "\u221e" },
+};
+
+/** A done window's mark: "24" with a small "h" after it on its baseline; all of them a larger infinity. */
+export function WindowMark(props: { window: DoneWindow; color: string; unitColor: string }) {
+  const mark = WINDOW_MARKS[props.window];
+  if (!mark.unit) {
+    // A glyph sized to sit as tall as the digits beside it, not a step of the text ramp.
+    return <Text testID="window-mark" style={{ fontSize: F.base + 3, lineHeight: HOST_LINE.base, fontWeight: "500", color: props.color }}>{mark.value}</Text>;
+  }
+  return (
+    <Text testID="window-mark" style={{ fontSize: F.base, lineHeight: HOST_LINE.base, fontWeight: "600", letterSpacing: -0.3, color: props.color, fontVariant: ["tabular-nums"] }}>
+      {mark.value}
+      <Text style={{ fontSize: F.sm - 1, fontWeight: "600", letterSpacing: 0, color: props.unitColor }}>{mark.unit}</Text>
+    </Text>
+  );
+}
+
+/** The done window as a segmented control (24 h / 7 d / all); `marks` draws `WINDOW_MARKS`, else their names. */
 export function WindowSegments(props: {
   value: DoneWindow;
   onChange(value: DoneWindow): void;
@@ -55,8 +77,18 @@ export function WindowSegments(props: {
   stretch?: boolean;
   /** The desktop bar's hover tip for the whole control. */
   tip?: string;
+  marks?: boolean;
 }) {
-  return <Segments items={DONE_WINDOWS} label={(window) => props.strings.windows[window]} {...props} />;
+  const { marks, ...rest } = props;
+  return (
+    <Segments
+      items={DONE_WINDOWS}
+      label={(window) => props.strings.windows[window]}
+      mark={marks ? (window, on) => <WindowMark window={window} color={on ? props.theme.colors.foreground : props.theme.colors.foregroundMuted} unitColor={props.theme.colors.foregroundMuted} /> : undefined}
+      testID="done-window"
+      {...rest}
+    />
+  );
 }
 
 /** A row of choices, one picked: the done window's segments, and the lane width's in the filter sheet. */
@@ -70,10 +102,13 @@ export function Segments<T extends string>(props: {
   stretch?: boolean;
   testID?: string;
   tip?: string;
+  /** Draws each choice as this mark alone, picked or not; its label is read out, and is its hover tip on the web. */
+  mark?(item: T, on: boolean): ReactNode;
 }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   // Desktop: a Linear-style 28 pill with square-ish corners; phone: the prototype's round segments.
+  const mark = props.mark;
   const outer = taskControlHeight(props.large ? 32 : 28, scale);
   const round = (height: number) => (props.large ? height / 2 : height === outer ? 6 : 4);
   return (
@@ -99,20 +134,27 @@ export function Segments<T extends string>(props: {
             key={window}
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
+            accessibilityLabel={mark ? props.label(window) : undefined}
+            {...tipProps(mark ? props.label(window) : undefined)}
             onPress={() => props.onChange(window)}
             style={{
               height: inner,
               flex: props.stretch ? 1 : undefined,
-              paddingHorizontal: props.large ? 12 : 9,
+              minWidth: mark ? inner + 8 : undefined,
+              paddingHorizontal: mark ? 6 : props.large ? 12 : 9,
               borderRadius: round(inner),
               backgroundColor: on ? colors.surface2 : "transparent",
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Text style={{ fontSize: F.base, fontWeight: "500", color: on ? colors.foreground : colors.foregroundMuted }}>
-              {props.label(window)}
-            </Text>
+            {mark ? (
+              mark(window, on)
+            ) : (
+              <Text style={{ fontSize: F.base, fontWeight: "500", color: on ? colors.foreground : colors.foregroundMuted }}>
+                {props.label(window)}
+              </Text>
+            )}
           </Pressable>
         );
       })}
