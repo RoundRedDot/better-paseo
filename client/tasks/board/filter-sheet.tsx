@@ -9,6 +9,7 @@ import { Segments, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { SwitchTrack } from "../../ui/switch-track";
 import { clearedParams, shownFilterOptions, type FilterOption, type FilterOptions } from "./filter-options";
+import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { resolveBoardParams, toggleItem } from "./params";
 import { SORT_GROUPS, SORT_ICONS, sortDirectionIcon, sortDirections } from "./board-menus";
 import { sameSort, type BoardSort, type SortKey } from "./sort";
@@ -44,6 +45,7 @@ export function FilterSheetBody(props: {
   const { setParams, defaults } = board;
   const resolved = resolveBoardParams(board.params, defaults);
   const shown = shownFilterOptions(options, board.showEmptyGroups);
+  useRequestProjectIcons(iconlessProjects(shown.workspaceGroups), board.tasks.requestProjectIcon);
   const sort = (
     <View testID="filter-sheet-sort">
       <SectionTitle text={strings.sort} theme={theme} first={sortFirst} />

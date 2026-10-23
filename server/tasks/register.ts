@@ -6,7 +6,7 @@ import { TASKS_SETTINGS } from "../../shared/tasks-settings";
 import { createStopMarks, readMarksPath, stopMarksPath } from "./stop-marks";
 import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon, type SubagentWatch } from "./provider-subagents";
 import { createSessionTokenReader, type SessionTokenReader } from "./session-tokens";
-import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksReadRpc, tasksReadsRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
 import { TASKS_CHUNK } from "../tasks-chunk";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
@@ -138,6 +138,39 @@ async function directoryExists(path: string): Promise<boolean> {
   }
 }
 
+type ProjectIconEntry = { projectId: string; icon: { data: string; mimeType: string } | null };
+
+/**
+ * The projects' icons over one daemon connection; null when it cannot be
+ * reached, has no icon API or does not answer in time. A project the daemon
+ * fails to read gets no icon, so the others still draw theirs.
+ */
+async function readProjectIcons(host: HostDaemonAccess, projectIds: readonly string[]): Promise<ProjectIconEntry[] | null> {
+  const daemon = await host.connect();
+  if (!daemon) return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const getProjectIcon = daemon.getProjectIcon?.bind(daemon);
+    if (!getProjectIcon) return null;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("timeout")), LABELS_TIMEOUT_MS);
+    });
+    const read = Promise.all(
+      [...new Set(projectIds)].map(async (projectId): Promise<ProjectIconEntry> => {
+        const result = await getProjectIcon(projectId).catch(() => null);
+        const icon = result?.icon;
+        return { projectId, icon: icon ? { data: icon.data, mimeType: icon.mimeType } : null };
+      }),
+    );
+    return await Promise.race([read, timeout]);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    await daemon.close().catch(() => {});
+  }
+}
+
 /** The daemon's label definitions; null when it cannot be reached, has no labels API or does not answer in time. */
 async function readLabels(host: HostDaemonAccess): Promise<Array<{ name: string; color: string }> | null> {
   const daemon = await host.connect();
@@ -237,6 +270,7 @@ export function registerTasksServer(
     return result;
   });
   server.handle(tasksLabelsRpc, async () => ({ labels: await readLabels(host) }));
+  server.handle(tasksProjectIconsRpc, async ({ projectIds }) => ({ icons: await readProjectIcons(host, projectIds) }));
   server.handle(tasksReadsRpc, async () => ({
     reads: (await reads.list()).map(({ agentId, stoppedAt }) => ({ agentId, readAt: stoppedAt })),
   }));

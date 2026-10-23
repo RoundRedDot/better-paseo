@@ -270,6 +270,40 @@ describe("Tasks server labels RPC", () => {
   });
 });
 
+describe("Tasks server project icons RPC", () => {
+  type Icon = { data: string; mimeType: string } | null;
+  function iconsHost(get?: (projectId: string) => Promise<{ icon: Icon }>) {
+    const close = vi.fn(async () => {});
+    const connect = vi.fn(async () => ({ close, ...(get ? { getProjectIcon: vi.fn(get) } : {}) }) as unknown as Awaited<ReturnType<HostAccess["connect"]>>);
+    return { host: { available: () => true, connect } as HostAccess, close, connect };
+  }
+
+  it("reads every project's icon over one connection it closes; a project the daemon fails to read has none", async () => {
+    const { host, close, connect } = iconsHost(async (projectId) => {
+      if (projectId === "broken") throw new Error("unreadable");
+      return { icon: projectId === "plain" ? null : { data: "aW1n", mimeType: "image/png" } };
+    });
+    const handlers = await registerHandlers(host);
+
+    await expect(invoke(handlers, "tasks.project-icons", { projectIds: ["app", "plain", "broken", "app"] })).resolves.toEqual({
+      icons: [
+        { projectId: "app", icon: { data: "aW1n", mimeType: "image/png" } },
+        { projectId: "plain", icon: null },
+        { projectId: "broken", icon: null },
+      ],
+    });
+    expect(connect).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers null without a daemon or without its icon API", async () => {
+    await expect(invoke(await registerHandlers(), "tasks.project-icons", { projectIds: ["app"] })).resolves.toEqual({ icons: null });
+    const old = iconsHost();
+    await expect(invoke(await registerHandlers(old.host), "tasks.project-icons", { projectIds: ["app"] })).resolves.toEqual({ icons: null });
+    expect(old.close).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("Tasks server read RPC", () => {
   function fakeHost(
     clear: (agentIds: string | string[]) => Promise<void>,

@@ -8,6 +8,7 @@ import { tipProps } from "../cards/card-hints";
 import { HoverPressable, RollingTotal, WindowSegments, RoundButton, SlashMark } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { FILTER_ICONS, activeChips, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, shownFilterOptions, toggleProject, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
+import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { resolveBoardParams, toggleItem } from "./params";
 import { sortLabel } from "./strings";
 import { PROJECT_MENU_WIDTH, agentMenuSections, chipGroupMenuSections, labelMenuSections, laneWidthMenuSections, projectMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
@@ -287,6 +288,7 @@ export function DesktopFilterBar(props: {
   const count = (list: readonly unknown[]) => (list.length ? ` · ${list.length}` : "");
   const toggle = (menuId: FilterMenu) => setMenu(menu === menuId ? null : menuId);
   const shown = shownFilterOptions(options, board.showEmptyGroups);
+  useRequestProjectIcons(iconlessProjects(menu === "project" ? shown.projects.map((project) => project.group) : menu === "workspace" ? shown.workspaceGroups : []), board.tasks.requestProjectIcon);
   const words = {
     project: strings.project + count(shown.projects.filter((project) => project.on)),
     workspace: strings.workspace + count(params.workspaceIds),
