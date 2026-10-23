@@ -18,6 +18,14 @@ import { bindTouchDismiss, suppressTouchCallout } from "../../../web";
 import { ChatComposerContext, quoteCell } from "../../../ui/chat-composer";
 import { insertIntoComposer } from "../../selection-actions";
 
+/** The selected cells' copy, how to drop them, and which outside presses keep them. */
+export interface TableSelected {
+  text: string;
+  dismiss(): void;
+  /** A press that adds to the selection rather than leaving it. */
+  keeps?(event: PointerEvent): boolean;
+}
+
 export const COPY_MARKDOWN_LABEL = "Copy as Markdown";
 export const COPY_IMAGE_LABEL = "Copy as image";
 
@@ -35,7 +43,7 @@ function TableCopyMenuBody({ source, frame, tokens, selected }: {
   /** The table's frame; on web its DOM element. */
   frame: RefObject<View | null>;
   tokens: ExtendedThemeTokens;
-  selected?: { text: string; dismiss(): void };
+  selected?: TableSelected;
 }) {
   const { hover } = useInputCapabilities();
   const control = Platform.OS === "web" && canCopyImage()
@@ -56,7 +64,7 @@ export const TableCopyMenu = memo(TableCopyMenuBody);
  */
 function SelectionCopyMenu({ children, selected, tokens }: {
   children: ReactNode;
-  selected?: { text: string; dismiss(): void };
+  selected?: TableSelected;
   tokens: ExtendedThemeTokens;
 }) {
   const [held, setHeld] = useState(false);
@@ -78,7 +86,7 @@ function SelectionCopyMenu({ children, selected, tokens }: {
  * place at every width, so no full-width backing remains during the exit.
  */
 function SelectionMenu({ selected, tokens, onHidden }: {
-  selected?: { text: string; dismiss(): void };
+  selected?: TableSelected;
   tokens: ExtendedThemeTokens;
   /** The exit has finished: the closed control returns. */
   onHidden(): void;
@@ -92,9 +100,10 @@ function SelectionMenu({ selected, tokens, onHidden }: {
   const anchorRef = useRef<View>(null);
   const dismiss = selected?.dismiss;
   const selectedText = selected?.text;
+  const keeps = selected?.keeps;
   useEffect(() => {
     if (!dismiss || Platform.OS !== "web") return;
-    const release = bindTouchDismiss(anchorRef.current, dismiss);
+    const release = bindTouchDismiss(anchorRef.current, dismiss, { keep: keeps });
     const doc = (anchorRef.current as unknown as HTMLElement | null)?.ownerDocument;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
@@ -108,7 +117,7 @@ function SelectionMenu({ selected, tokens, onHidden }: {
     };
     doc?.addEventListener("keydown", onKeyDown);
     return () => { release(); doc?.removeEventListener("keydown", onKeyDown); };
-  }, [dismiss, selectedText, copy]);
+  }, [dismiss, selectedText, keeps, copy]);
   const [measured, setMeasured] = useState<number | null>(null);
   const width = useRef(new Animated.Value(FLOAT.control)).current;
   const reveal = useRef(new Animated.Value(0)).current;
