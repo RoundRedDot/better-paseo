@@ -1546,7 +1546,7 @@ export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "archiv
 
 /**
  * The card's button: Allow's accent tint, a plain outline, Archive's orange
- * tint, the Stop button's danger tint, or "Answer" in the needs-input amber with its arrow. A busy
+ * outline, the Stop button's danger tint, or "Answer" in the needs-input amber with its arrow. A busy
  * one keeps its look and label, dimmed, and swaps its icon for the hollow
  * spinner ring (`SpinnerRing`).
  */
@@ -1584,7 +1584,7 @@ export function CardButton(props: {
   if (kind === "danger") fill = border = hovered ? look.dangerFillHover : look.dangerFill;
   if (kind === "archive") {
     color = look.archiveText;
-    fill = border = hovered ? look.archiveFillHover : look.archiveFill;
+    border = look.archiveBorder;
   }
   if (answer) {
     color = look.answerText;
