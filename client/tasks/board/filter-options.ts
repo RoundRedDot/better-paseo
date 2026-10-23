@@ -173,6 +173,8 @@ export interface ActiveChip {
   group?: ChipGroupKind;
   /** A workspace chip: a whole project or workspaces in it. */
   unit?: "project" | "workspace";
+  /** A label chip: the label's colour, for its tag. */
+  color?: string | null;
 }
 
 export type ChipGroupKind = "workspace" | "label" | "agent";
@@ -214,7 +216,14 @@ export interface ChipGroup {
 export function activeChips(params: BoardParams, defaults: BoardDefaults, options: FilterOptions, strings: BoardStrings): ActiveChip[] {
   const name = (list: FilterOption[], id: string) => list.find((option) => option.id === id)?.label ?? id;
   const chips: ActiveChip[] = [
-    ...params.labels.map((id) => ({ key: `label:${id}`, kind: strings.labels, value: id, group: "label" as const, clear: (p: BoardParams) => ({ ...p, labels: toggleItem(p.labels, id) }) })),
+    ...params.labels.map((id) => ({
+      key: `label:${id}`,
+      kind: strings.labels,
+      value: id,
+      group: "label" as const,
+      color: options.labels.find((label) => label.id === id)?.color ?? null,
+      clear: (p: BoardParams) => ({ ...p, labels: toggleItem(p.labels, id) }),
+    })),
     ...workspaceChips(params.workspaceIds, options, strings),
     ...params.providers.map((id) => ({
       key: `agent:${id}`,

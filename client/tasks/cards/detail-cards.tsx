@@ -20,6 +20,7 @@ import { formatDuration, formatRelative, formatTokenTotal, since, tildePath } fr
 import { cardStrings } from "./strings";
 import { devicePixel } from "../board/board-style";
 import { taskTokens, type TaskTokens } from "./tokens";
+import { TagMark } from "./tag-mark";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { BrandMark } from "./brand-mark";
 import { ChildMark } from "./child-mark";
@@ -401,19 +402,7 @@ function DetailHeader(props: Inner) {
               tokens={tokens}
               height={m.chip}
               font={chipFont}
-              lead={
-                <View
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 4,
-                    marginLeft: 2,
-                    backgroundColor: tag.color ?? "transparent",
-                    borderWidth: tag.color ? 0 : 1.5,
-                    borderColor: tokens.foregroundMuted,
-                  }}
-                />
-              }
+              lead={<TagMark size={iconSize} color={tag.color ?? tokens.foregroundMuted} hole={tokens.card.background} />}
               text={tag.name}
             />
           ))}
