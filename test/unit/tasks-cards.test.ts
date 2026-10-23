@@ -1096,6 +1096,16 @@ describe("TaskCardView actions", () => {
     expect(flat(confirm.props.style)).toMatchObject({ borderColor: "#d93636" });
     confirm.props.onPress();
     expect(onStop).toHaveBeenCalledWith(card, { withChildren: false });
+
+    // Stopping: the rest label and tint, dimmed, a spinner where the icon was, no second press.
+    await act(async () => tree.update(cardElement(card, { onStop, stopPhase: "stopping" as StopPhase })));
+    expect(texts(tree.root)).not.toContain("停止中…");
+    const stopping = byLabel(tree.root, "停止");
+    expect(texts(stopping)).toEqual(["停止"]);
+    expect(stopping.props.accessibilityState).toEqual({ disabled: true, busy: true });
+    expect(flat(stopping.props.style)).toMatchObject({ opacity: 0.6, backgroundColor: taskTokens(LIGHT).card.dangerFill });
+    expect(icons(stopping)).not.toContain("Power");
+    expect(hostByTestId(tree.root, "task-card-stop-spinner")).toBeTruthy();
   });
 
   it("shows Mark read only for a readable card with onRead, in Stop's shape, and holds it while pending", async () => {
@@ -1802,6 +1812,14 @@ describe("TaskDetailCards", () => {
     expect(onPress).toHaveBeenCalled();
     await act(async () => tree.update(details(sample("sample-running"), { stop: { phase: "confirming", onPress } })));
     expect(texts(hostByTestId(tree.root, "detail-stop"))).toEqual(["确认停止"]);
+    // Stopping keeps the rest label: dimmed, a spinner where the icon was, no second press.
+    await act(async () => tree.update(details(sample("sample-running"), { stop: { phase: "stopping", onPress } })));
+    const busy = hostByTestId(tree.root, "detail-stop");
+    expect(texts(busy)).toEqual(["停止"]);
+    expect(busy.props.accessibilityState).toEqual({ disabled: true, busy: true });
+    expect(flat(busy.props.style)).toMatchObject({ opacity: 0.6 });
+    expect(icons(busy)).not.toContain("Power");
+    expect(hostByTestId(tree.root, "detail-stop-spinner")).toBeTruthy();
   });
 
   it("leads the desktop header's actions with Open tab and ends the touch header's with it", async () => {
@@ -1831,6 +1849,14 @@ describe("TaskDetailCards", () => {
     const strings = BOARD_STRINGS.zh.sidebar;
     const bar = await render(React.createElement(DetailActionBar, { card: sample("sample-running"), theme: LIGHT, language: "zh", strings, onOpen: vi.fn(), stop: { phase: "idle", onPress: vi.fn() } }));
     expect(look(bar.root, "detail-bar-stop")).toEqual(tint);
+    // Stopping: the same tint and label, dimmed, a spinner where the icon was.
+    await act(async () => bar.update(React.createElement(DetailActionBar, { card: sample("sample-running"), theme: LIGHT, language: "zh", strings, onOpen: vi.fn(), stop: { phase: "stopping", onPress: vi.fn() } })));
+    expect(look(bar.root, "detail-bar-stop")).toEqual(tint);
+    const busy = hostByTestId(bar.root, "detail-bar-stop");
+    expect(texts(busy)).toEqual(["停止"]);
+    expect(busy.props.accessibilityState).toEqual({ disabled: true, busy: true });
+    expect(icons(busy)).not.toContain("Power");
+    expect(hostByTestId(bar.root, "detail-bar-stop-spinner")).toBeTruthy();
   });
 
   it("folds a long path's middle, keeping its head and as much tail as fits", () => {
