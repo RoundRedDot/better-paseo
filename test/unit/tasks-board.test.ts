@@ -35,7 +35,7 @@ import {
   type LaneShape,
 } from "../../client/tasks/board/navigation";
 import { activeChips, buildFilterOptions, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, projectOptions, shownFilterOptions, toggleProject, type ChipGroup } from "../../client/tasks/board/filter-options";
-import { boardPalette, cubicBezier } from "../../client/tasks/board/board-style";
+import { boardPalette, buttonOutline, cubicBezier } from "../../client/tasks/board/board-style";
 import { restoredStops, withStopReasons } from "../../client/tasks/board/use-board";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { hostLanguage, resetTasksLanguage, resolveTasksLanguage } from "../../client/tasks/i18n";
@@ -439,6 +439,34 @@ describe("filter options", () => {
     expect(chips[0]!.clear(params).labels).toEqual([]);
     expect(chips.find((chip) => chip.key === "win")!.clear(params).doneWindow).toBeNull();
     expect(clearedParams(params)).toEqual(EMPTY_PARAMS);
+  });
+});
+
+describe("action button outline", () => {
+  afterEach(() => {
+    delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+  });
+
+  it("is a 0.5 pt border on a phone", () => {
+    expect(buttonOutline("#f00")).toEqual({ borderWidth: 0.5, borderColor: "#f00" });
+    expect(buttonOutline("#f00", { right: null, left: "#0f0" })).toEqual({
+      borderTopWidth: 0.5,
+      borderTopColor: "#f00",
+      borderRightWidth: 0,
+      borderBottomWidth: 0.5,
+      borderBottomColor: "#f00",
+      borderLeftWidth: 0.5,
+      borderLeftColor: "#0f0",
+    });
+  });
+
+  it("is an inset shadow on the web, where Chrome rounds a half-pixel border up to a whole one", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    expect(buttonOutline("#f00")).toEqual({ borderWidth: 0, boxShadow: "inset 0 0 0 0.5px #f00" });
+    expect(buttonOutline("#f00", { right: null, left: "#0f0" })).toEqual({
+      borderWidth: 0,
+      boxShadow: "inset 0 0.5px 0 0 #f00, inset 0 -0.5px 0 0 #f00, inset 0.5px 0 0 0 #0f0",
+    });
   });
 });
 

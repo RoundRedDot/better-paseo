@@ -72,6 +72,13 @@ export interface CardTokens {
   shadowHover: string;
   /** Neutral pill and secondary-button outline: the border a step towards the foreground. */
   pillBorder: string;
+  /**
+   * A neutral action button's 0.5 pt outline (Open tab, the sidebar's and the
+   * phone bar's plain buttons): the pill's line on a light theme, a further
+   * step towards the foreground on a dark one, where the theme border all but
+   * matches the card and a half-pixel line in it disappears.
+   */
+  buttonBorder: string;
   /** A neutral pill's fill (branch, folder, path, PR, a label without colour). */
   pillFill: string;
   /** A hovered control's fill on the card. */
@@ -85,26 +92,31 @@ export interface CardTokens {
   failed: string;
   failedHover: string;
   failedBorder: string;
-  /** Primary (accent-tinted) and danger buttons, at rest and hovered. */
-  primaryFill: string;
-  primaryFillHover: string;
-  /** The primary button's label: the accent, readable at 4.5:1 on both its fills. */
+  /**
+   * The card's coloured buttons are outlines: at rest a hairline, label and
+   * icon in their hue and no fill of their own; hovered, that hue tinted over
+   * the card. Primary (Allow) in the accent.
+   */
+  primaryBorder: string;
+  primaryHover: string;
+  /** The primary button's label: the accent, readable at 4.5:1 on the card and on its hover. */
   primaryText: string;
-  dangerFill: string;
-  dangerFillHover: string;
-  /** "Answer": the needs-input amber tinted over the card, at rest and hovered, with a hairline of the same hue. */
-  answerFill: string;
-  answerFillHover: string;
+  /** Stop and Deny: a danger hairline and label; hovered, the danger tinted over the card. */
+  dangerHover: string;
+  /** "Answer": the needs-input amber. */
   answerBorder: string;
-  /** Its label and arrow: the amber, readable at 4.5:1 on both its fills. */
+  answerHover: string;
+  /** Its label and arrow: the amber, readable at 4.5:1 on the card and on its hover. */
   answerText: string;
-  /** Mark read on an unread card: a hairline in the unread dot's green, with no fill of its own. */
+  /** Mark read on an unread card: the unread dot's green. */
   readBorder: string;
-  /** Its label and icon: the green, readable at 4.5:1 on the card and on a hovered control. */
+  readHover: string;
+  /** Its label and icon: the green, readable at 4.5:1 on the card and on its hover. */
   readText: string;
-  /** Archive: an outline in yellow, distinct from the warning orange, with no fill of its own. */
+  /** Archive: yellow, distinct from the warning orange. */
   archiveBorder: string;
-  /** Its label and icon: the yellow, readable at 4.5:1 on the card and on a hovered control. */
+  archiveHover: string;
+  /** Its label and icon: the yellow, readable at 4.5:1 on the card and on its hover. */
   archiveText: string;
   /** Text on a solid accent or danger fill. */
   onStrong: string;
@@ -183,7 +195,7 @@ export function buildTaskTokens(colors: PluginTheme["colors"]): TaskTokens {
     foreground: colors.foreground,
     foregroundMuted: colors.foregroundMuted,
     accent: colors.accent,
-    accentText: readableOn(colors.accent, [card.background, card.primaryFill, s0, colors.surface1, colors.surface2, accentSoft], colors.foreground),
+    accentText: readableOn(colors.accent, [card.background, card.primaryHover, s0, colors.surface1, colors.surface2, accentSoft], colors.foreground),
     status,
     branch: isDark ? BRANCH_DARK : BRANCH_LIGHT,
     warning: colors.statusWarning || status.warning,
@@ -215,10 +227,12 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
   const background = isDark ? colors.surface2 : colors.surface0;
   const fg = colors.foreground;
   const yellow = isDark ? ARCHIVE_DARK : ARCHIVE_LIGHT;
-  const answerFill = mix(background, amber, isDark ? 0.18 : 0.12);
-  const answerFillHover = mix(background, amber, isDark ? 0.26 : 0.2);
-  const primaryFill = mix(background, colors.accent, isDark ? 0.18 : 0.1);
-  const primaryFillHover = mix(background, colors.accent, isDark ? 0.26 : 0.16);
+  // An outline button's hover: its hue at 10% over the card, 16% on a dark theme.
+  const tint = (hue: string) => mix(background, hue, isDark ? 0.16 : 0.1);
+  const primaryHover = tint(colors.accent);
+  const answerHover = tint(amber);
+  const readHover = tint(green);
+  const archiveHover = tint(yellow);
   return {
     background,
     hoverBackground: mix(background, fg, 0.04),
@@ -226,6 +240,7 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
     shadow: SHADOW[isDark ? "dark" : "light"].rest,
     shadowHover: SHADOW[isDark ? "dark" : "light"].hover,
     pillBorder: mix(colors.border, fg, isDark ? 0.08 : 0.05),
+    buttonBorder: mix(colors.border, fg, isDark ? 0.2 : 0.05),
     pillFill: mix(background, fg, isDark ? 0.06 : 0.035),
     controlHover: mix(background, fg, isDark ? 0.1 : 0.07),
     highlight: mix(background, colors.accent, isDark ? 0.12 : 0.08),
@@ -234,19 +249,19 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
     failed: mix(background, danger, isDark ? 0.08 : 0.05),
     failedHover: mix(background, danger, isDark ? 0.12 : 0.08),
     failedBorder: mix(colors.border, danger, isDark ? 0.4 : 0.35),
-    primaryFill,
-    primaryFillHover,
-    primaryText: readableOn(colors.accent, [primaryFill, primaryFillHover], fg),
-    dangerFill: mix(background, danger, isDark ? 0.16 : 0.1),
-    dangerFillHover: mix(background, danger, isDark ? 0.24 : 0.16),
-    answerFill,
-    answerFillHover,
+    primaryBorder: mix(background, colors.accent, isDark ? 0.55 : 0.5),
+    primaryHover,
+    primaryText: readableOn(colors.accent, [background, primaryHover], fg),
+    dangerHover: tint(danger),
     answerBorder: mix(background, amber, isDark ? 0.45 : 0.4),
-    answerText: readableOn(amber, [answerFill, answerFillHover], fg),
+    answerHover,
+    answerText: readableOn(amber, [background, answerHover], fg),
     readBorder: mix(background, green, isDark ? 0.45 : 0.4),
-    readText: readableOn(green, [background, mix(background, fg, isDark ? 0.1 : 0.07)], fg),
+    readHover,
+    readText: readableOn(green, [background, readHover], fg),
     archiveBorder: yellow,
-    archiveText: readableOn(yellow, [background, mix(background, fg, isDark ? 0.1 : 0.07)], fg),
+    archiveHover,
+    archiveText: readableOn(yellow, [background, archiveHover], fg),
     onStrong: colors.accentForeground,
     dangerStrongHover: mix(danger, fg, 0.15),
   };
