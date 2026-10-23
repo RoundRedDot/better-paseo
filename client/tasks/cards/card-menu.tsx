@@ -26,12 +26,14 @@ export interface CardMenuActions {
   stopAllLeading?: ReactNode;
   read?(): void;
   unarchive?(): void;
+  /** A done task: Archive, as Paseo's own. */
+  archive?(): void;
 }
 
 /**
  * A card's right-click menu: open its tab; copy its session ID, title,
  * workspace and project; then whatever the card can do right now (Stop,
- * Mark read, Unarchive). A copy whose value the card lacks is left out, and
+ * Mark read, Unarchive, Archive). A copy whose value the card lacks is left out, and
  * so is an empty group.
  */
 export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof cardStrings>, actions: CardMenuActions): MenuSection[] {
@@ -77,6 +79,7 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
           : []),
         ...(actions.read ? [{ key: "read", label: strings.markRead, icon: "CheckCheck", onSelect: actions.read }] : []),
         ...(actions.unarchive ? [{ key: "unarchive", label: strings.details.unarchive, icon: "ArchiveRestore", onSelect: actions.unarchive }] : []),
+        ...(actions.archive ? [{ key: "archive", label: strings.details.archive, icon: "Archive", onSelect: actions.archive }] : []),
       ],
     },
   ];

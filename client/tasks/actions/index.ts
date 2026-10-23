@@ -657,3 +657,65 @@ export function useUnarchiveControl(options: {
   const pending = useCallback((agentId: string) => pendingIds.has(agentId), [pendingIds]);
   return useMemo(() => ({ available: options.available, pending, press }), [options.available, pending, press]);
 }
+
+/** Archive for a done task: on its card, in its menu and in the details. */
+export interface ArchiveControl {
+  /** The request is out; the button spins and takes no second press. */
+  pending(agentId: string): boolean;
+  press(agentId: string): void;
+}
+
+/** The daemon archives at once; past this the request has failed. */
+const ARCHIVE_TIMEOUT_MS = 15_000;
+
+/**
+ * One archive controller for the whole board, through the host's own client
+ * (`agents.ref(id).archive()`, Paseo's "Archive"). The card leaves the done
+ * lane with the agent's update; a failure is an error toast.
+ */
+export function useArchiveControl(options: {
+  paseo: PaseoApi;
+  toast?: Pick<ReturnType<typeof useToast>, "error">;
+}): ArchiveControl {
+  const hostToast = useToast();
+  const language = useTasksLanguage();
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(() => new Set());
+  const latest = useRef({ paseo: options.paseo, toast: options.toast ?? hostToast, language });
+  latest.current = { paseo: options.paseo, toast: options.toast ?? hostToast, language };
+  const pendingRef = useRef(new Set<string>());
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const setPending = useCallback((agentId: string, on: boolean) => {
+    const next = new Set(pendingRef.current);
+    if (on) next.add(agentId);
+    else next.delete(agentId);
+    pendingRef.current = next;
+    setPendingIds(next);
+  }, []);
+
+  const press = useCallback((agentId: string) => {
+    if (pendingRef.current.has(agentId)) return;
+    setPending(agentId, true);
+    const zh = latest.current.language === "zh";
+    const timeoutMessage = zh ? "归档请求没有响应。" : "The archive request did not answer.";
+    void withTimeout(Promise.resolve().then(() => latest.current.paseo.agents.ref(agentId).archive()), ARCHIVE_TIMEOUT_MS, timeoutMessage)
+      .catch((error: unknown) => {
+        if (!mountedRef.current) return;
+        const detail = shortError(error);
+        latest.current.toast.error(zh ? `归档失败：${detail}` : `Could not archive: ${detail}`);
+      })
+      .finally(() => {
+        if (mountedRef.current) setPending(agentId, false);
+      });
+  }, [setPending]);
+
+  const pending = useCallback((agentId: string) => pendingIds.has(agentId), [pendingIds]);
+  return useMemo(() => ({ pending, press }), [pending, press]);
+}
