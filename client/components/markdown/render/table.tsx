@@ -6,9 +6,9 @@ import { inlineWidth, renderInline } from "./inline";
 import { nextReuse, reuseNode, type NodeReuse } from "./reuse";
 import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
 import { TableCopyMenu } from "./table-copy-menu";
-import { bindTableCellSelection, TABLE_CELL_TEST_ID } from "./table-selection";
+import { addsCellRange, bindTableCellSelection, TABLE_CELL_TEST_ID } from "./table-selection";
 import { useTableCellSelection } from "./table-touch-selection";
-import { rangeHas, rangeText, rowSpan } from "./table-range";
+import { rangeHas, rangeText, rowSpan, type CellRange } from "./table-range";
 import { FLOAT } from "../../../ui/tokens/float";
 import {
   ALIGN_KEYS,
@@ -78,6 +78,8 @@ export function measuredRows(token: Tokens.Table, open: boolean): number {
   return open && !token.raw.endsWith("\n") ? Math.max(0, token.rows.length - 1) : token.rows.length;
 }
 
+const NO_RANGES: readonly CellRange[] = [];
+
 /**
  * A table keeps its own columns and scrolls sideways when the widest row beats
  * the card. Its indicator appears only during scrolling.
@@ -112,10 +114,13 @@ export function MdTable({
   const selection = useTableCellSelection(token.raw, { frame: frameRef, rows: rowRefs, columns: columnStarts });
   const { select, begin, extend, end } = selection;
   useLayoutEffect(() => bindTableCellSelection(frameRef.current, { select, begin, extend, end }), [select, begin, extend, end]);
+  // A press on this table with the add key extends the selection the menu shows.
+  const keeps = useCallback((event: PointerEvent) => addsCellRange(event)
+    && ((frameRef.current as unknown as HTMLElement | null)?.contains(event.target as Node) ?? false), []);
   rowRefs.current.length = token.rows.length + 1;
-  const selectedText = selection.range ? rangeText(token, selection.range) : "";
-  // A range of empty cells has nothing to copy, so it is not drawn once let go.
-  const range = selection.dragging || selectedText ? selection.range : null;
+  const selectedText = rangeText(token, selection.ranges);
+  // Ranges of empty cells have nothing to copy, so they are not drawn once let go.
+  const ranges = selection.dragging || selectedText ? selection.ranges : NO_RANGES;
   const align = (column: number) => styles[ALIGN_KEYS[aligns[column] ?? "left"]];
   const frame = (column: number) => [
     column === 0 ? null : styles.tableDivider,
@@ -129,7 +134,7 @@ export function MdTable({
   const reuse = nextReuse(drawn, context, open);
   const columns = `${widths.join(",")}|${aligns.join(",")}`;
   const rowSource = (row: number, cells: readonly Tokens.TableCell[], last: boolean) =>
-    `${columns}|${last ? 1 : 0}|${rowSpan(range, row)}|${JSON.stringify(cells.map((cell) => cell.text))}`;
+    `${columns}|${last ? 1 : 0}|${rowSpan(ranges, row)}|${JSON.stringify(cells.map((cell) => cell.text))}`;
   const cellTokens = (cells: readonly Tokens.TableCell[]) => () => cells.map((cell) => cell.tokens);
   const drawRow = (
     key: string | undefined,
@@ -159,7 +164,7 @@ export function MdTable({
               align(column),
               ...frame(column),
               contentTextStyle(),
-              rangeHas(range, row, column) && { backgroundColor: context.tokens.accentBg },
+              rangeHas(ranges, row, column) && { backgroundColor: context.tokens.accentBg },
             ]}
           >
             {renderInline(cell.tokens, context, cellKey)}
@@ -176,7 +181,7 @@ export function MdTable({
       <ScrollView horizontal showsHorizontalScrollIndicator style={styles.tableScroll}
         contentContainerStyle={[styles.tableContent, copyStyles.content]}
         scrollEnabled={!selection.dragging}
-        onScrollBeginDrag={range ? selection.dismiss : undefined}>
+        onScrollBeginDrag={ranges.length > 0 ? selection.dismiss : undefined}>
         <View ref={frameRef} style={styles.tableFrame} {...selection.frameProps}>
           {reuseNode(reuse, `${keyPrefix}h`, rowSource(0, token.header, token.rows.length === 0),
             cellTokens(token.header), () => drawRow(undefined, 0, `${keyPrefix}h`, token.header, styles.tableHeaderRow,
@@ -192,7 +197,7 @@ export function MdTable({
       {/* Over the scroller rather than in it: a scroller clips what passes its
           edges, and the open menu's border and shadow reach past the left one. */}
       <TableCopyMenu source={source} frame={frameRef} tokens={context.tokens}
-        selected={selectedText && !selection.dragging ? { text: selectedText, dismiss: selection.dismiss } : undefined} />
+        selected={selectedText && !selection.dragging ? { text: selectedText, dismiss: selection.dismiss, keeps } : undefined} />
     </View>
   );
 }
