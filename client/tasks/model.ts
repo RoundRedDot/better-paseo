@@ -99,6 +99,17 @@ export interface TaskTiming {
   lastTurnEndedAt: string | null;
 }
 
+/**
+ * When the card's work last ended, for the done lane's window and order and
+ * the footer's "12m ago": its latest turn's end, else its latest prompt, else
+ * its creation. Not `updatedAt`: the daemon moves it whenever it loads a
+ * stored agent, so anything listing week-old agents would bring them back
+ * as just done.
+ */
+export function settledAt(timing: Pick<TaskTiming, "createdAt" | "lastUserMessageAt" | "lastTurnEndedAt">): string {
+  return timing.lastTurnEndedAt ?? timing.lastUserMessageAt ?? timing.createdAt;
+}
+
 export interface TaskContext {
   usedTokens: number;
   maxTokens: number;
