@@ -261,6 +261,21 @@ describe("TaskCardView on web", () => {
     await act(async () => done.unmount());
   });
 
+  it("floats Unarchive in Open tab's place on an archived task's hover", async () => {
+    const onOpen = vi.fn();
+    const onUnarchive = vi.fn();
+    const card: TaskCard = { ...sampleCards(NOW).find((candidate) => candidate.id === "sample-done")!, lane: "archived", status: "archived", archived: "agent" };
+    const renderer = await render(React.createElement(TaskCardView, { ...props(card.id, { onOpen, onUnarchive }), card }));
+    await act(async () => hovers.get(`task-card-${card.id}`)!.enter());
+    const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-unarchive-overlay");
+    const buttons = overlay.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    expect(buttons.map((node) => node.props.accessibilityLabel)).toEqual(["取消归档"]);
+    await act(async () => buttons[0]!.props.onPress());
+    expect(onUnarchive).toHaveBeenCalledWith(card.id);
+    expect(onOpen).not.toHaveBeenCalled();
+    await act(async () => renderer.unmount());
+  });
+
   it("floats Mark read over the row's end on hover, keeps it while pending, and fades it out", async () => {
     const onRead = vi.fn();
     const card: TaskCard = { ...sampleCards(NOW).find((candidate) => candidate.id === "sample-unread")!, readable: true };

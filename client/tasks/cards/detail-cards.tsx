@@ -292,6 +292,22 @@ function DetailHeader(props: Inner) {
       testID="detail-open"
     />
   ) : null;
+  // An archived task has no Open tab (Paseo would show another tab), so Unarchive takes its place.
+  const unarchiveButton = unarchive ? (
+    <OutlineButton
+      icon="ArchiveRestore"
+      label={unarchive.pending(card.id) ? cardText.details.unarchiving : cardText.details.unarchive}
+      height={m.button}
+      font={m.font}
+      tokens={tokens}
+      grow={!openButton}
+      onPress={() => {
+        if (!unarchive.pending(card.id)) unarchive.press(card.id);
+      }}
+      testID="detail-unarchive"
+    />
+  ) : null;
+  const lead = openButton ?? unarchiveButton;
   return (
     <View style={{ paddingLeft: m.padH, paddingRight: m.padH - (props.gutter ?? 0), paddingTop: 8, paddingBottom: 12 }} testID="detail-header">
       {props.back ? (
@@ -387,24 +403,12 @@ function DetailHeader(props: Inner) {
       ) : null}
       {showActions ? (
         <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }} testID="detail-actions">
-          {touch ? null : openButton}
+          {touch ? null : lead}
           {stop && props.stop ? (
             <OutlineButton icon="Power" danger={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} height={m.button} font={m.font} tokens={tokens} onPress={props.stop.onPress} testID="detail-stop" />
           ) : null}
-          {unarchive ? (
-            <OutlineButton
-              icon="ArchiveRestore"
-              label={unarchive.pending(card.id) ? cardText.details.unarchiving : cardText.details.unarchive}
-              height={m.button}
-              font={m.font}
-              tokens={tokens}
-              onPress={() => {
-                if (!unarchive.pending(card.id)) unarchive.press(card.id);
-              }}
-              testID="detail-unarchive"
-            />
-          ) : null}
-          {touch ? openButton : null}
+          {openButton ? unarchiveButton : null}
+          {touch ? lead : null}
         </View>
       ) : null}
       <View style={{ marginTop: 12 }}>
@@ -1523,16 +1527,19 @@ export function DetailActionBar(props: {
   stop?: { phase: StopPhase; onPress(): void } | null;
   permissionButtons?: PermissionButton[];
   onPermission?(button: PermissionButton): void;
+  unarchive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
 }) {
   const { card } = props;
   const onOpen = opensInPaseo(card) ? props.onOpen : undefined;
+  // An archived task's main button is Unarchive, in Open tab's place.
+  const unarchive = card.archived === "agent" ? props.unarchive ?? null : null;
   const tokens = taskTokens(props.theme);
   const stop = stopLabel(props as TaskDetailCardsProps);
   const buttons = card.lane === "needs_input" && props.onPermission ? (props.permissionButtons ?? []) : [];
   const respond = buttons.filter((button) => button.kind === "respond");
   const answer = buttons.find((button) => button.kind === "open");
   const asking = respond.length > 0 || !!answer;
-  if (!onOpen && !stop && !asking) return null;
+  if (!onOpen && !stop && !asking && !unarchive) return null;
   const open = () => onOpen?.(card.id);
   // Deny first, allow last: the main button sits under the thumb.
   const ordered = [...respond].sort((a, b) => (a.action.behavior === "allow" ? 1 : 0) - (b.action.behavior === "allow" ? 1 : 0));
@@ -1557,6 +1564,18 @@ export function DetailActionBar(props: {
         <>
           {stop && props.stop ? <BarButton tokens={tokens} icon="Power" stop={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" /> : null}
           {onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} primary onPress={open} testID="detail-bar-open" /> : null}
+          {unarchive ? (
+            <BarButton
+              tokens={tokens}
+              icon="ArchiveRestore"
+              label={unarchive.pending(card.id) ? cardStrings(props.language).details.unarchiving : cardStrings(props.language).details.unarchive}
+              primary
+              onPress={() => {
+                if (!unarchive.pending(card.id)) unarchive.press(card.id);
+              }}
+              testID="detail-bar-unarchive"
+            />
+          ) : null}
         </>
       )}
     </View>
