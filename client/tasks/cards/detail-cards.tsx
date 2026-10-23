@@ -23,6 +23,7 @@ import { TagMark } from "./tag-mark";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { BrandMark } from "./brand-mark";
 import { ChildMark } from "./child-mark";
+import { ArchivedTag } from "./archived-tag";
 import { useTime, type TimeSource } from "./clock";
 import { ProjectIcon } from "./project-icon";
 import { SpinnerRing, StatusIcon } from "./status-icon";
@@ -833,18 +834,22 @@ function Properties(props: Inner) {
   if (card.parent) {
     const parent = card.parent;
     const archived = parent.missing && parent.archived === true;
-    // Off the board but not archived: an old done task the window left out. Its tab still opens.
+    // Off the board but not archived: an old done task the window left out, or one whose workspace is archived. Its tab still opens.
     const offBoard = parent.missing && parent.archived === false;
-    const title = parent.title ?? (archived ? cardText.parentArchived : cardText.parentUnknown);
+    const title = parent.title ?? cardText.parentUnknown;
     let jump: (() => void) | undefined;
     if (!parent.missing) jump = props.onJump ? () => props.onJump?.(parent.id) : undefined;
     else if (offBoard) jump = props.onOpen ? () => props.onOpen?.(parent.id) : undefined;
     const unarchive = archived ? props.unarchive : null;
     const unarchiving = unarchive?.pending(parent.id) === true;
     let notes: Note[] = [];
+    let tag: string | undefined;
     // An archived parent can be brought back; once it is, the row turns into a jump.
-    if (archived) notes = unarchive ? [{ text: details.archived }] : [{ text: details.archived }, { text: details.cannotJump }];
-    else if (offBoard) notes = [{ text: details.offBoard }];
+    // An archived parent is tagged, itself or with its workspace, off the board or in the archived lane.
+    if (parent.archivedAs === "workspace") tag = cardText.workspaceArchived;
+    else if (archived || parent.archivedAs === "agent") tag = cardText.archived;
+    if (archived && !unarchive) notes = [{ text: details.cannotJump }];
+    else if (offBoard && !tag) notes = [{ text: details.offBoard }];
     rows.push(
       <PropertyRow
         {...common}
@@ -855,6 +860,7 @@ function Properties(props: Inner) {
         lines={3}
         muted={parent.missing}
         notes={notes}
+        tag={tag}
         button={
           unarchive ? (
             <CardButton
@@ -916,6 +922,8 @@ function PropertyRow(props: {
   hyphens?: boolean;
   lines: number;
   notes?: Note[];
+  /** An archived parent's tag, ahead of the notes. */
+  tag?: string;
   /** A button at the row's end, in the card's style: an archived parent's Unarchive. */
   button?: React.ReactNode;
   copy?: { text: string; toast: string; label: string };
@@ -975,7 +983,7 @@ function PropertyRow(props: {
   const notes = props.notes ?? [];
   // One run of text, so a long workspace name wraps and the next part follows it on the same line.
   const noteText: TextStyle = { fontSize: noteFont, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted, marginTop: 1 };
-  const noteLine =
+  const noteRun =
     notes.length > 0 ? (
       <Text style={noteText} testID={props.testID ? `${props.testID}-note` : undefined}>
         {notes.map((note, index) => (
@@ -987,6 +995,12 @@ function PropertyRow(props: {
         ))}
       </Text>
     ) : null;
+  const noteLine = props.tag ? (
+    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: 6, marginTop: 3 }}>
+      <ArchivedTag tokens={tokens} label={props.tag} testID={props.testID ? `${props.testID}-tag` : undefined} />
+      {noteRun}
+    </View>
+  ) : noteRun;
   const content = (
     <>
       {props.wide ? (

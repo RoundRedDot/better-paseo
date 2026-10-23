@@ -646,7 +646,20 @@ describe("TaskCardView rows", () => {
 
     const orphan = { ...sample("sample-child-1"), parent: { id: "gone", title: null, missing: true, archived: true } };
     await act(async () => tree.update(cardElement(orphan, { onReveal, fields: fields("minimal") })));
-    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["↳ 父任务（已归档）"]);
+    // Its title unknown: the generic name, and the Archived tag beside it.
+    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["↳ 父任务", "已归档"]);
+    expect(icons(hostByTestId(tree.root, "task-card-meta-archived"))).toEqual(["Archive"]);
+    const named = { ...orphan, parent: { ...orphan.parent, title: "多设备连接" } };
+    await act(async () => tree.update(cardElement(named, { onReveal, fields: fields("minimal") })));
+    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["↳ 多设备连接", "已归档"]);
+    // A parent whose workspace is archived says so instead.
+    const parked = { ...orphan, parent: { id: "parked", title: "整理推送链路", missing: true, archived: false, archivedAs: "workspace" as const } };
+    await act(async () => tree.update(cardElement(parked, { onReveal, fields: fields("minimal") })));
+    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["↳ 整理推送链路", "工作区已归档"]);
+    // On the board in the archived lane: still tagged, the link still reveals it.
+    const inLane = { ...orphan, parent: { id: "lane", title: "多设备连接", missing: false, archived: false, archivedAs: "agent" as const } };
+    await act(async () => tree.update(cardElement(inLane, { onReveal, fields: fields("minimal") })));
+    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["↳ 多设备连接", "已归档"]);
     // Off the board but not archived (an old done task): its title, never "archived".
     const old = { ...orphan, parent: { id: "old", title: "多设备连接", missing: true, archived: false } };
     await act(async () => tree.update(cardElement(old, { onReveal, fields: fields("minimal") })));
@@ -1641,7 +1654,8 @@ describe("TaskDetailCards", () => {
   it("offers Unarchive for an archived parent where the host can, else says it cannot open", async () => {
     const orphan = { ...sample("sample-child-1"), parent: { id: "gone", title: "多设备连接", missing: true, archived: true } };
     const plain = await render(details(orphan, { onJump: vi.fn() }));
-    expect(texts(hostByTestId(plain.root, "detail-parent"))).toEqual(["多设备连接", "已归档 · 无法跳转"]);
+    expect(texts(hostByTestId(plain.root, "detail-parent"))).toEqual(["多设备连接", "已归档", "无法跳转"]);
+    expect(icons(hostByTestId(plain.root, "detail-parent-tag"))).toEqual(["Archive"]);
     expect(plain.root.findAll((node) => node.props.testID === "detail-parent-unarchive")).toHaveLength(0);
     await act(async () => plain.unmount());
     renderer = null;

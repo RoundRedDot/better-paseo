@@ -781,6 +781,7 @@ function createStore(api: PaseoApi): TaskStore {
   const parentByChild = new Map<string, string>();
   /** Parents read by id because they are not on the board: their title and whether they are archived. */
   const resolvedParents = new Map<string, { title: string | null; archived: boolean | null }>();
+  const parentReads = new Set<string>();
   const projectIcons = new Map<string, ProjectIconValue>();
   const iconRequests = new Set<string>();
   /** Icons asked of the server's loader in this task, sent together as one `tasks.project-icons` call. */
@@ -928,6 +929,12 @@ function createStore(api: PaseoApi): TaskStore {
       ? parentEntry?.agent.title?.trim() || resolvedParents.get(parentAgentId)?.title || null
       : null;
     const parentMissing = parentAgentId ? !onBoard(parentAgentId) : false;
+    if (parentAgentId && parentMissing && !parentEntry) queueParentRead(parentAgentId);
+    const parentArchivedAs = !parentAgentId
+      ? null
+      : parentEntry
+        ? isArchived(parentEntry.agent) ? "agent" : inArchivedWorkspace(parentAgentId) ? "workspace" : null
+        : resolvedParents.get(parentAgentId)?.archived ? "agent" : null;
     const childIds = childrenByParent.get(id);
     const next: TaskCard = withArchived(withActiveSubtasks(withReadMark(withSubagents({
       ...withTurnError(base, turnErrors.get(id)),
@@ -939,6 +946,7 @@ function createStore(api: PaseoApi): TaskStore {
             title: parentTitle,
             missing: parentMissing,
             archived: !parentMissing ? false : parentEntry ? isArchived(parentEntry.agent) : (resolvedParents.get(parentAgentId)?.archived ?? null),
+            ...(parentArchivedAs ? { archivedAs: parentArchivedAs } : null),
           }
         : null,
       children: childIds
@@ -1945,6 +1953,7 @@ function createStore(api: PaseoApi): TaskStore {
     childrenByParent.clear();
     parentByChild.clear();
     resolvedParents.clear();
+    parentReads.clear();
     workspaces.clear();
     projects.clear();
     colorNames.clear();
@@ -2132,6 +2141,24 @@ function createStore(api: PaseoApi): TaskStore {
       if (!isCurrent(run)) return;
       loadingDone = false;
       notify();
+    });
+  }
+
+  /**
+   * A parent off the board is read once, so its children's cards can say
+   * whether it is archived. Read after the current batch: a list can bring a
+   * child before its parent.
+   */
+  function queueParentRead(id: string) {
+    if (resolvedParents.has(id) || parentReads.has(id)) return;
+    parentReads.add(id);
+    if (parentReads.size > 1) return;
+    const run = generation;
+    void Promise.resolve().then(() => {
+      const ids = [...parentReads];
+      parentReads.clear();
+      if (run !== generation) return;
+      for (const parentId of ids) if (!entries.has(parentId)) resolveParent(parentId);
     });
   }
 

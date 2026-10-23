@@ -144,6 +144,13 @@ export interface TaskParentRef {
    * archived only fell out of the loaded set (an old done task).
    */
   archived: boolean | null;
+  /**
+   * The parent is archived, itself ("agent") or with its workspace or
+   * project ("workspace", which Paseo shows nowhere), whether it is off the
+   * board or in the archived lane: the child's card tags its parent link.
+   * Absent while it is not, or not known yet.
+   */
+  archivedAs?: "agent" | "workspace";
 }
 
 export interface TaskChild {
