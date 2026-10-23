@@ -968,13 +968,13 @@ describe("TaskCardView actions", () => {
     // A wide lane: the buttons stay beside the timer, at the far right.
     let footer = await measure(320);
     expect(flat(footer.props.style)).toMatchObject({ flexDirection: "row", alignItems: "center" });
-    expect(texts(footer)).toEqual([expect.any(String), expect.any(String), "打开 tab", "停止"]);
+    expect(texts(footer)).toEqual([expect.any(String), expect.any(String), "停止", "打开 tab"]);
     // A narrow one (120 + 6 + 180 > 300): a row of their own under the timer, still at the right.
     footer = await measure(300);
     expect(flat(footer.props.style)).toMatchObject({ flexDirection: "column", alignItems: "flex-start" });
     const controls = footer.findAll((node) => typeof node.type === "string" && node !== footer && typeof node.props.onLayout === "function")[1]!;
     expect(flat(controls.props.style)).toEqual({ alignSelf: "flex-end" });
-    expect(texts(controls)).toEqual(["打开 tab", "停止"]);
+    expect(texts(controls)).toEqual(["停止", "打开 tab"]);
     // Widening the lane again puts them back.
     footer = await measure(306);
     expect(flat(footer.props.style)).toMatchObject({ flexDirection: "row" });
@@ -1812,7 +1812,7 @@ describe("overlays in the board's menu chrome", () => {
       const tree = await render(cardElement(card, { theme, onStop }));
       await act(async () => byLabel(tree.root, "停止选项").props.onPress());
       const menu = hostByTestId(tree.root, "task-card-stop-menu");
-      expect(flat(menu.props.style)).toMatchObject({ position: "absolute", right: 0, top: 32, width: 220 });
+      expect(flat(menu.props.style)).toMatchObject({ position: "absolute", left: 0, top: 32, width: 220 });
       const panel = hostByTestId(menu, "menu-panel");
       expect(flat(panel.props.style)).toMatchObject(chromeOf(theme));
       const rows = menu.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
