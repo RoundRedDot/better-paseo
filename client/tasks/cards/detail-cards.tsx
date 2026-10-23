@@ -1481,7 +1481,7 @@ function OutlineButton(props: {
   label: string;
   /** The stop button: the card's stop pill colours, tinted at rest and solid to confirm. */
   danger?: DangerLook;
-  /** Archive's orange tint, the card button's. */
+  /** Archive's orange outline and label, the card button's. */
   archive?: boolean;
   hint?: React.ReactNode;
   trailing?: string;
@@ -1518,8 +1518,8 @@ function OutlineButton(props: {
         borderRadius: 8,
         // One device pixel on desktop and the web, as the board's lines are; a full point on touch.
         borderWidth: Platform.OS === "web" ? devicePixel() : 1,
-        borderColor: danger?.border ?? (props.archive ? (hovered ? tokens.card.archiveFillHover : tokens.card.archiveFill) : tokens.border),
-        backgroundColor: danger?.fill ?? (props.archive ? (hovered ? tokens.card.archiveFillHover : tokens.card.archiveFill) : hovered ? detailColors(tokens).rowHover : tokens.card.background),
+        borderColor: danger?.border ?? (props.archive ? tokens.card.archiveBorder : tokens.border),
+        backgroundColor: danger?.fill ?? (hovered ? detailColors(tokens).rowHover : tokens.card.background),
         flexDirection: "row",
         alignItems: "center",
         gap: props.grow ? 8 : 6,
@@ -1678,8 +1678,8 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; stop?: DangerLook
         paddingHorizontal: props.square ? 0 : 16,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: stop?.border ?? (props.primary ? tokens.accent : props.archive ? tokens.card.archiveFill : tokens.border),
-        backgroundColor: stop?.fill ?? (props.primary ? tokens.accent : props.archive ? tokens.card.archiveFill : tokens.card.background),
+        borderColor: stop?.border ?? (props.primary ? tokens.accent : props.archive ? tokens.card.archiveBorder : tokens.border),
+        backgroundColor: stop?.fill ?? (props.primary ? tokens.accent : tokens.card.background),
         opacity: props.busy ? 0.6 : pressed ? 0.85 : 1,
         flexDirection: "row",
         alignItems: "center",
