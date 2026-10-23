@@ -56,18 +56,10 @@ export function FilterSheetBody(props: {
         <View style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4, paddingBottom: 8 }}>
           {sortFirst ? <View style={{ paddingBottom: 8 }}>{sort}</View> : null}
           <ToggleRow
-            icon="AppWindow"
-            label={strings.openTabs}
-            hint={strings.openTabsHint}
-            on={resolved.filters.openTabsOnly}
-            theme={theme}
-            onPress={() => setParams((p) => ({ ...p, openTabsOnly: !p.openTabsOnly }))}
-          />
-          <ToggleRow
             icon="ListTree"
-            label={strings.hideSubtasks}
-            hint={strings.hideSubtasksHint}
-            on={resolved.filters.hideSubtasks}
+            label={strings.showSubtasks}
+            hint={strings.showSubtasksHint}
+            on={!resolved.filters.hideSubtasks}
             theme={theme}
             onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
           />

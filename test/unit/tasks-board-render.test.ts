@@ -1003,7 +1003,7 @@ describe("Tasks board, desktop", () => {
     const controls = () => view("filter-bar-controls");
     const group = () => hostParentOf(controls())!;
     const words = () => controls().findAll((node) => (node.type as unknown) === "Text").map(textOf);
-    expect(words()).toEqual(expect.arrayContaining(["Project", "Workspace", "Open tabs only", "Hide subtasks"]));
+    expect(words()).toEqual(expect.arrayContaining(["Project", "Workspace", "Agent", "Labels"]));
 
     // The buttons need 700 of the group's 500: they drop their words, and read them out.
     lay(group(), { width: 500 });
@@ -1012,22 +1012,22 @@ describe("Tasks board, desktop", () => {
     expect(words()).toEqual([]);
     expect(view("filter-bar-end").findAll((node) => (node.type as unknown) === "Text" && textOf(node) === "Sort")).toHaveLength(0);
     const named = (bar: ReactTestInstance) => bar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel);
-    expect(named(controls())).toEqual(["Project", "Workspace", "Agent", "Labels", "Open tabs only", "Hide subtasks"]);
+    expect(named(controls())).toEqual(["Project", "Workspace", "Agent", "Labels"]);
     expect(named(view("filter-bar-end"))).toContain("Sort");
 
-    // Unseen, the dropped words lay out to say when they fit again: eight at 40, each with its gap, need 360.
+    // Unseen, the dropped words lay out to say when they fit again: six at 40, each with its gap, need 270.
     const hidden = view("filter-bar-words");
     expect(hidden.props["aria-hidden"]).toBe(true);
     expect(StyleSheet.flatten(hidden.props.style)).toMatchObject({ position: "absolute", opacity: 0 });
     const dropped = hidden.findAll((node) => (node.type as unknown) === "Text");
-    expect(dropped.map(textOf)).toEqual(["Project", "Workspace", "Agent", "Labels", "Open tabs only", "Hide subtasks", "Sort", expect.any(String)]);
+    expect(dropped.map(textOf)).toEqual(["Project", "Workspace", "Agent", "Labels", "Sort", expect.any(String)]);
     lay(controls(), { width: 300 });
     lay(view("filter-bar-end"), { width: 300 });
     for (const text of dropped) act(() => text.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 40, height: 18 } } }));
     expect(words()).toEqual([]);
-    // 300 + 360 fits a group of 700 with room to spare: the words come back.
+    // 300 + 270 fits a group of 700 with room to spare: the words come back.
     lay(group(), { width: 700 });
-    expect(words()).toEqual(expect.arrayContaining(["Project", "Hide subtasks"]));
+    expect(words()).toEqual(expect.arrayContaining(["Project", "Labels"]));
     expect(renderer!.root.findAll((node) => node.props.testID === "filter-bar-words")).toHaveLength(0);
 
     // The done window and the sort pushed to a row of their own drop the words too.
@@ -1077,12 +1077,13 @@ describe("Tasks board, sorting", () => {
     const filters = bar.findAll((node) => (node.type as unknown) === "View" && hostParentOf(node) === bar).find((child) => child !== end)!;
     const text = textOf(filters);
     // A single pick's chip draws its filter's icon, not the word, and reads the word out.
-    expect(text).toContain("Labels · 1Open tabs onlyHide subtasksapi");
+    expect(text).toContain("Labels · 1api");
     const kind = filters.find((node) => (node.type as unknown) === "View" && node.props.accessibilityLabel === "Labels");
     expect(kind.findAll((node) => node.props.name === "Tag")).not.toHaveLength(0);
     // The switch and the done window show themselves: no chip, no hint line.
     expect(text).not.toContain("still show");
-    expect(text.match(/Hide subtasks/g)).toHaveLength(1);
+    expect(text).not.toContain("Hide subtasks");
+    expect(text).not.toContain("Show subtasks");
     expect(text).not.toContain("7 days");
     expect(text).toContain("Clear all");
 
@@ -1105,7 +1106,7 @@ describe("Tasks board, sorting", () => {
 
   it("leaves out Clear all while only the switches or the done window are set", () => {
     act(() => {
-      renderer = TestRenderer.create(screen(false, { sub: "1", tabs: "1", win: "7d" }));
+      renderer = TestRenderer.create(screen(false, { sub: "1", win: "7d" }));
     });
     layOut(1600);
     expect(textOf(renderer!.root)).not.toContain("Clear all");
@@ -1308,8 +1309,7 @@ describe("Tasks board, toolbar tips", () => {
         "Filter by workspace",
         "Filter by agent",
         "Filter by label",
-        "Show only tasks open in a tab\nPaseo marks open tabs for subagents only",
-        "Hide subagents' tasks\nRunning, waiting and failed subtasks still show, unless their parent's card is in the same lane",
+        "Hide subtasks",
         "How far back Done and Archived reach",
         "Show the archived lane",
         "Hide groups with no active tasks",
@@ -1321,6 +1321,10 @@ describe("Tasks board, toolbar tips", () => {
     await act(async () => toggle.props.onPress());
     expect(tips()).toContain("Hide the archived lane");
     expect(tips()).not.toContain("Show the archived lane");
+    const subtasks = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "subtasks-toggle")[0]!;
+    act(() => subtasks.props.onPress());
+    expect(tips()).toContain("Show subtasks");
+    expect(tips()).not.toContain("Hide subtasks");
     // An open menu covers its button's tip.
     const project = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === "Filter by project");
     act(() => project.props.onPress());
@@ -1342,7 +1346,6 @@ describe("Tasks board, toolbar tips", () => {
       expect.arrayContaining([
         "Agent · 1\nFilter by agent",
         "Project\nFilter by project",
-        "Open tabs only\nShow only tasks open in a tab\nPaseo marks open tabs for subagents only",
         "Sort\nOrder the cards in each lane",
         "Lanes · Default",
       ]),
@@ -1461,9 +1464,9 @@ describe("Tasks board, tablet filters", () => {
       const rows = () => groups().findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function").map((node) => node.props.accessibilityLabel);
       expect(toggle().props).toMatchObject({ accessibilityLabel: "Show groups with no active tasks", accessibilityState: { checked: true } });
       expect(icon()).toBe("List");
-      // After the archived lane's switch, in the bar's end.
+      // After the subtasks' and the archived lane's switches, in the bar's end.
       const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
-      expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["archived-lane-toggle", "empty-groups-toggle"]);
+      expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["subtasks-toggle", "archived-lane-toggle", "empty-groups-toggle"]);
       // Busy first, the empty ones after them.
       expect(rows().at(-1)).toBe("Pi 0");
       await act(async () => toggle().props.onPress());
@@ -1523,36 +1526,31 @@ describe("Tasks board, tablet filters", () => {
     expect(renderer!.root.findAll((node) => node.props.testID === "toolbar-archived")).toHaveLength(0);
   });
 
-  it("folds the two toggles behind a plus, and marks the plus while one is on", () => {
+  it("keeps only the subtasks switch, a bar switch like the archived lane's that strikes its icon through while off", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
     layOut(800);
-    const more = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-bar-more");
-    // The archived lane's and the empty groups' switches are no filters: they stay in the bar, by the done window.
-    const barSwitches = new Set(["archived-lane-toggle", "empty-groups-toggle"]);
-    const switches = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch" && !barSwitches.has(node.props.testID));
-    for (const id of barSwitches) expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === id)).toHaveLength(1);
-    expect(textOf(renderer!.root)).toContain("Workspace");
-    expect(switches()).toHaveLength(0);
-    expect(more().props).toMatchObject({ accessibilityLabel: "More filters", accessibilityState: { expanded: false } });
-    act(() => more().props.onPress());
-    expect(switches().map((node) => textOf(node))).toEqual(["Open tabs only", "Hide subtasks"]);
-    expect(more().props).toMatchObject({ accessibilityLabel: "Fewer filters", accessibilityState: { expanded: true } });
-    act(() => switches()[1]!.props.onPress());
-    act(() => more().props.onPress());
-    expect(switches()).toHaveLength(0);
-    expect(textOf(more())).toBe("1");
-  });
-
-  it("keeps the toggles in the bar on web", () => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
-    act(() => {
-      renderer = TestRenderer.create(screen(false));
-    });
-    layOut(800);
+    const toggle = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "subtasks-toggle");
+    const slashed = () => toggle().findAll((node) => (node.type as unknown) === "View" && node.props.testID === "slash-mark").length > 0;
+    const look = () => toggle().props.style as { borderColor: string; backgroundColor: string };
+    expect(textOf(renderer!.root)).not.toContain("Open tabs only");
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-bar-more")).toHaveLength(0);
-    expect(textOf(renderer!.root)).toContain("Hide subtasks");
+    // Every switch on the bar is a round one by the done window.
+    const barSwitches = new Set(["subtasks-toggle", "archived-lane-toggle", "empty-groups-toggle"]);
+    const switches = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch");
+    expect(switches.filter((node) => !barSwitches.has(node.props.testID))).toHaveLength(0);
+    const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
+    expect(end.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "subtasks-toggle")).toHaveLength(1);
+    expect(toggle().props).toMatchObject({ accessibilityLabel: "Show subtasks", accessibilityState: { checked: true } });
+    expect(slashed()).toBe(false);
+    const on = { ...look() };
+    act(() => toggle().props.onPress());
+    expect(lastBoardParams("host-1")).toMatchObject({ hideSubtasks: true });
+    expect(toggle().props.accessibilityState).toEqual({ checked: false });
+    expect(slashed()).toBe(true);
+    // Off only strikes the icon through: the outline and fill stay.
+    expect(look()).toMatchObject(on);
   });
 });
 
@@ -1765,7 +1763,7 @@ describe("Tasks board, phone", () => {
 
   it("shows the filter badge and the filter sheet", () => {
     act(() => {
-      renderer = TestRenderer.create(screen(true, { agent: "claude,codex", tabs: "1" }));
+      renderer = TestRenderer.create(screen(true, { agent: "claude,codex", sub: "1" }));
     });
     const filters = pressable("Filters");
     expect(textOf(filters)).toBe("3");
@@ -1773,7 +1771,8 @@ describe("Tasks board, phone", () => {
     act(() => filters.props.onPress());
     const sheet = renderer!.root.find((node) => (node.type as unknown) === "Modal");
     expect(sheet.props.title).toBe("Filters");
-    expect(textOf(sheet)).toContain("Paseo marks open tabs for subagents only");
+    expect(textOf(sheet)).toContain("When off, running, waiting and failed subtasks still show");
+    expect(textOf(sheet)).not.toContain("Open tabs only");
   });
 
   it("shows an empty lane with a way out of the filters", () => {
@@ -1880,7 +1879,7 @@ describe("Tasks board, phone", () => {
     const order = () => {
       const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
       const text = textOf(scroll);
-      return { sort: text.indexOf("Sort"), switches: text.indexOf("Open tabs only"), workspace: text.indexOf("Workspace") };
+      return { sort: text.indexOf("Sort"), switches: text.indexOf("Show subtasks"), workspace: text.indexOf("Workspace") };
     };
     act(() => {
       renderer = TestRenderer.create(screen(true, { sort: "branch-desc" }));
@@ -1902,10 +1901,10 @@ describe("Tasks board, phone", () => {
     act(() => pressable("Filters").props.onPress());
     const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
     const switches = () => scroll.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch");
-    expect(switches().map((node) => textOf(node).startsWith("Open tabs only") || textOf(node).startsWith("Hide subtasks"))).toEqual([true, true]);
-    expect(switches().map((node) => node.props.accessibilityState)).toEqual([{ checked: false }, { checked: false }]);
-    act(() => switches()[1]!.props.onPress());
-    expect(switches()[1]!.props.accessibilityState).toEqual({ checked: true });
+    expect(switches().map((node) => textOf(node).startsWith("Show subtasks"))).toEqual([true]);
+    expect(switches().map((node) => node.props.accessibilityState)).toEqual([{ checked: true }]);
+    act(() => switches()[0]!.props.onPress());
+    expect(switches()[0]!.props.accessibilityState).toEqual({ checked: false });
     expect(switches().flatMap((node) => node.findAll((child) => (child.type as unknown) === "Icon" && child.props.name === "Check"))).toHaveLength(0);
   });
 
@@ -1917,8 +1916,7 @@ describe("Tasks board, phone", () => {
     const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
     const text = textOf(scroll);
     const at = (label: string) => text.indexOf(label);
-    expect(at("Open tabs only")).toBe(0);
-    expect(at("Hide subtasks")).toBeLessThan(at("Agent"));
+    expect(at("Show subtasks")).toBe(0);
     expect(at("Agent")).toBeLessThan(at("Labels"));
     expect(at("Labels")).toBeLessThan(at("Sort"));
     expect(at("Sort")).toBeLessThan(at("Workspace"));

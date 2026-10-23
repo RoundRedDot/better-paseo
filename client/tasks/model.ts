@@ -263,7 +263,6 @@ export interface BoardFilters {
   workspaceIds: string[];
   providers: string[];
   labels: string[];
-  openTabsOnly: boolean;
   hideSubtasks: boolean;
 }
 
@@ -272,6 +271,5 @@ export const EMPTY_FILTERS: BoardFilters = {
   workspaceIds: [],
   providers: [],
   labels: [],
-  openTabsOnly: false,
   hideSubtasks: false,
 };

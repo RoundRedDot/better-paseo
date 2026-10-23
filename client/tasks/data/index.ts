@@ -2224,8 +2224,7 @@ export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilt
     return (!query || searchable.includes(query)) &&
       (filters.workspaceIds.length === 0 || (card.location.workspaceId !== null && filters.workspaceIds.includes(card.location.workspaceId))) &&
       (filters.providers.length === 0 || filters.providers.includes(card.provider)) &&
-      (filters.labels.length === 0 || card.labels.some((label) => filters.labels.includes(label.name))) &&
-      (!filters.openTabsOnly || card.openTab);
+      (filters.labels.length === 0 || card.labels.some((label) => filters.labels.includes(label.name)));
   };
   const byId = new Map<string, TaskCard>();
   if (filters.hideSubtasks) for (const id of LANE_ORDER) for (const card of lanes[id].cards) byId.set(card.id, card);

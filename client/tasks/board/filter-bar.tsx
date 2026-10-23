@@ -169,6 +169,7 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
  * A board-wide switch in the filter bar: the headers' round button at the
  * bar's size. Only the icon tells on from off, the outline stays the same:
  * the archived lane's Archive is struck through while the lane is hidden,
+ * the subtasks' list tree while they are hidden,
  * the empty groups' trades its icon (`EMPTY_GROUPS_ICONS`).
  */
 function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: string; hint: string; tip: string; theme: PluginTheme; slashed?: boolean; testID: string }) {
@@ -258,12 +259,9 @@ function KeyHint({ text, theme, last }: { text: string; theme: PluginTheme; last
  */
 const FILTERS_MIN_WIDTH = 240;
 /** Applied filters whose own control on the bar already shows them on. */
-const BAR_OWN_CONTROLS = new Set(["tabs", "sub", "win"]);
+const BAR_OWN_CONTROLS = new Set(["sub", "win"]);
 /** A long sort ("Duration shortest first") ends in an ellipsis past this. */
 const SORT_LABEL_MAX_WIDTH = 160;
-
-/** iOS and Android (a tablet): the two toggles fold behind a plus button, the bar keeps one row. */
-const foldsToggles = () => Platform.OS === "ios" || Platform.OS === "android";
 
 export function DesktopFilterBar(props: {
   board: BoardController;
@@ -278,7 +276,7 @@ export function DesktopFilterBar(props: {
   const strings = board.strings;
   const { params, setParams, defaults } = board;
   const resolved = resolveBoardParams(params, defaults);
-  // The two switches and the done window show their state on their own
+  // The subtasks switch and the done window show their state on their own
   // controls; a chip beside them would only cost the bar a row.
   const chips = groupChips(activeChips(params, defaults, options, strings).filter((chip) => !BAR_OWN_CONTROLS.has(chip.key)), strings);
   // A folded chip whose picks dropped to one is a plain chip again: its menu goes with it.
@@ -288,10 +286,6 @@ export function DesktopFilterBar(props: {
   }, [groupGone, setMenu]);
   const count = (list: readonly unknown[]) => (list.length ? ` · ${list.length}` : "");
   const toggle = (menuId: FilterMenu) => setMenu(menu === menuId ? null : menuId);
-  const folds = foldsToggles();
-  const [unfolded, setUnfolded] = useState(false);
-  const togglesOn = (resolved.filters.openTabsOnly ? 1 : 0) + (resolved.filters.hideSubtasks ? 1 : 0);
-  const showToggles = !folds || unfolded;
   const shown = shownFilterOptions(options, board.showEmptyGroups);
   const words = {
     project: strings.project + count(shown.projects.filter((project) => project.on)),
@@ -307,7 +301,6 @@ export function DesktopFilterBar(props: {
     words.workspace,
     words.agent,
     words.label,
-    ...(showToggles ? [strings.openTabs, strings.hideSubtasks] : []),
     { text: words.sort, maxWidth: SORT_LABEL_MAX_WIDTH },
     words.laneWidth,
   ]);
@@ -374,40 +367,6 @@ export function DesktopFilterBar(props: {
               onClose={() => setMenu(null)}
             />
           </MenuButton>
-          <Divider theme={theme} />
-          {folds ? (
-            <MoreButton
-              open={unfolded}
-              on={togglesOn}
-              label={unfolded ? strings.fewerFilters : strings.moreFilters}
-              onPress={() => setUnfolded((open) => !open)}
-              theme={theme}
-            />
-          ) : null}
-          {showToggles ? (
-            <>
-              <ToggleChip
-                icon="AppWindow"
-                label={strings.openTabs}
-                compact={compact}
-                hint={strings.openTabsHint}
-                tip={tip(strings.openTabs, `${strings.tips.openTabs}\n${strings.openTabsHint}`)}
-                on={resolved.filters.openTabsOnly}
-                onPress={() => setParams((p) => ({ ...p, openTabsOnly: !p.openTabsOnly }))}
-                theme={theme}
-              />
-              <ToggleChip
-                icon="ListTree"
-                label={strings.hideSubtasks}
-                compact={compact}
-                hint={strings.hideSubtasksHint}
-                tip={tip(strings.hideSubtasks, `${strings.tips.hideSubtasks}\n${strings.hideSubtasksHint}`)}
-                on={resolved.filters.hideSubtasks}
-                onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
-                theme={theme}
-              />
-            </>
-          ) : null}
         </View>
         {/* "Clear all" follows the chips: with only the switches or the done
             window set, it would stand alone beside controls that already
@@ -455,6 +414,17 @@ export function DesktopFilterBar(props: {
           strings={strings}
           tip={strings.tips.doneWindow}
           marks
+        />
+        <BarSwitch
+          icon="ListTree"
+          on={!resolved.filters.hideSubtasks}
+          slashed={resolved.filters.hideSubtasks}
+          onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
+          label={strings.showSubtasks}
+          hint={strings.showSubtasksHint}
+          tip={resolved.filters.hideSubtasks ? strings.showSubtasks : strings.tips.hideSubtasks}
+          theme={theme}
+          testID="subtasks-toggle"
         />
         <BarSwitch
           icon="Archive"
@@ -744,75 +714,3 @@ function MenuButton(props: { icon: string; label: string; compact?: boolean; acc
 
 
 
-/**
- * The plus that shows the folded toggles; an X while they show. Folded with
- * a toggle on, it takes the accent and says how many, so a hidden filter
- * still shows that it filters.
- */
-function MoreButton(props: { open: boolean; on: number; label: string; onPress(): void; theme: PluginTheme }) {
-  const colors = props.theme.colors;
-  const scale = useTasksFontScale();
-  const tokens = taskTokens(props.theme);
-  const marked = !props.open && props.on > 0;
-  const tint = marked ? tokens.accentText : colors.foregroundMuted;
-  return (
-    <HoverPressable
-      accessibilityRole="button"
-      accessibilityLabel={props.label}
-      accessibilityState={{ expanded: props.open }}
-      {...tipProps(props.label)}
-      onPress={props.onPress}
-      testID="filter-bar-more"
-      style={(hovered) => ({
-        height: taskControlHeight(28, scale),
-        minWidth: 28,
-        paddingHorizontal: marked ? 8 : 0,
-        borderRadius: 6,
-        borderWidth: HAIRLINE,
-        borderColor: marked ? colors.accent : colors.border,
-        backgroundColor: marked ? tokens.accentSoft : hovered || props.open ? colors.surface1 : "transparent",
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 4,
-      })}
-    >
-      <Icon name={props.open ? "X" : "Plus"} size={14} color={tint} />
-      {marked ? <Text style={{ fontSize: F.base, fontWeight: "500", color: tint, fontVariant: ["tabular-nums"] }}>{props.on}</Text> : null}
-    </HoverPressable>
-  );
-}
-
-/** A filter's switch: its icon and label, or with `compact` the icon alone, which reads the label out. */
-function ToggleChip(props: { icon: string; label: string; compact?: boolean; hint?: string; tip?: string; on: boolean; onPress(): void; theme: PluginTheme; testID?: string }) {
-  const colors = props.theme.colors;
-  const scale = useTasksFontScale();
-  const tint = props.on ? taskTokens(props.theme).accentText : colors.foreground;
-  return (
-    <HoverPressable
-      accessibilityRole="switch"
-      accessibilityState={{ checked: props.on }}
-      accessibilityLabel={props.compact ? props.label : undefined}
-      accessibilityHint={props.hint}
-      {...tipProps(props.tip)}
-      onPress={props.onPress}
-      testID={props.testID}
-      style={(hovered) => ({
-        height: taskControlHeight(28, scale),
-        maxWidth: "100%",
-        flexShrink: 1,
-        paddingHorizontal: 10,
-        borderRadius: 6,
-        borderWidth: HAIRLINE,
-        borderColor: props.on ? colors.accent : colors.border,
-        backgroundColor: props.on ? taskTokens(props.theme).accentSoft : hovered ? colors.surface1 : "transparent",
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 5,
-      })}
-    >
-      <Icon name={props.icon} size={13} color={tint} />
-      {props.compact ? null : <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.base, fontWeight: "500", color: tint }}>{props.label}</Text>}
-    </HoverPressable>
-  );
-}
