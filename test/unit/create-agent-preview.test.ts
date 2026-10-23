@@ -459,26 +459,14 @@ describe("needs-permission card", () => {
     expect(text).not.toContain("<permission-request>");
   });
 
-  it("answers Allow through the host and then shows the decision", async () => {
+  it("shows a request without answering it: no buttons, a note naming where to answer", () => {
     host.agent = { status: "running", attentionReason: "permission" };
     act(() => { renderer = TestRenderer.create(preview(permissionView())); });
-    const allow = renderer!.root.findByProps({ testID: "permission-allow" });
-    await act(async () => allow.props.onPress());
-    expect(host.agents.ref).toHaveBeenLastCalledWith(agentId);
-    expect(host.respondToPermission).toHaveBeenLastCalledWith({ requestId: "perm-7", response: { behavior: "allow" } });
+    expect(textOf(renderer!.toJSON())).toContain("rm -rf out");
+    expect(textOf(renderer!.toJSON())).toContain("Answer it in the agent's own chat");
     expect(renderer!.root.findAllByProps({ testID: "permission-actions" })).toHaveLength(0);
-    expect(textOf(renderer!.toJSON())).toContain("Permission allowed - by you");
-  });
-
-  it("keeps the buttons after a failed answer and reports it", async () => {
-    host.agent = { status: "running", attentionReason: "permission" };
-    host.respondToPermission.mockRejectedValueOnce(new Error("request expired"));
-    act(() => { renderer = TestRenderer.create(preview(permissionView())); });
-    await act(async () => renderer!.root.findByProps({ testID: "permission-deny" }).props.onPress());
-    expect(host.respondToPermission).toHaveBeenLastCalledWith({ requestId: "perm-7",
-      response: { behavior: "deny", message: "Denied by user" } });
-    expect(clipboard.error).toHaveBeenLastCalledWith("request expired");
-    expect(renderer!.root.findByProps({ testID: "permission-actions" })).toBeDefined();
+    expect(renderer!.root.findAllByProps({ testID: "permission-allow" })).toHaveLength(0);
+    expect(host.respondToPermission).not.toHaveBeenCalled();
   });
 
   function questionView() {
@@ -490,44 +478,22 @@ describe("needs-permission card", () => {
       agentMessage: { event: "permission-required", sender: { id: agentId, title: "Builder" }, text } });
   }
 
-  it("draws a question as options and submits the picked answer the way Paseo's form does", async () => {
+  it("draws a question's options read-only, even while the agent waits", () => {
     host.agent = { status: "running", attentionReason: "permission" };
     act(() => { renderer = TestRenderer.create(preview(questionView())); });
     const text = textOf(renderer!.toJSON());
     expect(text).toContain("按此计划实施？");
+    expect(text).toContain("调整计划");
+    expect(text).toContain("Answer it in the agent's own chat");
     expect(text).not.toContain('"questions"');
-    const submit = () => renderer!.root.findByProps({ testID: "permission-submit" });
-    expect(submit().props.disabled).toBe(true);
-    act(() => renderer!.root.findByProps({ testID: "permission-option-0-1" }).props.onPress());
-    expect(submit().props.disabled).toBe(false);
-    await act(async () => submit().props.onPress());
-    expect(host.respondToPermission).toHaveBeenLastCalledWith({ requestId: "permission-q1", response: { behavior: "allow",
-      updatedInput: { questions: expect.any(Array), answers: { "Question 1": "调整计划" } } } });
-    expect(textOf(renderer!.toJSON())).toContain("Answered - by you");
-    expect(renderer!.root.findAllByProps({ testID: "permission-submit" })).toHaveLength(0);
-  });
-
-  it("lets typed text replace a single pick, and dismisses as a deny", async () => {
-    host.agent = { status: "running", attentionReason: "permission" };
-    act(() => { renderer = TestRenderer.create(preview(questionView())); });
-    act(() => renderer!.root.findByProps({ testID: "permission-option-0-0" }).props.onPress());
-    act(() => renderer!.root.findByProps({ testID: "permission-other-0" }).props.onChangeText("先拆小"));
-    expect(renderer!.root.findByProps({ testID: "permission-option-0-0" }).props.accessibilityState.checked).toBe(false);
-    await act(async () => renderer!.root.findByProps({ testID: "permission-dismiss" }).props.onPress());
-    expect(host.respondToPermission).toHaveBeenLastCalledWith({ requestId: "permission-q1",
-      response: { behavior: "deny", message: "Dismissed by user" } });
-    expect(textOf(renderer!.toJSON())).toContain("Dismissed - by you");
-  });
-
-  it("keeps a question read-only once the agent stops waiting", () => {
-    host.agent = { status: "idle", attentionReason: null };
-    act(() => { renderer = TestRenderer.create(preview(questionView())); });
-    expect(renderer!.root.findByProps({ testID: "permission-option-0-0" }).props.disabled).toBe(true);
-    expect(renderer!.root.findAllByProps({ testID: "permission-actions" })).toHaveLength(0);
+    expect(renderer!.root.findByProps({ testID: "permission-option-0-0" }).props.onPress).toBeUndefined();
     expect(renderer!.root.findAllByProps({ testID: "permission-other-0" })).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ testID: "permission-submit" })).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ testID: "permission-dismiss" })).toHaveLength(0);
+    expect(host.respondToPermission).not.toHaveBeenCalled();
   });
 
-  it("offers the provider's own actions and sends the picked one", async () => {
+  it("shows a plan request without the provider's buttons", () => {
     host.agent = { status: "running", attentionReason: "permission" };
     const text = `Agent ${agentId} (Builder) needs permission.\n\n<permission-request>\n${JSON.stringify({ agentId, requestId: "plan-1",
       request: { id: "plan-1", kind: "plan", name: "ExitPlanMode", title: "Plan", input: { plan: "## Ship it" },
@@ -536,22 +502,18 @@ describe("needs-permission card", () => {
       agentMessage: { event: "permission-required", sender: { id: agentId, title: "Builder" }, text } });
     act(() => { renderer = TestRenderer.create(preview(view)); });
     expect(textOf(renderer!.toJSON())).toContain("Ship it");
-    await act(async () => renderer!.root.findByProps({ testID: "permission-action-implement" }).props.onPress());
-    expect(host.respondToPermission).toHaveBeenLastCalledWith({ requestId: "plan-1", response: { behavior: "allow", selectedActionId: "implement" } });
-    expect(textOf(renderer!.toJSON())).toContain("Implement - by you");
+    expect(renderer!.root.findAllByProps({ testID: "permission-action-implement" })).toHaveLength(0);
   });
 
-  it("answers a question straight from list_pending_permissions", async () => {
+  it("lists a pending question from list_pending_permissions without a form", () => {
     host.agent = { status: "running", attentionReason: "permission" };
     const view = classifyTool({ name: "paseo.list_pending_permissions", status: "completed", callId: "pending", detail: { type: "unknown",
       input: {}, output: { permissions: [{ agentId, status: "pending", request: { id: "q9", kind: "question", name: "request_user_input_async",
         title: "Question", input: { questions: [{ id: "0", header: "Question 1", question: "Merge now?", options: [{ label: "Merge" }] }] } } }] } } });
     act(() => { renderer = TestRenderer.create(preview(view)); });
     expect(textOf(renderer!.toJSON())).toContain("Merge now?");
-    act(() => renderer!.root.findByProps({ testID: "permission-option-0-0" }).props.onPress());
-    await act(async () => renderer!.root.findByProps({ testID: "permission-submit" }).props.onPress());
-    expect(host.respondToPermission).toHaveBeenLastCalledWith({ requestId: "q9", response: { behavior: "allow",
-      updatedInput: { questions: expect.any(Array), answers: { "Question 1": "Merge" } } } });
+    expect(textOf(renderer!.toJSON())).toContain("Answer it in the agent's own chat");
+    expect(renderer!.root.findAllByProps({ testID: "permission-submit" })).toHaveLength(0);
   });
 
   it("draws the provider catalog as rows, not JSON", () => {
@@ -563,13 +525,6 @@ describe("needs-permission card", () => {
     expect(text).toContain("UI work");
     expect(text).not.toContain('"profiles"');
     expect(renderer!.root.findAllByProps({ name: "Palette" }).length).toBeGreaterThan(0);
-  });
-
-  it("offers no buttons once the agent no longer waits", () => {
-    host.agent = { status: "running", attentionReason: null };
-    act(() => { renderer = TestRenderer.create(preview(permissionView())); });
-    expect(renderer!.root.findAllByProps({ testID: "permission-actions" })).toHaveLength(0);
-    expect(textOf(renderer!.toJSON())).toContain("rm -rf out");
   });
 });
 
