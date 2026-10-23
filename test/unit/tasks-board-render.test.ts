@@ -1101,6 +1101,63 @@ describe("Tasks board, desktop", () => {
     layOut(1600);
     expect(cards()[0]!.props.onOpen).toBeUndefined();
   });
+
+  it("says under each lane how many of its cards the filters hide, and which filters are on", () => {
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: { provider: string }[] }> } }).__handle;
+    const hiddenIn = (lane: string) => handle.lanes[lane]!.cards.filter((card) => card.provider !== "codex").length;
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(1600);
+    expect(LANE_ORDER.flatMap((lane) => hostsById(`lane-filter-hint-${lane}`))).toHaveLength(0);
+    act(() => renderer!.unmount());
+
+    act(() => {
+      renderer = TestRenderer.create(screen(false, { agent: "codex", sub: "1" }));
+    });
+    layOut(1600);
+    expect(hiddenIn("needs_input")).toBeGreaterThan(0);
+    for (const lane of LANE_ORDER) {
+      const hints = hostsById(`lane-filter-hint-${lane}`);
+      if (hiddenIn(lane) === 0) {
+        expect(hints).toHaveLength(0);
+        continue;
+      }
+      expect(hints).toHaveLength(1);
+      expect(textOf(hints[0]!)).toBe(`${hiddenIn(lane)} hidden by filters` + "Agent: Codex \u00b7 Hide subtasks");
+    }
+    act(() => renderer!.unmount());
+
+    // The phone's lanes say it too.
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    act(() => {
+      renderer = TestRenderer.create(screen(true, { agent: "codex" }));
+    });
+    expect(textOf(hostsById("lane-filter-hint-needs_input")[0]!)).toBe(`${hiddenIn("needs_input")} hidden by filtersAgent: Codex`);
+  });
+
+  it("updates a lane's hidden count when only a filtered-out card changes, drawing no other lane", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false, { agent: "codex" }));
+    });
+    layOut(2400);
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: { id: string; provider: string }[] }> } }).__handle;
+    const original = handle.lanes;
+    const review = original.review!;
+    const hint = () => hostsById("lane-filter-hint-review").map((node) => textOf(node));
+    const before = review.cards.filter((card) => card.provider !== "codex").length;
+    try {
+      const extra = { ...review.cards.find((card) => card.provider !== "codex")!, id: "sample-extra-review" };
+      handle.lanes = { ...original, review: { ...review, cards: [...review.cards, extra] } };
+      const rows = host.rowRenders;
+      act(() => renderer!.update(screen(false, { agent: "codex" })));
+      expect(hint()).toEqual([`${before + 1} hidden by filtersAgent: Codex`]);
+      // Only the review lane drew again, and it shows no more cards than before.
+      expect(host.rowRenders - rows).toBe(review.cards.length - before);
+    } finally {
+      handle.lanes = original;
+    }
+  });
 });
 
 describe("Tasks board, sorting", () => {

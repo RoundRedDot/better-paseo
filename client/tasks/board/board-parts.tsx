@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, type ReactNode } from "react";
+import React, { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, Platform, Pressable, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -9,8 +9,9 @@ import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { TaskCardView, taskTokens, type CardCallbacks } from "../cards";
 import { tipProps } from "../cards/card-hints";
-import type { TaskCard } from "../model";
+import type { LaneId, TaskCard } from "../model";
 import { GLYPH_LINE, HAIRLINE, MOTION } from "./board-style";
+import { buildFilterOptions, filterSummary } from "./filter-options";
 import type { BoardStrings } from "./strings";
 import type { BoardController } from "./use-board";
 import { useCardMotion } from "./lane-motion";
@@ -203,6 +204,27 @@ export function SkeletonCard({ theme, opacity, index }: { theme: PluginTheme; op
 }
 
 /** "Showing 50 · Load more", or "Loading" while the next page is on its way. */
+/**
+ * Under a lane's cards, in its own blank space: how many of the lane's cards
+ * the filters leave out, and which filters are on. The sidebar's counts and
+ * the lane header's count then differ for a reason the lane names.
+ */
+export function LaneFilterHint({ board, lane, count, theme }: { board: BoardController; lane: LaneId; count: number; theme: PluginTheme }) {
+  const { tasks, params, defaults, strings } = board;
+  const summary = useMemo(() => (count > 0 ? filterSummary(params, defaults, buildFilterOptions(tasks, params), strings) : ""), [count, tasks, params, defaults, strings]);
+  if (count === 0) return null;
+  const muted = theme.colors.foregroundMuted;
+  return (
+    <View testID={`lane-filter-hint-${lane}`} style={{ alignItems: "center", gap: 2, paddingTop: 12, paddingHorizontal: 12 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+        <Icon name="ListFilter" size={12} color={muted} />
+        <Text style={{ fontSize: F.sm, color: muted, fontVariant: ["tabular-nums"] }}>{strings.laneHidden(count)}</Text>
+      </View>
+      {summary ? <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: muted, opacity: 0.8, textAlign: "center" }}>{summary}</Text> : null}
+    </View>
+  );
+}
+
 export function LoadMoreRow(props: {
   shown: number;
   /** The sort reaches only the loaded pages: say so instead of the plain count. */
