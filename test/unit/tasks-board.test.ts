@@ -34,7 +34,7 @@ import {
   laneLayout,
   type LaneShape,
 } from "../../client/tasks/board/navigation";
-import { activeChips, buildFilterOptions, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, projectOptions, shownFilterOptions, toggleProject, type ChipGroup } from "../../client/tasks/board/filter-options";
+import { activeChips, buildFilterOptions, searchWorkspaceGroups, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, projectOptions, shownFilterOptions, toggleProject, type ChipGroup } from "../../client/tasks/board/filter-options";
 import { boardPalette, buttonOutline, cubicBezier } from "../../client/tasks/board/board-style";
 import { restoredStops, withStopReasons } from "../../client/tasks/board/use-board";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -280,6 +280,18 @@ function handle(): TasksHandle {
 }
 
 describe("filter options", () => {
+  it("keeps the workspaces whose name and project name hold every word of a search", () => {
+    const item = (id: string, label: string) => ({ id, label, count: 0, on: false });
+    const group = (projectId: string, projectName: string, items: ReturnType<typeof item>[]) => ({ projectId, projectName, projectKey: null, projectIcon: null, projectPath: null, items });
+    const groups = [group("pay", "payments-svc", [item("a", "main"), item("b", "fix/refund")]), group("web", "web-app", [item("c", "main")])];
+    const kept = (query: string) => searchWorkspaceGroups(groups, query).map((g) => `${g.projectId}:${g.items.map((i) => i.id).join(",")}`);
+    expect(searchWorkspaceGroups(groups, "  ")).toBe(groups);
+    expect(kept("PAYMENTS")).toEqual(["pay:a,b"]);
+    expect(kept("main")).toEqual(["pay:a", "web:c"]);
+    expect(kept("web main")).toEqual(["web:c"]);
+    expect(kept("refund web")).toEqual([]);
+  });
+
   it("groups workspaces by project and counts active cards", () => {
     const options = buildFilterOptions(handle(), { ...EMPTY_PARAMS, providers: ["codex", "gone"] });
     expect(options.workspaceGroups.map((group) => group.projectName)).toEqual(["better-paseo", "paseo"]);
