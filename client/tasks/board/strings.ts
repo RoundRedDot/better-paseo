@@ -74,6 +74,8 @@ const en = {
   noOptions: "Nothing to filter yet",
   /** The search field atop the project and workspace menus. */
   menuSearch: { placeholder: "Search", clear: "Clear search", empty: "No matches" },
+  /** The search field atop the phone sheet's workspaces. */
+  sheetSearch: "Search projects and workspaces",
   details: "Details",
   stoppedManually: "Stopped manually",
   closeMenu: "Close menu",
@@ -220,6 +222,7 @@ const zh: typeof en = {
   laneHidden: (count) => `${count} 个任务被筛选隐藏`,
   noOptions: "暂无可筛选的项",
   menuSearch: { placeholder: "搜索", clear: "清空搜索", empty: "没有匹配项" },
+  sheetSearch: "搜索项目或 Workspace",
   details: "详情",
   stoppedManually: "已手动停止",
   closeMenu: "关闭菜单",

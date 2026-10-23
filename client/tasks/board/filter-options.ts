@@ -2,6 +2,7 @@ import type { TasksHandle } from "../data";
 import { fallbackLabelColor } from "../label-colors";
 import { LANE_ORDER, isHistoryLane } from "../model";
 import { toggleItem, type BoardDefaults, type BoardParams } from "./params";
+import { matchesSearch, searchWords } from "./search";
 import type { BoardStrings } from "./strings";
 
 /** One choice in a filter menu or the phone sheet; `count` counts active (not done) cards. */
@@ -169,6 +170,21 @@ export function shownFilterOptions(options: FilterOptions, showEmpty: boolean): 
     agents: options.agents.filter(busy),
     labels: options.labels.filter(busy),
   };
+}
+
+/**
+ * The workspace groups the phone sheet's search keeps, as the workspace
+ * menu's search does: the workspaces whose name and project name together
+ * hold every word, so a project's name keeps its whole group. A group left
+ * without workspaces drops out; a blank query keeps everything.
+ */
+export function searchWorkspaceGroups(groups: FilterOptions["workspaceGroups"], query: string): FilterOptions["workspaceGroups"] {
+  const words = searchWords(query);
+  if (words.length === 0) return groups;
+  return groups.flatMap((group) => {
+    const items = group.items.filter((item) => matchesSearch([group.projectName, item.label], words));
+    return items.length ? [{ ...group, items }] : [];
+  });
 }
 
 /** An applied filter as a removable chip on the desktop filter bar. */

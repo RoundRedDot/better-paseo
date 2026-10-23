@@ -1,6 +1,6 @@
-import React, { useState, type ReactNode } from "react";
-import { Pressable, View } from "react-native";
-import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
+import React, { useRef, useState, type ReactNode } from "react";
+import { Platform, Pressable, View, type LayoutChangeEvent, type ScrollView as NativeScrollView } from "react-native";
+import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
@@ -8,7 +8,7 @@ import { BrandMark, ProjectIcon, TagMark, taskTokens } from "../cards";
 import { Segments, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { SwitchTrack } from "../../ui/switch-track";
-import { clearedParams, shownFilterOptions, type FilterOption, type FilterOptions } from "./filter-options";
+import { clearedParams, searchWorkspaceGroups, shownFilterOptions, type FilterOption, type FilterOptions } from "./filter-options";
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { resolveBoardParams, toggleItem } from "./params";
 import { SORT_GROUPS, SORT_ICONS, sortDirectionIcon, sortDirections } from "./board-menus";
@@ -20,9 +20,9 @@ import type { BoardController } from "./use-board";
  * The phone's filters (prototype 04 sheet), drawn inside the host's bottom
  * sheet as a bounded body (`Modal.Content scrollable={false}`): the options
  * scroll, Reset and "Show N tasks" stay pinned under them. The short
- * filters come first; the workspaces, often dozens, come last. With
- * `board.showEmptyGroups` off, only the options with an active task or
- * picked are listed.
+ * filters come first; the workspaces, often dozens, come last, under a
+ * search field. With `board.showEmptyGroups` off, only the options with an
+ * active task or picked are listed.
  */
 export function FilterSheetBody(props: {
   board: BoardController;
@@ -46,6 +46,16 @@ export function FilterSheetBody(props: {
   const resolved = resolveBoardParams(board.params, defaults);
   const shown = shownFilterOptions(options, board.showEmptyGroups);
   useRequestProjectIcons(iconlessProjects(shown.workspaceGroups), board.tasks.requestProjectIcon);
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const scrollRef = useRef<NativeScrollView>(null);
+  // Where the workspaces start in the scroll, and the scroller's height.
+  const [workspacesY, setWorkspacesY] = useState(0);
+  const [viewport, setViewport] = useState(0);
+  const groups = searchWorkspaceGroups(shown.workspaceGroups, query);
+  // While searching, the workspaces fill the scroller at least, so their field
+  // can stay at its top above the keyboard however few rows match.
+  const holdTop = searching || query.trim() !== "";
   const sort = (
     <View testID="filter-sheet-sort">
       <SectionTitle text={strings.sort} theme={theme} first={sortFirst} />
@@ -54,7 +64,13 @@ export function FilterSheetBody(props: {
   );
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
-      <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" testID="filter-sheet-scroll">
+      <ScrollView
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled"
+        onLayout={(event: LayoutChangeEvent) => setViewport(event.nativeEvent.layout.height)}
+        testID="filter-sheet-scroll"
+      >
         <View style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4, paddingBottom: 8 }}>
           {sortFirst ? <View style={{ paddingBottom: 8 }}>{sort}</View> : null}
           <ToggleRow
@@ -110,10 +126,30 @@ export function FilterSheetBody(props: {
             </>
           ) : null}
           {sortFirst ? null : sort}
-          <View testID="filter-sheet-workspaces">
+          <View
+            testID="filter-sheet-workspaces"
+            onLayout={(event: LayoutChangeEvent) => setWorkspacesY(event.nativeEvent.layout.y)}
+            style={holdTop && viewport > 0 ? { minHeight: viewport } : undefined}
+          >
             <SectionTitle text={strings.workspace} theme={theme} />
             {shown.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
-            {shown.workspaceGroups.map((group, index) => (
+            {shown.workspaceGroups.length > 0 ? (
+              <SheetSearch
+                value={query}
+                onChange={setQuery}
+                placeholder={strings.sheetSearch}
+                clear={strings.menuSearch.clear}
+                theme={theme}
+                // The keyboard covers the sheet's lower half, where the workspaces sit: bring the field to the top.
+                onFocus={() => {
+                  setSearching(true);
+                  setTimeout(() => scrollRef.current?.scrollTo({ y: workspacesY, animated: true }), 0);
+                }}
+                onBlur={() => setSearching(false)}
+              />
+            ) : null}
+            {shown.workspaceGroups.length > 0 && groups.length === 0 ? <Muted text={strings.menuSearch.empty} theme={theme} /> : null}
+            {groups.map((group, index) => (
               <View key={group.projectId || "missing"}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: index === 0 ? 0 : 10, paddingBottom: 6 }}>
                   {group.projectId ? <ProjectIcon location={group} size={16} hostId={board.hostId} /> : null}
@@ -151,6 +187,46 @@ export function FilterSheetBody(props: {
           <Text style={{ fontSize: F.base, fontWeight: "600", color: colors.accentForeground, fontVariant: ["tabular-nums"] }}>{strings.show(board.total)}</Text>
         </Pressable>
       </View>
+    </View>
+  );
+}
+
+/** The workspaces' search: the board's own search field, a pill with a search glyph and an X while it holds text. */
+function SheetSearch(props: { value: string; onChange(text: string): void; placeholder: string; clear: string; theme: PluginTheme; onFocus(): void; onBlur(): void }) {
+  const colors = props.theme.colors;
+  const scale = useTasksFontScale();
+  return (
+    <View
+      testID="filter-sheet-search"
+      style={{ minHeight: 36, marginBottom: 10, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 18 }}
+    >
+      <Icon name="Search" size={15} color={colors.foregroundMuted} />
+      <TextInput
+        value={props.value}
+        onChangeText={props.onChange}
+        onFocus={props.onFocus}
+        onBlur={props.onBlur}
+        placeholder={props.placeholder}
+        placeholderTextColor={colors.foregroundMuted}
+        accessibilityLabel={props.placeholder}
+        autoCorrect={false}
+        autoCapitalize="none"
+        returnKeyType="search"
+        style={{
+          flex: 1,
+          minWidth: 0,
+          padding: 0,
+          fontSize: Math.round(F.base * scale),
+          color: colors.foreground,
+          // The pill is the field's frame: no focus ring inside it.
+          ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null),
+        }}
+      />
+      {props.value ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={props.clear} testID="filter-sheet-search-clear" hitSlop={10} onPress={() => props.onChange("")}>
+          <Icon name="X" size={15} color={colors.foregroundMuted} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }

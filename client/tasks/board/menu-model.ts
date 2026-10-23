@@ -3,6 +3,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { mix } from "../../components/theme-tokens";
 import { themeKey } from "../../ui/tokens/theme-key";
 import { HOST_FONT } from "../type-ramp";
+import { matchesSearch, searchWords } from "./search";
 
 /**
  * The board's menus, after Linear's (measured at 2x on its light theme):
@@ -157,14 +158,10 @@ export function menuSearchHeight(scale = 1): number {
  * everything.
  */
 export function filterMenuSections(sections: readonly MenuSection[], query: string): MenuSection[] {
-  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const words = searchWords(query);
   if (words.length === 0) return [...sections];
   return sections.flatMap((section) => {
-    const items = section.items.filter((item) => {
-      if (item.disabled) return false;
-      const text = [section.title, item.label, item.detail].filter(Boolean).join(" ").toLowerCase();
-      return words.every((word) => text.includes(word));
-    });
+    const items = section.items.filter((item) => !item.disabled && matchesSearch([section.title, item.label, item.detail], words));
     return items.length ? [{ ...section, items }] : [];
   });
 }
