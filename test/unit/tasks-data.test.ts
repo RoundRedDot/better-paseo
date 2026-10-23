@@ -686,6 +686,22 @@ describe("Tasks data store", () => {
     }
   });
 
+  it("offers every label Paseo defines or a workspace carries, a card or not", async () => {
+    const host = createFakePaseo({
+      agents: [activeAgent("a", { status: "running" })],
+      workspaces: [workspace(["bug"])],
+      projects: [PROJECT],
+      withLabelsAndIcons: true,
+      labels: [{ name: "bug", color: "red" }, { name: "spare", color: "red" }],
+    });
+    const mounted = await mountTasks(host, "24h", false);
+    try {
+      expect(mounted.current.labels).toEqual([{ name: "bug", color: "#9c4243" }, { name: "spare", color: "#9c4243" }]);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("gives the workspace options their project's key and loaded icon, so filter rows match the cards", async () => {
     const host = createFakePaseo({
       agents: [activeAgent("a", { status: "running" })],

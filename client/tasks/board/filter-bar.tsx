@@ -6,7 +6,7 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskCon
 import { taskTokens } from "../cards";
 import { HoverPressable, WindowSegments, RoundButton, SlashMark } from "./board-parts";
 import { HAIRLINE } from "./board-style";
-import { FILTER_ICONS, activeChips, clearedParams, groupChips, isChipGroup, projectOptions, toggleProject, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
+import { FILTER_ICONS, activeChips, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, shownFilterOptions, toggleProject, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
 import { sortLabel } from "./strings";
 import { agentMenuSections, chipGroupMenuSections, labelMenuSections, laneWidthMenuSections, projectMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
@@ -106,6 +106,16 @@ export function DesktopToolbar(props: {
           testID="toolbar-archived"
         />
       ) : null}
+      {props.filters ? (
+        <RoundButton
+          icon={emptyGroupsIcon(board.showEmptyGroups)}
+          label={strings.emptyGroups.row}
+          selected={board.showEmptyGroups}
+          theme={theme}
+          onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
+          testID="toolbar-empty-groups"
+        />
+      ) : null}
       {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} testID="toolbar-filters" /> : null}
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
     </View>
@@ -146,11 +156,12 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
 }
 
 /**
- * The archived lane's switch in the filter bar: the phone header's round
- * Archive button at the bar's size. Only the icon tells on from off: it is
- * struck through while the lane is hidden; the outline stays the same.
+ * A board-wide switch in the filter bar: the headers' round button at the
+ * bar's size. Only the icon tells on from off, the outline stays the same:
+ * the archived lane's Archive is struck through while the lane is hidden,
+ * the empty groups' trades its icon (`EMPTY_GROUPS_ICONS`).
  */
-function ArchivedSwitch(props: { on: boolean; onPress(): void; label: string; hint: string; theme: PluginTheme }) {
+function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: string; hint: string; theme: PluginTheme; slashed?: boolean; testID: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   const size = taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
@@ -168,7 +179,7 @@ function ArchivedSwitch(props: { on: boolean; onPress(): void; label: string; hi
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
       hitSlop={Platform.OS === "web" ? 0 : 4}
-      testID="archived-lane-toggle"
+      testID={props.testID}
       style={{
         width: size,
         height: size,
@@ -181,8 +192,8 @@ function ArchivedSwitch(props: { on: boolean; onPress(): void; label: string; hi
         justifyContent: "center",
       }}
     >
-      <Icon name="Archive" size={icon} color={colors.foreground} />
-      {props.on ? null : <SlashMark size={icon} color={colors.foreground} gap={background} />}
+      <Icon name={props.icon} size={icon} color={colors.foreground} />
+      {props.slashed ? <SlashMark size={icon} color={colors.foreground} gap={background} /> : null}
     </Pressable>
   );
 }
@@ -270,8 +281,9 @@ export function DesktopFilterBar(props: {
   const [unfolded, setUnfolded] = useState(false);
   const togglesOn = (resolved.filters.openTabsOnly ? 1 : 0) + (resolved.filters.hideSubtasks ? 1 : 0);
   const showToggles = !folds || unfolded;
+  const shown = shownFilterOptions(options, board.showEmptyGroups);
   const words = {
-    project: strings.project + count(projectOptions(options).filter((project) => project.on)),
+    project: strings.project + count(shown.projects.filter((project) => project.on)),
     workspace: strings.workspace + count(params.workspaceIds),
     agent: strings.agent + count(params.providers),
     label: strings.labels + count(params.labels),
@@ -311,7 +323,7 @@ export function DesktopFilterBar(props: {
         <View testID="filter-bar-controls" onLayout={fit.box("controls")} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 1 }}>
           <MenuButton icon={FILTER_ICONS.project} label={words.project} compact={compact} open={menu === "project"} onPress={() => toggle("project")} theme={theme}>
             <CascadeMenu
-              sections={projectMenuSections(options, strings, board.hostId, (project) => setParams((p) => toggleProject(p, project)))}
+              sections={projectMenuSections(shown, strings, board.hostId, (project) => setParams((p) => toggleProject(p, project)))}
               theme={theme}
               width={260}
               top={taskControlHeight(28, scale) + 6}
@@ -321,7 +333,7 @@ export function DesktopFilterBar(props: {
           </MenuButton>
           <MenuButton icon={FILTER_ICONS.workspace} label={words.workspace} compact={compact} open={menu === "workspace"} onPress={() => toggle("workspace")} theme={theme}>
             <CascadeMenu
-              sections={workspaceMenuSections(options, theme, strings, board.hostId, (id) => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, id) })))}
+              sections={workspaceMenuSections(shown, theme, strings, board.hostId, (id) => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, id) })))}
               theme={theme}
               width={300}
               top={taskControlHeight(28, scale) + 6}
@@ -331,7 +343,7 @@ export function DesktopFilterBar(props: {
           </MenuButton>
           <MenuButton icon={FILTER_ICONS.agent} label={words.agent} compact={compact} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
             <CascadeMenu
-              sections={agentMenuSections(options, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) })))}
+              sections={agentMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) })))}
               theme={theme}
               width={200}
               top={taskControlHeight(28, scale) + 6}
@@ -341,7 +353,7 @@ export function DesktopFilterBar(props: {
           </MenuButton>
           <MenuButton icon={FILTER_ICONS.label} label={words.label} compact={compact} open={menu === "label"} onPress={() => toggle("label")} theme={theme}>
             <CascadeMenu
-              sections={labelMenuSections(options, theme, strings, (id) => setParams((p) => ({ ...p, labels: toggleItem(p.labels, id) })))}
+              sections={labelMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, labels: toggleItem(p.labels, id) })))}
               theme={theme}
               width={200}
               top={taskControlHeight(28, scale) + 6}
@@ -427,12 +439,24 @@ export function DesktopFilterBar(props: {
           theme={theme}
           strings={strings}
         />
-        <ArchivedSwitch
+        <BarSwitch
+          icon="Archive"
           on={board.showArchived}
+          slashed={!board.showArchived}
           onPress={() => board.setShowArchived(!board.showArchived)}
           label={strings.archivedLane.row}
           hint={strings.archivedLane.hint}
           theme={theme}
+          testID="archived-lane-toggle"
+        />
+        <BarSwitch
+          icon={emptyGroupsIcon(board.showEmptyGroups)}
+          on={board.showEmptyGroups}
+          onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
+          label={strings.emptyGroups.row}
+          hint={strings.emptyGroups.hint(board.showEmptyGroups)}
+          theme={theme}
+          testID="empty-groups-toggle"
         />
         <Divider theme={theme} />
         <MenuButton

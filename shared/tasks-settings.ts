@@ -167,8 +167,15 @@ export const tasksSettingsSchema = z.object({
        * asks the daemon for no archived agent.
        */
       showArchived: flag(false),
+      /**
+       * The filter menus, the filter sheet and the sidebar's groups list
+       * every agent, project, workspace and label Paseo has, a count of 0
+       * where no active task has it. Off, they list only those with one (or
+       * picked). On by default.
+       */
+      showEmptyGroups: flag(true),
     })
-    .catch({ doneWindow: "24h", hideSubtasks: false, confirmStop: true, laneWidth: "default", showArchived: false }),
+    .catch({ doneWindow: "24h", hideSubtasks: false, confirmStop: true, laneWidth: "default", showArchived: false, showEmptyGroups: true }),
   sidebar: z.object({ count: z.enum(SIDEBAR_COUNTS).catch("all") }).catch({ count: "all" }),
 });
 

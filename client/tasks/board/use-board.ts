@@ -41,6 +41,10 @@ export interface BoardController {
   showArchived: boolean;
   /** Saves `board.showArchived`, as `setLaneWidth` saves the width. */
   setShowArchived(on: boolean): void;
+  /** The filters and the sidebar's groups list those with no active task too: the setting, or the switch just pressed while it saves. */
+  showEmptyGroups: boolean;
+  /** Saves `board.showEmptyGroups`, as `setShowArchived` saves its switch. */
+  setShowEmptyGroups(on: boolean): void;
   params: BoardParams;
   setParams(update: (params: BoardParams) => BoardParams): void;
   defaults: BoardDefaults;
@@ -207,6 +211,10 @@ export function useBoard(
   const savedArchived = settings.board.showArchived;
   useEffect(() => setPickedArchived(null), [savedArchived]);
   const showArchived = pickedArchived ?? savedArchived;
+  const [pickedEmpty, setPickedEmpty] = useState<boolean | null>(null);
+  const savedEmpty = settings.board.showEmptyGroups;
+  useEffect(() => setPickedEmpty(null), [savedEmpty]);
+  const showEmptyGroups = pickedEmpty ?? savedEmpty;
   const settingsRef = useRef(settingsState);
   settingsRef.current = settingsState;
 
@@ -316,6 +324,18 @@ export function useBoard(
       latest.current.toast.error(latest.current.strings.archivedLane.saveFailed);
     });
   }, []);
+  const setShowEmptyGroups = useCallback((on: boolean) => {
+    const state = settingsRef.current;
+    if (state.status !== "ready") return;
+    setPickedEmpty(on);
+    const next = { ...state.values, board: { ...state.values.board, showEmptyGroups: on } };
+    void state.save(next, state.revision).then(async (saved) => {
+      if (saved) return;
+      setPickedEmpty(null);
+      await state.reload();
+      latest.current.toast.error(latest.current.strings.emptyGroups.saveFailed);
+    });
+  }, []);
   const toastMessage = useCallback((message: string) => latest.current.toast.show(message), []);
   const open = useCallback((agentId: string) => latest.current.props.navigation?.openAgent({ agentId }), []);
   const requestProjectIcon = useCallback((projectId: string) => latest.current.tasks.requestProjectIcon(projectId), []);
@@ -357,6 +377,8 @@ export function useBoard(
     setLaneWidth,
     showArchived,
     setShowArchived,
+    showEmptyGroups,
+    setShowEmptyGroups,
     params,
     setParams,
     defaults,

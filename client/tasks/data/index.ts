@@ -60,7 +60,7 @@ export interface TasksSnapshot {
   lanes: Record<LaneId, LaneModel>;
   counts: BoardCounts;
   byId: ReadonlyMap<string, TaskCard>;
-  /** Filter options: workspaces grouped by project, the providers enabled in Paseo (and any other on a card), and labels seen on cards. */
+  /** Filter options: workspaces grouped by project, the providers enabled in Paseo (and any other on a card), and the labels Paseo has (and any other on a card). */
   workspaces: WorkspaceOption[];
   providers: { id: string; label: string }[];
   labels: TaskLabel[];
@@ -1896,7 +1896,12 @@ function createStore(api: PaseoApi): TaskStore {
     }
     // Every enabled provider, then any other a card was run with (one disabled since).
     const providersById = new Map<string, string>(enabledProviders);
-    const labelsByName = new Map<string, TaskLabel>();
+    // Every label Paseo defines or a live workspace carries, then any other on a card.
+    const labelsByName = new Map<string, TaskLabel>([...colorNames].map(([name, color]) => [name, { name, color }]));
+    for (const workspace of workspaces.values()) {
+      if (workspace.archivingAt) continue;
+      for (const name of workspace.labels ?? []) if (!labelsByName.has(name)) labelsByName.set(name, { name, color: null });
+    }
     for (const card of filteredCards) {
       if (!providersById.has(card.provider)) providersById.set(card.provider, card.providerLabel);
       for (const label of card.labels) labelsByName.set(label.name, label);

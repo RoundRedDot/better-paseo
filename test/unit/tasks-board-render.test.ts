@@ -1200,6 +1200,52 @@ describe("Tasks board, tablet filters", () => {
     expect(renderer!.root.findAll((node) => node.props.testID === "toolbar-filters")).toHaveLength(0);
   });
 
+  it("lists the sidebar's groups with no active task until the bar's switch hides them, and saves it", async () => {
+    const handle = (data as unknown as { __handle: { providers: object[] } }).__handle;
+    const saved = handle.providers;
+    handle.providers = [...saved, { id: "pi", label: "Pi" }];
+    try {
+      (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+      act(() => {
+        renderer = TestRenderer.create(screen(false));
+      });
+      layOut(2400);
+      const toggle = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "empty-groups-toggle");
+      const icon = () => toggle().find((node) => (node.type as unknown) === "Icon").props.name;
+      const groups = () => renderer!.root.findByProps({ testID: "sidebar-groups" });
+      const rows = () => groups().findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function").map((node) => node.props.accessibilityLabel);
+      expect(toggle().props).toMatchObject({ accessibilityLabel: "Show groups with no active tasks", accessibilityState: { checked: true } });
+      expect(icon()).toBe("List");
+      // After the archived lane's switch, in the bar's end.
+      const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
+      expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["archived-lane-toggle", "empty-groups-toggle"]);
+      // Busy first, the empty ones after them.
+      expect(rows().at(-1)).toBe("Pi 0");
+      await act(async () => toggle().props.onPress());
+      expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showEmptyGroups: false } }, "1");
+      expect(toggle().props.accessibilityState).toEqual({ checked: false });
+      expect(icon()).toBe("ListFilter");
+      expect(rows()).not.toContain("Pi 0");
+      expect(rows().length).toBeGreaterThan(0);
+    } finally {
+      handle.providers = saved;
+    }
+  });
+
+  it("saves the empty groups' switch from a narrow board's header, beside the archived lane's", async () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(600);
+    const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && /^toolbar-/.test(node.props.testID ?? ""));
+    expect(buttons.map((node) => node.props.testID)).toEqual(["toolbar-archived", "toolbar-empty-groups", "toolbar-filters"]);
+    const button = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-empty-groups");
+    expect(button().props.accessibilityState).toEqual({ selected: true });
+    await act(async () => button().props.onPress());
+    expect(button().props.accessibilityState).toEqual({ selected: false });
+    expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showEmptyGroups: false } }, "1");
+  });
+
   it("keeps the archived lane's switch out of a narrow board's sheet, as a round button left of the filters", async () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
@@ -1233,9 +1279,10 @@ describe("Tasks board, tablet filters", () => {
     });
     layOut(800);
     const more = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-bar-more");
-    // The archived lane's switch is no filter: it stays in the bar, by the done window.
-    const switches = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch" && node.props.testID !== "archived-lane-toggle");
-    expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "archived-lane-toggle")).toHaveLength(1);
+    // The archived lane's and the empty groups' switches are no filters: they stay in the bar, by the done window.
+    const barSwitches = new Set(["archived-lane-toggle", "empty-groups-toggle"]);
+    const switches = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch" && !barSwitches.has(node.props.testID));
+    for (const id of barSwitches) expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === id)).toHaveLength(1);
     expect(textOf(renderer!.root)).toContain("Workspace");
     expect(switches()).toHaveLength(0);
     expect(more().props).toMatchObject({ accessibilityLabel: "More filters", accessibilityState: { expanded: false } });
@@ -1612,47 +1659,63 @@ describe("Tasks board, phone", () => {
     expect(switches().flatMap((node) => node.findAll((child) => (child.type as unknown) === "Icon" && child.props.name === "Check"))).toHaveLength(0);
   });
 
-  it("leads the filter sheet with the short filters, the workspaces last with the idle ones folded, Reset by its button", () => {
-    const handle = (data as unknown as { __handle: { workspaces: object[] } }).__handle;
-    const saved = handle.workspaces;
-    handle.workspaces = [...saved, { id: "wks_idle", name: "idle-branch", projectId: "prj_idle", projectName: "idle-project" }];
+  it("leads the filter sheet with the short filters, the workspaces last, Reset by its button", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    act(() => pressable("Filters").props.onPress());
+    const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
+    const text = textOf(scroll);
+    const at = (label: string) => text.indexOf(label);
+    expect(at("Open tabs only")).toBe(0);
+    expect(at("Hide subtasks")).toBeLessThan(at("Agent"));
+    expect(at("Agent")).toBeLessThan(at("Labels"));
+    expect(at("Labels")).toBeLessThan(at("Sort"));
+    expect(at("Sort")).toBeLessThan(at("Workspace"));
+    // Reset sits by the sheet's button, not on a row of its own over the options.
+    expect(scroll.findAll((node) => (node.type as unknown) === "Pressable" && textOf(node) === "Reset")).toHaveLength(0);
+    expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-reset")).toHaveLength(1);
+  });
+
+  it("lists the options with no active task in the filter sheet until the header's switch hides them, and saves it", async () => {
+    const handle = (data as unknown as { __handle: { workspaces: object[]; providers: object[]; labels: object[] } }).__handle;
+    const saved = { workspaces: handle.workspaces, providers: handle.providers, labels: handle.labels };
+    handle.workspaces = [...saved.workspaces, { id: "wks_idle", name: "idle-branch", projectId: "prj_idle", projectName: "idle-project" }];
+    handle.providers = [...saved.providers, { id: "pi", label: "Pi" }];
+    handle.labels = [...saved.labels, { name: "unused", color: null }];
     try {
       act(() => {
         renderer = TestRenderer.create(screen(true));
       });
+      const button = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "phone-empty-groups");
+      const icon = () => button().find((node) => (node.type as unknown) === "Icon").props.name;
+      // On by default: the whole list.
+      expect(button().props).toMatchObject({ accessibilityLabel: "Show groups with no active tasks", accessibilityState: { selected: true } });
+      expect(icon()).toBe("List");
       act(() => pressable("Filters").props.onPress());
-      const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
-      const text = textOf(scroll);
-      const at = (label: string) => text.indexOf(label);
-      expect(at("Open tabs only")).toBe(0);
-      expect(at("Hide subtasks")).toBeLessThan(at("Agent"));
-      expect(at("Agent")).toBeLessThan(at("Labels"));
-      expect(at("Labels")).toBeLessThan(at("Sort"));
-      expect(at("Sort")).toBeLessThan(at("Workspace"));
-      // Reset sits by the sheet's button, not on a row of its own over the options.
-      expect(scroll.findAll((node) => (node.type as unknown) === "Pressable" && textOf(node) === "Reset")).toHaveLength(0);
-      const reset = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-reset");
-      const workspaces = () => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-workspaces");
-      const chips = () => workspaces().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox");
-      const more = () => workspaces().findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-more-workspaces");
-      const shown = chips().map(textOf);
-      expect(shown.length).toBeGreaterThan(0);
-      expect(shown.every((chip) => !/0$/.test(chip))).toBe(true);
-      expect(more()).toHaveLength(1);
-      expect(textOf(more()[0]!)).toMatch(/^\d+ more workspaces? with nothing active$/);
-      act(() => more()[0]!.props.onPress());
-      expect(chips().length).toBeGreaterThan(shown.length);
-      expect(textOf(more()[0]!)).toBe("Show fewer");
-      // A picked idle workspace counts as busy: nothing is left to fold. Reset folds it again.
-      const idle = chips().find((chip) => /0$/.test(textOf(chip)))!;
-      act(() => idle.props.onPress());
-      expect(more()).toHaveLength(0);
-      expect(chips().map(textOf)).toContain("idle-branch0");
-      act(() => reset.props.onPress());
-      act(() => more()[0]!.props.onPress());
-      expect(chips().map(textOf)).toEqual(shown);
+      const sheet = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
+      const chips = () => sheet().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox").map(textOf);
+      expect(chips()).toEqual(expect.arrayContaining(["idle-branch0", "Pi", "unused0"]));
+      await act(async () => button().props.onPress());
+      expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showEmptyGroups: false } }, "1");
+      expect(button().props.accessibilityState).toEqual({ selected: false });
+      expect(icon()).toBe("ListFilter");
+      expect(chips().some((chip) => /^(idle-branch|Pi|unused)/.test(chip))).toBe(false);
+      expect(chips().every((chip) => !/\D0$/.test(chip))).toBe(true);
+      // A picked one stays, so it can be dropped.
+      act(() => renderer!.unmount());
+      host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showEmptyGroups: false } };
+      rememberBoardParams("host-1", { ...EMPTY_PARAMS, providers: ["pi"] });
+      act(() => {
+        renderer = TestRenderer.create(screen(true));
+      });
+      act(() => pressable("Filters").props.onPress());
+      expect(chips()).toContain("Pi");
+      expect(chips()).not.toContain("idle-branch0");
     } finally {
-      handle.workspaces = saved;
+      handle.workspaces = saved.workspaces;
+      handle.providers = saved.providers;
+      handle.labels = saved.labels;
     }
   });
 

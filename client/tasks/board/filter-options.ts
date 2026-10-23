@@ -132,18 +132,33 @@ export function distinctLabels(items: FilterOption[], workspaces: readonly { id:
   });
 }
 
+/** The options a menu, the filter sheet or the sidebar's groups list. */
+export interface ShownFilterOptions {
+  workspaceGroups: FilterOptions["workspaceGroups"];
+  projects: ProjectOption[];
+  agents: FilterOption[];
+  labels: FilterOption[];
+}
+
 /**
- * The phone sheet's workspaces, folded: those with an active task or picked,
- * in their projects, and how many others are left out.
+ * What to list of the options: every one with `board.showEmptyGroups` on;
+ * off, those with an active task or picked, and a project left with none
+ * drops out. Projects come from the full options, so picking one still picks
+ * the workspaces that are not listed.
  */
-export function busyWorkspaceGroups(groups: FilterOptions["workspaceGroups"]): { groups: FilterOptions["workspaceGroups"]; hidden: number } {
-  let hidden = 0;
-  const busy = groups.flatMap((group) => {
-    const items = group.items.filter((item) => item.count > 0 || item.on);
-    hidden += group.items.length - items.length;
-    return items.length ? [{ ...group, items }] : [];
-  });
-  return { groups: busy, hidden };
+export function shownFilterOptions(options: FilterOptions, showEmpty: boolean): ShownFilterOptions {
+  const projects = projectOptions(options);
+  if (showEmpty) return { workspaceGroups: options.workspaceGroups, projects, agents: options.agents, labels: options.labels };
+  const busy = (option: FilterOption) => option.count > 0 || option.on;
+  return {
+    workspaceGroups: options.workspaceGroups.flatMap((group) => {
+      const items = group.items.filter(busy);
+      return items.length ? [{ ...group, items }] : [];
+    }),
+    projects: projects.filter(busy),
+    agents: options.agents.filter(busy),
+    labels: options.labels.filter(busy),
+  };
 }
 
 /** An applied filter as a removable chip on the desktop filter bar. */
@@ -171,6 +186,17 @@ export const FILTER_ICONS: Readonly<Record<FilterUnit, string>> = {
   workspace: "FolderGit2",
   label: "Tag",
 };
+
+/**
+ * The empty groups' switch draws its state as its icon: the whole list while
+ * groups without an active task show, Lucide's narrowing list while they
+ * are left out.
+ */
+export const EMPTY_GROUPS_ICONS = { shown: "List", hidden: "ListFilter" } as const;
+
+export function emptyGroupsIcon(showEmpty: boolean): string {
+  return showEmpty ? EMPTY_GROUPS_ICONS.shown : EMPTY_GROUPS_ICONS.hidden;
+}
 
 /** Several chips of one filter as one "3 projects selected" chip; its menu lists them. */
 export interface ChipGroup {
