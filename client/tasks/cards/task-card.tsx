@@ -1644,7 +1644,8 @@ interface StopControlProps {
  * Stop, its confirm state, and a parent's "only this / with subtasks" menu:
  * the details sidebar's stop button at a card button's size ("Answer"'s 28,
  * radius 6), a rounded rectangle led by Lucide's Power. At rest a danger tint with danger text and outline; armed,
- * a solid danger fill with white text; the parent's chevron is its end.
+ * a solid danger fill with white text; the parent's chevron is its end. Stopping
+ * it goes back to the rest look and label, dimmed, a spinner in the icon's place.
  */
 function StopControl(props: StopControlProps) {
   const { tokens, strings, phase, compact } = props;
@@ -1652,7 +1653,7 @@ function StopControl(props: StopControlProps) {
   const look = tokens.card;
   const confirming = phase === "confirming";
   const stopping = phase === "stopping";
-  const solid = confirming || stopping;
+  const solid = confirming;
   const stopHover = useHover();
   const chevronHover = useHover();
   const stopSections: MenuSection[] = [
@@ -1682,7 +1683,8 @@ function StopControl(props: StopControlProps) {
   const height = taskControlHeight(compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, scale);
   // A card button's: 7 at a phone's 32, 6 at the desktop's 28, as "Answer" is.
   const round = compact ? 7 : 6;
-  const label = stopping ? strings.stopping : confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
+  const iconSize = compact ? 14 : 13;
+  const label = confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
   const segment: ViewStyle = {
     ...(compact ? { minHeight: height, paddingVertical: 4 } : { height }),
     borderWidth: 1,
@@ -1708,6 +1710,7 @@ function StopControl(props: StopControlProps) {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}
+        accessibilityState={stopping ? { disabled: true, busy: true } : undefined}
         disabled={stopping}
         onPress={props.onPress}
         {...stopHover.hoverProps}
@@ -1720,7 +1723,7 @@ function StopControl(props: StopControlProps) {
             // square goes and its padding narrows, so "Confirm stop" fits
             // beside Allow and Deny at full size on a 360 pt phone.
             paddingHorizontal: compact ? (solid ? 10 : 12) : 10,
-            backgroundColor: fill(stopHover.hovered),
+            backgroundColor: fill(stopHover.hovered && !stopping),
             borderTopLeftRadius: round,
             borderBottomLeftRadius: round,
             borderTopRightRadius: props.parent ? 0 : round,
@@ -1729,7 +1732,14 @@ function StopControl(props: StopControlProps) {
           },
         ]}
       >
-        {compact && solid ? null : <Icon name="Power" size={compact ? 14 : 13} color={color} />}
+        {stopping ? (
+          // The platform's small spinner is 20; scaled into the icon's box so the button keeps its width.
+          <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>
+            <ActivityIndicator size="small" color={color} style={{ transform: [{ scale: iconSize / 20 }] }} testID="task-card-stop-spinner" />
+          </View>
+        ) : compact && solid ? null : (
+          <Icon name="Power" size={iconSize} color={color} />
+        )}
         <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
           {label}
         </Text>
@@ -1749,9 +1759,10 @@ function StopControl(props: StopControlProps) {
               borderLeftWidth: 1,
               borderLeftColor: solid ? withAlpha(look.onStrong, 0.4) : withAlpha(tokens.danger, 0.4),
               marginLeft: -1,
-              backgroundColor: fill(chevronHover.hovered || props.menuOpen),
+              backgroundColor: fill((chevronHover.hovered && !stopping) || props.menuOpen),
               borderTopRightRadius: round,
               borderBottomRightRadius: round,
+              opacity: stopping ? 0.6 : 1,
             },
           ]}
         >
