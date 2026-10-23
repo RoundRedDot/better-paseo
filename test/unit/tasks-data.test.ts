@@ -1412,6 +1412,20 @@ describe("Tasks data store", () => {
       expect(withSubagentCards(archived)).toBe(archived);
     });
 
+    it("reads the type off the facts line where the descriptor has no title, and names no inherited model", () => {
+      const running: TaskCard = { ...doneCard(), lane: "running", status: "running", timing: { ...doneCard().timing, turnStartedAt: "2026-10-22T09:11:00.000Z" } };
+      const parent = withSubagents(running, [subagent("bg", { title: null, description: null, status: "running", subtitle: "general-purpose · High · 518k tokens" })]);
+      expect(parent.children[0]).toMatchObject({ title: "Subagent", subagentType: "general-purpose" });
+      const empty = (id: LaneId): LaneModel => ({ id, cards: [], hasMore: false, loading: false });
+      const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, empty(id)])) as Record<LaneId, LaneModel>;
+      lanes.running = { ...lanes.running, cards: [parent] };
+      expect(withSubagentCards(lanes).running.cards[1]).toMatchObject({
+        subagent: { subtitle: "general-purpose · High · 518k tokens", type: "general-purpose" },
+        modelLabel: null,
+        thinkingLabel: "High",
+      });
+    });
+
     it("lets a failure go once the parent is prompted after it, and keeps a working parent's lane", () => {
       const prompted = { ...doneCard(), timing: { ...doneCard().timing, lastUserMessageAt: "2026-10-22T09:30:00.000Z" } };
       expect(withSubagents(prompted, [subagent("a")])).toBe(prompted);

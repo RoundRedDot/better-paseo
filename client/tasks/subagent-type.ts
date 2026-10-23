@@ -16,22 +16,29 @@ export interface SubagentFacts {
 
 /**
  * The model and effort a facts line names after the type, as a card's model
- * pill draws them ("Sonnet 5.5", "High"); the token count is left out. Null
- * where the line does not open with the type, so it reads as written.
+ * pill draws them ("Sonnet 5.5", "High"); the token count is left out. A
+ * subagent that inherits its parent's model has none on the line
+ * ("general-purpose · High · 518k tokens"): the model is null then. Null
+ * where the line does not open with the type or names neither, so it reads
+ * as written.
  */
-export function subagentModel(subtitle: string | null | undefined, type: string | null | undefined): { model: string; thinking: string | null } | null {
+export function subagentModel(subtitle: string | null | undefined, type: string | null | undefined): { model: string | null; thinking: string | null } | null {
   const full = subtitle?.trim() || null;
   const name = type?.trim() || null;
   if (!full || !name || !full.startsWith(`${name} · `)) return null;
   const parts = full.slice(name.length + 3).split(" · ").map((part) => part.trim()).filter(Boolean);
   if (parts.length > 0 && TOKENS.test(parts[parts.length - 1]!)) parts.pop();
-  const [model, ...rest] = parts;
-  if (!model) return null;
-  return { model, thinking: rest.join(" \u00b7 ") || null };
+  const model = parts.length > 0 && !EFFORT.test(parts[0]!) ? parts.shift()! : null;
+  const thinking = parts.join(" \u00b7 ") || null;
+  if (!model && !thinking) return null;
+  return { model, thinking };
 }
 
 /** The token count a facts line ends with: "189.7k tokens", "1 token". */
 const TOKENS = /\btokens?$/i;
+
+/** An effort as the providers write it ("High", "Extra High", "Max"): no model before it. */
+const EFFORT = /^(none|minimal|low|medium|high|extra high|xhigh|max)$/i;
 
 /** The types the timeline's tool icons say on their own. */
 const TYPE_ICONS: Record<string, string> = {
@@ -45,6 +52,19 @@ const TYPE_ICONS: Record<string, string> = {
 
 /** Any other subagent: the timeline's sub_agent icon, with its name. */
 const NAMED_ICON = "Bot";
+
+/**
+ * A provider subagent's type: its descriptor's title, or, where the daemon
+ * sends none (a background Agent call's descriptor can carry no title), the
+ * type its facts line opens with, when the timeline has an icon for it. Any
+ * other first name could as well be a model, so it stays unknown.
+ */
+export function subagentType(title: string | null | undefined, subtitle: string | null | undefined): string | null {
+  const named = title?.trim();
+  if (named) return named;
+  const lead = subtitle?.split(" · ")[0]?.trim();
+  return lead && TYPE_ICONS[lead.toLowerCase()] ? lead : null;
+}
 
 export function subagentFacts(subtitle: string | null | undefined, type: string | null | undefined): SubagentFacts {
   const full = subtitle?.trim() || null;
