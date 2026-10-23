@@ -1323,9 +1323,18 @@ describe("TaskCardView actions", () => {
     for (const word of ["运行中", "已完成", "待输入"]) expect(texts(list)).not.toContain(word);
   });
 
-  it("ends a provider subagent's row with a tab mark, and opens the parent's tab on press", async () => {
+  it("draws a provider subagent's row as Paseo's track, ending with a parent-tab arrow; a press on the row reveals its card", async () => {
     const base = sample("sample-running");
-    const subagent: TaskChild = { id: "sub-1", title: "mac studio run check", status: "running", kind: "provider", provider: "claude", lane: "running", timing: base.children[0]!.timing };
+    const subagent: TaskChild = {
+      id: "sub-1",
+      title: "mac studio run check",
+      status: "running",
+      kind: "provider",
+      subtitle: "general-purpose · Opus 5.5 · High · 132.8k tokens",
+      provider: "claude",
+      lane: "running",
+      timing: base.children[0]!.timing,
+    };
     const onReveal = vi.fn();
     const onOpen = vi.fn();
     const tree = await render(cardElement({ ...base, children: [...base.children, subagent] }, { onReveal, onOpen }));
@@ -1333,12 +1342,18 @@ describe("TaskCardView actions", () => {
       tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false).props.onPress(),
     );
     const list = hostByTestId(tree.root, "task-card-subtasks");
-    // Drawn without a hover: the mark is what tells it from a child with a card of its own.
-    expect(icons(hostByTestId(list, "subtask-parent-tab-sub-1"))).toEqual(["AppWindow"]);
+    // Drawn without a hover: the button is what tells it from a child with a tab of its own.
+    expect(icons(hostByTestId(list, "subtask-parent-tab-sub-1"))).toEqual(["ArrowUpRight"]);
+    // Paseo's subagent track: the facts line under the title, in place of the times.
+    expect(texts(hostByTestId(list, "subtask-facts-sub-1"))).toEqual(["general-purpose · Opus 5.5 · High · 132.8k tokens"]);
+    expect(list.findAll((node) => typeof node.type === "string" && node.props.testID === "subtask-time-sub-1")).toHaveLength(0);
     for (const child of base.children) expect(list.findAll((node) => node.props.testID === `subtask-parent-tab-${child.id}`)).toHaveLength(0);
-    byLabel(tree.root, "mac studio run check, 在父任务的 tab 中打开").props.onPress();
+    // The row reveals the subagent's card, naming the parent for the board's fallback; the button opens the parent's tab.
+    byLabel(tree.root, "mac studio run check").props.onPress();
+    expect(onReveal).toHaveBeenCalledWith("sub-1", base.id);
+    expect(onOpen).not.toHaveBeenCalled();
+    byLabel(list, "在父任务的 tab 中打开").props.onPress();
     expect(onOpen).toHaveBeenCalledWith(base.id);
-    expect(onReveal).not.toHaveBeenCalled();
   });
 
   it("draws a provider subagent's card read-only: its facts line, no Stop or details, a press opens through onOpen", async () => {
