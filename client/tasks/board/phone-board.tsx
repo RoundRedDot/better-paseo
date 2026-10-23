@@ -348,7 +348,6 @@ export function PhoneBoard(props: {
         <RoundButton
           icon="Archive"
           label={strings.archivedLane.row}
-          active={board.showArchived}
           selected={board.showArchived}
           slashed={!board.showArchived}
           theme={theme}

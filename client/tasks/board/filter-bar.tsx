@@ -99,7 +99,6 @@ export function DesktopToolbar(props: {
         <RoundButton
           icon="Archive"
           label={strings.archivedLane.row}
-          active={board.showArchived}
           selected={board.showArchived}
           slashed={!board.showArchived}
           theme={theme}
@@ -148,8 +147,8 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
 
 /**
  * The archived lane's switch in the filter bar: the phone header's round
- * Archive button at the bar's size, struck through while the lane is
- * hidden and outlined in the accent while it shows.
+ * Archive button at the bar's size. Only the icon tells on from off: it is
+ * struck through while the lane is hidden; the outline stays the same.
  */
 function ArchivedSwitch(props: { on: boolean; onPress(): void; label: string; hint: string; theme: PluginTheme }) {
   const colors = props.theme.colors;
@@ -176,7 +175,7 @@ function ArchivedSwitch(props: { on: boolean; onPress(): void; label: string; hi
         flexShrink: 0,
         borderRadius: size / 2,
         borderWidth: HAIRLINE,
-        borderColor: props.on ? colors.accent : colors.border,
+        borderColor: colors.border,
         backgroundColor: background,
         alignItems: "center",
         justifyContent: "center",
