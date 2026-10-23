@@ -396,7 +396,7 @@ describe("TaskCardView rows", () => {
     const title = hostByTestId(tree.root, "task-card-title");
     expect(title.props.numberOfLines).toBe(2);
     expect(title.props.ellipsizeMode).toBe("tail");
-    expect(flat(title.props.style)).toMatchObject({ fontSize: 12, fontWeight: "500" });
+    expect(flat(title.props.style)).toMatchObject({ fontSize: 14, fontWeight: "500" });
     expect(pills(tree.root)).toEqual([
       ["pill-model", "GPT-5.5 Codex"],
       ["pill-branch", "feat/tasks-board"],
