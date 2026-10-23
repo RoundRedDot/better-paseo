@@ -402,8 +402,8 @@ describe("Tasks board, desktop", () => {
       renderer = TestRenderer.create(screen(false, { q: "ring", sub: "1" }));
     });
     layOut(1600);
-    // "ring" matches the parent and its running child; hiding subtasks keeps active children.
-    expect(cards().map((card) => card.props.card.id)).toEqual(["sample-running", "sample-child-1"]);
+    // "ring" matches the parent and its running child; the parent's card shows the child as a row.
+    expect(cards().map((card) => card.props.card.id)).toEqual(["sample-running"]);
     expect(lastBoardParams("host-1")).toMatchObject({ query: "ring", hideSubtasks: true });
     expect(textOf(renderer!.root)).toContain("Clear all");
   });
@@ -1309,7 +1309,7 @@ describe("Tasks board, toolbar tips", () => {
         "Filter by agent",
         "Filter by label",
         "Show only tasks open in a tab\nPaseo marks open tabs for subagents only",
-        "Hide subagents' tasks\nRunning, waiting and failed subtasks still show",
+        "Hide subagents' tasks\nRunning, waiting and failed subtasks still show, unless their parent's card is in the same lane",
         "How far back Done and Archived reach",
         "Show the archived lane",
         "Hide groups with no active tasks",
