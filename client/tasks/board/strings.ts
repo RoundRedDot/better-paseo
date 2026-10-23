@@ -64,8 +64,6 @@ const en = {
   filters: "Filters",
   reset: "Reset",
   /** The phone sheet folds the workspaces without an active task under this. */
-  moreWorkspaces: (count: number) => `${count} more ${count === 1 ? "workspace" : "workspaces"} with nothing active`,
-  fewerWorkspaces: "Show fewer",
   show: (count: number) => `Show ${count} ${count === 1 ? "task" : "tasks"}`,
   timeRange: "Time range",
   doneRange: "Done time range",
@@ -91,6 +89,12 @@ const en = {
     /** The round Archive button's name, in the filter bar and the phone and narrow board headers. */
     row: "Show the archived lane",
     saveFailed: "Couldn't save the archived lane setting",
+  },
+  emptyGroups: {
+    /** The round switch's name, in the filter bar and the phone and narrow board headers. */
+    row: "Show groups with no active tasks",
+    hint: (on: boolean): string => (on ? "Agents, projects, workspaces and labels with no active task are listed" : "Only agents, projects, workspaces and labels with an active task are listed"),
+    saveFailed: "Couldn't save the empty groups setting",
   },
   back: "Back",
   sortKeys: {
@@ -193,8 +197,6 @@ const zh: typeof en = {
   shown: (count) => `已显示 ${count}`,
   filters: "筛选",
   reset: "重置",
-  moreWorkspaces: (count) => `另有 ${count} 个 Workspace 没有进行中的任务`,
-  fewerWorkspaces: "收起",
   show: (count) => `显示 ${count} 个任务`,
   timeRange: "时间范围",
   doneRange: "已完成时间范围",
@@ -216,6 +218,11 @@ const zh: typeof en = {
     hint: "在已完成之后显示已归档泳道",
     row: "显示已归档泳道",
     saveFailed: "已归档泳道的设置没有保存成功",
+  },
+  emptyGroups: {
+    row: "显示数量为 0 的分组",
+    hint: (on) => (on ? "没有进行中任务的 Agent、项目、Workspace 和标签也会列出" : "只列出有进行中任务的 Agent、项目、Workspace 和标签"),
+    saveFailed: "数量为 0 的分组设置没有保存成功",
   },
   back: "返回",
   sortKeys: {

@@ -9,7 +9,7 @@ import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { useSessionTokens } from "../data/session-tokens";
-import { FILTER_ICONS, activeChips, buildFilterOptions, clearedParams, projectOptions, toggleProject, type FilterOption } from "./filter-options";
+import { FILTER_ICONS, activeChips, buildFilterOptions, clearedParams, shownFilterOptions, toggleProject, type FilterOption } from "./filter-options";
 import { RollingCount } from "./board-parts";
 import { toggleItem } from "./params";
 import type { SelectionAction, SidebarSelection } from "./sidebar-model";
@@ -150,7 +150,8 @@ const SHORT_COLUMN = 640;
 /** The board's lanes' counts after the filters, each with its lane's mark; a press shows the lane. */
 function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: TaskTokens; onLane(lane: LaneId): void; touch: boolean }) {
   const { board, tokens } = props;
-  const options = useMemo(() => buildFilterOptions(board.tasks, board.params), [board.tasks, board.params]);
+  const showEmpty = board.showEmptyGroups;
+  const options = useMemo(() => shownFilterOptions(buildFilterOptions(board.tasks, board.params), showEmpty), [board.tasks, board.params, showEmpty]);
   const chips = activeChips(board.params, board.defaults, options, board.strings).filter((chip) => chip.key !== "win");
   const summary = chips.map((chip) => (chip.kind ? `${chip.kind}: ${chip.value}` : chip.value)).join(" · ");
   return (
@@ -248,17 +249,20 @@ interface GroupRow {
   toggle(): void;
 }
 
-/** With no card chosen: Agent, Project, Workspace and Label counts (active cards), a row a filter. */
+/**
+ * With no card chosen: Agent, Project, Workspace and Label counts (active
+ * cards), a row a filter; those at 0 too while `board.showEmptyGroups` is on.
+ */
 function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: TaskTokens; touch: boolean }) {
   const { board, tokens } = props;
   const strings = board.strings.sidebar;
   const [kind, setKind] = useState<GroupKind>("agent");
-  const options = useMemo(() => buildFilterOptions(board.tasks, board.params), [board.tasks, board.params]);
+  const showEmpty = board.showEmptyGroups;
+  const options = useMemo(() => shownFilterOptions(buildFilterOptions(board.tasks, board.params), showEmpty), [board.tasks, board.params, showEmpty]);
   const rows = useMemo<GroupRow[]>(() => {
     const byCount = (a: { count: number }, b: { count: number }) => b.count - a.count;
     if (kind === "agent") {
-      return options.agents
-        .filter((option) => option.count > 0 || option.on)
+      return [...options.agents]
         .sort(byCount)
         .map((option) => ({
           ...pick(option),
@@ -267,8 +271,7 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
         }));
     }
     if (kind === "label") {
-      return options.labels
-        .filter((option) => option.count > 0 || option.on)
+      return [...options.labels]
         .sort(byCount)
         .map((option) => ({
           ...pick(option),
@@ -287,17 +290,15 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
             toggle: () => board.setParams((params) => ({ ...params, workspaceIds: toggleItem(params.workspaceIds, item.id) })),
           })),
         )
-        .filter((row) => row.count > 0 || row.on)
         .sort(byCount);
     }
-    return projectOptions(options)
+    return options.projects
       .map((project) => ({
         ...pick(project),
         lead: <ProjectIcon location={project.group} size={16} hostId={board.hostId} />,
         iconFor: project.group.projectIcon === null ? project.id : undefined,
         toggle: () => board.setParams((params) => toggleProject(params, project)),
       }))
-      .filter((row) => row.count > 0 || row.on)
       .sort(byCount);
   }, [kind, options, board, tokens]);
   // The rows' projects may have no card on screen to fetch their icon; the data layer dedupes the fetch.

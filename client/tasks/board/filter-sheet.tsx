@@ -8,7 +8,7 @@ import { BrandMark, ProjectIcon, taskTokens } from "../cards";
 import { Segments, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { SwitchTrack } from "../../ui/switch-track";
-import { busyWorkspaceGroups, clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
+import { clearedParams, shownFilterOptions, type FilterOption, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
 import { SORT_GROUPS, SORT_ICONS, sortDirectionIcon, sortDirections } from "./board-menus";
 import { sameSort, type BoardSort, type SortKey } from "./sort";
@@ -19,8 +19,9 @@ import type { BoardController } from "./use-board";
  * The phone's filters (prototype 04 sheet), drawn inside the host's bottom
  * sheet as a bounded body (`Modal.Content scrollable={false}`): the options
  * scroll, Reset and "Show N tasks" stay pinned under them. The short
- * filters come first; the workspaces, often dozens, come last and show only
- * those with an active task or picked until unfolded.
+ * filters come first; the workspaces, often dozens, come last. With
+ * `board.showEmptyGroups` off, only the options with an active task or
+ * picked are listed.
  */
 export function FilterSheetBody(props: {
   board: BoardController;
@@ -42,9 +43,7 @@ export function FilterSheetBody(props: {
   const strings = board.strings;
   const { setParams, defaults } = board;
   const resolved = resolveBoardParams(board.params, defaults);
-  const [allWorkspaces, setAllWorkspaces] = useState(false);
-  const busy = busyWorkspaceGroups(options.workspaceGroups);
-  const workspaceGroups = allWorkspaces ? options.workspaceGroups : busy.groups;
+  const shown = shownFilterOptions(options, board.showEmptyGroups);
   const sort = (
     <View testID="filter-sheet-sort">
       <SectionTitle text={strings.sort} theme={theme} first={sortFirst} />
@@ -73,9 +72,9 @@ export function FilterSheetBody(props: {
             onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
           />
           <SectionTitle text={strings.agent} theme={theme} />
-          {options.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+          {shown.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
           <ChipWrap>
-            {options.agents.map((agent) => (
+            {shown.agents.map((agent) => (
               <Chip
                 key={agent.id}
                 option={agent}
@@ -87,9 +86,9 @@ export function FilterSheetBody(props: {
             ))}
           </ChipWrap>
           <SectionTitle text={strings.labels} theme={theme} />
-          {options.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+          {shown.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
           <ChipWrap>
-            {options.labels.map((label) => (
+            {shown.labels.map((label) => (
               <Chip
                 key={label.id}
                 option={label}
@@ -119,8 +118,8 @@ export function FilterSheetBody(props: {
           {sortFirst ? null : sort}
           <View testID="filter-sheet-workspaces">
             <SectionTitle text={strings.workspace} theme={theme} />
-            {options.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
-            {workspaceGroups.map((group, index) => (
+            {shown.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+            {shown.workspaceGroups.map((group, index) => (
               <View key={group.projectId || "missing"}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: index === 0 ? 0 : 10, paddingBottom: 6 }}>
                   {group.projectId ? <ProjectIcon location={group} size={16} hostId={board.hostId} /> : null}
@@ -138,20 +137,6 @@ export function FilterSheetBody(props: {
                 </ChipWrap>
               </View>
             ))}
-            {busy.hidden > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ expanded: allWorkspaces }}
-                onPress={() => setAllWorkspaces((all) => !all)}
-                testID="filter-sheet-more-workspaces"
-                style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8, marginTop: workspaceGroups.length ? 4 : 0 }}
-              >
-                <Icon name={allWorkspaces ? "ChevronUp" : "ChevronDown"} size={16} color={colors.foregroundMuted} />
-                <Text style={{ flexShrink: 1, fontSize: F.base, color: colors.foregroundMuted }}>
-                  {allWorkspaces ? strings.fewerWorkspaces : strings.moreWorkspaces(busy.hidden)}
-                </Text>
-              </Pressable>
-            ) : null}
           </View>
         </View>
       </ScrollView>

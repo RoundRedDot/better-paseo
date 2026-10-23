@@ -122,6 +122,14 @@ describe("Tasks half of the settings page", () => {
     expect(lastSaved(api).board.showArchived).toBe(true);
   });
 
+  it("turns off the groups with no active tasks from the board options, on by default", async () => {
+    const api = makeSettings();
+    const r = panel(false);
+    expect(byLabel(r, "Show groups with no active tasks").props["aria-checked"]).toBe(true);
+    await act(async () => byLabel(r, "Show groups with no active tasks").props.onPress());
+    expect(lastSaved(api).board.showEmptyGroups).toBe(false);
+  });
+
   it.each([
     ["en", false], ["en", true], ["zh", false], ["zh", true],
   ] as const)("merges the intro and enable switch into one card (%s, compact=%s)", (language, compact) => {
