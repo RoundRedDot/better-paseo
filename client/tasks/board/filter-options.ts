@@ -223,7 +223,6 @@ export function activeChips(params: BoardParams, defaults: BoardDefaults, option
       clear: (p: BoardParams) => ({ ...p, providers: toggleItem(p.providers, id) }),
     })),
   ];
-  if (params.openTabsOnly) chips.push({ key: "tabs", kind: "", value: strings.openTabs, clear: (p) => ({ ...p, openTabsOnly: false }) });
   if (params.hideSubtasks ?? defaults.hideSubtasks) chips.push({ key: "sub", kind: "", value: strings.hideSubtasks, clear: (p) => ({ ...p, hideSubtasks: false }) });
   if (params.query.trim()) chips.push({ key: "q", kind: strings.titleContains, value: `「${params.query.trim()}」`, clear: (p) => ({ ...p, query: "" }) });
   if (params.doneWindow !== null && params.doneWindow !== defaults.doneWindow) {
@@ -328,5 +327,5 @@ function groupLabel(kind: ChipGroupKind, chips: readonly ActiveChip[], strings: 
 
 /** "Clear all": no selections, switches and window back to the settings. */
 export function clearedParams(params: BoardParams): BoardParams {
-  return { ...params, query: "", workspaceIds: [], providers: [], labels: [], openTabsOnly: false, hideSubtasks: null, doneWindow: null };
+  return { ...params, query: "", workspaceIds: [], providers: [], labels: [], hideSubtasks: null, doneWindow: null };
 }

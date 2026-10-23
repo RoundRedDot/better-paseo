@@ -55,7 +55,6 @@ describe("board params", () => {
       workspaceIds: ["wks_1", "wks,2"],
       providers: ["claude", "codex"],
       labels: ["上游 PR", "a/b%c"],
-      openTabsOnly: true,
       hideSubtasks: false,
       doneWindow: "7d",
       sort: { key: "branch", direction: "desc" },
@@ -85,7 +84,7 @@ describe("board params", () => {
 
   it("resolves switches that follow the settings", () => {
     expect(resolveBoardParams(EMPTY_PARAMS, { hideSubtasks: true, doneWindow: "all" })).toEqual({
-      filters: { query: "", workspaceIds: [], providers: [], labels: [], openTabsOnly: false, hideSubtasks: true },
+      filters: { query: "", workspaceIds: [], providers: [], labels: [], hideSubtasks: true },
       doneWindow: "all",
     });
     expect(resolveBoardParams({ ...EMPTY_PARAMS, hideSubtasks: false, doneWindow: "7d" }, { hideSubtasks: true, doneWindow: "all" }).doneWindow).toBe("7d");
@@ -93,8 +92,8 @@ describe("board params", () => {
 
   it("counts active filters for the phone badge", () => {
     expect(activeFilterCount(EMPTY_PARAMS, defaults)).toBe(0);
-    const params: BoardParams = { ...EMPTY_PARAMS, workspaceIds: ["a", "b"], providers: ["claude"], openTabsOnly: true, query: "x", doneWindow: "7d" };
-    expect(activeFilterCount(params, defaults)).toBe(6);
+    const params: BoardParams = { ...EMPTY_PARAMS, workspaceIds: ["a", "b"], providers: ["claude"], query: "x", doneWindow: "7d" };
+    expect(activeFilterCount(params, defaults)).toBe(5);
     expect(activeFilterCount({ ...EMPTY_PARAMS, doneWindow: "24h" }, defaults)).toBe(0);
     expect(activeFilterCount(EMPTY_PARAMS, { ...defaults, hideSubtasks: true })).toBe(1);
   });

@@ -16,7 +16,6 @@ export interface BoardParams {
   workspaceIds: string[];
   providers: string[];
   labels: string[];
-  openTabsOnly: boolean;
   hideSubtasks: boolean | null;
   doneWindow: DoneWindow | null;
   /** One order for every lane; null keeps each lane's own (the spec's). Not a filter: "Clear all" keeps it. */
@@ -28,7 +27,6 @@ export const EMPTY_PARAMS: BoardParams = {
   workspaceIds: [],
   providers: [],
   labels: [],
-  openTabsOnly: false,
   hideSubtasks: null,
   doneWindow: null,
   sort: null,
@@ -41,7 +39,7 @@ export interface BoardDefaults {
 }
 
 // Short keys: params ride in the screen's URL.
-const KEY = { query: "q", workspaceIds: "ws", providers: "agent", labels: "label", openTabsOnly: "tabs", hideSubtasks: "sub", doneWindow: "win", sort: "sort" } as const;
+const KEY = { query: "q", workspaceIds: "ws", providers: "agent", labels: "label", hideSubtasks: "sub", doneWindow: "win", sort: "sort" } as const;
 
 /** A list as one param: each item URI-encoded, so ids and label names may hold commas. */
 function encodeList(values: readonly string[]): string {
@@ -71,7 +69,6 @@ export function encodeBoardParams(params: BoardParams): PluginScreenParams {
   if (params.workspaceIds.length) out[KEY.workspaceIds] = encodeList(params.workspaceIds);
   if (params.providers.length) out[KEY.providers] = encodeList(params.providers);
   if (params.labels.length) out[KEY.labels] = encodeList(params.labels);
-  if (params.openTabsOnly) out[KEY.openTabsOnly] = "1";
   if (params.hideSubtasks !== null) out[KEY.hideSubtasks] = params.hideSubtasks ? "1" : "0";
   if (params.doneWindow !== null) out[KEY.doneWindow] = params.doneWindow;
   const sort = encodeSort(params.sort);
@@ -92,7 +89,6 @@ export function decodeBoardParams(params: PluginScreenParams | null | undefined)
     workspaceIds: decodeList(read(KEY.workspaceIds)),
     providers: decodeList(read(KEY.providers)),
     labels: decodeList(read(KEY.labels)),
-    openTabsOnly: read(KEY.openTabsOnly) === "1",
     hideSubtasks: sub === "1" ? true : sub === "0" ? false : null,
     doneWindow: (DONE_WINDOWS as readonly string[]).includes(win ?? "") ? (win as DoneWindow) : null,
     sort: decodeSort(read(KEY.sort)),
@@ -112,7 +108,6 @@ export function resolveBoardParams(params: BoardParams, defaults: BoardDefaults)
       workspaceIds: params.workspaceIds,
       providers: params.providers,
       labels: params.labels,
-      openTabsOnly: params.openTabsOnly,
       hideSubtasks: params.hideSubtasks ?? defaults.hideSubtasks,
     },
     doneWindow: params.doneWindow ?? defaults.doneWindow,
@@ -130,7 +125,6 @@ export function activeFilterCount(params: BoardParams, defaults: BoardDefaults):
     filters.workspaceIds.length +
     filters.providers.length +
     filters.labels.length +
-    (filters.openTabsOnly ? 1 : 0) +
     (filters.hideSubtasks ? 1 : 0) +
     (filters.query.trim() ? 1 : 0) +
     (doneWindow !== defaults.doneWindow ? 1 : 0)
