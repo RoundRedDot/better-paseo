@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
@@ -322,9 +322,6 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
           rows.map((row) => <GroupRowView key={row.id} row={row} tokens={tokens} touch={props.touch} />)
         )}
       </ScrollView>
-      {rows.length > 0 && Platform.OS === "web" && !props.touch ? (
-        <Text style={{ paddingHorizontal: DETAIL_CARD.padH, paddingTop: 6, fontSize: F.sm, color: tokens.foregroundMuted }}>{strings.groupHint}</Text>
-      ) : null}
     </DetailCard>
   );
 }
