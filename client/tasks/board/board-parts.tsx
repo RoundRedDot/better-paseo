@@ -431,7 +431,19 @@ export function RollingCount(props: { value: number; scope?: unknown; align?: "l
 const COUNT_SPILL = 40;
 
 /** A 36 round icon button in a 44 target, with a count badge: the phone's search and filters, a narrow tablet board's filters. */
-export function RoundButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; active?: boolean; badge?: number; testID?: string; /** A toggle's state, read out as selected. */ selected?: boolean }) {
+export function RoundButton(props: {
+  icon: string;
+  label: string;
+  theme: PluginTheme;
+  onPress(): void;
+  active?: boolean;
+  badge?: number;
+  testID?: string;
+  /** A toggle's state, read out as selected. */
+  selected?: boolean;
+  /** Struck through, as Lucide's "-off" icons: a toggle that is off. */
+  slashed?: boolean;
+}) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   return (
@@ -455,6 +467,7 @@ export function RoundButton(props: { icon: string; label: string; theme: PluginT
         }}
       >
         <Icon name={props.icon} size={18} color={colors.foreground} />
+        {props.slashed ? <SlashMark size={18} color={colors.foreground} gap={colors.surface0} /> : null}
       </View>
       {props.badge ? (
         <View
@@ -478,6 +491,35 @@ export function RoundButton(props: { icon: string; label: string; theme: PluginT
         </View>
       ) : null}
     </Pressable>
+  );
+}
+
+/**
+ * Lucide's "-off" slash over an icon of `size`: corner to corner of its
+ * 20-unit drawing at the host's 1.5 stroke, cut out of the icon by a ring
+ * of the surface. Drawn with views, as the sandbox has no SVG.
+ */
+function SlashMark(props: { size: number; color: string; gap: string }) {
+  const unit = props.size / 24;
+  const length = 20 * Math.SQRT2 * unit;
+  const stroke = 1.5 * unit;
+  const line = (width: number, color: string) => (
+    <View
+      style={{
+        position: "absolute",
+        width: length + 2 * width,
+        height: stroke + 2 * width,
+        borderRadius: stroke / 2 + width,
+        backgroundColor: color,
+        transform: [{ rotate: "45deg" }],
+      }}
+    />
+  );
+  return (
+    <View testID="slash-mark" pointerEvents="none" style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center" }}>
+      {line(stroke, props.gap)}
+      {line(0, props.color)}
+    </View>
   );
 }
 

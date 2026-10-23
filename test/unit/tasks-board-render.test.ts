@@ -1157,10 +1157,14 @@ describe("Tasks board, tablet filters", () => {
     const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && (node.props.testID === "toolbar-archived" || node.props.testID === "toolbar-filters"));
     expect(buttons.map((node) => node.props.testID)).toEqual(["toolbar-archived", "toolbar-filters"]);
     expect(archived().props).toMatchObject({ accessibilityLabel: "Show the archived lane", accessibilityState: { selected: false } });
+    // Struck through while off.
+    const slashed = () => archived().findAll((node) => (node.type as unknown) === "View" && node.props.testID === "slash-mark").length > 0;
+    expect(slashed()).toBe(true);
     expect(hostsById("lane-archived")).toHaveLength(0);
     await act(async () => archived().props.onPress());
     layOut(600);
     expect(archived().props.accessibilityState).toEqual({ selected: true });
+    expect(slashed()).toBe(false);
     expect(hostsById("lane-archived")).toHaveLength(1);
     expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } }, "1");
     act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-filters").props.onPress());

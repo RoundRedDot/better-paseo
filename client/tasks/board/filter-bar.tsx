@@ -100,6 +100,7 @@ export function DesktopToolbar(props: {
           label={strings.archivedLane.row}
           active={board.showArchived}
           selected={board.showArchived}
+          slashed={!board.showArchived}
           theme={theme}
           onPress={() => board.setShowArchived(!board.showArchived)}
           testID="toolbar-archived"
