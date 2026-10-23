@@ -104,6 +104,9 @@ export interface CardTokens {
   readBorder: string;
   /** Its label and icon: the green, readable at 4.5:1 on both its fills. */
   readText: string;
+  /** A grey button (Archive): the foreground over the card, a step stronger than a hovered control, at rest and hovered; its border is its fill. */
+  greyFill: string;
+  greyFillHover: string;
   /** Text on a solid accent or danger fill. */
   onStrong: string;
   /** A solid danger fill, hovered. */
@@ -243,6 +246,8 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
     readFillHover,
     readBorder: mix(background, green, isDark ? 0.45 : 0.4),
     readText: readableOn(green, [readFill, readFillHover], fg),
+    greyFill: mix(background, fg, isDark ? 0.12 : 0.08),
+    greyFillHover: mix(background, fg, isDark ? 0.18 : 0.13),
     onStrong: colors.accentForeground,
     dangerStrongHover: mix(danger, fg, 0.15),
   };
