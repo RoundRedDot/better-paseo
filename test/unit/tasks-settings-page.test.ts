@@ -124,6 +124,14 @@ describe("Tasks half of the settings page", () => {
     expect(lastSaved(api).board.showArchived).toBe(true);
   });
 
+  it("shows subtasks by default, and its switch saves hidden subtasks once turned off", async () => {
+    const api = makeSettings();
+    const r = panel(false);
+    expect(byLabel(r, "Show subtasks").props["aria-checked"]).toBe(true);
+    await act(async () => byLabel(r, "Show subtasks").props.onPress());
+    expect(lastSaved(api).board.hideSubtasks).toBe(true);
+  });
+
   it("turns off the groups with no active tasks from the board options, on by default", async () => {
     const api = makeSettings();
     const r = panel(false);

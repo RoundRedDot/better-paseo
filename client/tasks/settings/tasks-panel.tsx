@@ -480,13 +480,13 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
           />
         )}
         <SettingRow
-          title={strings.hideSubtasks}
-          description={strings.hideSubtasksHint}
+          title={strings.showSubtasks}
+          description={strings.showSubtasksHint}
           control={
             <Toggle
-              value={values.board.hideSubtasks}
-              onChange={(next) => void commit({ ...values, board: { ...values.board, hideSubtasks: next } })}
-              label={strings.hideSubtasks}
+              value={!values.board.hideSubtasks}
+              onChange={(next) => void commit({ ...values, board: { ...values.board, hideSubtasks: !next } })}
+              label={strings.showSubtasks}
               look={look}
             />
           }

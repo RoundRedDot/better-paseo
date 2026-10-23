@@ -395,7 +395,7 @@ beside the done window, in the filter sheet on phones, or in the settings.
   "branch · folder", then labels and the timer. The status icons are Paseo's own sidebar marks.
   The timer of a finished turn comes from the turn's recorded end, so opening an old agent's tab
   does not stretch it.
-- Filter by workspace, agent, label, open tabs or hidden subtasks, and search titles. Sort by
+- Filter by workspace, agent or label, show or hide subtasks, and search titles. Sort by
   workspace, project, branch, folder, title, created, updated, context or duration; the sort covers
   the cards already loaded. A lane width menu beside the sort draws narrow, default or wide lanes.
   Keyboard on desktop: J/K, H/L, Enter, /, I for the sidebar and Esc.
@@ -438,8 +438,7 @@ settings page (Settings → Plugins → Better Paseo), with a preview of the boa
 listed under [Tasks board settings](#tasks-board-settings).
 
 Limits: Stop runs `paseo agent stop` through the CLI that Paseo hands the plugin, because the
-plugin API has no cancel; without that CLI the button is hidden. "Open tabs only" relies on a label
-Paseo sets only for subagent tabs. Label colours and project icons need
+plugin API has no cancel; without that CLI the button is hidden. Label colours and project icons need
 [getpaseo/paseo#7482](https://github.com/getpaseo/paseo/pull/7482); without it labels get a neutral
 dot and projects a letter avatar. Subagents a provider runs internally (Claude Code's Task tool,
 Codex sub-tasks) are not Paseo agents and do not appear.
@@ -512,7 +511,7 @@ same way as the chat settings above.
 | Phone | Use minimal cards on phones | Off | On, phones draw the Minimal card whatever the density. |
 | Board | Done lane window | Last 24 hours | Last 24 hours, last 7 days or all. |
 | Board | Lane width | Default | Narrow, Default or Wide on desktop, web and tablets; a board too narrow for them scrolls the lanes sideways. Phones show one lane at a time and hide this option. |
-| Board | Hide subtasks by default | Off | Running, waiting and failed subtasks still show in their lane. |
+| Board | Show subtasks | On | Off, only running, waiting and failed subtasks keep a card in their lane. Also on the toolbar. |
 | Board | Show the archived lane | On | A lane after Done with archived tasks and those of archived workspaces, in the same window. Off, the board asks for no archived agent. |
 | Board | Confirm before stopping | On | Stop asks for a second press. |
 | Sidebar | Sidebar entry count | Needs input · Running · Review | Or needs input only, or hidden. |
