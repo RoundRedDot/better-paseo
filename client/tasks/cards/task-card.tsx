@@ -890,7 +890,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const answerRow = layout.permission && card.permission !== null && !compact && props.permissionButtons.length > 0;
   const unarchiveButton = (onPhone: boolean) => (
     <CardButton
-      label={unarchivePending ? strings.details.unarchiving : strings.details.unarchive}
+      label={strings.details.unarchive}
       look="plain"
       icon="ArchiveRestore"
       busy={unarchivePending}
@@ -1459,8 +1459,8 @@ export type CardButtonLook = "primary" | "plain" | "danger" | "answer";
 /**
  * The card's button: Allow's accent tint, a plain outline, the Stop button's
  * danger tint, or "Answer" in the needs-input amber with its arrow. A busy
- * one keeps its look and swaps its icon for a spinner, as Paseo's own
- * loading buttons do.
+ * one keeps its look and label, dimmed, and swaps its icon for a spinner, as
+ * Paseo's own loading buttons do.
  */
 export function CardButton(props: {
   label: string;
@@ -1470,7 +1470,7 @@ export function CardButton(props: {
   icon?: string | null;
   tokens: TaskTokens;
   compact: boolean;
-  /** Working: a spinner in place of the icon, and no second press. */
+  /** Working: dimmed, a spinner in place of the icon, and no second press. */
   busy?: boolean;
   /** A phone's icon-only button, as wide as it is high; the label is read out. */
   square?: boolean;
@@ -1521,6 +1521,7 @@ export function CardButton(props: {
         alignItems: "center",
         justifyContent: "center",
         gap: 5,
+        opacity: props.busy ? 0.6 : 1,
         ...webTransition,
       }}
     >
