@@ -2022,7 +2022,7 @@ describe("Tasks board, phone", () => {
     });
     expect(renderer!.root.findAll((node) => node.props.testID === "phone-stat-archived")).toHaveLength(0);
     const button = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "phone-archived");
-    const labels = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && ["Search", "Show the archived lane", "Filters"].includes(node.props.accessibilityLabel)).map((node) => node.props.accessibilityLabel);
+    const labels = hostParentOf(button())!.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel);
     expect(labels).toEqual(["Search", "Show the archived lane", "Filters"]);
     const slashed = () => button().findAll((node) => (node.type as unknown) === "View" && node.props.testID === "slash-mark").length > 0;
     expect(button().props.accessibilityState).toEqual({ selected: false });
@@ -2066,8 +2066,8 @@ describe("Tasks board, phone", () => {
     act(() => pressable("Filters").props.onPress());
     const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
     const switches = () => scroll.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch");
-    expect(switches().map((node) => textOf(node).startsWith("Show subtasks"))).toEqual([true]);
-    expect(switches().map((node) => node.props.accessibilityState)).toEqual([{ checked: true }]);
+    expect(switches().map((node) => textOf(node).startsWith("Show subtasks"))).toEqual([true, false]);
+    expect(switches().map((node) => node.props.accessibilityState)).toEqual([{ checked: true }, { checked: true }]);
     act(() => switches()[0]!.props.onPress());
     expect(switches()[0]!.props.accessibilityState).toEqual({ checked: false });
     expect(switches().flatMap((node) => node.findAll((child) => (child.type as unknown) === "Icon" && child.props.name === "Check"))).toHaveLength(0);
@@ -2127,7 +2127,7 @@ describe("Tasks board, phone", () => {
     }
   });
 
-  it("lists the options with no active task in the filter sheet until the header's switch hides them, and saves it", async () => {
+  it("keeps the empty-groups switch in the phone's filter sheet, updates its options, and saves it", async () => {
     const handle = (data as unknown as { __handle: { workspaces: object[]; providers: object[]; labels: object[] } }).__handle;
     const saved = { workspaces: handle.workspaces, providers: handle.providers, labels: handle.labels };
     handle.workspaces = [...saved.workspaces, { id: "wks_idle", name: "idle-branch", projectId: "prj_idle", projectName: "idle-project" }];
@@ -2137,18 +2137,22 @@ describe("Tasks board, phone", () => {
       act(() => {
         renderer = TestRenderer.create(screen(true));
       });
-      const button = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "phone-empty-groups");
+      expect(hostsById("phone-empty-groups")).toHaveLength(0);
+      expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
+      act(() => pressable("Filters").props.onPress());
+      const button = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-empty-groups");
       const icon = () => button().find((node) => (node.type as unknown) === "Icon").props.name;
       // On by default: the whole list.
-      expect(button().props).toMatchObject({ accessibilityLabel: "Show groups with no active tasks", accessibilityState: { selected: true } });
+      expect(button().props).toMatchObject({ accessibilityRole: "switch", accessibilityState: { checked: true } });
+      expect(textOf(button())).toContain("Show groups with no active tasks");
       expect(icon()).toBe("List");
-      act(() => pressable("Filters").props.onPress());
       const sheet = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
+      expect(sheet().findAll((node) => node === button())).toHaveLength(1);
       const chips = () => sheet().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox").map(textOf);
       expect(chips()).toEqual(expect.arrayContaining(["idle-branch0", "Pi", "unused0"]));
       await act(async () => button().props.onPress());
       expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showEmptyGroups: false } }, "1");
-      expect(button().props.accessibilityState).toEqual({ selected: false });
+      expect(button().props.accessibilityState).toEqual({ checked: false });
       expect(icon()).toBe("ListFilter");
       expect(chips().some((chip) => /^(idle-branch|Pi|unused)/.test(chip))).toBe(false);
       expect(chips().every((chip) => !/\D0$/.test(chip))).toBe(true);

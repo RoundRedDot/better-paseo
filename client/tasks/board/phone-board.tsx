@@ -22,7 +22,7 @@ import { findHostHorizontalScroll } from "../../ui/host-horizontal-scroll";
 import { HAIRLINE, MOTION, boardPalette } from "./board-style";
 import { CardCell, RollingCount, RoundButton, LaneFilterHint, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
 import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
-import { buildFilterOptions, clearedParams, emptyGroupsIcon } from "./filter-options";
+import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
 import { defaultLane, laneAfter, swallowsTap, swipeStep, tabUnderline, tabsOverflow, type TabBox } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
@@ -353,14 +353,6 @@ export function PhoneBoard(props: {
           onPress={() => board.setShowArchived(!board.showArchived)}
           testID="phone-archived"
         />
-        <RoundButton
-          icon={emptyGroupsIcon(board.showEmptyGroups)}
-          label={strings.emptyGroups.row}
-          selected={board.showEmptyGroups}
-          theme={theme}
-          onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
-          testID="phone-empty-groups"
-        />
         <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} />
       </View>
       {searchOpen || board.params.query ? (
@@ -536,7 +528,7 @@ export function PhoneBoard(props: {
       <Modal title={strings.filters} open={sheet?.kind === "filters"} onOpenChange={(open) => !open && setSheet(null)}>
         <Modal.Content contentContainerStyle={SHEET_FILTER_BODY} scrollable={false}>
           <TasksTypography theme={theme}>
-            {sheet?.kind === "filters" ? <FilterSheetBody board={board} theme={theme} options={options} focus={sheet.focus} onDone={() => setSheet(null)} /> : null}
+            {sheet?.kind === "filters" ? <FilterSheetBody board={board} theme={theme} options={options} showEmptyGroupsToggle focus={sheet.focus} onDone={() => setSheet(null)} /> : null}
           </TasksTypography>
         </Modal.Content>
       </Modal>

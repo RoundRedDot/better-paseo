@@ -8,7 +8,7 @@ import { BrandMark, ProjectIcon, TagMark, taskTokens } from "../cards";
 import { Segments, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { SwitchTrack } from "../../ui/switch-track";
-import { clearedParams, searchWorkspaceGroups, shownFilterOptions, type FilterOption, type FilterOptions } from "./filter-options";
+import { clearedParams, emptyGroupsIcon, searchWorkspaceGroups, shownFilterOptions, type FilterOption, type FilterOptions } from "./filter-options";
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { resolveBoardParams, toggleItem } from "./params";
 import { SORT_GROUPS, SORT_ICONS, sortDirectionIcon, sortDirections } from "./board-menus";
@@ -29,6 +29,8 @@ export function FilterSheetBody(props: {
   theme: PluginTheme;
   options: FilterOptions;
   onDone(): void;
+  /** Phones keep the empty-groups switch in this sheet instead of the toolbar. */
+  showEmptyGroupsToggle?: boolean;
   /** The lane width, on a tablet's narrow board (its lanes scroll); a phone shows one lane and has none. */
   laneWidth?: { value: LaneWidth; onChange(width: LaneWidth): void };
   /**
@@ -81,6 +83,17 @@ export function FilterSheetBody(props: {
             theme={theme}
             onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
           />
+          {props.showEmptyGroupsToggle ? (
+            <ToggleRow
+              icon={emptyGroupsIcon(board.showEmptyGroups)}
+              label={strings.emptyGroups.row}
+              hint={strings.emptyGroups.hint(board.showEmptyGroups)}
+              on={board.showEmptyGroups}
+              theme={theme}
+              onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
+              testID="filter-sheet-empty-groups"
+            />
+          ) : null}
           <SectionTitle text={strings.agent} theme={theme} />
           {shown.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
           <ChipWrap>
