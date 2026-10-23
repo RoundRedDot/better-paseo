@@ -83,6 +83,7 @@ export function TasksBoardPreview(props: {
       hostId={props.hostId}
       onReveal={noop}
       animated={false}
+      copyable={false}
     />
   );
 
