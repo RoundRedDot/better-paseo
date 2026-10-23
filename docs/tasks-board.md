@@ -278,7 +278,7 @@ flowchart LR
     nav["宿主导航<br/>navigation.openAgent"]
   end
   subgraph host["daemon 所在机器"]
-    daemon["Paseo daemon<br/>agents.list 订阅 · respondToPermission · providers.listModels"]
+    daemon["Paseo daemon<br/>agents.list 订阅 · respondToPermission · providers.listModels · providers.snapshot"]
     server["插件服务端进程<br/>RPC tasks.stop · tasks.capabilities · tasks.stopped"]
     cli["paseo CLI<br/>paseo agent stop &lt;id&gt;"]
   end
@@ -305,6 +305,7 @@ flowchart LR
 | 跳转 | `props.navigation.openAgent({ agentId })` | 客户端 |
 | 权限处理 | `paseo.agents.ref(id).respondToPermission(...)` | 客户端 |
 | 模型与思考等级名称 | `paseo.providers.listModels(provider)` | 客户端 |
+| Agent 筛选的选项 | `paseo.providers.snapshot()` 加 `providers.subscribe`：列出 Paseo 里所有已启用（`enabled !== false`）的 provider，没有卡片的计数为 0；停用了但还有卡片的 provider 也保留。宿主没有 snapshot 时退回到只列卡片上出现过的 provider | 客户端 |
 | 停止 | 插件 RPC `tasks.stop` → `execCommand(PASEO_CLI, ["agent", "stop", id, "--json"])`；`tasks.capabilities` 报告能否停止；`tasks.stopped` 返回手动停止记录 | 服务端 |
 | 精确耗时（后续，未做） | `server.on("agent.turn_started" / "agent.turn_ended")` 写入插件自己的文件 | 服务端 |
 

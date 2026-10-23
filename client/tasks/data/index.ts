@@ -7,6 +7,7 @@ import type {
   PaseoProject,
   PaseoProjectUpdate,
   PaseoProviderModelsResult,
+  PaseoProviderSnapshotResult,
   PaseoWorkspace,
   PaseoWorkspaceListResult,
 } from "@getpaseo/client";
@@ -59,7 +60,7 @@ export interface TasksSnapshot {
   lanes: Record<LaneId, LaneModel>;
   counts: BoardCounts;
   byId: ReadonlyMap<string, TaskCard>;
-  /** Filter options: workspaces grouped by project, providers and labels seen on cards. */
+  /** Filter options: workspaces grouped by project, the providers enabled in Paseo (and any other on a card), and labels seen on cards. */
   workspaces: WorkspaceOption[];
   providers: { id: string; label: string }[];
   labels: TaskLabel[];
@@ -692,6 +693,9 @@ function createStore(api: PaseoApi): TaskStore {
   const subagentParentsAsked = new Set<string>();
   const subscriptions = new Map<string, StoreSubscription>();
   const projectUnsubscribes: Array<() => void> = [];
+  /** The providers enabled in Paseo, by id, with their names: the Agent filter lists them all, cards or not. */
+  const enabledProviders = new Map<string, string>();
+  const providerUnsubscribes: Array<() => void> = [];
   let consumers = 0;
   let attentionConsumers = 0;
   let boardConsumers = 0;
@@ -1584,6 +1588,34 @@ function createStore(api: PaseoApi): TaskStore {
     }
   }
 
+  function applyProviderEntries(entries: PaseoProviderSnapshotResult["entries"]) {
+    enabledProviders.clear();
+    for (const entry of entries) {
+      if (entry.enabled === false) continue;
+      enabledProviders.set(entry.provider, entry.label ?? providerLabel(entry.provider));
+    }
+    notify();
+  }
+
+  /** The enabled providers, kept current; a host without the snapshot leaves the filter to the cards' providers. */
+  async function startProviders(run: Run) {
+    if (typeof api.providers?.snapshot !== "function") return;
+    let initialApplied = false;
+    if (typeof api.providers.subscribe === "function") {
+      providerUnsubscribes.push(api.providers.subscribe((update) => {
+        if (isCurrent(run) && initialApplied && update.entries.length > 0) applyProviderEntries(update.entries);
+      }));
+    }
+    try {
+      const result = await api.providers.snapshot();
+      if (!isCurrent(run)) return;
+      initialApplied = true;
+      applyProviderEntries(result.entries);
+    } catch {
+      // The cards' providers still fill the filter.
+    }
+  }
+
   function refreshWorkspaceCards(workspaceId: string) {
     for (const [id, entry] of entries) {
       if (entry.agent.workspaceId !== workspaceId) continue;
@@ -1617,6 +1649,7 @@ function createStore(api: PaseoApi): TaskStore {
     void startWorkspaceSubscription(run);
     void startLabelSubscription(run);
     void startProjects(run);
+    void startProviders(run);
     for (const entry of entries.values()) {
       requestModelCatalogFor(entry.agent);
       requestLastTurnFor(entry.agent);
@@ -1697,6 +1730,8 @@ function createStore(api: PaseoApi): TaskStore {
     boardRun += 1;
     for (const key of ["workspaces", "labels"]) stopSubscription(key);
     for (const unsubscribe of projectUnsubscribes.splice(0)) unsubscribe();
+    for (const unsubscribe of providerUnsubscribes.splice(0)) unsubscribe();
+    enabledProviders.clear();
     workspacesReady = false;
     workspacesListed = false;
     workspaces.clear();
@@ -1718,6 +1753,8 @@ function createStore(api: PaseoApi): TaskStore {
     generation += 1;
     for (const key of [...subscriptions.keys()]) stopSubscription(key);
     for (const unsubscribe of projectUnsubscribes.splice(0)) unsubscribe();
+    for (const unsubscribe of providerUnsubscribes.splice(0)) unsubscribe();
+    enabledProviders.clear();
     for (const key of [...sourceMembers.keys()]) sourceMembers.delete(key);
     entries.clear();
     baseCards.clear();
@@ -1809,10 +1846,11 @@ function createStore(api: PaseoApi): TaskStore {
         loading: paged && loadingDone,
       };
     }
-    const providersById = new Map<string, string>();
+    // Every enabled provider, then any other a card was run with (one disabled since).
+    const providersById = new Map<string, string>(enabledProviders);
     const labelsByName = new Map<string, TaskLabel>();
     for (const card of filteredCards) {
-      providersById.set(card.provider, card.providerLabel);
+      if (!providersById.has(card.provider)) providersById.set(card.provider, card.providerLabel);
       for (const label of card.labels) labelsByName.set(label.name, label);
     }
     const counts: BoardCounts = {
