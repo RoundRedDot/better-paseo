@@ -287,7 +287,6 @@ function DetailHeader(props: Inner) {
   // phone's bar and the cards end with it too.
   const openButton = props.onOpen ? (
     <OutlineButton
-      icon="AppWindow"
       label={openLabel(props)}
       hint={card.openTab ? <OpenHint tokens={tokens} label={cardText.details.tabOpen} /> : null}
       trailing="ArrowUpRight"
@@ -1470,7 +1469,8 @@ function OpenHint(props: { tokens: TaskTokens; label: string }) {
 }
 
 function OutlineButton(props: {
-  icon: string;
+  /** Leads the label; Open tab has none, only its trailing ↗. */
+  icon?: string;
   label: string;
   /** The card button's colours (`buttonHue`); plain by default, its icon then muted. */
   look?: CardButtonLook;
@@ -1519,9 +1519,9 @@ function OutlineButton(props: {
       {props.busy ? (
         // The running ring without its dot, in the icon's box so the button keeps its width.
         <SpinnerRing size={15} color={iconColor} testID={props.testID ? `${props.testID}-spinner` : undefined} />
-      ) : (
+      ) : props.icon ? (
         <Icon name={props.icon} size={15} color={iconColor} />
-      )}
+      ) : null}
       <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: props.font, fontWeight: "500", color: hue.color }}>
         {props.label}
       </Text>
@@ -1584,7 +1584,7 @@ export function DetailActionBar(props: {
             />
           ))}
           {answer ? <BarButton tokens={tokens} label={answer.label} look="answer" onPress={() => props.onPermission?.(answer)} /> : null}
-          {onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} square onPress={open} testID="detail-bar-open" /> : null}
+          {onOpen ? <BarButton tokens={tokens} arrow label={openLabel(props as TaskDetailCardsProps)} square onPress={open} testID="detail-bar-open" /> : null}
         </>
       ) : (
         <>
@@ -1612,7 +1612,7 @@ export function DetailActionBar(props: {
               testID="detail-bar-archive"
             />
           ) : null}
-          {onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} look="primary" onPress={open} testID="detail-bar-open" /> : null}
+          {onOpen ? <BarButton tokens={tokens} arrow label={openLabel(props as TaskDetailCardsProps)} look="primary" onPress={open} testID="detail-bar-open" /> : null}
           {unarchive ? (
             <BarButton
               tokens={tokens}
@@ -1636,7 +1636,8 @@ function archivable(card: TaskCard): boolean {
 }
 
 /** The phone bar's button: the card button's outline (`buttonHue`) at thumb size, tinted while pressed. */
-function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; label: string; square?: boolean; grow?: boolean; busy?: boolean; onPress(): void; testID?: string }) {
+/** `arrow` ends the button in a ↗ after its label (Open tab); a square shows only the arrow. */
+function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; label: string; square?: boolean; grow?: boolean; busy?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
   const height = taskControlHeight(48, scale);
@@ -1679,6 +1680,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
           {props.label}
         </Text>
       )}
+      {props.arrow ? <Icon name="ArrowUpRight" size={18} color={iconColor} /> : null}
     </Pressable>
   );
 }
