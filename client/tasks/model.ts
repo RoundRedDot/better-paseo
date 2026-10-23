@@ -226,6 +226,15 @@ export interface TaskCard {
   archived?: "agent" | "workspace";
 }
 
+/**
+ * Its tab opens in Paseo. An archived task does not: a plugin's `openAgent`
+ * cannot pin the tab (Paseo 0.12), so the workspace drops it as soon as it
+ * opens and shows another of its tabs instead. Unarchive first.
+ */
+export function opensInPaseo(card: { archived?: "agent" | "workspace" }): boolean {
+  return card.archived !== "agent";
+}
+
 /** The agent's own turn runs: in the running lane, and not only for its subtasks. */
 export function turnRunning(card: { lane?: LaneId; waitingOnSubtasks?: boolean }): boolean {
   return card.lane === "running" && card.waitingOnSubtasks !== true;

@@ -9,7 +9,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { duration, PREVIEW_REVEAL } from "../../ui/tokens/motion";
 import type { PermissionButton, StopPhase } from "../actions";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
-import { turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
+import { opensInPaseo, turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
 import { contextRatio, tildePath } from "./format";
 import { cardStart, cardTimer, startHint, timerHint, type Timed } from "./card-time";
 import { CardHints, hintProps, type CardHintTexts } from "./card-hints";
@@ -388,7 +388,9 @@ export const OVERLAY_ROW_Z = 2;
 
 // --- The card -----------------------------------------------------------------
 
-function TaskCardViewImpl(props: TaskCardViewProps) {
+function TaskCardViewImpl(given: TaskCardViewProps) {
+  // An archived task has no Open, here or on its subtasks: Paseo would show another tab.
+  const props = opensInPaseo(given.card) ? given : { ...given, onOpen: undefined };
   const { card, fields, compact, theme } = props;
   const scale = useTasksFontScale();
   const tokens = taskTokens(theme);

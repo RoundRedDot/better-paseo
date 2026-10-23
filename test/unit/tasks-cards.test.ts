@@ -986,6 +986,18 @@ describe("TaskCardView actions", () => {
     expect(hostByTestId(tree.root, "task-card-sample-done").props.onPress).toBeUndefined();
   });
 
+  it("has no Open tab on an archived task, which Paseo would not show, but keeps it for an archived workspace's", async () => {
+    const onOpen = vi.fn();
+    const archived = { ...sample("sample-done"), lane: "archived" as const, status: "archived" as const, archived: "agent" as const };
+    const tree = await render(cardElement(archived, { onOpen }));
+    expect(texts(tree.root)).not.toContain("打开 tab");
+    expect(hostByTestId(tree.root, "task-card-sample-done").props.onPress).toBeUndefined();
+
+    await act(async () => tree.update(cardElement({ ...archived, archived: "workspace" }, { onOpen })));
+    byLabel(hostByTestId(tree.root, "task-card-control-row"), "打开 tab").props.onPress();
+    expect(onOpen).toHaveBeenCalledWith("sample-done");
+  });
+
   it("gives a tablet card's buttons a row of their own under the timer, Open tab at the right", async () => {
     const tree = await render(cardElement(sample("sample-child-1"), { onStop: () => {} }));
     expect(rows(tree.root, "sample-child-1")).toEqual(["task-card-meta", "task-card-title-row", "task-card-pills", "task-card-footer", "task-card-control-row"]);
@@ -1443,9 +1455,13 @@ describe("TaskDetailCards", () => {
     await act(async () => hostByTestId(tree.root, "detail-unarchive").props.onPress());
     expect(unarchive.press).toHaveBeenCalledTimes(1);
 
+    // Paseo would drop an archived task's tab and show another: no Open until it is back.
+    expect(tree.root.findAll((node) => node.props.testID === "detail-open")).toHaveLength(0);
+
     // Its workspace is archived, not the task: nothing of its own to bring back.
     await act(async () => tree.update(details({ ...archived, archived: "workspace" }, { onOpen: vi.fn(), unarchive })));
     expect(tree.root.findAll((node) => node.props.testID === "detail-unarchive")).toHaveLength(0);
+    expect(tree.root.findAll((node) => node.props.testID === "detail-open").length).toBeGreaterThan(0);
     // A host without the CLI has no Unarchive at all.
     await act(async () => tree.update(details(archived, { onOpen: vi.fn(), unarchive: null })));
     expect(tree.root.findAll((node) => node.props.testID === "detail-unarchive")).toHaveLength(0);
@@ -1723,6 +1739,11 @@ describe("TaskDetailCards", () => {
     const labels = asking.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel);
     // Deny, then allow, then the tab shrunk to a square at the right.
     expect(labels).toEqual(["拒绝", "允许", "打开 tab 处理"]);
+    await act(async () => asking.unmount());
+    renderer = null;
+    // An archived task opens nowhere, so the bar has nothing to hold.
+    const archived = await render(bar({ ...sample("sample-done"), lane: "archived", status: "archived", archived: "agent" }));
+    expect(archived.toJSON()).toBeNull();
   });
 
   it("names the stop button by its phase", async () => {
