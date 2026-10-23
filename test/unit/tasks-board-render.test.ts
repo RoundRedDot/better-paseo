@@ -867,6 +867,50 @@ describe("Tasks board, desktop", () => {
     }
   });
 
+  it("draws the filter bar's buttons as icons alone once their words would wrap them, and gives the words back once they fit", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false, {}));
+    });
+    layOut(1440);
+    const view = (testID: string) => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === testID);
+    const lay = (node: ReactTestInstance, layout: { x?: number; y?: number; width: number }) =>
+      act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, height: 28, ...layout } } }));
+    const controls = () => view("filter-bar-controls");
+    const group = () => hostParentOf(controls())!;
+    const words = () => controls().findAll((node) => (node.type as unknown) === "Text").map(textOf);
+    expect(words()).toEqual(expect.arrayContaining(["Project", "Workspace", "Open tabs only", "Hide subtasks"]));
+
+    // The buttons need 700 of the group's 500: they drop their words, and read them out.
+    lay(group(), { width: 500 });
+    lay(view("filter-bar-end"), { width: 420 });
+    lay(controls(), { width: 700 });
+    expect(words()).toEqual([]);
+    expect(view("filter-bar-end").findAll((node) => (node.type as unknown) === "Text" && textOf(node) === "Sort")).toHaveLength(0);
+    const named = (bar: ReactTestInstance) => bar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel);
+    expect(named(controls())).toEqual(["Project", "Workspace", "Agent", "Labels", "Open tabs only", "Hide subtasks"]);
+    expect(named(view("filter-bar-end"))).toContain("Sort");
+
+    // Unseen, the dropped words lay out to say when they fit again: eight at 40, each with its gap, need 360.
+    const hidden = view("filter-bar-words");
+    expect(hidden.props["aria-hidden"]).toBe(true);
+    expect(StyleSheet.flatten(hidden.props.style)).toMatchObject({ position: "absolute", opacity: 0 });
+    const dropped = hidden.findAll((node) => (node.type as unknown) === "Text");
+    expect(dropped.map(textOf)).toEqual(["Project", "Workspace", "Agent", "Labels", "Open tabs only", "Hide subtasks", "Sort", expect.any(String)]);
+    lay(controls(), { width: 300 });
+    lay(view("filter-bar-end"), { width: 300 });
+    for (const text of dropped) act(() => text.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 40, height: 18 } } }));
+    expect(words()).toEqual([]);
+    // 300 + 360 fits a group of 700 with room to spare: the words come back.
+    lay(group(), { width: 700 });
+    expect(words()).toEqual(expect.arrayContaining(["Project", "Hide subtasks"]));
+    expect(renderer!.root.findAll((node) => node.props.testID === "filter-bar-words")).toHaveLength(0);
+
+    // The done window and the sort pushed to a row of their own drop the words too.
+    lay(controls(), { width: 660 });
+    lay(view("filter-bar-end"), { y: 44, width: 420 });
+    expect(words()).toEqual([]);
+  });
+
   it("hides the jump without navigation", () => {
     act(() => {
       renderer = TestRenderer.create(
