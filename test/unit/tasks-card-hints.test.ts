@@ -56,4 +56,12 @@ describe("footer time hints", () => {
     expect(startHint(card, "zh")).toBe(`本轮开始：${stamp(90_000)}`);
     expect(startHint({ lane: "done", timing } as Timed, "zh")).toBeNull();
   });
+
+  it("names how long a card's subtasks have worked, and when they started", () => {
+    const children = [{ status: "running", timing: { ...timing, turnStartedAt: iso(90_000) } }] as Timed["children"];
+    const card = { lane: "running", waitingOnSubtasks: true, timing: { ...timing, lastTurnMs: 120_000 }, children } as Timed;
+    expect(timerHint(card, NOW, "zh")).toBe("子任务已运行：1m 30s");
+    expect(startHint(card, "zh")).toBe(`子任务开始：${stamp(90_000)}`);
+    expect(startHint(card, "en")).toBe(`Subtasks started: ${stamp(90_000)}`);
+  });
 });
