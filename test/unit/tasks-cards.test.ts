@@ -1092,6 +1092,17 @@ describe("TaskCardView actions", () => {
     for (const word of ["运行中", "已完成", "待输入"]) expect(texts(list)).not.toContain(word);
   });
 
+  it("ends a subtask row that finished on another day with a short stamp, leaving the title room", async () => {
+    const card = sample("sample-running");
+    const child = card.children[2]!;
+    child.timing = { ...child.timing!, updatedAt: new Date(2026, 9, 19, 16, 57, 33).toISOString(), lastTurnMs: 60_000 };
+    const tree = await render(cardElement(card, { now: new Date(2026, 9, 20, 12).getTime() }));
+    await act(async () =>
+      tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false).props.onPress(),
+    );
+    expect(texts(hostByTestId(tree.root, "subtask-time-sample-child-3"))).toEqual(["约 1m · 10-19 16:57"]);
+  });
+
   it("counts subtasks by status icon in the pill, without words", async () => {
     const tree = await render(cardElement(sample("sample-running")));
     const pill = hostByTestId(tree.root, "pill-subtasks");
