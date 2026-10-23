@@ -255,6 +255,14 @@ function taskLabels(workspace: PaseoWorkspace | undefined, colorNames: ReadonlyM
 function firstPermissionSummary(permission: PaseoAgent["pendingPermissions"][number]): string | null {
   const input = permission.input as Record<string, unknown> | undefined;
   const detail = permission.detail as Record<string, unknown> | undefined;
+  if (permission.kind === "question" && Array.isArray(input?.questions)) {
+    const questions = input.questions.flatMap((value: unknown) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+      const question = (value as Record<string, unknown>).question;
+      return typeof question === "string" && question.trim() ? [question.replace(/\s+/g, " ").trim()] : [];
+    });
+    return questions.join(" · ") || null;
+  }
   return oneLine(input?.command) ?? oneLine(input?.filePath) ?? oneLine(input?.path) ??
     oneLine(detail?.command) ?? oneLine(detail?.filePath) ?? oneLine(permission.description);
 }
