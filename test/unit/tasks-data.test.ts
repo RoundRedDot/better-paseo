@@ -104,6 +104,57 @@ function recentIso(ageMs: number) {
 }
 
 describe("Tasks data store", () => {
+  it.each(["request_user_input", "request_user_input_async"])("summarizes structured questions from %s and follows pending updates", async (name) => {
+    const question = "按仓库的 Plan-first 要求，请确认这份修改范围。";
+    const permission = {
+      id: "question-request", provider: "codex", name, kind: "question" as const, title: "Question",
+      input: { questions: [{ id: "scope", header: "Scope", question, options: [{ label: "确认，按此修改" }] }] },
+    };
+    const fake = createFakePaseo({
+      agents: [activeAgent("asking", { provider: "codex", status: "running", pendingPermissions: [permission] })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(mounted.current.byId.get("asking")?.permission).toMatchObject({ title: "Question", summary: question });
+      await act(async () => {
+        fake.upsertAgent(activeAgent("asking", {
+          provider: "codex", status: "running",
+          pendingPermissions: [{ ...permission, input: { questions: [
+            { question: "  Confirm the scope?\nInclude tests?  " },
+            { question: "Which checks should run?" },
+          ] } }],
+        }));
+        await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("asking")?.permission?.summary)
+        .toBe("Confirm the scope? Include tests? · Which checks should run?");
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it.each([
+    { questions: [] },
+    { questions: [null, {}, { question: " " }, { question: 42 }] },
+  ])("leaves empty structured questions without a summary: $questions", async ({ questions }) => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("asking", {
+        status: "running", pendingPermissions: [{
+          id: "question-request", provider: "codex", name: "request_user_input_async", kind: "question", title: "Question",
+          input: { questions },
+        }],
+      })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(mounted.current.byId.get("asking")?.permission?.summary).toBeNull();
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("merges active and done subscriptions, classifies lanes, and applies lane sort order", async () => {
     const fake = createFakePaseo({
       agents: [
