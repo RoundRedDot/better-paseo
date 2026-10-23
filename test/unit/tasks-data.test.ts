@@ -2,10 +2,11 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { filterLanes, setLastTurnLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withLastTurn, withReadMark, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import { filterLanes, setLastTurnLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, withLastTurn, withReadMark, withSubagents, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
+import { cardStart, cardTimer } from "../../client/tasks/cards/card-time";
 import { at, createFakePaseo, makeAgent, makePlacement, makeWorkspace } from "./helpers/fake-paseo";
 import "./helpers/quiet-renderer";
 
@@ -1243,6 +1244,64 @@ describe("Tasks data store", () => {
       } finally {
         act(() => renderer.unmount());
         setSubagentLoader(null);
+      }
+    });
+  });
+  describe("subtasks still at work", () => {
+    function doneParent(children: TaskCard["children"]): TaskCard {
+      const card = sampleCards(Date.parse("2026-10-22T10:00:00.000Z")).find((sample) => sample.lane === "done")!;
+      return { ...card, id: "parent", status: "done", error: null, children };
+    }
+    const child = (status: TaskCard["status"]) => ({ id: `child-${status}`, title: status, status });
+
+    it("moves a finished parent to the running lane while a subtask runs or waits", () => {
+      for (const status of ["running", "needs_input"] as const) {
+        expect(withActiveSubtasks(doneParent([child("done"), child(status)]))).toMatchObject({ lane: "running", status: "running", waitingOnSubtasks: true, readable: false });
+      }
+      const review = { ...doneParent([child("running")]), lane: "review" as const, status: "unread" as const, readable: true };
+      expect(withActiveSubtasks(review)).toMatchObject({ lane: "running", status: "running", readable: false });
+      const settled = doneParent([child("done"), child("unread"), child("failed")]);
+      expect(withActiveSubtasks(settled)).toBe(settled);
+      const failed = { ...doneParent([child("running")]), lane: "review" as const, status: "failed" as const, error: "API error" };
+      expect(withActiveSubtasks(failed)).toBe(failed);
+      const working = { ...doneParent([child("running")]), lane: "running" as const, status: "running" as const };
+      expect(withActiveSubtasks(working)).toBe(working);
+    });
+
+    it("times a waiting parent by its last turn, not as a turn that is starting", () => {
+      const card = withActiveSubtasks(doneParent([child("running")]));
+      const now = Date.parse(card.timing.updatedAt) + 60_000;
+      expect(cardTimer(card, now, "en")).not.toMatchObject({ tone: "running" });
+      expect(cardTimer(card, now, "en")?.text).toBe(cardTimer({ ...card, lane: "done" }, now, "en")?.text);
+      expect(cardStart({ ...card, timing: { ...card.timing, turnStartedAt: card.timing.updatedAt } }, now)).toBeNull();
+    });
+
+    it("keeps a parent and its parent running until the last grandchild stops", async () => {
+      const fake = createFakePaseo({
+        agents: [
+          activeAgent("parent", { status: "idle", updatedAt: recentIso(120_000) }),
+          activeAgent("child", { status: "idle", updatedAt: recentIso(60_000), labels: { "paseo.parent-agent-id": "parent" } }),
+          activeAgent("grandchild", { status: "running", labels: { "paseo.parent-agent-id": "child" } }),
+        ],
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake);
+      try {
+        expect(mounted.current.lanes.running.cards.map((card) => card.id).sort()).toEqual(["child", "grandchild", "parent"]);
+        expect(mounted.current.byId.get("parent")).toMatchObject({ status: "running", waitingOnSubtasks: true, stoppable: false });
+        expect(mounted.current.byId.get("parent")?.children).toEqual([expect.objectContaining({ id: "child", status: "running", lane: "running", waitingOnSubtasks: true })]);
+        expect(mounted.current.byId.get("grandchild")?.waitingOnSubtasks).toBeUndefined();
+
+        await act(async () => {
+          fake.upsertAgent(activeAgent("grandchild", { status: "idle", updatedAt: recentIso(0), labels: { "paseo.parent-agent-id": "child" } }));
+          await Promise.resolve();
+        });
+        expect(mounted.current.lanes.running.cards).toEqual([]);
+        expect(mounted.current.byId.get("parent")).toMatchObject({ lane: "done", status: "done" });
+        expect(mounted.current.byId.get("parent")?.waitingOnSubtasks).toBeUndefined();
+        expect(mounted.current.byId.get("child")).toMatchObject({ lane: "done", status: "done" });
+      } finally {
+        mounted.unmount();
       }
     });
   });

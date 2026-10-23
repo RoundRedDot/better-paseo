@@ -5,7 +5,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { BrandMark, DETAIL_CARD, DetailCard, detailScrollProps, ProjectIcon, StatusIcon, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
-import { LANE_ORDER, LANE_STATUS, type LaneId, type TaskCard } from "../model";
+import { LANE_ORDER, LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { useSessionTokens } from "../data/session-tokens";
@@ -64,7 +64,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
   };
   const firstPrompt = useFirstPrompt(board.paseo, card?.id ?? "", card !== undefined && card.closed !== true);
   const lastMessage = useLastMessage(board.paseo, card?.id ?? "", card ? lastMessageVersion(card) : "", card !== undefined && card.closed !== true);
-  const sessionTokens = useSessionTokens(card?.id ?? "", card?.lane === "running" && card.closed !== true);
+  const sessionTokens = useSessionTokens(card?.id ?? "", card !== undefined && turnRunning(card) && card.closed !== true);
   const stopAvailable = !!board.callbacks.onStop && card?.stoppable === true;
   const detailProps = card
     ? {

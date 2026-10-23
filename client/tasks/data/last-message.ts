@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import type { PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 import type { FirstPrompt } from "./first-prompt";
+import { turnRunning, type LaneId } from "../model";
 
 /**
  * The agent's latest reply, for the details card under the first prompt: the
@@ -91,8 +92,8 @@ export function lastReplyText(entries: readonly { item: { type: string; text?: s
  * What the latest reply is read again on: a running card's turn start, else
  * its lane and last update (a turn ending, an answer, a resume).
  */
-export function lastMessageVersion(card: { lane: string; timing: { updatedAt: string; turnStartedAt: string | null } }): string {
-  return card.lane === "running" ? `running|${card.timing.turnStartedAt ?? ""}` : `${card.lane}|${card.timing.updatedAt}`;
+export function lastMessageVersion(card: { lane: LaneId; waitingOnSubtasks?: boolean; timing: { updatedAt: string; turnStartedAt: string | null } }): string {
+  return turnRunning(card) ? `running|${card.timing.turnStartedAt ?? ""}` : `${card.lane}|${card.timing.updatedAt}`;
 }
 
 const stores = new WeakMap<object, Store>();

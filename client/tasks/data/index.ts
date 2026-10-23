@@ -421,6 +421,19 @@ export function withReadMark(card: TaskCard, readAt: number | undefined, failedA
   return card.readable ? card : { ...card, readable: true };
 }
 
+/**
+ * A finished parent whose subtasks still run or wait for input is not done:
+ * it moves to the running lane with the running ring, so the board does not
+ * read it as finished while its work goes on. Its own turn has ended
+ * (`waitingOnSubtasks`), so it gets no turn timer and no Stop of its own. A
+ * failed parent stays in review: its failure needs a person first.
+ */
+export function withActiveSubtasks(card: TaskCard): TaskCard {
+  if ((card.lane !== "review" && card.lane !== "done") || card.status === "failed") return card;
+  if (!card.children.some((child) => child.status === "running" || child.status === "needs_input")) return card;
+  return { ...card, lane: "running", status: "running", readable: false, waitingOnSubtasks: true };
+}
+
 function shallowCardEqual(left: TaskCard | undefined, right: TaskCard): boolean {
   return left !== undefined && JSON.stringify(left) === JSON.stringify(right);
 }
@@ -631,6 +644,8 @@ function createStore(api: PaseoApi): TaskStore {
   const baseCards = new Map<string, TaskCard>();
   const cards = new Map<string, TaskCard>();
   const childrenByParent = new Map<string, Set<string>>();
+  /** Cards whose parent is being refreshed for them, so a parent loop cannot recurse. */
+  const refreshingParents = new Set<string>();
   const parentByChild = new Map<string, string>();
   /** Parents read by id because they are not on the board: their title and whether they are archived. */
   const resolvedParents = new Map<string, { title: string | null; archived: boolean | null }>();
@@ -750,7 +765,7 @@ function createStore(api: PaseoApi): TaskStore {
       : null;
     const parentMissing = parentAgentId ? !baseCards.has(parentAgentId) || inArchivedWorkspace(parentAgentId) : false;
     const childIds = childrenByParent.get(id);
-    const next: TaskCard = withReadMark(withSubagents({
+    const next: TaskCard = withActiveSubtasks(withReadMark(withSubagents({
       ...withTurnError(base, turnErrors.get(id)),
       usage: withRecordedCost(base.usage, turnCosts.get(id)),
       timing: withLastTurn(base.timing, lastTurns.get(id), base.lane === "running" || base.lane === "needs_input"),
@@ -778,16 +793,27 @@ function createStore(api: PaseoApi): TaskStore {
                     context: child.context,
                     lane: child.lane,
                     timing: child.timing,
+                    ...(child.waitingOnSubtasks ? { waitingOnSubtasks: true } : null),
                   }
                 : null;
             })
             .filter((child): child is TaskChild => child !== null)
             .sort((left, right) => left.title.localeCompare(right.title))
         : [],
-    }, subagentsByParent.get(id)), readMarks.get(id), latestFailure(id));
+    }, subagentsByParent.get(id)), readMarks.get(id), latestFailure(id)));
     const previous = cards.get(id);
     if (shallowCardEqual(previous, next)) return false;
     cards.set(id, next);
+    // A parent's row and lane follow its children's status: a child that
+    // starts or stops waiting on its own subtasks reaches up the chain.
+    if (parentAgentId && (previous?.status !== next.status || previous?.lane !== next.lane) && !refreshingParents.has(parentAgentId)) {
+      refreshingParents.add(id);
+      try {
+        refreshFinalCard(parentAgentId);
+      } finally {
+        refreshingParents.delete(id);
+      }
+    }
     return true;
   }
 
