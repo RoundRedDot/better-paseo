@@ -24,7 +24,6 @@ const en = {
   contextTokens: (used: string, max: string) => `${used} / ${max} tokens`,
   sessionCost: (cost: string) => `Session cost ${cost}`,
   starting: "Starting",
-  uncommitted: "uncommitted",
   subtasks: (total: number, parts: string) => `${total} ${total === 1 ? "subtask" : "subtasks"}: ${parts}`,
   status: {
     needs_input: "needs input",
@@ -195,7 +194,6 @@ const zh: CardStrings = {
   contextTokens: (used, max) => `${used} / ${max} tokens`,
   sessionCost: (cost) => `会话费用 ${cost}`,
   starting: "启动中",
-  uncommitted: "未提交",
   subtasks: (total, parts) => `${total} 个子任务：${parts}`,
   status: {
     needs_input: "待输入",
