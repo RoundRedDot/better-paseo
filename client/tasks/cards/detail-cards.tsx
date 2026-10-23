@@ -18,6 +18,7 @@ import type { FirstPrompt } from "../data/first-prompt";
 import type { LastMessage } from "../data/last-message";
 import { formatDuration, formatRelative, formatTokenTotal, since, tildePath } from "./format";
 import { cardStrings } from "./strings";
+import { devicePixel } from "../board/board-style";
 import { taskTokens, type TaskTokens } from "./tokens";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { BrandMark } from "./brand-mark";
@@ -1515,7 +1516,8 @@ function OutlineButton(props: {
         height: taskControlHeight(props.height, scale),
         paddingHorizontal: props.grow ? 10 : 12,
         borderRadius: 8,
-        borderWidth: 1,
+        // One device pixel on desktop and the web, as the board's lines are; a full point on touch.
+        borderWidth: Platform.OS === "web" ? devicePixel() : 1,
         borderColor: danger?.border ?? (props.grey ? (hovered ? tokens.card.greyFillHover : tokens.card.greyFill) : tokens.border),
         backgroundColor: danger?.fill ?? (props.grey ? (hovered ? tokens.card.greyFillHover : tokens.card.greyFill) : hovered ? detailColors(tokens).rowHover : tokens.card.background),
         flexDirection: "row",
