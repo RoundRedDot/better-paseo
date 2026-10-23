@@ -247,6 +247,7 @@ export function PhoneBoard(props: {
       onStop: guard(base.onStop),
       onCancelStop: base.onCancelStop,
       onRead: base.onRead ? guard(base.onRead) : undefined,
+      onUnarchive: base.onUnarchive,
       onPermission: guard(base.onPermission),
       // A tap shows the details sheet; the card's arrow still opens the tab.
       onSelect: guard((card: TaskCard) => setSheet({ kind: "details", id: card.id })),
