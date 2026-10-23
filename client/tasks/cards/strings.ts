@@ -20,6 +20,8 @@ const en = {
   workspaceArchived: "Workspace archived",
   parentUnknown: "Parent task",
   revealParent: "Show parent task",
+  /** A provider subagent's card: it has no tab, so Open opens its parent's. */
+  openParent: "Open parent task",
   /** A provider subagent's row: it has no card or tab, so it opens its parent's. */
   openParentTab: "Open in the parent's tab",
   subagent: "A subagent inside this task's session, with no tab of its own",
@@ -202,6 +204,7 @@ const zh: CardStrings = {
   workspaceArchived: "工作区已归档",
   parentUnknown: "父任务",
   revealParent: "定位到父任务",
+  openParent: "打开父任务",
   openParentTab: "在父任务的 tab 中打开",
   subagent: "本任务会话里的 subagent，没有自己的 tab",
   subagentCard: "父任务会话里的 subagent，只读，没有自己的 tab，打开的是父任务的 tab",

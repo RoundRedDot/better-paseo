@@ -1407,13 +1407,16 @@ describe("TaskCardView actions", () => {
     // Dashed and flat at rest: work inside its parent's session, not a task of its own.
     expect(flat(hostByTestId(tree.root, "task-card-sub-1").props.style)).toMatchObject({ borderStyle: "dashed", borderWidth: 1, boxShadow: "none" });
     await act(async () => byLabel(tree.root, "mac studio run check").props.onPress());
-    // Chosen for the details as any card; Open tab goes through the board, which opens the parent's.
+    // Chosen for the details as any card; Open goes through the board, which opens the parent's.
     expect(onSelect).toHaveBeenCalledWith(card);
     expect(onOpen).not.toHaveBeenCalled();
+    // It has no tab of its own, so its Open says it opens the parent.
+    expect(texts(hostByTestId(tree.root, "task-card-open-tab"))).toEqual(["打开父任务"]);
     expect(texts(hostByTestId(tree.root, "task-card-meta-parent"))).toEqual([`↳ ${base.title}`]);
     // Its id is a tool call's: the menu copies no session ID.
     const keys = cardMenuSections(card, cardStrings("en"), { copy: () => {}, open: () => {}, children: 0 }).flatMap((section) => section.items.map((item) => item.key));
     expect(keys).toEqual(["open", "copy-title", "copy-workspace", "copy-project"]);
+    expect(cardMenuSections(card, cardStrings("en"), { copy: () => {}, open: () => {}, children: 0 })[0]?.items[0]?.label).toBe("Open parent task");
   });
 
   it("ends a subtask row that finished on another day with a short stamp, leaving the title room", async () => {

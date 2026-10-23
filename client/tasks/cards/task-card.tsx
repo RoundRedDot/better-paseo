@@ -972,6 +972,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       testID="task-card-archive"
     />
   );
+  // A provider subagent has no tab: its Open opens its parent's.
+  const openLabel = card.subagent ? strings.openParent : strings.openTab;
   // Stop, Mark read or Archive, then "Open tab" in the corner, centred on the line they sit on.
   const footControls = (line: number) => (
     <View style={{ flexDirection: "row", gap: GAP, marginVertical: (Math.round(line * scale) - taskControlHeight(m.buttonHeight, scale)) / 2 }}>
@@ -979,7 +981,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       {canArchive ? archiveButton(false) : null}
       {canOpen ? (
         <CardButton
-          label={strings.openTab}
+          label={openLabel}
           look="plain"
           arrow
           tokens={tokens}
@@ -1177,7 +1179,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         {canArchive ? archiveButton(true, openTab) : null}
         {openTab ? (
           <CardButton
-            label={strings.openTab}
+            label={openLabel}
             look="plain"
             arrow
             square={openSquare}

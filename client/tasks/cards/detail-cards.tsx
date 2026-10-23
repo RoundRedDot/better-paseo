@@ -264,7 +264,7 @@ function stopLabel(props: TaskDetailCardsProps): string | null {
 
 function openLabel(props: TaskDetailCardsProps): string {
   // A provider subagent opens its parent's tab, where Paseo lists it.
-  if (props.card.subagent) return cardStrings(props.language).openParentTab;
+  if (props.card.subagent) return cardStrings(props.language).openParent;
   if (props.card.lane === "needs_input") return props.strings.openToAnswer;
   return props.card.openTab ? cardStrings(props.language).details.switchTab : props.strings.openTab;
 }
