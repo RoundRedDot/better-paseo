@@ -21,7 +21,7 @@ import { classifyAgent } from "../agent-state-bucket";
 import { resolveTasksLanguage } from "../i18n";
 import { fallbackLabelColor } from "../label-colors";
 import { subagentModel, subagentType } from "../subagent-type";
-import { LANE_ORDER, isHistoryLane, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming, type TaskUsage } from "../model";
+import { LANE_ORDER, isHistoryLane, settledAt, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming, type TaskUsage } from "../model";
 
 export interface WorkspaceOption {
   id: string;
@@ -417,6 +417,7 @@ function laneCompare(lane: LaneId): (left: TaskCard, right: TaskCard) => number 
   if (lane === "needs_input") return (left, right) => timestamp(left.timing.attentionAt, Number.POSITIVE_INFINITY) - timestamp(right.timing.attentionAt, Number.POSITIVE_INFINITY);
   if (lane === "running") return (left, right) => timestamp(left.timing.turnStartedAt, Number.POSITIVE_INFINITY) - timestamp(right.timing.turnStartedAt, Number.POSITIVE_INFINITY);
   if (lane === "review") return (left, right) => timestamp(right.timing.attentionAt ?? right.timing.updatedAt, Number.NEGATIVE_INFINITY) - timestamp(left.timing.attentionAt ?? left.timing.updatedAt, Number.NEGATIVE_INFINITY);
+  if (lane === "done") return (left, right) => timestamp(settledAt(right.timing), Number.NEGATIVE_INFINITY) - timestamp(settledAt(left.timing), Number.NEGATIVE_INFINITY);
   return (left, right) => timestamp(right.timing.updatedAt, Number.NEGATIVE_INFINITY) - timestamp(left.timing.updatedAt, Number.NEGATIVE_INFINITY);
 }
 
@@ -2019,8 +2020,9 @@ function createStore(api: PaseoApi): TaskStore {
       if (!isHistoryLane(card.lane)) return true;
       if (!options.includeDone || (card.lane === "archived" && !showArchived)) return false;
       if (cutoff === null) return true;
-      const updatedAt = Date.parse(card.timing.updatedAt);
-      return Number.isFinite(updatedAt) && now - updatedAt <= cutoff;
+      // Archiving moves `updatedAt`; a done card's own end ignores the daemon loading it.
+      const at = Date.parse(card.lane === "done" ? settledAt(card.timing) : card.timing.updatedAt);
+      return Number.isFinite(at) && now - at <= cutoff;
     });
     const byId = new Map(filteredCards.map((card) => [card.id, card]));
     const lanes = {} as Record<LaneId, LaneModel>;

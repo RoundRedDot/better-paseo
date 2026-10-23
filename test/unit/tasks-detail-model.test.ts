@@ -195,8 +195,8 @@ describe("details card model", () => {
     expect(subtaskTime({ id: "d", title: "t", status: "done", lane: "done", timing: { ...timing, lastTurnEndedAt: ago(12 * MINUTE) } }, NOW, "zh")).toEqual({ text: "12 分钟前", live: false });
     // Asking for input: since the request.
     expect(subtaskTime({ id: "i", title: "t", status: "needs_input", lane: "needs_input", timing: { ...timing, attentionAt: ago(2 * MINUTE), lastTurnEndedAt: ago(9 * MINUTE) } }, NOW, "en")).toEqual({ text: "2m ago", live: false });
-    // Without a recorded end, the last update, as the board card reads it.
-    expect(subtaskTime({ id: "u", title: "t", status: "unread", lane: "review", timing: { ...timing, lastTurnEndedAt: null, updatedAt: ago(5 * MINUTE) } }, NOW, "zh")).toEqual({ text: "5 分钟前", live: false });
+    // Without a recorded end, the latest prompt, as the board card reads it: a later update may be the daemon loading it.
+    expect(subtaskTime({ id: "u", title: "t", status: "unread", lane: "review", timing: { ...timing, lastTurnEndedAt: null, lastUserMessageAt: ago(5 * MINUTE), updatedAt: ago(MINUTE) } }, NOW, "zh")).toEqual({ text: "5 分钟前", live: false });
     expect(subtaskTime({ id: "x", title: "t", status: "done" }, NOW, "zh")).toBeNull();
   });
 

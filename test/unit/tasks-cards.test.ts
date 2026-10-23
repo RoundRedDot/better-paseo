@@ -397,9 +397,9 @@ describe("TaskCardView rows", () => {
     ["en", new Date(2026, 9, 22, 12), new Date(2026, 9, 13, 23, 9, 10), "~8m · 2026-10-13 23:09:10"],
     ["zh", new Date(2026, 9, 22, 12), new Date(2026, 9, 21, 12), "约 8m · 2026-10-21 12:00:00"],
     ["zh", new Date(2026, 0, 1), new Date(2025, 11, 31, 23, 59, 59), "约 8m · 2025-12-31 23:59:59"],
-  ] as const)("renders the %s footer at %s for an update at %s", async (language, now, updated, expected) => {
+  ] as const)("renders the %s footer at %s for a turn ended at %s", async (language, now, ended, expected) => {
     const card = sample("sample-done");
-    card.timing = { ...card.timing, updatedAt: updated.toISOString(), lastTurnMs: 8 * 60_000 };
+    card.timing = { ...card.timing, updatedAt: now.toISOString(), lastTurnMs: 8 * 60_000, lastTurnEndedAt: ended.toISOString() };
     const tree = await render(cardElement(card, { now: now.getTime(), language }));
     expect(texts(hostByTestId(tree.root, "task-card-timer"))).toEqual([expected]);
   });
@@ -408,7 +408,8 @@ describe("TaskCardView rows", () => {
     let time = new Date(2026, 9, 21, 23, 59, 59).getTime();
     const clock = createTaskClock(() => time);
     const card = sample("sample-done");
-    card.timing = { ...card.timing, updatedAt: new Date(2026, 9, 21, 23, 58, 10).toISOString(), lastTurnMs: null };
+    // No turn on record: timed from the latest prompt.
+    card.timing = { ...card.timing, lastUserMessageAt: new Date(2026, 9, 21, 23, 58, 10).toISOString(), lastTurnMs: null, lastTurnEndedAt: null };
     const tree = await render(cardElement(card, { now: undefined, clock }));
     expect(texts(hostByTestId(tree.root, "task-card-timer"))).toEqual(["1 分钟前"]);
     time += 1000;
@@ -1462,7 +1463,7 @@ describe("TaskCardView actions", () => {
   it("ends a subtask row that finished on another day with a short stamp, leaving the title room", async () => {
     const card = sample("sample-running");
     const child = card.children[2]!;
-    child.timing = { ...child.timing!, updatedAt: new Date(2026, 9, 19, 16, 57, 33).toISOString(), lastTurnMs: 60_000 };
+    child.timing = { ...child.timing!, lastTurnEndedAt: new Date(2026, 9, 19, 16, 57, 33).toISOString(), lastTurnMs: 60_000 };
     const tree = await render(cardElement(card, { now: new Date(2026, 9, 20, 12).getTime() }));
     await act(async () =>
       tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false).props.onPress(),

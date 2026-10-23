@@ -1,5 +1,5 @@
 import type { TasksLanguage } from "../i18n";
-import type { StatusKind, TaskCard, TaskChild } from "../model";
+import { settledAt, type StatusKind, type TaskCard, type TaskChild } from "../model";
 import { cardStart, cardTimer, formatEnded } from "./card-time";
 import { contextRatio, formatDuration } from "./format";
 import { cardStrings } from "./strings";
@@ -346,6 +346,6 @@ export function subtaskTime(child: TaskChild, now: number, language: TasksLangua
     return timer ? { text: timer.text, live: true } : null;
   }
   const ended = child.status === "needs_input" ? (timing.attentionAt ?? timing.lastTurnEndedAt) : timing.lastTurnEndedAt;
-  const text = formatEnded(ended ?? timing.updatedAt, now, language);
+  const text = formatEnded(ended ?? settledAt(timing), now, language);
   return text ? { text, live: false } : null;
 }

@@ -7,7 +7,7 @@ import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { fallbackLabelColor } from "../../client/tasks/label-colors";
-import { cardStart, cardTimer } from "../../client/tasks/cards/card-time";
+import { cardStart, cardTimer, formatEnded } from "../../client/tasks/cards/card-time";
 import { at, createFakePaseo, makeAgent, makePlacement, makeWorkspace } from "./helpers/fake-paseo";
 import "./helpers/quiet-renderer";
 
@@ -75,8 +75,14 @@ function workspace(labels: string[] = []) {
   });
 }
 
+/**
+ * An agent in the test workspace. One given only `updatedAt` was prompted
+ * then too: the done lane times a card by its turn, not by the daemon's
+ * later updates.
+ */
 function activeAgent(id: string, overrides: Partial<ReturnType<typeof makeAgent>> = {}) {
-  return makeAgent({ id, workspaceId: "ws", ...overrides });
+  const prompted = overrides.updatedAt !== undefined && !("lastUserMessageAt" in overrides) ? { lastUserMessageAt: overrides.updatedAt } : null;
+  return makeAgent({ id, workspaceId: "ws", ...prompted, ...overrides });
 }
 
 async function mountTasks(fake: Fake, doneWindow: "24h" | "7d" | "all" = "24h", includeDone = true) {
@@ -1200,7 +1206,8 @@ describe("Tasks data store", () => {
       ],
       workspaces: [workspace()],
     });
-    const mounted = await mountTasks(fake);
+    // Both ended two days ago, out of the 24h window.
+    const mounted = await mountTasks(fake, "all");
     try {
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
@@ -1220,6 +1227,39 @@ describe("Tasks data store", () => {
       expect(working.lastTurnEndedAt).toBe(iso(ended));
       expect(working.lastTurnMs).toBeGreaterThanOrEqual(30_000);
       expect(working.lastTurnMs).toBeLessThan(31_000);
+    } finally {
+      mounted.unmount();
+      setLastTurnLoader(null);
+    }
+  });
+
+  it("keeps the done window and order on each task's own end, not on an agent the daemon just loaded", async () => {
+    const day = 24 * 60 * 60 * 1000;
+    const iso = (ms: number) => new Date(ms).toISOString();
+    const now = Date.now();
+    const loader = vi.fn(async (ids: string[]) => ids.includes("recorded")
+      ? [{ agentId: "recorded", startedAt: now - 2 * day + 50, endedAt: now - 60 * 60_000 }]
+      : []);
+    setLastTurnLoader(loader);
+    const fake = createFakePaseo({
+      agents: [
+        // Loaded from storage just now: updatedAt moved, nothing ended.
+        activeAgent("stored", { status: "idle", lastUserMessageAt: iso(now - 9 * day), updatedAt: recentIso(1_000) }),
+        // Its long turn began two days ago and ended an hour ago.
+        activeAgent("recorded", { status: "idle", lastUserMessageAt: iso(now - 2 * day), updatedAt: recentIso(2_000) }),
+        activeAgent("prompted", { status: "idle", lastUserMessageAt: iso(now - 10 * 60_000), updatedAt: recentIso(3_000) }),
+      ],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h");
+    try {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.lanes.done.cards.map((card) => card.id)).toEqual(["prompted", "recorded"]);
+      // The footer says when the turn ended, not when the daemon touched it.
+      expect(cardTimer(mounted.current.byId.get("recorded")!, now, "en")?.text).toBe(`~47h · ${formatEnded(iso(now - 60 * 60_000), now, "en")}`);
     } finally {
       mounted.unmount();
       setLastTurnLoader(null);
@@ -1447,7 +1487,8 @@ describe("Tasks data store", () => {
         agents: [activeAgent("parent", { status: "idle", lastUserMessageAt: PROMPT, updatedAt: recentIso(60_000) })],
         workspaces: [workspace()],
       });
-      const mounted = await mountTasks(fake);
+      // Prompted on a fixed day, so the done lane needs every day.
+      const mounted = await mountTasks(fake, "all");
       try {
         await act(async () => {
           await vi.waitFor(() => expect(mounted.current.lanes.review.cards.map((card) => card.id)).toEqual(["parent"]));
