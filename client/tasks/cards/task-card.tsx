@@ -1685,7 +1685,11 @@ export function CardButton(props: {
         </Text>
       )}
       {/* The one arrow: a label that still ends in its own is trimmed by the caller. */}
-      {answer || props.arrow ? <Icon name="ArrowUpRight" size={size} color={color} /> : null}
+      {answer || props.arrow ? (
+        <View style={{ marginLeft: square ? 0 : -arrowInset(size) }}>
+          <Icon name="ArrowUpRight" size={size} color={color} />
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -1785,6 +1789,15 @@ interface StopControlProps {
 
 /** Armed Stop's icon: Lucide's stop sign with an exclamation mark, asking for the second press. */
 export const CONFIRM_STOP_ICON = "OctagonAlert";
+
+/**
+ * Lucide's ArrowUpRight draws in columns 7–17 of its 24, where a box icon such
+ * as Archive fills 2–22: after a label the arrow sits that 5/24 further off.
+ * A trailing arrow is pulled in by it, so its gap reads as a leading icon's.
+ */
+export function arrowInset(size: number): number {
+  return (size * 5) / 24;
+}
 
 /**
  * Stop, its confirm state, and a parent's "only this / with subtasks" menu:
