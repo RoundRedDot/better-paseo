@@ -951,6 +951,35 @@ describe("TaskCardView actions", () => {
     expect(hostByTestId(tree.root, "task-card-sample-done").props.onPress).toBeUndefined();
   });
 
+  it("drops the touch buttons under the timer when the lane is too narrow for both", async () => {
+    const layout = (node: ReactTestInstance, width: number) => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 20 } } });
+    const measure = async (row: number) => {
+      const footer = hostByTestId(tree.root, "task-card-footer");
+      // The footer, then the timer and the buttons inside it.
+      const [timer, controls] = footer.findAll((node) => typeof node.type === "string" && node !== footer && typeof node.props.onLayout === "function");
+      await act(async () => {
+        layout(footer, row);
+        layout(timer!, 120);
+        layout(controls!, 180);
+      });
+      return hostByTestId(tree.root, "task-card-footer");
+    };
+    const tree = await render(cardElement(sample("sample-child-1"), { onStop: () => {} }));
+    // A wide lane: the buttons stay beside the timer, at the far right.
+    let footer = await measure(320);
+    expect(flat(footer.props.style)).toMatchObject({ flexDirection: "row", alignItems: "center" });
+    expect(texts(footer)).toEqual([expect.any(String), expect.any(String), "打开 tab", "停止"]);
+    // A narrow one (120 + 6 + 180 > 300): a row of their own under the timer, still at the right.
+    footer = await measure(300);
+    expect(flat(footer.props.style)).toMatchObject({ flexDirection: "column", alignItems: "flex-start" });
+    const controls = footer.findAll((node) => typeof node.type === "string" && node !== footer && typeof node.props.onLayout === "function")[1]!;
+    expect(flat(controls.props.style)).toEqual({ alignSelf: "flex-end" });
+    expect(texts(controls)).toEqual(["打开 tab", "停止"]);
+    // Widening the lane again puts them back.
+    footer = await measure(306);
+    expect(flat(footer.props.style)).toMatchObject({ flexDirection: "row" });
+  });
+
   it("leaves Open tab out beside a question's Answer, which opens the tab itself", async () => {
     const card = { ...sample("sample-input"), permission: { requestId: "q", kind: "question" as const, title: "Which database?", summary: null, actions: [], remaining: 0 } };
     const tree = await render(cardElement(card, { permissionButtons: permissionButtons(card.permission, "zh") }));

@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, laneTitle, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
@@ -82,6 +82,8 @@ export interface TaskCardViewProps extends CardCallbacks {
 const WEB = Platform.OS === "web";
 /** No hover: the stop button and the subtask jump buttons stay visible. */
 const TOUCH = !WEB;
+/** Between the footer's timer and its buttons. */
+const FOOT_GAP = 6;
 /**
  * The card and a subtask row hold buttons of their own, so on web they must not
  * be buttons: React Native Web draws `role="button"` as a `<button>`, and a
@@ -405,6 +407,16 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const [stopAll, setStopAll] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [ringOpen, setRingOpen] = useState(false);
+  // A touch card's footer: its width, the timer's and the buttons', to tell
+  // whether the buttons fit beside the timer at this lane width and text size.
+  const [foot, setFoot] = useState({ row: 0, timer: 0, controls: 0 });
+  const measureFoot = (key: keyof typeof foot) =>
+    TOUCH
+      ? (event: LayoutChangeEvent) => {
+          const width = event.nativeEvent.layout.width;
+          setFoot((current) => (current[key] === width ? current : { ...current, [key]: width }));
+        }
+      : undefined;
 
   const latest = useRef(props);
   latest.current = props;
@@ -775,6 +787,14 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   // beside the answer it waits for, as the details sidebar shows it, rather
   // than above the divider with the buttons alone on a row of their own.
   const answerRow = layout.permission && card.permission !== null && !compact && props.permissionButtons.length > 0;
+  // A narrow lane (a pad's, or any lane at a large text size) has no room for
+  // the timer and the touch buttons side by side, so the buttons drop to a row
+  // of their own under the timer, still at the right, rather than run off the
+  // card. Measured, not a breakpoint: lane width, text size, the timer's text
+  // and the buttons' labels all move the line. No flexWrap, whose Yoga layout
+  // leaves a phantom row's height on Android. On a request's answer row the
+  // row measured is the answer row, which the footer can take alone.
+  const footWraps = TOUCH && !!timer && showControl && foot.row > 0 && foot.timer + FOOT_GAP + foot.controls > foot.row + 0.5;
   // "Open tab" first, then Stop or Mark read, centred on the line they sit on.
   const footControls = (line: number) => (
     <View style={{ flexDirection: "row", gap: GAP, marginVertical: (Math.round(line * scale) - taskControlHeight(m.buttonHeight, scale)) / 2 }}>
@@ -796,7 +816,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     timer || stopSlot ? (
       <>
         {timer ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }} onLayout={measureFoot("timer")}>
             {started ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }} testID="task-card-started">
                 <Icon name="Clock" size={m.icon} color={muted} />
@@ -812,7 +832,9 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         ) : null}
         {/* Bottom right, where Linear keeps nothing else; it stays there without a timer. */}
         {showControl && TOUCH ? (
-          <View style={{ marginLeft: "auto" }}>{footControls(m.footLine)}</View>
+          <View style={footWraps ? { alignSelf: "flex-end" } : { marginLeft: "auto" }} onLayout={measureFoot("controls")}>
+            {footControls(footWraps ? m.buttonHeight : m.footLine)}
+          </View>
         ) : null}
         {(showControl || controlLeaving) && !TOUCH ? (
           // On web the buttons appear on hover, so they float over the ring (the card's
@@ -842,7 +864,14 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     ) : null;
   const footer =
     footerContent && !answerRow ? (
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: footHeight, marginTop: m.rowGap, zIndex: footerZ }} testID="task-card-footer">
+      <View
+        style={[
+          { flexDirection: "row", alignItems: "center", gap: FOOT_GAP, minHeight: footHeight, marginTop: m.rowGap, zIndex: footerZ },
+          footWraps ? { flexDirection: "column", alignItems: "flex-start", gap: m.rowGap } : null,
+        ]}
+        onLayout={measureFoot("row")}
+        testID="task-card-footer"
+      >
         {footerContent}
       </View>
     ) : null;
@@ -884,7 +913,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           ) : null}
         </View>
         {answerRow ? (
-          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: GAP }} testID="task-card-answer-row">
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: GAP }} onLayout={measureFoot("row")} testID="task-card-answer-row">
             {props.permissionButtons.map((button) => (
               <ActionButton
                 key={button.key}
@@ -895,7 +924,13 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
               />
             ))}
             {footerContent ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: footHeight, marginLeft: "auto" }} testID="task-card-footer">
+              <View
+                style={[
+                  { flexDirection: "row", alignItems: "center", gap: FOOT_GAP, minHeight: footHeight, marginLeft: "auto" },
+                  footWraps ? { flexDirection: "column", alignItems: "flex-end", gap: m.rowGap } : null,
+                ]}
+                testID="task-card-footer"
+              >
                 {footerContent}
               </View>
             ) : null}
