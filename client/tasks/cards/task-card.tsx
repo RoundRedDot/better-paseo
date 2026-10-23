@@ -28,6 +28,7 @@ import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
 import { layoutMenu } from "../board/menu-model";
 import { panelChrome } from "./panel";
 import { cardStrings, subtaskSummary } from "./strings";
+import { TagMark } from "./tag-mark";
 import { pillTint, taskTokens, type TaskTokens } from "./tokens";
 import { mix, withAlpha } from "../../components/theme-tokens";
 
@@ -171,9 +172,8 @@ interface Metrics {
   pillText: number;
   pillLine: number;
   pillPad: number;
-  /** A pill's icons, brand mark and label dot, and the gap between them. */
+  /** A pill's icons and brand mark, and the gap between them. */
   pillIcon: number;
-  pillDot: number;
   pillGap: number;
   icon: number;
   footSize: number;
@@ -221,7 +221,6 @@ const DESKTOP: Metrics = {
   ...pillType(F.sm),
   pillPad: 8,
   pillIcon: 11,
-  pillDot: 6,
   pillGap: 5,
   icon: 12,
   footSize: F.sm,
@@ -247,7 +246,6 @@ const PHONE: Metrics = {
   ...pillType(F.sm),
   pillPad: 9,
   pillIcon: 12,
-  pillDot: 7,
   pillGap: 6,
   icon: 14,
   footSize: F.sm,
@@ -808,8 +806,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           key={`label-${label.name}`}
           {...pill}
           testID={`pill-label-${label.name}`}
-          tint={label.color}
-          dot={label.color ?? tokens.foregroundMuted}
+          lead={<TagMark size={m.pillIcon} color={label.color ?? tokens.foregroundMuted} hole={tokens.card.pillFill} />}
           label={label.name}
           hint={hint(`label-${label.name}`, () => pair(strings.hint.label, label.name))}
         />,
@@ -1236,8 +1233,6 @@ interface PillProps {
   label?: string;
   /** A Lucide icon before the text. */
   icon?: string;
-  /** A small dot before the text (a label's colour). */
-  dot?: string;
   /** Any other leading mark (the agent's brand). */
   lead?: ReactNode;
   /** Text and icon colour; muted by default. */
@@ -1295,7 +1290,6 @@ function PillContent(props: PillProps) {
     <>
       {props.lead ?? null}
       {props.icon ? <Icon name={props.icon} size={m.pillIcon} color={props.solid?.icon ?? color} /> : null}
-      {props.dot ? <View style={{ width: m.pillDot, height: m.pillDot, borderRadius: m.pillDot / 2, backgroundColor: props.dot }} /> : null}
       {props.label !== undefined ? (
         <Text
           numberOfLines={1}

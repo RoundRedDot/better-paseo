@@ -1,8 +1,7 @@
 import React from "react";
-import { View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
-import { BrandMark, ProjectIcon, taskTokens } from "../cards";
+import { BrandMark, ProjectIcon, TagMark, taskTokens } from "../cards";
 import { FILTER_ICONS, type ActiveChip, type ChipGroup, type FilterOption, type ProjectOption, type ShownFilterOptions } from "./filter-options";
 import type { BoardParams } from "./params";
 import type { MenuItem, MenuSection } from "./menu-model";
@@ -91,7 +90,7 @@ export function laneWidthMenuSections(current: LaneWidth, strings: BoardStrings,
  * check at the right while it is picked, as the sort menu shows its choice.
  * Without a mark of its own, the row draws `icon`.
  */
-function optionItem(option: FilterOption, toggle: (id: string) => void, mark: { leading: React.ReactNode } | { icon: string }): MenuItem {
+function optionItem(option: FilterOption, toggle: (id: string) => void, mark: { leading: MenuItem["leading"] } | { icon: string }): MenuItem {
   return {
     key: option.id,
     label: option.label,
@@ -137,7 +136,7 @@ export function labelMenuSections(options: ShownFilterOptions, theme: PluginThem
     {
       key: "labels",
       items: options.labels.map((label) =>
-        optionItem(label, toggle, { leading: <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: label.color ?? theme.colors.foregroundMuted }} /> }),
+        optionItem(label, toggle, { leading: (fill: string) => <TagMark size={16} color={label.color ?? theme.colors.foregroundMuted} hole={fill} /> }),
       ),
     },
   ];
