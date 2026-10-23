@@ -306,6 +306,10 @@ export function DisclosureHeader({
   const detailsEnabled = Boolean(preferences.blockDetails && placement && previewKey && !previewOwner);
   const details = useDetails(detailsEnabled ? placement!.agentId : "");
   const isCurrent = detailsEnabled && details.openId === previewKey;
+  // A row needs no marker subscription before its first selection. Once
+  // selected, retain the instance through linger, fade and later reopening.
+  const hasMarker = useRef(false);
+  if (detailsEnabled && (isCurrent || details.lingerId === previewKey)) hasMarker.current = true;
   const [menuAnchor, setMenuAnchor] = useState<RowMenuAnchor | null>(null);
   const menuOpen = menuAnchor !== null;
   useEffect(() => { if (!detailsEnabled) setMenuAnchor(null); }, [detailsEnabled]);
@@ -532,7 +536,7 @@ export function DisclosureHeader({
                   (pressedState || (detailsEnabled && (menuOpen || actionsActive || pressed))) && { backgroundColor: tokens.v2.surface2 },
                 ]}
               >
-                {detailsEnabled ? <CurrentMarker agentId={placement!.agentId} id={previewKey!} tokens={tokens} /> : null}
+                {detailsEnabled && hasMarker.current ? <CurrentMarker agentId={placement!.agentId} id={previewKey!} tokens={tokens} /> : null}
                 <View style={styles.slot}>
                   {showChevron ? (
                     <Icon
