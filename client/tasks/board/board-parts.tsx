@@ -431,13 +431,14 @@ export function RollingCount(props: { value: number; scope?: unknown; align?: "l
 const COUNT_SPILL = 40;
 
 /** A 36 round icon button in a 44 target, with a count badge: the phone's search and filters, a narrow tablet board's filters. */
-export function RoundButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; active?: boolean; badge?: number; testID?: string }) {
+export function RoundButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; active?: boolean; badge?: number; testID?: string; /** A toggle's state, read out as selected. */ selected?: boolean }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={props.label}
+      accessibilityState={props.selected === undefined ? undefined : { selected: props.selected }}
       onPress={props.onPress}
       testID={props.testID}
       style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}

@@ -34,7 +34,8 @@ export function DesktopToolbar(props: {
   /**
    * A narrow board's one-row header: the filter bar folds into this button
    * (its count of active filters on a badge), which opens the filter sheet,
-   * so the lanes keep the height two more rows took.
+   * so the lanes keep the height two more rows took. The archived lane's
+   * switch, no filter, stays out as a round button on its left.
    */
   filters?: { count: number; onPress(): void };
 }) {
@@ -93,6 +94,17 @@ export function DesktopToolbar(props: {
           style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground }}
         />
       </View>
+      {props.filters ? (
+        <RoundButton
+          icon="Archive"
+          label={strings.archivedLane.row}
+          active={board.showArchived}
+          selected={board.showArchived}
+          theme={theme}
+          onPress={() => board.setShowArchived(!board.showArchived)}
+          testID="toolbar-archived"
+        />
+      ) : null}
       {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} testID="toolbar-filters" /> : null}
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
     </View>
