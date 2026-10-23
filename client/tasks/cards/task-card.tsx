@@ -28,7 +28,7 @@ import { bindContextMenu } from "../../web";
 import { ArchivedTag } from "./archived-tag";
 import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
 import { layoutMenu } from "../board/menu-model";
-import { buttonOutline } from "../board/board-style";
+import { BUTTON_LINE, buttonOutline } from "../board/board-style";
 import { panelChrome } from "./panel";
 import { cardStrings, subtaskSummary } from "./strings";
 import { TagMark } from "./tag-mark";
@@ -1890,9 +1890,7 @@ function StopControl(props: StopControlProps) {
         {...stopHover.hoverProps}
         style={[
           segment,
-          // Its right edge is the chevron's left on the web, where the lines
-          // are shadows and cannot overlap.
-          buttonOutline(tokens.danger, props.parent && Platform.OS === "web" ? { right: null } : {}),
+          props.parent ? null : buttonOutline(tokens.danger),
           {
             ...(compact ? { flexGrow: 1, flexShrink: 1, flexBasis: "auto" } : null),
             gap: 5,
@@ -1931,8 +1929,6 @@ function StopControl(props: StopControlProps) {
             segment,
             {
               width: compact ? 36 : 26,
-              ...buttonOutline(tokens.danger, { left: withAlpha(tokens.danger, 0.4) }),
-              marginLeft: Platform.OS === "web" ? 0 : -0.5,
               backgroundColor: fill((chevronHover.hovered && !stopping) || props.menuOpen),
               borderTopRightRadius: round,
               borderBottomRightRadius: round,
@@ -1940,8 +1936,22 @@ function StopControl(props: StopControlProps) {
             },
           ]}
         >
+          <View
+            pointerEvents="none"
+            testID="task-card-stop-divider"
+            style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: BUTTON_LINE, backgroundColor: withAlpha(tokens.danger, 0.4) }}
+          />
           <Icon name={compact ? "ChevronUp" : "ChevronDown"} size={compact ? 14 : 13} color={color} />
         </Pressable>
+      ) : null}
+      {props.parent ? (
+        // One uniform outline avoids native rendering artifacts from adjoining
+        // rounded borders with different side colours. Keep the menu unclipped.
+        <View
+          pointerEvents="none"
+          testID="task-card-stop-outline"
+          style={[StyleSheet.absoluteFillObject, buttonOutline(tokens.danger), { borderRadius: round, opacity: stopping ? 0.6 : 1 }]}
+        />
       ) : null}
       {props.parent && props.menuOpen ? (
         // The board's Linear menu (radius 12, hairline, soft shadow, 32 pt
