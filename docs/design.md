@@ -133,8 +133,11 @@ words while it works. This holds on the card, in the details sidebar and in the 
 bar alike. While the action is out the button:
 
 - keeps its label and its resting look (Stop stays in its danger tint, not the solid confirm fill);
-- shows the platform's small `ActivityIndicator` in the icon's slot, scaled into the icon's box so
-  the button keeps its width (a button with no icon gains the spinner before its label);
+- shows a hollow spinner ring in the icon's slot, in the icon's box and colour so the button keeps
+  its width (a button with no icon gains the spinner before its label). The ring is `SpinnerRing`
+  (`client/tasks/cards/status-icon.tsx`): the running status ring without its centre dot, a 30%
+  track with a turning 90% quarter, on the running rings' shared clock. Not the platform's
+  `ActivityIndicator`, whose spokes differ between iOS, Android and web;
 - dims to 0.6 opacity and drops its hover fill;
 - takes no second press: `disabled`, and `accessibilityState={{ disabled: true, busy: true }}`.
 

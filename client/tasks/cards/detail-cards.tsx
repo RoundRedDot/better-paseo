@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { openLink } from "../../components/open-link";
@@ -24,7 +24,7 @@ import { BrandMark } from "./brand-mark";
 import { ChildMark } from "./child-mark";
 import { useTime, type TimeSource } from "./clock";
 import { ProjectIcon } from "./project-icon";
-import { StatusIcon } from "./status-icon";
+import { SpinnerRing, StatusIcon } from "./status-icon";
 import { cardTimer } from "./card-time";
 import {
   branchHint,
@@ -1525,10 +1525,8 @@ function OutlineButton(props: {
       }}
     >
       {props.busy ? (
-        // The platform's small spinner is 20; scaled into the icon's box so the button keeps its width.
-        <View style={{ width: 15, height: 15, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="small" color={iconColor} style={{ transform: [{ scale: 15 / 20 }] }} testID={props.testID ? `${props.testID}-spinner` : undefined} />
-        </View>
+        // The running ring without its dot, in the icon's box so the button keeps its width.
+        <SpinnerRing size={15} color={iconColor} testID={props.testID ? `${props.testID}-spinner` : undefined} />
       ) : (
         <Icon name={props.icon} size={15} color={iconColor} />
       )}
@@ -1688,10 +1686,8 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; stop?: DangerLook
       })}
     >
       {props.busy ? (
-        // The platform's small spinner is 20; scaled into the icon's box so the button keeps its width.
-        <View style={{ width: 18, height: 18, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="small" color={iconColor} style={{ transform: [{ scale: 18 / 20 }] }} testID={props.testID ? `${props.testID}-spinner` : undefined} />
-        </View>
+        // The running ring without its dot, in the icon's box so the button keeps its width.
+        <SpinnerRing size={18} color={iconColor} testID={props.testID ? `${props.testID}-spinner` : undefined} />
       ) : props.icon ? (
         <Icon name={props.icon} size={18} color={iconColor} />
       ) : null}

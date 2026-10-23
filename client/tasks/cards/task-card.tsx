@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, laneTitle, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
@@ -20,7 +20,7 @@ import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } fro
 import { agentPillColors, BrandMark, branchPillColors, neutralPillColors, type AgentPillColors } from "./brand-mark";
 import { THINKING_ICON } from "./mode-icons";
 import { ProjectIcon } from "./project-icon";
-import { StatusIcon } from "./status-icon";
+import { SpinnerRing, StatusIcon } from "./status-icon";
 import { ChildMark } from "./child-mark";
 import { CardContextMenu } from "./card-menu";
 import { bindContextMenu } from "../../web";
@@ -1547,8 +1547,8 @@ export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "grey";
 /**
  * The card's button: Allow's accent tint, a plain outline, Archive's grey
  * fill, the Stop button's danger tint, or "Answer" in the needs-input amber with its arrow. A busy
- * one keeps its look and label, dimmed, and swaps its icon for a spinner, as
- * Paseo's own loading buttons do.
+ * one keeps its look and label, dimmed, and swaps its icon for the hollow
+ * spinner ring (`SpinnerRing`).
  */
 export function CardButton(props: {
   label: string;
@@ -1618,10 +1618,8 @@ export function CardButton(props: {
       }}
     >
       {props.busy ? (
-        // The platform's small spinner is 20; scaled into the icon's box so the button keeps its width.
-        <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="small" color={color} style={{ transform: [{ scale: size / 20 }] }} testID={props.testID ? `${props.testID}-spinner` : undefined} />
-        </View>
+        // The running ring without its dot, in the icon's box so the button keeps its width.
+        <SpinnerRing size={size} color={color} testID={props.testID ? `${props.testID}-spinner` : undefined} />
       ) : props.icon ? (
         <Icon name={props.icon} size={size} color={color} />
       ) : null}
@@ -1695,10 +1693,8 @@ function ReadControl(props: {
       }}
     >
       {pending ? (
-        // The platform's small spinner is 20; scaled into the icon's box so the button keeps its width.
-        <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="small" color={color} style={{ transform: [{ scale: iconSize / 20 }] }} testID="task-card-read-spinner" />
-        </View>
+        // The running ring without its dot, in the icon's box so the button keeps its width.
+        <SpinnerRing size={iconSize} color={color} testID="task-card-read-spinner" />
       ) : (
         <Icon name="CheckCheck" size={iconSize} color={color} />
       )}
@@ -1825,10 +1821,8 @@ function StopControl(props: StopControlProps) {
         ]}
       >
         {stopping ? (
-          // The platform's small spinner is 20; scaled into the icon's box so the button keeps its width.
-          <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>
-            <ActivityIndicator size="small" color={color} style={{ transform: [{ scale: iconSize / 20 }] }} testID="task-card-stop-spinner" />
-          </View>
+          // The running ring without its dot, in the icon's box so the button keeps its width.
+          <SpinnerRing size={iconSize} color={color} testID="task-card-stop-spinner" />
         ) : compact && solid ? null : (
           <Icon name="Power" size={iconSize} color={color} />
         )}
