@@ -388,7 +388,11 @@ export function useBoard(
   const callbacks = useMemo<CardCallbacks>(
     () => ({
       onOpen: hasNavigation ? open : undefined,
-      onReveal: (agentId) => handlers.current?.reveal(agentId),
+      onReveal: (agentId, parentId) => {
+        // A provider subagent's row, while hidden subtasks or the filters leave its card off the board: its parent's tab.
+        if (parentId && !findCard(latest.current.lanes, agentId)) open(parentId);
+        else handlers.current?.reveal(agentId);
+      },
       // No CLI on the daemon's machine (`tasks.capabilities`): no Stop on any card.
       onStop: stopAvailable ? (card, stopOptions) => latest.current.stop.press(card, stopOptions) : undefined,
       onCancelStop: (agentId) => latest.current.stop.cancel(agentId),
