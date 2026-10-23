@@ -41,7 +41,7 @@ const en = {
   openTabs: "Open tabs only",
   openTabsHint: "Paseo marks open tabs for subagents only",
   hideSubtasks: "Hide subtasks",
-  hideSubtasksHint: "Running, waiting and failed subtasks still show",
+  hideSubtasksHint: "Running, waiting and failed subtasks still show, unless their parent's card is in the same lane",
   /** The touch board's button that shows and hides the two toggles. */
   moreFilters: "More filters",
   fewerFilters: "Fewer filters",
@@ -192,7 +192,7 @@ const zh: typeof en = {
   openTabs: "只看开着的 tab",
   openTabsHint: "Paseo 只给子 agent 标记打开的 tab",
   hideSubtasks: "隐藏子任务",
-  hideSubtasksHint: "运行中、待输入和失败的子任务仍会显示",
+  hideSubtasksHint: "运行中、待输入和失败的子任务仍会显示，父任务在同一泳道时除外",
   moreFilters: "更多筛选",
   fewerFilters: "收起筛选",
   titleContains: "标题包含",

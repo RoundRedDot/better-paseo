@@ -351,6 +351,20 @@ describe("Tasks data store", () => {
     for (const id of LANE_ORDER) {
       expect(visible[id].cards.map((card) => card.id)).toEqual(lanes[id].cards.map((card) => card.id));
     }
+
+    // A parent waiting on its subtasks sits in the running lane and shows the running one as a row.
+    const waiting: TaskCard = { ...parent, lane: "running", status: "running", waitingOnSubtasks: true, provider: "parent-only" };
+    const waitingLanes = Object.fromEntries(LANE_ORDER.map((id) => [id, {
+      ...lanes[id],
+      cards: [waiting, ...children].filter((card) => card.lane === id),
+    }])) as Record<LaneId, LaneModel>;
+    const folded = filterLanes(waitingLanes, filters);
+    expect(folded.running.cards.map((card) => card.id)).toEqual([parentId]);
+    expect(folded.needs_input.cards.map((card) => card.id)).toEqual(["child-needs-input"]);
+    expect(folded.review.cards.map((card) => card.id)).toEqual(["child-failed"]);
+    // With the parent filtered out, the running subtask has no row to stand in for it.
+    expect(filterLanes(waitingLanes, { ...filters, providers: [children[0]!.provider] }).running.cards.map((card) => card.id))
+      .toEqual(["child-running"]);
   });
 
   it("notifies store listeners once for a multi-agent subscription snapshot", async () => {
