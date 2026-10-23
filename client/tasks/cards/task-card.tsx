@@ -1540,13 +1540,7 @@ export function ActionButton(props: {
 }) {
   const { button } = props;
   const answer = button.kind === "open";
-  const primary = button.variant === "primary" && !answer;
-  // Deny pairs with Allow: Allow's accent outline, Deny the Stop button's danger one.
-  const danger = !answer && !primary && (button.variant === "danger" || button.action.behavior === "deny");
-  let look: CardButtonLook = "plain";
-  if (answer) look = "answer";
-  else if (primary) look = "primary";
-  else if (danger) look = "danger";
+  const look = requestLook(button);
   return (
     <CardButton
       label={answer ? button.label.replace(/\s*\u2197\s*$/, "") : button.label}
@@ -1560,7 +1554,45 @@ export function ActionButton(props: {
   );
 }
 
-export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "archive";
+/**
+ * A permission button's look, wherever it is drawn: "Answer" in the
+ * needs-input amber, Allow in the accent, and Deny, which pairs with Allow, in
+ * the Stop button's danger; any other answer plain.
+ */
+export function requestLook(button: PermissionButton): CardButtonLook {
+  if (button.kind === "open") return "answer";
+  if (button.variant === "primary") return "primary";
+  if (button.variant === "danger" || button.action.behavior === "deny") return "danger";
+  return "plain";
+}
+
+export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "archive" | "read";
+
+/**
+ * Every Tasks action button's colours, on the card, in the details sidebar
+ * and in the phone sheet's bar: an outline whose border, label and icon carry
+ * its hue, with no fill at rest and the hue tinted over the card when hovered
+ * or pressed. Plain grey (Open tab), Allow's accent, Stop and Deny's danger,
+ * "Answer"'s needs-input amber, Archive's yellow, Mark read's unread green.
+ * Nothing is ever solid: an armed "Confirm stop" says so in words only.
+ */
+export function buttonHue(tokens: TaskTokens, look: CardButtonLook): { color: string; border: string; hover: string } {
+  const card = tokens.card;
+  switch (look) {
+    case "primary":
+      return { color: card.primaryText, border: card.primaryBorder, hover: card.primaryHover };
+    case "danger":
+      return { color: tokens.danger, border: tokens.danger, hover: card.dangerHover };
+    case "answer":
+      return { color: card.answerText, border: card.answerBorder, hover: card.answerHover };
+    case "archive":
+      return { color: card.archiveText, border: card.archiveBorder, hover: card.archiveHover };
+    case "read":
+      return { color: card.readText, border: card.readBorder, hover: card.readHover };
+    default:
+      return { color: tokens.foreground, border: card.buttonBorder, hover: card.controlHover };
+  }
+}
 
 /**
  * The card's button, always an outline: plain grey, Allow's accent, Archive's
@@ -1588,20 +1620,10 @@ export function CardButton(props: {
   const { tokens, compact, look: kind } = props;
   const square = compact && props.square === true;
   const scale = useTasksFontScale();
-  const look = tokens.card;
   const { hovered: hover, hoverProps } = useHover();
   const hovered = hover && !props.busy;
   const answer = kind === "answer";
-  // Every look is an outline: a 0.5 px border, label and icon in its hue and
-  // no fill at rest; hovered, that hue tinted over the card. "Answer" opens the
-  // tab for a question in the needs-input icon's amber (the statusDot band).
-  const hue = {
-    plain: { color: tokens.foreground, border: look.buttonBorder, hover: look.controlHover },
-    primary: { color: look.primaryText, border: look.primaryBorder, hover: look.primaryHover },
-    danger: { color: tokens.danger, border: tokens.danger, hover: look.dangerHover },
-    answer: { color: look.answerText, border: look.answerBorder, hover: look.answerHover },
-    archive: { color: look.archiveText, border: look.archiveBorder, hover: look.archiveHover },
-  }[kind];
+  const hue = buttonHue(tokens, kind);
   const color = hue.color;
   const fill = hovered ? hue.hover : "transparent";
   const border = hue.border;
@@ -1674,15 +1696,15 @@ function ReadControl(props: {
 }) {
   const { tokens, strings, pending, compact } = props;
   const scale = useTasksFontScale();
-  const look = tokens.card;
   const { hovered, hoverProps } = useHover();
   const sizing = phoneButtonSizing((useWindowDimensions().fontScale ?? 1) * scale, true);
   const height = taskControlHeight(compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, scale);
   const label = strings.markRead;
   const iconSize = compact ? 14 : 13;
   const hover = hovered && !pending;
-  const color = props.unread ? look.readText : tokens.foreground;
-  const fill = hover ? (props.unread ? look.readHover : look.controlHover) : "transparent";
+  const hue = buttonHue(tokens, props.unread ? "read" : "plain");
+  const color = hue.color;
+  const fill = hover ? hue.hover : "transparent";
   return (
     <Pressable
       accessibilityRole="button"
@@ -1697,7 +1719,7 @@ function ReadControl(props: {
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         paddingHorizontal: compact ? 12 : 10,
         borderRadius: compact ? 7 : 6,
-        ...buttonOutline(props.unread ? look.readBorder : look.buttonBorder),
+        ...buttonOutline(hue.border),
         backgroundColor: fill,
         flexDirection: "row",
         alignItems: "center",
@@ -1743,20 +1765,22 @@ interface StopControlProps {
   theme: PluginTheme;
 }
 
+/** Armed Stop's icon: Lucide's stop sign with an exclamation mark, asking for the second press. */
+export const CONFIRM_STOP_ICON = "OctagonAlert";
+
 /**
  * Stop, its confirm state, and a parent's "only this / with subtasks" menu:
  * the details sidebar's stop button at a card button's size ("Answer"'s 28,
- * radius 6), a rounded rectangle led by Lucide's Power. At rest a danger outline and text with no fill, tinted on hover; armed,
- * a solid danger fill with white text; the parent's chevron is its end. Stopping
+ * radius 6), a rounded rectangle led by Lucide's Power: a danger outline and
+ * text with no fill, tinted on hover. Armed, it keeps that look, says
+ * "Confirm stop" and leads with `CONFIRM_STOP_ICON`; the parent's chevron is its end. Stopping
  * it goes back to the rest look and label, dimmed, a spinner in the icon's place.
  */
 function StopControl(props: StopControlProps) {
   const { tokens, strings, phase, compact } = props;
   const scale = useTasksFontScale();
-  const look = tokens.card;
   const confirming = phase === "confirming";
   const stopping = phase === "stopping";
-  const solid = confirming;
   const stopHover = useHover();
   const chevronHover = useHover();
   const stopSections: MenuSection[] = [
@@ -1780,9 +1804,9 @@ function StopControl(props: StopControlProps) {
     },
   ];
   const sizing = phoneButtonSizing((useWindowDimensions().fontScale ?? 1) * scale, true);
-  const color = solid ? look.onStrong : tokens.danger;
-  const fill = (hovered: boolean) =>
-    solid ? (hovered ? look.dangerStrongHover : tokens.danger) : hovered ? look.dangerHover : "transparent";
+  const hue = buttonHue(tokens, "danger");
+  const color = hue.color;
+  const fill = (hovered: boolean) => (hovered ? hue.hover : "transparent");
   const height = taskControlHeight(compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, scale);
   // A card button's: 7 at a phone's 32, 6 at the desktop's 28, as "Answer" is.
   const round = compact ? 7 : 6;
@@ -1823,10 +1847,10 @@ function StopControl(props: StopControlProps) {
           {
             ...(compact ? { flexGrow: 1, flexShrink: 1, flexBasis: "auto" } : null),
             gap: 5,
-            // Armed on a phone the solid pill says what it does in words; its
-            // square goes and its padding narrows, so "Confirm stop" fits
-            // beside Allow and Deny at full size on a 360 pt phone.
-            paddingHorizontal: compact ? (solid ? 10 : 12) : 10,
+            // Armed on a phone the pill says what it does in words; its icon
+            // goes and its padding narrows, so "Confirm stop" fits beside
+            // Allow and Deny at full size on a 360 pt phone.
+            paddingHorizontal: compact ? (confirming ? 10 : 12) : 10,
             backgroundColor: fill(stopHover.hovered && !stopping),
             borderTopLeftRadius: round,
             borderBottomLeftRadius: round,
@@ -1839,8 +1863,8 @@ function StopControl(props: StopControlProps) {
         {stopping ? (
           // The running ring without its dot, in the icon's box so the button keeps its width.
           <SpinnerRing size={iconSize} color={color} testID="task-card-stop-spinner" />
-        ) : compact && solid ? null : (
-          <Icon name="Power" size={iconSize} color={color} />
+        ) : compact && confirming ? null : (
+          <Icon name={confirming ? CONFIRM_STOP_ICON : "Power"} size={iconSize} color={color} />
         )}
         <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
           {label}
@@ -1858,7 +1882,7 @@ function StopControl(props: StopControlProps) {
             segment,
             {
               width: compact ? 36 : 26,
-              ...buttonOutline(tokens.danger, { left: solid ? withAlpha(look.onStrong, 0.4) : withAlpha(tokens.danger, 0.4) }),
+              ...buttonOutline(tokens.danger, { left: withAlpha(tokens.danger, 0.4) }),
               marginLeft: Platform.OS === "web" ? 0 : -0.5,
               backgroundColor: fill((chevronHover.hovered && !stopping) || props.menuOpen),
               borderTopRightRadius: round,
