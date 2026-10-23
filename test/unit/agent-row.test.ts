@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { classifyTool, type ToolCallPayload } from "../../client/tools/classify";
 import { summarizeTool } from "../../client/tools/summarize";
 import { providerName, shortAgentId, shouldFold } from "../../client/tools/agent-row";
-import { buildPermissionAnswers, isQuestionAnswered, readPermissionRequest } from "../../client/tools/agent-status";
+import { readPermissionRequest } from "../../client/tools/agent-status";
 
 /** The shape Codex's async question takes in a needs-permission notification. */
 function questionBody(): string {
@@ -98,15 +98,6 @@ describe("agent identity helpers", () => {
     expect(readPermissionRequest(body)).toMatchObject({ plan: "## Plan\n\n1. Do it", command: undefined, actions: [
       { id: "implement", label: "Implement", behavior: "allow", variant: "primary" },
       { id: "keep", label: "Keep planning", behavior: "deny", variant: undefined }] });
-  });
-
-  it("builds Paseo's question answers keyed by header", () => {
-    const questions = readPermissionRequest(questionBody())!.questions!;
-    expect(isQuestionAnswered(questions[0]!, [], "  ")).toBe(false);
-    expect(isQuestionAnswered(questions[0]!, [], "later")).toBe(true);
-    expect(isQuestionAnswered(questions[1]!, [], "typed")).toBe(false);
-    expect(buildPermissionAnswers(questions, { 0: [1], 1: [0, 1] }, {})).toEqual({ "Question 1": "调整计划", "Question 2": "tsc, vitest" });
-    expect(buildPermissionAnswers(questions, { 0: [] }, { 0: " 先拆小 " })).toEqual({ "Question 1": "先拆小" });
   });
 
   it("names a question request by its question count", () => {

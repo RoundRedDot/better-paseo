@@ -157,25 +157,3 @@ function text(value: unknown): string | undefined { return typeof value === "str
 function record(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
 }
-
-/** Whether one question has an answer: a picked option, typed text, or an empty answer it allows. */
-export function isQuestionAnswered(question: PermissionQuestion, selected: readonly number[] = [], other = ""): boolean {
-  if (selected.length) return true;
-  if (question.options.length && !question.allowOther) return false;
-  return other.trim().length > 0 || question.allowEmpty;
-}
-
-/** Paseo's question-form answers: `header -> "label, label"`, typed text replacing a single pick. */
-export function buildPermissionAnswers(questions: PermissionQuestion[], selections: Record<number, readonly number[]>,
-  others: Record<number, string>): Record<string, string> {
-  const answers: Record<string, string> = {};
-  questions.forEach((question, index) => {
-    const labels = (selections[index] ?? []).map((option) => question.options[option]!.label);
-    const other = others[index]?.trim();
-    const typed = question.options.length === 0 || question.allowOther;
-    if (typed && other) answers[question.header] = question.multiSelect ? [...labels, other].join(", ") : other;
-    else if (typed && question.allowEmpty && question.options.length === 0) answers[question.header] = "";
-    else if (labels.length) answers[question.header] = labels.join(", ");
-  });
-  return answers;
-}
