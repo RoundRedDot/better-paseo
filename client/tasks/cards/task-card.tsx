@@ -153,6 +153,10 @@ interface Metrics {
   pillText: number;
   pillLine: number;
   pillPad: number;
+  /** A pill's icons, brand mark and label dot, and the gap between them. */
+  pillIcon: number;
+  pillDot: number;
+  pillGap: number;
   icon: number;
   footSize: number;
   footLine: number;
@@ -163,6 +167,13 @@ interface Metrics {
   jumpIcon: number;
   buttonHeight: number;
 }
+
+/**
+ * A pill's text, a size under the ramp's smallest step: at `sm` the pills read
+ * as loud as the title beside them. Scaled with the interface size like the rest.
+ */
+const PILL_TEXT = 11;
+const PILL_LINE = 14;
 
 // Text sizes are steps of the host's type ramp (`HOST_FONT`), which TaskText scales with the user's interface size.
 const DESKTOP: Metrics = {
@@ -178,10 +189,13 @@ const DESKTOP: Metrics = {
   iconSlot: 14,
   iconBox: 16,
   rowGap: 10,
-  pillHeight: 24,
-  pillText: F.sm,
-  pillLine: HOST_LINE.sm,
-  pillPad: 10,
+  pillHeight: 20,
+  pillText: PILL_TEXT,
+  pillLine: PILL_LINE,
+  pillPad: 8,
+  pillIcon: 11,
+  pillDot: 6,
+  pillGap: 5,
   icon: 12,
   footSize: F.sm,
   footLine: HOST_LINE.sm,
@@ -204,10 +218,13 @@ const PHONE: Metrics = {
   iconSlot: 18,
   iconBox: 20,
   rowGap: 12,
-  pillHeight: 28,
-  pillText: F.sm,
-  pillLine: HOST_LINE.sm,
-  pillPad: 11,
+  pillHeight: 24,
+  pillText: PILL_TEXT,
+  pillLine: PILL_LINE,
+  pillPad: 9,
+  pillIcon: 12,
+  pillDot: 7,
+  pillGap: 6,
   icon: 14,
   footSize: F.sm,
   footLine: HOST_LINE.sm,
@@ -591,7 +608,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         {...pill}
         testID="pill-model"
         solid={agentColors}
-        lead={layout.brand ? <BrandMark provider={card.provider} size={m.icon} tokens={tokens} /> : undefined}
+        lead={layout.brand ? <BrandMark provider={card.provider} size={m.pillIcon} tokens={tokens} /> : undefined}
         label={model}
         accessibilityLabel={thinking ? `${name} ${thinking}` : name}
       >
@@ -604,7 +621,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
             >
               ·
             </Text>
-            <Icon name={THINKING_ICON} size={m.icon} color={agentColors.icon} />
+            <Icon name={THINKING_ICON} size={m.pillIcon} color={agentColors.icon} />
             <Text
               numberOfLines={1}
               style={{ fontSize: m.pillText, lineHeight: m.pillLine, color: agentColors.text, flexShrink: 0 }}
@@ -708,7 +725,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       >
         {SUBTASK_ORDER.filter((kind) => counts.has(kind)).map((kind) => (
           <View key={kind} style={{ flexDirection: "row", alignItems: "center", gap: 3 }} testID={`subtask-count-${kind}`}>
-            <StatusIcon kind={kind} size={m.icon + 2} height={Math.round(m.pillLine * scale)} theme={theme} animated={props.animated} />
+            <StatusIcon kind={kind} size={m.pillIcon + 2} height={Math.round(m.pillLine * scale)} theme={theme} animated={props.animated} />
             <Text style={[{ fontSize: m.pillText, lineHeight: m.pillLine, color: muted }, tabular]}>{counts.get(kind)}</Text>
           </View>
         ))}
@@ -975,7 +992,7 @@ interface PillProps {
   label?: string;
   /** A Lucide icon before the text. */
   icon?: string;
-  /** An 8 px dot before the text (a label's colour). */
+  /** A small dot before the text (a label's colour). */
   dot?: string;
   /** Any other leading mark (the agent's brand). */
   lead?: ReactNode;
@@ -994,7 +1011,7 @@ interface PillProps {
 }
 
 /**
- * Linear's property pill, 24 high (28 on a phone), fully rounded, with a
+ * Linear's property pill, 20 high (24 on a phone), fully rounded, with a
  * hairline; filled with a light tint of its data colour, or neutral grey.
  */
 export function pillStyle(tokens: TaskTokens, compact: boolean, tint: string | null = null, solid?: AgentPillColors, scale = 1): ViewStyle {
@@ -1012,7 +1029,7 @@ export function pillStyle(tokens: TaskTokens, compact: boolean, tint: string | n
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: compact ? 7 : 6,
+    gap: m.pillGap,
   };
 }
 
@@ -1022,8 +1039,8 @@ function PillContent(props: PillProps) {
   return (
     <>
       {props.lead ?? null}
-      {props.icon ? <Icon name={props.icon} size={m.icon} color={props.solid?.icon ?? color} /> : null}
-      {props.dot ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: props.dot }} /> : null}
+      {props.icon ? <Icon name={props.icon} size={m.pillIcon} color={props.solid?.icon ?? color} /> : null}
+      {props.dot ? <View style={{ width: m.pillDot, height: m.pillDot, borderRadius: m.pillDot / 2, backgroundColor: props.dot }} /> : null}
       {props.label !== undefined ? (
         <Text
           numberOfLines={1}

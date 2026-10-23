@@ -423,7 +423,7 @@ describe("TaskCardView rows", () => {
     for (const [id] of pills(tree.root)) {
       // borderWidth is StyleSheet.hairlineWidth, which rn-mock reports as 1; the agent pills have none.
       const agent = id === "pill-model" || id === "pill-branch";
-      expect(flat(hostByTestId(tree.root, id).props.style)).toMatchObject({ height: 24, borderRadius: 12, borderWidth: agent ? 0 : 1 });
+      expect(flat(hostByTestId(tree.root, id).props.style)).toMatchObject({ height: 20, borderRadius: 10, borderWidth: agent ? 0 : 1 });
     }
     // Tints: a label's colour at 10% over the card with a stronger hairline; neutral grey without one.
     const tokens = buildTaskTokens(LIGHT.colors);
@@ -439,7 +439,7 @@ describe("TaskCardView rows", () => {
     expect(pillColors("pill-model").background).toBe(mix("#ffffff", LIGHT.colors.foreground, 0.06));
     expect(pillColors("pill-subtasks").background).toBe(mix("#ffffff", tokens.status.running, 0.1));
     const dot = (name: string) =>
-      flat((hostByTestId(tree.root, `pill-label-${name}`).findAll((node) => typeof node.type === "string" && flat(node.props.style).width === 8)[0])!.props.style)
+      flat((hostByTestId(tree.root, `pill-label-${name}`).findAll((node) => typeof node.type === "string" && flat(node.props.style).width === 6)[0])!.props.style)
         .backgroundColor;
     expect(dot("frontend")).toBe("#8b5cf6");
     expect(dot("p1")).toBe("#ef4444");
@@ -888,7 +888,7 @@ describe("TaskCardView compact tiers", () => {
       ["pill-subtasks", "2"],
     ]);
     // The brand stays on a phone even with the provider switched off.
-    expect(flat(hostByTestId(tree.root, "pill-model").props.style)).toMatchObject({ height: 28, borderRadius: 14 });
+    expect(flat(hostByTestId(tree.root, "pill-model").props.style)).toMatchObject({ height: 24, borderRadius: 12 });
     expect(flat(hostByTestId(tree.root, "task-card-title").props.style)).toMatchObject({ fontSize: 14 });
     expect(all).toContain("better-paseo › tasks-board");
     expect(all).toContain("12m 30s");
