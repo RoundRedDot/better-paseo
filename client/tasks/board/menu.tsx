@@ -4,6 +4,7 @@ import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { HAIRLINE, devicePixel } from "./board-style";
+import { taskTokens } from "../cards/tokens";
 import {
   MENU,
   MENU_FOCUS,
@@ -353,7 +354,8 @@ function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome
   const { item, chrome } = props;
   const scale = useTasksFontScale();
   const colors = props.theme.colors;
-  const leading: ReactNode = item.leading ?? (item.icon ? <Icon name={item.icon} size={MENU.icon} color={colors.foregroundMuted} /> : null);
+  const danger = item.danger && !item.disabled ? taskTokens(props.theme).danger : null;
+  const leading: ReactNode = item.leading ?? (item.icon ? <Icon name={item.icon} size={MENU.icon} color={danger ?? colors.foregroundMuted} /> : null);
   return (
     <Pressable
       accessibilityRole="menuitem"
@@ -373,7 +375,7 @@ function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome
       }}
     >
       {leading}
-      <Text numberOfLines={1} style={{ flex: 1, fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : colors.foreground }}>
+      <Text numberOfLines={1} style={{ flex: 1, fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : danger ?? colors.foreground }}>
         {item.label}
       </Text>
       {item.hint ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{item.hint}</Text> : null}

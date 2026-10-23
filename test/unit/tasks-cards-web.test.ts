@@ -54,7 +54,7 @@ import { CARD_PRESETS } from "../../shared/tasks-settings";
 import { previewSampleCards as sampleCards } from "../../client/tasks/sample-cards";
 import type { PermissionButton } from "../../client/tasks/actions";
 import type { TaskCard } from "../../client/tasks/model";
-import { TaskCardView, TaskDetailCards, type TaskCardViewProps } from "../../client/tasks/cards";
+import { TaskCardView, TaskDetailCards, taskTokens, type TaskCardViewProps } from "../../client/tasks/cards";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
 
@@ -420,6 +420,25 @@ describe("TaskCardView right-click menu", () => {
     await choose(root, "停止");
     await choose(root, "连同子任务一起停止");
     expect(onStop).toHaveBeenCalledWith(expect.objectContaining({ id: "sample-running" }), { withChildren: true, dialog: true });
+    await act(async () => renderer.unmount());
+  });
+
+  it("draws Stop, and its subtask choices, in the danger colour", async () => {
+    const renderer = await render(React.createElement(TaskCardView, props("sample-running")));
+    const root = renderer.root;
+    const danger = taskTokens(THEME).danger;
+    await act(async () => contextMenus.get("task-card-sample-running")!({ x: 40, y: 60 }, null));
+    const row = (label: string) =>
+      root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem" && texts(node)[0] === label);
+    const colors = (node: ReactTestInstance) => ({
+      text: node.findAll((child) => (child.type as unknown) === "Text")[0]!.props.style.color,
+      icon: node.findAll((child) => (child.type as unknown) === "Icon")[0]?.props.color,
+    });
+    expect(colors(row("停止"))).toEqual({ text: danger, icon: danger });
+    expect(colors(row("复制标题")).text).not.toBe(danger);
+    await choose(root, "停止");
+    expect(colors(row("仅停止此任务"))).toEqual({ text: danger, icon: danger });
+    expect(colors(row("连同子任务一起停止"))).toEqual({ text: danger, icon: danger });
     await act(async () => renderer.unmount());
   });
 

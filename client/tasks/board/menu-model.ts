@@ -52,6 +52,8 @@ export interface MenuItem {
   /** A multi-select row: choosing it leaves the menu open. */
   keepOpen?: boolean;
   disabled?: boolean;
+  /** A destructive row (Stop): its label and icon in the danger colour, as the card's Stop button. */
+  danger?: boolean;
 }
 
 export interface MenuSection {
