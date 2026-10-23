@@ -543,6 +543,36 @@ describe("TaskCardView rows", () => {
     }
   });
 
+  it("copies the model, branch, folder and path a pill shows, with the host's toast", async () => {
+    clipboard.copyText.mockClear();
+    clipboard.show.mockClear();
+    const selected = vi.fn();
+    const details = vi.fn();
+    const tree = await render(cardElement(sample("sample-running"), { fields: fields("full"), onSelect: selected, onDetails: details }));
+    for (const [testID, text, toast] of [
+      ["pill-model", "GPT-5.5 Codex", "Copied model name"],
+      ["pill-branch", "feat/tasks-board", "Copied branch name"],
+      ["pill-path", "/Users/dev/code/better-paseo/.worktrees/tasks-board", "Copied path"],
+    ] as const) {
+      const pill = hostByTestId(tree.root, testID);
+      expect(pill.props.accessibilityRole).toBe("button");
+      await act(async () => pill.props.onPress());
+      expect(clipboard.copyText).toHaveBeenLastCalledWith(text);
+      expect(clipboard.show).toHaveBeenLastCalledWith(toast);
+    }
+    // The press stays on the pill: the card is not chosen. A long press still opens its details.
+    expect(selected).not.toHaveBeenCalled();
+    await act(async () => hostByTestId(tree.root, "pill-branch").props.onLongPress());
+    expect(details).toHaveBeenCalledTimes(1);
+
+    const done = await render(cardElement(sample("sample-done")));
+    await act(async () => hostByTestId(done.root, "pill-folder").props.onPress());
+    expect(clipboard.copyText).toHaveBeenLastCalledWith("scratch");
+    expect(clipboard.show).toHaveBeenLastCalledWith("Copied folder name");
+    // Labels do not copy.
+    expect(hostByTestId(done.root, "pill-label-frontend").props.onPress).toBeUndefined();
+  });
+
   it("draws the folder as a pill when there is no branch", async () => {
     const tree = await render(cardElement(sample("sample-done")));
     expect(texts(hostByTestId(tree.root, "pill-folder"))).toEqual(["scratch"]);

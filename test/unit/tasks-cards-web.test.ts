@@ -706,9 +706,9 @@ describe("TaskCardView hover hints", () => {
       await act(async () => { vi.advanceTimersByTime(399); });
       expect(hint()).toHaveLength(0);
       await act(async () => { vi.advanceTimersByTime(1); });
-      expect(texts(hint()[0]!).join("")).toBe("分支：feat/tasks-board\n有未提交改动\n领先 3 个提交");
+      expect(texts(hint()[0]!).join("")).toBe("分支：feat/tasks-board\n有未提交改动\n领先 3 个提交\n点击复制");
 
-      expect(await show("model", { left: 112, top: 140, width: 100, height: 20 })).toBe("模型：Codex GPT-5.5 Codex\n思考强度：Medium");
+      expect(await show("model", { left: 112, top: 140, width: 100, height: 20 })).toBe("模型：Codex GPT-5.5 Codex\n思考强度：Medium\n点击复制");
       expect(await show("status", { left: 112, top: 80, width: 16, height: 20 })).toBe("状态：运行中");
       expect(await show("timer", { left: 180, top: 230, width: 60, height: 18 })).toBe("本轮已运行：12m 30s");
       expect(await show("subtasks", { left: 112, top: 166, width: 80, height: 20 })).toBe("3 个子任务：2 运行中 · 1 已完成");
