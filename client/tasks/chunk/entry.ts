@@ -1,8 +1,9 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { lastTurnsRpc } from "../../../shared/turn-usage-rpc";
-import { tasksLabelsRpc, tasksProjectIconsRpc, tasksReadsRpc, tasksSessionTokensRpc, tasksSubagentsRpc } from "../../../shared/tasks-rpc";
+import { tasksLabelsRpc, tasksProjectIconsRpc, tasksReadsRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc } from "../../../shared/tasks-rpc";
 import { setLabelDefinitionsLoader, setLastTurnLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader } from "../data";
 import { setSessionTokensLoader } from "../data/session-tokens";
+import { setSubagentTimelineLoader } from "../data/subagent-timeline";
 
 /**
  * The Tasks code the board, its sidebar entry and its settings draw with:
@@ -31,6 +32,8 @@ export function startTasksData(client: PluginClientContext): () => void {
   setProjectIconsLoader((projectIds) => client.rpc(tasksProjectIconsRpc, { projectIds }).then((result) => result.icons));
   // A running task's session tokens, read by the server from the provider's session files.
   setSessionTokensLoader((agentId) => client.rpc(tasksSessionTokensRpc, { agentId }).then((result) => result.tokens));
+  // A provider subagent's prompt and reply for its details, which the server reads off the daemon.
+  setSubagentTimelineLoader((input) => client.rpc(tasksSubagentTimelineRpc, input));
   return () => {
     setLastTurnLoader(null);
     setSubagentLoader(null);
@@ -38,5 +41,6 @@ export function startTasksData(client: PluginClientContext): () => void {
     setLabelDefinitionsLoader(null);
     setProjectIconsLoader(null);
     setSessionTokensLoader(null);
+    setSubagentTimelineLoader(null);
   };
 }

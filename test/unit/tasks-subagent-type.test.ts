@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { subagentFacts } from "../../client/tasks/subagent-type";
+import { subagentFacts, subagentModel } from "../../client/tasks/subagent-type";
 
 describe("subagentFacts", () => {
   it("draws a type the timeline has an icon for as the icon alone", () => {
@@ -28,5 +28,20 @@ describe("subagentFacts", () => {
     expect(subagentFacts("Explorer · Sonnet 5.5", "Explore")).toMatchObject({ icon: null, text: "Explorer · Sonnet 5.5" });
     expect(subagentFacts("general-purpose · Sonnet 5.5", null)).toMatchObject({ icon: null, text: "general-purpose · Sonnet 5.5" });
     expect(subagentFacts(null, "Explore")).toEqual({ icon: null, text: null, full: null });
+  });
+});
+
+describe("subagentModel", () => {
+  it("names the model and effort after the type, leaving the token count out", () => {
+    expect(subagentModel("general-purpose · Sonnet 5.5 · High · 197.1k tokens", "general-purpose")).toEqual({ model: "Sonnet 5.5", thinking: "High" });
+    expect(subagentModel("Explore · Haiku 5.5 · 1 token", "Explore")).toEqual({ model: "Haiku 5.5", thinking: null });
+    expect(subagentModel("Plan · Opus 5.5", "Plan")).toEqual({ model: "Opus 5.5", thinking: null });
+  });
+
+  it("names none where the line does not open with the type or holds only it", () => {
+    expect(subagentModel("Sonnet 5.5 · High", "Explore")).toBeNull();
+    expect(subagentModel("Explore", "Explore")).toBeNull();
+    expect(subagentModel("Explore · 12k tokens", "Explore")).toBeNull();
+    expect(subagentModel(null, "Explore")).toBeNull();
   });
 });
