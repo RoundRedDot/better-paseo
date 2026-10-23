@@ -843,6 +843,9 @@ describe("Tasks board, desktop", () => {
     const card = cards()[0]!;
     expect(card.props.onUnarchive).toEqual(expect.any(Function));
     expect(card.props.unarchivePending).toBe(false);
+    // The phone's cards too, through the guard that drops a tap ending a swipe.
+    await act(async () => renderer!.update(screen(true)));
+    expect(cards()[0]!.props.onUnarchive).toEqual(expect.any(Function));
   });
 
   it("does not open an archived task, whose tab Paseo would drop for another, and says why", () => {
