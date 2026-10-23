@@ -16,6 +16,9 @@ import type { BoardController } from "./use-board";
 
 export type FilterMenu = "project" | "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
 
+/** The board's round buttons: the sidebar switch, a narrow board's header buttons beside it, the filter bar's switches. */
+const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
+
 /** The narrowest board whose toolbar shows the key hints beside the count and the search. */
 export const KEY_HINTS_MIN_WIDTH = 760;
 
@@ -103,6 +106,7 @@ export function DesktopToolbar(props: {
           slashed={!board.showArchived}
           theme={theme}
           onPress={() => board.setShowArchived(!board.showArchived)}
+          size={toolbarButtonSize(scale)}
           testID="toolbar-archived"
         />
       ) : null}
@@ -113,10 +117,11 @@ export function DesktopToolbar(props: {
           selected={board.showEmptyGroups}
           theme={theme}
           onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
+          size={toolbarButtonSize(scale)}
           testID="toolbar-empty-groups"
         />
       ) : null}
-      {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} testID="toolbar-filters" /> : null}
+      {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={toolbarButtonSize(scale)} testID="toolbar-filters" /> : null}
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
     </View>
   );
@@ -126,7 +131,7 @@ export function DesktopToolbar(props: {
 function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void; theme: PluginTheme; label: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
-  const size = taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
+  const size = toolbarButtonSize(scale);
   const [hovered, setHovered] = useState(false);
   return (
     <Pressable
@@ -164,7 +169,7 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
 function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: string; hint: string; theme: PluginTheme; slashed?: boolean; testID: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
-  const size = taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
+  const size = toolbarButtonSize(scale);
   const icon = Math.round(size / 2);
   const [hovered, setHovered] = useState(false);
   const background = hovered ? colors.surface1 : colors.surface0;
