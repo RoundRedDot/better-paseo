@@ -795,9 +795,10 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   // leaves a phantom row's height on Android. On a request's answer row the
   // row measured is the answer row, which the footer can take alone.
   const footWraps = TOUCH && !!timer && showControl && foot.row > 0 && foot.timer + FOOT_GAP + foot.controls > foot.row + 0.5;
-  // "Open tab" first, then Stop or Mark read, centred on the line they sit on.
+  // Stop or Mark read, then "Open tab" in the corner, centred on the line they sit on.
   const footControls = (line: number) => (
     <View style={{ flexDirection: "row", gap: GAP, marginVertical: (Math.round(line * scale) - taskControlHeight(m.buttonHeight, scale)) / 2 }}>
+      {canStop ? <StopControl {...stop} compact={false} line={m.buttonHeight} menuLeft={canOpen} /> : canRead ? <ReadControl {...read} compact={false} line={m.buttonHeight} /> : null}
       {canOpen ? (
         <CardButton
           label={strings.openTab}
@@ -809,7 +810,6 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           testID="task-card-open-tab"
         />
       ) : null}
-      {canStop ? <StopControl {...stop} compact={false} line={m.buttonHeight} /> : canRead ? <ReadControl {...read} compact={false} line={m.buttonHeight} /> : null}
     </View>
   );
   const footerContent =
@@ -1490,6 +1490,8 @@ interface StopControlProps {
   hug?: boolean;
   /** The line it sits on, so it centres without growing the row. */
   line: number;
+  /** On desktop "Open tab" sits to its right: the menu opens rightwards over it, staying on the card. */
+  menuLeft?: boolean;
   onPress(): void;
   onToggleMenu(): void;
   onPick(withChildren: boolean): void;
@@ -1622,7 +1624,7 @@ function StopControl(props: StopControlProps) {
           theme={props.theme}
           width={STOP_MENU_WIDTH}
           top={compact ? -(layoutMenu(stopSections, scale).height + 2 * StyleSheet.hairlineWidth + 6) : height + 4}
-          align="right"
+          align={props.menuLeft ? "left" : "right"}
           onClose={props.onCloseMenu}
           testID="task-card-stop-menu"
         />
