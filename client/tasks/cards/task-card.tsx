@@ -1634,8 +1634,8 @@ export function CardButton(props: {
 /**
  * Mark read: a card button's size, as Stop and "Answer" are, led by
  * Lucide's CheckCheck (a read receipt). On an unread card it wears the unread
- * dot's green as "Answer" wears the needs-input amber: tinted, a 0.5 px border of
- * the same hue, the label pulled to 4.5:1. A failed card keeps the plain
+ * dot's green as an outline: a 0.5 px border of that hue and no fill of its own,
+ * the label pulled to 4.5:1. A failed card keeps the plain
  * outline, so no green sits on its danger tint. While the request is out a
  * spinner takes the icon's place, the label stays, dimmed, and the button
  * takes no second press.
@@ -1663,7 +1663,7 @@ function ReadControl(props: {
   const iconSize = compact ? 14 : 13;
   const hover = hovered && !pending;
   const color = props.unread ? look.readText : tokens.foreground;
-  const fill = props.unread ? (hover ? look.readFillHover : look.readFill) : hover ? look.controlHover : "transparent";
+  const fill = hover ? look.controlHover : "transparent";
   return (
     <Pressable
       accessibilityRole="button"
