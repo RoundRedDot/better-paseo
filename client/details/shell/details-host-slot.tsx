@@ -5,9 +5,9 @@
  * open panel with it, to the next mounted row (`DetailsShell` takes it over
  * without an entrance).
  *
- * With block details off (the default) it draws nothing and claims nothing.
+ * With block details off it draws nothing and claims nothing.
  */
-import React, { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import React, { useMemo, useSyncExternalStore } from "react";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
 import { claimHostLease } from "../details-store";
@@ -28,18 +28,23 @@ function LeasedSlot({ agentId, itemKey, tokens }: { agentId: string; itemKey: st
 
 /** Claims the agent's lease while mounted; true while this slot holds it. */
 function useHostLease(agentId: string, slotKey: string): boolean {
-  const [lease, setLease] = useState<Lease | null>(null);
-  useEffect(() => {
-    const claimed = claimHostLease(agentId, slotKey);
-    setLease(claimed);
-    return () => {
-      claimed.release();
-      setLease(null);
+  const store = useMemo(() => {
+    let lease: Lease | null = null;
+    return {
+      subscribe(listener: () => void) {
+        const claimed = claimHostLease(agentId, slotKey);
+        lease = claimed;
+        const unsubscribe = claimed.subscribe(listener);
+        return () => {
+          unsubscribe();
+          claimed.release();
+          if (lease === claimed) lease = null;
+        };
+      },
+      read: () => lease?.held() ?? false,
     };
   }, [agentId, slotKey]);
-  const subscribe = useCallback((listener: () => void) => (lease ? lease.subscribe(listener) : noop), [lease]);
-  const read = useCallback(() => (lease ? lease.held() : false), [lease]);
-  return useSyncExternalStore(subscribe, read, read);
+  // The subscription's consistency check updates only the winning slot.
+  // Other rows need no state update merely to remember their claim.
+  return useSyncExternalStore(store.subscribe, store.read, store.read);
 }
-
-function noop(): void {}

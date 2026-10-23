@@ -18,7 +18,7 @@ interface StoredBlock {
 
 interface AgentRegistry {
   entries: Map<string, StoredBlock>;
-  list: readonly BlockEntry[];
+  list: readonly BlockEntry[] | null;
   listListeners: Set<() => void>;
   entryListeners: Map<string, Set<() => void>>;
 }
@@ -41,7 +41,8 @@ function notify(listeners: Set<() => void> | undefined): void {
 }
 
 function publish(registry: AgentRegistry, changedIds: readonly string[]): void {
-  registry.list = orderBlocks(Array.from(registry.entries.values(), (record) => record.entry));
+  // Rows publish while replaying, even when no panel needs their order.
+  registry.list = null;
   notify(registry.listListeners);
   changedIds.forEach((id) => notify(registry.entryListeners.get(id)));
 }
@@ -122,7 +123,9 @@ export function registerBlock(entry: BlockEntry): BlockRegistration {
 }
 
 export function getBlockList(agentId: string): readonly BlockEntry[] {
-  return registries.get(agentId)?.list ?? EMPTY;
+  const registry = registries.get(agentId);
+  if (!registry) return EMPTY;
+  return registry.list ??= orderBlocks(Array.from(registry.entries.values(), (record) => record.entry));
 }
 
 export function getBlock(agentId: string, id: string): BlockEntry | null {
@@ -137,7 +140,7 @@ export async function measureBlockForOrder(agentId: string, id: string): Promise
   const box = await entry.measure();
   if (getBlock(agentId, id) !== entry) return;
   rememberBlockMeasurement(entry, box);
-  registry.list = orderBlocks(Array.from(registry.entries.values(), (record) => record.entry));
+  registry.list = null;
   notify(registry.listListeners);
 }
 
@@ -219,7 +222,7 @@ export async function measureBlocksForOrder(agentId: string): Promise<void> {
       changed = true;
     });
     if (!changed) return;
-    registry.list = orderBlocks(Array.from(registry.entries.values(), (record) => record.entry));
+    registry.list = null;
     notify(registry.listListeners);
   } finally {
     orderRunning.set(agentId, false);
