@@ -297,7 +297,7 @@ export function PhoneBoard(props: {
   }, []);
   const breathing = useBreathing(!tasks.ready && board.visible);
   // One lane on screen: its cards close the gap a card leaves, and the card fades where it was.
-  const motion = useLaneMotion(lanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.params, flights: false });
+  const motion = useLaneMotion(lanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.scope, flights: false });
   const renderCopy = useCallback(
     (card: TaskCard) => <CardCell board={board} card={card} theme={theme} compact fresh={false} copy callbacks={callbacks} />,
     [board, theme, callbacks],
@@ -434,7 +434,7 @@ export function PhoneBoard(props: {
                     {tasks.ready ? (
                       <RollingCount
                         value={count}
-                        scope={board.params}
+                        scope={board.scope}
                         style={{ fontSize: F.base, fontWeight: warn || on ? "600" : "400", fontVariant: ["tabular-nums"], color: warn ? warning : on ? colors.foreground : colors.foregroundMuted }}
                       />
                     ) : null}

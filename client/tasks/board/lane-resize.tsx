@@ -17,13 +17,16 @@ type Resize = { from: number; to: number };
  * Only the lane's clip moves: its content takes the new width at once, so a
  * list's cards lay out once, not on every frame. `moving` is true while it
  * eases, for content swapped in then to fade in.
+ *
+ * `from`: a lane that mounts there (the archived lane switched on, at 0)
+ * eases from it to its width as it comes in.
  */
-export function useLaneWidth(target: number, sizing: string): { width: number | Animated.Value; moving: boolean } {
+export function useLaneWidth(target: number, sizing: string, from?: number): { width: number | Animated.Value; moving: boolean } {
   const reduced = useReducedMotion();
   const [seen, setSeen] = useState({ target, sizing });
-  const [resize, setResize] = useState<Resize | null>(null);
+  const [resize, setResize] = useState<Resize | null>(() => (from !== undefined && from !== target && !reduced ? { from, to: target } : null));
   // Where an easing lane is, frame by frame: the start of the next one if the target moves again.
-  const now = useRef(target);
+  const now = useRef(from ?? target);
   if (seen.target !== target || seen.sizing !== sizing) {
     setSeen({ target, sizing });
     if (seen.target !== target) {

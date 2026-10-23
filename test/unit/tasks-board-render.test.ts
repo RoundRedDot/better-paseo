@@ -456,6 +456,67 @@ describe("Tasks board, desktop", () => {
     expect(clip("needs_input")).toEqual({ easing: 340 });
   });
 
+  it("grows the archived lane in and shrinks it out as it is switched, the other lanes easing with it", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2000);
+    const clip = (lane: string) => {
+      const width = StyleSheet.flatten(hostsById(`lane-${lane}`)[0]!.props.style).width as number | { __value: number };
+      return typeof width === "number" ? width : { easing: width.__value };
+    };
+    // The four share the room left of the sidebar; five take less each.
+    const four = clip("done") as number;
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
+    act(() => renderer!.update(screen(false)));
+    // In from nothing, while the four make room from where they were; the content inside has its width at once.
+    expect(clip("archived")).toEqual({ easing: 0 });
+    expect(clip("done")).toEqual({ easing: four });
+    const inside = (lane: string) => {
+      const swap = hostsById(`lane-${lane}`)[0]!.findAll((node) => {
+        const style = typeof node.type === "string" ? StyleSheet.flatten(node.props.style) : null;
+        return !!style && style.flex === 1 && style.flexDirection === "row" && typeof style.width === "number";
+      })[0]!;
+      return StyleSheet.flatten(swap.props.style).width as number;
+    };
+    const five = inside("done");
+    expect(five).toBeLessThan(four);
+    expect(inside("archived")).toBe(five);
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: false } };
+    act(() => renderer!.update(screen(false)));
+    // Out to nothing, its content as it was and out of reach, then gone.
+    expect(hostsById("lane-archived")).toHaveLength(1);
+    expect(hostsById("lane-archived")[0]!.props.pointerEvents).toBe("none");
+    expect(inside("archived")).toBe(five);
+    expect(inside("done")).toBe(four);
+    expect(typeof clip("done")).toBe("object");
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(hostsById("lane-archived")).toHaveLength(0);
+  });
+
+  it("keeps the cards' fields across a settings read-back that leaves them as they were", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2400);
+    const fields = () => new Set(renderer!.root.findAll((node) => node.props.card !== undefined && node.props.fields !== undefined).map((node) => node.props.fields));
+    const before = fields();
+    expect(before.size).toBe(1);
+    // A save reads the whole record back as new objects: the archived lane's switch changes no card field.
+    host.settings = JSON.parse(JSON.stringify({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } }));
+    act(() => renderer!.update(screen(false)));
+    expect([...fields()]).toEqual([...before]);
+    expect(fields().values().next().value).toBe(before.values().next().value);
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, card: { ...DEFAULT_TASKS_SETTINGS.card, branch: !DEFAULT_TASKS_SETTINGS.card.branch } };
+    act(() => renderer!.update(screen(false)));
+    expect(fields().values().next().value).not.toBe(before.values().next().value);
+  });
+
   it("shows the status counts in an inline sidebar that takes its width from the lanes", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
