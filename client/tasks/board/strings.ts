@@ -85,6 +85,14 @@ const en = {
     names: { narrow: "Narrow", default: "Default", wide: "Wide" } as Record<LaneWidth, string>,
     saveFailed: "Couldn't save the lane width",
   },
+  archivedLane: {
+    /** The board's switch beside the done window. */
+    label: "Archived",
+    hint: "Show the archived lane after Done",
+    /** The phone's filter sheet row. */
+    row: "Show the archived lane",
+    saveFailed: "Couldn't save the archived lane setting",
+  },
   back: "Back",
   sortKeys: {
     workspace: "Workspace",
@@ -204,6 +212,12 @@ const zh: typeof en = {
     button: (name: string) => `泳道 · ${name}`,
     names: { narrow: "紧凑", default: "默认", wide: "宽松" } as Record<LaneWidth, string>,
     saveFailed: "泳道宽度没有保存成功",
+  },
+  archivedLane: {
+    label: "已归档",
+    hint: "在已完成之后显示已归档泳道",
+    row: "显示已归档泳道",
+    saveFailed: "已归档泳道的设置没有保存成功",
   },
   back: "返回",
   sortKeys: {

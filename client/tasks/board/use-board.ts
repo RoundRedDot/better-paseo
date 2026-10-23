@@ -37,6 +37,10 @@ export interface BoardController {
   laneWidth: LaneWidth;
   /** Saves a lane width to the Tasks settings, so the settings page and every other client follow it. */
   setLaneWidth(width: LaneWidth): void;
+  /** The archived lane is shown: the setting, or the switch just pressed on the board while it saves. */
+  showArchived: boolean;
+  /** Saves `board.showArchived`, as `setLaneWidth` saves the width. */
+  setShowArchived(on: boolean): void;
   params: BoardParams;
   setParams(update: (params: BoardParams) => BoardParams): void;
   defaults: BoardDefaults;
@@ -199,6 +203,10 @@ export function useBoard(
   const savedWidth = settings.board.laneWidth;
   useEffect(() => setPickedWidth(null), [savedWidth]);
   const laneWidth = pickedWidth ?? savedWidth;
+  const [pickedArchived, setPickedArchived] = useState<boolean | null>(null);
+  const savedArchived = settings.board.showArchived;
+  useEffect(() => setPickedArchived(null), [savedArchived]);
+  const showArchived = pickedArchived ?? savedArchived;
   const settingsRef = useRef(settingsState);
   settingsRef.current = settingsState;
 
@@ -221,7 +229,6 @@ export function useBoard(
     [settings.board.hideSubtasks, settings.board.doneWindow],
   );
   const { filters, doneWindow } = useMemo(() => resolveBoardParams(params, defaults), [params, defaults]);
-  const showArchived = settings.board.showArchived;
   const options = useMemo(() => ({ doneWindow, includeDone: true, includeArchived: showArchived }), [doneWindow, showArchived]);
   const laneOrder = boardLaneOrder(showArchived);
   // Closed, the board's data stays warm a while, so a quick reopen sends nothing.
@@ -297,6 +304,18 @@ export function useBoard(
       latest.current.toast.error(latest.current.strings.laneWidth.saveFailed);
     });
   }, []);
+  const setShowArchived = useCallback((on: boolean) => {
+    const state = settingsRef.current;
+    if (state.status !== "ready") return;
+    setPickedArchived(on);
+    const next = { ...state.values, board: { ...state.values.board, showArchived: on } };
+    void state.save(next, state.revision).then(async (saved) => {
+      if (saved) return;
+      setPickedArchived(null);
+      await state.reload();
+      latest.current.toast.error(latest.current.strings.archivedLane.saveFailed);
+    });
+  }, []);
   const toastMessage = useCallback((message: string) => latest.current.toast.show(message), []);
   const open = useCallback((agentId: string) => latest.current.props.navigation?.openAgent({ agentId }), []);
   const requestProjectIcon = useCallback((projectId: string) => latest.current.tasks.requestProjectIcon(projectId), []);
@@ -336,6 +355,8 @@ export function useBoard(
     settings,
     laneWidth,
     setLaneWidth,
+    showArchived,
+    setShowArchived,
     params,
     setParams,
     defaults,

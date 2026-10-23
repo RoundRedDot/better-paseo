@@ -388,7 +388,8 @@ Command Center. It opens a board of every agent on the host in four lanes, sorte
 workspace status sorts them: **needs input** (oldest wait first), **running** (longest first),
 **to review** (finished unread or failed) and **done** (last 24 hours by default, 50 at a time).
 An optional fifth lane, **archived**, lists archived tasks and those of archived workspaces in the
-done lane's window, with Unarchive in an archived task's details.
+done lane's window, with Unarchive in an archived task's details. Turn it on with the Archived switch
+beside the done window, in the filter sheet on phones, or in the settings.
 
 - Cards are grouped: title and "agent · model · thinking", then "project › workspace" and
   "branch · folder", then labels and the timer. The status icons are Paseo's own sidebar marks.
