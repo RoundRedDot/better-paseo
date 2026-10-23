@@ -10,12 +10,13 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   return {
     Icon: (props: { name: string; color?: string }) => React.createElement("Icon", { name: props.name, color: props.color }),
     ScrollView: rn.ScrollView,
+    TextInput: rn.TextInput,
   };
 });
 
 import { Dimensions, StyleSheet } from "react-native";
 import { CascadeMenu, MenuBoundsContext } from "../../client/tasks/board/menu";
-import { MENU, MENU_EDGE, MENU_FOCUS, layoutMenu, menuChrome, menuRowHeight, menuKeyReducer, panelMaxHeight, selectableItems, submenuPlacement, type MenuItem, type MenuSection } from "../../client/tasks/board/menu-model";
+import { MENU, MENU_EDGE, MENU_FOCUS, filterMenuSections, layoutMenu, menuChrome, menuRowHeight, menuKeyReducer, panelMaxHeight, selectableItems, submenuPlacement, type MenuItem, type MenuSection } from "../../client/tasks/board/menu-model";
 import { SORT_GROUPS, SORT_ICONS, projectMenuSections, sortMenuSections } from "../../client/tasks/board/board-menus";
 import { SORT_KEYS, type BoardSort } from "../../client/tasks/board/sort";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -123,6 +124,31 @@ describe("menu geometry and keys", () => {
     ];
     const [section] = projectMenuSections({ workspaceGroups: [], projects, agents: [], labels: [] }, BOARD_STRINGS.en, "host", () => {});
     expect(section!.items.map((item) => item.detail)).toEqual(["~/workspace/rrd/beautiful-chat", "/srv/app", "~/workspace/…/services/billing", undefined]);
+  });
+
+  it("searches the label, the detail and the group title, every word, ignoring case", () => {
+    const groups: MenuSection[] = [
+      {
+        key: "bc",
+        title: "beautiful-chat",
+        items: [
+          { key: "main", label: "main" },
+          { key: "fix", label: "fix/menu-search" },
+        ],
+      },
+      { key: "ide", title: "ideashell", items: [{ key: "ios", label: "ideashell_ios", detail: "~/workspace/…/ideashell_ios" }] },
+    ];
+    const keys = (query: string) => filterMenuSections(groups, query).map((section) => `${section.key}:${section.items.map((item) => item.key).join(",")}`);
+    expect(keys("")).toEqual(["bc:main,fix", "ide:ios"]);
+    expect(keys("  ")).toEqual(["bc:main,fix", "ide:ios"]);
+    // The group's title matches every row under it.
+    expect(keys("Beautiful")).toEqual(["bc:main,fix"]);
+    expect(keys("beautiful MAIN")).toEqual(["bc:main"]);
+    // Only what the row shows: a folder folded into "…/" does not match.
+    expect(keys("workspace ios")).toEqual(["ide:ios"]);
+    expect(keys("luoph")).toEqual([]);
+    expect(keys("menu")).toEqual(["bc:fix"]);
+    expect(keys("nothing")).toEqual([]);
   });
 
   it("moves with the arrows, wrapping, steps into and out of a submenu, chooses and closes", () => {
@@ -479,5 +505,96 @@ describe("CascadeMenu", () => {
     act(() => row("Multi").props.onPress());
     expect(picked).toHaveBeenCalledTimes(2);
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  describe("with a search field", () => {
+    const labels = BOARD_STRINGS.en.menuSearch;
+    const projects = (): MenuSection[] => [
+      {
+        key: "projects",
+        items: ["beautiful-chat", "ideashell-agent", "ideashell-ios", "html-video"].map((label) => ({ key: label, label, checked: false, keepOpen: true, onSelect: () => picked(label) })),
+      },
+    ];
+    function renderSearch(sections: MenuSection[]) {
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(CascadeMenu, { sections, theme: theme(LIGHT), width: 300, top: 34, align: "left", onClose: close, search: labels }),
+        );
+      });
+    }
+    const input = () => renderer!.root.find((node) => (node.type as unknown) === "TextInput");
+    const type = (text: string) => act(() => input().props.onChangeText(text));
+    const rows = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem").map(textOf);
+    const clearButton = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "menu-search-clear");
+
+    it("keeps the rows that match what is typed, says when none do, and its X empties it", () => {
+      renderSearch(projects());
+      expect(input().props.placeholder).toBe(labels.placeholder);
+      expect(clearButton()).toHaveLength(0);
+      type("ideashell");
+      expect(rows()).toEqual(["ideashell-agent", "ideashell-ios"]);
+      type("zzz");
+      expect(rows()).toEqual([labels.empty]);
+      expect(clearButton()).toHaveLength(1);
+      act(() => clearButton()[0]!.props.onPress());
+      expect(input().props.value).toBe("");
+      expect(rows()).toHaveLength(4);
+      expect(clearButton()).toHaveLength(0);
+    });
+
+    it("holds the field above the rows' scroll, and counts it in the panel's height", () => {
+      const many: MenuSection[] = [{ key: "all", items: Array.from({ length: 20 }, (_, at) => ({ key: `k${at}`, label: `Row ${at}` })) }];
+      renderSearch(many);
+      const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
+      const scroller = panel.find((node) => (node.type as unknown) === "ScrollView");
+      expect(panel.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "menu-search")).toHaveLength(1);
+      expect(scroller.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "menu-search")).toHaveLength(0);
+      expect(StyleSheet.flatten(scroller.props.style).maxHeight).toBe(MENU.maxHeight - (MENU.searchHeight + 1));
+    });
+
+    it("draws no field over a menu with nothing to filter", () => {
+      renderSearch([{ key: "empty", items: [{ key: "empty", label: "Nothing to filter yet", disabled: true }] }]);
+      expect(renderer!.root.findAll((node) => (node.type as unknown) === "TextInput")).toHaveLength(0);
+    });
+
+    it("on web: Enter picks the first match and keeps the field focused; Escape empties the field, then closes", () => {
+      close.mockClear();
+      picked.mockClear();
+      const handlers: ((event: unknown) => void)[] = [];
+      vi.stubGlobal("document", {
+        addEventListener: (kind: string, fn: (event: unknown) => void) => {
+          if (kind === "keydown") handlers.push(fn);
+        },
+        removeEventListener: () => {},
+      });
+      vi.stubGlobal("__rnMockOS", "web");
+      const focus = vi.fn();
+      try {
+        act(() => {
+          renderer = TestRenderer.create(
+            React.createElement(CascadeMenu, { sections: projects(), theme: theme(LIGHT), width: 300, top: 34, align: "left", onClose: close, search: labels }),
+            { createNodeMock: (element) => ((element.type as unknown) === "TextInput" ? { focus } : {}) },
+          );
+        });
+        expect(input().props.autoFocus).toBe(true);
+        const press = (key: string) => {
+          const event = { key, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+          act(() => handlers[0]!(event));
+          return event;
+        };
+        type("html");
+        press("Enter");
+        expect(picked).toHaveBeenCalledWith("html-video");
+        expect(close).not.toHaveBeenCalled();
+        expect(focus).toHaveBeenCalled();
+        expect(press("Escape").preventDefault).toHaveBeenCalled();
+        expect(input().props.value).toBe("");
+        expect(close).not.toHaveBeenCalled();
+        press("Escape");
+        expect(close).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
   });
 });

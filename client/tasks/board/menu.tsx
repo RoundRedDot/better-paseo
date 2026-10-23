@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Platform, Pressable, View, useWindowDimensions } from "react-native";
-import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
+import { Platform, Pressable, View, useWindowDimensions, type TextInput as NativeTextInput } from "react-native";
+import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { HAIRLINE, devicePixel } from "./board-style";
@@ -8,9 +8,11 @@ import { taskTokens } from "../cards/tokens";
 import {
   MENU,
   MENU_FOCUS,
+  filterMenuSections,
   layoutMenu,
   menuChrome,
   menuRowHeight,
+  menuSearchHeight,
   panelMaxHeight,
   submenuPlacement,
   menuKeyReducer,
@@ -43,6 +45,12 @@ export interface CascadeMenuProps {
   align: "left" | "right";
   onClose(): void;
   testID?: string;
+  /**
+   * A search field atop the rows (the project and workspace filters, often
+   * dozens): typing keeps the rows that match, the first one highlighted
+   * for Enter; its X or Escape empties it before Escape closes the menu.
+   */
+  search?: { placeholder: string; clear: string; empty: string };
 }
 
 /**
@@ -56,10 +64,17 @@ export interface CascadeMenuProps {
  * the menu and its anchor closes it; native owners render a backdrop.
  */
 export function CascadeMenu(props: CascadeMenuProps) {
-  const { sections, theme, width, onClose } = props;
+  const { theme, width, onClose } = props;
   const scale = useTasksFontScale();
   const chrome = menuChrome(theme);
   const subWidth = props.submenuWidth ?? 200;
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<NativeTextInput>(null);
+  // Nothing to search in "Nothing to filter yet".
+  const search = props.search && selectableItems(props.sections).length > 0 ? props.search : null;
+  const found = search ? filterMenuSections(props.sections, query) : props.sections;
+  const sections = found.length || !search ? found : [{ key: "no-match", items: [{ key: "no-match", label: search.empty, disabled: true }] }];
+  const headerHeight = search ? menuSearchHeight(scale) : 0;
   const layout = layoutMenu(sections, scale);
   const topItems = layout.rows.map((row) => row.item);
   const [focus, setFocus] = useState<MenuFocus>(MENU_FOCUS);
@@ -104,8 +119,14 @@ export function CascadeMenu(props: CascadeMenuProps) {
   };
   useEffect(() => clearTimer, []);
 
-  const latest = useRef({ focus, topItems, subItems, onClose });
-  latest.current = { focus, topItems, subItems, onClose };
+  const changeQuery = useCallback((text: string) => {
+    clearTimer();
+    setQuery(text);
+    setFocus({ ...MENU_FOCUS, top: text.trim() ? 0 : -1 });
+  }, []);
+
+  const latest = useRef({ focus, topItems, subItems, onClose, query, searching: !!search });
+  latest.current = { focus, topItems, subItems, onClose, query, searching: !!search };
   const choose = useCallback((level: 0 | 1, index: number) => {
     const { topItems: tops, subItems: subs, onClose: close } = latest.current;
     const item = level === 0 ? tops[index] : subs?.[index];
@@ -117,6 +138,8 @@ export function CascadeMenu(props: CascadeMenuProps) {
     }
     item.onSelect?.();
     if (!item.keepOpen) close();
+    // A click moved the web focus to the row: give it back, so the next word types into the field.
+    else if (latest.current.searching && Platform.OS === "web") searchRef.current?.focus();
   }, []);
 
   const hoverTop = (index: number) => {
@@ -137,6 +160,13 @@ export function CascadeMenu(props: CascadeMenuProps) {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
     const onKey = (event: KeyboardEvent) => {
       const now = latest.current;
+      if (event.key === "Escape" && now.query && now.focus.open === null) {
+        event.preventDefault();
+        event.stopPropagation();
+        changeQuery("");
+        searchRef.current?.focus();
+        return;
+      }
       const result = menuKeyReducer(now.focus, event.key, now.topItems, now.subItems);
       if (!result.handled) return;
       event.preventDefault();
@@ -159,11 +189,11 @@ export function CascadeMenu(props: CascadeMenuProps) {
       doc.removeEventListener("keydown", onKey, true);
       doc.removeEventListener("pointerdown", onPointerDown, true);
     };
-  }, [choose]);
+  }, [choose, changeQuery]);
 
   const openRow = focus.open !== null ? layout.rows[focus.open] : undefined;
   const subHeight = subSections ? layoutMenu(subSections, scale).height : 0;
-  const sub = submenuPlacement(openRow ? openRow.top - scrollY - MENU.padV : 0, subHeight, windowY, frame?.bottom ?? window.height, frame?.top ?? 0);
+  const sub = submenuPlacement(openRow ? openRow.top + headerHeight - scrollY - MENU.padV : 0, subHeight, windowY, frame?.bottom ?? window.height, frame?.top ?? 0);
   return (
     <View
       ref={containerRef}
@@ -183,7 +213,11 @@ export function CascadeMenu(props: CascadeMenuProps) {
         onPress={(index) => choose(0, index)}
         onScroll={setScrollY}
         maxHeight={maxHeight}
-        scrolls={layout.height > maxHeight}
+        scrolls={layout.height + headerHeight > maxHeight}
+        header={
+          search ? <MenuSearch inputRef={searchRef} value={query} onChange={changeQuery} labels={search} theme={theme} chrome={chrome} /> : null
+        }
+        headerHeight={headerHeight}
       />
       {subSections ? (
         <View
@@ -210,6 +244,66 @@ export function CascadeMenu(props: CascadeMenuProps) {
   );
 }
 
+/** A searchable menu's field: a search glyph, the input, an X while it holds text; a hairline under it. */
+function MenuSearch(props: {
+  inputRef: RefObject<NativeTextInput | null>;
+  value: string;
+  onChange(text: string): void;
+  labels: { placeholder: string; clear: string };
+  theme: PluginTheme;
+  chrome: MenuChrome;
+}) {
+  const scale = useTasksFontScale();
+  const colors = props.theme.colors;
+  const [clearHovered, setClearHovered] = useState(false);
+  return (
+    <View testID="menu-search">
+      <View style={{ height: menuSearchHeight(scale) - 1, flexDirection: "row", alignItems: "center", gap: MENU.gap, paddingHorizontal: MENU.inset + 8 }}>
+        <Icon name="Search" size={14} color={colors.foregroundMuted} />
+        <TextInput
+          ref={props.inputRef}
+          value={props.value}
+          onChangeText={props.onChange}
+          placeholder={props.labels.placeholder}
+          placeholderTextColor={colors.foregroundMuted}
+          accessibilityLabel={props.labels.placeholder}
+          autoFocus={Platform.OS === "web"}
+          autoCorrect={false}
+          autoCapitalize="none"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            padding: 0,
+            fontSize: Math.round(MENU.fontSize * scale),
+            color: colors.foreground,
+            // The panel is the field's frame: no focus ring inside it.
+            ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null),
+          }}
+        />
+        {props.value ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={props.labels.clear}
+            testID="menu-search-clear"
+            hitSlop={6}
+            onHoverIn={() => setClearHovered(true)}
+            onHoverOut={() => setClearHovered(false)}
+            onPress={() => {
+              props.onChange("");
+              props.inputRef.current?.focus();
+            }}
+          >
+            <Icon name="X" size={14} color={clearHovered ? colors.foreground : colors.foregroundMuted} />
+          </Pressable>
+        ) : null}
+      </View>
+      <View style={{ height: 1 }}>
+        <View style={{ height: devicePixel(), backgroundColor: props.chrome.border }} />
+      </View>
+    </View>
+  );
+}
+
 function MenuPanel(props: {
   sections: MenuSection[];
   chrome: MenuChrome;
@@ -226,6 +320,9 @@ function MenuPanel(props: {
   maxHeight?: number;
   scrolls?: boolean;
   testID?: string;
+  /** Held above the rows, out of their scroll: the search field. */
+  header?: ReactNode;
+  headerHeight?: number;
 }) {
   const { chrome, theme } = props;
   const scale = useTasksFontScale();
@@ -273,24 +370,36 @@ function MenuPanel(props: {
     boxShadow: chrome.shadow,
     elevation: 8,
   };
+  const header = props.header ?? null;
+  const headerHeight = header ? props.headerHeight ?? 0 : 0;
   if (!props.scrolls) {
     return (
-      <View testID={props.testID ?? "menu-panel"} style={frame}>
+      <View testID={props.testID ?? "menu-panel"} style={header ? [frame, { paddingTop: 0 }] : frame}>
+        {header}
         {body}
       </View>
     );
   }
   if (Platform.OS === "android") {
     return (
-      <DragScroll testID={props.testID ?? "menu-panel"} frame={frame} maxHeight={props.maxHeight ?? MENU.maxHeight} contentHeight={layoutMenu(props.sections, scale).height} onScroll={props.onScroll}>
+      <DragScroll
+        testID={props.testID ?? "menu-panel"}
+        frame={frame}
+        maxHeight={props.maxHeight ?? MENU.maxHeight}
+        contentHeight={layoutMenu(props.sections, scale).height}
+        onScroll={props.onScroll}
+        header={header}
+        headerHeight={headerHeight}
+      >
         {body}
       </DragScroll>
     );
   }
   return (
     <View testID={props.testID ?? "menu-panel"} style={[frame, { paddingVertical: 0, maxHeight: props.maxHeight ?? MENU.maxHeight, overflow: "hidden" }]}>
+      {header}
       <ScrollView
-        style={{ maxHeight: props.maxHeight ?? MENU.maxHeight }}
+        style={{ maxHeight: (props.maxHeight ?? MENU.maxHeight) - headerHeight }}
         contentContainerStyle={{ paddingVertical: MENU.padV }}
         scrollEventThrottle={16}
         onScroll={(event) => props.onScroll?.(event.nativeEvent.contentOffset.y)}
@@ -317,10 +426,13 @@ function DragScroll(props: {
   maxHeight: number;
   contentHeight: number;
   onScroll?(y: number): void;
+  /** Held above the rows, out of the drag's travel. */
+  header?: ReactNode;
+  headerHeight?: number;
   children: ReactNode;
 }) {
   const [offset, setOffset] = useState(0);
-  const range = Math.max(0, props.contentHeight - props.maxHeight);
+  const range = Math.max(0, props.contentHeight - (props.maxHeight - (props.headerHeight ?? 0)));
   const start = useRef(0);
   const shown = Math.min(offset, range);
   const latest = useRef({ shown, range, onScroll: props.onScroll });
@@ -331,6 +443,7 @@ function DragScroll(props: {
     latest.current.onScroll?.(next);
   };
   type Drag = { nativeEvent: { pageY: number } };
+  const content = <View style={{ paddingVertical: MENU.padV, transform: [{ translateY: -shown }] }}>{props.children}</View>;
   return (
     <View
       testID={props.testID}
@@ -346,7 +459,14 @@ function DragScroll(props: {
       onResponderMove={(event: Drag) => moveTo(start.current - event.nativeEvent.pageY)}
       onResponderTerminationRequest={() => false}
     >
-      <View style={{ paddingVertical: MENU.padV, transform: [{ translateY: -shown }] }}>{props.children}</View>
+      {props.header ? (
+        <>
+          {props.header}
+          <View style={{ maxHeight: props.maxHeight - (props.headerHeight ?? 0), overflow: "hidden" }}>{content}</View>
+        </>
+      ) : (
+        content
+      )}
     </View>
   );
 }
