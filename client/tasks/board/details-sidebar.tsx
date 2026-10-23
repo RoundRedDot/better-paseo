@@ -9,7 +9,7 @@ import { LANE_ORDER, LANE_STATUS, turnRunning, type LaneId, type TaskCard } from
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { useSessionTokens } from "../data/session-tokens";
-import { FILTER_ICONS, activeChips, buildFilterOptions, clearedParams, type FilterOption } from "./filter-options";
+import { FILTER_ICONS, activeChips, buildFilterOptions, clearedParams, projectOptions, toggleProject, type FilterOption } from "./filter-options";
 import { RollingCount } from "./board-parts";
 import { toggleItem } from "./params";
 import type { SelectionAction, SidebarSelection } from "./sidebar-model";
@@ -290,25 +290,13 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
         .filter((row) => row.count > 0 || row.on)
         .sort(byCount);
     }
-    return options.workspaceGroups
-      .filter((group) => group.projectId !== "")
-      .map((group) => {
-        const ids = group.items.map((item) => item.id);
-        const on = ids.length > 0 && ids.every((id) => board.params.workspaceIds.includes(id));
-        return {
-          id: group.projectId,
-          label: group.projectName,
-          count: group.items.reduce((sum, item) => sum + item.count, 0),
-          on,
-          lead: <ProjectIcon location={group} size={16} hostId={board.hostId} />,
-          iconFor: group.projectIcon === null ? group.projectId : undefined,
-          toggle: () =>
-            board.setParams((params) => ({
-              ...params,
-              workspaceIds: on ? params.workspaceIds.filter((id) => !ids.includes(id)) : [...params.workspaceIds, ...ids.filter((id) => !params.workspaceIds.includes(id))],
-            })),
-        };
-      })
+    return projectOptions(options)
+      .map((project) => ({
+        ...pick(project),
+        lead: <ProjectIcon location={project.group} size={16} hostId={board.hostId} />,
+        iconFor: project.group.projectIcon === null ? project.id : undefined,
+        toggle: () => board.setParams((params) => toggleProject(params, project)),
+      }))
       .filter((row) => row.count > 0 || row.on)
       .sort(byCount);
   }, [kind, options, board, tokens]);

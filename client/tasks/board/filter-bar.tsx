@@ -6,14 +6,14 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskCon
 import { taskTokens } from "../cards";
 import { HoverPressable, WindowSegments, RoundButton } from "./board-parts";
 import { HAIRLINE } from "./board-style";
-import { FILTER_ICONS, activeChips, clearedParams, groupChips, isChipGroup, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
+import { FILTER_ICONS, activeChips, clearedParams, groupChips, isChipGroup, projectOptions, toggleProject, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
 import { sortLabel } from "./strings";
-import { agentMenuSections, chipGroupMenuSections, labelMenuSections, laneWidthMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
+import { agentMenuSections, chipGroupMenuSections, labelMenuSections, laneWidthMenuSections, projectMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
 import { CascadeMenu } from "./menu";
 import type { BoardController } from "./use-board";
 
-export type FilterMenu = "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
+export type FilterMenu = "project" | "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
 
 /** The narrowest board whose toolbar shows the key hints beside the count and the search. */
 export const KEY_HINTS_MIN_WIDTH = 760;
@@ -209,7 +209,7 @@ export function DesktopFilterBar(props: {
   useEffect(() => {
     if (groupGone) setMenu(null);
   }, [groupGone, setMenu]);
-  const count = (list: readonly string[]) => (list.length ? ` · ${list.length}` : "");
+  const count = (list: readonly unknown[]) => (list.length ? ` · ${list.length}` : "");
   const toggle = (menuId: FilterMenu) => setMenu(menu === menuId ? null : menuId);
   const folds = foldsToggles();
   const [unfolded, setUnfolded] = useState(false);
@@ -233,6 +233,16 @@ export function DesktopFilterBar(props: {
           FILTERS_MIN_WIDTH beside them, and wrap below them, still at the
           right, when they do not. */}
       <View style={{ flex: 1, minWidth: FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
+        <MenuButton icon={FILTER_ICONS.project} label={strings.project + count(projectOptions(options).filter((project) => project.on))} open={menu === "project"} onPress={() => toggle("project")} theme={theme}>
+          <CascadeMenu
+            sections={projectMenuSections(options, strings, board.hostId, (project) => setParams((p) => toggleProject(p, project)))}
+            theme={theme}
+            width={260}
+            top={taskControlHeight(28, scale) + 6}
+            align="left"
+            onClose={() => setMenu(null)}
+          />
+        </MenuButton>
         <MenuButton icon={FILTER_ICONS.workspace} label={strings.workspace + count(params.workspaceIds)} open={menu === "workspace"} onPress={() => toggle("workspace")} theme={theme}>
           <CascadeMenu
             sections={workspaceMenuSections(options, theme, strings, board.hostId, (id) => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, id) })))}

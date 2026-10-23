@@ -81,6 +81,38 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
   return { workspaceGroups: [...groups.values()], agents, labels };
 }
 
+/** A project as one filter option: on while every one of its workspaces is picked. */
+export interface ProjectOption extends FilterOption {
+  group: FilterOptions["workspaceGroups"][number];
+}
+
+/**
+ * The projects to filter by. Picking one picks all its workspaces, as the
+ * sidebar's project rows do, so its chip reads "Project payments-svc";
+ * `count` sums its workspaces' active cards.
+ */
+export function projectOptions(options: FilterOptions): ProjectOption[] {
+  return options.workspaceGroups
+    .filter((group) => group.projectId !== "")
+    .map((group) => ({
+      id: group.projectId,
+      label: group.projectName,
+      count: group.items.reduce((sum, item) => sum + item.count, 0),
+      on: group.items.length > 0 && group.items.every((item) => item.on),
+      group,
+    }));
+}
+
+/** Picks every workspace of the project, or drops them all when every one is already picked. */
+export function toggleProject(params: BoardParams, project: ProjectOption): BoardParams {
+  const ids = project.group.items.map((item) => item.id);
+  const on = ids.length > 0 && ids.every((id) => params.workspaceIds.includes(id));
+  return {
+    ...params,
+    workspaceIds: on ? params.workspaceIds.filter((id) => !ids.includes(id)) : [...params.workspaceIds, ...ids.filter((id) => !params.workspaceIds.includes(id))],
+  };
+}
+
 /**
  * Workspaces of one project that share a name (several worktrees on one
  * branch) get their folder after it, "fix/x · payments-svc-2"; where the

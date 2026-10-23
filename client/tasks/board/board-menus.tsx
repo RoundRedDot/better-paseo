@@ -3,7 +3,7 @@ import { View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
 import { BrandMark, ProjectIcon, taskTokens } from "../cards";
-import { FILTER_ICONS, type ActiveChip, type ChipGroup, type FilterOption, type FilterOptions } from "./filter-options";
+import { FILTER_ICONS, projectOptions, type ActiveChip, type ChipGroup, type FilterOption, type FilterOptions, type ProjectOption } from "./filter-options";
 import type { BoardParams } from "./params";
 import type { MenuItem, MenuSection } from "./menu-model";
 import { NAME_KEYS, sameSort, type BoardSort, type SortDirection, type SortKey } from "./sort";
@@ -105,6 +105,13 @@ function optionItem(option: FilterOption, toggle: (id: string) => void, mark: { 
 
 function emptySection(text: string): MenuSection[] {
   return [{ key: "empty", items: [{ key: "empty", label: text, disabled: true }] }];
+}
+
+/** One row per project, its icon leading; a click picks or drops all its workspaces. */
+export function projectMenuSections(options: FilterOptions, strings: BoardStrings, hostId: string, toggle: (project: ProjectOption) => void): MenuSection[] {
+  const projects = projectOptions(options);
+  if (projects.length === 0) return emptySection(strings.noOptions);
+  return [{ key: "projects", items: projects.map((project) => optionItem(project, () => toggle(project), { leading: <ProjectIcon location={project.group} size={16} hostId={hostId} /> })) }];
 }
 
 /** Workspaces under a titled group per project (Linear's section headers), not a submenu per project: one click per workspace. */
