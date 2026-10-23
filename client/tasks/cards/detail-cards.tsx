@@ -252,8 +252,8 @@ type Inner = TaskDetailCardsProps & { m: Metrics; tokens: TaskTokens; now: numbe
 function stopLabel(props: TaskDetailCardsProps): string | null {
   if (!props.stop) return null;
   const cardText = cardStrings(props.language);
+  // Stopping keeps the rest label; the button's spinner says it is working.
   if (props.stop.phase === "confirming") return cardText.confirmStop;
-  if (props.stop.phase === "stopping") return cardText.stopping;
   return props.strings.stopRun;
 }
 
@@ -404,7 +404,17 @@ function DetailHeader(props: Inner) {
         <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }} testID="detail-actions">
           {touch ? null : lead}
           {stop && props.stop ? (
-            <OutlineButton icon="Power" danger={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} height={m.button} font={m.font} tokens={tokens} onPress={props.stop.onPress} testID="detail-stop" />
+            <OutlineButton
+              icon="Power"
+              danger={props.stop.phase === "confirming" ? "solid" : "tint"}
+              label={stop}
+              busy={props.stop.phase === "stopping"}
+              height={m.button}
+              font={m.font}
+              tokens={tokens}
+              onPress={props.stop.onPress}
+              testID="detail-stop"
+            />
           ) : null}
           {openButton ? unarchiveButton : null}
           {touch ? lead : null}
@@ -1575,7 +1585,18 @@ export function DetailActionBar(props: {
         </>
       ) : (
         <>
-          {stop && props.stop ? <BarButton tokens={tokens} icon="Power" stop={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" /> : null}
+          {stop && props.stop ? (
+            <BarButton
+              tokens={tokens}
+              icon="Power"
+              stop={props.stop.phase === "confirming" ? "solid" : "tint"}
+              label={stop}
+              busy={props.stop.phase === "stopping"}
+              grow={false}
+              onPress={props.stop.onPress}
+              testID="detail-bar-stop"
+            />
+          ) : null}
           {onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} primary onPress={open} testID="detail-bar-open" /> : null}
           {unarchive ? (
             <BarButton
