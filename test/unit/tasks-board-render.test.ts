@@ -2078,6 +2078,43 @@ describe("Tasks board, phone", () => {
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-reset")).toHaveLength(1);
   });
 
+  it("searches the filter sheet's workspaces by project and workspace name, and holds the field at the top while searching", () => {
+    const handle = (data as unknown as { __handle: { workspaces: object[] } }).__handle;
+    const saved = handle.workspaces;
+    handle.workspaces = [...saved, { id: "wks_idle", name: "idle-branch", projectId: "prj_idle", projectName: "idle-project" }];
+    try {
+      act(() => {
+        renderer = TestRenderer.create(screen(true));
+      });
+      act(() => pressable("Filters").props.onPress());
+      const sheet = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
+      const workspaces = () => sheet().find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-workspaces");
+      const chips = () => workspaces().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox").map(textOf);
+      const field = () => workspaces().find((node) => (node.type as unknown) === "TextInput");
+      expect(field().props.placeholder).toBe("Search projects and workspaces");
+      expect(chips().map((chip) => chip.replace(/\d+$/, ""))).toEqual(["tasks-board", "idle-branch"]);
+      // A project's name keeps its whole group; every word must match.
+      act(() => field().props.onChangeText("IDLE proj"));
+      expect(chips().map((chip) => chip.replace(/\d+$/, ""))).toEqual(["idle-branch"]);
+      expect(textOf(workspaces())).not.toContain("better-paseo");
+      act(() => field().props.onChangeText("nothing-here"));
+      expect(chips()).toEqual([]);
+      expect(textOf(workspaces())).toContain("No matches");
+      act(() => workspaces().find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-search-clear").props.onPress());
+      expect(field().props.value).toBe("");
+      expect(chips()).toHaveLength(2);
+      // Focused, the workspaces fill the scroller at least, so the field can stay at its top above the keyboard.
+      act(() => sheet().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 420 } } }));
+      expect(StyleSheet.flatten(workspaces().props.style)?.minHeight).toBeUndefined();
+      act(() => field().props.onFocus());
+      expect(StyleSheet.flatten(workspaces().props.style).minHeight).toBe(420);
+      act(() => field().props.onBlur());
+      expect(StyleSheet.flatten(workspaces().props.style)?.minHeight).toBeUndefined();
+    } finally {
+      handle.workspaces = saved;
+    }
+  });
+
   it("lists the options with no active task in the filter sheet until the header's switch hides them, and saves it", async () => {
     const handle = (data as unknown as { __handle: { workspaces: object[]; providers: object[]; labels: object[] } }).__handle;
     const saved = { workspaces: handle.workspaces, providers: handle.providers, labels: handle.labels };
