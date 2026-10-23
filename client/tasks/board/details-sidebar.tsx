@@ -9,7 +9,7 @@ import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { useSessionTokens } from "../data/session-tokens";
-import { FILTER_ICONS, activeChips, buildFilterOptions, clearedParams, shownFilterOptions, toggleProject, type FilterOption } from "./filter-options";
+import { FILTER_ICONS, buildFilterOptions, clearedParams, filterSummary, shownFilterOptions, toggleProject, type FilterOption } from "./filter-options";
 import { RollingCount, RollingTotal } from "./board-parts";
 import { toggleItem } from "./params";
 import type { SelectionAction, SidebarSelection } from "./sidebar-model";
@@ -153,8 +153,7 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
   const { board, tokens } = props;
   const showEmpty = board.showEmptyGroups;
   const options = useMemo(() => shownFilterOptions(buildFilterOptions(board.tasks, board.params), showEmpty), [board.tasks, board.params, showEmpty]);
-  const chips = activeChips(board.params, board.defaults, options, board.strings).filter((chip) => chip.key !== "win");
-  const summary = chips.map((chip) => (chip.kind ? `${chip.kind}: ${chip.value}` : chip.value)).join(" · ");
+  const summary = filterSummary(board.params, board.defaults, options, board.strings);
   return (
     <DetailCard tokens={tokens} style={{ paddingHorizontal: 8, paddingTop: 8, paddingBottom: 8, gap: 6 }} testID="sidebar-stats">
       <View style={{ paddingHorizontal: 4, gap: 2 }}>

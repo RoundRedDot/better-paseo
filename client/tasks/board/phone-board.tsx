@@ -20,7 +20,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { findHostHorizontalScroll } from "../../ui/host-horizontal-scroll";
 import { HAIRLINE, MOTION, boardPalette } from "./board-style";
-import { CardCell, RollingCount, RoundButton, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
+import { CardCell, RollingCount, RoundButton, LaneFilterHint, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
 import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
 import { buildFilterOptions, clearedParams, emptyGroupsIcon } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
@@ -851,9 +851,12 @@ function PhoneLane(props: {
         </View>
       }
       ListFooterComponent={
-        isHistoryLane(lane.id) && (count > 0 || lane.id === "archived") && (lane.hasMore || lane.loading) ? (
-          <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} large />
-        ) : null
+        <>
+          {isHistoryLane(lane.id) && (count > 0 || lane.id === "archived") && (lane.hasMore || lane.loading) ? (
+            <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} large />
+          ) : null}
+          <LaneFilterHint board={board} lane={lane.id} count={board.hidden[lane.id]} theme={theme} />
+        </>
       }
     />
   );

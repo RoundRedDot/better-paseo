@@ -69,6 +69,8 @@ const en = {
   doneRange: "Done time range",
   clearFilters: "Clear filters",
   hiddenByFilters: "Hidden by the current filters",
+  /** Under a lane's cards while the filters leave some of its own out; the filters follow on a second line. */
+  laneHidden: (count: number) => `${count} hidden by filters`,
   noOptions: "Nothing to filter yet",
   details: "Details",
   stoppedManually: "Stopped manually",
@@ -213,6 +215,7 @@ const zh: typeof en = {
   doneRange: "已完成时间范围",
   clearFilters: "清除筛选",
   hiddenByFilters: "该任务被当前筛选隐藏",
+  laneHidden: (count) => `${count} 个任务被筛选隐藏`,
   noOptions: "暂无可筛选的项",
   details: "详情",
   stoppedManually: "已手动停止",

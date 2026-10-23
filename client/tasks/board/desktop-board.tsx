@@ -10,7 +10,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
 import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-scrollbar";
 import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
-import { CardCell, HoverPressable, LoadMoreRow, RollingCount, SkeletonCard, VerticalLabel, useBreathing, useFreshIds, useTap } from "./board-parts";
+import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, RollingCount, SkeletonCard, VerticalLabel, useBreathing, useFreshIds, useTap } from "./board-parts";
 import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type FilterMenu } from "./filter-bar";
 import { buildFilterOptions } from "./filter-options";
 import { LANES, boardKeyReducer, clampFocus, laneLayout, type BoardFocus, type LaneShape } from "./navigation";
@@ -550,6 +550,7 @@ export function DesktopBoard(props: {
                       onBlank={touch ? letGo : undefined}
                       flash={flash?.lane === id ? flash : null}
                       inView={inView.includes(`|${id}|`) || focus?.lane === id || flash?.lane === id || highlightedLane === id}
+                      hidden={board.hidden[id]}
                     />
                   </React.Fragment>
                 ))}
@@ -887,15 +888,18 @@ interface DesktopLaneProps {
   flash: LaneFlash | null;
   /** In the row's view, or wanted there (focused, flashed, a card revealed): its cards draw now, not later. */
   inView: boolean;
+  /** Its cards the filters leave out (`board.hidden`), passed alone so another lane's count does not draw this one again. */
+  hidden: number;
 }
 
 /**
  * The board fields a lane draws nothing from, and that change on every data
- * update: the other lanes, the counts above them, and the store's snapshot,
+ * update: the other lanes, the counts above them (a lane's own hidden count
+ * comes as its `hidden` prop), and the store's snapshot,
  * of which a lane reads only `ready` and `loadMoreDone`. Any other field is
  * compared, so one added later makes the lane draw again rather than go stale.
  */
-const LANE_BLIND: ReadonlySet<string> = new Set(["lanes", "total", "tasks"]);
+const LANE_BLIND: ReadonlySet<string> = new Set(["lanes", "hidden", "total", "tasks"]);
 
 function sameLaneBoard(last: BoardController, next: BoardController): boolean {
   if (last === next) return true;
@@ -1095,6 +1099,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
               {isHistoryLane(lane.id) && (count > 0 || lane.id === "archived") && (lane.hasMore || lane.loading) ? (
                 <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} />
               ) : null}
+              <LaneFilterHint board={board} lane={lane.id} count={props.hidden} theme={theme} />
               {props.onBlank ? <Pressable accessible={false} {...blankTap.pressIn} onPress={blankTap.tap(props.onBlank)} testID={`lane-blank-${lane.id}`} style={{ flexGrow: 1, minHeight: 48 }} /> : null}
             </>
           }
