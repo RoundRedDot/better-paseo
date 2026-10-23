@@ -1419,6 +1419,57 @@ describe("Tasks data store, archived lane", () => {
     }
   });
 
+  it("moves the board's count once per switch, keeping the cards until the new done list lands", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("done", { status: "idle", updatedAt: recentIso(1_000) }),
+        activeAgent("archived", { status: "closed", updatedAt: recentIso(2_000), archivedAt: recentIso(2_000) }),
+        activeAgent("stale", { status: "idle", updatedAt: recentIso(3_000), workspaceId: "ws-archived" }),
+        activeAgent("running", { status: "running", activeTurn: { turnId: "t", startedAt: recentIso(4_000) } }),
+      ],
+      workspaces: [workspace()],
+    });
+    const totals: number[] = [];
+    let setArchived!: (on: boolean) => void;
+    function Probe() {
+      const [archived, set] = React.useState(false);
+      setArchived = set;
+      const tasks = useTasks(fake.paseo, React.useMemo(() => ({ doneWindow: "24h" as const, includeDone: true, includeArchived: archived }), [archived]));
+      totals.push(LANE_ORDER.reduce((sum, lane) => sum + (lane === "archived" && !archived ? 0 : tasks.lanes[lane].cards.length), 0));
+      return null;
+    }
+    let renderer!: Renderer;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Probe));
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    });
+    try {
+      const lists = () => fake.calls.filter((call) => call.method === "agents.list").length;
+      const listsBefore = lists();
+      const settled = totals.at(-1)!;
+      expect(settled).toBe(2);
+      totals.length = 0;
+      await act(async () => {
+        setArchived(true);
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      expect(new Set(totals)).toEqual(new Set([2, 4]));
+      expect(totals.indexOf(4)).toBe(totals.lastIndexOf(2) + 1);
+      // Only the done list is read again; the board keeps its other subscriptions.
+      expect(lists()).toBe(listsBefore + 1);
+
+      totals.length = 0;
+      await act(async () => {
+        setArchived(false);
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      expect(new Set(totals)).toEqual(new Set([2]));
+      expect(lists()).toBe(listsBefore + 2);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
   it("widens with the done window and pages with the done lane", async () => {
     const fake = createFakePaseo({
       agents: [
