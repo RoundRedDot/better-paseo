@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from "react";
 import { Animated, Platform, Pressable, ScrollView, View, type FlatList as NativeFlatList, type TextInput as NativeTextInput } from "react-native";
 import { FlatList, Icon, Modal } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
@@ -153,6 +153,14 @@ export function DesktopBoard(props: {
     });
     return out;
   }, []);
+  // One stable fold switch per lane too, so a memoized lane is not drawn again for a new closure.
+  const toggleLane = useMemo(() => {
+    const out = {} as Record<LaneId, () => void>;
+    LANE_ORDER.forEach((id) => {
+      out[id] = () => setCollapsed((current) => (current.includes(id) ? current.filter((lane) => lane !== id) : [...current, id]));
+    });
+    return out;
+  }, [setCollapsed]);
   const searchRef = useRef<NativeTextInput>(null);
   const rowRef = useRef<ScrollView | null>(null);
 
@@ -242,6 +250,13 @@ export function DesktopBoard(props: {
   const sheetModeRef = useRef(sheetMode);
   sheetModeRef.current = sheetMode;
   const rowScrollX = useRef(0);
+  // The lanes the row shows now: one out of view waits to draw its cards (`DesktopLane`'s `inView`).
+  const viewWidth = lanesWidth - coverRoom;
+  const lanesInViewRef = useRef({ order: laneOrder, collapsed, laneWidth: layout.laneWidth, viewWidth });
+  lanesInViewRef.current = { order: laneOrder, collapsed, laneWidth: layout.laneWidth, viewWidth };
+  const [scrolledInView, setInView] = useState("");
+  const inView = boardWidth > 0 ? lanesInView(laneOrder, collapsed, layout.laneWidth, rowScrollX.current, viewWidth) : scrolledInView;
+  const highlightedLane = board.highlighted ? findCard(lanes, board.highlighted)?.lane ?? null : null;
 
   // A floating panel lands on the lanes' right side, where the card just
   // clicked may sit: the row scrolls that card's lane out from under it. A
@@ -502,6 +517,9 @@ export function DesktopBoard(props: {
                 horizontal
                 onScroll={(event) => {
                   rowScrollX.current = event.nativeEvent.contentOffset.x;
+                  const now = lanesInViewRef.current;
+                  const next = lanesInView(now.order, now.collapsed, now.laneWidth, rowScrollX.current, now.viewWidth);
+                  if (next !== inView) setInView(next);
                 }}
                 scrollEventThrottle={32}
                 scrollEnabled={layout.scroll || coverRoom > 0}
@@ -520,7 +538,7 @@ export function DesktopBoard(props: {
                       sizing={sizing}
                       enter={id === "archived" && archivedSwitch.phase === "enter"}
                       leaving={id === "archived" && archivedSwitch.phase === "leave"}
-                      onToggle={() => setCollapsed((current) => (current.includes(id) ? current.filter((lane) => lane !== id) : [...current, id]))}
+                      onToggle={toggleLane[id]}
                       board={board}
                       callbacks={callbacks}
                       theme={theme}
@@ -531,6 +549,7 @@ export function DesktopBoard(props: {
                       bottomRoom={sheetRoom}
                       onBlank={touch ? letGo : undefined}
                       flash={flash?.lane === id ? flash : null}
+                      inView={inView.includes(`|${id}|`) || focus?.lane === id || flash?.lane === id || highlightedLane === id}
                     />
                   </React.Fragment>
                 ))}
@@ -759,6 +778,43 @@ function useArchivedSwitch(
   return { drawn, phase, last: last.current.lane, width: last.current.width };
 }
 
+/**
+ * The lanes the row shows between `scrollX` and `scrollX + viewWidth`, as
+ * `|id|id|`: a string, so the board renders again only when the set changes.
+ * The row's edge padding does not count: a lane added after the last, with the
+ * row scrolled to its end, starts inside it and is not in view.
+ */
+function lanesInView(order: readonly LaneId[], collapsed: readonly LaneId[], laneWidth: number, scrollX: number, viewWidth: number): string {
+  let left = LANES.edge;
+  let out = "|";
+  for (const id of order) {
+    const width = collapsed.includes(id) ? LANES.collapsed : laneWidth;
+    if (left < scrollX + viewWidth - LANES.edge && left + width > scrollX + LANES.edge) out += `${id}|`;
+    left += width + LANES.gap;
+  }
+  return out;
+}
+
+/** An out-of-view lane draws its cards this long after it appeared, when the switch or the board's opening has settled. */
+const OFFSCREEN_DRAW_MS = 800;
+
+/**
+ * Whether a lane draws its cards: at once in view; out of view (a tablet's
+ * row, the archived lane switched on past its edge) once it scrolls in or
+ * `OFFSCREEN_DRAW_MS` later, so its cards do not mount in the same frames as
+ * the switch. Once drawn it stays drawn.
+ */
+function useDrawnOnce(inView: boolean): boolean {
+  const [drawn, setDrawn] = useState(inView);
+  if (inView && !drawn) setDrawn(true);
+  useEffect(() => {
+    if (drawn) return;
+    const timer = setTimeout(() => setDrawn(true), OFFSCREEN_DRAW_MS);
+    return () => clearTimeout(timer);
+  }, [drawn]);
+  return drawn || inView;
+}
+
 /** A list under copies of its cards while they move (native lane motion). */
 const HIDDEN = { opacity: 0 };
 
@@ -804,7 +860,7 @@ function useLaneFlash(flash: LaneFlash | null): Animated.Value {
   return value;
 }
 
-function DesktopLane(props: {
+interface DesktopLaneProps {
   lane: LaneModel;
   width: number;
   collapsed: boolean;
@@ -829,7 +885,34 @@ function DesktopLane(props: {
   onBlank?(): void;
   /** A stat pressed for this lane: its background flashes. */
   flash: LaneFlash | null;
-}) {
+  /** In the row's view, or wanted there (focused, flashed, a card revealed): its cards draw now, not later. */
+  inView: boolean;
+}
+
+/**
+ * The board fields a lane draws nothing from, and that change on every data
+ * update: the other lanes, the counts above them, and the store's snapshot,
+ * of which a lane reads only `ready` and `loadMoreDone`. Any other field is
+ * compared, so one added later makes the lane draw again rather than go stale.
+ */
+const LANE_BLIND: ReadonlySet<string> = new Set(["lanes", "total", "tasks"]);
+
+function sameLaneBoard(last: BoardController, next: BoardController): boolean {
+  if (last === next) return true;
+  if (last.tasks.ready !== next.tasks.ready || last.tasks.loadMoreDone !== next.tasks.loadMoreDone) return false;
+  const keys = Object.keys(next) as (keyof BoardController)[];
+  return keys.length === Object.keys(last).length && keys.every((key) => LANE_BLIND.has(key) || last[key] === next[key]);
+}
+
+function sameLaneProps(last: DesktopLaneProps, next: DesktopLaneProps): boolean {
+  const keys = Object.keys(next) as (keyof DesktopLaneProps)[];
+  return keys.length === Object.keys(last).length && keys.every((key) => (key === "board" ? sameLaneBoard(last.board, next.board) : last[key] === next[key]));
+}
+
+/** A lane draws again only when its own cards, its size or what its cards show changed, not when another lane did. */
+const DesktopLane = memo(DesktopLaneView, sameLaneProps);
+
+function DesktopLaneView(props: DesktopLaneProps) {
   const { lane, board, theme } = props;
   const scale = useTasksFontScale();
   const colors = theme.colors;
@@ -883,6 +966,7 @@ function DesktopLane(props: {
   const headerTap = useTap();
   const collapseTap = useTap();
   const blankTap = useTap();
+  const drawn = useDrawnOnce(props.inView);
   const shown = props.collapsed ? LANES.collapsed : props.width;
   const target = props.leaving ? 0 : shown;
   const resized = useLaneWidth(target, props.sizing, props.enter ? 0 : undefined);
@@ -923,7 +1007,7 @@ function DesktopLane(props: {
     );
   }
 
-  const loadingFirst = !ready || (isHistoryLane(lane.id) && lane.loading && count === 0);
+  const loadingFirst = !ready || !drawn || (isHistoryLane(lane.id) && lane.loading && count === 0);
   return clip(
     <View style={{ width: props.width, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}>
       {/* Under the header and the cards: only the lane's own fill flashes. */}

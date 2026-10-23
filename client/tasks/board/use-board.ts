@@ -291,7 +291,11 @@ export function useBoard(
   // tick, so a duration sort does not reshuffle every second.
   const sort = params.sort;
   const compareNames = useMemo(() => nameCompare(language), [language]);
-  const lanes = useMemo(() => sortLaneCards(filtered, sort, Date.now(), compareNames), [filtered, sort, compareNames]);
+  const sorted = useMemo(() => sortLaneCards(filtered, sort, Date.now(), compareNames), [filtered, sort, compareNames]);
+  // A lane whose cards and paging held keeps its identity, so it skips its render when another lane changes.
+  const lanesRef = useRef(sorted);
+  const lanes = useMemo(() => keepSameLanes(lanesRef.current, sorted), [sorted]);
+  lanesRef.current = lanes;
   const total = laneOrder.reduce((sum, id) => sum + lanes[id].cards.length, 0);
   // Switching the archived lane rearranges the lanes as a filter does, twice when it turns on: at once, and when the list with archived agents lands.
   const archivedSettling = showArchived && lanes.archived.loading && lanes.archived.cards.length === 0;
@@ -460,4 +464,19 @@ function sameFields(left: CardSettings, right: CardSettings): boolean {
   if (left === right) return true;
   const keys = Object.keys(right) as (keyof CardSettings)[];
   return keys.length === Object.keys(left).length && keys.every((key) => left[key] === right[key]);
+}
+
+/** `next`, with each lane that did not change taken from `last`; `last` itself when none did. */
+export function keepSameLanes(last: Record<LaneId, LaneModel>, next: Record<LaneId, LaneModel>): Record<LaneId, LaneModel> {
+  if (last === next) return last;
+  let changed = false;
+  const out = {} as Record<LaneId, LaneModel>;
+  for (const id of LANE_ORDER) {
+    const was = last[id];
+    const now = next[id];
+    const same = was.hasMore === now.hasMore && was.loading === now.loading && was.cards.length === now.cards.length && was.cards.every((card, index) => card === now.cards[index]);
+    out[id] = same ? was : now;
+    if (!same) changed = true;
+  }
+  return changed ? out : last;
 }
