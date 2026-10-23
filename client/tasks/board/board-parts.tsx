@@ -499,7 +499,7 @@ export function RoundButton(props: {
  * 20-unit drawing at the host's 1.5 stroke, cut out of the icon by a ring
  * of the surface. Drawn with views, as the sandbox has no SVG.
  */
-function SlashMark(props: { size: number; color: string; gap: string }) {
+export function SlashMark(props: { size: number; color: string; gap: string }) {
   const unit = props.size / 24;
   const length = 20 * Math.SQRT2 * unit;
   const stroke = 1.5 * unit;

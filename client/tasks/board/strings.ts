@@ -86,10 +86,9 @@ const en = {
     saveFailed: "Couldn't save the lane width",
   },
   archivedLane: {
-    /** The board's switch beside the done window. */
-    label: "Archived",
+    /** The round Archive button's hint, in the filter bar beside the done window. */
     hint: "Show the archived lane after Done",
-    /** The round header button's name, on a phone and a narrow tablet board. */
+    /** The round Archive button's name, in the filter bar and the phone and narrow board headers. */
     row: "Show the archived lane",
     saveFailed: "Couldn't save the archived lane setting",
   },
@@ -214,7 +213,6 @@ const zh: typeof en = {
     saveFailed: "泳道宽度没有保存成功",
   },
   archivedLane: {
-    label: "已归档",
     hint: "在已完成之后显示已归档泳道",
     row: "显示已归档泳道",
     saveFailed: "已归档泳道的设置没有保存成功",
