@@ -14,6 +14,8 @@ import {
 } from "react-native";
 import { Glyph } from "./glyph";
 import { SafeInset } from "../ui/safe-inset";
+import { useCopy } from "../ui/use-copy";
+import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import {
@@ -36,7 +38,12 @@ interface ImageViewerProps {
   height: number | null;
   label: string;
   tokens: ExtendedThemeTokens;
-  /** Opens the file on the daemon's machine (`file.reveal`). */
+  /** The file's absolute path: what a touch-first device copies. */
+  path?: string;
+  /**
+   * Opens the file on the daemon's machine (`file.reveal`). Used on a hover
+   * device only: from a phone it would open a window on the desktop.
+   */
   onReveal?: () => void;
 }
 
@@ -116,7 +123,7 @@ function distance([a, b]: Pair): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function ViewerBody({ onClose, uri, width, height, label, tokens, onReveal }: ImageViewerProps) {
+function ViewerBody({ onClose, uri, width, height, label, tokens, path, onReveal }: ImageViewerProps) {
   const [natural, setNatural] = useState<ViewportSize | null>(
     width && height ? { width, height } : null,
   );
@@ -126,6 +133,9 @@ function ViewerBody({ onClose, uri, width, height, label, tokens, onReveal }: Im
   const canvasRef = useRef<View>(null);
   // How far a dismissing drag has carried the picture; the backdrop fades with it.
   const dismissOffset = useRef(new Animated.Value(0)).current;
+  const capabilities = useInputCapabilities();
+  const touchFirst = capabilities.touch && !capabilities.hover;
+  const { copied, copy } = useCopy();
 
   // A header that gave no size still leaves the decoded image to ask.
   useEffect(() => {
@@ -365,7 +375,19 @@ function ViewerBody({ onClose, uri, width, height, label, tokens, onReveal }: Im
     },
     { icon: "Scan", label: "Reset zoom", onPress: reset, disabled: transform.scale === 1 },
   ];
-  if (onReveal) actions.push({ icon: "ExternalLink", label: "Open in default app", onPress: onReveal });
+  // The file button does what it says: a path press does the same (`PathText`).
+  // On touch it copies, with the toast and the button's own check, because
+  // the toast may sit under this modal.
+  if (touchFirst && path) {
+    actions.push({
+      key: "file",
+      icon: copied ? "Check" : "Copy",
+      label: copied ? "Copied" : "Copy path",
+      onPress: () => void copy(path, { feedback: "icon", label: "Copy path" }),
+    });
+  } else if (!touchFirst && onReveal) {
+    actions.push({ key: "file", icon: "ExternalLink", label: "Open in default app", onPress: onReveal });
+  }
   actions.push({ icon: "X", label: "Close the image", onPress: onClose });
 
   const backdropOpacity = dismissOffset.interpolate({
@@ -403,7 +425,7 @@ function ViewerBody({ onClose, uri, width, height, label, tokens, onReveal }: Im
           </View>
           <View style={styles.toolbar} pointerEvents="box-none">
             {actions.map((action) => (
-              <ToolbarButton key={action.label} action={action} tokens={tokens} />
+              <ToolbarButton key={action.key ?? action.label} action={action} tokens={tokens} />
             ))}
           </View>
         </View>
@@ -413,6 +435,8 @@ function ViewerBody({ onClose, uri, width, height, label, tokens, onReveal }: Im
 }
 
 interface ToolbarAction {
+  /** Defaults to the label; a button whose label changes keeps its own. */
+  key?: string;
   icon: string;
   label: string;
   onPress: () => void;
