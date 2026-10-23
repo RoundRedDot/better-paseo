@@ -26,7 +26,11 @@ export function FilterSheetBody(props: {
   theme: PluginTheme;
   options: FilterOptions;
   onDone(): void;
-  /** The lane width, on a tablet's narrow board (its lanes scroll); a phone shows one lane and has none. */
+  /**
+   * The lane width, on a tablet's narrow board (its lanes scroll); a phone
+   * shows one lane and has none. The tablet's header carries the archived
+   * lane's switch, so the sheet drops its row there.
+   */
   laneWidth?: { value: LaneWidth; onChange(width: LaneWidth): void };
   /**
    * Opened from the header's sort pill: the sort comes first. (Scrolling
@@ -71,14 +75,16 @@ export function FilterSheetBody(props: {
             theme={theme}
             onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
           />
-          <ToggleRow
-            icon="Archive"
-            label={strings.archivedLane.row}
-            on={board.showArchived}
-            theme={theme}
-            onPress={() => board.setShowArchived(!board.showArchived)}
-            testID="filter-sheet-archived"
-          />
+          {props.laneWidth ? null : (
+            <ToggleRow
+              icon="Archive"
+              label={strings.archivedLane.row}
+              on={board.showArchived}
+              theme={theme}
+              onPress={() => board.setShowArchived(!board.showArchived)}
+              testID="filter-sheet-archived"
+            />
+          )}
           <SectionTitle text={strings.agent} theme={theme} />
           {options.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
           <ChipWrap>

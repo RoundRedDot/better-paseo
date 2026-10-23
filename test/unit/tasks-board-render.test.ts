@@ -1148,6 +1148,29 @@ describe("Tasks board, tablet filters", () => {
     expect(renderer!.root.findAll((node) => node.props.testID === "toolbar-filters")).toHaveLength(0);
   });
 
+  it("keeps the archived lane's switch out of a narrow board's sheet, as a round button left of the filters", async () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(600);
+    const archived = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived");
+    const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && (node.props.testID === "toolbar-archived" || node.props.testID === "toolbar-filters"));
+    expect(buttons.map((node) => node.props.testID)).toEqual(["toolbar-archived", "toolbar-filters"]);
+    expect(archived().props).toMatchObject({ accessibilityLabel: "Show the archived lane", accessibilityState: { selected: false } });
+    expect(hostsById("lane-archived")).toHaveLength(0);
+    await act(async () => archived().props.onPress());
+    layOut(600);
+    expect(archived().props.accessibilityState).toEqual({ selected: true });
+    expect(hostsById("lane-archived")).toHaveLength(1);
+    expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } }, "1");
+    act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-filters").props.onPress());
+    expect(hostsById("filter-sheet-lane-width")).toHaveLength(1);
+    expect(renderer!.root.findAll((node) => node.props.testID === "filter-sheet-archived")).toHaveLength(0);
+    // A wide board keeps its switch in the filter bar.
+    layOut(1600);
+    expect(renderer!.root.findAll((node) => node.props.testID === "toolbar-archived")).toHaveLength(0);
+  });
+
   it("folds the two toggles behind a plus, and marks the plus while one is on", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
