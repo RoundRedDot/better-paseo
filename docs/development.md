@@ -107,6 +107,15 @@ What must not reach client code, including client dependencies:
   `typeof Component === "function"`, so the object `React.memo` returns is
   rejected. Wrap a memoised body in a function component instead.
 
+`import()` compiles and loads, but it does not shorten startup. The host bundles
+one file without code splitting, so esbuild keeps the imported code in the
+bundle and wraps almost every module (207 of 246, measured) in a lazy
+initialiser. In the `hermes` VM on a Mac, with stub modules, running the
+bundle's module code took about 76 ms (median) with the settings page, the
+Tasks board and the find bar behind `import()`, against about 62 ms with
+static imports. Leaving those three out of the bundle took it to about 42 ms.
+Code only leaves the startup path when it leaves the bundle.
+
 ## Screenshots
 
 `.showcase/` renders the real components with React Native Web and fixture data. Rebuild every

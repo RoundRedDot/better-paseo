@@ -8,6 +8,7 @@ import { installPointerFocusRing } from "./client/components/focus-ring";
 import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
 import { followPreference } from "./client/state/follow-preference";
+import { readPreferencesAtStartup } from "./client/state/preference-sync-slot";
 import { perfSlashCommand } from "./client/debug/perf-command";
 import { transformCompaction, transformToolCall } from "./client/tools/transform";
 import { agentMessageSchema } from "./client/tools/agent-message";
@@ -32,6 +33,12 @@ function toJsonValue(value: unknown): JsonValue {
 }
 
 export default function contribute(client: PluginClientContext) {
+  // The daemon's preferences, asked for before anything else: iOS and Android
+  // have no local copy, and a row's settings hook would ask only once rows
+  // mount. A record that differs from the defaults reaches the transformers
+  // below (`followPreference`) as soon as it answers, not one projection later.
+  const stopPreferenceRead = readPreferencesAtStartup(client);
+
   // The embedded Inter faces are read from the daemon and installed on first
   // use by a reader who picks them (`ensureEmbeddedFonts`); unloading
   // removes them.
@@ -267,6 +274,7 @@ export default function contribute(client: PluginClientContext) {
   const removeTasks = contributeTasks(client);
 
   return () => {
+    stopPreferenceRead();
     removeTasks();
     removeSettings();
     removePerfCommand();

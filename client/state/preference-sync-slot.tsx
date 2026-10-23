@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useSyncExternalStore } from "react";
-import { useSettings } from "@getpaseo/plugin/client";
-import { PREFERENCES_SETTINGS } from "../../shared/preferences-settings";
+import { settingsRpc } from "@getpaseo/plugin";
+import { useSettings, type PluginClientContext } from "@getpaseo/plugin/client";
+import { PREFERENCES_SETTINGS, preferencesSchema } from "../../shared/preferences-settings";
 import {
   DEFAULT_PREFERENCES,
   applyStoredPreferences,
@@ -19,6 +20,32 @@ export const preferenceSync = createPreferenceSync({
   markMigrated: markLegacyMigrated,
 });
 setPreferencePersister((values) => preferenceSync.request(values));
+
+/**
+ * Reads the daemon's record once, from `contribute()`, so the store holds it
+ * before the first row mounts the settings hook below. Without it iOS and
+ * Android (no `localStorage`) project the first timeline with the defaults,
+ * then re-register their transformers and project it again when a row's hook
+ * answers. The same settings RPC the hook calls; the hook stays the ongoing
+ * sync (saves, other clients' changes). Returns the cancel for the cleanup.
+ */
+export function readPreferencesAtStartup(client: Pick<PluginClientContext, "rpc">): () => void {
+  let live = true;
+  // Sent now rather than a tick later; a synchronous throw becomes a rejection.
+  new Promise((resolve) => resolve(client.rpc(settingsRpc(PREFERENCES_SETTINGS.id).read, {})))
+    .then((result) => {
+      if (!live || !result || typeof result !== "object") return;
+      const read = result as { status?: unknown; revision?: unknown; values?: unknown };
+      if (read.status !== "ready" || typeof read.revision !== "string") return;
+      preferenceSync.prime({ status: "ready", values: preferencesSchema.parse(read.values ?? {}), revision: read.revision });
+    })
+    .catch(() => {
+      // The settings hook reads again once a row mounts.
+    });
+  return () => {
+    live = false;
+  };
+}
 
 /**
  * Reads the daemon settings through the SDK (host-provided `useSettings`,

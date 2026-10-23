@@ -58,6 +58,14 @@ export interface PreferenceSyncDeps {
 export interface PreferenceSync {
   /** The latest `useSettings` state and its actions. Idempotent per revision. */
   report(state: RemoteSettings, actions: RemoteActions): void;
+  /**
+   * The record read while the plugin loads (`readPreferencesAtStartup`),
+   * before any renderer mounts the settings hook. Applied only while the
+   * hook has nothing to say yet and no change is pending; it never becomes
+   * the revision a save is sent against, and a record the daemon does not
+   * hold yet is left to `report`, which may offer this client's local one.
+   */
+  prime(state: RemoteSettings): void;
   /** A change from the reader (already applied to the store). */
   request(values: StoredPreferences): void;
   status(): SyncStatus;
@@ -202,6 +210,11 @@ export function createPreferenceSync(deps: PreferenceSyncDeps): PreferenceSync {
       }
       publish();
       flush();
+    },
+    prime(state) {
+      if (state.status !== "ready" || state.revision === MISSING_REVISION) return;
+      if (remote.status === "ready" || remote.status === "invalid" || pending !== null) return;
+      deps.apply(state.values);
     },
     request(values) {
       pending = values;
