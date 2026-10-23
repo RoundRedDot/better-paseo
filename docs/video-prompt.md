@@ -6,6 +6,17 @@
 
 “独有优化”在本脚本中指 Better Paseo 值得突出的实现与体验特点；没有竞品排他证据时，不写“唯一”“全网独有”。性能继续使用 `b9dfae6` 的已发布 Web 数据，不重算或替换；V10 新 UI 固定 `2c0d842`，旧 V5 支持副本为 `18ad7c2`，来源不可混称。
 
+## 当前版本：V13 两支短片（2026-10-23）
+
+用户要求把宣传片拆成两支独立成片，并突出移动端交互和 iPad 上的专门设计。V13 不再沿用下方 V11 的 136 秒长片结构，下面的 V11/V10 内容保留作历史参考和取证约束。
+
+| 片子 | 文档 | 网页版（≤10 MB，README 用） | 状态 |
+| --- | --- | --- | --- |
+| 时间线（手机抽屉、双指改字号、iPad 浮动/侧边面板、行号复制、轮次用量） | [video-promo-v13-timeline.md](video-promo-v13-timeline.md) | `~/Movies/BetterPaseo/20261023-promo-timeline/better-paseo-promo-v13-timeline-web.mp4`，64 s，8.65 MB | 完成；性能段已更新为 2026-10-23 的 f2f64009 实测，Studio 重渲染及解码/画面检查完成 |
+| Tasks board（iPad 四泳道与详情、卡片上 Allow；iPhone 单泳道、详情 sheet、筛选、Stop、Mark as read） | [video-promo-v13-tasks.md](video-promo-v13-tasks.md) | `~/Movies/BetterPaseo/20261023-promo-tasks/better-paseo-promo-v13-tasks-web.mp4`，64 s，8.6 MB | 完成，不含性能数据 |
+
+共同约定：1920×1080 / 30 fps，画面文字英文，无解说，配乐复用 V12 原创 120 BPM 母带；全部素材在本机 iOS 26.5 模拟器上用 Paseo 0.12.0 Release 构建录制，连接私有 daemon，界面数据为示例并在每帧底部标注，时间线片性能段另用实测数据并标明口径；制作用 HyperFrames（工程在各自目录的 `better-paseo-*`）。
+
 ## 编辑主次与观众应记住的三件事
 
 | 优先级 | 观众记住什么 | 主画面与重点 | 同章带到的辅助功能 |
