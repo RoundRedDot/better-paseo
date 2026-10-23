@@ -123,3 +123,27 @@ hairline orbits) gives way to a Lucide icon. Decide it by the check below.
   Dropped and longest frames did not change.
 - The first row that shows a new mark draws an empty slot of the same size until the RPC answers,
   once per app launch.
+
+## Buttons
+
+### Working state
+
+A Tasks button whose action waits on the daemon (Stop, Mark read, Unarchive) never changes its
+words while it works. This holds on the card, in the details sidebar and in the phone sheet's action
+bar alike. While the action is out the button:
+
+- keeps its label and its resting look (Stop stays in its danger tint, not the solid confirm fill);
+- shows the platform's small `ActivityIndicator` in the icon's slot, scaled into the icon's box so
+  the button keeps its width (a button with no icon gains the spinner before its label);
+- dims to 0.6 opacity and drops its hover fill;
+- takes no second press: `disabled`, and `accessibilityState={{ disabled: true, busy: true }}`.
+
+No "…ing" labels ("Stopping…", "Unarchiving…"). A confirm step is not a working state: Stop's
+"Confirm stop" asks for a second press and may say so in words; once confirmed and working, the
+button goes back to "Stop" with a spinner.
+
+`CardButton`, `ReadControl` and `StopControl` (`client/tasks/cards/task-card.tsx`) and
+`OutlineButton` and `BarButton` (`client/tasks/cards/detail-cards.tsx`) draw this state; pass
+`busy` rather than a different label. The spinner's `testID` is the button's with `-spinner`
+appended (`detail-stop-spinner`), and each button's test checks the label, the dimming, the busy
+state and the spinner.
