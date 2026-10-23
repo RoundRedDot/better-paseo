@@ -678,7 +678,7 @@ describe("Tasks data store", () => {
     });
     const freshMounted = await mountTasks(freshHost, "24h", false);
     try {
-      expect(freshMounted.current.byId.get("a")?.labels).toEqual([{ name: "bug", color: "#b06260" }]);
+      expect(freshMounted.current.byId.get("a")?.labels).toEqual([{ name: "bug", color: "#d88381" }]);
       await act(async () => {
         freshMounted.current.requestProjectIcon("project-id");
         freshMounted.current.requestProjectIcon("project-id");
@@ -710,7 +710,7 @@ describe("Tasks data store", () => {
     });
     const mounted = await mountTasks(host, "24h", false);
     try {
-      expect(mounted.current.labels).toEqual([{ name: "bug", color: "#b06260" }, { name: "spare", color: "#b06260" }]);
+      expect(mounted.current.labels).toEqual([{ name: "bug", color: "#d88381" }, { name: "spare", color: "#d88381" }]);
     } finally {
       mounted.unmount();
     }
@@ -726,8 +726,8 @@ describe("Tasks data store", () => {
       try {
         expect(loader).toHaveBeenCalledTimes(1);
         expect(mounted.current.byId.get("a")?.labels).toEqual([
-          { name: "bug", color: "#b05c80" },
-          { name: "infra", color: "#388068" },
+          { name: "bug", color: "#d87da3" },
+          { name: "infra", color: "#6cae96" },
           { name: "unlisted", color: fallbackLabelColor("unlisted") },
         ]);
       } finally {
