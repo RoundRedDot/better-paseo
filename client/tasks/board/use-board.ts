@@ -5,7 +5,7 @@ import { usePaseo, useSettings } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
 import type { PaseoApi } from "@getpaseo/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type LaneWidth, type TasksSettings } from "../../../shared/tasks-settings";
-import { permissionButtons, respondToPermission, useReadControl, useStopControl, useUnarchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl } from "../actions";
+import { permissionButtons, respondToPermission, useArchiveControl, useReadControl, useStopControl, useUnarchiveControl, type ArchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, useTasks, type TasksHandle } from "../data";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
@@ -78,6 +78,8 @@ export interface BoardController {
   read: ReadControl;
   /** Unarchive for an archived parent in the details. */
   unarchive: UnarchiveControl;
+  /** Archive for a done task: its card, its menu and the details. */
+  archive: ArchiveControl;
   callbacks: CardCallbacks;
   buttonsFor(card: TaskCard): PermissionButton[];
   /** Fetch a rendered card's project icon; undefined when cards draw no project image (phone, or the field is off). */
@@ -278,6 +280,7 @@ export function useBoard(
   // Unarchive runs through the same CLI as Stop.
   const verifyUnarchive = useCallback((agentId: string) => latest.current.tasks.refreshParent(agentId), []);
   const unarchive = useUnarchiveControl({ available: stop.available, verify: verifyUnarchive, toast });
+  const archive = useArchiveControl({ paseo, toast });
   const { stoppedManually, noteRunning, reconcile, restored } = stop;
   const stoppedIds = useMemo(() => restoredStops(stoppedManually, restored, tasks.byId), [stoppedManually, restored, tasks.byId]);
   const filtered = useMemo(
@@ -322,8 +325,8 @@ export function useBoard(
   }, []);
 
   // Callbacks read the latest values through a ref, so the memoized cards see stable functions.
-  const latest = useRef({ props, paseo, toast, stop, read, unarchive, strings, tasks });
-  latest.current = { props, paseo, toast, stop, read, unarchive, strings, tasks };
+  const latest = useRef({ props, paseo, toast, stop, read, unarchive, archive, strings, tasks });
+  latest.current = { props, paseo, toast, stop, read, unarchive, archive, strings, tasks };
   const setLaneWidth = useCallback((width: LaneWidth) => {
     const state = settingsRef.current;
     if (state.status !== "ready") return;
@@ -387,6 +390,7 @@ export function useBoard(
       // The server cannot reach the daemon itself: no Mark read either.
       onRead: readAvailable ? (card) => latest.current.read.press(card) : undefined,
       onUnarchive: unarchiveAvailable ? (agentId) => latest.current.unarchive.press(agentId) : undefined,
+      onArchive: (agentId) => latest.current.archive.press(agentId),
       onPermission: (card, button) => {
         if (button.kind === "open") {
           open(card.id);
@@ -431,6 +435,7 @@ export function useBoard(
     stop,
     read,
     unarchive,
+    archive,
     callbacks,
     buttonsFor,
     requestIcon: fields.projectIcon && !compact ? requestProjectIcon : undefined,

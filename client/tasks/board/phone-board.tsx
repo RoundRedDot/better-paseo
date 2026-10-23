@@ -248,6 +248,7 @@ export function PhoneBoard(props: {
       onCancelStop: base.onCancelStop,
       onRead: base.onRead ? guard(base.onRead) : undefined,
       onUnarchive: base.onUnarchive ? guard(base.onUnarchive) : undefined,
+      onArchive: base.onArchive ? guard(base.onArchive) : undefined,
       onPermission: guard(base.onPermission),
       // A tap shows the details sheet; the card's arrow still opens the tab.
       onSelect: guard((card: TaskCard) => setSheet({ kind: "details", id: card.id })),
@@ -619,6 +620,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           lastMessage={lastMessage}
           sessionTokens={sessionTokens}
           unarchive={board.unarchive.available ? board.unarchive : null}
+          archive={board.archive}
         />
       </ScrollView>
       <DetailActionBar
@@ -631,6 +633,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
         permissionButtons={board.buttonsFor(card)}
         onPermission={onPermission}
         unarchive={board.unarchive.available ? board.unarchive : null}
+        archive={board.archive}
       />
     </View>
   );

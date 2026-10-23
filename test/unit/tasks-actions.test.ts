@@ -12,6 +12,8 @@ import {
   stopDialogText,
   useStopControl,
   useUnarchiveControl,
+  useArchiveControl,
+  type ArchiveControl,
   type ReadControl,
   type StopControl,
   type UnarchiveControl,
@@ -575,6 +577,66 @@ describe("Tasks unarchive control", () => {
     verify.mockRejectedValueOnce(new Error("agent fetch failed"));
     await press(control, "parent");
     expect(mocks.toastError).toHaveBeenLastCalledWith("Could not unarchive: agent fetch failed");
+  });
+});
+
+describe("Tasks archive control", () => {
+  let renderer: ReactTestRenderer | null = null;
+
+  beforeEach(() => {
+    mocks.toastError.mockReset();
+    mocks.language.mockReturnValue("en");
+  });
+
+  afterEach(async () => {
+    if (renderer) await act(async () => renderer?.unmount());
+    renderer = null;
+  });
+
+  async function mountArchive(archive: () => Promise<{ archivedAt: string }>) {
+    const ref = vi.fn(() => ({ archive }));
+    const paseo = { agents: { ref } } as unknown as Parameters<typeof useArchiveControl>[0]["paseo"];
+    let control: ArchiveControl | null = null;
+    function Probe() {
+      control = useArchiveControl({ paseo });
+      return null;
+    }
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Probe));
+    });
+    return { control: () => control!, ref };
+  }
+
+  it("archives through the host's client, pending until it answers", async () => {
+    let resolve: (value: { archivedAt: string }) => void = () => {};
+    const archive = vi.fn(() => new Promise<{ archivedAt: string }>((done) => (resolve = done)));
+    const { control, ref } = await mountArchive(archive);
+    await act(async () => {
+      control().press("done-1");
+      await Promise.resolve();
+    });
+    expect(ref).toHaveBeenCalledWith("done-1");
+    expect(control().pending("done-1")).toBe(true);
+    // A second press while it runs sends nothing.
+    await act(async () => control().press("done-1"));
+    expect(archive).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolve({ archivedAt: "2026-10-23T00:00:00.000Z" });
+      for (let index = 0; index < 4; index += 1) await Promise.resolve();
+    });
+    expect(control().pending("done-1")).toBe(false);
+    expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  it("toasts a failed archive", async () => {
+    mocks.language.mockReturnValue("zh");
+    const { control } = await mountArchive(() => Promise.reject(new Error("socket closed")));
+    await act(async () => {
+      control().press("done-1");
+      for (let index = 0; index < 6; index += 1) await Promise.resolve();
+    });
+    expect(mocks.toastError).toHaveBeenLastCalledWith("归档失败：socket closed");
+    expect(control().pending("done-1")).toBe(false);
   });
 });
 

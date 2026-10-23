@@ -45,6 +45,8 @@ export interface CardCallbacks {
   onRead?(card: TaskCard): void;
   /** Unarchive an archived task, if the daemon's CLI is reachable (as for Stop). */
   onUnarchive?(agentId: string): void;
+  /** Archive a done task, as Paseo's own Archive does. */
+  onArchive?(agentId: string): void;
   onPermission?(card: TaskCard, button: PermissionButton): void;
   /** A long press on a phone or touch screen: the details sheet or sidebar. */
   onDetails?(card: TaskCard): void;
@@ -69,6 +71,8 @@ export interface TaskCardViewProps extends CardCallbacks {
   readPending?: boolean;
   /** An unarchive is on its way: the button spins, and a second press does nothing. */
   unarchivePending?: boolean;
+  /** An archive is on its way: the button spins, and a second press does nothing. */
+  archivePending?: boolean;
   /** Keyboard focus ring. */
   focused: boolean;
   /** The 1 s highlight after a parent link scrolled here. */
@@ -486,7 +490,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const canUnarchive = card.archived === "agent" && !!props.onUnarchive;
   const unarchivePending = props.unarchivePending === true;
   const showUnarchive = canUnarchive && !compact && (TOUCH || hovered || unarchivePending);
-  const showControl = showStop || showRead || showOpen || showUnarchive;
+  // A done task can be archived from its card, before Open tab.
+  const canArchive = card.lane === "done" && !card.archived && !!props.onArchive;
+  const archivePending = props.archivePending === true;
+  const showArchive = canArchive && !compact && (TOUCH || hovered || archivePending);
+  const showControl = showStop || showRead || showOpen || showUnarchive || showArchive;
   const reducedMotion = useReducedMotion();
   const controlLeaving = useLeaving(showControl && !TOUCH, reducedMotion ? 0 : STOP_EXIT_MS);
   const read = { tokens, strings, pending: readPending, unread: !failed, onPress: () => props.onRead?.(card) };
@@ -878,7 +886,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A desktop card that can open, stop or be read keeps the footer even when
   // it has nothing else, so its buttons have a place to appear. A tablet's
   // buttons take a row of their own under it instead.
-  const stopSlot = (canStop || canRead || canOpen || canUnarchive) && !compact && !TOUCH;
+  const stopSlot = (canStop || canRead || canOpen || canUnarchive || canArchive) && !compact && !TOUCH;
   // The footer is as tall as the hover buttons on a desktop card that can
   // show them, hovered or not, so the button sits inside it with the card's
   // own gaps above and below instead of overhanging the pills, and hovering
@@ -900,10 +908,24 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       testID="task-card-unarchive"
     />
   );
-  // Stop or Mark read, then "Open tab" in the corner, centred on the line they sit on.
+  const archiveButton = (onPhone: boolean, hug = false) => (
+    <CardButton
+      label={strings.details.archive}
+      look="plain"
+      icon="Archive"
+      busy={archivePending}
+      tokens={tokens}
+      compact={onPhone}
+      hug={hug}
+      onPress={() => props.onArchive?.(card.id)}
+      testID="task-card-archive"
+    />
+  );
+  // Stop, Mark read or Archive, then "Open tab" in the corner, centred on the line they sit on.
   const footControls = (line: number) => (
     <View style={{ flexDirection: "row", gap: GAP, marginVertical: (Math.round(line * scale) - taskControlHeight(m.buttonHeight, scale)) / 2 }}>
       {canStop ? <StopControl {...stop} compact={false} line={m.buttonHeight} menuLeft={canOpen} /> : canRead ? <ReadControl {...read} compact={false} line={m.buttonHeight} /> : null}
+      {canArchive ? archiveButton(false) : null}
       {canOpen ? (
         <CardButton
           label={strings.openTab}
@@ -964,7 +986,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
               },
               reducedMotion ? null : controlLeaving ? stopMotion?.exit : stopMotion?.enter,
             ]}
-            testID={canStop ? "task-card-stop-overlay" : canRead ? "task-card-read-overlay" : canUnarchive ? "task-card-unarchive-overlay" : "task-card-open-overlay"}
+            testID={canStop ? "task-card-stop-overlay" : canRead ? "task-card-read-overlay" : canUnarchive ? "task-card-unarchive-overlay" : canArchive ? "task-card-archive-overlay" : "task-card-open-overlay"}
           >
             {footControls(m.buttonHeight)}
           </View>
@@ -1082,7 +1104,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // Stop is as wide as its label beside a button that opens the tab ("Open tab" or "Answer").
   const stopHugs = (openTab && !openSquare) || buttons.some((button) => button.kind === "open");
   const actionBar =
-    compact && (openTab || buttons.length > 0 || canStop || canRead || canUnarchive) ? (
+    compact && (openTab || buttons.length > 0 || canStop || canRead || canUnarchive || canArchive) ? (
       // One row: no flexWrap, whose Yoga layout left a phantom second row's
       // height under the buttons on Android.
       <View style={{ flexDirection: "row", gap: 8, marginTop: m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
@@ -1097,6 +1119,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         ))}
         {canStop ? <StopControl {...stop} compact hug={stopHugs} line={m.buttonHeight} menuLeft={openTab && buttons.length === 0} /> : null}
         {canRead ? <ReadControl {...read} compact hug={openTab} line={m.buttonHeight} /> : null}
+        {canArchive ? archiveButton(true, openTab) : null}
         {openTab ? (
           <CardButton
             label={strings.openTab}
@@ -1168,6 +1191,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             stopAllLeading: <StopTreeGlyph tokens={tokens} color={tokens.danger} />,
             read: canRead && !readPending ? () => props.onRead?.(card) : undefined,
             unarchive: canUnarchive ? () => props.onUnarchive?.(card.id) : undefined,
+            archive: canArchive && !archivePending ? () => props.onArchive?.(card.id) : undefined,
           }}
           onClose={() => setMenuAt(null)}
         />
@@ -1474,6 +1498,8 @@ export function CardButton(props: {
   busy?: boolean;
   /** A phone's icon-only button, as wide as it is high; the label is read out. */
   square?: boolean;
+  /** On a phone, as wide as its label: "Open tab" beside it takes the rest. */
+  hug?: boolean;
   onPress(): void;
   testID?: string;
 }) {
@@ -1511,6 +1537,7 @@ export function CardButton(props: {
       style={{
         // A phone's button grows with a large system font.
         ...(compact ? { minHeight: PHONE.buttonHeight, paddingVertical: 4, ...sizing.box } : { height: taskControlHeight(DESKTOP.buttonHeight, scale) }),
+        ...(compact && props.hug ? { flexGrow: 0 } : null),
         ...(square ? { width: taskControlHeight(PHONE.buttonHeight, scale), minWidth: 0, flexGrow: 0, flexShrink: 0 } : null),
         paddingHorizontal: square ? 0 : compact ? 12 : 10,
         borderRadius: compact ? 7 : 6,

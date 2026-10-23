@@ -998,6 +998,27 @@ describe("TaskCardView actions", () => {
     expect(onOpen).toHaveBeenCalledWith("sample-done");
   });
 
+  it("puts Archive before Open tab on a done task, as wide as its label on a phone", async () => {
+    const onArchive = vi.fn();
+    const done = sample("sample-done");
+    const tree = await render(cardElement(done, { onOpen: vi.fn(), onArchive }));
+    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["归档", "打开 tab"]);
+    expect(icons(hostByTestId(tree.root, "task-card-archive"))).toEqual(["Archive"]);
+    hostByTestId(tree.root, "task-card-archive").props.onPress();
+    expect(onArchive).toHaveBeenCalledWith("sample-done");
+
+    await act(async () => tree.update(cardElement(done, { compact: true, onOpen: vi.fn(), onArchive })));
+    expect(texts(hostByTestId(tree.root, "task-card-actions"))).toEqual(["归档", "打开 tab"]);
+    expect(flat(hostByTestId(tree.root, "task-card-archive").props.style).flexGrow).toBe(0);
+    expect(flat(hostByTestId(tree.root, "task-card-open-tab").props.style).flexGrow).toBe(1);
+
+    // Not for a task still in another lane, nor one already archived.
+    await act(async () => tree.update(cardElement(sample("sample-running"), { onArchive })));
+    expect(tree.root.findAll((node) => node.props.testID === "task-card-archive")).toHaveLength(0);
+    await act(async () => tree.update(cardElement({ ...done, lane: "archived", status: "archived", archived: "agent" }, { onArchive })));
+    expect(tree.root.findAll((node) => node.props.testID === "task-card-archive")).toHaveLength(0);
+  });
+
   it("puts Unarchive where Open tab was on an archived task, spinning while it runs", async () => {
     const onUnarchive = vi.fn();
     const archived = { ...sample("sample-done"), lane: "archived" as const, status: "archived" as const, archived: "agent" as const };
@@ -1477,6 +1498,28 @@ describe("TaskDetailCards", () => {
     expect(onJump).toHaveBeenCalledWith("gone");
   });
 
+  it("offers Archive beside Open tab in a done task's header", async () => {
+    const archive = { pending: vi.fn(() => false), press: vi.fn() };
+    const done = sample("sample-done");
+    const tree = await render(details(done, { onOpen: vi.fn(), archive }));
+    const actions = hostByTestId(tree.root, "detail-actions");
+    const order = actions.findAll((node) => typeof node.type === "string" && typeof node.props.testID === "string" && /^detail-(open|archive)$/.test(node.props.testID)).map((node) => node.props.testID);
+    expect(order).toEqual(["detail-open", "detail-archive"]);
+    expect(texts(hostByTestId(tree.root, "detail-archive"))).toEqual(["归档"]);
+    await act(async () => hostByTestId(tree.root, "detail-archive").props.onPress());
+    expect(archive.press).toHaveBeenCalledWith(done.id);
+
+    archive.pending.mockReturnValue(true);
+    await act(async () => tree.update(details(done, { onOpen: vi.fn(), archive: { ...archive } })));
+    expect(hostByTestId(tree.root, "detail-archive").props.accessibilityState).toEqual({ disabled: true, busy: true });
+
+    // A running or an archived task has none.
+    await act(async () => tree.update(details(sample("sample-running"), { onOpen: vi.fn(), archive })));
+    expect(tree.root.findAll((node) => node.props.testID === "detail-archive")).toHaveLength(0);
+    await act(async () => tree.update(details({ ...done, lane: "archived", status: "archived", archived: "agent" }, { archive })));
+    expect(tree.root.findAll((node) => node.props.testID === "detail-archive")).toHaveLength(0);
+  });
+
   it("offers Unarchive in the header of an archived task, not of an archived workspace's", async () => {
     const archived = { ...sample("sample-done"), lane: "archived" as const, status: "archived" as const, archived: "agent" as const };
     const unarchive = { pending: vi.fn(() => false), press: vi.fn() };
@@ -1802,6 +1845,15 @@ describe("TaskDetailCards", () => {
     expect(hostByTestId(archived.root, "detail-bar-unarchive-spinner")).toBeTruthy();
     await act(async () => archived.update(bar(archivedCard)));
     expect(archived.toJSON()).toBeNull();
+    await act(async () => archived.unmount());
+    renderer = null;
+    // A done task: Archive as wide as its label, then Open tab taking the rest.
+    const archive = { pending: vi.fn(() => false), press: vi.fn() };
+    const done = await render(bar(sample("sample-done"), { archive }));
+    expect(texts(hostByTestId(done.root, "detail-action-bar"))).toEqual(["归档", "切换到 tab"]);
+    expect(flat(hostByTestId(done.root, "detail-bar-archive").props.style).flexGrow).toBe(0);
+    await act(async () => hostByTestId(done.root, "detail-bar-archive").props.onPress());
+    expect(archive.press).toHaveBeenCalledWith("sample-done");
   });
 
   it("names the stop button by its phase", async () => {

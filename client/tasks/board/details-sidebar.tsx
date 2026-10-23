@@ -86,6 +86,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
         sessionTokens,
         lastMessage,
         unarchive: board.unarchive.available ? board.unarchive : null,
+        archive: board.archive,
       }
     : null;
 
