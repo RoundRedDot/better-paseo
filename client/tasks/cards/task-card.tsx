@@ -26,6 +26,7 @@ import { CardContextMenu } from "./card-menu";
 import { bindContextMenu } from "../../web";
 import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
 import { layoutMenu } from "../board/menu-model";
+import { buttonOutline } from "../board/board-style";
 import { panelChrome } from "./panel";
 import { cardStrings, subtaskSummary } from "./strings";
 import { TagMark } from "./tag-mark";
@@ -1526,7 +1527,7 @@ export function ActionButton(props: {
   const { button } = props;
   const answer = button.kind === "open";
   const primary = button.variant === "primary" && !answer;
-  // Deny pairs with Allow: Allow's accent tint, Deny the Stop button's danger tint.
+  // Deny pairs with Allow: Allow's accent outline, Deny the Stop button's danger one.
   const danger = !answer && !primary && (button.variant === "danger" || button.action.behavior === "deny");
   let look: CardButtonLook = "plain";
   if (answer) look = "answer";
@@ -1548,8 +1549,8 @@ export function ActionButton(props: {
 export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "archive";
 
 /**
- * The card's button: Allow's accent tint, a plain outline, Archive's yellow
- * outline, the Stop button's danger tint, or "Answer" in the needs-input amber with its arrow. A busy
+ * The card's button, always an outline: plain grey, Allow's accent, Archive's
+ * yellow, the Stop button's danger, or "Answer" in the needs-input amber with its arrow. A busy
  * one keeps its look and label, dimmed, and swaps its icon for the hollow
  * spinner ring (`SpinnerRing`).
  */
@@ -1577,23 +1578,19 @@ export function CardButton(props: {
   const { hovered: hover, hoverProps } = useHover();
   const hovered = hover && !props.busy;
   const answer = kind === "answer";
-  // "Answer" opens the tab for a question: it wears the needs-input icon's
-  // amber (the statusDot band), tinted, with a 0.5 px border of the same hue; its
-  // label is that amber pulled until it reads at 4.5:1.
-  let color = kind === "primary" ? look.primaryText : kind === "danger" ? tokens.danger : tokens.foreground;
-  let fill = hovered ? look.controlHover : "transparent";
-  let border = look.pillBorder;
-  if (kind === "primary") fill = border = hovered ? look.primaryFillHover : look.primaryFill;
-  if (kind === "danger") fill = border = hovered ? look.dangerFillHover : look.dangerFill;
-  if (kind === "archive") {
-    color = look.archiveText;
-    border = look.archiveBorder;
-  }
-  if (answer) {
-    color = look.answerText;
-    fill = hovered ? look.answerFillHover : look.answerFill;
-    border = look.answerBorder;
-  }
+  // Every look is an outline: a 0.5 px border, label and icon in its hue and
+  // no fill at rest; hovered, that hue tinted over the card. "Answer" opens the
+  // tab for a question in the needs-input icon's amber (the statusDot band).
+  const hue = {
+    plain: { color: tokens.foreground, border: look.buttonBorder, hover: look.controlHover },
+    primary: { color: look.primaryText, border: look.primaryBorder, hover: look.primaryHover },
+    danger: { color: tokens.danger, border: tokens.danger, hover: look.dangerHover },
+    answer: { color: look.answerText, border: look.answerBorder, hover: look.answerHover },
+    archive: { color: look.archiveText, border: look.archiveBorder, hover: look.archiveHover },
+  }[kind];
+  const color = hue.color;
+  const fill = hovered ? hue.hover : "transparent";
+  const border = hue.border;
   const size = compact ? 14 : 13;
   const sizing = phoneButtonSizing((useWindowDimensions().fontScale ?? 1) * scale);
   return (
@@ -1612,8 +1609,7 @@ export function CardButton(props: {
         ...(square ? { width: taskControlHeight(PHONE.buttonHeight, scale), minWidth: 0, flexGrow: 0, flexShrink: 0 } : null),
         paddingHorizontal: square ? 0 : compact ? 12 : 10,
         borderRadius: compact ? 7 : 6,
-        borderWidth: 0.5,
-        borderColor: border,
+        ...buttonOutline(border),
         backgroundColor: fill,
         flexDirection: "row",
         alignItems: "center",
@@ -1643,8 +1639,8 @@ export function CardButton(props: {
 /**
  * Mark read: a card button's size, as Stop and "Answer" are, led by
  * Lucide's CheckCheck (a read receipt). On an unread card it wears the unread
- * dot's green as an outline: a 0.5 px border of that hue and no fill of its own,
- * the label pulled to 4.5:1. A failed card keeps the plain
+ * dot's green as an outline: a 0.5 px border of that hue and no fill at rest,
+ * the green tinted on hover, the label pulled to 4.5:1. A failed card keeps the plain
  * outline, so no green sits on its danger tint. While the request is out a
  * spinner takes the icon's place, the label stays, dimmed, and the button
  * takes no second press.
@@ -1672,7 +1668,7 @@ function ReadControl(props: {
   const iconSize = compact ? 14 : 13;
   const hover = hovered && !pending;
   const color = props.unread ? look.readText : tokens.foreground;
-  const fill = hover ? look.controlHover : "transparent";
+  const fill = hover ? (props.unread ? look.readHover : look.controlHover) : "transparent";
   return (
     <Pressable
       accessibilityRole="button"
@@ -1687,8 +1683,7 @@ function ReadControl(props: {
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         paddingHorizontal: compact ? 12 : 10,
         borderRadius: compact ? 7 : 6,
-        borderWidth: 0.5,
-        borderColor: props.unread ? look.readBorder : look.pillBorder,
+        ...buttonOutline(props.unread ? look.readBorder : look.buttonBorder),
         backgroundColor: fill,
         flexDirection: "row",
         alignItems: "center",
@@ -1737,7 +1732,7 @@ interface StopControlProps {
 /**
  * Stop, its confirm state, and a parent's "only this / with subtasks" menu:
  * the details sidebar's stop button at a card button's size ("Answer"'s 28,
- * radius 6), a rounded rectangle led by Lucide's Power. At rest a danger tint with danger text and outline; armed,
+ * radius 6), a rounded rectangle led by Lucide's Power. At rest a danger outline and text with no fill, tinted on hover; armed,
  * a solid danger fill with white text; the parent's chevron is its end. Stopping
  * it goes back to the rest look and label, dimmed, a spinner in the icon's place.
  */
@@ -1773,7 +1768,7 @@ function StopControl(props: StopControlProps) {
   const sizing = phoneButtonSizing((useWindowDimensions().fontScale ?? 1) * scale, true);
   const color = solid ? look.onStrong : tokens.danger;
   const fill = (hovered: boolean) =>
-    solid ? (hovered ? look.dangerStrongHover : tokens.danger) : hovered ? look.dangerFillHover : look.dangerFill;
+    solid ? (hovered ? look.dangerStrongHover : tokens.danger) : hovered ? look.dangerHover : "transparent";
   const height = taskControlHeight(compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, scale);
   // A card button's: 7 at a phone's 32, 6 at the desktop's 28, as "Answer" is.
   const round = compact ? 7 : 6;
@@ -1781,8 +1776,6 @@ function StopControl(props: StopControlProps) {
   const label = confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
   const segment: ViewStyle = {
     ...(compact ? { minHeight: height, paddingVertical: 4 } : { height }),
-    borderWidth: 0.5,
-    borderColor: tokens.danger,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -1810,6 +1803,9 @@ function StopControl(props: StopControlProps) {
         {...stopHover.hoverProps}
         style={[
           segment,
+          // Its right edge is the chevron's left on the web, where the lines
+          // are shadows and cannot overlap.
+          buttonOutline(tokens.danger, props.parent && Platform.OS === "web" ? { right: null } : {}),
           {
             ...(compact ? { flexGrow: 1, flexShrink: 1, flexBasis: "auto" } : null),
             gap: 5,
@@ -1848,9 +1844,8 @@ function StopControl(props: StopControlProps) {
             segment,
             {
               width: compact ? 36 : 26,
-              borderLeftWidth: 0.5,
-              borderLeftColor: solid ? withAlpha(look.onStrong, 0.4) : withAlpha(tokens.danger, 0.4),
-              marginLeft: -0.5,
+              ...buttonOutline(tokens.danger, { left: solid ? withAlpha(look.onStrong, 0.4) : withAlpha(tokens.danger, 0.4) }),
+              marginLeft: Platform.OS === "web" ? 0 : -0.5,
               backgroundColor: fill((chevronHover.hovered && !stopping) || props.menuOpen),
               borderTopRightRadius: round,
               borderBottomRightRadius: round,

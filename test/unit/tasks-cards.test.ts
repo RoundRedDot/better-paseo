@@ -700,18 +700,18 @@ describe("TaskCardView rows", () => {
         const answer = byLabel(tree.root, set[0]!.label);
         expect(texts(answer)).toEqual(["去回答"]);
         expect(icons(answer)).toEqual(["ArrowUpRight"]);
-        // The label and arrow: the amber pulled until it reads at 4.5:1 on the tint.
+        // The label and arrow: the amber pulled until it reads at 4.5:1 on the card and on its hover.
         expect(answer.findByType("Icon" as never).props.color).toBe(tokens.card.answerText);
         expect(flat(answer.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(tokens.card.answerText);
         const rest = flat(answer.props.style);
         expect(rest).toMatchObject({
-          backgroundColor: mix(tokens.card.background, amber, tokens.isDark ? 0.18 : 0.12),
+          backgroundColor: "transparent",
           borderColor: mix(tokens.card.background, amber, tokens.isDark ? 0.45 : 0.4),
           borderWidth: 0.5,
         });
         await act(async () => answer.props.onHoverIn());
         expect(flat(byLabel(tree.root, set[0]!.label).props.style).backgroundColor).toBe(
-          mix(tokens.card.background, amber, (tokens.isDark ? 0.18 : 0.12) + 0.08),
+          mix(tokens.card.background, amber, tokens.isDark ? 0.16 : 0.1),
         );
         await act(async () => tree.unmount());
         renderer = null;
@@ -756,20 +756,29 @@ describe("TaskCardView rows", () => {
     for (const theme of [LIGHT, DARK]) {
       const card = buildTaskTokens(theme.colors).card;
       expect(contrastRatio(card.readText, card.background)).toBeGreaterThanOrEqual(4.5);
-      expect(contrastRatio(card.readText, card.controlHover)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(card.readText, card.readHover)).toBeGreaterThanOrEqual(4.5);
     }
     await act(async () => tree.update(cardElement({ ...sample("sample-failed"), readable: true }, { onRead: () => {} })));
     const failed = byLabel(tree.root, "标为已读");
-    expect(flat(failed.props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: tokens.card.pillBorder });
+    expect(flat(failed.props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: tokens.card.buttonBorder });
     expect(colors(failed)).toEqual([tokens.foreground, tokens.foreground]);
   });
 
-  it("tints Allow with the accent and Deny with the danger colour", async () => {
+  it("outlines Allow in the accent and Deny in the danger colour, tinting each on hover", async () => {
     const buttons = permissionButtons(sample("sample-input").permission!, "zh");
     const tree = await render(cardElement(sample("sample-input"), { permissionButtons: buttons }));
     const tokens = buildTaskTokens(LIGHT.colors);
-    expect(flat(byLabel(tree.root, "允许").props.style)).toMatchObject({ backgroundColor: tokens.card.primaryFill, borderColor: tokens.card.primaryFill });
-    expect(flat(byLabel(tree.root, "拒绝").props.style)).toMatchObject({ backgroundColor: tokens.card.dangerFill, borderColor: tokens.card.dangerFill });
+    expect(flat(byLabel(tree.root, "允许").props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: tokens.card.primaryBorder });
+    expect(flat(byLabel(tree.root, "拒绝").props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: tokens.danger });
+    await act(async () => byLabel(tree.root, "允许").props.onHoverIn());
+    await act(async () => byLabel(tree.root, "拒绝").props.onHoverIn());
+    expect(flat(byLabel(tree.root, "允许").props.style).backgroundColor).toBe(tokens.card.primaryHover);
+    expect(flat(byLabel(tree.root, "拒绝").props.style).backgroundColor).toBe(tokens.card.dangerHover);
+    for (const theme of [LIGHT, DARK]) {
+      const card = buildTaskTokens(theme.colors).card;
+      expect(contrastRatio(card.primaryText, card.background)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(card.primaryText, card.primaryHover)).toBeGreaterThanOrEqual(4.5);
+    }
     expect(byLabel(tree.root, "拒绝").findAll((node) => (node.type as unknown) === "Icon").map((node) => node.props.color)).toEqual([tokens.danger]);
     expect(icons(byLabel(tree.root, "允许"))).toEqual(["Check"]);
   });
@@ -1075,7 +1084,7 @@ describe("TaskCardView actions", () => {
     for (const theme of [LIGHT, DARK]) {
       const card = taskTokens(theme).card;
       expect(contrastRatio(card.archiveText, card.background)).toBeGreaterThanOrEqual(4.5);
-      expect(contrastRatio(card.archiveText, card.controlHover)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(card.archiveText, card.archiveHover)).toBeGreaterThanOrEqual(4.5);
     }
     expect(flat(hostByTestId(tree.root, "task-card-open-tab").props.style).backgroundColor).toBe("transparent");
     hostByTestId(tree.root, "task-card-archive").props.onPress();
@@ -1192,13 +1201,13 @@ describe("TaskCardView actions", () => {
     confirm.props.onPress();
     expect(onStop).toHaveBeenCalledWith(card, { withChildren: false });
 
-    // Stopping: the rest label and tint, dimmed, a spinner where the icon was, no second press.
+    // Stopping: the rest label and outline, dimmed, a spinner where the icon was, no second press.
     await act(async () => tree.update(cardElement(card, { onStop, stopPhase: "stopping" as StopPhase })));
     expect(texts(tree.root)).not.toContain("停止中…");
     const stopping = byLabel(tree.root, "停止");
     expect(texts(stopping)).toEqual(["停止"]);
     expect(stopping.props.accessibilityState).toEqual({ disabled: true, busy: true });
-    expect(flat(stopping.props.style)).toMatchObject({ opacity: 0.6, backgroundColor: taskTokens(LIGHT).card.dangerFill });
+    expect(flat(stopping.props.style)).toMatchObject({ opacity: 0.6, backgroundColor: "transparent" });
     expect(icons(stopping)).not.toContain("Power");
     expect(hostByTestId(tree.root, "task-card-stop-spinner").children).toHaveLength(2);
     expect(stopping.findAll((node) => (node.type as unknown) === "ActivityIndicator")).toHaveLength(0);
@@ -1565,9 +1574,9 @@ describe("TaskDetailCards", () => {
     const unarchive = { pending: vi.fn(() => false), press: vi.fn() };
     const tree = await render(details(orphan, { onJump: vi.fn(), unarchive }));
     expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "已归档", "取消归档"]);
-    // The card's Allow look: the accent tint and its icon.
+    // The card's Allow look: the accent outline and its icon.
     const card = taskTokens(LIGHT).card;
-    expect(flat(hostByTestId(tree.root, "detail-parent-unarchive").props.style)).toMatchObject({ backgroundColor: card.primaryFill, borderColor: card.primaryFill, borderRadius: 6 });
+    expect(flat(hostByTestId(tree.root, "detail-parent-unarchive").props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: card.primaryBorder, borderRadius: 6 });
     expect(icons(hostByTestId(tree.root, "detail-parent"))).toContain("ArchiveRestore");
     // The row itself still does nothing: only the button acts.
     expect(hostByTestId(tree.root, "detail-parent").props.onPress).toBeUndefined();
@@ -1976,16 +1985,17 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["停止", "切换到 tab", "已打开"]);
   });
 
-  it("paints the stop button in the danger colour, tinted at rest and solid to confirm", async () => {
+  it("paints the stop button in the danger colour, an outline at rest and solid to confirm", async () => {
     const tokens = taskTokens(LIGHT);
     const look = (root: ReactTestInstance, id: string) => {
       const button = hostByTestId(root, id);
       const label = button.findAll((node) => typeof node.type === "string" && typeof node.props.children === "string")[0]!;
       return { ...pick(flat(button.props.style)), text: flat(label.props.style).color };
     };
-    const pick = (style: Record<string, unknown>) => ({ fill: style.backgroundColor, border: style.borderColor });
-    const tint = { fill: tokens.card.dangerFill, border: tokens.danger, text: tokens.danger };
-    const solid = { fill: tokens.danger, border: tokens.danger, text: tokens.card.onStrong };
+    // A 0.5 pt outline, as the card's buttons are, in the sidebar and the phone's bar alike.
+    const pick = (style: Record<string, unknown>) => ({ fill: style.backgroundColor, border: style.borderColor, width: style.borderWidth });
+    const tint = { fill: tokens.card.background, border: tokens.danger, text: tokens.danger, width: 0.5 };
+    const solid = { fill: tokens.danger, border: tokens.danger, text: tokens.card.onStrong, width: 0.5 };
     const tree = await render(details(sample("sample-running"), { stop: { phase: "idle", onPress: vi.fn() } }));
     expect(look(tree.root, "detail-stop")).toEqual(tint);
     await act(async () => tree.update(details(sample("sample-running"), { stop: { phase: "confirming", onPress: vi.fn() } })));
@@ -1995,7 +2005,7 @@ describe("TaskDetailCards", () => {
     const strings = BOARD_STRINGS.zh.sidebar;
     const bar = await render(React.createElement(DetailActionBar, { card: sample("sample-running"), theme: LIGHT, language: "zh", strings, onOpen: vi.fn(), stop: { phase: "idle", onPress: vi.fn() } }));
     expect(look(bar.root, "detail-bar-stop")).toEqual(tint);
-    // Stopping: the same tint and label, dimmed, a spinner where the icon was.
+    // Stopping: the same outline and label, dimmed, a spinner where the icon was.
     await act(async () => bar.update(React.createElement(DetailActionBar, { card: sample("sample-running"), theme: LIGHT, language: "zh", strings, onOpen: vi.fn(), stop: { phase: "stopping", onPress: vi.fn() } })));
     expect(look(bar.root, "detail-bar-stop")).toEqual(tint);
     const busy = hostByTestId(bar.root, "detail-bar-stop");
@@ -2191,9 +2201,11 @@ describe("card tokens follow the host theme", () => {
       expect(card.hoverBackground).not.toBe(bg);
       expect(card.border).toBe(colors.border);
       expect(card.pillBorder).toBe(mix(colors.border, colors.foreground, dark ? 0.08 : 0.05));
+      // A neutral button's half-pixel outline: a step further on a dark theme, where the border all but matches the card.
+      expect(card.buttonBorder).toBe(mix(colors.border, colors.foreground, dark ? 0.2 : 0.05));
       expect(card.pillFill).toBe(mix(bg, colors.foreground, dark ? 0.06 : 0.035));
-      expect(card.primaryFill).toBe(mix(bg, colors.accent, dark ? 0.18 : 0.1));
-      expect(card.dangerFill).toBe(mix(bg, colors.statusDanger, dark ? 0.16 : 0.1));
+      expect(card.primaryHover).toBe(mix(bg, colors.accent, dark ? 0.16 : 0.1));
+      expect(card.dangerHover).toBe(mix(bg, colors.statusDanger, dark ? 0.16 : 0.1));
       expect(card.onStrong).toBe(colors.accentForeground);
       expect(tokens.danger).toBe(colors.statusDanger);
       expect(tokens.warning).toBe(colors.statusWarning);
