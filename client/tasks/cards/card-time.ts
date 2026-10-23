@@ -1,6 +1,6 @@
 import { formatFooterStamp, formatFullStamp } from "../../ui/time";
 import type { TasksLanguage } from "../i18n";
-import { turnRunning, type TaskCard } from "../model";
+import { turnRunning, type TaskCard, type TaskChild } from "../model";
 import { formatApprox, formatClockTime, formatDuration, formatRelative, formatWait, since } from "./format";
 import { cardStrings } from "./strings";
 
@@ -16,8 +16,31 @@ export interface TimerView {
   tone: "muted" | "warning" | "running";
 }
 
-/** Timed by its lane and timing alone, so a subtask row passes its child. */
-export type Timed = Pick<TaskCard, "lane" | "timing" | "waitingOnSubtasks">;
+/**
+ * Timed by its lane and timing, so a subtask row passes its child; a card
+ * waiting on its subtasks also passes them, to time their work.
+ */
+export type Timed = Pick<TaskCard, "lane" | "timing" | "waitingOnSubtasks"> & {
+  children?: ReadonlyArray<Pick<TaskChild, "status" | "timing">>;
+};
+
+/**
+ * When a card waiting on its subtasks saw them go to work: the earliest turn
+ * start of a subtask that runs or waits for input. Null for any other card, or
+ * when none has a start (a subtask itself waiting on its own subtasks has
+ * none), and the card keeps its last turn's timer.
+ */
+function subtasksStartedAt(card: Timed): string | null {
+  if (card.lane !== "running" || card.waitingOnSubtasks !== true) return null;
+  let first: string | null = null;
+  for (const child of card.children ?? []) {
+    if (child.status !== "running" && child.status !== "needs_input") continue;
+    const at = child.timing?.turnStartedAt ?? null;
+    if (at === null || Number.isNaN(Date.parse(at))) continue;
+    if (first === null || Date.parse(at) < Date.parse(first)) first = at;
+  }
+  return first;
+}
 
 /**
  * "12m ago" on the day of `now`, the full stamp before it; null when absent or
@@ -46,6 +69,9 @@ export function cardTimer(card: Timed, now: number, language: TasksLanguage, sho
       ? { text: cardStrings(language).starting, tone: "running" }
       : { text: formatDuration(ran), tone: "muted" };
   }
+  // Waiting on its subtasks, a card counts their work as a running turn counts its own.
+  const working = since(subtasksStartedAt(card), now);
+  if (working !== null) return { text: formatDuration(working), tone: "muted" };
   const parts: string[] = [];
   if (timing.lastTurnMs !== null) parts.push(formatApprox(timing.lastTurnMs, language));
   const ended = formatEnded(timing.updatedAt, now, language, short);
@@ -53,17 +79,21 @@ export function cardTimer(card: Timed, now: number, language: TasksLanguage, sho
   return parts.length ? { text: parts.join(" · "), tone: "muted" } : null;
 }
 
-/** When the running turn started, in local time; null without a running turn or before the turn has a start. */
+/**
+ * When the running turn started, or the subtasks a card waits on went to
+ * work, in local time; null otherwise or before the turn has a start.
+ */
 export function cardStart(card: Timed, now: number): string | null {
-  if (!turnRunning(card) || !card.timing.turnStartedAt) return null;
-  const at = Date.parse(card.timing.turnStartedAt);
+  const iso = turnRunning(card) ? card.timing.turnStartedAt : subtasksStartedAt(card);
+  if (!iso) return null;
+  const at = Date.parse(iso);
   return Number.isNaN(at) ? null : formatClockTime(at, now);
 }
 
 /**
- * What the footer's times mean, for its hover hint: the running turn's start
- * and length, when the wait began, or the last turn's length and the last
- * update, with full stamps where the footer shows a relative time.
+ * What the footer's times mean, for its hover hint: the running turn's (or
+ * the subtasks') length, when the wait began, or the last turn's length and
+ * the last update, with full stamps where the footer shows a relative time.
  */
 export function timerHint(card: Timed, now: number, language: TasksLanguage): string | null {
   const { hint, starting } = cardStrings(language);
@@ -77,6 +107,8 @@ export function timerHint(card: Timed, now: number, language: TasksLanguage): st
     const ran = since(timing.turnStartedAt, now);
     return ran === null ? starting : hint.pair(hint.turnRunning, formatDuration(ran));
   }
+  const working = since(subtasksStartedAt(card), now);
+  if (working !== null) return hint.pair(hint.subtasksRunning, formatDuration(working));
   const lines: string[] = [];
   if (timing.lastTurnMs !== null) lines.push(hint.pair(hint.lastTurn, formatApprox(timing.lastTurnMs, language)));
   const updated = stamp(timing.updatedAt);
@@ -84,10 +116,11 @@ export function timerHint(card: Timed, now: number, language: TasksLanguage): st
   return lines.length ? lines.join("\n") : null;
 }
 
-/** The running turn's start as a full stamp, for the footer clock's hover hint. */
+/** The running turn's start, or the subtasks', as a full stamp, for the footer clock's hover hint. */
 export function startHint(card: Timed, language: TasksLanguage): string | null {
-  const iso = card.timing.turnStartedAt;
-  if (!turnRunning(card) || !iso || Number.isNaN(Date.parse(iso))) return null;
+  const running = turnRunning(card);
+  const iso = running ? card.timing.turnStartedAt : subtasksStartedAt(card);
+  if (!iso || Number.isNaN(Date.parse(iso))) return null;
   const { hint } = cardStrings(language);
-  return hint.pair(hint.turnStarted, formatFullStamp(new Date(iso)));
+  return hint.pair(running ? hint.turnStarted : hint.subtasksStarted, formatFullStamp(new Date(iso)));
 }
