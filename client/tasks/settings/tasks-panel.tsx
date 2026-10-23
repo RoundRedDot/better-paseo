@@ -114,7 +114,7 @@ function EnabledNotice({ strings, look }: { strings: TasksSettingsStrings; look:
 }
 
 /** The switch row, the same on both halves. */
-function EnabledRow({ form, strings, look }: { form: TasksForm; strings: TasksSettingsStrings; look: PageLook }) {
+function EnabledRow({ form, strings, look, intro = false }: { form: TasksForm; strings: TasksSettingsStrings; look: PageLook; intro?: boolean }) {
   const { settings } = form;
   const ready = settings.status === "ready";
   let description = strings.enabledHint;
@@ -124,7 +124,7 @@ function EnabledRow({ form, strings, look }: { form: TasksForm; strings: TasksSe
   return (
     <SettingRow
       title={strings.enabled}
-      description={description}
+      description={intro ? `${description}\n${look.t.pageIntro}` : description}
       control={
         <Toggle
           value={ready ? settings.values.enabled : false}
@@ -293,10 +293,16 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
 
   const switchSection = (
     <View style={styles.section}>
-      <Section title={strings.enabledTitle} look={look}>
-        <EnabledRow form={form} strings={strings} look={look} />
+      <View
+        style={[
+          controlStyles.group,
+          { backgroundColor: look.tokens.v2.surface1 },
+          look.compact ? null : [controlStyles.groupDesktop, { borderColor: look.tokens.v2.border }],
+        ]}
+      >
+        <EnabledRow form={form} strings={strings} look={look} intro />
         {form.turnedOn ? <EnabledNotice strings={strings} look={look} /> : null}
-      </Section>
+      </View>
       <FormNotes form={form} strings={strings} look={look} />
     </View>
   );
