@@ -98,11 +98,9 @@ export interface CardTokens {
   answerBorder: string;
   /** Its label and arrow: the amber, readable at 4.5:1 on both its fills. */
   answerText: string;
-  /** Mark read on an unread card: the unread dot's green tinted over the card, at rest and hovered, with a hairline of the same hue. */
-  readFill: string;
-  readFillHover: string;
+  /** Mark read on an unread card: a hairline in the unread dot's green, with no fill of its own. */
   readBorder: string;
-  /** Its label and icon: the green, readable at 4.5:1 on both its fills. */
+  /** Its label and icon: the green, readable at 4.5:1 on the card and on a hovered control. */
   readText: string;
   /** Archive: an outline in the warning orange (git's behind count), with no fill of its own. */
   archiveBorder: string;
@@ -215,8 +213,6 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
   const fg = colors.foreground;
   const answerFill = mix(background, amber, isDark ? 0.18 : 0.12);
   const answerFillHover = mix(background, amber, isDark ? 0.26 : 0.2);
-  const readFill = mix(background, green, isDark ? 0.18 : 0.12);
-  const readFillHover = mix(background, green, isDark ? 0.26 : 0.2);
   const primaryFill = mix(background, colors.accent, isDark ? 0.18 : 0.1);
   const primaryFillHover = mix(background, colors.accent, isDark ? 0.26 : 0.16);
   return {
@@ -243,10 +239,8 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
     answerFillHover,
     answerBorder: mix(background, amber, isDark ? 0.45 : 0.4),
     answerText: readableOn(amber, [answerFill, answerFillHover], fg),
-    readFill,
-    readFillHover,
     readBorder: mix(background, green, isDark ? 0.45 : 0.4),
-    readText: readableOn(green, [readFill, readFillHover], fg),
+    readText: readableOn(green, [background, mix(background, fg, isDark ? 0.1 : 0.07)], fg),
     archiveBorder: amber,
     archiveText: readableOn(amber, [background, mix(background, fg, isDark ? 0.1 : 0.07)], fg),
     onStrong: colors.accentForeground,
