@@ -256,7 +256,7 @@ function handle(): TasksHandle {
   ) as Record<LaneId, LaneModel>;
   return {
     lanes,
-    counts: { needsInput: 1, running: 2, review: 2, done: 1 },
+    counts: { needsInput: 1, running: 2, review: 2, done: 1, archived: 0 },
     byId: new Map(cards.map((card) => [card.id, card])),
     workspaces: [
       { id: "wks_sample", name: "tasks-board", projectId: "prj_sample", projectName: "better-paseo" },

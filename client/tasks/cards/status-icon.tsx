@@ -251,6 +251,15 @@ export const StatusIcon = memo(function StatusIcon(props: StatusIconProps) {
     );
   }
 
+  if (props.kind === "archived") {
+    // The archived lane's own mark: Lucide's box, muted.
+    return (
+      <View style={box} testID="status-archived" {...a11y}>
+        <Icon name="Archive" size={size} color={tokens.foregroundMuted} />
+      </View>
+    );
+  }
+
   // The prototype's dots: unread 6, failed 8.
   const dot = (props.kind === "failed" ? 8 : 6) * scale;
   const color = props.kind === "unread" ? tokens.status.success : tokens.status.danger;

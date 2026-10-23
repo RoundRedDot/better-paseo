@@ -8,7 +8,7 @@ import { permissionButtons, respondToPermission, useReadControl, useStopControl,
 import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, useTasks, type TasksHandle } from "../data";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
-import { LANE_ORDER, turnRunning, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
+import { LANE_ORDER, boardLaneOrder, turnRunning, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
 import { MOTION } from "./board-style";
 import { carriedSettings, useCarriedTasks } from "./carry";
 import { lingerBoard } from "./prefetch";
@@ -46,6 +46,8 @@ export interface BoardController {
   paseo: PaseoApi;
   /** The lanes after the filter bar and search. */
   lanes: Record<LaneId, LaneModel>;
+  /** The lanes the board draws, left to right: the four, and archived after done when `board.showArchived` is on. */
+  laneOrder: readonly LaneId[];
   total: number;
   fields: CardSettings;
   /** The 1 s clock for what shows the time; its identity holds across ticks. */
@@ -219,7 +221,9 @@ export function useBoard(
     [settings.board.hideSubtasks, settings.board.doneWindow],
   );
   const { filters, doneWindow } = useMemo(() => resolveBoardParams(params, defaults), [params, defaults]);
-  const options = useMemo(() => ({ doneWindow, includeDone: true }), [doneWindow]);
+  const showArchived = settings.board.showArchived;
+  const options = useMemo(() => ({ doneWindow, includeDone: true, includeArchived: showArchived }), [doneWindow, showArchived]);
+  const laneOrder = boardLaneOrder(showArchived);
   // Closed, the board's data stays warm a while, so a quick reopen sends nothing.
   // After a reconnect the last cards stand in until the store is ready.
   const tasks = useCarriedTasks(hostId, options, useTasks(paseo, options, lingerBoard));
@@ -253,7 +257,7 @@ export function useBoard(
   const sort = params.sort;
   const compareNames = useMemo(() => nameCompare(language), [language]);
   const lanes = useMemo(() => sortLaneCards(filtered, sort, Date.now(), compareNames), [filtered, sort, compareNames]);
-  const total = LANE_ORDER.reduce((sum, id) => sum + lanes[id].cards.length, 0);
+  const total = laneOrder.reduce((sum, id) => sum + lanes[id].cards.length, 0);
   // A stop whose agents have left running is done; a card stopped from the
   // board that runs again drops its "Stopped manually".
   useEffect(() => {
@@ -339,6 +343,7 @@ export function useBoard(
     tasks,
     paseo,
     lanes,
+    laneOrder,
     total,
     fields,
     clock,

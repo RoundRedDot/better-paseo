@@ -5,7 +5,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { BrandMark, DETAIL_CARD, DetailCard, detailScrollProps, ProjectIcon, StatusIcon, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
-import { LANE_ORDER, LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
+import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { useSessionTokens } from "../data/session-tokens";
@@ -147,7 +147,7 @@ const SHEET_COLUMNS = 640;
 /** Under this height the sidebar scrolls as one instead of holding the details' header still. */
 const SHORT_COLUMN = 640;
 
-/** The four lanes' counts after the filters, each with its lane's mark; a press shows the lane. */
+/** The board's lanes' counts after the filters, each with its lane's mark; a press shows the lane. */
 function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: TaskTokens; onLane(lane: LaneId): void; touch: boolean }) {
   const { board, tokens } = props;
   const options = useMemo(() => buildFilterOptions(board.tasks, board.params), [board.tasks, board.params]);
@@ -164,7 +164,7 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
         ) : null}
       </View>
       <View style={{ flexDirection: "row", gap: 4 }}>
-        {LANE_ORDER.map((id) => (
+        {board.laneOrder.map((id) => (
           <StatCell
             key={id}
             lane={id}

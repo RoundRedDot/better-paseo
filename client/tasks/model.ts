@@ -8,18 +8,35 @@
  * against its own clock so one tick does not rebuild the model.
  */
 
-/** The four lanes, left to right: what needs a person first. */
-export type LaneId = "needs_input" | "running" | "review" | "done";
+/**
+ * The lanes, left to right: what needs a person first. `archived` is opt-in
+ * (`board.showArchived`); a board without it draws `ACTIVE_LANE_ORDER`.
+ */
+export type LaneId = "needs_input" | "running" | "review" | "done" | "archived";
 
-export const LANE_ORDER: readonly LaneId[] = ["needs_input", "running", "review", "done"];
+export const LANE_ORDER: readonly LaneId[] = ["needs_input", "running", "review", "done", "archived"];
+
+/** The four lanes a board draws while the archived lane is off. */
+export const ACTIVE_LANE_ORDER: readonly LaneId[] = ["needs_input", "running", "review", "done"];
+
+/** The lanes a board draws, left to right. */
+export function boardLaneOrder(showArchived: boolean): readonly LaneId[] {
+  return showArchived ? LANE_ORDER : ACTIVE_LANE_ORDER;
+}
+
+/** The lanes that page in history and share the done window: done, and archived when shown. */
+export function isHistoryLane(lane: LaneId): boolean {
+  return lane === "done" || lane === "archived";
+}
 
 /**
  * The status icon a card, lane header, phone tab, sidebar count and subtask
  * row draws. Mirrors Paseo's sidebar workspace indicator:
  * running ring, needs-input CircleAlert, unread green dot, failed red dot,
- * done grey dot at 30% opacity.
+ * done grey dot at 30% opacity. `archived` is the board's own: the archived
+ * lane's box icon.
  */
-export type StatusKind = "needs_input" | "running" | "unread" | "failed" | "done";
+export type StatusKind = "needs_input" | "running" | "unread" | "failed" | "done" | "archived";
 
 /** The icon of a lane's header and phone tab. */
 export const LANE_STATUS: Readonly<Record<LaneId, StatusKind>> = {
@@ -27,6 +44,7 @@ export const LANE_STATUS: Readonly<Record<LaneId, StatusKind>> = {
   running: "running",
   review: "unread",
   done: "done",
+  archived: "archived",
 };
 
 /** `workspaceKind` of the workspace descriptor; picks the location row's leading icon. */
@@ -201,6 +219,11 @@ export interface TaskCard {
   readable?: boolean;
   /** The daemon has not loaded the agent: reading its timeline would resume it. */
   closed?: boolean;
+  /**
+   * In the archived lane: "agent" when the task itself is archived (Unarchive
+   * brings it back), "workspace" when its workspace or project is.
+   */
+  archived?: "agent" | "workspace";
 }
 
 /** The agent's own turn runs: in the running lane, and not only for its subtasks. */
@@ -208,11 +231,11 @@ export function turnRunning(card: { lane?: LaneId; waitingOnSubtasks?: boolean }
   return card.lane === "running" && card.waitingOnSubtasks !== true;
 }
 
-/** One lane's cards in display order, with what the done lane still has to load. */
+/** One lane's cards in display order, with what the done and archived lanes still have to load. */
 export interface LaneModel {
   id: LaneId;
   cards: TaskCard[];
-  /** Done lane only: another page is available. */
+  /** Done and archived lanes only: another page is available. */
   hasMore: boolean;
   loading: boolean;
 }
@@ -222,6 +245,7 @@ export interface BoardCounts {
   running: number;
   review: number;
   done: number;
+  archived: number;
 }
 
 /** Board filters; travel in the screen's params (string → string). */

@@ -1383,6 +1383,30 @@ describe("TaskDetailCards", () => {
     expect(onJump).toHaveBeenCalledWith("gone");
   });
 
+  it("offers Unarchive in the header of an archived task, not of an archived workspace's", async () => {
+    const archived = { ...sample("sample-done"), lane: "archived" as const, status: "archived" as const, archived: "agent" as const };
+    const unarchive = { pending: vi.fn(() => false), press: vi.fn() };
+    const tree = await render(details(archived, { onOpen: vi.fn(), unarchive }));
+    expect(texts(hostByTestId(tree.root, "detail-header"))).toContain("已归档");
+    expect(icons(hostByTestId(tree.root, "detail-header"))).toContain("Archive");
+    expect(texts(hostByTestId(tree.root, "detail-unarchive"))).toEqual(["取消归档"]);
+    await act(async () => hostByTestId(tree.root, "detail-unarchive").props.onPress());
+    expect(unarchive.press).toHaveBeenCalledWith(archived.id);
+
+    unarchive.pending.mockReturnValue(true);
+    await act(async () => tree.update(details(archived, { onOpen: vi.fn(), unarchive: { ...unarchive } })));
+    expect(texts(hostByTestId(tree.root, "detail-unarchive"))).toEqual(["正在取消归档…"]);
+    await act(async () => hostByTestId(tree.root, "detail-unarchive").props.onPress());
+    expect(unarchive.press).toHaveBeenCalledTimes(1);
+
+    // Its workspace is archived, not the task: nothing of its own to bring back.
+    await act(async () => tree.update(details({ ...archived, archived: "workspace" }, { onOpen: vi.fn(), unarchive })));
+    expect(tree.root.findAll((node) => node.props.testID === "detail-unarchive")).toHaveLength(0);
+    // A host without the CLI has no Unarchive at all.
+    await act(async () => tree.update(details(archived, { onOpen: vi.fn(), unarchive: null })));
+    expect(tree.root.findAll((node) => node.props.testID === "detail-unarchive")).toHaveLength(0);
+  });
+
   it("opens a parent that is only off the board, and says nothing until it is known to be archived", async () => {
     const unarchive = { pending: vi.fn(() => false), press: vi.fn() };
     const onOpen = vi.fn();

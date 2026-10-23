@@ -127,6 +127,7 @@ describe("sameOrder", () => {
       running: { cards: running.map((id) => ({ id })) },
       review: { cards: review.map((id) => ({ id })) },
       done: { cards: [] },
+      archived: { cards: [] },
     }) as Record<LaneId, { cards: { id: string }[] }>;
   const order: LaneId[] = ["needs_input", "running", "review", "done"];
   it("sees a card that changed lanes or places", () => {
