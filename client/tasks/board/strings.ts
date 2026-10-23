@@ -89,7 +89,7 @@ const en = {
     /** The board's switch beside the done window. */
     label: "Archived",
     hint: "Show the archived lane after Done",
-    /** The phone's filter sheet row. */
+    /** The round header button's name, on a phone and a narrow tablet board. */
     row: "Show the archived lane",
     saveFailed: "Couldn't save the archived lane setting",
   },

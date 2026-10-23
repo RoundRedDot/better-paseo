@@ -1503,16 +1503,23 @@ describe("Tasks board, phone", () => {
     expect(notice()).toHaveLength(0);
   });
 
-  it("shows the archived lane's tab from the filter sheet's switch, and saves it", async () => {
+  it("shows the archived lane's tab from the header's round button left of the filters, and saves it", async () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));
     });
     expect(renderer!.root.findAll((node) => node.props.testID === "phone-stat-archived")).toHaveLength(0);
+    const button = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "phone-archived");
+    const labels = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && ["Search", "Show the archived lane", "Filters"].includes(node.props.accessibilityLabel)).map((node) => node.props.accessibilityLabel);
+    expect(labels).toEqual(["Search", "Show the archived lane", "Filters"]);
+    const slashed = () => button().findAll((node) => (node.type as unknown) === "View" && node.props.testID === "slash-mark").length > 0;
+    expect(button().props.accessibilityState).toEqual({ selected: false });
+    expect(slashed()).toBe(true);
+    await act(async () => button().props.onPress());
+    expect(button().props.accessibilityState).toEqual({ selected: true });
+    expect(slashed()).toBe(false);
+    // The filter sheet no longer carries the switch.
     act(() => pressable("Filters").props.onPress());
-    const row = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-archived");
-    expect(row().props.accessibilityState).toEqual({ checked: false });
-    await act(async () => row().props.onPress());
-    expect(row().props.accessibilityState).toEqual({ checked: true });
+    expect(renderer!.root.findAll((node) => node.props.testID === "filter-sheet-archived")).toHaveLength(0);
     expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "phone-stat-archived")).toHaveLength(1);
     expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } }, "1");
   });
@@ -1549,8 +1556,7 @@ describe("Tasks board, phone", () => {
       const text = textOf(scroll);
       const at = (label: string) => text.indexOf(label);
       expect(at("Open tabs only")).toBe(0);
-      expect(at("Hide subtasks")).toBeLessThan(at("Show the archived lane"));
-      expect(at("Show the archived lane")).toBeLessThan(at("Agent"));
+      expect(at("Hide subtasks")).toBeLessThan(at("Agent"));
       expect(at("Agent")).toBeLessThan(at("Labels"));
       expect(at("Labels")).toBeLessThan(at("Sort"));
       expect(at("Sort")).toBeLessThan(at("Workspace"));
