@@ -1722,7 +1722,8 @@ function TimerText(props: TimeSource & { card: TaskCard; language: TasksLanguage
 /** A subtask's "14:41 · 14m 14s" while it runs, else its timer as a card footer reads it. */
 function SubtaskTime(props: TimeSource & { timed: Timed; language: TasksLanguage; style: StyleProp<TextStyle>; testID?: string }) {
   const { timed, language } = props;
-  const value = useTime(props, (now) => [cardStart(timed, now), cardTimer(timed, now, language)?.text].filter(Boolean).join(" · "));
+  // The short stamp: a full one ("2026-10-22 16:57:33") leaves the title a few characters a line.
+  const value = useTime(props, (now) => [cardStart(timed, now), cardTimer(timed, now, language, true)?.text].filter(Boolean).join(" · "));
   return value ? (
     <Text numberOfLines={1} style={props.style} testID={props.testID}>
       {value}
