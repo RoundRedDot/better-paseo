@@ -345,6 +345,16 @@ export function PhoneBoard(props: {
           theme={theme}
           onPress={() => setSearchOpen((open) => !open)}
         />
+        <RoundButton
+          icon="Archive"
+          label={strings.archivedLane.row}
+          active={board.showArchived}
+          selected={board.showArchived}
+          slashed={!board.showArchived}
+          theme={theme}
+          onPress={() => board.setShowArchived(!board.showArchived)}
+          testID="phone-archived"
+        />
         <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} />
       </View>
       {searchOpen || board.params.query ? (
