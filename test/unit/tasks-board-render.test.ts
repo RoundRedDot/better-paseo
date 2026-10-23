@@ -666,6 +666,18 @@ describe("Tasks board, desktop", () => {
     act(() => row().props.onPress());
   });
 
+  it("scrolls the sidebar's groups with the details' scrollbar, its gutter out of the rows' right margin", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2000);
+    const groups = renderer!.root.findByProps({ testID: "sidebar-groups" });
+    const scroll = groups.findAll((node) => node.props.testID === "sidebar-groups-scroll" && typeof node.type === "string")[0]!;
+    expect(scroll.props).toMatchObject({ showsVerticalScrollIndicator: true, dataSet: { bcdetails: "inset" } });
+    const row = groups.findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.type === "string")[0]!;
+    expect(StyleSheet.flatten(row.props.style)).toMatchObject({ marginLeft: 6, marginRight: 0 });
+  });
+
   it("draws the sidebar's project and workspace rows with the cards' project icon", () => {
     const handle = (data as unknown as { __handle: { workspaces: object[]; requestProjectIcon: ReturnType<typeof vi.fn> } }).__handle;
     const saved = handle.workspaces;
