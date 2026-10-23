@@ -5,7 +5,7 @@ import { mix } from "../../components/theme-tokens";
 import { ProgressRing } from "../../ui/progress-ring";
 import type { TasksLanguage } from "../i18n";
 import type { StatusKind } from "../model";
-import { TaskText as Text, HOST_FONT as F, HOST_LINE } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, taskControlHeight, useTasksFontScale } from "../typography";
 import {
   formatExact,
   formatShare,
@@ -505,10 +505,12 @@ export function SummaryTiles(props: { tiles: SummaryTile[]; tokens: TaskTokens; 
 
 /** A hairline-outlined pill: a lead (dot, icon, mark) and its text. */
 export function Chip(props: { tokens: TaskTokens; lead?: React.ReactNode; text: string; muted?: boolean; height: number; font: number; testID?: string }) {
+  // Grows with the text size like the card's other controls, so larger text stays inside the pill.
+  const height = taskControlHeight(props.height, useTasksFontScale());
   return (
     <View
       testID={props.testID}
-      style={{ height: props.height, paddingLeft: 6, paddingRight: 8, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.card.pillBorder, flexDirection: "row", alignItems: "center", gap: 5 }}
+      style={{ height, paddingLeft: 6, paddingRight: 8, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.card.pillBorder, flexDirection: "row", alignItems: "center", gap: 5 }}
     >
       {props.lead}
       <Text numberOfLines={1} style={{ fontSize: props.font, color: props.muted ? props.tokens.foregroundMuted : props.tokens.foreground }}>
