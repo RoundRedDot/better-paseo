@@ -82,7 +82,7 @@ import {
   subtaskSummary,
   type TaskCardViewProps,
 } from "../../client/tasks/cards";
-import { statusRingHolders } from "../../client/tasks/cards/status-icon";
+import { SpinnerRing, statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { LARGE_FONT_SCALE, OVERLAY_ROW_Z, PHONE_BUTTON_MIN_WIDTH, phoneButtonSizing } from "../../client/tasks/cards/task-card";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
@@ -341,6 +341,36 @@ describe("StatusIcon", () => {
     });
     expect(statusRingHolders()).toBe(0);
     motion.reduced = false;
+  });
+
+  it("draws a working button's spinner as the running ring without its dot, on the same clock", async () => {
+    const tree = await render(
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(StatusIcon, { key: "running", kind: "running", theme: LIGHT }),
+        React.createElement(SpinnerRing, { key: "spinner", size: 13, color: "#d93636", testID: "button-spinner" }),
+      ),
+    );
+    const spinner = hostByTestId(tree.root, "button-spinner");
+    expect(flat(spinner.props.style)).toMatchObject({ width: 13, height: 13 });
+    // A hollow track and the turning quarter; no centre dot.
+    const [track, arc] = spinner.children as ReactTestInstance[];
+    expect(spinner.children).toHaveLength(2);
+    const mark = statusMarkSize(13);
+    expect(flat(track!.props.style)).toMatchObject({ width: mark, borderRadius: mark / 2, borderWidth: (1.5 * mark) / 12, borderColor: "#d93636", opacity: 0.3 });
+    expect(flat(track!.props.style).backgroundColor).toBeUndefined();
+    expect(flat(arc!.props.style)).toMatchObject({ borderColor: "transparent", borderTopColor: "#d93636", opacity: 0.9 });
+    // One loop for the status ring and the spinner, turning both in phase.
+    expect(motion.loops).toHaveLength(1);
+    expect(statusRingHolders()).toBe(2);
+    const rotations = tree.root
+      .findAll((node) => (node.type as unknown) === "Animated.View")
+      .map((node) => (flat(node.props.style).transform as Array<{ rotate: unknown }>)[0]!.rotate);
+    expect(new Set(rotations).size).toBe(1);
+    await act(async () => tree.unmount());
+    renderer = null;
+    expect(statusRingHolders()).toBe(0);
   });
 });
 
@@ -1160,7 +1190,8 @@ describe("TaskCardView actions", () => {
     expect(stopping.props.accessibilityState).toEqual({ disabled: true, busy: true });
     expect(flat(stopping.props.style)).toMatchObject({ opacity: 0.6, backgroundColor: taskTokens(LIGHT).card.dangerFill });
     expect(icons(stopping)).not.toContain("Power");
-    expect(hostByTestId(tree.root, "task-card-stop-spinner")).toBeTruthy();
+    expect(hostByTestId(tree.root, "task-card-stop-spinner").children).toHaveLength(2);
+    expect(stopping.findAll((node) => (node.type as unknown) === "ActivityIndicator")).toHaveLength(0);
   });
 
   it("shows Mark read only for a readable card with onRead, in Stop's shape, and holds it while pending", async () => {
