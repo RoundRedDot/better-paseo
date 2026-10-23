@@ -161,8 +161,14 @@ export const tasksSettingsSchema = z.object({
       hideSubtasks: flag(false),
       confirmStop: flag(true),
       laneWidth: z.enum(LANE_WIDTHS).catch("default"),
+      /**
+       * An archived lane after done: archived tasks, and those of archived
+       * workspaces, within the done window. Off by default; off, the board
+       * asks the daemon for no archived agent.
+       */
+      showArchived: flag(false),
     })
-    .catch({ doneWindow: "24h", hideSubtasks: false, confirmStop: true, laneWidth: "default" }),
+    .catch({ doneWindow: "24h", hideSubtasks: false, confirmStop: true, laneWidth: "default", showArchived: false }),
   sidebar: z.object({ count: z.enum(SIDEBAR_COUNTS).catch("all") }).catch({ count: "all" }),
 });
 

@@ -18,7 +18,7 @@ import { MARK_IDS } from "../../components/marks";
 import { normalizeProvider } from "../../components/provider-logo";
 import { classifyAgent } from "../agent-state-bucket";
 import { resolveTasksLanguage } from "../i18n";
-import { LANE_ORDER, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming, type TaskUsage } from "../model";
+import { LANE_ORDER, isHistoryLane, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming, type TaskUsage } from "../model";
 
 export interface WorkspaceOption {
   id: string;
@@ -37,6 +37,12 @@ export interface TasksOptions {
   doneWindow: DoneWindow;
   /** Page the done lane in; false keeps only the active lanes. */
   includeDone: boolean;
+  /**
+   * The archived lane (`board.showArchived`): the done lane's list then
+   * includes archived agents, so both lanes page together in one window.
+   * Needs `includeDone`.
+   */
+  includeArchived?: boolean;
 }
 
 /** The sidebar row's numbers. */
@@ -63,7 +69,7 @@ export interface TasksSnapshot {
 }
 
 export interface TasksHandle extends TasksSnapshot {
-  /** Fetch the done lane's next page (50). */
+  /** Fetch the done lane's next page (50), which the archived lane shares. */
   loadMoreDone(): void;
   /** Resolve a parent that is not on the board (archived, or an old done task): `agents.ref(id).refresh()`. */
   resolveParent(agentId: string): void;
@@ -434,6 +440,17 @@ export function withActiveSubtasks(card: TaskCard): TaskCard {
   return { ...card, lane: "running", status: "running", readable: false, waitingOnSubtasks: true };
 }
 
+/**
+ * An archived task, or one of an archived workspace, in the archived lane:
+ * the box icon, and no Mark read. It keeps its Stop while its agent still
+ * runs (an archived workspace's agent can).
+ */
+export function withArchived(card: TaskCard, archived: "agent" | "workspace" | null): TaskCard {
+  if (!archived) return card;
+  const { waitingOnSubtasks: _waiting, ...rest } = card;
+  return { ...rest, lane: "archived", status: "archived", readable: false, archived };
+}
+
 function shallowCardEqual(left: TaskCard | undefined, right: TaskCard): boolean {
   return left !== undefined && JSON.stringify(left) === JSON.stringify(right);
 }
@@ -621,6 +638,7 @@ interface TaskStore {
   dropHolds(): void;
   getSnapshot(options: TasksOptions): TasksHandle;
   getCounts(): SidebarCounts;
+  setArchivedLane(on: boolean): void;
   loadMoreDone(window: DoneWindow): void;
   resolveParent(id: string): void;
   refreshParent(id: string): Promise<boolean | null>;
@@ -690,6 +708,13 @@ function createStore(api: PaseoApi): TaskStore {
   let countsCache: SidebarCounts | null = null;
   let countsDirty = true;
   let loadingDone = false;
+  /**
+   * The archived lane is on: the done list includes archived agents, whose
+   * records stay, and an archived workspace's agents get cards in the
+   * archived lane instead of none. Kept while the board closes, so a warm
+   * hold reads the same list as the board it stands in for.
+   */
+  let archivedLane = false;
   let doneCursor: string | null = null;
   let doneTailAt: string | null = null;
   let error: string | null = null;
@@ -745,6 +770,17 @@ function createStore(api: PaseoApi): TaskStore {
     return !workspace || Boolean(workspace.archivingAt);
   }
 
+  /** Archived itself, or of an archived workspace: the archived lane's, and no card while it is off. */
+  function archivedRecord(id: string): boolean {
+    const entry = entries.get(id);
+    return entry !== undefined && (isArchived(entry.agent) || inArchivedWorkspace(id));
+  }
+
+  /** Has a card on the board: a record, not archived unless the archived lane is on. */
+  function onBoard(id: string): boolean {
+    return baseCards.has(id) && (archivedLane || !archivedRecord(id));
+  }
+
   /** A card, its parent's list of children, and its children's parent row. */
   function refreshWithKin(id: string) {
     refreshFinalCard(id);
@@ -755,17 +791,19 @@ function createStore(api: PaseoApi): TaskStore {
 
   function refreshFinalCard(id: string): boolean {
     const base = baseCards.get(id);
-    if (!base || inArchivedWorkspace(id)) {
+    if (!base || !onBoard(id)) {
       return cards.delete(id);
     }
+    const archived = archivedRecord(id);
+    const archivedKind = archived ? (isArchived(entries.get(id)!.agent) ? "agent" : "workspace") : null;
     const parentAgentId = parentByChild.get(id);
     const parentEntry = parentAgentId ? entries.get(parentAgentId) : undefined;
     const parentTitle = parentAgentId
       ? parentEntry?.agent.title?.trim() || resolvedParents.get(parentAgentId)?.title || null
       : null;
-    const parentMissing = parentAgentId ? !baseCards.has(parentAgentId) || inArchivedWorkspace(parentAgentId) : false;
+    const parentMissing = parentAgentId ? !onBoard(parentAgentId) : false;
     const childIds = childrenByParent.get(id);
-    const next: TaskCard = withActiveSubtasks(withReadMark(withSubagents({
+    const next: TaskCard = withArchived(withActiveSubtasks(withReadMark(withSubagents({
       ...withTurnError(base, turnErrors.get(id)),
       usage: withRecordedCost(base.usage, turnCosts.get(id)),
       timing: withLastTurn(base.timing, lastTurns.get(id), base.lane === "running" || base.lane === "needs_input"),
@@ -780,7 +818,8 @@ function createStore(api: PaseoApi): TaskStore {
       children: childIds
         ? [...childIds]
             .map((childId): TaskChild | null => {
-              const child = inArchivedWorkspace(childId) ? undefined : cards.get(childId) ?? baseCards.get(childId);
+              // An archived child stays off a live parent's card, as it was before the lane.
+              const child = !onBoard(childId) || (archivedRecord(childId) && !archived) ? undefined : cards.get(childId) ?? baseCards.get(childId);
               return child
                 ? {
                     id: child.id,
@@ -800,7 +839,7 @@ function createStore(api: PaseoApi): TaskStore {
             .filter((child): child is TaskChild => child !== null)
             .sort((left, right) => left.title.localeCompare(right.title))
         : [],
-    }, subagentsByParent.get(id)), readMarks.get(id), latestFailure(id)));
+    }, subagentsByParent.get(id)), readMarks.get(id), latestFailure(id))), archivedKind);
     const previous = cards.get(id);
     if (shallowCardEqual(previous, next)) return false;
     cards.set(id, next);
@@ -836,7 +875,7 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function updateRecord(agent: PaseoAgent, placement: AgentPlacement) {
-    if (isArchived(agent)) {
+    if (isArchived(agent) && !keepsArchived(agent)) {
       for (const members of sourceMembers.values()) members.delete(agent.id);
       removeRecord(agent.id);
       return;
@@ -897,6 +936,11 @@ function createStore(api: PaseoApi): TaskStore {
     notify();
   }
 
+  /** An archived agent the archived lane holds: settled, as the done list it came in reads them. */
+  function keepsArchived(agent: PaseoAgent): boolean {
+    return archivedLane && doneConsumers > 0 && isDone(agent);
+  }
+
   function reconcileActiveMembers(agent: PaseoAgent) {
     if (isArchived(agent)) {
       for (const key of [STATUS_KEY, ATTENTION_KEY]) sourceMembers.get(key)?.delete(agent.id);
@@ -918,7 +962,7 @@ function createStore(api: PaseoApi): TaskStore {
     if (payload.kind === "upsert" && payload.agent) {
       const agent = payload.agent;
       if (sourceKey === DONE_SUBSCRIPTION) {
-        if (isDone(agent) && !isArchived(agent)) {
+        if (isDone(agent) && (!isArchived(agent) || keepsArchived(agent))) {
           sourceMembers.get(DONE_SUBSCRIPTION)?.add(agent.id);
           reconcileActiveMembers(agent);
         } else {
@@ -971,6 +1015,11 @@ function createStore(api: PaseoApi): TaskStore {
           if (result.agent.status === "closed" && attempt + 1 < GONE_CHECK_DELAYS_MS.length) checkGone(id, attempt + 1);
           return;
         }
+        // Archived while the archived lane is on: the card moves there, held by the list that read it.
+        if (result && keepsArchived(result.agent) && memberSetsContaining(id).length > 0) {
+          updateRecord(result.agent, result.project ?? null);
+          return;
+        }
         for (const members of sourceMembers.values()) members.delete(id);
         removeRecord(id);
       }).catch(() => {
@@ -980,7 +1029,7 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function matchingEntries(result: PaseoAgentListResult | { entries: PaseoAgentListResult["entries"] }) {
-    return result.entries.filter(({ agent }) => !isArchived(agent));
+    return result.entries.filter(({ agent }) => !isArchived(agent) || keepsArchived(agent));
   }
 
   function replaceAgentSnapshot(sourceKey: string, snapshot: PaseoAgentListResult) {
@@ -1575,11 +1624,33 @@ function createStore(api: PaseoApi): TaskStore {
     scheduleSubagents(0);
   }
 
+  /** The done lane's list; with the archived lane it includes archived agents, which sort among the rest. */
+  function doneFilter(): PaseoAgentListOptions["filter"] {
+    return archivedLane ? { statuses: ["idle", "closed"], includeArchived: true } : { statuses: ["idle", "closed"] };
+  }
+
+  /**
+   * Turn the archived lane on or off: the done list is read again with or
+   * without archived agents, and the cards of archived workspaces come or go.
+   */
+  function setArchivedLane(on: boolean) {
+    if (archivedLane === on) return;
+    archivedLane = on;
+    batchUpdates(() => {
+      if (doneConsumers > 0 && consumers > 0) {
+        stopDone();
+        startDone();
+      }
+      for (const id of entries.keys()) refreshFinalCard(id);
+      notify();
+    });
+  }
+
   function startDone() {
     const run: Run = { generation, tier: "done", tierRun: ++doneRun };
     sourceMembers.set(DONE_SUBSCRIPTION, new Set());
     void openAgentSubscription(DONE_SUBSCRIPTION, {
-      filter: { statuses: ["idle", "closed"] },
+      filter: doneFilter(),
       sort: [{ key: "updated_at", direction: "desc" }],
       page: { limit: PAGE_SIZE },
       subscribe: {},
@@ -1706,14 +1777,15 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function getSnapshot(options: TasksOptions): TasksHandle {
-    const cacheKey = `${options.includeDone ? "done" : "active"}:${options.doneWindow}`;
+    const showArchived = options.includeDone && options.includeArchived === true && archivedLane;
+    const cacheKey = `${options.includeDone ? "done" : "active"}:${options.doneWindow}:${showArchived ? "archived" : ""}`;
     const cached = snapshotCaches.find((entry) => entry.key === cacheKey)?.snapshot;
     if (cached) return cached as TasksHandle;
     const cutoff = doneWindowMs(options.doneWindow);
     const now = Date.now();
     const filteredCards = [...cards.values()].filter((card) => {
-      if (card.lane !== "done") return true;
-      if (!options.includeDone) return false;
+      if (!isHistoryLane(card.lane)) return true;
+      if (!options.includeDone || (card.lane === "archived" && !showArchived)) return false;
       if (cutoff === null) return true;
       const updatedAt = Date.parse(card.timing.updatedAt);
       return Number.isFinite(updatedAt) && now - updatedAt <= cutoff;
@@ -1729,11 +1801,12 @@ function createStore(api: PaseoApi): TaskStore {
         return timestamp(right.timing.updatedAt, Number.NEGATIVE_INFINITY) - timestamp(left.timing.updatedAt, Number.NEGATIVE_INFINITY);
       });
       const tailOld = cutoff !== null && doneTailAt !== null && Number.isFinite(Date.parse(doneTailAt)) && now - Date.parse(doneTailAt) > cutoff;
+      const paged = lane === "done" ? options.includeDone : lane === "archived" && showArchived;
       lanes[lane] = {
         id: lane,
         cards: laneCards,
-        hasMore: lane === "done" && options.includeDone && Boolean(doneCursor) && !tailOld,
-        loading: lane === "done" && loadingDone,
+        hasMore: paged && Boolean(doneCursor) && !tailOld,
+        loading: paged && loadingDone,
       };
     }
     const providersById = new Map<string, string>();
@@ -1747,6 +1820,7 @@ function createStore(api: PaseoApi): TaskStore {
       running: lanes.running.cards.length,
       review: lanes.review.cards.length,
       done: lanes.done.cards.length,
+      archived: lanes.archived.cards.length,
     };
     const snapshot: TasksHandle = {
       lanes,
@@ -1808,7 +1882,7 @@ function createStore(api: PaseoApi): TaskStore {
     loadingDone = true;
     notify();
     void api.agents.list({
-      filter: { statuses: ["idle", "closed"] },
+      filter: doneFilter(),
       sort: [{ key: "updated_at", direction: "desc" }],
       page: { limit: PAGE_SIZE, cursor },
     }).then((result) => {
@@ -1967,6 +2041,7 @@ function createStore(api: PaseoApi): TaskStore {
     },
     getSnapshot,
     getCounts,
+    setArchivedLane,
     loadMoreDone,
     resolveParent,
     refreshParent,
@@ -1992,14 +2067,17 @@ function getStore(api: PaseoApi): TaskStore {
  */
 export function useTasks(paseo: PaseoApi, options: TasksOptions, beforeRelease?: (paseo: PaseoApi) => void): TasksHandle {
   const store = getStore(paseo);
+  const archived = options.includeDone && options.includeArchived === true;
   const subscribe = useMemo(() => (listener: () => void) => {
+    // Before the subscription, so a first board reads the done list once, with archived agents or without.
+    store.setArchivedLane(archived);
     const release = store.subscribe(listener, { board: true, done: options.includeDone });
     return () => {
       beforeRelease?.(paseo);
       release();
     };
-  }, [store, paseo, options.includeDone, beforeRelease]);
-  const getSnapshot = useMemo(() => () => store.getSnapshot(options), [store, options.doneWindow, options.includeDone]);
+  }, [store, paseo, options.includeDone, archived, beforeRelease]);
+  const getSnapshot = useMemo(() => () => store.getSnapshot(options), [store, options.doneWindow, options.includeDone, options.includeArchived]);
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 

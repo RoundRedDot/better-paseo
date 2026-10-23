@@ -7,7 +7,7 @@ import { HAIRLINE, PANEL_RADIUS, boardPalette } from "../board/board-style";
 import { BOARD_STRINGS } from "../board/strings";
 import { StatusIcon, TaskCardView } from "../cards";
 import type { TasksLanguage } from "../i18n";
-import { LANE_ORDER, LANE_STATUS, type LaneId, type TaskCard } from "../model";
+import { ACTIVE_LANE_ORDER as LANE_ORDER, LANE_STATUS, type LaneId, type TaskCard } from "../model";
 import { previewSampleCards } from "../sample-cards";
 
 /** Four lanes side by side from this width on; narrower, one lane under tabs, as a phone draws the board. */
@@ -24,7 +24,7 @@ const noop = () => {};
 /** The sample cards by lane, in the board's order, the stopped one saying so in the board's words. */
 export function previewLanes(now: number, language: TasksLanguage): Record<LaneId, TaskCard[]> {
   const stopped = BOARD_STRINGS[language].stoppedManually;
-  const lanes = { needs_input: [], running: [], review: [], done: [] } as Record<LaneId, TaskCard[]>;
+  const lanes = { needs_input: [], running: [], review: [], done: [], archived: [] } as Record<LaneId, TaskCard[]>;
   for (const card of previewSampleCards(now)) lanes[card.lane].push(card.stoppedManually ? { ...card, error: stopped } : card);
   return lanes;
 }

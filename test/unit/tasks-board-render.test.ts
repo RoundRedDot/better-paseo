@@ -112,7 +112,7 @@ import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS } from "../../client/tasks/board/params";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
-import { LANE_ORDER } from "../../client/tasks/model";
+import { ACTIVE_LANE_ORDER as LANE_ORDER } from "../../client/tasks/model";
 import { BrandMark, PiMark, TaskCardView, TaskDetailCards, taskTokens } from "../../client/tasks/cards";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled } from "../../client/tasks/board/enabled";
@@ -403,6 +403,25 @@ describe("Tasks board, desktop", () => {
     expect(StyleSheet.flatten(pressable("Expand lane: Running").props.style)).toMatchObject({ width: 40, borderRadius: 5 });
     act(() => pressable("Expand lane: Running").props.onPress());
     expect(cards().map((card) => card.props.card.id)).toContain("sample-running");
+  });
+
+  it("draws the archived lane after done only when the setting turns it on", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2400);
+    expect(hostsById("lane-done")).toHaveLength(1);
+    expect(hostsById("lane-archived")).toHaveLength(0);
+    expect(hostsById("sidebar-stat-archived")).toHaveLength(0);
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
+    act(() => renderer!.update(screen(false)));
+    layOut(2400);
+    const order = renderer!.root
+      .findAll((node) => typeof node.type === "string" && typeof node.props.testID === "string" && /^lane-header-/.test(node.props.testID))
+      .map((node) => node.props.testID.slice("lane-header-".length));
+    expect(order).toEqual(["needs_input", "running", "review", "done", "archived"]);
+    expect(textOf(hostsById("lane-header-archived")[0]!)).toContain("Archived");
+    expect(hostsById("sidebar-stat-archived")).toHaveLength(1);
   });
 
   it("eases the lanes to the widths the user picked, and follows the board's own at once", async () => {

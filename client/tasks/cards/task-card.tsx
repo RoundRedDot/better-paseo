@@ -361,7 +361,7 @@ function activeChildren(card: TaskCard): number {
 }
 
 /** The subtasks pill's groups, most urgent first. */
-const SUBTASK_ORDER: readonly StatusKind[] = ["needs_input", "running", "failed", "unread", "done"];
+const SUBTASK_ORDER: readonly StatusKind[] = ["needs_input", "running", "failed", "unread", "done", "archived"];
 
 /** A status's colour for a tint: the StatusIcon band for running, the theme's status roles otherwise. */
 function statusTint(kind: StatusKind, tokens: TaskTokens): string | null {

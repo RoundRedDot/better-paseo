@@ -53,7 +53,7 @@ import "./helpers/quiet-renderer";
 import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { DEFAULT_TASKS_SETTINGS, applyDensity, setCardSetting } from "../../shared/tasks-settings";
 import { PREVIEW_LANES_MIN, TasksBoardPreview, previewLanes } from "../../client/tasks/settings/board-preview";
-import { LANE_ORDER } from "../../client/tasks/model";
+import { ACTIVE_LANE_ORDER as LANE_ORDER } from "../../client/tasks/model";
 
 const theme = {
   colors: {

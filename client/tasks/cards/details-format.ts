@@ -142,7 +142,7 @@ export function branchHint(git: TaskCard["location"]["git"]): { sync: { ahead: n
 export const NARROW_SUBTASKS = 340;
 
 /** What needs a person first: input, then a failure, then the work still running, then what is left to read. */
-const SUBTASK_RANK: Readonly<Record<StatusKind, number>> = { needs_input: 0, failed: 1, running: 2, unread: 3, done: 4 };
+const SUBTASK_RANK: Readonly<Record<StatusKind, number>> = { needs_input: 0, failed: 1, running: 2, unread: 3, done: 4, archived: 5 };
 
 /** When a running child's turn started; one without a start sorts as the newest. */
 function runStart(child: TaskChild): number {
@@ -173,7 +173,7 @@ export function sortSubtasks(children: readonly TaskChild[]): TaskChild[] {
 
 /** A finished child, read or not: the green unread dot is "to review", not still at work. */
 export function subtaskFinished(child: TaskChild): boolean {
-  return child.status === "done" || child.status === "unread";
+  return child.status === "done" || child.status === "unread" || child.status === "archived";
 }
 
 /** One run of the heading's summary: a count in its status colour and muted words, or a status word in its colour. */

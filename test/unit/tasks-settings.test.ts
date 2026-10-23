@@ -18,7 +18,7 @@ describe("tasks settings", () => {
       density: "standard",
       card: { ...CARD_PRESETS.standard.fields, labelLimit: "2" },
       mobile: { compactCards: false },
-      board: { doneWindow: "24h", hideSubtasks: false, confirmStop: true, laneWidth: "default" },
+      board: { doneWindow: "24h", hideSubtasks: false, confirmStop: true, laneWidth: "default", showArchived: false },
       sidebar: { count: "all" },
     });
   });
@@ -46,15 +46,19 @@ describe("tasks settings", () => {
     expect(parsed.density).toBe("standard");
     expect(parsed.card.provider).toBe(false);
     expect(parsed.card.labelLimit).toBe("2");
-    expect(parsed.board).toEqual({ doneWindow: "7d", hideSubtasks: false, confirmStop: true, laneWidth: "default" });
+    expect(parsed.board).toEqual({ doneWindow: "7d", hideSubtasks: false, confirmStop: true, laneWidth: "default", showArchived: false });
     // A record saved before the lane width existed keeps its other board options.
     expect(tasksSettingsSchema.parse({ board: { doneWindow: "all", hideSubtasks: true } }).board).toEqual({
       doneWindow: "all",
       hideSubtasks: true,
       confirmStop: true,
       laneWidth: "default",
+      showArchived: false,
     });
     expect(tasksSettingsSchema.parse({ board: { laneWidth: "wide" } }).board.laneWidth).toBe("wide");
+    // The archived lane is opt-in: anything but true reads off.
+    expect(tasksSettingsSchema.parse({ board: { showArchived: "yes" } }).board.showArchived).toBe(false);
+    expect(tasksSettingsSchema.parse({ board: { showArchived: true } }).board.showArchived).toBe(true);
   });
 
   it("writes every switch from a preset", () => {

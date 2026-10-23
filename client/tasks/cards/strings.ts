@@ -32,6 +32,7 @@ const en = {
     unread: "to review",
     failed: "failed",
     done: "done",
+    archived: "archived",
   } as Record<StatusKind, string>,
   kind: {
     local_checkout: "local checkout",
@@ -142,6 +143,7 @@ const en = {
     uncommittedNote: "uncommitted changes",
     cannotJump: "can't open",
     unarchive: "Unarchive",
+    unarchiving: "Unarchiving…",
     offBoard: "Not on the board",
   },
 };
@@ -178,6 +180,7 @@ const zh: CardStrings = {
     unread: "待查看",
     failed: "失败",
     done: "已完成",
+    archived: "已归档",
   },
   kind: {
     local_checkout: "本地 checkout",
@@ -286,6 +289,7 @@ const zh: CardStrings = {
     uncommittedNote: "未提交改动",
     cannotJump: "无法跳转",
     unarchive: "取消归档",
+    unarchiving: "正在取消归档…",
     offBoard: "不在看板上",
   },
 };
@@ -294,7 +298,7 @@ export function cardStrings(language: TasksLanguage): CardStrings {
   return language === "zh" ? zh : en;
 }
 
-const STATUS_ORDER: readonly StatusKind[] = ["running", "needs_input", "unread", "failed", "done"];
+const STATUS_ORDER: readonly StatusKind[] = ["running", "needs_input", "unread", "failed", "done", "archived"];
 
 /** "3 个子任务：2 运行中 · 1 已完成" / "3 subtasks: 2 running · 1 done". */
 export function subtaskSummary(children: readonly { status: StatusKind }[], language: TasksLanguage): string {

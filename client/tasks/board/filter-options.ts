@@ -1,5 +1,5 @@
 import type { TasksHandle } from "../data";
-import { LANE_ORDER } from "../model";
+import { LANE_ORDER, isHistoryLane } from "../model";
 import { toggleItem, type BoardDefaults, type BoardParams } from "./params";
 import type { BoardStrings } from "./strings";
 
@@ -25,7 +25,7 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
   const byProvider = new Map<string, number>();
   const byLabel = new Map<string, number>();
   for (const lane of LANE_ORDER) {
-    if (lane === "done") continue;
+    if (isHistoryLane(lane)) continue;
     for (const card of tasks.lanes[lane].cards) {
       const workspaceId = card.location.workspaceId;
       if (workspaceId) byWorkspace.set(workspaceId, (byWorkspace.get(workspaceId) ?? 0) + 1);

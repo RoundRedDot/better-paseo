@@ -1306,3 +1306,142 @@ describe("Tasks data store", () => {
     });
   });
 });
+
+describe("Tasks data store, archived lane", () => {
+  async function mountArchived(fake: Fake, includeArchived: boolean, doneWindow: "24h" | "7d" | "all" = "24h") {
+    let current!: TasksHandle;
+    let setArchived!: (on: boolean) => void;
+    function Probe() {
+      const [archived, set] = React.useState(includeArchived);
+      setArchived = set;
+      current = useTasks(fake.paseo, React.useMemo(() => ({ doneWindow, includeDone: true, includeArchived: archived }), [archived]));
+      return null;
+    }
+    let renderer!: Renderer;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Probe));
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    });
+    return {
+      get current() { return current; },
+      async setArchived(on: boolean) {
+        await act(async () => {
+          setArchived(on);
+          for (let index = 0; index < 8; index += 1) await Promise.resolve();
+        });
+      },
+      unmount: () => act(() => renderer.unmount()),
+    };
+  }
+
+  const ids = (lane: LaneModel) => lane.cards.map((card) => card.id);
+
+  it("lists archived tasks and an archived workspace's in their own lane, in the done window, only when asked", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("done", { status: "idle", updatedAt: recentIso(1_000) }),
+        activeAgent("archived", { status: "closed", updatedAt: recentIso(2_000), archivedAt: recentIso(2_000), lastError: "boom" }),
+        activeAgent("archived-old", { status: "closed", updatedAt: recentIso(3 * 86_400_000), archivedAt: recentIso(3 * 86_400_000) }),
+        // Its workspace was archived without it.
+        activeAgent("stale", { status: "idle", updatedAt: recentIso(3_000), workspaceId: "ws-archived" }),
+        activeAgent("running", { status: "running", activeTurn: { turnId: "t", startedAt: recentIso(4_000) } }),
+      ],
+      workspaces: [workspace()],
+    });
+    const off = await mountArchived(fake, false);
+    try {
+      expect(ids(off.current.lanes.done)).toEqual(["done"]);
+      expect(ids(off.current.lanes.archived)).toEqual([]);
+      expect(off.current.byId.has("archived")).toBe(false);
+      expect(off.current.byId.has("stale")).toBe(false);
+      // Off, the done list asks for no archived agent.
+      const doneLists = fake.calls.filter((call) => call.method === "agents.list" && (call.input as { filter?: { statuses?: string[] } }).filter?.statuses?.includes("idle"));
+      expect(doneLists.map((call) => (call.input as { filter: { includeArchived?: boolean } }).filter.includeArchived)).toEqual([undefined]);
+
+      await off.setArchived(true);
+      expect(ids(off.current.lanes.done)).toEqual(["done"]);
+      expect(ids(off.current.lanes.archived)).toEqual(["archived", "stale"]);
+      expect(off.current.counts.archived).toBe(2);
+      expect(off.current.byId.get("archived")).toMatchObject({ lane: "archived", status: "archived", archived: "agent", readable: false });
+      expect(off.current.byId.get("stale")).toMatchObject({ lane: "archived", status: "archived", archived: "workspace" });
+      expect(ids(off.current.lanes.running)).toEqual(["running"]);
+      const last = fake.calls.filter((call) => call.method === "agents.list").at(-1)!.input as { filter: { includeArchived?: boolean } };
+      expect(last.filter.includeArchived).toBe(true);
+
+      await off.setArchived(false);
+      expect(ids(off.current.lanes.archived)).toEqual([]);
+      expect(off.current.byId.has("archived")).toBe(false);
+      expect(off.current.byId.has("stale")).toBe(false);
+      expect(ids(off.current.lanes.done)).toEqual(["done"]);
+    } finally {
+      off.unmount();
+    }
+  });
+
+  it("widens with the done window and pages with the done lane", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        ...Array.from({ length: 50 }, (_, index) => activeAgent("done-" + index, { status: "idle", updatedAt: recentIso(1_000 + index * 1_000) })),
+        activeAgent("archived-late", { status: "closed", updatedAt: recentIso(60_000), archivedAt: recentIso(60_000) }),
+        activeAgent("archived-old", { status: "closed", updatedAt: recentIso(3 * 86_400_000), archivedAt: recentIso(3 * 86_400_000) }),
+      ],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountArchived(fake, true, "all");
+    try {
+      expect(ids(mounted.current.lanes.archived)).toEqual([]);
+      expect(mounted.current.lanes.archived.hasMore).toBe(true);
+      await act(async () => {
+        mounted.current.loadMoreDone();
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      expect(ids(mounted.current.lanes.archived)).toEqual(["archived-late", "archived-old"]);
+      expect(mounted.current.lanes.archived.hasMore).toBe(false);
+      expect(mounted.current.lanes.done.cards).toHaveLength(50);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("moves a task archived on the board into the lane, and back when it is unarchived", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("task", { status: "idle", title: "Task", updatedAt: recentIso(1_000) })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountArchived(fake, true);
+    try {
+      expect(mounted.current.byId.get("task")?.lane).toBe("done");
+      await act(async () => {
+        fake.upsertAgent(activeAgent("task", { status: "closed", title: "Task", updatedAt: recentIso(0), archivedAt: recentIso(0) }));
+        await Promise.resolve();
+      });
+      expect(ids(mounted.current.lanes.done)).toEqual([]);
+      expect(ids(mounted.current.lanes.archived)).toEqual(["task"]);
+      await act(async () => {
+        fake.upsertAgent(activeAgent("task", { status: "closed", title: "Task", updatedAt: recentIso(0), archivedAt: null }));
+        await Promise.resolve();
+      });
+      expect(ids(mounted.current.lanes.archived)).toEqual([]);
+      expect(ids(mounted.current.lanes.done)).toEqual(["task"]);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("keeps archived children off a live parent and links them to it", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("parent", { status: "idle", title: "Parent", updatedAt: recentIso(1_000) }),
+        activeAgent("child", { status: "closed", title: "Child", updatedAt: recentIso(2_000), archivedAt: recentIso(2_000), labels: { "paseo.parent-agent-id": "parent" } }),
+      ],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountArchived(fake, true);
+    try {
+      expect(mounted.current.byId.get("parent")?.children).toEqual([]);
+      expect(mounted.current.byId.get("child")?.parent).toEqual({ id: "parent", title: "Parent", missing: false, archived: false });
+    } finally {
+      mounted.unmount();
+    }
+  });
+});

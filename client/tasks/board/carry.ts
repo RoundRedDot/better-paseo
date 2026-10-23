@@ -109,7 +109,7 @@ export function cardShape(): string {
 }
 
 function optionsKey(options: TasksOptions): string {
-  return `${options.includeDone ? "done" : "active"}:${options.doneWindow}`;
+  return `${options.includeDone ? "done" : "active"}:${options.doneWindow}:${options.includeArchived ? "archived" : ""}`;
 }
 
 export function carryBoard(hostId: string, options: TasksOptions, tasks: TasksSnapshot): void {
