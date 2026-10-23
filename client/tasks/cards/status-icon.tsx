@@ -150,6 +150,9 @@ const RunningRing = memo(function RunningRing(props: {
   mark: number;
   color: string;
   animated: boolean;
+  /** The centre dot; a button's spinner is the ring alone. Default true. */
+  dot?: boolean;
+  testID?: string;
   accessibilityLabel?: string;
 }) {
   const { box, mark, color } = props;
@@ -173,16 +176,26 @@ const RunningRing = memo(function RunningRing(props: {
   };
   const arc: ViewStyle = { ...circle, borderColor: "transparent", borderTopColor: color, opacity: HEAD_OPACITY };
   return (
-    <View style={box} testID="status-running" accessibilityLabel={props.accessibilityLabel}>
+    <View style={box} testID={props.testID ?? "status-running"} accessibilityLabel={props.accessibilityLabel}>
       <View style={[circle, { borderColor: color, opacity: TRACK_OPACITY }]} />
       {WEB ? (
         <View ref={setWebNode as never} style={arc} />
       ) : (
         <Animated.View style={[arc, active ? { transform: [{ rotate: sharedRotation() }] } : null]} />
       )}
-      <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: color }} />
+      {props.dot === false ? null : <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: color }} />}
     </View>
   );
+});
+
+/**
+ * A working button's spinner: the running ring without its centre dot, a
+ * hollow track with the turning quarter, in the icon's `size` box and colour.
+ * It turns on the running rings' clock, so it is in phase with them.
+ */
+export const SpinnerRing = memo(function SpinnerRing(props: { size: number; color: string; testID?: string }) {
+  const box: ViewStyle = { width: props.size, height: props.size, flexShrink: 0, alignItems: "center", justifyContent: "center" };
+  return <RunningRing box={box} mark={statusMarkSize(props.size)} color={props.color} animated dot={false} testID={props.testID ?? "spinner-ring"} />;
 });
 
 /** Paseo's sidebar status indicator. All running rings turn in phase (900 ms per turn, in 12 steps on native). */
