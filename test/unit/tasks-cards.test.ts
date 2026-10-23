@@ -1056,12 +1056,12 @@ describe("TaskCardView compact tiers", () => {
 });
 
 describe("TaskCardView actions", () => {
-  it("puts Open tab under the footer in place of the jump arrow, and opens on a press of the card", async () => {
+  it("puts Open tab under the footer, its arrow after the label, and opens on a press of the card", async () => {
     const onOpen = vi.fn();
     const tree = await render(cardElement(sample("sample-done"), { onOpen }));
-    expect(icons(tree.root)).not.toContain("ArrowUpRight");
     const open = byLabel(hostByTestId(tree.root, "task-card-control-row"), "打开 tab");
-    expect(icons(open)).toEqual(["AppWindow"]);
+    expect(icons(open)).toEqual(["ArrowUpRight"]);
+    expect(icons(tree.root).filter((name) => name === "ArrowUpRight")).toHaveLength(1);
     expect(flat(open.props.style)).toMatchObject({ height: 28, borderRadius: 6 });
     hostByTestId(tree.root, "task-card-sample-done").props.onPress();
     open.props.onPress();
@@ -1159,10 +1159,10 @@ describe("TaskCardView actions", () => {
     expect(texts(tree.root)).not.toContain("打开 tab");
   });
 
-  it("ends a phone card's action bar with Open tab in place of the jump arrow", async () => {
+  it("ends a phone card's action bar with Open tab, its arrow after the label", async () => {
     const onOpen = vi.fn();
     const running = await render(cardElement(sample("sample-running"), { compact: true, onOpen, onStop: () => {} }));
-    expect(icons(running.root)).not.toContain("ArrowUpRight");
+    expect(icons(byLabel(running.root, "打开 tab"))).toEqual(["ArrowUpRight"]);
     expect(texts(hostByTestId(running.root, "task-card-actions"))).toEqual(["停止", "打开 tab"]);
     // The details sheet's proportions: Open tab takes the room, Stop is as wide as its label.
     expect(flat(byLabel(running.root, "打开 tab").props.style)).toMatchObject({ flexGrow: 1 });
@@ -1182,7 +1182,7 @@ describe("TaskCardView actions", () => {
     // Beside Allow and Deny it is a square icon, its label read out.
     const square = byLabel(allow.root, "打开 tab");
     expect(texts(square)).toEqual([]);
-    expect(icons(square)).toEqual(["AppWindow"]);
+    expect(icons(square)).toEqual(["ArrowUpRight"]);
     expect(flat(square.props.style)).toMatchObject({ width: 32, flexGrow: 0 });
     await act(async () => allow.unmount());
     const question = { ...input, permission: { requestId: "q", kind: "question" as const, title: "Which database?", summary: null, actions: [], remaining: 0 } };

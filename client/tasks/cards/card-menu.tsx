@@ -47,7 +47,7 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
   ];
   const stop = actions.stop;
   const sections: MenuSection[] = [
-    { key: "open", items: actions.open ? [{ key: "open", label: strings.openTab, icon: "AppWindow", onSelect: actions.open }] : [] },
+    { key: "open", items: actions.open ? [{ key: "open", label: strings.openTab, icon: "ArrowUpRight", onSelect: actions.open }] : [] },
     {
       key: "copy",
       items: copies

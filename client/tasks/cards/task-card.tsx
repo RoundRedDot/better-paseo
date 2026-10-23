@@ -975,7 +975,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         <CardButton
           label={strings.openTab}
           look="plain"
-          icon="AppWindow"
+          arrow
           tokens={tokens}
           compact={false}
           onPress={() => props.onOpen?.(card.id)}
@@ -1173,7 +1173,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           <CardButton
             label={strings.openTab}
             look="plain"
-            icon="AppWindow"
+            arrow
             square={openSquare}
             tokens={tokens}
             compact
@@ -1624,6 +1624,8 @@ export function CardButton(props: {
   square?: boolean;
   /** On a phone, as wide as its label: "Open tab" beside it takes the rest. */
   hug?: boolean;
+  /** Ends in the ↗ after its label, as "Open tab" does; a square shows only the arrow. */
+  arrow?: boolean;
   onPress(): void;
   testID?: string;
 }) {
@@ -1677,7 +1679,7 @@ export function CardButton(props: {
         </Text>
       )}
       {/* The one arrow: a label that still ends in its own is trimmed by the caller. */}
-      {answer ? <Icon name="ArrowUpRight" size={size} color={color} /> : null}
+      {answer || props.arrow ? <Icon name="ArrowUpRight" size={size} color={color} /> : null}
     </Pressable>
   );
 }
