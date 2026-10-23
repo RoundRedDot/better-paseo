@@ -17,8 +17,17 @@ vi.mock("react-native", async () => import("./helpers/rn-mock"));
 /** The DOM hover bindings the cards make, by the bound element's testID or label. */
 const hovers = vi.hoisted(() => new Map<string, { enter(): void; leave(): void }>());
 
+/** The right-click handlers the cards bind, by the bound element's testID. */
+const contextMenus = vi.hoisted(() => new Map<string, (point: { x: number; y: number }, target: unknown) => void>());
+const copies = vi.hoisted(() => [] as string[]);
+
 vi.mock("../../client/web", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
+  bindContextMenu: (node: { props?: Record<string, unknown> } | null, open: (point: { x: number; y: number }, target: unknown) => void) => {
+    const key = String(node?.props?.testID ?? "?");
+    contextMenus.set(key, open);
+    return () => contextMenus.delete(key);
+  },
   bindRowHover: (node: { props?: Record<string, unknown> } | null, enter: () => void, leave: () => void) => {
     const key = String(node?.props?.testID ?? node?.props?.accessibilityLabel ?? "?");
     hovers.set(key, { enter, leave });
@@ -32,7 +41,9 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   return {
     Icon: (props: Record<string, unknown>) => react.createElement("Icon", props),
     ScrollView: rn.ScrollView,
-    copyText: async () => {},
+    copyText: async (text: string) => {
+      copies.push(text);
+    },
     useToast: () => ({ show() {}, error() {} }),
   };
 });
@@ -379,6 +390,72 @@ describe("TaskCardView on web", () => {
     );
     expect(actions.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem")).toHaveLength(2);
     await act(async () => phone.unmount());
+  });
+});
+
+describe("TaskCardView right-click menu", () => {
+  const rows = (root: ReactTestInstance) =>
+    root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem").map((node) => texts(node)[0]);
+  const choose = (root: ReactTestInstance, label: string) =>
+    act(async () => {
+      root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem" && texts(node)[0] === label).props.onPress();
+      await Promise.resolve();
+    });
+
+  it("opens at the pointer with Open tab, the copies, then what the card can do", async () => {
+    const onStop = vi.fn();
+    const renderer = await render(React.createElement(TaskCardView, props("sample-running", { onStop })));
+    const root = renderer.root;
+    expect(root.findAll((node) => node.props.testID === "task-card-menu")).toHaveLength(0);
+    await act(async () => contextMenus.get("task-card-sample-running")!({ x: 40, y: 60 }, null));
+    expect(rows(root)).toEqual(["打开 tab", "复制会话 ID", "复制标题", "复制 workspace 名称", "复制项目名称", "停止"]);
+
+    copies.length = 0;
+    await choose(root, "复制会话 ID");
+    expect(copies).toEqual(["sample-running"]);
+    expect(root.findAll((node) => node.props.testID === "task-card-menu")).toHaveLength(0);
+
+    // A parent's Stop opens "only this / with subtasks"; either stops without the confirm step.
+    await act(async () => contextMenus.get("task-card-sample-running")!({ x: 40, y: 60 }, null));
+    await choose(root, "停止");
+    await choose(root, "连同子任务一起停止");
+    expect(onStop).toHaveBeenCalledWith(expect.objectContaining({ id: "sample-running" }), { withChildren: true, dialog: true });
+    await act(async () => renderer.unmount());
+  });
+
+  it("offers Mark read on a card to review and Unarchive on an archived task", async () => {
+    const onRead = vi.fn();
+    const onUnarchive = vi.fn();
+    const card = { ...sampleCards(NOW).find((item) => item.id === "sample-unread")!, readable: true };
+    const unread = await render(React.createElement(TaskCardView, props("sample-unread", { card, onRead })));
+    await act(async () => contextMenus.get("task-card-sample-unread")!({ x: 0, y: 0 }, null));
+    expect(rows(unread.root)).toContain("标为已读");
+    expect(rows(unread.root)).not.toContain("停止");
+    await choose(unread.root, "标为已读");
+    expect(onRead).toHaveBeenCalledTimes(1);
+    await act(async () => unread.unmount());
+
+    const archived = await render(React.createElement(TaskCardView, props("sample-archived", { onUnarchive })));
+    await act(async () => contextMenus.get("task-card-sample-archived")!({ x: 0, y: 0 }, null));
+    await choose(archived.root, "取消归档");
+    expect(onUnarchive).toHaveBeenCalledWith("sample-archived");
+    await act(async () => archived.unmount());
+
+    // Only a task archived itself can come back; one of an archived workspace has no Unarchive.
+    const workspace = await render(React.createElement(TaskCardView, props("sample-archived-workspace", { onUnarchive })));
+    await act(async () => contextMenus.get("task-card-sample-archived-workspace")!({ x: 0, y: 0 }, null));
+    expect(rows(workspace.root)).not.toContain("取消归档");
+    await act(async () => workspace.unmount());
+  });
+
+  it("leaves a right click inside the open menu alone", async () => {
+    const renderer = await render(React.createElement(TaskCardView, props("sample-running")));
+    const root = renderer.root;
+    await act(async () => contextMenus.get("task-card-sample-running")!({ x: 40, y: 60 }, null));
+    const menu = { closest: (selector: string) => (selector.includes("task-card-menu") ? {} : null) };
+    await act(async () => contextMenus.get("task-card-sample-running")!({ x: 300, y: 300 }, menu));
+    expect(root.find((node) => node.props.testID === "task-card-menu-anchor")).toBeTruthy();
+    await act(async () => renderer.unmount());
   });
 });
 

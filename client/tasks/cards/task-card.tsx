@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useRef, useState, type ReactNode } from "react";
+import React, { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
@@ -20,6 +20,8 @@ import { THINKING_ICON } from "./mode-icons";
 import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
 import { ChildMark } from "./child-mark";
+import { CardContextMenu } from "./card-menu";
+import { bindContextMenu } from "../../web";
 import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
 import { layoutMenu } from "../board/menu-model";
 import { panelChrome } from "./panel";
@@ -32,8 +34,12 @@ export interface CardCallbacks {
   onOpen?(agentId: string): void;
   /** Scroll the board to a card and highlight it (child → parent link). */
   onReveal(agentId: string): void;
-  /** Stop, if the card is stoppable and Stop is available. */
-  onStop?(card: TaskCard, options?: { withChildren?: boolean }): void;
+  /**
+   * Stop, if the card is stoppable and Stop is available. `dialog`: a context
+   * menu's Stop, which asks in a dialog instead of arming the button (unless
+   * `board.confirmStop` is off).
+   */
+  onStop?(card: TaskCard, options?: { withChildren?: boolean; dialog?: boolean }): void;
   onCancelStop?(agentId: string): void;
   /** Mark read, if the card is readable and the server reaches the daemon. */
   onRead?(card: TaskCard): void;
@@ -414,6 +420,16 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const [stopAll, setStopAll] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [ringOpen, setRingOpen] = useState(false);
+  // The right-click menu's window point (web). A right click inside the open menu leaves it be.
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
+  useLayoutEffect(
+    () =>
+      bindContextMenu(rootRef.current, (point, target) => {
+        if ((target as Element | null)?.closest?.('[data-testid="task-card-menu"]')) return;
+        setMenuAt(point);
+      }),
+    [],
+  );
 
   const latest = useRef(props);
   latest.current = props;
@@ -444,14 +460,16 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
 
   // A failed card stands out in danger red; the highlight and the sidebar's card still win.
   const failed = card.status === "failed";
+  // The card a right-click menu belongs to keeps its hover look while the menu is open.
+  const lit = hovered || menuAt !== null;
   /** The card's fill right now: the highlight, the sidebar's card, the failure tint, the hover grey, or the card. */
   const background = props.highlighted
     ? look.highlight
     : props.current
       ? look.current
       : failed
-        ? hovered ? look.failedHover : look.failed
-        : hovered ? look.hoverBackground : look.background;
+        ? lit ? look.failedHover : look.failed
+        : lit ? look.hoverBackground : look.background;
   const canStop = card.stoppable && !!props.onStop;
   const parentStop = canStop && activeChildren(card) > 0;
   const showStop = canStop && !compact && (TOUCH || hovered || props.stopPhase !== "idle" || menuOpen);
@@ -492,7 +510,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     onPick: pressStop,
   };
 
-  const shadows = [hovered ? look.shadowHover : look.shadow];
+  const shadows = [lit ? look.shadowHover : look.shadow];
   if (props.focused) shadows.push(`0px 0px 0px 3px ${tokens.accentRing}`);
   const cardStyle = {
     paddingHorizontal: m.padH,
@@ -1131,6 +1149,29 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       {subtaskList}
       {actionBar}
       {WEB ? <CardHints root={rootRef} texts={hintTexts} theme={theme} color={tokens.foreground} /> : null}
+      {menuAt ? (
+        <CardContextMenu
+          point={menuAt}
+          card={card}
+          strings={strings}
+          theme={theme}
+          actions={{
+            open: props.onOpen ? () => props.onOpen?.(card.id) : undefined,
+            // Stop asks in a dialog first (unless confirm before stopping is off): there is no button to arm.
+            stop: canStop && props.stopPhase !== "stopping"
+              ? (withChildren) => {
+                  setStopAll(withChildren);
+                  props.onStop?.(card, { withChildren, dialog: true });
+                }
+              : undefined,
+            children: parentStop ? activeChildren(card) : 0,
+            stopAllLeading: <StopTreeGlyph tokens={tokens} />,
+            read: canRead && !readPending ? () => props.onRead?.(card) : undefined,
+            unarchive: canUnarchive ? () => props.onUnarchive?.(card.id) : undefined,
+          }}
+          onClose={() => setMenuAt(null)}
+        />
+      ) : null}
     </Pressable>
   );
 }

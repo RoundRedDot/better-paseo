@@ -233,6 +233,55 @@ describe("Tasks stop control", () => {
     expect(mounted.control().stoppedManually.has("agent-a")).toBe(false);
   });
 
+  it("asks a context menu's Stop in the browser's confirm on web, and stops only on yes", async () => {
+    mocks.stop.mockResolvedValue({ results: [{ agentId: "agent-a", ok: true, error: null }] });
+    const world = globalThis as { confirm?: unknown };
+    const confirm = vi.fn(() => false);
+    world.confirm = confirm;
+    try {
+      const mounted = await mount(true);
+      await act(async () => {
+        mounted.control().press(taskCard("agent-a"), { dialog: true });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(confirm).toHaveBeenCalledWith("Stop this task?\n\nTask agent-a");
+      expect(mocks.stop).not.toHaveBeenCalled();
+      // The dialog replaces the armed button: the card never shows "Confirm stop".
+      expect(mounted.control().phase("agent-a")).toBe("idle");
+
+      confirm.mockReturnValue(true);
+      await act(async () => {
+        mounted.control().press(taskCard("agent-a"), { dialog: true });
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["agent-a"] });
+    } finally {
+      delete world.confirm;
+    }
+  });
+
+  it("stops a context menu's Stop at once when confirm before stopping is off", async () => {
+    mocks.stop.mockResolvedValue({ results: [{ agentId: "agent-a", ok: true, error: null }] });
+    const world = globalThis as { confirm?: unknown };
+    const confirm = vi.fn(() => false);
+    world.confirm = confirm;
+    try {
+      const mounted = await mount(false);
+      await act(async () => {
+        mounted.control().press(taskCard("agent-a"), { dialog: true });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(confirm).not.toHaveBeenCalled();
+      expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["agent-a"] });
+    } finally {
+      delete world.confirm;
+    }
+  });
+
   it("cancels confirmation and returns to idle after the three-second timeout", async () => {
     vi.useFakeTimers();
     const mounted = await mount(true);
