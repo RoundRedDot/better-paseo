@@ -4,7 +4,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
-import { BrandMark, DETAIL_CARD, DetailCard, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
+import { BrandMark, DETAIL_CARD, DetailCard, detailGutter, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
@@ -335,7 +335,7 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
           <Segment key={id} icon={FILTER_ICONS[id]} label={strings.groups[id]} on={kind === id} tokens={tokens} touch={props.touch} onPress={() => setKind(id)} />
         ))}
       </View>
-      <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flexShrink: 1 }} {...detailScrollProps("inset")} testID="sidebar-groups-scroll">
         {rows.length === 0 ? (
           <Text style={{ paddingHorizontal: DETAIL_CARD.padH, paddingVertical: 12, fontSize: F.sm, color: tokens.foregroundMuted }}>{strings.noGroups}</Text>
         ) : (
@@ -410,7 +410,9 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
       {...hoverProps}
       style={({ pressed }) => ({
         height: taskControlHeight(props.touch ? 44 : 36, scale),
-        marginHorizontal: 6,
+        // The scrollbar's gutter takes the right margin (`detail-scrollbar.ts`); off web the gutter is 0 and the margin stays 6.
+        marginLeft: 6,
+        marginRight: 6 - detailGutter("inset"),
         paddingHorizontal: 8,
         borderRadius: 6,
         flexDirection: "row",
