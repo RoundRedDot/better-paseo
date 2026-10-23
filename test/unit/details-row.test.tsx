@@ -17,7 +17,7 @@ vi.mock("../../client/details/details-store", () => ({
   useDetails: () => ({ openId: state.current, form: state.form }),
   useMarkerPhase: () => state.marker,
 }));
-vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => state.reduced }));
+vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: vi.fn(() => state.reduced) }));
 vi.mock("../../client/ui/use-input-capabilities", () => ({ useInputCapabilities: () => {
   const native = (globalThis as { __rnMockOS?: string }).__rnMockOS !== "web";
   return { native, hover: !native, touch: native, compact: native };
@@ -39,6 +39,7 @@ vi.mock("../../client/web", async (original) => ({
 import { DisclosureHeader, type DisclosureHeaderProps } from "../../client/ui/disclosure-header";
 import { PathText } from "../../client/ui/path-text";
 import { CurrentMarker } from "../../client/details/current-marker";
+import { useReducedMotion } from "../../client/ui/use-reduced-motion";
 import { BlockPlacementContext, type BlockEntry } from "../../client/details/contracts";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { ToolCallout, toolRowCopyItems } from "../../client/components/tool-callouts";
@@ -305,6 +306,15 @@ describe("other detail callers", () => {
 });
 
 describe("current marker", () => {
+  it("does not initialize animation preferences until the row is selected", () => {
+    render(<CurrentMarker agentId="agent" id="row" tokens={tokens} />);
+    expect(renderer!.toJSON()).toBeNull();
+    expect(useReducedMotion).not.toHaveBeenCalled();
+    act(() => { state.marker = "on"; renderer!.update(wrap(<CurrentMarker agentId="agent" id="row" tokens={tokens} />)); });
+    expect(renderer!.root.findAllByProps({ testID: "details-current-marker" })).not.toHaveLength(0);
+    expect(useReducedMotion).toHaveBeenCalled();
+  });
+
   it("keeps on and linger, then fades for 200 ms on off", () => {
     vi.useFakeTimers(); state.marker = "on";
     const timing = vi.spyOn(Animated, "timing");

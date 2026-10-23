@@ -1,8 +1,9 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { BlockEntry } from "../../client/details/contracts";
 import { BLOCK_REGISTRY_LIMIT, getBlock, getBlockList, measureBlockForOrder, registerBlock, useBlock, useBlockList } from "../../client/details/block-registry";
+import * as navigation from "../../client/details/navigation";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -28,6 +29,31 @@ function entry(id: string, options: Partial<BlockEntry> = {}): BlockEntry {
 }
 
 describe("block registry", () => {
+  it("orders replayed entries only when a list consumer asks, then caches that snapshot", () => {
+    const agentId = "registry-lazy-list";
+    const order = vi.spyOn(navigation, "orderBlocks");
+    try {
+      const registrations = Array.from({ length: 100 }, (_, seq) => registerBlock(entry(`row-${seq}`, { agentId, at: 1000 - seq * 10 })));
+      expect(order).not.toHaveBeenCalled();
+      const first = getBlockList(agentId);
+      expect(first[0]?.id).toBe("row-99");
+      expect(getBlockList(agentId)).toBe(first);
+      expect(order).toHaveBeenCalledTimes(1);
+      registrations[0]!.update(entry("row-0", { agentId, at: 1000, title: "changed" }));
+      registrations[1]!.release();
+      expect(order).toHaveBeenCalledTimes(1);
+      expect(getBlock(agentId, "row-0")?.title).toBe("changed");
+      expect(getBlock(agentId, "row-1")?.mounted).toBe(false);
+      const next = getBlockList(agentId);
+      expect(next).not.toBe(first);
+      expect(getBlockList(agentId)).toBe(next);
+      expect(order).toHaveBeenCalledTimes(2);
+      registrations.forEach((registration) => registration.release());
+    } finally {
+      order.mockRestore();
+    }
+  });
+
   it("keeps the last entry as a tombstone after release", () => {
     const agentId = "registry-tombstone";
     const render = () => "latest";

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { mix, type ExtendedThemeTokens } from "../components/theme-tokens";
 import { useMarkerPhase } from "./details-store";
@@ -8,25 +8,34 @@ import { useReducedMotion } from "../ui/use-reduced-motion";
 export function CurrentMarker({ agentId, id, tokens }: { agentId: string; id: string; tokens: ExtendedThemeTokens }) {
   const phase = useMarkerPhase(agentId, id);
   const [visible, setVisible] = useState(phase !== "off");
-  const opacity = useRef(new Animated.Value(phase === "off" ? 0 : 1)).current;
+  const hide = useCallback(() => setVisible(false), []);
+  useEffect(() => {
+    if (phase !== "off") setVisible(true);
+  }, [phase]);
+  // Replayed rows need only the marker selector until one is selected.
+  // Draw immediately on selection, and keep the body through its final fade.
+  if (phase === "off" && !visible) return null;
+  return <VisibleMarker phase={phase} tokens={tokens} onHidden={hide} />;
+}
+
+function VisibleMarker({ phase, tokens, onHidden }: {
+  phase: "off" | "on" | "linger";
+  tokens: ExtendedThemeTokens;
+  onHidden(): void;
+}) {
+  const [opacity] = useState(() => new Animated.Value(1));
   const reduced = useReducedMotion();
-  const wasVisible = useRef(phase !== "off");
   useEffect(() => {
     if (phase !== "off") {
-      wasVisible.current = true;
-      setVisible(true);
       opacity.setValue(1);
       return;
     }
-    if (!wasVisible.current) return;
-    wasVisible.current = false;
     const duration = reduced ? 120 : 200;
     const animation = Animated.timing(opacity, { toValue: 0, duration, useNativeDriver: true });
     animation.start();
-    const timer = setTimeout(() => setVisible(false), duration);
+    const timer = setTimeout(onHidden, duration);
     return () => { animation.stop(); clearTimeout(timer); };
-  }, [phase, opacity, reduced]);
-  if (!visible) return null;
+  }, [phase, opacity, reduced, onHidden]);
   const accentSoft = (tokens as ExtendedThemeTokens & { details?: { accentSoft: string } }).details?.accentSoft
     ?? mix(tokens.v2.surface0, tokens.accent, 0.1);
   return (
