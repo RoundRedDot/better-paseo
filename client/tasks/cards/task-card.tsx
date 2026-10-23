@@ -412,10 +412,10 @@ export const OVERLAY_ROW_Z = 2;
 
 function TaskCardViewImpl(given: TaskCardViewProps) {
   // An archived task has no Open, here or on its subtasks: Paseo would show another tab.
-  // A provider subagent's card is read-only: no details, Stop, Mark read or
-  // Archive, and a press or Open opens its parent's tab (the board's `onOpen`).
+  // A provider subagent's card is read-only: no Stop, Mark read or Archive. It
+  // shows its details as any card; Open opens its parent's tab (the board's `onOpen`).
   const props = given.card.subagent
-    ? { ...given, onSelect: undefined, onDetails: undefined, onStop: undefined, onRead: undefined, onArchive: undefined, onUnarchive: undefined, onPermission: undefined }
+    ? { ...given, onStop: undefined, onRead: undefined, onArchive: undefined, onUnarchive: undefined, onPermission: undefined }
     : opensInPaseo(given.card) ? given : { ...given, onOpen: undefined };
   const { card, fields, compact, theme } = props;
   const scale = useTasksFontScale();
@@ -533,7 +533,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     onPick: pressStop,
   };
 
-  const shadows = [lit ? look.shadowHover : look.shadow];
+  // A provider subagent's card is drawn dashed and flat at rest: it stands for work inside its parent's session.
+  const dashed = !!card.subagent;
+  const shadows = lit ? [look.shadowHover] : dashed ? [] : [look.shadow];
   if (props.focused) shadows.push(`0px 0px 0px 3px ${tokens.accentRing}`);
   const cardStyle = {
     paddingHorizontal: m.padH,
@@ -542,10 +544,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     // Linear's card: radius 8 (measured: the arc settles 16 device px in at 2x), a hairline,
     // and on hover only the fill and shadow change.
     borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
+    // A dashed hairline breaks up into dots: the dashes take a whole point.
+    borderWidth: dashed ? 1 : StyleSheet.hairlineWidth,
+    borderStyle: dashed ? "dashed" : "solid",
     borderColor: props.focused || props.highlighted ? tokens.accent : props.current ? look.currentBorder : failed ? look.failedBorder : look.border,
     backgroundColor: background,
-    boxShadow: shadows.join(", "),
+    boxShadow: shadows.length > 0 ? shadows.join(", ") : "none",
     zIndex: menuOpen ? 30 : hovered ? 2 : 1,
     ...webTransition,
   } as ViewStyle;
@@ -708,7 +712,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const subagent = card.subagent ? subagentFacts(card.subagent.subtitle, card.subagent.type) : null;
   const facts = subagent?.full ?? null;
   if (layout.modelPill) {
-    const model = subagent?.text ?? (facts ? card.providerLabel : layout.model && card.modelLabel ? card.modelLabel : card.providerLabel);
+    // A subagent whose line names its model draws it as an agent's, model and effort, without the tokens.
+    const named = layout.model && card.modelLabel ? card.modelLabel : card.providerLabel;
+    const model = subagent && !card.modelLabel ? (subagent.text ?? card.providerLabel) : named;
     const name = facts ? `${card.providerLabel} ${facts}` : model === card.providerLabel ? model : `${card.providerLabel} ${model}`;
     pills.push(
       <Pill

@@ -1402,6 +1402,9 @@ describe("Tasks data store", () => {
         location: running.location,
         parent: { id: "parent", title: running.title, missing: false, archived: false },
         subagent: { subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens", type: "general-purpose" },
+        // Its model and effort as an agent's, for the model pill and the details' chips.
+        modelLabel: "Opus 5.5",
+        thinkingLabel: "High",
       });
       // The same parent card gives the same subagent cards, so a memoized card skips its render.
       expect(withSubagentCards(lanes).running.cards[2]).toBe(withCards.running.cards[2]);

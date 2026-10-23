@@ -26,10 +26,7 @@ import { buildFilterOptions, clearedParams, emptyGroupsIcon } from "./filter-opt
 import { FilterSheetBody } from "./filter-sheet";
 import { defaultLane, laneAfter, swallowsTap, swipeStep, tabUnderline, tabsOverflow, type TabBox } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
-import { useParentTitle } from "./details-sidebar";
-import { useFirstPrompt } from "../data/first-prompt";
-import { lastMessageVersion, useLastMessage } from "../data/last-message";
-import { useSessionTokens } from "../data/session-tokens";
+import { useDetailReads, useParentTitle } from "./details-sidebar";
 import { LANE_EMPTY_ICON, sortLabel } from "./strings";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
@@ -304,7 +301,7 @@ export function PhoneBoard(props: {
     (card: TaskCard) => <CardCell board={board} card={card} theme={theme} compact fresh={false} copy callbacks={callbacks} />,
     [board, theme, callbacks],
   );
-  const detailsCard = sheet?.kind === "details" ? tasks.byId.get(sheet.id) : undefined;
+  const detailsCard = sheet?.kind === "details" ? board.cardById(sheet.id) : undefined;
   const warning = taskTokens(theme).status.warning;
 
   return (
@@ -578,9 +575,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
   const { card, board, theme } = props;
   const colors = theme.colors;
   useParentTitle(board, card);
-  const firstPrompt = useFirstPrompt(board.paseo, card.id, card.closed !== true);
-  const lastMessage = useLastMessage(board.paseo, card.id, lastMessageVersion(card), card.closed !== true);
-  const sessionTokens = useSessionTokens(card.id, turnRunning(card) && card.closed !== true);
+  const { firstPrompt, lastMessage, sessionTokens } = useDetailReads(board, card);
   const list = board.lanes[card.lane]?.cards ?? [];
   const index = list.findIndex((item) => item.id === card.id);
   const step = (delta: number) => {

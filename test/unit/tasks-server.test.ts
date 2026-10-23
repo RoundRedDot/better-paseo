@@ -375,3 +375,43 @@ describe("Tasks server read RPC", () => {
     }
   });
 });
+
+describe("Tasks server subagent timeline RPC", () => {
+  it("reads a provider subagent's rows off the daemon, kind and text only, and closes the connection", async () => {
+    const fetchProviderSubagentTimeline = vi.fn(async () => ({
+      rows: [
+        { item: { type: "user_message", text: "Check the build", messageId: "m1" }, seq: 1 },
+        { item: { type: "tool_call", name: "Bash", callId: "c1" }, seq: 2 },
+      ],
+    }));
+    const close = vi.fn(async () => {});
+    const host: HostAccess = { available: () => true, connect: async () => ({ fetchProviderSubagentTimeline, close }) as never };
+    const handlers = await registerHandlers(host);
+    await expect(invoke(handlers, "tasks.subagent-timeline", { parentAgentId: "parent", subagentId: "toolu_1", direction: "after", limit: 8 })).resolves.toEqual({
+      rows: [{ type: "user_message", text: "Check the build" }, { type: "tool_call" }],
+      error: null,
+    });
+    expect(fetchProviderSubagentTimeline).toHaveBeenCalledWith("parent", "toolu_1", { direction: "after", limit: 8 });
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("says why when the daemon cannot be reached, has no subagent timelines, or refuses", async () => {
+    await expect(invoke(await registerHandlers(), "tasks.subagent-timeline", { parentAgentId: "p", subagentId: "s", direction: "tail", limit: 40 })).resolves.toEqual({
+      rows: [],
+      error: "Could not reach the Paseo daemon.",
+    });
+    const old: HostAccess = { available: () => true, connect: async () => ({ close: async () => {} }) as never };
+    await expect(invoke(await registerHandlers(old), "tasks.subagent-timeline", { parentAgentId: "p", subagentId: "s", direction: "tail", limit: 40 })).resolves.toMatchObject({
+      rows: [],
+      error: "This Paseo cannot read subagent timelines.",
+    });
+    const refusing: HostAccess = {
+      available: () => true,
+      connect: async () => ({ fetchProviderSubagentTimeline: async () => { throw new Error("Update the host to view subagent conversations."); }, close: async () => {} }) as never,
+    };
+    await expect(invoke(await registerHandlers(refusing), "tasks.subagent-timeline", { parentAgentId: "p", subagentId: "s", direction: "tail", limit: 40 })).resolves.toEqual({
+      rows: [],
+      error: "Update the host to view subagent conversations.",
+    });
+  });
+});

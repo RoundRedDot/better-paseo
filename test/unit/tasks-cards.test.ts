@@ -1363,7 +1363,7 @@ describe("TaskCardView actions", () => {
     expect(onOpen).toHaveBeenCalledWith(base.id);
   });
 
-  it("draws a provider subagent's card read-only: its facts line, no Stop or details, a press opens through onOpen", async () => {
+  it("draws a provider subagent's card read-only: its facts line, no Stop, a press chooses it for the details", async () => {
     const base = sample("sample-running");
     const card: TaskCard = {
       ...base,
@@ -1391,12 +1391,12 @@ describe("TaskCardView actions", () => {
     // The facts line is not a model name to copy.
     expect(hostByTestId(tree.root, "pill-model").props.accessibilityRole).not.toBe("button");
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop")).toHaveLength(0);
-    const root = hostByTestId(tree.root, "task-card-sub-1");
-    expect(root.props.onLongPress).toBeUndefined();
+    // Dashed and flat at rest: work inside its parent's session, not a task of its own.
+    expect(flat(hostByTestId(tree.root, "task-card-sub-1").props.style)).toMatchObject({ borderStyle: "dashed", borderWidth: 1, boxShadow: "none" });
     await act(async () => byLabel(tree.root, "mac studio run check").props.onPress());
-    // The board maps the subagent's id to its parent's tab.
-    expect(onOpen).toHaveBeenCalledWith("sub-1");
-    expect(onSelect).not.toHaveBeenCalled();
+    // Chosen for the details as any card; Open tab goes through the board, which opens the parent's.
+    expect(onSelect).toHaveBeenCalledWith(card);
+    expect(onOpen).not.toHaveBeenCalled();
     expect(texts(hostByTestId(tree.root, "task-card-meta-parent"))).toEqual([`↳ ${base.title}`]);
     // Its id is a tool call's: the menu copies no session ID.
     const keys = cardMenuSections(card, cardStrings("en"), { copy: () => {}, open: () => {}, children: 0 }).flatMap((section) => section.items.map((item) => item.key));

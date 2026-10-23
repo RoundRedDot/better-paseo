@@ -37,6 +37,12 @@ export interface HostDaemon extends SeedDaemon {
   listWorkspaceLabels?(): Promise<{ labels: Array<{ name: string; color: string }> }>;
   /** A project's icon, uploaded or found in its repository; a daemon from before project icons lacks it. */
   getProjectIcon?(projectId: string): Promise<{ icon: { data: string; mimeType: string } | null; error?: string | null }>;
+  /** A provider subagent's own timeline; a daemon from before subagent timelines lacks it, and an older host throws. */
+  fetchProviderSubagentTimeline?(
+    parentAgentId: string,
+    subagentId: string,
+    options: { direction: "after" | "tail"; limit: number },
+  ): Promise<{ rows: Array<{ item: { type: string; text?: unknown } }> }>;
 }
 
 /** A failure stays on the board this long at most; a new prompt to the parent clears it sooner. */

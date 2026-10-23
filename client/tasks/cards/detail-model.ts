@@ -37,6 +37,8 @@ export function detailSections(card: TaskCard, prompt = false, message = false):
   else if (hero === "error") order = ["properties", "activity", "usage", "subtasks"];
   else order = ["subtasks", "properties", "usage", "activity"];
   if (card.children.length === 0) order = order.filter((section) => section !== "subtasks");
+  // A provider subagent's card carries no usage or activity of its own.
+  if (card.subagent) order = order.filter((section) => section === "properties");
   if (message) order = ["message", ...order];
   if (prompt) order = ["prompt", ...order];
   const closed: DetailSection[] = hero === "permission" || hero === "error" ? ["usage"] : [];

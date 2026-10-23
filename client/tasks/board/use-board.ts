@@ -63,6 +63,8 @@ export interface BoardController {
   paseo: PaseoApi;
   /** The lanes after the filter bar and search. */
   lanes: Record<LaneId, LaneModel>;
+  /** A card by id, a provider subagent's included (`tasks.byId` has only the agents'), filtered out or not. */
+  cardById(id: string): TaskCard | undefined;
   /** Per lane, the cards the filters leave out, so the lane can say why its count is below the sidebar's. */
   hidden: Record<LaneId, number>;
   /** The lanes the board draws, left to right: the four, and archived after done when `board.showArchived` is on. */
@@ -367,10 +369,20 @@ export function useBoard(
       latest.current.toast.error(latest.current.strings.emptyGroups.saveFailed);
     });
   }, []);
+  // The subagents' cards by id, filtered out or not: the store's `byId` has only the agents'.
+  const subagentCards = useMemo(() => {
+    const out = new Map<string, TaskCard>();
+    for (const id of LANE_ORDER) for (const card of unfiltered[id].cards) if (card.subagent) out.set(card.id, card);
+    return out;
+  }, [unfiltered]);
+  const subagentCardsRef = useRef(subagentCards);
+  subagentCardsRef.current = subagentCards;
+  // Stable, reading the refs, so a lane's memo does not draw it again for it.
+  const cardById = useCallback((id: string) => byIdRef.current.get(id) ?? subagentCardsRef.current.get(id), []);
   const toastMessage = useCallback((message: string) => latest.current.toast.show(message), []);
   const open = useCallback((id: string) => {
     // A provider subagent has no tab: its card opens its parent's, where Paseo lists it.
-    const agentId = subagentParent(latest.current.lanes, id) ?? id;
+    const agentId = subagentCardsRef.current.get(id)?.parent?.id ?? id;
     const card = byIdRef.current.get(agentId);
     // The cards hide Open on an archived task; this catches the keyboard and anything else.
     if (card && !opensInPaseo(card)) {
@@ -435,6 +447,7 @@ export function useBoard(
     tasks,
     paseo,
     lanes,
+    cardById,
     hidden,
     laneOrder,
     total,
@@ -465,15 +478,6 @@ export function hiddenCounts(all: Record<LaneId, LaneModel>, shown: Record<LaneI
 
 function keepSameCounts(last: Record<LaneId, number> | null, next: Record<LaneId, number>): Record<LaneId, number> {
   return last && LANE_ORDER.every((id) => last[id] === next[id]) ? last : next;
-}
-
-/** The parent of a provider subagent's card in the lanes, or null when `id` is not one. */
-export function subagentParent(lanes: Record<LaneId, LaneModel>, id: string): string | null {
-  for (const lane of LANE_ORDER) {
-    const card = lanes[lane].cards.find((candidate) => candidate.id === id);
-    if (card) return card.subagent ? card.parent?.id ?? null : null;
-  }
-  return null;
 }
 
 /** Where a card sits in the filtered lanes, or null when the filters hide it. */

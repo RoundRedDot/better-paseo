@@ -40,6 +40,9 @@ describe("details card model", () => {
     expect(detailSections(sample("sample-failed"), true).order).toEqual(["prompt", "properties", "activity", "usage"]);
     // The latest reply follows it.
     expect(detailSections(sample("sample-failed"), true, true).order).toEqual(["prompt", "message", "properties", "activity", "usage"]);
+    // A provider subagent's card has no usage or activity of its own: its task, its reply, its place.
+    const subagent = { ...sample("sample-running"), children: [], subagent: { subtitle: null } };
+    expect(detailSections(subagent, true, true).order).toEqual(["prompt", "message", "properties"]);
   });
 
   it("splits Codex's cached input out of its input, and leaves Claude's as reported", () => {

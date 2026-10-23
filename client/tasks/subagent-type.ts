@@ -14,6 +14,25 @@ export interface SubagentFacts {
   full: string | null;
 }
 
+/**
+ * The model and effort a facts line names after the type, as a card's model
+ * pill draws them ("Sonnet 5.5", "High"); the token count is left out. Null
+ * where the line does not open with the type, so it reads as written.
+ */
+export function subagentModel(subtitle: string | null | undefined, type: string | null | undefined): { model: string; thinking: string | null } | null {
+  const full = subtitle?.trim() || null;
+  const name = type?.trim() || null;
+  if (!full || !name || !full.startsWith(`${name} · `)) return null;
+  const parts = full.slice(name.length + 3).split(" · ").map((part) => part.trim()).filter(Boolean);
+  if (parts.length > 0 && TOKENS.test(parts[parts.length - 1]!)) parts.pop();
+  const [model, ...rest] = parts;
+  if (!model) return null;
+  return { model, thinking: rest.join(" \u00b7 ") || null };
+}
+
+/** The token count a facts line ends with: "189.7k tokens", "1 token". */
+const TOKENS = /\btokens?$/i;
+
 /** The types the timeline's tool icons say on their own. */
 const TYPE_ICONS: Record<string, string> = {
   "general-purpose": "Shapes",
