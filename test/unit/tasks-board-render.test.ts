@@ -114,7 +114,7 @@ import { DesktopFilterBar } from "../../client/tasks/board/filter-bar";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
 import { ACTIVE_LANE_ORDER as LANE_ORDER } from "../../client/tasks/model";
-import { BrandMark, PiMark, TaskCardView, TaskDetailCards, taskTokens } from "../../client/tasks/cards";
+import { BrandMark, PiMark, TagMark, TaskCardView, TaskDetailCards, taskTokens } from "../../client/tasks/cards";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled } from "../../client/tasks/board/enabled";
 import { APP_SETTINGS_KEY, resetHostAppearanceForTests, setNativeSettingsReaderForTests, triggerHostAppearanceCheck } from "../../client/ui/tokens/host-appearance-shim";
@@ -648,6 +648,22 @@ describe("Tasks board, desktop", () => {
     expect(row().props.accessibilityState).toEqual({ checked: true });
     act(() => row().props.onPress());
     expect(lastBoardParams("host-1").workspaceIds).toEqual([]);
+  });
+
+  it("draws the sidebar's label rows with a solid tag whose hole follows the row's fill", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2000);
+    const groups = () => renderer!.root.findByProps({ testID: "sidebar-groups" });
+    act(() => groups().findByProps({ accessibilityRole: "tab", accessibilityLabel: "Labels" }).props.onPress());
+    const row = () => groups().findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function")[0]!;
+    const tag = () => row().findByType(TagMark).props;
+    const resting = tag().hole;
+    act(() => row().props.onPress());
+    expect(row().props.accessibilityState).toEqual({ checked: true });
+    expect(tag().hole).not.toBe(resting);
+    act(() => row().props.onPress());
   });
 
   it("draws the sidebar's project and workspace rows with the cards' project icon", () => {
@@ -1197,10 +1213,10 @@ describe("Tasks board, sorting", () => {
     while (typeof bar.type !== "string") bar = bar.parent!;
     const filters = bar.findAll((node) => (node.type as unknown) === "View" && hostParentOf(node) === bar).find((child) => child !== end)!;
     const text = textOf(filters);
-    // A single pick's chip draws its filter's icon, not the word, and reads the word out.
+    // A single pick's chip draws its filter's icon, not the word, and reads the word out; a label's is its own solid tag.
     expect(text).toContain("Labels · 1api");
     const kind = filters.find((node) => (node.type as unknown) === "View" && node.props.accessibilityLabel === "Labels");
-    expect(kind.findAll((node) => node.props.name === "Tag")).not.toHaveLength(0);
+    expect(kind.findAllByType(TagMark)).toHaveLength(1);
     // The switch and the done window show themselves: no chip, no hint line.
     expect(text).not.toContain("still show");
     expect(text).not.toContain("Hide subtasks");

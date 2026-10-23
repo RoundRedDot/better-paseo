@@ -153,7 +153,7 @@ function chipIcon(chip: ActiveChip): string {
  * removes (the menu stays open for the next), then one row that clears them
  * all. A workspace group says which rows are whole projects.
  */
-export function chipGroupMenuSections(group: ChipGroup, strings: BoardStrings, apply: (change: (params: BoardParams) => BoardParams) => void): MenuSection[] {
+export function chipGroupMenuSections(group: ChipGroup, theme: PluginTheme, strings: BoardStrings, apply: (change: (params: BoardParams) => BoardParams) => void): MenuSection[] {
   const mixed = new Set(group.chips.map((chip) => chip.unit)).size > 1;
   return [
     {
@@ -161,7 +161,9 @@ export function chipGroupMenuSections(group: ChipGroup, strings: BoardStrings, a
       items: group.chips.map((chip) => ({
         key: chip.key,
         label: chip.value,
-        icon: chipIcon(chip),
+        ...(chip.group === "label"
+          ? { leading: (fill: string) => <TagMark size={16} color={chip.color ?? theme.colors.foregroundMuted} hole={fill} /> }
+          : { icon: chipIcon(chip) }),
         hint: mixed ? chip.kind : undefined,
         checked: true,
         keepOpen: true,

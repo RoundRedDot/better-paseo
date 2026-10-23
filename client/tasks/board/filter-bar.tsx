@@ -3,7 +3,7 @@ import { Platform, Pressable, View, type LayoutChangeEvent, type TextInput as Na
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
-import { taskTokens } from "../cards";
+import { TagMark, taskTokens } from "../cards";
 import { tipProps } from "../cards/card-hints";
 import { HoverPressable, RollingTotal, WindowSegments, RoundButton, SlashMark } from "./board-parts";
 import { HAIRLINE } from "./board-style";
@@ -386,7 +386,7 @@ export function DesktopFilterBar(props: {
                   theme={theme}
                 >
                   <CascadeMenu
-                    sections={chipGroupMenuSections(entry, strings, setParams)}
+                    sections={chipGroupMenuSections(entry, theme, strings, setParams)}
                     theme={theme}
                     width={320}
                     top={taskControlHeight(28, scale) + 6}
@@ -569,8 +569,9 @@ function useLabelFit(dropped: readonly DroppedWord[]) {
 
 /**
  * An applied filter: its kind, its value and an X that clears it. A
- * multi-select filter's kind is its unit's icon, as on its folded chip; the
- * rest ("Title has", "Done") keep the muted word.
+ * multi-select filter's kind is its unit's icon, as on its folded chip; a
+ * label's is its own solid tag in its colour. The rest ("Title has", "Done")
+ * keep the muted word.
  */
 function Chip(props: { chip: ActiveChip; onClear(): void; clearLabel: string; theme: PluginTheme }) {
   const { chip, theme } = props;
@@ -581,7 +582,12 @@ function Chip(props: { chip: ActiveChip; onClear(): void; clearLabel: string; th
     <View style={{ height: taskControlHeight(28, scale), maxWidth: "100%", flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 10, paddingRight: 4, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 6 }}>
       {unit ? (
         <View accessible accessibilityLabel={chip.kind}>
-          <Icon name={FILTER_ICONS[unit]} size={14} color={colors.foregroundMuted} />
+          {unit === "label" ? (
+            // The chip has no fill: the hole shows the board under it.
+            <TagMark size={14} color={chip.color ?? colors.foregroundMuted} hole={colors.surface0} />
+          ) : (
+            <Icon name={FILTER_ICONS[unit]} size={14} color={colors.foregroundMuted} />
+          )}
         </View>
       ) : chip.kind ? (
         <Text numberOfLines={1} style={{ fontSize: F.base, color: colors.foregroundMuted }}>{chip.kind}</Text>

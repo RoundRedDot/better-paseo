@@ -2033,6 +2033,15 @@ describe("TaskDetailCards", () => {
     expect(icons(hostByTestId(agent, "detail-mode"))).toEqual(["ShieldOff"]);
   });
 
+  it("leads the details' label chips with a solid tag in the label's colour, its hole the card's", async () => {
+    const card = { ...sample("sample-input"), labels: [{ name: "linear", color: "#cc8f64" }, { name: "spare", color: null }] };
+    const tree = await render(details(card));
+    const tokens = buildTaskTokens(LIGHT.colors);
+    const tags = hostByTestId(tree.root, "detail-labels").findAllByType(TagMark).map((tag) => tag.props);
+    expect(tags.map((tag) => tag.color)).toEqual(["#cc8f64", tokens.foregroundMuted]);
+    expect(tags.every((tag) => tag.hole === tokens.card.background)).toBe(true);
+  });
+
   it("grows every agent and label chip together with the host's text size", async () => {
     const card = { ...sample("sample-input"), labels: [{ name: "linear", color: null }] };
     const pill = (node: ReactTestInstance) => (node.type as unknown) === "View" && flat(node.props.style).borderRadius === 999;

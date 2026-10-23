@@ -124,6 +124,91 @@ hairline orbits) gives way to a Lucide icon. Decide it by the check below.
 - The first row that shows a new mark draws an empty slot of the same size until the RPC answers,
   once per app launch.
 
+## Colour
+
+The board draws in the host theme's colours (`surface0`, `surface1`, `surface2`, `border`,
+`foreground`, `foregroundMuted`, `accent`), so it follows light, dark and custom themes. A data
+colour (a status, a label, a project, a provider) is never invented: where Paseo has one, take
+Paseo's exact value, from the shipped bundle
+(`/Applications/Paseo.app/Contents/Resources/app-dist/_expo/static/js/web/index-*.js`), and
+check it against a screenshot of the same thing in Paseo with a pixel read, not by eye.
+
+Paseo keeps three sets per identity colour name (violet, sky, emerald, orange, pink, indigo,
+teal, red, amber, blue). Each set has its own job; taking the wrong one is the mistake to avoid:
+
+| Set | Paseo name | Red, for example | Used by Paseo for | Used by the board for |
+| --- | --- | --- | --- | --- |
+| Base | `identityColor` | `#b06260` | a project's generated icon (white initial on it); a label chip's 10% tint | `IDENTITY_COLORS` (`client/tasks/cards/project-icon.tsx`) |
+| Light text | `identityForeground(_, "light")` | `#9c4243` | not what the label list or sidebar draws | nothing (the board used it by mistake until 2026-10-23) |
+| Bright | `identityForeground(_, "dark")` | `#d88381` | label dots and label text, in both themes | `LABEL_COLORS` (`client/tasks/data/index.ts`), every tag |
+
+### Data colours
+
+| What | Source | Light | Dark |
+| --- | --- | --- | --- |
+| Status: running, needs input, done unread, failed | Paseo's `statusDot*` | `#268ae0`, `#b37824`, `#299f51`, `#f12e2f` | `#5caaf6`, `#db932e`, `#35c264`, `#f7796d` |
+| Label | Paseo's bright identity set, by the label's colour name; the daemon's definitions come through `tasks.labels` | as listed in `LABEL_COLORS` | same |
+| Label the daemon gives no colour | a Linear label colour, picked by name, distinct until the 10 run out (`client/tasks/label-colors.ts`) | | |
+| Project icon | Paseo's base identity set, hashed from the project key as Paseo does | | |
+| Provider | the vendor's brand colour (`client/components/provider-logo.tsx`); a monochrome mark takes `foreground` | | |
+| Branch | the plugin's own (GitHub's link blue); Paseo has none | `#0969da` | `#4493f8` |
+| Archive | the plugin's own (Tailwind yellow), kept clear of the warning orange | `#eab308` | `#facc15` |
+
+The theme's `statusSuccess`, `statusWarning` and `statusDanger` win over the table when a theme
+sets them.
+
+### Tints
+
+A data colour reaches a surface only by mixing into it (`mix(surface, hue, amount)`), never as
+a translucent overlay, so a tint reads the same over any card. Text on a tint is pulled toward
+`foreground` until it reads at 4.5:1 (`readableOn`).
+
+| Use | Fill | Border | Text and icon |
+| --- | --- | --- | --- |
+| Agent pill (coloured brand) | hue 12% (20% dark) | none | icon the hue, text the hue 30% toward `foreground` |
+| Branch pill | hue 8% (14% dark) | none | icon the hue, text `foreground` |
+| Status pill (subtasks) | hue 10% (16% dark) | hue 26% (34% dark) | muted |
+| Neutral pill | `foreground` 3.5% (6% dark) | `pillBorder` | muted |
+| Label pill | none | `pillBorder` | the tag in the label colour, text muted |
+| Answer button | amber 12% (18% dark), 20% (26%) hovered | amber 40% (45% dark) | amber at 4.5:1 |
+| Mark read button | none | green 40% (45% dark) | green at 4.5:1 on the card and hovered |
+| Archive button | none | Archive's yellow | the yellow at 4.5:1 on the card and hovered |
+
+## Pills and chips
+
+Every pill is fully rounded with a hairline border unless the table says otherwise; every
+control row is rounded at 6. An icon in a pill or row is the size of the Lucide icons beside it.
+
+| Component | Where | Height | Radius | Fill | Icon | Text |
+| --- | --- | --- | --- | --- | --- | --- |
+| Card pill | `Pill` in `task-card.tsx` | 20 (24 phone) | full | per the tints table | 11 (12 phone) | `sm` x 11/12, line x 1.25 |
+| Details chip | `Chip` in `detail-charts.tsx` | 22 (28 touch) | full | none | 14 (16 touch) | `sm` |
+| Filter bar chip, folded chip, menu button | `filter-bar.tsx` | 28 | 6 | none; `surface1` hovered or open | 14 | `base` |
+| Phone filter sheet chip | `filter-sheet.tsx` | 32 | 4 | none; `accentSoft` when on | 14 | `base` |
+| Menu row | `menu.tsx`, `MENU` | 32 | 6 | none; `chrome.hover` hovered | 16 | `base` |
+| Sidebar group row | `details-sidebar.tsx` | 36 (44 touch) | 6 | none; `surface2` on, `controlHover` hovered | 16 in a 20 slot | `base`, count `sm` |
+| Card button | `CardButton` in `task-card.tsx` | 28 (at least 32 phone) | 6 (7 phone) | per the tints table | 13 (14 phone) | `sm`, weight 500 |
+
+All heights grow with the host's interface text size through `taskControlHeight`.
+
+## Labels
+
+A label looks the same wherever it appears: a solid tag in its colour, then its name.
+
+- **A specific label** (a card pill, a details chip, a label menu row, the phone sheet's chips, a
+  sidebar group row, an applied label filter, a row in a folded label chip's menu) leads with
+  `TagMark` (`client/tasks/cards/tag-mark.tsx`) in the label's colour, or `foregroundMuted` for a
+  label with none. Never a dot, never a tinted pill.
+- **Labels as a kind** (the filter bar's Labels button, the sidebar's Labels tab, the count on a
+  folded chip) draw Lucide's outline `Tag` in `foregroundMuted`, like the other filter kinds.
+- The label's pill or chip keeps the neutral hairline and no fill, and the name stays muted
+  (`foreground` in the details): the colour is the tag's alone.
+- `TagMark` is Lucide's Tag outline, filled, built from Views (the host `Icon` only strokes and the
+  sandbox has no react-native-svg). Its hole is drawn in the colour of the surface under it, so
+  pass the surface as it is right now: the card's current fill (hovered, highlighted, failed), the
+  menu row's fill (`leading` may be a function of it), the sidebar row's fill (on, hovered), the
+  board's `surface0` under a clear filter chip.
+
 ## Buttons
 
 ### Working state
