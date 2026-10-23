@@ -1425,8 +1425,9 @@ function createStore(api: PaseoApi): TaskStore {
    * cannot reach the host's. `workspace_update` is no session event
    * (`observeEvents`), `workspaces.subscribe` relays only this API's own
    * lists, and `useWorkspace` reads one id with no git, pull request or
-   * labels, outside screens and sidebar items at that. So it runs only
-   * while a board is open.
+   * labels, outside screens and sidebar items at that. It runs with the
+   * attention list: an unread agent whose workspace was archived keeps its
+   * attention for good, and only the workspace list tells it from a live one.
    */
   async function startWorkspaceSubscription(run: Run) {
     try {
@@ -1647,15 +1648,15 @@ function createStore(api: PaseoApi): TaskStore {
   function startAttention() {
     const run: Run = { generation, tier: "attention", tierRun: ++attentionRun };
     attentionReady = false;
+    workspacesReady = false;
+    workspacesListed = false;
     sourceMembers.set(ATTENTION_KEY, new Set());
     void openAgentSubscription(ATTENTION_KEY, activeOptions(ATTENTION_FILTER), run);
+    void startWorkspaceSubscription(run);
   }
 
   function startBoard() {
     const run: Run = { generation, tier: "board", tierRun: ++boardRun };
-    workspacesReady = false;
-    workspacesListed = false;
-    void startWorkspaceSubscription(run);
     void startLabelSubscription(run);
     void startProjects(run);
     void startProviders(run);
@@ -1743,32 +1744,41 @@ function createStore(api: PaseoApi): TaskStore {
     notify();
   }
 
-  /** Neither a board nor the review count left: the records only the attention list held go. */
+  /**
+   * Neither a board nor the review count left: the records only the
+   * attention list held go, and the rest lose their workspace details.
+   */
   function stopAttention() {
     attentionRun += 1;
     stopSubscription(ATTENTION_KEY);
+    stopSubscription("workspaces");
     sourceMembers.delete(ATTENTION_KEY);
     attentionReady = false;
+    workspacesReady = false;
+    workspacesListed = false;
+    workspaces.clear();
     batchUpdates(() => {
       for (const id of [...entries.keys()]) dropIfUnreferenced(id);
+      for (const [id, entry] of entries) {
+        baseCards.set(id, buildBaseCard(entry, undefined, undefined, colorNames, modelCatalogs.get(entry.agent.provider), undefined));
+      }
+      for (const id of entries.keys()) refreshFinalCard(id);
       notify();
     });
   }
 
   /**
    * The last board closed: back to the counts' subscriptions. Records only
-   * the board listed go, and the rest lose the workspace and project details
-   * that would go stale; a board opened later reads them again.
+   * the board listed go, and the rest lose the project details that would go
+   * stale; a board opened later reads them again. The workspaces stay with
+   * the attention list.
    */
   function stopBoard() {
     boardRun += 1;
-    for (const key of ["workspaces", "labels"]) stopSubscription(key);
+    stopSubscription("labels");
     for (const unsubscribe of projectUnsubscribes.splice(0)) unsubscribe();
     for (const unsubscribe of providerUnsubscribes.splice(0)) unsubscribe();
     enabledProviders.clear();
-    workspacesReady = false;
-    workspacesListed = false;
-    workspaces.clear();
     projects.clear();
     colorNames.clear();
     projectIcons.clear();
@@ -1776,7 +1786,8 @@ function createStore(api: PaseoApi): TaskStore {
     batchUpdates(() => {
       for (const id of [...entries.keys()]) dropIfUnreferenced(id);
       for (const [id, entry] of entries) {
-        baseCards.set(id, buildBaseCard(entry, undefined, undefined, colorNames, modelCatalogs.get(entry.agent.provider), undefined));
+        const workspace = entry.agent.workspaceId ? workspaces.get(entry.agent.workspaceId) : undefined;
+        baseCards.set(id, buildBaseCard(entry, workspace, undefined, colorNames, modelCatalogs.get(entry.agent.provider), undefined));
       }
       for (const id of entries.keys()) refreshFinalCard(id);
       notify();
@@ -1928,10 +1939,13 @@ function createStore(api: PaseoApi): TaskStore {
       let needsInput = 0;
       let running = 0;
       let review = 0;
+      // Until both lists land the review count is unknown, not the unread
+      // agents of archived workspaces: it stays hidden instead of jumping down.
+      const reviewKnown = attentionReady && workspacesReady;
       for (const card of cards.values()) {
         if (card.lane === "needs_input") needsInput += 1;
         else if (card.lane === "running") running += 1;
-        else if (card.lane === "review") review += 1;
+        else if (card.lane === "review" && reviewKnown) review += 1;
       }
       // The same object while the numbers hold, so a streaming agent does not re-render the row.
       if (
