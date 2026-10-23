@@ -1,15 +1,14 @@
-import React, { useCallback, useState } from "react";
+import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { usePaseo } from "@getpaseo/plugin/client";
-import { Icon, TextInput, useToast } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import {
   AgentCode, AgentDivider, AgentErrorLine, AgentIdentityStrip, AgentMarkdown, AgentNote, AgentSection,
   useCardMobile, useLiveAgent, type AgentField,
 } from "./agent-card-content";
-import { space, withAlpha, type ExtendedThemeTokens } from "./theme-tokens";
+import { space, type ExtendedThemeTokens } from "./theme-tokens";
 import { MarkdownView } from "./markdown/markdown-view";
 import { blockProseBase } from "../ui/tokens/typography";
-import { buildPermissionAnswers, isQuestionAnswered, readPermission, type PermissionAction, type PermissionQuestion } from "../tools/agent-status";
+import { readPermission, type PermissionQuestion } from "../tools/agent-status";
 import { shortAgentId } from "../tools/agent-row";
 import type { PaseoAgentOperationData, PaseoSendAgentPromptData } from "../../shared/contracts";
 import type { ToolCallView } from "../tools/classify";
@@ -77,7 +76,7 @@ function AgentList({ agents, tokens, mobile }: { agents: NonNullable<PaseoAgentO
   </View>)}</View>;
 }
 
-/** Each waiting request in full, answerable where it stands: a question as its form, anything else with its buttons. */
+/** Each waiting request in full, read-only: Paseo takes the answer in the asking agent's chat. */
 function PermissionList({ permissions, tokens, mobile }: {
   permissions: NonNullable<PaseoAgentOperationData["permissions"]>; tokens: ExtendedThemeTokens; mobile: boolean;
 }) {
@@ -89,102 +88,19 @@ function PermissionList({ permissions, tokens, mobile }: {
       <PermissionRequest testID={`permission-${entry.requestId}`} title={request.title ?? entry.title} agentId={entry.agentId}
         description={request.description} command={request.command} plan={request.plan} question={Boolean(request.questions)}
         tokens={tokens} mobile={mobile} />
-      {request.questions ? <PermissionQuestionForm agentId={entry.agentId} requestId={entry.requestId} questions={request.questions}
-        input={request.input} tokens={tokens} mobile={mobile} /> :
-        <PermissionActions agentId={entry.agentId} requestId={entry.requestId} actions={request.actions} tokens={tokens} mobile={mobile} />}
+      {request.questions ? <PermissionQuestions questions={request.questions} tokens={tokens} mobile={mobile} /> : null}
+      <PermissionAnswerNote tokens={tokens} />
       <PermissionRequestId requestId={entry.requestId} tokens={tokens} />
     </View>;
   })}</View>;
 }
 
-type Decision = "allow" | "deny";
-type Answered = { decision: Decision; label: string };
-
-/** The host's answer for one agent's request, with the toast a failure raises. */
-function useRespond(agentId: string, requestId: string) {
-  const paseo = usePaseo();
-  const toast = useToast();
-  return useCallback((response: AgentPermissionResponse) =>
-    paseo.agents.ref(agentId).respondToPermission({ requestId, response }).then(() => true, (error: unknown) => {
-      toast.error(error instanceof Error ? error.message : String(error));
-      return false;
-    }), [paseo, agentId, requestId, toast]);
-}
-type AgentPermissionResponse = { behavior: "allow"; selectedActionId?: string; updatedInput?: Record<string, unknown> } |
-  { behavior: "deny"; selectedActionId?: string; message?: string };
-
-/** The host knows the agent and it has moved on: answered elsewhere, or closed. */
-function stillWaiting(status: string | undefined): boolean {
-  return status === undefined || status === "waiting";
-}
-
-/** "Permission allowed - by you" where the buttons were. */
-function AnsweredLine({ answered, tokens }: { answered: Answered; tokens: ExtendedThemeTokens }) {
-  return <View testID="permission-answered" style={styles.answered}>
-    <Icon name={answered.decision === "allow" ? "ShieldCheck" : "ShieldX"} size={14}
-      color={answered.decision === "allow" ? tokens.success : tokens.foregroundMuted} />
-    <Text style={[styles.answeredText, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-      {`${answered.label} - by you`}</Text>
-  </View>;
-}
-
-function ActionButton({ testID, label, icon, tone, busy, disabled, onPress, tokens, mobile }: {
-  testID: string; label: string; icon?: string; tone: "primary" | "secondary" | "danger"; busy?: boolean; disabled?: boolean;
-  onPress(): void; tokens: ExtendedThemeTokens; mobile: boolean;
-}) {
-  const fg = tone === "primary" ? tokens.v2.surface0 : tone === "danger" ? tokens.danger : tokens.foreground;
-  return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={busy || disabled}
-    accessibilityState={{ disabled: busy || disabled, busy }} onPress={onPress}
-    style={[styles.button, mobile && styles.buttonMobile, {
-      backgroundColor: tone === "primary" ? tokens.foreground : tokens.v2.surface0,
-      borderColor: tone === "primary" ? tokens.foreground : tone === "danger" ? withAlpha(tokens.danger, 0.4) : tokens.border,
-      opacity: busy || disabled ? 0.5 : 1 }]}>
-    {icon ? <Icon name={icon} size={mobile ? 14 : 12} color={fg} /> : null}
-    <Text numberOfLines={1} style={[styles.buttonText, mobile && styles.buttonTextMobile, { color: fg, fontFamily: tokens.fontUi }]}>{label}</Text>
-  </Pressable>;
-}
-
-const DEFAULT_ACTIONS: PermissionAction[] = [
-  { id: "accept", label: "Allow", behavior: "allow", variant: "primary" },
-  { id: "reject", label: "Deny", behavior: "deny", variant: "secondary" },
-];
-
 /**
- * Allow and Deny, or the provider's own buttons, through the same host call
- * Paseo's own permission UI makes. Once answered the buttons give way to the
- * decision; a request the agent no longer waits on shows none.
+ * Where a request is answered. The card only shows it: Paseo draws its own
+ * form in the asking agent's chat, so there is one answer and one place for it.
  */
-export function PermissionActions({ agentId, requestId, actions, tokens, mobile }: {
-  agentId: string; requestId: string; actions?: PermissionAction[]; tokens: ExtendedThemeTokens; mobile: boolean;
-}) {
-  const live = useLiveAgent(agentId);
-  const respond = useRespond(agentId, requestId);
-  const [busy, setBusy] = useState(false);
-  const [answered, setAnswered] = useState<Answered>();
-  const custom = Boolean(actions?.length);
-  // Allow first: the primary decision leads, a deny follows.
-  const ordered = [...(actions ?? DEFAULT_ACTIONS)].sort((a, b) => (a.behavior === "allow" ? 0 : 1) - (b.behavior === "allow" ? 0 : 1));
-  const answer = useCallback((action: PermissionAction) => {
-    setBusy(true);
-    // The payload Paseo's own permission UI sends.
-    const select = custom ? { selectedActionId: action.id } : {};
-    const response: AgentPermissionResponse = action.behavior === "allow" ? { behavior: "allow", ...select } :
-      { behavior: "deny", ...select, message: "Denied by user" };
-    void respond(response).then((ok) => {
-      setBusy(false);
-      if (ok) setAnswered({ decision: action.behavior, label: custom ? action.label :
-        action.behavior === "allow" ? "Permission allowed" : "Permission denied" });
-    });
-  }, [respond, custom]);
-  if (answered) return <AnsweredLine answered={answered} tokens={tokens} />;
-  if (!stillWaiting(live.status)) return null;
-  return <View testID="permission-actions" style={[styles.buttons, mobile && styles.buttonsMobile]}>
-    {ordered.map((action) => <ActionButton key={action.id} testID={custom ? `permission-action-${action.id}` :
-      action.behavior === "allow" ? "permission-allow" : "permission-deny"} label={action.label}
-      icon={custom ? undefined : action.behavior === "allow" ? "Check" : "X"}
-      tone={action.variant === "danger" ? "danger" : action.variant === "primary" || action.behavior === "allow" && !custom ? "primary" : "secondary"}
-      busy={busy} onPress={() => answer(action)} tokens={tokens} mobile={mobile} />)}
-  </View>;
+export function PermissionAnswerNote({ tokens }: { tokens: ExtendedThemeTokens }) {
+  return <AgentNote testID="permission-answer-note" text="Answer it in the agent's own chat" tokens={tokens} />;
 }
 
 /** The request ID is for support and logs: one quiet line, its middle elided, copied whole. */
@@ -216,56 +132,17 @@ export function PermissionRequest({ testID, title, agentId, description, command
 }
 
 /**
- * A question request drawn as Paseo's question form: each question, its
- * options as radio or check rows, a free-text answer when the question takes
- * one, then Submit and Dismiss. Once the agent stops waiting the options stay
- * on view, read-only.
+ * A question request as Paseo's question form lays it out: each question,
+ * then its options as radio or check rows. Read-only: the answer belongs to
+ * the form in the asking agent's chat.
  */
-export function PermissionQuestionForm({ agentId, requestId, questions, input, tokens, mobile }: {
-  agentId: string; requestId?: string; questions: PermissionQuestion[]; input?: Record<string, unknown>;
-  tokens: ExtendedThemeTokens; mobile: boolean;
+export function PermissionQuestions({ questions, tokens, mobile }: {
+  questions: PermissionQuestion[]; tokens: ExtendedThemeTokens; mobile: boolean;
 }) {
-  const live = useLiveAgent(agentId);
-  const respond = useRespond(agentId, requestId ?? "");
-  const [selections, setSelections] = useState<Record<number, number[]>>({});
-  const [others, setOthers] = useState<Record<number, string>>({});
-  const [busy, setBusy] = useState<"submit" | "dismiss">();
-  const [answered, setAnswered] = useState<Answered>();
-  const open = Boolean(requestId) && !answered && stillWaiting(live.status);
-  const complete = questions.every((question, index) => isQuestionAnswered(question, selections[index], others[index]));
-  const toggle = (index: number, option: number) => {
-    const question = questions[index]!;
-    setSelections((prev) => {
-      const current = prev[index] ?? [];
-      const next = question.multiSelect ? current.includes(option) ? current.filter((value) => value !== option) : [...current, option].sort() :
-        current.includes(option) ? [] : [option];
-      return { ...prev, [index]: next };
-    });
-    // One pick replaces typed text, as in Paseo's form; several picks keep it.
-    if (!question.multiSelect) setOthers((prev) => ({ ...prev, [index]: "" }));
-  };
-  const type = (index: number, value: string) => {
-    setOthers((prev) => ({ ...prev, [index]: value }));
-    if (!questions[index]!.multiSelect && value) setSelections((prev) => ({ ...prev, [index]: [] }));
-  };
-  const submit = () => {
-    if (!complete || busy) return;
-    setBusy("submit");
-    void respond({ behavior: "allow", updatedInput: { ...input, answers: buildPermissionAnswers(questions, selections, others) } })
-      .then((ok) => { setBusy(undefined); if (ok) setAnswered({ decision: "allow", label: "Answered" }); });
-  };
-  const dismiss = () => {
-    if (busy) return;
-    setBusy("dismiss");
-    void respond({ behavior: "deny", message: "Dismissed by user" })
-      .then((ok) => { setBusy(undefined); if (ok) setAnswered({ decision: "deny", label: "Dismissed" }); });
-  };
   const prose = { color: tokens.foreground, fontFamily: tokens.fontUi };
   const muted = { color: tokens.foregroundMuted, fontFamily: tokens.fontUi };
   return <View testID="permission-questions" style={styles.questions}>
     {questions.map((question, index) => {
-      const selected = selections[index] ?? [];
-      const typed = question.options.length === 0 || question.allowOther;
       const mode = question.options.length === 0 ? "Free text" : question.multiSelect ? "Select multiple" : "Select one";
       return <View key={index} testID={`permission-question-${index}`} style={[styles.question,
         index > 0 && { borderTopWidth: 1, borderTopColor: tokens.border, paddingTop: space.md }]}>
@@ -275,42 +152,20 @@ export function PermissionQuestionForm({ agentId, requestId, questions, input, t
           <Text style={[styles.questionMode, muted]}>{mode}</Text>
         </View>
         <MarkdownView text={question.question} tokens={tokens} variant="document" compact={mobile} size={blockProseBase(tokens.typography)} />
-        {question.options.length ? <View accessibilityRole={question.multiSelect ? undefined : "radiogroup"} style={styles.options}>
-          {question.options.map((option, optionIndex) => {
-            const checked = selected.includes(optionIndex);
-            return <Pressable key={optionIndex} testID={`permission-option-${index}-${optionIndex}`} disabled={!open || Boolean(busy)}
-              accessibilityRole={question.multiSelect ? "checkbox" : "radio"} accessibilityLabel={option.label}
-              accessibilityState={{ checked, disabled: !open }} onPress={() => toggle(index, optionIndex)}
-              style={[styles.option, mobile && styles.optionMobile, {
-                borderColor: checked ? tokens.accent : tokens.border,
-                backgroundColor: checked ? withAlpha(tokens.accent, 0.08) : "transparent" }]}>
-              <View style={styles.optionMark}>
-                <Icon name={question.multiSelect ? checked ? "SquareCheck" : "Square" : checked ? "CircleDot" : "Circle"}
-                  size={16} color={checked ? tokens.accent : tokens.foregroundMuted} />
-              </View>
-              <View style={styles.optionText}>
-                <Text selectable={!open} style={[styles.optionLabel, prose, checked && { fontWeight: "600" }]}>{option.label}</Text>
-                {option.description ? <Text selectable={!open} style={[styles.optionDescription, muted]}>{option.description}</Text> : null}
-              </View>
-            </Pressable>;
-          })}
+        {question.options.length ? <View style={styles.options}>
+          {question.options.map((option, optionIndex) => <View key={optionIndex} testID={`permission-option-${index}-${optionIndex}`}
+            style={[styles.option, mobile && styles.optionMobile, { borderColor: tokens.border }]}>
+            <View style={styles.optionMark}>
+              <Icon name={question.multiSelect ? "Square" : "Circle"} size={16} color={tokens.foregroundMuted} />
+            </View>
+            <View style={styles.optionText}>
+              <Text selectable style={[styles.optionLabel, prose]}>{option.label}</Text>
+              {option.description ? <Text selectable style={[styles.optionDescription, muted]}>{option.description}</Text> : null}
+            </View>
+          </View>)}
         </View> : null}
-        {typed && open ? <TextInput testID={`permission-other-${index}`} accessibilityLabel={`${question.header} answer`}
-          value={others[index] ?? ""} onChangeText={(value: string) => type(index, value)} editable={!busy}
-          placeholder={question.placeholder ?? (question.options.length ? "Other answer\u2026" : "Type your answer\u2026")}
-          placeholderTextColor={tokens.foregroundSubtle} multiline={question.options.length === 0}
-          onSubmitEditing={questions.length === 1 ? submit : undefined}
-          style={[styles.input, mobile && styles.inputMobile, { color: tokens.foreground, fontFamily: tokens.fontUi,
-            borderColor: others[index] ? tokens.accent : tokens.border, backgroundColor: tokens.v2.surface0 }]} /> : null}
       </View>;
     })}
-    {answered ? <AnsweredLine answered={answered} tokens={tokens} /> : open ? <View testID="permission-actions"
-      style={[styles.buttons, mobile && styles.buttonsMobile]}>
-      <ActionButton testID="permission-submit" label="Submit" icon="Check" tone="primary" busy={busy === "submit"}
-        disabled={!complete || busy === "dismiss"} onPress={submit} tokens={tokens} mobile={mobile} />
-      <ActionButton testID="permission-dismiss" label="Dismiss" icon="X" tone="secondary" busy={busy === "dismiss"}
-        disabled={busy === "submit"} onPress={dismiss} tokens={tokens} mobile={mobile} />
-    </View> : null}
   </View>;
 }
 
@@ -377,20 +232,9 @@ const styles = StyleSheet.create({
   optionText: { flex: 1, minWidth: 0, gap: 2 },
   optionLabel: { fontSize: 13, lineHeight: 20 },
   optionDescription: { fontSize: 12, lineHeight: 17 },
-  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, lineHeight: 18, minHeight: 32 },
-  inputMobile: { fontSize: 15, lineHeight: 20, paddingVertical: 10, minHeight: 44 },
   type: { flexDirection: "row", alignItems: "center", gap: 5 },
   typeText: { fontSize: 12, lineHeight: 20, fontWeight: "500" },
   action: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 22, minWidth: 0 },
   actionTool: { fontSize: 12, lineHeight: 18, fontWeight: "500" },
   actionSummary: { flex: 1, minWidth: 0, fontSize: 12, lineHeight: 18 },
-  buttons: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.sm },
-  buttonsMobile: { flexWrap: "nowrap" },
-  button: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.xs, height: 28,
-    paddingHorizontal: 12, borderRadius: 6, borderWidth: 1 },
-  buttonMobile: { flex: 1, height: 40, borderRadius: 8 },
-  buttonText: { fontSize: 12, lineHeight: 16, fontWeight: "500" },
-  buttonTextMobile: { fontSize: 14, lineHeight: 18 },
-  answered: { flexDirection: "row", alignItems: "center", gap: 6 },
-  answeredText: { fontSize: 12, lineHeight: 18 },
 });
