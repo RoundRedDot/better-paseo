@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { bindTableCellSelection, HOLD_MS, TABLE_CELL_TEST_ID } from "../../client/components/markdown/render/table-selection";
-import { cellRange, indexAt, rangeHas, rangeText, rowSpan } from "../../client/components/markdown/render/table-range";
+import { addsCellRange, bindTableCellSelection, HOLD_MS, TABLE_CELL_TEST_ID } from "../../client/components/markdown/render/table-selection";
+import { alignColumns, cellRange, indexAt, rangeHas, rangeText, rowSpan } from "../../client/components/markdown/render/table-range";
 import { marked, type Tokens } from "../../client/vendor/marked";
 
 afterEach(() => {
@@ -102,7 +102,7 @@ describe("Markdown table cell range on web", () => {
     vi.advanceTimersByTime(HOLD_MS - 1);
     expect(handlers.begin).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
-    expect(handlers.begin).toHaveBeenCalledExactlyOnceWith({ row: 0, column: 0 });
+    expect(handlers.begin).toHaveBeenCalledExactlyOnceWith({ row: 0, column: 0 }, false);
     expect(selection.removeAllRanges).toHaveBeenCalled();
     expect(frame.setPointerCapture).toHaveBeenCalledWith(1);
     expect(frame.style.userSelect).toBe("none");
@@ -127,7 +127,7 @@ describe("Markdown table cell range on web", () => {
     expect(handlers.begin).not.toHaveBeenCalled();
     const across = pointer("pointermove", 150, 25);
     expect(across.preventDefault).toHaveBeenCalled();
-    expect(handlers.begin).toHaveBeenCalledExactlyOnceWith({ row: 0, column: 0 });
+    expect(handlers.begin).toHaveBeenCalledExactlyOnceWith({ row: 0, column: 0 }, false);
     expect(handlers.extend).toHaveBeenLastCalledWith({ row: 1, column: 1 });
     pointer("pointerup", 150, 25);
     expect(handlers.end).toHaveBeenCalledOnce();
@@ -172,31 +172,109 @@ describe("Markdown table cell range on web", () => {
   });
 });
 
+describe("Markdown table cell ranges added with Command or Ctrl", () => {
+  const platform = (name: string) => vi.stubGlobal("navigator", { platform: name });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("starts an added range at once on a Mac Command press, follows the drag and swallows the click", () => {
+    platform("MacIntel");
+    const { frame, handlers, pointer, fire } = binding();
+    const down = pointer("pointerdown", 10, 5, { metaKey: true });
+    expect(down.preventDefault).toHaveBeenCalled();
+    expect(handlers.begin).toHaveBeenCalledExactlyOnceWith({ row: 0, column: 0 }, true);
+    expect(frame.style.userSelect).toBe("none");
+    pointer("pointermove", 250, 30, { metaKey: true });
+    expect(handlers.extend).toHaveBeenLastCalledWith({ row: 1, column: 2 });
+    pointer("pointerup", 250, 30);
+    expect(handlers.end).toHaveBeenCalledOnce();
+    const click = fire("click");
+    expect(click.preventDefault).toHaveBeenCalled();
+    expect(click.stopPropagation).toHaveBeenCalled();
+    // Only the click that ends the press.
+    expect(fire("click").preventDefault).not.toHaveBeenCalled();
+    // The double click of two Command clicks keeps the added cells.
+    expect(fire("dblclick", { metaKey: true }).preventDefault).not.toHaveBeenCalled();
+    expect(handlers.select).not.toHaveBeenCalled();
+  });
+
+  it("adds with Ctrl off a Mac, and leaves Ctrl on a Mac, Command elsewhere, and touches to the hold", () => {
+    platform("Win32");
+    const win = binding();
+    win.pointer("pointerdown", 10, 5, { ctrlKey: true });
+    expect(win.handlers.begin).toHaveBeenCalledExactlyOnceWith({ row: 0, column: 0 }, true);
+    win.pointer("pointerup", 10, 5);
+    win.pointer("pointerdown", 10, 5, { metaKey: true, pointerId: 2 });
+    win.pointer("pointerdown", 10, 5, { ctrlKey: true, pointerType: "touch", pointerId: 3 });
+    expect(win.handlers.begin).toHaveBeenCalledOnce();
+    platform("MacIntel");
+    const mac = binding();
+    mac.pointer("pointerdown", 10, 5, { ctrlKey: true });
+    expect(mac.handlers.begin).not.toHaveBeenCalled();
+  });
+
+  it("tells which presses add a range", () => {
+    platform("MacIntel");
+    expect(addsCellRange({ metaKey: true, ctrlKey: false, pointerType: "mouse" } as unknown as PointerEvent)).toBe(true);
+    expect(addsCellRange({ metaKey: true, ctrlKey: false, pointerType: "pen" } as unknown as PointerEvent)).toBe(false);
+    expect(addsCellRange({ metaKey: false, ctrlKey: true } as unknown as MouseEvent)).toBe(false);
+    platform("Linux x86_64");
+    expect(addsCellRange({ metaKey: false, ctrlKey: true } as unknown as MouseEvent)).toBe(true);
+  });
+});
+
 describe("Markdown table cell ranges", () => {
   const table = marked.lexer("| a | b \\| c | d |\n|:--|:-:|--:|\n| 1 | **2** | 3 |\n| 4 | `5 \\| 6` | 7 |\n")[0] as Tokens.Table;
 
   it("normalises the rectangle from either corner", () => {
     const range = cellRange({ row: 2, column: 0 }, { row: 1, column: 2 });
     expect(range).toEqual({ top: 1, left: 0, bottom: 2, right: 2 });
-    expect(rangeHas(range, 1, 1)).toBe(true);
-    expect(rangeHas(range, 0, 1)).toBe(false);
-    expect(rowSpan(range, 2)).toBe("0-2");
-    expect(rowSpan(range, 0)).toBe("");
-    expect(rowSpan(null, 1)).toBe("");
+    expect(rangeHas([range], 1, 1)).toBe(true);
+    expect(rangeHas([range], 0, 1)).toBe(false);
+    expect(rowSpan([range], 2)).toBe("0-2");
+    expect(rowSpan([range], 0)).toBe("");
+    expect(rowSpan([], 1)).toBe("");
+  });
+
+  it("holds and spans every range of a selection", () => {
+    const ranges = [cellRange({ row: 0, column: 0 }, { row: 0, column: 1 }), cellRange({ row: 2, column: 1 }, { row: 2, column: 2 })];
+    expect(rangeHas(ranges, 2, 2)).toBe(true);
+    expect(rangeHas(ranges, 1, 1)).toBe(false);
+    expect(rowSpan(ranges, 0)).toBe("0-1");
+    expect(rowSpan(ranges, 1)).toBe("");
+    expect(rowSpan([...ranges, cellRange({ row: 2, column: 0 }, { row: 2, column: 0 })], 2)).toBe("1-2,0-0");
   });
 
   it("copies one cell as its text", () => {
-    expect(rangeText(table, cellRange({ row: 1, column: 1 }, { row: 1, column: 1 }))).toBe("2");
-    expect(rangeText(table, cellRange({ row: 0, column: 1 }, { row: 0, column: 1 }))).toBe("b | c");
+    expect(rangeText(table, [cellRange({ row: 1, column: 1 }, { row: 1, column: 1 })])).toBe("2");
+    expect(rangeText(table, [cellRange({ row: 0, column: 1 }, { row: 0, column: 1 })])).toBe("b | c");
   });
 
   it("copies several cells as a Markdown table led by their header", () => {
-    expect(rangeText(table, cellRange({ row: 1, column: 1 }, { row: 2, column: 2 }))).toBe(
+    expect(rangeText(table, [cellRange({ row: 1, column: 1 }, { row: 2, column: 2 })])).toBe(
       "| b \\| c | d |\n| :---: | ---: |\n| **2** | 3 |\n| `5 \\| 6` | 7 |");
-    expect(rangeText(table, cellRange({ row: 0, column: 0 }, { row: 1, column: 0 }))).toBe(
+    expect(rangeText(table, [cellRange({ row: 0, column: 0 }, { row: 1, column: 0 })])).toBe(
       "| a |\n| :--- |\n| 1 |");
-    expect(rangeText(table, cellRange({ row: 0, column: 0 }, { row: 0, column: 1 }))).toBe(
+    expect(rangeText(table, [cellRange({ row: 0, column: 0 }, { row: 0, column: 1 })])).toBe(
       "| a | b \\| c |\n| :--- | :---: |");
+  });
+
+  it("copies ranges rows apart as one table, in the table's order, leaving unselected cells empty", () => {
+    expect(rangeText(table, [cellRange({ row: 2, column: 0 }, { row: 2, column: 2 }), cellRange({ row: 1, column: 0 }, { row: 1, column: 0 })])).toBe(
+      "| a | b \\| c | d |\n| :--- | :---: | ---: |\n| 1 |  |  |\n| 4 | `5 \\| 6` | 7 |");
+    expect(rangeText(table, [cellRange({ row: 1, column: 1 }, { row: 1, column: 1 }), cellRange({ row: 1, column: 1 }, { row: 1, column: 1 })])).toBe("2");
+    expect(rangeText(table, [])).toBe("");
+  });
+
+  it("lines up ranges added beside each other under the widest columns", () => {
+    const one = cellRange({ row: 1, column: 0 }, { row: 1, column: 2 });
+    const narrow = cellRange({ row: 3, column: 1 }, { row: 3, column: 1 });
+    expect(alignColumns([one])).toEqual([one]);
+    expect(alignColumns([one, narrow])).toEqual([one, { top: 3, left: 0, bottom: 3, right: 2 }]);
+    // A later wider range widens the earlier ones.
+    expect(alignColumns([narrow, one])).toEqual([{ top: 3, left: 0, bottom: 3, right: 2 }, one]);
+    // Ranges side by side meet at their outer edges.
+    expect(alignColumns([cellRange({ row: 1, column: 0 }, { row: 2, column: 0 }), narrow])).toEqual([
+      { top: 1, left: 0, bottom: 2, right: 1 }, { top: 3, left: 0, bottom: 3, right: 1 }]);
   });
 
   it("finds the row or column a point falls in", () => {

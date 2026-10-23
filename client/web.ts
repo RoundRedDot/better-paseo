@@ -729,14 +729,18 @@ export function linesFit(body: HTMLElement): boolean {
  * details can opt to keep their own scrolling region open. Bound only while
  * it is open. Web only.
  */
-export function bindTouchDismiss(node: unknown, close: () => void, options: { allowInsideScroll?: boolean } = {}): () => void {
+export function bindTouchDismiss(node: unknown, close: () => void, options: {
+  allowInsideScroll?: boolean;
+  /** A press outside that should not close it. */
+  keep?: (event: PointerEvent) => boolean;
+} = {}): () => void {
   if (Platform.OS !== "web") return () => {};
   const element = node as HTMLElement | null;
   if (!element) return () => {};
   const doc = element.ownerDocument;
   const view = doc.defaultView!;
-  const outside = (event: Event) => {
-    if (!element.contains(event.target as Node)) close();
+  const outside = (event: PointerEvent) => {
+    if (!element.contains(event.target as Node) && !options.keep?.(event)) close();
   };
   const scroll = (event: Event) => {
     if (options.allowInsideScroll && element.contains(event.target as Node)) return;

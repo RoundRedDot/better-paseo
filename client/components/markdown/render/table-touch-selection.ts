@@ -1,15 +1,19 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Platform, type GestureResponderEvent, type View, type ViewProps } from "react-native";
 import { holdHostGestures } from "../../../ui/hold-host-gestures";
 import { claimContentTouch } from "../../../details/touch-claim";
 import { useListScrollLock, useScrollDismiss } from "../../../ui/scroll-anchor";
-import { cellRange, indexAt, sameCell, type CellPos, type CellRange } from "./table-range";
+import { alignColumns, cellRange, indexAt, sameCell, type CellPos, type CellRange } from "./table-range";
 import { HOLD_MS, MOVE_SLOP } from "./table-selection";
 
 const DOUBLE_TAP_MS = 300;
 const TAP_MS = 250;
 
 interface Tap { time: number; x: number; y: number }
+
+interface Span { anchor: CellPos; focus: CellPos }
+
+const NONE: readonly Span[] = [];
 
 interface Press extends Tap {
   timer: ReturnType<typeof setTimeout> | null;
@@ -39,17 +43,21 @@ type FrameTouchProps = Pick<ViewProps, "onTouchStart" | "onTouchMove" | "onTouch
   | "onMoveShouldSetResponder" | "onResponderGrant" | "onResponderTerminationRequest">;
 
 /**
- * A table's cell selection: a rectangle from the cell it began on to the one
- * it reached. A double tap (a double click on web) selects one cell. Holding
+ * A table's cell selection: rectangles, each from the cell it began on to the
+ * one it reached. A double tap (a double click on web) selects one cell. Holding
  * a cell starts a range that follows the finger across rows and columns; the
  * copy menu waits for the release. Native gestures are recognised here, on
  * the table's frame, which finds the cell under the finger from its rows and
  * column starts, so a cell needs no view of its own; web pointers are
- * recognised in `bindTableCellSelection`. A range being drawn is the table's
- * touch: in the block details drawer it does not move the drawer.
+ * recognised in `bindTableCellSelection`, where Command (Ctrl off a Mac) adds
+ * a range to the ones already selected, and every range then spans from the
+ * leftmost column any of them reaches to the rightmost (`alignColumns`). A
+ * range being drawn is the table's touch: in the block details drawer it
+ * does not move the drawer.
  */
 export function useTableCellSelection(source: string, geometry: TableGeometry) {
-  const [selection, setSelection] = useState<{ anchor: CellPos; focus: CellPos } | null>(null);
+  // The last span is the one being drawn.
+  const [selection, setSelection] = useState<readonly Span[]>(NONE);
   const [dragging, setDragging] = useState(false);
   const lockList = useListScrollLock();
   const press = useRef<Press | null>(null);
@@ -66,14 +74,19 @@ export function useTableCellSelection(source: string, geometry: TableGeometry) {
     claim.current?.();
     claim.current = null;
   };
-  const dismiss = useCallback(() => { disown(); setSelection(null); setDragging(false); }, []);
-  const select = useCallback((cell: CellPos) => { setSelection({ anchor: cell, focus: cell }); setDragging(false); }, []);
-  const begin = useCallback((cell: CellPos) => { own(); setSelection({ anchor: cell, focus: cell }); setDragging(true); }, []);
+  const start = (cell: CellPos, add: boolean) =>
+    setSelection((current) => [...(add ? current : NONE), { anchor: cell, focus: cell }]);
+  const dismiss = useCallback(() => { disown(); setSelection(NONE); setDragging(false); }, []);
+  const select = useCallback((cell: CellPos) => { start(cell, false); setDragging(false); }, []);
+  const begin = useCallback((cell: CellPos, add = false) => { own(); start(cell, add); setDragging(true); }, []);
   const extend = useCallback((cell: CellPos) => {
-    setSelection((current) => current && !sameCell(current.focus, cell) ? { ...current, focus: cell } : current);
+    setSelection((current) => {
+      const last = current[current.length - 1];
+      return last && !sameCell(last.focus, cell) ? [...current.slice(0, -1), { ...last, focus: cell }] : current;
+    });
   }, []);
   const end = useCallback(() => { disown(); setDragging(false); }, []);
-  useScrollDismiss(selection !== null, dismiss);
+  useScrollDismiss(selection.length > 0, dismiss);
 
   const unlock = () => {
     disown();
@@ -196,6 +209,7 @@ export function useTableCellSelection(source: string, geometry: TableGeometry) {
     onResponderTerminationRequest: () => press.current?.active !== true,
   };
 
-  const range: CellRange | null = selection ? cellRange(selection.anchor, selection.focus) : null;
-  return { range, dragging, frameProps, dismiss, select, begin, extend, end };
+  const ranges = useMemo<readonly CellRange[]>(
+    () => alignColumns(selection.map((span) => cellRange(span.anchor, span.focus))), [selection]);
+  return { ranges, dragging, frameProps, dismiss, select, begin, extend, end };
 }

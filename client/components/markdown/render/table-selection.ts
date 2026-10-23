@@ -11,8 +11,8 @@ export const MOVE_SLOP = 8;
 export interface CellSelectionHandlers {
   /** One cell, as a double click picks it. */
   select(cell: CellPos): void;
-  /** A held press starts a range on its cell... */
-  begin(cell: CellPos): void;
+  /** A held press starts a range on its cell, beside the ones already selected when `add`... */
+  begin(cell: CellPos, add?: boolean): void;
   /** ...that follows the pointer... */
   extend(cell: CellPos): void;
   /** ...until it lets go. */
@@ -25,6 +25,8 @@ interface Press {
   x: number;
   y: number;
   touch: boolean;
+  /** Pressed with the add key: the range joins the selection, from the press on. */
+  add: boolean;
   active: boolean;
   timer: ReturnType<typeof setTimeout> | null;
 }
@@ -32,11 +34,23 @@ interface Press {
 const CELL = `[data-testid="${TABLE_CELL_TEST_ID}"]`;
 
 /**
+ * A mouse press that adds a range to the table's selection: Command on a Mac,
+ * Ctrl elsewhere, where Ctrl on a Mac is a right click.
+ */
+export function addsCellRange(event: MouseEvent): boolean {
+  if ((event as PointerEvent).pointerType !== undefined && (event as PointerEvent).pointerType !== "mouse") return false;
+  const platform = (globalThis as { navigator?: { platform?: string } }).navigator?.platform ?? "";
+  return Boolean(/Mac|iPhone|iPad|iPod/.test(platform) ? event.metaKey : event.ctrlKey);
+}
+
+/**
  * Web cell selection, drawn by the same state and menu as on native. A double
  * click picks one cell. A press that rests on a cell, or a mouse drag that
  * crosses into another cell, starts a range that follows the pointer until it
  * lets go; a drag inside one cell stays the browser's text selection. A touch
- * has to rest first, and moving before that is a scroll.
+ * has to rest first, and moving before that is a scroll. With the add key
+ * (`addsCellRange`) a press starts its range at once and keeps the ranges
+ * already selected, so rows apart can be picked together.
  */
 export function bindTableCellSelection(node: unknown, handlers: CellSelectionHandlers): () => void {
   if (Platform.OS !== "web") return () => {};
@@ -66,7 +80,7 @@ export function bindTableCellSelection(node: unknown, handlers: CellSelectionHan
   };
 
   const selectCell = (event: MouseEvent) => {
-    if (event.defaultPrevented || event.button !== 0) return;
+    if (event.defaultPrevented || event.button !== 0 || addsCellRange(event)) return;
     const cell = cellOf(event.target);
     const at = cell && cell.textContent ? position(cell) : null;
     if (!at) return;
@@ -78,6 +92,8 @@ export function bindTableCellSelection(node: unknown, handlers: CellSelectionHan
   };
 
   let press: Press | null = null;
+  // An add press ends in a click, which would otherwise follow a link in the cell.
+  let swallowClick = false;
   const userSelect = frame.style.userSelect;
   const activate = (current: Press) => {
     if (current.timer !== null) clearTimeout(current.timer);
@@ -92,7 +108,7 @@ export function bindTableCellSelection(node: unknown, handlers: CellSelectionHan
     } catch {
       // The pointer is already gone; its up event ends the range.
     }
-    handlers.begin(current.cell);
+    handlers.begin(current.cell, current.add);
   };
   const finish = () => {
     const current = press;
@@ -100,6 +116,7 @@ export function bindTableCellSelection(node: unknown, handlers: CellSelectionHan
     if (!current) return;
     if (current.timer !== null) clearTimeout(current.timer);
     if (!current.active) return;
+    swallowClick = current.add;
     frame.style.userSelect = userSelect;
     frame.style.removeProperty("-webkit-user-select");
     handlers.end();
@@ -109,12 +126,17 @@ export function bindTableCellSelection(node: unknown, handlers: CellSelectionHan
     const cell = cellOf(event.target);
     const at = cell ? position(cell) : null;
     if (!at) return;
+    swallowClick = false;
     const current: Press = {
       pointer: event.pointerId, cell: at, x: event.clientX, y: event.clientY,
-      touch: event.pointerType !== "mouse", active: false, timer: null,
+      touch: event.pointerType !== "mouse", add: addsCellRange(event), active: false, timer: null,
     };
-    current.timer = setTimeout(() => activate(current), HOLD_MS);
     press = current;
+    if (current.add) {
+      // No browser text selection starts under the add key.
+      event.preventDefault();
+      activate(current);
+    } else current.timer = setTimeout(() => activate(current), HOLD_MS);
   };
   const move = (event: PointerEvent) => {
     const current = press;
@@ -137,6 +159,12 @@ export function bindTableCellSelection(node: unknown, handlers: CellSelectionHan
   const up = (event: PointerEvent) => {
     if (press?.pointer === event.pointerId) finish();
   };
+  const click = (event: MouseEvent) => {
+    if (!swallowClick) return;
+    swallowClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+  };
   // A held touch keeps the page from scrolling and from raising its own menu.
   const holdStill = (event: Event) => {
     if (press?.active && event.cancelable) event.preventDefault();
@@ -148,6 +176,7 @@ export function bindTableCellSelection(node: unknown, handlers: CellSelectionHan
   frame.addEventListener("pointermove", move);
   frame.addEventListener("pointerup", up);
   frame.addEventListener("pointercancel", up);
+  frame.addEventListener("click", click, true);
   frame.addEventListener("touchmove", holdStill, { passive: false });
   frame.addEventListener("contextmenu", holdStill);
   return () => {
@@ -157,6 +186,7 @@ export function bindTableCellSelection(node: unknown, handlers: CellSelectionHan
     frame.removeEventListener("pointermove", move);
     frame.removeEventListener("pointerup", up);
     frame.removeEventListener("pointercancel", up);
+    frame.removeEventListener("click", click, true);
     frame.removeEventListener("touchmove", holdStill);
     frame.removeEventListener("contextmenu", holdStill);
   };

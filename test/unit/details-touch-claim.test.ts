@@ -149,4 +149,21 @@ describe("a table's cell range", () => {
     expect(contentOwnsTouch()).toBe(false);
     act(() => view.renderer.unmount());
   });
+  it("keeps the ranges already selected under an added one, and drops them for a plain one", () => {
+    const view = mountTable("web");
+    act(() => view.state.begin({ row: 0, column: 0 }));
+    act(() => view.state.extend({ row: 0, column: 1 }));
+    act(() => view.state.end());
+    // A narrower added range is drawn as wide as the first, also while dragging.
+    act(() => view.state.begin({ row: 1, column: 1 }, true));
+    expect(view.state.ranges).toEqual([{ top: 0, left: 0, bottom: 0, right: 1 }, { top: 1, left: 0, bottom: 1, right: 1 }]);
+    act(() => view.state.extend({ row: 1, column: 2 }));
+    act(() => view.state.end());
+    expect(view.state.ranges).toEqual([{ top: 0, left: 0, bottom: 0, right: 2 }, { top: 1, left: 0, bottom: 1, right: 2 }]);
+    act(() => view.state.select({ row: 1, column: 1 }));
+    expect(view.state.ranges).toEqual([{ top: 1, left: 1, bottom: 1, right: 1 }]);
+    act(() => view.state.dismiss());
+    expect(view.state.ranges).toEqual([]);
+    act(() => view.renderer.unmount());
+  });
 });
