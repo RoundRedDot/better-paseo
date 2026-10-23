@@ -1301,6 +1301,24 @@ describe("TaskCardView actions", () => {
     for (const word of ["运行中", "已完成", "待输入"]) expect(texts(list)).not.toContain(word);
   });
 
+  it("ends a provider subagent's row with a tab mark, and opens the parent's tab on press", async () => {
+    const base = sample("sample-running");
+    const subagent: TaskChild = { id: "sub-1", title: "mac studio run check", status: "running", kind: "provider", provider: "claude", lane: "running", timing: base.children[0]!.timing };
+    const onReveal = vi.fn();
+    const onOpen = vi.fn();
+    const tree = await render(cardElement({ ...base, children: [...base.children, subagent] }, { onReveal, onOpen }));
+    await act(async () =>
+      tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false).props.onPress(),
+    );
+    const list = hostByTestId(tree.root, "task-card-subtasks");
+    // Drawn without a hover: the mark is what tells it from a child with a card of its own.
+    expect(icons(hostByTestId(list, "subtask-parent-tab-sub-1"))).toEqual(["AppWindow"]);
+    for (const child of base.children) expect(list.findAll((node) => node.props.testID === `subtask-parent-tab-${child.id}`)).toHaveLength(0);
+    byLabel(tree.root, "mac studio run check, 在父任务的 tab 中打开").props.onPress();
+    expect(onOpen).toHaveBeenCalledWith(base.id);
+    expect(onReveal).not.toHaveBeenCalled();
+  });
+
   it("ends a subtask row that finished on another day with a short stamp, leaving the title room", async () => {
     const card = sample("sample-running");
     const child = card.children[2]!;
