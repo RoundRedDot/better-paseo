@@ -4,7 +4,7 @@ import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { taskTokens } from "../cards";
-import { HoverPressable, WindowSegments, RoundButton } from "./board-parts";
+import { HoverPressable, WindowSegments, RoundButton, SlashMark } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { FILTER_ICONS, activeChips, clearedParams, groupChips, isChipGroup, projectOptions, toggleProject, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
@@ -141,6 +141,48 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
       }}
     >
       <PanelMark open={props.open} side={props.sheet ? "bottom" : "right"} color={props.open ? colors.foreground : colors.foregroundMuted} />
+    </Pressable>
+  );
+}
+
+/**
+ * The archived lane's switch in the filter bar: the phone header's round
+ * Archive button at the bar's size, struck through while the lane is
+ * hidden and outlined in the accent while it shows.
+ */
+function ArchivedSwitch(props: { on: boolean; onPress(): void; label: string; hint: string; theme: PluginTheme }) {
+  const colors = props.theme.colors;
+  const scale = useTasksFontScale();
+  const size = taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
+  const icon = Math.round(size / 2);
+  const [hovered, setHovered] = useState(false);
+  const background = hovered ? colors.surface1 : colors.surface0;
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={props.label}
+      accessibilityHint={props.hint}
+      aria-checked={props.on}
+      accessibilityState={{ checked: props.on }}
+      onPress={props.onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      hitSlop={Platform.OS === "web" ? 0 : 4}
+      testID="archived-lane-toggle"
+      style={{
+        width: size,
+        height: size,
+        flexShrink: 0,
+        borderRadius: size / 2,
+        borderWidth: HAIRLINE,
+        borderColor: props.on ? colors.accent : colors.border,
+        backgroundColor: background,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Icon name="Archive" size={icon} color={colors.foreground} />
+      {props.on ? null : <SlashMark size={icon} color={colors.foreground} gap={background} />}
     </Pressable>
   );
 }
@@ -361,14 +403,12 @@ export function DesktopFilterBar(props: {
           theme={theme}
           strings={strings}
         />
-        <ToggleChip
-          icon="Archive"
-          label={strings.archivedLane.label}
-          hint={strings.archivedLane.hint}
+        <ArchivedSwitch
           on={board.showArchived}
           onPress={() => board.setShowArchived(!board.showArchived)}
+          label={strings.archivedLane.row}
+          hint={strings.archivedLane.hint}
           theme={theme}
-          testID="archived-lane-toggle"
         />
         <Divider theme={theme} />
         <MenuButton
