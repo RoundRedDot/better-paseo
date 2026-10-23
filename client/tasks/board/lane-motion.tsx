@@ -455,9 +455,10 @@ function index(lanes: Record<LaneId, LaneModel>): { laneOf: Map<string, LaneId>;
 }
 
 /**
- * The board's lane motion. `scope` is what the user set (filters, sort,
- * search): lanes that change with it take their new order at once, as a
- * search would be slow to read if every keystroke slid the cards.
+ * The board's lane motion. `scope` is what the user set that takes effect at
+ * once (search, sort): lanes that change with it take their new order without
+ * motion, as a search would be slow to read if every keystroke slid the
+ * cards. A filter is outside it, so its cards slide and fade.
  */
 export function useLaneMotion(lanes: Record<LaneId, LaneModel>, options: { enabled: boolean; scope: unknown; flights: boolean }): LaneMotionStore {
   const [store] = useState(() => createLaneMotionStore(options.flights));

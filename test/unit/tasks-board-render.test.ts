@@ -109,7 +109,8 @@ import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
 import { RollingCount, RollingTotal, WindowSegments } from "../../client/tasks/board/board-parts";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
-import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS } from "../../client/tasks/board/params";
+import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
+import { DesktopFilterBar } from "../../client/tasks/board/filter-bar";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
 import { ACTIVE_LANE_ORDER as LANE_ORDER } from "../../client/tasks/model";
@@ -237,15 +238,19 @@ describe("Tasks board, desktop", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
   });
 
-  it("rolls the counts through a done window switch on web, not on a tablet, and never through a new filter", () => {
+  it("rolls the counts and moves the cards through a filter, a done window or the subtasks switch, never through a search or a sort", () => {
     const scopes = () => renderer!.root.findAll((node) => node.type === RollingCount).map((node) => node.props.scope as unknown);
     const pick = (window: "24h" | "7d" | "all") => act(() => renderer!.root.findAll((node) => node.type === WindowSegments)[0]!.props.onChange(window));
+    const subtasks = () => act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "subtasks-toggle").props.onPress());
+    const filter = () => act(() => renderer!.root.findAll((node) => node.type === DesktopFilterBar)[0]!.props.board.setParams((params: BoardParams) => ({ ...params, providers: ["codex"] })));
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(1600);
     // The lanes' counts, and the toolbar's and the sidebar's totals.
     const before = scopes();
     expect(renderer!.root.findAll((node) => node.type === RollingTotal).every((total) => total.findAll((node) => node.type === RollingCount).length === 1)).toBe(true);
     pick("all");
+    subtasks();
+    filter();
     expect(scopes()).toEqual(before);
     act(() => renderer!.root.find((node) => (node.type as unknown) === "TextInput").props.onChangeText("api"));
     expect(scopes().every((scope, index) => scope !== before[index])).toBe(true);
@@ -255,11 +260,14 @@ describe("Tasks board, desktop", () => {
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(1600);
     const tablet = scopes();
-    // The total shows its number at once there.
+    // The total shows its number at once there; the lanes' counts roll as on web.
     const totals = renderer!.root.findAll((node) => node.type === RollingTotal);
     expect(totals.length).toBeGreaterThan(0);
     for (const total of totals) expect(total.findAll((node) => node.type === RollingCount)).toHaveLength(0);
+    subtasks();
     pick("24h");
+    expect(scopes()).toEqual(tablet);
+    act(() => renderer!.root.findAll((node) => node.type === DesktopFilterBar)[0]!.props.board.setParams((params: BoardParams) => ({ ...params, sort: { key: "title", direction: "asc" } })));
     expect(scopes().every((scope, index) => scope !== tablet[index])).toBe(true);
   });
 
