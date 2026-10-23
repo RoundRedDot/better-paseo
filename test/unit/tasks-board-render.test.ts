@@ -1026,8 +1026,8 @@ describe("Tasks board, lane widths", () => {
     expect(renderer!.root.findAll((node) => node.props.testID === "lane-width-menu")).toHaveLength(0);
     expect(textOf(button())).toBe("Wide");
     expect(button().props.accessibilityLabel).toBe("Lanes · Wide");
-    // 1300 fits four lanes at 300 but not at 360: the row scrolls at the wide width.
-    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 360 * 4 } });
+    // 1300 fits four lanes at 300 but not at 340: the row scrolls at the wide width.
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 340 * 4 } });
     expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, laneWidth: "wide" } }, "1");
   });
 

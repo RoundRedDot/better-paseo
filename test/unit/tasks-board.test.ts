@@ -533,22 +533,22 @@ describe("lane widths", () => {
     expect(laneLayout(1208, 4, 0, "narrow")).toEqual({ laneWidth: 280, contentWidth: 1208, scroll: false });
     expect(laneLayout(fixed(4, 0) + 4 * 260, 4, 0, "narrow").scroll).toBe(false);
     expect(laneLayout(1000, 4, 0, "narrow")).toEqual({ laneWidth: 260, contentWidth: fixed(4, 0) + 4 * 260, scroll: true });
-    // Wide: lanes grow to 420 on a big screen and scroll at 360 below it.
-    expect(laneLayout(2000, 4, 0, "wide")).toEqual({ laneWidth: 420, contentWidth: 2000, scroll: false });
+    // Wide: lanes grow to 400 on a big screen and scroll at 340 below it.
+    expect(laneLayout(2000, 4, 0, "wide")).toEqual({ laneWidth: 400, contentWidth: 2000, scroll: false });
     expect(laneLayout(1600, 4, 0, "wide").laneWidth).toBeCloseTo((1600 - fixed(4, 0)) / 4);
-    expect(laneLayout(1300, 4, 0, "wide")).toEqual({ laneWidth: 360, contentWidth: fixed(4, 0) + 4 * 360, scroll: true });
+    expect(laneLayout(1300, 4, 0, "wide")).toEqual({ laneWidth: 340, contentWidth: fixed(4, 0) + 4 * 340, scroll: true });
     // Every width keeps its cards readable: the narrow preset's widest card is 262 on web.
     expect(LANE_SIZES.narrow.max - 8 - 4 - 6).toBe(262);
-    expect(LANE_SIZES.wide.max - 8 - 4 - 6).toBe(402);
+    expect(LANE_SIZES.wide.max - 8 - 4 - 6).toBe(382);
   });
 
   it("shows each lane width on a tablet's narrow board, scrolling the row", () => {
     // An iPad in landscape with the host's sidebar open: about 700 for the board.
-    expect(laneLayout(700, 4, 0, "wide").laneWidth).toBe(360);
+    expect(laneLayout(700, 4, 0, "wide").laneWidth).toBe(340);
     expect(laneLayout(700, 4, 0, "default").laneWidth).toBe(LANES.min);
     expect(laneLayout(700, 4, 0, "narrow").laneWidth).toBe(260);
     // A foldable's (540): the three widths differ, so the setting shows.
-    expect([...new Set((["narrow", "default", "wide"] as const).map((size) => laneLayout(540, 4, 0, size).laneWidth))]).toEqual([260, 300, 360]);
+    expect([...new Set((["narrow", "default", "wide"] as const).map((size) => laneLayout(540, 4, 0, size).laneWidth))]).toEqual([260, 300, 340]);
   });
 });
 

@@ -201,14 +201,14 @@ export const LANES = {
 /**
  * Each `board.laneWidth`'s scroll width and widest lane. Four lanes stop
  * scrolling on a board 1088 wide at narrow (4 x 260 + 48), 1248 at default
- * and 1488 at wide; the widest cards are 262, 322 and 402. On a narrower
+ * and 1408 at wide; the widest cards are 262, 322 and 382. On a narrower
  * board each keeps its own width and the row scrolls, so the setting shows
  * on a tablet as on the desktop.
  */
 export const LANE_SIZES: Readonly<Record<LaneWidth, { min: number; max: number }>> = {
   narrow: { min: 260, max: 280 },
   default: { min: LANES.min, max: LANES.max },
-  wide: { min: 360, max: 420 },
+  wide: { min: 340, max: 400 },
 };
 
 /**
