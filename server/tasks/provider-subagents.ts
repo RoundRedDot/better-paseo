@@ -33,6 +33,8 @@ export interface HostDaemon extends SeedDaemon {
   fetchAgent(agentId: string): Promise<{ agent: { cwd: string; status: string } } | null>;
   /** Resolves when the daemon cleared every agent's; it never answers a request naming an unknown agent. */
   clearAgentAttention(agentId: string | string[]): Promise<void>;
+  /** The label definitions; a daemon from before workspace labels lacks it. */
+  listWorkspaceLabels?(): Promise<{ labels: Array<{ name: string; color: string }> }>;
 }
 
 /** A failure stays on the board this long at most; a new prompt to the parent clears it sooner. */

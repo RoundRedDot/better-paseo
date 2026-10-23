@@ -239,6 +239,37 @@ describe("Tasks server unarchive RPC", () => {
   });
 });
 
+describe("Tasks server labels RPC", () => {
+  function labelsHost(list?: () => Promise<{ labels: Array<{ name: string; color: string }> }>) {
+    const close = vi.fn(async () => {});
+    const host: HostAccess = {
+      available: () => true,
+      connect: async () => ({ close, ...(list ? { listWorkspaceLabels: vi.fn(list) } : {}) }) as unknown as Awaited<ReturnType<HostAccess["connect"]>>,
+    };
+    return { host, close };
+  }
+
+  it("lists the daemon's label definitions over a connection it closes", async () => {
+    const { host, close } = labelsHost(async () => ({ labels: [{ name: "Bug", color: "pink" }, { name: "infra", color: "emerald" }] }));
+    const handlers = await registerHandlers(host);
+
+    await expect(invoke(handlers, "tasks.labels", {})).resolves.toEqual({ labels: [{ name: "Bug", color: "pink" }, { name: "infra", color: "emerald" }] });
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers null without a daemon, without its labels API, or when the list fails", async () => {
+    await expect(invoke(await registerHandlers(), "tasks.labels", {})).resolves.toEqual({ labels: null });
+    const old = labelsHost();
+    await expect(invoke(await registerHandlers(old.host), "tasks.labels", {})).resolves.toEqual({ labels: null });
+    expect(old.close).toHaveBeenCalledTimes(1);
+    const failing = labelsHost(async () => {
+      throw new Error("unknown message");
+    });
+    await expect(invoke(await registerHandlers(failing.host), "tasks.labels", {})).resolves.toEqual({ labels: null });
+    expect(failing.close).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("Tasks server read RPC", () => {
   function fakeHost(
     clear: (agentIds: string | string[]) => Promise<void>,

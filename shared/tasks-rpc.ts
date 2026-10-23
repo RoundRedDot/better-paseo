@@ -158,3 +158,16 @@ export const tasksChunkRpc = defineRpc({
   input: z.object({ id: z.string().min(1) }),
   output: z.object({ code: z.string().nullable() }),
 });
+
+/**
+ * The workspace labels the daemon defines, each with its color name ("red",
+ * "emerald", ...), as Paseo's sidebar draws them. `PaseoApi` lists no label
+ * definitions on hosts up to 0.12, so the server reads them over its own
+ * connection to the daemon. Null when it cannot; the board then gives each
+ * label a stand-in color.
+ */
+export const tasksLabelsRpc = defineRpc({
+  name: "tasks.labels",
+  input: z.object({}),
+  output: z.object({ labels: z.array(z.object({ name: z.string(), color: z.string() })).nullable() }),
+});

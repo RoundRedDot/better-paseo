@@ -19,6 +19,7 @@ import { MARK_IDS } from "../../components/marks";
 import { normalizeProvider } from "../../components/provider-logo";
 import { classifyAgent } from "../agent-state-bucket";
 import { resolveTasksLanguage } from "../i18n";
+import { fallbackLabelColor } from "../label-colors";
 import { LANE_ORDER, isHistoryLane, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming, type TaskUsage } from "../model";
 
 export interface WorkspaceOption {
@@ -165,17 +166,22 @@ const ATTENTION_KEY = "active-attention";
 const ATTENTION_FILTER: PaseoAgentListOptions["filter"] = { requiresAttention: true };
 const DONE_SUBSCRIPTION = "done-first";
 const PAGE_SIZE = 50;
+/**
+ * A label color name as Paseo draws it: its `identityColor`, the base its
+ * sidebar tints a label's chip with (at 10%, as `pillTint` does), so dots and
+ * tints match the sidebar in either theme.
+ */
 const LABEL_COLORS: Readonly<Record<string, string>> = {
-  violet: "#6d49b5",
-  sky: "#3d6985",
-  emerald: "#3e6e5d",
-  orange: "#845838",
-  pink: "#974168",
-  indigo: "#5251c2",
-  teal: "#3e6d6c",
-  red: "#9c4243",
-  amber: "#716239",
-  blue: "#39649e",
+  violet: "#7a6aa8",
+  sky: "#3d7ea6",
+  emerald: "#388068",
+  orange: "#a4673a",
+  pink: "#b05c80",
+  indigo: "#6a70b8",
+  teal: "#368080",
+  red: "#b06260",
+  amber: "#8f7838",
+  blue: "#5179b0",
 };
 const PROVIDER_LABELS: Readonly<Record<string, string>> = {
   paseo: "Paseo",
@@ -240,7 +246,7 @@ function parentIdOf(agent: PaseoAgent): string | null {
 function taskLabels(workspace: PaseoWorkspace | undefined, colorNames: ReadonlyMap<string, string>): TaskLabel[] {
   return [...new Set(workspace?.labels ?? [])]
     .sort((a, b) => a.localeCompare(b))
-    .map((name) => ({ name, color: colorNames.get(name) ?? null }));
+    .map((name) => ({ name, color: colorNames.get(name) ?? fallbackLabelColor(name) }));
 }
 
 function firstPermissionSummary(permission: PaseoAgent["pendingPermissions"][number]): string | null {
@@ -306,6 +312,16 @@ let readMarksLoader: ReadMarksLoader | null = null;
 /** `contribute` sets the loader; the marks are read with the subagents and after a Mark read. */
 export function setReadMarksLoader(next: ReadMarksLoader | null): void {
   readMarksLoader = next;
+}
+
+/** `tasks.labels`: the daemon's label definitions, for a host whose API lists none; null when the server cannot read them. */
+export type LabelDefinitionsLoader = () => Promise<Array<{ name: string; color: string }> | null>;
+
+let labelDefinitionsLoader: LabelDefinitionsLoader | null = null;
+
+/** `contribute` sets the loader; a board reads the definitions when it opens. */
+export function setLabelDefinitionsLoader(next: LabelDefinitionsLoader | null): void {
+  labelDefinitionsLoader = next;
 }
 
 function epoch(value: string | null | undefined): number {
@@ -1484,7 +1500,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   function applyLabelDefinitions(labels: Array<{ name: string; color: string }>) {
     colorNames.clear();
-    for (const label of labels) colorNames.set(label.name, LABEL_COLORS[label.color] ?? "#94a3b8");
+    for (const label of labels) colorNames.set(label.name, LABEL_COLORS[label.color] ?? fallbackLabelColor(label.name));
     for (const [id, entry] of entries) {
       const workspace = entry.agent.workspaceId ? workspaces.get(entry.agent.workspaceId) : undefined;
       const project = projectFor(entry, workspace, projects);
@@ -1497,7 +1513,10 @@ function createStore(api: PaseoApi): TaskStore {
 
   async function startLabelSubscription(run: Run) {
     const labelApi = api.workspaces as unknown as OptionalLabelsApi;
-    if (typeof labelApi.listLabels !== "function") return;
+    if (typeof labelApi.listLabels !== "function") {
+      await readLabelDefinitions(run);
+      return;
+    }
     try {
       const result = await labelApi.listLabels({ subscribe: {} });
       if (!isCurrent(run)) {
@@ -1533,6 +1552,22 @@ function createStore(api: PaseoApi): TaskStore {
       }
     } catch (caught) {
       if (isCurrent(run)) subscriptionError(caught);
+    }
+  }
+
+  /**
+   * Without the host's label list, the plugin server reads the definitions
+   * off the daemon, once per board; a label added or recolored meanwhile
+   * shows on the next board. Without either, labels keep stand-in colors.
+   */
+  async function readLabelDefinitions(run: Run) {
+    const loader = labelDefinitionsLoader;
+    if (!loader) return;
+    try {
+      const labels = await loader();
+      if (labels && isCurrent(run)) applyLabelDefinitions(labels);
+    } catch {
+      // The stand-in colors stay.
     }
   }
 
@@ -1900,7 +1935,7 @@ function createStore(api: PaseoApi): TaskStore {
     const labelsByName = new Map<string, TaskLabel>([...colorNames].map(([name, color]) => [name, { name, color }]));
     for (const workspace of workspaces.values()) {
       if (workspace.archivingAt) continue;
-      for (const name of workspace.labels ?? []) if (!labelsByName.has(name)) labelsByName.set(name, { name, color: null });
+      for (const name of workspace.labels ?? []) if (!labelsByName.has(name)) labelsByName.set(name, { name, color: fallbackLabelColor(name) });
     }
     for (const card of filteredCards) {
       if (!providersById.has(card.provider)) providersById.set(card.provider, card.providerLabel);

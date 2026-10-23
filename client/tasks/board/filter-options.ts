@@ -1,4 +1,5 @@
 import type { TasksHandle } from "../data";
+import { fallbackLabelColor } from "../label-colors";
 import { LANE_ORDER, isHistoryLane } from "../model";
 import { toggleItem, type BoardDefaults, type BoardParams } from "./params";
 import type { BoardStrings } from "./strings";
@@ -76,7 +77,7 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
     count: byLabel.get(label.name) ?? 0,
     on: params.labels.includes(label.name),
   }));
-  for (const name of params.labels) if (!labels.some((label) => label.id === name)) labels.push({ id: name, label: name, color: null, count: 0, on: true });
+  for (const name of params.labels) if (!labels.some((label) => label.id === name)) labels.push({ id: name, label: name, color: fallbackLabelColor(name), count: 0, on: true });
 
   return { workspaceGroups: [...groups.values()], agents, labels };
 }
