@@ -1,6 +1,6 @@
 import { formatFooterStamp, formatFullStamp } from "../../ui/time";
 import type { TasksLanguage } from "../i18n";
-import { turnRunning, type TaskCard, type TaskChild } from "../model";
+import { settledAt, turnRunning, type TaskCard, type TaskChild } from "../model";
 import { formatApprox, formatClockTime, formatDuration, formatRelative, formatWait, since } from "./format";
 import { cardStrings } from "./strings";
 
@@ -74,7 +74,7 @@ export function cardTimer(card: Timed, now: number, language: TasksLanguage, sho
   if (working !== null) return { text: formatDuration(working), tone: "muted" };
   const parts: string[] = [];
   if (timing.lastTurnMs !== null) parts.push(formatApprox(timing.lastTurnMs, language));
-  const ended = formatEnded(timing.updatedAt, now, language, short);
+  const ended = formatEnded(settledAt(timing), now, language, short);
   if (ended !== null) parts.push(ended);
   return parts.length ? { text: parts.join(" · "), tone: "muted" } : null;
 }
