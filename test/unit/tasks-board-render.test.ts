@@ -250,9 +250,11 @@ describe("Tasks board, desktop", () => {
       const search = renderer!.root.find((node) => (node.type as unknown) === "TextInput");
       expect(font(search)).toBe(Math.round(14 * base / 14));
       const title = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-title")[0]!;
-      // A card's title sits a step under the host's list rows: its small step, on an 18 reading line.
-      expect(font(title)).toBe(Math.round(12 * base / 14));
-      expect(StyleSheet.flatten(title.props.style).lineHeight).toBe(Math.round(18 * base / 14));
+      // A card's title and a lane's name read at the host's list-row step, a step over the meta row and pills.
+      expect(font(title)).toBe(Math.round(14 * base / 14));
+      expect(StyleSheet.flatten(title.props.style).lineHeight).toBe(Math.round(20 * base / 14));
+      const laneHeader = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "lane-header-running");
+      expect(font(laneHeader.findAll((node) => (node.type as unknown) === "Text")[0]!)).toBe(Math.round(14 * base / 14));
       const pill = renderer!.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "pill-model")[0]!;
       expect(StyleSheet.flatten(pill.props.style).height).toBe(Math.round(20 * Math.max(1, base / 14)));
       // A pill's text is the card's small text times 11/12, scaled the same way, so it stays under the meta row at every size.
@@ -309,14 +311,14 @@ describe("Tasks board, desktop", () => {
         const title = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-title")[0]!;
         return StyleSheet.flatten(title.props.style).fontSize;
       };
-      expect(titleFont()).toBe(12);
+      expect(titleFont()).toBe(14);
       act(() => { triggerHostAppearanceCheck(); });
       base = 21;
       act(() => { vi.advanceTimersByTime(700); });
-      expect(titleFont()).toBe(18);
+      expect(titleFont()).toBe(21);
       base = 10;
       act(() => { vi.advanceTimersByTime(600); triggerHostAppearanceCheck(); });
-      expect(titleFont()).toBe(9);
+      expect(titleFont()).toBe(10);
     } finally {
       act(() => renderer?.unmount());
       renderer = undefined;
