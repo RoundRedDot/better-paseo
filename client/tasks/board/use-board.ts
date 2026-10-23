@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { Platform } from "react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { usePaseo, useSettings } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
@@ -13,7 +12,7 @@ import { LANE_ORDER, boardLaneOrder, opensInPaseo, turnRunning, type BoardFilter
 import { MOTION } from "./board-style";
 import { carriedSettings, useCarriedTasks } from "./carry";
 import { lingerBoard } from "./prefetch";
-import { nameCompare, sortLaneCards } from "./sort";
+import { encodeSort, nameCompare, sortLaneCards } from "./sort";
 import {
   decodeBoardParams,
   encodeBoardParams,
@@ -48,9 +47,12 @@ export interface BoardController {
   setShowEmptyGroups(on: boolean): void;
   params: BoardParams;
   /**
-   * What the user set that rearranges the lanes: the params, and the archived
-   * lane's switch until its cards land. Lanes that change with it take their
-   * new cards at once, without lane motion or rolling counts.
+   * What the user set that rearranges the lanes at once: the search, the
+   * sort, and the archived lane's switch until its cards land. Lanes that
+   * change with it take their new cards without lane motion, and the counts
+   * (`RollingCount`) show their new number. The filters, the done window and
+   * the subtasks switch are outside it: their cards slide, fade out and fade
+   * in, and the counts roll.
    */
   scope: unknown;
   setParams(update: (params: BoardParams) => BoardParams): void;
@@ -66,12 +68,6 @@ export interface BoardController {
   /** The lanes the board draws, left to right: the four, and archived after done when `board.showArchived` is on. */
   laneOrder: readonly LaneId[];
   total: number;
-  /**
-   * The `scope` a count rolls within (`RollingCount`): `scope`, except that on
-   * web and the desktop app a new done window rolls the counts. A phone or
-   * tablet shows them at once, as it does for every change of `scope`.
-   */
-  countScope: unknown;
   fields: CardSettings;
   /** The 1 s clock for what shows the time; its identity holds across ticks. */
   clock: TaskClock;
@@ -305,12 +301,10 @@ export function useBoard(
   const total = laneOrder.reduce((sum, id) => sum + lanes[id].cards.length, 0);
   // Switching the archived lane rearranges the lanes as a filter does, twice when it turns on: at once, and when the list with archived agents lands.
   const archivedSettling = showArchived && lanes.archived.loading && lanes.archived.cards.length === 0;
-  const scope = useMemo(() => ({ params, showArchived, archivedSettling }), [params, showArchived, archivedSettling]);
-  // A count also rolls through a new done window on web; a phone or tablet shows it at once.
-  const countScope = useMemo(
-    () => (Platform.OS === "web" ? JSON.stringify({ params: encodeBoardParams({ ...params, doneWindow: null }), showArchived, archivedSettling }) : scope),
-    [scope, params, showArchived, archivedSettling],
-  );
+  // A filter is one press, and its cards move: a search would be slow to read if every keystroke slid them, and a new sort reorders every lane.
+  const query = params.query.trim();
+  const sortKey = encodeSort(params.sort);
+  const scope = useMemo(() => ({ query, sortKey, showArchived, archivedSettling }), [query, sortKey, showArchived, archivedSettling]);
   // A stop whose agents have left running is done; a card stopped from the
   // board that runs again drops its "Stopped manually".
   useEffect(() => {
@@ -439,7 +433,6 @@ export function useBoard(
     hidden,
     laneOrder,
     total,
-    countScope,
     fields,
     clock,
     visible,

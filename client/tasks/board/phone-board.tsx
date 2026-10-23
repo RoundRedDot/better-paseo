@@ -436,7 +436,7 @@ export function PhoneBoard(props: {
                     {tasks.ready ? (
                       <RollingCount
                         value={count}
-                        scope={board.countScope}
+                        scope={board.scope}
                         style={{ fontSize: F.base, fontWeight: warn || on ? "600" : "400", fontVariant: ["tabular-nums"], color: warn ? warning : on ? colors.foreground : colors.foregroundMuted }}
                       />
                     ) : null}
@@ -769,7 +769,7 @@ function PhoneLane(props: {
   const fresh = useFreshIds(
     lane.cards.map((card) => card.id),
     ready,
-    board.params,
+    board.scope,
   );
   // Hidden under copies of its cards while they move (native lane motion).
   const covered = useLaneCovered(lane.id);
