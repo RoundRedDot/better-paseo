@@ -4,7 +4,7 @@ import type { StatusKind, WorkspaceKind } from "../model";
 /** The cards' own words; Chinese follows the prototype. */
 const en = {
   openInWorkspace: "Open in workspace",
-  openTab: "Open tab",
+  openTab: "Open",
   stop: "Stop",
   confirmStop: "Confirm stop",
   confirmStopAll: "Stop all",
@@ -20,7 +20,7 @@ const en = {
   workspaceArchived: "Workspace archived",
   parentUnknown: "Parent task",
   revealParent: "Show parent task",
-  /** Beside Open tab on a subtask's card: the parent task's tab. */
+  /** Beside Open on a subtask's card: the parent task's tab. */
   openParent: "Open parent",
   /** A provider subagent's row: it has no card or tab, so it opens its parent's. */
   openParentTab: "Open in the parent's tab",
@@ -188,7 +188,7 @@ type CardStrings = typeof en;
 
 const zh: CardStrings = {
   openInWorkspace: "在 workspace 中打开",
-  openTab: "打开 tab",
+  openTab: "打开",
   stop: "停止",
   confirmStop: "确认停止",
   confirmStopAll: "确认停止全部",
