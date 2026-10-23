@@ -46,6 +46,12 @@ export interface BoardController {
   /** Saves `board.showEmptyGroups`, as `setShowArchived` saves its switch. */
   setShowEmptyGroups(on: boolean): void;
   params: BoardParams;
+  /**
+   * What the user set that rearranges the lanes: the params, and the archived
+   * lane's switch until its cards land. Lanes that change with it take their
+   * new cards at once, without lane motion or rolling counts.
+   */
+  scope: unknown;
   setParams(update: (params: BoardParams) => BoardParams): void;
   defaults: BoardDefaults;
   filters: BoardFilters;
@@ -242,7 +248,11 @@ export function useBoard(
   // Closed, the board's data stays warm a while, so a quick reopen sends nothing.
   // After a reconnect the last cards stand in until the store is ready.
   const tasks = useCarriedTasks(hostId, options, useTasks(paseo, options, lingerBoard));
-  const fields = useMemo(() => effectiveCard(settings, compact), [settings, compact]);
+  // A save reads the whole record back as new objects: the fields keep their identity while they hold, so a switch on the board re-renders no card.
+  const cardFields = effectiveCard(settings, compact);
+  const fieldsRef = useRef(cardFields);
+  if (!sameFields(fieldsRef.current, cardFields)) fieldsRef.current = cardFields;
+  const fields = fieldsRef.current;
 
   const visible = useBoardVisible(rootRef, compact);
   const clock = useBoardClock(visible);
@@ -273,6 +283,9 @@ export function useBoard(
   const compareNames = useMemo(() => nameCompare(language), [language]);
   const lanes = useMemo(() => sortLaneCards(filtered, sort, Date.now(), compareNames), [filtered, sort, compareNames]);
   const total = laneOrder.reduce((sum, id) => sum + lanes[id].cards.length, 0);
+  // Switching the archived lane rearranges the lanes as a filter does, twice when it turns on: at once, and when the list with archived agents lands.
+  const archivedSettling = showArchived && lanes.archived.loading && lanes.archived.cards.length === 0;
+  const scope = useMemo(() => ({ params, showArchived, archivedSettling }), [params, showArchived, archivedSettling]);
   // A stop whose agents have left running is done; a card stopped from the
   // board that runs again drops its "Stopped manually".
   useEffect(() => {
@@ -380,6 +393,7 @@ export function useBoard(
     showEmptyGroups,
     setShowEmptyGroups,
     params,
+    scope,
     setParams,
     defaults,
     filters,
@@ -412,4 +426,10 @@ export function findCard(lanes: Record<LaneId, LaneModel>, agentId: string): { l
     if (index >= 0) return { lane: id, index };
   }
   return null;
+}
+
+function sameFields(left: CardSettings, right: CardSettings): boolean {
+  if (left === right) return true;
+  const keys = Object.keys(right) as (keyof CardSettings)[];
+  return keys.length === Object.keys(left).length && keys.every((key) => left[key] === right[key]);
 }

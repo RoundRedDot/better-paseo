@@ -194,7 +194,8 @@ export function DesktopBoard(props: {
   const lanesWidth = Math.max(0, boardWidth - (inline ? panelWidth + SIDEBAR.gap : 0));
   const layout = laneLayout(lanesWidth, laneOrder.length - collapsed.length, collapsed.length, board.laneWidth);
   // What the user sized the lanes with: a change to it eases the lanes to their new widths.
-  const sizing = `${collapsed.join()}|${board.laneWidth}`;
+  const sizing = `${collapsed.join()}|${board.laneWidth}|${laneOrder.length}`;
+  const archivedSwitch = useArchivedSwitch(laneOrder, lanes.archived, layout.laneWidth, board.visible);
   // A floating panel covers the lanes' right side: the row scrolls far enough for the last lane to come out from under it.
   const coverRoom = floating && !inSheet ? panelWidth + SIDEBAR.gap : 0;
 
@@ -438,7 +439,7 @@ export function DesktopBoard(props: {
   const breathing = useBreathing(!tasks.ready && board.visible);
   const reduced = useReducedMotion();
   // Filters, sort and search are the user's: lanes that change with them take their new order at once.
-  const motion = useLaneMotion(lanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.params, flights: true });
+  const motion = useLaneMotion(lanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.scope, flights: true });
   const renderCopy = useCallback(
     (card: TaskCard) => <CardCell board={board} card={card} theme={theme} compact={false} fresh={false} copy callbacks={callbacks} />,
     [board, theme, callbacks],
@@ -508,15 +509,17 @@ export function DesktopBoard(props: {
                 style={{ flex: 1 }}
                 contentContainerStyle={{ width: layout.contentWidth + coverRoom, gap: touch ? 0 : LANES.gap, paddingLeft: LANES.edge, paddingRight: LANES.edge + coverRoom, paddingTop: 4, paddingBottom: 12 }}
               >
-                {laneOrder.map((id, index) => (
+                {archivedSwitch.drawn.map((id, index) => (
                   <React.Fragment key={id}>
                     {/* On touch the gap between two lanes is a blank to tap too, inside the scroll row. */}
                     {touch && index > 0 ? <LaneGap onPress={letGo} /> : null}
                     <DesktopLane
-                      lane={lanes[id]}
-                      width={layout.laneWidth}
-                      collapsed={collapsed.includes(id)}
+                      lane={id === "archived" && archivedSwitch.phase === "leave" ? archivedSwitch.last : lanes[id]}
+                      width={id === "archived" && archivedSwitch.phase === "leave" ? archivedSwitch.width : layout.laneWidth}
+                      collapsed={collapsedState.includes(id)}
                       sizing={sizing}
+                      enter={id === "archived" && archivedSwitch.phase === "enter"}
+                      leaving={id === "archived" && archivedSwitch.phase === "leave"}
                       onToggle={() => setCollapsed((current) => (current.includes(id) ? current.filter((lane) => lane !== id) : [...current, id]))}
                       board={board}
                       callbacks={callbacks}
@@ -724,6 +727,38 @@ function BoardEmpty({ board, theme }: { board: BoardController; theme: PluginThe
   );
 }
 
+/**
+ * The archived lane as it is switched on and off: it grows in from nothing,
+ * and shrinks to nothing before it goes, as the other lanes ease to their new
+ * widths (`sizing` counts the lanes). `drawn` is the lanes to render: the
+ * board's, and the archived lane while it leaves, drawn as it last showed
+ * (`last`, at `width`). At once when the board is hidden or motion is reduced.
+ */
+function useArchivedSwitch(
+  laneOrder: readonly LaneId[],
+  archived: LaneModel,
+  laneWidth: number,
+  visible: boolean,
+): { drawn: readonly LaneId[]; phase: "enter" | "leave" | null; last: LaneModel; width: number } {
+  const reduced = useReducedMotion();
+  const on = laneOrder.includes("archived");
+  const [seen, setSeen] = useState(on);
+  const [phase, setPhase] = useState<"enter" | "leave" | null>(null);
+  if (seen !== on) {
+    setSeen(on);
+    setPhase(visible && !reduced ? (on ? "enter" : "leave") : null);
+  }
+  const last = useRef({ lane: archived, width: laneWidth });
+  if (on) last.current = { lane: archived, width: laneWidth };
+  useEffect(() => {
+    if (!phase) return;
+    const timer = setTimeout(() => setPhase(null), MOTION.resizeMs);
+    return () => clearTimeout(timer);
+  }, [phase]);
+  const drawn = useMemo<readonly LaneId[]>(() => (phase === "leave" && !on ? [...laneOrder, "archived"] : laneOrder), [phase, on, laneOrder]);
+  return { drawn, phase, last: last.current.lane, width: last.current.width };
+}
+
 /** A list under copies of its cards while they move (native lane motion). */
 const HIDDEN = { opacity: 0 };
 
@@ -773,8 +808,12 @@ function DesktopLane(props: {
   lane: LaneModel;
   width: number;
   collapsed: boolean;
-  /** Changes when the user collapses, expands or resizes lanes: the lane eases to its new width. */
+  /** Changes when the user collapses, expands or resizes lanes, or switches the archived lane: the lane eases to its new width. */
   sizing: string;
+  /** The archived lane just switched on: it grows in from nothing. */
+  enter?: boolean;
+  /** The archived lane just switched off: it shrinks to nothing, its content as it was, and takes no touch. */
+  leaving?: boolean;
   onToggle(): void;
   board: BoardController;
   callbacks: CardCallbacks;
@@ -844,12 +883,17 @@ function DesktopLane(props: {
   const headerTap = useTap();
   const collapseTap = useTap();
   const blankTap = useTap();
-  const target = props.collapsed ? LANES.collapsed : props.width;
-  const resized = useLaneWidth(target, props.sizing);
+  const shown = props.collapsed ? LANES.collapsed : props.width;
+  const target = props.leaving ? 0 : shown;
+  const resized = useLaneWidth(target, props.sizing, props.enter ? 0 : undefined);
   // The lane's clip eases to its width; the strip or list inside it has its own at once.
   const clip = (content: React.ReactNode) => (
-    <Animated.View testID={`lane-${lane.id}`} style={{ width: resized.width, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}>
-      <LaneSwap key={props.collapsed ? "strip" : "list"} fade={resized.moving} width={target}>
+    <Animated.View
+      testID={`lane-${lane.id}`}
+      pointerEvents={props.leaving ? "none" : "auto"}
+      style={{ width: resized.width, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}
+    >
+      <LaneSwap key={props.collapsed ? "strip" : "list"} fade={resized.moving} width={shown}>
         {content}
       </LaneSwap>
     </Animated.View>
@@ -874,7 +918,7 @@ function DesktopLane(props: {
       >
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <VerticalLabel text={name} color={colors.foreground} language={board.language} />
-        {ready ? <RollingCount value={count} scope={board.params} align="center" style={countStyle} /> : <Text style={countStyle}>{""}</Text>}
+        {ready ? <RollingCount value={count} scope={board.scope} align="center" style={countStyle} /> : <Text style={countStyle}>{""}</Text>}
       </HoverPressable>,
     );
   }
@@ -895,7 +939,7 @@ function DesktopLane(props: {
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <Text style={{ fontSize: titleSize, fontWeight: "500", color: colors.foreground }}>{name}</Text>
         {ready ? (
-          <RollingCount value={count} scope={board.params} style={countStyle} />
+          <RollingCount value={count} scope={board.scope} style={countStyle} />
         ) : (
           <View style={{ width: 14, height: 10, borderRadius: 2, backgroundColor: colors.surface2 }} />
         )}

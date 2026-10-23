@@ -171,7 +171,7 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
             lane={id}
             label={board.strings.lanes[id]}
             count={board.tasks.ready ? board.lanes[id].cards.length : null}
-            scope={board.params}
+            scope={board.scope}
             theme={props.theme}
             tokens={tokens}
             animated={board.visible}
