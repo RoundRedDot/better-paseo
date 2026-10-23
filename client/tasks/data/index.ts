@@ -167,21 +167,21 @@ const ATTENTION_FILTER: PaseoAgentListOptions["filter"] = { requiresAttention: t
 const DONE_SUBSCRIPTION = "done-first";
 const PAGE_SIZE = 50;
 /**
- * A label color name as Paseo draws it: its `identityColor`, the base its
- * sidebar tints a label's chip with (at 10%, as `pillTint` does), so dots and
- * tints match the sidebar in either theme.
+ * A label color name as Paseo draws its label dots, in either theme: the
+ * light set its identity colors keep for dark surfaces, which Paseo's label
+ * list and sidebar use on light ones too.
  */
 const LABEL_COLORS: Readonly<Record<string, string>> = {
-  violet: "#7a6aa8",
-  sky: "#3d7ea6",
-  emerald: "#388068",
-  orange: "#a4673a",
-  pink: "#b05c80",
-  indigo: "#6a70b8",
-  teal: "#368080",
-  red: "#b06260",
-  amber: "#8f7838",
-  blue: "#5179b0",
+  violet: "#a392d5",
+  sky: "#6aa6ce",
+  emerald: "#6cae96",
+  orange: "#cc8f64",
+  pink: "#d87da3",
+  indigo: "#9299d5",
+  teal: "#6cacab",
+  red: "#d88381",
+  amber: "#b29d64",
+  blue: "#7ba1d5",
 };
 const PROVIDER_LABELS: Readonly<Record<string, string>> = {
   paseo: "Paseo",
