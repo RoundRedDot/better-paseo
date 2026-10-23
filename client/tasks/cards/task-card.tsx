@@ -407,7 +407,11 @@ export const OVERLAY_ROW_Z = 2;
 
 function TaskCardViewImpl(given: TaskCardViewProps) {
   // An archived task has no Open, here or on its subtasks: Paseo would show another tab.
-  const props = opensInPaseo(given.card) ? given : { ...given, onOpen: undefined };
+  // A provider subagent's card is read-only: no details, Stop, Mark read or
+  // Archive, and a press or Open opens its parent's tab (the board's `onOpen`).
+  const props = given.card.subagent
+    ? { ...given, onSelect: undefined, onDetails: undefined, onStop: undefined, onRead: undefined, onArchive: undefined, onUnarchive: undefined, onPermission: undefined }
+    : opensInPaseo(given.card) ? given : { ...given, onOpen: undefined };
   const { card, fields, compact, theme } = props;
   const scale = useTasksFontScale();
   const tokens = taskTokens(theme);
@@ -657,7 +661,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     >
       <View
         style={{ width: m.iconSlot, alignItems: "center" }}
-        {...hintProps(hint("status", () => pair(strings.hint.status, card.stoppedManually ? strings.hint.stopped : strings.status[card.status])))}
+        {...hintProps(hint("status", () => lines(pair(strings.hint.status, card.stoppedManually ? strings.hint.stopped : strings.status[card.status]), card.subagent && strings.subagentCard)))}
       >
         <StatusIcon
           kind={card.stoppedManually ? "stopped" : card.status}
@@ -694,8 +698,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // pill off the thinking level keeps a neutral pill of its own.
   const agentColors = agentPillColors(tokens, card.provider);
   const thinking = layout.thinking ? card.thinkingLabel : null;
+  // A subagent's card shows the provider's facts line (type, model, effort, tokens) in the model's place.
+  const facts = card.subagent?.subtitle ?? null;
   if (layout.modelPill) {
-    const model = layout.model && card.modelLabel ? card.modelLabel : card.providerLabel;
+    const model = facts ?? (layout.model && card.modelLabel ? card.modelLabel : card.providerLabel);
     const name = model === card.providerLabel ? model : `${card.providerLabel} ${model}`;
     pills.push(
       <Pill
@@ -706,9 +712,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         lead={layout.brand ? <BrandMark provider={card.provider} size={m.pillIcon} tokens={tokens} /> : undefined}
         label={model}
         accessibilityLabel={thinking ? `${name} ${thinking}` : name}
-        copy={copyOf(model, model === card.providerLabel ? "Copy agent" : "Copy model name")}
+        copy={facts ? undefined : copyOf(model, model === card.providerLabel ? "Copy agent" : "Copy model name")}
         onLongPress={longPress}
-        hint={hint("model", () => withCopyHint(lines(pair(strings.hint.model, name), thinking && pair(strings.hint.thinking, thinking))))}
+        hint={hint("model", () => (facts ? lines(card.providerLabel, facts) : withCopyHint(lines(pair(strings.hint.model, name), thinking && pair(strings.hint.thinking, thinking)))))}
       >
         {thinking ? (
           <>

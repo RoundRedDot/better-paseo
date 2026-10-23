@@ -39,7 +39,8 @@ export interface CardMenuActions {
 export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof cardStrings>, actions: CardMenuActions): MenuSection[] {
   const location = card.location;
   const copies: [key: string, label: string, toast: string, icon: string, text: string | null][] = [
-    ["copy-id", strings.copySessionId, "Copy session ID", "Hash", card.id],
+    // A provider subagent's id is its tool call's, not a session's.
+    ["copy-id", strings.copySessionId, "Copy session ID", "Hash", card.subagent ? null : card.id],
     ["copy-title", strings.copyTitle, "Copy title", "Type", card.title.trim() || null],
     ["copy-workspace", strings.copyWorkspace, "Copy workspace name", "Folder", location.workspaceTitle ?? location.workspaceName],
     ["copy-project", strings.copyProject, "Copy project name", "Box", location.projectName],
