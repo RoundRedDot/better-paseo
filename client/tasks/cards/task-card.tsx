@@ -1165,7 +1165,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                 }
               : undefined,
             children: parentStop ? activeChildren(card) : 0,
-            stopAllLeading: <StopTreeGlyph tokens={tokens} />,
+            stopAllLeading: <StopTreeGlyph tokens={tokens} color={tokens.danger} />,
             read: canRead && !readPending ? () => props.onRead?.(card) : undefined,
             unarchive: canUnarchive ? () => props.onUnarchive?.(card.id) : undefined,
           }}
@@ -1782,8 +1782,8 @@ function MenuGlyph(props: { children: ReactNode }) {
 }
 
 /** "Stop with subtasks": the subtask tree with a small stop square at its corner. */
-function StopTreeGlyph(props: { tokens: TaskTokens }) {
-  const muted = props.tokens.foregroundMuted;
+function StopTreeGlyph(props: { tokens: TaskTokens; color?: string }) {
+  const muted = props.color ?? props.tokens.foregroundMuted;
   return (
     <MenuGlyph>
       <Icon name="ListTree" size={14} color={muted} />
