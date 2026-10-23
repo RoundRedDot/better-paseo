@@ -43,8 +43,8 @@ export interface TasksSettingsStrings {
   boardTitle: string;
   doneWindow: string;
   doneWindows: Record<DoneWindow, string>;
-  hideSubtasks: string;
-  hideSubtasksHint: string;
+  showSubtasks: string;
+  showSubtasksHint: string;
   showArchived: string;
   showArchivedHint: string;
   showEmptyGroups: string;
@@ -122,8 +122,8 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     boardTitle: "Board",
     doneWindow: "Done lane window",
     doneWindows: { "24h": "Last 24 hours", "7d": "Last 7 days", all: "All" },
-    hideSubtasks: "Hide subtasks by default",
-    hideSubtasksHint: "Running, waiting and failed subtasks still show in their lane, unless their parent's card is there too.",
+    showSubtasks: "Show subtasks",
+    showSubtasksHint: "When off, running, waiting and failed subtasks still show in their lane, unless their parent's card is there too. Also on the toolbar.",
     showArchived: "Show the archived lane",
     showArchivedHint: "A lane after Done with archived tasks and those of archived workspaces, in the same time window.",
     showEmptyGroups: "Show groups with no active tasks",
@@ -197,8 +197,8 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     boardTitle: "看板",
     doneWindow: "已完成默认时间窗口",
     doneWindows: { "24h": "近 24 小时", "7d": "近 7 天", all: "全部" },
-    hideSubtasks: "默认隐藏子任务",
-    hideSubtasksHint: "运行中、待输入和失败的子任务仍会显示在各自的泳道，父任务卡片也在该泳道时除外。",
+    showSubtasks: "显示子任务",
+    showSubtasksHint: "关闭时，运行中、待输入和失败的子任务仍会显示在各自的泳道，父任务卡片也在该泳道时除外。工具栏上也能切换。",
     showArchived: "显示已归档泳道",
     showArchivedHint: "在已完成之后多一条泳道，列出已归档的任务和已归档工作区里的任务，时间窗口与已完成相同。",
     showEmptyGroups: "显示数量为 0 的分组",
