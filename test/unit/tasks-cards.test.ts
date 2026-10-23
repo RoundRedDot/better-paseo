@@ -1735,6 +1735,14 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(tree.root, "detail-stop"))).toEqual(["确认停止"]);
   });
 
+  it("leads the desktop header's actions with Open tab and ends the touch header's with it", async () => {
+    const more = { onOpen: vi.fn(), stop: { phase: "idle", onPress: vi.fn() } };
+    const desk = await render(details(sample("sample-running"), more));
+    expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["切换到 tab", "已打开", "停止"]);
+    await act(async () => desk.update(details(sample("sample-running"), { ...more, touch: true })));
+    expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["停止", "切换到 tab", "已打开"]);
+  });
+
   it("paints the stop button in the danger colour, tinted at rest and solid to confirm", async () => {
     const tokens = taskTokens(LIGHT);
     const look = (root: ReactTestInstance, id: string) => {
