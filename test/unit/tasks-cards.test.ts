@@ -390,6 +390,7 @@ describe("TaskCardView rows", () => {
       "task-card-title-row",
       "task-card-pills",
       "task-card-footer",
+      "task-card-control-row",
     ]);
     // The project's letter avatar (`projectIcon` is on at standard), then project › workspace.
     expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["B", "better-paseo › tasks-board"]);
@@ -414,8 +415,9 @@ describe("TaskCardView rows", () => {
     expect(agent.props.accessibilityLabel).toBe("Codex GPT-5.5 Codex Medium");
     // The turn's start behind a clock, then how long it has run behind an hourglass, as the turn footer draws them.
     const footer = hostByTestId(tree.root, "task-card-footer");
-    // Native shows Open tab all the time, at the footer's far right.
-    expect(texts(footer)).toEqual([RUNNING_START, "12m 30s", "打开 tab"]);
+    // Native shows Open tab all the time, on its own row under the footer.
+    expect(texts(footer)).toEqual([RUNNING_START, "12m 30s"]);
+    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["打开 tab"]);
     expect(icons(hostByTestId(footer, "task-card-started"))).toEqual(["Clock"]);
     expect(icons(hostByTestId(footer, "task-card-timer"))).toEqual(["Hourglass"]);
     expect(texts(tree.root).some((text) => text.includes("未提交"))).toBe(false);
@@ -452,14 +454,14 @@ describe("TaskCardView rows", () => {
 
   it("keeps the title row, the agent pill and the footer at minimal", async () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: fields("minimal") }));
-    expect(rows(tree.root, "sample-running")).toEqual(["task-card-title-row", "task-card-pills", "task-card-footer"]);
+    expect(rows(tree.root, "sample-running")).toEqual(["task-card-title-row", "task-card-pills", "task-card-footer", "task-card-control-row"]);
     // Minimal: the model and thinking switches are on, the provider's mark is off.
     expect(pills(tree.root)).toEqual([
       ["pill-model", "GPT-5.5 Codex"],
     ]);
     expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex", "·", "Medium", RUNNING_START, "12m 30s", "打开 tab"]);
     expect(hostByTestId(tree.root, "pill-model").findAll((node) => (node.type as unknown) === "Image")).toHaveLength(0);
-    // No jump arrow on the title row: Open tab sits in the footer.
+    // No jump arrow on the title row: Open tab sits on the row under the footer.
     expect(icons(hostByTestId(tree.root, "task-card-title-row"))).not.toContain("ArrowUpRight");
   });
 
@@ -468,9 +470,9 @@ describe("TaskCardView rows", () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: off, onOpen: undefined }));
     expect(rows(tree.root, "sample-running")).toEqual(["task-card-title-row"]);
     expect(texts(tree.root)).toEqual(["Port the status ring to React Native"]);
-    // Open tab alone keeps the footer.
+    // Open tab alone takes the buttons' row, without an empty footer above it.
     await act(async () => tree.update(cardElement(sample("sample-running"), { fields: off })));
-    expect(rows(tree.root, "sample-running")).toEqual(["task-card-title-row", "task-card-footer"]);
+    expect(rows(tree.root, "sample-running")).toEqual(["task-card-title-row", "task-card-control-row"]);
   });
 
   it("names the provider in the model pill when the model is off, and drops the thinking level", async () => {
@@ -761,7 +763,9 @@ describe("TaskCardView rows", () => {
     expect(all).toContain("等待 4m");
     // The wait sits on the buttons' row, under the divider, not on a footer row above it.
     expect(rows(tree.root, "sample-input")).not.toContain("task-card-footer");
-    expect(texts(hostByTestId(hostByTestId(tree.root, "task-card-permission"), "task-card-footer"))).toEqual(["等待 4m", "打开 tab"]);
+    expect(texts(hostByTestId(hostByTestId(tree.root, "task-card-permission"), "task-card-footer"))).toEqual(["等待 4m"]);
+    // A tablet's Open tab takes a row of its own under the answer row.
+    expect(texts(hostByTestId(hostByTestId(tree.root, "task-card-permission"), "task-card-control-row"))).toEqual(["打开 tab"]);
     // The buttons start at the card's edge, as its text does, not under the request's icon.
     expect(flat(hostByTestId(tree.root, "task-card-answer-row").props.style).paddingLeft).toBeUndefined();
     byLabel(tree.root, "拒绝").props.onPress();
@@ -966,11 +970,11 @@ describe("TaskCardView compact tiers", () => {
 });
 
 describe("TaskCardView actions", () => {
-  it("puts Open tab in the footer in place of the jump arrow, and opens on a press of the card", async () => {
+  it("puts Open tab under the footer in place of the jump arrow, and opens on a press of the card", async () => {
     const onOpen = vi.fn();
     const tree = await render(cardElement(sample("sample-done"), { onOpen }));
     expect(icons(tree.root)).not.toContain("ArrowUpRight");
-    const open = byLabel(hostByTestId(tree.root, "task-card-footer"), "打开 tab");
+    const open = byLabel(hostByTestId(tree.root, "task-card-control-row"), "打开 tab");
     expect(icons(open)).toEqual(["AppWindow"]);
     expect(flat(open.props.style)).toMatchObject({ height: 28, borderRadius: 6 });
     hostByTestId(tree.root, "task-card-sample-done").props.onPress();
@@ -982,59 +986,13 @@ describe("TaskCardView actions", () => {
     expect(hostByTestId(tree.root, "task-card-sample-done").props.onPress).toBeUndefined();
   });
 
-  it("drops the touch buttons under the timer when the lane is too narrow for both", async () => {
-    const layout = (node: ReactTestInstance, width: number) => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 20 } } });
-    const measure = async (row: number) => {
-      const footer = hostByTestId(tree.root, "task-card-footer");
-      // The footer, then the timer and the buttons inside it.
-      const [timer, controls] = footer.findAll((node) => typeof node.type === "string" && node !== footer && typeof node.props.onLayout === "function");
-      await act(async () => {
-        layout(footer, row);
-        layout(timer!, 120);
-        layout(controls!, 180);
-      });
-      return hostByTestId(tree.root, "task-card-footer");
-    };
+  it("gives a tablet card's buttons a row of their own under the timer, Open tab at the right", async () => {
     const tree = await render(cardElement(sample("sample-child-1"), { onStop: () => {} }));
-    // A wide lane: the buttons stay beside the timer, at the far right.
-    let footer = await measure(320);
-    expect(flat(footer.props.style)).toMatchObject({ flexDirection: "row", alignItems: "center" });
-    expect(texts(footer)).toEqual([expect.any(String), expect.any(String), "停止", "打开 tab"]);
-    // A narrow one (120 + 6 + 180 > 300): a row of their own under the timer, still at the right.
-    footer = await measure(300);
-    expect(flat(footer.props.style)).toMatchObject({ flexDirection: "column", alignItems: "flex-start" });
-    const controls = footer.findAll((node) => typeof node.type === "string" && node !== footer && typeof node.props.onLayout === "function")[1]!;
-    expect(flat(controls.props.style)).toEqual({ alignSelf: "flex-end" });
-    expect(texts(controls)).toEqual(["停止", "打开 tab"]);
-    // Widening the lane again puts them back.
-    footer = await measure(306);
-    expect(flat(footer.props.style)).toMatchObject({ flexDirection: "row" });
-  });
-
-  it("keeps a touch footer's layout as the timer ticks narrower, and in a fresh copy of the card", async () => {
-    const card = { ...sample("sample-child-1"), id: "foot-copy" };
-    const element = () => cardElement(card, { onStop: () => {} });
-    const layout = (node: ReactTestInstance, width: number) => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 20 } } });
-    const parts = (root: ReactTestInstance) => {
-      const footer = hostByTestId(root, "task-card-footer");
-      const [timer, controls] = footer.findAll((node) => typeof node.type === "string" && node !== footer && typeof node.props.onLayout === "function");
-      return { footer, timer: timer!, controls: controls! };
-    };
-    const tree = await render(element());
-    const { footer, timer, controls } = parts(tree.root);
-    await act(async () => {
-      layout(footer, 300);
-      layout(timer, 120);
-      layout(controls, 180);
-    });
-    expect(flat(hostByTestId(tree.root, "task-card-footer").props.style)).toMatchObject({ flexDirection: "column" });
-    // "1m 59s" to "2m 1s": the narrower text would fit, but the row does not flip back each minute.
-    await act(async () => layout(parts(tree.root).timer, 110));
-    expect(flat(hostByTestId(tree.root, "task-card-footer").props.style)).toMatchObject({ flexDirection: "column" });
-    // The lane motion's copy of the card draws the stacked footer before it measures anything.
-    await act(async () => tree.unmount());
-    const copy = await render(element());
-    expect(flat(parts(copy.root).footer.props.style)).toMatchObject({ flexDirection: "column" });
+    expect(rows(tree.root, "sample-child-1")).toEqual(["task-card-meta", "task-card-title-row", "task-card-pills", "task-card-footer", "task-card-control-row"]);
+    expect(texts(hostByTestId(tree.root, "task-card-footer"))).not.toContain("停止");
+    const row = hostByTestId(tree.root, "task-card-control-row");
+    expect(flat(row.props.style)).toMatchObject({ flexDirection: "row", justifyContent: "flex-end" });
+    expect(texts(row)).toEqual(["停止", "打开 tab"]);
   });
 
   it("leaves Open tab out beside a question's Answer, which opens the tab itself", async () => {
@@ -1044,11 +1002,11 @@ describe("TaskCardView actions", () => {
     expect(texts(tree.root)).not.toContain("打开 tab");
   });
 
-  it("leads a phone card's action bar with Open tab in place of the jump arrow", async () => {
+  it("ends a phone card's action bar with Open tab in place of the jump arrow", async () => {
     const onOpen = vi.fn();
     const running = await render(cardElement(sample("sample-running"), { compact: true, onOpen, onStop: () => {} }));
     expect(icons(running.root)).not.toContain("ArrowUpRight");
-    expect(texts(hostByTestId(running.root, "task-card-actions"))).toEqual(["打开 tab", "停止"]);
+    expect(texts(hostByTestId(running.root, "task-card-actions"))).toEqual(["停止", "打开 tab"]);
     // The details sheet's proportions: Open tab takes the room, Stop is as wide as its label.
     expect(flat(byLabel(running.root, "打开 tab").props.style)).toMatchObject({ flexGrow: 1 });
     expect(flat(hostByTestId(running.root, "task-card-stop").props.style)).toMatchObject({ flexGrow: 0 });
@@ -1131,7 +1089,7 @@ describe("TaskCardView actions", () => {
     // A phone puts it in the action bar, at Stop's touch size.
     const phone = await render(cardElement(card, { onRead, compact: true }));
     const bar = phone.root.find((node) => node.props.testID === "task-card-actions");
-    expect(texts(bar)).toEqual(["打开 tab", "标为已读"]);
+    expect(texts(bar)).toEqual(["标为已读", "打开 tab"]);
     expect(flat(byLabel(bar, "标为已读").props.style)).toMatchObject({ flexGrow: 0 });
     expect(flat(byLabel(bar, "标为已读").props.style)).toMatchObject({ minHeight: 32, borderRadius: 7 });
   });
@@ -1752,19 +1710,19 @@ describe("TaskDetailCards", () => {
     expect(hostByTestId(tree.root, "detail-permission").findAll((node) => node.props.testID === "detail-permission-buttons")).toEqual([]);
   });
 
-  it("puts the phone's actions in a bar: open and stop while running, allow first while asking", async () => {
+  it("puts the phone's actions in a bar: stop then open while running, open last while asking", async () => {
     const strings = BOARD_STRINGS.zh.sidebar;
     const bar = (card: TaskCard, more: Record<string, unknown> = {}) =>
       React.createElement(DetailActionBar, { card, theme: LIGHT, language: "zh", strings, onOpen: vi.fn(), ...more });
     const running = await render(bar(sample("sample-running"), { stop: { phase: "idle", onPress: vi.fn() } }));
-    expect(texts(hostByTestId(running.root, "detail-action-bar"))).toEqual(["切换到 tab", "停止"]);
+    expect(texts(hostByTestId(running.root, "detail-action-bar"))).toEqual(["停止", "切换到 tab"]);
     await act(async () => running.unmount());
     renderer = null;
     const card = sample("sample-input");
     const asking = await render(bar(card, { onPermission: vi.fn(), permissionButtons: permissionButtons(card.permission!, "zh") }));
     const labels = asking.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel);
-    // The tab shrinks to a square; deny, then allow under the thumb.
-    expect(labels).toEqual(["打开 tab 处理", "拒绝", "允许"]);
+    // Deny, then allow, then the tab shrunk to a square at the right.
+    expect(labels).toEqual(["拒绝", "允许", "打开 tab 处理"]);
   });
 
   it("names the stop button by its phase", async () => {

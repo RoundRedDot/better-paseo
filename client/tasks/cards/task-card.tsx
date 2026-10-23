@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, laneTitle, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
@@ -85,10 +85,6 @@ const WEB = Platform.OS === "web";
 const TOUCH = !WEB;
 /** Between the footer's timer and its buttons. */
 const FOOT_GAP = 6;
-/** A touch card's footer widths, before any measure. */
-const NO_FOOT = { row: 0, timer: 0, controls: 0, form: "" };
-/** Each card's last footer widths, by card id: see `foot` in `TaskCardViewImpl`. */
-const FOOT_WIDTHS = new Map<string, typeof NO_FOOT>();
 /**
  * The card and a subtask row hold buttons of their own, so on web they must not
  * be buttons: React Native Web draws `role="button"` as a `<button>`, and a
@@ -412,29 +408,6 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const [stopAll, setStopAll] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [ringOpen, setRingOpen] = useState(false);
-  // A touch card's footer: its width, the timer's and the buttons', to tell
-  // whether the buttons fit beside the timer at this lane width and text size.
-  // Seeded from the card's last measure, so a copy the lane motion mounts
-  // draws the footer the card had rather than one row until it measures.
-  const [foot, setFoot] = useState(() => FOOT_WIDTHS.get(card.id) ?? NO_FOOT);
-  useEffect(() => {
-    if (foot !== NO_FOOT) FOOT_WIDTHS.set(card.id, foot);
-  }, [card.id, foot]);
-  // The timer keeps the widest text it has drawn in one form (a running
-  // turn's clock and duration, a wait, an age): "1m 59s" is wider than
-  // "2m 1s", and a card near the line would otherwise change height as the
-  // seconds tick. A new form starts over.
-  const measureFoot = (key: "row" | "timer" | "controls", form = "") =>
-    TOUCH
-      ? (event: LayoutChangeEvent) => {
-          const width = event.nativeEvent.layout.width;
-          setFoot((current) => {
-            if (key !== "timer") return current[key] === width ? current : { ...current, [key]: width };
-            const timer = current.form === form ? Math.max(current.timer, width) : width;
-            return current.timer === timer && current.form === form ? current : { ...current, timer, form };
-          });
-        }
-      : undefined;
 
   const latest = useRef(props);
   latest.current = props;
@@ -874,8 +847,10 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     timer?.tone === "warning" ? tokens.warning : timer?.tone === "running" ? tokens.status.running : muted;
   // Stop's menu opens downwards over the blocks below, so the row holding the footer is raised while it can show.
   const footerZ = showControl || controlLeaving ? OVERLAY_ROW_Z : undefined;
-  // A card that can open, stop or be read keeps the footer even when it has nothing else, so its buttons have a place to appear.
-  const stopSlot = (canStop || canRead || canOpen) && !compact;
+  // A desktop card that can open, stop or be read keeps the footer even when
+  // it has nothing else, so its buttons have a place to appear. A tablet's
+  // buttons take a row of their own under it instead.
+  const stopSlot = (canStop || canRead || canOpen) && !compact && !TOUCH;
   // The footer is as tall as the hover buttons on a desktop card that can
   // show them, hovered or not, so the button sits inside it with the card's
   // own gaps above and below instead of overhanging the pills, and hovering
@@ -885,14 +860,6 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   // beside the answer it waits for, as the details sidebar shows it, rather
   // than above the divider with the buttons alone on a row of their own.
   const answerRow = layout.permission && card.permission !== null && !compact && props.permissionButtons.length > 0;
-  // A narrow lane (a pad's, or any lane at a large text size) has no room for
-  // the timer and the touch buttons side by side, so the buttons drop to a row
-  // of their own under the timer, still at the right, rather than run off the
-  // card. Measured, not a breakpoint: lane width, text size, the timer's text
-  // and the buttons' labels all move the line. No flexWrap, whose Yoga layout
-  // leaves a phantom row's height on Android. On a request's answer row the
-  // row measured is the answer row, which the footer can take alone.
-  const footWraps = TOUCH && !!timer && showControl && foot.row > 0 && foot.timer + FOOT_GAP + foot.controls > foot.row + 0.5;
   // Stop or Mark read, then "Open tab" in the corner, centred on the line they sit on.
   const footControls = (line: number) => (
     <View style={{ flexDirection: "row", gap: GAP, marginVertical: (Math.round(line * scale) - taskControlHeight(m.buttonHeight, scale)) / 2 }}>
@@ -915,7 +882,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     timer || stopSlot ? (
       <>
         {timer ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }} onLayout={measureFoot("timer", `${started ? "started" : ""}:${timer.tone}`)}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             {started ? (
               <View
                 style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
@@ -935,12 +902,6 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
               {started ? <Icon name="Hourglass" size={m.icon} color={timerColor} /> : null}
               <TimerText card={card} language={language} now={props.now} clock={props.clock} style={[text(m.footSize, m.footLine, timerColor), tabular]} />
             </View>
-          </View>
-        ) : null}
-        {/* Bottom right, where Linear keeps nothing else; it stays there without a timer. */}
-        {showControl && TOUCH ? (
-          <View style={footWraps ? { alignSelf: "flex-end" } : { marginLeft: "auto" }} onLayout={measureFoot("controls")}>
-            {footControls(footWraps ? m.buttonHeight : m.footLine)}
           </View>
         ) : null}
         {(showControl || controlLeaving) && !TOUCH ? (
@@ -971,15 +932,18 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     ) : null;
   const footer =
     footerContent && !answerRow ? (
-      <View
-        style={[
-          { flexDirection: "row", alignItems: "center", gap: FOOT_GAP, minHeight: footHeight, marginTop: m.rowGap, zIndex: footerZ },
-          footWraps ? { flexDirection: "column", alignItems: "flex-start", gap: m.rowGap } : null,
-        ]}
-        onLayout={measureFoot("row")}
-        testID="task-card-footer"
-      >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: FOOT_GAP, minHeight: footHeight, marginTop: m.rowGap, zIndex: footerZ }} testID="task-card-footer">
         {footerContent}
+      </View>
+    ) : null;
+  // A tablet's buttons always take a row of their own, at the bottom right
+  // under the timer (or under a request's answer row): beside the timer they
+  // ran off a narrow lane's card. Stop's menu opens downwards over the blocks
+  // below, so the row is raised.
+  const controlRow =
+    showControl && TOUCH ? (
+      <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: answerRow ? 0 : m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-control-row">
+        {footControls(m.buttonHeight)}
       </View>
     ) : null;
 
@@ -1020,7 +984,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           ) : null}
         </View>
         {answerRow ? (
-          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: GAP }} onLayout={measureFoot("row")} testID="task-card-answer-row">
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: GAP }} testID="task-card-answer-row">
             {props.permissionButtons.map((button) => (
               <ActionButton
                 key={button.key}
@@ -1031,18 +995,13 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
               />
             ))}
             {footerContent ? (
-              <View
-                style={[
-                  { flexDirection: "row", alignItems: "center", gap: FOOT_GAP, minHeight: footHeight, marginLeft: "auto" },
-                  footWraps ? { flexDirection: "column", alignItems: "flex-end", gap: m.rowGap } : null,
-                ]}
-                testID="task-card-footer"
-              >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: FOOT_GAP, minHeight: footHeight, marginLeft: "auto" }} testID="task-card-footer">
                 {footerContent}
               </View>
             ) : null}
           </View>
         ) : null}
+        {answerRow ? controlRow : null}
       </View>
     ) : null;
 
@@ -1075,8 +1034,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   // Phone action bar -------------------------------------------------------
   const buttons = compact && layout.permission ? props.permissionButtons : [];
   // "Answer" already opens the tab, so it stands in for "Open tab". As in the
-  // details sheet's bar, "Open tab" takes the room Stop or Mark read leaves,
-  // and beside Allow and Deny it is a square icon.
+  // details sheet's bar, "Open tab" sits last, at the right, taking the room
+  // Stop or Mark read leaves, and beside Allow and Deny it is a square icon.
   const openTab = compact && !!props.onOpen && !buttons.some((button) => button.kind === "open");
   const openSquare = openTab && buttons.length > 0;
   // Stop is as wide as its label beside a button that opens the tab ("Open tab" or "Answer").
@@ -1086,6 +1045,17 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       // One row: no flexWrap, whose Yoga layout left a phantom second row's
       // height under the buttons on Android.
       <View style={{ flexDirection: "row", gap: 8, marginTop: m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
+        {buttons.map((button) => (
+          <ActionButton
+            key={button.key}
+            button={button}
+            tokens={tokens}
+            compact
+            onPress={() => props.onPermission?.(card, button)}
+          />
+        ))}
+        {canStop ? <StopControl {...stop} compact hug={stopHugs} line={m.buttonHeight} menuLeft={openTab && buttons.length === 0} /> : null}
+        {canRead ? <ReadControl {...read} compact hug={openTab} line={m.buttonHeight} /> : null}
         {openTab ? (
           <CardButton
             label={strings.openTab}
@@ -1098,17 +1068,6 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
             testID="task-card-open-tab"
           />
         ) : null}
-        {buttons.map((button) => (
-          <ActionButton
-            key={button.key}
-            button={button}
-            tokens={tokens}
-            compact
-            onPress={() => props.onPermission?.(card, button)}
-          />
-        ))}
-        {canStop ? <StopControl {...stop} compact hug={stopHugs} line={m.buttonHeight} /> : null}
-        {canRead ? <ReadControl {...read} compact hug={openTab} line={m.buttonHeight} /> : null}
       </View>
     ) : null;
 
@@ -1142,6 +1101,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       {titleRow}
       {pillRow}
       {footer}
+      {answerRow ? null : controlRow}
       {permissionBlock}
       {failure}
       {subtaskList}
@@ -1605,7 +1565,7 @@ interface StopControlProps {
   hug?: boolean;
   /** The line it sits on, so it centres without growing the row. */
   line: number;
-  /** On desktop "Open tab" sits to its right: the menu opens rightwards over it, staying on the card. */
+  /** "Open tab" sits to its right with room past it: the menu opens rightwards over it, staying on the card. */
   menuLeft?: boolean;
   onPress(): void;
   onToggleMenu(): void;

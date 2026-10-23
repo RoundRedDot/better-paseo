@@ -369,20 +369,6 @@ function DetailHeader(props: Inner) {
       ) : null}
       {showActions ? (
         <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }} testID="detail-actions">
-          {props.onOpen ? (
-            <OutlineButton
-              icon="AppWindow"
-              label={openLabel(props)}
-              hint={card.openTab ? <OpenHint tokens={tokens} label={cardText.details.tabOpen} /> : null}
-              trailing="ArrowUpRight"
-              height={m.button}
-              font={m.font}
-              tokens={tokens}
-              grow
-              onPress={() => props.onOpen?.(card.id)}
-              testID="detail-open"
-            />
-          ) : null}
           {stop && props.stop ? (
             <OutlineButton icon="Power" danger={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} height={m.button} font={m.font} tokens={tokens} onPress={props.stop.onPress} testID="detail-stop" />
           ) : null}
@@ -397,6 +383,20 @@ function DetailHeader(props: Inner) {
                 if (!unarchive.pending(card.id)) unarchive.press(card.id);
               }}
               testID="detail-unarchive"
+            />
+          ) : null}
+          {props.onOpen ? (
+            <OutlineButton
+              icon="AppWindow"
+              label={openLabel(props)}
+              hint={card.openTab ? <OpenHint tokens={tokens} label={cardText.details.tabOpen} /> : null}
+              trailing="ArrowUpRight"
+              height={m.button}
+              font={m.font}
+              tokens={tokens}
+              grow
+              onPress={() => props.onOpen?.(card.id)}
+              testID="detail-open"
             />
           ) : null}
         </View>
@@ -1505,8 +1505,8 @@ function dangerColors(tokens: TaskTokens, look: DangerLook, hovered: boolean): {
 
 /**
  * Under the phone's sheet: the card's actions at thumb height (48, radius 12).
- * Running: open the tab and stop. Asking: allow as the main button, deny
- * beside it, and the tab shrunk to a square. Otherwise: open the tab.
+ * Running: stop, then open the tab at the right. Asking: deny, allow as the
+ * main button, and the tab shrunk to a square at the right. Otherwise: open the tab.
  */
 export function DetailActionBar(props: {
   card: TaskCard;
@@ -1533,7 +1533,6 @@ export function DetailActionBar(props: {
     <View testID="detail-action-bar" style={{ flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.border }}>
       {asking ? (
         <>
-          {props.onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} square onPress={open} testID="detail-bar-open" /> : null}
           {ordered.map((button) => (
             <BarButton
               key={button.key}
@@ -1545,11 +1544,12 @@ export function DetailActionBar(props: {
             />
           ))}
           {answer ? <BarButton tokens={tokens} label={answer.label} primary onPress={() => props.onPermission?.(answer)} /> : null}
+          {props.onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} square onPress={open} testID="detail-bar-open" /> : null}
         </>
       ) : (
         <>
-          {props.onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} primary onPress={open} testID="detail-bar-open" /> : null}
           {stop && props.stop ? <BarButton tokens={tokens} icon="Power" stop={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" /> : null}
+          {props.onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} primary onPress={open} testID="detail-bar-open" /> : null}
         </>
       )}
     </View>
