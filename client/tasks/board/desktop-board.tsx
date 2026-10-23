@@ -795,7 +795,7 @@ function DesktopLane(props: {
   const ready = board.tasks.ready;
   const name = strings.lanes[lane.id];
   const count = lane.cards.length;
-  const countStyle = { fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums" as const] };
+  const countStyle = { fontSize: F.base, color: colors.foregroundMuted, fontVariant: ["tabular-nums" as const] };
   const fresh = useFreshIds(
     lane.cards.map((card) => card.id),
     ready,
@@ -887,7 +887,7 @@ function DesktopLane(props: {
         style={{ height: taskControlHeight(40, scale), flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 14, paddingRight: 8 }}
       >
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
-        <Text style={{ fontSize: F.sm, fontWeight: "500", color: colors.foreground }}>{name}</Text>
+        <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{name}</Text>
         {ready ? (
           <RollingCount value={count} scope={board.params} style={countStyle} />
         ) : (

@@ -186,9 +186,9 @@ const DESKTOP: Metrics = {
   metaSize: F.sm,
   metaLine: HOST_LINE.sm,
   titleGap: 5,
-  // One step under the host's list rows: a lane's card is narrower than a row and reads denser.
-  titleSize: F.sm,
-  titleLine: HOST_LINE.smRead,
+  // The host's list-row step: at `sm` the title read no louder than the meta row and pills around it.
+  titleSize: F.base,
+  titleLine: HOST_LINE.base,
   iconSlot: 14,
   iconBox: 16,
   rowGap: 10,
