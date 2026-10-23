@@ -648,6 +648,23 @@ describe("TaskCardView rows", () => {
     expect(icons(byLabel(tree.root, "标为已读"))[0]).toBe("CheckCheck");
   });
 
+  it("tints Mark read with the unread green, and keeps it plain on a failed card", async () => {
+    const tokens = buildTaskTokens(LIGHT.colors);
+    const colors = (button: ReactTestInstance) => [
+      ...button.findAll((node) => (node.type as unknown) === "Icon").map((node) => node.props.color),
+      flat(button.find((node) => (node.type as unknown) === "Text").props.style).color,
+    ];
+    const tree = await render(cardElement({ ...sample("sample-unread"), readable: true }, { onRead: () => {} }));
+    const unread = byLabel(tree.root, "标为已读");
+    expect(flat(unread.props.style)).toMatchObject({ backgroundColor: tokens.card.readFill, borderColor: tokens.card.readBorder });
+    expect(colors(unread)).toEqual([tokens.card.readText, tokens.card.readText]);
+    expect(contrastRatio(tokens.card.readText, tokens.card.readFillHover)).toBeGreaterThanOrEqual(4.5);
+    await act(async () => tree.update(cardElement({ ...sample("sample-failed"), readable: true }, { onRead: () => {} })));
+    const failed = byLabel(tree.root, "标为已读");
+    expect(flat(failed.props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: tokens.card.pillBorder });
+    expect(colors(failed)).toEqual([tokens.foreground, tokens.foreground]);
+  });
+
   it("tints Allow with the accent and Deny with the danger colour", async () => {
     const buttons = permissionButtons(sample("sample-input").permission!, "zh");
     const tree = await render(cardElement(sample("sample-input"), { permissionButtons: buttons }));

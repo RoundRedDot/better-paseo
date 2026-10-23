@@ -443,7 +443,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const showControl = showStop || showRead || showOpen;
   const reducedMotion = useReducedMotion();
   const controlLeaving = useLeaving(showControl && !TOUCH, reducedMotion ? 0 : STOP_EXIT_MS);
-  const read = { tokens, strings, pending: readPending, onPress: () => props.onRead?.(card) };
+  const read = { tokens, strings, pending: readPending, unread: !failed, onPress: () => props.onRead?.(card) };
   const pressStop = (withChildren: boolean) => {
     setMenuOpen(false);
     setStopAll(withChildren);
@@ -1366,14 +1366,19 @@ export function CardButton(props: {
 
 /**
  * Mark read: a card button's size, as Stop and "Answer" are, led by
- * Lucide's CheckCheck (a read receipt), in the plain outline, since clearing a card is
- * no alarm. While the request is out a spinner takes the icon's place, the
- * label stays, dimmed, and the button takes no second press.
+ * Lucide's CheckCheck (a read receipt). On an unread card it wears the unread
+ * dot's green as "Answer" wears the needs-input amber: tinted, a hairline of
+ * the same hue, the label pulled to 4.5:1. A failed card keeps the plain
+ * outline, so no green sits on its danger tint. While the request is out a
+ * spinner takes the icon's place, the label stays, dimmed, and the button
+ * takes no second press.
  */
 function ReadControl(props: {
   tokens: TaskTokens;
   strings: ReturnType<typeof cardStrings>;
   pending: boolean;
+  /** An unread card's green; a failed card's button stays plain. */
+  unread: boolean;
   compact: boolean;
   /** On a phone, as wide as its label: "Open tab" beside it takes the rest. */
   hug?: boolean;
@@ -1389,6 +1394,9 @@ function ReadControl(props: {
   const height = taskControlHeight(compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, scale);
   const label = strings.markRead;
   const iconSize = compact ? 16 : 13;
+  const hover = hovered && !pending;
+  const color = props.unread ? look.readText : tokens.foreground;
+  const fill = props.unread ? (hover ? look.readFillHover : look.readFill) : hover ? look.controlHover : "transparent";
   return (
     <Pressable
       accessibilityRole="button"
@@ -1403,9 +1411,9 @@ function ReadControl(props: {
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         paddingHorizontal: compact ? 14 : 10,
         borderRadius: compact ? 8 : 6,
-        borderWidth: 1,
-        borderColor: look.pillBorder,
-        backgroundColor: hovered && !pending ? look.controlHover : "transparent",
+        borderWidth: props.unread ? StyleSheet.hairlineWidth : 1,
+        borderColor: props.unread ? look.readBorder : look.pillBorder,
+        backgroundColor: fill,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
@@ -1417,12 +1425,12 @@ function ReadControl(props: {
       {pending ? (
         // The platform's small spinner is 20; scaled into the icon's box so the button keeps its width.
         <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="small" color={tokens.foreground} style={{ transform: [{ scale: iconSize / 20 }] }} testID="task-card-read-spinner" />
+          <ActivityIndicator size="small" color={color} style={{ transform: [{ scale: iconSize / 20 }] }} testID="task-card-read-spinner" />
         </View>
       ) : (
-        <Icon name="CheckCheck" size={iconSize} color={tokens.foreground} />
+        <Icon name="CheckCheck" size={iconSize} color={color} />
       )}
-      <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? F.base : F.sm, fontWeight: "500", color: tokens.foreground }}>
+      <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? F.base : F.sm, fontWeight: "500", color }}>
         {label}
       </Text>
     </Pressable>
