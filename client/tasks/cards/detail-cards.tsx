@@ -44,7 +44,7 @@ import {
   type SubtaskMetaPart,
   type SubtaskSummaryPart,
 } from "./details-format";
-import { CardButton } from "./task-card";
+import { buttonHue, CardButton, CONFIRM_STOP_ICON, requestLook, type CardButtonLook } from "./task-card";
 import { buttonOutline } from "../board/board-style";
 import {
   contextView,
@@ -315,7 +315,7 @@ function DetailHeader(props: Inner) {
   const archiveButton = archive ? (
     <OutlineButton
       icon="Archive"
-      archive
+      look="archive"
       label={cardText.details.archive}
       busy={archive.pending(card.id)}
       height={m.button}
@@ -413,8 +413,8 @@ function DetailHeader(props: Inner) {
           {touch ? null : lead}
           {stop && props.stop ? (
             <OutlineButton
-              icon="Power"
-              danger={props.stop.phase === "confirming" ? "solid" : "tint"}
+              icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"}
+              look="danger"
               label={stop}
               busy={props.stop.phase === "stopping"}
               height={m.button}
@@ -537,12 +537,11 @@ function PermissionBlock(props: Inner) {
   );
 }
 
-/** Allow is the solid accent; deny and the others are outlined; "Answer" opens the tab, solid. */
+/** The card's permission buttons, by `requestLook`: Allow's accent, Deny's danger, "Answer"'s amber, the rest plain. */
 function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; height: number; onPress(): void }) {
   const { button, tokens } = props;
   const { hovered, hoverProps } = useHover();
-  const solid = button.kind === "open" || (button.variant === "primary" && button.action.behavior === "allow");
-  const danger = button.variant === "danger";
+  const hue = buttonHue(tokens, requestLook(button));
   return (
     <Pressable
       accessibilityRole="button"
@@ -553,14 +552,13 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
         height: props.height,
         paddingHorizontal: 14,
         borderRadius: 6,
-        ...buttonOutline(solid ? tokens.accent : tokens.card.buttonBorder),
-        backgroundColor: solid ? tokens.accent : hovered ? detailColors(tokens).rowHover : tokens.card.background,
-        opacity: solid && hovered ? 0.9 : 1,
+        ...buttonOutline(hue.border),
+        backgroundColor: hovered ? hue.hover : tokens.card.background,
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      <Text numberOfLines={1} style={{ fontSize: F.sm, fontWeight: "500", color: solid ? tokens.card.onStrong : danger ? tokens.danger : tokens.foreground }}>
+      <Text numberOfLines={1} style={{ fontSize: F.sm, fontWeight: "500", color: hue.color }}>
         {button.label}
       </Text>
     </Pressable>
@@ -1467,10 +1465,8 @@ function OpenHint(props: { tokens: TaskTokens; label: string }) {
 function OutlineButton(props: {
   icon: string;
   label: string;
-  /** The stop button: the card's stop pill colours, an outline at rest and solid to confirm. */
-  danger?: DangerLook;
-  /** Archive's yellow outline and label, the card button's. */
-  archive?: boolean;
+  /** The card button's colours (`buttonHue`); plain by default, its icon then muted. */
+  look?: CardButtonLook;
   hint?: React.ReactNode;
   trailing?: string;
   height: number;
@@ -1486,8 +1482,9 @@ function OutlineButton(props: {
   const scale = useTasksFontScale();
   const { hovered: hover, hoverProps } = useHover();
   const hovered = hover && !props.busy;
-  const danger = props.danger ? dangerColors(tokens, props.danger, hovered) : null;
-  const iconColor = danger?.text ?? (props.archive ? tokens.card.archiveText : tokens.foregroundMuted);
+  const look = props.look ?? "plain";
+  const hue = buttonHue(tokens, look);
+  const iconColor = look === "plain" ? tokens.foregroundMuted : hue.color;
   return (
     <Pressable
       accessibilityRole="button"
@@ -1504,8 +1501,8 @@ function OutlineButton(props: {
         height: taskControlHeight(props.height, scale),
         paddingHorizontal: props.grow ? 10 : 12,
         borderRadius: 8,
-        ...buttonOutline(danger?.border ?? (props.archive ? tokens.card.archiveBorder : tokens.card.buttonBorder)),
-        backgroundColor: danger?.fill ?? (hovered ? (props.archive ? tokens.card.archiveHover : detailColors(tokens).rowHover) : tokens.card.background),
+        ...buttonOutline(hue.border),
+        backgroundColor: hovered ? hue.hover : tokens.card.background,
         flexDirection: "row",
         alignItems: "center",
         gap: props.grow ? 8 : 6,
@@ -1518,7 +1515,7 @@ function OutlineButton(props: {
       ) : (
         <Icon name={props.icon} size={15} color={iconColor} />
       )}
-      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: props.font, fontWeight: "500", color: danger?.text ?? (props.archive ? tokens.card.archiveText : tokens.foreground) }}>
+      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: props.font, fontWeight: "500", color: hue.color }}>
         {props.label}
       </Text>
       {props.hint}
@@ -1530,18 +1527,6 @@ function OutlineButton(props: {
       ) : null}
     </Pressable>
   );
-}
-
-type DangerLook = "tint" | "solid";
-
-/**
- * The card's stop pill: a danger border and label with the card's own fill,
- * the danger tinted over it on hover; or solid with light text to confirm.
- */
-function dangerColors(tokens: TaskTokens, look: DangerLook, hovered: boolean): { fill: string; border: string; text: string } {
-  const card = tokens.card;
-  if (look === "solid") return { fill: hovered ? card.dangerStrongHover : tokens.danger, border: tokens.danger, text: card.onStrong };
-  return { fill: hovered ? card.dangerHover : card.background, border: tokens.danger, text: tokens.danger };
 }
 
 // ---- The phone's action bar ------------------------------------------------
@@ -1587,12 +1572,11 @@ export function DetailActionBar(props: {
               key={button.key}
               tokens={tokens}
               label={button.label}
-              primary={button.action.behavior === "allow" && button.variant === "primary"}
-              danger={button.variant === "danger"}
+              look={requestLook(button)}
               onPress={() => props.onPermission?.(button)}
             />
           ))}
-          {answer ? <BarButton tokens={tokens} label={answer.label} primary onPress={() => props.onPermission?.(answer)} /> : null}
+          {answer ? <BarButton tokens={tokens} label={answer.label} look="answer" onPress={() => props.onPermission?.(answer)} /> : null}
           {onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} square onPress={open} testID="detail-bar-open" /> : null}
         </>
       ) : (
@@ -1600,8 +1584,8 @@ export function DetailActionBar(props: {
           {stop && props.stop ? (
             <BarButton
               tokens={tokens}
-              icon="Power"
-              stop={props.stop.phase === "confirming" ? "solid" : "tint"}
+              icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"}
+              look="danger"
               label={stop}
               busy={props.stop.phase === "stopping"}
               grow={false}
@@ -1613,7 +1597,7 @@ export function DetailActionBar(props: {
             <BarButton
               tokens={tokens}
               icon="Archive"
-              archive
+              look="archive"
               label={cardStrings(props.language).details.archive}
               busy={archive.pending(card.id)}
               grow={!onOpen}
@@ -1621,14 +1605,14 @@ export function DetailActionBar(props: {
               testID="detail-bar-archive"
             />
           ) : null}
-          {onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} primary onPress={open} testID="detail-bar-open" /> : null}
+          {onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} look="primary" onPress={open} testID="detail-bar-open" /> : null}
           {unarchive ? (
             <BarButton
               tokens={tokens}
               icon="ArchiveRestore"
               label={cardStrings(props.language).details.unarchive}
               busy={unarchive.pending(card.id)}
-              primary
+              look="primary"
               onPress={() => unarchive.press(card.id)}
               testID="detail-bar-unarchive"
             />
@@ -1644,13 +1628,15 @@ function archivable(card: TaskCard): boolean {
   return card.lane === "done" && !card.archived;
 }
 
-function BarButton(props: { tokens: TaskTokens; icon?: string; stop?: DangerLook; label: string; primary?: boolean; danger?: boolean; archive?: boolean; square?: boolean; grow?: boolean; busy?: boolean; onPress(): void; testID?: string }) {
+/** The phone bar's button: the card button's outline (`buttonHue`) at thumb size, tinted while pressed. */
+function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; label: string; square?: boolean; grow?: boolean; busy?: boolean; onPress(): void; testID?: string }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
   const height = taskControlHeight(48, scale);
-  const stop = props.stop ? dangerColors(tokens, props.stop, false) : null;
-  const text = stop?.text ?? (props.primary ? tokens.card.onStrong : props.danger ? tokens.danger : props.archive ? tokens.card.archiveText : tokens.foreground);
-  const iconColor = props.primary || stop || props.archive ? text : tokens.foregroundMuted;
+  const look = props.look ?? "plain";
+  const hue = buttonHue(tokens, look);
+  const text = hue.color;
+  const iconColor = look === "plain" ? tokens.foregroundMuted : text;
   return (
     <Pressable
       accessibilityRole="button"
@@ -1666,9 +1652,9 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; stop?: DangerLook
         flexShrink: props.square ? 0 : 1,
         paddingHorizontal: props.square ? 0 : 16,
         borderRadius: 12,
-        ...buttonOutline(stop?.border ?? (props.primary ? tokens.accent : props.archive ? tokens.card.archiveBorder : tokens.card.buttonBorder)),
-        backgroundColor: stop?.fill ?? (props.primary ? tokens.accent : tokens.card.background),
-        opacity: props.busy ? 0.6 : pressed ? 0.85 : 1,
+        ...buttonOutline(hue.border),
+        backgroundColor: pressed && !props.busy ? hue.hover : tokens.card.background,
+        opacity: props.busy ? 0.6 : 1,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
