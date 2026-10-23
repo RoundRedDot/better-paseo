@@ -87,6 +87,7 @@ import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { LARGE_FONT_SCALE, OVERLAY_ROW_Z, PHONE_BUTTON_MIN_WIDTH, phoneButtonSizing } from "../../client/tasks/cards/task-card";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
+import { TasksTypography } from "../../client/tasks/typography";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
 import { menuChrome } from "../../client/tasks/board/menu";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -1730,6 +1731,17 @@ describe("TaskDetailCards", () => {
     expect(icons(hostByTestId(agent, "detail-thinking"))).toEqual(["Brain"]);
     expect(texts(hostByTestId(agent, "detail-mode"))).toEqual(["Bypass"]);
     expect(icons(hostByTestId(agent, "detail-mode"))).toEqual(["ShieldOff"]);
+  });
+
+  it("grows every agent and label chip together with the host's text size", async () => {
+    const card = { ...sample("sample-input"), labels: [{ name: "linear", color: null }] };
+    const pill = (node: ReactTestInstance) => (node.type as unknown) === "View" && flat(node.props.style).borderRadius === 999;
+    const heights = (tree: ReactTestRenderer) =>
+      ["detail-agent", "detail-labels"].flatMap((id) => hostByTestId(tree.root, id).findAll(pill).map((chip) => flat(chip.props.style).height));
+    expect(heights(await render(details(card)))).toEqual([22, 22, 22, 22]);
+    const large = { ...LIGHT, typography: { fontSize: { ui: 21 } } };
+    const scaled = await render(React.createElement(TasksTypography, { theme: large, children: details(card, { theme: large }) }));
+    expect(heights(scaled)).toEqual([33, 33, 33, 33]);
   });
 });
 
