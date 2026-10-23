@@ -11,7 +11,8 @@ import type { PermissionButton, StopPhase } from "../actions";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
 import { contextRatio, tildePath } from "./format";
-import { cardStart, cardTimer, type Timed } from "./card-time";
+import { cardStart, cardTimer, startHint, timerHint, type Timed } from "./card-time";
+import { CardHints, hintProps, type CardHintTexts } from "./card-hints";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
 import { agentPillColors, BrandMark, branchPillColors, neutralPillColors, type AgentPillColors } from "./brand-mark";
@@ -423,6 +424,17 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
 
   const parentHover = useHover();
 
+  // Hover hints: each mark registers what it means under a key; the card's
+  // hint layer reads the text only when a pointer rests on that mark.
+  const hintTexts = useRef<CardHintTexts>(new Map());
+  hintTexts.current.clear();
+  const hint = (key: string, text: () => string | null) => {
+    hintTexts.current.set(key, () => text() ?? "");
+    return key;
+  };
+  const lines = (...parts: (string | null | false | undefined)[]) => parts.filter(Boolean).join("\n");
+  const { pair } = strings.hint;
+
   // Leaving the card closes the menu and cancels an armed stop.
   const wasHovered = useRef(false);
   useEffect(() => {
@@ -551,10 +563,26 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       style={{ flexDirection: "row", alignItems: "center", gap: GAP, minHeight: Math.round(m.metaLine * scale), zIndex: ringZ }}
       testID="task-card-meta"
     >
-      {avatar ? <ProjectIcon location={location} size={12} hostId={props.hostId} /> : null}
+      {avatar ? (
+        <View {...hintProps(location.projectName ? hint("project", () => pair(strings.hint.project, location.projectName!)) : undefined)}>
+          <ProjectIcon location={location} size={12} hostId={props.hostId} />
+        </View>
+      ) : null}
       <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center" }}>
         {metaText ? (
-          <Text numberOfLines={1} style={[metaStyle, { flexShrink: 1, minWidth: 0 }]} testID="task-card-meta-location">
+          <Text
+            numberOfLines={1}
+            style={[metaStyle, { flexShrink: 1, minWidth: 0 }]}
+            testID="task-card-meta-location"
+            {...hintProps(
+              hint("location", () =>
+                lines(
+                  layout.project && location.projectName && pair(strings.hint.project, location.projectName),
+                  layout.workspace && location.workspaceName && pair(strings.hint.workspace, location.workspaceName),
+                ),
+              ),
+            )}
+          >
             {metaText}
           </Text>
         ) : null}
@@ -571,6 +599,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
             {...parentHover.hoverProps}
             style={{ flexShrink: PARENT_SHRINK, minWidth: 0 }}
             testID="task-card-meta-parent"
+            {...hintProps(hint("parent", () => pair(strings.details.parent, parentLabel)))}
           >
             <Text numberOfLines={1} style={[metaStyle, parentHover.hovered ? { color: tokens.foreground } : null]}>
               {`↳${NBSP}${parentLabel}`}
@@ -594,7 +623,10 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       }}
       testID="task-card-title-row"
     >
-      <View style={{ width: m.iconSlot, alignItems: "center" }}>
+      <View
+        style={{ width: m.iconSlot, alignItems: "center" }}
+        {...hintProps(hint("status", () => pair(strings.hint.status, card.stoppedManually ? strings.hint.stopped : strings.status[card.status])))}
+      >
         <StatusIcon
           kind={card.stoppedManually ? "stopped" : card.status}
           size={m.iconBox}
@@ -636,6 +668,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         lead={layout.brand ? <BrandMark provider={card.provider} size={m.pillIcon} tokens={tokens} /> : undefined}
         label={model}
         accessibilityLabel={thinking ? `${name} ${thinking}` : name}
+        hint={hint("model", () => lines(pair(strings.hint.model, name), thinking && pair(strings.hint.thinking, thinking)))}
       >
         {thinking ? (
           <>
@@ -667,13 +700,31 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         solid={neutralPillColors(tokens, muted)}
         icon={THINKING_ICON}
         label={thinking}
+        hint={hint("thinking", () => pair(strings.hint.thinking, thinking))}
       />,
     );
   }
   if (layout.branch && location.branch) {
     pills.push(
       // The branch: a faint blue fill, a blue icon and the name in monospace.
-      <Pill key="branch" {...pill} testID="pill-branch" solid={branchPillColors(tokens)} icon="GitBranch" label={location.branch} mono>
+      <Pill
+        key="branch"
+        {...pill}
+        testID="pill-branch"
+        solid={branchPillColors(tokens)}
+        icon="GitBranch"
+        label={location.branch}
+        mono
+        hint={hint("branch", () => {
+          const git = location.git;
+          return lines(
+            pair(strings.hint.branch, location.branch!),
+            git?.dirty && strings.details.dirty,
+            git?.ahead ? strings.hint.ahead(git.ahead) : null,
+            git?.behind ? strings.hint.behind(git.behind) : null,
+          );
+        })}
+      >
         {layout.gitStatus && location.git ? (
           <GitStatus git={location.git} tokens={tokens} size={m.pillText} line={m.pillLine} strings={strings} />
         ) : null}
@@ -681,9 +732,27 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     );
   }
   if (layout.path) {
-    pills.push(<Pill key="path" {...pill} testID="pill-path" icon="FolderOpen" label={tildePath(location.cwd)} />);
+    pills.push(
+      <Pill
+        key="path"
+        {...pill}
+        testID="pill-path"
+        icon="FolderOpen"
+        label={tildePath(location.cwd)}
+        hint={hint("path", () => pair(strings.hint.path, tildePath(location.cwd)))}
+      />,
+    );
   } else if (layout.folder && location.folder) {
-    pills.push(<Pill key="folder" {...pill} testID="pill-folder" icon="Folder" label={location.folder} />);
+    pills.push(
+      <Pill
+        key="folder"
+        {...pill}
+        testID="pill-folder"
+        icon="Folder"
+        label={location.folder}
+        hint={hint("folder", () => lines(pair(strings.hint.folder, location.folder!), tildePath(location.cwd)))}
+      />,
+    );
   }
   if (layout.labels > 0) {
     const shown = card.labels.slice(0, layout.labelLimit);
@@ -696,6 +765,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           tint={label.color}
           dot={label.color ?? tokens.foregroundMuted}
           label={label.name}
+          hint={hint(`label-${label.name}`, () => pair(strings.hint.label, label.name))}
         />,
       );
     }
@@ -712,6 +782,15 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
             .slice(shown.length)
             .map((label) => label.name)
             .join(", ")}
+          hint={hint("labels-more", () =>
+            pair(
+              strings.hint.moreLabels,
+              card.labels
+                .slice(shown.length)
+                .map((label) => label.name)
+                .join(", "),
+            ),
+          )}
         />,
       );
     }
@@ -727,6 +806,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         label={pr.number !== null ? `#${pr.number}` : pr.title}
         tabular
         accessibilityLabel={pr.number !== null ? `#${pr.number} ${pr.title}` : pr.title}
+        hint={hint("pr", () => pair(strings.hint.pr, pr.number !== null ? `#${pr.number} ${pr.title}` : pr.title))}
       />,
     );
   }
@@ -745,6 +825,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         tint={dominant ? statusTint(dominant, tokens) : null}
         icon="ListTree"
         accessibilityLabel={subtaskSummary(card.children, language)}
+        hint={hint("subtasks", () => subtaskSummary(card.children, language))}
         expanded={expanded}
         onPress={() => setExpanded((open) => !open)}
       >
@@ -812,18 +893,27 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       ) : null}
     </View>
   );
+  if (parentStop) hint("stop-options", () => strings.stopOptions);
   const footerContent =
     timer || stopSlot ? (
       <>
         {timer ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }} onLayout={measureFoot("timer")}>
             {started ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }} testID="task-card-started">
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                testID="task-card-started"
+                {...hintProps(hint("started", () => startHint(card, language)))}
+              >
                 <Icon name="Clock" size={m.icon} color={muted} />
                 <StartText card={card} now={props.now} clock={props.clock} style={[text(m.footSize, m.footLine, muted), tabular]} />
               </View>
             ) : null}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }} testID="task-card-timer">
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+              testID="task-card-timer"
+              {...hintProps(hint("timer", () => timerHint(card, props.now ?? Date.now(), language)))}
+            >
               {timer.tone === "warning" ? <Icon name="Clock" size={m.icon} color={timerColor} /> : null}
               {started ? <Icon name="Hourglass" size={m.icon} color={timerColor} /> : null}
               <TimerText card={card} language={language} now={props.now} clock={props.clock} style={[text(m.footSize, m.footLine, timerColor), tabular]} />
@@ -951,6 +1041,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
             tokens={tokens}
             compact={compact}
             openLabel={strings.openInWorkspace}
+            statusHint={hint(`child-${child.id}`, () => pair(strings.hint.status, strings.status[child.status]))}
+            openHint={hint("child-open", () => strings.openInWorkspace)}
             backdrop={background}
             animated={props.animated}
             language={language}
@@ -1037,6 +1129,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       {failure}
       {subtaskList}
       {actionBar}
+      {WEB ? <CardHints root={rootRef} texts={hintTexts} theme={theme} color={tokens.foreground} /> : null}
     </Pressable>
   );
 }
@@ -1071,6 +1164,8 @@ interface PillProps {
   /** The label in monospace, a size down (a branch name). */
   mono?: boolean;
   accessibilityLabel?: string;
+  /** The key of its hover hint (`CardHints`). */
+  hint?: string;
   testID?: string;
   children?: ReactNode;
 }
@@ -1130,6 +1225,7 @@ function Pill(props: PillProps) {
       style={pillStyle(props.tokens, props.compact, props.tint ?? null, props.solid, scale)}
       testID={props.testID}
       accessibilityLabel={props.accessibilityLabel}
+      {...hintProps(props.hint)}
     >
       <PillContent {...props} />
     </View>
@@ -1146,6 +1242,7 @@ function PillButton(props: PillProps & { expanded: boolean; onPress(): void }) {
       accessibilityState={{ expanded: props.expanded }}
       onPress={props.onPress}
       {...hoverProps}
+      {...hintProps(props.hint)}
       testID={props.testID}
       style={[
         pillStyle(props.tokens, props.compact, props.tint ?? null, undefined, scale),
@@ -1600,6 +1697,7 @@ function StopControl(props: StopControlProps) {
           disabled={stopping}
           onPress={props.onToggleMenu}
           {...chevronHover.hoverProps}
+          {...hintProps(props.menuOpen ? undefined : "stop-options")}
           style={[
             segment,
             {
@@ -1677,6 +1775,9 @@ function SubtaskRow(props: TimeSource & {
   tokens: TaskTokens;
   compact: boolean;
   openLabel: string;
+  /** Hover hint keys (`CardHints`) for the status mark and the jump button. */
+  statusHint: string;
+  openHint: string;
   /** The card's fill, under the mark's status corner while the row is not hovered. */
   backdrop: string;
   animated?: boolean;
@@ -1717,7 +1818,7 @@ function SubtaskRow(props: TimeSource & {
       }}
     >
       {/* The agent's mark with its status on the corner, centred on the title's first line. */}
-      <View style={{ width: m.iconSlot, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" }} testID={`subtask-status-${child.id}`}>
+      <View style={{ width: m.iconSlot, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" }} testID={`subtask-status-${child.id}`} {...hintProps(props.statusHint)}>
         <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={fill} animated={props.animated} />
       </View>
       <Text numberOfLines={2} style={{ flex: 1, fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
@@ -1739,6 +1840,7 @@ function SubtaskRow(props: TimeSource & {
           accessibilityLabel={props.openLabel}
           disabled={!showJump}
           onPress={() => props.onOpen?.(child.id)}
+          {...hintProps(showJump ? props.openHint : undefined)}
           style={{
             width: size,
             height: size,
