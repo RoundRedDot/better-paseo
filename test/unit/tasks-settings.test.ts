@@ -14,22 +14,22 @@ import {
 describe("tasks settings", () => {
   it("defaults to the spec's values", () => {
     expect(DEFAULT_TASKS_SETTINGS).toEqual({
-      enabled: false,
+      enabled: true,
       density: "standard",
       card: { ...CARD_PRESETS.standard.fields, labelLimit: "2" },
       mobile: { compactCards: false },
-      board: { doneWindow: "24h", hideSubtasks: false, confirmStop: true, laneWidth: "default", showArchived: false, showEmptyGroups: true },
+      board: { doneWindow: "24h", hideSubtasks: false, confirmStop: true, laneWidth: "default", showArchived: true, showEmptyGroups: true },
       sidebar: { count: "all" },
     });
   });
 
-  it("keeps the board off unless a record turns it on", () => {
-    // A record saved before the switch existed has no key: still version 1, read as off.
-    expect(tasksSettingsSchema.parse({ density: "full", card: {} }).enabled).toBe(false);
-    expect(tasksSettingsSchema.parse({ enabled: "yes" }).enabled).toBe(false);
-    expect(tasksSettingsSchema.parse({ enabled: true }).enabled).toBe(true);
+  it("keeps the board on unless a record turns it off", () => {
+    // A record without the key (or a bad value) reads on.
+    expect(tasksSettingsSchema.parse({ density: "full", card: {} }).enabled).toBe(true);
+    expect(tasksSettingsSchema.parse({ enabled: "no" }).enabled).toBe(true);
+    expect(tasksSettingsSchema.parse({ enabled: false }).enabled).toBe(false);
     // Density presets never touch it.
-    expect(applyDensity({ ...DEFAULT_TASKS_SETTINGS, enabled: true }, "minimal").enabled).toBe(true);
+    expect(applyDensity({ ...DEFAULT_TASKS_SETTINGS, enabled: false }, "minimal").enabled).toBe(false);
   });
 
   it("reads the old two-count sidebar choice as the three counts", () => {
@@ -46,20 +46,20 @@ describe("tasks settings", () => {
     expect(parsed.density).toBe("standard");
     expect(parsed.card.provider).toBe(false);
     expect(parsed.card.labelLimit).toBe("2");
-    expect(parsed.board).toEqual({ doneWindow: "7d", hideSubtasks: false, confirmStop: true, laneWidth: "default", showArchived: false, showEmptyGroups: true });
+    expect(parsed.board).toEqual({ doneWindow: "7d", hideSubtasks: false, confirmStop: true, laneWidth: "default", showArchived: true, showEmptyGroups: true });
     // A record saved before the lane width existed keeps its other board options.
     expect(tasksSettingsSchema.parse({ board: { doneWindow: "all", hideSubtasks: true } }).board).toEqual({
       doneWindow: "all",
       hideSubtasks: true,
       confirmStop: true,
       laneWidth: "default",
-      showArchived: false,
+      showArchived: true,
       showEmptyGroups: true,
     });
     expect(tasksSettingsSchema.parse({ board: { laneWidth: "wide" } }).board.laneWidth).toBe("wide");
-    // The archived lane is opt-in: anything but true reads off.
-    expect(tasksSettingsSchema.parse({ board: { showArchived: "yes" } }).board.showArchived).toBe(false);
-    expect(tasksSettingsSchema.parse({ board: { showArchived: true } }).board.showArchived).toBe(true);
+    // The archived lane shows unless a record turns it off: anything but false reads on.
+    expect(tasksSettingsSchema.parse({ board: { showArchived: "no" } }).board.showArchived).toBe(true);
+    expect(tasksSettingsSchema.parse({ board: { showArchived: false } }).board.showArchived).toBe(false);
     // Groups with no active task show unless a record turns them off.
     expect(tasksSettingsSchema.parse({ board: { showEmptyGroups: "no" } }).board.showEmptyGroups).toBe(true);
     expect(tasksSettingsSchema.parse({ board: { showEmptyGroups: false } }).board.showEmptyGroups).toBe(false);

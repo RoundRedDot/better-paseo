@@ -9,8 +9,8 @@
  */
 
 /**
- * The lanes, left to right: what needs a person first. `archived` is opt-in
- * (`board.showArchived`); a board without it draws `ACTIVE_LANE_ORDER`.
+ * The lanes, left to right: what needs a person first. `archived` can be
+ * turned off (`board.showArchived`); a board without it draws `ACTIVE_LANE_ORDER`.
  */
 export type LaneId = "needs_input" | "running" | "review" | "done" | "archived";
 

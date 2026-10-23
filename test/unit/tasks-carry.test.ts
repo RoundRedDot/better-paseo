@@ -36,7 +36,7 @@ describe("carried settings", () => {
 
   it("take the schema's fallbacks for fields an earlier version wrote otherwise", () => {
     carrySettings("h1", { enabled: "yes" } as never);
-    expect(carriedSettings("h1")?.enabled).toBe(false);
+    expect(carriedSettings("h1")?.enabled).toBe(true);
     carrySettings("h1", "on" as never);
     expect(carriedSettings("h1")).toBeNull();
   });

@@ -68,7 +68,9 @@ import { SETTINGS_SCREEN_ID, resetSettingsTab, setSettingsTab, settingsTab } fro
 import { resetTasksLanguage, resolveTasksLanguage } from "../../client/tasks/i18n";
 import { resetHostLanguageForTests } from "../../client/i18n/host-language";
 import { contributeTasks } from "../../client/tasks/contribute";
-import { DEFAULT_TASKS_SETTINGS } from "../../shared/tasks-settings";
+import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
+// These tests start from the board and the archived lane both off; the stock settings turn both on.
+const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: false, board: { ...STOCK_SETTINGS.board, showArchived: false } };
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -318,7 +320,7 @@ describe("Tasks board across a reconnect", () => {
 
   it("waits for the startup read when the carried settings no longer say the board is on", async () => {
     await openOnce();
-    carriedBoard().settings = { enabled: "yes" };
+    carriedBoard().settings = { enabled: false };
     reconnect({ stalled: true });
     await mount(screen());
     expect(textOf(renderer!.root)).toBe("");
@@ -353,7 +355,7 @@ describe("Tasks registrations, opt-in", () => {
   const flush = async () => {
     for (let tick = 0; tick < 5; tick++) await Promise.resolve();
   };
-  const offRecord = () => Promise.resolve({ status: "ready", revision: "1", values: {} });
+  const offRecord = () => Promise.resolve({ status: "ready", revision: "1", values: { enabled: false } });
 
   it("registers only the idle screen while off (its options live on the settings page): no sidebar item, command, timer or listener", async () => {
     vi.useFakeTimers();
@@ -402,6 +404,12 @@ describe("Tasks registrations, opt-in", () => {
     expect(plugin.kinds()).toEqual(["screen"]);
     await flush();
     expect(plugin.kinds()).toEqual(["command", "screen", "sidebar"]);
+    // A record that never set the switch reads on.
+    resetTasksEnabled();
+    const fresh = client(() => Promise.resolve({ status: "ready", revision: "1", values: {} }));
+    contributeTasks(fresh.value as never);
+    await flush();
+    expect(fresh.kinds()).toEqual(["command", "screen", "sidebar"]);
   });
 
   it("keeps the board off when the read fails or the record is unusable", async () => {

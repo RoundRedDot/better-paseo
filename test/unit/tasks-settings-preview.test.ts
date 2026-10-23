@@ -51,7 +51,9 @@ vi.mock("../../client/tasks/data", () => {
 
 import "./helpers/quiet-renderer";
 import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
-import { DEFAULT_TASKS_SETTINGS, applyDensity, setCardSetting } from "../../shared/tasks-settings";
+import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS, applyDensity, setCardSetting } from "../../shared/tasks-settings";
+// These tests start from the board and the archived lane both off; the stock settings turn both on.
+const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: false, board: { ...STOCK_SETTINGS.board, showArchived: false } };
 import { PREVIEW_LANES_MIN, TasksBoardPreview, previewLanes, previewLanesMin } from "../../client/tasks/settings/board-preview";
 import { ACTIVE_LANE_ORDER as LANE_ORDER } from "../../client/tasks/model";
 
