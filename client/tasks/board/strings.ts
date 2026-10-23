@@ -96,6 +96,19 @@ const en = {
     hint: (on: boolean): string => (on ? "Agents, projects, workspaces and labels with no active task are listed" : "Only agents, projects, workspaces and labels with an active task are listed"),
     saveFailed: "Couldn't save the empty groups setting",
   },
+  /** The desktop bars' hover tips, shown under a control a pointer rests on. */
+  tips: {
+    project: "Filter by project",
+    workspace: "Filter by workspace",
+    agent: "Filter by agent",
+    labels: "Filter by label",
+    openTabs: "Show only tasks open in a tab",
+    hideSubtasks: "Hide subagents' tasks",
+    doneWindow: "How far back Done and Archived reach",
+    hideArchived: "Hide the archived lane",
+    hideEmptyGroups: "Hide groups with no active tasks",
+    sort: "Order the cards in each lane",
+  },
   back: "Back",
   sortKeys: {
     workspace: "Workspace",
@@ -223,6 +236,18 @@ const zh: typeof en = {
     row: "显示数量为 0 的分组",
     hint: (on) => (on ? "没有进行中任务的 Agent、项目、Workspace 和标签也会列出" : "只列出有进行中任务的 Agent、项目、Workspace 和标签"),
     saveFailed: "数量为 0 的分组设置没有保存成功",
+  },
+  tips: {
+    project: "按项目筛选",
+    workspace: "按 Workspace 筛选",
+    agent: "按 Agent 筛选",
+    labels: "按标签筛选",
+    openTabs: "只显示在 Paseo 里开着 tab 的任务",
+    hideSubtasks: "隐藏子 agent 的任务",
+    doneWindow: "已完成和已归档泳道显示多久以内的任务",
+    hideArchived: "隐藏已归档泳道",
+    hideEmptyGroups: "隐藏数量为 0 的分组",
+    sort: "每列卡片的排列顺序",
   },
   back: "返回",
   sortKeys: {

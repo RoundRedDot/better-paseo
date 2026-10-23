@@ -8,6 +8,7 @@ import { DONE_WINDOWS } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { TaskCardView, taskTokens, type CardCallbacks } from "../cards";
+import { tipProps } from "../cards/card-hints";
 import type { TaskCard } from "../model";
 import { GLYPH_LINE, HAIRLINE, MOTION } from "./board-style";
 import type { BoardStrings } from "./strings";
@@ -52,6 +53,8 @@ export function WindowSegments(props: {
   /** Phone: 32 high, items 26; desktop: 26 high, items 20. */
   large?: boolean;
   stretch?: boolean;
+  /** The desktop bar's hover tip for the whole control. */
+  tip?: string;
 }) {
   return <Segments items={DONE_WINDOWS} label={(window) => props.strings.windows[window]} {...props} />;
 }
@@ -66,6 +69,7 @@ export function Segments<T extends string>(props: {
   large?: boolean;
   stretch?: boolean;
   testID?: string;
+  tip?: string;
 }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
@@ -76,6 +80,7 @@ export function Segments<T extends string>(props: {
     <View
       accessibilityRole="radiogroup"
       testID={props.testID}
+      {...tipProps(props.tip)}
       style={{
         height: props.stretch ? taskControlHeight(36, scale) : outer,
         flexDirection: "row",
@@ -450,6 +455,8 @@ export function RoundButton(props: {
   slashed?: boolean;
   /** The circle's size, with no target padding around it. */
   size?: number;
+  /** Its hover tip, where a pointer can rest on it (a narrow tablet board on the web). */
+  tip?: string;
 }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
@@ -461,6 +468,7 @@ export function RoundButton(props: {
       accessibilityRole="button"
       accessibilityLabel={props.label}
       accessibilityState={props.selected === undefined ? undefined : { selected: props.selected }}
+      {...tipProps(props.tip)}
       onPress={props.onPress}
       hitSlop={pad || Platform.OS === "web" ? 0 : 4}
       testID={props.testID}

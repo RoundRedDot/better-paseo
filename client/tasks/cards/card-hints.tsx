@@ -33,6 +33,14 @@ export function hintProps(key: string | undefined): ViewProps {
   return Platform.OS === "web" && key ? ({ dataSet: { bchint: key } } as unknown as ViewProps) : {};
 }
 
+/**
+ * A board toolbar control's hover tip: the text itself, on its own
+ * attribute, so the board's layer (`BoardTips`) never answers a card's marks.
+ */
+export function tipProps(text: string | undefined): ViewProps {
+  return Platform.OS === "web" && text ? ({ dataSet: { bctip: text } } as unknown as ViewProps) : {};
+}
+
 export interface HintBox {
   left: number;
   top: number;
@@ -57,12 +65,25 @@ export interface HintPlace {
 export function placeHint(anchor: HintBox, card: { width: number; height: number }): HintPlace {
   const above = anchor.top >= ROOM;
   const vertical = above ? { bottom: card.height - anchor.top + GAP } : { top: anchor.top + anchor.height + GAP };
-  if (anchor.left + anchor.width / 2 <= card.width / 2) {
+  return { ...vertical, ...alongside(anchor, card.width) };
+}
+
+/**
+ * Where a toolbar control's tip sits on the board: always below it, as the
+ * bars are the board's top edge, and lined up with it as a card's hint is.
+ */
+export function placeTip(anchor: HintBox, board: { width: number; height: number }): HintPlace {
+  return { top: anchor.top + anchor.height + GAP, ...alongside(anchor, board.width) };
+}
+
+/** From the mark's left edge in the left half of `width`, else ending at its right edge. */
+function alongside(anchor: HintBox, width: number): Pick<HintPlace, "left" | "right" | "maxWidth"> {
+  if (anchor.left + anchor.width / 2 <= width / 2) {
     const left = Math.max(EDGE, anchor.left);
-    return { ...vertical, left, maxWidth: Math.max(0, card.width - EDGE - left) };
+    return { left, maxWidth: Math.max(0, width - EDGE - left) };
   }
-  const right = Math.max(EDGE, card.width - anchor.left - anchor.width);
-  return { ...vertical, right, maxWidth: Math.max(0, card.width - EDGE - right) };
+  const right = Math.max(EDGE, width - anchor.left - anchor.width);
+  return { right, maxWidth: Math.max(0, width - EDGE - right) };
 }
 
 interface Shown {
@@ -72,8 +93,52 @@ interface Shown {
 
 /** The card's hint layer: render it last in the card, with the card's root and its texts. */
 export function CardHints(props: { root: RefObject<View | null>; texts: RefObject<CardHintTexts>; theme: PluginTheme; color: string }) {
+  const { texts } = props;
+  return (
+    <HintLayer
+      root={props.root}
+      theme={props.theme}
+      color={props.color}
+      attribute="bchint"
+      read={(mark) => texts.current?.get(mark.getAttribute("data-bchint") ?? "")?.()}
+      place={placeHint}
+      testID="task-card-hint"
+    />
+  );
+}
+
+/**
+ * The desktop board's tips for its two bars' controls (`tipProps`): render
+ * it last in the board, with the board's root, so a tip paints over the lanes.
+ */
+export function BoardTips(props: { root: RefObject<View | null>; theme: PluginTheme; color: string }) {
+  return (
+    <HintLayer
+      root={props.root}
+      theme={props.theme}
+      color={props.color}
+      attribute="bctip"
+      read={(mark) => mark.getAttribute("data-bctip") ?? undefined}
+      place={placeTip}
+      testID="board-tip"
+    />
+  );
+}
+
+/** One hover layer over `root`: the marks under it carry `data-<attribute>`, `read` gives a mark's text. */
+function HintLayer(props: {
+  root: RefObject<View | null>;
+  theme: PluginTheme;
+  color: string;
+  attribute: "bchint" | "bctip";
+  read(mark: Element): string | undefined;
+  place(anchor: HintBox, box: { width: number; height: number }): HintPlace;
+  testID: string;
+}) {
   const [shown, setShown] = useState<Shown | null>(null);
-  const { root, texts } = props;
+  const { root, attribute, place } = props;
+  const read = useRef(props.read);
+  read.current = props.read;
   const reducedMotion = useReducedMotion();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
@@ -86,20 +151,20 @@ export function CardHints(props: { root: RefObject<View | null>; texts: RefObjec
     };
     const over = (event: PointerEvent) => {
       if (event.pointerType === "touch") return;
-      const found = (event.target as Element | null)?.closest?.("[data-bchint]") ?? null;
+      const found = (event.target as Element | null)?.closest?.(`[data-${attribute}]`) ?? null;
       const next = found && card.contains(found) ? found : null;
       if (next === target) return;
       target = next;
       close();
       if (!next) return;
       timer.current = setTimeout(() => {
-        const text = texts.current?.get(next.getAttribute("data-bchint") ?? "")?.();
+        const text = read.current(next);
         if (!text || !next.isConnected) return;
         const box = card.getBoundingClientRect();
         const mark = next.getBoundingClientRect();
         // Absolute children sit inside the card's border.
         const anchor = { left: mark.left - box.left - card.clientLeft, top: mark.top - box.top - card.clientTop, width: mark.width, height: mark.height };
-        setShown({ text, place: placeHint(anchor, { width: card.clientWidth, height: card.clientHeight }) });
+        setShown({ text, place: place(anchor, { width: card.clientWidth, height: card.clientHeight }) });
       }, HINT_DELAY_MS);
     };
     const leave = () => {
@@ -118,9 +183,9 @@ export function CardHints(props: { root: RefObject<View | null>; texts: RefObjec
       card.removeEventListener("pointerdown", close);
       card.removeEventListener("wheel", close);
     };
-  }, [root, texts]);
+  }, [root, attribute, place]);
   if (!shown) return null;
-  const { place } = shown;
+  const { place: at } = shown;
   return (
     <View
       pointerEvents="none"
@@ -128,19 +193,19 @@ export function CardHints(props: { root: RefObject<View | null>; texts: RefObjec
         {
           position: "absolute",
           zIndex: 40,
-          left: place.left,
-          right: place.right,
-          top: place.top,
-          bottom: place.bottom,
-          maxWidth: place.maxWidth,
+          left: at.left,
+          right: at.right,
+          top: at.top,
+          bottom: at.bottom,
+          maxWidth: at.maxWidth,
           paddingHorizontal: 8,
           paddingVertical: 4,
           ...panelChrome(props.theme),
           borderRadius: 8,
         } as ViewStyle,
-        reducedMotion ? null : place.bottom !== undefined ? motion?.above : motion?.below,
+        reducedMotion ? null : at.bottom !== undefined ? motion?.above : motion?.below,
       ]}
-      testID="task-card-hint"
+      testID={props.testID}
     >
       <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: props.color }}>{shown.text}</Text>
     </View>

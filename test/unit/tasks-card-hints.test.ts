@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
 
-import { placeHint } from "../../client/tasks/cards/card-hints";
+import { placeHint, placeTip } from "../../client/tasks/cards/card-hints";
 import { startHint, timerHint } from "../../client/tasks/cards/card-time";
 import { formatFullStamp } from "../../client/ui/time";
 import type { Timed } from "../../client/tasks/cards/card-time";
@@ -21,6 +21,15 @@ describe("placeHint", () => {
   it("keeps the card's edge margin for a mark flush with it", () => {
     expect(placeHint({ left: 0, top: 120, width: 40, height: 20 }, CARD)).toMatchObject({ left: 6, maxWidth: 326 });
     expect(placeHint({ left: 300, top: 120, width: 38, height: 20 }, CARD)).toMatchObject({ right: 6, maxWidth: 326 });
+  });
+});
+
+describe("placeTip", () => {
+  const BOARD = { width: 1600, height: 900 };
+
+  it("opens below a toolbar control whatever room is over it, lined up with its nearer edge", () => {
+    expect(placeTip({ left: 16, top: 60, width: 80, height: 28 }, BOARD)).toEqual({ top: 92, left: 16, maxWidth: 1578 });
+    expect(placeTip({ left: 1540, top: 10, width: 28, height: 28 }, BOARD)).toEqual({ top: 42, right: 32, maxWidth: 1562 });
   });
 });
 
