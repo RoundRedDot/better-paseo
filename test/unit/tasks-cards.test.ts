@@ -461,21 +461,22 @@ describe("TaskCardView rows", () => {
       const agent = id === "pill-model" || id === "pill-branch";
       expect(flat(hostByTestId(tree.root, id).props.style)).toMatchObject({ height: 20, borderRadius: 10, borderWidth: agent ? 0 : 1 });
     }
-    // A label pill is the neutral one: its colour is only in the solid tag before the name.
+    // A label pill has no fill, only the neutral hairline: its colour is only in the solid tag before the name.
     const tokens = buildTaskTokens(LIGHT.colors);
     const pillColors = (id: string) => {
       const style = flat(hostByTestId(tree.root, id).props.style);
       return { background: style.backgroundColor, border: style.borderColor };
     };
-    expect(pillColors("pill-label-frontend")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
-    expect(pillColors("pill-label-board")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
+    expect(pillColors("pill-label-frontend")).toEqual({ background: "transparent", border: tokens.card.pillBorder });
+    expect(pillColors("pill-label-board")).toEqual({ background: "transparent", border: tokens.card.pillBorder });
     // The branch: a faint fixed blue, borderless; folder, path and PR stay neutral.
     expect(pillColors("pill-branch").background).toBe(mix("#ffffff", tokens.branch, 0.08));
     // Codex's mark is monochrome, like the ChatGPT app's, so its agent pill is the neutral one; the subtasks pill its dominant status (2 running).
     expect(pillColors("pill-model").background).toBe(mix("#ffffff", LIGHT.colors.foreground, 0.06));
     expect(pillColors("pill-subtasks").background).toBe(mix("#ffffff", tokens.status.running, 0.1));
     const tag = (name: string) => hostByTestId(tree.root, `pill-label-${name}`).findByType(TagMark).props;
-    expect(tag("frontend")).toMatchObject({ color: "#8b5cf6", hole: tokens.card.pillFill });
+    // The hole shows the card through the clear pill.
+    expect(tag("frontend")).toMatchObject({ color: "#8b5cf6", hole: flat(hostByTestId(tree.root, "task-card-sample-running").props.style).backgroundColor });
     expect(tag("p1").color).toBe("#ef4444");
     // No colour: a neutral grey tag.
     expect(tag("board").color).toBe("#6b6b75");
