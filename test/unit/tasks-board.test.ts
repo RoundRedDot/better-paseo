@@ -477,9 +477,9 @@ describe("lane widths", () => {
     expect(layout.laneWidth * 4 + fixed(4, 0)).toBeCloseTo(1300);
   });
 
-  it("caps a lane a step under Linear's card width and leaves the rest of a wide window empty", () => {
+  it("caps a lane at Linear's card width and leaves the rest of a wide window empty", () => {
     // On web the card is the lane less 8 + 4 of padding and the 6 scrollbar gutter.
-    expect(LANES.max - 8 - 4 - 6).toBe(302);
+    expect(LANES.max - 8 - 4 - 6).toBe(322);
     expect(laneLayout(2000, 4, 0)).toEqual({ laneWidth: LANES.max, contentWidth: 2000, scroll: false });
     expect(laneLayout(fixed(4, 0) + 4 * LANES.max, 4, 0).laneWidth).toBe(LANES.max);
     expect(laneLayout(fixed(4, 0) + 4 * LANES.max - 4, 4, 0).laneWidth).toBeCloseTo(LANES.max - 1);
@@ -492,15 +492,15 @@ describe("lane widths", () => {
     expect(layout).toEqual({ laneWidth: LANES.min, contentWidth: fixed(4, 0) + 4 * LANES.min, scroll: true });
     // Exactly the minimum still fits.
     expect(laneLayout(fixed(4, 0) + 4 * LANES.min, 4, 0).scroll).toBe(false);
-    // A card stays at least 264 wide while the lanes scroll at 280: the panel pads 8 on each side.
-    expect(LANES.min - 16).toBeGreaterThanOrEqual(264);
+    // A card stays at least 280 wide while two lanes fit at 300: the panel pads 8 on each side.
+    expect(LANES.min - 16).toBeGreaterThanOrEqual(280);
   });
 
   it("keeps the lane width on a board too narrow for it, and scrolls the row", () => {
-    // A foldable with the host's sidebar open (about 540): lanes stay 280 and the row scrolls, no squeeze to fit two.
+    // A foldable with the host's sidebar open (about 540): lanes stay 300 and the row scrolls, no squeeze to fit two.
     expect(laneLayout(540, 4, 0)).toEqual({ laneWidth: LANES.min, contentWidth: fixed(4, 0) + 4 * LANES.min, scroll: true });
     expect(laneLayout(632, 4, 0).laneWidth).toBe(LANES.min);
-    // Two expanded lanes that do not fit at 280 scroll too.
+    // Two expanded lanes that do not fit at 300 scroll too.
     expect(laneLayout(480, 2, 0)).toEqual({ laneWidth: LANES.min, contentWidth: fixed(2, 0) + 2 * LANES.min, scroll: true });
     // Never wider than the board less its edges, never under LANES.narrow.
     expect(laneLayout(280, 4, 0).laneWidth).toBe(280 - 2 * LANES.edge);
@@ -512,7 +512,7 @@ describe("lane widths", () => {
     const one = laneLayout(1000, 3, 1);
     expect(one.scroll).toBe(false);
     expect(one.laneWidth).toBeCloseTo((1000 - fixed(4, 1)) / 3);
-    const two = laneLayout(650, 2, 2);
+    const two = laneLayout(700, 2, 2);
     expect(two).toEqual({ laneWidth: LANES.min, contentWidth: fixed(4, 2) + 2 * LANES.min, scroll: true });
     expect(laneLayout(700, 2, 1).laneWidth).toBeCloseTo((700 - fixed(3, 1)) / 2);
     expect(laneLayout(1000, 0, 4)).toEqual({ laneWidth: 0, contentWidth: 1000, scroll: false });
@@ -526,30 +526,29 @@ describe("lane widths", () => {
   });
 
   it("caps and scrolls narrow and wide lanes at their own widths", () => {
-    // Narrow: four lanes fit a 1040 board without scrolling, where the default scrolls.
-    expect(laneLayout(1040, 4, 0, "narrow")).toEqual({ laneWidth: 248, contentWidth: 1040, scroll: false });
-    expect(laneLayout(1040, 4, 0, "default").scroll).toBe(true);
-    // And a 1440 laptop's beside the host's sidebar (1120): capped at 260.
-    expect(laneLayout(1120, 4, 0, "narrow")).toEqual({ laneWidth: 260, contentWidth: 1120, scroll: false });
-    expect(laneLayout(fixed(4, 0) + 4 * 240, 4, 0, "narrow").scroll).toBe(false);
-    expect(laneLayout(960, 4, 0, "narrow")).toEqual({ laneWidth: 240, contentWidth: fixed(4, 0) + 4 * 240, scroll: true });
-    // Wide: lanes grow to 380 on a big screen and scroll at 320 below it.
-    expect(laneLayout(2000, 4, 0, "wide")).toEqual({ laneWidth: 380, contentWidth: 2000, scroll: false });
-    expect(laneLayout(1400, 4, 0, "wide").laneWidth).toBeCloseTo((1400 - fixed(4, 0)) / 4);
-    expect(laneLayout(1300, 4, 0, "wide")).toEqual({ laneWidth: 320, contentWidth: fixed(4, 0) + 4 * 320, scroll: true });
-    // Every width keeps its cards readable: the narrow preset's widest card is 242 on web.
-    expect(LANE_SIZES.narrow.max - 8 - 4 - 6).toBe(242);
-    expect(LANE_SIZES.wide.max - 8 - 4 - 6).toBe(362);
+    // Narrow: four lanes fit a 1440 laptop's board (1120 beside the host's sidebar) without scrolling, where the default scrolls.
+    expect(laneLayout(1120, 4, 0, "narrow")).toEqual({ laneWidth: 268, contentWidth: 1120, scroll: false });
+    expect(laneLayout(1120, 4, 0, "default").scroll).toBe(true);
+    // And a 1920 screen's with the details sidebar open (1208): capped at 280.
+    expect(laneLayout(1208, 4, 0, "narrow")).toEqual({ laneWidth: 280, contentWidth: 1208, scroll: false });
+    expect(laneLayout(fixed(4, 0) + 4 * 260, 4, 0, "narrow").scroll).toBe(false);
+    expect(laneLayout(1000, 4, 0, "narrow")).toEqual({ laneWidth: 260, contentWidth: fixed(4, 0) + 4 * 260, scroll: true });
+    // Wide: lanes grow to 420 on a big screen and scroll at 360 below it.
+    expect(laneLayout(2000, 4, 0, "wide")).toEqual({ laneWidth: 420, contentWidth: 2000, scroll: false });
+    expect(laneLayout(1600, 4, 0, "wide").laneWidth).toBeCloseTo((1600 - fixed(4, 0)) / 4);
+    expect(laneLayout(1300, 4, 0, "wide")).toEqual({ laneWidth: 360, contentWidth: fixed(4, 0) + 4 * 360, scroll: true });
+    // Every width keeps its cards readable: the narrow preset's widest card is 262 on web.
+    expect(LANE_SIZES.narrow.max - 8 - 4 - 6).toBe(262);
+    expect(LANE_SIZES.wide.max - 8 - 4 - 6).toBe(402);
   });
 
   it("shows each lane width on a tablet's narrow board, scrolling the row", () => {
     // An iPad in landscape with the host's sidebar open: about 700 for the board.
-    expect(laneLayout(700, 4, 0, "wide").laneWidth).toBe(320);
+    expect(laneLayout(700, 4, 0, "wide").laneWidth).toBe(360);
     expect(laneLayout(700, 4, 0, "default").laneWidth).toBe(LANES.min);
-    expect(laneLayout(700, 4, 0, "narrow").laneWidth).toBe(240);
-    // An iPad in portrait or a foldable (500): the three widths differ, so the setting shows; narrow keeps two lanes in view.
-    expect([...new Set((["narrow", "default", "wide"] as const).map((size) => laneLayout(500, 4, 0, size).laneWidth))]).toEqual([240, 280, 320]);
-    expect(2 * 240 + LANES.gap + LANES.edge).toBeLessThanOrEqual(500);
+    expect(laneLayout(700, 4, 0, "narrow").laneWidth).toBe(260);
+    // A foldable's (540): the three widths differ, so the setting shows.
+    expect([...new Set((["narrow", "default", "wide"] as const).map((size) => laneLayout(540, 4, 0, size).laneWidth))]).toEqual([260, 300, 360]);
   });
 });
 
