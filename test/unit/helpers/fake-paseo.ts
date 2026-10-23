@@ -5,7 +5,8 @@
  * answers the calls the board makes: `agents.list` (filter, sort, page, and a
  * subscription), `agents.ref(id)` (`respondToPermission`, `refresh`),
  * `workspaces.list` (with a subscription), `projects.list`,
- * `providers.listModels`, and, when the host is new enough
+ * `providers.listModels` (with `providerEntries`, also `providers.snapshot`
+ * and its subscription), and, when the host is new enough
  * (`withLabelsAndIcons`), `workspaces.listLabels` and `projects.icon` from
  * getpaseo/paseo#7482.
  *
@@ -155,6 +156,13 @@ export function makeWorkspace(overrides: Partial<PaseoWorkspace> & { id: string 
   return { ...base, ...overrides } as unknown as PaseoWorkspace;
 }
 
+export interface FakeProviderEntry {
+  provider: string;
+  enabled?: boolean;
+  label?: string;
+  status?: "ready" | "loading" | "error" | "unavailable";
+}
+
 export interface FakePaseoOptions {
   agents?: Agent[];
   placements?: Record<string, Placement>;
@@ -167,6 +175,8 @@ export interface FakePaseoOptions {
   labels?: FakeLabelDefinition[];
   /** `data` (base64) and `mimeType` per project id. */
   projectIcons?: Record<string, { data: string; mimeType: string } | null>;
+  /** The providers snapshot's entries; without them the host has no `providers.snapshot`. */
+  providerEntries?: FakeProviderEntry[];
   /** Subscriptions never answer, as on a host that has not caught up after a reconnect. */
   stalled?: boolean;
 }
@@ -375,12 +385,24 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     };
   }
 
-  const providerActions = {
+  const providerSubs = new Set<(update: { entries: FakeProviderEntry[] }) => void>();
+  let providerEntries = options.providerEntries;
+  const providerActions: Record<string, unknown> = {
     async listModels(provider: string, listOptions?: { cwd?: string }) {
       calls.push({ method: "providers.listModels", input: { provider, ...listOptions } });
       return { provider, models: options.models?.[provider] ?? [], error: null, fetchedAt: at(0) } as unknown as PaseoProviderModelsResult;
     },
   };
+  if (providerEntries) {
+    providerActions.snapshot = async () => {
+      calls.push({ method: "providers.snapshot", input: {} });
+      return { entries: providerEntries!.map((entry) => ({ status: "ready", ...entry })), generatedAt: at(0), requestId: `req-${nextId++}` };
+    };
+    providerActions.subscribe = (handler: (update: { entries: FakeProviderEntry[] }) => void) => {
+      providerSubs.add(handler);
+      return () => providerSubs.delete(handler);
+    };
+  }
 
   const paseo = {
     agents: agentActions,
@@ -395,7 +417,12 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     calls,
     permissionResponses,
     /** Open subscriptions, so a test can check that the board released them. */
-    openSubscriptions: () => agentSubs.size + workspaceSubs.size + labelSubs.size + projectSubs.size,
+    openSubscriptions: () => agentSubs.size + workspaceSubs.size + labelSubs.size + projectSubs.size + providerSubs.size,
+    /** Change the providers snapshot and push it as a `providers_snapshot_update`. */
+    updateProviders(entries: FakeProviderEntry[]) {
+      providerEntries = entries;
+      for (const handler of providerSubs) handler({ entries: entries.map((entry) => ({ status: "ready", ...entry })) });
+    },
     upsertAgent(agent: Agent, placement?: Placement) {
       const workspace = ensureWorkspace(agent);
       if (workspace) this.upsertWorkspace(workspace);
