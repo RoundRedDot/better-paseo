@@ -502,6 +502,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // a question's "Answer" already opens the tab.
   const canOpen = !compact && !!props.onOpen && !(layout.permission && props.permissionButtons.some((button) => button.kind === "open"));
   const showOpen = canOpen && (TOUCH || hovered || showStop || showRead);
+  // A subtask's card adds "Open parent" before it, unless the parent is archived (Paseo would show another tab).
+  const parentOpens = !!props.onOpen && card.parent !== null && !card.parent.archivedAs && card.parent.archived !== true;
   // An archived task has Unarchive where Open tab was: Paseo opens it only once it is back.
   const canUnarchive = card.archived === "agent" && !!props.onUnarchive;
   const unarchivePending = props.unarchivePending === true;
@@ -972,16 +974,26 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       testID="task-card-archive"
     />
   );
-  // A provider subagent has no tab: its Open opens its parent's.
-  const openLabel = card.subagent ? strings.openParent : strings.openTab;
-  // Stop, Mark read or Archive, then "Open tab" in the corner, centred on the line they sit on.
+  const openParentButton = (onPhone: boolean) => (
+    <CardButton
+      label={strings.openParent}
+      look="plain"
+      arrow
+      tokens={tokens}
+      compact={onPhone}
+      onPress={() => props.onOpen?.(card.parent!.id)}
+      testID="task-card-open-parent"
+    />
+  );
+  // Stop, Mark read or Archive, then "Open parent" and "Open tab" in the corner, centred on the line they sit on.
   const footControls = (line: number) => (
     <View style={{ flexDirection: "row", gap: GAP, marginVertical: (Math.round(line * scale) - taskControlHeight(m.buttonHeight, scale)) / 2 }}>
       {footStop ? <StopControl {...stop} compact={false} line={m.buttonHeight} menuLeft={canOpen} /> : canRead ? <ReadControl {...read} compact={false} line={m.buttonHeight} /> : null}
       {canArchive ? archiveButton(false) : null}
+      {canOpen && parentOpens ? openParentButton(false) : null}
       {canOpen ? (
         <CardButton
-          label={openLabel}
+          label={strings.openTab}
           look="plain"
           arrow
           tokens={tokens}
@@ -1177,9 +1189,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         {canStop ? <StopControl {...stop} compact hug={stopHugs} line={m.buttonHeight} menuLeft={openTab && buttons.length === 0} /> : null}
         {canRead ? <ReadControl {...read} compact hug={openTab} line={m.buttonHeight} /> : null}
         {canArchive ? archiveButton(true, openTab) : null}
+        {/* Beside Allow and Deny, where Open tab is a square, there is no room for it. */}
+        {openTab && !openSquare && parentOpens ? openParentButton(true) : null}
         {openTab ? (
           <CardButton
-            label={openLabel}
+            label={strings.openTab}
             look="plain"
             arrow
             square={openSquare}
@@ -1237,6 +1251,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           theme={theme}
           actions={{
             open: props.onOpen ? () => props.onOpen?.(card.id) : undefined,
+            openParent: parentOpens ? () => props.onOpen?.(card.parent!.id) : undefined,
             // Stop asks in a dialog first (unless confirm before stopping is off): there is no button to arm.
             stop: canStop && props.stopPhase !== "stopping"
               ? (withChildren) => {

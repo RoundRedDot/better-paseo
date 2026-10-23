@@ -16,6 +16,8 @@ export const CARD_MENU_WIDTH = 240;
 
 export interface CardMenuActions {
   open?(): void;
+  /** A subtask's card: its parent task's tab, unless the parent is archived. */
+  openParent?(): void;
   /** Copies `text`; `label` is the row's English name, which the toast echoes. */
   copy(text: string, label: string): void;
   /** Present only while the card can be stopped. */
@@ -47,7 +49,13 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
   ];
   const stop = actions.stop;
   const sections: MenuSection[] = [
-    { key: "open", items: actions.open ? [{ key: "open", label: card.subagent ? strings.openParent : strings.openTab, icon: "ArrowUpRight", onSelect: actions.open }] : [] },
+    {
+      key: "open",
+      items: [
+        ...(actions.open ? [{ key: "open", label: strings.openTab, icon: "ArrowUpRight", onSelect: actions.open }] : []),
+        ...(actions.openParent ? [{ key: "open-parent", label: strings.openParent, icon: "ArrowUpRight", onSelect: actions.openParent }] : []),
+      ],
+    },
     {
       key: "copy",
       items: copies
