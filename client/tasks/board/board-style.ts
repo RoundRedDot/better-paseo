@@ -1,4 +1,4 @@
-import { PixelRatio, Platform, StyleSheet } from "react-native";
+import { PixelRatio, Platform, StyleSheet, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { mix } from "../../components/theme-tokens";
 import { themeKey } from "../../ui/tokens/theme-key";
@@ -22,6 +22,38 @@ export const HAIRLINE = StyleSheet.hairlineWidth;
  */
 export function devicePixel(): number {
   return Platform.OS === "web" ? 1 / Math.max(1, PixelRatio.get()) : StyleSheet.hairlineWidth;
+}
+
+/** An action button's outline: 0.5 pt, on the desktop and the web too. */
+export const BUTTON_LINE = 0.5;
+
+type Side = "top" | "right" | "bottom" | "left";
+const SIDES: readonly Side[] = ["top", "right", "bottom", "left"];
+const CAP = { top: "Top", right: "Right", bottom: "Bottom", left: "Left" } as const;
+const INSET = { top: `0 ${BUTTON_LINE}px`, right: `-${BUTTON_LINE}px 0`, bottom: `0 -${BUTTON_LINE}px`, left: `${BUTTON_LINE}px 0` } as const;
+
+/**
+ * An action button's 0.5 pt outline in `color`; `sides` gives one side its
+ * own colour, or none. Chrome rounds any border under 1 CSS px up to a whole
+ * one, two device pixels at 2x, so on the web the line is an inset box-shadow
+ * instead, which keeps its half pixel. Read at render, as the platform is.
+ */
+export function buttonOutline(color: string, sides: Partial<Record<Side, string | null>> = {}): ViewStyle {
+  const colorOf = (side: Side) => (side in sides ? sides[side]! : color);
+  const uniform = SIDES.every((side) => colorOf(side) === color);
+  if (Platform.OS !== "web") {
+    if (uniform) return { borderWidth: BUTTON_LINE, borderColor: color };
+    return Object.fromEntries(
+      SIDES.flatMap((side) => {
+        const c = colorOf(side);
+        return c === null ? [[`border${CAP[side]}Width`, 0]] : [[`border${CAP[side]}Width`, BUTTON_LINE], [`border${CAP[side]}Color`, c]];
+      }),
+    ) as ViewStyle;
+  }
+  const shadows = uniform
+    ? [`inset 0 0 0 ${BUTTON_LINE}px ${color}`]
+    : SIDES.flatMap((side) => (colorOf(side) === null ? [] : [`inset ${INSET[side]} 0 0 ${colorOf(side)}`]));
+  return { borderWidth: 0, boxShadow: shadows.join(", ") } as ViewStyle;
 }
 
 /** Letter-avatar outlines are part of the glyph, not a divider: a full point keeps them legible. */
