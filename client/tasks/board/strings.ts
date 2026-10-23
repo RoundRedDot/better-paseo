@@ -9,20 +9,22 @@ const en = {
   name: "Tasks",
   /** The Command Center item. */
   openBoard: "Open Tasks",
-  lanes: { needs_input: "Needs input", running: "Running", review: "Review", done: "Done" } as Record<LaneId, string>,
+  lanes: { needs_input: "Needs input", running: "Running", review: "Review", done: "Done", archived: "Archived" } as Record<LaneId, string>,
   /** The phone's tabs: a quarter of 390 each. */
-  tabs: { needs_input: "Input", running: "Running", review: "Review", done: "Done" } as Record<LaneId, string>,
+  tabs: { needs_input: "Input", running: "Running", review: "Review", done: "Done", archived: "Archived" } as Record<LaneId, string>,
   laneEmpty: {
     needs_input: "No agents waiting for you",
     running: "No agents running",
     review: "Nothing to review",
     done: "No finished tasks in this window",
+    archived: "No archived tasks in this window",
   } as Record<LaneId, string>,
   laneEmptyHint: {
     needs_input: "Agents that need a permission or an answer show up here.",
     running: "Start an agent in any workspace and it shows up here.",
     review: "Finished or failed tasks wait here until you look.",
     done: "Switch to 7 days or All to see older tasks.",
+    archived: "Archived tasks, and those of archived workspaces, show up here. Switch to 7 days or All to see older ones.",
   } as Record<LaneId, string>,
   boardEmpty: "No tasks yet",
   boardEmptyHint: "Start an agent in any workspace and it shows up here by status.",
@@ -133,19 +135,21 @@ const en = {
 const zh: typeof en = {
   name: "任务",
   openBoard: "打开任务",
-  lanes: { needs_input: "待输入", running: "运行中", review: "待查看", done: "已完成" },
-  tabs: { needs_input: "待输入", running: "运行中", review: "待查看", done: "已完成" },
+  lanes: { needs_input: "待输入", running: "运行中", review: "待查看", done: "已完成", archived: "已归档" },
+  tabs: { needs_input: "待输入", running: "运行中", review: "待查看", done: "已完成", archived: "已归档" },
   laneEmpty: {
     needs_input: "没有等待你处理的 agent",
     running: "当前没有运行中的 agent",
     review: "没有未查看的结果",
     done: "这个时间范围内没有已完成的任务",
+    archived: "这个时间范围内没有已归档的任务",
   },
   laneEmptyHint: {
     needs_input: "运行中的 agent 需要权限或回答时会出现在这里。",
     running: "在任一工作区启动 agent 后会出现在这里。",
     review: "跑完或失败的任务会先到这里等你查看。",
     done: "可以切换到「7 天」或「全部」查看更早的任务。",
+    archived: "已归档的任务和已归档工作区里的任务会出现在这里。切换到「7 天」或「全部」可以看更早的。",
   },
   boardEmpty: "还没有任务",
   boardEmptyHint: "在任一工作区启动 agent 后，它会按状态出现在这里。",
@@ -258,6 +262,7 @@ export const LANE_EMPTY_ICON: Readonly<Record<LaneId, string>> = {
   running: "CircleDashed",
   review: "Inbox",
   done: "Archive",
+  archived: "Archive",
 };
 
 /** Which wording a key's two directions take. */

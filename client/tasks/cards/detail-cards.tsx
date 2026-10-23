@@ -162,7 +162,7 @@ export interface TaskDetailCardsProps extends TimeSource {
   lastMessage?: { prompt: LastMessage; load(): void } | null;
   /** A running task's whole session's tokens, from the provider's session files; absent leaves them out of the running turn. */
   sessionTokens?: SessionTokens | null;
-  /** Unarchive for an archived parent; absent where this host cannot. */
+  /** Unarchive for an archived parent, and for an archived card itself; absent where this host cannot. */
   unarchive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
   /** The sections scroll under the fixed header (the sidebar); else the card grows with them (the sheet). */
   scrollBody?: boolean;
@@ -271,7 +271,9 @@ function DetailHeader(props: Inner) {
   const hero = detailHero(card);
   const mode = card.modeLabel ? modeIcon(card.provider, card.modeLabel) : null;
   const stop = stopLabel(props);
-  const showActions = props.actions !== false && (!!props.onOpen || !!stop);
+  // An archived task can be brought back; one of an archived workspace has nothing of its own to unarchive.
+  const unarchive = card.archived === "agent" ? props.unarchive ?? null : null;
+  const showActions = props.actions !== false && (!!props.onOpen || !!stop || !!unarchive);
   return (
     <View style={{ paddingLeft: m.padH, paddingRight: m.padH - (props.gutter ?? 0), paddingTop: 8, paddingBottom: 12 }} testID="detail-header">
       {props.back ? (
@@ -383,6 +385,19 @@ function DetailHeader(props: Inner) {
           ) : null}
           {stop && props.stop ? (
             <OutlineButton icon="Power" danger={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} height={m.button} font={m.font} tokens={tokens} onPress={props.stop.onPress} testID="detail-stop" />
+          ) : null}
+          {unarchive ? (
+            <OutlineButton
+              icon="ArchiveRestore"
+              label={unarchive.pending(card.id) ? cardText.details.unarchiving : cardText.details.unarchive}
+              height={m.button}
+              font={m.font}
+              tokens={tokens}
+              onPress={() => {
+                if (!unarchive.pending(card.id)) unarchive.press(card.id);
+              }}
+              testID="detail-unarchive"
+            />
           ) : null}
         </View>
       ) : null}

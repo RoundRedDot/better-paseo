@@ -428,6 +428,19 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
           look={look}
         />
         <SettingRow
+          title={strings.showArchived}
+          description={strings.showArchivedHint}
+          control={
+            <Toggle
+              value={values.board.showArchived}
+              onChange={(next) => void commit({ ...values, board: { ...values.board, showArchived: next } })}
+              label={strings.showArchived}
+              look={look}
+            />
+          }
+          look={look}
+        />
+        <SettingRow
           title={strings.confirmStop}
           control={
             <Toggle

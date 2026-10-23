@@ -13,7 +13,7 @@ const node = (box: () => Box | null) => ({
 
 function lanes(running: string[]): Record<LaneId, LaneModel> {
   const lane = (ids: string[]) => ({ cards: ids.map((id) => ({ id }) as TaskCard) }) as LaneModel;
-  return { needs_input: lane([]), running: lane(running), review: lane([]), done: lane([]) };
+  return { needs_input: lane([]), running: lane(running), review: lane([]), done: lane([]), archived: lane([]) };
 }
 
 describe("native lane motion (cover)", () => {

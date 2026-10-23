@@ -387,6 +387,8 @@ Permission requests are not redrawn: Paseo draws them and owns the approve and d
 Command Center. It opens a board of every agent on the host in four lanes, sorted the way the sidebar's
 workspace status sorts them: **needs input** (oldest wait first), **running** (longest first),
 **to review** (finished unread or failed) and **done** (last 24 hours by default, 50 at a time).
+An optional fifth lane, **archived**, lists archived tasks and those of archived workspaces in the
+done lane's window, with Unarchive in an archived task's details.
 
 - Cards are grouped: title and "agent · model · thinking", then "project › workspace" and
   "branch · folder", then labels and the timer. The status icons are Paseo's own sidebar marks.
@@ -510,6 +512,7 @@ same way as the chat settings above.
 | Board | Done lane window | Last 24 hours | Last 24 hours, last 7 days or all. |
 | Board | Lane width | Default | Narrow, Default or Wide on desktop, web and tablets; a board too narrow for them scrolls the lanes sideways. Phones show one lane at a time and hide this option. |
 | Board | Hide subtasks by default | Off | Running, waiting and failed subtasks still show in their lane. |
+| Board | Show the archived lane | Off | A lane after Done with archived tasks and those of archived workspaces, in the same window. Off, the board asks for no archived agent. |
 | Board | Confirm before stopping | On | Stop asks for a second press. |
 | Sidebar | Sidebar entry count | Needs input · Running · Review | Or needs input only, or hidden. |
 | Reset | Restore the Tasks defaults | — | Puts every Tasks option back; the board stays on or off. Asks for a second press. |

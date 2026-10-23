@@ -12,10 +12,10 @@ const options = { doneWindow: "24h", includeDone: true } as const;
 
 function snapshot(): TasksSnapshot {
   const cards = sampleCards(0);
-  const lane = (id: "needs_input" | "running" | "review" | "done") => ({ id, cards: cards.filter((card) => card.lane === id), hasMore: false, loading: false });
+  const lane = (id: "needs_input" | "running" | "review" | "done" | "archived") => ({ id, cards: cards.filter((card) => card.lane === id), hasMore: false, loading: false });
   return {
-    lanes: { needs_input: lane("needs_input"), running: lane("running"), review: lane("review"), done: lane("done") },
-    counts: { needsInput: 0, running: 0, review: 0, done: 0 },
+    lanes: { needs_input: lane("needs_input"), running: lane("running"), review: lane("review"), done: lane("done"), archived: lane("archived") },
+    counts: { needsInput: 0, running: 0, review: 0, done: 0, archived: 0 },
     byId: new Map(cards.map((card) => [card.id, card])),
     workspaces: [],
     providers: [],

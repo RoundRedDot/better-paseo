@@ -15,7 +15,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TasksTypography, useTasksFontScale, taskControlHeight } from "../typography";
 import { DetailActionBar, StatusIcon, TaskDetailCards, taskTokens, type CardCallbacks } from "../cards";
 import { panelChrome } from "../cards/panel";
-import { LANE_ORDER, LANE_STATUS, turnRunning, type LaneId, type LaneModel, type TaskCard } from "../model";
+import { LANE_STATUS, isHistoryLane, turnRunning, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { findHostHorizontalScroll } from "../../ui/host-horizontal-scroll";
@@ -64,24 +64,27 @@ export function PhoneBoard(props: {
   const theme = screen.theme;
   const colors = theme.colors;
   const hostId = screen.host.id;
-  const { lanes, tasks, strings } = board;
+  const { lanes, tasks, strings, laneOrder } = board;
   const reduced = useReducedMotion();
   const palette = boardPalette(theme);
   const cardLook = taskTokens(theme).card;
 
-  const [chosen, setChosen] = useState<LaneId | null>(() => rememberedLane(hostId));
+  const [picked, setChosen] = useState<LaneId | null>(() => rememberedLane(hostId));
+  // The archived tab picked before the lane was turned off: back to the default lane.
+  const chosen = picked && laneOrder.includes(picked) ? picked : null;
   const lane = defaultLane(lanes.needs_input.cards.length, chosen);
-  const laneIndex = LANE_ORDER.indexOf(lane);
+  const laneIndex = laneOrder.indexOf(lane);
   const [searchOpen, setSearchOpen] = useState(false);
   const [sheet, setSheet] = useState<Sheet>(null);
   const options = useMemo(() => buildFilterOptions(tasks, board.params), [tasks, board.params]);
   const badge = activeFilterCount(board.params, board.defaults);
   const doneWindow = resolveBoardParams(board.params, board.defaults).doneWindow;
 
-  // The tabs: a quarter of the bar each, or as wide as their content when a
-  // large system font outgrows a quarter, the bar then scrolling sideways.
-  // The underline is one bar sliding under the active tab's label and count,
-  // measured; a quarter less 24, centred, until the tab is laid out.
+  // The tabs: a quarter of the bar each (a fifth with the archived lane), or
+  // as wide as their content when a large system font outgrows that share,
+  // the bar then scrolling sideways. The underline is one bar sliding under
+  // the active tab's label and count, measured; the share less 24, centred,
+  // until the tab is laid out.
   const [barWidth, setBarWidth] = useState(0);
   const [boxes, setBoxes] = useState<Partial<Record<LaneId, TabBox>>>({});
   const measureTab = useCallback((id: LaneId, part: keyof TabBox, layout: { x: number; width: number }) => {
@@ -92,8 +95,8 @@ export function PhoneBoard(props: {
       return { ...current, [id]: { ...box, [part]: { x: layout.x, width: layout.width } } };
     });
   }, []);
-  const overflowing = tabsOverflow(boxes, barWidth);
-  const span = tabUnderline(boxes[lane], laneIndex, barWidth);
+  const overflowing = tabsOverflow(boxes, barWidth, laneOrder.length);
+  const span = tabUnderline(boxes[lane], laneIndex, barWidth, laneOrder.length);
   const underlineX = useRef(new Animated.Value(0)).current;
   const underlineScale = useRef(new Animated.Value(0)).current;
   const placed = useRef(false);
@@ -132,7 +135,7 @@ export function PhoneBoard(props: {
       rememberLane(hostId, next);
       setChosen(next);
       if (next === from || reduced || isNative()) return;
-      const direction = LANE_ORDER.indexOf(next) > LANE_ORDER.indexOf(from) ? 1 : -1;
+      const direction = laneOrder.indexOf(next) > laneOrder.indexOf(from) ? 1 : -1;
       setLeaving({ lane: from, cards: board.lanes[from].cards.slice(0, 6) });
       leaveOpacity.setValue(1);
       leaveX.setValue(0);
@@ -145,7 +148,7 @@ export function PhoneBoard(props: {
         Animated.timing(enterX, { toValue: 0, duration: MOTION.laneMs, easing: MOTION.ease, useNativeDriver: nativeDriver }),
       ]).start(() => setLeaving(null));
     },
-    [board.lanes, chosen, hostId, reduced, enterOpacity, enterX, leaveOpacity, leaveX],
+    [board.lanes, chosen, laneOrder, hostId, reduced, enterOpacity, enterX, leaveOpacity, leaveX],
   );
 
   // Swipes. On iOS and Android the lanes are pages of a native horizontal
@@ -163,8 +166,8 @@ export function PhoneBoard(props: {
   const heldForDetails = useRef(false);
   const [pagerLocked, setPagerLocked] = useState(false);
   const gridRef = useRef<View>(null);
-  const latest = useRef({ lane, select });
-  latest.current = { lane, select };
+  const latest = useRef({ lane, select, laneOrder });
+  latest.current = { lane, select, laneOrder };
   const claim = useCallback(() => {
     if (!isNative() || claimed.current) return;
     claimed.current = holdHostGestures(gridRef.current);
@@ -196,7 +199,7 @@ export function PhoneBoard(props: {
     const step = swipeStep(at.x - start.x, at.y - start.y);
     if (step === 0) return;
     swipedAt.current = Date.now();
-    const next = laneAfter(latest.current.lane, step);
+    const next = laneAfter(latest.current.lane, step, latest.current.laneOrder);
     if (next) latest.current.select(next);
   }, [release]);
   const onCancel = useCallback(() => {
@@ -372,7 +375,7 @@ export function PhoneBoard(props: {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ flexGrow: 1, minWidth: barWidth, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}
         >
-          {LANE_ORDER.map((id) => {
+          {laneOrder.map((id) => {
             const on = id === lane;
             const count = lanes[id].cards.length;
             const warn = id === "needs_input" && count > 0;
@@ -390,7 +393,7 @@ export function PhoneBoard(props: {
                 style={{
                   flexGrow: 1,
                   flexBasis: 0,
-                  minWidth: overflowing ? undefined : (barWidth - 16 - 12) / 4,
+                  minWidth: overflowing ? undefined : (barWidth - 16 - 4 * (laneOrder.length - 1)) / laneOrder.length,
                   minHeight: 36,
                   paddingHorizontal: overflowing ? 10 : 4,
                   borderRadius: 8,
@@ -426,7 +429,7 @@ export function PhoneBoard(props: {
 
         </ScrollView>
       </View>
-      {lane === "done" ? (
+      {isHistoryLane(lane) ? (
         <View style={{ minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
           <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{strings.timeRange}</Text>
           <WindowSegments value={doneWindow} onChange={(value) => board.setParams((params) => ({ ...params, doneWindow: value }))} theme={theme} strings={strings} large />
@@ -657,7 +660,8 @@ export function LanePager(props: {
   const window = useWindowDimensions();
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const width = size?.width || window.width;
-  const index = LANE_ORDER.indexOf(lane);
+  const order = board.laneOrder;
+  const index = order.indexOf(lane);
   const pagerRef = useRef<NativeScrollView | null>(null);
   // The page the pager rests on, and the width it was placed at; -1 until
   // laid out, when it is placed once more without animating.
@@ -674,12 +678,12 @@ export function LanePager(props: {
   const settleAt = useCallback(
     (x: number) => {
       if (width <= 0) return;
-      const page = Math.max(0, Math.min(LANE_ORDER.length - 1, Math.round(x / width)));
+      const page = Math.max(0, Math.min(order.length - 1, Math.round(x / width)));
       resting.current = { index: page, width };
-      const next = LANE_ORDER[page]!;
+      const next = order[page]!;
       if (next !== lane) onSettle(next);
     },
-    [width, lane, onSettle],
+    [width, lane, order, onSettle],
   );
   return (
     <ScrollView
@@ -706,7 +710,7 @@ export function LanePager(props: {
       style={{ flex: 1 }}
       testID="phone-lane-pager"
     >
-      {LANE_ORDER.map((id, at) => (
+      {order.map((id, at) => (
         <View key={id} testID={`phone-lane-${id}`} style={{ width, height: size?.height }}>
           {Math.abs(at - index) <= 1 ? (
             <PhoneLane
@@ -766,7 +770,7 @@ function PhoneLane(props: {
     ({ item }: { item: TaskCard }) => <CardCell board={board} card={item} theme={theme} compact callbacks={callbacks} fresh={fresh.has(item.id)} />,
     [board, theme, callbacks, fresh],
   );
-  if (!ready || (lane.id === "done" && lane.loading && count === 0)) {
+  if (!ready || (isHistoryLane(lane.id) && lane.loading && count === 0)) {
     return (
       <View style={{ padding: 12, gap: 12 }}>
         {[0, 1, 2].map((index) => (
@@ -794,7 +798,7 @@ function PhoneLane(props: {
       }}
       onEndReachedThreshold={0.5}
       onEndReached={() => {
-        if (props.active !== false && lane.id === "done" && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
+        if (props.active !== false && isHistoryLane(lane.id) && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
       }}
       ListEmptyComponent={
         <View
@@ -825,7 +829,7 @@ function PhoneLane(props: {
         </View>
       }
       ListFooterComponent={
-        lane.id === "done" && count > 0 && (lane.hasMore || lane.loading) ? (
+        isHistoryLane(lane.id) && (count > 0 || lane.id === "archived") && (lane.hasMore || lane.loading) ? (
           <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} large />
         ) : null
       }

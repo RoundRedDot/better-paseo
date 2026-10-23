@@ -5,7 +5,7 @@ import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, laneTitle, TasksTypography, useTasksFontScale, taskControlHeight } from "../typography";
 import { StatusIcon, type CardCallbacks } from "../cards";
-import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
+import { LANE_ORDER, LANE_STATUS, isHistoryLane, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
 import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-scrollbar";
@@ -102,7 +102,7 @@ function onScrollbar(target: unknown, pageX: number, pageY: number): boolean {
   );
 }
 
-/** The desktop board (prototype 01): the bars, then four lanes that scroll sideways when they do not fit, and the details sidebar. */
+/** The desktop board (prototype 01): the bars, then four lanes (five with archived) that scroll sideways when they do not fit, and the details sidebar. */
 export function DesktopBoard(props: {
   screen: PluginScreenProps;
   board: BoardController;
@@ -114,11 +114,13 @@ export function DesktopBoard(props: {
   const theme = screen.theme;
   const colors = theme.colors;
   const hostId = screen.host.id;
-  const { lanes, tasks, strings } = board;
+  const { lanes, tasks, strings, laneOrder } = board;
   useLaneScrollbar(theme);
   useResizeLine(theme);
 
-  const [collapsed, setCollapsedState] = useState<LaneId[]>(() => rememberedCollapsed(hostId));
+  const [collapsedState, setCollapsedState] = useState<LaneId[]>(() => rememberedCollapsed(hostId));
+  // A folded archived lane stays remembered while the lane is off, but takes no room.
+  const collapsed = useMemo(() => collapsedState.filter((id) => laneOrder.includes(id)), [collapsedState, laneOrder]);
   const setCollapsed = useCallback(
     (update: (lanes: LaneId[]) => LaneId[]) =>
       setCollapsedState((current) => {
@@ -129,8 +131,8 @@ export function DesktopBoard(props: {
     [hostId],
   );
   const shapes = useMemo<LaneShape[]>(
-    () => LANE_ORDER.map((id) => ({ id, count: lanes[id].cards.length, collapsed: collapsed.includes(id) })),
-    [lanes, collapsed],
+    () => laneOrder.map((id) => ({ id, count: lanes[id].cards.length, collapsed: collapsed.includes(id) })),
+    [lanes, collapsed, laneOrder],
   );
   const [focusState, setFocus] = useState<BoardFocus | null>(null);
   const focus = clampFocus(focusState, shapes);
@@ -189,7 +191,7 @@ export function DesktopBoard(props: {
   const sheetRoom = inSheet ? sheetHeight(boardHeight, detent) : 0;
   const panelWidth = sidebarWidth(boardWidth, dragWidth ?? preference.width, floating ? "floating" : "inline");
   const lanesWidth = Math.max(0, boardWidth - (inline ? panelWidth + SIDEBAR.gap : 0));
-  const layout = laneLayout(lanesWidth, LANE_ORDER.length - collapsed.length, collapsed.length, board.laneWidth);
+  const layout = laneLayout(lanesWidth, laneOrder.length - collapsed.length, collapsed.length, board.laneWidth);
   // What the user sized the lanes with: a change to it eases the lanes to their new widths.
   const sizing = `${collapsed.join()}|${board.laneWidth}`;
   // A floating panel covers the lanes' right side: the row scrolls far enough for the last lane to come out from under it.
@@ -246,8 +248,9 @@ export function DesktopBoard(props: {
   // `laneWidth` is the lanes' width once a lane about to open has opened. True when the row scrolls.
   const uncover = useCallback((lane: LaneId, cover: number, laneWidth = latest.current.laneWidth) => {
     const now = latest.current;
-    const index = LANE_ORDER.indexOf(lane);
-    const left = LANES.edge + LANE_ORDER.slice(0, index).reduce((sum, id) => sum + (now.collapsed.includes(id) ? LANES.collapsed : laneWidth) + LANES.gap, 0);
+    const order = now.board.laneOrder;
+    const index = order.indexOf(lane);
+    const left = LANES.edge + order.slice(0, index).reduce((sum, id) => sum + (now.collapsed.includes(id) ? LANES.collapsed : laneWidth) + LANES.gap, 0);
     const right = left + laneWidth;
     const visible = now.boardWidth - cover;
     const x = rowScrollX.current;
@@ -267,12 +270,12 @@ export function DesktopBoard(props: {
       const now = latest.current;
       const folded = now.collapsed.includes(lane);
       if (folded) setCollapsed((current) => current.filter((id) => id !== lane));
-      const laneWidth = folded ? laneLayout(lanesWidth, LANE_ORDER.length - now.collapsed.length + 1, now.collapsed.length - 1, board.laneWidth).laneWidth : now.laneWidth;
+      const laneWidth = folded ? laneLayout(lanesWidth, laneOrder.length - now.collapsed.length + 1, now.collapsed.length - 1, board.laneWidth).laneWidth : now.laneWidth;
       const cover = inSheet ? LANES.edge : floating ? now.floatWidth + 2 * SIDEBAR.gap : now.boardWidth - lanesWidth;
       const scrolled = uncover(lane, cover, laneWidth);
       setFlash((was) => ({ lane, key: (was?.key ?? 0) + 1, delay: scrolled ? LANE_FLASH.afterScrollMs : 0 }));
     },
-    [setCollapsed, lanesWidth, board.laneWidth, inSheet, floating, uncover],
+    [setCollapsed, lanesWidth, laneOrder, board.laneWidth, inSheet, floating, uncover],
   );
 
   const reveal = useCallback(
@@ -504,7 +507,7 @@ export function DesktopBoard(props: {
                 style={{ flex: 1 }}
                 contentContainerStyle={{ width: layout.contentWidth + coverRoom, gap: touch ? 0 : LANES.gap, paddingLeft: LANES.edge, paddingRight: LANES.edge + coverRoom, paddingTop: 4, paddingBottom: 12 }}
               >
-                {LANE_ORDER.map((id, index) => (
+                {laneOrder.map((id, index) => (
                   <React.Fragment key={id}>
                     {/* On touch the gap between two lanes is a blank to tap too, inside the scroll row. */}
                     {touch && index > 0 ? <LaneGap onPress={letGo} /> : null}
@@ -874,7 +877,7 @@ function DesktopLane(props: {
     );
   }
 
-  const loadingFirst = !ready || (lane.id === "done" && lane.loading && count === 0);
+  const loadingFirst = !ready || (isHistoryLane(lane.id) && lane.loading && count === 0);
   return clip(
     <View style={{ width: props.width, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}>
       {/* Under the header and the cards: only the lane's own fill flashes. */}
@@ -895,7 +898,7 @@ function DesktopLane(props: {
           <View style={{ width: 14, height: 10, borderRadius: 2, backgroundColor: colors.surface2 }} />
         )}
         <View style={{ flex: 1 }} />
-        {lane.id === "done" ? (
+        {isHistoryLane(lane.id) ? (
           <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{strings.windows[board.params.doneWindow ?? board.defaults.doneWindow]}</Text>
         ) : null}
         <HoverPressable
@@ -948,7 +951,7 @@ function DesktopLane(props: {
           }}
           onEndReachedThreshold={0.5}
           onEndReached={() => {
-            if (lane.id === "done" && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
+            if (isHistoryLane(lane.id) && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
           }}
           ListEmptyComponent={
             <View style={{ height: 64, borderWidth: HAIRLINE, borderStyle: "dashed", borderColor: colors.border, borderRadius: PANEL_RADIUS, alignItems: "center", justifyContent: "center" }}>
@@ -958,7 +961,8 @@ function DesktopLane(props: {
           ListFooterComponentStyle={props.onBlank ? { flexGrow: 1 } : undefined}
           ListFooterComponent={
             <>
-              {lane.id === "done" && count > 0 && (lane.hasMore || lane.loading) ? (
+              {/* The archived lane shares the done list's pages, so a page can bring it nothing: it offers more while empty too. */}
+              {isHistoryLane(lane.id) && (count > 0 || lane.id === "archived") && (lane.hasMore || lane.loading) ? (
                 <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} />
               ) : null}
               {props.onBlank ? <Pressable accessible={false} {...blankTap.pressIn} onPress={blankTap.tap(props.onBlank)} testID={`lane-blank-${lane.id}`} style={{ flexGrow: 1, minHeight: 48 }} /> : null}
