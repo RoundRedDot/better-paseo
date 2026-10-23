@@ -240,6 +240,27 @@ describe("TaskCardView on web", () => {
     await act(async () => renderer.unmount());
   });
 
+  it("floats Open tab beside Stop on hover, and Open tab alone on a card with neither", async () => {
+    const onOpen = vi.fn();
+    const running = await render(React.createElement(TaskCardView, props("sample-child-1", { onOpen, onStop: () => {} })));
+    const label = (root: ReactTestInstance, text: string) =>
+      root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === text)[0];
+    expect(label(running.root, "打开 tab")).toBeUndefined();
+    await act(async () => hovers.get("task-card-sample-child-1")!.enter());
+    const overlay = running.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-stop-overlay");
+    const order = overlay.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel);
+    expect(order).toEqual(["打开 tab", "停止"]);
+    await act(async () => label(running.root, "打开 tab")!.props.onPress());
+    expect(onOpen).toHaveBeenCalledWith("sample-child-1");
+    await act(async () => running.unmount());
+
+    const done = await render(React.createElement(TaskCardView, props("sample-done", { onOpen })));
+    await act(async () => hovers.get("task-card-sample-done")!.enter());
+    const alone = done.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-open-overlay");
+    expect(alone.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(["打开 tab"]);
+    await act(async () => done.unmount());
+  });
+
   it("floats Mark read over the row's end on hover, keeps it while pending, and fades it out", async () => {
     const onRead = vi.fn();
     const card: TaskCard = { ...sampleCards(NOW).find((candidate) => candidate.id === "sample-unread")!, readable: true };
@@ -313,8 +334,8 @@ describe("TaskCardView on web", () => {
       );
     const zOf = (node: ReactTestInstance) => Number(flat(node.props.style).zIndex ?? 0);
 
-    // Desktop: the jump tooltip lives in the meta row and the stop menu in the
-    // footer, each above the rows between it and the next raised row.
+    // Desktop: the stop menu lives in the footer, above the rows after it; the
+    // meta row holds no overlay until the context ring's details show.
     const renderer = await render(React.createElement(TaskCardView, props("sample-running")));
     const root = renderer.root;
     await act(async () => hovers.get("task-card-sample-running")!.enter());
@@ -324,12 +345,10 @@ describe("TaskCardView on web", () => {
     const header = host(root, "task-card-meta");
     const footer = host(root, "task-card-footer");
     expect(OVERLAY_ROW_Z).toBeGreaterThan(0);
-    expect(zOf(header)).toBe(OVERLAY_ROW_Z);
+    expect(zOf(header)).toBe(0);
     expect(zOf(footer)).toBe(OVERLAY_ROW_Z);
     const rows = hostChildren(host(root, "task-card-sample-running"));
-    const between = rows.slice(rows.indexOf(header) + 1, rows.indexOf(footer));
-    expect(between.length).toBeGreaterThan(0);
-    for (const row of [...between, ...rows.slice(rows.indexOf(footer) + 1)]) expect(zOf(row)).toBeLessThan(OVERLAY_ROW_Z);
+    for (const row of rows.slice(rows.indexOf(footer) + 1)) expect(zOf(row)).toBeLessThan(OVERLAY_ROW_Z);
     const items = footer.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
     expect(items).toHaveLength(2);
     await act(async () => renderer.unmount());

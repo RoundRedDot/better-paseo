@@ -412,7 +412,8 @@ describe("TaskCardView rows", () => {
     expect(agent.props.accessibilityLabel).toBe("Codex GPT-5.5 Codex Medium");
     // The turn's start behind a clock, then how long it has run behind an hourglass, as the turn footer draws them.
     const footer = hostByTestId(tree.root, "task-card-footer");
-    expect(texts(footer)).toEqual([RUNNING_START, "12m 30s"]);
+    // Native shows Open tab all the time, at the footer's far right.
+    expect(texts(footer)).toEqual([RUNNING_START, "12m 30s", "打开 tab"]);
     expect(icons(hostByTestId(footer, "task-card-started"))).toEqual(["Clock"]);
     expect(icons(hostByTestId(footer, "task-card-timer"))).toEqual(["Hourglass"]);
     expect(texts(tree.root).some((text) => text.includes("未提交"))).toBe(false);
@@ -454,18 +455,20 @@ describe("TaskCardView rows", () => {
     expect(pills(tree.root)).toEqual([
       ["pill-model", "GPT-5.5 Codex"],
     ]);
-    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex", "·", "Medium", RUNNING_START, "12m 30s"]);
+    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex", "·", "Medium", RUNNING_START, "12m 30s", "打开 tab"]);
     expect(hostByTestId(tree.root, "pill-model").findAll((node) => (node.type as unknown) === "Image")).toHaveLength(0);
-    // With no meta row, the jump button moves up to the title row, which then holds the overlays.
-    expect(icons(hostByTestId(tree.root, "task-card-title-row"))).toContain("ArrowUpRight");
-    expect(flat(hostByTestId(tree.root, "task-card-title-row").props.style).zIndex).toBe(OVERLAY_ROW_Z);
+    // No jump arrow on the title row: Open tab sits in the footer.
+    expect(icons(hostByTestId(tree.root, "task-card-title-row"))).not.toContain("ArrowUpRight");
   });
 
   it("collapses the pill row and the footer when their fields are off", async () => {
     const off = fields("minimal", { model: false, thinking: false, timer: false });
-    const tree = await render(cardElement(sample("sample-running"), { fields: off }));
+    const tree = await render(cardElement(sample("sample-running"), { fields: off, onOpen: undefined }));
     expect(rows(tree.root, "sample-running")).toEqual(["task-card-title-row"]);
     expect(texts(tree.root)).toEqual(["Port the status ring to React Native"]);
+    // Open tab alone keeps the footer.
+    await act(async () => tree.update(cardElement(sample("sample-running"), { fields: off })));
+    expect(rows(tree.root, "sample-running")).toEqual(["task-card-title-row", "task-card-footer"]);
   });
 
   it("names the provider in the model pill when the model is off, and drops the thinking level", async () => {
@@ -708,7 +711,9 @@ describe("TaskCardView rows", () => {
     expect(all).toContain("等待 4m");
     // The wait sits on the buttons' row, under the divider, not on a footer row above it.
     expect(rows(tree.root, "sample-input")).not.toContain("task-card-footer");
-    expect(texts(hostByTestId(hostByTestId(tree.root, "task-card-permission"), "task-card-footer"))).toEqual(["等待 4m"]);
+    expect(texts(hostByTestId(hostByTestId(tree.root, "task-card-permission"), "task-card-footer"))).toEqual(["等待 4m", "打开 tab"]);
+    // The buttons start at the card's edge, as its text does, not under the request's icon.
+    expect(flat(hostByTestId(tree.root, "task-card-answer-row").props.style).paddingLeft).toBeUndefined();
     byLabel(tree.root, "拒绝").props.onPress();
     expect(onPermission).toHaveBeenCalledWith(card, buttons[1]);
     expect(onOpen).not.toHaveBeenCalled();
@@ -784,18 +789,17 @@ describe("TaskCardView context ring", () => {
     expect(formatSessionCost(null)).toBeNull();
   });
 
-  it("sits at the footer's far right, after the timer, coloured by the host's thresholds", async () => {
+  it("sits at the meta row's far right, coloured by the host's thresholds", async () => {
     for (const [used, color] of [[46, "#6b6b75"], [75, "#a36a00"], [95, "#d93636"]] as const) {
       const tree = await render(cardElement(withContext(used)));
-      const footer = hostByTestId(tree.root, "task-card-footer");
-      const meter = hostByTestId(footer, "task-card-context");
-      // The timer first, then the ring pushed to the far right.
+      const meta = hostByTestId(tree.root, "task-card-meta");
+      const meter = hostByTestId(meta, "task-card-context");
+      // Where the jump arrow was: after the location, which takes the rest of the row.
       const hosts = (node: ReactTestInstance): ReactTestInstance[] =>
         node.children.flatMap((child) => (typeof child === "string" ? [] : typeof child.type === "string" ? [child] : hosts(child)));
-      const [timerBox, ringBox] = hosts(footer);
-      expect(texts(timerBox!)).toEqual([RUNNING_START, "12m 30s"]);
-      expect(flat(ringBox!.props.style).marginLeft).toBe("auto");
-      expect(hostByTestId(ringBox!, "task-card-context")).toBe(meter);
+      const row = hosts(meta);
+      expect(row[row.length - 1]).toBe(meter);
+      expect(hostByTestId(tree.root, "task-card-footer").findAll((node) => node.props.testID === "task-card-context")).toHaveLength(0);
       const track = hostByTestId(meter, "context-ring").children[0] as ReactTestInstance;
       expect(flat(track.props.style)).toMatchObject({ width: 14, height: 14, borderWidth: 2 });
       const arc = hostByTestId(meter, "context-ring-right").children[0] as ReactTestInstance;
@@ -836,15 +840,16 @@ describe("TaskCardView context ring", () => {
     renderer = null;
   });
 
-  it("shows the host's context details above the ring on hover, desktop only", async () => {
+  it("shows the host's context details below the ring on hover, desktop only", async () => {
     const tree = await render(cardElement(withContext(86, { context: { usedTokens: 647_000, maxTokens: 1_000_000 }, usage: { inputTokens: 1, cachedInputTokens: null, outputTokens: 1, totalCostUsd: 32.48 } })));
     await act(async () => hostByTestId(tree.root, "task-card-context").props.onHoverIn());
     const details = hostByTestId(tree.root, "task-card-context-details");
     expect(texts(details)).toEqual(["上下文窗口", "已使用 65%", "647k / 1m tokens", "会话费用 $32.48"]);
-    expect(flat(details.props.style).position).toBe("absolute");
-    expect(flat(hostByTestId(tree.root, "task-card-footer").props.style).zIndex).toBe(OVERLAY_ROW_Z + 1);
+    expect(flat(details.props.style)).toMatchObject({ position: "absolute", top: 22 });
+    // It opens downwards over the rows below, so the ring's row is raised above them.
+    expect(flat(hostByTestId(tree.root, "task-card-meta").props.style).zIndex).toBe(OVERLAY_ROW_Z + 1);
     await act(async () => hostByTestId(tree.root, "task-card-context").props.onHoverOut());
-    expect(flat(hostByTestId(tree.root, "task-card-footer").props.style).zIndex).toBeUndefined();
+    expect(flat(hostByTestId(tree.root, "task-card-meta").props.style).zIndex).toBeUndefined();
 
     // No cost line without a cost; no details on a phone.
     await act(async () => tree.update(cardElement(withContext(86, { usage: null }), { compact: true })));
@@ -852,12 +857,13 @@ describe("TaskCardView context ring", () => {
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-context-details")).toHaveLength(0);
   });
 
-  it("stays bottom right without a timer", async () => {
-    const tree = await render(cardElement(withContext(50), { fields: fields("standard", { timer: false }) }));
-    const footer = hostByTestId(tree.root, "task-card-footer");
-    expect(texts(footer)).toEqual([]);
-    const ringBox = footer.find((node) => typeof node.type === "string" && flat(node.props.style).marginLeft === "auto");
-    expect(hostByTestId(ringBox, "task-card-context")).toBeDefined();
+  it("moves up to the title row without a meta row", async () => {
+    const tree = await render(cardElement(withContext(50), { fields: fields("standard", { project: false, workspace: false }) }));
+    expect(rows(tree.root, "sample-running")).not.toContain("task-card-meta");
+    const titleRow = hostByTestId(tree.root, "task-card-title-row");
+    expect(hostByTestId(titleRow, "task-card-context")).toBeDefined();
+    await act(async () => hostByTestId(tree.root, "task-card-context").props.onHoverIn());
+    expect(flat(titleRow.props.style).zIndex).toBe(OVERLAY_ROW_Z + 1);
   });
 
   it("hides when the context is unknown, off the running lane, and on a phone until 80%", async () => {
@@ -910,17 +916,27 @@ describe("TaskCardView compact tiers", () => {
 });
 
 describe("TaskCardView actions", () => {
-  it("hides the jump button without onOpen, and opens on a press of the card", async () => {
+  it("puts Open tab in the footer in place of the jump arrow, and opens on a press of the card", async () => {
     const onOpen = vi.fn();
     const tree = await render(cardElement(sample("sample-done"), { onOpen }));
-    expect(icons(tree.root)).toContain("ArrowUpRight");
+    expect(icons(tree.root)).not.toContain("ArrowUpRight");
+    const open = byLabel(hostByTestId(tree.root, "task-card-footer"), "打开 tab");
+    expect(icons(open)).toEqual(["AppWindow"]);
+    expect(flat(open.props.style)).toMatchObject({ height: 28, borderRadius: 6 });
     hostByTestId(tree.root, "task-card-sample-done").props.onPress();
-    byLabel(tree.root, "在 workspace 中打开").props.onPress();
+    open.props.onPress();
     expect(onOpen.mock.calls).toEqual([["sample-done"], ["sample-done"]]);
 
     await act(async () => tree.update(cardElement(sample("sample-done"), { onOpen: undefined })));
-    expect(icons(tree.root)).not.toContain("ArrowUpRight");
+    expect(texts(tree.root)).not.toContain("打开 tab");
     expect(hostByTestId(tree.root, "task-card-sample-done").props.onPress).toBeUndefined();
+  });
+
+  it("leaves Open tab out beside a question's Answer, which opens the tab itself", async () => {
+    const card = { ...sample("sample-input"), permission: { requestId: "q", kind: "question" as const, title: "Which database?", summary: null, actions: [], remaining: 0 } };
+    const tree = await render(cardElement(card, { permissionButtons: permissionButtons(card.permission, "zh") }));
+    expect(texts(tree.root)).toContain("去回答");
+    expect(texts(tree.root)).not.toContain("打开 tab");
   });
 
   it("leads a phone card's action bar with Open tab in place of the jump arrow", async () => {

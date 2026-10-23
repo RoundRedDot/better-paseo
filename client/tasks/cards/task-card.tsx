@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import React, { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
@@ -27,7 +27,7 @@ import { pillTint, taskTokens, type TaskTokens } from "./tokens";
 import { mix, withAlpha } from "../../components/theme-tokens";
 
 export interface CardCallbacks {
-  /** Jump to the agent's tab (`navigation.openAgent`). Absent on hosts without navigation: hide the jump button. */
+  /** Jump to the agent's tab (`navigation.openAgent`). Absent on hosts without navigation: hide Open tab. */
   onOpen?(agentId: string): void;
   /** Scroll the board to a card and highlight it (child → parent link). */
   onReveal(agentId: string): void;
@@ -127,9 +127,6 @@ const NBSP = "\u00a0";
 /** " > " between meta segments; non-breaking, since a web text box drops a leading space. */
 const SEPARATOR = `${NBSP}\u203a${NBSP}`;
 const PARENT_SHRINK = 1000;
-/** How far the jump button reaches past the row's end (its negative right margin), desktop and phone. */
-const JUMP_OVERHANG = [-4, -8] as const;
-const TOOLTIP_DELAY_MS = 400;
 
 // --- Geometry (Linear's issue card, measured on the desktop app) -------------
 
@@ -163,8 +160,6 @@ interface Metrics {
   /** Lane block text. */
   blockSize: number;
   blockLine: number;
-  jump: number;
-  jumpIcon: number;
   buttonHeight: number;
 }
 
@@ -208,8 +203,6 @@ const DESKTOP: Metrics = {
   footLine: HOST_LINE.sm,
   blockSize: F.sm,
   blockLine: HOST_LINE.sm,
-  jump: 20,
-  jumpIcon: 14,
   buttonHeight: 28,
 };
 
@@ -236,8 +229,6 @@ const PHONE: Metrics = {
   footLine: HOST_LINE.sm,
   blockSize: F.sm,
   blockLine: HOST_LINE.smRead,
-  jump: 32,
-  jumpIcon: 18,
   buttonHeight: 40,
 };
 
@@ -383,8 +374,8 @@ function statusTint(kind: StatusKind, tokens: TaskTokens): string | null {
  * RNW gives every View `position: relative; z-index: 0`, so each one is a
  * stacking context: an overlay's own zIndex only counts inside its row, and a
  * later sibling row (transparent, but still a hit target) sits above it. The
- * rows that hold overlays (the stop menu and the jump tooltip, the phone
- * action bar's menu) are therefore raised above the rows after them.
+ * rows that hold overlays (the stop menu, the phone action bar's menu) are
+ * therefore raised above the rows after them.
  */
 export const OVERLAY_ROW_Z = 2;
 
@@ -445,7 +436,11 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const canRead = !canStop && card.readable === true && !!props.onRead;
   const readPending = props.readPending === true;
   const showRead = canRead && !compact && (TOUCH || hovered || readPending);
-  const showControl = showStop || showRead;
+  // "Open tab" comes with them on a desktop card, or alone on one with neither;
+  // a question's "Answer" already opens the tab.
+  const canOpen = !compact && !!props.onOpen && !(layout.permission && props.permissionButtons.some((button) => button.kind === "open"));
+  const showOpen = canOpen && (TOUCH || hovered || showStop || showRead);
+  const showControl = showStop || showRead || showOpen;
   const reducedMotion = useReducedMotion();
   const controlLeaving = useLeaving(showControl && !TOUCH, reducedMotion ? 0 : STOP_EXIT_MS);
   const read = { tokens, strings, pending: readPending, onPress: () => props.onRead?.(card) };
@@ -500,25 +495,32 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     borderTopColor: failed && !props.current && !props.highlighted ? look.failedBorder : look.border,
   };
 
-  // The jump button, on the meta row, or on the title row when the meta row
-  // has nothing to say. Stop sits in the footer, away from it. A phone has
-  // none: "Open tab" leads its action bar instead.
   const location = card.location;
   const metaParts: string[] = [];
   if (layout.project && location.projectName) metaParts.push(location.projectName);
   if (layout.workspace && location.workspaceName) metaParts.push(location.workspaceName);
   const metaText = metaParts.join(SEPARATOR);
   const hasMeta = metaText !== "" || card.parent !== null;
-  const controlsFor = (line: number) =>
-    props.onOpen && !compact ? (
-      <JumpButton
+
+  // The context ring at the top right: on the meta row, or on the title row
+  // when the meta row has nothing to say. Its details card opens downwards
+  // over the rows below, so the ring's row is raised above them while it shows.
+  const ratio = contextRatio(card.context);
+  const ringFor = (line: number) =>
+    layout.context && ratio !== null && card.context ? (
+      <ContextMeter
         tokens={tokens}
+        strings={strings}
         compact={compact}
         line={line}
-        label={strings.openInWorkspace}
-        onPress={() => props.onOpen?.(card.id)}
+        context={card.context}
+        ratio={ratio}
+        cost={card.usage?.totalCostUsd ?? null}
+        theme={theme}
+        onOpenChange={setRingOpen}
       />
     ) : null;
+  const ringZ = ringOpen ? OVERLAY_ROW_Z + 1 : undefined;
 
   // Meta row ---------------------------------------------------------------
   const avatar = layout.projectAvatar;
@@ -530,7 +532,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     : null;
   const metaRow = hasMeta ? (
     <View
-      style={{ flexDirection: "row", alignItems: "center", gap: GAP, minHeight: Math.round(m.metaLine * scale), zIndex: OVERLAY_ROW_Z }}
+      style={{ flexDirection: "row", alignItems: "center", gap: GAP, minHeight: Math.round(m.metaLine * scale), zIndex: ringZ }}
       testID="task-card-meta"
     >
       {avatar ? <ProjectIcon location={location} size={12} hostId={props.hostId} /> : null}
@@ -560,7 +562,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           </Pressable>
         ) : null}
       </View>
-      {controlsFor(m.metaLine)}
+      {ringFor(m.metaLine)}
     </View>
   ) : null;
 
@@ -572,7 +574,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         alignItems: "flex-start",
         gap: GAP,
         marginTop: hasMeta ? m.titleGap : 0,
-        zIndex: hasMeta ? undefined : OVERLAY_ROW_Z,
+        zIndex: hasMeta ? undefined : ringZ,
       }}
       testID="task-card-title-row"
     >
@@ -594,7 +596,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       >
         {card.title}
       </Text>
-      {hasMeta ? null : controlsFor(m.titleLine)}
+      {hasMeta ? null : ringFor(m.titleLine)}
     </View>
   );
 
@@ -749,35 +751,19 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
       </View>
     ) : null;
 
-  // Footer: the timer, and the context ring at the far right ----------------
+  // Footer: the timer, and the hover buttons at the far right ---------------
   // Whether there is a timer and its tone do not change with the time; the text does, in `TimerText`.
   const timer = layout.timer ? cardTimer(card, props.now ?? 0, language) : null;
   // A running turn's start behind a clock, then how long it has run behind an hourglass, as the turn footer draws them.
   const started = timer && cardStart(card, props.now ?? 0) !== null;
   const timerColor =
     timer?.tone === "warning" ? tokens.warning : timer?.tone === "running" ? tokens.status.running : muted;
-  const ratio = contextRatio(card.context);
-  const ring =
-    layout.context && ratio !== null && card.context ? (
-      <ContextMeter
-        tokens={tokens}
-        strings={strings}
-        compact={compact}
-        line={m.footLine}
-        context={card.context}
-        ratio={ratio}
-        cost={card.usage?.totalCostUsd ?? null}
-        theme={theme}
-        onOpenChange={setRingOpen}
-      />
-    ) : null;
-  // The ring's details card opens upwards over the rows above, and Stop's menu
-  // downwards over the blocks below, so whichever row holds the footer is raised while either shows.
-  const footerZ = ringOpen ? OVERLAY_ROW_Z + 1 : showControl || controlLeaving ? OVERLAY_ROW_Z : undefined;
-  // A stoppable or readable card keeps the footer even when it has nothing else, so Stop or Mark read has a place to appear.
-  const stopSlot = (canStop || canRead) && !compact;
-  // The footer is as tall as the hover Stop or Mark read on a desktop card that
-  // can show one, hovered or not, so the button sits inside it with the card's
+  // Stop's menu opens downwards over the blocks below, so the row holding the footer is raised while it can show.
+  const footerZ = showControl || controlLeaving ? OVERLAY_ROW_Z : undefined;
+  // A card that can open, stop or be read keeps the footer even when it has nothing else, so its buttons have a place to appear.
+  const stopSlot = (canStop || canRead || canOpen) && !compact;
+  // The footer is as tall as the hover buttons on a desktop card that can
+  // show them, hovered or not, so the button sits inside it with the card's
   // own gaps above and below instead of overhanging the pills, and hovering
   // still moves nothing.
   const footHeight = stopSlot && !TOUCH ? taskControlHeight(m.buttonHeight, scale) : Math.round(m.footLine * scale);
@@ -785,8 +771,25 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   // beside the answer it waits for, as the details sidebar shows it, rather
   // than above the divider with the buttons alone on a row of their own.
   const answerRow = layout.permission && card.permission !== null && !compact && props.permissionButtons.length > 0;
+  // "Open tab" first, then Stop or Mark read, centred on the line they sit on.
+  const footControls = (line: number) => (
+    <View style={{ flexDirection: "row", gap: GAP, marginVertical: (Math.round(line * scale) - taskControlHeight(m.buttonHeight, scale)) / 2 }}>
+      {canOpen ? (
+        <CardButton
+          label={strings.openTab}
+          look="plain"
+          icon="AppWindow"
+          tokens={tokens}
+          compact={false}
+          onPress={() => props.onOpen?.(card.id)}
+          testID="task-card-open-tab"
+        />
+      ) : null}
+      {canStop ? <StopControl {...stop} compact={false} line={m.buttonHeight} /> : canRead ? <ReadControl {...read} compact={false} line={m.buttonHeight} /> : null}
+    </View>
+  );
   const footerContent =
-    timer || ring || stopSlot ? (
+    timer || stopSlot ? (
       <>
         {timer ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -805,13 +808,10 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
         ) : null}
         {/* Bottom right, where Linear keeps nothing else; it stays there without a timer. */}
         {showControl && TOUCH ? (
-          <View style={{ marginLeft: "auto" }}>
-            {canStop ? <StopControl {...stop} compact={false} line={m.footLine} /> : <ReadControl {...read} compact={false} line={m.footLine} />}
-          </View>
+          <View style={{ marginLeft: "auto" }}>{footControls(m.footLine)}</View>
         ) : null}
-        {ring ? <View style={{ marginLeft: showControl && TOUCH ? 0 : "auto" }}>{ring}</View> : null}
         {(showControl || controlLeaving) && !TOUCH ? (
-          // On web Stop appears on hover, so it floats over the ring (the card's
+          // On web the buttons appear on hover, so they float over the ring (the card's
           // fill behind it hides what it covers) instead of taking room from the
           // row: hovering must not move anything. Native shows it all the time, in flow.
           <View
@@ -829,9 +829,9 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
               },
               reducedMotion ? null : controlLeaving ? stopMotion?.exit : stopMotion?.enter,
             ]}
-            testID={canStop ? "task-card-stop-overlay" : "task-card-read-overlay"}
+            testID={canStop ? "task-card-stop-overlay" : canRead ? "task-card-read-overlay" : "task-card-open-overlay"}
           >
-            {canStop ? <StopControl {...stop} compact={false} line={m.buttonHeight} /> : <ReadControl {...read} compact={false} line={m.buttonHeight} />}
+            {footControls(m.buttonHeight)}
           </View>
         ) : null}
       </>
@@ -880,7 +880,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
           ) : null}
         </View>
         {answerRow ? (
-          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: GAP, paddingLeft: m.iconSlot + GAP }}>
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: GAP }} testID="task-card-answer-row">
             {props.permissionButtons.map((button) => (
               <ActionButton
                 key={button.key}
@@ -1144,8 +1144,8 @@ function GitStatus(props: {
 // --- Context ------------------------------------------------------------------
 
 /**
- * The host composer's context ring, inline in the footer; on desktop a hover
- * shows the host's context details in a small card above it. The card floats
+ * The host composer's context ring, at the card's top right; on desktop a
+ * hover shows the host's context details in a small card below it. The card floats
  * (absolutely positioned), so showing it moves nothing.
  */
 function ContextMeter(props: {
@@ -1188,7 +1188,7 @@ function ContextMeter(props: {
           style={{
             position: "absolute",
             right: -8,
-            bottom: Math.round(props.line * scale) + 6,
+            top: Math.round(props.line * scale) + 6,
             minWidth: 180,
             paddingHorizontal: 10,
             paddingVertical: 8,
@@ -1612,101 +1612,6 @@ function StopTreeGlyph(props: { tokens: TaskTokens }) {
         testID="stop-square"
       />
     </MenuGlyph>
-  );
-}
-
-/** ArrowUpRight, 20 x 20 (32 on a phone), where Linear puts the assignee; a tooltip after 400 ms of hover. */
-function JumpButton(props: {
-  tokens: TaskTokens;
-  compact: boolean;
-  /** The line it sits on, so it centres without growing the row. */
-  line: number;
-  label: string;
-  onPress(): void;
-}) {
-  const { tokens, compact } = props;
-  const scale = useTasksFontScale();
-  const { hovered, hoverProps } = useHover();
-  const [tip, setTip] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const clear = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
-  }, []);
-  useEffect(() => clear, [clear]);
-  const size = compact ? PHONE.jump : DESKTOP.jump;
-  const lit = hovered && !compact;
-  return (
-    <View
-      style={{
-        flexShrink: 0,
-        marginVertical: (Math.round(props.line * scale) - size) / 2,
-        marginRight: JUMP_OVERHANG[compact ? 1 : 0],
-        zIndex: 45,
-      }}
-    >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={props.label}
-        onPress={props.onPress}
-        onHoverIn={() => {
-          hoverProps.onHoverIn();
-          if (compact) return;
-          clear();
-          timer.current = setTimeout(() => setTip(true), TOOLTIP_DELAY_MS);
-        }}
-        onHoverOut={() => {
-          hoverProps.onHoverOut();
-          clear();
-          setTip(false);
-        }}
-        style={{
-          width: size,
-          height: size,
-          borderRadius: compact ? size / 2 : 5,
-          backgroundColor: lit ? tokens.card.controlHover : "transparent",
-          alignItems: "center",
-          justifyContent: "center",
-          ...webTransition,
-        }}
-      >
-        <Icon
-          name="ArrowUpRight"
-          size={compact ? PHONE.jumpIcon : DESKTOP.jumpIcon}
-          color={lit ? tokens.foreground : tokens.foregroundMuted}
-        />
-      </Pressable>
-      {tip ? (
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            top: size + 6,
-            right: 0,
-            height: taskControlHeight(26, scale),
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 8,
-            paddingLeft: 8,
-            paddingRight: 6,
-            backgroundColor: tokens.card.background,
-            borderWidth: 1,
-            borderColor: tokens.card.border,
-            borderRadius: 6,
-            boxShadow: tokens.popoverShadow,
-          } as ViewStyle}
-        >
-          <Text numberOfLines={1} style={{ fontSize: F.sm, color: tokens.foreground }}>
-            {props.label}
-          </Text>
-          <View
-            style={{ height: taskControlHeight(16, scale), paddingHorizontal: 4, borderWidth: 1, borderColor: tokens.card.border, borderRadius: 3, justifyContent: "center" }}
-          >
-            <Text style={{ fontSize: F.sm, lineHeight: 14, color: tokens.foregroundMuted }}>Enter</Text>
-          </View>
-        </View>
-      ) : null}
-    </View>
   );
 }
 
