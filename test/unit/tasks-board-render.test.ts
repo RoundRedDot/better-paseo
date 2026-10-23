@@ -414,13 +414,13 @@ describe("Tasks board, desktop", () => {
       const width = StyleSheet.flatten(hostsById(`lane-${lane}`)[0]!.props.style).width as number | { __value: number };
       return typeof width === "number" ? width : { easing: width.__value };
     };
-    expect(LANE_ORDER.map(clip)).toEqual([340, 340, 340, 340]);
+    expect(LANE_ORDER.map(clip)).toEqual([320, 320, 320, 320]);
     act(() => hostsById("lane-needs_input")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Collapse lane")[0]!.props.onPress());
-    // The collapsed lane eases from 340 to its strip; the strip inside has its 40 at once and fades in.
-    expect(clip("needs_input")).toEqual({ easing: 340 });
+    // The collapsed lane eases from 320 to its strip; the strip inside has its 40 at once and fades in.
+    expect(clip("needs_input")).toEqual({ easing: 320 });
     const swap = hostParentOf(pressable("Expand lane: Needs input").findAll((node) => typeof node.type === "string")[0]!)!;
     expect(StyleSheet.flatten(swap.props.style)).toMatchObject({ width: 40, opacity: { __value: 0 } });
-    expect(clip("running")).toBe(340);
+    expect(clip("running")).toBe(320);
     // The board's own width (a window resize, the sidebar's edge dragged) is followed at once.
     const share = (1400 - 392 - 2 * 12 - 3 * 8 - 40) / 3;
     layOut(1400);
@@ -432,7 +432,7 @@ describe("Tasks board, desktop", () => {
     await act(async () => wide.props.onPress());
     expect(clip("running")).toEqual({ easing: share });
     expect(clip("done")).toEqual({ easing: share });
-    expect(clip("needs_input")).toEqual({ easing: 340 });
+    expect(clip("needs_input")).toEqual({ easing: 320 });
   });
 
   it("shows the status counts in an inline sidebar that takes its width from the lanes", () => {
@@ -984,7 +984,7 @@ describe("Tasks board, lane widths", () => {
     layOut(2000);
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: false, contentContainerStyle: { width: 2000 } });
     layOut(900);
-    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 300 * 4 } });
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 280 * 4 } });
   });
 
   it("keeps the lanes at their width on a tablet's narrow board and scrolls them, never the phone tabs", () => {
@@ -992,17 +992,17 @@ describe("Tasks board, lane widths", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
-    // A tablet with the sidebar open: lanes stay 300, the rest scrolled to.
+    // A tablet with the sidebar open: lanes stay 280, the rest scrolled to.
     layOut(480);
     expect(tabs()).toHaveLength(0);
     // No room for the key hints beside the count and the search.
     expect(textOf(renderer!.root)).not.toContain("HLLane");
-    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 300 * 4 } });
-    // Narrower still (a foldable with the host's sidebar wide): still the desk lanes, still 300.
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 280 * 4 } });
+    // Narrower still (a foldable with the host's sidebar wide): still the desk lanes, still 280.
     layOut(400);
     expect(tabs()).toHaveLength(0);
     expect(cards()[0]!.props.compact).toBe(false);
-    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 300 * 4 } });
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 280 * 4 } });
     layOut(1600);
     expect(tabs()).toHaveLength(0);
     expect(textOf(renderer!.root)).toContain("HLLane");
@@ -1026,8 +1026,8 @@ describe("Tasks board, lane widths", () => {
     expect(renderer!.root.findAll((node) => node.props.testID === "lane-width-menu")).toHaveLength(0);
     expect(textOf(button())).toBe("Wide");
     expect(button().props.accessibilityLabel).toBe("Lanes · Wide");
-    // 1300 fits four lanes at 300 but not at 360: the row scrolls at the wide width.
-    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 360 * 4 } });
+    // 1300 fits four lanes at 280 but not at 320: the row scrolls at the wide width.
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 320 * 4 } });
     expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, laneWidth: "wide" } }, "1");
   });
 
