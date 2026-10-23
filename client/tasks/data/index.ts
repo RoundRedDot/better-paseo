@@ -2211,18 +2211,31 @@ export function useTaskCounts(paseo: PaseoApi, review: boolean): SidebarCounts {
   return useSyncExternalStore(subscribe, store.getCounts, store.getCounts);
 }
 
-/** The lanes after the filter bar and search; pure. Hidden subtasks stay on their parent's card. */
+/**
+ * The lanes after the filter bar and search; pure. Hidden subtasks stay on
+ * their parent's card; a running, waiting or failed one keeps its own card
+ * unless its parent's card is in the same lane and already shows it.
+ */
 export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilters): Record<LaneId, LaneModel> {
   const query = filters.query.trim().toLowerCase();
-  const keep = (card: TaskCard) => {
+  const matches = (card: TaskCard) => {
     const searchable = [card.title, card.location.projectName, card.location.workspaceName, card.location.branch]
       .filter((value): value is string => Boolean(value)).join(" ").toLowerCase();
     return (!query || searchable.includes(query)) &&
       (filters.workspaceIds.length === 0 || (card.location.workspaceId !== null && filters.workspaceIds.includes(card.location.workspaceId))) &&
       (filters.providers.length === 0 || filters.providers.includes(card.provider)) &&
       (filters.labels.length === 0 || card.labels.some((label) => filters.labels.includes(label.name))) &&
-      (!filters.openTabsOnly || card.openTab) &&
-      (!filters.hideSubtasks || card.parent === null || card.status === "running" || card.status === "needs_input" || card.status === "failed");
+      (!filters.openTabsOnly || card.openTab);
+  };
+  const byId = new Map<string, TaskCard>();
+  if (filters.hideSubtasks) for (const id of LANE_ORDER) for (const card of lanes[id].cards) byId.set(card.id, card);
+  const keep = (card: TaskCard) => {
+    if (!matches(card)) return false;
+    if (!filters.hideSubtasks || card.parent === null) return true;
+    if (card.status !== "running" && card.status !== "needs_input" && card.status !== "failed") return false;
+    // A parent left on the lane shows it as a row, or its own parent does.
+    const parent = byId.get(card.parent.id);
+    return !(parent && parent.lane === card.lane && matches(parent));
   };
   const out = {} as Record<LaneId, LaneModel>;
   for (const id of LANE_ORDER) out[id] = { ...lanes[id], cards: lanes[id].cards.filter(keep) };
