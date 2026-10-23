@@ -1793,6 +1793,22 @@ describe("Tasks board, project icons", () => {
     layOut(1600);
     expect(requestProjectIcon()).not.toHaveBeenCalled();
   });
+
+  it("asks for the icons of the projects the project and workspace menus list", () => {
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, card: { ...DEFAULT_TASKS_SETTINGS.card, projectIcon: false } };
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(1600);
+    const pill = (label: string) => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded !== undefined && textOf(node) === label)[0]!;
+    for (const label of ["Project", "Workspace"]) {
+      requestProjectIcon().mockClear();
+      act(() => pill(label).props.onPress());
+      expect(requestProjectIcon()).toHaveBeenCalledWith("prj_sample");
+      act(() => pill(label).props.onPress());
+    }
+  });
 });
 
 /** Every Text that shows a card's timer, by card id. */
