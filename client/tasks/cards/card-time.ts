@@ -1,4 +1,4 @@
-import { formatFullStamp } from "../../ui/time";
+import { formatFooterStamp, formatFullStamp } from "../../ui/time";
 import type { TasksLanguage } from "../i18n";
 import { turnRunning, type TaskCard } from "../model";
 import { formatApprox, formatClockTime, formatDuration, formatRelative, formatWait, since } from "./format";
@@ -19,17 +19,22 @@ export interface TimerView {
 /** Timed by its lane and timing alone, so a subtask row passes its child. */
 export type Timed = Pick<TaskCard, "lane" | "timing" | "waitingOnSubtasks">;
 
-/** "12m ago" on the day of `now`, the full stamp before it; null when absent or unparseable. */
-export function formatEnded(iso: string | null, now: number, language: TasksLanguage): string | null {
+/**
+ * "12m ago" on the day of `now`, the full stamp before it; null when absent or
+ * unparseable. `short` drops the seconds and this year ("10-22 16:57"), for a
+ * row whose title shares the line.
+ */
+export function formatEnded(iso: string | null, now: number, language: TasksLanguage, short = false): string | null {
   const ago = since(iso, now);
   if (ago === null) return null;
   const at = new Date(iso!);
   const sameDay = at.toDateString() === new Date(now).toDateString();
-  return sameDay && ago < 86_400_000 ? formatRelative(ago, language) : formatFullStamp(at);
+  if (sameDay && ago < 86_400_000) return formatRelative(ago, language);
+  return short ? formatFooterStamp(at, new Date(now)) : formatFullStamp(at);
 }
 
-/** The footer's timer at `now`; null when there is nothing to count. */
-export function cardTimer(card: Timed, now: number, language: TasksLanguage): TimerView | null {
+/** The footer's timer at `now`; null when there is nothing to count. `short` as `formatEnded`. */
+export function cardTimer(card: Timed, now: number, language: TasksLanguage, short = false): TimerView | null {
   const timing = card.timing;
   if (card.lane === "needs_input") {
     const waited = since(timing.attentionAt, now) ?? since(timing.turnStartedAt, now);
@@ -43,7 +48,7 @@ export function cardTimer(card: Timed, now: number, language: TasksLanguage): Ti
   }
   const parts: string[] = [];
   if (timing.lastTurnMs !== null) parts.push(formatApprox(timing.lastTurnMs, language));
-  const ended = formatEnded(timing.updatedAt, now, language);
+  const ended = formatEnded(timing.updatedAt, now, language, short);
   if (ended !== null) parts.push(ended);
   return parts.length ? { text: parts.join(" · "), tone: "muted" } : null;
 }
