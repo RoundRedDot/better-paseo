@@ -21,7 +21,9 @@ const en = {
   revealParent: "Show parent task",
   /** A provider subagent's row: it has no card or tab, so it opens its parent's. */
   openParentTab: "Open in the parent's tab",
-  subagent: "A subagent inside this task's session, with no card or tab of its own",
+  subagent: "A subagent inside this task's session, with no tab of its own",
+  /** A provider subagent's own card: read-only, opening its parent's tab. */
+  subagentCard: "A subagent inside its parent's session: read-only, with no tab of its own, so it opens its parent's",
   more: (count: number) => `${count} more`,
   showFewer: "Show fewer",
   context: "Context",
@@ -199,7 +201,8 @@ const zh: CardStrings = {
   parentUnknown: "父任务",
   revealParent: "定位到父任务",
   openParentTab: "在父任务的 tab 中打开",
-  subagent: "本任务会话里的 subagent，没有自己的卡片和 tab",
+  subagent: "本任务会话里的 subagent，没有自己的 tab",
+  subagentCard: "父任务会话里的 subagent，只读，没有自己的 tab，打开的是父任务的 tab",
   more: (count) => `还有 ${count} 条`,
   showFewer: "收起",
   context: "上下文",

@@ -224,6 +224,12 @@ export interface TaskCard {
    * brings it back), "workspace" when its workspace or project is.
    */
   archived?: "agent" | "workspace";
+  /**
+   * A provider subagent's card (`withSubagentCards`), drawn from its parent's
+   * row: read-only, with no tab, record or actions of its own, so it opens
+   * its parent's tab. `subtitle` is the provider's facts line.
+   */
+  subagent?: { subtitle: string | null };
 }
 
 /**

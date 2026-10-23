@@ -394,6 +394,84 @@ export function withSubagents(card: TaskCard, subagents: readonly ProviderSubage
   };
 }
 
+function timestamp(value: string | null, missing: number): number {
+  if (!value) return missing;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : missing;
+}
+
+/** A lane's default order: waiting and running oldest first, the rest newest first. */
+function laneCompare(lane: LaneId): (left: TaskCard, right: TaskCard) => number {
+  if (lane === "needs_input") return (left, right) => timestamp(left.timing.attentionAt, Number.POSITIVE_INFINITY) - timestamp(right.timing.attentionAt, Number.POSITIVE_INFINITY);
+  if (lane === "running") return (left, right) => timestamp(left.timing.turnStartedAt, Number.POSITIVE_INFINITY) - timestamp(right.timing.turnStartedAt, Number.POSITIVE_INFINITY);
+  if (lane === "review") return (left, right) => timestamp(right.timing.attentionAt ?? right.timing.updatedAt, Number.NEGATIVE_INFINITY) - timestamp(left.timing.attentionAt ?? left.timing.updatedAt, Number.NEGATIVE_INFINITY);
+  return (left, right) => timestamp(right.timing.updatedAt, Number.NEGATIVE_INFINITY) - timestamp(left.timing.updatedAt, Number.NEGATIVE_INFINITY);
+}
+
+// One list per parent card, so a subagent's card keeps its identity while its parent's does.
+const subagentCardCache = new WeakMap<TaskCard, TaskCard[]>();
+
+/** A parent's provider subagents as read-only cards, in the workspace, labels and agent of the parent. */
+function subagentCardsOf(parent: TaskCard): TaskCard[] {
+  const cached = subagentCardCache.get(parent);
+  if (cached) return cached;
+  const out = parent.children
+    .filter((child) => child.kind === "provider" && child.lane && child.timing)
+    .map((child): TaskCard => ({
+      id: child.id,
+      title: child.title,
+      lane: child.lane!,
+      status: child.status,
+      provider: parent.provider,
+      providerLabel: parent.providerLabel,
+      providerMark: parent.providerMark,
+      model: null,
+      modelLabel: null,
+      thinkingLabel: null,
+      modeLabel: null,
+      location: parent.location,
+      labels: parent.labels,
+      timing: child.timing!,
+      context: null,
+      usage: null,
+      error: null,
+      permission: null,
+      parent: { id: parent.id, title: parent.title, missing: false, archived: false },
+      children: [],
+      openTab: false,
+      stoppable: false,
+      subagent: { subtitle: child.subtitle ?? null },
+    }));
+  subagentCardCache.set(parent, out);
+  return out;
+}
+
+/**
+ * The lanes with a read-only card for each provider subagent a card lists,
+ * merged into its lane in the lane's order. An archived parent's are left
+ * out. `filterLanes` then treats them as any subtask: hidden subtasks keep
+ * them on their parent's card while it shares their lane. Returns `lanes`
+ * itself while no card has one.
+ */
+export function withSubagentCards(lanes: Record<LaneId, LaneModel>): Record<LaneId, LaneModel> {
+  const added = new Map<LaneId, TaskCard[]>();
+  for (const id of LANE_ORDER) {
+    if (id === "archived") continue;
+    for (const card of lanes[id].cards) {
+      if (!card.children.some((child) => child.kind === "provider")) continue;
+      for (const sub of subagentCardsOf(card)) {
+        const list = added.get(sub.lane);
+        if (list) list.push(sub);
+        else added.set(sub.lane, [sub]);
+      }
+    }
+  }
+  if (added.size === 0) return lanes;
+  const out = { ...lanes };
+  for (const [id, cards] of added) out[id] = { ...lanes[id], cards: [...lanes[id].cards, ...cards].sort(laneCompare(id)) };
+  return out;
+}
+
 /**
  * The card's timing with its latest turn. A turn that ended before the latest
  * prompt is an earlier one: while the agent works that is its last turn, after
@@ -1917,12 +1995,7 @@ function createStore(api: PaseoApi): TaskStore {
     const lanes = {} as Record<LaneId, LaneModel>;
     for (const lane of LANE_ORDER) {
       const laneCards = filteredCards.filter((card) => card.lane === lane);
-      laneCards.sort((left, right) => {
-        if (lane === "needs_input") return timestamp(left.timing.attentionAt, Number.POSITIVE_INFINITY) - timestamp(right.timing.attentionAt, Number.POSITIVE_INFINITY);
-        if (lane === "running") return timestamp(left.timing.turnStartedAt, Number.POSITIVE_INFINITY) - timestamp(right.timing.turnStartedAt, Number.POSITIVE_INFINITY);
-        if (lane === "review") return timestamp(right.timing.attentionAt ?? right.timing.updatedAt, Number.NEGATIVE_INFINITY) - timestamp(left.timing.attentionAt ?? left.timing.updatedAt, Number.NEGATIVE_INFINITY);
-        return timestamp(right.timing.updatedAt, Number.NEGATIVE_INFINITY) - timestamp(left.timing.updatedAt, Number.NEGATIVE_INFINITY);
-      });
+      laneCards.sort(laneCompare(lane));
       const tailOld = cutoff !== null && doneTailAt !== null && Number.isFinite(Date.parse(doneTailAt)) && now - Date.parse(doneTailAt) > cutoff;
       const paged = lane === "done" ? options.includeDone : lane === "archived" && showArchived;
       lanes[lane] = {
@@ -1969,12 +2042,6 @@ function createStore(api: PaseoApi): TaskStore {
     };
     snapshotCaches.push({ key: cacheKey, snapshot });
     return snapshot;
-  }
-
-  function timestamp(value: string | null, missing: number): number {
-    if (!value) return missing;
-    const parsed = Date.parse(value);
-    return Number.isFinite(parsed) ? parsed : missing;
   }
 
   function getCounts(): SidebarCounts {

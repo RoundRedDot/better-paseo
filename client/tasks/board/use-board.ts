@@ -6,7 +6,7 @@ import type { PaseoApi } from "@getpaseo/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type LaneWidth, type TasksSettings } from "../../../shared/tasks-settings";
 import { permissionButtons, respondToPermission, useArchiveControl, useReadControl, useStopControl, useUnarchiveControl, type ArchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
-import { filterLanes, useTasks, type TasksHandle } from "../data";
+import { filterLanes, useTasks, withSubagentCards, type TasksHandle } from "../data";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { LANE_ORDER, boardLaneOrder, opensInPaseo, turnRunning, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
 import { MOTION } from "./board-style";
@@ -281,10 +281,9 @@ export function useBoard(
   const archive = useArchiveControl({ paseo, toast });
   const { stoppedManually, noteRunning, reconcile, restored } = stop;
   const stoppedIds = useMemo(() => restoredStops(stoppedManually, restored, tasks.byId), [stoppedManually, restored, tasks.byId]);
-  const filtered = useMemo(
-    () => filterLanes(withStopReasons(tasks.lanes, stoppedIds, strings.stoppedManually), filters),
-    [tasks.lanes, stoppedIds, strings.stoppedManually, filters],
-  );
+  // Every card the board can draw: the store's, with a card for each provider subagent.
+  const unfiltered = useMemo(() => withSubagentCards(withStopReasons(tasks.lanes, stoppedIds, strings.stoppedManually)), [tasks.lanes, stoppedIds, strings.stoppedManually]);
+  const filtered = useMemo(() => filterLanes(unfiltered, filters), [unfiltered, filters]);
   // The order is taken when the sort or the cards change, never on a clock
   // tick, so a duration sort does not reshuffle every second.
   const sort = params.sort;
@@ -296,7 +295,7 @@ export function useBoard(
   lanesRef.current = lanes;
   // Kept while no lane's count changes, so the lanes skip their render as with `keepSameLanes`.
   const hiddenRef = useRef<Record<LaneId, number> | null>(null);
-  const hidden = useMemo(() => keepSameCounts(hiddenRef.current, hiddenCounts(tasks.lanes, filtered)), [tasks.lanes, filtered]);
+  const hidden = useMemo(() => keepSameCounts(hiddenRef.current, hiddenCounts(unfiltered, filtered)), [unfiltered, filtered]);
   hiddenRef.current = hidden;
   const total = laneOrder.reduce((sum, id) => sum + lanes[id].cards.length, 0);
   // Switching the archived lane rearranges the lanes as a filter does, twice when it turns on: at once, and when the list with archived agents lands.
@@ -329,8 +328,8 @@ export function useBoard(
   }, []);
 
   // Callbacks read the latest values through a ref, so the memoized cards see stable functions.
-  const latest = useRef({ props, paseo, toast, stop, read, unarchive, archive, strings, tasks });
-  latest.current = { props, paseo, toast, stop, read, unarchive, archive, strings, tasks };
+  const latest = useRef({ props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes });
+  latest.current = { props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes };
   const setLaneWidth = useCallback((width: LaneWidth) => {
     const state = settingsRef.current;
     if (state.status !== "ready") return;
@@ -369,7 +368,9 @@ export function useBoard(
     });
   }, []);
   const toastMessage = useCallback((message: string) => latest.current.toast.show(message), []);
-  const open = useCallback((agentId: string) => {
+  const open = useCallback((id: string) => {
+    // A provider subagent has no tab: its card opens its parent's, where Paseo lists it.
+    const agentId = subagentParent(latest.current.lanes, id) ?? id;
     const card = byIdRef.current.get(agentId);
     // The cards hide Open on an archived task; this catches the keyboard and anything else.
     if (card && !opensInPaseo(card)) {
@@ -460,6 +461,15 @@ export function hiddenCounts(all: Record<LaneId, LaneModel>, shown: Record<LaneI
 
 function keepSameCounts(last: Record<LaneId, number> | null, next: Record<LaneId, number>): Record<LaneId, number> {
   return last && LANE_ORDER.every((id) => last[id] === next[id]) ? last : next;
+}
+
+/** The parent of a provider subagent's card in the lanes, or null when `id` is not one. */
+export function subagentParent(lanes: Record<LaneId, LaneModel>, id: string): string | null {
+  for (const lane of LANE_ORDER) {
+    const card = lanes[lane].cards.find((candidate) => candidate.id === id);
+    if (card) return card.subagent ? card.parent?.id ?? null : null;
+  }
+  return null;
 }
 
 /** Where a card sits in the filtered lanes, or null when the filters hide it. */

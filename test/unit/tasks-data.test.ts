@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { filterLanes, setLabelDefinitionsLoader, setLastTurnLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, withLastTurn, withReadMark, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import { filterLanes, setLabelDefinitionsLoader, setLastTurnLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -1314,6 +1314,50 @@ describe("Tasks data store", () => {
       ]);
       expect(card.children[0]).toMatchObject({ provider: card.provider, subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens", lane: "review" });
       expect(card.children[0]!.timing).toMatchObject({ lastTurnMs: 6 * 60_000 + 55_000, lastTurnEndedAt: "2026-10-22T09:18:55.000Z" });
+    });
+
+    it("gives each provider subagent a read-only card in its own lane, hidden with subtasks while its parent shares the lane", () => {
+      const running: TaskCard = {
+        ...doneCard(),
+        lane: "running",
+        status: "running",
+        labels: [{ name: "perf", color: null }],
+        timing: { ...doneCard().timing, turnStartedAt: "2026-10-22T09:11:00.000Z" },
+      };
+      const parent = withSubagents(running, [subagent("a"), subagent("c", { status: "running", createdAt: "2026-10-22T09:14:00.000Z" })]);
+      const early: TaskCard = { ...running, id: "early", children: [], timing: { ...running.timing, turnStartedAt: "2026-10-22T09:00:00.000Z" } };
+      const late: TaskCard = { ...running, id: "late", children: [], timing: { ...running.timing, turnStartedAt: "2026-10-22T09:20:00.000Z" } };
+      const empty = (id: LaneId): LaneModel => ({ id, cards: [], hasMore: false, loading: false });
+      const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, empty(id)])) as Record<LaneId, LaneModel>;
+      lanes.running = { ...lanes.running, cards: [early, parent, late] };
+      const withCards = withSubagentCards(lanes);
+      // Merged in by the lane's own order: the running one by its start, the failed one in review.
+      expect(withCards.running.cards.map((card) => card.id)).toEqual(["early", "parent", "c", "late"]);
+      expect(withCards.review.cards.map((card) => card.id)).toEqual(["a"]);
+      expect(withCards.review.cards[0]).toMatchObject({
+        title: "RRD-a task",
+        status: "failed",
+        stoppable: false,
+        openTab: false,
+        children: [],
+        labels: running.labels,
+        location: running.location,
+        parent: { id: "parent", title: running.title, missing: false, archived: false },
+        subagent: { subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens" },
+      });
+      // The same parent card gives the same subagent cards, so a memoized card skips its render.
+      expect(withSubagentCards(lanes).running.cards[2]).toBe(withCards.running.cards[2]);
+      const noSubagents = { ...lanes, running: { ...lanes.running, cards: [early, late] } };
+      expect(withSubagentCards(noSubagents)).toBe(noSubagents);
+
+      const filters = { query: "", workspaceIds: [], providers: [], labels: [], hideSubtasks: true };
+      const hidden = filterLanes(withCards, filters);
+      expect(hidden.running.cards.map((card) => card.id)).toEqual(["early", "parent", "late"]);
+      expect(hidden.review.cards.map((card) => card.id)).toEqual(["a"]);
+      expect(filterLanes(withCards, { ...filters, hideSubtasks: false }).running.cards.map((card) => card.id)).toEqual(["early", "parent", "c", "late"]);
+      // An archived parent's subagents get no card.
+      const archived = { ...lanes, running: empty("running"), archived: { ...lanes.archived, cards: [{ ...parent, lane: "archived" as const }] } };
+      expect(withSubagentCards(archived)).toBe(archived);
     });
 
     it("lets a failure go once the parent is prompted after it, and keeps a working parent's lane", () => {
