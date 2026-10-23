@@ -805,6 +805,26 @@ describe("Tasks board, desktop", () => {
     expect(child.props.onStop).toBeUndefined();
   });
 
+  it("does not open an archived task, whose tab Paseo would drop for another, and says why", () => {
+    const handle = (data as unknown as { __handle: { byId: Map<string, unknown> } }).__handle;
+    const done = handle.byId.get("sample-done") as Record<string, unknown>;
+    handle.byId.set("archived-task", { ...done, id: "archived-task", lane: "archived", status: "archived", archived: "agent" });
+    try {
+      act(() => {
+        renderer = TestRenderer.create(screen(false));
+      });
+      layOut(1600);
+      const card = cards()[0]!;
+      act(() => card.props.onOpen("archived-task"));
+      expect(openAgent).not.toHaveBeenCalled();
+      expect(host.toast).toHaveBeenCalledWith("Unarchive this task to open it in Paseo");
+      act(() => card.props.onOpen("sample-done"));
+      expect(openAgent).toHaveBeenCalledWith({ agentId: "sample-done" });
+    } finally {
+      handle.byId.delete("archived-task");
+    }
+  });
+
   it("disarms an armed stop on Esc, whatever has the keyboard focus", async () => {
     host.canStop = true;
     const keys: Array<(event: unknown) => void> = [];

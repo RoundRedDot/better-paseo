@@ -12,7 +12,7 @@ import { useHover } from "../../ui/use-hover";
 import { useCopy } from "../../ui/use-copy";
 import type { TasksLanguage } from "../i18n";
 import type { SessionTokens } from "../../../shared/tasks-rpc";
-import { turnRunning, type PermissionKind, type TaskCard, type TaskChild } from "../model";
+import { opensInPaseo, turnRunning, type PermissionKind, type TaskCard, type TaskChild } from "../model";
 import type { PermissionButton, StopPhase } from "../actions";
 import type { FirstPrompt } from "../data/first-prompt";
 import type { LastMessage } from "../data/last-message";
@@ -181,7 +181,9 @@ export interface TaskDetailCardsProps extends TimeSource {
 const MINUTE = 60_000;
 
 /** The details card: the header and the lead block, then the sections. */
-export function TaskDetailCards(props: TaskDetailCardsProps) {
+export function TaskDetailCards(given: TaskDetailCardsProps) {
+  // An archived task has no Open, here or on its subtasks: Paseo would show another tab.
+  const props = opensInPaseo(given.card) ? given : { ...given, onOpen: undefined };
   const { card } = props;
   const tokens = taskTokens(props.theme);
   const m: Metrics = props.touch ? TOUCH_CARD : DETAIL_CARD;
@@ -1523,14 +1525,15 @@ export function DetailActionBar(props: {
   onPermission?(button: PermissionButton): void;
 }) {
   const { card } = props;
+  const onOpen = opensInPaseo(card) ? props.onOpen : undefined;
   const tokens = taskTokens(props.theme);
   const stop = stopLabel(props as TaskDetailCardsProps);
   const buttons = card.lane === "needs_input" && props.onPermission ? (props.permissionButtons ?? []) : [];
   const respond = buttons.filter((button) => button.kind === "respond");
   const answer = buttons.find((button) => button.kind === "open");
   const asking = respond.length > 0 || !!answer;
-  if (!props.onOpen && !stop && !asking) return null;
-  const open = () => props.onOpen?.(card.id);
+  if (!onOpen && !stop && !asking) return null;
+  const open = () => onOpen?.(card.id);
   // Deny first, allow last: the main button sits under the thumb.
   const ordered = [...respond].sort((a, b) => (a.action.behavior === "allow" ? 1 : 0) - (b.action.behavior === "allow" ? 1 : 0));
   return (
@@ -1548,12 +1551,12 @@ export function DetailActionBar(props: {
             />
           ))}
           {answer ? <BarButton tokens={tokens} label={answer.label} primary onPress={() => props.onPermission?.(answer)} /> : null}
-          {props.onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} square onPress={open} testID="detail-bar-open" /> : null}
+          {onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} square onPress={open} testID="detail-bar-open" /> : null}
         </>
       ) : (
         <>
           {stop && props.stop ? <BarButton tokens={tokens} icon="Power" stop={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" /> : null}
-          {props.onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} primary onPress={open} testID="detail-bar-open" /> : null}
+          {onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} primary onPress={open} testID="detail-bar-open" /> : null}
         </>
       )}
     </View>
