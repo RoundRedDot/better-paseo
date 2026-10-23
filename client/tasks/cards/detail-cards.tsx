@@ -274,6 +274,22 @@ function DetailHeader(props: Inner) {
   // An archived task can be brought back; one of an archived workspace has nothing of its own to unarchive.
   const unarchive = card.archived === "agent" ? props.unarchive ?? null : null;
   const showActions = props.actions !== false && (!!props.onOpen || !!stop || !!unarchive);
+  // Open tab takes the row's room: first on desktop, last on touch, where the
+  // phone's bar and the cards end with it too.
+  const openButton = props.onOpen ? (
+    <OutlineButton
+      icon="AppWindow"
+      label={openLabel(props)}
+      hint={card.openTab ? <OpenHint tokens={tokens} label={cardText.details.tabOpen} /> : null}
+      trailing="ArrowUpRight"
+      height={m.button}
+      font={m.font}
+      tokens={tokens}
+      grow
+      onPress={() => props.onOpen?.(card.id)}
+      testID="detail-open"
+    />
+  ) : null;
   return (
     <View style={{ paddingLeft: m.padH, paddingRight: m.padH - (props.gutter ?? 0), paddingTop: 8, paddingBottom: 12 }} testID="detail-header">
       {props.back ? (
@@ -369,6 +385,7 @@ function DetailHeader(props: Inner) {
       ) : null}
       {showActions ? (
         <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }} testID="detail-actions">
+          {touch ? null : openButton}
           {stop && props.stop ? (
             <OutlineButton icon="Power" danger={props.stop.phase === "confirming" ? "solid" : "tint"} label={stop} height={m.button} font={m.font} tokens={tokens} onPress={props.stop.onPress} testID="detail-stop" />
           ) : null}
@@ -385,20 +402,7 @@ function DetailHeader(props: Inner) {
               testID="detail-unarchive"
             />
           ) : null}
-          {props.onOpen ? (
-            <OutlineButton
-              icon="AppWindow"
-              label={openLabel(props)}
-              hint={card.openTab ? <OpenHint tokens={tokens} label={cardText.details.tabOpen} /> : null}
-              trailing="ArrowUpRight"
-              height={m.button}
-              font={m.font}
-              tokens={tokens}
-              grow
-              onPress={() => props.onOpen?.(card.id)}
-              testID="detail-open"
-            />
-          ) : null}
+          {touch ? openButton : null}
         </View>
       ) : null}
       <View style={{ marginTop: 12 }}>
