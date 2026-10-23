@@ -30,6 +30,8 @@ const en = {
   boardEmptyHint: "Start an agent in any workspace and it shows up here by status.",
   windows: { "24h": "24h", "7d": "7 days", all: "All" } as Record<DoneWindow, string>,
   total: (count: number) => `${count} ${count === 1 ? "task" : "tasks"}`,
+  /** `total` without its number, for a count that rolls on its own. */
+  totalUnit: (count: number): string => (count === 1 ? "task" : "tasks"),
   search: "Search titles",
   searchButton: "Search",
   project: "Project",
@@ -180,6 +182,7 @@ const zh: typeof en = {
   boardEmptyHint: "在任一工作区启动 agent 后，它会按状态出现在这里。",
   windows: { "24h": "24 小时", "7d": "7 天", all: "全部" },
   total: (count) => `${count} 个任务`,
+  totalUnit: () => "个任务",
   search: "按标题搜索",
   searchButton: "搜索",
   project: "项目",

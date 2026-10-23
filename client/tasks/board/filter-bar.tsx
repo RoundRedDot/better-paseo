@@ -5,7 +5,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { taskTokens } from "../cards";
 import { tipProps } from "../cards/card-hints";
-import { HoverPressable, WindowSegments, RoundButton, SlashMark } from "./board-parts";
+import { HoverPressable, RollingTotal, WindowSegments, RoundButton, SlashMark } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { FILTER_ICONS, activeChips, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, shownFilterOptions, toggleProject, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
@@ -50,7 +50,7 @@ export function DesktopToolbar(props: {
   const strings = board.strings;
   return (
     <View style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
-      <Text numberOfLines={1} style={{ flexShrink: 0, fontSize: F.base, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>{strings.total(board.total)}</Text>
+      <RollingTotal board={board} style={{ flexShrink: 0, fontSize: F.base, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }} />
       <View style={{ flex: 1 }} />
       {Platform.OS === "web" && props.keyHints ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>

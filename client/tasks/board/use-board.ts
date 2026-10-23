@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { Platform } from "react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { usePaseo, useSettings } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
@@ -63,6 +64,12 @@ export interface BoardController {
   /** The lanes the board draws, left to right: the four, and archived after done when `board.showArchived` is on. */
   laneOrder: readonly LaneId[];
   total: number;
+  /**
+   * The `scope` a count rolls within (`RollingCount`): `scope`, except that on
+   * web and the desktop app a new done window rolls the counts. A phone or
+   * tablet shows them at once, as it does for every change of `scope`.
+   */
+  countScope: unknown;
   fields: CardSettings;
   /** The 1 s clock for what shows the time; its identity holds across ticks. */
   clock: TaskClock;
@@ -286,6 +293,11 @@ export function useBoard(
   // Switching the archived lane rearranges the lanes as a filter does, twice when it turns on: at once, and when the list with archived agents lands.
   const archivedSettling = showArchived && lanes.archived.loading && lanes.archived.cards.length === 0;
   const scope = useMemo(() => ({ params, showArchived, archivedSettling }), [params, showArchived, archivedSettling]);
+  // A count also rolls through a new done window on web; a phone or tablet shows it at once.
+  const countScope = useMemo(
+    () => (Platform.OS === "web" ? JSON.stringify({ params: encodeBoardParams({ ...params, doneWindow: null }), showArchived, archivedSettling }) : scope),
+    [scope, params, showArchived, archivedSettling],
+  );
   // A stop whose agents have left running is done; a card stopped from the
   // board that runs again drops its "Stopped manually".
   useEffect(() => {
@@ -412,6 +424,7 @@ export function useBoard(
     lanes,
     laneOrder,
     total,
+    countScope,
     fields,
     clock,
     visible,

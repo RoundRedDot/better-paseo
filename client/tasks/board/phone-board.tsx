@@ -434,7 +434,7 @@ export function PhoneBoard(props: {
                     {tasks.ready ? (
                       <RollingCount
                         value={count}
-                        scope={board.scope}
+                        scope={board.countScope}
                         style={{ fontSize: F.base, fontWeight: warn || on ? "600" : "400", fontVariant: ["tabular-nums"], color: warn ? warning : on ? colors.foreground : colors.foregroundMuted }}
                       />
                     ) : null}
