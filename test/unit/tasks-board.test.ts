@@ -34,7 +34,7 @@ import {
   laneLayout,
   type LaneShape,
 } from "../../client/tasks/board/navigation";
-import { activeChips, buildFilterOptions, clearedParams, groupChips, isChipGroup, type ChipGroup } from "../../client/tasks/board/filter-options";
+import { activeChips, buildFilterOptions, clearedParams, groupChips, isChipGroup, projectOptions, toggleProject, type ChipGroup } from "../../client/tasks/board/filter-options";
 import { boardPalette, cubicBezier } from "../../client/tasks/board/board-style";
 import { restoredStops, withStopReasons } from "../../client/tasks/board/use-board";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -339,6 +339,29 @@ describe("filter options", () => {
     expect(chips[1]!.clear(params).workspaceIds).toEqual(["wks_p1", "wks_p2", "wks_s1", "wks_p3", "wks_gone"]);
     const one = { ...EMPTY_PARAMS, workspaceIds: ["wks_o2"] };
     expect(activeChips(one, defaults, buildFilterOptions(tasks, one), BOARD_STRINGS.zh).map((chip) => chip.value)).toEqual(["web / feat/nav"]);
+  });
+
+  it("picks a project as all of its workspaces", () => {
+    const tasks = {
+      ...handle(),
+      workspaces: [
+        { id: "wks_p1", name: "main", projectId: "prj_pay", projectName: "payments-svc", folder: "payments-svc" },
+        { id: "wks_p2", name: "fix/refund", projectId: "prj_pay", projectName: "payments-svc", folder: "payments-svc-2" },
+        { id: "wks_w1", name: "main", projectId: "prj_web", projectName: "web", folder: "web" },
+      ],
+    };
+    const some: BoardParams = { ...EMPTY_PARAMS, workspaceIds: ["wks_p2", "wks_gone"] };
+    const projects = projectOptions(buildFilterOptions(tasks, some));
+    // The workspace nobody knows has no project to pick.
+    expect(projects.map((project) => `${project.id}|${project.label}|${project.on}`)).toEqual(["prj_pay|payments-svc|false", "prj_web|web|false"]);
+    // A project with only some workspaces picked picks the rest.
+    const picked = toggleProject(some, projects[0]!);
+    expect(picked.workspaceIds).toEqual(["wks_p2", "wks_gone", "wks_p1"]);
+    const again = projectOptions(buildFilterOptions(tasks, picked));
+    expect(again[0]!.on).toBe(true);
+    expect(activeChips(picked, defaults, buildFilterOptions(tasks, picked), BOARD_STRINGS.zh).map((chip) => `${chip.kind}|${chip.value}`)).toEqual(["项目|payments-svc", "Workspace|wks_gone"]);
+    // Picked whole, it drops all its workspaces.
+    expect(toggleProject(picked, again[0]!).workspaceIds).toEqual(["wks_gone"]);
   });
 
   it("folds several chips of one filter into a group where its first chip stood", () => {
