@@ -454,6 +454,7 @@ export function DesktopFilterBar(props: {
           theme={theme}
           strings={strings}
           tip={strings.tips.doneWindow}
+          marks
         />
         <BarSwitch
           icon="Archive"

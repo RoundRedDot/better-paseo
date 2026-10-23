@@ -1136,7 +1136,7 @@ describe("Tasks board, archived lane switch", () => {
     expect(hostsById("lane-archived")).toHaveLength(0);
     // In the bar's end, after the done window and before the sort.
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
-    const order = end.findAll((node) => (node.type as unknown) === "Pressable" && (node.props.testID === "archived-lane-toggle" || textOf(node) === "7 days" || textOf(node).includes("Sort")));
+    const order = end.findAll((node) => (node.type as unknown) === "Pressable" && (node.props.testID === "archived-lane-toggle" || node.props.accessibilityLabel === "7 days" || textOf(node).includes("Sort")));
     expect(order.map((node) => node.props.testID === "archived-lane-toggle" ? "archived" : textOf(node).includes("Sort") ? "sort" : "window")).toEqual(["window", "archived", "sort"]);
     await act(async () => toggle().props.onPress());
     layOut(2400);
@@ -1299,6 +1299,25 @@ describe("Tasks board, tablet filters", () => {
     layOut(1600);
     expect(renderer!.root.findAll((node) => node.props.testID === "filter-bar-end").length).toBeGreaterThan(0);
     expect(renderer!.root.findAll((node) => node.props.testID === "toolbar-filters")).toHaveLength(0);
+  });
+
+  it("draws the bar's done window as three marks, 24h, 7d and infinity, their names read out", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2400);
+    const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
+    const radios = () => end.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "radio");
+    expect(radios().map((node) => node.props.accessibilityLabel)).toEqual(["24h", "7 days", "All"]);
+    // Each its count and a smaller unit, infinity for all; the words are left to the label.
+    expect(radios().map((node) => node.findAll((child) => child.props.testID === "window-mark").length > 0)).toEqual([true, true, true]);
+    expect(radios().map(textOf)).toEqual(["24h", "7d", "\u221e"]);
+    // Each its own name as its hover tip, inside the control's.
+    expect(radios().map((node) => node.props.dataSet?.bctip)).toEqual(["24h", "7 days", "All"]);
+    act(() => radios()[2]!.props.onPress());
+    expect(radios().map((node) => node.props.accessibilityState.selected)).toEqual([false, false, true]);
+    expect(lastBoardParams("host-1").doneWindow).toBe("all");
   });
 
   it("lists the sidebar's groups with no active task until the bar's switch hides them, and saves it", async () => {
