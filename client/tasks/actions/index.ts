@@ -18,6 +18,9 @@ export interface PermissionButton {
   action: TaskPermissionAction | { behavior: "allow" | "deny"; id: null };
 }
 
+/** Paseo sends a plan's buttons in English; these are the labels it uses. */
+const ACTION_ZH: Record<string, string> = { Reject: "拒绝", Dismiss: "拒绝", Implement: "实施" };
+
 /** Buttons for the first pending request. Questions and other requests open the agent tab. */
 export function permissionButtons(permission: TaskPermission, language: TasksLanguage = "en"): PermissionButton[] {
   if (permission.kind === "question" || permission.kind === "other") {
@@ -33,7 +36,7 @@ export function permissionButtons(permission: TaskPermission, language: TasksLan
   if (permission.actions.length > 0) {
     return permission.actions.map((action) => ({
       key: action.id,
-      label: action.label,
+      label: language === "zh" ? ACTION_ZH[action.label] ?? action.label : action.label,
       variant: action.variant ?? (action.behavior === "allow" ? "primary" : "secondary"),
       kind: "respond",
       action,

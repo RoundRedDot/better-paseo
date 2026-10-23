@@ -272,6 +272,16 @@ describe("TaskCardView on web", () => {
     await act(async () => done.unmount());
   });
 
+  it("floats Open tab alone on a waiting card's hover, leaving Stop to the menu", async () => {
+    const onStop = vi.fn();
+    const renderer = await render(React.createElement(TaskCardView, props("sample-input", { onStop })));
+    await act(async () => hovers.get("task-card-sample-input")!.enter());
+    const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-open-overlay");
+    expect(overlay.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(["打开 tab"]);
+    expect(renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop")).toEqual([]);
+    await act(async () => renderer.unmount());
+  });
+
   it("floats Archive before Open tab on a done task's hover, spinning while it runs", async () => {
     const onOpen = vi.fn();
     const onArchive = vi.fn();
@@ -635,8 +645,9 @@ describe("TaskCardView hover layout", () => {
         );
         const before = layout(renderer.root);
         await act(async () => hovers.get(`task-card-${id}`)!.enter());
-        // Stop is on screen, floating over the row's end.
-        const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-stop-overlay");
+        // Stop (Open tab alone on the waiting card) is on screen, floating over the row's end.
+        const overlayID = id === "sample-input" ? "task-card-open-overlay" : "task-card-stop-overlay";
+        const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === overlayID);
         expect(flat(overlay.props.style).position).toBe("absolute");
         expect(layout(renderer.root)).toEqual(before);
         await act(async () => hovers.get(`task-card-${id}`)!.leave());
