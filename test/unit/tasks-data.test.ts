@@ -1370,7 +1370,7 @@ describe("Tasks data store", () => {
         ["b", "provider", "failed", "RRD-b task"],
         ["c", "provider", "running", "RRD-c task"],
       ]);
-      expect(card.children[0]).toMatchObject({ provider: card.provider, subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens", lane: "review" });
+      expect(card.children[0]).toMatchObject({ provider: card.provider, subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens", subagentType: "general-purpose", lane: "review" });
       expect(card.children[0]!.timing).toMatchObject({ lastTurnMs: 6 * 60_000 + 55_000, lastTurnEndedAt: "2026-10-22T09:18:55.000Z" });
     });
 
@@ -1401,7 +1401,7 @@ describe("Tasks data store", () => {
         labels: running.labels,
         location: running.location,
         parent: { id: "parent", title: running.title, missing: false, archived: false },
-        subagent: { subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens" },
+        subagent: { subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens", type: "general-purpose" },
       });
       // The same parent card gives the same subagent cards, so a memoized card skips its render.
       expect(withSubagentCards(lanes).running.cards[2]).toBe(withCards.running.cards[2]);

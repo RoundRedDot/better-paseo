@@ -19,6 +19,7 @@ import { useTime, type TaskClock, type TimeSource } from "./clock";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
 import { agentPillColors, BrandMark, branchPillColors, neutralPillColors, type AgentPillColors } from "./brand-mark";
 import { THINKING_ICON } from "./mode-icons";
+import { subagentFacts } from "../subagent-type";
 import { ProjectIcon } from "./project-icon";
 import { SpinnerRing, StatusIcon } from "./status-icon";
 import { ChildMark } from "./child-mark";
@@ -703,10 +704,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const agentColors = agentPillColors(tokens, card.provider);
   const thinking = layout.thinking ? card.thinkingLabel : null;
   // A subagent's card shows the provider's facts line (type, model, effort, tokens) in the model's place.
-  const facts = card.subagent?.subtitle ?? null;
+  // Its type as the timeline's icon (`subagentFacts`); the hint keeps the whole line.
+  const subagent = card.subagent ? subagentFacts(card.subagent.subtitle, card.subagent.type) : null;
+  const facts = subagent?.full ?? null;
   if (layout.modelPill) {
-    const model = facts ?? (layout.model && card.modelLabel ? card.modelLabel : card.providerLabel);
-    const name = model === card.providerLabel ? model : `${card.providerLabel} ${model}`;
+    const model = subagent?.text ?? (facts ? card.providerLabel : layout.model && card.modelLabel ? card.modelLabel : card.providerLabel);
+    const name = facts ? `${card.providerLabel} ${facts}` : model === card.providerLabel ? model : `${card.providerLabel} ${model}`;
     pills.push(
       <Pill
         key="model"
@@ -714,6 +717,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         testID="pill-model"
         solid={agentColors}
         lead={layout.brand ? <BrandMark provider={card.provider} size={m.pillIcon} tokens={tokens} /> : undefined}
+        icon={subagent?.icon ?? undefined}
         label={model}
         accessibilityLabel={thinking ? `${name} ${thinking}` : name}
         copy={facts ? undefined : copyOf(model, model === card.providerLabel ? "Copy agent" : "Copy model name")}
@@ -1977,7 +1981,8 @@ function SubtaskRow(props: TimeSource & {
   const rowRef = useRef<View>(null);
   const { hovered, hoverProps } = useHover(rowRef);
   const provider = child.kind === "provider";
-  const facts = provider ? child.subtitle?.trim() || null : null;
+  const subagent = provider ? subagentFacts(child.subtitle, child.subagentType) : null;
+  const facts = subagent?.full ?? null;
   const showJump = !provider && !!props.onOpen && (compact || TOUCH || hovered);
   const fill = hovered && !compact ? tokens.card.controlHover : props.backdrop;
   const size = compact ? 32 : 22;
@@ -2012,9 +2017,14 @@ function SubtaskRow(props: TimeSource & {
           <Text numberOfLines={1} style={{ fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
             {child.title}
           </Text>
-          <Text numberOfLines={1} style={{ fontSize: m.blockSize, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }} testID={`subtask-facts-${child.id}`}>
-            {facts}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, minHeight: HOST_LINE.sm }} accessibilityLabel={facts ?? undefined} testID={`subtask-facts-${child.id}`}>
+            {subagent?.icon ? <Icon name={subagent.icon} size={m.blockSize - 1} color={tokens.foregroundMuted} /> : null}
+            {subagent?.text ? (
+              <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: m.blockSize, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }}>
+                {subagent.text}
+              </Text>
+            ) : null}
+          </View>
         </View>
       ) : (
         <Text numberOfLines={2} style={{ flex: 1, fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>

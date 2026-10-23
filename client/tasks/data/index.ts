@@ -370,6 +370,7 @@ function subagentChild(subagent: ProviderSubagent, parent: TaskCard): TaskChild 
     status: running ? "running" : "failed",
     kind: "provider",
     subtitle: subagent.subtitle,
+    subagentType: subagent.title,
     provider: parent.provider,
     lane: running ? "running" : "review",
     timing: {
@@ -450,7 +451,7 @@ function subagentCardsOf(parent: TaskCard): TaskCard[] {
       children: [],
       openTab: false,
       stoppable: false,
-      subagent: { subtitle: child.subtitle ?? null },
+      subagent: { subtitle: child.subtitle ?? null, type: child.subagentType ?? null },
     }));
   subagentCardCache.set(parent, out);
   return out;

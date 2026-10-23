@@ -158,6 +158,8 @@ export interface TaskChild {
   kind?: "agent" | "provider";
   /** A provider row's facts line, written by the provider: subagent type, model, effort, tokens. */
   subtitle?: string | null;
+  /** A provider row's subagent type ("Explore"), the name its facts line opens with. */
+  subagentType?: string | null;
   /** The child's own agent, for its row's mark and facts line (Paseo 0.12's subagent row). */
   provider?: string;
   modelLabel?: string | null;
@@ -227,9 +229,9 @@ export interface TaskCard {
   /**
    * A provider subagent's card (`withSubagentCards`), drawn from its parent's
    * row: read-only, with no tab, record or actions of its own, so it opens
-   * its parent's tab. `subtitle` is the provider's facts line.
+   * its parent's tab. `subtitle` is the provider's facts line, opening with its `type`.
    */
-  subagent?: { subtitle: string | null };
+  subagent?: { subtitle: string | null; type?: string | null };
 }
 
 /**
