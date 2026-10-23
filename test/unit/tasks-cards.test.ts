@@ -1064,9 +1064,14 @@ describe("TaskCardView actions", () => {
     const tree = await render(cardElement(done, { onOpen: vi.fn(), onArchive }));
     expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["归档", "打开 tab"]);
     expect(icons(hostByTestId(tree.root, "task-card-archive"))).toEqual(["Archive"]);
-    // A grey fill, its border the same grey; Open tab stays a plain outline.
-    const grey = taskTokens(LIGHT).card.greyFill;
-    expect(flat(hostByTestId(tree.root, "task-card-archive").props.style)).toMatchObject({ backgroundColor: grey, borderColor: grey });
+    // An orange tint, its border the same, the label in the readable orange; Open tab stays a plain outline.
+    const orange = taskTokens(LIGHT).card;
+    expect(flat(hostByTestId(tree.root, "task-card-archive").props.style)).toMatchObject({ backgroundColor: orange.archiveFill, borderColor: orange.archiveFill });
+    expect(hostByTestId(tree.root, "task-card-archive").findAll((node) => (node.type as unknown) === "Text")[0]!.props.style.color).toBe(orange.archiveText);
+    for (const theme of [LIGHT, DARK]) {
+      const card = taskTokens(theme).card;
+      expect(contrastRatio(card.archiveText, card.archiveFillHover)).toBeGreaterThanOrEqual(4.5);
+    }
     expect(flat(hostByTestId(tree.root, "task-card-open-tab").props.style).backgroundColor).toBe("transparent");
     hostByTestId(tree.root, "task-card-archive").props.onPress();
     expect(onArchive).toHaveBeenCalledWith("sample-done");
@@ -1571,7 +1576,7 @@ describe("TaskDetailCards", () => {
     const order = actions.findAll((node) => typeof node.type === "string" && typeof node.props.testID === "string" && /^detail-(open|archive)$/.test(node.props.testID)).map((node) => node.props.testID);
     expect(order).toEqual(["detail-open", "detail-archive"]);
     expect(texts(hostByTestId(tree.root, "detail-archive"))).toEqual(["归档"]);
-    expect(flat(hostByTestId(tree.root, "detail-archive").props.style)).toMatchObject({ backgroundColor: taskTokens(LIGHT).card.greyFill });
+    expect(flat(hostByTestId(tree.root, "detail-archive").props.style)).toMatchObject({ backgroundColor: taskTokens(LIGHT).card.archiveFill });
     await act(async () => hostByTestId(tree.root, "detail-archive").props.onPress());
     expect(archive.press).toHaveBeenCalledWith(done.id);
 
@@ -1917,7 +1922,7 @@ describe("TaskDetailCards", () => {
     const archive = { pending: vi.fn(() => false), press: vi.fn() };
     const done = await render(bar(sample("sample-done"), { archive }));
     expect(texts(hostByTestId(done.root, "detail-action-bar"))).toEqual(["归档", "切换到 tab"]);
-    expect(flat(hostByTestId(done.root, "detail-bar-archive").props.style)).toMatchObject({ flexGrow: 0, backgroundColor: taskTokens(LIGHT).card.greyFill });
+    expect(flat(hostByTestId(done.root, "detail-bar-archive").props.style)).toMatchObject({ flexGrow: 0, backgroundColor: taskTokens(LIGHT).card.archiveFill });
     await act(async () => hostByTestId(done.root, "detail-bar-archive").props.onPress());
     expect(archive.press).toHaveBeenCalledWith("sample-done");
   });
