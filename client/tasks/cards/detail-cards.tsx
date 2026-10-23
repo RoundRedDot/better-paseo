@@ -314,7 +314,7 @@ function DetailHeader(props: Inner) {
   const archiveButton = archive ? (
     <OutlineButton
       icon="Archive"
-      grey
+      archive
       label={cardText.details.archive}
       busy={archive.pending(card.id)}
       height={m.button}
@@ -1481,8 +1481,8 @@ function OutlineButton(props: {
   label: string;
   /** The stop button: the card's stop pill colours, tinted at rest and solid to confirm. */
   danger?: DangerLook;
-  /** Archive's grey fill, the card button's. */
-  grey?: boolean;
+  /** Archive's orange tint, the card button's. */
+  archive?: boolean;
   hint?: React.ReactNode;
   trailing?: string;
   height: number;
@@ -1499,7 +1499,7 @@ function OutlineButton(props: {
   const { hovered: hover, hoverProps } = useHover();
   const hovered = hover && !props.busy;
   const danger = props.danger ? dangerColors(tokens, props.danger, hovered) : null;
-  const iconColor = danger?.text ?? tokens.foregroundMuted;
+  const iconColor = danger?.text ?? (props.archive ? tokens.card.archiveText : tokens.foregroundMuted);
   return (
     <Pressable
       accessibilityRole="button"
@@ -1518,8 +1518,8 @@ function OutlineButton(props: {
         borderRadius: 8,
         // One device pixel on desktop and the web, as the board's lines are; a full point on touch.
         borderWidth: Platform.OS === "web" ? devicePixel() : 1,
-        borderColor: danger?.border ?? (props.grey ? (hovered ? tokens.card.greyFillHover : tokens.card.greyFill) : tokens.border),
-        backgroundColor: danger?.fill ?? (props.grey ? (hovered ? tokens.card.greyFillHover : tokens.card.greyFill) : hovered ? detailColors(tokens).rowHover : tokens.card.background),
+        borderColor: danger?.border ?? (props.archive ? (hovered ? tokens.card.archiveFillHover : tokens.card.archiveFill) : tokens.border),
+        backgroundColor: danger?.fill ?? (props.archive ? (hovered ? tokens.card.archiveFillHover : tokens.card.archiveFill) : hovered ? detailColors(tokens).rowHover : tokens.card.background),
         flexDirection: "row",
         alignItems: "center",
         gap: props.grow ? 8 : 6,
@@ -1532,7 +1532,7 @@ function OutlineButton(props: {
       ) : (
         <Icon name={props.icon} size={15} color={iconColor} />
       )}
-      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: props.font, fontWeight: "500", color: danger?.text ?? tokens.foreground }}>
+      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: props.font, fontWeight: "500", color: danger?.text ?? (props.archive ? tokens.card.archiveText : tokens.foreground) }}>
         {props.label}
       </Text>
       {props.hint}
@@ -1624,7 +1624,7 @@ export function DetailActionBar(props: {
             <BarButton
               tokens={tokens}
               icon="Archive"
-              grey
+              archive
               label={cardStrings(props.language).details.archive}
               busy={archive.pending(card.id)}
               grow={!onOpen}
@@ -1655,13 +1655,13 @@ function archivable(card: TaskCard): boolean {
   return card.lane === "done" && !card.archived;
 }
 
-function BarButton(props: { tokens: TaskTokens; icon?: string; stop?: DangerLook; label: string; primary?: boolean; danger?: boolean; grey?: boolean; square?: boolean; grow?: boolean; busy?: boolean; onPress(): void; testID?: string }) {
+function BarButton(props: { tokens: TaskTokens; icon?: string; stop?: DangerLook; label: string; primary?: boolean; danger?: boolean; archive?: boolean; square?: boolean; grow?: boolean; busy?: boolean; onPress(): void; testID?: string }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
   const height = taskControlHeight(48, scale);
   const stop = props.stop ? dangerColors(tokens, props.stop, false) : null;
-  const text = stop?.text ?? (props.primary ? tokens.card.onStrong : props.danger ? tokens.danger : tokens.foreground);
-  const iconColor = props.primary || stop ? text : tokens.foregroundMuted;
+  const text = stop?.text ?? (props.primary ? tokens.card.onStrong : props.danger ? tokens.danger : props.archive ? tokens.card.archiveText : tokens.foreground);
+  const iconColor = props.primary || stop || props.archive ? text : tokens.foregroundMuted;
   return (
     <Pressable
       accessibilityRole="button"
@@ -1678,8 +1678,8 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; stop?: DangerLook
         paddingHorizontal: props.square ? 0 : 16,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: stop?.border ?? (props.primary ? tokens.accent : props.grey ? tokens.card.greyFill : tokens.border),
-        backgroundColor: stop?.fill ?? (props.primary ? tokens.accent : props.grey ? tokens.card.greyFill : tokens.card.background),
+        borderColor: stop?.border ?? (props.primary ? tokens.accent : props.archive ? tokens.card.archiveFill : tokens.border),
+        backgroundColor: stop?.fill ?? (props.primary ? tokens.accent : props.archive ? tokens.card.archiveFill : tokens.card.background),
         opacity: props.busy ? 0.6 : pressed ? 0.85 : 1,
         flexDirection: "row",
         alignItems: "center",

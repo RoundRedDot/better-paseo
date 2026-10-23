@@ -104,9 +104,11 @@ export interface CardTokens {
   readBorder: string;
   /** Its label and icon: the green, readable at 4.5:1 on both its fills. */
   readText: string;
-  /** A grey button (Archive): the foreground over the card, a step stronger than a hovered control, at rest and hovered; its border is its fill. */
-  greyFill: string;
-  greyFillHover: string;
+  /** Archive: the warning orange (git's behind count) tinted over the card, at rest and hovered; its border is its fill. */
+  archiveFill: string;
+  archiveFillHover: string;
+  /** Its label and icon: the orange, readable at 4.5:1 on both its fills. */
+  archiveText: string;
   /** Text on a solid accent or danger fill. */
   onStrong: string;
   /** A solid danger fill, hovered. */
@@ -217,6 +219,8 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
   const readFill = mix(background, green, isDark ? 0.18 : 0.12);
   const readFillHover = mix(background, green, isDark ? 0.26 : 0.2);
   const primaryFill = mix(background, colors.accent, isDark ? 0.18 : 0.1);
+  const archiveFill = mix(background, amber, isDark ? 0.18 : 0.14);
+  const archiveFillHover = mix(background, amber, isDark ? 0.26 : 0.22);
   const primaryFillHover = mix(background, colors.accent, isDark ? 0.26 : 0.16);
   return {
     background,
@@ -246,8 +250,9 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
     readFillHover,
     readBorder: mix(background, green, isDark ? 0.45 : 0.4),
     readText: readableOn(green, [readFill, readFillHover], fg),
-    greyFill: mix(background, fg, isDark ? 0.12 : 0.08),
-    greyFillHover: mix(background, fg, isDark ? 0.18 : 0.13),
+    archiveFill,
+    archiveFillHover,
+    archiveText: readableOn(amber, [archiveFill, archiveFillHover], fg),
     onStrong: colors.accentForeground,
     dangerStrongHover: mix(danger, fg, 0.15),
   };
