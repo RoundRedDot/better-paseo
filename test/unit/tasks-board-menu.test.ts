@@ -15,8 +15,8 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 
 import { Dimensions, StyleSheet } from "react-native";
 import { CascadeMenu, MenuBoundsContext } from "../../client/tasks/board/menu";
-import { MENU, MENU_EDGE, MENU_FOCUS, layoutMenu, menuChrome, menuKeyReducer, panelMaxHeight, selectableItems, submenuPlacement, type MenuItem, type MenuSection } from "../../client/tasks/board/menu-model";
-import { SORT_GROUPS, SORT_ICONS, sortMenuSections } from "../../client/tasks/board/board-menus";
+import { MENU, MENU_EDGE, MENU_FOCUS, layoutMenu, menuChrome, menuRowHeight, menuKeyReducer, panelMaxHeight, selectableItems, submenuPlacement, type MenuItem, type MenuSection } from "../../client/tasks/board/menu-model";
+import { SORT_GROUPS, SORT_ICONS, projectMenuSections, sortMenuSections } from "../../client/tasks/board/board-menus";
 import { SORT_KEYS, type BoardSort } from "../../client/tasks/board/sort";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 
@@ -101,6 +101,28 @@ describe("menu geometry and keys", () => {
     ]);
     expect(height).toBe(secondGroup + 3 * MENU.rowHeight + MENU.padV);
     expect(selectableItems(sections).map((item) => item.key)).toEqual(["one", "two", "three"]);
+  });
+
+  it("makes a row with a second line taller, and the rows below it move down", () => {
+    const { rows, height } = layoutMenu([{ key: "p", items: [leaf("a", { detail: "~/a" }), leaf("b")] }]);
+    expect(rows.map((row) => row.top)).toEqual([MENU.padV, MENU.padV + MENU.detailRowHeight]);
+    expect(height).toBe(MENU.padV * 2 + MENU.detailRowHeight + MENU.rowHeight);
+    expect(menuRowHeight(leaf("a", { detail: "~/a" }), 1.5)).toBe(Math.round(MENU.detailRowHeight * 1.5));
+  });
+
+  it("puts each project's folder under its name, home as ~ and a long middle folded", () => {
+    const project = (id: string, projectPath: string | null) => {
+      const group = { projectId: id, projectName: id, projectKey: null, projectIcon: null, projectPath, items: [] };
+      return { id, label: id, count: 0, on: false, group };
+    };
+    const projects = [
+      project("beautiful-chat", "/Users/luke/workspace/rrd/beautiful-chat"),
+      project("srv", "/srv/app"),
+      project("deep", "/home/luke/workspace/clients/acme/services/billing"),
+      project("none", null),
+    ];
+    const [section] = projectMenuSections({ workspaceGroups: [], projects, agents: [], labels: [] }, BOARD_STRINGS.en, "host", () => {});
+    expect(section!.items.map((item) => item.detail)).toEqual(["~/workspace/rrd/beautiful-chat", "/srv/app", "~/workspace/…/services/billing", undefined]);
   });
 
   it("moves with the arrows, wrapping, steps into and out of a submenu, chooses and closes", () => {

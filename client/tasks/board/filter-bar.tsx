@@ -10,7 +10,7 @@ import { HAIRLINE } from "./board-style";
 import { FILTER_ICONS, activeChips, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, shownFilterOptions, toggleProject, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
 import { sortLabel } from "./strings";
-import { agentMenuSections, chipGroupMenuSections, labelMenuSections, laneWidthMenuSections, projectMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
+import { PROJECT_MENU_WIDTH, agentMenuSections, chipGroupMenuSections, labelMenuSections, laneWidthMenuSections, projectMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
 import { CascadeMenu } from "./menu";
 import { LABEL_GAP, nextCompact, type BarBoxes, type Box } from "./label-fit";
 import type { BoardController } from "./use-board";
@@ -331,7 +331,7 @@ export function DesktopFilterBar(props: {
             <CascadeMenu
               sections={projectMenuSections(shown, strings, board.hostId, (project) => setParams((p) => toggleProject(p, project)))}
               theme={theme}
-              width={260}
+              width={PROJECT_MENU_WIDTH}
               top={taskControlHeight(28, scale) + 6}
               align="left"
               onClose={() => setMenu(null)}
