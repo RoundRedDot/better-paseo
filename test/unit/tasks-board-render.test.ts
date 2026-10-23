@@ -1131,6 +1131,8 @@ describe("Tasks board, archived lane switch", () => {
     expect(textOf(toggle())).toBe("");
     expect(toggle().props).toMatchObject({ accessibilityLabel: "Show the archived lane", accessibilityState: { checked: false } });
     expect(slashed()).toBe(true);
+    const outline = () => StyleSheet.flatten(toggle().props.style).borderColor;
+    const offOutline = outline();
     expect(hostsById("lane-archived")).toHaveLength(0);
     // In the bar's end, after the done window and before the sort.
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
@@ -1141,6 +1143,8 @@ describe("Tasks board, archived lane switch", () => {
     // Drawn at once, before the record catches up.
     expect(toggle().props.accessibilityState).toEqual({ checked: true });
     expect(slashed()).toBe(false);
+    // Only the icon changes: the outline stays.
+    expect(outline()).toBe(offOutline);
     expect(hostsById("lane-archived")).toHaveLength(1);
     expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } }, "1");
   });
@@ -1562,9 +1566,12 @@ describe("Tasks board, phone", () => {
     const slashed = () => button().findAll((node) => (node.type as unknown) === "View" && node.props.testID === "slash-mark").length > 0;
     expect(button().props.accessibilityState).toEqual({ selected: false });
     expect(slashed()).toBe(true);
+    const outline = () => StyleSheet.flatten(button().findAll((node) => (node.type as unknown) === "View")[0]!.props.style).borderColor;
+    const offOutline = outline();
     await act(async () => button().props.onPress());
     expect(button().props.accessibilityState).toEqual({ selected: true });
     expect(slashed()).toBe(false);
+    expect(outline()).toBe(offOutline);
     // The filter sheet no longer carries the switch.
     act(() => pressable("Filters").props.onPress());
     expect(renderer!.root.findAll((node) => node.props.testID === "filter-sheet-archived")).toHaveLength(0);
