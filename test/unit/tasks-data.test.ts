@@ -445,7 +445,7 @@ describe("Tasks data store", () => {
     }
   });
 
-  it("indexes parent and direct child cards, and resolves a missing parent's title once", async () => {
+  it("indexes parent and direct child cards, and reads a missing parent once, unasked", async () => {
     const fake = createFakePaseo({
       agents: [
         activeAgent("parent", { status: "running", title: "Parent task" }),
@@ -458,17 +458,13 @@ describe("Tasks data store", () => {
     try {
       expect(mounted.current.byId.get("parent")?.children).toEqual([{ id: "child", title: "Child task", status: "running", provider: "claude", modelLabel: "claude-opus-5-5", thinkingLabel: null, modeLabel: "Default", context: null, lane: "running", timing: expect.objectContaining({ turnStartedAt: null }) }]);
       expect(mounted.current.byId.get("child")?.parent).toEqual({ id: "parent", title: "Parent task", missing: false, archived: false });
-      expect(mounted.current.byId.get("orphan")?.parent).toEqual({ id: "archived-parent", title: null, missing: true, archived: null });
+      // Read as soon as the card is built, so the card can say the parent is archived.
+      expect(mounted.current.byId.get("orphan")?.parent).toEqual({ id: "archived-parent", title: "Archived parent", missing: true, archived: true, archivedAs: "agent" });
       await act(async () => {
         fake.upsertAgent(activeAgent("later-child", { status: "running", title: "Later child", labels: { "paseo.parent-agent-id": "parent" } }));
         await Promise.resolve();
       });
       expect(mounted.current.byId.get("parent")?.children.map((child) => child.id)).toEqual(["child", "later-child"]);
-      await act(async () => {
-        mounted.current.resolveParent("archived-parent");
-        for (let index = 0; index < 4; index += 1) await Promise.resolve();
-      });
-      expect(mounted.current.byId.get("orphan")?.parent).toEqual({ id: "archived-parent", title: "Archived parent", missing: true, archived: true });
       expect(fake.calls.filter((call) => call.method === "agents.ref.refresh")).toHaveLength(1);
       mounted.current.resolveParent("archived-parent");
       expect(fake.calls.filter((call) => call.method === "agents.ref.refresh")).toHaveLength(1);
@@ -633,11 +629,6 @@ describe("Tasks data store", () => {
     });
     const mounted = await mountTasks(fake, "24h", false);
     try {
-      expect(mounted.current.byId.get("child")?.parent).toEqual({ id: "old-parent", title: null, missing: true, archived: null });
-      await act(async () => {
-        mounted.current.resolveParent("old-parent");
-        for (let index = 0; index < 4; index += 1) await Promise.resolve();
-      });
       // Off the board, but not archived: nothing to unarchive.
       expect(mounted.current.byId.get("child")?.parent).toEqual({ id: "old-parent", title: "Old parent", missing: true, archived: false });
 
@@ -1667,6 +1658,28 @@ describe("Tasks data store, archived lane", () => {
       expect(ids(off.current.lanes.done)).toEqual(["done"]);
     } finally {
       off.unmount();
+    }
+  });
+
+  it("tags a child's parent archived, itself or with its workspace, while the archived lane shows it", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("archived", { status: "closed", updatedAt: recentIso(2_000), archivedAt: recentIso(2_000) }),
+        activeAgent("stale", { status: "idle", updatedAt: recentIso(3_000), workspaceId: "ws-archived" }),
+        activeAgent("live", { status: "idle", updatedAt: recentIso(4_000) }),
+        activeAgent("child-a", { status: "running", labels: { "paseo.parent-agent-id": "archived" } }),
+        activeAgent("child-w", { status: "running", labels: { "paseo.parent-agent-id": "stale" } }),
+        activeAgent("child-l", { status: "running", labels: { "paseo.parent-agent-id": "live" } }),
+      ],
+      workspaces: [workspace()],
+    });
+    const on = await mountArchived(fake, true);
+    try {
+      expect(on.current.byId.get("child-a")?.parent).toMatchObject({ id: "archived", missing: false, archived: false, archivedAs: "agent" });
+      expect(on.current.byId.get("child-w")?.parent).toMatchObject({ id: "stale", missing: false, archivedAs: "workspace" });
+      expect(on.current.byId.get("child-l")?.parent).not.toHaveProperty("archivedAs");
+    } finally {
+      on.unmount();
     }
   });
 
