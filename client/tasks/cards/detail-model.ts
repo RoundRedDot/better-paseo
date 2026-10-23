@@ -1,5 +1,5 @@
 import type { TasksLanguage } from "../i18n";
-import type { StatusKind, TaskCard } from "../model";
+import { turnRunning, type StatusKind, type TaskCard } from "../model";
 import { contextRatio, formatCost, formatDuration, formatRelative, formatTokens, since } from "./format";
 import { cardStrings } from "./strings";
 
@@ -18,7 +18,7 @@ export type DetailSection = "prompt" | "message" | "properties" | "subtasks" | "
 
 export function detailHero(card: TaskCard): DetailHero {
   if (card.lane === "needs_input" && card.permission) return "permission";
-  if (card.lane === "running") return "turn";
+  if (turnRunning(card)) return "turn";
   if (card.error) return "error";
   return "summary";
 }
@@ -241,7 +241,7 @@ export function timeline(card: TaskCard, now: number, language: TasksLanguage): 
   if (message !== null) middle.push({ key: "message", name: words.lastMessage, time: ago(message), at: message });
   let end: TimelinePoint;
   let live = false;
-  if (card.lane === "running") {
+  if (turnRunning(card)) {
     const turn = parse(card.timing.turnStartedAt);
     if (turn !== null) middle.push({ key: "turn", name: words.turnStarted, time: ago(turn), at: turn });
     end = { key: "now", name: words.now, time: words.running, at: now };

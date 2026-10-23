@@ -8,7 +8,7 @@ import { permissionButtons, respondToPermission, useReadControl, useStopControl,
 import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, useTasks, type TasksHandle } from "../data";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
-import { LANE_ORDER, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
+import { LANE_ORDER, turnRunning, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
 import { MOTION } from "./board-style";
 import { carriedSettings, useCarriedTasks } from "./carry";
 import { lingerBoard } from "./prefetch";
@@ -232,7 +232,7 @@ export function useBoard(
   byIdRef.current = tasks.byId;
   const isActive = useCallback((agentId: string) => {
     const card = byIdRef.current.get(agentId);
-    return card !== undefined && (card.lane === "running" || card.lane === "needs_input");
+    return card !== undefined && (turnRunning(card) || card.lane === "needs_input");
   }, []);
   const stop = useStopControl({ confirmStop: settings.board.confirmStop, isActive, toast });
   const isReadable = useCallback((agentId: string) => byIdRef.current.get(agentId)?.readable === true, []);
@@ -260,7 +260,7 @@ export function useBoard(
     reconcile();
     for (const id of stoppedManually) {
       const card = tasks.byId.get(id);
-      if (card && (card.lane === "running" || card.lane === "needs_input")) noteRunning(id);
+      if (card && (turnRunning(card) || card.lane === "needs_input")) noteRunning(id);
     }
   }, [tasks.byId, stoppedManually, noteRunning, reconcile]);
   // A read is done once its card has left review.

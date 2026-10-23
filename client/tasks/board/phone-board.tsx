@@ -15,7 +15,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TasksTypography, useTasksFontScale, taskControlHeight } from "../typography";
 import { DetailActionBar, StatusIcon, TaskDetailCards, taskTokens, type CardCallbacks } from "../cards";
 import { panelChrome } from "../cards/panel";
-import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
+import { LANE_ORDER, LANE_STATUS, turnRunning, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { findHostHorizontalScroll } from "../../ui/host-horizontal-scroll";
@@ -558,7 +558,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
   useParentTitle(board, card);
   const firstPrompt = useFirstPrompt(board.paseo, card.id, card.closed !== true);
   const lastMessage = useLastMessage(board.paseo, card.id, lastMessageVersion(card), card.closed !== true);
-  const sessionTokens = useSessionTokens(card.id, card.lane === "running" && card.closed !== true);
+  const sessionTokens = useSessionTokens(card.id, turnRunning(card) && card.closed !== true);
   const list = board.lanes[card.lane]?.cards ?? [];
   const index = list.findIndex((item) => item.id === card.id);
   const step = (delta: number) => {
