@@ -1577,17 +1577,17 @@ describe("TaskDetailCards", () => {
     expect(shown.filter((text) => text.includes("开始") || text.includes("上下文 60%"))).toEqual([]);
   });
 
-  it("shows the first prompt in full under four lines, copyable, and waits for Load on a closed agent", async () => {
+  it("shows the first prompt as Markdown, folded to four lines, copyable, and waits for Load on a closed agent", async () => {
     const text = ["Check whether this issue is handled:", "", "1. The board", "2. The sidebar", "3. The sheet", "4. The phone"].join("\n");
     const load = vi.fn();
     const tree = await render(details(sample("sample-failed"), { firstPrompt: { prompt: { state: "ready", text }, load } }, "en"));
     const sections = tree.root.findAll((node) => typeof node.type === "string" && ["detail-prompt", "detail-location", "detail-activity", "detail-usage"].includes(node.props.testID));
     expect(sections.map((node) => node.props.testID)).toEqual(["detail-prompt", "detail-location", "detail-activity", "detail-usage"]);
     const body = hostByTestId(tree.root, "detail-prompt-text");
-    expect(body.props.numberOfLines).toBe(4);
-    expect(texts(hostByTestId(tree.root, "detail-prompt"))).toEqual(["First prompt", text, "Show all · 6 lines"]);
+    expect(body.props.style).toMatchObject({ maxHeight: 4 * 18, overflow: "hidden" });
+    expect(texts(hostByTestId(tree.root, "detail-prompt"))).toEqual(["First prompt", "Check whether this issue is handled:", "1.", "The board", "2.", "The sidebar", "3.", "The sheet", "4.", "The phone", "Show all · 6 lines"]);
     await act(async () => hostByTestId(tree.root, "detail-prompt-more").props.onPress());
-    expect(hostByTestId(tree.root, "detail-prompt-text").props.numberOfLines).toBeUndefined();
+    expect(hostByTestId(tree.root, "detail-prompt-text").props.style).toBeNull();
     await act(async () => byLabel(tree.root, "Copy prompt").props.onPress());
     expect(clipboard.copyText).toHaveBeenLastCalledWith(text);
 
