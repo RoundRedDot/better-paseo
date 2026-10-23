@@ -526,6 +526,62 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("lane-archived")).toHaveLength(0);
   });
 
+  it("draws an out-of-view lane's cards once it scrolls in, or a moment later", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(1100);
+    const list = (lane: string) => hostsById(`lane-${lane}`)[0]!.findAll((node) => (node.type as unknown) === "FlatList").length;
+    // The row scrolled to its end: the archived lane comes in inside its edge padding, which is no view.
+    const content = lanesScroll().props.contentContainerStyle.width as number;
+    // The inline sidebar takes 380 and its 12 margin.
+    act(() => lanesScroll().props.onScroll({ nativeEvent: { contentOffset: { x: content - (1100 - 392), y: 0 } } }));
+    expect(list("done")).toBe(1);
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
+    act(() => renderer!.update(screen(false)));
+    // Past the row's right edge: no cards yet, only the lane's skeleton.
+    expect(list("needs_input")).toBe(1);
+    expect(list("archived")).toBe(0);
+    act(() => {
+      vi.advanceTimersByTime(800);
+    });
+    expect(list("archived")).toBe(1);
+    // Switched off and on again, it waits again; a scroll that brings it in draws it at once.
+    host.settings = { ...DEFAULT_TASKS_SETTINGS };
+    act(() => renderer!.update(screen(false)));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
+    act(() => renderer!.update(screen(false)));
+    expect(list("archived")).toBe(0);
+    act(() => lanesScroll().props.onScroll({ nativeEvent: { contentOffset: { x: 900, y: 0 } } }));
+    expect(list("archived")).toBe(1);
+  });
+
+  it("draws again only the lane whose cards changed", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2400);
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: unknown[] }> } }).__handle;
+    const original = handle.lanes;
+    try {
+      // The same snapshot drawn again: no lane draws its rows.
+      let rows = host.rowRenders;
+      act(() => renderer!.update(screen(false)));
+      expect(host.rowRenders).toBe(rows);
+      // A new snapshot in which only the running lane changed: only its rows draw.
+      const running = original.running!;
+      handle.lanes = { ...original, running: { ...running, cards: running.cards.slice(1) } };
+      rows = host.rowRenders;
+      act(() => renderer!.update(screen(false)));
+      expect(host.rowRenders - rows).toBe(running.cards.length - 1);
+    } finally {
+      handle.lanes = original;
+    }
+  });
+
   it("keeps the cards' fields across a settings read-back that leaves them as they were", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
