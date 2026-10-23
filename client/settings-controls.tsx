@@ -11,6 +11,9 @@ import type { SettingsStrings } from "./i18n/settings-strings";
  * plain button. Shared by the chat options and the Tasks board options.
  */
 
+/** The width of the settings previews' phone frame: a phone's, in points, padding included. */
+export const PHONE_PREVIEW_WIDTH = 390;
+
 /** Layout of the page: a grouped list on touch layouts, cards of label-and-control rows on desktop. */
 export interface PageLook {
   compact: boolean;
