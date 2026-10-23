@@ -806,7 +806,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           key={`label-${label.name}`}
           {...pill}
           testID={`pill-label-${label.name}`}
-          lead={<TagMark size={m.pillIcon} color={label.color ?? tokens.foregroundMuted} hole={tokens.card.pillFill} />}
+          clear
+          // The pill has no fill, so the tag's hole takes the card's, hovered or not.
+          lead={<TagMark size={m.pillIcon} color={label.color ?? tokens.foregroundMuted} hole={background} />}
           label={label.name}
           hint={hint(`label-${label.name}`, () => pair(strings.hint.label, label.name))}
         />,
@@ -818,6 +820,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         <Pill
           key="labels-more"
           {...pill}
+          clear
           testID="pill-labels-more"
           label={`+${hidden}`}
           tabular
@@ -1233,8 +1236,10 @@ interface PillProps {
   label?: string;
   /** A Lucide icon before the text. */
   icon?: string;
-  /** Any other leading mark (the agent's brand). */
+  /** Any other leading mark (the agent's brand, a label's tag). */
   lead?: ReactNode;
+  /** No fill, only the neutral hairline: the card shows through (the label pills). */
+  clear?: boolean;
   /** Text and icon colour; muted by default. */
   color?: string;
   /** The data colour the pill is tinted with (label, status); null or absent for the neutral pill. */
@@ -1312,7 +1317,7 @@ function Pill(props: PillProps) {
   if (props.copy) return <CopyPill {...props} copy={props.copy} />;
   return (
     <View
-      style={pillStyle(props.tokens, props.compact, props.tint ?? null, props.solid, scale)}
+      style={[pillStyle(props.tokens, props.compact, props.tint ?? null, props.solid, scale), props.clear ? { backgroundColor: "transparent" } : null]}
       testID={props.testID}
       accessibilityLabel={props.accessibilityLabel}
       {...hintProps(props.hint)}
