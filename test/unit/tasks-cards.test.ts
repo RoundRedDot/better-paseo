@@ -1008,8 +1008,13 @@ describe("TaskCardView actions", () => {
     expect(onUnarchive).toHaveBeenCalledWith("sample-done");
 
     await act(async () => tree.update(cardElement(archived, { onOpen: vi.fn(), onUnarchive, unarchivePending: true })));
-    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["正在取消归档…"]);
-    expect(hostByTestId(tree.root, "task-card-unarchive").props.disabled).toBe(true);
+    // Working: the same label, dimmed, a spinner where the icon was, no second press.
+    const busy = hostByTestId(tree.root, "task-card-unarchive");
+    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["取消归档"]);
+    expect(busy.props.disabled).toBe(true);
+    expect(flat(busy.props.style)).toMatchObject({ opacity: 0.6 });
+    expect(icons(busy)).not.toContain("ArchiveRestore");
+    expect(hostByTestId(tree.root, "task-card-unarchive-spinner")).toBeTruthy();
 
     // The phone's card has it in its action row.
     await act(async () => tree.update(cardElement(archived, { compact: true, onUnarchive })));
@@ -1474,9 +1479,13 @@ describe("TaskDetailCards", () => {
 
     unarchive.pending.mockReturnValue(true);
     await act(async () => tree.update(details(archived, { onOpen: vi.fn(), unarchive: { ...unarchive } })));
-    expect(texts(hostByTestId(tree.root, "detail-unarchive"))).toEqual(["正在取消归档…"]);
-    await act(async () => hostByTestId(tree.root, "detail-unarchive").props.onPress());
-    expect(unarchive.press).toHaveBeenCalledTimes(1);
+    // Working: the same label, dimmed, a spinner where the icon was, no second press.
+    const button = hostByTestId(tree.root, "detail-unarchive");
+    expect(texts(button)).toEqual(["取消归档"]);
+    expect(button.props.accessibilityState).toEqual({ disabled: true, busy: true });
+    expect(flat(button.props.style)).toMatchObject({ opacity: 0.6 });
+    expect(icons(button)).not.toContain("ArchiveRestore");
+    expect(hostByTestId(tree.root, "detail-unarchive-spinner")).toBeTruthy();
 
     // Paseo would drop an archived task's tab and show another: no Open until it is back, and Unarchive leads.
     expect(tree.root.findAll((node) => node.props.testID === "detail-open")).toHaveLength(0);
@@ -1772,6 +1781,15 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(archived.root, "detail-action-bar"))).toEqual(["取消归档"]);
     await act(async () => hostByTestId(archived.root, "detail-bar-unarchive").props.onPress());
     expect(unarchive.press).toHaveBeenCalledWith(archivedCard.id);
+    // Working: the same label, dimmed, a spinner where the icon was, no second press.
+    unarchive.pending.mockReturnValue(true);
+    await act(async () => archived.update(bar(archivedCard, { unarchive: { ...unarchive } })));
+    const busy = hostByTestId(archived.root, "detail-bar-unarchive");
+    expect(texts(busy)).toEqual(["取消归档"]);
+    expect(busy.props.accessibilityState).toEqual({ disabled: true, busy: true });
+    expect(flat(busy.props.style)).toMatchObject({ opacity: 0.6 });
+    expect(icons(busy)).not.toContain("ArchiveRestore");
+    expect(hostByTestId(archived.root, "detail-bar-unarchive-spinner")).toBeTruthy();
     await act(async () => archived.update(bar(archivedCard)));
     expect(archived.toJSON()).toBeNull();
   });
