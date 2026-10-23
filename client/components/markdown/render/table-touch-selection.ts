@@ -50,9 +50,8 @@ type FrameTouchProps = Pick<ViewProps, "onTouchStart" | "onTouchMove" | "onTouch
  * the table's frame, which finds the cell under the finger from its rows and
  * column starts, so a cell needs no view of its own; web pointers are
  * recognised in `bindTableCellSelection`, where Command (Ctrl off a Mac) adds
- * a range to the ones already selected, and every range then spans from the
- * leftmost column any of them reaches to the rightmost (`alignColumns`). A
- * range being drawn is the table's touch: in the block details drawer it
+ * a range to the ones already selected, and every range then spans the
+ * columns of the last one (`alignColumns`). A range being drawn is the table's touch: in the block details drawer it
  * does not move the drawer.
  */
 export function useTableCellSelection(source: string, geometry: TableGeometry) {

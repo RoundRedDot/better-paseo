@@ -29,14 +29,12 @@ export function sameCell(a: CellPos, b: CellPos): boolean {
 }
 
 /**
- * Ranges added beside each other take the same columns, from the leftmost
- * any of them reaches to the rightmost, so rows picked apart line up under
- * the widest.
+ * Ranges added beside each other take the columns of the last one, the range
+ * being drawn or drawn most recently, so rows picked apart line up under it.
  */
 export function alignColumns(ranges: readonly CellRange[]): readonly CellRange[] {
   if (ranges.length < 2) return ranges;
-  const left = Math.min(...ranges.map((range) => range.left));
-  const right = Math.max(...ranges.map((range) => range.right));
+  const { left, right } = ranges[ranges.length - 1]!;
   return ranges.map((range) => ({ ...range, left, right }));
 }
 
