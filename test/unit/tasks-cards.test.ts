@@ -647,7 +647,7 @@ describe("TaskCardView rows", () => {
         expect(rest).toMatchObject({
           backgroundColor: mix(tokens.card.background, amber, tokens.isDark ? 0.18 : 0.12),
           borderColor: mix(tokens.card.background, amber, tokens.isDark ? 0.45 : 0.4),
-          borderWidth: 1,
+          borderWidth: 0.5,
         });
         await act(async () => answer.props.onHoverIn());
         expect(flat(byLabel(tree.root, set[0]!.label).props.style).backgroundColor).toBe(
@@ -1120,7 +1120,7 @@ describe("TaskCardView actions", () => {
     await act(async () => tree.update(cardElement(card, { onRead })));
     const button = byLabel(tree.root, "标为已读");
     expect(icons(button)).toEqual(["CheckCheck"]);
-    expect(flat(button.props.style)).toMatchObject({ height: 28, borderRadius: 6, borderWidth: 1 });
+    expect(flat(button.props.style)).toMatchObject({ height: 28, borderRadius: 6, borderWidth: 0.5 });
     button.props.onPress();
     expect(onRead).toHaveBeenCalledWith(card);
 
