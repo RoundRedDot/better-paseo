@@ -7,6 +7,7 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskCon
 import { BrandMark, ProjectIcon, taskTokens } from "../cards";
 import { Segments, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
+import { SwitchTrack } from "../../ui/switch-track";
 import { busyWorkspaceGroups, clearedParams, type FilterOption, type FilterOptions } from "./filter-options";
 import { resolveBoardParams, toggleItem } from "./params";
 import { SORT_GROUPS, SORT_ICONS, sortDirectionIcon, sortDirections } from "./board-menus";
@@ -223,11 +224,13 @@ function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void
   );
 }
 
+/** A filter that is on or off: the whole row is the switch, drawn as the settings page's at its end. */
 function ToggleRow(props: { icon: string; label: string; hint?: string; on: boolean; theme: PluginTheme; onPress(): void; testID?: string }) {
   const colors = props.theme.colors;
   return (
     <Pressable
-      accessibilityRole="checkbox"
+      accessibilityRole="switch"
+      aria-checked={props.on}
       accessibilityState={{ checked: props.on }}
       onPress={props.onPress}
       testID={props.testID}
@@ -238,7 +241,7 @@ function ToggleRow(props: { icon: string; label: string; hint?: string; on: bool
         <Text style={{ fontSize: F.base, color: colors.foreground }}>{props.label}</Text>
         {props.hint ? <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: colors.foregroundMuted }}>{props.hint}</Text> : null}
       </View>
-      {props.on ? <Icon name="Check" size={18} color={colors.accent} /> : null}
+      <SwitchTrack value={props.on} colors={colors} />
     </Pressable>
   );
 }
