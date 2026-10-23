@@ -98,6 +98,12 @@ export interface CardTokens {
   answerBorder: string;
   /** Its label and arrow: the amber, readable at 4.5:1 on both its fills. */
   answerText: string;
+  /** Mark read on an unread card: the unread dot's green tinted over the card, at rest and hovered, with a hairline of the same hue. */
+  readFill: string;
+  readFillHover: string;
+  readBorder: string;
+  /** Its label and icon: the green, readable at 4.5:1 on both its fills. */
+  readText: string;
   /** Text on a solid accent or danger fill. */
   onStrong: string;
   /** A solid danger fill, hovered. */
@@ -161,7 +167,7 @@ export function buildTaskTokens(colors: PluginTheme["colors"]): TaskTokens {
   const s0 = colors.surface0;
   const status = isDark ? STATUS_DARK : STATUS_LIGHT;
   const danger = colors.statusDanger || status.danger;
-  const card = cardTokens(colors, isDark, danger, status.warning);
+  const card = cardTokens(colors, isDark, danger, status.warning, status.success);
   const accentSoft = mix(s0, colors.accent, 0.12);
   return {
     isDark,
@@ -200,11 +206,13 @@ const SHADOW = {
   dark: { rest: "0px 1px 2px rgba(0, 0, 0, 0.18)", hover: "0px 2px 6px rgba(0, 0, 0, 0.26)" },
 } as const;
 
-function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: string, amber: string): CardTokens {
+function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: string, amber: string, green: string): CardTokens {
   const background = isDark ? colors.surface2 : colors.surface0;
   const fg = colors.foreground;
   const answerFill = mix(background, amber, isDark ? 0.18 : 0.12);
   const answerFillHover = mix(background, amber, isDark ? 0.26 : 0.2);
+  const readFill = mix(background, green, isDark ? 0.18 : 0.12);
+  const readFillHover = mix(background, green, isDark ? 0.26 : 0.2);
   const primaryFill = mix(background, colors.accent, isDark ? 0.18 : 0.1);
   const primaryFillHover = mix(background, colors.accent, isDark ? 0.26 : 0.16);
   return {
@@ -231,6 +239,10 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
     answerFillHover,
     answerBorder: mix(background, amber, isDark ? 0.45 : 0.4),
     answerText: readableOn(amber, [answerFill, answerFillHover], fg),
+    readFill,
+    readFillHover,
+    readBorder: mix(background, green, isDark ? 0.45 : 0.4),
+    readText: readableOn(green, [readFill, readFillHover], fg),
     onStrong: colors.accentForeground,
     dangerStrongHover: mix(danger, fg, 0.15),
   };
