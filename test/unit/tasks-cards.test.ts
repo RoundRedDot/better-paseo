@@ -449,9 +449,9 @@ describe("TaskCardView rows", () => {
     expect(agent.props.accessibilityLabel).toBe("Codex GPT-5.5 Codex Medium");
     // The turn's start behind a clock, then how long it has run behind an hourglass, as the turn footer draws them.
     const footer = hostByTestId(tree.root, "task-card-footer");
-    // Native shows Open tab all the time, on its own row under the footer.
+    // Native shows Open all the time, on its own row under the footer.
     expect(texts(footer)).toEqual([RUNNING_START, "12m 30s"]);
-    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["打开 tab"]);
+    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["打开"]);
     expect(icons(hostByTestId(footer, "task-card-started"))).toEqual(["Clock"]);
     expect(icons(hostByTestId(footer, "task-card-timer"))).toEqual(["Hourglass"]);
     expect(texts(tree.root).some((text) => text.includes("未提交"))).toBe(false);
@@ -503,9 +503,9 @@ describe("TaskCardView rows", () => {
     expect(pills(tree.root)).toEqual([
       ["pill-model", "GPT-5.5 Codex"],
     ]);
-    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex", "·", "Medium", RUNNING_START, "12m 30s", "打开 tab"]);
+    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex", "·", "Medium", RUNNING_START, "12m 30s", "打开"]);
     expect(hostByTestId(tree.root, "pill-model").findAll((node) => (node.type as unknown) === "Image")).toHaveLength(0);
-    // No jump arrow on the title row: Open tab sits on the row under the footer.
+    // No jump arrow on the title row: Open sits on the row under the footer.
     expect(icons(hostByTestId(tree.root, "task-card-title-row"))).not.toContain("ArrowUpRight");
   });
 
@@ -514,7 +514,7 @@ describe("TaskCardView rows", () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: off, onOpen: undefined }));
     expect(rows(tree.root, "sample-running")).toEqual(["task-card-title-row"]);
     expect(texts(tree.root)).toEqual(["Port the status ring to React Native"]);
-    // Open tab alone takes the buttons' row, without an empty footer above it.
+    // Open alone takes the buttons' row, without an empty footer above it.
     await act(async () => tree.update(cardElement(sample("sample-running"), { fields: off })));
     expect(rows(tree.root, "sample-running")).toEqual(["task-card-title-row", "task-card-control-row"]);
   });
@@ -864,8 +864,8 @@ describe("TaskCardView rows", () => {
     // The wait sits on the buttons' row, under the divider, not on a footer row above it.
     expect(rows(tree.root, "sample-input")).not.toContain("task-card-footer");
     expect(texts(hostByTestId(hostByTestId(tree.root, "task-card-permission"), "task-card-footer"))).toEqual(["等待 4m"]);
-    // A tablet's Open tab takes a row of its own under the answer row.
-    expect(texts(hostByTestId(hostByTestId(tree.root, "task-card-permission"), "task-card-control-row"))).toEqual(["打开 tab"]);
+    // A tablet's Open takes a row of its own under the answer row.
+    expect(texts(hostByTestId(hostByTestId(tree.root, "task-card-permission"), "task-card-control-row"))).toEqual(["打开"]);
     // The buttons start at the card's edge, as its text does, not under the request's icon.
     expect(flat(hostByTestId(tree.root, "task-card-answer-row").props.style).paddingLeft).toBeUndefined();
     byLabel(tree.root, "拒绝").props.onPress();
@@ -1070,10 +1070,10 @@ describe("TaskCardView compact tiers", () => {
 });
 
 describe("TaskCardView actions", () => {
-  it("puts Open tab under the footer, its arrow after the label, and opens on a press of the card", async () => {
+  it("puts Open under the footer, its arrow after the label, and opens on a press of the card", async () => {
     const onOpen = vi.fn();
     const tree = await render(cardElement(sample("sample-done"), { onOpen }));
-    const open = byLabel(hostByTestId(tree.root, "task-card-control-row"), "打开 tab");
+    const open = byLabel(hostByTestId(tree.root, "task-card-control-row"), "打开");
     expect(icons(open)).toEqual(["ArrowUpRight"]);
     expect(icons(tree.root).filter((name) => name === "ArrowUpRight")).toHaveLength(1);
     expect(flat(open.props.style)).toMatchObject({ height: 28, borderRadius: 6 });
@@ -1082,29 +1082,29 @@ describe("TaskCardView actions", () => {
     expect(onOpen.mock.calls).toEqual([["sample-done"], ["sample-done"]]);
 
     await act(async () => tree.update(cardElement(sample("sample-done"), { onOpen: undefined })));
-    expect(texts(tree.root)).not.toContain("打开 tab");
+    expect(texts(tree.root)).not.toContain("打开");
     expect(hostByTestId(tree.root, "task-card-sample-done").props.onPress).toBeUndefined();
   });
 
-  it("has no Open tab on an archived task, which Paseo would not show, but keeps it for an archived workspace's", async () => {
+  it("has no Open on an archived task, which Paseo would not show, but keeps it for an archived workspace's", async () => {
     const onOpen = vi.fn();
     const archived = { ...sample("sample-done"), lane: "archived" as const, status: "archived" as const, archived: "agent" as const };
     const tree = await render(cardElement(archived, { onOpen }));
-    expect(texts(tree.root)).not.toContain("打开 tab");
+    expect(texts(tree.root)).not.toContain("打开");
     expect(hostByTestId(tree.root, "task-card-sample-done").props.onPress).toBeUndefined();
 
     await act(async () => tree.update(cardElement({ ...archived, archived: "workspace" }, { onOpen })));
-    byLabel(hostByTestId(tree.root, "task-card-control-row"), "打开 tab").props.onPress();
+    byLabel(hostByTestId(tree.root, "task-card-control-row"), "打开").props.onPress();
     expect(onOpen).toHaveBeenCalledWith("sample-done");
   });
 
-  it("puts Archive before Open tab on a done task, as wide as its label on a phone", async () => {
+  it("puts Archive before Open on a done task, as wide as its label on a phone", async () => {
     const onArchive = vi.fn();
     const done = sample("sample-done");
     const tree = await render(cardElement(done, { onOpen: vi.fn(), onArchive }));
-    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["归档", "打开 tab"]);
+    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["归档", "打开"]);
     expect(icons(hostByTestId(tree.root, "task-card-archive"))).toEqual(["Archive"]);
-    // A yellow outline and label with no fill; Open tab stays a plain outline.
+    // A yellow outline and label with no fill; Open stays a plain outline.
     const yellow = taskTokens(LIGHT).card;
     expect(flat(hostByTestId(tree.root, "task-card-archive").props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: yellow.archiveBorder });
     expect(hostByTestId(tree.root, "task-card-archive").findAll((node) => (node.type as unknown) === "Text")[0]!.props.style.color).toBe(yellow.archiveText);
@@ -1118,7 +1118,7 @@ describe("TaskCardView actions", () => {
     expect(onArchive).toHaveBeenCalledWith("sample-done");
 
     await act(async () => tree.update(cardElement(done, { compact: true, onOpen: vi.fn(), onArchive })));
-    expect(texts(hostByTestId(tree.root, "task-card-actions"))).toEqual(["归档", "打开 tab"]);
+    expect(texts(hostByTestId(tree.root, "task-card-actions"))).toEqual(["归档", "打开"]);
     expect(flat(hostByTestId(tree.root, "task-card-archive").props.style).flexGrow).toBe(0);
     expect(flat(hostByTestId(tree.root, "task-card-open-tab").props.style).flexGrow).toBe(1);
 
@@ -1129,7 +1129,7 @@ describe("TaskCardView actions", () => {
     expect(tree.root.findAll((node) => node.props.testID === "task-card-archive")).toHaveLength(0);
   });
 
-  it("puts Unarchive where Open tab was on an archived task, spinning while it runs", async () => {
+  it("puts Unarchive where Open was on an archived task, spinning while it runs", async () => {
     const onUnarchive = vi.fn();
     const archived = { ...sample("sample-done"), lane: "archived" as const, status: "archived" as const, archived: "agent" as const };
     const tree = await render(cardElement(archived, { onOpen: vi.fn(), onUnarchive }));
@@ -1157,56 +1157,56 @@ describe("TaskCardView actions", () => {
     expect(tree.root.findAll((node) => node.props.testID === "task-card-unarchive")).toHaveLength(0);
   });
 
-  it("gives a tablet card's buttons a row of their own under the timer, Open tab at the right", async () => {
+  it("gives a tablet card's buttons a row of their own under the timer, Open at the right", async () => {
     const tree = await render(cardElement(sample("sample-child-1"), { onStop: () => {} }));
     expect(rows(tree.root, "sample-child-1")).toEqual(["task-card-meta", "task-card-title-row", "task-card-pills", "task-card-footer", "task-card-control-row"]);
     expect(texts(hostByTestId(tree.root, "task-card-footer"))).not.toContain("停止");
     const row = hostByTestId(tree.root, "task-card-control-row");
     expect(flat(row.props.style)).toMatchObject({ flexDirection: "row", justifyContent: "flex-end" });
-    // A subtask's Open parent sits before Open tab.
-    expect(texts(row)).toEqual(["停止", "打开父任务", "打开 tab"]);
+    // A subtask's Open parent sits before Open.
+    expect(texts(row)).toEqual(["停止", "打开父任务", "打开"]);
   });
 
-  it("leaves Open tab out beside a question's Answer, which opens the tab itself", async () => {
+  it("leaves Open out beside a question's Answer, which opens the tab itself", async () => {
     const card = { ...sample("sample-input"), permission: { requestId: "q", kind: "question" as const, title: "Which database?", summary: null, actions: [], remaining: 0 } };
     const tree = await render(cardElement(card, { permissionButtons: permissionButtons(card.permission, "zh") }));
     expect(texts(tree.root)).toContain("去回答");
-    expect(texts(tree.root)).not.toContain("打开 tab");
+    expect(texts(tree.root)).not.toContain("打开");
   });
 
-  it("ends a phone card's action bar with Open tab, its arrow after the label", async () => {
+  it("ends a phone card's action bar with Open, its arrow after the label", async () => {
     const onOpen = vi.fn();
     const running = await render(cardElement(sample("sample-running"), { compact: true, onOpen, onStop: () => {} }));
-    expect(icons(byLabel(running.root, "打开 tab"))).toEqual(["ArrowUpRight"]);
-    expect(texts(hostByTestId(running.root, "task-card-actions"))).toEqual(["停止", "打开 tab"]);
-    // The details sheet's proportions: Open tab takes the room, Stop is as wide as its label.
-    expect(flat(byLabel(running.root, "打开 tab").props.style)).toMatchObject({ flexGrow: 1 });
+    expect(icons(byLabel(running.root, "打开"))).toEqual(["ArrowUpRight"]);
+    expect(texts(hostByTestId(running.root, "task-card-actions"))).toEqual(["停止", "打开"]);
+    // The details sheet's proportions: Open takes the room, Stop is as wide as its label.
+    expect(flat(byLabel(running.root, "打开").props.style)).toMatchObject({ flexGrow: 1 });
     expect(flat(hostByTestId(running.root, "task-card-stop").props.style)).toMatchObject({ flexGrow: 0 });
-    byLabel(running.root, "打开 tab").props.onPress();
+    byLabel(running.root, "打开").props.onPress();
     expect(onOpen).toHaveBeenCalledWith("sample-running");
     await act(async () => running.unmount());
 
-    // A subtask adds Open parent before Open tab; the two share the room Stop leaves.
+    // A subtask adds Open parent before Open; the two share the room Stop leaves.
     const child = await render(cardElement(sample("sample-child-1"), { compact: true, onOpen, onStop: () => {} }));
-    expect(texts(hostByTestId(child.root, "task-card-actions"))).toEqual(["停止", "打开父任务", "打开 tab"]);
+    expect(texts(hostByTestId(child.root, "task-card-actions"))).toEqual(["停止", "打开父任务", "打开"]);
     expect(flat(byLabel(child.root, "打开父任务").props.style)).toMatchObject({ flexGrow: 1 });
     byLabel(child.root, "打开父任务").props.onPress();
     expect(onOpen).toHaveBeenLastCalledWith("sample-running");
     // An archived parent has no tab Paseo would show: no Open parent.
     await act(async () => child.update(cardElement({ ...sample("sample-child-1"), parent: { id: "sample-running", title: "Port", missing: true, archived: true } }, { compact: true, onOpen, onStop: () => {} })));
-    expect(texts(hostByTestId(child.root, "task-card-actions"))).toEqual(["停止", "打开 tab"]);
+    expect(texts(hostByTestId(child.root, "task-card-actions"))).toEqual(["停止", "打开"]);
     await act(async () => child.unmount());
 
-    // A done card has nothing else to do, so Open tab stands alone.
+    // A done card has nothing else to do, so Open stands alone.
     const done = await render(cardElement(sample("sample-done"), { compact: true }));
-    expect(texts(hostByTestId(done.root, "task-card-actions"))).toEqual(["打开 tab"]);
+    expect(texts(hostByTestId(done.root, "task-card-actions"))).toEqual(["打开"]);
     await act(async () => done.unmount());
 
     // A permission's Allow and Deny follow it; a question's "Answer" already opens the tab.
     const input = sample("sample-input");
     const allow = await render(cardElement(input, { compact: true, permissionButtons: permissionButtons(input.permission!, "zh") }));
     // Beside Allow and Deny it is a square icon, its label read out.
-    const square = byLabel(allow.root, "打开 tab");
+    const square = byLabel(allow.root, "打开");
     expect(texts(square)).toEqual([]);
     expect(icons(square)).toEqual(["ArrowUpRight"]);
     expect(flat(square.props.style)).toMatchObject({ width: 32, flexGrow: 0 });
@@ -1284,7 +1284,7 @@ describe("TaskCardView actions", () => {
     // A phone puts it in the action bar, at Stop's touch size.
     const phone = await render(cardElement(card, { onRead, compact: true }));
     const bar = phone.root.find((node) => node.props.testID === "task-card-actions");
-    expect(texts(bar)).toEqual(["标为已读", "打开 tab"]);
+    expect(texts(bar)).toEqual(["标为已读", "打开"]);
     expect(flat(byLabel(bar, "标为已读").props.style)).toMatchObject({ flexGrow: 0 });
     expect(flat(byLabel(bar, "标为已读").props.style)).toMatchObject({ minHeight: 32, borderRadius: 7 });
   });
@@ -1440,8 +1440,8 @@ describe("TaskCardView actions", () => {
     // Chosen for the details as any card; Open goes through the board, which opens the parent's.
     expect(onSelect).toHaveBeenCalledWith(card);
     expect(onOpen).not.toHaveBeenCalled();
-    // As any subtask: Open tab, and Open parent before it, both opening the parent's tab, since a subagent has none of its own.
-    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["打开父任务", "打开 tab"]);
+    // As any subtask: Open, and Open parent before it, both opening the parent's tab, since a subagent has none of its own.
+    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["打开父任务", "打开"]);
     await act(async () => byLabel(tree.root, "打开父任务").props.onPress());
     expect(onOpen).toHaveBeenCalledWith(base.id);
     expect(texts(hostByTestId(tree.root, "task-card-meta-parent"))).toEqual([`↳ ${base.title}`]);
@@ -1449,7 +1449,7 @@ describe("TaskCardView actions", () => {
     const keys = cardMenuSections(card, cardStrings("en"), { copy: () => {}, open: () => {}, children: 0 }).flatMap((section) => section.items.map((item) => item.key));
     expect(keys).toEqual(["open", "copy-title", "copy-workspace", "copy-project"]);
     const open = cardMenuSections(card, cardStrings("zh"), { copy: () => {}, open: () => {}, openParent: () => {}, children: 0 })[0]?.items.map((item) => item.label);
-    expect(open).toEqual(["打开 tab", "打开父任务"]);
+    expect(open).toEqual(["打开", "打开父任务"]);
   });
 
   it("draws a provider subagent's pill as an agent's when its line names an effort but no model", async () => {
@@ -1750,7 +1750,7 @@ describe("TaskDetailCards", () => {
     expect(onJump).toHaveBeenCalledWith("gone");
   });
 
-  it("offers Archive beside Open tab in a done task's header", async () => {
+  it("offers Archive beside Open in a done task's header", async () => {
     const archive = { pending: vi.fn(() => false), press: vi.fn() };
     const done = sample("sample-done");
     const tree = await render(details(done, { onOpen: vi.fn(), archive }));
@@ -2092,7 +2092,7 @@ describe("TaskDetailCards", () => {
     const asking = await render(bar(card, { onPermission: vi.fn(), permissionButtons: permissionButtons(card.permission!, "zh") }));
     const labels = asking.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel);
     // Deny, then allow, then the tab shrunk to a square at the right.
-    expect(labels).toEqual(["拒绝", "允许", "打开 tab 处理"]);
+    expect(labels).toEqual(["拒绝", "允许", "打开处理"]);
     expect(flat(byLabel(asking.root, "允许").props.style)).toMatchObject({ backgroundColor: look.background, borderColor: look.primaryBorder });
     expect(flat(byLabel(asking.root, "拒绝").props.style)).toMatchObject({ backgroundColor: look.background, borderColor: taskTokens(LIGHT).danger });
     await act(async () => asking.unmount());
@@ -2117,7 +2117,7 @@ describe("TaskDetailCards", () => {
     expect(archived.toJSON()).toBeNull();
     await act(async () => archived.unmount());
     renderer = null;
-    // A done task: Archive as wide as its label, then Open tab taking the rest.
+    // A done task: Archive as wide as its label, then Open taking the rest.
     const archive = { pending: vi.fn(() => false), press: vi.fn() };
     const done = await render(bar(sample("sample-done"), { archive }));
     expect(texts(hostByTestId(done.root, "detail-action-bar"))).toEqual(["归档", "切换到 tab"]);
@@ -2144,7 +2144,7 @@ describe("TaskDetailCards", () => {
     expect(hostByTestId(tree.root, "detail-stop-spinner")).toBeTruthy();
   });
 
-  it("leads the desktop header's actions with Open tab and ends the touch header's with it", async () => {
+  it("leads the desktop header's actions with Open and ends the touch header's with it", async () => {
     const more = { onOpen: vi.fn(), stop: { phase: "idle", onPress: vi.fn() } };
     const desk = await render(details(sample("sample-running"), more));
     expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["切换到 tab", "已打开", "停止"]);

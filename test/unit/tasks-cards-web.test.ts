@@ -251,17 +251,17 @@ describe("TaskCardView on web", () => {
     await act(async () => renderer.unmount());
   });
 
-  it("floats Stop, Open parent on a subtask, then Open tab in the corner on hover, and Open tab alone on a card with neither", async () => {
+  it("floats Stop, Open parent on a subtask, then Open in the corner on hover, and Open alone on a card with neither", async () => {
     const onOpen = vi.fn();
     const running = await render(React.createElement(TaskCardView, props("sample-child-1", { onOpen, onStop: () => {} })));
     const label = (root: ReactTestInstance, text: string) =>
       root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === text)[0];
-    expect(label(running.root, "打开 tab")).toBeUndefined();
+    expect(label(running.root, "打开")).toBeUndefined();
     await act(async () => hovers.get("task-card-sample-child-1")!.enter());
     const overlay = running.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-stop-overlay");
     const order = overlay.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel);
-    expect(order).toEqual(["停止", "打开父任务", "打开 tab"]);
-    await act(async () => label(running.root, "打开 tab")!.props.onPress());
+    expect(order).toEqual(["停止", "打开父任务", "打开"]);
+    await act(async () => label(running.root, "打开")!.props.onPress());
     expect(onOpen).toHaveBeenCalledWith("sample-child-1");
     await act(async () => label(running.root, "打开父任务")!.props.onPress());
     expect(onOpen).toHaveBeenLastCalledWith("sample-running");
@@ -270,28 +270,28 @@ describe("TaskCardView on web", () => {
     const done = await render(React.createElement(TaskCardView, props("sample-done", { onOpen })));
     await act(async () => hovers.get("task-card-sample-done")!.enter());
     const alone = done.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-open-overlay");
-    expect(alone.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(["打开 tab"]);
+    expect(alone.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(["打开"]);
     await act(async () => done.unmount());
   });
 
-  it("floats Open tab alone on a waiting card's hover, leaving Stop to the menu", async () => {
+  it("floats Open alone on a waiting card's hover, leaving Stop to the menu", async () => {
     const onStop = vi.fn();
     const renderer = await render(React.createElement(TaskCardView, props("sample-input", { onStop })));
     await act(async () => hovers.get("task-card-sample-input")!.enter());
     const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-open-overlay");
-    expect(overlay.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(["打开 tab"]);
+    expect(overlay.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(["打开"]);
     expect(renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop")).toEqual([]);
     await act(async () => renderer.unmount());
   });
 
-  it("floats Archive before Open tab on a done task's hover, spinning while it runs", async () => {
+  it("floats Archive before Open on a done task's hover, spinning while it runs", async () => {
     const onOpen = vi.fn();
     const onArchive = vi.fn();
     const renderer = await render(React.createElement(TaskCardView, props("sample-done", { onOpen, onArchive })));
     await act(async () => hovers.get("task-card-sample-done")!.enter());
     const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-archive-overlay");
     const buttons = overlay.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
-    expect(buttons.map((node) => node.props.accessibilityLabel)).toEqual(["归档", "打开 tab"]);
+    expect(buttons.map((node) => node.props.accessibilityLabel)).toEqual(["归档", "打开"]);
     await act(async () => buttons[0]!.props.onPress());
     expect(onArchive).toHaveBeenCalledWith("sample-done");
     expect(onOpen).not.toHaveBeenCalled();
@@ -308,7 +308,7 @@ describe("TaskCardView on web", () => {
     await act(async () => running.unmount());
   });
 
-  it("floats Unarchive in Open tab's place on an archived task's hover", async () => {
+  it("floats Unarchive in Open's place on an archived task's hover", async () => {
     const onOpen = vi.fn();
     const onUnarchive = vi.fn();
     const card: TaskCard = { ...sampleCards(NOW).find((candidate) => candidate.id === "sample-done")!, lane: "archived", status: "archived", archived: "agent" };
@@ -438,13 +438,13 @@ describe("TaskCardView right-click menu", () => {
       await Promise.resolve();
     });
 
-  it("opens at the pointer with Open tab, the copies, then what the card can do", async () => {
+  it("opens at the pointer with Open, the copies, then what the card can do", async () => {
     const onStop = vi.fn();
     const renderer = await render(React.createElement(TaskCardView, props("sample-running", { onStop })));
     const root = renderer.root;
     expect(root.findAll((node) => node.props.testID === "task-card-menu")).toHaveLength(0);
     await act(async () => contextMenus.get("task-card-sample-running")!({ x: 40, y: 60 }, null));
-    expect(rows(root)).toEqual(["打开 tab", "复制会话 ID", "复制标题", "复制 workspace 名称", "复制项目名称", "停止"]);
+    expect(rows(root)).toEqual(["打开", "复制会话 ID", "复制标题", "复制 workspace 名称", "复制项目名称", "停止"]);
 
     copies.length = 0;
     await choose(root, "复制会话 ID");
@@ -647,7 +647,7 @@ describe("TaskCardView hover layout", () => {
         );
         const before = layout(renderer.root);
         await act(async () => hovers.get(`task-card-${id}`)!.enter());
-        // Stop (Open tab alone on the waiting card) is on screen, floating over the row's end.
+        // Stop (Open alone on the waiting card) is on screen, floating over the row's end.
         const overlayID = id === "sample-input" ? "task-card-open-overlay" : "task-card-stop-overlay";
         const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === overlayID);
         expect(flat(overlay.props.style).position).toBe("absolute");
