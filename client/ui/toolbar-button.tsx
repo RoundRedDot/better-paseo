@@ -141,10 +141,17 @@ export function ToolbarItem({
   detailsWidth = TOOLTIP_SLOT,
   onLongPress,
   onLayout,
+  pressedStyle,
 }: Omit<ToolbarButtonProps, "icon" | "color" | "onPress"> & {
-  children: ReactNode;
+  /** Or drawn from the hover state, for an icon that brightens under the pointer. */
+  children: ReactNode | ((state: { hovered: boolean }) => ReactNode);
   onPress?: () => void;
   buttonStyle?: StyleProp<ViewStyle>;
+  /**
+   * Applied last, over the toolbar's own disabled and hover looks: a button
+   * with a look of its own (the image viewer's filled squares) keeps it.
+   */
+  pressedStyle?: (state: { pressed: boolean }) => StyleProp<ViewStyle>;
   hitSlop?: number;
   accessibilityLabel?: string;
   /** Interactive hover content; a long press opens it on touch screens. */
@@ -256,9 +263,10 @@ export function ToolbarItem({
           disabled && styles.disabled,
           onPress && !disabled && hovered && { backgroundColor: tokens.v2.surface2 },
           onPress && !disabled && pressed && { backgroundColor: tokens.v2.surface2 },
+          pressedStyle?.({ pressed }),
         ]}
       >
-        {children}
+        {typeof children === "function" ? children({ hovered }) : children}
       </Pressable>
       {pressedOpen && Platform.OS !== "web" ? (
         <AnchoredToolbarDetails anchor={anchorRef} close={closeDetails} width={detailsWidth} tokens={tokens}>{details}</AnchoredToolbarDetails>
