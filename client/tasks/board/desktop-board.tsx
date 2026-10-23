@@ -3,7 +3,7 @@ import { Animated, Platform, Pressable, ScrollView, View, type FlatList as Nativ
 import { FlatList, Icon, Modal } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { TaskText as Text, HOST_FONT as F, HOST_LINE, TasksTypography, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, laneTitle, TasksTypography, useTasksFontScale, taskControlHeight } from "../typography";
 import { StatusIcon, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -795,7 +795,8 @@ function DesktopLane(props: {
   const ready = board.tasks.ready;
   const name = strings.lanes[lane.id];
   const count = lane.cards.length;
-  const countStyle = { fontSize: F.base, color: colors.foregroundMuted, fontVariant: ["tabular-nums" as const] };
+  const titleSize = laneTitle().size;
+  const countStyle = { fontSize: titleSize, color: colors.foregroundMuted, fontVariant: ["tabular-nums" as const] };
   const fresh = useFreshIds(
     lane.cards.map((card) => card.id),
     ready,
@@ -887,7 +888,7 @@ function DesktopLane(props: {
         style={{ height: taskControlHeight(40, scale), flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 14, paddingRight: 8 }}
       >
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
-        <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{name}</Text>
+        <Text style={{ fontSize: titleSize, fontWeight: "500", color: colors.foreground }}>{name}</Text>
         {ready ? (
           <RollingCount value={count} scope={board.params} style={countStyle} />
         ) : (
