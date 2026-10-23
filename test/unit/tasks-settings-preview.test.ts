@@ -52,7 +52,7 @@ vi.mock("../../client/tasks/data", () => {
 import "./helpers/quiet-renderer";
 import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { DEFAULT_TASKS_SETTINGS, applyDensity, setCardSetting } from "../../shared/tasks-settings";
-import { PREVIEW_LANES_MIN, TasksBoardPreview, previewLanes } from "../../client/tasks/settings/board-preview";
+import { PREVIEW_LANES_MIN, TasksBoardPreview, previewLanes, previewLanesMin } from "../../client/tasks/settings/board-preview";
 import { ACTIVE_LANE_ORDER as LANE_ORDER } from "../../client/tasks/model";
 
 const theme = {
@@ -147,6 +147,40 @@ describe("Tasks board preview", () => {
     draw({ values: applyDensity(DEFAULT_TASKS_SETTINGS, "minimal") });
     expect(textOf(renderer!.root).length).toBeLessThan(minimal);
     expect(minimal).toBeLessThan(full);
+  });
+
+  it("draws the archived lane after done as soon as its switch turns on, and drops it when it turns off", () => {
+    const on = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true, doneWindow: "7d" as const } };
+    const lanes = previewLanes(0, "en");
+    expect(lanes.archived.map((card) => card.archived)).toEqual(["agent", "workspace"]);
+    const r = draw({}, previewLanesMin(5));
+    expect(byTestID(r.root, "tasks-preview-lane-archived")).toHaveLength(0);
+    draw({ values: on });
+    const ids = hosts(r.root, (node) => typeof node.props.testID === "string" && /^tasks-preview-lane-/.test(node.props.testID)).map((node) => node.props.testID.slice(19));
+    expect(ids).toEqual(["needs_input", "running", "review", "done", "archived"]);
+    const archived = byTestID(r.root, "tasks-preview-lane-archived")[0]!;
+    expect(cardIds(archived)).toEqual(["sample-archived", "sample-archived-workspace"]);
+    expect(textOf(archived)).toContain("Archived");
+    expect(textOf(archived)).toContain("7 days");
+    expect(hosts(archived, (node) => node.props.testID === "status-archived").length).toBeGreaterThan(0);
+    // Five lanes need more room side by side than four: narrower, the tabs.
+    draw({ values: on }, previewLanesMin(5) - 1);
+    expect(byTestID(r.root, "tasks-preview-tabs")).toHaveLength(1);
+    const tabs = () => hosts(r.root, (node) => node.props.accessibilityRole === "tab");
+    expect(tabs()).toHaveLength(5);
+    act(() => tabs()[4]!.props.onPress());
+    expect(cardIds(r.root)).toEqual(["sample-archived", "sample-archived-workspace"]);
+    // Four lanes fit there side by side again once it is off.
+    draw({ values: DEFAULT_TASKS_SETTINGS });
+    expect(byTestID(r.root, "tasks-preview-lanes")).toHaveLength(1);
+    expect(byTestID(r.root, "tasks-preview-lane-archived")).toHaveLength(0);
+    // On a phone, turned off while its tab shows: back to the first lane.
+    draw({ values: on, phone: true }, 390);
+    act(() => tabs()[4]!.props.onPress());
+    expect(cardIds(r.root)).toEqual(["sample-archived", "sample-archived-workspace"]);
+    draw({ values: DEFAULT_TASKS_SETTINGS, phone: true });
+    expect(tabs()).toHaveLength(4);
+    expect(cardIds(r.root)).toEqual(["sample-input", "sample-question"]);
   });
 
   it("shows the done lane's window from the board options", () => {
