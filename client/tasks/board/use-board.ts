@@ -8,7 +8,7 @@ import { permissionButtons, respondToPermission, useReadControl, useStopControl,
 import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, useTasks, type TasksHandle } from "../data";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
-import { LANE_ORDER, boardLaneOrder, turnRunning, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
+import { LANE_ORDER, boardLaneOrder, opensInPaseo, turnRunning, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
 import { MOTION } from "./board-style";
 import { carriedSettings, useCarriedTasks } from "./carry";
 import { lingerBoard } from "./prefetch";
@@ -350,7 +350,15 @@ export function useBoard(
     });
   }, []);
   const toastMessage = useCallback((message: string) => latest.current.toast.show(message), []);
-  const open = useCallback((agentId: string) => latest.current.props.navigation?.openAgent({ agentId }), []);
+  const open = useCallback((agentId: string) => {
+    const card = byIdRef.current.get(agentId);
+    // The cards hide Open on an archived task; this catches the keyboard and anything else.
+    if (card && !opensInPaseo(card)) {
+      latest.current.toast.show(latest.current.strings.archivedLane.cannotOpen);
+      return;
+    }
+    latest.current.props.navigation?.openAgent({ agentId });
+  }, []);
   const requestProjectIcon = useCallback((projectId: string) => latest.current.tasks.requestProjectIcon(projectId), []);
   const buttonsFor = useCallback((card: TaskCard) => buttonsIn(card, language), [language]);
   const hasNavigation = props.navigation !== undefined;

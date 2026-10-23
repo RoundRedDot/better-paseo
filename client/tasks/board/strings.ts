@@ -89,6 +89,8 @@ const en = {
     /** The round Archive button's name, in the filter bar and the phone and narrow board headers. */
     row: "Show the archived lane",
     saveFailed: "Couldn't save the archived lane setting",
+    /** A toast when an archived task is asked to open: Paseo would show another tab. */
+    cannotOpen: "Unarchive this task to open it in Paseo",
   },
   emptyGroups: {
     /** The round switch's name, in the filter bar and the phone and narrow board headers. */
@@ -230,6 +232,7 @@ const zh: typeof en = {
     hint: "在已完成之后显示已归档泳道",
     row: "显示已归档泳道",
     saveFailed: "已归档泳道的设置没有保存成功",
+    cannotOpen: "已归档的任务需要先取消归档，才能在 Paseo 中打开",
   },
   emptyGroups: {
     row: "显示数量为 0 的分组",
