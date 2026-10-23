@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_TASKS_SETTINGS, applyDensity, effectiveCard } from "../../shared/tasks-settings";
+import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS, applyDensity, effectiveCard } from "../../shared/tasks-settings";
+// These tests start from the board and the archived lane both off; the stock settings turn both on.
+const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: false, board: { ...STOCK_SETTINGS.board, showArchived: false } };
 
 // The Tasks board on Better Paseo's settings page: the entry at the head of
 // the chat half (switch, preview while off, the way to the rest), and the
@@ -281,7 +283,7 @@ describe("Tasks half of the settings page", () => {
     expect(textOf(r.root)).toContain("This replaces all Tasks options with the defaults.");
     await act(async () => button(r, "Restore now").props.onPress());
     expect(api.reset).not.toHaveBeenCalled();
-    expect(lastSaved(api)).toEqual({ ...DEFAULT_TASKS_SETTINGS, enabled: true });
+    expect(lastSaved(api)).toEqual({ ...STOCK_SETTINGS, enabled: true });
   });
 
   it("the armed reset can be cancelled", async () => {
