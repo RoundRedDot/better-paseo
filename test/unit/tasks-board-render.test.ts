@@ -1163,6 +1163,107 @@ describe("Tasks board, archived lane switch", () => {
   });
 });
 
+describe("Tasks board, toolbar tips", () => {
+  beforeEach(() => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+  });
+
+  const tips = () =>
+    renderer!.root.findAll((node) => typeof node.type === "string" && node.props.dataSet?.bctip !== undefined).map((node) => node.props.dataSet.bctip as string);
+
+  it("names every control of the two bars, and says what a switch would do", async () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2400);
+    expect(tips()).toEqual(
+      expect.arrayContaining([
+        "Search titles (/)",
+        "Filter by project",
+        "Filter by workspace",
+        "Filter by agent",
+        "Filter by label",
+        "Show only tasks open in a tab\nPaseo marks open tabs for subagents only",
+        "Hide subagents' tasks\nRunning, waiting and failed subtasks still show",
+        "How far back Done and Archived reach",
+        "Show the archived lane",
+        "Hide groups with no active tasks",
+        "Order the cards in each lane",
+        "Lane width",
+      ]),
+    );
+    const toggle = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "archived-lane-toggle")[0]!;
+    await act(async () => toggle.props.onPress());
+    expect(tips()).toContain("Hide the archived lane");
+    expect(tips()).not.toContain("Show the archived lane");
+    // An open menu covers its button's tip.
+    const project = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === "Filter by project");
+    act(() => project.props.onPress());
+    expect(tips()).not.toContain("Filter by project");
+  });
+
+  it("leads an icon-only button's tip with the words it dropped", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false, { agent: "claude" }));
+    });
+    layOut(1440);
+    const view = (testID: string) => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === testID);
+    const lay = (node: ReactTestInstance, width: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, height: 28, width } } }));
+    expect(tips()).toContain("Filter by agent");
+    lay(hostParentOf(view("filter-bar-controls"))!, 500);
+    lay(view("filter-bar-end"), 420);
+    lay(view("filter-bar-controls"), 700);
+    expect(tips()).toEqual(
+      expect.arrayContaining([
+        "Agent · 1\nFilter by agent",
+        "Project\nFilter by project",
+        "Open tabs only\nShow only tasks open in a tab\nPaseo marks open tabs for subagents only",
+        "Sort\nOrder the cards in each lane",
+        "Lanes · Default",
+      ]),
+    );
+  });
+
+  it("shows a tip under the control a pointer rests on, over the lanes, and drops it on a press", () => {
+    vi.useFakeTimers();
+    const listeners = new Map<string, (event: unknown) => void>();
+    const root = {
+      clientLeft: 0,
+      clientTop: 0,
+      clientWidth: 1600,
+      clientHeight: 900,
+      getBoundingClientRect: () => ({ left: 200, top: 40, width: 1600, height: 900 }),
+      contains: () => true,
+      addEventListener: (type: string, listener: (event: unknown) => void) => listeners.set(type, listener),
+      removeEventListener: (type: string) => listeners.delete(type),
+    };
+    const mark = (text: string, box: { left: number; top: number; width: number; height: number }) => {
+      const element = { isConnected: true, getAttribute: (name: string) => (name === "data-bctip" ? text : null), getBoundingClientRect: () => box, closest: () => element };
+      return element;
+    };
+    act(() => {
+      renderer = TestRenderer.create(screen(false), {
+        createNodeMock: (element: React.ReactElement) => ((element.props as { collapsable?: boolean }).collapsable === false ? root : null),
+      });
+    });
+    layOut(1600);
+    const tip = () => hostsById("board-tip");
+    act(() => listeners.get("pointerover")!({ pointerType: "mouse", target: mark("Lane width", { left: 1700, top: 100, width: 80, height: 28 }) }));
+    act(() => { vi.advanceTimersByTime(399); });
+    expect(tip()).toHaveLength(0);
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(textOf(tip()[0]!)).toBe("Lane width");
+    // Below the button, ending at its right edge: the bar's right end keeps it on the board.
+    expect(StyleSheet.flatten(tip()[0]!.props.style)).toMatchObject({ top: 92, right: 20, zIndex: 40 });
+    act(() => listeners.get("pointerdown")!({}));
+    expect(tip()).toHaveLength(0);
+    // A card's marks are not the toolbar's.
+    act(() => listeners.get("pointerover")!({ pointerType: "mouse", target: { closest: () => null } }));
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(tip()).toHaveLength(0);
+  });
+});
+
 describe("Tasks board, tablet filters", () => {
   beforeEach(() => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
