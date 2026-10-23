@@ -715,7 +715,7 @@ describe("TaskCardView rows", () => {
       cardElement(card, { compact: true, language: "en", permissionButtons: buttons, onStop: () => {}, stopPhase });
     const tree = await render(element("idle"));
     const allow = flat(byLabel(tree.root, "Allow").props.style);
-    expect(allow).toMatchObject({ minHeight: 40, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: PHONE_BUTTON_MIN_WIDTH });
+    expect(allow).toMatchObject({ minHeight: 32, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: PHONE_BUTTON_MIN_WIDTH });
     expect(allow.height).toBeUndefined();
     expect(allow.flex).toBeUndefined();
     const label = byLabel(tree.root, "Allow").find((node) => (node.type as unknown) === "Text");
@@ -733,7 +733,7 @@ describe("TaskCardView rows", () => {
     expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 1, flexBasis: "auto" });
     expect(stop().flex).toBeUndefined();
     const confirm = byLabel(tree.root, "Confirm stop");
-    expect(flat(confirm.props.style)).toMatchObject({ minHeight: 40, paddingHorizontal: 10 });
+    expect(flat(confirm.props.style)).toMatchObject({ minHeight: 32, paddingHorizontal: 10 });
     expect(confirm.find((node) => (node.type as unknown) === "Text").props).toMatchObject({ numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.75 });
     // Armed, the pill drops its square to fit "Confirm stop" at full size.
     expect(icons(confirm)).toEqual([]);
@@ -1068,7 +1068,7 @@ describe("TaskCardView actions", () => {
     const square = byLabel(allow.root, "打开 tab");
     expect(texts(square)).toEqual([]);
     expect(icons(square)).toEqual(["AppWindow"]);
-    expect(flat(square.props.style)).toMatchObject({ width: 40, flexGrow: 0 });
+    expect(flat(square.props.style)).toMatchObject({ width: 32, flexGrow: 0 });
     await act(async () => allow.unmount());
     const question = { ...input, permission: { requestId: "q", kind: "question" as const, title: "Which database?", summary: null, actions: [], remaining: 0 } };
     const answer = await render(cardElement(question, { compact: true, onStop: () => {}, permissionButtons: permissionButtons(question.permission!, "zh") }));
@@ -1133,7 +1133,7 @@ describe("TaskCardView actions", () => {
     const bar = phone.root.find((node) => node.props.testID === "task-card-actions");
     expect(texts(bar)).toEqual(["打开 tab", "标为已读"]);
     expect(flat(byLabel(bar, "标为已读").props.style)).toMatchObject({ flexGrow: 0 });
-    expect(flat(byLabel(bar, "标为已读").props.style)).toMatchObject({ minHeight: 40, borderRadius: 8 });
+    expect(flat(byLabel(bar, "标为已读").props.style)).toMatchObject({ minHeight: 32, borderRadius: 7 });
   });
 
   it("draws Stop like the details sidebar's: a rounded rectangle led by Lucide's Power", async () => {
@@ -1154,7 +1154,7 @@ describe("TaskCardView actions", () => {
     renderer = null;
 
     const phone = await render(cardElement(sample("sample-child-1"), { onStop: () => {}, compact: true }));
-    expect(square(phone.root, "停止")).toMatchObject({ size: 16, color: tokens.danger });
+    expect(square(phone.root, "停止")).toMatchObject({ size: 14, color: tokens.danger });
   });
 
   it("offers a parent with running children the stop-with-subtasks menu", async () => {
