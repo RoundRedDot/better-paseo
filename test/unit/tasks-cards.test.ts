@@ -980,6 +980,32 @@ describe("TaskCardView actions", () => {
     expect(flat(footer.props.style)).toMatchObject({ flexDirection: "row" });
   });
 
+  it("keeps a touch footer's layout as the timer ticks narrower, and in a fresh copy of the card", async () => {
+    const card = { ...sample("sample-child-1"), id: "foot-copy" };
+    const element = () => cardElement(card, { onStop: () => {} });
+    const layout = (node: ReactTestInstance, width: number) => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 20 } } });
+    const parts = (root: ReactTestInstance) => {
+      const footer = hostByTestId(root, "task-card-footer");
+      const [timer, controls] = footer.findAll((node) => typeof node.type === "string" && node !== footer && typeof node.props.onLayout === "function");
+      return { footer, timer: timer!, controls: controls! };
+    };
+    const tree = await render(element());
+    const { footer, timer, controls } = parts(tree.root);
+    await act(async () => {
+      layout(footer, 300);
+      layout(timer, 120);
+      layout(controls, 180);
+    });
+    expect(flat(hostByTestId(tree.root, "task-card-footer").props.style)).toMatchObject({ flexDirection: "column" });
+    // "1m 59s" to "2m 1s": the narrower text would fit, but the row does not flip back each minute.
+    await act(async () => layout(parts(tree.root).timer, 110));
+    expect(flat(hostByTestId(tree.root, "task-card-footer").props.style)).toMatchObject({ flexDirection: "column" });
+    // The lane motion's copy of the card draws the stacked footer before it measures anything.
+    await act(async () => tree.unmount());
+    const copy = await render(element());
+    expect(flat(parts(copy.root).footer.props.style)).toMatchObject({ flexDirection: "column" });
+  });
+
   it("leaves Open tab out beside a question's Answer, which opens the tab itself", async () => {
     const card = { ...sample("sample-input"), permission: { requestId: "q", kind: "question" as const, title: "Which database?", summary: null, actions: [], remaining: 0 } };
     const tree = await render(cardElement(card, { permissionButtons: permissionButtons(card.permission, "zh") }));
