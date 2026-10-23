@@ -316,6 +316,7 @@ export function ToolCallout({
       height={imageFile.height}
       label={filePath ?? ""}
       tokens={tokens}
+      path={filePath ? resolvePath(filePath) : undefined}
       onReveal={revealFile}
     />
   ) : null;

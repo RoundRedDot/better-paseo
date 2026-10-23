@@ -405,6 +405,7 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
           height={file.height ?? null}
           label={path}
           tokens={tokens}
+          path={absolutePath}
           onReveal={onReveal}
         />
       ) : null}
