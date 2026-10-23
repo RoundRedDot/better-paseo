@@ -382,6 +382,20 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
     <>
       <Section title={strings.boardTitle} look={look}>
         <SettingRow
+          title={strings.showArchived}
+          description={strings.showArchivedHint}
+          control={
+            <Toggle
+              value={values.board.showArchived}
+              onChange={(next) => void commit({ ...values, board: { ...values.board, showArchived: next } })}
+              label={strings.showArchived}
+              look={look}
+            />
+          }
+          look={look}
+          first
+        />
+        <SettingRow
           title={strings.doneWindow}
           control={
             <Segmented<DoneWindow>
@@ -393,7 +407,6 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
             />
           }
           look={look}
-          first
           stacked
         />
         {/* A phone shows one lane at a time: its lane width has nothing to change there. */}
@@ -422,19 +435,6 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
               value={values.board.hideSubtasks}
               onChange={(next) => void commit({ ...values, board: { ...values.board, hideSubtasks: next } })}
               label={strings.hideSubtasks}
-              look={look}
-            />
-          }
-          look={look}
-        />
-        <SettingRow
-          title={strings.showArchived}
-          description={strings.showArchivedHint}
-          control={
-            <Toggle
-              value={values.board.showArchived}
-              onChange={(next) => void commit({ ...values, board: { ...values.board, showArchived: next } })}
-              label={strings.showArchived}
               look={look}
             />
           }

@@ -1070,6 +1070,47 @@ describe("Tasks board, lane widths", () => {
   });
 });
 
+describe("Tasks board, archived lane switch", () => {
+  beforeEach(() => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+  });
+
+  const toggle = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "archived-lane-toggle")[0]!;
+
+  it("shows the archived lane from the toolbar's switch beside the done window, and saves it", async () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2400);
+    expect(textOf(toggle())).toBe("Archived");
+    expect(toggle().props.accessibilityState).toEqual({ checked: false });
+    expect(hostsById("lane-archived")).toHaveLength(0);
+    // In the bar's end, after the done window and before the sort.
+    const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
+    expect(textOf(end).indexOf("Archived")).toBeGreaterThan(textOf(end).indexOf("7 days"));
+    expect(textOf(end).indexOf("Archived")).toBeLessThan(textOf(end).indexOf("Sort"));
+    await act(async () => toggle().props.onPress());
+    layOut(2400);
+    // Drawn at once, before the record catches up.
+    expect(toggle().props.accessibilityState).toEqual({ checked: true });
+    expect(hostsById("lane-archived")).toHaveLength(1);
+    expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } }, "1");
+  });
+
+  it("goes back and says so when the save is refused", async () => {
+    host.save.mockResolvedValueOnce(false);
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2400);
+    await act(async () => toggle().props.onPress());
+    expect(toggle().props.accessibilityState).toEqual({ checked: false });
+    expect(hostsById("lane-archived")).toHaveLength(0);
+    expect(host.reload).toHaveBeenCalled();
+    expect(host.toast).toHaveBeenCalledWith("Couldn't save the archived lane setting");
+  });
+});
+
 describe("Tasks board, tablet filters", () => {
   beforeEach(() => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
@@ -1113,7 +1154,9 @@ describe("Tasks board, tablet filters", () => {
     });
     layOut(800);
     const more = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-bar-more");
-    const switches = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch");
+    // The archived lane's switch is no filter: it stays in the bar, by the done window.
+    const switches = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch" && node.props.testID !== "archived-lane-toggle");
+    expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "archived-lane-toggle")).toHaveLength(1);
     expect(textOf(renderer!.root)).toContain("Workspace");
     expect(switches()).toHaveLength(0);
     expect(more().props).toMatchObject({ accessibilityLabel: "More filters", accessibilityState: { expanded: false } });
@@ -1433,6 +1476,20 @@ describe("Tasks board, phone", () => {
     expect(notice()).toHaveLength(0);
   });
 
+  it("shows the archived lane's tab from the filter sheet's switch, and saves it", async () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    expect(renderer!.root.findAll((node) => node.props.testID === "phone-stat-archived")).toHaveLength(0);
+    act(() => pressable("Filters").props.onPress());
+    const row = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-archived");
+    expect(row().props.accessibilityState).toEqual({ checked: false });
+    await act(async () => row().props.onPress());
+    expect(row().props.accessibilityState).toEqual({ checked: true });
+    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "phone-stat-archived")).toHaveLength(1);
+    expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } }, "1");
+  });
+
   it("opens the filter sheet with the sort first from the header's sort pill, and with the switches first from the filters button", () => {
     const order = () => {
       const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
@@ -1465,7 +1522,8 @@ describe("Tasks board, phone", () => {
       const text = textOf(scroll);
       const at = (label: string) => text.indexOf(label);
       expect(at("Open tabs only")).toBe(0);
-      expect(at("Hide subtasks")).toBeLessThan(at("Agent"));
+      expect(at("Hide subtasks")).toBeLessThan(at("Show the archived lane"));
+      expect(at("Show the archived lane")).toBeLessThan(at("Agent"));
       expect(at("Agent")).toBeLessThan(at("Labels"));
       expect(at("Labels")).toBeLessThan(at("Sort"));
       expect(at("Sort")).toBeLessThan(at("Workspace"));

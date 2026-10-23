@@ -348,6 +348,15 @@ export function DesktopFilterBar(props: {
           theme={theme}
           strings={strings}
         />
+        <ToggleChip
+          icon="Archive"
+          label={strings.archivedLane.label}
+          hint={strings.archivedLane.hint}
+          on={board.showArchived}
+          onPress={() => board.setShowArchived(!board.showArchived)}
+          theme={theme}
+          testID="archived-lane-toggle"
+        />
         <Divider theme={theme} />
         <MenuButton
           icon="ArrowUpDown"
@@ -570,7 +579,7 @@ function MoreButton(props: { open: boolean; on: number; label: string; onPress()
   );
 }
 
-function ToggleChip(props: { icon: string; label: string; hint?: string; on: boolean; onPress(): void; theme: PluginTheme }) {
+function ToggleChip(props: { icon: string; label: string; hint?: string; on: boolean; onPress(): void; theme: PluginTheme; testID?: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   const tint = props.on ? taskTokens(props.theme).accentText : colors.foreground;
@@ -580,6 +589,7 @@ function ToggleChip(props: { icon: string; label: string; hint?: string; on: boo
       accessibilityState={{ checked: props.on }}
       accessibilityHint={props.hint}
       onPress={props.onPress}
+      testID={props.testID}
       style={(hovered) => ({
         height: taskControlHeight(28, scale),
         maxWidth: "100%",

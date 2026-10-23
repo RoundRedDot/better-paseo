@@ -71,6 +71,14 @@ export function FilterSheetBody(props: {
             theme={theme}
             onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
           />
+          <ToggleRow
+            icon="Archive"
+            label={strings.archivedLane.row}
+            on={board.showArchived}
+            theme={theme}
+            onPress={() => board.setShowArchived(!board.showArchived)}
+            testID="filter-sheet-archived"
+          />
           <SectionTitle text={strings.agent} theme={theme} />
           {options.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
           <ChipWrap>
@@ -223,13 +231,14 @@ function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void
   );
 }
 
-function ToggleRow(props: { icon: string; label: string; hint?: string; on: boolean; theme: PluginTheme; onPress(): void }) {
+function ToggleRow(props: { icon: string; label: string; hint?: string; on: boolean; theme: PluginTheme; onPress(): void; testID?: string }) {
   const colors = props.theme.colors;
   return (
     <Pressable
       accessibilityRole="checkbox"
       accessibilityState={{ checked: props.on }}
       onPress={props.onPress}
+      testID={props.testID}
       style={{ minHeight: 48, flexDirection: "row", alignItems: "center", gap: 12 }}
     >
       <Icon name={props.icon} size={18} color={colors.foregroundMuted} />
