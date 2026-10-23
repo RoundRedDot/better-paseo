@@ -1485,7 +1485,7 @@ export function CardButton(props: {
   const hovered = hover && !props.busy;
   const answer = kind === "answer";
   // "Answer" opens the tab for a question: it wears the needs-input icon's
-  // amber (the statusDot band), tinted, with a hairline of the same hue; its
+  // amber (the statusDot band), tinted, with a 0.5 px border of the same hue; its
   // label is that amber pulled until it reads at 4.5:1.
   let color = kind === "primary" ? look.primaryText : kind === "danger" ? tokens.danger : tokens.foreground;
   let fill = hovered ? look.controlHover : "transparent";
@@ -1514,7 +1514,7 @@ export function CardButton(props: {
         ...(square ? { width: taskControlHeight(PHONE.buttonHeight, scale), minWidth: 0, flexGrow: 0, flexShrink: 0 } : null),
         paddingHorizontal: square ? 0 : compact ? 12 : 10,
         borderRadius: compact ? 7 : 6,
-        borderWidth: answer ? StyleSheet.hairlineWidth : 1,
+        borderWidth: 0.5,
         borderColor: border,
         backgroundColor: fill,
         flexDirection: "row",
@@ -1547,7 +1547,7 @@ export function CardButton(props: {
 /**
  * Mark read: a card button's size, as Stop and "Answer" are, led by
  * Lucide's CheckCheck (a read receipt). On an unread card it wears the unread
- * dot's green as "Answer" wears the needs-input amber: tinted, a hairline of
+ * dot's green as "Answer" wears the needs-input amber: tinted, a 0.5 px border of
  * the same hue, the label pulled to 4.5:1. A failed card keeps the plain
  * outline, so no green sits on its danger tint. While the request is out a
  * spinner takes the icon's place, the label stays, dimmed, and the button
@@ -1591,7 +1591,7 @@ function ReadControl(props: {
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         paddingHorizontal: compact ? 12 : 10,
         borderRadius: compact ? 7 : 6,
-        borderWidth: props.unread ? StyleSheet.hairlineWidth : 1,
+        borderWidth: 0.5,
         borderColor: props.unread ? look.readBorder : look.pillBorder,
         backgroundColor: fill,
         flexDirection: "row",
@@ -1687,7 +1687,7 @@ function StopControl(props: StopControlProps) {
   const label = confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
   const segment: ViewStyle = {
     ...(compact ? { minHeight: height, paddingVertical: 4 } : { height }),
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: tokens.danger,
     flexDirection: "row",
     alignItems: "center",
@@ -1756,9 +1756,9 @@ function StopControl(props: StopControlProps) {
             segment,
             {
               width: compact ? 36 : 26,
-              borderLeftWidth: 1,
+              borderLeftWidth: 0.5,
               borderLeftColor: solid ? withAlpha(look.onStrong, 0.4) : withAlpha(tokens.danger, 0.4),
-              marginLeft: -1,
+              marginLeft: -0.5,
               backgroundColor: fill((chevronHover.hovered && !stopping) || props.menuOpen),
               borderTopRightRadius: round,
               borderBottomRightRadius: round,
