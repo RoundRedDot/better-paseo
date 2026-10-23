@@ -433,8 +433,8 @@ Where the sidebar goes depends on the board's width:
   opens a details sheet that steps to the previous and next card of its lane, with Stop and the
   permission buttons pinned at thumb height.
 
-The board is off until you turn it on: **Tasks board** heads Better Paseo's settings page
-(Settings → Plugins → Better Paseo), with a preview of the board beside the switch. Its options are
+The board is on by default; to turn it off, use **Tasks board** at the head of Better Paseo's
+settings page (Settings → Plugins → Better Paseo), with a preview of the board beside the switch. Its options are
 listed under [Tasks board settings](#tasks-board-settings).
 
 Limits: Stop runs `paseo agent stop` through the CLI that Paseo hands the plugin, because the
@@ -505,7 +505,7 @@ same way as the chat settings above.
 
 | Group | Setting | Default | Effect |
 | --- | --- | --- | --- |
-| Tasks board | Enable the Tasks board | Off | Adds Tasks to the sidebar and the Command Center. Off, there is no entry and no agent subscription. |
+| Tasks board | Enable the Tasks board | On | Adds Tasks to the sidebar and the Command Center. Off, there is no entry and no agent subscription. |
 | Cards | Card density | Standard | Minimal, Standard or Full sets every field switch at once; editing one switch makes it Custom. |
 | Cards | Fields | Standard's set | Agent brand mark, model, thinking level, project, project icon, workspace name, branch, Git status, folder, full path, labels, linked PR, timer, context usage ring and subtask summary. Standard leaves Git status, full path and linked PR off; Minimal keeps model, thinking and the timer. |
 | Cards | Labels shown | 2 | 1, 2, 3 or all before the rest fold into +N. |
@@ -513,7 +513,7 @@ same way as the chat settings above.
 | Board | Done lane window | Last 24 hours | Last 24 hours, last 7 days or all. |
 | Board | Lane width | Default | Narrow, Default or Wide on desktop, web and tablets; a board too narrow for them scrolls the lanes sideways. Phones show one lane at a time and hide this option. |
 | Board | Hide subtasks by default | Off | Running, waiting and failed subtasks still show in their lane. |
-| Board | Show the archived lane | Off | A lane after Done with archived tasks and those of archived workspaces, in the same window. Off, the board asks for no archived agent. |
+| Board | Show the archived lane | On | A lane after Done with archived tasks and those of archived workspaces, in the same window. Off, the board asks for no archived agent. |
 | Board | Confirm before stopping | On | Stop asks for a second press. |
 | Sidebar | Sidebar entry count | Needs input · Running · Review | Or needs input only, or hidden. |
 | Reset | Restore the Tasks defaults | — | Puts every Tasks option back; the board stays on or off. Asks for a second press. |

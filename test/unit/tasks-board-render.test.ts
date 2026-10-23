@@ -118,8 +118,9 @@ import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-set
 import { resetTasksEnabled } from "../../client/tasks/board/enabled";
 import { APP_SETTINGS_KEY, resetHostAppearanceForTests, setNativeSettingsReaderForTests, triggerHostAppearanceCheck } from "../../client/ui/tokens/host-appearance-shim";
 
-// The board is opt-in; these tests draw it turned on (tasks-board-enabled.test.ts covers off).
-const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: true };
+// These tests draw the board on and the archived lane off unless they turn it on
+// (tasks-board-enabled.test.ts covers the board off).
+const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: true, board: { ...STOCK_SETTINGS.board, showArchived: false } };
 import { resetEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

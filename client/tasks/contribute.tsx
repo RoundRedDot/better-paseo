@@ -25,7 +25,7 @@ const KEYWORDS = ["tasks", "board", "kanban", "agents", "看板", "任务"];
 const boardRoute = () => ({ screenId: TASKS_SCREEN_ID, params: encodeBoardParams(lastBoardParams()) });
 
 /**
- * Registers the Tasks board. The board is opt-in (`enabled` in its
+ * Registers the Tasks board. The board can be turned off (`enabled` in its
  * settings, edited on the Tasks half of Better Paseo's settings page,
  * `settings-screen.ts`). Always registered: the board screen, which mounts
  * only when open and then says the board is off; the only work while off is

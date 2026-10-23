@@ -146,11 +146,10 @@ const cardSchema = z
 /** Keys follow the spec: `card.provider`, `board.doneWindow`, `mobile.compactCards`, `sidebar.count`. */
 export const tasksSettingsSchema = z.object({
   /**
-   * The board is opt-in: off, there is no sidebar entry, no Command Center
-   * item and no agent subscription. A record saved before this switch
-   * existed has no key and reads off.
+   * On by default; off, there is no sidebar entry, no Command Center item
+   * and no agent subscription. A record without the key reads on.
    */
-  enabled: flag(false),
+  enabled: flag(true),
   /** The density the card switches were last set from; `custom` after a hand edit. */
   density: z.enum(DENSITIES).catch("standard"),
   card: cardSchema,
@@ -163,10 +162,10 @@ export const tasksSettingsSchema = z.object({
       laneWidth: z.enum(LANE_WIDTHS).catch("default"),
       /**
        * An archived lane after done: archived tasks, and those of archived
-       * workspaces, within the done window. Off by default; off, the board
+       * workspaces, within the done window. On by default; off, the board
        * asks the daemon for no archived agent.
        */
-      showArchived: flag(false),
+      showArchived: flag(true),
       /**
        * The filter menus, the filter sheet and the sidebar's groups list
        * every agent, project, workspace and label Paseo has, a count of 0
@@ -175,7 +174,7 @@ export const tasksSettingsSchema = z.object({
        */
       showEmptyGroups: flag(true),
     })
-    .catch({ doneWindow: "24h", hideSubtasks: false, confirmStop: true, laneWidth: "default", showArchived: false, showEmptyGroups: true }),
+    .catch({ doneWindow: "24h", hideSubtasks: false, confirmStop: true, laneWidth: "default", showArchived: true, showEmptyGroups: true }),
   sidebar: z.object({ count: z.enum(SIDEBAR_COUNTS).catch("all") }).catch({ count: "all" }),
 });
 
