@@ -169,11 +169,19 @@ interface Metrics {
 }
 
 /**
- * A pill's text, a size under the ramp's smallest step: at `sm` the pills read
- * as loud as the title beside them. Scaled with the interface size like the rest.
+ * A pill's text against the card's small text (meta row, footer): at the same
+ * size the pills read as loud as the title beside them, so they sit a notch
+ * under it. A ratio, not a size, so the pills follow whatever step the card's
+ * text takes, and TaskText scales both with the interface size.
  */
-const PILL_TEXT = 11;
-const PILL_LINE = 14;
+const PILL_TEXT_RATIO = 11 / 12;
+/** A pill holds one line, so its line sits tighter than the ramp's 1.4. */
+const PILL_LINE_RATIO = 1.25;
+
+function pillType(small: number): Pick<Metrics, "pillText" | "pillLine"> {
+  const text = small * PILL_TEXT_RATIO;
+  return { pillText: text, pillLine: Math.round(text * PILL_LINE_RATIO) };
+}
 
 // Text sizes are steps of the host's type ramp (`HOST_FONT`), which TaskText scales with the user's interface size.
 const DESKTOP: Metrics = {
@@ -190,8 +198,7 @@ const DESKTOP: Metrics = {
   iconBox: 16,
   rowGap: 10,
   pillHeight: 20,
-  pillText: PILL_TEXT,
-  pillLine: PILL_LINE,
+  ...pillType(F.sm),
   pillPad: 8,
   pillIcon: 11,
   pillDot: 6,
@@ -219,8 +226,7 @@ const PHONE: Metrics = {
   iconBox: 20,
   rowGap: 12,
   pillHeight: 24,
-  pillText: PILL_TEXT,
-  pillLine: PILL_LINE,
+  ...pillType(F.sm),
   pillPad: 9,
   pillIcon: 12,
   pillDot: 7,

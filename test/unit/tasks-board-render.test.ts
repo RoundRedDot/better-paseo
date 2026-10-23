@@ -255,9 +255,11 @@ describe("Tasks board, desktop", () => {
       expect(StyleSheet.flatten(title.props.style).lineHeight).toBe(Math.round(18 * base / 14));
       const pill = renderer!.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "pill-model")[0]!;
       expect(StyleSheet.flatten(pill.props.style).height).toBe(Math.round(20 * Math.max(1, base / 14)));
-      // A pill's text sits a size under the title, scaled the same way.
+      // A pill's text is the card's small text times 11/12, scaled the same way, so it stays under the meta row at every size.
       const pillText = pill.findAll((node) => (node.type as unknown) === "Text")[0]!;
-      expect(font(pillText)).toBe(Math.round(11 * base / 14));
+      const meta = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-meta-location")[0]!;
+      expect(font(pillText)).toBe(Math.round(12 * (11 / 12) * base / 14));
+      expect(font(pillText)).toBeLessThan(font(meta));
       const sort = text("Sort").parent!;
       act(() => hostParentOf(sort)!.props.onPress());
       expect(font(text("Default order"))).toBe(base);
