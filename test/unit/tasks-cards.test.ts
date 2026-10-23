@@ -91,6 +91,8 @@ import { pillTint } from "../../client/tasks/cards/tokens";
 import { TasksTypography } from "../../client/tasks/typography";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
 import { menuChrome } from "../../client/tasks/board/menu";
+import { cardMenuSections } from "../../client/tasks/cards/card-menu";
+import { cardStrings } from "../../client/tasks/cards/strings";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { PiMark, agentPillColors, contrastRatio, tintedPillColors } from "../../client/tasks/cards/brand-mark";
 import { permissionButtons } from "../../client/tasks/actions";
@@ -1337,6 +1339,43 @@ describe("TaskCardView actions", () => {
     byLabel(tree.root, "mac studio run check, 在父任务的 tab 中打开").props.onPress();
     expect(onOpen).toHaveBeenCalledWith(base.id);
     expect(onReveal).not.toHaveBeenCalled();
+  });
+
+  it("draws a provider subagent's card read-only: its facts line, no Stop or details, a press opens through onOpen", async () => {
+    const base = sample("sample-running");
+    const card: TaskCard = {
+      ...base,
+      id: "sub-1",
+      title: "mac studio run check",
+      model: null,
+      modelLabel: null,
+      thinkingLabel: null,
+      context: null,
+      usage: null,
+      children: [],
+      stoppable: false,
+      parent: { id: base.id, title: base.title, missing: false, archived: false },
+      subagent: { subtitle: "general-purpose · Opus 5.5 · High · 12.4k tokens" },
+    };
+    const onOpen = vi.fn();
+    const onSelect = vi.fn();
+    const onDetails = vi.fn();
+    const onStop = vi.fn();
+    const tree = await render(cardElement(card, { onOpen, onSelect, onDetails, onStop }));
+    expect(texts(hostByTestId(tree.root, "pill-model"))).toContain("general-purpose · Opus 5.5 · High · 12.4k tokens");
+    // The facts line is not a model name to copy.
+    expect(hostByTestId(tree.root, "pill-model").props.accessibilityRole).not.toBe("button");
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop")).toHaveLength(0);
+    const root = hostByTestId(tree.root, "task-card-sub-1");
+    expect(root.props.onLongPress).toBeUndefined();
+    await act(async () => byLabel(tree.root, "mac studio run check").props.onPress());
+    // The board maps the subagent's id to its parent's tab.
+    expect(onOpen).toHaveBeenCalledWith("sub-1");
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(texts(hostByTestId(tree.root, "task-card-meta-parent"))).toEqual([`↳ ${base.title}`]);
+    // Its id is a tool call's: the menu copies no session ID.
+    const keys = cardMenuSections(card, cardStrings("en"), { copy: () => {}, open: () => {}, children: 0 }).flatMap((section) => section.items.map((item) => item.key));
+    expect(keys).toEqual(["open", "copy-title", "copy-workspace", "copy-project"]);
   });
 
   it("ends a subtask row that finished on another day with a short stamp, leaving the title room", async () => {
