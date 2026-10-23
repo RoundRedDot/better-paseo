@@ -479,7 +479,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         : lit ? look.hoverBackground : look.background;
   const canStop = card.stoppable && !!props.onStop;
   const parentStop = canStop && activeChildren(card) > 0;
-  const showStop = canStop && !compact && (TOUCH || hovered || props.stopPhase !== "idle" || menuOpen);
+  // A waiting card's hover buttons share the row with its answer buttons, so
+  // Stop stays in the menu and the sidebar there and Open tab floats alone.
+  const footStop = canStop && (TOUCH || card.lane !== "needs_input");
+  const showStop = footStop && !compact && (TOUCH || hovered || props.stopPhase !== "idle" || menuOpen);
   // Mark read takes Stop's place: a card is never both (Stop needs a running
   // or waiting agent, Mark read one in review).
   const canRead = !canStop && card.readable === true && !!props.onRead;
@@ -907,7 +910,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A desktop card that can open, stop or be read keeps the footer even when
   // it has nothing else, so its buttons have a place to appear. A tablet's
   // buttons take a row of their own under it instead.
-  const stopSlot = (canStop || canRead || canOpen || canUnarchive || canArchive) && !compact && !TOUCH;
+  const stopSlot = (footStop || canRead || canOpen || canUnarchive || canArchive) && !compact && !TOUCH;
   // The footer is as tall as the hover buttons on a desktop card that can
   // show them, hovered or not, so the button sits inside it with the card's
   // own gaps above and below instead of overhanging the pills, and hovering
@@ -945,7 +948,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // Stop, Mark read or Archive, then "Open tab" in the corner, centred on the line they sit on.
   const footControls = (line: number) => (
     <View style={{ flexDirection: "row", gap: GAP, marginVertical: (Math.round(line * scale) - taskControlHeight(m.buttonHeight, scale)) / 2 }}>
-      {canStop ? <StopControl {...stop} compact={false} line={m.buttonHeight} menuLeft={canOpen} /> : canRead ? <ReadControl {...read} compact={false} line={m.buttonHeight} /> : null}
+      {footStop ? <StopControl {...stop} compact={false} line={m.buttonHeight} menuLeft={canOpen} /> : canRead ? <ReadControl {...read} compact={false} line={m.buttonHeight} /> : null}
       {canArchive ? archiveButton(false) : null}
       {canOpen ? (
         <CardButton
@@ -1007,7 +1010,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
               },
               reducedMotion ? null : controlLeaving ? stopMotion?.exit : stopMotion?.enter,
             ]}
-            testID={canStop ? "task-card-stop-overlay" : canRead ? "task-card-read-overlay" : canUnarchive ? "task-card-unarchive-overlay" : canArchive ? "task-card-archive-overlay" : "task-card-open-overlay"}
+            testID={footStop ? "task-card-stop-overlay" : canRead ? "task-card-read-overlay" : canUnarchive ? "task-card-unarchive-overlay" : canArchive ? "task-card-archive-overlay" : "task-card-open-overlay"}
           >
             {footControls(m.buttonHeight)}
           </View>
