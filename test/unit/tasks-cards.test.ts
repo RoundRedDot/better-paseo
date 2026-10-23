@@ -493,7 +493,11 @@ describe("TaskCardView rows", () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: fields("full") }));
     const ids = pills(tree.root).map(([id]) => id);
     expect(ids).toEqual(expect.arrayContaining(["pill-branch", "pill-path", "pill-pr"]));
-    expect(texts(hostByTestId(tree.root, "pill-branch"))).toEqual(["feat/tasks-board", "未提交 ↑3 ↓0"]);
+    // Uncommitted changes are a warning dot alone, no word beside it.
+    const branch = hostByTestId(tree.root, "pill-branch");
+    expect(texts(branch)).toEqual(["feat/tasks-board", "↑3 ↓0"]);
+    const dots = branch.findAll((node) => typeof node.type === "string" && flat(node.props.style).width === 6);
+    expect(dots.map((node) => flat(node.props.style).backgroundColor)).toEqual([taskTokens(LIGHT).warning]);
     expect(texts(hostByTestId(tree.root, "pill-path"))).toEqual(["~/code/better-paseo/.worktrees/tasks-board"]);
     expect(texts(hostByTestId(tree.root, "pill-pr"))).toEqual(["#42"]);
     expect(ids).not.toContain("pill-labels-more");
@@ -507,14 +511,21 @@ describe("TaskCardView rows", () => {
       const card = { ...base, location: { ...base.location, git: { dirty: true, ahead, behind } } };
       const tree = await render(cardElement(card, { theme, fields: fields("full") }));
       const branch = hostByTestId(tree.root, "pill-branch");
-      const status = branch.find((node) => (node.type as unknown) === "Text" && !hasTextAncestor(node) && texts(node)[0]?.startsWith("未提交") === true);
-      expect(flat(status.props.style).color).toBe(tokens.foregroundMuted);
-      const counts = status.findAll((node) => (node.type as unknown) === "Text" && hasTextAncestor(node));
+      const status = branch.findAll((node) => (node.type as unknown) === "Text" && !hasTextAncestor(node))[1];
+      if (ahead === null && behind === null) {
+        expect(status).toBeUndefined();
+        expect(texts(branch)).toEqual(["feat/tasks-board"]);
+        await act(async () => tree.unmount());
+        renderer = null;
+        continue;
+      }
+      expect(flat(status!.props.style).color).toBe(tokens.foregroundMuted);
+      const counts = status!.findAll((node) => (node.type as unknown) === "Text" && hasTextAncestor(node));
       expect(counts.map((node) => [node.props.children, flat(node.props.style).color])).toEqual([
         ...(ahead !== null ? [[`↑${ahead}`, ahead > 0 ? tokens.success : tokens.foregroundMuted]] : []),
         ...(behind !== null ? [[`↓${behind}`, behind > 0 ? tokens.warning : tokens.foregroundMuted]] : []),
       ]);
-      expect(texts(branch)).toEqual(["feat/tasks-board", ["未提交", ahead !== null ? `↑${ahead}` : null, behind !== null ? `↓${behind}` : null].filter(Boolean).join(" ")]);
+      expect(texts(branch)).toEqual(["feat/tasks-board", [ahead !== null ? `↑${ahead}` : null, behind !== null ? `↓${behind}` : null].filter(Boolean).join(" ")]);
       await act(async () => tree.unmount());
       renderer = null;
     }
