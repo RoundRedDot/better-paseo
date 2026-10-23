@@ -180,10 +180,12 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
   const summary = filterSummary(board.params, board.defaults, options, board.strings);
   return (
     <DetailCard tokens={tokens} style={{ paddingHorizontal: 8, paddingTop: 8, paddingBottom: 8, gap: 6 }} testID="sidebar-stats">
-      <View style={{ paddingHorizontal: 4, gap: 2 }}>
-        <RollingTotal board={board} style={{ fontSize: F.base, fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] }} />
+      <View style={{ paddingHorizontal: 4, flexDirection: "row", alignItems: "baseline", gap: 8 }}>
+        <View style={{ flexShrink: 0 }}>
+          <RollingTotal board={board} style={{ fontSize: F.base, fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] }} />
+        </View>
         {summary ? (
-          <Text numberOfLines={1} style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>
+          <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted }}>
             {summary}
           </Text>
         ) : null}
