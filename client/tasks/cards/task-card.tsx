@@ -911,7 +911,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const archiveButton = (onPhone: boolean, hug = false) => (
     <CardButton
       label={strings.details.archive}
-      look="plain"
+      look="grey"
       icon="Archive"
       busy={archivePending}
       tokens={tokens}
@@ -1478,11 +1478,11 @@ export function ActionButton(props: {
   );
 }
 
-export type CardButtonLook = "primary" | "plain" | "danger" | "answer";
+export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "grey";
 
 /**
- * The card's button: Allow's accent tint, a plain outline, the Stop button's
- * danger tint, or "Answer" in the needs-input amber with its arrow. A busy
+ * The card's button: Allow's accent tint, a plain outline, Archive's grey
+ * fill, the Stop button's danger tint, or "Answer" in the needs-input amber with its arrow. A busy
  * one keeps its look and label, dimmed, and swaps its icon for a spinner, as
  * Paseo's own loading buttons do.
  */
@@ -1518,6 +1518,7 @@ export function CardButton(props: {
   let border = look.pillBorder;
   if (kind === "primary") fill = border = hovered ? look.primaryFillHover : look.primaryFill;
   if (kind === "danger") fill = border = hovered ? look.dangerFillHover : look.dangerFill;
+  if (kind === "grey") fill = border = hovered ? look.greyFillHover : look.greyFill;
   if (answer) {
     color = look.answerText;
     fill = hovered ? look.answerFillHover : look.answerFill;
