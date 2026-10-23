@@ -1280,15 +1280,17 @@ function GitStatus(props: {
   strings: ReturnType<typeof cardStrings>;
 }) {
   const { git, tokens } = props;
-  const arrows = [git.ahead !== null ? `↑${git.ahead}` : null, git.behind !== null ? `↓${git.behind}` : null]
-    .filter(Boolean)
-    .join(" ");
-  if (!git.dirty && !arrows) return null;
+  const hasArrows = git.ahead !== null || git.behind !== null;
+  if (!git.dirty && !hasArrows) return null;
   return (
     <>
       {git.dirty ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: tokens.warning }} /> : null}
       <Text style={[{ fontSize: props.size, lineHeight: props.line, color: tokens.foregroundMuted }, tabular]}>
-        {[git.dirty ? props.strings.uncommitted : null, arrows || null].filter(Boolean).join(" ")}
+        {git.dirty ? props.strings.uncommitted : null}
+        {git.dirty && hasArrows ? " " : null}
+        {git.ahead !== null ? <Text style={{ color: git.ahead > 0 ? tokens.success : tokens.foregroundMuted }}>{`↑${git.ahead}`}</Text> : null}
+        {git.ahead !== null && git.behind !== null ? " " : null}
+        {git.behind !== null ? <Text style={{ color: git.behind > 0 ? tokens.warning : tokens.foregroundMuted }}>{`↓${git.behind}`}</Text> : null}
       </Text>
     </>
   );

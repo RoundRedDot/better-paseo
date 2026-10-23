@@ -500,6 +500,26 @@ describe("TaskCardView rows", () => {
     expect(hostByTestId(tree.root, "task-card-meta").findAll((node) => (node.type as unknown) === "View" && flat(node.props.style).width === 12)).toHaveLength(1);
   });
 
+  it.each([LIGHT, DARK])("colours git ahead green and behind orange, keeping zero muted in either theme", async (theme) => {
+    const tokens = taskTokens(theme);
+    const base = sample("sample-running");
+    for (const [ahead, behind] of [[3, 2], [0, 2], [3, 0], [0, 0], [null, 2], [3, null], [null, null]] as const) {
+      const card = { ...base, location: { ...base.location, git: { dirty: true, ahead, behind } } };
+      const tree = await render(cardElement(card, { theme, fields: fields("full") }));
+      const branch = hostByTestId(tree.root, "pill-branch");
+      const status = branch.find((node) => (node.type as unknown) === "Text" && !hasTextAncestor(node) && texts(node)[0]?.startsWith("未提交") === true);
+      expect(flat(status.props.style).color).toBe(tokens.foregroundMuted);
+      const counts = status.findAll((node) => (node.type as unknown) === "Text" && hasTextAncestor(node));
+      expect(counts.map((node) => [node.props.children, flat(node.props.style).color])).toEqual([
+        ...(ahead !== null ? [[`↑${ahead}`, ahead > 0 ? tokens.success : tokens.foregroundMuted]] : []),
+        ...(behind !== null ? [[`↓${behind}`, behind > 0 ? tokens.warning : tokens.foregroundMuted]] : []),
+      ]);
+      expect(texts(branch)).toEqual(["feat/tasks-board", ["未提交", ahead !== null ? `↑${ahead}` : null, behind !== null ? `↓${behind}` : null].filter(Boolean).join(" ")]);
+      await act(async () => tree.unmount());
+      renderer = null;
+    }
+  });
+
   it("folds labels past the limit into +N", async () => {
     for (const [limit, expected] of [["1", "+2"], ["2", "+1"], ["3", null], ["all", null]] as const) {
       const tree = await render(cardElement(sample("sample-done"), { fields: fields("standard", { labelLimit: limit }) }));
