@@ -25,6 +25,7 @@ import { SpinnerRing, StatusIcon } from "./status-icon";
 import { ChildMark } from "./child-mark";
 import { CardContextMenu } from "./card-menu";
 import { bindContextMenu } from "../../web";
+import { ArchivedTag } from "./archived-tag";
 import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
 import { layoutMenu } from "../board/menu-model";
 import { buttonOutline } from "../board/board-style";
@@ -598,11 +599,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // Meta row ---------------------------------------------------------------
   const avatar = layout.projectAvatar;
   const metaStyle = text(m.metaSize, m.metaLine, muted);
-  const parentLabel = card.parent
-    ? card.parent.missing && card.parent.archived === true
-      ? strings.parentArchived
-      : card.parent.title ?? strings.parentUnknown
-    : null;
+  const parentLabel = card.parent ? card.parent.title ?? strings.parentUnknown : null;
+  // An archived parent, itself or with its workspace, is tagged so beside its link.
+  let parentTag: string | null = null;
+  if (card.parent?.archivedAs === "workspace") parentTag = strings.workspaceArchived;
+  else if (card.parent?.archivedAs === "agent" || (card.parent?.missing && card.parent.archived === true)) parentTag = strings.archived;
   const metaRow = hasMeta ? (
     <View
       style={{ flexDirection: "row", alignItems: "center", gap: GAP, minHeight: Math.round(m.metaLine * scale), zIndex: ringZ }}
@@ -650,6 +651,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
               {`↳${NBSP}${parentLabel}`}
             </Text>
           </Pressable>
+        ) : null}
+        {parentTag !== null ? (
+          <View style={{ marginLeft: 6, flexShrink: 0 }}>
+            <ArchivedTag tokens={tokens} label={parentTag} testID="task-card-meta-archived" />
+          </View>
         ) : null}
       </View>
       {ringFor(m.metaLine)}
