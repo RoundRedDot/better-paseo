@@ -83,6 +83,18 @@ function setOS(os: string) {
   (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
 }
 
+/** The board's text, run together: the total's number and its unit are two texts on web. */
+function boardText(): string {
+  const strings: string[] = [];
+  const walk = (node: unknown) => {
+    if (typeof node === "string") strings.push(node);
+    else if (Array.isArray(node)) node.forEach(walk);
+    else if (node && typeof node === "object") walk((node as { children?: unknown }).children ?? null);
+  };
+  walk(boardRenderer!.toJSON());
+  return strings.join("");
+}
+
 async function settle() {
   await act(async () => {
     for (let tick = 0; tick < 8; tick++) await Promise.resolve();
@@ -225,7 +237,7 @@ describe("Tasks board prefetch", () => {
       boardRenderer = TestRenderer.create(React.createElement(TasksBoardScreen, { ...hostProps, params: {} }));
     });
     // Before any answer could arrive: the board is ready on the warm data.
-    expect(JSON.stringify(boardRenderer!.toJSON())).toContain("2 tasks");
+    expect(boardText()).toContain("2 tasks");
     await settle();
     expect(fake.calls.length).toBe(warmed);
     await fire("onPointerLeave");
@@ -254,7 +266,7 @@ describe("Tasks board prefetch", () => {
     const closed = fake.calls.length;
     await openBoard();
     expect(fake.calls.length).toBe(closed);
-    expect(JSON.stringify(boardRenderer!.toJSON())).toContain("2 tasks");
+    expect(boardText()).toContain("2 tasks");
     // Its own close starts a fresh grace period.
     await closeBoard();
     await advance(BOARD_LINGER_MS - 1);

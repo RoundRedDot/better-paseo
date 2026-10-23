@@ -918,7 +918,7 @@ function DesktopLane(props: {
       >
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <VerticalLabel text={name} color={colors.foreground} language={board.language} />
-        {ready ? <RollingCount value={count} scope={board.scope} align="center" style={countStyle} /> : <Text style={countStyle}>{""}</Text>}
+        {ready ? <RollingCount value={count} scope={board.countScope} align="center" style={countStyle} /> : <Text style={countStyle}>{""}</Text>}
       </HoverPressable>,
     );
   }
@@ -939,7 +939,7 @@ function DesktopLane(props: {
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <Text style={{ fontSize: titleSize, fontWeight: "500", color: colors.foreground }}>{name}</Text>
         {ready ? (
-          <RollingCount value={count} scope={board.scope} style={countStyle} />
+          <RollingCount value={count} scope={board.countScope} style={countStyle} />
         ) : (
           <View style={{ width: 14, height: 10, borderRadius: 2, backgroundColor: colors.surface2 }} />
         )}

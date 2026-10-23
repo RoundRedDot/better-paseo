@@ -479,6 +479,24 @@ export function RollingCount(props: { value: number; scope?: unknown; align?: "l
 const COUNT_SPILL = 40;
 
 /**
+ * The board's "N tasks": on web and the desktop app its number rolls as the
+ * lanes' counts do (see `countScope`); a phone or tablet shows it at once.
+ * The first count after loading shows at once too.
+ */
+export function RollingTotal(props: { board: BoardController; style: StyleProp<TextStyle> }) {
+  const { board } = props;
+  if (Platform.OS !== "web") return <Text numberOfLines={1} style={props.style}>{board.strings.total(board.total)}</Text>;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center" }}>
+      <RollingCount value={board.total} scope={board.tasks.ready ? board.countScope : null} style={props.style} />
+      <Text numberOfLines={1} style={props.style}>
+        {" " + board.strings.totalUnit(board.total)}
+      </Text>
+    </View>
+  );
+}
+
+/**
  * A 36 round icon button in a 44 target, with a count badge: the phone's
  * search and filters. Given a `size`, the circle is the button, its target
  * reaching 4 past it off the web: a narrow board's header, beside the

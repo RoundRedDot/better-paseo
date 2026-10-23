@@ -10,7 +10,7 @@ import { useFirstPrompt } from "../data/first-prompt";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { useSessionTokens } from "../data/session-tokens";
 import { FILTER_ICONS, activeChips, buildFilterOptions, clearedParams, shownFilterOptions, toggleProject, type FilterOption } from "./filter-options";
-import { RollingCount } from "./board-parts";
+import { RollingCount, RollingTotal } from "./board-parts";
 import { toggleItem } from "./params";
 import type { SelectionAction, SidebarSelection } from "./sidebar-model";
 import { findCard, type BoardController } from "./use-board";
@@ -157,7 +157,7 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
   return (
     <DetailCard tokens={tokens} style={{ paddingHorizontal: 8, paddingTop: 8, paddingBottom: 8, gap: 6 }} testID="sidebar-stats">
       <View style={{ paddingHorizontal: 4, gap: 2 }}>
-        <Text style={{ fontSize: F.base, fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] }}>{board.strings.total(board.total)}</Text>
+        <RollingTotal board={board} style={{ fontSize: F.base, fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] }} />
         {summary ? (
           <Text numberOfLines={1} style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>
             {summary}
@@ -171,7 +171,7 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
             lane={id}
             label={board.strings.lanes[id]}
             count={board.tasks.ready ? board.lanes[id].cards.length : null}
-            scope={board.scope}
+            scope={board.countScope}
             theme={props.theme}
             tokens={tokens}
             animated={board.visible}

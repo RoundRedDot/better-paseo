@@ -106,7 +106,7 @@ import { StyleSheet, View } from "react-native";
 import { ProviderLogo } from "../../client/components/provider-logo";
 import * as data from "../../client/tasks/data";
 import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
-import { WindowSegments } from "../../client/tasks/board/board-parts";
+import { RollingCount, RollingTotal, WindowSegments } from "../../client/tasks/board/board-parts";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS } from "../../client/tasks/board/params";
@@ -234,6 +234,32 @@ afterEach(() => {
 describe("Tasks board, desktop", () => {
   beforeEach(() => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+  });
+
+  it("rolls the counts through a done window switch on web, not on a tablet, and never through a new filter", () => {
+    const scopes = () => renderer!.root.findAll((node) => node.type === RollingCount).map((node) => node.props.scope as unknown);
+    const pick = (window: "24h" | "7d" | "all") => act(() => renderer!.root.findAll((node) => node.type === WindowSegments)[0]!.props.onChange(window));
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    // The lanes' counts, and the toolbar's and the sidebar's totals.
+    const before = scopes();
+    expect(renderer!.root.findAll((node) => node.type === RollingTotal).every((total) => total.findAll((node) => node.type === RollingCount).length === 1)).toBe(true);
+    pick("all");
+    expect(scopes()).toEqual(before);
+    act(() => renderer!.root.find((node) => (node.type as unknown) === "TextInput").props.onChangeText("api"));
+    expect(scopes().every((scope, index) => scope !== before[index])).toBe(true);
+    act(() => renderer!.unmount());
+
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    const tablet = scopes();
+    // The total shows its number at once there.
+    const totals = renderer!.root.findAll((node) => node.type === RollingTotal);
+    expect(totals.length).toBeGreaterThan(0);
+    for (const total of totals) expect(total.findAll((node) => node.type === RollingCount)).toHaveLength(0);
+    pick("24h");
+    expect(scopes().every((scope, index) => scope !== tablet[index])).toBe(true);
   });
 
   it.each([10, 14, 21])("follows Paseo's %i px UI setting across the toolbar, cards and sort menu", (base) => {
