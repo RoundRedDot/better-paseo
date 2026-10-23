@@ -6,6 +6,7 @@ import { Alert, Platform } from "react-native";
 import { tasksCapabilitiesRpc, tasksReadRpc, tasksStopRpc, tasksStoppedRpc, tasksUnarchiveRpc } from "../../../shared/tasks-rpc";
 import type { TaskCard, TaskPermission, TaskPermissionAction } from "../model";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
+import { confirmDialog } from "../../components/confirm-dialog";
 
 /** One permission button the card draws. `open` jumps to the tab instead of answering. */
 export interface PermissionButton {
@@ -96,8 +97,9 @@ export interface StopControl {
    * First press arms confirmation (unless `board.confirmStop` is off); the second press within 3 s stops.
    * On iOS and Android the first press asks in a system dialog instead: a quick double tap would
    * land both presses inside the 3 s, and Stop is always drawn on a touch card.
+   * `dialog`: ask in a dialog on web too (a context menu's Stop, which has no button to arm).
    */
-  press(card: TaskCard, options?: { withChildren?: boolean }): void;
+  press(card: TaskCard, options?: { withChildren?: boolean; dialog?: boolean }): void;
   /** Esc, pointer leave or timeout. */
   cancel(agentId: string): void;
   /** Esc anywhere on the board: disarms every armed stop. True when one was armed. */
@@ -394,19 +396,29 @@ export function useStopControl(options: {
     });
   }, [addStoppedIds, clearTimer, settle, updatePhase]);
 
-  const press = useCallback((card: TaskCard, stopOptions?: { withChildren?: boolean }) => {
+  const press = useCallback((card: TaskCard, stopOptions?: { withChildren?: boolean; dialog?: boolean }) => {
     if (!available || !card.stoppable) return;
     const agentId = card.id;
     const currentPhase = phasesRef.current[agentId] ?? "idle";
     if (currentPhase === "stopping" || askingRef.current) return;
     const withChildren = stopOptions?.withChildren === true;
 
-    if (options.confirmStop && Platform.OS !== "web") {
+    if (options.confirmStop && (Platform.OS !== "web" || stopOptions?.dialog === true)) {
       askingRef.current = true;
       const close = () => {
         askingRef.current = false;
       };
       const text = stopDialogText(card, stopIds(card, withChildren).length - 1, languageRef.current);
+      if (Platform.OS === "web") {
+        // Electron's native dialog, else the browser's confirm: as Paseo asks before it archives.
+        void confirmDialog({ title: text.title, message: text.message, confirmLabel: text.confirm, cancelLabel: text.cancel, destructive: true })
+          .catch(() => false)
+          .then((yes) => {
+            close();
+            if (yes && mountedRef.current) run(card, withChildren);
+          });
+        return;
+      }
       Alert.alert(text.title, text.message, [
         { text: text.cancel, style: "cancel", onPress: close },
         { text: text.confirm, style: "destructive", onPress: () => {

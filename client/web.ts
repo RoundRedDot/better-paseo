@@ -65,6 +65,39 @@ export function bindRowHover(node: unknown, enter: () => void, leave: () => void
   };
 }
 
+/** A right click on the element, at its window point; the browser's own menu stays shut. */
+export function bindContextMenu(node: unknown, open: (point: { x: number; y: number }, target: EventTarget | null) => void): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const element = node as HTMLElement | null;
+  if (typeof element?.addEventListener !== "function") return () => {};
+  const handle = (event: MouseEvent) => {
+    event.preventDefault();
+    open({ x: event.clientX, y: event.clientY }, event.target);
+  };
+  element.addEventListener("contextmenu", handle);
+  return () => element.removeEventListener("contextmenu", handle);
+}
+
+/**
+ * Lift an empty box to the top layer at a window point, so a menu hung from
+ * it is clipped by no lane and covered by no later card. It stays in the
+ * React tree (and the DOM's) where it was rendered.
+ */
+export function openPointLayer(node: unknown, point: { x: number; y: number }): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const element = node as HTMLElement | null;
+  if (typeof element?.showPopover !== "function") return () => {};
+  element.setAttribute("popover", "manual");
+  Object.assign(element.style, {
+    position: "fixed", inset: "auto", left: `${point.x}px`, top: `${point.y}px`, width: "0px", height: "0px",
+    margin: "0", padding: "0", border: "0", background: "transparent", overflow: "visible",
+  });
+  element.showPopover();
+  return () => {
+    if (element.matches(":popover-open")) element.hidePopover();
+  };
+}
+
 
 /** Keep interactive toolbar details above timeline stacking contexts without moving their React tree. */
 export function openToolbarDetailsLayer(node: unknown, anchor: unknown, side: "above" | "below"): () => void {
