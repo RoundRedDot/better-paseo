@@ -20,7 +20,7 @@ import { normalizeProvider } from "../../components/provider-logo";
 import { classifyAgent } from "../agent-state-bucket";
 import { resolveTasksLanguage } from "../i18n";
 import { fallbackLabelColor } from "../label-colors";
-import { subagentModel } from "../subagent-type";
+import { subagentModel, subagentType } from "../subagent-type";
 import { LANE_ORDER, isHistoryLane, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming, type TaskUsage } from "../model";
 
 export interface WorkspaceOption {
@@ -371,7 +371,7 @@ function subagentChild(subagent: ProviderSubagent, parent: TaskCard): TaskChild 
     status: running ? "running" : "failed",
     kind: "provider",
     subtitle: subagent.subtitle,
-    subagentType: subagent.title,
+    subagentType: subagentType(subagent.title, subagent.subtitle),
     provider: parent.provider,
     lane: running ? "running" : "review",
     timing: {
@@ -440,7 +440,7 @@ function subagentCardsOf(parent: TaskCard): TaskCard[] {
         providerLabel: parent.providerLabel,
         providerMark: parent.providerMark,
         model: null,
-        // The model and effort its facts line names, drawn as an agent's are.
+        // The model and effort its facts line names, drawn as an agent's are; an inherited model is not named.
         modelLabel: facts?.model ?? null,
         thinkingLabel: facts?.thinking ?? null,
         modeLabel: null,
