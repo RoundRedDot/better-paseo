@@ -61,6 +61,8 @@ export interface BoardController {
   paseo: PaseoApi;
   /** The lanes after the filter bar and search. */
   lanes: Record<LaneId, LaneModel>;
+  /** Per lane, the cards the filters leave out, so the lane can say why its count is below the sidebar's. */
+  hidden: Record<LaneId, number>;
   /** The lanes the board draws, left to right: the four, and archived after done when `board.showArchived` is on. */
   laneOrder: readonly LaneId[];
   total: number;
@@ -296,6 +298,10 @@ export function useBoard(
   const lanesRef = useRef(sorted);
   const lanes = useMemo(() => keepSameLanes(lanesRef.current, sorted), [sorted]);
   lanesRef.current = lanes;
+  // Kept while no lane's count changes, so the lanes skip their render as with `keepSameLanes`.
+  const hiddenRef = useRef<Record<LaneId, number> | null>(null);
+  const hidden = useMemo(() => keepSameCounts(hiddenRef.current, hiddenCounts(tasks.lanes, filtered)), [tasks.lanes, filtered]);
+  hiddenRef.current = hidden;
   const total = laneOrder.reduce((sum, id) => sum + lanes[id].cards.length, 0);
   // Switching the archived lane rearranges the lanes as a filter does, twice when it turns on: at once, and when the list with archived agents lands.
   const archivedSettling = showArchived && lanes.archived.loading && lanes.archived.cards.length === 0;
@@ -430,6 +436,7 @@ export function useBoard(
     tasks,
     paseo,
     lanes,
+    hidden,
     laneOrder,
     total,
     countScope,
@@ -449,6 +456,17 @@ export function useBoard(
     notice,
     dismissNotice,
   };
+}
+
+/** Per lane, how many of its cards the filters leave out. */
+export function hiddenCounts(all: Record<LaneId, LaneModel>, shown: Record<LaneId, LaneModel>): Record<LaneId, number> {
+  const out = {} as Record<LaneId, number>;
+  for (const id of LANE_ORDER) out[id] = Math.max(0, all[id].cards.length - shown[id].cards.length);
+  return out;
+}
+
+function keepSameCounts(last: Record<LaneId, number> | null, next: Record<LaneId, number>): Record<LaneId, number> {
+  return last && LANE_ORDER.every((id) => last[id] === next[id]) ? last : next;
 }
 
 /** Where a card sits in the filtered lanes, or null when the filters hide it. */

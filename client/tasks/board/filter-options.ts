@@ -233,6 +233,18 @@ export function activeChips(params: BoardParams, defaults: BoardDefaults, option
 }
 
 /**
+ * The filters that leave cards out, as one line: "Agent: Claude · Hide
+ * subtasks". The done window is left out: it picks which cards load, and the
+ * history lanes' headers name it.
+ */
+export function filterSummary(params: BoardParams, defaults: BoardDefaults, options: FilterOptions, strings: BoardStrings): string {
+  return activeChips(params, defaults, options, strings)
+    .filter((chip) => chip.key !== "win")
+    .map((chip) => (chip.kind ? `${chip.kind}: ${chip.value}` : chip.value))
+    .join(" \u00b7 ");
+}
+
+/**
  * The workspace selection, one chip per project: a whole project picked (the
  * sidebar's project rows pick every workspace) is "Project payments-svc", a
  * few of its workspaces "payments-svc · 3", a single one "payments-svc / fix/refund".
