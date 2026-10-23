@@ -923,6 +923,43 @@ describe("TaskCardView actions", () => {
     expect(hostByTestId(tree.root, "task-card-sample-done").props.onPress).toBeUndefined();
   });
 
+  it("leads a phone card's action bar with Open tab in place of the jump arrow", async () => {
+    const onOpen = vi.fn();
+    const running = await render(cardElement(sample("sample-running"), { compact: true, onOpen, onStop: () => {} }));
+    expect(icons(running.root)).not.toContain("ArrowUpRight");
+    expect(texts(hostByTestId(running.root, "task-card-actions"))).toEqual(["打开 tab", "停止"]);
+    // The details sheet's proportions: Open tab takes the room, Stop is as wide as its label.
+    expect(flat(byLabel(running.root, "打开 tab").props.style)).toMatchObject({ flexGrow: 1 });
+    expect(flat(hostByTestId(running.root, "task-card-stop").props.style)).toMatchObject({ flexGrow: 0 });
+    byLabel(running.root, "打开 tab").props.onPress();
+    expect(onOpen).toHaveBeenCalledWith("sample-running");
+    await act(async () => running.unmount());
+
+    // A done card has nothing else to do, so Open tab stands alone.
+    const done = await render(cardElement(sample("sample-done"), { compact: true }));
+    expect(texts(hostByTestId(done.root, "task-card-actions"))).toEqual(["打开 tab"]);
+    await act(async () => done.unmount());
+
+    // A permission's Allow and Deny follow it; a question's "Answer" already opens the tab.
+    const input = sample("sample-input");
+    const allow = await render(cardElement(input, { compact: true, permissionButtons: permissionButtons(input.permission!, "zh") }));
+    // Beside Allow and Deny it is a square icon, its label read out.
+    const square = byLabel(allow.root, "打开 tab");
+    expect(texts(square)).toEqual([]);
+    expect(icons(square)).toEqual(["AppWindow"]);
+    expect(flat(square.props.style)).toMatchObject({ width: 40, flexGrow: 0 });
+    await act(async () => allow.unmount());
+    const question = { ...input, permission: { requestId: "q", kind: "question" as const, title: "Which database?", summary: null, actions: [], remaining: 0 } };
+    const answer = await render(cardElement(question, { compact: true, onStop: () => {}, permissionButtons: permissionButtons(question.permission!, "zh") }));
+    expect(texts(hostByTestId(answer.root, "task-card-actions"))).toEqual(["去回答", "停止"]);
+    expect(flat(hostByTestId(answer.root, "task-card-stop").props.style)).toMatchObject({ flexGrow: 0 });
+    await act(async () => answer.unmount());
+
+    // Without onOpen there is nothing to open.
+    const none = await render(cardElement(sample("sample-done"), { compact: true, onOpen: undefined }));
+    expect(none.root.findAll((node) => node.props.testID === "task-card-actions")).toEqual([]);
+  });
+
   it("shows Stop only for a stoppable card with onStop, and its confirm state", async () => {
     const onStop = vi.fn();
     const card = sample("sample-child-1");
@@ -973,7 +1010,8 @@ describe("TaskCardView actions", () => {
     // A phone puts it in the action bar, at Stop's touch size.
     const phone = await render(cardElement(card, { onRead, compact: true }));
     const bar = phone.root.find((node) => node.props.testID === "task-card-actions");
-    expect(texts(bar)).toEqual(["标为已读"]);
+    expect(texts(bar)).toEqual(["打开 tab", "标为已读"]);
+    expect(flat(byLabel(bar, "标为已读").props.style)).toMatchObject({ flexGrow: 0 });
     expect(flat(byLabel(bar, "标为已读").props.style)).toMatchObject({ minHeight: 40, borderRadius: 8 });
   });
 

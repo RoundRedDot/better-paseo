@@ -501,7 +501,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   };
 
   // The jump button, on the meta row, or on the title row when the meta row
-  // has nothing to say. Stop sits in the footer, away from it.
+  // has nothing to say. Stop sits in the footer, away from it. A phone has
+  // none: "Open tab" leads its action bar instead.
   const location = card.location;
   const metaParts: string[] = [];
   if (layout.project && location.projectName) metaParts.push(location.projectName);
@@ -509,7 +510,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const metaText = metaParts.join(SEPARATOR);
   const hasMeta = metaText !== "" || card.parent !== null;
   const controlsFor = (line: number) =>
-    props.onOpen ? (
+    props.onOpen && !compact ? (
       <JumpButton
         tokens={tokens}
         compact={compact}
@@ -925,11 +926,30 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
 
   // Phone action bar -------------------------------------------------------
   const buttons = compact && layout.permission ? props.permissionButtons : [];
+  // "Answer" already opens the tab, so it stands in for "Open tab". As in the
+  // details sheet's bar, "Open tab" takes the room Stop or Mark read leaves,
+  // and beside Allow and Deny it is a square icon.
+  const openTab = compact && !!props.onOpen && !buttons.some((button) => button.kind === "open");
+  const openSquare = openTab && buttons.length > 0;
+  // Stop is as wide as its label beside a button that opens the tab ("Open tab" or "Answer").
+  const stopHugs = (openTab && !openSquare) || buttons.some((button) => button.kind === "open");
   const actionBar =
-    compact && (buttons.length > 0 || canStop || canRead) ? (
+    compact && (openTab || buttons.length > 0 || canStop || canRead) ? (
       // One row: no flexWrap, whose Yoga layout left a phantom second row's
       // height under the buttons on Android.
       <View style={{ flexDirection: "row", gap: 8, marginTop: m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
+        {openTab ? (
+          <CardButton
+            label={strings.openTab}
+            look="plain"
+            icon="AppWindow"
+            square={openSquare}
+            tokens={tokens}
+            compact
+            onPress={() => props.onOpen?.(card.id)}
+            testID="task-card-open-tab"
+          />
+        ) : null}
         {buttons.map((button) => (
           <ActionButton
             key={button.key}
@@ -939,8 +959,8 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
             onPress={() => props.onPermission?.(card, button)}
           />
         ))}
-        {canStop ? <StopControl {...stop} compact line={m.buttonHeight} /> : null}
-        {canRead ? <ReadControl {...read} compact line={m.buttonHeight} /> : null}
+        {canStop ? <StopControl {...stop} compact hug={stopHugs} line={m.buttonHeight} /> : null}
+        {canRead ? <ReadControl {...read} compact hug={openTab} line={m.buttonHeight} /> : null}
       </View>
     ) : null;
 
@@ -1273,10 +1293,13 @@ export function CardButton(props: {
   compact: boolean;
   /** Working: a spinner in place of the icon, and no second press. */
   busy?: boolean;
+  /** A phone's icon-only button, as wide as it is high; the label is read out. */
+  square?: boolean;
   onPress(): void;
   testID?: string;
 }) {
   const { tokens, compact, look: kind } = props;
+  const square = compact && props.square === true;
   const scale = useTasksFontScale();
   const look = tokens.card;
   const { hovered: hover, hoverProps } = useHover();
@@ -1309,7 +1332,8 @@ export function CardButton(props: {
       style={{
         // A phone's button grows with a large system font.
         ...(compact ? { minHeight: PHONE.buttonHeight, paddingVertical: 4, ...sizing.box } : { height: taskControlHeight(DESKTOP.buttonHeight, scale) }),
-        paddingHorizontal: compact ? 14 : 10,
+        ...(square ? { width: taskControlHeight(PHONE.buttonHeight, scale), minWidth: 0, flexGrow: 0, flexShrink: 0 } : null),
+        paddingHorizontal: square ? 0 : compact ? 14 : 10,
         borderRadius: compact ? 8 : 6,
         borderWidth: answer ? StyleSheet.hairlineWidth : 1,
         borderColor: border,
@@ -1329,9 +1353,11 @@ export function CardButton(props: {
       ) : props.icon ? (
         <Icon name={props.icon} size={size} color={color} />
       ) : null}
-      <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? F.base : F.sm, fontWeight: "500", color }}>
-        {props.label}
-      </Text>
+      {square ? null : (
+        <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: compact ? F.base : F.sm, fontWeight: "500", color }}>
+          {props.label}
+        </Text>
+      )}
       {/* The one arrow: a label that still ends in its own is trimmed by the caller. */}
       {answer ? <Icon name="ArrowUpRight" size={size} color={color} /> : null}
     </Pressable>
@@ -1349,6 +1375,8 @@ function ReadControl(props: {
   strings: ReturnType<typeof cardStrings>;
   pending: boolean;
   compact: boolean;
+  /** On a phone, as wide as its label: "Open tab" beside it takes the rest. */
+  hug?: boolean;
   /** The line it sits on, so it centres without growing the row. */
   line: number;
   onPress(): void;
@@ -1371,7 +1399,7 @@ function ReadControl(props: {
       {...hoverProps}
       testID="task-card-read"
       style={{
-        ...(compact ? { ...sizing.box, minHeight: height, paddingVertical: 4 } : { flexShrink: 0, height }),
+        ...(compact ? { ...sizing.box, ...(props.hug ? { flexGrow: 0 } : null), minHeight: height, paddingVertical: 4 } : { flexShrink: 0, height }),
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         paddingHorizontal: compact ? 14 : 10,
         borderRadius: compact ? 8 : 6,
@@ -1411,6 +1439,8 @@ interface StopControlProps {
   count: number;
   menuOpen: boolean;
   compact: boolean;
+  /** On a phone, as wide as its label: "Open tab" beside it takes the rest. */
+  hug?: boolean;
   /** The line it sits on, so it centres without growing the row. */
   line: number;
   onPress(): void;
@@ -1479,7 +1509,7 @@ function StopControl(props: StopControlProps) {
         // On a phone the pill shares the action bar like the buttons, as wide
         // as its label: "Confirm stop" takes more than "Stop". Explicit grow
         // and basis, never the `flex` shorthand beside `flexShrink`.
-        ...(compact ? sizing.box : { flexShrink: 0 }),
+        ...(compact ? { ...sizing.box, ...(props.hug ? { flexGrow: 0 } : null) } : { flexShrink: 0 }),
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         zIndex: 40,
       }}
