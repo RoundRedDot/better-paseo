@@ -20,8 +20,8 @@ const en = {
   workspaceArchived: "Workspace archived",
   parentUnknown: "Parent task",
   revealParent: "Show parent task",
-  /** A provider subagent's card: it has no tab, so Open opens its parent's. */
-  openParent: "Open parent task",
+  /** Beside Open tab on a subtask's card: the parent task's tab. */
+  openParent: "Open parent",
   /** A provider subagent's row: it has no card or tab, so it opens its parent's. */
   openParentTab: "Open in the parent's tab",
   subagent: "A subagent inside this task's session, with no tab of its own",
