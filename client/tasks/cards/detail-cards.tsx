@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { openLink } from "../../components/open-link";
@@ -296,14 +296,13 @@ function DetailHeader(props: Inner) {
   const unarchiveButton = unarchive ? (
     <OutlineButton
       icon="ArchiveRestore"
-      label={unarchive.pending(card.id) ? cardText.details.unarchiving : cardText.details.unarchive}
+      label={cardText.details.unarchive}
+      busy={unarchive.pending(card.id)}
       height={m.button}
       font={m.font}
       tokens={tokens}
       grow={!openButton}
-      onPress={() => {
-        if (!unarchive.pending(card.id)) unarchive.press(card.id);
-      }}
+      onPress={() => unarchive.press(card.id)}
       testID="detail-unarchive"
     />
   ) : null;
@@ -1458,17 +1457,23 @@ function OutlineButton(props: {
   font: number;
   tokens: TaskTokens;
   grow?: boolean;
+  /** Working: the same label, dimmed, a spinner in place of the icon, and no second press. */
+  busy?: boolean;
   onPress(): void;
   testID?: string;
 }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
-  const { hovered, hoverProps } = useHover();
+  const { hovered: hover, hoverProps } = useHover();
+  const hovered = hover && !props.busy;
   const danger = props.danger ? dangerColors(tokens, props.danger, hovered) : null;
+  const iconColor = danger?.text ?? tokens.foregroundMuted;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={props.label}
+      accessibilityState={props.busy ? { disabled: true, busy: true } : undefined}
+      disabled={props.busy}
       onPress={props.onPress}
       {...hoverProps}
       testID={props.testID}
@@ -1485,9 +1490,17 @@ function OutlineButton(props: {
         flexDirection: "row",
         alignItems: "center",
         gap: props.grow ? 8 : 6,
+        opacity: props.busy ? 0.6 : 1,
       }}
     >
-      <Icon name={props.icon} size={15} color={danger?.text ?? tokens.foregroundMuted} />
+      {props.busy ? (
+        // The platform's small spinner is 20; scaled into the icon's box so the button keeps its width.
+        <View style={{ width: 15, height: 15, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="small" color={iconColor} style={{ transform: [{ scale: 15 / 20 }] }} testID={props.testID ? `${props.testID}-spinner` : undefined} />
+        </View>
+      ) : (
+        <Icon name={props.icon} size={15} color={iconColor} />
+      )}
       <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: props.font, fontWeight: "500", color: danger?.text ?? tokens.foreground }}>
         {props.label}
       </Text>
@@ -1568,11 +1581,10 @@ export function DetailActionBar(props: {
             <BarButton
               tokens={tokens}
               icon="ArchiveRestore"
-              label={unarchive.pending(card.id) ? cardStrings(props.language).details.unarchiving : cardStrings(props.language).details.unarchive}
+              label={cardStrings(props.language).details.unarchive}
+              busy={unarchive.pending(card.id)}
               primary
-              onPress={() => {
-                if (!unarchive.pending(card.id)) unarchive.press(card.id);
-              }}
+              onPress={() => unarchive.press(card.id)}
               testID="detail-bar-unarchive"
             />
           ) : null}
@@ -1582,16 +1594,19 @@ export function DetailActionBar(props: {
   );
 }
 
-function BarButton(props: { tokens: TaskTokens; icon?: string; stop?: DangerLook; label: string; primary?: boolean; danger?: boolean; square?: boolean; grow?: boolean; onPress(): void; testID?: string }) {
+function BarButton(props: { tokens: TaskTokens; icon?: string; stop?: DangerLook; label: string; primary?: boolean; danger?: boolean; square?: boolean; grow?: boolean; busy?: boolean; onPress(): void; testID?: string }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
   const height = taskControlHeight(48, scale);
   const stop = props.stop ? dangerColors(tokens, props.stop, false) : null;
   const text = stop?.text ?? (props.primary ? tokens.card.onStrong : props.danger ? tokens.danger : tokens.foreground);
+  const iconColor = props.primary || stop ? text : tokens.foregroundMuted;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={props.label}
+      accessibilityState={props.busy ? { disabled: true, busy: true } : undefined}
+      disabled={props.busy}
       onPress={props.onPress}
       testID={props.testID}
       style={({ pressed }) => ({
@@ -1604,14 +1619,21 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; stop?: DangerLook
         borderWidth: 1,
         borderColor: stop?.border ?? (props.primary ? tokens.accent : tokens.border),
         backgroundColor: stop?.fill ?? (props.primary ? tokens.accent : tokens.card.background),
-        opacity: pressed ? 0.85 : 1,
+        opacity: props.busy ? 0.6 : pressed ? 0.85 : 1,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
       })}
     >
-      {props.icon ? <Icon name={props.icon} size={18} color={props.primary || stop ? text : tokens.foregroundMuted} /> : null}
+      {props.busy ? (
+        // The platform's small spinner is 20; scaled into the icon's box so the button keeps its width.
+        <View style={{ width: 18, height: 18, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="small" color={iconColor} style={{ transform: [{ scale: 18 / 20 }] }} testID={props.testID ? `${props.testID}-spinner` : undefined} />
+        </View>
+      ) : props.icon ? (
+        <Icon name={props.icon} size={18} color={iconColor} />
+      ) : null}
       {props.square ? null : (
         <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.base, fontWeight: "600", color: text }}>
           {props.label}
