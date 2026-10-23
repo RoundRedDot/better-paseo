@@ -35,6 +35,8 @@ export interface HostDaemon extends SeedDaemon {
   clearAgentAttention(agentId: string | string[]): Promise<void>;
   /** The label definitions; a daemon from before workspace labels lacks it. */
   listWorkspaceLabels?(): Promise<{ labels: Array<{ name: string; color: string }> }>;
+  /** A project's icon, uploaded or found in its repository; a daemon from before project icons lacks it. */
+  getProjectIcon?(projectId: string): Promise<{ icon: { data: string; mimeType: string } | null; error?: string | null }>;
 }
 
 /** A failure stays on the board this long at most; a new prompt to the parent clears it sooner. */

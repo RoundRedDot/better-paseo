@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { filterLanes, setLabelDefinitionsLoader, setLastTurnLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import { filterLanes, setLabelDefinitionsLoader, setLastTurnLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -768,14 +768,72 @@ describe("Tasks data store", () => {
         for (let index = 0; index < 4; index += 1) await Promise.resolve();
       });
       expect(mounted.current.workspaces[0]!.projectIcon).toBe("data:image/png;base64,aW1hZ2U=");
-      // A new revision drops the stale icon until it is fetched again.
+      // A new revision drops the stale icon and fetches the new one, though no card asks again.
       await act(async () => {
         host.upsertProject({ ...PROJECT, projectIconRevision: "rev-2" });
-        await Promise.resolve();
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
       });
-      expect(mounted.current.workspaces[0]!.projectIcon).toBeNull();
+      expect(host.calls.filter((call) => call.method === "projects.icon")).toHaveLength(2);
+      expect(mounted.current.workspaces[0]!.projectIcon).toBe("data:image/png;base64,aW1hZ2U=");
     } finally {
       mounted.unmount();
+    }
+  });
+
+  it("reads icons from the server in one batch on a host whose API has no icon call", async () => {
+    const host = createFakePaseo({
+      agents: [activeAgent("a", { status: "running" })],
+      workspaces: [workspace()],
+      projects: [PROJECT, { ...PROJECT, projectId: "other", projectKey: "other-key" }],
+    });
+    const loader = vi.fn(async (projectIds: string[]) => projectIds.map((projectId) => ({ projectId, icon: projectId === "project-id" ? { data: "aW1hZ2U=", mimeType: "image/png" } : null })));
+    setProjectIconsLoader(loader);
+    try {
+      const mounted = await mountTasks(host, "24h", false);
+      try {
+        await act(async () => {
+          mounted.current.requestProjectIcon("project-id");
+          mounted.current.requestProjectIcon("other");
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          for (let index = 0; index < 4; index += 1) await Promise.resolve();
+        });
+        expect(loader.mock.calls).toEqual([[["project-id", "other"]]]);
+        expect(mounted.current.byId.get("a")?.location.projectIcon).toBe("data:image/png;base64,aW1hZ2U=");
+        // A project without an icon is answered too, so it is not asked again.
+        await act(async () => {
+          mounted.current.requestProjectIcon("other");
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+        expect(loader).toHaveBeenCalledTimes(1);
+        expect(mounted.current.error).toBeNull();
+      } finally {
+        mounted.unmount();
+      }
+    } finally {
+      setProjectIconsLoader(null);
+    }
+  });
+
+  it("keeps the generated icons, without a board error, when the server cannot read them", async () => {
+    const host = createFakePaseo({ agents: [activeAgent("a", { status: "running" })], workspaces: [workspace()], projects: [PROJECT] });
+    setProjectIconsLoader(async () => {
+      throw new Error("no daemon");
+    });
+    try {
+      const mounted = await mountTasks(host, "24h", false);
+      try {
+        await act(async () => {
+          mounted.current.requestProjectIcon("project-id");
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          for (let index = 0; index < 4; index += 1) await Promise.resolve();
+        });
+        expect(mounted.current.byId.get("a")?.location.projectIcon).toBeNull();
+        expect(mounted.current.error).toBeNull();
+      } finally {
+        mounted.unmount();
+      }
+    } finally {
+      setProjectIconsLoader(null);
     }
   });
 

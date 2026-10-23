@@ -326,6 +326,16 @@ export function setLabelDefinitionsLoader(next: LabelDefinitionsLoader | null): 
   labelDefinitionsLoader = next;
 }
 
+/** `tasks.project-icons`: the projects' icons, for a host whose API has no icon call; null when the server cannot read them. */
+export type ProjectIconsLoader = (projectIds: string[]) => Promise<Array<{ projectId: string; icon: { data: string; mimeType: string } | null }> | null>;
+
+let projectIconsLoader: ProjectIconsLoader | null = null;
+
+/** `contribute` sets the loader; icons are read when a card or a filter row first draws a project. */
+export function setProjectIconsLoader(next: ProjectIconsLoader | null): void {
+  projectIconsLoader = next;
+}
+
 function epoch(value: string | null | undefined): number {
   const parsed = value ? Date.parse(value) : Number.NaN;
   return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
@@ -767,6 +777,8 @@ function createStore(api: PaseoApi): TaskStore {
   const resolvedParents = new Map<string, { title: string | null; archived: boolean | null }>();
   const projectIcons = new Map<string, ProjectIconValue>();
   const iconRequests = new Set<string>();
+  /** Icons asked of the server's loader in this task, sent together as one `tasks.project-icons` call. */
+  let iconBatch: Map<string, Array<(icon: { data: string; mimeType: string } | null) => void>> | null = null;
   const lastTurns = new Map<string, TurnSpan>();
   /** The plugin server's error for each agent's latest recorded turn, when it had one. */
   const turnErrors = new Map<string, TurnError>();
@@ -1662,7 +1674,11 @@ function createStore(api: PaseoApi): TaskStore {
     projects.set(project.projectId, project);
     if (previous?.projectIconRevision !== project.projectIconRevision) {
       const icon = projectIcons.get(project.projectId);
-      if (icon && icon.revision !== (project.projectIconRevision ?? null)) projectIcons.delete(project.projectId);
+      // A drawn project's icon changed (or loaded before its project did): fetch the new one.
+      if (icon && icon.revision !== (project.projectIconRevision ?? null)) {
+        projectIcons.delete(project.projectId);
+        requestProjectIcon(project.projectId);
+      }
     }
     for (const [id, entry] of entries) {
       const workspace = entry.agent.workspaceId ? workspaces.get(entry.agent.workspaceId) : undefined;
@@ -2128,9 +2144,39 @@ function createStore(api: PaseoApi): TaskStore {
     });
   }
 
+  /**
+   * One project's icon: from the host's API where it has the call, else from
+   * the plugin server, batched with the other projects asked for in the same
+   * task (opening a filter menu asks for every project at once).
+   */
+  function fetchProjectIcon(projectId: string): Promise<{ data: string; mimeType: string } | null> {
+    const iconApi = api.projects as PaseoApi["projects"] & OptionalProjectIconsApi;
+    if (typeof iconApi.icon === "function") return iconApi.icon(projectId).then((result) => result.icon);
+    return new Promise((resolve) => {
+      if (!iconBatch) {
+        const batch = new Map<string, Array<(icon: { data: string; mimeType: string } | null) => void>>();
+        iconBatch = batch;
+        setTimeout(() => {
+          if (iconBatch === batch) iconBatch = null;
+          const settle = (icons: Map<string, { data: string; mimeType: string } | null>) => {
+            for (const [id, waiting] of batch) for (const done of waiting) done(icons.get(id) ?? null);
+          };
+          const loader = projectIconsLoader;
+          if (!loader) return settle(new Map());
+          // A server that cannot read the icons leaves the generated ones: an icon is not worth a board error.
+          loader([...batch.keys()]).then(
+            (icons) => settle(new Map((icons ?? []).map((entry) => [entry.projectId, entry.icon]))),
+            () => settle(new Map()),
+          );
+        }, 0);
+      }
+      iconBatch.set(projectId, [...(iconBatch.get(projectId) ?? []), resolve]);
+    });
+  }
+
   function requestProjectIcon(projectId: string) {
     const iconApi = api.projects as PaseoApi["projects"] & OptionalProjectIconsApi;
-    if (typeof iconApi.icon !== "function") return;
+    if (typeof iconApi.icon !== "function" && !projectIconsLoader) return;
     const revision = projects.get(projectId)?.projectIconRevision ?? null;
     const cached = projectIcons.get(projectId);
     if (cached?.revision === revision) return;
@@ -2138,7 +2184,7 @@ function createStore(api: PaseoApi): TaskStore {
     if (iconRequests.has(requestKey)) return;
     iconRequests.add(requestKey);
     const run = generation;
-    void iconApi.icon(projectId).then((result) => {
+    void fetchProjectIcon(projectId).then((data) => {
       iconRequests.delete(requestKey);
       if (run !== generation) return;
       // The project arrived or changed its icon meanwhile; the card asks only once, so ask again for the new revision.
@@ -2146,7 +2192,6 @@ function createStore(api: PaseoApi): TaskStore {
         requestProjectIcon(projectId);
         return;
       }
-      const data = result.icon;
       const uri = data ? `data:${data.mimeType};base64,${data.data}` : null;
       projectIcons.set(projectId, { revision, uri });
       for (const [id, entry] of entries) {

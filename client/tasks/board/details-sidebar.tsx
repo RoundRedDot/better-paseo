@@ -11,6 +11,7 @@ import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { useSessionTokens } from "../data/session-tokens";
 import { FILTER_ICONS, buildFilterOptions, clearedParams, filterSummary, shownFilterOptions, toggleProject, type FilterOption } from "./filter-options";
 import { RollingCount, RollingTotal } from "./board-parts";
+import { useRequestProjectIcons } from "./project-icons";
 import { toggleItem } from "./params";
 import type { SelectionAction, SidebarSelection } from "./sidebar-model";
 import { findCard, type BoardController } from "./use-board";
@@ -302,12 +303,7 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
       }))
       .sort(byCount);
   }, [kind, options, board, tokens]);
-  // The rows' projects may have no card on screen to fetch their icon; the data layer dedupes the fetch.
-  const iconsFor = [...new Set(rows.flatMap((row) => (row.iconFor ? [row.iconFor] : [])))].join("\n");
-  const { requestProjectIcon } = board.tasks;
-  useEffect(() => {
-    if (iconsFor) for (const projectId of iconsFor.split("\n")) requestProjectIcon(projectId);
-  }, [iconsFor, requestProjectIcon]);
+  useRequestProjectIcons([...new Set(rows.flatMap((row) => (row.iconFor ? [row.iconFor] : [])))], board.tasks.requestProjectIcon);
 
   return (
     <DetailCard tokens={tokens} style={{ flexShrink: 1, minHeight: 0, paddingTop: 10, paddingBottom: 6 }} testID="sidebar-groups">

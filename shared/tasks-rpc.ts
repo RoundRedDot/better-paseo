@@ -171,3 +171,18 @@ export const tasksLabelsRpc = defineRpc({
   input: z.object({}),
   output: z.object({ labels: z.array(z.object({ name: z.string(), color: z.string() })).nullable() }),
 });
+
+/**
+ * Projects' icons as Paseo's sidebar draws them: the uploaded image, or the
+ * one the daemon found in the repository. `PaseoApi` has no icon call on
+ * hosts up to 0.12, so the server reads them over its own connection to the
+ * daemon, several projects per call. A project without an icon has `icon:
+ * null`; the whole answer is null when the server cannot reach the daemon.
+ */
+export const tasksProjectIconsRpc = defineRpc({
+  name: "tasks.project-icons",
+  input: z.object({ projectIds: z.array(z.string().min(1)).min(1).max(200) }),
+  output: z.object({
+    icons: z.array(z.object({ projectId: z.string(), icon: z.object({ data: z.string(), mimeType: z.string() }).nullable() })).nullable(),
+  }),
+});
