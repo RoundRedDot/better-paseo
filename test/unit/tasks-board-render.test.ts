@@ -1056,6 +1056,20 @@ describe("Tasks board, tablet filters", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
   });
 
+  it("sets lane names and card titles a step under the desktop's, at the meta row's size", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(1600);
+    const font = (node: ReactTestInstance) => StyleSheet.flatten(node.props.style).fontSize;
+    const title = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-title")[0]!;
+    const meta = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-meta-location")[0]!;
+    const lane = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "lane-header-running");
+    expect(font(title)).toBe(font(meta));
+    expect(font(lane.findAll((node) => (node.type as unknown) === "Text")[0]!)).toBe(font(meta));
+    expect(StyleSheet.flatten(title.props.style).lineHeight).toBeGreaterThan(StyleSheet.flatten(meta.props.style).lineHeight);
+  });
+
   it("folds a narrow board's header into one row, its filters, sort and lane width behind one button", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
