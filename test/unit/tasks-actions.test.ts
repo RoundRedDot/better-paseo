@@ -9,6 +9,7 @@ import {
   STOP_VERIFY_MS,
   READ_VERIFY_MS,
   useReadControl,
+  stopDialogText,
   useStopControl,
   useUnarchiveControl,
   type ReadControl,
@@ -26,7 +27,11 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   toastError: vi.fn(),
   language: vi.fn((): "en" | "zh" => "en"),
+  platform: { OS: "web" as string },
+  alert: vi.fn(),
 }));
+
+vi.mock("react-native", () => ({ Platform: mocks.platform, Alert: { alert: mocks.alert } }));
 
 vi.mock("@getpaseo/plugin/client", () => ({
   useRpc(contract: { name: string }) {
@@ -138,7 +143,7 @@ function StopProbe({ confirmStop, verify = false }: { confirmStop: boolean; veri
 }
 
 function taskCard(id: string, children: TaskCard["children"] = []): TaskCard {
-  return { id, stoppable: true, children } as unknown as TaskCard;
+  return { id, title: `Task ${id}`, stoppable: true, children } as unknown as TaskCard;
 }
 
 function deferred<T>() {
@@ -158,6 +163,8 @@ describe("Tasks stop control", () => {
     mocks.stopped.mockReset().mockResolvedValue({ stops: [] });
     mocks.toastError.mockReset();
     mocks.language.mockReturnValue("en");
+    mocks.platform.OS = "web";
+    mocks.alert.mockReset();
     activeAgents.clear();
   });
 
@@ -259,6 +266,92 @@ describe("Tasks stop control", () => {
 
     expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["parent", "running-child", "waiting-child"] });
     expect(mounted.control().phase("parent")).toBe("idle");
+  });
+
+  type AlertButton = { text: string; style: string; onPress(): void };
+  const lastAlert = () => {
+    const [title, message, buttons, options] = mocks.alert.mock.lastCall as [string, string, AlertButton[], { onDismiss(): void }];
+    return { title, message, buttons, options, cancel: buttons[0]!, confirm: buttons[1]! };
+  };
+
+  it.each(["ios", "android"])("asks in a system dialog on %s, and a double tap never stops", async (os) => {
+    mocks.platform.OS = os;
+    mocks.stop.mockResolvedValue({ results: [{ agentId: "agent-a", ok: true, error: null }] });
+    const mounted = await mount(true);
+    const card = taskCard("agent-a");
+
+    act(() => mounted.control().press(card));
+    act(() => mounted.control().press(card));
+    expect(mocks.alert).toHaveBeenCalledTimes(1);
+    expect(mounted.control().phase("agent-a")).toBe("idle");
+    expect(mocks.stop).not.toHaveBeenCalled();
+    const dialog = lastAlert();
+    expect(dialog).toMatchObject({ title: "Stop \u201cTask agent-a\u201d?", message: "Its current turn ends now." });
+    expect(dialog.confirm).toMatchObject({ text: "Stop", style: "destructive" });
+    expect(dialog.cancel).toMatchObject({ text: "Cancel", style: "cancel" });
+
+    await act(async () => {
+      dialog.confirm.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["agent-a"] });
+    expect(mounted.control().stoppedManually.has("agent-a")).toBe(true);
+  });
+
+  it("stops nothing when the dialog is cancelled or dismissed, and asks again on the next press", async () => {
+    mocks.platform.OS = "ios";
+    const mounted = await mount(true);
+    const card = taskCard("agent-a");
+
+    act(() => mounted.control().press(card));
+    act(() => lastAlert().cancel.onPress());
+    act(() => mounted.control().press(card));
+    act(() => lastAlert().options.onDismiss());
+    act(() => mounted.control().press(card));
+
+    expect(mocks.alert).toHaveBeenCalledTimes(3);
+    expect(mocks.stop).not.toHaveBeenCalled();
+  });
+
+  it("names the subtasks a native stop takes along, and stops them on confirm", async () => {
+    mocks.platform.OS = "android";
+    mocks.language.mockReturnValue("zh");
+    const mounted = await mount(true);
+    const card = taskCard("parent", [
+      { id: "running-child", title: "Running", status: "running" },
+      { id: "done-child", title: "Done", status: "done" },
+    ]);
+
+    act(() => mounted.control().press(card, { withChildren: true }));
+    expect(lastAlert()).toMatchObject({ title: "停止「Task parent」？", message: "1 个运行中的子任务也会一起停止。" });
+    expect(lastAlert().confirm.text).toBe("全部停止");
+    await act(async () => {
+      lastAlert().confirm.onPress();
+      await Promise.resolve();
+    });
+    expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["parent", "running-child"] });
+  });
+
+  it("stops on the first press on native when confirmation is off", async () => {
+    mocks.platform.OS = "ios";
+    const mounted = await mount(false);
+    await act(async () => {
+      mounted.control().press(taskCard("agent-a"));
+      await Promise.resolve();
+    });
+    expect(mocks.alert).not.toHaveBeenCalled();
+    expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["agent-a"] });
+  });
+
+  it("leads the dialog with the task's title, cut when long, and counts the subtasks", () => {
+    const card = taskCard("agent-a");
+    expect(stopDialogText(card, 1, "en")).toMatchObject({ message: "Its 1 running subtask stops too.", confirm: "Stop all" });
+    expect(stopDialogText(card, 3, "en").message).toBe("Its 3 running subtasks stop too.");
+    expect(stopDialogText(card, 0, "zh")).toEqual({ title: "停止「Task agent-a」？", message: "当前回合会立即中断。", cancel: "取消", confirm: "停止" });
+    const long = { ...card, title: "x".repeat(80) };
+    expect(stopDialogText(long, 0, "en").title).toBe(`Stop \u201c${"x".repeat(59)}\u2026\u201d?`);
+    expect(stopDialogText({ ...card, title: "  " }, 0, "zh").title).toBe("停止任务？");
   });
 
   it("disarms every armed stop at once (Esc), and says when none was armed", async () => {
