@@ -168,6 +168,7 @@ const en = {
     uncommittedNote: "uncommitted changes",
     cannotJump: "can't open",
     unarchive: "Unarchive",
+    archive: "Archive",
     offBoard: "Not on the board",
   },
 };
@@ -337,6 +338,7 @@ const zh: CardStrings = {
     uncommittedNote: "未提交改动",
     cannotJump: "无法跳转",
     unarchive: "取消归档",
+    archive: "归档",
     offBoard: "不在看板上",
   },
 };

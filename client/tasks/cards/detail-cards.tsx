@@ -164,6 +164,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   sessionTokens?: SessionTokens | null;
   /** Unarchive for an archived parent, and for an archived card itself; absent where this host cannot. */
   unarchive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
+  /** Archive for a done task; absent where the board has none (the settings preview). */
+  archive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
   /** The sections scroll under the fixed header (the sidebar); else the card grows with them (the sheet). */
   scrollBody?: boolean;
   /**
@@ -275,7 +277,8 @@ function DetailHeader(props: Inner) {
   const stop = stopLabel(props);
   // An archived task can be brought back; one of an archived workspace has nothing of its own to unarchive.
   const unarchive = card.archived === "agent" ? props.unarchive ?? null : null;
-  const showActions = props.actions !== false && (!!props.onOpen || !!stop || !!unarchive);
+  const archive = archivable(card) ? props.archive ?? null : null;
+  const showActions = props.actions !== false && (!!props.onOpen || !!stop || !!unarchive || !!archive);
   // Open tab takes the row's room: first on desktop, last on touch, where the
   // phone's bar and the cards end with it too.
   const openButton = props.onOpen ? (
@@ -304,6 +307,20 @@ function DetailHeader(props: Inner) {
       grow={!openButton}
       onPress={() => unarchive.press(card.id)}
       testID="detail-unarchive"
+    />
+  ) : null;
+  // A done task's Archive sits beside Open tab.
+  const archiveButton = archive ? (
+    <OutlineButton
+      icon="Archive"
+      label={cardText.details.archive}
+      busy={archive.pending(card.id)}
+      height={m.button}
+      font={m.font}
+      tokens={tokens}
+      grow={!openButton}
+      onPress={() => archive.press(card.id)}
+      testID="detail-archive"
     />
   ) : null;
   const lead = openButton ?? unarchiveButton;
@@ -416,6 +433,7 @@ function DetailHeader(props: Inner) {
               testID="detail-stop"
             />
           ) : null}
+          {archiveButton}
           {openButton ? unarchiveButton : null}
           {touch ? lead : null}
         </View>
@@ -1551,18 +1569,20 @@ export function DetailActionBar(props: {
   permissionButtons?: PermissionButton[];
   onPermission?(button: PermissionButton): void;
   unarchive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
+  archive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
 }) {
   const { card } = props;
   const onOpen = opensInPaseo(card) ? props.onOpen : undefined;
   // An archived task's main button is Unarchive, in Open tab's place.
   const unarchive = card.archived === "agent" ? props.unarchive ?? null : null;
+  const archive = archivable(card) ? props.archive ?? null : null;
   const tokens = taskTokens(props.theme);
   const stop = stopLabel(props as TaskDetailCardsProps);
   const buttons = card.lane === "needs_input" && props.onPermission ? (props.permissionButtons ?? []) : [];
   const respond = buttons.filter((button) => button.kind === "respond");
   const answer = buttons.find((button) => button.kind === "open");
   const asking = respond.length > 0 || !!answer;
-  if (!onOpen && !stop && !asking && !unarchive) return null;
+  if (!onOpen && !stop && !asking && !unarchive && !archive) return null;
   const open = () => onOpen?.(card.id);
   // Deny first, allow last: the main button sits under the thumb.
   const ordered = [...respond].sort((a, b) => (a.action.behavior === "allow" ? 1 : 0) - (b.action.behavior === "allow" ? 1 : 0));
@@ -1597,6 +1617,17 @@ export function DetailActionBar(props: {
               testID="detail-bar-stop"
             />
           ) : null}
+          {archive ? (
+            <BarButton
+              tokens={tokens}
+              icon="Archive"
+              label={cardStrings(props.language).details.archive}
+              busy={archive.pending(card.id)}
+              grow={!onOpen}
+              onPress={() => archive.press(card.id)}
+              testID="detail-bar-archive"
+            />
+          ) : null}
           {onOpen ? <BarButton tokens={tokens} icon="AppWindow" label={openLabel(props as TaskDetailCardsProps)} primary onPress={open} testID="detail-bar-open" /> : null}
           {unarchive ? (
             <BarButton
@@ -1613,6 +1644,11 @@ export function DetailActionBar(props: {
       )}
     </View>
   );
+}
+
+/** A done task, not archived: Archive is offered for it. */
+function archivable(card: TaskCard): boolean {
+  return card.lane === "done" && !card.archived;
 }
 
 function BarButton(props: { tokens: TaskTokens; icon?: string; stop?: DangerLook; label: string; primary?: boolean; danger?: boolean; square?: boolean; grow?: boolean; busy?: boolean; onPress(): void; testID?: string }) {

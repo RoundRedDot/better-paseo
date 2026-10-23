@@ -272,6 +272,30 @@ describe("TaskCardView on web", () => {
     await act(async () => done.unmount());
   });
 
+  it("floats Archive before Open tab on a done task's hover, spinning while it runs", async () => {
+    const onOpen = vi.fn();
+    const onArchive = vi.fn();
+    const renderer = await render(React.createElement(TaskCardView, props("sample-done", { onOpen, onArchive })));
+    await act(async () => hovers.get("task-card-sample-done")!.enter());
+    const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-archive-overlay");
+    const buttons = overlay.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    expect(buttons.map((node) => node.props.accessibilityLabel)).toEqual(["归档", "打开 tab"]);
+    await act(async () => buttons[0]!.props.onPress());
+    expect(onArchive).toHaveBeenCalledWith("sample-done");
+    expect(onOpen).not.toHaveBeenCalled();
+
+    await act(async () => renderer.update(React.createElement(TaskCardView, props("sample-done", { onOpen, onArchive, archivePending: true }))));
+    const busy = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-archive");
+    expect(busy.props.disabled).toBe(true);
+    await act(async () => renderer.unmount());
+
+    // Only the done lane: a running task has no Archive.
+    const running = await render(React.createElement(TaskCardView, props("sample-child-1", { onOpen, onArchive })));
+    await act(async () => hovers.get("task-card-sample-child-1")!.enter());
+    expect(running.root.findAll((node) => node.props.testID === "task-card-archive")).toHaveLength(0);
+    await act(async () => running.unmount());
+  });
+
   it("floats Unarchive in Open tab's place on an archived task's hover", async () => {
     const onOpen = vi.fn();
     const onUnarchive = vi.fn();
@@ -465,6 +489,28 @@ describe("TaskCardView right-click menu", () => {
     await act(async () => contextMenus.get("task-card-sample-archived-workspace")!({ x: 0, y: 0 }, null));
     expect(rows(workspace.root)).not.toContain("取消归档");
     await act(async () => workspace.unmount());
+  });
+
+  it("offers Archive on a done task, and not while it runs", async () => {
+    const onArchive = vi.fn();
+    const done = await render(React.createElement(TaskCardView, props("sample-done", { onArchive })));
+    await act(async () => contextMenus.get("task-card-sample-done")!({ x: 0, y: 0 }, null));
+    expect(rows(done.root).at(-1)).toBe("归档");
+    await choose(done.root, "归档");
+    expect(onArchive).toHaveBeenCalledWith("sample-done");
+    await act(async () => done.update(React.createElement(TaskCardView, props("sample-done", { onArchive, archivePending: true }))));
+    await act(async () => contextMenus.get("task-card-sample-done")!({ x: 0, y: 0 }, null));
+    expect(rows(done.root)).not.toContain("归档");
+    await act(async () => done.unmount());
+
+    const running = await render(React.createElement(TaskCardView, props("sample-running", { onArchive })));
+    await act(async () => contextMenus.get("task-card-sample-running")!({ x: 0, y: 0 }, null));
+    expect(rows(running.root)).not.toContain("归档");
+    await act(async () => running.unmount());
+    const archived = await render(React.createElement(TaskCardView, props("sample-archived", { onArchive })));
+    await act(async () => contextMenus.get("task-card-sample-archived")!({ x: 0, y: 0 }, null));
+    expect(rows(archived.root)).not.toContain("归档");
+    await act(async () => archived.unmount());
   });
 
   it("leaves a right click inside the open menu alone", async () => {

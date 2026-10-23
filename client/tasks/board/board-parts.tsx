@@ -358,6 +358,7 @@ export function CardCell(props: CardCellProps) {
             stopPhase={board.stop.phase(card.id)}
             readPending={board.read.pending(card.id)}
             unarchivePending={board.unarchive.pending(card.id)}
+            archivePending={board.archive.pending(card.id)}
             focused={props.focused ?? false}
             current={props.current}
             highlighted={board.highlighted === card.id}
