@@ -955,7 +955,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
       style={[styles.container, { backgroundColor: tokens.v2.surface0 }]}
     >
       <View style={compact ? styles.introInset : styles.introDesktop}>
-        <View style={styles.tabs}>
+        <View style={tab === "display" ? styles.tabs : null}>
           <Segmented<SettingsTab>
             label={t.tabsLabel}
             value={tab}
@@ -967,12 +967,16 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
             look={look}
           />
         </View>
-        <Text style={[styles.title, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
-          {tab === "tasks" ? t.tabTasks : t.pageTitle}
-        </Text>
-        <Text style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-          {t.pageIntro}
-        </Text>
+        {tab === "display" ? (
+          <>
+            <Text style={[styles.title, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+              {t.pageTitle}
+            </Text>
+            <Text style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+              {t.pageIntro}
+            </Text>
+          </>
+        ) : null}
         {hint && tab === "display" ? (
           <Text
             accessibilityRole="alert"

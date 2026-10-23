@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_TASKS_SETTINGS, applyDensity, effectiveCard } from "../../shared/tasks-settings";
 
 // The Tasks board on Better Paseo's settings page: the entry at the head of
@@ -7,11 +7,18 @@ import { DEFAULT_TASKS_SETTINGS, applyDensity, effectiveCard } from "../../share
 // a hand edit makes the density custom, the preview follows the switches,
 // reset asks first, and an unusable record offers a reset.
 
-const state = vi.hoisted(() => ({ current: null as unknown, previews: [] as Array<Record<string, unknown>> }));
+const state = vi.hoisted(() => ({ current: null as unknown, previews: [] as Array<Record<string, unknown>>, language: "en" as "en" | "zh" }));
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", () => ({ useSettings: () => state.current, useRpc: () => vi.fn() }));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ useToast: () => ({ show() {} }) }));
-vi.mock("../../client/tasks/i18n", () => ({ useTasksLanguage: () => "en", resolveTasksLanguage: () => "en" }));
+vi.mock("@getpaseo/plugin/client/react-native", () => ({ TextInput: "TextInput", useToast: () => ({ show() {} }) }));
+vi.mock("../../client/tasks/i18n", () => ({ useTasksLanguage: () => state.language, resolveTasksLanguage: () => state.language }));
+vi.mock("../../client/tasks/chunk/load", async () => import("../../client/tasks/settings/tasks-panel"));
+vi.mock("../../client/state/preference-sync-slot", () => ({ usePreferenceSettings: () => ({ status: "ready", failed: false }) }));
+vi.mock("../../client/ui/tokens/host-appearance-shim", () => ({ useHostAppearance: () => null }));
+vi.mock("../../client/i18n/host-language", async (original) => ({ ...await original<object>(), useHostLanguageVersion() {} }));
+vi.mock("../../client/ui/wide-host-column", () => ({ useWideHostColumn() {} }));
+vi.mock("../../client/settings-preview", () => ({ SettingsPreview: () => null }));
+vi.mock("../../client/components/embed-fonts", () => ({ ensureEmbeddedFonts() {} }));
 vi.mock("../../client/tasks/cards", async () => {
   const React = await import("react");
   return {
@@ -30,6 +37,10 @@ const { TasksEntrySection, TasksSettingsPanel } = await import("../../client/tas
 const { resetTasksEnabled, setTasksBoardOpener, tasksEnabled } = await import("../../client/tasks/board/enabled");
 const { SETTINGS_STRINGS } = await import("../../client/i18n/settings-strings");
 const { resetEnabledNotice } = await import("../../client/tasks/settings/use-tasks-form");
+const { BetterPaseoSettingsPage } = await import("../../client/settings-page");
+const { setSettingsTab } = await import("../../client/settings-tab");
+const { resetEnhancerPreferences, updateEnhancerPreferences } = await import("../../client/preferences");
+const { TASKS_SETTINGS_STRINGS } = await import("../../client/tasks/settings/strings");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 type Renderer = ReturnType<typeof TestRenderer.create>;
@@ -87,11 +98,44 @@ const lastSaved = (api: ReturnType<typeof makeSettings>) => (api.save.mock.calls
 
 beforeEach(() => {
   state.previews = [];
+  state.language = "en";
   resetTasksEnabled();
   resetEnabledNotice();
 });
 
+afterEach(() => {
+  resetEnhancerPreferences();
+  setSettingsTab("display");
+});
+
 describe("Tasks half of the settings page", () => {
+  it.each([
+    ["en", false], ["en", true], ["zh", false], ["zh", true],
+  ] as const)("merges the intro and enable switch into one card (%s, compact=%s)", (language, compact) => {
+    makeSettings();
+    state.language = language;
+    updateEnhancerPreferences({ language });
+    setSettingsTab("tasks");
+    let r!: Renderer;
+    act(() => {
+      r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, {
+        theme: theme as never,
+        layout: { platform: "web", compact } as never,
+        host: {} as never,
+      }));
+    });
+    const strings = TASKS_SETTINGS_STRINGS[language];
+    const intro = SETTINGS_STRINGS[language].pageIntro;
+    const textNodes = r.root.findAll((node) => (node.type as unknown) === "Text");
+    expect(textNodes.filter((node) => textOf(node).includes(intro))).toHaveLength(1);
+    expect(textNodes.some((node) => textOf(node) === `${strings.enabledHint}\n${intro}`)).toBe(true);
+    // The only remaining board title is the tab label.
+    expect(textNodes.filter((node) => textOf(node) === strings.enabledTitle)).toHaveLength(1);
+    expect(byLabel(r, strings.enabled).props.accessibilityRole).toBe("switch");
+    expect(byTestID(r, "tasks-preview-card")).toHaveLength(1);
+    act(() => r.unmount());
+  });
+
   it("picking a preset writes every switch", async () => {
     const api = makeSettings();
     const r = panel();
