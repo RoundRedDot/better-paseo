@@ -1466,6 +1466,31 @@ describe("Tasks data store", () => {
       }
     });
 
+    it("counts a running subagent's card in the sidebar's running count, as the board's lane does", async () => {
+      setSubagentLoader(async () => ({ version: "1", subagents: [subagent("a", { status: "running" })] }));
+      const fake = createFakePaseo({ agents: [activeAgent("parent", { status: "running" })] });
+      let current!: ReturnType<typeof useTaskCounts>;
+      function Counts() {
+        current = useTaskCounts(fake.paseo, true);
+        return null;
+      }
+      let renderer!: Renderer;
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(Counts));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      try {
+        await act(async () => {
+          await vi.waitFor(() => expect(current.running).toBe(2));
+        });
+        expect(current).toEqual({ needsInput: 0, running: 2, review: 0, ready: true });
+      } finally {
+        act(() => renderer.unmount());
+        setSubagentLoader(null);
+      }
+    });
+
     it("brings a failed parent no list holds into the review count, by id", async () => {
       setSubagentLoader(async () => ({ version: "1", subagents: [subagent("a")] }));
       const fake = createFakePaseo({
@@ -1487,9 +1512,10 @@ describe("Tasks data store", () => {
       });
       try {
         await act(async () => {
-          await vi.waitFor(() => expect(current.review).toBe(1));
+          await vi.waitFor(() => expect(current.review).toBe(2));
         });
-        expect(current).toEqual({ needsInput: 0, running: 1, review: 1, ready: true });
+        // The parent and its failed subagent's card, as the board's review lane shows them.
+        expect(current).toEqual({ needsInput: 0, running: 1, review: 2, ready: true });
         expect(fake.calls.filter((call) => call.method === "agents.ref.refresh").map((call) => call.input)).toEqual([{ agentId: "parent" }]);
       } finally {
         act(() => renderer.unmount());

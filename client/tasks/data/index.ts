@@ -2075,10 +2075,17 @@ function createStore(api: PaseoApi): TaskStore {
       // Until both lists land the review count is unknown, not the unread
       // agents of archived workspaces: it stays hidden instead of jumping down.
       const reviewKnown = attentionReady && workspacesReady;
+      const count = (lane: LaneId) => {
+        if (lane === "needs_input") needsInput += 1;
+        else if (lane === "running") running += 1;
+        else if (lane === "review" && reviewKnown) review += 1;
+      };
       for (const card of cards.values()) {
-        if (card.lane === "needs_input") needsInput += 1;
-        else if (card.lane === "running") running += 1;
-        else if (card.lane === "review" && reviewKnown) review += 1;
+        count(card.lane);
+        // A provider subagent's card counts in its lane, as the board draws it (`withSubagentCards`).
+        if (card.lane !== "archived" && card.children.some((child) => child.kind === "provider")) {
+          for (const sub of subagentCardsOf(card)) count(sub.lane);
+        }
       }
       // The same object while the numbers hold, so a streaming agent does not re-render the row.
       if (
@@ -2356,8 +2363,9 @@ export function releaseTasksHolds(): void {
 /**
  * The sidebar's counts. Alone it opens the agents in flight (running,
  * initializing, error), and with `review` the unread and failed ones too;
- * nothing else: no workspaces, projects, labels or model names. With a board
- * open it counts the board's cards. Re-renders only when a number changes.
+ * nothing else: no workspaces, projects, labels or model names. It counts
+ * the cards an unfiltered board draws, a provider subagent's included.
+ * Re-renders only when a number changes.
  */
 export function useTaskCounts(paseo: PaseoApi, review: boolean): SidebarCounts {
   const store = getStore(paseo);
