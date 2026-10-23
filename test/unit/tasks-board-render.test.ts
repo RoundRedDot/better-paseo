@@ -1082,17 +1082,21 @@ describe("Tasks board, archived lane switch", () => {
       renderer = TestRenderer.create(screen(false));
     });
     layOut(2400);
-    expect(textOf(toggle())).toBe("Archived");
-    expect(toggle().props.accessibilityState).toEqual({ checked: false });
+    // The phone's round Archive button: no word, struck through while the lane hides.
+    const slashed = () => toggle().findAll((node) => (node.type as unknown) === "View" && node.props.testID === "slash-mark").length > 0;
+    expect(textOf(toggle())).toBe("");
+    expect(toggle().props).toMatchObject({ accessibilityLabel: "Show the archived lane", accessibilityState: { checked: false } });
+    expect(slashed()).toBe(true);
     expect(hostsById("lane-archived")).toHaveLength(0);
     // In the bar's end, after the done window and before the sort.
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
-    expect(textOf(end).indexOf("Archived")).toBeGreaterThan(textOf(end).indexOf("7 days"));
-    expect(textOf(end).indexOf("Archived")).toBeLessThan(textOf(end).indexOf("Sort"));
+    const order = end.findAll((node) => (node.type as unknown) === "Pressable" && (node.props.testID === "archived-lane-toggle" || textOf(node) === "7 days" || textOf(node).includes("Sort")));
+    expect(order.map((node) => node.props.testID === "archived-lane-toggle" ? "archived" : textOf(node).includes("Sort") ? "sort" : "window")).toEqual(["window", "archived", "sort"]);
     await act(async () => toggle().props.onPress());
     layOut(2400);
     // Drawn at once, before the record catches up.
     expect(toggle().props.accessibilityState).toEqual({ checked: true });
+    expect(slashed()).toBe(false);
     expect(hostsById("lane-archived")).toHaveLength(1);
     expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } }, "1");
   });
