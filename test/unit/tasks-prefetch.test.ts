@@ -70,8 +70,8 @@ const theme = {
   },
 } as never;
 const hostProps = { theme, host: { id: "host-1", label: "Local" }, layout: { compact: false, platform: "web" as const } };
-/** The status and attention lists the sidebar's default counts keep: the only ones with the board closed. */
-const COUNTS_ONLY = 2;
+/** The status and attention lists and the workspaces the sidebar's default counts keep: the only ones with the board closed. */
+const COUNTS_ONLY = 3;
 /** Status, attention and done agent lists, workspaces, projects. */
 const BOARD_OPEN = 5;
 
@@ -170,9 +170,9 @@ afterEach(async () => {
 describe("Tasks board prefetch", () => {
   it("opens nothing beyond the counts until the user shows intent", async () => {
     await mountSidebar();
-    expect(boardCalls()).toEqual(["agents.list", "agents.list"]);
+    expect(boardCalls()).toEqual(["agents.list", "agents.list", "workspaces.list"]);
     await advance(60_000);
-    expect(boardCalls()).toEqual(["agents.list", "agents.list"]);
+    expect(boardCalls()).toEqual(["agents.list", "agents.list", "workspaces.list"]);
     expect(fake.openSubscriptions()).toBe(COUNTS_ONLY);
   });
 
@@ -180,8 +180,8 @@ describe("Tasks board prefetch", () => {
     await mountSidebar();
     const before = fake.calls.length;
     await hover();
-    // The done list, projects, the model names, workspaces.
-    expect(boardCalls(before).sort()).toEqual(["agents.list", "projects.list", "providers.listModels", "workspaces.list"]);
+    // The done list, projects, the model names; the counts already hold the workspaces.
+    expect(boardCalls(before).sort()).toEqual(["agents.list", "projects.list", "providers.listModels"]);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
     const warmed = fake.calls.length;
     await fire("onPointerLeave");
@@ -308,7 +308,7 @@ describe("Tasks board prefetch", () => {
     const before = fake.calls.length;
     await fire("onPointerEnter");
     await advance(100);
-    expect(boardCalls(before).sort()).toEqual(["agents.list", "projects.list", "providers.listModels", "workspaces.list"]);
+    expect(boardCalls(before).sort()).toEqual(["agents.list", "projects.list", "providers.listModels"]);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
   });
 
@@ -337,7 +337,7 @@ describe("Tasks board prefetch", () => {
     await openBoard();
     await advance(HOVER_INTENT_MS * 2);
     const requests = boardCalls(before).sort();
-    expect(requests).toEqual(["agents.list", "projects.list", "providers.listModels", "workspaces.list"]);
+    expect(requests).toEqual(["agents.list", "projects.list", "providers.listModels"]);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
   });
 
@@ -418,7 +418,7 @@ describe("Tasks board prefetch", () => {
       await mountSidebar();
       const before = fake.calls.length;
       const openScreen = vi.fn(() => {
-        expect(boardCalls(before)).toContain("workspaces.list");
+        expect(boardCalls(before)).toContain("projects.list");
       });
       await act(async () => commands[0]!.onSelect({ openScreen }));
       expect(openScreen).toHaveBeenCalledTimes(1);
