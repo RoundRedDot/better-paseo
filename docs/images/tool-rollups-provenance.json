@@ -1,6 +1,6 @@
 {
-  "capturedAt": "2026-10-22",
-  "sourceSha": "9e7997908be4575d7f14c03b13dd3bea4168aa3e",
+  "capturedAt": "2026-10-23",
+  "sourceSha": "096d80de3036eb43bdb1e50b2518dd79f0970dd9",
   "sourceTreeClean": true,
   "sourceTrackedChanges": [],
   "surface": "Offline React Native Web fixture; no user session; not native device acceptance",
@@ -16,7 +16,7 @@
     },
     {
       "path": ".showcase/tools/rollups-smoke.mjs",
-      "sha256": "32ccc7796494b1e23cd72731a13175fa35f81c11dde4e86b048797ae22661ed6"
+      "sha256": "8a4e02b827ca5f85b225bfdbc47ddcc475db5d21aba13962e6eec38cbf4a8d43"
     }
   ],
   "assets": [
@@ -32,8 +32,8 @@
       "scale": 1,
       "width": 940,
       "height": 148,
-      "capturedAt": "2026-10-22T23:36:51.211650+00:00",
-      "sha256": "19ddfee4c9eb19bbed19fa0f3233017d9ccaead5a79853db3bb8c0b93838a865"
+      "capturedAt": "2026-10-23T05:07:24.169Z",
+      "sha256": "a3566843ee754bb19340c4c6428264286c2d5dbb03460fa0bb3af9b85bf9461e"
     },
     {
       "path": "docs/images/tool-rollups-light-expanded.png",
@@ -47,8 +47,8 @@
       "scale": 1,
       "width": 940,
       "height": 444,
-      "capturedAt": "2026-10-22T23:36:51.332653+00:00",
-      "sha256": "2c5bc67d55c7f281509c2a36539aff4ec4df4b5658c3618504bcfcb9521038fb"
+      "capturedAt": "2026-10-23T05:07:24.306Z",
+      "sha256": "591aa12f0baacc91dc8b43317d98d4f3cb2ddf1d6c3b315312424c821194e0c0"
     },
     {
       "path": "docs/images/tool-rollups-dark-collapsed.png",
@@ -62,8 +62,8 @@
       "scale": 1,
       "width": 940,
       "height": 148,
-      "capturedAt": "2026-10-22T23:36:48.412577+00:00",
-      "sha256": "82ab795bb79fe01bc9ffef60074d8e9480cd2754e848c70e3b30fb2a2ca7f4a5"
+      "capturedAt": "2026-10-23T05:07:21.269Z",
+      "sha256": "1d60f7448e7f8b7142fe025658797f6aed9ecc2a27e41ca8f6addb187ee2c094"
     },
     {
       "path": "docs/images/tool-rollups-dark-expanded.png",
@@ -77,8 +77,8 @@
       "scale": 1,
       "width": 940,
       "height": 444,
-      "capturedAt": "2026-10-22T23:36:48.533580+00:00",
-      "sha256": "0a8b6f5501c3866bbf4a162b7ae1ff8754c3dbe867057bd040a148e58c522ab6"
+      "capturedAt": "2026-10-23T05:07:21.406Z",
+      "sha256": "f32bd5a2c0816c196d5fdbd1e2c62a88bd98d8b2aadfdfd907bd6de8dba99c7e"
     }
   ]
 }
