@@ -2,7 +2,7 @@ import React, { memo, useEffect, useRef, useState, type ReactNode } from "react"
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import { TaskText as Text, HOST_LINE, HOST_FONT as F, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_LINE, HOST_FONT as F, laneTitle, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -186,9 +186,13 @@ const DESKTOP: Metrics = {
   metaSize: F.sm,
   metaLine: HOST_LINE.sm,
   titleGap: 5,
-  // The host's list-row step: at `sm` the title read no louder than the meta row and pills around it.
-  titleSize: F.base,
-  titleLine: HOST_LINE.base,
+  // At `sm` on desktop the title read no louder than the meta row and pills around it.
+  get titleSize() {
+    return laneTitle().size;
+  },
+  get titleLine() {
+    return laneTitle().line;
+  },
   iconSlot: 14,
   iconBox: 16,
   rowGap: 10,

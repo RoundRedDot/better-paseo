@@ -8,7 +8,16 @@ import { readHostTypography } from "../ui/tokens/typography";
 export const TASK_MONO = Platform.select({ ios: "Menlo", android: "monospace", default: "ui-monospace, SFMono-Regular, Menlo, monospace" });
 
 export { HOST_FONT, HOST_LINE } from "./type-ramp";
-import { HOST_FONT } from "./type-ramp";
+import { HOST_FONT, HOST_LINE } from "./type-ramp";
+
+/**
+ * Lane names and desktop card titles: the host's list-row step on desktop and
+ * the web, a step down on a tablet, whose host ramp already starts at 15 and
+ * whose narrower lanes read denser.
+ */
+export function laneTitle(): { size: number; line: number } {
+  return Platform.OS === "web" ? { size: HOST_FONT.base, line: HOST_LINE.base } : { size: HOST_FONT.sm, line: HOST_LINE.smRead };
+}
 
 /**
  * The host's interface size when the user never set one
