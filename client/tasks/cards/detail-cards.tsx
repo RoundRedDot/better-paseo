@@ -3,6 +3,10 @@ import { Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEve
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { openLink } from "../../components/open-link";
+import { MarkdownView } from "../../components/markdown/markdown-view";
+import { variantMetrics } from "../../components/markdown/render/styles";
+import { useThemeTokens, withAlpha } from "../../components/theme-tokens";
+import { useEnhancerPreferences } from "../../preferences";
 import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { useCopy } from "../../ui/use-copy";
@@ -1254,11 +1258,14 @@ function OpenChild(props: { tokens: TaskTokens; label: string; onPress(): void }
 
 /** The lines a prompt or reply shows before "show all". */
 const PROMPT_LINES = 4;
+/** A prompt or reply is Markdown, set in the chat's tightest variant to fit the card. */
+const PROSE = "compact";
+const FADE_STEPS = 6;
 
 /**
  * Text read from the task's timeline: the first prompt in full (the title
  * being only its first line), or the agent's latest reply. Four lines, then
- * "show all"; copyable, selectable on the web. A closed agent waits for
+ * "show all"; drawn as Markdown, copyable as written. A closed agent waits for
  * "Load", since reading its timeline resumes it.
  */
 function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt; load(): void } | null | undefined; id: string; none: string; error: string; copyLabel: string; copyToast: string }) {
@@ -1266,6 +1273,7 @@ function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt; load(): 
   const words = cardStrings(props.language).details;
   const [open, setOpen] = useState(false);
   const { copied, copy } = useCopy();
+  const prose = useThemeTokens(props.theme, useEnhancerPreferences());
   const first = props.read;
   if (!first) return null;
   const font = props.touch ? 15 : 13;
@@ -1288,12 +1296,23 @@ function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt; load(): 
   const text = prompt.text;
   const lines = errorLines(text);
   const long = lines.length > PROMPT_LINES || text.length > 240;
+  const folded = long && !open;
+  const line = variantMetrics(PROSE, font).bodyLineHeight;
+  const sunk = detailColors(tokens).sunk;
   return (
     <View style={{ paddingHorizontal: 6, paddingTop: 2 }}>
-      <View style={{ borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: detailColors(tokens).sunk }}>
-        <Text selectable numberOfLines={open ? undefined : PROMPT_LINES} style={{ fontSize: font, lineHeight: Math.round(font * 1.55), color: tokens.foreground }} testID={`${id}-text`}>
-          {text}
-        </Text>
+      <View style={{ borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: sunk }}>
+        <View style={folded ? { maxHeight: PROMPT_LINES * line, overflow: "hidden" } : null} testID={`${id}-text`}>
+          <MarkdownView text={text} tokens={prose} variant={PROSE} size={font} />
+          {folded ? (
+            // A heading or code block cuts the last line anywhere: fade it out.
+            <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: line, flexDirection: "column" }}>
+              {Array.from({ length: FADE_STEPS }, (_, step) => (
+                <View key={step} style={{ flex: 1, backgroundColor: withAlpha(sunk, (step + 1) / FADE_STEPS) }} />
+              ))}
+            </View>
+          ) : null}
+        </View>
       </View>
       <View style={{ minHeight: props.touch ? 36 : 28, flexDirection: "row", alignItems: "center", gap: 8 }}>
         {long ? (
