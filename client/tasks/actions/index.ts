@@ -160,26 +160,24 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
   });
 }
 
-/** Longest task title the dialog's heading carries before it is cut. */
-const DIALOG_TITLE_MAX = 60;
+/** Longest task name the dialog's message carries before it is cut. */
+const DIALOG_NAME_MAX = 120;
 
-/** The system dialog's words for one stop; `children` counts the subtasks it stops too. The task's title leads. */
+/** The system dialog's words for one stop: a fixed heading, then the task's name; `children` counts the subtasks it stops too. */
 export function stopDialogText(card: TaskCard, children: number, language: TasksLanguage) {
   const trimmed = card.title.trim();
-  const name = trimmed.length > DIALOG_TITLE_MAX ? `${trimmed.slice(0, DIALOG_TITLE_MAX - 1).trimEnd()}…` : trimmed;
+  const message = trimmed.length > DIALOG_NAME_MAX ? `${trimmed.slice(0, DIALOG_NAME_MAX - 1).trimEnd()}…` : trimmed;
   if (language === "zh") {
     return {
-      title: name ? `停止「${name}」？` : "停止任务？",
-      message: children > 0 ? `${children} 个运行中的子任务也会一起停止。` : "当前回合会立即中断。",
+      title: children > 0 ? `停止任务和 ${children} 个子任务？` : "停止任务？",
+      message,
       cancel: "取消",
       confirm: children > 0 ? "全部停止" : "停止",
     };
   }
   return {
-    title: name ? `Stop “${name}”?` : "Stop this task?",
-    message: children > 0
-      ? `Its ${children} running ${children === 1 ? "subtask stops" : "subtasks stop"} too.`
-      : "Its current turn ends now.",
+    title: children > 0 ? `Stop this task and ${children} ${children === 1 ? "subtask" : "subtasks"}?` : "Stop this task?",
+    message,
     cancel: "Cancel",
     confirm: children > 0 ? "Stop all" : "Stop",
   };
