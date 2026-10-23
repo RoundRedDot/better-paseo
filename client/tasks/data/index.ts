@@ -32,6 +32,8 @@ export interface WorkspaceOption {
   projectIcon?: string | null;
   /** The last segment of the workspace's directory, to tell same-named workspaces apart. */
   folder?: string | null;
+  /** The project's root directory, the project filter's second line. */
+  projectPath?: string | null;
 }
 
 export interface TasksOptions {
@@ -1890,6 +1892,7 @@ function createStore(api: PaseoApi): TaskStore {
           projectKey: project?.projectKey || null,
           projectIcon: icon && icon.revision === (project?.projectIconRevision ?? null) ? icon.uri : null,
           folder: typeof workspace.workspaceDirectory === "string" ? pathTail(workspace.workspaceDirectory) : null,
+          projectPath: project?.projectRootPath || workspace.projectRootPath || null,
         };
       })
       .sort((a, b) => a.projectName.localeCompare(b.projectName) || a.name.localeCompare(b.name));

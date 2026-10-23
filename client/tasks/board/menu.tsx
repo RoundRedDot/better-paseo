@@ -10,6 +10,7 @@ import {
   MENU_FOCUS,
   layoutMenu,
   menuChrome,
+  menuRowHeight,
   panelMaxHeight,
   submenuPlacement,
   menuKeyReducer,
@@ -366,7 +367,7 @@ function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome
       onHoverIn={props.onHover}
       onPress={props.onPress}
       style={{
-        height: taskControlHeight(MENU.rowHeight, scale),
+        height: menuRowHeight(item, scale),
         marginHorizontal: MENU.inset,
         paddingHorizontal: 8,
         borderRadius: MENU.rowRadius,
@@ -377,9 +378,20 @@ function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome
       }}
     >
       {leading}
-      <Text numberOfLines={1} style={{ flex: 1, fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : danger ?? colors.foreground }}>
-        {item.label}
-      </Text>
+      {item.detail ? (
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text numberOfLines={1} style={{ fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : danger ?? colors.foreground }}>
+            {item.label}
+          </Text>
+          <Text numberOfLines={1} style={{ fontSize: F.sm, color: colors.foregroundMuted }}>
+            {item.detail}
+          </Text>
+        </View>
+      ) : (
+        <Text numberOfLines={1} style={{ flex: 1, fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : danger ?? colors.foreground }}>
+          {item.label}
+        </Text>
+      )}
       {item.hint ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{item.hint}</Text> : null}
       {item.checked ? <Icon name="Check" size={14} color={colors.accent} /> : item.checked === false ? <View style={{ width: 14 }} /> : null}
       {item.submenu ? <Icon name="ChevronRight" size={12} color={colors.foregroundMuted} /> : null}
