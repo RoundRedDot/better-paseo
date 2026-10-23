@@ -5,6 +5,8 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, laneTitle, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
+import { useCopy } from "../../ui/use-copy";
+import { toolbarLabel } from "../../i18n/toolbar-strings";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { duration, PREVIEW_REVEAL } from "../../ui/tokens/motion";
 import type { PermissionButton, StopPhase } from "../actions";
@@ -90,6 +92,8 @@ export interface TaskCardViewProps extends CardCallbacks {
   language?: TasksLanguage;
   /** False stops the running ring (a hidden pane, a static preview). Default true. */
   animated?: boolean;
+  /** False keeps the model, branch and folder pills plain: a static preview copies nothing. Default true. */
+  copyable?: boolean;
   /** The host's id: with the project id it keys the project icon's colour, as Paseo's sidebar does. */
   hostId?: string;
 }
@@ -675,7 +679,13 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   );
 
   // Pills ------------------------------------------------------------------
-  const pill = { tokens, compact };
+  // A pill that copies takes the touch, so it carries the card's long press too.
+  const longPress = props.onDetails && (compact || TOUCH) ? () => props.onDetails?.(card) : undefined;
+  const pill = { tokens, compact, language };
+  // Model, branch and folder copy what they show; a pointer's hint says so.
+  const copyOn = props.copyable !== false;
+  const copyOf = (text: string, toast: string) => (copyOn ? { text, toast } : undefined);
+  const withCopyHint = (hintText: string | null) => (copyOn ? lines(hintText, strings.hint.clickToCopy) : hintText);
   const pills: ReactNode[] = [];
   // Model and thinking in one item, in the brand's borderless status-pill colours:
   // the mark and the model, a middle dot, then the Brain icon and the thinking level. With the model
@@ -694,7 +704,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         lead={layout.brand ? <BrandMark provider={card.provider} size={m.pillIcon} tokens={tokens} /> : undefined}
         label={model}
         accessibilityLabel={thinking ? `${name} ${thinking}` : name}
-        hint={hint("model", () => lines(pair(strings.hint.model, name), thinking && pair(strings.hint.thinking, thinking)))}
+        copy={copyOf(model, model === card.providerLabel ? "Copy agent" : "Copy model name")}
+        onLongPress={longPress}
+        hint={hint("model", () => withCopyHint(lines(pair(strings.hint.model, name), thinking && pair(strings.hint.thinking, thinking))))}
       >
         {thinking ? (
           <>
@@ -741,13 +753,17 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         icon="GitBranch"
         label={location.branch}
         mono
+        copy={copyOf(location.branch, "Copy branch name")}
+        onLongPress={longPress}
         hint={hint("branch", () => {
           const git = location.git;
-          return lines(
-            pair(strings.hint.branch, location.branch!),
-            git?.dirty && strings.details.dirty,
-            git?.ahead ? strings.hint.ahead(git.ahead) : null,
-            git?.behind ? strings.hint.behind(git.behind) : null,
+          return withCopyHint(
+            lines(
+              pair(strings.hint.branch, location.branch!),
+              git?.dirty && strings.details.dirty,
+              git?.ahead ? strings.hint.ahead(git.ahead) : null,
+              git?.behind ? strings.hint.behind(git.behind) : null,
+            ),
           );
         })}
       >
@@ -765,7 +781,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         testID="pill-path"
         icon="FolderOpen"
         label={tildePath(location.cwd)}
-        hint={hint("path", () => pair(strings.hint.path, tildePath(location.cwd)))}
+        copy={copyOf(location.cwd, "Copy path")}
+        onLongPress={longPress}
+        hint={hint("path", () => withCopyHint(pair(strings.hint.path, tildePath(location.cwd))))}
       />,
     );
   } else if (layout.folder && location.folder) {
@@ -776,7 +794,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         testID="pill-folder"
         icon="Folder"
         label={location.folder}
-        hint={hint("folder", () => lines(pair(strings.hint.folder, location.folder!), tildePath(location.cwd)))}
+        copy={copyOf(location.folder, "Copy folder name")}
+        onLongPress={longPress}
+        hint={hint("folder", () => withCopyHint(lines(pair(strings.hint.folder, location.folder!), tildePath(location.cwd))))}
       />,
     );
   }
@@ -1155,7 +1175,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       {...CONTAINER_ROLE}
       accessibilityLabel={card.title}
       onPress={pressBody}
-      onLongPress={props.onDetails && (compact || TOUCH) ? () => props.onDetails?.(card) : undefined}
+      onLongPress={longPress}
       delayLongPress={LONG_PRESS_MS}
       ref={rootRef}
       {...(WEB ? null : hoverProps)}
@@ -1234,6 +1254,15 @@ interface PillProps {
   hint?: string;
   testID?: string;
   children?: ReactNode;
+  /** The card's language, for a copy pill's accessibility hint. */
+  language?: TasksLanguage;
+  /**
+   * A press copies `text`; `toast` names the copy as a toolbar button would
+   * ("Copy branch name"), so the toast says what was copied.
+   */
+  copy?: { text: string; toast: string };
+  /** The card's own long press, kept on a pill that takes the touch. */
+  onLongPress?(): void;
 }
 
 /**
@@ -1286,6 +1315,7 @@ function PillContent(props: PillProps) {
 
 function Pill(props: PillProps) {
   const scale = useTasksFontScale();
+  if (props.copy) return <CopyPill {...props} copy={props.copy} />;
   return (
     <View
       style={pillStyle(props.tokens, props.compact, props.tint ?? null, props.solid, scale)}
@@ -1295,6 +1325,40 @@ function Pill(props: PillProps) {
     >
       <PillContent {...props} />
     </View>
+  );
+}
+
+/**
+ * A pill whose press copies what it shows (model, branch, folder, path). It
+ * keeps its look; a pointer over it darkens it a step as the subtasks pill
+ * does, and the host's toast confirms the copy. The press stays on the pill,
+ * so the card behind it is not chosen or opened.
+ */
+function CopyPill(props: PillProps & { copy: NonNullable<PillProps["copy"]> }) {
+  const scale = useTasksFontScale();
+  const { hovered, hoverProps } = useHover();
+  const { copy } = useCopy();
+  const base = pillStyle(props.tokens, props.compact, props.tint ?? null, props.solid, scale);
+  const { text, toast } = props.copy;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={props.accessibilityLabel ?? props.label}
+      accessibilityHint={toolbarLabel(toast, props.language ?? "en")}
+      onPress={() => void copy(text, { label: toast, feedback: "toast" })}
+      onLongPress={props.onLongPress}
+      delayLongPress={LONG_PRESS_MS}
+      {...hoverProps}
+      {...hintProps(props.hint)}
+      testID={props.testID}
+      style={[
+        base,
+        hovered ? { backgroundColor: mix(base.backgroundColor as string, props.tokens.foreground, 0.06) } : null,
+        webTransition,
+      ]}
+    >
+      <PillContent {...props} />
+    </Pressable>
   );
 }
 
