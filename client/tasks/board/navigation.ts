@@ -179,17 +179,17 @@ export function sidebarCountText(parts: readonly SidebarCountPart[], language: "
 
 /** The desktop lanes' geometry: Linear-style panels on the board's background. */
 export const LANES = {
-  /** A lane's width once the lanes scroll, at the default lane width; its cards are this less the panel's padding (280 - 2 x 8 = 264). */
-  min: 280,
+  /** A lane's width once the lanes scroll, at the default lane width; its cards are this less the panel's padding (300 - 2 x 8 = 284). */
+  min: 300,
   /** The narrowest a lane ever gets (cards 220 - 2 x 8 = 204): a board narrower than its lane width plus the edges. */
   narrow: 220,
   /**
-   * The widest a lane gets at the default lane width: a card 302 wide on web,
-   * the lane less the panel's padding and its scrollbar gutter (320 - 8 - 4 -
-   * 6 = 302), a step under Linear's 322 so a half-width iPad board shows more
-   * than one and a half lanes. A wider card only spreads the same rows apart.
+   * The widest a lane gets at the default lane width: Linear's card, 322
+   * wide (646 device px at 2x), plus the panel's padding and, on web, its
+   * scrollbar gutter (340 - 8 - 4 - 6 = 322). A wider card only spreads the
+   * same rows apart.
    */
-  max: 320,
+  max: 340,
   /** A collapsed lane's strip. */
   collapsed: 40,
   /** Between two lanes. */
@@ -200,15 +200,15 @@ export const LANES = {
 
 /**
  * Each `board.laneWidth`'s scroll width and widest lane. Four lanes stop
- * scrolling on a board 1008 wide at narrow (4 x 240 + 48), 1168 at default
- * and 1328 at wide; the widest cards are 242, 302 and 362. On a narrower
+ * scrolling on a board 1088 wide at narrow (4 x 260 + 48), 1248 at default
+ * and 1488 at wide; the widest cards are 262, 322 and 402. On a narrower
  * board each keeps its own width and the row scrolls, so the setting shows
  * on a tablet as on the desktop.
  */
 export const LANE_SIZES: Readonly<Record<LaneWidth, { min: number; max: number }>> = {
-  narrow: { min: 240, max: 260 },
+  narrow: { min: 260, max: 280 },
   default: { min: LANES.min, max: LANES.max },
-  wide: { min: 320, max: 380 },
+  wide: { min: 360, max: 420 },
 };
 
 /**
