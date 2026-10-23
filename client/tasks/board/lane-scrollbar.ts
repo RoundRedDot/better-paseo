@@ -2,8 +2,7 @@ import { useEffect } from "react";
 import type { ViewProps } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { mix } from "../../components/theme-tokens";
-import { DETAIL_SCROLLBAR, taskTokens, type DetailScrollbarKind } from "../cards";
-import { boardPalette } from "./board-style";
+import { DETAIL_SCROLLBAR, type DetailScrollbarKind } from "../cards";
 
 const STYLE_ELEMENT_ID = "better-paseo-lane-scrollbar";
 
@@ -19,11 +18,24 @@ const SCROLLING_ATTR = "data-bcscrolling";
 export const laneScrollProps = { dataSet: { bclane: "" } } as unknown as ViewProps;
 
 /**
- * The host styles every web scrollbar thin and faint (`scrollbar-width:
- * thin`, a 40% muted thumb), and an overlay one sits inside the lane's 8pt
- * padding, so the thumb touches the cards. Linear's lane keeps a gutter of its
- * own: a 6pt rounded thumb at the panel's right edge, about 3.5pt off the
- * cards, dark enough to read on the panel.
+ * The host's scrollbar colours (`install-web-scrollbar-styles.web.ts`): its
+ * extra-muted foreground at 40% at rest, the muted foreground under the
+ * pointer. The plugin theme has no extra-muted colour, so the host's CSS
+ * variable is read first; the fallback mixes muted a third of the way to the
+ * surface, which lands on the host's value in its light and dark themes.
+ */
+function thumbColors(theme: PluginTheme): { thumb: string; pressed: string } {
+  const { foregroundMuted, surface0 } = theme.colors;
+  const extraMuted = `var(--colors-foreground-extra-muted, ${mix(foregroundMuted, surface0, 0.35)})`;
+  return { thumb: `color-mix(in srgb, ${extraMuted} 40%, transparent)`, pressed: foregroundMuted };
+}
+
+/**
+ * The host styles every web scrollbar thin and faint, and an overlay one sits
+ * inside the lane's 8pt padding, so the thumb touches the cards. Linear's lane
+ * keeps a gutter of its own: a 6pt rounded thumb at the panel's right edge,
+ * about 3.5pt off the cards. It takes the host's colours, so a lane's thumb
+ * reads like every other scrollbar on the board.
  *
  * Resetting the standard properties to `auto` on the lane lets Chromium use
  * the `::-webkit-scrollbar` rules again, and a styled scrollbar is a classic
@@ -38,10 +50,7 @@ export const laneScrollProps = { dataSet: { bclane: "" } } as unknown as ViewPro
  * that the thumb reads.
  */
 function rules(theme: PluginTheme): string {
-  const { panel } = boardPalette(theme);
-  const muted = theme.colors.foregroundMuted;
-  const thumb = mix(panel, muted, 0.92);
-  const pressed = mix(muted, theme.colors.foreground, 0.35);
+  const { thumb, pressed } = thumbColors(theme);
   return `
 @property ${THUMB_VAR} {
   syntax: "<color>";
@@ -82,8 +91,8 @@ ${detailRules("column", theme)}
 /**
  * The details' scrollbars (`cards/detail-scrollbar.ts`): a classic one in a
  * stable gutter, so it never lies over the text and the text does not shift
- * when the details start to overflow. Like a lane's, the thumb shows only
- * while the details scroll or under the pointer.
+ * when the details start to overflow. Like a lane's, the thumb takes the
+ * host's colours and shows only while the details scroll or under the pointer.
  *
  * The thumb draws narrower than its gutter through transparent borders. A
  * border shrinks the inner radius by its width, so each side's outer radius
@@ -93,10 +102,7 @@ ${detailRules("column", theme)}
 function detailRules(kind: DetailScrollbarKind, theme: PluginTheme): string {
   const { gutter, left, right } = DETAIL_SCROLLBAR[kind];
   const selector = `[data-bcdetails="${kind}"]`;
-  const background = kind === "inset" ? taskTokens(theme).card.background : boardPalette(theme).panel;
-  const muted = theme.colors.foregroundMuted;
-  const thumb = mix(background, muted, 0.55);
-  const pressed = mix(muted, theme.colors.foreground, 0.35);
+  const { thumb, pressed } = thumbColors(theme);
   const round = (gutter - left - right) / 2;
   return `
 ${selector} {
