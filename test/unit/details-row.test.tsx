@@ -6,7 +6,7 @@ import "./helpers/quiet-renderer";
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 const state = vi.hoisted(() => ({
   open: vi.fn(), close: vi.fn(), register: vi.fn(), update: vi.fn(), release: vi.fn(), copy: vi.fn(async (_text: string) => {}),
-  current: null as string | null, form: "side", marker: "off", reduced: false,
+  current: null as string | null, linger: null as string | null, form: "side", marker: "off", reduced: false,
   handlers: new Map<string, Set<(event: unknown) => void>>(), showPopover: vi.fn(), hidePopover: vi.fn(),
 }));
 vi.mock("../../client/details/block-registry", () => ({ registerBlock: (entry: unknown) => {
@@ -14,7 +14,7 @@ vi.mock("../../client/details/block-registry", () => ({ registerBlock: (entry: u
 } }));
 vi.mock("../../client/details/details-store", () => ({
   detailsApi: { open: state.open, close: state.close },
-  useDetails: () => ({ openId: state.current, form: state.form }),
+  useDetails: () => ({ openId: state.current, lingerId: state.linger, form: state.form }),
   useMarkerPhase: () => state.marker,
 }));
 vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: vi.fn(() => state.reduced) }));
@@ -84,7 +84,7 @@ function header(props: Partial<DisclosureHeaderProps> = {}) {
 function textOf(node: ReactTestInstance | string): string { return typeof node === "string" ? node : node.children.map(textOf).join(""); }
 
 beforeEach(() => {
-  vi.clearAllMocks(); state.handlers.clear(); state.current = null; state.form = "side"; state.marker = "off"; state.reduced = false;
+  vi.clearAllMocks(); state.handlers.clear(); state.current = null; state.linger = null; state.form = "side"; state.marker = "off"; state.reduced = false;
   (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
   resetEnhancerPreferences(); updateEnhancerPreferences({ blockDetails: true, language: "en" });
 });
@@ -306,6 +306,36 @@ describe("other detail callers", () => {
 });
 
 describe("current marker", () => {
+  it.each([[false, 200], [true, 120]] as const)("mounts only on selection and preserves close, fade and reopening (reduced=%s)", (reduced, duration) => {
+    vi.useFakeTimers(); state.reduced = reduced;
+    const timing = vi.spyOn(Animated, "timing");
+    render(header());
+    const instances = () => renderer!.root.findAllByType(CurrentMarker);
+    const painted = () => renderer!.root.findAll((node) => String(node.type) === "Animated.View" && node.props.testID === "details-current-marker");
+    expect(instances()).toHaveLength(0);
+    act(() => { state.current = "call:preview"; state.marker = "on"; renderer!.update(wrap(header())); });
+    expect(instances()).toHaveLength(1);
+    const instance = instances()[0];
+    expect(painted()).toHaveLength(1);
+    act(() => { state.current = null; state.linger = "call:preview"; state.marker = "linger"; renderer!.update(wrap(header())); });
+    expect(painted()).toHaveLength(1);
+    expect(timing).not.toHaveBeenCalled();
+    act(() => { state.linger = null; state.marker = "off"; renderer!.update(wrap(header())); });
+    expect(instances()[0]).toBe(instance);
+    expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toValue: 0, duration }));
+    act(() => { vi.advanceTimersByTime(duration - 1); });
+    expect(painted()).toHaveLength(1);
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(painted()).toHaveLength(0);
+    expect(instances()[0]).toBe(instance);
+    act(() => { state.current = "call:preview"; state.marker = "on"; renderer!.update(wrap(header())); });
+    expect(instances()[0]).toBe(instance);
+    expect(painted()).toHaveLength(1);
+    act(() => renderer!.unmount()); renderer = undefined;
+    expect(state.release).toHaveBeenCalledOnce();
+    timing.mockRestore();
+  });
+
   it("does not initialize animation preferences until the row is selected", () => {
     render(<CurrentMarker agentId="agent" id="row" tokens={tokens} />);
     expect(renderer!.toJSON()).toBeNull();
