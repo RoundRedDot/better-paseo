@@ -1197,7 +1197,8 @@ describe("TaskCardView actions", () => {
 
     await act(async () => tree.update(cardElement(card, { onStop, stopPhase: "confirming" as StopPhase })));
     const confirm = byLabel(tree.root, "确认停止");
-    expect(flat(confirm.props.style)).toMatchObject({ borderColor: "#d93636" });
+    // Armed, the same outline with no fill: only the words change.
+    expect(flat(confirm.props.style)).toMatchObject({ borderColor: "#d93636", backgroundColor: "transparent" });
     confirm.props.onPress();
     expect(onStop).toHaveBeenCalledWith(card, { withChildren: false });
 
@@ -1257,7 +1258,9 @@ describe("TaskCardView actions", () => {
     expect(square(tree.root, "停止")).toMatchObject({ size: 13, color: tokens.danger });
     expect(flat(byLabel(tree.root, "停止").props.style)).toMatchObject({ height: 28, borderTopLeftRadius: 6, borderBottomLeftRadius: 6 });
     await act(async () => tree.update(cardElement(sample("sample-running"), { onStop: () => {}, stopPhase: "confirming" })));
-    expect(square(tree.root, "确认停止").color).toBe(LIGHT.colors.accentForeground);
+    // Armed, the stop sign with an exclamation mark asks for the second press.
+    expect(icons(byLabel(tree.root, "确认停止"))).toEqual(["OctagonAlert"]);
+    expect(byLabel(tree.root, "确认停止").find((node) => (node.type as unknown) === "Icon").props.color).toBe(tokens.danger);
     // The parent's menu leads "stop only this" with the same icon.
     await act(async () => byLabel(tree.root, "停止选项").props.onPress());
     const [only] = tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
@@ -1908,6 +1911,12 @@ describe("TaskDetailCards", () => {
     const card = sample("sample-input");
     const tree = await render(details(card, { onPermission, permissionButtons: permissionButtons(card.permission!, "zh") }));
     expect(texts(hostByTestId(tree.root, "detail-permission"))).toEqual(["Bash", "还有 1 个请求", "npm run db:migrate -- --env staging", "允许", "拒绝", "4m"]);
+    // The card's looks: Allow an accent outline, Deny a danger one, neither filled.
+    const card0 = taskTokens(LIGHT).card;
+    expect(flat(byLabel(tree.root, "允许").props.style)).toMatchObject({ backgroundColor: card0.background, borderColor: card0.primaryBorder, borderWidth: 0.5 });
+    expect(flat(byLabel(tree.root, "拒绝").props.style)).toMatchObject({ backgroundColor: card0.background, borderColor: taskTokens(LIGHT).danger });
+    await act(async () => byLabel(tree.root, "允许").props.onHoverIn());
+    expect(flat(byLabel(tree.root, "允许").props.style).backgroundColor).toBe(card0.primaryHover);
     await act(async () => byLabel(tree.root, "允许").props.onPress());
     expect(onPermission).toHaveBeenCalledWith(expect.objectContaining({ kind: "respond" }));
     // The phone's bar carries them instead.
@@ -1921,6 +1930,9 @@ describe("TaskDetailCards", () => {
       React.createElement(DetailActionBar, { card, theme: LIGHT, language: "zh", strings, onOpen: vi.fn(), ...more });
     const running = await render(bar(sample("sample-running"), { stop: { phase: "idle", onPress: vi.fn() } }));
     expect(texts(hostByTestId(running.root, "detail-action-bar"))).toEqual(["停止", "切换到 tab"]);
+    // The main button is an accent outline, not a solid fill.
+    const look = taskTokens(LIGHT).card;
+    expect(flat(hostByTestId(running.root, "detail-bar-open").props.style)).toMatchObject({ backgroundColor: look.background, borderColor: look.primaryBorder, borderWidth: 0.5 });
     await act(async () => running.unmount());
     renderer = null;
     const card = sample("sample-input");
@@ -1928,6 +1940,8 @@ describe("TaskDetailCards", () => {
     const labels = asking.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel);
     // Deny, then allow, then the tab shrunk to a square at the right.
     expect(labels).toEqual(["拒绝", "允许", "打开 tab 处理"]);
+    expect(flat(byLabel(asking.root, "允许").props.style)).toMatchObject({ backgroundColor: look.background, borderColor: look.primaryBorder });
+    expect(flat(byLabel(asking.root, "拒绝").props.style)).toMatchObject({ backgroundColor: look.background, borderColor: taskTokens(LIGHT).danger });
     await act(async () => asking.unmount());
     renderer = null;
     // An archived task opens nowhere: Unarchive is its main button, or the bar has nothing to hold.
@@ -1985,7 +1999,7 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["停止", "切换到 tab", "已打开"]);
   });
 
-  it("paints the stop button in the danger colour, an outline at rest and solid to confirm", async () => {
+  it("paints the stop button as a danger outline, armed or not", async () => {
     const tokens = taskTokens(LIGHT);
     const look = (root: ReactTestInstance, id: string) => {
       const button = hostByTestId(root, id);
@@ -1995,11 +2009,11 @@ describe("TaskDetailCards", () => {
     // A 0.5 pt outline, as the card's buttons are, in the sidebar and the phone's bar alike.
     const pick = (style: Record<string, unknown>) => ({ fill: style.backgroundColor, border: style.borderColor, width: style.borderWidth });
     const tint = { fill: tokens.card.background, border: tokens.danger, text: tokens.danger, width: 0.5 };
-    const solid = { fill: tokens.danger, border: tokens.danger, text: tokens.card.onStrong, width: 0.5 };
     const tree = await render(details(sample("sample-running"), { stop: { phase: "idle", onPress: vi.fn() } }));
     expect(look(tree.root, "detail-stop")).toEqual(tint);
     await act(async () => tree.update(details(sample("sample-running"), { stop: { phase: "confirming", onPress: vi.fn() } })));
-    expect(look(tree.root, "detail-stop")).toEqual(solid);
+    expect(look(tree.root, "detail-stop")).toEqual(tint);
+    expect(icons(hostByTestId(tree.root, "detail-stop"))).toEqual(["OctagonAlert"]);
     await act(async () => tree.unmount());
     renderer = null;
     const strings = BOARD_STRINGS.zh.sidebar;
@@ -2206,7 +2220,6 @@ describe("card tokens follow the host theme", () => {
       expect(card.pillFill).toBe(mix(bg, colors.foreground, dark ? 0.06 : 0.035));
       expect(card.primaryHover).toBe(mix(bg, colors.accent, dark ? 0.16 : 0.1));
       expect(card.dangerHover).toBe(mix(bg, colors.statusDanger, dark ? 0.16 : 0.1));
-      expect(card.onStrong).toBe(colors.accentForeground);
       expect(tokens.danger).toBe(colors.statusDanger);
       expect(tokens.warning).toBe(colors.statusWarning);
       expect(tokens.success).toBe(colors.statusSuccess);
@@ -2226,8 +2239,8 @@ describe("card tokens follow the host theme", () => {
       expect(flat(hostByTestId(tree.root, "task-card-title").props.style).color).toBe(colors.foreground);
       expect(flat(hostByTestId(tree.root, "task-card-meta-location").props.style).color).toBe(colors.foregroundMuted);
       const armed = byLabel(tree.root, "确认停止");
-      expect(flat(armed.props.style)).toMatchObject({ backgroundColor: colors.statusDanger, borderColor: colors.statusDanger });
-      expect(flat(armed.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(colors.accentForeground);
+      expect(flat(armed.props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: colors.statusDanger });
+      expect(flat(armed.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(colors.statusDanger);
       await act(async () => tree.unmount());
       renderer = null;
     });

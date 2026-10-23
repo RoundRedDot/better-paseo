@@ -170,9 +170,7 @@ a translucent overlay, so a tint reads the same over any card. Text on a tint is
 | Status pill (subtasks) | hue 10% (16% dark) | hue 26% (34% dark) | muted |
 | Neutral pill | `foreground` 3.5% (6% dark) | `pillBorder` | muted |
 | Label pill | none | `pillBorder` | the tag in the label colour, text muted |
-| Answer button | amber 12% (18% dark), 20% (26%) hovered | amber 40% (45% dark) | amber at 4.5:1 |
-| Mark read button | none | green 40% (45% dark) | green at 4.5:1 on the card and hovered |
-| Archive button | none | Archive's yellow | the yellow at 4.5:1 on the card and hovered |
+| Action buttons | none at rest; see [Buttons](#look) | | |
 
 ## Pills and chips
 
@@ -187,7 +185,7 @@ control row is rounded at 6. An icon in a pill or row is the size of the Lucide 
 | Phone filter sheet chip | `filter-sheet.tsx` | 32 | 4 | none; `accentSoft` when on | 14 | `base` |
 | Menu row | `menu.tsx`, `MENU` | 32 | 6 | none; `chrome.hover` hovered | 16 | `base` |
 | Sidebar group row | `details-sidebar.tsx` | 36 (44 touch) | 6 | none; `surface2` on, `controlHover` hovered | 16 in a 20 slot | `base`, count `sm` |
-| Card button | `CardButton` in `task-card.tsx` | 28 (at least 32 phone) | 6 (7 phone) | per the tints table | 13 (14 phone) | `sm`, weight 500 |
+| Card button | `CardButton` in `task-card.tsx` | 28 (at least 32 phone) | 6 (7 phone) | none; per [Buttons](#look) hovered | 13 (14 phone) | `sm`, weight 500 |
 
 All heights grow with the host's interface text size through `taskControlHeight`.
 
@@ -211,13 +209,49 @@ A label looks the same wherever it appears: a solid tag in its colour, then its 
 
 ## Buttons
 
+### Look
+
+Every Tasks action button is an outline, on the card, in the details sidebar and in the phone
+sheet's action bar alike: Stop (armed or not), Allow, Deny, "Answer", Mark read, Archive,
+Unarchive, Open tab. None is ever filled with its hue.
+
+- **At rest** only the border, the label and the icon carry the button's colour. The fill is
+  the surface under it: transparent on the card, the card colour in the sidebar and the bar.
+- **Hovered** (pressed on a phone, which has no hover) the button's hue is tinted over the card,
+  10% on a light theme and 16% on a dark one. The border and label stay.
+- **Armed**, "Confirm stop" keeps Stop's colours exactly; its words change and its icon turns from
+  Lucide's `Power` to `OctagonAlert` (`CONFIRM_STOP_ICON`), the stop sign asking for the second
+  press. On a phone card it drops its icon so the longer label fits.
+- **The outline is 0.5 pt** everywhere. Chrome, and so Paseo's Electron, rounds any border under
+  1 CSS px up to a whole one (2 device px at 2x), so on the web `buttonOutline()`
+  (`client/tasks/board/board-style.ts`) draws the line as an inset `box-shadow`, 1 device px at
+  2x; on iOS and Android it is a plain 0.5 border. The split Stop pill gets per-side lines so its
+  seam is drawn once, in the danger hue at 40%.
+- **The label and icon** are the hue pulled toward `foreground` until they read at 4.5:1 on the
+  card and on the hover tint (`readableOn`). A plain button's icon is `foregroundMuted` in the
+  sidebar and the bar.
+
+| Look | Used by | Border | Label and icon | Hover |
+| --- | --- | --- | --- | --- |
+| `plain` | Open tab on the card and in the sidebar, the tab square in the bar, a permission answer that is neither | `buttonBorder`: the theme border 5% toward `foreground` (20% dark, where the border all but matches the card and a half-pixel line in it vanishes) | `foreground` | `controlHover`, `foreground` 7% (10% dark) |
+| `primary` | Allow, Unarchive, the bar's Open tab | accent 50% (55% dark) | accent at 4.5:1 | accent tint |
+| `danger` | Stop, Confirm stop, Deny | the theme's `statusDanger` | the same | danger tint |
+| `answer` | "Answer", which opens the tab for a question | needs-input amber 40% (45% dark) | amber at 4.5:1 | amber tint |
+| `archive` | Archive | Archive's yellow | the yellow at 4.5:1 | yellow tint |
+| `read` | Mark read on an unread card (a failed card's stays `plain`) | unread green 40% (45% dark) | green at 4.5:1 | green tint |
+
+`buttonHue(tokens, look)` (`client/tasks/cards/task-card.tsx`) returns these three colours;
+`CardButton`, `ReadControl`, `StopControl`, `OutlineButton`, `RequestButton` and `BarButton` all
+take them from it, and `requestLook(button)` picks a permission button's look in every place.
+A new action button takes a look from the table rather than its own colours.
+
 ### Working state
 
 A Tasks button whose action waits on the daemon (Stop, Mark read, Unarchive) never changes its
 words while it works. This holds on the card, in the details sidebar and in the phone sheet's action
 bar alike. While the action is out the button:
 
-- keeps its label and its resting look (Stop stays in its danger tint, not the solid confirm fill);
+- keeps its label and its resting look (Stop goes back to "Stop" in its danger outline);
 - shows a hollow spinner ring in the icon's slot, in the icon's box and colour so the button keeps
   its width (a button with no icon gains the spinner before its label). The ring is `SpinnerRing`
   (`client/tasks/cards/status-icon.tsx`): the running status ring without its centre dot, a 30%
