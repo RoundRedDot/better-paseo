@@ -1434,6 +1434,31 @@ describe("TaskCardView actions", () => {
     expect(open).toEqual(["打开 tab", "打开父任务"]);
   });
 
+  it("draws a provider subagent's pill as an agent's when its line names an effort but no model", async () => {
+    const base = sample("sample-running");
+    const card: TaskCard = {
+      ...base,
+      id: "sub-2",
+      title: "Subagent",
+      model: null,
+      // As withSubagentCards reads "general-purpose · High · 518k tokens": the model is inherited, unnamed.
+      modelLabel: null,
+      thinkingLabel: "High",
+      context: null,
+      usage: null,
+      children: [],
+      stoppable: false,
+      parent: { id: base.id, title: base.title, missing: false, archived: false },
+      subagent: { subtitle: "general-purpose · High · 518k tokens", type: "general-purpose" },
+    };
+    const tree = await render(cardElement(card, {}));
+    const pill = hostByTestId(tree.root, "pill-model");
+    // The type's icon, the agent's name in the model's place, then the Brain-marked effort; no token count.
+    expect(icons(pill)).toEqual(["Shapes", "Brain"]);
+    expect(texts(pill).join("")).toBe(`${base.providerLabel}·High`);
+    expect(pill.props.accessibilityLabel).toBe(`${base.providerLabel} general-purpose · High · 518k tokens`);
+  });
+
   it("ends a subtask row that finished on another day with a short stamp, leaving the title room", async () => {
     const card = sample("sample-running");
     const child = card.children[2]!;
@@ -2178,6 +2203,14 @@ describe("TaskDetailCards", () => {
     expect(icons(hostByTestId(agent, "detail-thinking"))).toEqual(["Brain"]);
     expect(texts(hostByTestId(agent, "detail-mode"))).toEqual(["Bypass"]);
     expect(icons(hostByTestId(agent, "detail-mode"))).toEqual(["ShieldOff"]);
+  });
+
+  it("names the agent in the details' model chip for a subagent whose line names an effort but no model", async () => {
+    const base = sample("sample-running");
+    const card: TaskCard = { ...base, model: null, modelLabel: null, thinkingLabel: "High", modeLabel: null, subagent: { subtitle: "general-purpose · High · 518k tokens", type: "general-purpose" } };
+    const agent = hostByTestId((await render(details(card))).root, "detail-agent");
+    expect(texts(hostByTestId(agent, "detail-model"))).toEqual([base.providerLabel]);
+    expect(texts(hostByTestId(agent, "detail-thinking"))).toEqual(["High"]);
   });
 
   it("leads the details' label chips with a solid tag in the label's colour, its hole the card's", async () => {

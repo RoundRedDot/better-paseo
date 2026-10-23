@@ -377,8 +377,8 @@ function DetailHeader(props: Inner) {
           height={m.chip}
           font={chipFont}
           lead={card.providerMark !== null ? <BrandMark provider={card.provider} size={iconSize} tokens={tokens} /> : null}
-          // A provider subagent's model comes from its facts line; a line that names none stands in whole.
-          text={card.modelLabel ?? card.subagent?.subtitle ?? card.providerLabel}
+          // A provider subagent's model comes from its facts line; a line that names neither model nor effort stands in whole.
+          text={card.modelLabel ?? (card.thinkingLabel ? null : card.subagent?.subtitle) ?? card.providerLabel}
           testID="detail-model"
         />
         {card.thinkingLabel ? (

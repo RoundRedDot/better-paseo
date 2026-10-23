@@ -720,9 +720,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const subagent = card.subagent ? subagentFacts(card.subagent.subtitle, card.subagent.type) : null;
   const facts = subagent?.full ?? null;
   if (layout.modelPill) {
-    // A subagent whose line names its model draws it as an agent's, model and effort, without the tokens.
+    // A subagent whose line names its model or effort draws it as an agent's, model and effort, without the tokens;
+    // with no model named (inherited) the agent's name stands in, as on any card without one.
     const named = layout.model && card.modelLabel ? card.modelLabel : card.providerLabel;
-    const model = subagent && !card.modelLabel ? (subagent.text ?? card.providerLabel) : named;
+    const model = subagent && !card.modelLabel && !card.thinkingLabel ? (subagent.text ?? card.providerLabel) : named;
     const name = facts ? `${card.providerLabel} ${facts}` : model === card.providerLabel ? model : `${card.providerLabel} ${model}`;
     pills.push(
       <Pill
@@ -733,7 +734,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         lead={layout.brand ? <BrandMark provider={card.provider} size={m.pillIcon} tokens={tokens} /> : undefined}
         icon={subagent?.icon ?? undefined}
         label={model}
-        accessibilityLabel={thinking ? `${name} ${thinking}` : name}
+        accessibilityLabel={thinking && !facts ? `${name} ${thinking}` : name}
         copy={facts ? undefined : copyOf(model, model === card.providerLabel ? "Copy agent" : "Copy model name")}
         onLongPress={longPress}
         hint={hint("model", () => (facts ? lines(card.providerLabel, facts) : withCopyHint(lines(pair(strings.hint.model, name), thinking && pair(strings.hint.thinking, thinking)))))}

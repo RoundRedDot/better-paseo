@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { subagentFacts, subagentModel } from "../../client/tasks/subagent-type";
+import { subagentFacts, subagentModel, subagentType } from "../../client/tasks/subagent-type";
 
 describe("subagentFacts", () => {
   it("draws a type the timeline has an icon for as the icon alone", () => {
@@ -38,10 +38,29 @@ describe("subagentModel", () => {
     expect(subagentModel("Plan · Opus 5.5", "Plan")).toEqual({ model: "Opus 5.5", thinking: null });
   });
 
+  it("leaves the model out where the line names none, the subagent inheriting its parent's", () => {
+    expect(subagentModel("general-purpose · High · 518k tokens", "general-purpose")).toEqual({ model: null, thinking: "High" });
+    expect(subagentModel("Explore · Extra High", "Explore")).toEqual({ model: null, thinking: "Extra High" });
+  });
+
   it("names none where the line does not open with the type or holds only it", () => {
     expect(subagentModel("Sonnet 5.5 · High", "Explore")).toBeNull();
     expect(subagentModel("Explore", "Explore")).toBeNull();
     expect(subagentModel("Explore · 12k tokens", "Explore")).toBeNull();
     expect(subagentModel(null, "Explore")).toBeNull();
+  });
+});
+
+describe("subagentType", () => {
+  it("takes the descriptor's title, or the known type its facts line opens with", () => {
+    expect(subagentType("Explore", "general-purpose · High")).toBe("Explore");
+    // A background Agent call's descriptor can carry no title.
+    expect(subagentType(null, "general-purpose · High · 518k tokens")).toBe("general-purpose");
+    expect(subagentType("  ", "Explore · Haiku 5.5")).toBe("Explore");
+  });
+
+  it("leaves a first name the timeline has no icon for unknown: it could be a model", () => {
+    expect(subagentType(null, "Sonnet 5.5 · High")).toBeNull();
+    expect(subagentType(null, null)).toBeNull();
   });
 });
