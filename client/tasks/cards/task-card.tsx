@@ -85,6 +85,10 @@ const WEB = Platform.OS === "web";
 const TOUCH = !WEB;
 /** Between the footer's timer and its buttons. */
 const FOOT_GAP = 6;
+/** A touch card's footer widths, before any measure. */
+const NO_FOOT = { row: 0, timer: 0, controls: 0, form: "" };
+/** Each card's last footer widths, by card id: see `foot` in `TaskCardViewImpl`. */
+const FOOT_WIDTHS = new Map<string, typeof NO_FOOT>();
 /**
  * The card and a subtask row hold buttons of their own, so on web they must not
  * be buttons: React Native Web draws `role="button"` as a `<button>`, and a
@@ -410,12 +414,25 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
   const [ringOpen, setRingOpen] = useState(false);
   // A touch card's footer: its width, the timer's and the buttons', to tell
   // whether the buttons fit beside the timer at this lane width and text size.
-  const [foot, setFoot] = useState({ row: 0, timer: 0, controls: 0 });
-  const measureFoot = (key: keyof typeof foot) =>
+  // Seeded from the card's last measure, so a copy the lane motion mounts
+  // draws the footer the card had rather than one row until it measures.
+  const [foot, setFoot] = useState(() => FOOT_WIDTHS.get(card.id) ?? NO_FOOT);
+  useEffect(() => {
+    if (foot !== NO_FOOT) FOOT_WIDTHS.set(card.id, foot);
+  }, [card.id, foot]);
+  // The timer keeps the widest text it has drawn in one form (a running
+  // turn's clock and duration, a wait, an age): "1m 59s" is wider than
+  // "2m 1s", and a card near the line would otherwise change height as the
+  // seconds tick. A new form starts over.
+  const measureFoot = (key: "row" | "timer" | "controls", form = "") =>
     TOUCH
       ? (event: LayoutChangeEvent) => {
           const width = event.nativeEvent.layout.width;
-          setFoot((current) => (current[key] === width ? current : { ...current, [key]: width }));
+          setFoot((current) => {
+            if (key !== "timer") return current[key] === width ? current : { ...current, [key]: width };
+            const timer = current.form === form ? Math.max(current.timer, width) : width;
+            return current.timer === timer && current.form === form ? current : { ...current, timer, form };
+          });
         }
       : undefined;
 
@@ -898,7 +915,7 @@ function TaskCardViewImpl(props: TaskCardViewProps) {
     timer || stopSlot ? (
       <>
         {timer ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }} onLayout={measureFoot("timer")}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }} onLayout={measureFoot("timer", `${started ? "started" : ""}:${timer.tone}`)}>
             {started ? (
               <View
                 style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
