@@ -140,7 +140,6 @@ describe("Tasks data store", () => {
         workspaceIds: [],
         providers: [],
         labels: [],
-        openTabsOnly: false,
         hideSubtasks: false,
       }).running.cards.map((card) => card.id)).toEqual(["running-early", "running-late"]);
     } finally {
@@ -336,7 +335,6 @@ describe("Tasks data store", () => {
       workspaceIds: [],
       providers: [],
       labels: [],
-      openTabsOnly: false,
       hideSubtasks: true,
     };
 
