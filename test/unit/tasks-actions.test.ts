@@ -75,6 +75,18 @@ describe("Tasks permission actions", () => {
     ]);
   });
 
+  it("translates Paseo's plan buttons in Chinese and keeps other labels as sent", () => {
+    const requested = [
+      action({ id: "reject", label: "Reject", behavior: "deny", variant: "danger" }),
+      action({ id: "dismiss", label: "Dismiss", behavior: "deny", variant: "danger" }),
+      action({ id: "implement", label: "Implement" }),
+      action({ id: "implement_resume", label: "Implement with Bypass", variant: "secondary" }),
+    ];
+    expect(permissionButtons(permission("plan", requested), "zh").map(({ label }) => label)).toEqual(["拒绝", "拒绝", "实施", "Implement with Bypass"]);
+    expect(permissionButtons(permission("plan", requested), "en").map(({ label }) => label)).toEqual(["Reject", "Dismiss", "Implement", "Implement with Bypass"]);
+    expect(permissionButtons(permission("tool", [action()]), "zh")[0]?.label).toBe("Allow once");
+  });
+
   it.each(["tool", "plan", "mode"] as const)("uses bilingual Allow and Deny fallbacks for %s permissions", (kind) => {
     expect(permissionButtons(permission(kind), "en")).toEqual([
       { key: "allow", label: "Allow", variant: "primary", kind: "respond", action: { behavior: "allow", id: null } },
