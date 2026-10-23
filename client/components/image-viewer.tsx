@@ -3,7 +3,6 @@ import {
   Animated,
   Modal,
   View,
-  Pressable,
   Image,
   StyleSheet,
   Platform,
@@ -16,6 +15,7 @@ import { Glyph } from "./glyph";
 import { SafeInset } from "../ui/safe-inset";
 import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
+import { SpokenLabelsContext, ToolbarItem, TooltipAlignContext } from "../ui/toolbar-button";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import {
@@ -423,11 +423,19 @@ function ViewerBody({ onClose, uri, width, height, label, tokens, path, onReveal
               </Animated.View>
             ) : null}
           </View>
-          <View style={styles.toolbar} pointerEvents="box-none">
-            {actions.map((action) => (
-              <ToolbarButton key={action.key ?? action.label} action={action} tokens={tokens} />
-            ))}
-          </View>
+          {/* Spoken in the reader's language, as the details toolbar is: on a
+              phone nothing shows on hover. With a pointer, each button's name
+              shows under it, lined up with its right edge so the last ones
+              stay on screen. */}
+          <SpokenLabelsContext.Provider value>
+            <TooltipAlignContext.Provider value="end">
+              <View style={styles.toolbar} pointerEvents="box-none">
+                {actions.map((action) => (
+                  <ToolbarButton key={action.key ?? action.label} action={action} tokens={tokens} />
+                ))}
+              </View>
+            </TooltipAlignContext.Provider>
+          </SpokenLabelsContext.Provider>
         </View>
       </SafeInset>
     </View>
@@ -443,29 +451,34 @@ interface ToolbarAction {
   disabled?: boolean;
 }
 
+/**
+ * The preview toolbars' button (`ToolbarItem`), for its hover name and spoken
+ * label, in the viewer's own look: a filled square that reads on the black
+ * backdrop, larger on a phone.
+ */
 function ToolbarButton({ action, tokens }: { action: ToolbarAction; tokens: ExtendedThemeTokens }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={action.label}
+    <ToolbarItem
+      label={action.label}
       disabled={action.disabled}
       onPress={action.onPress}
       hitSlop={IS_WEB ? 4 : 6}
-      style={({ pressed }) => [
+      tokens={tokens}
+      pressedStyle={({ pressed }) => [
         styles.button,
         { backgroundColor: tokens.v2.surface2 },
         action.disabled && styles.disabled,
         pressed && styles.pressed,
       ]}
     >
-      {({ hovered }: { hovered?: boolean; pressed: boolean }) => (
+      {({ hovered }) => (
         <Glyph
           name={action.icon}
           size={GLYPH_SIZE}
           color={hovered && !action.disabled ? tokens.foreground : tokens.foregroundMuted}
         />
       )}
-    </Pressable>
+    </ToolbarItem>
   );
 }
 
