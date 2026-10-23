@@ -3,6 +3,7 @@ import type { StatusKind, TaskCard, TaskChild } from "../model";
 import { cardStart, cardTimer, formatEnded } from "./card-time";
 import { contextRatio, formatDuration } from "./format";
 import { cardStrings } from "./strings";
+import { subagentFacts } from "../subagent-type";
 
 /** What the details cards (`detail-cards.tsx`) show, as pure functions for the tests. */
 
@@ -291,6 +292,8 @@ export function subtaskModels(card: Pick<TaskCard, "provider" | "modelLabel" | "
 /** One part of a row's meta line; the row's leading mark names its agent. */
 export interface SubtaskMetaPart {
   text: string;
+  /** A Lucide icon before the text (a subagent's type, `subagentFacts`); the text may then be empty. */
+  icon?: string;
   tone: "warning" | "danger" | null;
 }
 
@@ -304,8 +307,11 @@ export interface SubtaskMetaPart {
 export function subtaskMeta(child: TaskChild, baseline: SubtaskModel | null, now: number, language: TasksLanguage, narrow = false): SubtaskMetaPart[] {
   const words = cardStrings(language).details;
   const parts: SubtaskMetaPart[] = [];
-  // A provider subagent's own line (its type, model, effort, tokens), as Paseo's track prints it.
-  if (child.kind === "provider" && child.subtitle && !narrow) parts.push({ text: child.subtitle, tone: null });
+  // A provider subagent's own line (model, effort, tokens), as Paseo's track prints it, its type as an icon.
+  if (child.kind === "provider" && !narrow) {
+    const facts = subagentFacts(child.subtitle, child.subagentType);
+    if (facts.full) parts.push({ text: facts.text ?? "", tone: null, ...(facts.icon ? { icon: facts.icon } : null) });
+  }
   const model = modelOf(child);
   if (model && (!baseline || modelKey(model) !== modelKey(baseline))) {
     const text = narrow ? model.model : [model.model, model.thinking].filter(Boolean).join(" \u00b7 ");

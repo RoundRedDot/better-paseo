@@ -1334,6 +1334,7 @@ describe("TaskCardView actions", () => {
       status: "running",
       kind: "provider",
       subtitle: "general-purpose · Opus 5.5 · High · 132.8k tokens",
+      subagentType: "general-purpose",
       provider: "claude",
       lane: "running",
       timing: base.children[0]!.timing,
@@ -1347,8 +1348,11 @@ describe("TaskCardView actions", () => {
     const list = hostByTestId(tree.root, "task-card-subtasks");
     // Drawn without a hover: the button is what tells it from a child with a tab of its own.
     expect(icons(hostByTestId(list, "subtask-parent-tab-sub-1"))).toEqual(["ArrowUpRight"]);
-    // Paseo's subagent track: the facts line under the title, in place of the times.
-    expect(texts(hostByTestId(list, "subtask-facts-sub-1"))).toEqual(["general-purpose · Opus 5.5 · High · 132.8k tokens"]);
+    // Paseo's subagent track: the facts line under the title, in place of the times, its type as an icon.
+    const facts = hostByTestId(list, "subtask-facts-sub-1");
+    expect(texts(facts)).toEqual(["Opus 5.5 · High · 132.8k tokens"]);
+    expect(icons(facts)).toEqual(["Shapes"]);
+    expect(facts.props.accessibilityLabel).toBe("general-purpose · Opus 5.5 · High · 132.8k tokens");
     expect(list.findAll((node) => typeof node.type === "string" && node.props.testID === "subtask-time-sub-1")).toHaveLength(0);
     for (const child of base.children) expect(list.findAll((node) => node.props.testID === `subtask-parent-tab-${child.id}`)).toHaveLength(0);
     // The row reveals the subagent's card, naming the parent for the board's fallback; the button opens the parent's tab.
@@ -1373,14 +1377,17 @@ describe("TaskCardView actions", () => {
       children: [],
       stoppable: false,
       parent: { id: base.id, title: base.title, missing: false, archived: false },
-      subagent: { subtitle: "general-purpose · Opus 5.5 · High · 12.4k tokens" },
+      subagent: { subtitle: "general-purpose · Opus 5.5 · High · 12.4k tokens", type: "general-purpose" },
     };
     const onOpen = vi.fn();
     const onSelect = vi.fn();
     const onDetails = vi.fn();
     const onStop = vi.fn();
     const tree = await render(cardElement(card, { onOpen, onSelect, onDetails, onStop }));
-    expect(texts(hostByTestId(tree.root, "pill-model"))).toContain("general-purpose · Opus 5.5 · High · 12.4k tokens");
+    // The type as the timeline's icon in place of its name; the screen reader still hears it.
+    expect(texts(hostByTestId(tree.root, "pill-model"))).toContain("Opus 5.5 · High · 12.4k tokens");
+    expect(icons(hostByTestId(tree.root, "pill-model"))).toEqual(["Shapes"]);
+    expect(hostByTestId(tree.root, "pill-model").props.accessibilityLabel).toBe(`${base.providerLabel} general-purpose · Opus 5.5 · High · 12.4k tokens`);
     // The facts line is not a model name to copy.
     expect(hostByTestId(tree.root, "pill-model").props.accessibilityRole).not.toBe("button");
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop")).toHaveLength(0);
@@ -1900,10 +1907,11 @@ describe("TaskDetailCards", () => {
 
   it("merges a failed provider subagent's status into its agent's mark, off its own line", async () => {
     const base = sample("sample-done");
-    const subagent: TaskChild = { id: "sub-1", title: "RRD-10161 desktop native fatal", status: "failed", kind: "provider", subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens", provider: "claude", lane: "review", timing: sample("sample-running").children[2]!.timing };
+    const subagent: TaskChild = { id: "sub-1", title: "RRD-10161 desktop native fatal", status: "failed", kind: "provider", subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens", subagentType: "general-purpose", provider: "claude", lane: "review", timing: sample("sample-running").children[2]!.timing };
     const tree = await render(details({ ...base, children: [subagent] }));
     const meta = hostByTestId(tree.root, "detail-subtask-meta-sub-1");
-    expect(texts(meta)[0]).toBe("general-purpose · Opus 5.5 · High · 189.7k tokens ·");
+    expect(texts(meta)[0]).toBe("Opus 5.5 · High · 189.7k tokens ·");
+    expect(icons(meta)).toEqual(["Shapes"]);
     expect(meta.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(0);
     const mark = hostByTestId(tree.root, "detail-subtask-status-sub-1");
     expect(mark.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(1);
