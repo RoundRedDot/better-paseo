@@ -83,6 +83,7 @@ import {
   type TaskCardViewProps,
 } from "../../client/tasks/cards";
 import { SpinnerRing, statusRingHolders } from "../../client/tasks/cards/status-icon";
+import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { LARGE_FONT_SCALE, OVERLAY_ROW_Z, PHONE_BUTTON_MIN_WIDTH, phoneButtonSizing } from "../../client/tasks/cards/task-card";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
@@ -453,33 +454,31 @@ describe("TaskCardView rows", () => {
     expect(texts(tree.root).some((text) => text.includes("未提交"))).toBe(false);
   });
 
-  it("draws pills fully rounded and outlined, with label dots in the label colour", async () => {
+  it("draws pills fully rounded and outlined, with a solid tag in the label colour", async () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: fields("standard", { labelLimit: "all" }) }));
     for (const [id] of pills(tree.root)) {
       // borderWidth is StyleSheet.hairlineWidth, which rn-mock reports as 1; the agent pills have none.
       const agent = id === "pill-model" || id === "pill-branch";
       expect(flat(hostByTestId(tree.root, id).props.style)).toMatchObject({ height: 20, borderRadius: 10, borderWidth: agent ? 0 : 1 });
     }
-    // Tints: a label's colour at 10% over the card with a stronger hairline; neutral grey without one.
+    // A label pill is the neutral one: its colour is only in the solid tag before the name.
     const tokens = buildTaskTokens(LIGHT.colors);
     const pillColors = (id: string) => {
       const style = flat(hostByTestId(tree.root, id).props.style);
       return { background: style.backgroundColor, border: style.borderColor };
     };
-    expect(pillColors("pill-label-frontend")).toEqual({ background: mix("#ffffff", "#8b5cf6", 0.1), border: mix("#ffffff", "#8b5cf6", 0.26) });
+    expect(pillColors("pill-label-frontend")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
     expect(pillColors("pill-label-board")).toEqual({ background: tokens.card.pillFill, border: tokens.card.pillBorder });
     // The branch: a faint fixed blue, borderless; folder, path and PR stay neutral.
     expect(pillColors("pill-branch").background).toBe(mix("#ffffff", tokens.branch, 0.08));
     // Codex's mark is monochrome, like the ChatGPT app's, so its agent pill is the neutral one; the subtasks pill its dominant status (2 running).
     expect(pillColors("pill-model").background).toBe(mix("#ffffff", LIGHT.colors.foreground, 0.06));
     expect(pillColors("pill-subtasks").background).toBe(mix("#ffffff", tokens.status.running, 0.1));
-    const dot = (name: string) =>
-      flat((hostByTestId(tree.root, `pill-label-${name}`).findAll((node) => typeof node.type === "string" && flat(node.props.style).width === 6)[0])!.props.style)
-        .backgroundColor;
-    expect(dot("frontend")).toBe("#8b5cf6");
-    expect(dot("p1")).toBe("#ef4444");
-    // No colour: a neutral grey dot.
-    expect(dot("board")).toBe("#6b6b75");
+    const tag = (name: string) => hostByTestId(tree.root, `pill-label-${name}`).findByType(TagMark).props;
+    expect(tag("frontend")).toMatchObject({ color: "#8b5cf6", hole: tokens.card.pillFill });
+    expect(tag("p1").color).toBe("#ef4444");
+    // No colour: a neutral grey tag.
+    expect(tag("board").color).toBe("#6b6b75");
   });
 
   it("keeps the title row, the agent pill and the footer at minimal", async () => {

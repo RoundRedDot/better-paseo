@@ -4,7 +4,7 @@ import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
-import { BrandMark, ProjectIcon, taskTokens } from "../cards";
+import { BrandMark, ProjectIcon, TagMark, taskTokens } from "../cards";
 import { Segments, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { SwitchTrack } from "../../ui/switch-track";
@@ -85,7 +85,7 @@ export function FilterSheetBody(props: {
                 key={label.id}
                 option={label}
                 theme={theme}
-                leading={<View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: label.color ?? colors.foregroundMuted }} />}
+                leading={<TagMark size={14} color={label.color ?? colors.foregroundMuted} hole={label.on ? taskTokens(theme).accentSoft : colors.surface0} />}
                 onPress={() => setParams((p) => ({ ...p, labels: toggleItem(p.labels, label.id) }))}
               />
             ))}

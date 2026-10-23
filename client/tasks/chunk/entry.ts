@@ -1,7 +1,7 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { lastTurnsRpc } from "../../../shared/turn-usage-rpc";
-import { tasksReadsRpc, tasksSessionTokensRpc, tasksSubagentsRpc } from "../../../shared/tasks-rpc";
-import { setLastTurnLoader, setReadMarksLoader, setSubagentLoader } from "../data";
+import { tasksLabelsRpc, tasksReadsRpc, tasksSessionTokensRpc, tasksSubagentsRpc } from "../../../shared/tasks-rpc";
+import { setLabelDefinitionsLoader, setLastTurnLoader, setReadMarksLoader, setSubagentLoader } from "../data";
 import { setSessionTokensLoader } from "../data/session-tokens";
 
 /**
@@ -25,12 +25,15 @@ export function startTasksData(client: PluginClientContext): () => void {
   setSubagentLoader((since) => client.rpc(tasksSubagentsRpc, since === undefined ? {} : { since }));
   // Cards marked read from a board, failures included: the server keeps the marks.
   setReadMarksLoader(() => client.rpc(tasksReadsRpc, {}).then((result) => result.reads));
+  // Label colors as Paseo's sidebar draws them, for a host whose API lists no label definitions.
+  setLabelDefinitionsLoader(() => client.rpc(tasksLabelsRpc, {}).then((result) => result.labels));
   // A running task's session tokens, read by the server from the provider's session files.
   setSessionTokensLoader((agentId) => client.rpc(tasksSessionTokensRpc, { agentId }).then((result) => result.tokens));
   return () => {
     setLastTurnLoader(null);
     setSubagentLoader(null);
     setReadMarksLoader(null);
+    setLabelDefinitionsLoader(null);
     setSessionTokensLoader(null);
   };
 }

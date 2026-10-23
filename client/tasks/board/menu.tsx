@@ -355,7 +355,9 @@ function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome
   const scale = useTasksFontScale();
   const colors = props.theme.colors;
   const danger = item.danger && !item.disabled ? taskTokens(props.theme).danger : null;
-  const leading: ReactNode = item.leading ?? (item.icon ? <Icon name={item.icon} size={MENU.icon} color={danger ?? colors.foregroundMuted} /> : null);
+  const fill = props.active ? chrome.hover : chrome.background;
+  const leading: ReactNode =
+    typeof item.leading === "function" ? item.leading(fill) : item.leading ?? (item.icon ? <Icon name={item.icon} size={MENU.icon} color={danger ?? colors.foregroundMuted} /> : null);
   return (
     <Pressable
       accessibilityRole="menuitem"

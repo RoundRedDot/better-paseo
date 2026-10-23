@@ -6,7 +6,7 @@ import { TASKS_SETTINGS } from "../../shared/tasks-settings";
 import { createStopMarks, readMarksPath, stopMarksPath } from "./stop-marks";
 import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon, type SubagentWatch } from "./provider-subagents";
 import { createSessionTokenReader, type SessionTokenReader } from "./session-tokens";
-import { tasksCapabilitiesRpc, tasksChunkRpc, tasksReadRpc, tasksReadsRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksReadRpc, tasksReadsRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
 import { TASKS_CHUNK } from "../tasks-chunk";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
@@ -15,6 +15,7 @@ const STOP_TIMEOUT_MS = 10_000;
 const UNARCHIVE_TIMEOUT_MS = 60_000;
 /** The daemon loads an agent from storage before clearing it; one it cannot find gets no answer at all. */
 const READ_TIMEOUT_MS = 10_000;
+const LABELS_TIMEOUT_MS = 10_000;
 
 type CliStopOutput = { stoppedCount: number; agentIds: string[] };
 
@@ -137,6 +138,26 @@ async function directoryExists(path: string): Promise<boolean> {
   }
 }
 
+/** The daemon's label definitions; null when it cannot be reached, has no labels API or does not answer in time. */
+async function readLabels(host: HostDaemonAccess): Promise<Array<{ name: string; color: string }> | null> {
+  const daemon = await host.connect();
+  if (!daemon) return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    if (typeof daemon.listWorkspaceLabels !== "function") return null;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("timeout")), LABELS_TIMEOUT_MS);
+    });
+    const { labels } = await Promise.race([daemon.listWorkspaceLabels(), timeout]);
+    return labels.map(({ name, color }) => ({ name, color }));
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    await daemon.close().catch(() => {});
+  }
+}
+
 /**
  * Whether the daemon can clear the agent: it resumes a stored ("closed") agent
  * first, which fails where its working directory is gone (a worktree the
@@ -215,6 +236,7 @@ export function registerTasksServer(
     if (result.ok) for (const agentId of agentIds) await reads.mark(agentId);
     return result;
   });
+  server.handle(tasksLabelsRpc, async () => ({ labels: await readLabels(host) }));
   server.handle(tasksReadsRpc, async () => ({
     reads: (await reads.list()).map(({ agentId, stoppedAt }) => ({ agentId, readAt: stoppedAt })),
   }));

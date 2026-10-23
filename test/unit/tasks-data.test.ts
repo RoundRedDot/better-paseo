@@ -2,10 +2,11 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { filterLanes, setLastTurnLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, withLastTurn, withReadMark, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import { filterLanes, setLabelDefinitionsLoader, setLastTurnLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, withLastTurn, withReadMark, withSubagents, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
+import { fallbackLabelColor } from "../../client/tasks/label-colors";
 import { cardStart, cardTimer } from "../../client/tasks/cards/card-time";
 import { at, createFakePaseo, makeAgent, makePlacement, makeWorkspace } from "./helpers/fake-paseo";
 import "./helpers/quiet-renderer";
@@ -658,7 +659,8 @@ describe("Tasks data store", () => {
     const oldHost = createFakePaseo({ agents: [agent], workspaces: [workspace(["bug"])] });
     const oldMounted = await mountTasks(oldHost, "24h", false);
     try {
-      expect(oldMounted.current.byId.get("a")?.labels).toEqual([{ name: "bug", color: null }]);
+      // No label definitions: Linear's Bug red.
+      expect(oldMounted.current.byId.get("a")?.labels).toEqual([{ name: "bug", color: "#eb5757" }]);
       expect(oldMounted.current.byId.get("a")?.openTab).toBe(true);
       oldMounted.current.requestProjectIcon("project-id");
       expect(oldHost.calls.some((call) => call.method === "projects.icon")).toBe(false);
@@ -676,7 +678,7 @@ describe("Tasks data store", () => {
     });
     const freshMounted = await mountTasks(freshHost, "24h", false);
     try {
-      expect(freshMounted.current.byId.get("a")?.labels).toEqual([{ name: "bug", color: "#9c4243" }]);
+      expect(freshMounted.current.byId.get("a")?.labels).toEqual([{ name: "bug", color: "#b06260" }]);
       await act(async () => {
         freshMounted.current.requestProjectIcon("project-id");
         freshMounted.current.requestProjectIcon("project-id");
@@ -708,10 +710,46 @@ describe("Tasks data store", () => {
     });
     const mounted = await mountTasks(host, "24h", false);
     try {
-      expect(mounted.current.labels).toEqual([{ name: "bug", color: "#9c4243" }, { name: "spare", color: "#9c4243" }]);
+      expect(mounted.current.labels).toEqual([{ name: "bug", color: "#b06260" }, { name: "spare", color: "#b06260" }]);
     } finally {
       mounted.unmount();
     }
+  });
+
+  it("colors labels from the server's definitions on a host that lists none, standing in only for the rest", async () => {
+    const agent = activeAgent("a", { status: "running" });
+    const host = createFakePaseo({ agents: [agent], workspaces: [workspace(["bug", "infra", "unlisted"])] });
+    const loader = vi.fn(async () => [{ name: "bug", color: "pink" }, { name: "infra", color: "emerald" }]);
+    setLabelDefinitionsLoader(loader);
+    try {
+      const mounted = await mountTasks(host, "24h", false);
+      try {
+        expect(loader).toHaveBeenCalledTimes(1);
+        expect(mounted.current.byId.get("a")?.labels).toEqual([
+          { name: "bug", color: "#b05c80" },
+          { name: "infra", color: "#388068" },
+          { name: "unlisted", color: fallbackLabelColor("unlisted") },
+        ]);
+      } finally {
+        mounted.unmount();
+      }
+    } finally {
+      setLabelDefinitionsLoader(null);
+    }
+  });
+
+  it("gives labels without a color distinct Linear colors that stay put", async () => {
+    // A fresh module: the colors other tests handed out are kept for the session.
+    vi.resetModules();
+    const { fallbackLabelColor } = await import("../../client/tasks/label-colors");
+    // "linear" comes first and hashes to Bug's red: it steps past it, so Bug keeps red to itself.
+    // Seven others fill the colors Linear's default labels leave free.
+    const names = ["linear", "部署", "操作", "打包", "功能", "教学", "配置", "Bug"];
+    const colors = names.map(fallbackLabelColor);
+    expect(new Set(colors).size).toBe(names.length);
+    expect(names.map(fallbackLabelColor)).toEqual(colors);
+    expect(fallbackLabelColor("Bug")).toBe("#eb5757");
+    expect(fallbackLabelColor("Feature")).toBe("#bb87fc");
   });
 
   it("gives the workspace options their project's key and loaded icon, so filter rows match the cards", async () => {
