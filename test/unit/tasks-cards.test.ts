@@ -1339,17 +1339,34 @@ describe("TaskCardView actions", () => {
     expect(onReveal).toHaveBeenCalledWith("sample-child-1");
     const list = hostByTestId(tree.root, "task-card-subtasks");
     // Each row: the agent's mark on the left, aligned with the title's first line, its status on the
-    // corner while it runs; no state words.
+    // corner in every state; no state words.
     for (const child of sample("sample-running").children) {
       const slot = hostByTestId(list, `subtask-status-${child.id}`);
       expect(slot.props.style).toMatchObject({ height: 16 });
-      expect(slot.findAll((node) => typeof node.type === "string" && node.props.testID === "status-running")).toHaveLength(child.status === "running" ? 1 : 0);
+      expect(slot.findAll((node) => typeof node.type === "string" && node.props.testID === `status-${child.status}`)).toHaveLength(1);
     }
     // A running child's start and timer at the end, as the footer; a finished one's last turn and when.
     expect(texts(hostByTestId(list, "subtask-time-sample-child-1"))).toEqual([`${formatClockTime(NOW - 3 * 60_000, NOW)} · 3m`]);
     expect(texts(hostByTestId(list, "subtask-time-sample-child-2"))).toEqual([`${formatClockTime(NOW - 312_000, NOW)} · 5m 12s`]);
     expect(texts(list).filter((text) => !text.includes(" · "))).toEqual(["Measure the sidebar ring", "Write the ring geometry test", "Collect status colours"]);
     for (const word of ["运行中", "已完成", "待输入"]) expect(texts(list)).not.toContain(word);
+  });
+
+  it("marks a subtask row's agent icon with its status in every state, archived as the muted box", async () => {
+    const base = sample("sample-running");
+    const kinds = ["running", "needs_input", "unread", "failed", "done", "archived"] as const;
+    const children: TaskChild[] = kinds.map((status) => ({ ...base.children[2]!, id: `child-${status}`, title: status, status }));
+    const tree = await render(cardElement({ ...base, children }));
+    await act(async () =>
+      tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false).props.onPress(),
+    );
+    const list = hostByTestId(tree.root, "task-card-subtasks");
+    for (const status of kinds) {
+      const slot = hostByTestId(list, `subtask-status-child-${status}`);
+      expect(slot.findAll((node) => typeof node.type === "string" && node.props.testID === `status-${status}`)).toHaveLength(1);
+    }
+    expect(icons(hostByTestId(list, "subtask-status-child-done"))).toContain("CircleCheck");
+    expect(icons(hostByTestId(list, "subtask-status-child-archived"))).toContain("Archive");
   });
 
   it("draws a provider subagent's row as Paseo's track, ending with a parent-tab arrow; a press on the row reveals its card", async () => {
@@ -1912,11 +1929,16 @@ describe("TaskDetailCards", () => {
     // The running count is in the status colour, the rest muted.
     const summary = hostByTestId(running.root, "detail-subtasks").findAll((node) => (node.type as unknown) === "Text" && node.props.children === 2);
     expect(flat(summary[0]!.props.style).color).toBe(taskTokens(LIGHT).status.running);
-    // The agent's mark leads each row, its status on the corner while it runs and none once done;
+    // The agent's mark leads each row, its status on the corner in every state, done too;
     // a running timer is in the foreground colour, a finished row's title muted.
     const tokens = taskTokens(LIGHT);
-    expect(hostByTestId(section, "detail-subtask-status-sample-child-2").findAll((node) => node.props.testID === "status-running").length).toBeGreaterThan(0);
-    expect(hostByTestId(section, "detail-subtask-status-sample-child-3").findAll((node) => typeof node.props.testID === "string" && node.props.testID.startsWith("status-"))).toEqual([]);
+    const corner = (id: string) =>
+      hostByTestId(section, `detail-subtask-status-${id}`)
+        .findAll((node) => typeof node.type === "string" && typeof node.props.testID === "string" && node.props.testID.startsWith("status-"))
+        .map((node) => node.props.testID);
+    expect(corner("sample-child-2")).toContain("status-running");
+    expect(corner("sample-child-3")).toEqual(["status-done"]);
+    expect(icons(hostByTestId(section, "detail-subtask-status-sample-child-3"))).toContain("CircleCheck");
     expect(flat(hostByTestId(section, "detail-subtask-time-sample-child-2").props.style).color).toBe(tokens.foreground);
     expect(flat(hostByTestId(section, "detail-subtask-time-sample-child-3").props.style).color).toBe(tokens.foregroundMuted);
     const doneTitle = hostByTestId(section, "detail-subtask-sample-child-3").find((node) => (node.type as unknown) === "Text" && node.props.numberOfLines === 2);

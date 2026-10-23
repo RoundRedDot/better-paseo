@@ -11,7 +11,10 @@ import type { TaskTokens } from "./tokens";
  * Paseo 0.12's `WorkspaceTabIcon` at 14: the provider's mark, its status on
  * the bottom-right corner over a knockout of the row's fill. Running is the
  * 12 ring in a 14 frame, unread and failed an 8 dot (6 and a 1 px knockout),
- * needs input the board's hollow amber ring; a finished child has none.
+ * needs input the board's hollow amber ring. One deviation, at the user's
+ * request: the host draws nothing for a finished child, here done is the
+ * board's green circled check and archived its muted box, at 12 in the
+ * ring's 14 knockout, so every row says where its child stands.
  */
 export function ChildMark(props: { child: TaskChild; tokens: TaskTokens; theme: PluginTheme; backdrop: string; animated?: boolean }) {
   const { child, tokens } = props;
@@ -31,6 +34,15 @@ export function ChildMark(props: { child: TaskChild; tokens: TaskTokens; theme: 
         testID={`status-${status}`}
         style={{ position: "absolute", right: -2, bottom: -2, width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: props.backdrop, backgroundColor: status === "failed" ? tokens.status.danger : tokens.status.success }}
       />
+    );
+  } else if (status === "done" || status === "archived") {
+    corner = (
+      <View
+        testID={`status-${status}`}
+        style={{ position: "absolute", right: -5, bottom: -5, width: 14, height: 14, borderRadius: 7, backgroundColor: props.backdrop, alignItems: "center", justifyContent: "center" }}
+      >
+        <Icon name={status === "done" ? "CircleCheck" : "Archive"} size={12} color={status === "done" ? tokens.status.success : tokens.foregroundMuted} />
+      </View>
     );
   }
   return (
