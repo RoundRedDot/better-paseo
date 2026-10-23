@@ -901,7 +901,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // Footer: the timer, and the hover buttons at the far right ---------------
   // Whether there is a timer and its tone do not change with the time; the text does, in `TimerText`.
   const timer = layout.timer ? cardTimer(card, props.now ?? 0, language) : null;
-  // A running turn's start behind a clock, then how long it has run behind an hourglass, as the turn footer draws them.
+  // A running turn's start behind a clock, then how long it has run behind an hourglass, as the turn footer draws them;
+  // a card waiting on its subtasks draws their work the same way.
   const started = timer && cardStart(card, props.now ?? 0) !== null;
   const timerColor =
     timer?.tone === "warning" ? tokens.warning : timer?.tone === "running" ? tokens.status.running : muted;

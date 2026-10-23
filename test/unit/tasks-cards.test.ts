@@ -454,6 +454,17 @@ describe("TaskCardView rows", () => {
     expect(texts(tree.root).some((text) => text.includes("未提交"))).toBe(false);
   });
 
+  it("draws a card waiting on its subtasks with their start and length, as a running turn's", async () => {
+    const running = sample("sample-running");
+    const child: TaskChild = { id: "child", title: "child", status: "running", lane: "running", timing: running.timing };
+    const card: TaskCard = { ...sample("sample-done"), lane: "running", status: "running", waitingOnSubtasks: true, children: [child] };
+    const tree = await render(cardElement(card));
+    const footer = hostByTestId(tree.root, "task-card-footer");
+    expect(texts(footer)).toEqual([RUNNING_START, "12m 30s"]);
+    expect(icons(hostByTestId(footer, "task-card-started"))).toEqual(["Clock"]);
+    expect(icons(hostByTestId(footer, "task-card-timer"))).toEqual(["Hourglass"]);
+  });
+
   it("draws pills fully rounded and outlined, with a solid tag in the label colour", async () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: fields("standard", { labelLimit: "all" }) }));
     for (const [id] of pills(tree.root)) {

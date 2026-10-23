@@ -1413,6 +1413,22 @@ describe("Tasks data store", () => {
       expect(withActiveSubtasks(working)).toBe(working);
     });
 
+    it("times a waiting parent by its subtasks' work: from the earliest one still at work", () => {
+      const started = (status: TaskCard["status"], msAgo: number | null, now: number) => ({
+        ...child(status),
+        lane: status === "needs_input" ? ("needs_input" as const) : ("running" as const),
+        timing: { ...doneParent([]).timing, turnStartedAt: msAgo === null ? null : new Date(now - msAgo).toISOString() },
+      });
+      const now = Date.parse("2026-10-22T10:30:00.000Z");
+      const card = withActiveSubtasks(doneParent([started("running", 65_000, now), started("needs_input", 125_000, now), started("done", 600_000, now), started("running", null, now)]));
+      expect(cardTimer(card, now, "en")).toEqual({ text: "2m 5s", tone: "muted" });
+      expect(cardStart(card, now)).toBe(cardStart({ lane: "running", timing: { ...card.timing, turnStartedAt: new Date(now - 125_000).toISOString() } }, now));
+      // A subtask without a start (itself waiting on its own) leaves the last turn's timer.
+      const unstarted = withActiveSubtasks(doneParent([started("running", null, now)]));
+      expect(cardTimer(unstarted, now, "en")?.text).toBe(cardTimer({ ...unstarted, lane: "done" }, now, "en")?.text);
+      expect(cardStart(unstarted, now)).toBeNull();
+    });
+
     it("times a waiting parent by its last turn, not as a turn that is starting", () => {
       const card = withActiveSubtasks(doneParent([child("running")]));
       const now = Date.parse(card.timing.updatedAt) + 60_000;
