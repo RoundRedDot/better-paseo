@@ -1,4 +1,4 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useLayoutEffect, useMemo, useSyncExternalStore } from "react";
 import type {
   PaseoAgent,
   PaseoAgentListOptions,
@@ -713,12 +713,19 @@ function createStore(api: PaseoApi): TaskStore {
   let countsDirty = true;
   let loadingDone = false;
   /**
-   * The archived lane is on: the done list includes archived agents, whose
-   * records stay, and an archived workspace's agents get cards in the
-   * archived lane instead of none. Kept while the board closes, so a warm
-   * hold reads the same list as the board it stands in for.
+   * The archived lane is asked for: the done list includes archived agents,
+   * whose records stay. Kept while the board closes, so a warm hold reads
+   * the same list as the board it stands in for.
+   */
+  let archivedAsked = false;
+  /**
+   * The archived lane is drawn: archived agents, and an archived workspace's,
+   * get cards in it instead of none. Off as soon as it is turned off; on once
+   * the done list with archived agents lands, so the lane fills in one step.
    */
   let archivedLane = false;
+  /** The done list is read again with another filter: its cards stay until the new list replaces them. */
+  let doneReloading = false;
   let doneCursor: string | null = null;
   let doneTailAt: string | null = null;
   let error: string | null = null;
@@ -942,7 +949,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   /** An archived agent the archived lane holds: settled, as the done list it came in reads them. */
   function keepsArchived(agent: PaseoAgent): boolean {
-    return archivedLane && doneConsumers > 0 && isDone(agent);
+    return archivedAsked && doneConsumers > 0 && isDone(agent);
   }
 
   function reconcileActiveMembers(agent: PaseoAgent) {
@@ -1053,6 +1060,7 @@ function createStore(api: PaseoApi): TaskStore {
       if (sourceKey === DONE_SUBSCRIPTION) {
         doneCursor = snapshot.pageInfo.nextCursor;
         doneTailAt = snapshot.entries.at(-1)?.agent.updatedAt ?? null;
+        doneListLanded();
       }
       notify();
     });
@@ -1393,6 +1401,7 @@ function createStore(api: PaseoApi): TaskStore {
       if (isCurrent(run)) {
         // A failed list must not hold the board on its skeleton.
         if (key === ATTENTION_KEY) attentionReady = true;
+        if (key === DONE_SUBSCRIPTION) doneListLanded();
         subscriptionError(caught);
       }
     }
@@ -1659,29 +1668,53 @@ function createStore(api: PaseoApi): TaskStore {
 
   /** The done lane's list; with the archived lane it includes archived agents, which sort among the rest. */
   function doneFilter(): PaseoAgentListOptions["filter"] {
-    return archivedLane ? { statuses: ["idle", "closed"], includeArchived: true } : { statuses: ["idle", "closed"] };
+    return archivedAsked ? { statuses: ["idle", "closed"], includeArchived: true } : { statuses: ["idle", "closed"] };
   }
 
   /**
    * Turn the archived lane on or off: the done list is read again with or
-   * without archived agents, and the cards of archived workspaces come or go.
+   * without archived agents. The cards on the board stay until it lands, so
+   * the count moves once: off, the archived cards leave at once; on, they
+   * come with the new list.
    */
   function setArchivedLane(on: boolean) {
-    if (archivedLane === on) return;
-    archivedLane = on;
+    if (archivedAsked === on) return;
+    archivedAsked = on;
     batchUpdates(() => {
       if (doneConsumers > 0 && consumers > 0) {
-        stopDone();
-        startDone();
+        doneRun += 1;
+        stopSubscription(DONE_SUBSCRIPTION);
+        // A page in flight belongs to the old list, and the old cursor to its filter.
+        loadingDone = false;
+        doneReloading = true;
+        openDoneList();
       }
-      for (const id of entries.keys()) refreshFinalCard(id);
+      if (!on || !doneReloading) showArchivedLane(on);
       notify();
     });
   }
 
+  /** The done list arrived, or could not: the archived lane follows what was asked. */
+  function doneListLanded() {
+    doneReloading = false;
+    showArchivedLane(archivedAsked);
+  }
+
+  /** Draw the archived lane or not: the cards of archived agents and archived workspaces come or go. */
+  function showArchivedLane(on: boolean) {
+    if (archivedLane === on) return;
+    archivedLane = on;
+    for (const id of entries.keys()) refreshFinalCard(id);
+    notify();
+  }
+
   function startDone() {
-    const run: Run = { generation, tier: "done", tierRun: ++doneRun };
     sourceMembers.set(DONE_SUBSCRIPTION, new Set());
+    openDoneList();
+  }
+
+  function openDoneList() {
+    const run: Run = { generation, tier: "done", tierRun: ++doneRun };
     void openAgentSubscription(DONE_SUBSCRIPTION, {
       filter: doneFilter(),
       sort: [{ key: "updated_at", direction: "desc" }],
@@ -1706,6 +1739,7 @@ function createStore(api: PaseoApi): TaskStore {
     doneCursor = null;
     doneTailAt = null;
     loadingDone = false;
+    doneListLanded();
     notify();
   }
 
@@ -1790,6 +1824,8 @@ function createStore(api: PaseoApi): TaskStore {
     doneCursor = null;
     doneTailAt = null;
     loadingDone = false;
+    doneReloading = false;
+    archivedLane = archivedAsked;
     error = null;
     notify();
   }
@@ -1814,7 +1850,7 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function getSnapshot(options: TasksOptions): TasksHandle {
-    const showArchived = options.includeDone && options.includeArchived === true && archivedLane;
+    const showArchived = options.includeDone && options.includeArchived === true && archivedAsked;
     const cacheKey = `${options.includeDone ? "done" : "active"}:${options.doneWindow}:${showArchived ? "archived" : ""}`;
     const cached = snapshotCaches.find((entry) => entry.key === cacheKey)?.snapshot;
     if (cached) return cached as TasksHandle;
@@ -1843,7 +1879,8 @@ function createStore(api: PaseoApi): TaskStore {
         id: lane,
         cards: laneCards,
         hasMore: paged && Boolean(doneCursor) && !tailOld,
-        loading: paged && loadingDone,
+        // The archived lane waits on its first list while the done lane keeps its cards.
+        loading: paged && (loadingDone || (lane === "archived" && doneReloading)),
       };
     }
     // Every enabled provider, then any other a card was run with (one disabled since).
@@ -1911,7 +1948,7 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function loadMoreDone(window: DoneWindow) {
-    if (loadingDone || !doneCursor || doneConsumers === 0) return;
+    if (loadingDone || doneReloading || !doneCursor || doneConsumers === 0) return;
     const cutoff = doneWindowMs(window);
     const tailTime = doneTailAt ? Date.parse(doneTailAt) : Number.NaN;
     if (cutoff !== null && Number.isFinite(tailTime) && Date.now() - tailTime > cutoff) return;
@@ -2106,15 +2143,17 @@ function getStore(api: PaseoApi): TaskStore {
 export function useTasks(paseo: PaseoApi, options: TasksOptions, beforeRelease?: (paseo: PaseoApi) => void): TasksHandle {
   const store = getStore(paseo);
   const archived = options.includeDone && options.includeArchived === true;
+  // Before the subscription (a layout effect runs ahead of it), so a first
+  // board reads the done list once, with archived agents or without; after,
+  // a switch reads it again without letting go of the board.
+  useLayoutEffect(() => store.setArchivedLane(archived), [store, archived]);
   const subscribe = useMemo(() => (listener: () => void) => {
-    // Before the subscription, so a first board reads the done list once, with archived agents or without.
-    store.setArchivedLane(archived);
     const release = store.subscribe(listener, { board: true, done: options.includeDone });
     return () => {
       beforeRelease?.(paseo);
       release();
     };
-  }, [store, paseo, options.includeDone, archived, beforeRelease]);
+  }, [store, paseo, options.includeDone, beforeRelease]);
   const getSnapshot = useMemo(() => () => store.getSnapshot(options), [store, options.doneWindow, options.includeDone, options.includeArchived]);
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
