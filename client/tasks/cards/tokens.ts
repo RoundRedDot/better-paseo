@@ -118,10 +118,6 @@ export interface CardTokens {
   archiveHover: string;
   /** Its label and icon: the yellow, readable at 4.5:1 on the card and on its hover. */
   archiveText: string;
-  /** Text on a solid accent or danger fill. */
-  onStrong: string;
-  /** A solid danger fill, hovered. */
-  dangerStrongHover: string;
 }
 
 const STATUS_LIGHT = { running: "#268ae0", warning: "#b37824", success: "#299f51", danger: "#f12e2f" } as const;
@@ -262,8 +258,6 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
     archiveBorder: yellow,
     archiveHover,
     archiveText: readableOn(yellow, [background, archiveHover], fg),
-    onStrong: colors.accentForeground,
-    dangerStrongHover: mix(danger, fg, 0.15),
   };
 }
 
