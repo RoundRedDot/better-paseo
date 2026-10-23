@@ -151,7 +151,8 @@ describe("the image viewer's file button", () => {
     const renderer = render(React.createElement(ImageViewer, {
       open: true, onClose() {}, uri: file.dataUri, width: 40, height: 30, label: PATH, path: PATH, tokens,
     }));
-    await press(viewerButton(renderer, "Copy path"));
+    // The button is spoken in Chinese too (image-viewer-labels.test.ts).
+    await press(viewerButton(renderer, "复制路径"));
     expect(clipboard.show).toHaveBeenCalledWith("已复制路径");
     act(() => renderer.unmount());
   });
