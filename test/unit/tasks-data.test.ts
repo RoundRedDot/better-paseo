@@ -959,18 +959,56 @@ describe("Tasks data store", () => {
         expect(fake.calls.map((call) => call.input)).toEqual([
           { filter: { statuses: ["running", "initializing", "error"] }, subscribe: {} },
           { filter: { requiresAttention: true }, subscribe: {} },
+          { subscribe: {} },
         ]);
-        expect(fake.openSubscriptions()).toBe(2);
+        expect(fake.calls.map((call) => call.method)).toEqual(["agents.list", "agents.list", "workspaces.list"]);
+        expect(fake.openSubscriptions()).toBe(3);
         const board = await mountTasks(fake);
         expect(board.current.ready).toBe(true);
         expect(fake.calls.filter((call) => call.method === "agents.list")).toHaveLength(3);
+        expect(fake.calls.filter((call) => call.method === "workspaces.list")).toHaveLength(1);
         board.unmount();
-        expect(fake.openSubscriptions()).toBe(2);
+        expect(fake.openSubscriptions()).toBe(3);
         expect(counts.current).toEqual({ needsInput: 1, running: 1, review: 2, ready: true });
         await act(async () => {
           fake.upsertAgent(activeAgent("unread", { status: "idle", requiresAttention: false }));
           await Promise.resolve();
         });
+        expect(counts.current.review).toBe(1);
+      } finally {
+        counts.unmount();
+      }
+      expect(fake.openSubscriptions()).toBe(0);
+    });
+
+    it("leave out the unread agents of an archived workspace, and show no review count until the workspaces arrive", async () => {
+      const fake = createFakePaseo({
+        agents: [
+          activeAgent("unread", { status: "idle", requiresAttention: true, attentionReason: "finished" }),
+          activeAgent("orphan-1", { workspaceId: "gone", status: "idle", requiresAttention: true, attentionReason: "finished" }),
+          activeAgent("orphan-2", { workspaceId: "gone", status: "closed", requiresAttention: true, attentionReason: "finished" }),
+        ],
+        workspaces: [workspace()],
+      });
+      const list = fake.paseo.workspaces.list.bind(fake.paseo.workspaces);
+      let releaseWorkspaces!: () => void;
+      const gate = new Promise<void>((resolve) => { releaseWorkspaces = resolve; });
+      (fake.paseo.workspaces as { list: unknown }).list = async (options: { subscribe: {} }) => {
+        await gate;
+        return list(options);
+      };
+      const counts = await mountCounts(fake, true);
+      try {
+        expect(counts.current).toEqual({ needsInput: 0, running: 0, review: 0, ready: true });
+        await act(async () => {
+          releaseWorkspaces();
+          for (let index = 0; index < 8; index += 1) await Promise.resolve();
+        });
+        expect(counts.current).toEqual({ needsInput: 0, running: 0, review: 1, ready: true });
+        // A board that comes and goes leaves the workspaces with the count: the orphans stay out.
+        const board = await mountTasks(fake);
+        expect(board.current.lanes.review.cards.map((card) => card.id)).toEqual(["unread"]);
+        board.unmount();
         expect(counts.current.review).toBe(1);
       } finally {
         counts.unmount();
