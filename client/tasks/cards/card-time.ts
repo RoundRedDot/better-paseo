@@ -59,3 +59,35 @@ export function cardStart(card: Timed, now: number): string | null {
   const at = Date.parse(card.timing.turnStartedAt);
   return Number.isNaN(at) ? null : formatClockTime(at, now);
 }
+
+/**
+ * What the footer's times mean, for its hover hint: the running turn's start
+ * and length, when the wait began, or the last turn's length and the last
+ * update, with full stamps where the footer shows a relative time.
+ */
+export function timerHint(card: Timed, now: number, language: TasksLanguage): string | null {
+  const { hint, starting } = cardStrings(language);
+  const timing = card.timing;
+  const stamp = (iso: string | null) => (since(iso, now) === null ? null : formatFullStamp(new Date(iso!)));
+  if (card.lane === "needs_input") {
+    const at = stamp(timing.attentionAt) ?? stamp(timing.turnStartedAt);
+    return at === null ? null : hint.pair(hint.waitingSince, at);
+  }
+  if (turnRunning(card)) {
+    const ran = since(timing.turnStartedAt, now);
+    return ran === null ? starting : hint.pair(hint.turnRunning, formatDuration(ran));
+  }
+  const lines: string[] = [];
+  if (timing.lastTurnMs !== null) lines.push(hint.pair(hint.lastTurn, formatApprox(timing.lastTurnMs, language)));
+  const updated = stamp(timing.updatedAt);
+  if (updated !== null) lines.push(hint.pair(hint.updated, updated));
+  return lines.length ? lines.join("\n") : null;
+}
+
+/** The running turn's start as a full stamp, for the footer clock's hover hint. */
+export function startHint(card: Timed, language: TasksLanguage): string | null {
+  const iso = card.timing.turnStartedAt;
+  if (!turnRunning(card) || !iso || Number.isNaN(Date.parse(iso))) return null;
+  const { hint } = cardStrings(language);
+  return hint.pair(hint.turnStarted, formatFullStamp(new Date(iso)));
+}

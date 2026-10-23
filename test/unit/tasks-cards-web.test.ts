@@ -489,3 +489,83 @@ describe("TaskCardView hover layout", () => {
     }
   });
 });
+
+describe("TaskCardView hover hints", () => {
+  /** A card root that records its DOM listeners, for the hint layer's delegation. */
+  function fakeCard(testID: string) {
+    const listeners = new Map<string, (event: unknown) => void>();
+    const card = {
+      props: { testID },
+      clientLeft: 1,
+      clientTop: 1,
+      clientWidth: 338,
+      clientHeight: 200,
+      getBoundingClientRect: () => ({ left: 100, top: 50, width: 340, height: 202 }),
+      contains: () => true,
+      addEventListener: (type: string, listener: (event: unknown) => void) => listeners.set(type, listener),
+      removeEventListener: (type: string) => listeners.delete(type),
+    };
+    return { card, listeners };
+  }
+
+  /** The DOM element a host node with a hint key draws as, at a window box. */
+  function mark(key: string, box: { left: number; top: number; width: number; height: number }) {
+    const element = {
+      isConnected: true,
+      getAttribute: (name: string) => (name === "data-bchint" ? key : null),
+      getBoundingClientRect: () => box,
+      closest: () => element,
+    };
+    return element;
+  }
+
+  it("marks the meta row, status, pills, times and stop options, and names each", async () => {
+    vi.useFakeTimers();
+    try {
+      const { card, listeners } = fakeCard("task-card-sample-running");
+      let renderer!: TestRenderer.ReactTestRenderer;
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(TaskCardView, props("sample-running")), {
+          createNodeMock: (node) => {
+            const nodeProps = node.props as Record<string, unknown>;
+            return nodeProps.testID === "task-card-sample-running" ? card : { props: nodeProps };
+          },
+        });
+      });
+      const root = renderer.root;
+      const keys = root
+        .findAll((node) => typeof node.type === "string" && node.props.dataSet?.bchint !== undefined)
+        .map((node) => node.props.dataSet.bchint as string);
+      expect(keys).toEqual(expect.arrayContaining(["project", "location", "status", "model", "branch", "subtasks", "started", "timer"]));
+
+      const hint = () => root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-hint");
+      const show = async (key: string, box: { left: number; top: number; width: number; height: number }) => {
+        await act(async () => listeners.get("pointerover")!({ pointerType: "mouse", target: mark(key, box) }));
+        await act(async () => { vi.advanceTimersByTime(400); });
+        return texts(hint()[0]!).join("");
+      };
+
+      await act(async () => listeners.get("pointerover")!({ pointerType: "mouse", target: mark("branch", { left: 220, top: 140, width: 120, height: 20 }) }));
+      await act(async () => { vi.advanceTimersByTime(399); });
+      expect(hint()).toHaveLength(0);
+      await act(async () => { vi.advanceTimersByTime(1); });
+      expect(texts(hint()[0]!).join("")).toBe("分支：feat/tasks-board\n有未提交改动\n领先 3 个提交");
+
+      expect(await show("model", { left: 112, top: 140, width: 100, height: 20 })).toBe("模型：Codex GPT-5.5 Codex\n思考强度：Medium");
+      expect(await show("status", { left: 112, top: 80, width: 16, height: 20 })).toBe("状态：运行中");
+      expect(await show("timer", { left: 180, top: 230, width: 60, height: 18 })).toBe("本轮已运行：12m 30s");
+      expect(await show("subtasks", { left: 112, top: 166, width: 80, height: 20 })).toBe("3 个子任务：2 运行中 · 1 已完成");
+
+      // Touch has no hover, and leaving the card closes the hint.
+      await act(async () => listeners.get("pointerleave")!({}));
+      expect(hint()).toHaveLength(0);
+      await act(async () => listeners.get("pointerover")!({ pointerType: "touch", target: mark("status", { left: 112, top: 80, width: 16, height: 20 }) }));
+      await act(async () => { vi.advanceTimersByTime(400); });
+      expect(hint()).toHaveLength(0);
+      await act(async () => renderer.unmount());
+      expect(listeners.size).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
