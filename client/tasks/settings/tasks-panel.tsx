@@ -493,6 +493,19 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
           look={look}
         />
         <SettingRow
+          title={strings.showEmptyGroups}
+          description={strings.showEmptyGroupsHint}
+          control={
+            <Toggle
+              value={values.board.showEmptyGroups}
+              onChange={(next) => void commit({ ...values, board: { ...values.board, showEmptyGroups: next } })}
+              label={strings.showEmptyGroups}
+              look={look}
+            />
+          }
+          look={look}
+        />
+        <SettingRow
           title={strings.confirmStop}
           control={
             <Toggle

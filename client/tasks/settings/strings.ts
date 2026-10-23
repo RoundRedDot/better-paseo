@@ -47,6 +47,8 @@ export interface TasksSettingsStrings {
   hideSubtasksHint: string;
   showArchived: string;
   showArchivedHint: string;
+  showEmptyGroups: string;
+  showEmptyGroupsHint: string;
   confirmStop: string;
   laneWidth: string;
   /** Says the phone ignores it: there one lane fills the screen. */
@@ -124,6 +126,8 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     hideSubtasksHint: "Running, waiting and failed subtasks still show in their lane.",
     showArchived: "Show the archived lane",
     showArchivedHint: "A lane after Done with archived tasks and those of archived workspaces, in the same time window.",
+    showEmptyGroups: "Show groups with no active tasks",
+    showEmptyGroupsHint: "The filters and the sidebar list every agent, project, workspace and label in Paseo, a count of 0 where none is active. Also on the toolbar.",
     confirmStop: "Confirm before stopping",
     laneWidth: "Lane width",
     laneWidthHint: "On desktop, web and tablets; a narrow window still keeps two lanes in view. Phones show one lane at a time.",
@@ -197,6 +201,8 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     hideSubtasksHint: "运行中、待输入和失败的子任务仍会显示在各自的泳道。",
     showArchived: "显示已归档泳道",
     showArchivedHint: "在已完成之后多一条泳道，列出已归档的任务和已归档工作区里的任务，时间窗口与已完成相同。",
+    showEmptyGroups: "显示数量为 0 的分组",
+    showEmptyGroupsHint: "筛选菜单和侧栏列出 Paseo 里所有的 Agent、项目、Workspace 和标签，没有进行中任务的显示 0。工具栏上也能切换。",
     confirmStop: "停止前二次确认",
     laneWidth: "泳道宽度",
     laneWidthHint: "用于桌面、网页和平板；窗口较窄时仍保证能看到两条泳道。手机上每次只显示一条泳道，不受影响。",

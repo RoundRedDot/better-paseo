@@ -34,7 +34,7 @@ import {
   laneLayout,
   type LaneShape,
 } from "../../client/tasks/board/navigation";
-import { activeChips, buildFilterOptions, clearedParams, groupChips, isChipGroup, projectOptions, toggleProject, type ChipGroup } from "../../client/tasks/board/filter-options";
+import { activeChips, buildFilterOptions, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, projectOptions, shownFilterOptions, toggleProject, type ChipGroup } from "../../client/tasks/board/filter-options";
 import { boardPalette, cubicBezier } from "../../client/tasks/board/board-style";
 import { restoredStops, withStopReasons } from "../../client/tasks/board/use-board";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -291,6 +291,40 @@ describe("filter options", () => {
       { id: "gone", label: "gone", count: 0, on: true },
     ]);
     expect(options.labels.find((label) => label.id === "docs")).toMatchObject({ count: 1, color: "#0ea5e9" });
+  });
+
+  it("lists the options with no active task only while empty groups show, a picked one always", () => {
+    const tasks = {
+      ...handle(),
+      workspaces: [
+        { id: "wks_sample", name: "tasks-board", projectId: "prj_sample", projectName: "better-paseo" },
+        { id: "wks_idle", name: "idle", projectId: "prj_sample", projectName: "better-paseo" },
+        { id: "wks_quiet", name: "main", projectId: "prj_quiet", projectName: "quiet" },
+      ],
+      providers: [...handle().providers, { id: "pi", label: "Pi" }],
+      labels: [...handle().labels, { name: "unused", color: null }],
+    };
+    const options = buildFilterOptions(tasks, EMPTY_PARAMS);
+    const all = shownFilterOptions(options, true);
+    expect(all.workspaceGroups).toBe(options.workspaceGroups);
+    expect(all.projects.map((project) => `${project.id}|${project.count}`)).toEqual(["prj_sample|5", "prj_quiet|0"]);
+    expect(all.agents.map((agent) => agent.id)).toContain("pi");
+    expect(all.labels.map((label) => label.id)).toContain("unused");
+
+    const busy = shownFilterOptions(options, false);
+    expect(busy.workspaceGroups.map((group) => `${group.projectId}:${group.items.map((item) => item.id).join(",")}`)).toEqual(["prj_sample:wks_sample"]);
+    expect(busy.projects.map((project) => project.id)).toEqual(["prj_sample"]);
+    expect(busy.agents.every((agent) => agent.count > 0)).toBe(true);
+    expect(busy.labels.map((label) => label.id)).not.toContain("unused");
+    // Picking the listed project still picks its workspace that is not listed.
+    expect(toggleProject(EMPTY_PARAMS, busy.projects[0]!).workspaceIds).toEqual(["wks_sample", "wks_idle"]);
+    // Picked, an empty one stays listed so it can be dropped.
+    const picked = shownFilterOptions(buildFilterOptions(tasks, { ...EMPTY_PARAMS, providers: ["pi"], labels: ["unused"], workspaceIds: ["wks_quiet"] }), false);
+    expect(picked.agents.map((agent) => agent.id)).toContain("pi");
+    expect(picked.labels.map((label) => label.id)).toContain("unused");
+    expect(picked.projects.map((project) => project.id)).toEqual(["prj_sample", "prj_quiet"]);
+    expect(emptyGroupsIcon(true)).toBe("List");
+    expect(emptyGroupsIcon(false)).toBe("ListFilter");
   });
 
   it("tells same-named workspaces of a project apart by folder, else by id", () => {
