@@ -45,7 +45,7 @@ import {
   type SubtaskMetaPart,
   type SubtaskSummaryPart,
 } from "./details-format";
-import { buttonHue, CardButton, CONFIRM_STOP_ICON, requestLook, type CardButtonLook } from "./task-card";
+import { arrowInset, buttonHue, CardButton, CONFIRM_STOP_ICON, requestLook, type CardButtonLook } from "./task-card";
 import { buttonOutline } from "../board/board-style";
 import {
   contextView,
@@ -1694,7 +1694,11 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
           {props.label}
         </Text>
       )}
-      {props.arrow ? <Icon name="ArrowUpRight" size={18} color={iconColor} /> : null}
+      {props.arrow ? (
+        <View style={{ marginLeft: props.square ? 0 : -arrowInset(18) }}>
+          <Icon name="ArrowUpRight" size={18} color={iconColor} />
+        </View>
+      ) : null}
     </Pressable>
   );
 }
