@@ -430,7 +430,12 @@ export function RollingCount(props: { value: number; scope?: unknown; align?: "l
 /** How far past the slot an old, longer count may draw. */
 const COUNT_SPILL = 40;
 
-/** A 36 round icon button in a 44 target, with a count badge: the phone's search and filters, a narrow tablet board's filters. */
+/**
+ * A 36 round icon button in a 44 target, with a count badge: the phone's
+ * search and filters. Given a `size`, the circle is the button, its target
+ * reaching 4 past it off the web: a narrow board's header, beside the
+ * sidebar switch of that size.
+ */
 export function RoundButton(props: {
   icon: string;
   label: string;
@@ -443,39 +448,45 @@ export function RoundButton(props: {
   selected?: boolean;
   /** Struck through, as Lucide's "-off" icons: a toggle that is off. */
   slashed?: boolean;
+  /** The circle's size, with no target padding around it. */
+  size?: number;
 }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
+  const size = props.size ?? 36;
+  const pad = props.size === undefined ? 4 : 0;
+  const icon = Math.round(size / 2);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={props.label}
       accessibilityState={props.selected === undefined ? undefined : { selected: props.selected }}
       onPress={props.onPress}
+      hitSlop={pad || Platform.OS === "web" ? 0 : 4}
       testID={props.testID}
-      style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+      style={{ width: size + 2 * pad, height: size + 2 * pad, alignItems: "center", justifyContent: "center" }}
     >
       <View
         style={{
-          width: 36,
-          height: 36,
-          borderRadius: 18,
+          width: size,
+          height: size,
+          borderRadius: size / 2,
           borderWidth: HAIRLINE,
           borderColor: props.active ? colors.accent : colors.border,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Icon name={props.icon} size={18} color={colors.foreground} />
-        {props.slashed ? <SlashMark size={18} color={colors.foreground} gap={colors.surface0} /> : null}
+        <Icon name={props.icon} size={icon} color={colors.foreground} />
+        {props.slashed ? <SlashMark size={icon} color={colors.foreground} gap={colors.surface0} /> : null}
       </View>
       {props.badge ? (
         <View
           style={{
             // 16 by 16 inside a 2 px ring of the surface.
             position: "absolute",
-            top: 0,
-            right: 0,
+            top: pad - 4,
+            right: pad - 4,
             minWidth: taskControlHeight(20, scale),
             height: taskControlHeight(20, scale),
             paddingHorizontal: 2,
