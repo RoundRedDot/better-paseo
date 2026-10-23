@@ -1481,7 +1481,7 @@ function OutlineButton(props: {
   label: string;
   /** The stop button: the card's stop pill colours, tinted at rest and solid to confirm. */
   danger?: DangerLook;
-  /** Archive's orange outline and label, the card button's. */
+  /** Archive's yellow outline and label, the card button's. */
   archive?: boolean;
   hint?: React.ReactNode;
   trailing?: string;
