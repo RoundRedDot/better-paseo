@@ -629,6 +629,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
         stop={stop}
         permissionButtons={board.buttonsFor(card)}
         onPermission={onPermission}
+        unarchive={board.unarchive.available ? board.unarchive : null}
       />
     </View>
   );

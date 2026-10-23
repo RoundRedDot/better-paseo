@@ -310,8 +310,8 @@ export function useBoard(
   }, []);
 
   // Callbacks read the latest values through a ref, so the memoized cards see stable functions.
-  const latest = useRef({ props, paseo, toast, stop, read, strings, tasks });
-  latest.current = { props, paseo, toast, stop, read, strings, tasks };
+  const latest = useRef({ props, paseo, toast, stop, read, unarchive, strings, tasks });
+  latest.current = { props, paseo, toast, stop, read, unarchive, strings, tasks };
   const setLaneWidth = useCallback((width: LaneWidth) => {
     const state = settingsRef.current;
     if (state.status !== "ready") return;
@@ -364,6 +364,7 @@ export function useBoard(
   const hasNavigation = props.navigation !== undefined;
   const stopAvailable = stop.available;
   const readAvailable = read.available;
+  const unarchiveAvailable = unarchive.available;
   const callbacks = useMemo<CardCallbacks>(
     () => ({
       onOpen: hasNavigation ? open : undefined,
@@ -373,6 +374,7 @@ export function useBoard(
       onCancelStop: (agentId) => latest.current.stop.cancel(agentId),
       // The server cannot reach the daemon itself: no Mark read either.
       onRead: readAvailable ? (card) => latest.current.read.press(card) : undefined,
+      onUnarchive: unarchiveAvailable ? (agentId) => latest.current.unarchive.press(agentId) : undefined,
       onPermission: (card, button) => {
         if (button.kind === "open") {
           open(card.id);
@@ -386,7 +388,7 @@ export function useBoard(
       },
       onDetails: (card) => handlers.current?.details(card),
     }),
-    [hasNavigation, stopAvailable, readAvailable, open, handlers],
+    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers],
   );
 
   return {
