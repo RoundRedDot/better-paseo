@@ -258,7 +258,7 @@ function handle(): TasksHandle {
     counts: { needsInput: 1, running: 2, review: 2, done: 1, archived: 0 },
     byId: new Map(cards.map((card) => [card.id, card])),
     workspaces: [
-      { id: "wks_sample", name: "tasks-board", projectId: "prj_sample", projectName: "better-paseo" },
+      { id: "wks_sample", name: "tasks-board", projectId: "prj_sample", projectName: "better-paseo", projectPath: "/Users/luke/better-paseo" },
       { id: "wks_other", name: "main", projectId: "prj_other", projectName: "paseo" },
     ],
     providers: [
@@ -284,6 +284,7 @@ describe("filter options", () => {
     const options = buildFilterOptions(handle(), { ...EMPTY_PARAMS, providers: ["codex", "gone"] });
     expect(options.workspaceGroups.map((group) => group.projectName)).toEqual(["better-paseo", "paseo"]);
     expect(options.workspaceGroups[0]!.items[0]).toMatchObject({ id: "wks_sample", count: 5, on: false });
+    expect(options.workspaceGroups[0]!.projectPath).toBe("/Users/luke/better-paseo");
     expect(options.agents).toEqual([
       { id: "claude", label: "Claude", count: 4, on: false },
       { id: "codex", label: "Codex", count: 1, on: true },

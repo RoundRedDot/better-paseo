@@ -25,6 +25,8 @@ export const MENU = {
   gap: 8,
   /** The host's base step; TaskText scales it with the interface size. */
   fontSize: HOST_FONT.base,
+  /** A row with a second line (`detail`): the label over a 12 muted line. */
+  detailRowHeight: 44,
   /** A group title row. */
   titleHeight: 28,
   /** Space above and below a group's hairline. */
@@ -46,6 +48,8 @@ export interface MenuItem {
    * which is handed the row's fill (hovered or not) for its hole.
    */
   leading?: ReactNode | ((fill: string) => ReactNode);
+  /** A muted second line under the label: a project's folder. */
+  detail?: string;
   /** Muted text at the right: a count, the active direction. */
   hint?: string;
   /** A check mark at the right: the current choice. `false` keeps its room, so a column of hints stays aligned. */
@@ -117,6 +121,11 @@ export interface PlacedRow {
   top: number;
 }
 
+/** A row's height with the UI scale's growth: taller with a second line. */
+export function menuRowHeight(item: MenuItem, scale = 1): number {
+  return Math.round((item.detail ? MENU.detailRowHeight : MENU.rowHeight) * Math.max(1, scale));
+}
+
 /** Every selectable row's top and the panel height, including the UI scale's row growth. */
 export function layoutMenu(sections: readonly MenuSection[], scale = 1): { rows: PlacedRow[]; height: number } {
   const rows: PlacedRow[] = [];
@@ -126,7 +135,7 @@ export function layoutMenu(sections: readonly MenuSection[], scale = 1): { rows:
     if (section.title) y += Math.round(MENU.titleHeight * Math.max(1, scale));
     for (const item of section.items) {
       if (!item.disabled) rows.push({ item, top: y });
-      y += Math.round(MENU.rowHeight * Math.max(1, scale));
+      y += menuRowHeight(item, scale);
     }
   });
   return { rows, height: y + MENU.padV };

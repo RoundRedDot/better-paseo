@@ -15,7 +15,15 @@ export interface FilterOption {
 }
 
 export interface FilterOptions {
-  workspaceGroups: { projectId: string; projectName: string; projectKey: string | null; projectIcon: string | null; items: FilterOption[] }[];
+  workspaceGroups: {
+    projectId: string;
+    projectName: string;
+    projectKey: string | null;
+    projectIcon: string | null;
+    /** The project's root directory; null for the group of picked workspaces that are gone. */
+    projectPath: string | null;
+    items: FilterOption[];
+  }[];
   agents: FilterOption[];
   labels: FilterOption[];
 }
@@ -44,6 +52,7 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
         projectName: workspace.projectName,
         projectKey: workspace.projectKey ?? null,
         projectIcon: workspace.projectIcon ?? null,
+        projectPath: workspace.projectPath ?? null,
         items: [],
       };
       groups.set(workspace.projectId, group);
@@ -59,7 +68,7 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
   const known = new Set(tasks.workspaces.map((workspace) => workspace.id));
   const missing = params.workspaceIds.filter((id) => !known.has(id));
   if (missing.length) {
-    groups.set("", { projectId: "", projectName: "—", projectKey: null, projectIcon: null, items: missing.map((id) => ({ id, label: id, count: 0, on: true })) });
+    groups.set("", { projectId: "", projectName: "—", projectKey: null, projectIcon: null, projectPath: null, items: missing.map((id) => ({ id, label: id, count: 0, on: true })) });
   }
 
   const agents: FilterOption[] = tasks.providers.map((provider) => ({
