@@ -931,7 +931,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
   const fresh = useFreshIds(
     lane.cards.map((card) => card.id),
     ready,
-    board.params,
+    board.scope,
   );
   const listRef = useRef<NativeFlatList<TaskCard> | null>(null);
   const pillRef = useRef<View | null>(null);
@@ -1006,7 +1006,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
       >
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <VerticalLabel text={name} color={colors.foreground} language={board.language} />
-        {ready ? <RollingCount value={count} scope={board.countScope} align="center" style={countStyle} /> : <Text style={countStyle}>{""}</Text>}
+        {ready ? <RollingCount value={count} scope={board.scope} align="center" style={countStyle} /> : <Text style={countStyle}>{""}</Text>}
       </HoverPressable>,
     );
   }
@@ -1027,7 +1027,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <Text style={{ fontSize: titleSize, fontWeight: "500", color: colors.foreground }}>{name}</Text>
         {ready ? (
-          <RollingCount value={count} scope={board.countScope} style={countStyle} />
+          <RollingCount value={count} scope={board.scope} style={countStyle} />
         ) : (
           <View style={{ width: 14, height: 10, borderRadius: 2, backgroundColor: colors.surface2 }} />
         )}

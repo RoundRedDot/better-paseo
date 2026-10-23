@@ -401,8 +401,8 @@ export function CardCell(props: CardCellProps) {
  * change, a new agent) fades in; scrolling a virtualised list back to a card
  * does not. The first ready render seeds the set without fading anything.
  * A card that leaves the lane is forgotten, so it fades in again when it comes
- * back, unless the user's own `scope` (filters, sort, search) took it away and
- * brought it back.
+ * back, unless the user's own `scope` (search, sort) took it away and brought
+ * it back.
  */
 export function useFreshIds(ids: readonly string[], ready: boolean, scope?: unknown): ReadonlySet<string> {
   const seen = useRef<Set<string> | null>(null);
@@ -441,9 +441,9 @@ interface Roll {
 /**
  * A lane's count that rolls to its new value: the new number comes in from
  * below as the old one leaves upward when the count grows, the other way when
- * it shrinks. Only a change within the same `scope` rolls; new filters, a new
- * sort or a new search show the new count at once, as their cards do. No
- * motion when reduced.
+ * it shrinks. Only a change within the same `scope` rolls; a new search or a
+ * new sort shows the new count at once, as its cards do, while a filter rolls
+ * it. No motion when reduced.
  *
  * The roll is decided in render, so the frame that shows the new lanes starts
  * it from its first value (on iOS a layout effect lands a frame late). The new
@@ -503,7 +503,7 @@ const COUNT_SPILL = 40;
 
 /**
  * The board's "N tasks": on web and the desktop app its number rolls as the
- * lanes' counts do (see `countScope`); a phone or tablet shows it at once.
+ * lanes' counts do (see `scope`); a phone or tablet shows it at once.
  * The first count after loading shows at once too.
  */
 export function RollingTotal(props: { board: BoardController; style: StyleProp<TextStyle> }) {
@@ -511,7 +511,7 @@ export function RollingTotal(props: { board: BoardController; style: StyleProp<T
   if (Platform.OS !== "web") return <Text numberOfLines={1} style={props.style}>{board.strings.total(board.total)}</Text>;
   return (
     <View style={{ flexDirection: "row", alignItems: "center" }}>
-      <RollingCount value={board.total} scope={board.tasks.ready ? board.countScope : null} style={props.style} />
+      <RollingCount value={board.total} scope={board.tasks.ready ? board.scope : null} style={props.style} />
       <Text numberOfLines={1} style={props.style}>
         {" " + board.strings.totalUnit(board.total)}
       </Text>
