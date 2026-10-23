@@ -1543,6 +1543,20 @@ describe("Tasks board, phone", () => {
     expect(order().sort).toBeLessThan(order().workspace);
   });
 
+  it("draws the filter sheet's on/off filters as switches, not ticks", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    act(() => pressable("Filters").props.onPress());
+    const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
+    const switches = () => scroll.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch");
+    expect(switches().map((node) => textOf(node).startsWith("Open tabs only") || textOf(node).startsWith("Hide subtasks"))).toEqual([true, true]);
+    expect(switches().map((node) => node.props.accessibilityState)).toEqual([{ checked: false }, { checked: false }]);
+    act(() => switches()[1]!.props.onPress());
+    expect(switches()[1]!.props.accessibilityState).toEqual({ checked: true });
+    expect(switches().flatMap((node) => node.findAll((child) => (child.type as unknown) === "Icon" && child.props.name === "Check"))).toHaveLength(0);
+  });
+
   it("leads the filter sheet with the short filters, the workspaces last with the idle ones folded, Reset by its button", () => {
     const handle = (data as unknown as { __handle: { workspaces: object[] } }).__handle;
     const saved = handle.workspaces;
