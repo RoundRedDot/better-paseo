@@ -1100,8 +1100,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             tokens={tokens}
             compact={compact}
             openLabel={strings.openInWorkspace}
-            statusHint={hint(`child-${child.id}`, () => pair(strings.hint.status, strings.status[child.status]))}
+            parentTabLabel={strings.openParentTab}
+            statusHint={hint(`child-${child.id}`, () =>
+              lines(pair(strings.hint.status, strings.status[child.status]), child.kind === "provider" && strings.subagent),
+            )}
             openHint={hint("child-open", () => strings.openInWorkspace)}
+            parentTabHint={hint("child-parent-tab", () => lines(strings.openParentTab, strings.subagent))}
             backdrop={background}
             animated={props.animated}
             language={language}
@@ -1909,7 +1913,8 @@ function StopTreeGlyph(props: { tokens: TaskTokens; color?: string }) {
  * One expanded child: its agent's mark, the title, then its start and timer
  * at the end. Press reveals it on the board; the jump button opens its tab.
  * A provider subagent has neither, so press opens the parent's tab, where
- * Paseo's subagent track lists it.
+ * Paseo's subagent track lists it; the tab icon at its end, always drawn,
+ * tells it from a child with a card of its own.
  */
 function SubtaskRow(props: TimeSource & {
   child: TaskChild;
@@ -1918,9 +1923,11 @@ function SubtaskRow(props: TimeSource & {
   tokens: TaskTokens;
   compact: boolean;
   openLabel: string;
-  /** Hover hint keys (`CardHints`) for the status mark and the jump button. */
+  parentTabLabel: string;
+  /** Hover hint keys (`CardHints`) for the status mark, the jump button and a provider row's tab icon. */
   statusHint: string;
   openHint: string;
+  parentTabHint: string;
   /** The card's fill, under the mark's status corner while the row is not hovered. */
   backdrop: string;
   animated?: boolean;
@@ -1942,7 +1949,7 @@ function SubtaskRow(props: TimeSource & {
   return (
     <Pressable
       {...CONTAINER_ROLE}
-      accessibilityLabel={child.title}
+      accessibilityLabel={provider && props.onOpen ? `${child.title}, ${props.parentTabLabel}` : child.title}
       onPress={() => (provider ? props.onOpen?.(props.parentId) : props.onReveal(child.id))}
       ref={rowRef}
       {...(WEB ? null : hoverProps)}
@@ -1997,6 +2004,23 @@ function SubtaskRow(props: TimeSource & {
         >
           <Icon name="ArrowUpRight" size={compact ? 16 : 14} color={tokens.foregroundMuted} />
         </Pressable>
+      ) : null}
+      {props.onOpen && provider ? (
+        // Not a button: the row is the press. Only the mark and its hint.
+        <View
+          testID={`subtask-parent-tab-${child.id}`}
+          {...hintProps(props.parentTabHint)}
+          style={{
+            width: size,
+            height: size,
+            marginVertical: (Math.round(m.blockLine * scale) - size) / 2,
+            marginRight: compact ? -8 : 0,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Icon name="AppWindow" size={compact ? 16 : 14} color={tokens.foregroundMuted} />
+        </View>
       ) : null}
     </Pressable>
   );
