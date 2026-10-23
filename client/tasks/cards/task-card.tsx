@@ -36,8 +36,12 @@ import { mix, withAlpha } from "../../components/theme-tokens";
 export interface CardCallbacks {
   /** Jump to the agent's tab (`navigation.openAgent`). Absent on hosts without navigation: hide Open tab. */
   onOpen?(agentId: string): void;
-  /** Scroll the board to a card and highlight it (child → parent link). */
-  onReveal(agentId: string): void;
+  /**
+   * Scroll the board to a card and highlight it (child → parent link).
+   * `parentId`: a provider subagent's parent, whose tab opens instead while
+   * the subagent has no card on the board.
+   */
+  onReveal(agentId: string, parentId?: string): void;
   /**
    * Stop, if the card is stoppable and Stop is available. `dialog`: a context
    * menu's Stop, which asks in a dialog instead of arming the button (unless
@@ -1916,10 +1920,11 @@ function StopTreeGlyph(props: { tokens: TaskTokens; color?: string }) {
 
 /**
  * One expanded child: its agent's mark, the title, then its start and timer
- * at the end. Press reveals it on the board; the jump button opens its tab.
- * A provider subagent has neither, so press opens the parent's tab, where
- * Paseo's subagent track lists it; the tab icon at its end, always drawn,
- * tells it from a child with a card of its own.
+ * at the end. Press reveals its card on the board; the jump button opens its
+ * tab. A provider subagent reads as Paseo's subagent track: the title over
+ * its facts line, in place of the times. It has no tab, so its jump button,
+ * always drawn, opens the parent's, where that track lists it; a press opens
+ * it too while the subagent's card is not on the board.
  */
 function SubtaskRow(props: TimeSource & {
   child: TaskChild;
@@ -1937,7 +1942,7 @@ function SubtaskRow(props: TimeSource & {
   backdrop: string;
   animated?: boolean;
   language: TasksLanguage;
-  onReveal(agentId: string): void;
+  onReveal(agentId: string, parentId?: string): void;
   onOpen?(agentId: string): void;
 }) {
   const { child, tokens, compact } = props;
@@ -1948,14 +1953,15 @@ function SubtaskRow(props: TimeSource & {
   const rowRef = useRef<View>(null);
   const { hovered, hoverProps } = useHover(rowRef);
   const provider = child.kind === "provider";
+  const facts = provider ? child.subtitle?.trim() || null : null;
   const showJump = !provider && !!props.onOpen && (compact || TOUCH || hovered);
   const fill = hovered && !compact ? tokens.card.controlHover : props.backdrop;
   const size = compact ? 32 : 22;
   return (
     <Pressable
       {...CONTAINER_ROLE}
-      accessibilityLabel={provider && props.onOpen ? `${child.title}, ${props.parentTabLabel}` : child.title}
-      onPress={() => (provider ? props.onOpen?.(props.parentId) : props.onReveal(child.id))}
+      accessibilityLabel={child.title}
+      onPress={() => (provider ? props.onReveal(child.id, props.parentId) : props.onReveal(child.id))}
       ref={rowRef}
       {...(WEB ? null : hoverProps)}
       style={{
@@ -1976,10 +1982,22 @@ function SubtaskRow(props: TimeSource & {
       <View style={{ width: m.iconSlot, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" }} testID={`subtask-status-${child.id}`} {...hintProps(props.statusHint)}>
         <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={fill} animated={props.animated} />
       </View>
-      <Text numberOfLines={2} style={{ flex: 1, fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
-        {child.title}
-      </Text>
-      {child.lane && child.timing ? (
+      {facts ? (
+        // As Paseo's subagent track: the title, and the provider's facts line under it.
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} style={{ fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
+            {child.title}
+          </Text>
+          <Text numberOfLines={1} style={{ fontSize: m.blockSize, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }} testID={`subtask-facts-${child.id}`}>
+            {facts}
+          </Text>
+        </View>
+      ) : (
+        <Text numberOfLines={2} style={{ flex: 1, fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
+          {child.title}
+        </Text>
+      )}
+      {!facts && child.lane && child.timing ? (
         <SubtaskTime
           timed={{ lane: child.lane, timing: child.timing, waitingOnSubtasks: child.waitingOnSubtasks }}
           language={props.language}
@@ -2011,21 +2029,26 @@ function SubtaskRow(props: TimeSource & {
         </Pressable>
       ) : null}
       {props.onOpen && provider ? (
-        // Not a button: the row is the press. Only the mark and its hint.
-        <View
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={props.parentTabLabel}
+          onPress={() => props.onOpen?.(props.parentId)}
           testID={`subtask-parent-tab-${child.id}`}
           {...hintProps(props.parentTabHint)}
           style={{
             width: size,
             height: size,
-            marginVertical: (Math.round(m.blockLine * scale) - size) / 2,
+            // Centred on the two lines, or on the title's one.
+            alignSelf: facts ? "center" : undefined,
+            marginVertical: facts ? 0 : (Math.round(m.blockLine * scale) - size) / 2,
             marginRight: compact ? -8 : 0,
+            borderRadius: 5,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <Icon name="AppWindow" size={compact ? 16 : 14} color={tokens.foregroundMuted} />
-        </View>
+          <Icon name="ArrowUpRight" size={compact ? 16 : 14} color={tokens.foregroundMuted} />
+        </Pressable>
       ) : null}
     </Pressable>
   );
