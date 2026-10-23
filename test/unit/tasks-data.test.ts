@@ -734,6 +734,47 @@ describe("Tasks data store", () => {
     }
   });
 
+  it("offers every provider enabled in Paseo to the Agent filter, cards or not, and follows the snapshot", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("a", { status: "running", provider: "claude" }), activeAgent("b", { status: "running", provider: "copilot" })],
+      providerEntries: [
+        { provider: "claude", label: "Claude" },
+        { provider: "pi", label: "Pi" },
+        { provider: "omp", label: "Oh My Pi", enabled: false, status: "unavailable" },
+        { provider: "copilot", label: "Copilot", enabled: false },
+        { provider: "acme", label: "Acme Agent" },
+      ],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      // Pi has no card yet; Copilot is disabled but a card ran on it; Oh My Pi is disabled and unused.
+      expect(mounted.current.providers).toEqual([
+        { id: "acme", label: "Acme Agent" },
+        { id: "claude", label: "Claude" },
+        { id: "copilot", label: "Copilot" },
+        { id: "pi", label: "Pi" },
+      ]);
+      await act(async () => {
+        fake.updateProviders([{ provider: "claude", label: "Claude" }, { provider: "grok", label: "Grok" }]);
+        await Promise.resolve();
+      });
+      expect(mounted.current.providers.map((provider) => provider.id)).toEqual(["claude", "copilot", "grok"]);
+    } finally {
+      mounted.unmount();
+    }
+    expect(fake.openSubscriptions()).toBe(0);
+  });
+
+  it("falls back to the cards' providers on a host without the providers snapshot", async () => {
+    const fake = createFakePaseo({ agents: [activeAgent("a", { status: "running", provider: "codex" })] });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(mounted.current.providers).toEqual([{ id: "codex", label: "Codex" }]);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("loads model display names once per provider and preserves unchanged card identities", async () => {
     const catalog: PaseoProviderModelsResult["models"] = [{
       provider: "claude",
