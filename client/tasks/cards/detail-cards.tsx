@@ -262,6 +262,8 @@ function stopLabel(props: TaskDetailCardsProps): string | null {
 }
 
 function openLabel(props: TaskDetailCardsProps): string {
+  // A provider subagent opens its parent's tab, where Paseo lists it.
+  if (props.card.subagent) return cardStrings(props.language).openParentTab;
   if (props.card.lane === "needs_input") return props.strings.openToAnswer;
   return props.card.openTab ? cardStrings(props.language).details.switchTab : props.strings.openTab;
 }
@@ -375,7 +377,8 @@ function DetailHeader(props: Inner) {
           height={m.chip}
           font={chipFont}
           lead={card.providerMark !== null ? <BrandMark provider={card.provider} size={iconSize} tokens={tokens} /> : null}
-          text={card.modelLabel ?? card.providerLabel}
+          // A provider subagent's model comes from its facts line; a line that names none stands in whole.
+          text={card.modelLabel ?? card.subagent?.subtitle ?? card.providerLabel}
           testID="detail-model"
         />
         {card.thinkingLabel ? (
@@ -472,6 +475,7 @@ function RunningTurn(props: Inner) {
       tokens={props.tokens}
       touch={props.touch === true}
       language={props.language}
+      timerOnly={!!card.subagent}
     />
   );
 }

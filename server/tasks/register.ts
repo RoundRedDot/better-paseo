@@ -6,7 +6,7 @@ import { TASKS_SETTINGS } from "../../shared/tasks-settings";
 import { createStopMarks, readMarksPath, stopMarksPath } from "./stop-marks";
 import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon, type SubagentWatch } from "./provider-subagents";
 import { createSessionTokenReader, type SessionTokenReader } from "./session-tokens";
-import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
 import { TASKS_CHUNK } from "../tasks-chunk";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
@@ -171,6 +171,33 @@ async function readProjectIcons(host: HostDaemonAccess, projectIds: readonly str
   }
 }
 
+/** A provider subagent's timeline rows, kind and text only; the error says why there are none. */
+export async function readSubagentTimeline(
+  host: HostDaemonAccess,
+  input: { parentAgentId: string; subagentId: string; direction: "after" | "tail"; limit: number },
+): Promise<{ rows: Array<{ type: string; text?: string }>; error: string | null }> {
+  const daemon = await host.connect();
+  if (!daemon) return { rows: [], error: "Could not reach the Paseo daemon." };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const fetchTimeline = daemon.fetchProviderSubagentTimeline?.bind(daemon);
+    if (!fetchTimeline) return { rows: [], error: "This Paseo cannot read subagent timelines." };
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("The Paseo daemon did not answer.")), LABELS_TIMEOUT_MS);
+    });
+    const page = await Promise.race([fetchTimeline(input.parentAgentId, input.subagentId, { direction: input.direction, limit: input.limit }), timeout]);
+    return {
+      rows: page.rows.map(({ item }) => (typeof item.text === "string" ? { type: item.type, text: item.text } : { type: item.type })),
+      error: null,
+    };
+  } catch (error) {
+    return { rows: [], error: error instanceof Error ? error.message : String(error) };
+  } finally {
+    clearTimeout(timer);
+    await daemon.close().catch(() => {});
+  }
+}
+
 /** The daemon's label definitions; null when it cannot be reached, has no labels API or does not answer in time. */
 async function readLabels(host: HostDaemonAccess): Promise<Array<{ name: string; color: string }> | null> {
   const daemon = await host.connect();
@@ -262,6 +289,7 @@ export function registerTasksServer(
     return { tokens: agent ? await tokens.read(agent) : null };
   });
   server.handle(tasksSubagentsRpc, async ({ since }, context) => subagents.read(context?.paseo, since));
+  server.handle(tasksSubagentTimelineRpc, (input) => readSubagentTimeline(host, input));
   server.handle(tasksChunkRpc, ({ id }) => ({ code: TASKS_CHUNK?.id === id ? TASKS_CHUNK.code : null }));
   server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCliPath()) !== null, read: host.available() }));
   server.handle(tasksReadRpc, async ({ agentIds }) => {

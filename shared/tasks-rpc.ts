@@ -116,6 +116,26 @@ export const tasksSubagentsRpc = defineRpc({
   output: z.object({ version: z.string(), subagents: z.array(providerSubagentSchema).nullable() }),
 });
 
+/** One row of a provider subagent's timeline, as far as the details read it: its kind and text. */
+export const subagentTimelineRowSchema = z.object({ type: z.string(), text: z.string().optional() });
+
+/**
+ * A provider subagent's own timeline, for its details: the head (`after`),
+ * where the task it was given is the first user message, or the tail, where
+ * its latest reply is. The server reads it off the daemon
+ * (`agent.provider_subagents.timeline.get`); `error` says why it could not.
+ */
+export const tasksSubagentTimelineRpc = defineRpc({
+  name: "tasks.subagent-timeline",
+  input: z.object({
+    parentAgentId: z.string().min(1),
+    subagentId: z.string().min(1),
+    direction: z.enum(["after", "tail"]),
+    limit: z.number().int().positive().max(100),
+  }),
+  output: z.object({ rows: z.array(subagentTimelineRowSchema), error: z.string().nullable() }),
+});
+
 /**
  * Brings an archived agent back, as Paseo's own "Unarchive" does
  * (`refreshAgent`): the server runs `paseo agent reload <id>`, but only

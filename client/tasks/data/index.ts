@@ -20,6 +20,7 @@ import { normalizeProvider } from "../../components/provider-logo";
 import { classifyAgent } from "../agent-state-bucket";
 import { resolveTasksLanguage } from "../i18n";
 import { fallbackLabelColor } from "../label-colors";
+import { subagentModel } from "../subagent-type";
 import { LANE_ORDER, isHistoryLane, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming, type TaskUsage } from "../model";
 
 export interface WorkspaceOption {
@@ -428,31 +429,35 @@ function subagentCardsOf(parent: TaskCard): TaskCard[] {
   if (cached) return cached;
   const out = parent.children
     .filter((child) => child.kind === "provider" && child.lane && child.timing)
-    .map((child): TaskCard => ({
-      id: child.id,
-      title: child.title,
-      lane: child.lane!,
-      status: child.status,
-      provider: parent.provider,
-      providerLabel: parent.providerLabel,
-      providerMark: parent.providerMark,
-      model: null,
-      modelLabel: null,
-      thinkingLabel: null,
-      modeLabel: null,
-      location: parent.location,
-      labels: parent.labels,
-      timing: child.timing!,
-      context: null,
-      usage: null,
-      error: null,
-      permission: null,
-      parent: { id: parent.id, title: parent.title, missing: false, archived: false },
-      children: [],
-      openTab: false,
-      stoppable: false,
-      subagent: { subtitle: child.subtitle ?? null, type: child.subagentType ?? null },
-    }));
+    .map((child): TaskCard => {
+      const facts = subagentModel(child.subtitle, child.subagentType);
+      return {
+        id: child.id,
+        title: child.title,
+        lane: child.lane!,
+        status: child.status,
+        provider: parent.provider,
+        providerLabel: parent.providerLabel,
+        providerMark: parent.providerMark,
+        model: null,
+        // The model and effort its facts line names, drawn as an agent's are.
+        modelLabel: facts?.model ?? null,
+        thinkingLabel: facts?.thinking ?? null,
+        modeLabel: null,
+        location: parent.location,
+        labels: parent.labels,
+        timing: child.timing!,
+        context: null,
+        usage: null,
+        error: null,
+        permission: null,
+        parent: { id: parent.id, title: parent.title, missing: false, archived: false },
+        children: [],
+        openTab: false,
+        stoppable: false,
+        subagent: { subtitle: child.subtitle ?? null, type: child.subagentType ?? null },
+      };
+    });
   subagentCardCache.set(parent, out);
   return out;
 }

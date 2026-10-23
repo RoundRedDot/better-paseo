@@ -238,7 +238,7 @@ export function DesktopBoard(props: {
     if (shown === "card" && selection.id === null) setShown(null);
   }, [shown, selection.id]);
   // A card that left the data (deleted, archived away) leaves the sidebar to the overview.
-  const selectedGone = selection.id !== null && tasks.ready && !tasks.byId.has(selection.id);
+  const selectedGone = selection.id !== null && tasks.ready && !board.cardById(selection.id);
   useEffect(() => {
     if (selectedGone) dispatch({ type: "clear" });
   }, [selectedGone]);

@@ -9,6 +9,7 @@ import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { useSessionTokens } from "../data/session-tokens";
+import { useSubagentTimeline } from "../data/subagent-timeline";
 import { FILTER_ICONS, buildFilterOptions, clearedParams, filterSummary, shownFilterOptions, toggleProject, type FilterOption } from "./filter-options";
 import { RollingCount, RollingTotal } from "./board-parts";
 import { useRequestProjectIcons } from "./project-icons";
@@ -47,7 +48,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
   const tokens = taskTokens(theme);
   const [height, setHeight] = useState(0);
   const [width, setWidth] = useState(0);
-  const card = selection.id ? board.tasks.byId.get(selection.id) : undefined;
+  const card = selection.id ? board.cardById(selection.id) : undefined;
   useParentTitle(board, card);
   const shown = card && selection.id ? findCard(board.lanes, selection.id) !== null : false;
   const strings = board.strings.sidebar;
@@ -57,15 +58,13 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
     notice = { icon: "EyeOff", text: strings.hidden, action: { label: board.strings.clearFilters, onPress: () => board.setParams(clearedParams) } };
   }
   const backId = selection.back[selection.back.length - 1];
-  const backCard = backId ? board.tasks.byId.get(backId) : undefined;
+  const backCard = backId ? board.cardById(backId) : undefined;
 
   const jump = (agentId: string) => {
     dispatch({ type: "jump", id: agentId });
     props.onReveal(agentId);
   };
-  const firstPrompt = useFirstPrompt(board.paseo, card?.id ?? "", card !== undefined && card.closed !== true);
-  const lastMessage = useLastMessage(board.paseo, card?.id ?? "", card ? lastMessageVersion(card) : "", card !== undefined && card.closed !== true);
-  const sessionTokens = useSessionTokens(card?.id ?? "", card !== undefined && turnRunning(card) && card.closed !== true);
+  const { firstPrompt, lastMessage, sessionTokens } = useDetailReads(board, card);
   const stopAvailable = !!board.callbacks.onStop && card?.stoppable === true;
   const detailProps = card
     ? {
@@ -128,6 +127,30 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
       {content}
     </View>
   );
+}
+
+/**
+ * What the details read from a task's timeline: its first prompt, latest
+ * reply and running session's tokens. A provider subagent's come from the
+ * plugin server, which reads its timeline off the daemon; it has no session
+ * of its own to count.
+ */
+export function useDetailReads(board: BoardController, card: TaskCard | undefined) {
+  const subagent = card?.subagent ? card : undefined;
+  const agent = card && !card.subagent ? card : undefined;
+  const firstPrompt = useFirstPrompt(board.paseo, agent?.id ?? "", agent !== undefined && agent.closed !== true);
+  const lastMessage = useLastMessage(board.paseo, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", agent !== undefined && agent.closed !== true);
+  const sessionTokens = useSessionTokens(agent?.id ?? "", agent !== undefined && turnRunning(agent) && agent.closed !== true);
+  const subagentReads = useSubagentTimeline(
+    {
+      id: subagent?.id ?? "",
+      parentId: subagent?.parent?.id ?? "",
+      running: subagent?.status === "running",
+      version: subagent ? `${subagent.status}|${subagent.timing.updatedAt}` : "",
+    },
+    subagent !== undefined,
+  );
+  return subagent ? { ...subagentReads, sessionTokens: null } : { firstPrompt, lastMessage, sessionTokens };
 }
 
 /**
@@ -409,5 +432,5 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
 
 /** Whether a card is still somewhere the sidebar can show it. */
 export function sidebarCard(board: BoardController, id: string | null): TaskCard | undefined {
-  return id ? board.tasks.byId.get(id) : undefined;
+  return id ? board.cardById(id) : undefined;
 }
