@@ -466,7 +466,7 @@ Options whose parent is off are dimmed, and **Reset** asks for a second press.
 | Code font | Code font size | Follow Paseo | Or 10–22px; lines are 1.5× the size. Applies to code, diffs, terminals and paths. |
 | Tool calls | Block text size | 13px | 9–20px for tool rows, thoughts, checklists and notices. Text inside those blocks grows with it. Code, diffs and terminal output keep the code font size. |
 | Tool calls | Row icons and labels | Icon | Icon, label (Bash, Read…) or both at the start of tool and thought rows. |
-| Tool calls | Tool call rollups | Off | Collapse mounted, source-adjacent calls into `Called N tools`, with running/failed counts; expand to see the original cards. [Behavior and limits](docs/tool-call-rollups.md). |
+| Tool calls | Tool call rollups | Off | Collapse mounted, source-adjacent calls into `Called N tools`, with running counts; expand to see the original cards. [Behavior and limits](docs/tool-call-rollups.md). |
 | Tool calls | Open failed calls | Off | On, a failed call opens to show its error. A call you opened or closed yourself keeps your choice. |
 | Tool calls | File paths | Relative | Relative to the workspace, or absolute. Copying always gives the absolute path. |
 | Spacing | Tight rows | On | Reduces the gap under a plugin row from 16pt to 4pt when another row follows. Rows Paseo already stacks are left alone. Turn off if rows overlap. |

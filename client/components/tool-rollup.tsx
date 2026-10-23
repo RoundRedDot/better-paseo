@@ -5,7 +5,7 @@ import type { ExtendedThemeTokens } from "./theme-tokens";
 import type { ToolCallView } from "../tools/classify";
 import { RunningDot } from "../ui/running-dot";
 import { useAgent } from "@getpaseo/plugin/client";
-import { toolPermissionTargets, toolRollupFailed } from "../tools/group";
+import { toolPermissionTargets } from "../tools/group";
 
 /** Cards remain in their original host slots; this button only shares disclosure. */
 export function ToolRollup({ calls, expanded, onExpandedChange, tokens, compact }: {
@@ -16,9 +16,8 @@ export function ToolRollup({ calls, expanded, onExpandedChange, tokens, compact 
   compact: boolean;
 }) {
   const running = calls.filter((call) => call.status === "running").length;
-  const failed = calls.filter(toolRollupFailed).length;
   const title = `Called ${calls.length} ${calls.length === 1 ? "tool" : "tools"}`;
-  const label = [title, ...(running ? [`${running} running`] : []), ...(failed ? [`${failed} failed`] : [])].join(" · ");
+  const label = [title, ...(running ? [`${running} running`] : [])].join(" · ");
   return <Pressable
     accessibilityRole="button"
     accessibilityLabel={label}
@@ -28,9 +27,9 @@ export function ToolRollup({ calls, expanded, onExpandedChange, tokens, compact 
     style={{ flexDirection: "row", alignItems: "center", gap: 10, minHeight: compact ? 44 : 28 }}
   >
     <View style={{ width: 16, alignItems: "center" }}>
-      {running ? <RunningDot color={tokens.accent} /> : <Icon name={failed ? "CircleAlert" : "Wrench"} size={14} color={failed ? tokens.danger : tokens.foregroundMuted} />}
+      {running ? <RunningDot color={tokens.accent} /> : <Icon name="Wrench" size={14} color={tokens.foregroundMuted} />}
     </View>
-    <Text style={{ color: failed ? tokens.danger : tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 13, flexShrink: 1 }}>{label}</Text>
+    <Text style={{ color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 13, flexShrink: 1 }}>{label}</Text>
     <Icon name={expanded ? "ChevronDown" : "ChevronRight"} size={14} color={tokens.foregroundMuted} />
   </Pressable>;
 }

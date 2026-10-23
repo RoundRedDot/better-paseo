@@ -13,6 +13,12 @@ import { hasActiveDetailsKeyboard } from "./details/keyboard";
 
 export { PREVIEW_REVEAL } from "./ui/tokens/motion";
 
+/** The observed 0.12 viewport node identifies a mounted chat, including stacked panes. */
+export function toolRollupWindow(node: unknown): object | null {
+  if (Platform.OS !== "web") return null;
+  return (node as Element | null)?.closest?.('[data-testid="agent-chat-scroll"]') ?? null;
+}
+
 /**
  * ponytail: Paseo 0.12 owns a 16pt margin outside every plugin row. A zero
  * height child cannot cancel it with a negative margin (the wrapper clamps

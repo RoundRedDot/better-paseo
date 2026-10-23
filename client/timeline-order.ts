@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useSyncExternalStore, type RefObject } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type RefObject } from "react";
 import type { ToolCallView } from "./tools/classify";
 import type { ToolRollupPosition } from "./state/tool-rollup-order";
 import { groupAdjacentTools, toolGroupKey } from "./tools/group";
@@ -80,6 +80,10 @@ interface Entry {
   callId?: string;
   /** Where the item is drawn, in the window; null when unknown. */
   measure?: () => ViewBox | null;
+  /** Last positive-width measurement; a collapsed web slot has no box. */
+  column?: { left: number; width: number };
+  measureWindow?: () => object | null;
+  window?: object;
   tool?: ToolCallView;
   /** Undefined: original file grouping; null: rollups on, source order unknown. */
   rollup?: ToolRollupPosition | null;
@@ -384,6 +388,68 @@ function toolSlots(timeline: AgentTimeline): Map<Entry, ToolSlot> {
   // until all its layout effects have finished, then rebuild once.
   if (pendingTimelines.has(timeline)) return timeline.slots;
   if (!timeline.stale) return timeline.slots;
+  if (![...timeline.entries].some((entry) => entry.rollup !== undefined)) {
+    return groupToolEntries(timeline); // Legacy file grouping retains its existing behavior.
+  }
+  // The 0.12 renderer has no pane ID. Prefer its viewport node, with measured
+  // columns as fallback, before deduplicating calls across mounted windows.
+  const columns: { window?: object; column: Entry["column"]; entries: Entry[] }[] = [];
+  for (const entry of timeline.entries) {
+    updateWindow(entry);
+    updateColumn(entry);
+    let scope = columns.find((scope) => scope.window || entry.window
+      ? scope.window === entry.window : sameColumn(scope.column, entry.column));
+    if (!scope) columns.push(scope = { window: entry.window, column: entry.column, entries: [] });
+    scope.entries.push(entry);
+  }
+  const slots = new Map<Entry, ToolSlot>();
+  const superseded = new Set<Entry>();
+  const repeated = new Set<string>();
+  for (const { window, entries } of columns) {
+    const counts = new Map<string, number>();
+    for (const entry of entries) {
+      if (entry.rollup !== undefined && entry.callId) counts.set(entry.callId, (counts.get(entry.callId) ?? 0) + 1);
+    }
+    // Same-column/unplaced copies cannot be assigned to a pane from timestamps
+    // or mount order. Leave just those ambiguous copies as visible cards.
+    const ambiguous = new Set(window ? [] : [...counts].filter(([, count]) => count > 1).map(([id]) => id));
+    for (const id of ambiguous) repeated.add(id);
+    const local: AgentTimeline = {
+      ...timeline,
+      entries: new Set(entries.filter((entry) => entry.rollup === undefined || !entry.callId || !ambiguous.has(entry.callId))),
+      lowest: undefined,
+    };
+    for (const [entry, slot] of groupToolEntries(local)) slots.set(entry, slot);
+    for (const entry of local.superseded) superseded.add(entry);
+    for (const id of local.repeated) repeated.add(id);
+  }
+  timeline.slots = slots;
+  timeline.superseded = superseded;
+  timeline.repeated = repeated;
+  timeline.stale = false;
+  return slots;
+}
+
+function sameColumn(a: Entry["column"], b: Entry["column"]): boolean {
+  return a === b || Boolean(a && b && Math.abs(a.left - b.left) <= 1 && Math.abs(a.width - b.width) <= 1);
+}
+
+function updateColumn(entry: Entry): boolean {
+  const box = entry.measure?.();
+  if (!box || box.width <= 0 || sameColumn(entry.column, box)) return false;
+  entry.column = { left: box.left, width: box.width };
+  return true;
+}
+
+function updateWindow(entry: Entry): boolean {
+  const window = entry.measureWindow?.() ?? undefined;
+  if (window === entry.window) return false;
+  entry.window = window;
+  return true;
+}
+
+/** Existing grouping/deduplication, applied within one rollup scope. */
+function groupToolEntries(timeline: AgentTimeline): Map<Entry, ToolSlot> {
   const { superseded, repeated } = leftBehind(timeline.entries);
   timeline.superseded = superseded;
   timeline.repeated = repeated;
@@ -497,6 +563,8 @@ function addEntry(agentId: string, entry: Entry): () => void {
     timeline = { entries: new Set(), slots: new Map(), stale: true, superseded: new Set(), repeated: new Set() };
     timelines.set(agentId, timeline);
   }
+  updateColumn(entry);
+  updateWindow(entry);
   timeline.entries.add(entry);
   timeline.lowest = undefined;
   invalidate(timeline);
@@ -575,6 +643,7 @@ export function useTimelineToolGroup(
   view?: RefObject<unknown>,
   followRowBelow = true,
   rollup?: ToolRollupPosition | null,
+  measureWindow?: () => object | null,
 ): {
   group: readonly ToolCallView[] | null;
   anythingBelow: boolean;
@@ -583,6 +652,7 @@ export function useTimelineToolGroup(
   copiesBelow: number;
   copiesBelowHeight: number;
   rollupHead: string | null;
+  onLayout(): void;
 } {
   const entry = useMemo<Entry>(() => ({
     at,
@@ -594,6 +664,7 @@ export function useTimelineToolGroup(
     settledKey: settled ? tool.callId : undefined,
     callId: tool.callId,
     measure: view ? () => viewBox(view.current) : undefined,
+    measureWindow,
   }), [agentId, at]);
   const single = useMemo(() => [tool], [tool]);
   useLayoutEffect(() => addEntry(agentId, entry), [agentId, entry]);
@@ -667,7 +738,37 @@ export function useTimelineToolGroup(
   const getCopiesHeight = useCallback(() => entry.copiesBelow?.height ?? 0, [entry]);
   const copiesBelow = useSyncExternalStore(subscribe, getCopies, getCopies);
   const copiesBelowHeight = useSyncExternalStore(subscribe, getCopiesHeight, getCopiesHeight);
-  return { group, anythingBelow, rowBelow, copiesBelow, copiesBelowHeight, rollupHead };
+  const columnRequest = useRef(0);
+  const onLayout = useCallback(() => {
+    if (entry.rollup === undefined) return;
+    const timeline = timelines.get(agentId);
+    if (updateWindow(entry) && timeline?.entries.has(entry)) invalidate(timeline);
+    const ticket = ++columnRequest.current;
+    const accept = (left: number, width: number) => {
+      const timeline = timelines.get(agentId);
+      if (ticket !== columnRequest.current || !timeline?.entries.has(entry) || width <= 0) return;
+      const column = { left, width };
+      if (sameColumn(entry.column, column)) return;
+      entry.column = column;
+      invalidate(timeline);
+    };
+    const node = view?.current as {
+      getBoundingClientRect?: () => ViewBox;
+      measureInWindow?: (callback: (x: number, y: number, width: number, height: number) => void) => void;
+    } | null;
+    if (node?.getBoundingClientRect) {
+      const box = node.getBoundingClientRect();
+      accept(box.left, box.width);
+    } else {
+      // Unlike viewBox's synchronous spacing probe, keep async native results.
+      node?.measureInWindow?.((left, _top, width) => accept(left, width));
+    }
+  }, [agentId, entry, view]);
+  useLayoutEffect(() => {
+    onLayout();
+    return () => { columnRequest.current++; }; // Ignore a detached view's late measurement.
+  }, [onLayout, rollup !== undefined]);
+  return { group, anythingBelow, rowBelow, copiesBelow, copiesBelowHeight, rollupHead, onLayout };
 }
 
 /**

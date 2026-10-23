@@ -48,7 +48,7 @@ try {
       element.style.boxSizing = "border-box";
       element.style.width = compact ? "440px" : "940px";
     }, compact);
-    const summary = scene.getByRole("button", { name: "Called 7 tools · 1 running · 1 failed", exact: true });
+    const summary = scene.getByRole("button", { name: "Called 7 tools · 1 running", exact: true });
     await summary.waitFor();
     assert.equal(await summary.getAttribute("aria-expanded"), "false");
     const heights = await scene.locator('[data-testid^="rollup-source-"]').evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
@@ -68,7 +68,7 @@ try {
     await scene.getByTestId("rollup-next-update").waitFor();
     assert.equal(await scene.getByText("npm run check:hermes", { exact: true }).count(), 0);
     assert.deepEqual(errors, []);
-    console.log(`PASS ${stem}: hidden wrapper heights=${heights.slice(1).join(",")}; expansion reveals every card; running/failure counts stay visible`);
+    console.log(`PASS ${stem}: hidden wrapper heights=${heights.slice(1).join(",")}; expansion reveals every card; running counts stay visible`);
     await page.close();
   }
   console.log(`Screenshots: ${out}`);

@@ -3,7 +3,7 @@
 Open Better Paseo settings → **Tool calls** → **Tool call rollups** (「合并工具调用」).
 The switch defaults to **Off** and applies to all clients connected to the same
 host. Turn it On to collapse consecutive tool calls under **Called N tools**;
-a singleton says **Called 1 tool**. Running and failed counts stay visible.
+a singleton says **Called 1 tool**. Running counts stay visible.
 Expand the header to restore the original rich cards in their source slots,
 including their copy, preview and detail controls. Turn it Off to restore the
 existing file-operation groups. Other presentation switches keep their values.
@@ -33,9 +33,9 @@ select a different saved choice.
 Offline fixtures, not a user conversation or native-device acceptance. The
 failure is deliberate fixture text, not a result of the validation below.
 
-Collapsed, with running and failed counts:
+Collapsed, with running counts:
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="images/tool-rollups-dark-collapsed.png"><img alt="Collapsed tool rollup: seven calls, one running and one failed" src="images/tool-rollups-light-collapsed.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="images/tool-rollups-dark-collapsed.png"><img alt="Collapsed tool rollup: seven calls, one running" src="images/tool-rollups-light-collapsed.png"></picture>
 
 Expanded, with the original cards in their source slots:
 
@@ -55,9 +55,18 @@ limits below.
 - Counts describe **mounted, source-adjacent calls**, not an entire historical
   turn. Virtualization can split a run and change its count/head as cards mount
   or leave. Missing members are never invented or pulled outside that window.
+- On Paseo 0.12 web/desktop, the containing `agent-chat-scroll` viewport node
+  identifies each mounted window, including stacked panes. Source order remains
+  SDK-owned; the DOM marker supplies only window identity. This depends on the
+  observed host marker. Without it, grouping uses measured left/width columns;
+  asynchronous native measurements are retained and hidden slots keep their last
+  positive bounds. Duplicate copies that cannot be assigned to distinct windows
+  remain visible as ordinary cards, while unrelated runs still group. Native has
+  no public pane ID: equal-column stacked windows with disjoint call IDs cannot
+  be fully distinguished by that fallback. This is not full native pane acceptance.
 - Web/desktop CSS hides only host wrappers containing explicitly marked empty
   rollup members, including the observed `display:contents` bridge. Grouping does
-  not inspect the DOM. The spacing depends on the host wrapper shape and browser
+  not derive call order from the DOM. The spacing depends on the host wrapper shape and browser
   `:has` support. React Native shares grouping and disclosure, but native outer
   16pt slot margins can still leave blank gaps. A host slot-hiding or
   source-preserving grouped projection API would remove this ceiling.
@@ -81,11 +90,12 @@ CHROME_PATH=/path/to/chrome node .showcase/tools/rollups-smoke.mjs
 
 The smoke uses offline fixtures and real summary/card components in light/dark
 at desktop and 440px widths. It checks empty wrapper height, expands all seven
-cards including a failed call, retains running/failed counts, recollapses, and
+cards including a failed call, retains running counts, recollapses, and
 checks for browser errors. Captures go to `.showcase/out/rollups`. The simulated
 Paseo 0.12 wrapper is not a deployed SDK integration or a native-device test.
 Unit tests separately cover source boundaries, inverted mounting, every tool
-category/outcome, active permission controls, remounts, Off/toggle behavior and
+category/outcome, active permission controls, independent pane windows, async
+measurements, ambiguous-copy fallback, remounts, Off/toggle behavior and
 incomplete history pages. See [development guidance](development.md) for the
 canonical screenshot capture commands and Hermes runtime restrictions.
 
@@ -94,19 +104,20 @@ and the installed `@getpaseo/plugin`/`@getpaseo/client` 0.12.0 contracts.
 
 ## Validation
 
-Checked on Linux, Node 22.22.2/npm 10.9.7, at source revision
-`9e7997908be4575d7f14c03b13dd3bea4168aa3e`. Repository CI uses Node 24.
+Checked on Linux, Node 22.22.2/npm 10.9.7. The capture provenance records the
+committed source revision used for the current documentation images.
+Repository CI uses Node 24.
 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Passed |
-| `npm test` | 3602 passed, 1 existing macOS-only test skipped on Linux; 192 suites passed, 1 skipped |
+| `npm test` | 3615 passed, 1 existing macOS-only test skipped on Linux; 192 suites passed, 1 skipped |
 | `npm run build:client` | Passed |
 | `npm run check:hermes` | Source and install-built client/Tasks chunk compile passed; VM evaluation skipped because no Hermes VM is installed |
 | Rollup browser smoke | Passed light/dark × desktop/440px; zero-height empty wrappers, all seven cards restored, counts retained, no browser errors |
-| Canonical screenshot recapture | Completed all scenes in light/dark, Chinese settings and 2× hero captures in private output directories |
-| Rollup documentation images | All four PNG hashes/dimensions verified; both pictures switch light/dark/light in Chromium |
-| Existing README screenshot tests | Both fail on this revision and unchanged maintainer main `2209968`: hardcoded 23 pictures versus 25 actual; media-selection harness times out. The test, existing assets and README picture blocks are unchanged |
+| Screenshot scope | Targeted synthetic rollup scene only; unrelated assets retained |
+| Rollup documentation images | Four targeted synthetic PNGs; hashes/dimensions and committed source recorded in provenance |
+| Existing README screenshot tests | Prior QA recorded baseline failures on unchanged maintainer main `2209968`: hardcoded 23 pictures versus 25 actual; media-selection harness times out. The test, existing assets and README picture blocks are unchanged |
 
 The README harness manifest omits the existing Tasks board/timeline image references.
 These unrelated baseline failures were not suppressed or changed.

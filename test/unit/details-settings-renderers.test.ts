@@ -62,6 +62,7 @@ vi.mock("../../client/ui/path-text", async () => {
   return { PathContext: ReactModule.createContext(null), usePathContextValue: () => ({ roots: [], cwd: null, mode: "relative" }) };
 });
 vi.mock("../../client/image-file", () => ({ isImagePath: () => false, useImageFile: () => null }));
+vi.mock("../../client/web", () => ({ toolRollupWindow: () => null }));
 vi.mock("../../client/tools/classify", () => ({ classifyTool: () => ({ title: "Read", tool: "read", status: "completed", filePath: null }) }));
 vi.mock("../../client/tools/disclosure", () => ({ defaultToolExpanded: () => false, toolDisclosureKey: () => "tool-key" }));
 vi.mock("../../client/debug/perf", () => ({ probeCard: () => ({ node: null, viewProps: {} }), textItemKey: () => "text-key" }));

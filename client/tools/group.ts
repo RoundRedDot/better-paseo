@@ -8,11 +8,6 @@ export function canRollupTool(view: ToolCallView): boolean {
   return Boolean(view.callId);
 }
 
-export function toolRollupFailed(view: ToolCallView): boolean {
-  return view.status === "failed" || view.rollupStatus === "error" ||
-    Boolean(view.error && !view.rejected) || summarizeToolCall(view).tone === "danger";
-}
-
 /** These are the two ToolBody paths that render answer/permission controls. */
 export function toolPermissionTargets(view: ToolCallView): string[] {
   const status = view.agentStatus;

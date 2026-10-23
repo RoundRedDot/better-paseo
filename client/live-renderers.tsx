@@ -7,6 +7,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { useThemeTokens } from "./components/theme-tokens";
 import { ToolCallout } from "./components/tool-callouts";
 import { ToolRollup, ToolRollupControls } from "./components/tool-rollup";
+import { toolRollupWindow } from "./web";
 import { useToolRollupPosition, type ToolRollupPosition } from "./state/tool-rollup-order";
 import { ReasoningCard } from "./components/reasoning-trace";
 import { createReasoningSegmenter } from "./reasoning/segment";
@@ -178,7 +179,7 @@ function LiveToolCallRendererBody({
   useSelectionActions(tokens, preferences.selectionActions);
   const data = item.data;
 
-  const view = useMemo(() => ({ ...classifyTool(data), rollupStatus: data.status }), [data]);
+  const view = useMemo(() => classifyTool(data), [data]);
   // The host rewrites a call's timestamp as its result arrives, but keeps
   // its timeline slot. Ordering by that update time can move the gap from
   // this row onto the call below it while the turn is still streaming.
@@ -192,11 +193,12 @@ function LiveToolCallRendererBody({
   // below it kept its gap as if it were the newest row. A call already
   // finished as its row mounts is replayed history (see `timeline-order.ts`).
   const rootRef = useRef<View>(null);
+  const measureWindow = useCallback(() => toolRollupWindow(rootRef.current), []);
   // Only a stacking host's compensation depends on whether a row comes next.
   const hostStacks = useHostStacksRows();
-  const { group, anythingBelow, rowBelow, copiesBelow, copiesBelowHeight, rollupHead } = useTimelineToolGroup(
+  const { group, anythingBelow, rowBelow, copiesBelow, copiesBelowHeight, rollupHead, onLayout } = useTimelineToolGroup(
     agentId, at, view, data.phase === "complete", rootRef, hostStacks && preferences.compactRowSpacing,
-    rollup,
+    rollup, measureWindow,
   );
   const [rollupExpanded, setRollupExpanded] = useDisclosure(`${agentId}:tool-rollup:${rollupHead ?? data.callId}`, false);
   const [rollupControlsVisible, setRollupControlsVisible] = useState(false);
@@ -255,6 +257,7 @@ function LiveToolCallRendererBody({
   return (
     <View
       ref={rootRef}
+      onLayout={onLayout}
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot,
         Platform.OS === "web" && rollupHead && !showCard && !showSummary
           ? { dataSet: { bcrollupempty: "true" } } as import("react-native").ViewProps : {})}
