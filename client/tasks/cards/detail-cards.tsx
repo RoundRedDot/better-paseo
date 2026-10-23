@@ -1253,10 +1253,13 @@ function SubtaskRow(props: {
         {props.meta.length > 0 ? (
           <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 4 }} testID={`detail-subtask-meta-${child.id}`}>
             {props.meta.map((part, index) => (
-              <Text key={index} numberOfLines={1} style={metaText}>
-                <Text style={part.tone ? { color: toneColor(part) } : undefined}>{part.text}</Text>
-                {index < props.meta.length - 1 ? " ·" : null}
-              </Text>
+              <View key={index} style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 }}>
+                {part.icon ? <Icon name={part.icon} size={size.meta} color={toneColor(part)} /> : null}
+                <Text numberOfLines={1} style={metaText}>
+                  <Text style={part.tone ? { color: toneColor(part) } : undefined}>{part.text}</Text>
+                  {index < props.meta.length - 1 ? (part.text ? " ·" : "·") : null}
+                </Text>
+              </View>
             ))}
           </View>
         ) : null}
