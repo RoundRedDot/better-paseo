@@ -336,6 +336,7 @@ export function DesktopFilterBar(props: {
               width={PROJECT_MENU_WIDTH}
               top={taskControlHeight(28, scale) + 6}
               align="left"
+              search={strings.menuSearch}
               onClose={() => setMenu(null)}
             />
           </MenuButton>
@@ -346,6 +347,7 @@ export function DesktopFilterBar(props: {
               width={300}
               top={taskControlHeight(28, scale) + 6}
               align="left"
+              search={strings.menuSearch}
               onClose={() => setMenu(null)}
             />
           </MenuButton>

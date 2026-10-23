@@ -29,6 +29,8 @@ export const MENU = {
   detailRowHeight: 44,
   /** A group title row. */
   titleHeight: 28,
+  /** A searchable menu's field above its rows, a hairline under it. */
+  searchHeight: 36,
   /** Space above and below a group's hairline. */
   separatorGap: 6,
   /** How far a submenu overlaps its parent's edge. */
@@ -139,6 +141,32 @@ export function layoutMenu(sections: readonly MenuSection[], scale = 1): { rows:
     }
   });
   return { rows, height: y + MENU.padV };
+}
+
+/** A searchable menu's field and the 1 pt box of its hairline, with the UI scale's growth. */
+export function menuSearchHeight(scale = 1): number {
+  return Math.round(MENU.searchHeight * Math.max(1, scale)) + 1;
+}
+
+/**
+ * The rows a search keeps: those whose label, detail and group title hold
+ * every word of `query`, ignoring case, so "beautiful main" finds the main
+ * workspace under the beautiful-chat project. Only text the row shows: a
+ * match inside a folded "…/" would list a row with no visible reason. A
+ * group left without rows drops out with its title; an empty query keeps
+ * everything.
+ */
+export function filterMenuSections(sections: readonly MenuSection[], query: string): MenuSection[] {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [...sections];
+  return sections.flatMap((section) => {
+    const items = section.items.filter((item) => {
+      if (item.disabled) return false;
+      const text = [section.title, item.label, item.detail].filter(Boolean).join(" ").toLowerCase();
+      return words.every((word) => text.includes(word));
+    });
+    return items.length ? [{ ...section, items }] : [];
+  });
 }
 
 /** The gap a menu keeps from the window's edges. */
