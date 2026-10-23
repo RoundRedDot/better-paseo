@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from "react";
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import React from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { radiusV2, space, type ExtendedThemeTokens } from "./components/theme-tokens";
 import { TYPE } from "./ui/tokens/typography";
+import { SwitchTrack } from "./ui/switch-track";
 import type { SettingsStrings } from "./i18n/settings-strings";
 
 /**
@@ -9,12 +10,6 @@ import type { SettingsStrings } from "./i18n/settings-strings";
  * sections of label-and-control rows, a switch, a segmented control and a
  * plain button. Shared by the chat options and the Tasks board options.
  */
-
-/** Switch geometry (S7 3.9): a 40x24 track and an 18pt knob. */
-const TRACK_WIDTH = 40;
-const TRACK_HEIGHT = 24;
-const KNOB = 18;
-const KNOB_INSET = (TRACK_HEIGHT - KNOB) / 2;
 
 /** Layout of the page: a grouped list on touch layouts, cards of label-and-control rows on desktop. */
 export interface PageLook {
@@ -40,18 +35,6 @@ export function Toggle({
   look: PageLook;
 }) {
   const { tokens } = look;
-  const position = useRef(new Animated.Value(value ? 1 : 0)).current;
-
-  useEffect(() => {
-    const animation = Animated.timing(position, {
-      toValue: value ? 1 : 0,
-      duration: 140,
-      useNativeDriver: Platform.OS !== "web",
-    });
-    animation.start();
-    return () => animation.stop();
-  }, [value, position]);
-
   return (
     <Pressable
       accessibilityRole="switch"
@@ -62,30 +45,10 @@ export function Toggle({
       accessibilityLabel={label}
       hitSlop={10}
       onPress={() => onChange(!value)}
-      style={[
-        styles.track,
-        {
-          backgroundColor: value ? tokens.accent : tokens.v2.surface2,
-          borderColor: value ? tokens.accent : tokens.v2.border,
-        },
-      ]}
     >
-      <Animated.View
-        style={[
-          styles.knob,
-          {
-            backgroundColor: value ? tokens.accentForeground : tokens.v2.surface0,
-            borderColor: value ? tokens.accentForeground : tokens.v2.border,
-            transform: [
-              {
-                translateX: position.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, TRACK_WIDTH - KNOB - KNOB_INSET * 2 - 2],
-                }),
-              },
-            ],
-          },
-        ]}
+      <SwitchTrack
+        value={value}
+        colors={{ accent: tokens.accent, accentForeground: tokens.accentForeground, surface0: tokens.v2.surface0, surface2: tokens.v2.surface2, border: tokens.v2.border }}
       />
     </Pressable>
   );
@@ -376,15 +339,6 @@ const styles = StyleSheet.create({
   },
   rowTextDesktop: { flexGrow: 1, flexShrink: 1, flexBasis: 220, minWidth: 0, gap: 2 },
   controlDesktop: { flexShrink: 0, maxWidth: "100%" },
-  track: {
-    width: TRACK_WIDTH,
-    height: TRACK_HEIGHT,
-    borderRadius: TRACK_HEIGHT / 2,
-    borderWidth: 1,
-    paddingHorizontal: KNOB_INSET,
-    justifyContent: "center",
-  },
-  knob: { width: KNOB, height: KNOB, borderRadius: KNOB / 2, borderWidth: 1 },
   segmented: {
     flexDirection: "row",
     alignItems: "stretch",
