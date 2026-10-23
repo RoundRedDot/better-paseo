@@ -803,6 +803,20 @@ describe("Tasks board, desktop", () => {
     expect(child.props.compact).toBe(false);
     // The host has no CLI to stop with (`tasks.capabilities`), so no card offers Stop.
     expect(child.props.onStop).toBeUndefined();
+    // Nor Unarchive, which runs through the same CLI.
+    expect(child.props.onUnarchive).toBeUndefined();
+  });
+
+  it("hands the cards Unarchive when the host has the CLI", async () => {
+    host.canStop = true;
+    await act(async () => {
+      renderer = TestRenderer.create(screen(false));
+      await Promise.resolve();
+    });
+    layOut(1600);
+    const card = cards()[0]!;
+    expect(card.props.onUnarchive).toEqual(expect.any(Function));
+    expect(card.props.unarchivePending).toBe(false);
   });
 
   it("does not open an archived task, whose tab Paseo would drop for another, and says why", () => {

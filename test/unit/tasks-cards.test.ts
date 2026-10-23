@@ -998,6 +998,29 @@ describe("TaskCardView actions", () => {
     expect(onOpen).toHaveBeenCalledWith("sample-done");
   });
 
+  it("puts Unarchive where Open tab was on an archived task, spinning while it runs", async () => {
+    const onUnarchive = vi.fn();
+    const archived = { ...sample("sample-done"), lane: "archived" as const, status: "archived" as const, archived: "agent" as const };
+    const tree = await render(cardElement(archived, { onOpen: vi.fn(), onUnarchive }));
+    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["取消归档"]);
+    expect(icons(hostByTestId(tree.root, "task-card-unarchive"))).toEqual(["ArchiveRestore"]);
+    hostByTestId(tree.root, "task-card-unarchive").props.onPress();
+    expect(onUnarchive).toHaveBeenCalledWith("sample-done");
+
+    await act(async () => tree.update(cardElement(archived, { onOpen: vi.fn(), onUnarchive, unarchivePending: true })));
+    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["正在取消归档…"]);
+    expect(hostByTestId(tree.root, "task-card-unarchive").props.disabled).toBe(true);
+
+    // The phone's card has it in its action row.
+    await act(async () => tree.update(cardElement(archived, { compact: true, onUnarchive })));
+    expect(texts(hostByTestId(tree.root, "task-card-actions"))).toEqual(["取消归档"]);
+    // An archived workspace's task has nothing of its own to unarchive, and a host without the CLI no Unarchive.
+    await act(async () => tree.update(cardElement({ ...archived, archived: "workspace" }, { onUnarchive })));
+    expect(tree.root.findAll((node) => node.props.testID === "task-card-unarchive")).toHaveLength(0);
+    await act(async () => tree.update(cardElement(archived, {})));
+    expect(tree.root.findAll((node) => node.props.testID === "task-card-unarchive")).toHaveLength(0);
+  });
+
   it("gives a tablet card's buttons a row of their own under the timer, Open tab at the right", async () => {
     const tree = await render(cardElement(sample("sample-child-1"), { onStop: () => {} }));
     expect(rows(tree.root, "sample-child-1")).toEqual(["task-card-meta", "task-card-title-row", "task-card-pills", "task-card-footer", "task-card-control-row"]);
@@ -1455,8 +1478,9 @@ describe("TaskDetailCards", () => {
     await act(async () => hostByTestId(tree.root, "detail-unarchive").props.onPress());
     expect(unarchive.press).toHaveBeenCalledTimes(1);
 
-    // Paseo would drop an archived task's tab and show another: no Open until it is back.
+    // Paseo would drop an archived task's tab and show another: no Open until it is back, and Unarchive leads.
     expect(tree.root.findAll((node) => node.props.testID === "detail-open")).toHaveLength(0);
+    expect(flat(hostByTestId(tree.root, "detail-unarchive").props.style).flexGrow).toBe(1);
 
     // Its workspace is archived, not the task: nothing of its own to bring back.
     await act(async () => tree.update(details({ ...archived, archived: "workspace" }, { onOpen: vi.fn(), unarchive })));
@@ -1741,8 +1765,14 @@ describe("TaskDetailCards", () => {
     expect(labels).toEqual(["拒绝", "允许", "打开 tab 处理"]);
     await act(async () => asking.unmount());
     renderer = null;
-    // An archived task opens nowhere, so the bar has nothing to hold.
-    const archived = await render(bar({ ...sample("sample-done"), lane: "archived", status: "archived", archived: "agent" }));
+    // An archived task opens nowhere: Unarchive is its main button, or the bar has nothing to hold.
+    const archivedCard: TaskCard = { ...sample("sample-done"), lane: "archived", status: "archived", archived: "agent" };
+    const unarchive = { pending: vi.fn(() => false), press: vi.fn() };
+    const archived = await render(bar(archivedCard, { unarchive }));
+    expect(texts(hostByTestId(archived.root, "detail-action-bar"))).toEqual(["取消归档"]);
+    await act(async () => hostByTestId(archived.root, "detail-bar-unarchive").props.onPress());
+    expect(unarchive.press).toHaveBeenCalledWith(archivedCard.id);
+    await act(async () => archived.update(bar(archivedCard)));
     expect(archived.toJSON()).toBeNull();
   });
 
