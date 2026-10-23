@@ -19,10 +19,10 @@ import {
   type TasksSettings,
 } from "../../../shared/tasks-settings";
 import { mix, radiusV2, space } from "../../components/theme-tokens";
-import { PlainButton, Section, Segmented, SettingRow, Toggle, controlStyles, type PageLook } from "../../settings-controls";
+import { PHONE_PREVIEW_WIDTH, PlainButton, Section, Segmented, SettingRow, Toggle, controlStyles, type PageLook } from "../../settings-controls";
 import { tasksBoardOpener } from "../board/enabled";
 import { useTasksLanguage } from "../i18n";
-import { TasksBoardPreview } from "./board-preview";
+import { PREVIEW_LANES_MAX_HEIGHT, TasksBoardPreview } from "./board-preview";
 import { TASKS_SETTINGS_STRINGS, type TasksSettingsStrings } from "./strings";
 import { dismissEnabledNotice, useTasksForm, type TasksForm } from "./use-tasks-form";
 
@@ -140,7 +140,13 @@ function EnabledRow({ form, strings, look, intro = false }: { form: TasksForm; s
   );
 }
 
-/** The preview in its frame: a title, what it shows, the board. */
+type PreviewDevice = "desktop" | "mobile";
+
+/**
+ * The preview in its frame: a title, what it shows, the board. On a wide
+ * page a Desktop / Mobile switch, as the chat preview has, draws the board
+ * as a phone does in a phone-wide frame; on a phone it is the phone's already.
+ */
 function PreviewCard(props: {
   look: PageLook;
   theme: PluginTheme;
@@ -153,6 +159,8 @@ function PreviewCard(props: {
 }) {
   const { look, strings, values } = props;
   const { tokens, compact } = look;
+  const [device, setDevice] = useState<PreviewDevice>("desktop");
+  const phone = compact || device === "mobile";
   const header = (
     <View style={styles.previewHeader}>
       <View style={styles.previewHeaderText}>
@@ -168,13 +176,40 @@ function PreviewCard(props: {
           {strings.previewOffTag}
         </Text>
       )}
+      {compact ? null : (
+        <Segmented<PreviewDevice>
+          label={look.t.previewDevice}
+          value={device}
+          options={[
+            { value: "desktop", label: look.t.previewDesktop },
+            { value: "mobile", label: look.t.previewMobile },
+          ]}
+          onChange={setDevice}
+          look={look}
+        />
+      )}
     </View>
   );
-  const board = (
-    <View style={[styles.previewBoard, { backgroundColor: props.theme.colors.surface0, borderColor: tokens.v2.border }]}>
-      <TasksBoardPreview theme={props.theme} values={values} language={props.language} phone={compact} hostId={props.hostId} />
-    </View>
-  );
+  const frame = { backgroundColor: props.theme.colors.surface0, borderColor: tokens.v2.border };
+  const board =
+    phone && !compact ? (
+      <View style={styles.previewPhoneStage} testID="tasks-preview-phone">
+        <View style={[styles.previewPhone, frame]}>
+          <TasksBoardPreview
+            theme={props.theme}
+            values={values}
+            language={props.language}
+            phone
+            listMaxHeight={PREVIEW_LANES_MAX_HEIGHT}
+            hostId={props.hostId}
+          />
+        </View>
+      </View>
+    ) : (
+      <View style={[styles.previewBoard, frame]}>
+        <TasksBoardPreview theme={props.theme} values={values} language={props.language} phone={phone} hostId={props.hostId} />
+      </View>
+    );
   if (props.inline) {
     return (
       <RowBlock look={look} testID="tasks-preview-card">
@@ -543,6 +578,16 @@ const styles = StyleSheet.create({
   previewHeader: { flexDirection: "row", alignItems: "center", gap: space.md, paddingTop: space.md, paddingHorizontal: space.lg },
   previewHeaderText: { flex: 1, minWidth: 0, gap: 2 },
   previewBoard: { margin: space.md, marginTop: space.md, padding: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
+  previewPhoneStage: { margin: space.md, alignItems: "center" },
+  previewPhone: {
+    width: "100%",
+    maxWidth: PHONE_PREVIEW_WIDTH,
+    paddingHorizontal: space.md,
+    paddingTop: space.sm,
+    paddingBottom: space.md,
+    borderWidth: 1,
+    borderRadius: radiusV2.bubble,
+  },
   tag: { fontSize: 12, lineHeight: 16, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 1, borderRadius: radiusV2.chip },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
   chip: {

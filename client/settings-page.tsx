@@ -39,7 +39,7 @@ import {
 import { usePreferenceSettings } from "./state/preference-sync-slot";
 import { useWideHostColumn } from "./ui/wide-host-column";
 import { SettingsPreview } from "./settings-preview";
-import { PlainButton, Section, SectionNote, Segmented, SettingRow, Toggle, controlStyles, type PageLook } from "./settings-controls";
+import { PHONE_PREVIEW_WIDTH, PlainButton, Section, SectionNote, Segmented, SettingRow, Toggle, controlStyles, type PageLook } from "./settings-controls";
 import { setSettingsTab, useSettingsTab, type SettingsTab } from "./settings-tab";
 import { TasksEntrySection, TasksSettingsPanel } from "./tasks/chunk/load";
 import type { SyncStatus } from "./state/preference-sync";
@@ -83,9 +83,6 @@ const INLINE_CODE_OPTIONS: ReadonlyArray<{
 ];
 
 type PreviewDevice = "desktop" | "mobile";
-
-/** A phone's width in points, chat padding included. */
-const PHONE_WIDTH = 390;
 
 /** Accent swatches: 22pt, each in a 44pt target. */
 const SWATCH = 22;
@@ -1107,7 +1104,7 @@ const styles = {
     previewBody: { padding: space.lg },
     phoneFrame: {
       width: "100%",
-      maxWidth: PHONE_WIDTH,
+      maxWidth: PHONE_PREVIEW_WIDTH,
       alignSelf: "center",
       borderWidth: 1,
       borderRadius: radiusV2.bubble,

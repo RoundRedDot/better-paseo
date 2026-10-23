@@ -204,6 +204,25 @@ describe("Tasks half of the settings page", () => {
     expect(state.previews.at(-1)!.compact).toBe(true);
   });
 
+  it("on a desktop page, draws the board as a phone does when the preview's device switch says so", () => {
+    const values = { ...DEFAULT_TASKS_SETTINGS, mobile: { compactCards: true } };
+    makeSettings({ values });
+    const r = panel();
+    expect(byTestID(r, "tasks-preview-phone")).toHaveLength(0);
+    expect(state.previews.at(-1)!.compact).toBe(false);
+    act(() => radio(r, "Preview for", "Mobile").props.onPress());
+    expect(byTestID(r, "tasks-preview-phone")).toHaveLength(1);
+    expect(byTestID(r, "tasks-preview-tabs")).toHaveLength(1);
+    expect(state.previews.at(-1)!.compact).toBe(true);
+    expect(state.previews.at(-1)!.fields).toEqual(effectiveCard(values, true));
+    act(() => radio(r, "Preview for", "Desktop").props.onPress());
+    expect(byTestID(r, "tasks-preview-phone")).toHaveLength(0);
+    expect(state.previews.at(-1)!.compact).toBe(false);
+    // A phone page has no switch: its preview is the phone's already.
+    const phone = panel(true);
+    expect(phone.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Preview for")).toHaveLength(0);
+  });
+
   it("the switch saves enabled, tells where the entry went, and opens the board", async () => {
     const api = makeSettings();
     const open = vi.fn();

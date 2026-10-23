@@ -49,6 +49,8 @@ export function TasksBoardPreview(props: {
   language: TasksLanguage;
   /** Phone layout: the phone's tabs and its card (`mobile.compactCards`). */
   phone: boolean;
+  /** Under the tabs, the cards scroll inside this height; unset, they run on with the page. */
+  listMaxHeight?: number;
   hostId?: string;
 }) {
   const { theme, values, language, phone } = props;
@@ -158,9 +160,11 @@ export function TasksBoardPreview(props: {
             );
           })}
         </View>
-        <View style={{ paddingTop: 10, gap: 10 }} testID={`tasks-preview-lane-${selected}`}>
-          {lanes[selected].map(card)}
-        </View>
+        <ScrollView style={props.listMaxHeight ? { maxHeight: props.listMaxHeight } : null} nestedScrollEnabled>
+          <View style={{ paddingTop: 10, gap: 10 }} testID={`tasks-preview-lane-${selected}`}>
+            {lanes[selected].map(card)}
+          </View>
+        </ScrollView>
       </View>
     );
   }
