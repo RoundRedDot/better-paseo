@@ -4,8 +4,9 @@ import type { TaskCard } from "./model";
  * Made-up cards: the settings page's preview of the board draws them, and the
  * card and board tests use them. `sampleCards` holds one or two per lane plus
  * a parent with children, so every block of the card shows up somewhere;
- * `previewSampleCards` adds a question and a card stopped from the board, so
- * the preview fills every lane with two.
+ * `previewSampleCards` adds a question, a card stopped from the board and two
+ * archived ones, so the preview fills every lane with two, the archived lane
+ * (`board.showArchived`) too.
  *
  * `now` anchors the times, so a timer reads "12m 30s" whenever the preview opens.
  */
@@ -183,11 +184,42 @@ function allSamples(now: number): TaskCard[] {
       error: "Stopped manually",
       stoppedManually: true,
     },
+    {
+      ...base,
+      id: "sample-archived",
+      title: "Spike the sidebar drag handle",
+      lane: "archived",
+      status: "archived",
+      archived: "agent",
+      timing: { ...timing, updatedAt: ago(3 * 60 * minute), lastTurnMs: 7 * minute, lastTurnEndedAt: ago(5 * 60 * minute) },
+      location: { ...location, workspaceName: "sidebar-drag", workspaceTitle: "sidebar-drag", branch: "spike/sidebar-drag", git: { dirty: false, ahead: 1, behind: 4 }, pullRequest: null },
+      labels: [{ name: "spike", color: null }],
+      context: { usedTokens: 23_000, maxTokens: 200_000 },
+    },
+    {
+      ...base,
+      id: "sample-archived-workspace",
+      title: "Try the old export format",
+      lane: "archived",
+      status: "archived",
+      archived: "workspace",
+      provider: "codex",
+      providerLabel: "Codex",
+      providerMark: "lobe:codex",
+      model: "gpt-5.5",
+      modelLabel: "GPT-5.5",
+      thinkingLabel: "Medium",
+      modeLabel: null,
+      timing: { ...timing, updatedAt: ago(9 * 60 * minute), lastTurnMs: 12 * minute, lastTurnEndedAt: ago(9 * 60 * minute) },
+      location: { ...location, workspaceName: "export-legacy", workspaceTitle: "export-legacy", branch: "feat/export-legacy", git: null, pullRequest: null },
+      labels: [{ name: "api", color: "#22c55e" }],
+      context: null,
+    },
   ];
 }
 
 /** Only the preview draws these: the board tests count the others. */
-const PREVIEW_ONLY: ReadonlySet<string> = new Set(["sample-question", "sample-stopped"]);
+const PREVIEW_ONLY: ReadonlySet<string> = new Set(["sample-question", "sample-stopped", "sample-archived", "sample-archived-workspace"]);
 
 export function sampleCards(now: number = Date.now()): TaskCard[] {
   return allSamples(now).filter((card) => !PREVIEW_ONLY.has(card.id));

@@ -7,13 +7,18 @@ import { HAIRLINE, PANEL_RADIUS, boardPalette } from "../board/board-style";
 import { BOARD_STRINGS } from "../board/strings";
 import { StatusIcon, TaskCardView } from "../cards";
 import type { TasksLanguage } from "../i18n";
-import { ACTIVE_LANE_ORDER as LANE_ORDER, LANE_STATUS, type LaneId, type TaskCard } from "../model";
+import { LANE_STATUS, boardLaneOrder, isHistoryLane, type LaneId, type TaskCard } from "../model";
 import { previewSampleCards } from "../sample-cards";
 
 /** Four lanes side by side from this width on; narrower, one lane under tabs, as a phone draws the board. */
 export const PREVIEW_LANES_MIN = 840;
+
+/** The width the preview's lanes need side by side: 210 each, so five (with the archived lane) need 1050. */
+export function previewLanesMin(lanes: number): number {
+  return (PREVIEW_LANES_MIN / 4) * lanes;
+}
 /**
- * The four lanes scroll inside this height, so the switches under the preview
+ * The lanes scroll inside this height, so the switches under the preview
  * share a screen with the cards they change.
  */
 export const PREVIEW_LANES_MAX_HEIGHT = 440;
@@ -35,7 +40,8 @@ export function previewLanes(now: number, language: TasksLanguage): Record<LaneI
  * switches being edited. Static: it reads no agents, opens no subscription
  * and sends nothing (the data layer is never imported here), its times are
  * frozen at mount, and its buttons do nothing. Wide, it draws the four lanes
- * as the desktop board does; narrow or on a phone, one lane under tabs.
+ * (five with `board.showArchived`) as the desktop board does; narrow or on a
+ * phone, one lane under tabs.
  */
 export function TasksBoardPreview(props: {
   theme: PluginTheme;
@@ -53,8 +59,11 @@ export function TasksBoardPreview(props: {
   const lanes = useMemo(() => previewLanes(now, language), [now, language]);
   const fields = useMemo(() => effectiveCard(values, phone), [values, phone]);
   const [width, setWidth] = useState(0);
-  const [selected, setSelected] = useState<LaneId>("needs_input");
-  const side = !phone && width >= PREVIEW_LANES_MIN;
+  // The board's lanes as the settings being edited draw them: the archived lane follows its switch at once.
+  const order = boardLaneOrder(values.board.showArchived);
+  const [picked, setSelected] = useState<LaneId>("needs_input");
+  const selected = order.includes(picked) ? picked : "needs_input";
+  const side = !phone && width >= previewLanesMin(order.length);
 
   const card = (item: TaskCard) => (
     <TaskCardView
@@ -83,7 +92,7 @@ export function TasksBoardPreview(props: {
       </Text>
       <Text style={{ fontSize: 14, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{lanes[id].length}</Text>
       <View style={{ flex: 1 }} />
-      {id === "done" ? (
+      {isHistoryLane(id) ? (
         <Text numberOfLines={1} style={{ fontSize: 12, color: colors.foregroundMuted }}>
           {strings.windows[values.board.doneWindow]}
         </Text>
@@ -93,11 +102,11 @@ export function TasksBoardPreview(props: {
 
   let body: React.ReactNode;
   if (side) {
-    const laneWidth = Math.floor((width - GAP * (LANE_ORDER.length - 1)) / LANE_ORDER.length);
+    const laneWidth = Math.floor((width - GAP * (order.length - 1)) / order.length);
     body = (
       <ScrollView style={{ maxHeight: PREVIEW_LANES_MAX_HEIGHT }} nestedScrollEnabled>
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }} testID="tasks-preview-lanes">
-          {LANE_ORDER.map((id) => (
+          {order.map((id) => (
             <View
               key={id}
               testID={`tasks-preview-lane-${id}`}
@@ -117,7 +126,7 @@ export function TasksBoardPreview(props: {
           accessibilityRole="tablist"
           style={{ flexDirection: "row", borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}
         >
-          {LANE_ORDER.map((id) => {
+          {order.map((id) => {
             const on = id === selected;
             return (
               <Pressable
