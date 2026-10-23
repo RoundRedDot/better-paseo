@@ -4,6 +4,7 @@ import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { taskTokens } from "../cards";
+import { tipProps } from "../cards/card-hints";
 import { HoverPressable, WindowSegments, RoundButton, SlashMark } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { FILTER_ICONS, activeChips, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, shownFilterOptions, toggleProject, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
@@ -72,6 +73,7 @@ export function DesktopToolbar(props: {
         </View>
       ) : null}
       <View
+        {...tipProps(`${strings.search} (/)`)}
         style={{
           height: taskControlHeight(28, scale),
           width: 220,
@@ -107,6 +109,7 @@ export function DesktopToolbar(props: {
           theme={theme}
           onPress={() => board.setShowArchived(!board.showArchived)}
           size={toolbarButtonSize(scale)}
+          tip={board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row}
           testID="toolbar-archived"
         />
       ) : null}
@@ -118,10 +121,11 @@ export function DesktopToolbar(props: {
           theme={theme}
           onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
           size={toolbarButtonSize(scale)}
+          tip={board.showEmptyGroups ? strings.tips.hideEmptyGroups : strings.emptyGroups.row}
           testID="toolbar-empty-groups"
         />
       ) : null}
-      {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={toolbarButtonSize(scale)} testID="toolbar-filters" /> : null}
+      {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={toolbarButtonSize(scale)} tip={strings.filters} testID="toolbar-filters" /> : null}
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
     </View>
   );
@@ -138,6 +142,7 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
       accessibilityRole="button"
       accessibilityLabel={`${props.label} (I)`}
       accessibilityState={{ selected: props.open }}
+      {...tipProps(`${props.label} (I)`)}
       onPress={props.onToggle}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
@@ -166,7 +171,7 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
  * the archived lane's Archive is struck through while the lane is hidden,
  * the empty groups' trades its icon (`EMPTY_GROUPS_ICONS`).
  */
-function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: string; hint: string; theme: PluginTheme; slashed?: boolean; testID: string }) {
+function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: string; hint: string; tip: string; theme: PluginTheme; slashed?: boolean; testID: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   const size = toolbarButtonSize(scale);
@@ -180,6 +185,7 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
       accessibilityHint={props.hint}
       aria-checked={props.on}
       accessibilityState={{ checked: props.on }}
+      {...tipProps(props.tip)}
       onPress={props.onPress}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
@@ -306,6 +312,8 @@ export function DesktopFilterBar(props: {
     words.laneWidth,
   ]);
   const compact = fit.compact;
+  // An icon-only button's tip leads with the words it dropped: its picks, the sort, the width.
+  const tip = (dropped: string, what: string) => (compact ? `${dropped}\n${what}` : what);
   return (
     <View
       style={{
@@ -326,7 +334,7 @@ export function DesktopFilterBar(props: {
       <View onLayout={fit.box("filters")} style={{ flex: 1, minWidth: FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
         {/* The buttons hold one line: once their words would wrap them, they draw their icons alone. */}
         <View testID="filter-bar-controls" onLayout={fit.box("controls")} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 1 }}>
-          <MenuButton icon={FILTER_ICONS.project} label={words.project} compact={compact} open={menu === "project"} onPress={() => toggle("project")} theme={theme}>
+          <MenuButton icon={FILTER_ICONS.project} label={words.project} compact={compact} tip={tip(words.project, strings.tips.project)} open={menu === "project"} onPress={() => toggle("project")} theme={theme}>
             <CascadeMenu
               sections={projectMenuSections(shown, strings, board.hostId, (project) => setParams((p) => toggleProject(p, project)))}
               theme={theme}
@@ -336,7 +344,7 @@ export function DesktopFilterBar(props: {
               onClose={() => setMenu(null)}
             />
           </MenuButton>
-          <MenuButton icon={FILTER_ICONS.workspace} label={words.workspace} compact={compact} open={menu === "workspace"} onPress={() => toggle("workspace")} theme={theme}>
+          <MenuButton icon={FILTER_ICONS.workspace} label={words.workspace} compact={compact} tip={tip(words.workspace, strings.tips.workspace)} open={menu === "workspace"} onPress={() => toggle("workspace")} theme={theme}>
             <CascadeMenu
               sections={workspaceMenuSections(shown, theme, strings, board.hostId, (id) => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, id) })))}
               theme={theme}
@@ -346,7 +354,7 @@ export function DesktopFilterBar(props: {
               onClose={() => setMenu(null)}
             />
           </MenuButton>
-          <MenuButton icon={FILTER_ICONS.agent} label={words.agent} compact={compact} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
+          <MenuButton icon={FILTER_ICONS.agent} label={words.agent} compact={compact} tip={tip(words.agent, strings.tips.agent)} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
             <CascadeMenu
               sections={agentMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) })))}
               theme={theme}
@@ -356,7 +364,7 @@ export function DesktopFilterBar(props: {
               onClose={() => setMenu(null)}
             />
           </MenuButton>
-          <MenuButton icon={FILTER_ICONS.label} label={words.label} compact={compact} open={menu === "label"} onPress={() => toggle("label")} theme={theme}>
+          <MenuButton icon={FILTER_ICONS.label} label={words.label} compact={compact} tip={tip(words.label, strings.tips.labels)} open={menu === "label"} onPress={() => toggle("label")} theme={theme}>
             <CascadeMenu
               sections={labelMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, labels: toggleItem(p.labels, id) })))}
               theme={theme}
@@ -383,6 +391,7 @@ export function DesktopFilterBar(props: {
                 label={strings.openTabs}
                 compact={compact}
                 hint={strings.openTabsHint}
+                tip={tip(strings.openTabs, `${strings.tips.openTabs}\n${strings.openTabsHint}`)}
                 on={resolved.filters.openTabsOnly}
                 onPress={() => setParams((p) => ({ ...p, openTabsOnly: !p.openTabsOnly }))}
                 theme={theme}
@@ -392,6 +401,7 @@ export function DesktopFilterBar(props: {
                 label={strings.hideSubtasks}
                 compact={compact}
                 hint={strings.hideSubtasksHint}
+                tip={tip(strings.hideSubtasks, `${strings.tips.hideSubtasks}\n${strings.hideSubtasksHint}`)}
                 on={resolved.filters.hideSubtasks}
                 onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
                 theme={theme}
@@ -443,6 +453,7 @@ export function DesktopFilterBar(props: {
           onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))}
           theme={theme}
           strings={strings}
+          tip={strings.tips.doneWindow}
         />
         <BarSwitch
           icon="Archive"
@@ -451,6 +462,7 @@ export function DesktopFilterBar(props: {
           onPress={() => board.setShowArchived(!board.showArchived)}
           label={strings.archivedLane.row}
           hint={strings.archivedLane.hint}
+          tip={board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row}
           theme={theme}
           testID="archived-lane-toggle"
         />
@@ -460,6 +472,7 @@ export function DesktopFilterBar(props: {
           onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
           label={strings.emptyGroups.row}
           hint={strings.emptyGroups.hint(board.showEmptyGroups)}
+          tip={board.showEmptyGroups ? strings.tips.hideEmptyGroups : strings.emptyGroups.row}
           theme={theme}
           testID="empty-groups-toggle"
         />
@@ -469,6 +482,7 @@ export function DesktopFilterBar(props: {
           label={words.sort}
           compact={compact}
           labelMaxWidth={SORT_LABEL_MAX_WIDTH}
+          tip={tip(words.sort, strings.tips.sort)}
           open={menu === "sort"}
           onPress={() => toggle("sort")}
           theme={theme}
@@ -489,6 +503,7 @@ export function DesktopFilterBar(props: {
           label={words.laneWidth}
           compact={compact}
           accessibilityLabel={strings.laneWidth.button(strings.laneWidth.names[board.laneWidth])}
+          tip={compact ? strings.laneWidth.button(words.laneWidth) : strings.laneWidth.title}
           open={menu === "laneWidth"}
           onPress={() => toggle("laneWidth")}
           theme={theme}
@@ -634,6 +649,7 @@ function GroupChip(props: { group: ChipGroup; open: boolean; onPress(): void; on
           accessibilityRole="button"
           accessibilityState={{ expanded: props.open }}
           accessibilityLabel={props.group.label}
+          {...tipProps(props.open ? undefined : props.group.label)}
           onPress={props.onPress}
           testID={`chip-group-${props.group.kind}`}
           style={(hovered) => ({
@@ -670,6 +686,7 @@ function ClearButton(props: { label: string; onPress(): void; theme: PluginTheme
     <HoverPressable
       accessibilityRole="button"
       accessibilityLabel={props.label}
+      {...tipProps(props.label)}
       onPress={props.onPress}
       style={(hovered) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? colors.surface2 : "transparent" })}
     >
@@ -688,7 +705,7 @@ function Divider({ theme }: { theme: PluginTheme }) {
  * rather than overflow the group it sits in, or past `labelMaxWidth`;
  * `compact` drops it for the icon alone, which reads it out.
  */
-function MenuButton(props: { icon: string; label: string; compact?: boolean; accessibilityLabel?: string; labelMaxWidth?: number; open: boolean; onPress(): void; theme: PluginTheme; children: ReactNode }) {
+function MenuButton(props: { icon: string; label: string; compact?: boolean; accessibilityLabel?: string; labelMaxWidth?: number; tip?: string; open: boolean; onPress(): void; theme: PluginTheme; children: ReactNode }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   return (
@@ -697,6 +714,8 @@ function MenuButton(props: { icon: string; label: string; compact?: boolean; acc
         accessibilityRole="button"
         accessibilityLabel={props.accessibilityLabel ?? (props.compact ? props.label : undefined)}
         accessibilityState={{ expanded: props.open }}
+        // An open menu covers where the tip would show.
+        {...tipProps(props.open ? undefined : props.tip)}
         onPress={props.onPress}
         style={(hovered) => ({
           height: taskControlHeight(28, scale),
@@ -740,6 +759,7 @@ function MoreButton(props: { open: boolean; on: number; label: string; onPress()
       accessibilityRole="button"
       accessibilityLabel={props.label}
       accessibilityState={{ expanded: props.open }}
+      {...tipProps(props.label)}
       onPress={props.onPress}
       testID="filter-bar-more"
       style={(hovered) => ({
@@ -763,7 +783,7 @@ function MoreButton(props: { open: boolean; on: number; label: string; onPress()
 }
 
 /** A filter's switch: its icon and label, or with `compact` the icon alone, which reads the label out. */
-function ToggleChip(props: { icon: string; label: string; compact?: boolean; hint?: string; on: boolean; onPress(): void; theme: PluginTheme; testID?: string }) {
+function ToggleChip(props: { icon: string; label: string; compact?: boolean; hint?: string; tip?: string; on: boolean; onPress(): void; theme: PluginTheme; testID?: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   const tint = props.on ? taskTokens(props.theme).accentText : colors.foreground;
@@ -773,6 +793,7 @@ function ToggleChip(props: { icon: string; label: string; compact?: boolean; hin
       accessibilityState={{ checked: props.on }}
       accessibilityLabel={props.compact ? props.label : undefined}
       accessibilityHint={props.hint}
+      {...tipProps(props.tip)}
       onPress={props.onPress}
       testID={props.testID}
       style={(hovered) => ({

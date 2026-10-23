@@ -16,6 +16,7 @@ import { buildFilterOptions } from "./filter-options";
 import { LANES, boardKeyReducer, clampFocus, laneLayout, type BoardFocus, type LaneShape } from "./navigation";
 import { menuChrome } from "./menu-model";
 import { DetailsSidebar } from "./details-sidebar";
+import { BoardTips } from "../cards/card-hints";
 import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
 import { LaneSwap, useLaneWidth } from "./lane-resize";
 import {
@@ -568,6 +569,7 @@ export function DesktopBoard(props: {
           style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 9 }}
         />
       ) : null}
+      <BoardTips root={rootRef} theme={theme} color={colors.foreground} />
     </View>
   );
 }
