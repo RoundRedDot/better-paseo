@@ -4,7 +4,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
-import { BrandMark, DETAIL_CARD, DetailCard, detailScrollProps, ProjectIcon, StatusIcon, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
+import { BrandMark, DETAIL_CARD, DetailCard, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
@@ -241,7 +241,8 @@ interface GroupRow {
   label: string;
   count: number;
   on: boolean;
-  lead: React.ReactNode;
+  /** Before the label; a label's tag is handed the row's fill for its hole. */
+  lead: React.ReactNode | ((fill: string) => React.ReactNode);
   /** Muted after the label: a workspace's project. */
   detail?: string;
   /** A project row whose uploaded icon is not loaded yet. */
@@ -275,7 +276,7 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
         .sort(byCount)
         .map((option) => ({
           ...pick(option),
-          lead: <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: option.color ?? tokens.foregroundMuted }} />,
+          lead: (fill: string) => <TagMark size={16} color={option.color ?? tokens.foregroundMuted} hole={fill} />,
           toggle: () => board.setParams((params) => ({ ...params, labels: toggleItem(params.labels, option.id) })),
         }));
     }
@@ -379,6 +380,8 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
   const { row, tokens } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
+  // The rows sit on the group card; a row's own fill shows when it is on or hovered.
+  const fill = row.on ? tokens.surface2 : hovered ? tokens.card.controlHover : tokens.card.background;
   return (
     <Pressable
       accessibilityRole="checkbox"
@@ -397,7 +400,7 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
         backgroundColor: row.on ? tokens.surface2 : hovered || pressed ? tokens.card.controlHover : "transparent",
       })}
     >
-      <View style={{ width: 20, alignItems: "center" }}>{row.lead}</View>
+      <View style={{ width: 20, alignItems: "center" }}>{typeof row.lead === "function" ? row.lead(fill) : row.lead}</View>
       <Text numberOfLines={1} style={{ flex: 1, fontSize: F.base, color: tokens.foreground }}>
         {row.label}
         {row.detail ? <Text style={{ fontSize: 12, color: tokens.foregroundMuted }}>{`  ${row.detail}`}</Text> : null}
