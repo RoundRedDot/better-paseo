@@ -109,6 +109,19 @@ afterEach(() => {
 });
 
 describe("Tasks half of the settings page", () => {
+  it.each([false, true])("places the archived lane switch between enable and preview (compact=%s)", async (compact) => {
+    const api = makeSettings();
+    const r = panel(compact);
+    const host = byTestID(r, "tasks-settings-panel")[0]!;
+    const content = host.children as Node[];
+    const switchSection = content[0]!;
+    expect(textOf(switchSection)).toContain("Show the archived lane");
+    expect(content[1]!.findAll((node) => typeof node.type === "string" && node.props.testID === "tasks-preview-card")).toHaveLength(1);
+    expect(byLabel(r, "Show the archived lane").props["aria-checked"]).toBe(false);
+    await act(async () => byLabel(r, "Show the archived lane").props.onPress());
+    expect(lastSaved(api).board.showArchived).toBe(true);
+  });
+
   it.each([
     ["en", false], ["en", true], ["zh", false], ["zh", true],
   ] as const)("merges the intro and enable switch into one card (%s, compact=%s)", (language, compact) => {
