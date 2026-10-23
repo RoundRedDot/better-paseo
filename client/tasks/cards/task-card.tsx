@@ -1539,7 +1539,7 @@ export function ActionButton(props: {
 export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "archive";
 
 /**
- * The card's button: Allow's accent tint, a plain outline, Archive's orange
+ * The card's button: Allow's accent tint, a plain outline, Archive's yellow
  * outline, the Stop button's danger tint, or "Answer" in the needs-input amber with its arrow. A busy
  * one keeps its look and label, dimmed, and swaps its icon for the hollow
  * spinner ring (`SpinnerRing`).

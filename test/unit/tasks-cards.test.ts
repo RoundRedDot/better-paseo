@@ -1067,10 +1067,10 @@ describe("TaskCardView actions", () => {
     const tree = await render(cardElement(done, { onOpen: vi.fn(), onArchive }));
     expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["归档", "打开 tab"]);
     expect(icons(hostByTestId(tree.root, "task-card-archive"))).toEqual(["Archive"]);
-    // An orange outline and label with no fill; Open tab stays a plain outline.
-    const orange = taskTokens(LIGHT).card;
-    expect(flat(hostByTestId(tree.root, "task-card-archive").props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: orange.archiveBorder });
-    expect(hostByTestId(tree.root, "task-card-archive").findAll((node) => (node.type as unknown) === "Text")[0]!.props.style.color).toBe(orange.archiveText);
+    // A yellow outline and label with no fill; Open tab stays a plain outline.
+    const yellow = taskTokens(LIGHT).card;
+    expect(flat(hostByTestId(tree.root, "task-card-archive").props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: yellow.archiveBorder });
+    expect(hostByTestId(tree.root, "task-card-archive").findAll((node) => (node.type as unknown) === "Text")[0]!.props.style.color).toBe(yellow.archiveText);
     for (const theme of [LIGHT, DARK]) {
       const card = taskTokens(theme).card;
       expect(contrastRatio(card.archiveText, card.background)).toBeGreaterThanOrEqual(4.5);
