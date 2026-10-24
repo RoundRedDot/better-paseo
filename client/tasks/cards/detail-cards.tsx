@@ -1097,8 +1097,8 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
 
 /**
  * The children (`docs/prototypes/task-subtasks.md`), most urgent first: each
- * row's status icon on its title's first line, the time at the line's end,
- * a muted meta line under it. A model the rows share is left out and, when
+ * row's status icon beside its single-line title, the time and metadata
+ * under it. A model the rows share is left out and, when
  * it is not the parent's, named once under them. The first ten show; the
  * rest open on demand, closed again on the next card.
  */
@@ -1205,10 +1205,9 @@ const SUBTASK_TEXT = {
 
 /**
  * One child: its agent's mark, its status on the corner, centred on the
- * title's first line; the title, its leading tag or Linear id muted, over
- * the meta line, which
- * wraps between its parts, never inside one; the time at the first line's
- * end. A press shows the child here. With a pointer, hovering shows ↗,
+ * title's line; the single-line title, its leading tag or Linear id muted,
+ * over the time and meta line, which wraps between its parts. A press
+ * shows the child here. With a pointer, hovering shows ↗ in a reserved slot,
  * which opens its tab; on touch a long press does.
  */
 function SubtaskRow(props: {
@@ -1263,34 +1262,36 @@ function SubtaskRow(props: {
         backgroundColor: props.onPress && pressed ? colors.rowPress : active ? colors.rowHover : "transparent",
       })}
     >
-      <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }} testID={`detail-subtask-status-${child.id}`}>
+      <View style={{ width: 16, height: line, flexShrink: 0, alignItems: "center", justifyContent: "center" }} testID={`detail-subtask-status-${child.id}`}>
         <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={active ? colors.rowHover : tokens.card.background} />
       </View>
-      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-          <Text numberOfLines={2} style={{ flex: 1, fontSize: size.title, lineHeight: size.titleLine, color: props.muted ? tokens.foregroundMuted : tokens.foreground }}>
-            {prefix ? <Text style={{ color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`${prefix} `}</Text> : null}
-            {rest}
-          </Text>
-          <View style={{ height: line, flexDirection: "row", alignItems: "center", gap: 6, marginRight: showOpen ? -3 : 0 }}>
-            <SubtaskTime child={child} language={props.language} source={props.time} tokens={tokens} lineHeight={size.titleLine} />
-            {showOpen ? <OpenChild tokens={tokens} label={props.openLabel} onPress={props.onOpen!} /> : null}
-          </View>
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }} testID={`detail-subtask-content-${child.id}`}>
+        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: size.title, lineHeight: size.titleLine, color: props.muted ? tokens.foregroundMuted : tokens.foreground }} testID={`detail-subtask-title-${child.id}`}>
+          {prefix ? <Text style={{ color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`${prefix} `}</Text> : null}
+          {rest}
+        </Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 2 }} testID={`detail-subtask-secondary-${child.id}`}>
+          <SubtaskTime child={child} language={props.language} source={props.time} tokens={tokens} lineHeight={size.metaLine} />
+          {props.meta.length > 0 ? (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 4, minWidth: 0, flexShrink: 1 }} testID={`detail-subtask-meta-${child.id}`}>
+              {props.meta.map((part, index) => (
+                <View key={index} style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 }}>
+                  {part.icon ? <Icon name={part.icon} size={size.meta} color={toneColor(part)} /> : null}
+                  <Text numberOfLines={1} style={[metaText, { minWidth: 0, flexShrink: 1 }]}>
+                    <Text style={part.tone ? { color: toneColor(part) } : undefined}>{part.text}</Text>
+                    {index < props.meta.length - 1 ? (part.text ? " ·" : "·") : null}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
-        {props.meta.length > 0 ? (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 4 }} testID={`detail-subtask-meta-${child.id}`}>
-            {props.meta.map((part, index) => (
-              <View key={index} style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 }}>
-                {part.icon ? <Icon name={part.icon} size={size.meta} color={toneColor(part)} /> : null}
-                <Text numberOfLines={1} style={metaText}>
-                  <Text style={part.tone ? { color: toneColor(part) } : undefined}>{part.text}</Text>
-                  {index < props.meta.length - 1 ? (part.text ? " ·" : "·") : null}
-                </Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
       </View>
+      {!touch && props.onOpen ? (
+        <View style={{ width: 20, height: line, flexShrink: 0, justifyContent: "center", marginRight: -3 }}>
+          {showOpen ? <OpenChild tokens={tokens} label={props.openLabel} onPress={props.onOpen} /> : null}
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -1302,13 +1303,13 @@ function SubtaskTime(props: { child: TaskChild; language: TasksLanguage; source:
   if (!value) return null;
   const live = child.status === "running";
   return (
-    <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: props.lineHeight, color: live ? props.tokens.foreground : props.tokens.foregroundMuted, fontVariant: ["tabular-nums"] }} testID={`detail-subtask-time-${child.id}`}>
+    <Text numberOfLines={1} style={{ minWidth: 0, flexShrink: 1, fontSize: F.sm, lineHeight: props.lineHeight, color: live ? props.tokens.foreground : props.tokens.foregroundMuted, fontVariant: ["tabular-nums"] }} testID={`detail-subtask-time-${child.id}`}>
       {value}
     </Text>
   );
 }
 
-/** ↗ after a hovered row's time: opens the child's tab. */
+/** ↗ beside a hovered row's title: opens the child's tab. */
 function OpenChild(props: { tokens: TaskTokens; label: string; onPress(): void }) {
   const { tokens } = props;
   const { hovered, hoverProps } = useHover();
@@ -1319,7 +1320,7 @@ function OpenChild(props: { tokens: TaskTokens; label: string; onPress(): void }
       onPress={props.onPress}
       {...hoverProps}
       testID="detail-subtask-open"
-      style={{ width: 20, height: 20, borderRadius: 5, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? detailColors(tokens).track : "transparent" }}
+      style={{ width: 20, height: 20, flexShrink: 0, borderRadius: 5, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? detailColors(tokens).track : "transparent" }}
     >
       <Icon name="ArrowUpRight" size={14} color={tokens.foreground} />
     </Pressable>
