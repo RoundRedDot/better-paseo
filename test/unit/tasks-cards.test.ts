@@ -652,8 +652,9 @@ describe("TaskCardView rows", () => {
       "B",
       "better-paseo › tasks-board",
       " › ",
-      "↳ Port the status ring to React Native",
+      "Port the status ring to React Native",
     ]);
+    expect(icons(hostByTestId(tree.root, "task-card-meta-parent"))).toEqual(["CornerLeftUp"]);
     // Only the parent link gives way: "project > workspace" keeps its text while it fits.
     const shrink = (id: string) => flat(hostByTestId(tree.root, id).props.style).flexShrink as number;
     expect(shrink("task-card-meta-parent")).toBeGreaterThanOrEqual(1000 * shrink("task-card-meta-location"));
@@ -669,23 +670,46 @@ describe("TaskCardView rows", () => {
     const orphan = { ...sample("sample-child-1"), parent: { id: "gone", title: null, missing: true, archived: true } };
     await act(async () => tree.update(cardElement(orphan, { onReveal, fields: fields("minimal") })));
     // Its title unknown: the generic name, and the Archived tag beside it.
-    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["↳ 父任务", "已归档"]);
+    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["父任务", "已归档"]);
     expect(icons(hostByTestId(tree.root, "task-card-meta-archived"))).toEqual(["Archive"]);
     const named = { ...orphan, parent: { ...orphan.parent, title: "多设备连接" } };
     await act(async () => tree.update(cardElement(named, { onReveal, fields: fields("minimal") })));
-    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["↳ 多设备连接", "已归档"]);
+    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["多设备连接", "已归档"]);
     // A parent whose workspace is archived says so instead.
     const parked = { ...orphan, parent: { id: "parked", title: "整理推送链路", missing: true, archived: false, archivedAs: "workspace" as const } };
     await act(async () => tree.update(cardElement(parked, { onReveal, fields: fields("minimal") })));
-    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["↳ 整理推送链路", "工作区已归档"]);
+    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["整理推送链路", "工作区已归档"]);
     // On the board in the archived lane: still tagged, the link still reveals it.
     const inLane = { ...orphan, parent: { id: "lane", title: "多设备连接", missing: false, archived: false, archivedAs: "agent" as const } };
     await act(async () => tree.update(cardElement(inLane, { onReveal, fields: fields("minimal") })));
-    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["↳ 多设备连接", "已归档"]);
+    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["多设备连接", "已归档"]);
     // Off the board but not archived (an old done task): its title, never "archived".
     const old = { ...orphan, parent: { id: "old", title: "多设备连接", missing: true, archived: false } };
     await act(async () => tree.update(cardElement(old, { onReveal, fields: fields("minimal") })));
-    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["↳ 多设备连接"]);
+    expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["多设备连接"]);
+  });
+
+  it.each([
+    { compact: false, theme: LIGHT, ui: 14 },
+    { compact: true, theme: DARK, ui: 21 },
+  ])("keeps the parent icon aligned with metadata and its hover colour ($compact, $ui)", async ({ compact, theme, ui }) => {
+    const scaledTheme = { ...theme, typography: { fontSize: { ui } } };
+    const tree = await render(React.createElement(TasksTypography, {
+      theme: scaledTheme,
+      children: cardElement(sample("sample-child-1"), { compact, theme: scaledTheme }),
+    }));
+    const parent = () => hostByTestId(tree.root, "task-card-meta-parent");
+    const icon = () => parent().find((node) => (node.type as unknown) === "Icon");
+    const label = () => parent().find((node) => (node.type as unknown) === "Text");
+    expect(icon().props).toMatchObject({ name: "CornerLeftUp", size: Math.round(12 * ui / 14), color: theme.colors.foregroundMuted });
+    expect(label().props.numberOfLines).toBe(1);
+    expect(flat(label().props.style)).toMatchObject({ flexShrink: 1, minWidth: 0, fontSize: icon().props.size });
+    expect(flat(parent().props.style)).toMatchObject({ flexDirection: "row", alignItems: "center", minWidth: 0, overflow: "hidden" });
+    await act(async () => parent().props.onHoverIn());
+    expect(icon().props.color).toBe(theme.colors.foreground);
+    expect(flat(label().props.style).color).toBe(theme.colors.foreground);
+    await act(async () => parent().props.onHoverOut());
+    expect(icon().props.color).toBe(theme.colors.foregroundMuted);
   });
 
   it("draws the failure reason in the danger colour", async () => {
@@ -1540,7 +1564,7 @@ describe("TaskCardView actions", () => {
     expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["打开父任务", "打开"]);
     await act(async () => byLabel(tree.root, "打开父任务").props.onPress());
     expect(onOpen).toHaveBeenCalledWith(base.id);
-    expect(texts(hostByTestId(tree.root, "task-card-meta-parent"))).toEqual([`↳ ${base.title}`]);
+    expect(texts(hostByTestId(tree.root, "task-card-meta-parent"))).toEqual([base.title]);
     // Its id is a tool call's: the menu copies no session ID.
     const keys = cardMenuSections(card, cardStrings("en"), { copy: () => {}, open: () => {}, children: 0 }).flatMap((section) => section.items.map((item) => item.key));
     expect(keys).toEqual(["open", "copy-title", "copy-workspace", "copy-project"]);
