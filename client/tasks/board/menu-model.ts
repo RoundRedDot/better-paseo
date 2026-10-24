@@ -44,6 +44,8 @@ export const MENU = {
 export interface MenuItem {
   key: string;
   label: string;
+  /** Optional minimum row height for touch-first menus. */
+  minHeight?: number;
   /** A Lucide icon name, drawn 16 in the muted colour. */
   icon?: string;
   /**
@@ -126,7 +128,7 @@ export interface PlacedRow {
 
 /** A row's height with the UI scale's growth: taller with a second line. */
 export function menuRowHeight(item: MenuItem, scale = 1): number {
-  return Math.round((item.detail ? MENU.detailRowHeight : MENU.rowHeight) * Math.max(1, scale));
+  return Math.round(Math.max(item.minHeight ?? 0, item.detail ? MENU.detailRowHeight : MENU.rowHeight) * Math.max(1, scale));
 }
 
 /** Every selectable row's top and the panel height, including the UI scale's row growth. */

@@ -33,6 +33,16 @@ function textOf(node: ReactTestInstance | string): string {
   return node.children.map(textOf).join("");
 }
 
+it("uses touch row heights in both menu layout and scaled hit targets", () => {
+  const item: MenuItem = { key: "touch", label: "View", minHeight: 44 };
+  expect(menuRowHeight(item)).toBe(44);
+  expect(menuRowHeight(item, 1.5)).toBe(66);
+  const layout = layoutMenu([{ key: "touch", items: [item, { ...item, key: "next" }] }]);
+  expect(layout.rows.map((row) => row.top)).toEqual([MENU.padV, MENU.padV + 44]);
+  expect(layout.height).toBe(2 * MENU.padV + 88);
+  expect(menuRowHeight({ key: "desktop", label: "View" })).toBe(MENU.rowHeight);
+});
+
 describe("the sort menu's structure", () => {
   const choose = vi.fn();
   const sections = (current: BoardSort | null, language: "en" | "zh" = "en") => sortMenuSections(current, BOARD_STRINGS[language], choose);

@@ -14,6 +14,7 @@ import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-
 import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
 import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, RollingCount, SkeletonCard, VerticalLabel, useBreathing, useFreshIds, useTap } from "./board-parts";
 import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type FilterMenu } from "./filter-bar";
+import { TabletToolbar } from "./tablet-toolbar";
 import { buildFilterOptions } from "./filter-options";
 import { LANES, boardKeyReducer, clampFocus, boardLaneLayout, type BoardFocus, type LaneShape } from "./navigation";
 import { menuChrome } from "./menu-model";
@@ -513,7 +514,15 @@ export function DesktopBoard(props: {
 
   return (
     <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }} {...claimKeys(rootRef)}>
-      <DesktopToolbar
+      {touch ? <TabletToolbar
+        board={board}
+        theme={theme}
+        width={boardWidth}
+        searchRef={searchRef}
+        onFilters={() => setFiltersOpen(true)}
+        sidebar={sidebarToggle}
+        emptyLanes={{ collapsed: emptyLanesCollapsed, disabled: emptyLanes.length === 0, onToggle: toggleEmptyLanes }}
+      /> : <DesktopToolbar
         board={board}
         theme={theme}
         searchRef={searchRef}
@@ -521,8 +530,8 @@ export function DesktopBoard(props: {
         sidebar={sidebarToggle}
         emptyLanes={{ collapsed: emptyLanesCollapsed, disabled: emptyLanes.length === 0, onToggle: toggleEmptyLanes }}
         filters={sheetMode ? { count: activeFilterCount(board.params, board.defaults), onPress: () => setFiltersOpen(true) } : undefined}
-      />
-      {sheetMode ? null : (
+      />}
+      {touch || sheetMode ? null : (
         <DesktopFilterBar
           board={board}
           theme={theme}
