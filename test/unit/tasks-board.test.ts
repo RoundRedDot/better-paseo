@@ -574,32 +574,32 @@ describe("lane widths", () => {
     [700, 300],
     [632, 300],
     [600, 284],
-    [540, 254],
-    [480, 224],
-    [472, 220],
-    [400, 220],
-    [280, 220],
+    [540, 280],
+    [480, 280],
+    [472, 280],
+    [400, 280],
+    [280, 256],
     [200, 220],
   ])("adapts default lanes to a %d pt board at %d pt", (viewport, width) => {
     for (const expanded of [4, 5]) {
       const layout = laneLayout(viewport, expanded, 0);
       expect(layout).toEqual({ laneWidth: width, contentWidth: fixed(expanded, 0) + expanded * width, scroll: true });
-      if (viewport >= 472) expect(2 * width + fixed(2, 0)).toBeLessThanOrEqual(viewport);
+      if (viewport >= 592) expect(2 * width + fixed(2, 0)).toBeLessThanOrEqual(viewport);
     }
   });
 
   it("fits two expanded lanes on a small board and scrolls below the readability floor", () => {
-    expect(laneLayout(480, 2, 0)).toEqual({ laneWidth: 224, contentWidth: 480, scroll: false });
-    expect(laneLayout(472, 2, 0)).toEqual({ laneWidth: 220, contentWidth: 472, scroll: false });
-    expect(laneLayout(471, 2, 0)).toEqual({ laneWidth: 220, contentWidth: 472, scroll: true });
+    expect(laneLayout(480, 2, 0)).toEqual({ laneWidth: 280, contentWidth: 592, scroll: true });
+    expect(laneLayout(592, 2, 0)).toEqual({ laneWidth: 280, contentWidth: 592, scroll: false });
+    expect(laneLayout(591, 2, 0)).toEqual({ laneWidth: 280, contentWidth: 592, scroll: true });
     expect(laneLayout(280, 1, 0)).toEqual({ laneWidth: 256, contentWidth: 280, scroll: false });
     expect(laneLayout(200, 1, 0)).toEqual({ laneWidth: 220, contentWidth: 244, scroll: true });
   });
 
   it("reserves collapsed strips when fitting two default lanes", () => {
-    expect(laneLayout(540, 2, 1)).toEqual({ laneWidth: 230, contentWidth: 540, scroll: false });
-    expect(laneLayout(540, 3, 1)).toEqual({ laneWidth: 230, contentWidth: fixed(4, 1) + 3 * 230, scroll: true });
-    expect(laneLayout(480, 2, 2)).toEqual({ laneWidth: 220, contentWidth: 568, scroll: true });
+    expect(laneLayout(540, 2, 1)).toEqual({ laneWidth: 280, contentWidth: 640, scroll: true });
+    expect(laneLayout(540, 3, 1)).toEqual({ laneWidth: 280, contentWidth: fixed(4, 1) + 3 * 280, scroll: true });
+    expect(laneLayout(480, 2, 2)).toEqual({ laneWidth: 280, contentWidth: 688, scroll: true });
   });
 
   it("gives collapsed lanes 40 and the rest to the expanded ones", () => {
@@ -642,7 +642,7 @@ describe("lane widths", () => {
     expect(laneLayout(700, 4, 0, "default").laneWidth).toBe(LANES.min);
     expect(laneLayout(700, 4, 0, "narrow").laneWidth).toBe(260);
     // The default adapts on a smaller board; explicit presets keep their widths.
-    expect([...new Set((["narrow", "default", "wide"] as const).map((size) => laneLayout(540, 4, 0, size).laneWidth))]).toEqual([260, 254, 340]);
+    expect([...new Set((["narrow", "default", "wide"] as const).map((size) => laneLayout(540, 4, 0, size).laneWidth))]).toEqual([260, 280, 340]);
   });
 });
 
@@ -651,7 +651,7 @@ describe("compact board", () => {
     expect(boardIsCompact(true)).toBe(true);
     expect(boardIsCompact(false)).toBe(false);
     const narrow = laneLayout(400, 4, 0);
-    expect(narrow.laneWidth).toBe(LANES.narrow);
+    expect(narrow.laneWidth).toBe(280);
     expect(narrow.scroll).toBe(true);
   });
 });
