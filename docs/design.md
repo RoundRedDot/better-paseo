@@ -255,7 +255,7 @@ each affected button becomes an icon-only control before the next button gives u
 Never truncate a label, wrap it, or reduce its font to squeeze it in. Restore complete labels
 when the row has room again. A narrow default tablet lane is normally at least 260 pt; it may
 show part of the next lane rather than force two complete lanes into the viewport. On the same
-small tablet, Narrow adapts down to 240 pt, keeping its scroll width at least 20 pt below
+small tablet, Narrow adapts down to 220 pt, keeping its scroll width at least 40 pt below
 Default. Wide stays at 300 pt when the board is below 632 pt; wider boards retain the
 existing preset ranges.
 

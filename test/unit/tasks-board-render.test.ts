@@ -1360,7 +1360,7 @@ describe("Tasks board, lane widths", () => {
     layOut(540);
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
     const choices = () => hostsById("filter-sheet-lane-width")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "radio");
-    for (const [index, width, value] of [[0, 240, "narrow"], [1, 260, "default"], [2, 300, "wide"], [0, 240, "narrow"]] as const) {
+    for (const [index, width, value] of [[0, 220, "narrow"], [1, 260, "default"], [2, 300, "wide"], [0, 220, "narrow"]] as const) {
       await act(async () => choices()[index]!.props.onPress());
       expect(lanesScroll().props.contentContainerStyle.width).toBe(48 + 4 * width);
       expect(deviceTasksStore().snapshot().values?.laneWidth).toBe(value);

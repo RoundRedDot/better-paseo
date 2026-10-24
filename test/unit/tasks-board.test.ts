@@ -642,7 +642,7 @@ describe("lane widths", () => {
     expect(laneLayout(700, 4, 0, "default").laneWidth).toBe(LANES.min);
     expect(laneLayout(700, 4, 0, "narrow").laneWidth).toBe(260);
     // Narrow stays a step below the adaptive default on a smaller tablet.
-    expect((["narrow", "default", "wide"] as const).map((size) => laneLayout(540, 4, 0, size).laneWidth)).toEqual([240, 260, 300]);
+    expect((["narrow", "default", "wide"] as const).map((size) => laneLayout(540, 4, 0, size).laneWidth)).toEqual([220, 260, 300]);
   });
 
   it.each([400, 480, 540, 600, 631])("keeps wide lanes at 300 on a %i pt small tablet board", (viewport) => {
@@ -653,15 +653,15 @@ describe("lane widths", () => {
   });
 
   it.each([
-    [400, 240, 260], [480, 240, 260], [540, 240, 260], [560, 244, 264],
-    [600, 260, 284], [632, 260, 300], [700, 260, 300],
+    [400, 220, 260], [480, 220, 260], [540, 220, 260], [560, 224, 264],
+    [600, 244, 284], [632, 260, 300], [700, 260, 300],
   ])("keeps narrow and default distinct on a %i pt tablet board", (viewport, narrow, normal) => {
     for (const expanded of [4, 5]) {
       expect(laneLayout(viewport, expanded, 0, "narrow").laneWidth).toBe(narrow);
       expect(laneLayout(viewport, expanded, 0, "default").laneWidth).toBe(normal);
-      expect(normal - narrow).toBeGreaterThanOrEqual(20);
+      expect(normal - narrow).toBeGreaterThanOrEqual(40);
     }
-    expect(laneLayout(viewport, 3, 1, "default").laneWidth - laneLayout(viewport, 3, 1, "narrow").laneWidth).toBeGreaterThanOrEqual(20);
+    expect(laneLayout(viewport, 3, 1, "default").laneWidth - laneLayout(viewport, 3, 1, "narrow").laneWidth).toBeGreaterThanOrEqual(40);
   });
 });
 
