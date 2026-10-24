@@ -38,7 +38,7 @@ const ZH: Readonly<Record<string, string>> = {
   "Copy reply": "复制回复",
   "Copy title": "复制标题",
   "Copy session ID": "复制会话 ID",
-  "Copy workspace name": "复制 workspace 名称",
+  "Copy workspace name": "复制工作区名称",
   "Copy project name": "复制项目名称",
   "Open details": "打开详情",
   "Expand in timeline": "在时间线中展开",

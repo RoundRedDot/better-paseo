@@ -189,7 +189,7 @@ const en = {
 type CardStrings = typeof en;
 
 const zh: CardStrings = {
-  openInWorkspace: "在 workspace 中打开",
+  openInWorkspace: "在工作区中打开",
   openTab: "打开",
   stop: "停止",
   confirmStop: "确认停止",
@@ -200,7 +200,7 @@ const zh: CardStrings = {
   markRead: "标为已读",
   copySessionId: "复制会话 ID",
   copyTitle: "复制标题",
-  copyWorkspace: "复制 workspace 名称",
+  copyWorkspace: "复制工作区名称",
   copyProject: "复制项目名称",
   archived: "已归档",
   workspaceArchived: "工作区已归档",
@@ -230,7 +230,7 @@ const zh: CardStrings = {
   hint: {
     pair: (name, value) => `${name}：${value}`,
     project: "项目",
-    workspace: "Workspace",
+    workspace: "工作区",
     status: "状态",
     stopped: "已手动停止",
     model: "模型",
@@ -260,7 +260,7 @@ const zh: CardStrings = {
   },
   details: {
     project: "项目",
-    workspace: "Workspace",
+    workspace: "工作区",
     branch: "分支",
     notGit: "非 git 目录",
     folder: "文件夹",
