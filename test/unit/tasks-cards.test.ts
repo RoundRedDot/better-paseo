@@ -456,7 +456,7 @@ describe("TaskCardView rows", () => {
     ]);
     // Model and thinking share one pill, each with its icon, joined by a middle dot.
     const agent = hostByTestId(tree.root, "pill-model");
-    expect(texts(agent)).toEqual(["GPT-5.5 Codex", "·", "m"]);
+    expect(texts(agent)).toEqual(["GPT-5.5 Codex", "·", "Medium"]);
     expect(icons(agent)).toEqual(["Brain"]);
     expect(flat(hostByTestId(agent, "agent-pill-dot").props.style).marginHorizontal).toBe(-3);
     expect(agent.props.accessibilityLabel).toBe("Codex GPT-5.5 Codex Medium");
@@ -516,7 +516,7 @@ describe("TaskCardView rows", () => {
     expect(pills(tree.root)).toEqual([
       ["pill-model", "GPT-5.5 Codex"],
     ]);
-    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex", "·", "m", RUNNING_START, "12m 30s", "打开"]);
+    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex", "·", "Medium", RUNNING_START, "12m 30s", "打开"]);
     expect(hostByTestId(tree.root, "pill-model").findAll((node) => (node.type as unknown) === "Image")).toHaveLength(0);
     // No jump arrow on the title row: Open sits on the row under the footer.
     expect(icons(hostByTestId(tree.root, "task-card-title-row"))).not.toContain("ArrowUpRight");
@@ -542,7 +542,7 @@ describe("TaskCardView rows", () => {
   it("keeps the thinking level in a pill of its own when the model pill is off", async () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: fields("standard", { provider: false, model: false }) }));
     expect(pills(tree.root).slice(0, 2)).toEqual([
-      ["pill-thinking", "m"],
+      ["pill-thinking", "Medium"],
       ["pill-branch", "feat/tasks-board"],
     ]);
     expect(icons(hostByTestId(tree.root, "pill-thinking"))).toEqual(["Brain"]);
@@ -1555,7 +1555,7 @@ describe("TaskCardView actions", () => {
     const pill = hostByTestId(tree.root, "pill-model");
     // The type's icon, the agent's name in the model's place, then the Brain-marked effort; no token count.
     expect(icons(pill)).toEqual(["Shapes", "Brain"]);
-    expect(texts(pill).join("")).toBe(`${base.providerLabel}·h`);
+    expect(texts(pill).join("")).toBe(`${base.providerLabel}·High`);
     expect(pill.props.accessibilityLabel).toBe(`${base.providerLabel} general-purpose · High · 518k tokens`);
   });
 
@@ -1784,7 +1784,7 @@ describe("TaskDetailCards", () => {
     ["Xhigh", "xh"], ["xhigh", "xh"], ["Extra High", "xh"], ["Low", "l"],
     ["None", "n"], ["Minimal", "min"], ["Max", "max"], ["Custom effort", "Custom effort"],
     [" MEDIUM ", "m"], ["constructor", "constructor"],
-  ])("abbreviates structured thinking labels without losing the full name (%s)", async (thinkingLabel, expected) => {
+  ])("abbreviates subtask thinking labels while keeping card and details pills in full (%s)", async (thinkingLabel, expected) => {
     const base = sample("sample-running");
     const child = { ...base.children[0]!, thinkingLabel };
     const card = { ...base, children: [child] };
@@ -1805,18 +1805,16 @@ describe("TaskDetailCards", () => {
     for (const compact of [false, true]) {
       const parent = { ...base, thinkingLabel, children: [] };
       const combined = await render(cardElement(parent, { compact }));
-      expect(texts(hostByTestId(combined.root, "agent-pill-thinking"))).toEqual([expected]);
+      expect(texts(hostByTestId(combined.root, "agent-pill-thinking"))).toEqual([thinkingLabel]);
       expect(hostByTestId(combined.root, "pill-model").props.accessibilityLabel).toContain(thinkingLabel);
       await act(async () => combined.unmount());
       if (!compact) {
         const separate = await render(cardElement(parent, { fields: fields("standard", { provider: false, model: false }) }));
-        expect(texts(hostByTestId(separate.root, "pill-thinking"))).toEqual([expected]);
-        expect(hostByTestId(separate.root, "pill-thinking").props.accessibilityLabel).toBe(thinkingLabel);
+        expect(texts(hostByTestId(separate.root, "pill-thinking"))).toEqual([thinkingLabel]);
         await act(async () => separate.unmount());
       }
       const detail = await render(details(parent, { touch: compact }));
-      expect(texts(hostByTestId(detail.root, "detail-thinking"))).toEqual([expected]);
-      expect(hostByTestId(detail.root, "detail-thinking").props.accessibilityLabel).toBe(thinkingLabel);
+      expect(texts(hostByTestId(detail.root, "detail-thinking"))).toEqual([thinkingLabel]);
       await act(async () => detail.unmount());
     }
   });
@@ -2005,7 +2003,7 @@ describe("TaskDetailCards", () => {
     const onOpen = vi.fn();
     const tree = await render(details(sample("sample-running"), { onOpen, sessionTokens: { total: 15_322_587, cached: 14_943_278 } }));
     const header = hostByTestId(tree.root, "detail-header");
-    expect(texts(header).slice(0, 11)).toEqual(["运行中", "本轮 12:30", "Port the status ring to React Native", "GPT-5.5 Codex", "m", "Bypass", "frontend", "p1", "board", "切换到 tab", "已打开"]);
+    expect(texts(header).slice(0, 11)).toEqual(["运行中", "本轮 12:30", "Port the status ring to React Native", "GPT-5.5 Codex", "Medium", "Bypass", "frontend", "p1", "board", "切换到 tab", "已打开"]);
     // The turn's block: its clock, the session's tokens so far and the context ring (86% is past the warning line).
     const turn = hostByTestId(tree.root, "detail-turn");
     expect(texts(turn)).toEqual(["本轮计时", "12:30", "上一轮 18m", "累计 token", "15.3M", "缓存占 98%", "上下文", "86%", "172k / 200k"]);
@@ -2667,7 +2665,7 @@ describe("TaskDetailCards", () => {
     const agent = hostByTestId(tree.root, "detail-agent");
     expect(texts(hostByTestId(agent, "detail-model"))).toEqual(["Opus 5.5"]);
     expect(hostByTestId(agent, "detail-model").findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(1);
-    expect(texts(hostByTestId(agent, "detail-thinking"))).toEqual(["h"]);
+    expect(texts(hostByTestId(agent, "detail-thinking"))).toEqual(["High"]);
     expect(icons(hostByTestId(agent, "detail-thinking"))).toEqual(["Brain"]);
     expect(texts(hostByTestId(agent, "detail-mode"))).toEqual(["Bypass"]);
     expect(icons(hostByTestId(agent, "detail-mode"))).toEqual(["ShieldOff"]);
@@ -2678,7 +2676,7 @@ describe("TaskDetailCards", () => {
     const card: TaskCard = { ...base, model: null, modelLabel: null, thinkingLabel: "High", modeLabel: null, subagent: { subtitle: "general-purpose · High · 518k tokens", type: "general-purpose" } };
     const agent = hostByTestId((await render(details(card))).root, "detail-agent");
     expect(texts(hostByTestId(agent, "detail-model"))).toEqual([base.providerLabel]);
-    expect(texts(hostByTestId(agent, "detail-thinking"))).toEqual(["h"]);
+    expect(texts(hostByTestId(agent, "detail-thinking"))).toEqual(["High"]);
   });
 
   it("leads the details' label chips with a solid tag in the label's colour, its hole the card's", async () => {

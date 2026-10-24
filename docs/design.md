@@ -191,9 +191,10 @@ All heights grow with the host's interface text size through `taskControlHeight`
 
 ### Thinking level labels
 
-Use `formatThinkingLevel` in `client/tasks/cards/format.ts` for visible structured
-thinking levels in the card's combined model pill, standalone thinking pill,
-details chip and shared subtask metadata. Match case-insensitively after trimming:
+Use `formatThinkingLevel` in `client/tasks/cards/format.ts` only for visible
+structured thinking levels in shared subtask metadata. The card's combined model
+pill, standalone thinking pill and details chip keep the supplied full level.
+For subtask abbreviations, match case-insensitively after trimming:
 
 | Full level | Visible label |
 | --- | --- |
@@ -207,8 +208,8 @@ details chip and shared subtask metadata. Match case-insensitively after trimmin
 
 Keep the `Brain` icon. Hover hints and accessibility labels retain the original
 full level; do not abbreviate stored data, model copy values or provider-written
-facts strings. Unknown/custom levels remain as supplied. This is a display rule
-for both wide and compact layouts, independent of the permission-text folding.
+facts strings. Unknown/custom levels remain as supplied. These scope rules apply
+to both wide and compact layouts, independent of the permission-text folding.
 
 ## Labels
 
