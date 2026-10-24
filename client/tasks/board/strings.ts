@@ -66,7 +66,7 @@ const en = {
   reset: "Reset",
   /** The phone sheet folds the workspaces without an active task under this. */
   show: (count: number) => `Show ${count} ${count === 1 ? "task" : "tasks"}`,
-  timeRange: "Time range",
+  timeRange: "Range",
   doneRange: "Done time range",
   clearFilters: "Clear filters",
   hiddenByFilters: "Hidden by the current filters",
@@ -220,7 +220,7 @@ const zh: typeof en = {
   filters: "筛选",
   reset: "重置",
   show: (count) => `显示 ${count} 个任务`,
-  timeRange: "时间范围",
+  timeRange: "范围",
   doneRange: "已完成时间范围",
   clearFilters: "清除筛选",
   hiddenByFilters: "该任务被当前筛选隐藏",
