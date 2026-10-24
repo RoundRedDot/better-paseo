@@ -108,7 +108,7 @@ export function DesktopToolbar(props: {
           style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground }}
         />
       </View>
-      {props.filters || Platform.OS === "ios" ? (
+      {props.filters || Platform.OS === "ios" || Platform.OS === "web" ? (
         <RoundButton
           icon="Archive"
           label={strings.archivedLane.row}
@@ -437,17 +437,6 @@ export function DesktopFilterBar(props: {
               tip={resolved.filters.hideSubtasks ? strings.showSubtasks : strings.tips.hideSubtasks}
               theme={theme}
               testID="subtasks-toggle"
-            />
-            <BarSwitch
-              icon="Archive"
-              on={board.showArchived}
-              slashed={!board.showArchived}
-              onPress={() => board.setShowArchived(!board.showArchived)}
-              label={strings.archivedLane.row}
-              hint={strings.archivedLane.hint}
-              tip={board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row}
-              theme={theme}
-              testID="archived-lane-toggle"
             />
             <BarSwitch
               icon={emptyGroupsIcon(board.showEmptyGroups)}
