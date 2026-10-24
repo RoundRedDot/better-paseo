@@ -31,7 +31,7 @@ export function resolveLanguage(preference: SettingsLanguagePreference, locale?:
 
 const en = {
   /** The screen's title: Paseo's plugin menu item and the page header. */
-  screenTitle: "Chat & Tasks settings",
+  screenTitle: "Settings",
   tabsLabel: "Settings for",
   tabDisplay: "Chat presentation",
   tabTasks: "Tasks board",
@@ -196,7 +196,7 @@ const en = {
 export type SettingsStrings = typeof en;
 
 const zh: SettingsStrings = {
-  screenTitle: "聊天与任务设置",
+  screenTitle: "设置",
   tabsLabel: "设置项",
   tabDisplay: "聊天展示",
   tabTasks: "任务看板",
