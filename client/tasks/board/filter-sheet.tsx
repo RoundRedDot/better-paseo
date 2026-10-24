@@ -78,7 +78,7 @@ export function FilterSheetBody(props: {
         <View style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4, paddingBottom: 8 }}>
           {sortFirst ? <View style={{ paddingBottom: 8 }}>{sort}</View> : null}
           <ToggleRow
-            icon="Network"
+            icon={resolved.filters.hideSubtasks ? "List" : "Network"}
             testID="filter-sheet-subtasks"
             label={strings.showSubtasks}
             hint={strings.showSubtasksHint}

@@ -1939,13 +1939,16 @@ describe("Tasks board, tablet filters", () => {
     await act(async () => toggle().props.onPress());
     expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true });
     expect(toggle().props.accessibilityState).toEqual({ checked: false });
-    expect(toggle().findAll((node) => typeof node.type === "string" && node.props.testID === "slash-mark")).toHaveLength(1);
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("List");
+    expect(toggle().findAll((node) => typeof node.type === "string" && node.props.testID === "slash-mark")).toHaveLength(0);
     act(() => hostsById("filter-bar-more")[0]!.props.onPress());
     expect(hostsById("filter-sheet-subtasks")[0]!.props.accessibilityState).toEqual({ checked: false });
-    expect(hostsById("filter-sheet-subtasks")[0]!.find((node) => (node.type as unknown) === "Icon").props.name).toBe("Network");
+    expect(hostsById("filter-sheet-subtasks")[0]!.find((node) => (node.type as unknown) === "Icon").props.name).toBe("List");
     await act(async () => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
     expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: false });
     expect(toggle().props.accessibilityState).toEqual({ checked: true });
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Network");
+    expect(hostsById("filter-sheet-subtasks")[0]!.find((node) => (node.type as unknown) === "Icon").props.name).toBe("Network");
     expect(toggle().findAll((node) => typeof node.type === "string" && node.props.testID === "slash-mark")).toHaveLength(0);
   });
 
@@ -2161,7 +2164,7 @@ describe("Tasks board, tablet filters", () => {
     expect(hostsById("archived-lane-toggle")).toHaveLength(0);
   });
 
-  it("web keeps the subtasks switch on the bar and strikes its icon through while off", () => {
+  it("web switches between hierarchy and flat list icons for subtask visibility", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => {
       renderer = TestRenderer.create(screen(false));
@@ -2179,14 +2182,16 @@ describe("Tasks board, tablet filters", () => {
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
     expect(end.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "subtasks-toggle")).toHaveLength(1);
     expect(toggle().props).toMatchObject({ accessibilityLabel: "Show subtasks", accessibilityState: { checked: true } });
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Network");
     expect(slashed()).toBe(false);
     const on = { ...look() };
     act(() => toggle().props.onPress());
     expect(lastBoardParams("host-1")).toMatchObject({ hideSubtasks: null });
     expect(deviceTasksStore().snapshot().values?.hideSubtasks).toBe(true);
     expect(toggle().props.accessibilityState).toEqual({ checked: false });
-    expect(slashed()).toBe(true);
-    // Off only strikes the icon through: the outline and fill stay.
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("List");
+    expect(slashed()).toBe(false);
+    // Only the icon changes: the outline and fill stay.
     expect(look()).toMatchObject(on);
   });
 });
