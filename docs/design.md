@@ -404,6 +404,10 @@ finished check, or archived box as its state changes.
 | Start time | `Clock` followed by the start time, when available |
 | Duration | `Hourglass` followed by the timer; a waiting task uses `Clock` |
 
+Chinese duration labels omit the `约` prefix in cards, shared child rows and timer
+hints: use `8m` or `1h 30m`. Keep the existing minute rounding and one-minute
+minimum; English duration estimates retain their existing `~` prefix.
+
 Omit missing fields rather than inventing values. Do not merge shared model or
 thinking information into a footnote. Only the metadata follows the live clock;
 a timer tick must not rebuild the surrounding card or list.

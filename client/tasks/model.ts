@@ -89,7 +89,7 @@ export interface TaskTiming {
   attentionAt: string | null;
   lastUserMessageAt: string | null;
   /**
-   * The latest turn's length in ms, drawn as "约 8m", from the plugin server's
+   * The latest turn's length in ms, drawn as "8m", from the plugin server's
    * record of each turn or a turn end the board saw. Null when neither has the
    * turn: `updatedAt` also moves when the daemon resumes the agent, so it
    * cannot time one.

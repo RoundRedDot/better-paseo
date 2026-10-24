@@ -438,7 +438,7 @@ function DetailHeader(props: Inner) {
   );
 }
 
-/** Beside the status: the running turn's clock, else the card's timer ("等待 3m", "约 8m · 12 分钟前"). */
+/** Beside the status: the running turn's clock, else the card's timer ("等待 3m", "8m · 12 分钟前"). */
 function StatusSub(props: Inner & { small: number }) {
   const { card, tokens } = props;
   const running = turnRunning(card) && card.timing.turnStartedAt !== null;
