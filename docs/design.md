@@ -305,8 +305,13 @@ details sheet. Import them from that module or the cards barrel. These surfaces
 must not add another row renderer, override its styles or implement their own
 width-based visibility rules.
 
-- The left column is an 18 pt slot containing `ChildMark`: provider mark with a
+- The left column is an 18 pt slot containing `ChildMark`: agent brand with a
   status corner, aligned with the title's first line.
+  For a provider-native subagent, use its type/tool icon instead of its parent's
+  brand: reuse `subagentTypeIcon` in `client/tasks/subagent-type.ts` (`Explore`
+  → `Search`, `Plan` → `ListChecks`, `general-purpose` → `Shapes`, `workflow`
+  → `Workflow`, `fork` → `Split`; named/unknown types keep `Bot`). This mapping
+  works even without a subtitle. Keep its facts below without repeating the icon.
   The status overlaps the brand's bottom-right corner; do not replace this
   combined mark with a standalone status icon. Offline previews must seed the
   real `MARK_BITMAPS` through `seedMarkBitmaps` before rendering, and check that
@@ -319,8 +324,9 @@ width-based visibility rules.
   and `Hourglass` with duration (a waiting task uses `Clock`). Missing data is
   omitted. Equal models are still shown per row. Provider subagent facts retain
   their type icon and supplied text. Context is amber from 75%, red from 90%.
-  When the metadata column is at most 240 pt at the base font size, omit the
-  entire `Full Access` field and a running child's start time and duration.
+  When the metadata column is at most 240 pt at the base font size, show only
+  the `Full Access` mode icon, keeping its full accessibility label, and omit
+  a running child's start time and duration.
   The threshold scales with the host font size. Keep model, thinking level,
   context, other modes, attention status and waiting/finished times. Restore
   the omitted fields when the column grows; all three surfaces use this rule.

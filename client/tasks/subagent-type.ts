@@ -53,6 +53,11 @@ const TYPE_ICONS: Record<string, string> = {
 /** Any other subagent: the timeline's sub_agent icon, with its name. */
 const NAMED_ICON = "Bot";
 
+/** The existing type-to-tool mapping, also used by a subagent's combined status mark. */
+export function subagentTypeIcon(type: string | null | undefined): string {
+  return TYPE_ICONS[type?.trim().toLowerCase() ?? ""] ?? NAMED_ICON;
+}
+
 /**
  * A provider subagent's type: its descriptor's title, or, where the daemon
  * sends none (a background Agent call's descriptor can carry no title), the
@@ -77,5 +82,5 @@ export function subagentFacts(subtitle: string | null | undefined, type: string 
   const key = name.toLowerCase();
   const icon = TYPE_ICONS[key];
   if (icon) return { icon, text: rest, full };
-  return { icon: NAMED_ICON, text: rest ? `${name} · ${rest}` : name, full };
+  return { icon: subagentTypeIcon(name), text: rest ? `${name} · ${rest}` : name, full };
 }

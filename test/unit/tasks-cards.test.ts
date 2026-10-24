@@ -1456,7 +1456,8 @@ describe("TaskCardView actions", () => {
     // Provider facts and timing use the same secondary component as ordinary subtasks.
     const facts = hostByTestId(list, "subtask-meta-sub-1");
     expect(texts(facts)[0]).toBe("Opus 5.5 · High · 132.8k tokens");
-    expect(icons(facts)).toEqual(["Shapes", "Clock", "Hourglass"]);
+    expect(icons(facts)).toEqual(["Clock", "Hourglass"]);
+    expect(icons(hostByTestId(list, "subtask-status-sub-1"))).toContain("Shapes");
     expect(texts(hostByTestId(list, "subtask-time-sub-1"))).toEqual([formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
     for (const child of base.children) expect(list.findAll((node) => node.props.testID === `subtask-parent-tab-${child.id}`)).toHaveLength(0);
     // The row reveals the subagent's card, naming the parent for the board's fallback; the button opens the parent's tab.
@@ -1678,10 +1679,15 @@ describe("TaskDetailCards", () => {
         expect(row.findAllByType(SubtaskMetadata)).toHaveLength(1);
         const mark = row.findByType(ChildMark);
         expect(mark.props.child.provider).toBe(child.provider);
-        const brand = mark.find((node) => (node.type as unknown) === "Image");
-        expect(brand.props.source.uri).toBe(MARK_BITMAPS[`lobe:${child.provider}`]);
-        expect(flat(brand.props.style)).toMatchObject({ width: 14, height: 14 });
-        // The status shares the brand's frame, overlapping its bottom-right corner.
+        if (child.kind === "provider") {
+          expect(mark.findAll((node) => (node.type as unknown) === "Image")).toHaveLength(0);
+          expect(icons(mark)).toContain("Shapes");
+        } else {
+          const brand = mark.find((node) => (node.type as unknown) === "Image");
+          expect(brand.props.source.uri).toBe(MARK_BITMAPS[`lobe:${child.provider}`]);
+          expect(flat(brand.props.style)).toMatchObject({ width: 14, height: 14 });
+        }
+        // The status shares the identity mark's frame, overlapping its bottom-right corner.
         expect(mark.findAll((node) => typeof node.type === "string" && flat(node.props.style).position === "absolute" && flat(node.props.style).right === -5 && flat(node.props.style).bottom === -5)).toHaveLength(1);
         return row.findAll((node) => typeof node.type === "string").map((node) => ({
           type: node.type,
@@ -1695,6 +1701,28 @@ describe("TaskDetailCards", () => {
     }
     expect(layouts[1]).toEqual(layouts[0]);
     expect(layouts[2]).toEqual(layouts[0]);
+  });
+
+  it.each([
+    { type: "Explore", icon: "Search" },
+    { type: "Plan", icon: "ListChecks" },
+    { type: "general-purpose", icon: "Shapes" },
+  ])("combines the provider subagent's $type icon with its status in every surface", async ({ type, icon }) => {
+    const base = sample("sample-running");
+    for (const status of ["running", "failed"] as const) {
+      const child: TaskChild = { ...base.children[0]!, kind: "provider", subagentType: type, subtitle: null, status, lane: status === "running" ? "running" : "review", modelLabel: null, thinkingLabel: null, modeLabel: null, context: null };
+      const card = { ...base, children: [child] };
+      for (const element of [cardElement(card, { subtasksExpanded: true }), details(card, { touch: false }), details(card, { touch: true })]) {
+        const tree = await render(element);
+        const row = tree.root.findByType(SubtaskRow);
+        const mark = row.findByType(ChildMark);
+        expect(icons(mark)).toContain(icon);
+        expect(mark.findAll((node) => (node.type as unknown) === "Image")).toHaveLength(0);
+        expect(hostByTestId(mark, `status-${status}`)).toBeDefined();
+        expect(icons(row.findByType(SubtaskMetadata))).not.toContain(icon);
+        await act(async () => tree.unmount());
+      }
+    }
   });
 
   it.each(["card", "sidebar", "sheet"] as const)("hides optional running metadata only in a narrow column and restores it (%s)", async (surface) => {
@@ -1712,7 +1740,8 @@ describe("TaskDetailCards", () => {
     expect(icons(meta())).toEqual(["Brain", "ShieldOff", "Clock", "Hourglass"]);
     await resize(240);
     expect(texts(meta())).toEqual([child.modelLabel, child.thinkingLabel]);
-    expect(icons(meta())).toEqual(["Brain"]);
+    expect(icons(meta())).toEqual(["Brain", "ShieldOff"]);
+    expect(meta().findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Full Access" && node.props.accessible === true)).toHaveLength(1);
     expect(meta().findByType(ContextRing).props.ratio).toBe(0.6);
     expect(hostByTestId(tree.root, `${prefix}-status-${child.id}`).findAllByType(ChildMark)).toHaveLength(1);
     expect(hostByTestId(tree.root, `${prefix}-title-${child.id}`).props.numberOfLines).toBe(1);
@@ -1741,8 +1770,10 @@ describe("TaskDetailCards", () => {
     expect(texts(meta())).toContain("等待输入");
     expect(icons(meta())).toContain("Clock");
     expect(meta().findByType(ContextRing).props.ratio).toBe(0.6);
-    if (modeLabel === "Full Access") expect(texts(meta())).not.toContain(modeLabel);
-    else expect(texts(meta())).toContain(modeLabel);
+    if (modeLabel === "Full Access") {
+      expect(texts(meta())).not.toContain(modeLabel);
+      expect(icons(meta())).toContain("ShieldOff");
+    } else expect(texts(meta())).toContain(modeLabel);
   });
 
   it("adapts the width threshold when the host font changes without another layout event", async () => {
@@ -2205,10 +2236,11 @@ describe("TaskDetailCards", () => {
     const tree = await render(details({ ...base, children: [subagent] }, { onOpen }));
     const meta = hostByTestId(tree.root, "detail-subtask-meta-sub-1");
     expect(texts(meta)[0]).toBe("Opus 5.5 · High · 189.7k tokens");
-    expect(icons(meta)).toEqual(["Shapes", "Hourglass"]);
+    expect(icons(meta)).toEqual(["Hourglass"]);
     expect(meta.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(0);
     const mark = hostByTestId(tree.root, "detail-subtask-status-sub-1");
-    expect(mark.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(1);
+    expect(mark.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(0);
+    expect(icons(mark)).toContain("Shapes");
     expect(mark.findAll((node) => typeof node.type === "string" && node.props.testID === "status-failed")).toHaveLength(1);
     const jump = hostByTestId(tree.root, "detail-subtask-parent-tab-sub-1");
     expect(icons(jump)).toEqual(["CornerLeftUp"]);
