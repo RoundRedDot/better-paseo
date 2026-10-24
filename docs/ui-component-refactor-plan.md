@@ -363,3 +363,7 @@ npm run check:hermes
 ### 11.2 胶囊恢复完整思考等级
 
 用户随后要求卡片胶囊不再缩写。卡片合并模型胶囊、独立思考胶囊及详情 chip 恢复完整等级；子 Agent 元数据继续使用第 2.2 节的小写缩写，所有 permission 文本的宽度收起规则保持。hover 原文不变，Chip 恢复原有参数。6 个相关测试文件 **384 tests passed**，同时断言胶囊完整等级和子任务缩写；typecheck、client build、源码及产物 Hermes 检查通过，Tasks chunk 为 `2252e493e9f8e969`。本次未新增真机或原生视觉证据。
+
+### 11.3 中文时间标签去掉“约”
+
+用户要求时间标签不再显示“约”。共享 `formatApprox` 的中文输出改为 `8m`／`1h 30m`，覆盖卡片、子任务和时间提示；保留按分钟取整、至少一分钟以及英文既有 `~` 前缀。同步设计规范、Tasks 功能说明与源码示例。此前 6 个测试文件加 `tasks-card-hints.test.ts` 共 **392 tests passed**；typecheck、client build、源码及产物 Hermes 检查通过，Tasks chunk 为 `ca030eca4c7adb1f`。本次未新增真机或原生视觉证据。

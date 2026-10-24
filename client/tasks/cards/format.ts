@@ -46,11 +46,11 @@ export function formatWait(ms: number, language: TasksLanguage): string {
   return language === "zh" ? `等待 ${coarse(ms)}` : `Waiting ${coarse(ms)}`;
 }
 
-/** An estimate, the last turn's length: "约 8m" / "~8m"; never under a minute. */
+/** The last turn's rounded length: "8m" / "~8m"; never under a minute. */
 export function formatApprox(ms: number, language: TasksLanguage): string {
   const minutes = Math.max(1, Math.round(Math.max(0, ms) / MINUTE));
   const body = minutes < 60 ? `${minutes}m` : minutes % 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes / 60}h`;
-  return language === "zh" ? `约 ${body}` : `~${body}`;
+  return language === "zh" ? body : `~${body}`;
 }
 
 /** How long ago: "刚刚" / "just now", "5 分钟前" / "5m ago", "3 小时前" / "3h ago", "2 天前" / "2d ago". */

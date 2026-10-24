@@ -41,7 +41,7 @@ describe("footer time hints", () => {
 
   it("names a finished card's last turn and its last update, with a full stamp", () => {
     const card = { lane: "done", timing: { ...timing, lastTurnMs: 120_000, updatedAt: iso(38 * 60_000) } } as Timed;
-    expect(timerHint(card, NOW, "zh")).toBe(`上一轮耗时：约 2m\n最后更新：${stamp(38 * 60_000)}`);
+    expect(timerHint(card, NOW, "zh")).toBe(`上一轮耗时：2m\n最后更新：${stamp(38 * 60_000)}`);
     expect(timerHint(card, NOW, "en")).toBe(`Last turn took: ~2m\nLast updated: ${stamp(38 * 60_000)}`);
   });
 
