@@ -23,6 +23,7 @@ import { subagentFacts } from "../subagent-type";
 import { ProjectIcon } from "./project-icon";
 import { SpinnerRing, StatusIcon } from "./status-icon";
 import { SubtaskRow } from "./subtask-row";
+import { SubtaskPanel } from "./subtask-panel";
 import { subtaskFinished } from "./details-format";
 import { ActionRow, useActionFit } from "./action-row";
 import { CardContextMenu } from "./card-menu";
@@ -1149,32 +1150,34 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
 
   const mixedChildren = card.children.some((child) => !subtaskFinished(child));
   const subtaskList =
-    layout.subtasks && expanded ? (
-      <View style={[block, { paddingTop: m.rowGap - 4 }]} testID="task-card-subtasks">
-        {card.children.map((child) => (
-          <SubtaskRow
-            key={child.id}
-            child={child}
-            theme={theme}
-            tokens={tokens}
-            touch={compact || TOUCH}
-            muted={mixedChildren && child.status === "done"}
-            openLabel={child.kind === "provider" ? strings.openParentTab : strings.openInWorkspace}
-            accessibilityLabel={`${child.title} ${strings.status[child.status]}`}
-            statusHint={hint(`child-${child.id}`, () =>
-              lines(pair(strings.hint.status, strings.status[child.status]), child.kind === "provider" && strings.subagent),
-            )}
-            openHint={child.kind === "provider" ? hint("child-parent-tab", () => lines(strings.openParentTab, strings.subagent)) : hint("child-open", () => strings.openInWorkspace)}
-            backdrop={background}
-            animated={props.animated}
-            language={language}
-            now={props.now}
-            clock={props.clock}
-            onPress={() => child.kind === "provider" ? props.onReveal(child.id, card.id) : props.onReveal(child.id)}
-            onOpen={props.onOpen ? () => props.onOpen?.(child.kind === "provider" ? card.id : child.id) : undefined}
-          />
-        ))}
-      </View>
+    layout.subtasks ? (
+      <SubtaskPanel expanded={expanded} animated={props.animated}>
+        <View style={[block, { paddingTop: m.rowGap - 4 }]} testID="task-card-subtasks">
+          {card.children.map((child) => (
+            <SubtaskRow
+              key={child.id}
+              child={child}
+              theme={theme}
+              tokens={tokens}
+              touch={compact || TOUCH}
+              muted={mixedChildren && child.status === "done"}
+              openLabel={child.kind === "provider" ? strings.openParentTab : strings.openInWorkspace}
+              accessibilityLabel={`${child.title} ${strings.status[child.status]}`}
+              statusHint={hint(`child-${child.id}`, () =>
+                lines(pair(strings.hint.status, strings.status[child.status]), child.kind === "provider" && strings.subagent),
+              )}
+              openHint={child.kind === "provider" ? hint("child-parent-tab", () => lines(strings.openParentTab, strings.subagent)) : hint("child-open", () => strings.openInWorkspace)}
+              backdrop={background}
+              animated={props.animated}
+              language={language}
+              now={props.now}
+              clock={props.clock}
+              onPress={() => child.kind === "provider" ? props.onReveal(child.id, card.id) : props.onReveal(child.id)}
+              onOpen={props.onOpen ? () => props.onOpen?.(child.kind === "provider" ? card.id : child.id) : undefined}
+            />
+          ))}
+        </View>
+      </SubtaskPanel>
     ) : null;
 
   // Phone action bar -------------------------------------------------------
