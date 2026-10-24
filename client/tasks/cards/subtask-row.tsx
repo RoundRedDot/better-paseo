@@ -1,4 +1,4 @@
-import React, { useRef, type ReactNode } from "react";
+import React, { useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
@@ -114,12 +114,16 @@ export function SubtaskRow(props: SubtaskRowProps) {
 export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: TaskTokens; language: TasksLanguage; testIDPrefix?: string }) {
   const { child, tokens, language } = props;
   const scale = useTasksFontScale();
+  const [width, setWidth] = useState<number | null>(null);
+  // Measure the content column, not the screen: a wide tablet can have narrow lanes.
+  const narrow = width !== null && width > 0 && width <= 240 * scale;
+  const hideRunTime = narrow && child.status === "running";
   const words = cardStrings(language).details;
   const status = child.status === "needs_input" ? words.subtaskWaiting : child.status === "failed" ? words.subtaskFailed : child.status === "unread" ? words.subtaskUnread : null;
   const ratio = contextRatio(child.context ?? null);
   const timed = child.lane && child.timing ? { lane: child.lane, timing: child.timing, waitingOnSubtasks: child.waitingOnSubtasks } : null;
-  const start = useTime(props, (now) => timed ? cardStart(timed, now) ?? "" : "");
-  const timer = useTime(props, (now) => timed ? cardTimer(timed, now, language, true)?.text ?? "" : "");
+  const start = useTime(props, (now) => !hideRunTime && timed ? cardStart(timed, now) ?? "" : "");
+  const timer = useTime(props, (now) => !hideRunTime && timed ? cardTimer(timed, now, language, true)?.text ?? "" : "");
   const iconSize = 12;
   const muted = tokens.foregroundMuted;
   const prefix = props.testIDPrefix ?? "subtask";
@@ -138,7 +142,7 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
   }
   if (child.modelLabel) parts.push(part("model", child.modelLabel));
   if (child.thinkingLabel) parts.push(part("thinking", child.thinkingLabel, icon(THINKING_ICON)));
-  if (child.modeLabel) {
+  if (child.modeLabel && !(narrow && child.modeLabel === "Full Access")) {
     const mode = modeIcon(child.provider ?? "", child.modeLabel);
     parts.push(part("mode", child.modeLabel, icon(mode, mode === "ShieldOff" ? tokens.warning : muted)));
   }
@@ -157,8 +161,9 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
       {timer ? part("timer", timer, icon(child.lane === "needs_input" ? "Clock" : "Hourglass")) : null}
     </View>,
   );
-  return parts.length > 0 ? (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 2 }} testID={`${prefix}-meta-${child.id}`}>
+  // Keep measuring when the optional fields are hidden, so widening restores them.
+  return parts.length > 0 || hideRunTime || (narrow && child.modeLabel === "Full Access") ? (
+    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 2 }} testID={`${prefix}-meta-${child.id}`}>
       {parts}
     </View>
   ) : null;
