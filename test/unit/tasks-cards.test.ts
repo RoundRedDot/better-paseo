@@ -87,7 +87,7 @@ import {
 import { SpinnerRing, statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
-import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
+import { OVERLAY_ROW_Z, SubtaskMetadata } from "../../client/tasks/cards/task-card";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
 import { TasksTypography } from "../../client/tasks/typography";
@@ -1341,9 +1341,9 @@ describe("TaskCardView actions", () => {
       expect(slot.findAll((node) => typeof node.type === "string" && node.props.testID === `status-${child.status}`)).toHaveLength(1);
     }
     // A running child's start and timer below the title; a finished one's last turn and when.
-    expect(texts(hostByTestId(list, "subtask-time-sample-child-1"))).toEqual([`${formatClockTime(NOW - 3 * 60_000, NOW)} · 3m`]);
-    expect(texts(hostByTestId(list, "subtask-time-sample-child-2"))).toEqual([`${formatClockTime(NOW - 312_000, NOW)} · 5m 12s`]);
-    expect(texts(list).filter((text) => !text.includes(" · "))).toEqual(["Measure the sidebar ring", "Write the ring geometry test", "Collect status colours"]);
+    expect(texts(hostByTestId(list, "subtask-time-sample-child-1"))).toEqual([formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
+    expect(texts(hostByTestId(list, "subtask-time-sample-child-2"))).toEqual([formatClockTime(NOW - 312_000, NOW), "5m 12s"]);
+    expect(list.findAllByType(SubtaskMetadata)).toHaveLength(3);
     for (const word of ["运行中", "已完成", "待输入"]) expect(texts(list)).not.toContain(word);
   });
 
@@ -1380,12 +1380,12 @@ describe("TaskCardView actions", () => {
     }
   });
 
-  it("fills a phone subtask's second line with its model, effort, mode, context and live timing", async () => {
+  it.each([true, false])("fills a subtask's second line with its model, effort, mode, context and live timing (compact=%s)", async (compact) => {
     const base = sample("sample-running");
     const child = base.children[0]!;
     let now = NOW;
     const clock = createTaskClock(() => now);
-    const tree = await render(cardElement(base, { compact: true, now: undefined, clock }));
+    const tree = await render(cardElement(base, { compact, now: undefined, clock }));
     await act(async () => hostByTestId(tree.root, "pill-subtasks").props.onPress());
     const meta = () => hostByTestId(tree.root, `subtask-meta-${child.id}`);
     expect(texts(meta())).toEqual(["Opus 4.7", "High", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
@@ -1396,7 +1396,7 @@ describe("TaskCardView actions", () => {
     now += 1000;
     await act(async () => clock.tick());
     expect(texts(meta())).toContain("3m 1s");
-    await act(async () => tree.update(cardElement({ ...base, children: [{ ...child, context: { usedTokens: 190_000, maxTokens: 200_000 }, status: "needs_input" }] }, { compact: true, now: NOW })));
+    await act(async () => tree.update(cardElement({ ...base, children: [{ ...child, context: { usedTokens: 190_000, maxTokens: 200_000 }, status: "needs_input" }] }, { compact, now: NOW })));
     expect(texts(meta())).toContain("等待输入");
     expect(texts(meta()).some((text) => text.includes("上下文"))).toBe(false);
     expect(meta().findByType(ContextRing).props).toMatchObject({ ratio: 0.95, color: taskTokens(LIGHT).danger });
@@ -1973,25 +1973,24 @@ describe("TaskDetailCards", () => {
     expect(texts(section)).toEqual([
       "子任务",
       "2 运行中 · 1/3 完成",
-      // The longest run first; the meta wraps between its parts, never inside one.
+      // The longest run first; every row uses the shared icon-led metadata.
       "Write the ring geometry test",
+      start(312_000),
       "5m 12s",
-      `${start(312_000)} 开始`,
       "Measure the sidebar ring",
+      "Opus 4.7",
+      "High",
+      "Bypass",
+      start(3 * 60_000),
       "3m",
-      `${start(3 * 60_000)} 开始 ·`,
-      "上下文 60%",
       "Collect status colours",
-      "2 分钟前",
-      "上一轮 18m",
-      // Only one child names its model, and it is not the parent's GPT-5.5 Codex.
-      "均为 Opus 4.7 · High · Bypass",
+      "约 18m · 2 分钟前",
     ]);
     // The running count is in the status colour, the rest muted.
     const summary = hostByTestId(running.root, "detail-subtasks").findAll((node) => (node.type as unknown) === "Text" && node.props.children === 2);
     expect(flat(summary[0]!.props.style).color).toBe(taskTokens(LIGHT).status.running);
     // The agent's mark leads each row, its status on the corner in every state, done too;
-    // a running timer is in the foreground colour, a finished row's title muted.
+    // the secondary facts are muted, a finished row's title muted too.
     const tokens = taskTokens(LIGHT);
     const corner = (id: string) =>
       hostByTestId(section, `detail-subtask-status-${id}`)
@@ -2000,8 +1999,8 @@ describe("TaskDetailCards", () => {
     expect(corner("sample-child-2")).toContain("status-running");
     expect(corner("sample-child-3")).toEqual(["status-done"]);
     expect(icons(hostByTestId(section, "detail-subtask-status-sample-child-3"))).toContain("CircleCheck");
-    expect(flat(hostByTestId(section, "detail-subtask-time-sample-child-2").props.style).color).toBe(tokens.foreground);
-    expect(flat(hostByTestId(section, "detail-subtask-time-sample-child-3").props.style).color).toBe(tokens.foregroundMuted);
+    expect(section.findAllByType(SubtaskMetadata)).toHaveLength(3);
+    expect(section.findAll((node) => node.props.testID === "detail-subtasks-footnote")).toHaveLength(0);
     const doneTitle = hostByTestId(section, "detail-subtask-title-sample-child-3");
     expect(flat(doneTitle.props.style).color).toBe(tokens.foregroundMuted);
     // No progress ring any more: the counts say it.
@@ -2037,15 +2036,18 @@ describe("TaskDetailCards", () => {
     const row = hostByTestId(tree.root, `detail-subtask-${child.id}`);
     const title = hostByTestId(row, `detail-subtask-title-${child.id}`);
     const content = hostByTestId(row, `detail-subtask-content-${child.id}`);
-    const secondary = hostByTestId(content, `detail-subtask-secondary-${child.id}`);
+    const secondary = hostByTestId(content, `detail-subtask-meta-${child.id}`);
     expect(title.props).toMatchObject({ numberOfLines: 1, ellipsizeMode: "tail" });
     expect(texts(title)).toEqual([child.title]);
+    expect(icons(hostByTestId(row, `detail-subtask-meta-${child.id}`))).toEqual(["Brain", "ShieldOff", "Clock", "Hourglass"]);
+    expect(hostByTestId(row, `detail-subtask-meta-${child.id}`).findByType(ContextRing).props.ratio).toBe(0.6);
     expect(flat(content.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
     expect(flat(content.props.style).flexDirection).toBeUndefined();
     expect((content.children[0] as ReactTestInstance).props.testID).toBe(`detail-subtask-title-${child.id}`);
     expect(flat(secondary.props.style)).toMatchObject({ flexDirection: "row", flexWrap: "wrap" });
-    expect(texts(hostByTestId(secondary, `detail-subtask-time-${child.id}`))).toEqual(["3m"]);
-    expect(texts(hostByTestId(secondary, `detail-subtask-meta-${child.id}`))).toContain("上下文 60%");
+    expect(texts(hostByTestId(secondary, `detail-subtask-time-${child.id}`))).toEqual([formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
+    expect(texts(secondary)).toEqual(["Opus 4.7", "High", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
+    expect(row.findByType(SubtaskMetadata).props.child).toBe(child);
     expect(flat(hostByTestId(row, `detail-subtask-status-${child.id}`).props.style).flexShrink).toBe(0);
     const before = flat(content.props.style);
     await act(async () => row.props.onHoverIn());
@@ -2063,7 +2065,7 @@ describe("TaskDetailCards", () => {
     expect(onOpen).toHaveBeenCalledWith(child.id);
     now += 1000;
     await act(async () => clock.tick());
-    expect(texts(hostByTestId(secondary, `detail-subtask-time-${child.id}`))).toEqual(["3m 1s"]);
+    expect(texts(hostByTestId(secondary, `detail-subtask-time-${child.id}`))).toEqual([formatClockTime(NOW - 3 * 60_000, now), "3m 1s"]);
     expect(texts(hostByTestId(tree.root, "detail-subtask-content-sparse"))).toEqual([sparse.title]);
   });
 
@@ -2093,21 +2095,43 @@ describe("TaskDetailCards", () => {
     const subagent: TaskChild = { id: "sub-1", title: "RRD-10161 desktop native fatal", status: "failed", kind: "provider", subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens", subagentType: "general-purpose", provider: "claude", lane: "review", timing: sample("sample-running").children[2]!.timing };
     const tree = await render(details({ ...base, children: [subagent] }));
     const meta = hostByTestId(tree.root, "detail-subtask-meta-sub-1");
-    expect(texts(meta)[0]).toBe("Opus 5.5 · High · 189.7k tokens ·");
-    expect(icons(meta)).toEqual(["Shapes"]);
+    expect(texts(meta)[0]).toBe("Opus 5.5 · High · 189.7k tokens");
+    expect(icons(meta)).toEqual(["Shapes", "Hourglass"]);
     expect(meta.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(0);
     const mark = hostByTestId(tree.root, "detail-subtask-status-sub-1");
     expect(mark.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(1);
     expect(mark.findAll((node) => typeof node.type === "string" && node.props.testID === "status-failed")).toHaveLength(1);
   });
 
-  it("drops the running count, the start and a low context share in a narrow card", async () => {
+  it("keeps shared metadata and context icons in a narrow card while abbreviating its heading", async () => {
     const tree = await render(details(sample("sample-running")));
     const section = hostByTestId(tree.root, "detail-subtasks");
     await act(async () => section.props.onLayout({ nativeEvent: { layout: { width: 320, height: 400 } } }));
     const shown = texts(hostByTestId(tree.root, "detail-subtasks"));
     expect(shown[1]).toBe("1/3 完成");
-    expect(shown.filter((text) => text.includes("开始") || text.includes("上下文 60%"))).toEqual([]);
+    const meta = hostByTestId(section, "detail-subtask-meta-sample-child-1");
+    expect(texts(meta)).toEqual(["Opus 4.7", "High", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
+    expect(icons(meta)).toEqual(["Brain", "ShieldOff", "Clock", "Hourglass"]);
+    expect(meta.findByType(ContextRing).props.ratio).toBe(0.6);
+  });
+
+  it.each([
+    { status: "needs_input", lane: "needs_input", ratio: 0.8, word: "等待输入", tone: "warning", timerIcon: "Clock" },
+    { status: "failed", lane: "review", ratio: 0.95, word: "失败", tone: "danger", timerIcon: "Hourglass" },
+    { status: "unread", lane: "review", ratio: 0.6, word: "待查看", tone: "foregroundMuted", timerIcon: "Hourglass" },
+  ] as const)("keeps per-child effort, mode and context with shared models ($status)", async ({ status, lane, ratio, word, tone, timerIcon }) => {
+    const base = sample("sample-running");
+    const child = { ...base.children[0]!, status, lane, context: { usedTokens: ratio * 200_000, maxTokens: 200_000 } };
+    const card = { ...base, modelLabel: child.modelLabel!, thinkingLabel: child.thinkingLabel!, modeLabel: child.modeLabel!, children: [child, { ...child, id: "same-model" }] };
+    const tree = await render(details(card, { touch: true }));
+    const section = hostByTestId(tree.root, "detail-subtasks");
+    await act(async () => section.props.onLayout({ nativeEvent: { layout: { width: 280, height: 400 } } }));
+    for (const id of [child.id, "same-model"]) {
+      const meta = hostByTestId(section, `detail-subtask-meta-${id}`);
+      expect(texts(meta)).toEqual(expect.arrayContaining([child.modelLabel, child.thinkingLabel, child.modeLabel, word]));
+      expect(icons(meta)).toEqual(["Brain", "ShieldOff", timerIcon]);
+      expect(meta.findByType(ContextRing).props).toMatchObject({ ratio, color: taskTokens(LIGHT)[tone] });
+    }
   });
 
   it("shows the first prompt as Markdown, folded to four lines, copyable, and waits for Load on a closed agent", async () => {
