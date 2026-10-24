@@ -1340,15 +1340,16 @@ describe("TaskCardView actions", () => {
       expect(slot.props.style).toMatchObject({ height: 16 });
       expect(slot.findAll((node) => typeof node.type === "string" && node.props.testID === `status-${child.status}`)).toHaveLength(1);
     }
-    // A running child's start and timer at the end, as the footer; a finished one's last turn and when.
+    // A running child's start and timer below the title; a finished one's last turn and when.
     expect(texts(hostByTestId(list, "subtask-time-sample-child-1"))).toEqual([`${formatClockTime(NOW - 3 * 60_000, NOW)} · 3m`]);
     expect(texts(hostByTestId(list, "subtask-time-sample-child-2"))).toEqual([`${formatClockTime(NOW - 312_000, NOW)} · 5m 12s`]);
     expect(texts(list).filter((text) => !text.includes(" · "))).toEqual(["Measure the sidebar ring", "Write the ring geometry test", "Collect status colours"]);
     for (const word of ["运行中", "已完成", "待输入"]) expect(texts(list)).not.toContain(word);
   });
 
-  it.each([true, false])("places subtask timing below the title only on phones (compact=%s)", async (compact) => {
-    const base = sample("sample-running");
+  it.each([true, false])("keeps subtask timing below the title without competing for its width (compact=%s)", async (compact) => {
+    const running = sample("sample-running");
+    const base = { ...running, children: running.children.map((child, index) => index === 0 ? { ...child, title: "f206r3 笔记编辑器与侧栏设置排版验证" } : child) };
     const onReveal = vi.fn();
     const onOpen = vi.fn();
     const tree = await render(cardElement(base, { compact, onReveal, onOpen }));
@@ -1360,18 +1361,16 @@ describe("TaskCardView actions", () => {
       const row = byLabel(list, child.title);
       const title = row.find((node) => (node.type as unknown) === "Text" && node.props.children === child.title);
       const time = hostByTestId(row, `subtask-time-${child.id}`);
-      if (compact) {
-        const content = hostByTestId(row, `subtask-content-${child.id}`);
-        expect(flat(content.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
-        expect(flat(content.props.style).flexDirection).toBeUndefined(); // Native View defaults to column.
-        expect(texts(content)[0]).toBe(child.title);
-        expect(content.findAll((node) => node === title || node === time)).toHaveLength(2);
-        expect(flat(title.props.style).flex).toBeUndefined();
-      } else {
-        expect(row.findAll((node) => node.props.testID === `subtask-content-${child.id}`)).toHaveLength(0);
-        expect(flat(title.props.style).flex).toBe(1);
-        expect(flat(time.props.style).flexShrink).toBe(0);
-      }
+      const content = hostByTestId(row, `subtask-content-${child.id}`);
+      expect(flat(content.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
+      expect(flat(content.props.style).flexDirection).toBeUndefined(); // Native View defaults to column.
+      expect(texts(content)[0]).toBe(child.title);
+      expect(content.findAll((node) => node === title || node === time)).toHaveLength(2);
+      expect(flat(title.props.style).flex).toBeUndefined();
+      expect(title.props.numberOfLines).toBe(1);
+      expect(title.props.ellipsizeMode).toBe("tail");
+      expect(flat(hostByTestId(row, `subtask-status-${child.id}`).props.style).flexShrink).toBe(0);
+      expect(flat(byLabel(row, cardStrings("zh").openInWorkspace).props.style).flexShrink).toBe(0);
       row.props.onPress();
       expect(onReveal).toHaveBeenLastCalledWith(child.id);
     }
@@ -1403,10 +1402,10 @@ describe("TaskCardView actions", () => {
     expect(meta().findByType(ContextRing).props).toMatchObject({ ratio: 0.95, color: taskTokens(LIGHT).danger });
   });
 
-  it("omits absent phone subtask metadata and keeps a title-only child usable", async () => {
+  it.each([true, false])("omits absent subtask metadata and keeps a title-only child usable (compact=%s)", async (compact) => {
     const base = sample("sample-running");
     const child: TaskChild = { id: "sparse", title: "No metadata", status: "done" };
-    const tree = await render(cardElement({ ...base, children: [child] }, { compact: true }));
+    const tree = await render(cardElement({ ...base, children: [child] }, { compact }));
     await act(async () => hostByTestId(tree.root, "pill-subtasks").props.onPress());
     expect(texts(hostByTestId(tree.root, "subtask-content-sparse"))).toEqual(["No metadata"]);
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "subtask-meta-sparse")).toHaveLength(0);
