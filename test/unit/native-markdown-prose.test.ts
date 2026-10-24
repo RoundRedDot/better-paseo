@@ -106,15 +106,16 @@ describe("iOS Markdown prose", () => {
     expect(renderer.root.findAll((node) => String(node.type) === "Text" && node.props.testID === "markdown-table-cell")).toHaveLength(2);
     await act(async () => renderer.unmount());
   });
-  it("reuses completed paragraph groups and their native styles while the tail grows", async () => {
+  it("keeps paragraphs separate for block selection and reuses finished native views while the tail grows", async () => {
     const finished = Array.from({ length: 8 }, (_, index) => `Finished **paragraph ${index}**.\n\n`).join("");
     const renderer = await render(finished + "Tail");
+    expect(native(renderer)).toHaveLength(9);
     const first = native(renderer)[0]!.props;
     await act(async () => renderer.update(React.createElement(MarkdownView, {
       text: finished + "Tail grows", tokens, variant: "document", streaming: true,
     })));
     expect(native(renderer)[0]!.props).toBe(first);
-    expect(native(renderer)[1]!.props.markdown).toBe("Tail grows");
+    expect(native(renderer)[8]!.props.markdown).toBe("Tail grows");
     await act(async () => renderer.unmount());
   });
   for (const variant of ["document", "compact", "terminal"] as const) it(`${variant}: streamed groups match fresh renders across block boundaries`, async () => {

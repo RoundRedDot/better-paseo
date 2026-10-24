@@ -108,7 +108,7 @@ describe("Markdown table copy", () => {
     && node.props.testID === "table-selection-menu-animation");
   // The frame takes native touches and finds the cell under the finger.
   const touchFrame = () => renderer!.root.findAll((node) => String(node.type) === "View"
-    && typeof node.props.onTouchStart === "function")[0]!;
+    && typeof node.props.onTouchStart === "function" && typeof node.props.onMoveShouldSetResponder === "function")[0]!;
   const touch = (timestamp: number, pageX = 10, pageY = 10) => ({
     nativeEvent: { timestamp, pageX, pageY, touches: [{}] },
   });
