@@ -1,7 +1,7 @@
 import type { TasksLanguage } from "../i18n";
 
 /**
- * The card's times and numbers. Pure, so the settings preview, the details
+ * The card's times, numbers and display labels. Pure, so the settings preview, the details
  * sheet and the tests share them; the language is an argument.
  */
 
@@ -9,6 +9,16 @@ const SECOND = 1000;
 const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
+
+const THINKING_LABELS = new Map([
+  ["none", "n"], ["minimal", "min"], ["low", "l"], ["medium", "m"],
+  ["high", "h"], ["xhigh", "xh"], ["extra high", "xh"], ["max", "max"],
+]);
+
+/** Visible effort labels only; hints and accessibility keep the provider's full name. */
+export function formatThinkingLevel(label: string): string {
+  return THINKING_LABELS.get(label.trim().toLowerCase()) ?? label;
+}
 
 /** A running turn: "45s", "12m 30s", "1h 5m". */
 export function formatDuration(ms: number): string {

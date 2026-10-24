@@ -14,7 +14,7 @@ import { ChildMark } from "./child-mark";
 import { ContextRing } from "./context-ring";
 import { useTime, type TimeSource } from "./clock";
 import { titlePrefix } from "./details-format";
-import { contextRatio } from "./format";
+import { contextRatio, formatThinkingLevel } from "./format";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { cardStrings } from "./strings";
 import type { TaskTokens } from "./tokens";
@@ -110,30 +110,46 @@ export function SubtaskRow(props: SubtaskRowProps) {
   );
 }
 
-/** Shared by expanded cards and details: icon-led facts wrap below the title and alone follow the clock. */
+/** Shared by expanded cards and details: single-line facts below the title alone follow the clock. */
 export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: TaskTokens; language: TasksLanguage; testIDPrefix?: string }) {
   const { child, tokens, language } = props;
   const scale = useTasksFontScale();
   const [width, setWidth] = useState<number | null>(null);
+  const [measured, setMeasured] = useState<{ key: string; width: number } | null>(null);
   // Measure the content column, not the screen: a wide tablet can have narrow lanes.
   const narrow = width !== null && width > 0 && width <= 240 * scale;
   const hideRunTime = narrow && child.status === "running";
   const words = cardStrings(language).details;
-  const status = child.status === "needs_input" ? words.subtaskWaiting : child.status === "failed" ? words.subtaskFailed : child.status === "unread" ? words.subtaskUnread : null;
+  const status = child.status === "needs_input" ? words.subtaskWaiting : child.status === "failed" ? words.subtaskFailed : null;
   const ratio = contextRatio(child.context ?? null);
   const timed = child.lane && child.timing ? { lane: child.lane, timing: child.timing, waitingOnSubtasks: child.waitingOnSubtasks } : null;
   const start = useTime(props, (now) => !hideRunTime && timed ? cardStart(timed, now) ?? "" : "");
   const timer = useTime(props, (now) => !hideRunTime && timed ? cardTimer(timed, now, language, true)?.text ?? "" : "");
+  // Timer ticks update the existing probe; remounting it would flash full labels every second.
+  const measureKey = JSON.stringify([scale, language, child.kind, child.subtitle, child.subagentType, child.modelLabel, child.thinkingLabel, child.modeLabel, status, ratio !== null, !!start, !!timer]);
+  const canFoldMode = child.modeLabel === "Full Access" || child.modeLabel === "Default Permissions";
+  const compactLabels = narrow || (width !== null && width > 0 && measured?.key === measureKey && measured.width > width);
   const iconSize = 12;
   const muted = tokens.foregroundMuted;
   const prefix = props.testIDPrefix ?? "subtask";
+  const measures: ReactNode[] = [];
   const icon = (name: string, color = muted) => <Icon name={name} size={iconSize} color={color} />;
-  const part = (key: string, label: string, lead: ReactNode = null, color = muted, showLabel = true) => (
-    <View key={key} accessible={showLabel ? undefined : true} accessibilityLabel={showLabel ? undefined : label} style={{ flexDirection: "row", alignItems: "flex-start", gap: 4, minWidth: 0, flexShrink: 1 }}>
-      {lead ? <View style={{ height: Math.round(HOST_LINE.smRead * scale), justifyContent: "center" }}>{lead}</View> : null}
-      {showLabel && label ? <Text style={[{ fontSize: F.sm, lineHeight: HOST_LINE.smRead, color, flexShrink: 1 }, { fontVariant: ["tabular-nums"] }]}>{label}</Text> : null}
-    </View>
-  );
+  const part = (key: string, label: string, lead: ReactNode = null, color = muted, showLabel = true, fullLabel = label) => {
+    // Measure full labels independently of the visible row, so folding is reversible.
+    if (canFoldMode) measures.push(
+      <View key={key} style={{ flexDirection: "row", gap: 4, flexShrink: 0 }}>
+        {lead ? <View style={{ width: iconSize }} /> : null}
+        <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.smRead, color, fontVariant: ["tabular-nums"] }}>{label}</Text>
+      </View>,
+    );
+    const fixed = !showLabel || (key === "thinking" && fullLabel !== label);
+    return (
+      <View key={key} accessible={!showLabel || fullLabel !== label ? true : undefined} accessibilityLabel={!showLabel || fullLabel !== label ? fullLabel : undefined} style={{ flexDirection: "row", alignItems: "flex-start", gap: showLabel ? 4 : 0, minWidth: lead ? iconSize : 0, flexShrink: fixed ? 0 : 1 }}>
+        {lead ? <View style={{ height: Math.round(HOST_LINE.smRead * scale), flexShrink: 0, justifyContent: "center" }}>{lead}</View> : null}
+        {showLabel && label ? <Text numberOfLines={1} ellipsizeMode="tail" style={[{ fontSize: F.sm, lineHeight: HOST_LINE.smRead, color, minWidth: 0, flexShrink: 1 }, { fontVariant: ["tabular-nums"] }]}>{label}</Text> : null}
+      </View>
+    );
+  };
   const parts: ReactNode[] = [];
   // The provider and status are already combined in the row's ChildMark.
   if (child.kind === "provider") {
@@ -142,30 +158,40 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
     if (facts.text) parts.push(part("facts", facts.text));
   }
   if (child.modelLabel) parts.push(part("model", child.modelLabel));
-  if (child.thinkingLabel) parts.push(part("thinking", child.thinkingLabel, icon(THINKING_ICON)));
+  if (child.thinkingLabel) {
+    const label = formatThinkingLevel(child.thinkingLabel);
+    parts.push(part("thinking", label, icon(THINKING_ICON), muted, true, child.thinkingLabel));
+  }
   if (child.modeLabel) {
     const mode = modeIcon(child.provider ?? "", child.modeLabel);
-    parts.push(part("mode", child.modeLabel, icon(mode, mode === "ShieldOff" ? tokens.warning : muted), muted, !(narrow && child.modeLabel === "Full Access")));
+    const hideModeLabel = compactLabels && canFoldMode;
+    parts.push(part("mode", child.modeLabel, icon(mode, mode === "ShieldOff" ? tokens.warning : muted), muted, !hideModeLabel));
   }
-  if (status) parts.push(part("status", status, null, child.status === "failed" ? tokens.danger : child.status === "needs_input" ? tokens.warning : muted));
+  if (status) parts.push(part("status", status, null, child.status === "failed" ? tokens.danger : tokens.warning));
   if (ratio !== null) {
+    if (canFoldMode) measures.push(<View key="context" style={{ width: iconSize, flexShrink: 0 }} />);
     const color = ratio >= 0.9 ? tokens.danger : ratio >= 0.75 ? tokens.warning : muted;
     parts.push(
-      <View key="context" accessibilityLabel={words.subtaskContext(Math.round(ratio * 100))} style={{ height: Math.round(HOST_LINE.smRead * scale), justifyContent: "center" }}>
+      <View key="context" accessibilityLabel={words.subtaskContext(Math.round(ratio * 100))} style={{ height: Math.round(HOST_LINE.smRead * scale), flexShrink: 0, justifyContent: "center" }}>
         <ContextRing ratio={ratio} color={color} track={withAlpha(muted, 0.25)} variant="subtask" />
       </View>,
     );
   }
   if (start || timer) parts.push(
-    <View key="time" style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 2, minWidth: 0, flexShrink: 1 }} testID={`${prefix}-time-${child.id}`}>
+    <View key="time" style={{ flexDirection: "row", flexWrap: "nowrap", columnGap: 10, minWidth: 0, flexShrink: 1 }} testID={`${prefix}-time-${child.id}`}>
       {start ? part("start", start, icon("Clock")) : null}
       {timer ? part("timer", timer, icon(child.lane === "needs_input" ? "Clock" : "Hourglass")) : null}
     </View>,
   );
   // Keep measuring when the optional fields are hidden, so widening restores them.
   return parts.length > 0 || hideRunTime ? (
-    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 2 }} testID={`${prefix}-meta-${child.id}`}>
+    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", flexWrap: "nowrap", columnGap: 10, minWidth: 0 }} testID={`${prefix}-meta-${child.id}`}>
       {parts}
+      {canFoldMode ? <View pointerEvents="none" {...(Platform.OS === "web" ? { "aria-hidden": true } : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" as const })} style={{ position: "absolute", width: 10000, height: 0, overflow: "hidden", opacity: 0 }}>
+        <View key={measureKey} onLayout={(event) => setMeasured({ key: measureKey, width: event.nativeEvent.layout.width })} style={{ flexDirection: "row", alignSelf: "flex-start", columnGap: 10 }} testID={`${prefix}-meta-measure-${child.id}`}>
+          {measures}
+        </View>
+      </View> : null}
     </View>
   ) : null;
 }

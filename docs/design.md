@@ -189,6 +189,27 @@ control row is rounded at 6. An icon in a pill or row is the size of the Lucide 
 
 All heights grow with the host's interface text size through `taskControlHeight`.
 
+### Thinking level labels
+
+Use `formatThinkingLevel` in `client/tasks/cards/format.ts` for visible structured
+thinking levels in the card's combined model pill, standalone thinking pill,
+details chip and shared subtask metadata. Match case-insensitively after trimming:
+
+| Full level | Visible label |
+| --- | --- |
+| None | `n` |
+| Minimal | `min` |
+| Low | `l` |
+| Medium | `m` |
+| High | `h` |
+| Xhigh / Extra High | `xh` |
+| Max | `max` |
+
+Keep the `Brain` icon. Hover hints and accessibility labels retain the original
+full level; do not abbreviate stored data, model copy values or provider-written
+facts strings. Unknown/custom levels remain as supplied. This is a display rule
+for both wide and compact layouts, independent of the permission-text folding.
+
 ## Labels
 
 A label looks the same wherever it appears: a solid tag in its colour, then its name.
@@ -299,51 +320,149 @@ state and the spinner.
 
 ## Shared subtask lists
 
-`SubtaskRow` and `SubtaskMetadata` in `client/tasks/cards/subtask-row.tsx` are the
-single implementation for expanded board cards, the details sidebar and the mobile
-details sheet. Import them from that module or the cards barrel. These surfaces
-must not add another row renderer, override its styles or implement their own
-width-based visibility rules.
+### Component ownership
 
-- The left column is an 18 pt slot containing `ChildMark`: agent brand with a
-  status corner, aligned with the title's first line.
-  For a provider-native subagent, use its type/tool icon instead of its parent's
-  brand: reuse `subagentTypeIcon` in `client/tasks/subagent-type.ts` (`Explore`
-  → `Search`, `Plan` → `ListChecks`, `general-purpose` → `Shapes`, `workflow`
-  → `Workflow`, `fork` → `Split`; named/unknown types keep `Bot`). This mapping
-  works even without a subtitle. Keep its facts below without repeating the icon.
-  The status overlaps the brand's bottom-right corner; do not replace this
-  combined mark with a standalone status icon. Offline previews must seed the
-  real `MARK_BITMAPS` through `seedMarkBitmaps` before rendering, and check that
-  both the decoded brand image and the status are visible.
-- The title uses `HOST_FONT.sm` / `HOST_LINE.smRead`, stays on one line and
-  truncates at the tail. A leading tag or issue ID is muted. The content column
-  takes the remaining width (`flex: 1`, `minWidth: 0`).
-- Below it, metadata wraps independently: model, `Brain` with thinking level,
-  permission/mode icon, attention status, `ContextRing`, `Clock` with start time,
-  and `Hourglass` with duration (a waiting task uses `Clock`). Missing data is
-  omitted. Equal models are still shown per row. Provider subagent facts retain
-  their type icon and supplied text. Context is amber from 75%, red from 90%.
-  When the metadata column is at most 240 pt at the base font size, show only
-  the `Full Access` mode icon, keeping its full accessibility label, and omit
-  a running child's start time and duration.
-  The threshold scales with the host font size. Keep model, thinking level,
-  context, other modes, attention status and waiting/finished times. Restore
-  the omitted fields when the column grows; all three surfaces use this rule.
-- The row uses an 8 pt column gap, 6 pt horizontal padding and radius 6. Touch
-  changes only targets and vertical spacing: 44 pt minimum with 10 pt padding,
-  versus 32 pt with 7 pt padding for a pointer. Both follow host font scaling.
-- The jump button reserves its width even when hidden: 32 pt on touch, 22 pt
-  with a pointer. Touch always shows it; a pointer shows it on hover. A provider
-  subagent always has `CornerLeftUp` to its parent's tab; an ordinary child has
-  `ArrowUpRight`. Hover never reflows the title or metadata.
+All three expanded subtask lists use `SubtaskRow` from
+`client/tasks/cards/subtask-row.tsx`, also exported by the cards barrel:
 
-Containers own sorting, expansion, navigation callbacks and the completed-row
-muting rule. They supply data, theme, interaction capability and callbacks; the
-shared component owns all row geometry, icons, metadata and hover rendering.
-Web rows are groups with leaf buttons, avoiding nested button markup. Regression
-tests compare the rendered rows through all three entry points, including narrow
-widths, enlarged text, sparse data, provider children and live clocks.
+| Surface | Container |
+| --- | --- |
+| Expanded board card | `TaskCardView` in `task-card.tsx` |
+| Details sidebar | `TaskDetailCards` in `detail-cards.tsx` |
+| Mobile details sheet | The same `TaskDetailCards`, with touch targets |
+
+`SubtaskRow` owns the row geometry, title, `ChildMark`, `SubtaskMetadata`, jump
+button and hover rendering. Containers supply data, theme, interaction capability
+and navigation callbacks; they own sorting, expansion and completed-row muting.
+Do not add a surface-specific row renderer, style override or visibility rule.
+
+### Row layout
+
+The row has three columns: a combined identity/status mark, a flexible content
+column, and a fixed jump target. Its title and metadata never compete for width.
+
+| Element | Shared rule |
+| --- | --- |
+| Identity slot | 18 pt wide, aligned with the title's first line; contains `ChildMark` |
+| Content column | `flex: 1`, `minWidth: 0`; 2 pt between title and metadata |
+| Title | `HOST_FONT.sm` / `HOST_LINE.smRead`; one line, tail ellipsis; leading tag or issue ID muted |
+| Metadata | `HOST_FONT.sm` / `HOST_LINE.smRead`, 12 pt icons and context ring; one line below the title with 10 pt column gaps; remaining long text uses tail ellipsis |
+| Row | 8 pt column gaps, 6 pt horizontal padding, radius 6 |
+
+Touch changes targets and vertical spacing, not the content or icon rules:
+
+| Metric | Pointer | Touch |
+| --- | --- | --- |
+| Minimum row height | 32 pt | 44 pt |
+| Vertical padding | 7 pt | 10 pt |
+| Jump target | 22 x 22 pt | 32 x 32 pt |
+| Jump glyph | 14 pt | 16 pt |
+
+Typography follows the host interface size. Minimum row heights grow through
+`taskControlHeight`; marks and metadata icons retain their shared authored sizes.
+
+### Combined identity and status
+
+`ChildMark` draws the identity at 14 pt with the status overlapping its bottom-right
+corner. Keep both visible; a standalone status icon does not identify the child.
+
+| Child kind | Identity |
+| --- | --- |
+| Ordinary Paseo agent | Agent brand through `BrandMark` |
+| Provider-native subagent (`kind: "provider"`) | Type/tool icon through `subagentTypeIcon`, not the parent agent's brand |
+
+Reuse the existing mapping in `client/tasks/subagent-type.ts`; do not copy it into
+individual surfaces or infer a type from the task's description:
+
+| Subagent type | Lucide icon |
+| --- | --- |
+| `Explore` | `Search` |
+| `Plan` | `ListChecks` |
+| `general-purpose` | `Shapes` |
+| `workflow` | `Workflow` |
+| `fork` | `Split` |
+| `claude`, custom, missing or unknown type | `Bot` |
+
+Type matching ignores case and surrounding spaces and works without a subtitle.
+These are subagent type icons, not the icons of tools the subagent is executing.
+The same identity keeps its running or needs-input ring, unread or failed dot,
+finished check, or archived box as its state changes.
+
+### Secondary information
+
+`SubtaskMetadata` owns this order and uses the same fields in every surface:
+
+| Information | Rendering |
+| --- | --- |
+| Provider subagent facts | `subagentFacts(...).text`; preserve the supplied facts, without repeating the leading type icon |
+| Model | Model label, including when siblings use the same model |
+| Thinking level | `Brain` followed by the lowercase [thinking level label](#thinking-level-labels); retain the supplied full accessibility label |
+| Permission/mode | `modeIcon` followed by the mode label; `ShieldOff` uses the warning colour |
+| Attention status | Waiting-input or failed text, with the appropriate tone; unread uses only the identity mark's status dot at every width |
+| Context | `ContextRing`; amber from 75%, red from 90%; percentage in its accessibility label |
+| Start time | `Clock` followed by the start time, when available |
+| Duration | `Hourglass` followed by the timer; a waiting task uses `Clock` |
+
+Omit missing fields rather than inventing values. Do not merge shared model or
+thinking information into a footnote. Only the metadata follows the live clock;
+a timer tick must not rebuild the surrounding card or list.
+
+### Narrow columns
+
+Measure the metadata column, not the screen or the enclosing sheet: a wide tablet
+can still have narrow lanes. `SubtaskMetadata` owns the measurement and considers
+a positive width at most `240 * useTasksFontScale()` narrow. Also measure the
+unfolded metadata row: when its natural width exceeds the available column,
+fold the optional permission text even above that threshold. The invisible,
+non-interactive measurement row contains text and icon-sized spacers only, is
+excluded from assistive technology, and never duplicates live rings or controls.
+
+| Information | Normal column | Narrow column |
+| --- | --- | --- |
+| `Full Access`, `Default Permissions` | Mode icon and text when the unfolded row fits | Keep the mode icon and full accessibility label; hide only the text |
+| Unread / To review text | Omit; keep the identity mark's status dot and row's accessible status | Same |
+| Running child's start time and duration | Show when available | Hide |
+| Brand/type with status, model, thinking and context | Show when available | Keep |
+| Other modes, waiting-input and failed status, waiting and finished times | Show when available | Keep; long text may truncate within the single line |
+
+Restore permission text when the unfolded row fits and the column is no longer
+narrow; restore running times when the column is no longer narrow. Never restore
+unread text. Re-evaluate the threshold and natural width when the interface font
+or metadata changes, even if the column width stays the same. Keep
+measuring a row whose only metadata was its now-hidden running time, so widening
+can restore it. A child with only unread status has no metadata line. Layouts
+must not shrink the mode icon, abbreviated thinking label or context ring.
+Card, sidebar and sheet callers include the full status once in the row's
+accessibility label; `SubtaskRow` does not append it again.
+
+### Interaction and navigation
+
+The jump button reserves its width while hidden; hover never reflows the title
+or metadata. Touch and native clients show it continuously. Web pointer layouts
+show it on hover, except that a provider subagent's parent-tab shortcut stays visible.
+If navigation is unavailable, omit the button.
+
+Ordinary children use `ArrowUpRight` to open their own tab. Provider subagents use
+`CornerLeftUp` to open their parent's tab. Row presses and optional long presses
+run the callbacks supplied by the container; the component does not choose a
+different navigation path. On web, the row is a group and its action is a leaf
+button, avoiding nested button markup.
+
+### Verification
+
+- Compare rendered rows through the card, sidebar and mobile-sheet entry points,
+  including sparse data, completed rows and provider subagents without subtitles.
+- Seed real `MARK_BITMAPS` through `seedMarkBitmaps` in offline previews. Check
+  decoded brand images or mapped type icons together with their status overlays;
+  mounting an empty image slot is not visual proof.
+- Check long titles, enlarged interface text, light/dark themes, hover stability,
+  narrow-to-wide restoration, icon-only permission accessibility, lowercase effort
+  abbreviations, absence of unread text at every width and preserved waiting/failed
+  information.
+- Keep regression coverage in `test/unit/tasks-cards.test.ts`,
+  `test/unit/tasks-cards-web.test.ts` and `test/unit/tasks-subagent-type.test.ts`.
+  Browser fixtures and static/native-mock tests do not establish real-device
+  acceptance; report device verification separately.
 
 ## Device board preferences
 

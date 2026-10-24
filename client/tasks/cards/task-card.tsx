@@ -12,7 +12,7 @@ import { duration, PREVIEW_REVEAL } from "../../ui/tokens/motion";
 import type { PermissionButton, StopPhase } from "../actions";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { opensInPaseo, turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
-import { contextRatio, tildePath } from "./format";
+import { contextRatio, formatThinkingLevel, tildePath } from "./format";
 import { cardStart, cardTimer, startHint, timerHint } from "./card-time";
 import { CardHints, hintProps, type CardHintTexts } from "./card-hints";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
@@ -761,7 +761,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
               style={{ fontSize: m.pillText, lineHeight: m.pillLine, color: agentColors.text, flexShrink: 0 }}
               testID="agent-pill-thinking"
             >
-              {thinking}
+              {formatThinkingLevel(thinking)}
             </Text>
           </>
         ) : null}
@@ -775,7 +775,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         testID="pill-thinking"
         solid={neutralPillColors(tokens, muted)}
         icon={THINKING_ICON}
-        label={thinking}
+        label={formatThinkingLevel(thinking)}
+        accessibilityLabel={thinking}
         hint={hint("thinking", () => pair(strings.hint.thinking, thinking))}
       />,
     );
@@ -1160,7 +1161,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             touch={compact || TOUCH}
             muted={mixedChildren && child.status === "done"}
             openLabel={child.kind === "provider" ? strings.openParentTab : strings.openInWorkspace}
-            accessibilityLabel={child.title}
+            accessibilityLabel={`${child.title} ${strings.status[child.status]}`}
             statusHint={hint(`child-${child.id}`, () =>
               lines(pair(strings.hint.status, strings.status[child.status]), child.kind === "provider" && strings.subagent),
             )}
