@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
@@ -955,7 +955,9 @@ function PropertyRow(props: {
   const words = cardStrings(props.language).details;
   const scale = useTasksFontScale();
   const colors = detailColors(tokens);
-  const { hovered, hoverProps } = useHover();
+  // DOM hover includes the whole row and its actions; RNW's nested Pressables lock synthetic hover.
+  const rowRef = useRef<View>(null);
+  const { hovered, hoverProps } = useHover(rowRef);
   const { copy } = useCopy();
   const [columns, setColumns] = useState(36);
   const touch = m === TOUCH_CARD;
@@ -1081,7 +1083,8 @@ function PropertyRow(props: {
       onPress={press}
       onLongPress={touch && props.link ? doCopy : undefined}
       delayLongPress={450}
-      {...hoverProps}
+      ref={rowRef}
+      {...(Platform.OS === "web" ? null : hoverProps)}
       testID={props.testID}
       style={({ pressed }) => ({ ...style, backgroundColor: hovered || pressed ? colors.rowHover : "transparent" })}
     >
