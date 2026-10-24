@@ -253,7 +253,7 @@ Measure the available content width and the complete label at the current langua
 size and system font scale. When the buttons do not fit, fold labels **from left to right**:
 each affected button becomes an icon-only control before the next button gives up its label.
 Never truncate a label, wrap it, or reduce its font to squeeze it in. Restore complete labels
-when the row has room again. A narrow default tablet lane is normally at least 280 pt; it may
+when the row has room again. A narrow default tablet lane is normally at least 260 pt; it may
 show part of the next lane rather than force two complete lanes into the viewport.
 
 An icon-only button keeps its outline, colour, height, action and full accessibility label.
@@ -293,3 +293,15 @@ button goes back to "Stop" with a spinner.
 `busy` rather than a different label. The spinner's `testID` is the button's with `-spinner`
 appended (`detail-stop-spinner`), and each button's test checks the label, the dimming, the busy
 state and the spinner.
+
+## Device board preferences
+
+Show subtasks, Show archived lane, Show groups with no active tasks, and Lane width are
+preferences of the current device. Boards, filter sheets, and the Tasks settings page share
+one local record; another device connected to the same daemon keeps its own values.
+Web and Electron persist it in localStorage; iOS and Android use the host-linked AsyncStorage
+module. Read the persisted record before mounting the board. On first migration only, seed it
+from the old host settings; later host updates never override it. Keep the old host fields
+unchanged when saving unrelated shared settings. Restore defaults resets the four local
+preferences too. A failed local write reports an error and rolls back its value rather than
+claiming it was saved.

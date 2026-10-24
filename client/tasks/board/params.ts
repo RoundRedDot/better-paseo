@@ -7,9 +7,10 @@ import { decodeSort, encodeSort, type BoardSort } from "./sort";
 /**
  * What the board's filter bar holds, as it travels in the screen's params.
  *
- * `hideSubtasks` and `doneWindow` start from the settings (`board.*`) and
- * only override them once someone flips them on the board; null means
- * "follow the setting", so "Clear all" returns to the settings' values.
+ * `doneWindow` starts from the shared setting; null follows that setting.
+ * `hideSubtasks` remains in the codec for explicit links and pure filter
+ * decisions. The live board reads and writes the device preference instead
+ * of carrying that switch in its remembered route params.
  */
 export interface BoardParams {
   query: string;
