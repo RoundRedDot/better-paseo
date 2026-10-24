@@ -272,6 +272,8 @@ export interface LaneModel {
   cards: TaskCard[];
   /** Done and archived lanes only: another page is available. */
   hasMore: boolean;
+  /** The first history list is pending; later pages never set this. */
+  initialLoading?: boolean;
   loading: boolean;
 }
 

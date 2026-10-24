@@ -316,7 +316,7 @@ export function useBoard(
   hiddenRef.current = hidden;
   const total = laneOrder.reduce((sum, id) => sum + lanes[id].cards.length, 0);
   // Switching the archived lane rearranges the lanes as a filter does, twice when it turns on: at once, and when the list with archived agents lands.
-  const archivedSettling = showArchived && lanes.archived.loading && lanes.archived.cards.length === 0;
+  const archivedSettling = showArchived && lanes.archived.initialLoading === true && lanes.archived.cards.length === 0;
   // A filter is one press, and its cards move: a search would be slow to read if every keystroke slid them, and a new sort reorders every lane.
   const query = params.query.trim();
   const sortKey = encodeSort(params.sort);
@@ -492,7 +492,7 @@ export function keepSameLanes(last: Record<LaneId, LaneModel>, next: Record<Lane
   for (const id of LANE_ORDER) {
     const was = last[id];
     const now = next[id];
-    const same = was.hasMore === now.hasMore && was.loading === now.loading && was.cards.length === now.cards.length && was.cards.every((card, index) => card === now.cards[index]);
+    const same = was.hasMore === now.hasMore && was.loading === now.loading && was.initialLoading === now.initialLoading && was.cards.length === now.cards.length && was.cards.every((card, index) => card === now.cards[index]);
     out[id] = same ? was : now;
     if (!same) changed = true;
   }
