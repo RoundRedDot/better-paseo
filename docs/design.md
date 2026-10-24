@@ -302,7 +302,8 @@ state and the spinner.
 `SubtaskRow` and `SubtaskMetadata` in `client/tasks/cards/subtask-row.tsx` are the
 single implementation for expanded board cards, the details sidebar and the mobile
 details sheet. Import them from that module or the cards barrel. These surfaces
-must not add another row renderer, override its styles or hide metadata by width.
+must not add another row renderer, override its styles or implement their own
+width-based visibility rules.
 
 - The left column is an 18 pt slot containing `ChildMark`: provider mark with a
   status corner, aligned with the title's first line.
@@ -318,6 +319,11 @@ must not add another row renderer, override its styles or hide metadata by width
   and `Hourglass` with duration (a waiting task uses `Clock`). Missing data is
   omitted. Equal models are still shown per row. Provider subagent facts retain
   their type icon and supplied text. Context is amber from 75%, red from 90%.
+  When the metadata column is at most 240 pt at the base font size, omit the
+  entire `Full Access` field and a running child's start time and duration.
+  The threshold scales with the host font size. Keep model, thinking level,
+  context, other modes, attention status and waiting/finished times. Restore
+  the omitted fields when the column grows; all three surfaces use this rule.
 - The row uses an 8 pt column gap, 6 pt horizontal padding and radius 6. Touch
   changes only targets and vertical spacing: 44 pt minimum with 10 pt padding,
   versus 32 pt with 7 pt padding for a pointer. Both follow host font scaling.
