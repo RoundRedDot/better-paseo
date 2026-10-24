@@ -106,7 +106,8 @@ import { StyleSheet, View } from "react-native";
 import { ProviderLogo } from "../../client/components/provider-logo";
 import * as data from "../../client/tasks/data";
 import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
-import { RollingCount, RollingTotal, WindowSegments } from "../../client/tasks/board/board-parts";
+import { CardCell, RollingCount, RollingTotal, WindowSegments } from "../../client/tasks/board/board-parts";
+import { LaneMotionLayer } from "../../client/tasks/board/lane-motion";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
@@ -1881,6 +1882,67 @@ describe("Tasks board, the 1 s clock", () => {
 });
 
 describe("Tasks board, phone", () => {
+  it.each([true, false])("keeps expanded subtasks through refresh, animation copies and lane remounts (compact=%s)", (compact) => {
+    if (!compact) (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: import("../../client/tasks/model").TaskCard[] }> } }).__handle;
+    const original = handle.lanes;
+    let copy: ReturnType<typeof TestRenderer.create> | undefined;
+    const card = () => hostsById("task-card-sample-running")[0]!;
+    const toggle = () => card().find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "pill-subtasks");
+    const refresh = () => {
+      act(() => renderer!.update(screen(compact)));
+      if (!compact) layOut(1600);
+    };
+    try {
+      act(() => { renderer = TestRenderer.create(screen(compact)); });
+      if (compact) act(() => pressable("Running 2").props.onPress());
+      else layOut(1600);
+      act(() => toggle().props.onPress());
+      expect(card().findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtasks")).toHaveLength(1);
+      const mountedCard = card();
+      const motion = renderer!.root.findByType(LaneMotionLayer).props.store;
+      const parent = original.running!.cards.find((card) => card.id === "sample-running")!;
+      let updated = { ...parent, children: [...parent.children.map((child, i) => i === 0 ? { ...child, title: "Updated child title", status: "done" as const } : child), { id: "added-child", title: "New child", status: "running" as const }] };
+      handle.lanes = { ...original, running: { ...original.running!, cards: original.running!.cards.map((card) => card.id === parent.id ? updated : card) } };
+      refresh();
+      // Content-only refreshes keep the real card mounted and never hide its lane under copies.
+      expect(card()).toBe(mountedCard);
+      expect(motion.covered().size).toBe(0);
+      expect(motion.ghosts()).toHaveLength(0);
+      expect(textOf(card())).toContain("Updated child title");
+      expect(textOf(card())).toContain("New child");
+      expect(toggle().props.accessibilityState.expanded).toBe(true);
+      // Native lane motion hides the real lane under newly mounted copies.
+      const cell = renderer!.root.findAllByType(CardCell).find((node) => node.props.card.id === parent.id)!;
+      act(() => { copy = TestRenderer.create(React.createElement(CardCell, { ...(cell.props as React.ComponentProps<typeof CardCell>), copy: true, fresh: false })); });
+      expect(copy!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtasks")).toHaveLength(1);
+      act(() => copy!.unmount());
+      copy = undefined;
+      updated = { ...updated, children: updated.children.slice(0, -1) };
+      handle.lanes = { ...handle.lanes, running: { ...original.running!, cards: original.running!.cards.map((card) => card.id === parent.id ? updated : card).reverse() } };
+      refresh();
+      expect(toggle().props.accessibilityState.expanded).toBe(true);
+      expect(textOf(card())).not.toContain("New child");
+      // A parent following its children's status moves between different lane lists.
+      handle.lanes = {
+        ...handle.lanes,
+        running: { ...original.running!, cards: original.running!.cards.filter((card) => card.id !== parent.id) },
+        review: { ...original.review!, cards: [...original.review!.cards, { ...updated, lane: "review", status: "unread" }] },
+      };
+      refresh();
+      handle.lanes = { ...original, running: { ...original.running!, cards: original.running!.cards.map((card) => card.id === parent.id ? updated : card) } };
+      refresh();
+      expect(toggle().props.accessibilityState.expanded).toBe(true);
+      expect(textOf(card())).toContain("Updated child title");
+      act(() => toggle().props.onPress());
+      refresh();
+      expect(card().findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtasks")).toHaveLength(0);
+    } finally {
+      if (copy) act(() => copy!.unmount());
+      handle.lanes = original;
+    }
+  });
+
   it("opens on needs-input, switches lanes by tab and remembers the pick", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));

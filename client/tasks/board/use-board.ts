@@ -71,6 +71,9 @@ export interface BoardController {
   laneOrder: readonly LaneId[];
   total: number;
   fields: CardSettings;
+  /** Shared by virtualised cards and their lane-motion copies. */
+  expandedSubtasks: ReadonlySet<string>;
+  setSubtasksExpanded(agentId: string, expanded: boolean): void;
   /** The 1 s clock for what shows the time; its identity holds across ticks. */
   clock: TaskClock;
   visible: boolean;
@@ -263,6 +266,17 @@ export function useBoard(
   if (!sameFields(fieldsRef.current, cardFields)) fieldsRef.current = cardFields;
   const fields = fieldsRef.current;
 
+  const [expandedSubtasks, setExpandedSubtasks] = useState<ReadonlySet<string>>(() => new Set());
+  const setSubtasksExpanded = useCallback((agentId: string, expanded: boolean) => {
+    setExpandedSubtasks((current) => {
+      if (current.has(agentId) === expanded) return current;
+      const next = new Set(current);
+      if (expanded) next.add(agentId);
+      else next.delete(agentId);
+      return next;
+    });
+  }, []);
+
   const visible = useBoardVisible(rootRef, compact);
   const clock = useBoardClock(visible);
   // Whether an agent still runs or waits, for the stop's check that it took.
@@ -452,6 +466,8 @@ export function useBoard(
     laneOrder,
     total,
     fields,
+    expandedSubtasks,
+    setSubtasksExpanded,
     clock,
     visible,
     stop,

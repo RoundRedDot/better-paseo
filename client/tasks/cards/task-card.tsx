@@ -18,7 +18,7 @@ import { CardHints, hintProps, type CardHintTexts } from "./card-hints";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
 import { agentPillColors, BrandMark, branchPillColors, neutralPillColors, type AgentPillColors } from "./brand-mark";
-import { THINKING_ICON } from "./mode-icons";
+import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { subagentFacts } from "../subagent-type";
 import { ProjectIcon } from "./project-icon";
 import { SpinnerRing, StatusIcon } from "./status-icon";
@@ -75,6 +75,9 @@ export interface TaskCardViewProps extends CardCallbacks {
   theme: PluginTheme;
   /** Phone layout (`layout.compact`): must/default/details-only tiers, larger type and targets. */
   compact: boolean;
+  /** Board-owned so virtualisation, lane changes and animation copies keep the same expansion. */
+  subtasksExpanded?: boolean;
+  onSubtasksExpandedChange?(agentId: string, expanded: boolean): void;
   /** The permission buttons for `card.permission` (from `permissionButtons`). */
   permissionButtons: PermissionButton[];
   stopPhase: StopPhase;
@@ -436,7 +439,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const { hovered, hoverProps } = useHover(rootRef);
   const [menuOpen, setMenuOpen] = useState(false);
   const [stopAll, setStopAll] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  // Standalone previews own their state; board cards and motion copies share the board's.
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const expanded = props.subtasksExpanded ?? localExpanded;
   const [ringOpen, setRingOpen] = useState(false);
   // The right-click menu's window point (web). A right click inside the open menu leaves it be.
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
@@ -907,7 +912,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         accessibilityLabel={subtaskSummary(card.children, language)}
         hint={hint("subtasks", () => subtaskSummary(card.children, language))}
         expanded={expanded}
-        onPress={() => setExpanded((open) => !open)}
+        onPress={() => {
+          if (props.onSubtasksExpandedChange) props.onSubtasksExpandedChange(card.id, !expanded);
+          else setLocalExpanded(!expanded);
+        }}
       >
         {SUBTASK_ORDER.filter((kind) => counts.has(kind)).map((kind) => (
           <View key={kind} style={{ flexDirection: "row", alignItems: "center", gap: 3 }} testID={`subtask-count-${kind}`}>
@@ -2075,7 +2083,7 @@ function SubtaskRow(props: TimeSource & {
       ) : compact ? (
         <View style={{ flex: 1, minWidth: 0, gap: 2 }} testID={`subtask-content-${child.id}`}>
           {title}
-          {time}
+          <SubtaskMetadata child={child} tokens={tokens} language={props.language} now={props.now} clock={props.clock} />
         </View>
       ) : (
         <>
@@ -2142,10 +2150,63 @@ function TimerText(props: TimeSource & { card: TaskCard; language: TasksLanguage
 }
 
 /** A subtask's "14:41 · 14m 14s" while it runs, else its timer as a card footer reads it. */
+function subtaskTimeText(timed: Timed, now: number, language: TasksLanguage): string {
+  return [cardStart(timed, now), cardTimer(timed, now, language, true)?.text].filter(Boolean).join(" · ");
+}
+
+/** A phone row's secondary information wraps independently of its title and alone follows the clock. */
+function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: TaskTokens; language: TasksLanguage }) {
+  const { child, tokens, language } = props;
+  const scale = useTasksFontScale();
+  const words = cardStrings(language).details;
+  const status = child.status === "needs_input" ? words.subtaskWaiting : child.status === "failed" ? words.subtaskFailed : child.status === "unread" ? words.subtaskUnread : null;
+  const ratio = contextRatio(child.context ?? null);
+  const timed = child.lane && child.timing ? { lane: child.lane, timing: child.timing, waitingOnSubtasks: child.waitingOnSubtasks } : null;
+  const start = useTime(props, (now) => timed ? cardStart(timed, now) ?? "" : "");
+  const timer = useTime(props, (now) => timed ? cardTimer(timed, now, language, true)?.text ?? "" : "");
+  const iconSize = PHONE.pillIcon;
+  const muted = tokens.foregroundMuted;
+  const icon = (name: string, color = muted) => <Icon name={name} size={iconSize} color={color} />;
+  const part = (key: string, label: string, lead: ReactNode = null, color = muted) => (
+    <View key={key} style={{ flexDirection: "row", alignItems: "flex-start", gap: 4, minWidth: 0, flexShrink: 1 }}>
+      {lead ? <View style={{ height: Math.round(PHONE.blockLine * scale), justifyContent: "center" }}>{lead}</View> : null}
+      <Text style={[{ fontSize: PHONE.blockSize, lineHeight: PHONE.blockLine, color, flexShrink: 1 }, tabular]}>{label}</Text>
+    </View>
+  );
+  const parts: ReactNode[] = [];
+  // The provider and status are already combined in the row's ChildMark.
+  if (child.modelLabel) parts.push(part("model", child.modelLabel));
+  if (child.thinkingLabel) parts.push(part("thinking", child.thinkingLabel, icon(THINKING_ICON)));
+  if (child.modeLabel) {
+    const mode = modeIcon(child.provider ?? "", child.modeLabel);
+    parts.push(part("mode", child.modeLabel, icon(mode, mode === "ShieldOff" ? tokens.warning : muted)));
+  }
+  if (status) parts.push(part("status", status, null, child.status === "failed" ? tokens.danger : child.status === "needs_input" ? tokens.warning : muted));
+  if (ratio !== null) {
+    const color = ratio >= 0.9 ? tokens.danger : ratio >= 0.75 ? tokens.warning : muted;
+    parts.push(
+      <View key="context" accessibilityLabel={words.subtaskContext(Math.round(ratio * 100))} style={{ height: Math.round(PHONE.blockLine * scale), justifyContent: "center" }}>
+        <ContextRing ratio={ratio} color={color} track={withAlpha(muted, 0.25)} size={iconSize} stroke={1.5} />
+      </View>,
+    );
+  }
+  if (start || timer) parts.push(
+    <View key="time" style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 2, minWidth: 0, flexShrink: 1 }} testID={`subtask-time-${child.id}`}>
+      {start ? part("start", start, icon("Clock")) : null}
+      {timer ? part("timer", timer, icon(child.lane === "needs_input" ? "Clock" : "Hourglass")) : null}
+    </View>,
+  );
+  return parts.length > 0 ? (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 2 }} testID={`subtask-meta-${child.id}`}>
+      {parts}
+    </View>
+  ) : null;
+}
+
 function SubtaskTime(props: TimeSource & { timed: Timed; language: TasksLanguage; style: StyleProp<TextStyle>; testID?: string }) {
   const { timed, language } = props;
   // The short stamp: a full one ("2026-10-22 16:57:33") leaves the title a few characters a line.
-  const value = useTime(props, (now) => [cardStart(timed, now), cardTimer(timed, now, language, true)?.text].filter(Boolean).join(" · "));
+  const value = useTime(props, (now) => subtaskTimeText(timed, now, language));
   return value ? (
     <Text numberOfLines={1} style={props.style} testID={props.testID}>
       {value}
