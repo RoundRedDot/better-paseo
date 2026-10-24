@@ -91,6 +91,8 @@ export interface TaskCardViewProps extends CardCallbacks {
   archivePending?: boolean;
   /** Keyboard focus ring. */
   focused: boolean;
+  /** The live board card's id for aria-activedescendant; motion copies have none. */
+  focusId?: string;
   /** The 1 s highlight after a parent link scrolled here. */
   highlighted: boolean;
   /** The card the details sidebar shows. */
@@ -547,7 +549,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A provider subagent's card is drawn dashed and flat at rest: it stands for work inside its parent's session.
   const dashed = !!card.subagent;
   const shadows = lit ? [look.shadowHover] : dashed ? [] : [look.shadow];
-  if (props.focused) shadows.push(`0px 0px 0px 3px ${tokens.accentRing}`);
+  // Focus is neutral and outside the card; selection owns the accent fill and hairline.
+  if (props.focused && !WEB) shadows.push(`0px 0px 0px 2px ${tokens.foregroundMuted}`);
   const cardStyle = {
     paddingHorizontal: m.padH,
     paddingTop: m.padTop,
@@ -558,10 +561,13 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     // A dashed hairline breaks up into dots: the dashes take a whole point.
     borderWidth: dashed ? 1 : StyleSheet.hairlineWidth,
     borderStyle: dashed ? "dashed" : "solid",
-    borderColor: props.focused || props.highlighted ? tokens.accent : props.current ? look.currentBorder : failed ? look.failedBorder : look.border,
+    borderColor: props.highlighted ? tokens.accent : props.current ? look.currentBorder : failed ? look.failedBorder : look.border,
     backgroundColor: background,
     boxShadow: shadows.length > 0 ? shadows.join(", ") : "none",
     zIndex: menuOpen ? 30 : hovered ? 2 : 1,
+    // Both Tab and composite navigation use the same outline. Unlike the
+    // hover shadow it changes at once, so a departing focus cannot linger.
+    ...(WEB ? { outlineStyle: props.focused ? "solid" : undefined, outlineWidth: 2, outlineColor: tokens.foregroundMuted, outlineOffset: 2 } : null),
     ...webTransition,
   } as ViewStyle;
 
@@ -1241,6 +1247,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   return (
     <Pressable
       {...CONTAINER_ROLE}
+      nativeID={props.focusId}
+      {...(WEB ? { dataSet: { bctaskcard: card.id } } : null)}
       accessibilityLabel={card.title}
       onPress={pressBody}
       onLongPress={longPress}

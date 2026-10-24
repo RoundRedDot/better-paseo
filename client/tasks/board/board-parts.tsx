@@ -384,6 +384,7 @@ export function CardCell(props: CardCellProps) {
             unarchivePending={board.unarchive.pending(card.id)}
             archivePending={board.archive.pending(card.id)}
             focused={props.focused ?? false}
+            focusId={props.copy ? undefined : `task-card-${card.id}`}
             current={props.current}
             highlighted={board.highlighted === card.id}
             clock={board.clock}

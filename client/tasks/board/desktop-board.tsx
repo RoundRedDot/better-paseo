@@ -44,6 +44,7 @@ import { activeFilterCount, rememberCollapsed, rememberedCollapsed } from "./par
 import { FilterSheetBody } from "./filter-sheet";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
+import { focusedTaskCardId, focusTaskBoard } from "../../web";
 
 const nativeDriver = Platform.OS !== "web";
 
@@ -53,7 +54,7 @@ const FILTER_SHEET_BODY = { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 
 const Separator = () => <View style={{ height: 12 }} />;
 
 /**
- * 8 around the cards leaves room for the 3 px focus ring inside the list's clip.
+ * 8 around the cards leaves room for the focus ring inside the list's clip.
  * On web the lane's scrollbar takes its own gutter at the right edge, as
  * Linear's does, so the cards keep only 4 to it.
  */
@@ -79,10 +80,18 @@ const OVERLAY_SCROLLBAR = 16;
  * shortcuts) keep focus otherwise, and the board's keys (Esc, J/K) would go
  * nowhere. A press in a text field keeps that field's focus.
  */
-function claimKeys(rootRef: RefObject<View | null>): object {
+function claimKeys(rootRef: RefObject<View | null>, clearFocus: () => void, activeId?: string): object {
   if (Platform.OS !== "web") return {};
   return {
     tabIndex: -1,
+    role: "group",
+    "aria-activedescendant": activeId,
+    // Tab or a pointer can hand focus to a card, a child action or another surface.
+    // That DOM focus replaces the board's virtual focus, rather than drawing both.
+    onFocus: (event: { target: unknown }) => {
+      if (event.target !== rootRef.current) clearFocus();
+    },
+    onBlur: clearFocus,
     onPointerDown: (event: { target?: unknown }) => {
       if (typeof document === "undefined") return;
       const root = rootRef.current as unknown as HTMLElement | null;
@@ -90,7 +99,7 @@ function claimKeys(rootRef: RefObject<View | null>): object {
       if (!root || isTyping(target)) return;
       const active = document.activeElement as HTMLElement | null;
       if (active && root.contains(active)) return;
-      root.focus({ preventScroll: true });
+      focusTaskBoard(root);
     },
   };
 }
@@ -376,10 +385,11 @@ export function DesktopBoard(props: {
   // each lane's header and the space under its cards take the tap instead,
   // inside the scroll views, as a card does.
   const letGo = useCallback(() => {
+    focusTaskBoard(rootRef.current);
     dispatch({ type: "clear" });
     setFocus(null);
     if (latest.current.floating) setShown(null);
-  }, []);
+  }, [rootRef]);
   const blankDown = useRef<{ x: number; y: number } | null>(null);
   const blankPress = {
     onStartShouldSetResponder: () => true,
@@ -409,6 +419,10 @@ export function DesktopBoard(props: {
       if (active && active !== document.body && root && !root.contains(active)) return;
       if (isTyping(active)) return;
       const now = latest.current;
+      const domCardId = focusedTaskCardId(root);
+      const keyFocus = domCardId ? findCard(now.board.lanes, domCardId) : now.focus;
+      // Enter and Space on toolbar/sidebar/inner-card controls belong to those controls.
+      if ((event.key === "Enter" || event.key === " ") && active && active !== document.body && active !== root && !domCardId) return;
       if (event.key === "Escape" && now.menu) {
         setMenu(null);
         event.preventDefault();
@@ -435,22 +449,25 @@ export function DesktopBoard(props: {
         return;
       }
       if (event.key === " " && !event.shiftKey && !event.isComposing && !now.menu) {
-        const card = now.focus
-          ? now.board.lanes[now.focus.lane].cards[now.focus.index]
+        const card = keyFocus
+          ? now.board.lanes[keyFocus.lane].cards[keyFocus.index]
           : now.selection.id ? now.board.cardById(now.selection.id) : null;
         if (!card) return;
         event.preventDefault();
         if (!event.repeat) {
           if (now.open && now.selection.id === card.id) {
-            if (!now.focus) setFocus(findCard(now.board.lanes, card.id));
+            focusTaskBoard(root);
+            setFocus(findCard(now.board.lanes, card.id));
             dispatch({ type: "clear" });
           } else showCard(card, true);
         }
         return;
       }
-      const result = boardKeyReducer(now.focus, event.key, now.shapes);
+      const origin = keyFocus ?? (now.selection.id ? findCard(now.board.lanes, now.selection.id) : null);
+      const result = boardKeyReducer(origin, event.key, now.shapes);
       if (!result.handled) return;
       event.preventDefault();
+      if (result.focus && result.effect !== "search") focusTaskBoard(root);
       setFocus(result.focus);
       if (result.effect === "search") searchRef.current?.focus();
       if (result.effect === "open" && result.focus) {
@@ -463,11 +480,14 @@ export function DesktopBoard(props: {
         }
       }
     };
-    // Esc, in the capture phase: React Native Web's TextInput stops it before
-    // it bubbles to the document. It disarms an armed stop wherever the
-    // keyboard focus is (the board, its search box, the sidebar), and takes
-    // the focus out of the board's search box.
-    const onEscape = (event: KeyboardEvent) => {
+    // Capture card activation before RNW's PressResponder turns it into a
+    // click. Esc also reaches us before TextInput stops it from bubbling.
+    const onCaptureKey = (event: KeyboardEvent) => {
+      if ((event.key === "Enter" || event.key === " ") && focusedTaskCardId(rootRef.current)) {
+        onKey(event);
+        if (event.defaultPrevented) event.stopPropagation();
+        return;
+      }
       if (event.key !== "Escape" || event.metaKey || event.ctrlKey || event.altKey) return;
       const root = rootRef.current as unknown as HTMLElement | null;
       const active = document.activeElement as HTMLElement | null;
@@ -480,10 +500,10 @@ export function DesktopBoard(props: {
         event.preventDefault();
       }
     };
-    document.addEventListener("keydown", onEscape, true);
+    document.addEventListener("keydown", onCaptureKey, true);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("keydown", onEscape, true);
+      document.removeEventListener("keydown", onCaptureKey, true);
       document.removeEventListener("keydown", onKey);
     };
   }, [board.visible, rootRef, showCard]);
@@ -511,9 +531,10 @@ export function DesktopBoard(props: {
       scrollAll={inSheet}
     />
   );
+  const activeCardId = focus ? `task-card-${lanes[focus.lane].cards[focus.index]!.id}` : undefined;
 
   return (
-    <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }} {...claimKeys(rootRef)}>
+    <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }} {...claimKeys(rootRef, () => setFocus(null), activeCardId)}>
       {touch ? <TabletToolbar
         board={board}
         theme={theme}

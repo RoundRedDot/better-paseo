@@ -5,6 +5,7 @@ import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useDeviceTasksPreferences } from "../device-preferences";
 import { useTasksLanguage } from "../i18n";
+import { pluginRoot } from "../../components/focus-ring";
 import { HAIRLINE } from "./board-style";
 import { DesktopBoard } from "./desktop-board";
 import { MenuBoundsContext } from "./menu";
@@ -66,7 +67,7 @@ function BoardContent(props: PluginScreenProps) {
   const Layout = compact ? PhoneBoard : DesktopBoard;
   return (
     <TasksTypography theme={props.theme}>
-      <View style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }}>
+      <View {...pluginRoot} style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }}>
         <MenuBoundsContext.Provider value={rootRef}>
           <Layout screen={props} board={board} rootRef={rootRef} handlers={handlers} />
         </MenuBoundsContext.Provider>

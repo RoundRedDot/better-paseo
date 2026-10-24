@@ -24,6 +24,20 @@ export function writeDevicePreference(key: string, value: string): void {
 
 export { PREVIEW_REVEAL } from "./ui/tokens/motion";
 
+/** Composite board navigation takes DOM focus off the previously clicked card. */
+export function focusTaskBoard(node: unknown): void {
+  if (Platform.OS !== "web") return;
+  (node as HTMLElement | null)?.focus?.({ preventScroll: true });
+}
+
+/** Only the card body counts; a nested button keeps its own Enter/Space action. */
+export function focusedTaskCardId(node: unknown): string | null {
+  if (Platform.OS !== "web" || typeof document === "undefined") return null;
+  const root = node as HTMLElement | null;
+  const active = document.activeElement;
+  return root && active && root.contains(active) ? active.getAttribute?.("data-bctaskcard") ?? null : null;
+}
+
 /** The selection bar floats outside a preview but acts on its text, so it counts as part of it. */
 function onSelectionBar(target: EventTarget | null): boolean {
   return Boolean((target as Element | null)?.closest?.(SELECTION_BAR_SELECTOR));
