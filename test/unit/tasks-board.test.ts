@@ -570,16 +570,36 @@ describe("lane widths", () => {
     expect(LANES.min - 16).toBeGreaterThanOrEqual(280);
   });
 
-  it("keeps the lane width on a board too narrow for it, and scrolls the row", () => {
-    // A foldable with the host's sidebar open (about 540): lanes stay 300 and the row scrolls, no squeeze to fit two.
-    expect(laneLayout(540, 4, 0)).toEqual({ laneWidth: LANES.min, contentWidth: fixed(4, 0) + 4 * LANES.min, scroll: true });
-    expect(laneLayout(632, 4, 0).laneWidth).toBe(LANES.min);
-    // Two expanded lanes that do not fit at 300 scroll too.
-    expect(laneLayout(480, 2, 0)).toEqual({ laneWidth: LANES.min, contentWidth: fixed(2, 0) + 2 * LANES.min, scroll: true });
-    // Never wider than the board less its edges, never under LANES.narrow.
-    expect(laneLayout(280, 4, 0).laneWidth).toBe(280 - 2 * LANES.edge);
-    expect(laneLayout(200, 4, 0).laneWidth).toBe(LANES.narrow);
-    expect(LANES.narrow - 16).toBeGreaterThanOrEqual(200);
+  it.each([
+    [700, 300],
+    [632, 300],
+    [600, 284],
+    [540, 254],
+    [480, 224],
+    [472, 220],
+    [400, 220],
+    [280, 220],
+    [200, 220],
+  ])("adapts default lanes to a %d pt board at %d pt", (viewport, width) => {
+    for (const expanded of [4, 5]) {
+      const layout = laneLayout(viewport, expanded, 0);
+      expect(layout).toEqual({ laneWidth: width, contentWidth: fixed(expanded, 0) + expanded * width, scroll: true });
+      if (viewport >= 472) expect(2 * width + fixed(2, 0)).toBeLessThanOrEqual(viewport);
+    }
+  });
+
+  it("fits two expanded lanes on a small board and scrolls below the readability floor", () => {
+    expect(laneLayout(480, 2, 0)).toEqual({ laneWidth: 224, contentWidth: 480, scroll: false });
+    expect(laneLayout(472, 2, 0)).toEqual({ laneWidth: 220, contentWidth: 472, scroll: false });
+    expect(laneLayout(471, 2, 0)).toEqual({ laneWidth: 220, contentWidth: 472, scroll: true });
+    expect(laneLayout(280, 1, 0)).toEqual({ laneWidth: 256, contentWidth: 280, scroll: false });
+    expect(laneLayout(200, 1, 0)).toEqual({ laneWidth: 220, contentWidth: 244, scroll: true });
+  });
+
+  it("reserves collapsed strips when fitting two default lanes", () => {
+    expect(laneLayout(540, 2, 1)).toEqual({ laneWidth: 230, contentWidth: 540, scroll: false });
+    expect(laneLayout(540, 3, 1)).toEqual({ laneWidth: 230, contentWidth: fixed(4, 1) + 3 * 230, scroll: true });
+    expect(laneLayout(480, 2, 2)).toEqual({ laneWidth: 220, contentWidth: 568, scroll: true });
   });
 
   it("gives collapsed lanes 40 and the rest to the expanded ones", () => {
@@ -587,12 +607,12 @@ describe("lane widths", () => {
     expect(one.scroll).toBe(false);
     expect(one.laneWidth).toBeCloseTo((1000 - fixed(4, 1)) / 3);
     const two = laneLayout(700, 2, 2);
-    expect(two).toEqual({ laneWidth: LANES.min, contentWidth: fixed(4, 2) + 2 * LANES.min, scroll: true });
+    expect(two).toEqual({ laneWidth: 286, contentWidth: 700, scroll: false });
     expect(laneLayout(700, 2, 1).laneWidth).toBeCloseTo((700 - fixed(3, 1)) / 2);
     expect(laneLayout(1000, 0, 4)).toEqual({ laneWidth: 0, contentWidth: 1000, scroll: false });
   });
 
-  it("draws the default lane width as before the setting", () => {
+  it("uses the default lane width when no preset is supplied", () => {
     expect(LANE_SIZES.default).toEqual({ min: LANES.min, max: LANES.max });
     for (const viewport of [400, 480, 632, 1000, 1300, 2000]) {
       expect(laneLayout(viewport, 4, 0, "default")).toEqual(laneLayout(viewport, 4, 0));
@@ -621,8 +641,8 @@ describe("lane widths", () => {
     expect(laneLayout(700, 4, 0, "wide").laneWidth).toBe(340);
     expect(laneLayout(700, 4, 0, "default").laneWidth).toBe(LANES.min);
     expect(laneLayout(700, 4, 0, "narrow").laneWidth).toBe(260);
-    // A foldable's (540): the three widths differ, so the setting shows.
-    expect([...new Set((["narrow", "default", "wide"] as const).map((size) => laneLayout(540, 4, 0, size).laneWidth))]).toEqual([260, 300, 340]);
+    // The default adapts on a smaller board; explicit presets keep their widths.
+    expect([...new Set((["narrow", "default", "wide"] as const).map((size) => laneLayout(540, 4, 0, size).laneWidth))]).toEqual([260, 254, 340]);
   });
 });
 
@@ -631,7 +651,7 @@ describe("compact board", () => {
     expect(boardIsCompact(true)).toBe(true);
     expect(boardIsCompact(false)).toBe(false);
     const narrow = laneLayout(400, 4, 0);
-    expect(narrow.laneWidth).toBe(LANES.min);
+    expect(narrow.laneWidth).toBe(LANES.narrow);
     expect(narrow.scroll).toBe(true);
   });
 });

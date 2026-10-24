@@ -181,9 +181,9 @@ export function sidebarCountText(parts: readonly SidebarCountPart[], language: "
 
 /** The desktop lanes' geometry: Linear-style panels on the board's background. */
 export const LANES = {
-  /** A lane's width once the lanes scroll, at the default lane width; its cards are this less the panel's padding (300 - 2 x 8 = 284). */
+  /** The default scroll width before adapting to a narrow board (cards 300 - 2 x 8 = 284). */
   min: 300,
-  /** The narrowest a lane ever gets (cards 220 - 2 x 8 = 204): a board narrower than its lane width plus the edges. */
+  /** The narrowest a lane ever gets (cards 220 - 2 x 8 = 204). */
   narrow: 220,
   /**
    * The widest a lane gets at the default lane width: Linear's card, 322
@@ -204,8 +204,8 @@ export const LANES = {
  * Each `board.laneWidth`'s scroll width and widest lane. Four lanes stop
  * scrolling on a board 1088 wide at narrow (4 x 260 + 48), 1248 at default
  * and 1408 at wide; the widest cards are 262, 322 and 382. On a narrower
- * board each keeps its own width and the row scrolls, so the setting shows
- * on a tablet as on the desktop.
+ * board explicit presets keep their width; default lanes adapt down to 220
+ * to fit two expanded lanes beside any collapsed strips.
  */
 export const LANE_SIZES: Readonly<Record<LaneWidth, { min: number; max: number }>> = {
   narrow: { min: 260, max: 280 },
@@ -236,16 +236,20 @@ export interface LaneLayout {
 /**
  * Expanded lanes share the viewport equally up to the lane width's `max`;
  * past it they keep that width and sit at the left, as Linear's do, leaving
- * the rest of a wide window empty. When they do not fit at its `min`, each
- * keeps that width, the lane width the user picked, and the row scrolls
- * sideways: a narrow tablet board shows its lanes as the desktop does
- * rather than squeezing them (never wider than the board itself).
+ * the rest of a wide window empty. Default lanes adapt their scroll width
+ * to fit up to two expanded lanes beside the collapsed strips, down to 220.
+ * Explicit presets keep their scroll width. Any lanes that do not fit scroll
+ * sideways (a lane never exceeds the board itself unless it is below 220).
  */
 export function laneLayout(viewport: number, expanded: number, collapsed: number, size: LaneWidth = "default"): LaneLayout {
-  const { min, max } = LANE_SIZES[size];
+  const preset = LANE_SIZES[size];
+  const max = preset.max;
   const lanes = expanded + collapsed;
   const fixed = 2 * LANES.edge + Math.max(0, lanes - 1) * LANES.gap + collapsed * LANES.collapsed;
   if (expanded === 0) return { laneWidth: 0, contentWidth: Math.max(viewport, fixed), scroll: fixed > viewport };
+  const visible = Math.min(2, expanded);
+  const visibleFixed = 2 * LANES.edge + (visible + collapsed - 1) * LANES.gap + collapsed * LANES.collapsed;
+  const min = size === "default" ? Math.max(LANES.narrow, Math.min(preset.min, (viewport - visibleFixed) / visible)) : preset.min;
   const share = (viewport - fixed) / expanded;
   if (share >= min) return { laneWidth: Math.min(share, max), contentWidth: viewport, scroll: false };
   const width = Math.max(LANES.narrow, Math.min(min, viewport - 2 * LANES.edge));
