@@ -52,7 +52,7 @@ export const WINDOW_MARKS: Readonly<Record<DoneWindow, { value: string; unit?: s
   all: { value: "\u221e" },
 };
 
-/** A done window's mark: "24" with a small "h" after it on its baseline; all of them a larger infinity. */
+/** Smaller digits and units match infinity's optical height while retaining the control's target size. */
 export function WindowMark(props: { window: DoneWindow; color: string; unitColor: string }) {
   const mark = WINDOW_MARKS[props.window];
   if (!mark.unit) {
@@ -60,9 +60,9 @@ export function WindowMark(props: { window: DoneWindow; color: string; unitColor
     return <Text testID="window-mark" style={{ fontSize: F.base + 3, lineHeight: HOST_LINE.base, fontWeight: "500", color: props.color }}>{mark.value}</Text>;
   }
   return (
-    <Text testID="window-mark" style={{ fontSize: F.base, lineHeight: HOST_LINE.base, fontWeight: "600", letterSpacing: -0.3, color: props.color, fontVariant: ["tabular-nums"] }}>
+    <Text testID="window-mark" style={{ fontSize: F.sm - 1, lineHeight: HOST_LINE.base, fontWeight: "500", letterSpacing: -0.3, color: props.color, fontVariant: ["tabular-nums"] }}>
       {mark.value}
-      <Text style={{ fontSize: F.sm - 1, fontWeight: "600", letterSpacing: 0, color: props.unitColor }}>{mark.unit}</Text>
+      <Text style={{ fontSize: F.sm - 3, fontWeight: "500", letterSpacing: 0, color: props.unitColor }}>{mark.unit}</Text>
     </Text>
   );
 }

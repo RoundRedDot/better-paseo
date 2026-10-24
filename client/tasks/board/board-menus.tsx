@@ -7,6 +7,7 @@ import type { BoardParams } from "./params";
 import type { MenuItem, MenuSection } from "./menu-model";
 import { NAME_KEYS, sameSort, type BoardSort, type SortDirection, type SortKey } from "./sort";
 import { sortOrderLabel, type BoardStrings } from "./strings";
+import { LaneWidthMark } from "./lane-width-mark";
 
 /** The sort menu's groups, top to bottom; each field opens a submenu of its two directions. */
 export const SORT_GROUPS: readonly (readonly SortKey[])[] = [
@@ -67,17 +68,15 @@ export function sortMenuSections(current: BoardSort | null, strings: BoardString
   ];
 }
 
-const LANE_WIDTH_ICONS: Record<LaneWidth, string> = { narrow: "FoldHorizontal", default: "Columns3", wide: "UnfoldHorizontal" };
-
 /** The lane width menu: the three widths, the current one checked. */
-export function laneWidthMenuSections(current: LaneWidth, strings: BoardStrings, choose: (width: LaneWidth) => void): MenuSection[] {
+export function laneWidthMenuSections(current: LaneWidth, theme: PluginTheme, strings: BoardStrings, choose: (width: LaneWidth) => void): MenuSection[] {
   return [
     {
       key: "lane-width",
       items: LANE_WIDTHS.map((width) => ({
         key: width,
         label: strings.laneWidth.names[width],
-        icon: LANE_WIDTH_ICONS[width],
+        leading: <LaneWidthMark laneWidth={width} size={16} color={theme.colors.foregroundMuted} />,
         checked: width === current,
         onSelect: () => choose(width),
       })),

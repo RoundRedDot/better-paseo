@@ -112,6 +112,7 @@ import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, rememberedCollapsed, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
 import { DesktopFilterBar, DesktopToolbar } from "../../client/tasks/board/filter-bar";
+import { LaneWidthMark } from "../../client/tasks/board/lane-width-mark";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
@@ -175,7 +176,8 @@ function layOut(width: number) {
   const laidOut = new Set<unknown>();
   for (let pass = 0; pass < 4; pass++) {
     const views = renderer!.root.findAll(
-      (node) => (node.type as unknown) === "View" && typeof node.props.onLayout === "function" && !laidOut.has(node.props.onLayout),
+      // Intrinsic lane-choice measurements are supplied explicitly by the responsive-toolbar tests.
+      (node) => (node.type as unknown) === "View" && node.props.testID !== "lane-width-measure" && node.props.testID !== "filter-bar" && typeof node.props.onLayout === "function" && !laidOut.has(node.props.onLayout),
     );
     if (views.length === 0) return;
     act(() => {
@@ -1420,12 +1422,12 @@ describe("Tasks board, desktop", () => {
     expect(named(controls())).toEqual(["Project", "Workspace", "Agent", "Labels"]);
     expect(named(view("filter-bar-end"))).toContain("Sort");
 
-    // Restoring six labels also restores each chevron and rectangular padding: 6 * (40 + 27) = 402.
+    // Restoring five labels also restores each chevron and rectangular padding: 5 * (40 + 27) = 335.
     const hidden = view("filter-bar-words");
     expect(hidden.props["aria-hidden"]).toBe(true);
     expect(StyleSheet.flatten(hidden.props.style)).toMatchObject({ position: "absolute", opacity: 0 });
     const dropped = hidden.findAll((node) => (node.type as unknown) === "Text");
-    expect(dropped.map(textOf)).toEqual(["Project", "Workspace", "Agent", "Labels", "Sort", expect.any(String)]);
+    expect(dropped.map(textOf)).toEqual(["Project", "Workspace", "Agent", "Labels", "Sort"]);
     lay(controls(), { width: 300 });
     lay(view("filter-bar-end"), { width: 300 });
     for (const text of dropped) act(() => text.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 40, height: 18 } } }));
@@ -1435,10 +1437,10 @@ describe("Tasks board, desktop", () => {
       expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: 28, height: 28, borderRadius: 14 });
       expect(button.findAll((node) => (node.type as unknown) === "Icon")).toHaveLength(1);
     }
-    lay(group(), { width: 700 });
+    lay(group(), { width: 630 });
     expect(words()).toEqual([]);
-    // 300 + 402 fits a group of 750 with room to spare: the words come back.
-    lay(group(), { width: 750 });
+    // 300 + 335 fits a group of 675 with room to spare: the words come back.
+    lay(group(), { width: 675 });
     expect(words()).toEqual(expect.arrayContaining(["Project", "Labels"]));
     expect(renderer!.root.findAll((node) => node.props.testID === "filter-bar-words")).toHaveLength(0);
 
@@ -1636,6 +1638,76 @@ describe("Tasks board, lane widths", () => {
     writeSidebarPreference({ open: false, width: 380 });
   });
 
+  it.each([["en", 14], ["zh", 21]] as const)("shows inline %s lane widths at UI base %i before the time range, and folds them without losing the choice", async (language, base) => {
+    updateEnhancerPreferences({ language });
+    await act(async () => {
+      renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } }));
+    });
+    layOut(1800);
+    const strings = BOARD_STRINGS[language];
+    const buttonSize = Math.round(28 * Math.max(1, base / 14));
+    const inlineWidth = 3 * (buttonSize + 2) + 6;
+    const controls = () => hostsById("filter-bar-controls")[0]!;
+    const group = () => hostParentOf(controls())!;
+    const end = () => hostsById("filter-bar-end")[0]!;
+    const laneControl = () => hostsById("lane-width-control")[0]!;
+    const inline = () => hostsById("toolbar-lane-width");
+    const button = () => pressable(strings.laneWidth.button(strings.laneWidth.names[deviceTasksStore().snapshot().values?.laneWidth ?? "default"]));
+    const lay = (node: ReactTestInstance, width: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 28 } } }));
+    expect(inline()).toHaveLength(0);
+    expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end())[0]).toBe(laneControl());
+    lay(controls(), 500);
+    lay(group(), 1000);
+    lay(end(), 650);
+    lay(laneControl(), buttonSize);
+    lay(hostsById("filter-bar")[0]!, 1800);
+    const measure = hostsById("lane-width-measure")[0]!;
+    expect(measure.props["aria-hidden"]).toBe(true);
+    lay(measure, inlineWidth);
+    expect(inline()).toHaveLength(1);
+    const choices = () => inline()[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "radio");
+    expect(choices().map(textOf)).toEqual(["", "", ""]);
+    expect(choices().map((node) => node.props.accessibilityLabel)).toEqual([strings.laneWidth.names.narrow, strings.laneWidth.names.default, strings.laneWidth.names.wide]);
+    expect(choices().map((node) => node.findByType(LaneWidthMark).props.laneWidth)).toEqual(["narrow", "default", "wide"]);
+    expect(choices().map((node) => node.props.accessibilityState.selected)).toEqual([false, true, false]);
+    expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end())[0]).toBe(laneControl());
+    expect(StyleSheet.flatten(inline()[0]!.props.style).height).toBe(Math.round(28 * Math.max(1, base / 14)));
+    await act(async () => choices()[2]!.props.onPress());
+    expect(deviceTasksStore().snapshot().values?.laneWidth).toBe("wide");
+    expect(choices().map((node) => node.props.accessibilityState.selected)).toEqual([false, false, true]);
+
+    // Actual inline geometry: a narrower row first folds the choices, retaining the other labels.
+    lay(laneControl(), inlineWidth);
+    lay(end(), 650 + inlineWidth - buttonSize);
+    // A direct window shrink can move the end to a new row without firing its onLayout.
+    lay(hostsById("filter-bar")[0]!, 1000);
+    expect(inline()).toHaveLength(0);
+    lay(group(), 600);
+    lay(hostsById("filter-bar")[0]!, 1200);
+    lay(laneControl(), buttonSize);
+    lay(end(), 650);
+    expect(textOf(controls())).toContain(strings.project);
+    expect(textOf(button())).toBe("");
+    expect(button().findByType(LaneWidthMark).props.laneWidth).toBe("wide");
+    await act(async () => button().props.onPress());
+    expect(hostsById("lane-width-menu")).toHaveLength(1);
+    const menuMarks = hostsById("lane-width-menu")[0]!.findAllByType(LaneWidthMark);
+    expect(menuMarks.map((mark) => mark.props.laneWidth)).toEqual(["narrow", "default", "wide"]);
+    expect(menuMarks.every((mark) => mark.props.color === "#6b6b75")).toBe(true);
+
+    // Growing again also dismisses a menu that is no longer the active control.
+    lay(hostsById("filter-bar")[0]!, 1800);
+    lay(group(), 1000);
+    expect(inline()).toHaveLength(1);
+    expect(hostsById("lane-width-menu")).toHaveLength(0);
+    expect(choices().map((node) => node.props.accessibilityState.selected)).toEqual([false, false, true]);
+    failDeviceWrite();
+    await act(async () => choices()[0]!.props.onPress());
+    expect(deviceTasksStore().snapshot().values?.laneWidth).toBe("wide");
+    expect(choices().map((node) => node.props.accessibilityState.selected)).toEqual([false, false, true]);
+    expect(host.toast).toHaveBeenCalledWith(strings.laneWidth.saveFailed);
+  });
+
   it("fills a wide board without a scrollbar and scrolls a narrow one at the minimum", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
@@ -1692,7 +1764,8 @@ describe("Tasks board, lane widths", () => {
     });
     layOut(1300);
     const button = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && String(node.props.accessibilityLabel).startsWith("Lanes · "))[0]!;
-    expect(textOf(button())).toBe("Default");
+    expect(textOf(button())).toBe("");
+    expect(button().findByType(LaneWidthMark).props.laneWidth).toBe("default");
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: false, contentContainerStyle: { width: 1300 } });
     act(() => button().props.onPress());
     const menu = renderer!.root.find((node) => node.props.testID === "lane-width-menu");
@@ -1701,7 +1774,8 @@ describe("Tasks board, lane widths", () => {
     expect(textOf(menu)).not.toContain("Lane width");
     await act(async () => items[2]!.props.onPress());
     expect(renderer!.root.findAll((node) => node.props.testID === "lane-width-menu")).toHaveLength(0);
-    expect(textOf(button())).toBe("Wide");
+    expect(textOf(button())).toBe("");
+    expect(button().findByType(LaneWidthMark).props.laneWidth).toBe("wide");
     expect(button().props.accessibilityLabel).toBe("Lanes · Wide");
     // 1300 fits four lanes at 300 but not at 340: the row scrolls at the wide width.
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 340 * 4 } });
@@ -1721,7 +1795,8 @@ describe("Tasks board, lane widths", () => {
       .findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem")[0]!;
     failDeviceWrite();
     await act(async () => narrow.props.onPress());
-    expect(textOf(button())).toBe("Default");
+    expect(textOf(button())).toBe("");
+    expect(button().findByType(LaneWidthMark).props.laneWidth).toBe("default");
     expect(host.reload).not.toHaveBeenCalled();
     expect(host.toast).toHaveBeenCalledWith("Couldn't save the lane width");
   });
@@ -1805,7 +1880,7 @@ describe("Tasks board, toolbar tips", () => {
         "Show the archived lane",
         "Hide groups with no active tasks",
         "Order the cards in each lane",
-        "Lane width",
+        "Lanes · Default",
       ]),
     );
     const toggle = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived")[0]!;
@@ -2048,10 +2123,10 @@ describe("Tasks board, tablet filters", () => {
     expect(renderer!.root.findAll((node) => node.props.testID === "toolbar-filters")).toHaveLength(0);
   });
 
-  it("draws the bar's done window as three marks, 24h, 7d and infinity, their names read out", () => {
+  it.each([14, 21])("balances 24h and 7d with infinity at UI base %i while retaining their targets and labels", async (base) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
-    act(() => {
-      renderer = TestRenderer.create(screen(false));
+    await act(async () => {
+      renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } }));
     });
     layOut(2400);
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
@@ -2060,9 +2135,17 @@ describe("Tasks board, tablet filters", () => {
     // Each its count and a smaller unit, infinity for all; the words are left to the label.
     expect(radios().map((node) => node.findAll((child) => child.props.testID === "window-mark").length > 0)).toEqual([true, true, true]);
     expect(radios().map(textOf)).toEqual(["24h", "7d", "\u221e"]);
+    const marks = radios().map((radio) => radio.find((node) => (node.type as unknown) === "Text" && node.props.testID === "window-mark"));
+    expect(marks.map((mark) => StyleSheet.flatten(mark.props.style).fontSize)).toEqual([11, 11, 17].map((size) => Math.round(size * base / 14)));
+    for (const mark of marks.slice(0, 2)) {
+      const unit = mark.find((node) => (node.type as unknown) === "Text" && node !== mark);
+      expect(StyleSheet.flatten(unit.props.style).fontSize).toBe(Math.round(9 * base / 14));
+      expect(StyleSheet.flatten(mark.props.style).fontWeight).toBe("500");
+    }
+    expect(radios().map((radio) => StyleSheet.flatten(radio.props.style).height)).toEqual(Array(3).fill(Math.round(28 * Math.max(1, base / 14)) - 6));
     // Each its own name as its hover tip, inside the control's.
     expect(radios().map((node) => node.props.dataSet?.bctip)).toEqual(["24h", "7 days", "All"]);
-    act(() => radios()[2]!.props.onPress());
+    await act(async () => radios()[2]!.props.onPress());
     expect(radios().map((node) => node.props.accessibilityState.selected)).toEqual([false, false, true]);
     expect(lastBoardParams("host-1").doneWindow).toBe("all");
   });
