@@ -1697,6 +1697,71 @@ describe("TaskDetailCards", () => {
     expect(layouts[2]).toEqual(layouts[0]);
   });
 
+  it.each(["card", "sidebar", "sheet"] as const)("hides optional running metadata only in a narrow column and restores it (%s)", async (surface) => {
+    const base = sample("sample-running");
+    const child = { ...base.children[0]!, provider: "codex", modeLabel: "Full Access" };
+    const card = { ...base, children: [child] };
+    const tree = await render(surface === "card"
+      ? cardElement(card, { subtasksExpanded: true })
+      : details(card, { touch: surface === "sheet", scrollBody: surface === "sidebar", onOpen: vi.fn(), onJump: vi.fn() }));
+    const prefix = surface === "card" ? "subtask" : "detail-subtask";
+    const meta = () => hostByTestId(tree.root, `${prefix}-meta-${child.id}`);
+    const resize = async (width: number) => act(async () => meta().props.onLayout({ nativeEvent: { layout: { width, height: 40 } } }));
+    await resize(400);
+    expect(texts(meta())).toContain("Full Access");
+    expect(icons(meta())).toEqual(["Brain", "ShieldOff", "Clock", "Hourglass"]);
+    await resize(240);
+    expect(texts(meta())).toEqual([child.modelLabel, child.thinkingLabel]);
+    expect(icons(meta())).toEqual(["Brain"]);
+    expect(meta().findByType(ContextRing).props.ratio).toBe(0.6);
+    expect(hostByTestId(tree.root, `${prefix}-status-${child.id}`).findAllByType(ChildMark)).toHaveLength(1);
+    expect(hostByTestId(tree.root, `${prefix}-title-${child.id}`).props.numberOfLines).toBe(1);
+    await resize(241);
+    expect(texts(meta())).toContain("Full Access");
+    expect(icons(meta())).toEqual(["Brain", "ShieldOff", "Clock", "Hourglass"]);
+  });
+
+  it("keeps measuring a runtime-only row while its secondary information is hidden", async () => {
+    const base = sample("sample-running");
+    const child: TaskChild = { id: "runtime-only", title: "Only runtime", status: "running", lane: "running", timing: base.children[0]!.timing };
+    const tree = await render(details({ ...base, children: [child] }));
+    const meta = () => hostByTestId(tree.root, "detail-subtask-meta-runtime-only");
+    await act(async () => meta().props.onLayout({ nativeEvent: { layout: { width: 180, height: 40 } } }));
+    expect(texts(meta())).toEqual([]);
+    await act(async () => meta().props.onLayout({ nativeEvent: { layout: { width: 400, height: 0 } } }));
+    expect(texts(meta())).toEqual([formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
+  });
+
+  it.each(["Full Access", "Plan Mode"])("preserves waiting time and attention status in a narrow row (%s)", async (modeLabel) => {
+    const base = sample("sample-running");
+    const child = { ...base.children[0]!, status: "needs_input" as const, lane: "needs_input" as const, modeLabel };
+    const tree = await render(details({ ...base, children: [child] }));
+    const meta = () => hostByTestId(tree.root, `detail-subtask-meta-${child.id}`);
+    await act(async () => meta().props.onLayout({ nativeEvent: { layout: { width: 180, height: 40 } } }));
+    expect(texts(meta())).toContain("等待输入");
+    expect(icons(meta())).toContain("Clock");
+    expect(meta().findByType(ContextRing).props.ratio).toBe(0.6);
+    if (modeLabel === "Full Access") expect(texts(meta())).not.toContain(modeLabel);
+    else expect(texts(meta())).toContain(modeLabel);
+  });
+
+  it("adapts the width threshold when the host font changes without another layout event", async () => {
+    const base = sample("sample-running");
+    const child = { ...base.children[0]!, modeLabel: "Full Access" };
+    const element = (ui: number) => {
+      const theme = { ...LIGHT, typography: { fontSize: { ui } } };
+      return React.createElement(TasksTypography, { theme, children: details({ ...base, children: [child] }) });
+    };
+    const tree = await render(element(14));
+    const meta = () => hostByTestId(tree.root, `detail-subtask-meta-${child.id}`);
+    await act(async () => meta().props.onLayout({ nativeEvent: { layout: { width: 300, height: 40 } } }));
+    expect(texts(meta())).toContain("Full Access");
+    await act(async () => tree.update(element(21)));
+    expect(texts(meta())).not.toContain("Full Access");
+    await act(async () => tree.update(element(14)));
+    expect(texts(meta())).toContain("Full Access");
+  });
+
   it("ticks the header's turn clock each second with the board's clock", async () => {
     let time = NOW;
     const clock = createTaskClock(() => time);
