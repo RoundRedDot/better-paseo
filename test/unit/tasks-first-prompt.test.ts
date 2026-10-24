@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createFirstPromptStore, firstPromptMessage } from "../../client/tasks/data/first-prompt";
 
-type Page = { error: string | null; entries: { timestamp?: string; item: { type: string; text?: string } }[] };
+type Page = { error: string | null; entries: { timestamp?: string; item: { type: string; text?: string } }[]; hasNewer?: boolean; endCursor?: { epoch: string; seq: number }; reset?: boolean };
 
 function fakeApi(pages: (Page | Error)[]) {
   const refetch = vi.fn(async () => {
@@ -16,6 +16,43 @@ function fakeApi(pages: (Page | Error)[]) {
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("first prompt", () => {
+  it("pages past harness rows, preserving the first user's complete message", async () => {
+    const { api, refetch } = fakeApi([
+      { error: null, entries: Array.from({ length: 8 }, () => ({ item: { type: "tool_call" } })), hasNewer: true, endCursor: { epoch: "history", seq: 8 } },
+      { error: null, entries: [{ item: { type: "user_message", text: "First line\nSearch the entire first message" } }, { item: { type: "user_message", text: "Later" } }] },
+    ]);
+    const store = createFirstPromptStore(api as never);
+    await store.request("a");
+    expect(store.read("a")).toMatchObject({ state: "ready", text: "First line\nSearch the entire first message" });
+    expect(refetch).toHaveBeenLastCalledWith({ direction: "after", projection: "projected", limit: 8, cursor: { epoch: "history", seq: 8 } });
+  });
+
+  it("does not read another page after search ends or the agent closes", async () => {
+    let allowed = true;
+    const refetch = vi.fn(async () => {
+      allowed = false;
+      return { error: null, entries: [], hasNewer: true, endCursor: { epoch: "history", seq: 8 } };
+    });
+    const store = createFirstPromptStore({ agents: { ref: () => ({ timeline: { refetch } }) } } as never);
+    await store.request("a", () => allowed);
+    expect(refetch).toHaveBeenCalledTimes(1);
+    expect(store.read("a")).toEqual({ state: "error" });
+  });
+
+  it("reports a reset or non-advancing cursor rather than searching an incomplete head", async () => {
+    for (const reset of [true, false]) {
+      const cursor = { epoch: "history", seq: 8 };
+      const { api, refetch } = fakeApi([
+        { error: null, entries: [], hasNewer: true, endCursor: cursor },
+        { error: null, entries: [], hasNewer: true, endCursor: cursor, reset },
+      ]);
+      const store = createFirstPromptStore(api as never);
+      await store.request("a");
+      expect(store.read("a")).toEqual({ state: "error" });
+      expect(refetch).toHaveBeenCalledTimes(2);
+    }
+  });
+
   it("takes the first user message from the timeline's head", () => {
     expect(firstPromptMessage([
       { item: { type: "assistant_message", text: "hi" } },

@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 import { Pressable, Text, View } from "react-native";
-import { TasksTypography, HOST_FONT as F, HOST_LINE } from "../typography";
+import { TasksTypography, TaskText, HOST_FONT as F, HOST_LINE } from "../typography";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useDeviceTasksPreferences } from "../device-preferences";
@@ -14,7 +14,7 @@ import { tasksSettingsOpener, useTasksEnabledStore, useTasksSettings } from "./e
 import { boardIsCompact } from "./navigation";
 import { PhoneBoard } from "./phone-board";
 import { BOARD_STRINGS } from "./strings";
-import { useBoard, type BoardLayoutHandlers } from "./use-board";
+import { useBoard, type BoardController, type BoardLayoutHandlers } from "./use-board";
 
 /**
  * The Tasks board (`addScreen` id `tasks`): the lanes side by side, scrolling
@@ -70,9 +70,27 @@ function BoardContent(props: PluginScreenProps) {
       <View {...pluginRoot} style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }}>
         <MenuBoundsContext.Provider value={rootRef}>
           <Layout screen={props} board={board} rootRef={rootRef} handlers={handlers} />
+          <SearchCoverage board={board} theme={props.theme} />
         </MenuBoundsContext.Provider>
       </View>
     </TasksTypography>
+  );
+}
+
+/** The same persistent search coverage on desktop, tablet and phone. */
+export function SearchCoverage({ board, theme }: { board: Pick<BoardController, "params" | "searchCoverage" | "strings">; theme: PluginScreenProps["theme"] }) {
+  if (!board.params.query.trim()) return null;
+  const { pending, unavailable, failed } = board.searchCoverage;
+  const text = [
+    pending ? board.strings.searchLoading(pending) : null,
+    unavailable ? board.strings.searchUnavailable(unavailable) : null,
+    failed ? board.strings.searchFailed(failed) : null,
+  ].filter(Boolean).join(" · ");
+  if (!text) return null;
+  return (
+    <View testID="tasks-search-coverage" accessibilityLiveRegion="polite" style={{ flexShrink: 0, paddingHorizontal: 16, paddingVertical: 6, borderTopWidth: HAIRLINE, borderTopColor: theme.colors.border }}>
+      <TaskText style={{ fontSize: F.sm, color: theme.colors.foregroundMuted }}>{text}</TaskText>
+    </View>
   );
 }
 

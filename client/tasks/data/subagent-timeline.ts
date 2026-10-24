@@ -50,6 +50,14 @@ const api = {
 const prompts = createFirstPromptStore(api);
 const messages = createLastMessageStore(api);
 
+export { prompts as subagentFirstPrompts };
+
+/** Search and details share the first-message cache; a subagent always names its own parent. */
+export function requestSubagentFirstPrompt(subagentId: string, parentAgentId: string): Promise<void> {
+  parents.set(subagentId, parentAgentId);
+  return prompts.request(subagentId);
+}
+
 /**
  * A subagent's first prompt and latest reply, read while `auto` (its details
  * show); the reply again every 15 s while it runs, and when its status or

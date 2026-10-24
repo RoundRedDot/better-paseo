@@ -7,6 +7,7 @@ import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSetting
 import { permissionButtons, respondToPermission, useArchiveControl, useReadControl, useStopControl, useUnarchiveControl, type ArchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, useTasks, withSubagentCards, type TasksHandle } from "../data";
+import { useSearchFirstPrompts, type SearchCoverage } from "../data/search-first-prompts";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { LANE_ORDER, boardLaneOrder, opensInPaseo, turnRunning, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
 import { useDeviceTasksPreferences } from "../device-preferences";
@@ -64,6 +65,8 @@ export interface BoardController {
   paseo: PaseoApi;
   /** The lanes after the filter bar and search. */
   lanes: Record<LaneId, LaneModel>;
+  /** First messages still loading or not covered by this search. Other metadata is searched for every card. */
+  searchCoverage: SearchCoverage;
   /** A card by id, a provider subagent's included (`tasks.byId` has only the agents'), filtered out or not. */
   cardById(id: string): TaskCard | undefined;
   /** Per lane, the cards the filters leave out, so the lane can say why its count is below the sidebar's. */
@@ -300,7 +303,8 @@ export function useBoard(
   const stoppedIds = useMemo(() => restoredStops(stoppedManually, restored, tasks.byId), [stoppedManually, restored, tasks.byId]);
   // Every card the board can draw: the store's, with a card for each provider subagent.
   const unfiltered = useMemo(() => withSubagentCards(withStopReasons(tasks.lanes, stoppedIds, strings.stoppedManually)), [tasks.lanes, stoppedIds, strings.stoppedManually]);
-  const filtered = useMemo(() => filterLanes(unfiltered, filters), [unfiltered, filters]);
+  const firstPrompts = useSearchFirstPrompts(paseo, unfiltered, filters.query);
+  const filtered = useMemo(() => filterLanes(unfiltered, filters, firstPrompts.messages), [unfiltered, filters, firstPrompts.messages]);
   // The order is taken when the sort or the cards change, never on a clock
   // tick, so a duration sort does not reshuffle every second.
   const sort = params.sort;
@@ -434,6 +438,7 @@ export function useBoard(
     tasks,
     paseo,
     lanes,
+    searchCoverage: firstPrompts.coverage,
     cardById,
     hidden,
     laneOrder,

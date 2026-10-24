@@ -33,13 +33,13 @@ const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "
 const laneWidthIconSize = (scale: number) => Math.round(16 * Math.max(1, scale));
 
 /** The narrowest board whose toolbar shows the key hints beside the count and the search. */
-export const KEY_HINTS_MIN_WIDTH = 900;
+export const KEY_HINTS_MIN_WIDTH = 1200;
 
 /**
  * The desktop board's two bars (prototype 01): the count, key hints and
- * search, then the filters, the applied-filter chips and the done window.
- * A narrow board (a tablet with the sidebar open) drops the key hints, so
- * the count keeps its line and the search shrinks before it does.
+ * search at the left, count in the centre, actions at the right; then the
+ * filters, applied-filter chips and done window. Equal side slots keep
+ * the count centred regardless of the search and actions' actual widths.
  */
 export function DesktopToolbar(props: {
   board: BoardController;
@@ -62,16 +62,22 @@ export function DesktopToolbar(props: {
   const colors = theme.colors;
   const strings = board.strings;
   const [searchFocused, setSearchFocused] = useState(false);
+  const [actionWidth, setActionWidth] = useState(0);
+  const [viewOpen, setViewOpen] = useState(false);
+  const actionCount = 1 + Number(!!props.filters) + Number(!!props.sidebar) + Number(!!props.filters || Platform.OS === "ios" || Platform.OS === "web");
+  const compactActions = actionWidth > 0 && actionWidth < actionCount * toolbarButtonSize(scale) + (actionCount - 1) * TOOLBAR_GAP;
   return (
-    <View style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
-      <RollingTotal board={board} style={{ flexShrink: 0, fontSize: F.base, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }} />
+    <View testID="desktop-toolbar" style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
+      <View testID="desktop-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: 0, alignItems: "flex-start" }}>
       <View
+        testID="desktop-toolbar-search"
         {...tipProps(`${strings.search} (/)`)}
         style={{
           height: taskControlHeight(28, scale),
           width: 220,
+          maxWidth: "100%",
           flexShrink: 1,
-          minWidth: 140,
+          minWidth: 0,
           flexDirection: "row",
           alignItems: "center",
           gap: 6,
@@ -97,7 +103,24 @@ export function DesktopToolbar(props: {
           <ClearButton label={strings.menuSearch.clear} onPress={() => board.setParams((params) => ({ ...params, query: "" }))} theme={theme} />
         ) : null}
       </View>
-      <View style={{ flex: 1 }} />
+      </View>
+      <View testID="desktop-toolbar-total" pointerEvents="none" style={{ flexShrink: 0, alignItems: "center" }}>
+        <RollingTotal board={board} style={{ fontSize: F.base, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }} />
+      </View>
+      <View testID="desktop-toolbar-end" onLayout={(event) => setActionWidth(event.nativeEvent.layout.width)} style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: TOOLBAR_GAP }}>
+      {compactActions ? (
+        <>
+          {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={toolbarButtonSize(scale)} testID="toolbar-filters" /> : null}
+          <View style={{ zIndex: 20 }}>
+            <RoundButton icon="SlidersHorizontal" label={strings.view} selected={viewOpen} theme={theme} onPress={() => setViewOpen(!viewOpen)} size={toolbarButtonSize(scale)} testID="desktop-toolbar-view" />
+            {viewOpen ? <CascadeMenu theme={theme} width={260} top={toolbarButtonSize(scale) + 6} align="right" onClose={() => setViewOpen(false)} sections={[{ key: "view", items: [
+              { key: "archived", label: strings.archivedLane.row, checked: board.showArchived, onSelect: () => board.setShowArchived(!board.showArchived) },
+              { key: "empty", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, disabled: props.emptyLanes.disabled, onSelect: props.emptyLanes.onToggle },
+              ...(props.sidebar ? [{ key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, onSelect: props.sidebar.onToggle }] : []),
+            ] }]} /> : null}
+          </View>
+        </>
+      ) : <>
       {Platform.OS === "web" && props.keyHints ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           <KeyCap label="J" theme={theme} />
@@ -146,6 +169,8 @@ export function DesktopToolbar(props: {
         testID="empty-lanes-toggle"
       />
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
+      </>}
+      </View>
     </View>
   );
 }
