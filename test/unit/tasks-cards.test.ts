@@ -1352,6 +1352,40 @@ describe("TaskCardView actions", () => {
     for (const word of ["运行中", "已完成", "待输入"]) expect(texts(list)).not.toContain(word);
   });
 
+  it.each([true, false])("places subtask timing below the title only on phones (compact=%s)", async (compact) => {
+    const base = sample("sample-running");
+    const onReveal = vi.fn();
+    const onOpen = vi.fn();
+    const tree = await render(cardElement(base, { compact, onReveal, onOpen }));
+    await act(async () =>
+      tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false).props.onPress(),
+    );
+    const list = hostByTestId(tree.root, "task-card-subtasks");
+    for (const child of base.children) {
+      const row = byLabel(list, child.title);
+      const title = row.find((node) => (node.type as unknown) === "Text" && node.props.children === child.title);
+      const time = hostByTestId(row, `subtask-time-${child.id}`);
+      if (compact) {
+        const content = hostByTestId(row, `subtask-content-${child.id}`);
+        expect(flat(content.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
+        expect(flat(content.props.style).flexDirection).toBeUndefined(); // Native View defaults to column.
+        expect(texts(content)[0]).toBe(child.title);
+        expect(content.findAll((node) => node === title || node === time)).toHaveLength(2);
+        expect(flat(title.props.style).flex).toBeUndefined();
+      } else {
+        expect(row.findAll((node) => node.props.testID === `subtask-content-${child.id}`)).toHaveLength(0);
+        expect(flat(title.props.style).flex).toBe(1);
+        expect(flat(time.props.style).flexShrink).toBe(0);
+      }
+      row.props.onPress();
+      expect(onReveal).toHaveBeenLastCalledWith(child.id);
+    }
+    if (compact) {
+      byLabel(byLabel(list, base.children[0]!.title), cardStrings("zh").openInWorkspace).props.onPress();
+      expect(onOpen).toHaveBeenCalledWith(base.children[0]!.id);
+    }
+  });
+
   it("marks a subtask row's agent icon with its status in every state, archived as the muted box", async () => {
     const base = sample("sample-running");
     const kinds = ["running", "needs_input", "unread", "failed", "done", "archived"] as const;

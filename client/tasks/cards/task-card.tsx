@@ -2003,7 +2003,7 @@ function StopTreeGlyph(props: { tokens: TaskTokens; color?: string }) {
 
 /**
  * One expanded child: its agent's mark, the title, then its start and timer
- * at the end. Press reveals its card on the board; the jump button opens its
+ * at the end (below the title on phones). Press reveals its card on the board; the jump button opens its
  * tab. A provider subagent reads as Paseo's subagent track: the title over
  * its facts line, in place of the times. It has no tab, so its jump button,
  * always drawn, opens the parent's, where that track lists it; a press opens
@@ -2041,6 +2041,21 @@ function SubtaskRow(props: TimeSource & {
   const showJump = !provider && !!props.onOpen && (compact || TOUCH || hovered);
   const fill = hovered && !compact ? tokens.card.controlHover : props.backdrop;
   const size = compact ? 32 : 22;
+  const title = (
+    <Text numberOfLines={2} style={{ ...(compact ? null : { flex: 1 }), fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
+      {child.title}
+    </Text>
+  );
+  const time = !facts && child.lane && child.timing ? (
+    <SubtaskTime
+      timed={{ lane: child.lane, timing: child.timing, waitingOnSubtasks: child.waitingOnSubtasks }}
+      language={props.language}
+      now={props.now}
+      clock={props.clock}
+      style={[{ fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foregroundMuted, flexShrink: compact ? 1 : 0 }, tabular]}
+      testID={`subtask-time-${child.id}`}
+    />
+  ) : null;
   return (
     <Pressable
       {...CONTAINER_ROLE}
@@ -2081,21 +2096,17 @@ function SubtaskRow(props: TimeSource & {
             ) : null}
           </View>
         </View>
+      ) : compact ? (
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }} testID={`subtask-content-${child.id}`}>
+          {title}
+          {time}
+        </View>
       ) : (
-        <Text numberOfLines={2} style={{ flex: 1, fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
-          {child.title}
-        </Text>
+        <>
+          {title}
+          {time}
+        </>
       )}
-      {!facts && child.lane && child.timing ? (
-        <SubtaskTime
-          timed={{ lane: child.lane, timing: child.timing, waitingOnSubtasks: child.waitingOnSubtasks }}
-          language={props.language}
-          now={props.now}
-          clock={props.clock}
-          style={[{ fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foregroundMuted, flexShrink: 0 }, tabular]}
-          testID={`subtask-time-${child.id}`}
-        />
-      ) : null}
       {props.onOpen && !provider ? (
         <Pressable
           accessibilityRole="button"
