@@ -1987,7 +1987,7 @@ function StopTreeGlyph(props: { tokens: TaskTokens; color?: string }) {
 
 /**
  * One expanded child: its agent's mark, the title, then its start and timer
- * at the end (below the title on phones). Press reveals its card on the board; the jump button opens its
+ * below the title. Press reveals its card on the board; the jump button opens its
  * tab. A provider subagent reads as Paseo's subagent track: the title over
  * its facts line, in place of the times. It has no tab, so its jump button,
  * always drawn, opens the parent's, where that track lists it; a press opens
@@ -2026,7 +2026,7 @@ function SubtaskRow(props: TimeSource & {
   const fill = hovered && !compact ? tokens.card.controlHover : props.backdrop;
   const size = compact ? 32 : 22;
   const title = (
-    <Text numberOfLines={2} style={{ ...(compact ? null : { flex: 1 }), fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
+    <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
       {child.title}
     </Text>
   );
@@ -2036,7 +2036,7 @@ function SubtaskRow(props: TimeSource & {
       language={props.language}
       now={props.now}
       clock={props.clock}
-      style={[{ fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foregroundMuted, flexShrink: compact ? 1 : 0 }, tabular]}
+      style={[{ fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foregroundMuted, flexShrink: 1 }, tabular]}
       testID={`subtask-time-${child.id}`}
     />
   ) : null;
@@ -2062,7 +2062,7 @@ function SubtaskRow(props: TimeSource & {
       }}
     >
       {/* The agent's mark with its status on the corner, centred on the title's first line. */}
-      <View style={{ width: m.iconSlot, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" }} testID={`subtask-status-${child.id}`} {...hintProps(props.statusHint)}>
+      <View style={{ width: m.iconSlot, flexShrink: 0, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" }} testID={`subtask-status-${child.id}`} {...hintProps(props.statusHint)}>
         <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={fill} animated={props.animated} />
       </View>
       {facts ? (
@@ -2080,16 +2080,11 @@ function SubtaskRow(props: TimeSource & {
             ) : null}
           </View>
         </View>
-      ) : compact ? (
+      ) : (
         <View style={{ flex: 1, minWidth: 0, gap: 2 }} testID={`subtask-content-${child.id}`}>
           {title}
-          <SubtaskMetadata child={child} tokens={tokens} language={props.language} now={props.now} clock={props.clock} />
+          {compact ? <SubtaskMetadata child={child} tokens={tokens} language={props.language} now={props.now} clock={props.clock} /> : time}
         </View>
-      ) : (
-        <>
-          {title}
-          {time}
-        </>
       )}
       {props.onOpen && !provider ? (
         <Pressable
@@ -2101,6 +2096,7 @@ function SubtaskRow(props: TimeSource & {
           style={{
             width: size,
             height: size,
+            flexShrink: 0,
             marginVertical: (Math.round(m.blockLine * scale) - size) / 2,
             marginRight: compact ? -8 : 0,
             borderRadius: 5,
@@ -2122,6 +2118,7 @@ function SubtaskRow(props: TimeSource & {
           style={{
             width: size,
             height: size,
+            flexShrink: 0,
             // Centred on the two lines, or on the title's one.
             alignSelf: facts ? "center" : undefined,
             marginVertical: facts ? 0 : (Math.round(m.blockLine * scale) - size) / 2,
