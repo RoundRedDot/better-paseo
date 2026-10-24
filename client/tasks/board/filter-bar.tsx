@@ -430,17 +430,21 @@ export function DesktopFilterBar(props: {
               tip={strings.tips.doneWindow}
               marks
             />
-            <BarSwitch
-              icon="ListTree"
-              on={!resolved.filters.hideSubtasks}
-              slashed={resolved.filters.hideSubtasks}
-              onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
-              label={strings.showSubtasks}
-              hint={strings.showSubtasksHint}
-              tip={resolved.filters.hideSubtasks ? strings.showSubtasks : strings.tips.hideSubtasks}
-              theme={theme}
-              testID="subtasks-toggle"
-            />
+          </>
+        )}
+        <BarSwitch
+          icon="ListTree"
+          on={!resolved.filters.hideSubtasks}
+          slashed={resolved.filters.hideSubtasks}
+          onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
+          label={strings.showSubtasks}
+          hint={strings.showSubtasksHint}
+          tip={resolved.filters.hideSubtasks ? strings.showSubtasks : strings.tips.hideSubtasks}
+          theme={theme}
+          testID="subtasks-toggle"
+        />
+        {tablet ? null : (
+          <>
             <BarSwitch
               icon={emptyGroupsIcon(board.showEmptyGroups)}
               on={board.showEmptyGroups}
