@@ -315,9 +315,9 @@ export function DesktopFilterBar(props: {
   };
   // Every word the buttons drop when icon-only: the toggles' only while they show.
   const fit = useLabelFit([
+    words.agent,
     words.project,
     words.workspace,
-    words.agent,
     words.label,
     { text: words.sort, maxWidth: SORT_LABEL_MAX_WIDTH },
   ], !tablet, strings.laneWidth.label);
@@ -351,6 +351,16 @@ export function DesktopFilterBar(props: {
       <View pointerEvents="box-none" onLayout={fit.box("filters")} style={{ flex: 1, minWidth: tablet ? 4 * toolbarButtonSize(scale) + 3 * TOOLBAR_GAP : FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
         {/* The buttons hold one line: once their words would wrap them, they draw their icons alone. */}
         <View testID="filter-bar-controls" pointerEvents="box-none" onLayout={fit.box("controls")} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: 1 }}>
+          <MenuButton icon={FILTER_ICONS.agent} label={words.agent} compact={compact} tip={tip(words.agent, strings.tips.agent)} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
+            <CascadeMenu
+              sections={agentMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) })))}
+              theme={theme}
+              width={200}
+              top={toolbarButtonSize(scale) + 6}
+              align="left"
+              onClose={() => setMenu(null)}
+            />
+          </MenuButton>
           <MenuButton icon={FILTER_ICONS.project} label={words.project} compact={compact} tip={tip(words.project, strings.tips.project)} open={menu === "project"} onPress={() => toggle("project")} theme={theme}>
             <CascadeMenu
               sections={projectMenuSections(shown, strings, board.hostId, (project) => setParams((p) => toggleProject(p, project)))}
@@ -370,16 +380,6 @@ export function DesktopFilterBar(props: {
               top={toolbarButtonSize(scale) + 6}
               align="left"
               search={strings.menuSearch}
-              onClose={() => setMenu(null)}
-            />
-          </MenuButton>
-          <MenuButton icon={FILTER_ICONS.agent} label={words.agent} compact={compact} tip={tip(words.agent, strings.tips.agent)} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
-            <CascadeMenu
-              sections={agentMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) })))}
-              theme={theme}
-              width={200}
-              top={toolbarButtonSize(scale) + 6}
-              align="left"
               onClose={() => setMenu(null)}
             />
           </MenuButton>

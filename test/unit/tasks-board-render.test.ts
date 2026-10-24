@@ -1410,7 +1410,7 @@ describe("Tasks board, desktop", () => {
     const controls = () => view("filter-bar-controls");
     const group = () => hostParentOf(controls())!;
     const words = () => controls().findAll((node) => (node.type as unknown) === "Text").map(textOf);
-    expect(words()).toEqual(expect.arrayContaining(["Project", "Workspace", "Agent", "Labels"]));
+    expect(words()).toEqual(["Agent", "Project", "Workspace", "Labels"]);
 
     // The buttons need 700 of the group's 500: they drop their words, and read them out.
     lay(group(), { width: 500 });
@@ -1419,7 +1419,7 @@ describe("Tasks board, desktop", () => {
     expect(words()).toEqual([]);
     expect(view("filter-bar-end").findAll((node) => (node.type as unknown) === "Text" && textOf(node) === "Sort")).toHaveLength(0);
     const named = (bar: ReactTestInstance) => bar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel);
-    expect(named(controls())).toEqual(["Project", "Workspace", "Agent", "Labels"]);
+    expect(named(controls())).toEqual(["Agent", "Project", "Workspace", "Labels"]);
     expect(named(view("filter-bar-end"))).toContain("Sort");
 
     // Restoring five labels also restores each chevron and rectangular padding: 5 * (40 + 27) = 335.
@@ -1427,7 +1427,7 @@ describe("Tasks board, desktop", () => {
     expect(hidden.props["aria-hidden"]).toBe(true);
     expect(StyleSheet.flatten(hidden.props.style)).toMatchObject({ position: "absolute", opacity: 0 });
     const dropped = hidden.findAll((node) => (node.type as unknown) === "Text");
-    expect(dropped.map(textOf)).toEqual(["Project", "Workspace", "Agent", "Labels", "Sort"]);
+    expect(dropped.map(textOf)).toEqual(["Agent", "Project", "Workspace", "Labels", "Sort"]);
     lay(controls(), { width: 300 });
     lay(view("filter-bar-end"), { width: 300 });
     for (const text of dropped) act(() => text.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 40, height: 18 } } }));
@@ -2033,8 +2033,8 @@ describe("Tasks board, tablet filters", () => {
     const buttons = () => controls().findAll((node) => (node.type as unknown) === "Pressable");
     const end = () => hostsById("filter-bar-end")[0]!;
     expect(controls().findAll((node) => (node.type as unknown) === "Text")).toHaveLength(0);
-    expect(buttons().map((node) => node.props.accessibilityLabel)).toEqual([strings.project, strings.workspace, strings.agent, strings.labels]);
-    expect(buttons().map((node) => node.findAll((child) => (child.type as unknown) === "Icon").map((icon) => icon.props.name))).toEqual([["FolderKanban"], ["FolderGit2"], ["Bot"], ["Tag"]]);
+    expect(buttons().map((node) => node.props.accessibilityLabel)).toEqual([strings.agent, strings.project, strings.workspace, strings.labels]);
+    expect(buttons().map((node) => node.findAll((child) => (child.type as unknown) === "Icon").map((icon) => icon.props.name))).toEqual([["Bot"], ["FolderKanban"], ["FolderGit2"], ["Tag"]]);
     const height = Math.round(36 * Math.max(1, base / 14));
     for (const button of buttons()) expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: height, height, borderRadius: height / 2, borderColor: "#e2e2e6" });
     expect(StyleSheet.flatten(end().props.style).height).toBe(height);
@@ -2086,19 +2086,19 @@ describe("Tasks board, tablet filters", () => {
     layOut(1000);
     const button = (index: number) => hostsById("filter-bar-controls")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "button")[index]!;
     const option = (text: string) => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).includes(text));
-    act(() => button(0).props.onPress());
+    act(() => button(1).props.onPress());
     expect(hostsById("menu-search")).toHaveLength(1);
     act(() => option("better-paseo").props.onPress());
     expect(lastBoardParams("host-1").workspaceIds).toEqual(["wks_sample"]);
-    expect(button(0).props.accessibilityLabel).toBe("Project · 1");
-    act(() => button(1).props.onPress());
+    expect(button(1).props.accessibilityLabel).toBe("Project · 1");
+    act(() => button(2).props.onPress());
     expect(hostsById("menu-search")).toHaveLength(1);
     act(() => option("tasks-board").props.onPress());
     expect(lastBoardParams("host-1").workspaceIds).toEqual([]);
-    act(() => button(2).props.onPress());
+    act(() => button(0).props.onPress());
     act(() => option("Codex").props.onPress());
     expect(lastBoardParams("host-1").providers).toEqual(["codex"]);
-    expect(button(2).props.accessibilityLabel).toBe("Agent · 1");
+    expect(button(0).props.accessibilityLabel).toBe("Agent · 1");
     act(() => button(3).props.onPress());
     act(() => option("frontend").props.onPress());
     expect(lastBoardParams("host-1").labels).toEqual(["frontend"]);
