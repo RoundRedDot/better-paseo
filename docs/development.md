@@ -119,16 +119,14 @@ Code only leaves the startup path when it leaves the bundle.
 ## Screenshots
 
 `.showcase/` renders the real components with React Native Web and fixture data. Rebuild every
-`#shot-*` capture after a visual change (`SHOT_SCALE=2` renders at 2x, as the README hero `#shot-hero-devices` is):
+`#shot-*` capture after a visual change (`SHOT_SCALE=2` renders at 2x):
 
 ```bash
 (cd .showcase && npm install)
 SHOT_SCALE=1 node .showcase/tools/shots.mjs . /tmp/shots light dark
 SHOT_SCALE=1 SHOT_LOCALE=zh-CN SHOT_ONLY=shot-settings-wide,shot-settings-block-size \
   node .showcase/tools/shots.mjs . /tmp/shots light dark
-SHOT_SCALE=2 SHOT_ONLY=shot-hero-devices \
-  node .showcase/tools/shots.mjs . /tmp/hero-shots light dark
-node .showcase/tools/publish-readme-shots.mjs /tmp/shots /tmp/hero-shots
+node .showcase/tools/publish-readme-shots.mjs /tmp/shots
 node --test .showcase/tools/readme-shots.test.mjs
 ```
 
