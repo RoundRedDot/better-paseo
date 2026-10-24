@@ -105,7 +105,7 @@ export function DesktopToolbar(props: {
           placeholder={strings.search}
           placeholderTextColor={colors.foregroundMuted}
           accessibilityLabel={strings.search}
-          style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground }}
+          style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }}
         />
       </View>
       {props.filters || Platform.OS === "ios" || Platform.OS === "web" ? (
