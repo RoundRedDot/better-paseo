@@ -1823,7 +1823,7 @@ describe("TaskDetailCards", () => {
 
   it.each(["card", "sidebar", "sheet"] as const)("omits unread text at every width and folds permission text to keep one metadata line (%s)", async (surface) => {
     for (const language of ["zh", "en"] as const) {
-      for (const modeLabel of ["Full Access", "Default Permissions", "Bypass", "Allow All", "Plan Mode"]) {
+      for (const modeLabel of ["Full Access", "Default Permissions", "Bypass", "Allow All", "Plan Mode", "Custom permissions"]) {
         const base = sample("sample-running");
         const child: TaskChild = { ...base.children[0]!, title: "Child layout", status: "unread", lane: "review", modeLabel };
         const card = { ...base, children: [child] };
@@ -1837,7 +1837,7 @@ describe("TaskDetailCards", () => {
         for (const width of [0, 241, 240, 180, 400]) {
           await resize(width);
           const narrow = width > 0 && width <= 240;
-          const folded = narrow && ["Full Access", "Default Permissions"].includes(modeLabel);
+          const folded = narrow;
           expect(texts(meta()).includes(modeLabel)).toBe(!folded);
           expect(texts(meta())).not.toContain(words.details.subtaskUnread);
           expect(hostByTestId(tree.root, `${prefix}-${child.id}`).props.accessibilityLabel).toBe(`Child layout ${words.status.unread}`);
@@ -1854,16 +1854,14 @@ describe("TaskDetailCards", () => {
           }
         }
         // A wide column can still overflow with long labels or timing.
-        if (["Full Access", "Default Permissions"].includes(modeLabel)) {
-          await resize(300);
-          const probe = () => hostByTestId(tree.root, `${prefix}-meta-measure-${child.id}`);
-          await act(async () => probe().props.onLayout({ nativeEvent: { layout: { width: 390 } } }));
-          expect(texts(meta())).not.toContain(words.details.subtaskUnread);
-          expect(texts(meta())).not.toContain(modeLabel);
-          await resize(400);
-          expect(texts(meta())).not.toContain(words.details.subtaskUnread);
-          expect(texts(meta())).toContain(modeLabel);
-        }
+        await resize(300);
+        const probe = () => hostByTestId(tree.root, `${prefix}-meta-measure-${child.id}`);
+        await act(async () => probe().props.onLayout({ nativeEvent: { layout: { width: 390 } } }));
+        expect(texts(meta())).not.toContain(words.details.subtaskUnread);
+        expect(texts(meta())).not.toContain(modeLabel);
+        await resize(400);
+        expect(texts(meta())).not.toContain(words.details.subtaskUnread);
+        expect(texts(meta())).toContain(modeLabel);
         await act(async () => tree.unmount());
       }
     }
@@ -1913,18 +1911,20 @@ describe("TaskDetailCards", () => {
 
   it.each(["failed", "done"] as const)("preserves attention and finished timing in a narrow single-line row (%s)", async (status) => {
     const base = sample("sample-running");
-    const child: TaskChild = { ...base.children[2]!, status, lane: status === "failed" ? "review" : "done" };
+    const child: TaskChild = { ...base.children[2]!, status, lane: status === "failed" ? "review" : "done", modeLabel: "Bypass" };
     const tree = await render(details({ ...base, children: [child] }));
     const meta = () => hostByTestId(tree.root, `detail-subtask-meta-${child.id}`);
     const timeId = `detail-subtask-time-${child.id}`;
     const before = texts(hostByTestId(meta(), timeId));
     await act(async () => meta().props.onLayout({ nativeEvent: { layout: { width: 180 } } }));
     expect(texts(hostByTestId(meta(), timeId))).toEqual(before);
+    expect(texts(meta())).not.toContain("Bypass");
+    expect(icons(meta())).toContain("ShieldOff");
     expect(before.length).toBeGreaterThan(0);
     if (status === "failed") expect(texts(meta())).toContain(cardStrings("zh").details.subtaskFailed);
   });
 
-  it.each(["Full Access", "Plan Mode"])("preserves waiting time and attention status in a narrow row (%s)", async (modeLabel) => {
+  it.each(["Full Access", "Plan Mode", "Bypass"])("preserves waiting time and attention status in a narrow row (%s)", async (modeLabel) => {
     const base = sample("sample-running");
     const child = { ...base.children[0]!, status: "needs_input" as const, lane: "needs_input" as const, modeLabel };
     const tree = await render(details({ ...base, children: [child] }));
@@ -1933,10 +1933,9 @@ describe("TaskDetailCards", () => {
     expect(texts(meta())).toContain("等待输入");
     expect(icons(meta())).toContain("Clock");
     expect(meta().findByType(ContextRing).props.ratio).toBe(0.6);
-    if (modeLabel === "Full Access") {
-      expect(texts(meta())).not.toContain(modeLabel);
-      expect(icons(meta())).toContain("ShieldOff");
-    } else expect(texts(meta())).toContain(modeLabel);
+    expect(texts(meta())).not.toContain(modeLabel);
+    expect(icons(meta())).toContain(modeIcon(child.provider!, modeLabel));
+    expect(meta().findAll((node) => typeof node.type === "string" && node.props.accessible === true && node.props.accessibilityLabel === modeLabel)).toHaveLength(1);
   });
 
   it("adapts the width threshold when the host font changes without another layout event", async () => {
