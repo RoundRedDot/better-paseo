@@ -205,10 +205,44 @@ describe("TaskCardView on web", () => {
       }),
     );
     const directory = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-cwd");
-    await act(async () => directory.props.onHoverIn());
+    await act(async () => hovers.get("detail-cwd")!.enter());
     expect(directory.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "打开文件夹")).toHaveLength(1);
     expect(nestedButtons(renderer.root)).toEqual([]);
     await act(async () => renderer.unmount());
+  });
+
+  it("keeps directory actions while the pointer crosses the row and enters either button", async () => {
+    const renderer = await render(React.createElement(TaskDetailCards, {
+      card: sampleCards(NOW).find((card) => card.id === "sample-running")!,
+      theme: THEME, now: NOW, language: "zh", strings: BOARD_STRINGS.zh.sidebar,
+    }));
+    const row = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-cwd");
+    const actions = () => row.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    const labels = () => actions().map((node) => node.props.accessibilityLabel);
+    expect(labels()).toEqual([]);
+    // The DOM listener belongs to the full row, including its padding and the gap before the actions.
+    expect(hovers.has("detail-cwd")).toBe(true);
+    expect(row.props.onHoverIn).toBeUndefined();
+    expect(row.props.onHoverOut).toBeUndefined();
+    await act(async () => hovers.get("detail-cwd")!.enter());
+    expect(labels()).toEqual(["打开文件夹", "复制路径"]);
+    const background = row.props.style.backgroundColor;
+    expect(background).not.toBe("transparent");
+    for (const label of ["打开文件夹", "复制路径"]) {
+      await act(async () => {
+        actions().find((node) => node.props.accessibilityLabel === label)!.props.onHoverIn();
+        // RNW tries to end the ancestor's synthetic hover on entering an inner Pressable.
+        row.props.onHoverOut?.();
+      });
+      expect(labels()).toEqual(["打开文件夹", "复制路径"]);
+      expect(row.props.style.backgroundColor).toBe(background);
+    }
+    // Only leaving the row hides its actions and hover fill.
+    await act(async () => hovers.get("detail-cwd")!.leave());
+    expect(labels()).toEqual([]);
+    expect(row.props.style.backgroundColor).toBe("transparent");
+    await act(async () => renderer.unmount());
+    expect(hovers.has("detail-cwd")).toBe(false);
   });
 
   it("keeps Stop while the pointer moves from the card onto it, and cancels on leaving the card", async () => {
