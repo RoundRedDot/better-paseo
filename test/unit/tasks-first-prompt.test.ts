@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { createFirstPromptStore, firstPromptText } from "../../client/tasks/data/first-prompt";
+import { createFirstPromptStore, firstPromptMessage } from "../../client/tasks/data/first-prompt";
 
-type Page = { error: string | null; entries: { item: { type: string; text?: string } }[] };
+type Page = { error: string | null; entries: { timestamp?: string; item: { type: string; text?: string } }[] };
 
 function fakeApi(pages: (Page | Error)[]) {
   const refetch = vi.fn(async () => {
@@ -17,20 +17,21 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("first prompt", () => {
   it("takes the first user message from the timeline's head", () => {
-    expect(firstPromptText([
+    expect(firstPromptMessage([
       { item: { type: "assistant_message", text: "hi" } },
-      { item: { type: "user_message", text: "  Fix the board\nand the sidebar  " } },
-      { item: { type: "user_message", text: "later" } },
-    ])).toBe("Fix the board\nand the sidebar");
-    expect(firstPromptText([{ item: { type: "tool_call" } }])).toBeNull();
-    expect(firstPromptText([{ item: { type: "user_message", text: "  " } }])).toBeNull();
+      { timestamp: "2026-10-25T08:13:00Z", item: { type: "user_message", text: "  Fix the board\nand the sidebar  " } },
+      { timestamp: "2026-10-25T09:00:00Z", item: { type: "user_message", text: "later" } },
+    ])).toEqual({ state: "ready", text: "Fix the board\nand the sidebar", timestamp: "2026-10-25T08:13:00Z" });
+    expect(firstPromptMessage([{ item: { type: "tool_call" } }])).toBeNull();
+    expect(firstPromptMessage([{ item: { type: "user_message", text: "  " } }])).toBeNull();
+    expect(firstPromptMessage([{ item: { type: "user_message", text: "No timestamp" } }])).toEqual({ state: "ready", text: "No timestamp" });
   });
 
   it("reads the head once, keeps a found prompt, and asks again after a miss or a failure", async () => {
     const { api, refetch } = fakeApi([
       new Error("offline"),
       { error: null, entries: [] },
-      { error: null, entries: [{ item: { type: "user_message", text: "Ship it" } }] },
+      { error: null, entries: [{ timestamp: "2026-10-25T08:13:00Z", item: { type: "user_message", text: "Ship it" } }] },
     ]);
     const store = createFirstPromptStore(api as never);
     const listener = vi.fn();
@@ -51,7 +52,7 @@ describe("first prompt", () => {
 
     store.request("a");
     await flush();
-    expect(store.read("a")).toEqual({ state: "ready", text: "Ship it" });
+    expect(store.read("a")).toEqual({ state: "ready", text: "Ship it", timestamp: "2026-10-25T08:13:00Z" });
     store.request("a");
     expect(refetch).toHaveBeenCalledTimes(3);
     expect(listener).toHaveBeenCalled();

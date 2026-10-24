@@ -63,8 +63,7 @@ export function createLastMessageStore(api: Api): Store {
         .timeline.refetch({ direction: "tail", projection: "projected", limit: TAIL_LIMIT })
         .then((page) => {
           if (page.error) return land({ state: "error" });
-          const text = lastReplyText(page.entries);
-          land(text === null ? { state: "none" } : { state: "ready", text });
+          land(lastReplyMessage(page.entries) ?? { state: "none" });
         })
         .catch(() => land({ state: "error" }));
     },
@@ -77,13 +76,13 @@ export function createLastMessageStore(api: Api): Store {
   };
 }
 
-/** The last assistant message's text among a timeline's tail rows; null when none says anything. */
-export function lastReplyText(entries: readonly { item: { type: string; text?: string } }[]): string | null {
+/** The last nonempty assistant message and its own timestamp among a timeline's tail rows. */
+export function lastReplyMessage(entries: readonly { timestamp?: string; item: { type: string; text?: string } }[]): Extract<LastMessage, { state: "ready" }> | null {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const item = entries[index]!.item;
+    const { item, timestamp } = entries[index]!;
     if (item.type !== "assistant_message") continue;
     const text = item.text?.trim();
-    if (text) return text;
+    if (text) return { state: "ready", text, timestamp };
   }
   return null;
 }

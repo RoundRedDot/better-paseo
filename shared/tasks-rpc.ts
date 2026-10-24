@@ -116,8 +116,8 @@ export const tasksSubagentsRpc = defineRpc({
   output: z.object({ version: z.string(), subagents: z.array(providerSubagentSchema).nullable() }),
 });
 
-/** One row of a provider subagent's timeline, as far as the details read it: its kind and text. */
-export const subagentTimelineRowSchema = z.object({ type: z.string(), text: z.string().optional() });
+/** One row of a provider subagent's timeline, as far as the details read it: its kind, text and time. */
+export const subagentTimelineRowSchema = z.object({ type: z.string(), text: z.string().optional(), timestamp: z.string().optional() });
 
 /**
  * A provider subagent's own timeline, for its details: the head (`after`),

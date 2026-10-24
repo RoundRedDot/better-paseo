@@ -72,6 +72,8 @@ describe("filter sheet scrollbar", () => {
     const css = styles.get("better-paseo-lane-scrollbar")!.textContent;
     expect(css).toMatch(/\[data-bcdetails="inset"\] \{[^}]*--bc-scroll-thumb: transparent;/);
     expect(css).toContain('[data-bcdetails="inset"][data-bcscrolling]');
+    expect(css).toContain('[data-bcdetails="inset"][data-bcscrolling]::-webkit-scrollbar-thumb:hover');
+    expect(css).not.toContain('[data-bcdetails="inset"]::-webkit-scrollbar-thumb:hover');
     expect(element.hasAttribute("data-bcscrolling")).toBe(false);
 
     const scrollEvent = () => listeners.get("scroll")!({ target: element } as unknown as Event);
@@ -83,6 +85,19 @@ describe("filter sheet scrollbar", () => {
     expect(element.hasAttribute("data-bcscrolling")).toBe(true);
     vi.advanceTimersByTime(1);
     expect(element.hasAttribute("data-bcscrolling")).toBe(false);
+
+    // Each details column has its own idle timer; scrolling one leaves the other hidden.
+    const other = new Element();
+    other.setAttribute("data-bcdetails", "inset");
+    scrollEvent();
+    expect(other.hasAttribute("data-bcscrolling")).toBe(false);
+    vi.advanceTimersByTime(300);
+    listeners.get("scroll")!({ target: other } as unknown as Event);
+    vi.advanceTimersByTime(500);
+    expect(element.hasAttribute("data-bcscrolling")).toBe(false);
+    expect(other.hasAttribute("data-bcscrolling")).toBe(true);
+    vi.advanceTimersByTime(300);
+    expect(other.hasAttribute("data-bcscrolling")).toBe(false);
 
     const footer = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-footer");
     expect(scroll.findAll((node) => node === footer)).toHaveLength(0);

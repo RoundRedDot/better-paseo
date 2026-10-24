@@ -26,16 +26,16 @@ describe("useSubagentTimeline", () => {
   it("reads the task from the head and the reply from the tail, naming the parent", async () => {
     const loader = vi.fn(async (input: { direction: "after" | "tail" }) =>
       input.direction === "after"
-        ? { rows: [{ type: "user_message", text: " Verify the fix on the Mac Studio " }, { type: "tool_call" }], error: null }
-        : { rows: [{ type: "assistant_message", text: "Round 1 passed" }, { type: "reasoning", text: "thinking" }, { type: "assistant_message", text: "All five rounds passed" }, { type: "tool_call" }], error: null },
+        ? { rows: [{ type: "user_message", text: " Verify the fix on the Mac Studio ", timestamp: "2026-10-25T08:13:00Z" }, { type: "tool_call" }], error: null }
+        : { rows: [{ type: "assistant_message", text: "Round 1 passed" }, { type: "reasoning", text: "thinking" }, { type: "assistant_message", text: "All five rounds passed", timestamp: "2026-10-25T08:15:00Z" }, { type: "tool_call", timestamp: "2026-10-25T08:16:00Z" }], error: null },
     );
     setSubagentTimelineLoader(loader);
     const out: { current: Reads | null } = { current: null };
     await act(async () => {
       TestRenderer.create(<Probe id="toolu_a" running={false} version="failed|1" auto out={out} />);
     });
-    expect(out.current!.firstPrompt.prompt).toEqual({ state: "ready", text: "Verify the fix on the Mac Studio" });
-    expect(out.current!.lastMessage.prompt).toEqual({ state: "ready", text: "All five rounds passed" });
+    expect(out.current!.firstPrompt.prompt).toEqual({ state: "ready", text: "Verify the fix on the Mac Studio", timestamp: "2026-10-25T08:13:00Z" });
+    expect(out.current!.lastMessage.prompt).toEqual({ state: "ready", text: "All five rounds passed", timestamp: "2026-10-25T08:15:00Z" });
     expect(loader).toHaveBeenCalledWith({ parentAgentId: "parent-1", subagentId: "toolu_a", direction: "after", limit: 8 });
     expect(loader).toHaveBeenCalledWith({ parentAgentId: "parent-1", subagentId: "toolu_a", direction: "tail", limit: 40 });
   });

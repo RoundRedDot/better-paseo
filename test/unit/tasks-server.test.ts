@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { subagentTimelineRowSchema } from "../../shared/tasks-rpc";
 
 const { execCommand } = vi.hoisted(() => ({ execCommand: vi.fn() }));
 vi.mock("@getpaseo/plugin/server", () => ({ execCommand }));
@@ -377,10 +378,10 @@ describe("Tasks server read RPC", () => {
 });
 
 describe("Tasks server subagent timeline RPC", () => {
-  it("reads a provider subagent's rows off the daemon, kind and text only, and closes the connection", async () => {
+  it("preserves a provider subagent's message times while dropping unrelated fields, and closes the connection", async () => {
     const fetchProviderSubagentTimeline = vi.fn(async () => ({
       rows: [
-        { item: { type: "user_message", text: "Check the build", messageId: "m1" }, seq: 1 },
+        { timestamp: "2026-10-25T08:13:00Z", item: { type: "user_message", text: "Check the build", messageId: "m1" }, seq: 1 },
         { item: { type: "tool_call", name: "Bash", callId: "c1" }, seq: 2 },
       ],
     }));
@@ -388,11 +389,13 @@ describe("Tasks server subagent timeline RPC", () => {
     const host: HostAccess = { available: () => true, connect: async () => ({ fetchProviderSubagentTimeline, close }) as never };
     const handlers = await registerHandlers(host);
     await expect(invoke(handlers, "tasks.subagent-timeline", { parentAgentId: "parent", subagentId: "toolu_1", direction: "after", limit: 8 })).resolves.toEqual({
-      rows: [{ type: "user_message", text: "Check the build" }, { type: "tool_call" }],
+      rows: [{ type: "user_message", text: "Check the build", timestamp: "2026-10-25T08:13:00Z" }, { type: "tool_call" }],
       error: null,
     });
     expect(fetchProviderSubagentTimeline).toHaveBeenCalledWith("parent", "toolu_1", { direction: "after", limit: 8 });
     expect(close).toHaveBeenCalledTimes(1);
+    const row = { type: "user_message", text: "Check the build", timestamp: "2026-10-25T08:13:00Z" };
+    expect(subagentTimelineRowSchema.parse(row)).toEqual(row);
   });
 
   it("says why when the daemon cannot be reached, has no subagent timelines, or refuses", async () => {

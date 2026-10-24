@@ -19,7 +19,7 @@ import { opensInPaseo, turnRunning, type PermissionKind, type TaskCard, type Tas
 import type { PermissionButton, StopPhase } from "../actions";
 import type { FirstPrompt } from "../data/first-prompt";
 import type { LastMessage } from "../data/last-message";
-import { formatDuration, formatRelative, formatTokenTotal, since, tildePath } from "./format";
+import { formatClockTime, formatDuration, formatRelative, formatTokenTotal, since, tildePath } from "./format";
 import { cardStrings } from "./strings";
 import { taskTokens, type TaskTokens } from "./tokens";
 import { TagMark } from "./tag-mark";
@@ -171,8 +171,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   /** The sections scroll under the fixed header (the sidebar); else the card grows with them (the sheet). */
   scrollBody?: boolean;
   /**
-   * Two columns that scroll on their own: the header (with the subtasks, when
-   * the card has them) on the left, the other sections on the right. A
+   * Two columns that scroll on their own: the header, properties and subtasks
+   * on the left, the other sections on the right. A
    * tablet's wide bottom sheet, where one column ran tall and sparse. The
    * card fills its parent.
    */
@@ -197,8 +197,8 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   const time: TimeSource = { now: props.now, clock: props.clock };
   const choices = useSectionChoices();
   const { order, closed } = detailSections(card, !!props.firstPrompt, !!props.lastMessage);
-  // Two columns: the subtasks sit under the header, everything else on the right.
-  const leftSections: DetailSection[] = props.columns ? order.filter((section) => section === "subtasks") : [];
+  // Two columns: properties precede subtasks under the header; the other sections sit on the right.
+  const leftSections: DetailSection[] = props.columns ? order.filter((section) => section === "properties" || section === "subtasks") : [];
   const rightOrder = order.filter((section) => !leftSections.includes(section));
   // A scroller's content gives its scrollbar the right edge of its padding (`detail-scrollbar.ts`).
   const gutter = props.columns || props.scrollBody ? detailGutter("inset") : 0;
@@ -651,9 +651,13 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
       : undefined;
   const created = since(card.timing.createdAt, props.now);
   const heading = section === "subtasks" ? subtaskHeading(card.children, props.language, narrow) : null;
+  const read = section === "prompt" ? props.firstPrompt : section === "message" ? props.lastMessage : null;
+  const timestamp = read?.prompt.state === "ready" ? read.prompt.timestamp : undefined;
+  const at = timestamp ? Date.parse(timestamp) : NaN;
+  const messageTime = Number.isFinite(at) ? formatClockTime(at, props.now) : "";
   const summary = {
-    prompt: "",
-    message: "",
+    prompt: messageTime,
+    message: messageTime,
     properties: card.location.branch ?? (card.location.git === null ? words.notGit : ""),
     subtasks: heading && heading.parts.length > 0 ? <SubtaskSummaryText parts={heading.parts} tokens={tokens} /> : "",
     usage: usageSummary(card, props.language),
