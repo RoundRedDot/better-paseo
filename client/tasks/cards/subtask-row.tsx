@@ -128,7 +128,9 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
   // Timer ticks update the existing probe; remounting it would flash full labels every second.
   const measureKey = JSON.stringify([scale, language, child.kind, child.subtitle, child.subagentType, child.modelLabel, child.thinkingLabel, child.modeLabel, status, ratio !== null, !!start, !!timer]);
   const canFoldMode = !!child.modeLabel;
-  const compactLabels = narrow || (width !== null && width > 0 && measured?.key === measureKey && measured.width > width);
+  const needsMeasurement = canFoldMode || !!child.thinkingLabel;
+  const overflowing = width !== null && width > 0 && measured?.key === measureKey && measured.width > width;
+  const compactLabels = narrow || overflowing;
   const iconSize = 12;
   const muted = tokens.foregroundMuted;
   const prefix = props.testIDPrefix ?? "subtask";
@@ -136,10 +138,10 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
   const icon = (name: string, color = muted) => <Icon name={name} size={iconSize} color={color} />;
   const part = (key: string, label: string, lead: ReactNode = null, color = muted, showLabel = true, fullLabel = label) => {
     // Measure full labels independently of the visible row, so folding is reversible.
-    if (canFoldMode) measures.push(
+    if (needsMeasurement) measures.push(
       <View key={key} style={{ flexDirection: "row", gap: 4, flexShrink: 0 }}>
         {lead ? <View style={{ width: iconSize }} /> : null}
-        <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.smRead, color, fontVariant: ["tabular-nums"] }}>{label}</Text>
+        <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.smRead, color, fontVariant: ["tabular-nums"] }}>{fullLabel}</Text>
       </View>,
     );
     const fixed = !showLabel || (key === "thinking" && fullLabel !== label);
@@ -159,7 +161,7 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
   }
   if (child.modelLabel) parts.push(part("model", child.modelLabel));
   if (child.thinkingLabel) {
-    const label = formatThinkingLevel(child.thinkingLabel);
+    const label = overflowing ? formatThinkingLevel(child.thinkingLabel) : child.thinkingLabel;
     parts.push(part("thinking", label, icon(THINKING_ICON), muted, true, child.thinkingLabel));
   }
   if (child.modeLabel) {
@@ -169,7 +171,7 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
   }
   if (status) parts.push(part("status", status, null, child.status === "failed" ? tokens.danger : tokens.warning));
   if (ratio !== null) {
-    if (canFoldMode) measures.push(<View key="context" style={{ width: iconSize, flexShrink: 0 }} />);
+    if (needsMeasurement) measures.push(<View key="context" style={{ width: iconSize, flexShrink: 0 }} />);
     const color = ratio >= 0.9 ? tokens.danger : ratio >= 0.75 ? tokens.warning : muted;
     parts.push(
       <View key="context" accessibilityLabel={words.subtaskContext(Math.round(ratio * 100))} style={{ height: Math.round(HOST_LINE.smRead * scale), flexShrink: 0, justifyContent: "center" }}>
@@ -187,7 +189,7 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
   return parts.length > 0 || hideRunTime ? (
     <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", flexWrap: "nowrap", columnGap: 10, minWidth: 0 }} testID={`${prefix}-meta-${child.id}`}>
       {parts}
-      {canFoldMode ? <View pointerEvents="none" {...(Platform.OS === "web" ? { "aria-hidden": true } : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" as const })} style={{ position: "absolute", width: 10000, height: 0, overflow: "hidden", opacity: 0 }}>
+      {needsMeasurement ? <View pointerEvents="none" {...(Platform.OS === "web" ? { "aria-hidden": true } : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" as const })} style={{ position: "absolute", width: 10000, height: 0, overflow: "hidden", opacity: 0 }}>
         <View key={measureKey} onLayout={(event) => setMeasured({ key: measureKey, width: event.nativeEvent.layout.width })} style={{ flexDirection: "row", alignSelf: "flex-start", columnGap: 10 }} testID={`${prefix}-meta-measure-${child.id}`}>
           {measures}
         </View>
