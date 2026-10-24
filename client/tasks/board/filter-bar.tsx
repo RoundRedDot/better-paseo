@@ -43,6 +43,7 @@ export function DesktopToolbar(props: {
   keyHints: boolean;
   /** The details sidebar's switch at the bar's right end; `sheet` when the details rise from the bottom. */
   sidebar?: { open: boolean; onToggle(): void; sheet?: boolean };
+  emptyLanes: { collapsed: boolean; disabled: boolean; onToggle(): void };
   /**
    * A narrow board's one-row header: the filter bar folds into this button
    * (its count of active filters on a badge), which opens the filter sheet,
@@ -121,6 +122,17 @@ export function DesktopToolbar(props: {
         />
       ) : null}
       {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={toolbarButtonSize(scale)} tip={strings.filters} testID="toolbar-filters" /> : null}
+      <RoundButton
+        icon={props.emptyLanes.collapsed ? "UnfoldHorizontal" : "FoldHorizontal"}
+        label={props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse}
+        selected={props.emptyLanes.collapsed}
+        disabled={props.emptyLanes.disabled}
+        theme={theme}
+        onPress={props.emptyLanes.onToggle}
+        size={toolbarButtonSize(scale)}
+        tip={props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse}
+        testID="empty-lanes-toggle"
+      />
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
     </View>
   );

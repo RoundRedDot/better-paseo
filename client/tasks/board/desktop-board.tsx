@@ -136,6 +136,15 @@ export function DesktopBoard(props: {
     [lanes, collapsed, laneOrder],
   );
   const [focusState, setFocus] = useState<BoardFocus | null>(null);
+  // Use displayed counts; loading history lanes are not known to be empty yet.
+  const emptyLanes = laneOrder.filter((id) => tasks.ready && !lanes[id].loading && lanes[id].cards.length === 0);
+  const emptyLanesCollapsed = emptyLanes.length > 0 && emptyLanes.every((id) => collapsed.includes(id));
+  const toggleEmptyLanes = () => {
+    if (emptyLanes.length === 0) return;
+    setCollapsed((current) => emptyLanes.every((id) => current.includes(id))
+      ? current.filter((id) => !emptyLanes.includes(id))
+      : [...current, ...emptyLanes.filter((id) => !current.includes(id))]);
+  };
   const focus = clampFocus(focusState, shapes);
   const [menu, setMenu] = useState<FilterMenu | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -483,6 +492,7 @@ export function DesktopBoard(props: {
         searchRef={searchRef}
         keyHints={boardWidth === 0 || boardWidth >= KEY_HINTS_MIN_WIDTH * Math.max(1, scale)}
         sidebar={sidebarToggle}
+        emptyLanes={{ collapsed: emptyLanesCollapsed, disabled: emptyLanes.length === 0, onToggle: toggleEmptyLanes }}
         filters={sheetMode ? { count: activeFilterCount(board.params, board.defaults), onPress: () => setFiltersOpen(true) } : undefined}
       />
       {sheetMode ? null : (
