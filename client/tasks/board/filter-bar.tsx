@@ -56,6 +56,7 @@ export function DesktopToolbar(props: {
   const scale = useTasksFontScale();
   const colors = theme.colors;
   const strings = board.strings;
+  const [searchFocused, setSearchFocused] = useState(false);
   return (
     <View style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
       <RollingTotal board={board} style={{ flexShrink: 0, fontSize: F.base, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }} />
@@ -93,7 +94,7 @@ export function DesktopToolbar(props: {
           gap: 6,
           paddingHorizontal: 10,
           borderWidth: HAIRLINE,
-          borderColor: colors.border,
+          borderColor: searchFocused ? colors.foregroundMuted : colors.border,
           borderRadius: 6,
         }}
       >
@@ -102,6 +103,8 @@ export function DesktopToolbar(props: {
           ref={props.searchRef}
           value={board.params.query}
           onChangeText={(query) => board.setParams((params) => ({ ...params, query }))}
+          onFocus={() => setSearchFocused(true)}
+          onBlur={() => setSearchFocused(false)}
           placeholder={strings.search}
           placeholderTextColor={colors.foregroundMuted}
           accessibilityLabel={strings.search}
