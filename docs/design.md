@@ -191,12 +191,12 @@ All heights grow with the host's interface text size through `taskControlHeight`
 
 ### Thinking level labels
 
-Use `formatThinkingLevel` in `client/tasks/cards/format.ts` only for visible
-structured thinking levels in shared subtask metadata only when the measured full
-metadata row exceeds its available width. Show the supplied full level when it
+Use `formatThinkingLevel` in `client/tasks/cards/format.ts` for visible structured
+thinking levels in shared subtask metadata only when the measured full metadata
+row exceeds its available width. Show the supplied full level when it
 fits, and restore it after widening or reducing the interface font size. This
-uses actual content fit, not the `240 * scale` permission threshold. The card's combined model
-pill, standalone thinking pill and details chip keep the supplied full level.
+uses actual content fit, not the `240 * scale` permission threshold. The card's
+combined model pill, standalone thinking pill and details chip keep the supplied full level.
 For subtask abbreviations, match case-insensitively after trimming:
 
 | Full level | Visible label |
@@ -326,6 +326,23 @@ state and the spinner.
 
 ## Shared subtask lists
 
+This section is the project design contract for child Agent rows across desktop,
+iPad, phone, light and dark themes. Apply it to expanded cards, the details
+sidebar and the details sheet through the shared components below. An iPad lane
+can be narrow even when the device is wide; available row width governs folding.
+
+The agreed visual rules are:
+
+- Keep the combined identity/status mark on the left and the jump action on the right.
+- Keep the title on one line and its secondary metadata on one line; neither
+  metadata fields nor the time group may create another line.
+- Show full thinking levels when the complete metadata row fits; use the agreed
+  lowercase abbreviation only when it overflows, and restore the full level when it fits again.
+- Reduce permission/mode text to its icon in narrow or overflowing columns,
+  including custom modes. Keep its full accessibility name.
+- Never show `待查看` / `To review` as secondary text, even in a wide row.
+  Keep the unread status dot and accessible status. Keep waiting-input and failed text.
+
 ### Component ownership
 
 All three expanded subtask lists use `SubtaskRow` from
@@ -394,6 +411,19 @@ These are subagent type icons, not the icons of tools the subagent is executing.
 The same identity keeps its running or needs-input ring, unread or failed dot,
 finished check, or archived box as its state changes.
 
+| State | Identity corner |
+| --- | --- |
+| Running | Running ring |
+| Needs input | Hollow warning ring |
+| Unread | Success dot; no secondary unread text |
+| Failed | Danger dot; keep the failed secondary text |
+| Done | Success-coloured `CircleCheck` |
+| Archived | Muted `Archive` |
+
+Use the existing status/theme tokens for these marks. Keep the corner's knockout
+the same colour as the row background, including on hover; never hide the corner
+to make more room for metadata.
+
 ### Secondary information
 
 `SubtaskMetadata` owns this order and uses the same fields in every surface:
@@ -427,13 +457,20 @@ fold the optional permission text even above that threshold. The invisible,
 non-interactive measurement row contains text and icon-sized spacers only, is
 excluded from assistive technology, and never duplicates live rings or controls.
 
-| Information | Normal column | Narrow column |
+| Information | When to reduce | Reduced rendering and restoration |
 | --- | --- | --- |
-| All permission/mode labels, including `Bypass`, `Full Access`, `Default Permissions`, `Allow All`, `Plan Mode` and custom modes | Mode icon and text when the unfolded row fits | Keep the mode icon and full accessibility label; hide only the text |
-| Unread / To review text | Omit; keep the identity mark's status dot and row's accessible status | Same |
-| Running child's start time and duration | Show when available | Hide |
-| Brand/type with status, model, thinking and context | Show when available | Keep |
-| Waiting-input and failed status, waiting and finished times | Show when available | Keep; long text may truncate within the single line |
+| All permission/mode labels, including `Bypass`, `Full Access`, `Default Permissions`, `Allow All`, `Plan Mode` and custom modes | Positive column width at most `240 * scale`, or unfolded row wider than the column | Hide text, keep the mode icon and full accessibility name; restore text only when neither condition applies |
+| Thinking level | The measured full metadata row is wider than the positive column width | Keep `Brain` and use the lowercase abbreviation; restore the full supplied level when the row fits, including at exact equality |
+| Unread / To review text | Always omitted | Keep the identity status dot and row's accessible status; never restore secondary unread text |
+| Running child's start time and duration | Positive column width at most `240 * scale` | Hide; restore outside that narrow band |
+| Brand/type with status, model and context | Do not omit | Keep; long model text may truncate within the single line |
+| Waiting-input and failed status, waiting and finished times | Do not omit | Keep; long text may truncate within the single line |
+
+Do not use the permission threshold as a shortcut for thinking-level abbreviation.
+A short metadata row can show `Medium` in a narrow column; a longer row may need
+`m` above 240 pt. Measure the full metadata with original thinking and permission
+labels, even while either is reduced. Width 0 or an unknown width is not evidence
+of overflow. Rows with thinking but no mode still need this measurement.
 
 Restore permission text when the unfolded row fits and the column is no longer
 narrow; restore running times when the column is no longer narrow. Never restore
@@ -466,9 +503,9 @@ button, avoiding nested button markup.
   decoded brand images or mapped type icons together with their status overlays;
   mounting an empty image slot is not visual proof.
 - Check long titles, enlarged interface text, light/dark themes, hover stability,
-  narrow-to-wide restoration, icon-only permission accessibility, lowercase effort
-  abbreviations, absence of unread text at every width and preserved waiting/failed
-  information.
+  full-to-abbreviated-to-full thinking transitions, rows without a permission mode,
+  exact-fit and zero-width measurements, icon-only permission accessibility,
+  absence of unread text at every width and preserved waiting/failed information.
 - Keep regression coverage in `test/unit/tasks-cards.test.ts`,
   `test/unit/tasks-cards-web.test.ts` and `test/unit/tasks-subagent-type.test.ts`.
   Browser fixtures and static/native-mock tests do not establish real-device
