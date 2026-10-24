@@ -30,19 +30,19 @@ describe("details card model", () => {
     expect(detailHero(sample("sample-done"))).toBe("summary");
     expect(detailHero(sample("sample-unread"))).toBe("summary");
 
-    expect(detailSections(sample("sample-running"))).toEqual({ order: ["subtasks", "properties", "usage", "activity"], closed: [] });
+    expect(detailSections(sample("sample-running"))).toEqual({ order: ["properties", "subtasks", "usage", "activity"], closed: [] });
     // No children: no subtasks section.
     expect(detailSections(sample("sample-input"))).toEqual({ order: ["properties", "usage", "activity"], closed: ["usage"] });
     expect(detailSections(sample("sample-failed"))).toEqual({ order: ["properties", "activity", "usage"], closed: ["usage"] });
     expect(detailSections(sample("sample-done"))).toEqual({ order: ["properties", "usage", "activity"], closed: [] });
-    // The first prompt leads every state's sections when the details can read it.
-    expect(detailSections(sample("sample-running"), true).order).toEqual(["prompt", "subtasks", "properties", "usage", "activity"]);
-    expect(detailSections(sample("sample-failed"), true).order).toEqual(["prompt", "properties", "activity", "usage"]);
+    // The first prompt follows properties when the details can read it.
+    expect(detailSections(sample("sample-running"), true).order).toEqual(["properties", "prompt", "subtasks", "usage", "activity"]);
+    expect(detailSections(sample("sample-failed"), true).order).toEqual(["properties", "prompt", "activity", "usage"]);
     // The latest reply follows it.
-    expect(detailSections(sample("sample-failed"), true, true).order).toEqual(["prompt", "message", "properties", "activity", "usage"]);
-    // A provider subagent's card has no usage or activity of its own: its task, its reply, its place.
+    expect(detailSections(sample("sample-failed"), true, true).order).toEqual(["properties", "prompt", "message", "activity", "usage"]);
+    // A provider subagent's card has no usage or activity of its own.
     const subagent = { ...sample("sample-running"), children: [], subagent: { subtitle: null } };
-    expect(detailSections(subagent, true, true).order).toEqual(["prompt", "message", "properties"]);
+    expect(detailSections(subagent, true, true).order).toEqual(["properties", "prompt", "message"]);
   });
 
   it("splits Codex's cached input out of its input, and leaves Claude's as reported", () => {

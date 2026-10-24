@@ -2079,11 +2079,11 @@ describe("TaskDetailCards", () => {
     expect(modeIconNode.props.color).toBe(taskTokens(LIGHT).warning);
   });
 
-  it("orders the sections by state: subtasks first while running, properties first while asking", async () => {
+  it("keeps properties first while preserving state-specific section defaults", async () => {
     const order = (root: ReactTestInstance) =>
       root.findAll((node) => typeof node.type === "string" && ["detail-location", "detail-subtasks", "detail-usage", "detail-activity"].includes(node.props.testID)).map((node) => node.props.testID);
     const running = await render(details(sample("sample-running")));
-    expect(order(running.root)).toEqual(["detail-subtasks", "detail-location", "detail-usage", "detail-activity"]);
+    expect(order(running.root)).toEqual(["detail-location", "detail-subtasks", "detail-usage", "detail-activity"]);
     await act(async () => running.unmount());
     renderer = null;
     const asking = await render(details(sample("sample-input"), { onPermission: vi.fn(), permissionButtons: permissionButtons(sample("sample-input").permission!, "zh") }));
@@ -2526,7 +2526,7 @@ describe("TaskDetailCards", () => {
     const load = vi.fn();
     const tree = await render(details(sample("sample-failed"), { firstPrompt: { prompt: { state: "ready", text }, load } }, "en"));
     const sections = tree.root.findAll((node) => typeof node.type === "string" && ["detail-prompt", "detail-location", "detail-activity", "detail-usage"].includes(node.props.testID));
-    expect(sections.map((node) => node.props.testID)).toEqual(["detail-prompt", "detail-location", "detail-activity", "detail-usage"]);
+    expect(sections.map((node) => node.props.testID)).toEqual(["detail-location", "detail-prompt", "detail-activity", "detail-usage"]);
     const body = hostByTestId(tree.root, "detail-prompt-text");
     expect(body.props.style).toMatchObject({ maxHeight: 4 * 18, overflow: "hidden" });
     expect(texts(hostByTestId(tree.root, "detail-prompt"))).toEqual(["First prompt", "Check whether this issue is handled:", "The board\nThe sidebar\nThe sheet\nThe phone", "Show all · 6 lines"]);
@@ -2559,7 +2559,7 @@ describe("TaskDetailCards", () => {
     const firstPrompt = { prompt: { state: "ready", text: "Fix the board" } as const, load };
     const tree = await render(details(sample("sample-failed"), { firstPrompt, lastMessage: { prompt: { state: "ready", text: "Four subagents failed." }, load } }, "en"));
     const sections = tree.root.findAll((node) => typeof node.type === "string" && ["detail-prompt", "detail-message", "detail-location"].includes(node.props.testID));
-    expect(sections.map((node) => node.props.testID)).toEqual(["detail-prompt", "detail-message", "detail-location"]);
+    expect(sections.map((node) => node.props.testID)).toEqual(["detail-location", "detail-prompt", "detail-message"]);
     expect(texts(hostByTestId(tree.root, "detail-message"))).toEqual(["Latest message", "Four subagents failed."]);
     await act(async () => byLabel(tree.root, "Copy message").props.onPress());
     expect(clipboard.copyText).toHaveBeenLastCalledWith("Four subagents failed.");
