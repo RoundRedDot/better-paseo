@@ -1276,7 +1276,7 @@ describe("Tasks board, desktop", () => {
     }
   });
 
-  it.each([[2000, true], [2000, false], [900, true], [900, false], [600, false]] as const)("previews the focused card with Space at %i pt (sidebar preference=%s)", (width, preferred) => {
+  it.each([[2000, true], [2000, false], [900, true], [900, false], [600, false]] as const)("toggles the focused card preview with Space at %i pt (sidebar preference=%s)", (width, preferred) => {
     writeSidebarPreference({ open: preferred, width: 380 });
     const keys = new Set<(event: unknown) => void>();
     vi.stubGlobal("window", {});
@@ -1285,9 +1285,9 @@ describe("Tasks board, desktop", () => {
       addEventListener: (type: string, listener: (event: unknown) => void, capture?: boolean) => type === "keydown" && !capture && keys.add(listener),
       removeEventListener: (type: string, listener: (event: unknown) => void) => type === "keydown" && keys.delete(listener),
     });
-    const key = (value: string) => {
+    const key = (value: string, repeat = false) => {
       const preventDefault = vi.fn();
-      act(() => { for (const listener of keys) listener({ key: value, preventDefault }); });
+      act(() => { for (const listener of keys) listener({ key: value, repeat, preventDefault }); });
       return preventDefault;
     };
     try {
@@ -1302,6 +1302,13 @@ describe("Tasks board, desktop", () => {
       expect(title()).toBe(first.title);
       const panel = width < 760 ? "board-sheet" : width < 1020 || !preferred ? "sidebar-floating" : "sidebar-inline";
       expect(hostsById(panel)).toHaveLength(1);
+      key(" ", true);
+      expect(title()).toBe(first.title);
+      key(" ");
+      expect(hostsById("detail-title")).toHaveLength(0);
+      if (panel !== "sidebar-inline") expect(hostsById(panel)).toHaveLength(0);
+      key(" ", true);
+      expect(hostsById("detail-title")).toHaveLength(0);
       key(" ");
       expect(title()).toBe(first.title);
       key("l");
@@ -1319,6 +1326,10 @@ describe("Tasks board, desktop", () => {
       // A later click takes over from an older keyboard focus.
       act(() => cards().find((card) => card.props.card.id === first.id)!.props.onSelect(first));
       expect(cards().some((card) => card.props.focused)).toBe(false);
+      if (preferred) {
+        key(" ");
+        expect(hostsById("detail-title")).toHaveLength(0);
+      }
       key(" ");
       expect(title()).toBe(first.title);
       expect(readSidebarPreference().open).toBe(preferred);
@@ -1367,6 +1378,11 @@ describe("Tasks board, desktop", () => {
       expect(preventDefault).toHaveBeenCalledTimes(1);
       expect(textOf(hostsById("detail-title")[0]!)).toBe(selected.props.card.title);
       expect(hostsById("sidebar-floating")).toHaveLength(1);
+      act(() => { for (const listener of keys) listener({ key: " ", preventDefault }); });
+      expect(hostsById("detail-title")).toHaveLength(0);
+      expect(hostsById("sidebar-floating")).toHaveLength(0);
+      act(() => { for (const listener of keys) listener({ key: " ", preventDefault }); });
+      expect(textOf(hostsById("detail-title")[0]!)).toBe(selected.props.card.title);
       expect(openAgent).not.toHaveBeenCalled();
     } finally {
       act(() => renderer?.unmount());

@@ -439,7 +439,12 @@ export function DesktopBoard(props: {
           : now.selection.id ? now.board.cardById(now.selection.id) : null;
         if (!card) return;
         event.preventDefault();
-        if (!event.repeat) showCard(card, true);
+        if (!event.repeat) {
+          if (now.open && now.selection.id === card.id) {
+            if (!now.focus) setFocus(findCard(now.board.lanes, card.id));
+            dispatch({ type: "clear" });
+          } else showCard(card, true);
+        }
         return;
       }
       const result = boardKeyReducer(now.focus, event.key, now.shapes);
