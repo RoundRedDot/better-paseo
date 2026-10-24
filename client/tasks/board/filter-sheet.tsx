@@ -29,7 +29,7 @@ export function FilterSheetBody(props: {
   theme: PluginTheme;
   options: FilterOptions;
   onDone(): void;
-  /** Phones keep the empty-groups switch in this sheet instead of the toolbar. */
+  /** Phones and narrow tablet boards keep the empty-groups switch here instead of the toolbar. */
   showEmptyGroupsToggle?: boolean;
   /** The lane width, on a tablet's narrow board (its lanes scroll); a phone shows one lane and has none. */
   laneWidth?: { value: LaneWidth; onChange(width: LaneWidth): void };

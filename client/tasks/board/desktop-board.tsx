@@ -495,6 +495,7 @@ export function DesktopBoard(props: {
                 board={board}
                 theme={theme}
                 options={options}
+                showEmptyGroupsToggle
                 laneWidth={{ value: board.laneWidth, onChange: board.setLaneWidth }}
                 onDone={() => setFiltersOpen(false)}
               />
