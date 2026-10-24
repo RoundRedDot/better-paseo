@@ -404,12 +404,12 @@ describe("TaskCardView rows", () => {
   });
 
   it.each([
-    ["zh", new Date(2026, 9, 22, 12), new Date(2026, 9, 22, 10), "约 8m · 2 小时前"],
+    ["zh", new Date(2026, 9, 22, 12), new Date(2026, 9, 22, 10), "8m · 2 小时前"],
     ["en", new Date(2026, 9, 22, 12), new Date(2026, 9, 22, 10), "~8m · 2h ago"],
-    ["zh", new Date(2026, 9, 22, 0, 5), new Date(2026, 9, 21, 23, 59, 10), "约 8m · 2026-10-21 23:59:10"],
+    ["zh", new Date(2026, 9, 22, 0, 5), new Date(2026, 9, 21, 23, 59, 10), "8m · 2026-10-21 23:59:10"],
     ["en", new Date(2026, 9, 22, 12), new Date(2026, 9, 13, 23, 9, 10), "~8m · 2026-10-13 23:09:10"],
-    ["zh", new Date(2026, 9, 22, 12), new Date(2026, 9, 21, 12), "约 8m · 2026-10-21 12:00:00"],
-    ["zh", new Date(2026, 0, 1), new Date(2025, 11, 31, 23, 59, 59), "约 8m · 2025-12-31 23:59:59"],
+    ["zh", new Date(2026, 9, 22, 12), new Date(2026, 9, 21, 12), "8m · 2026-10-21 12:00:00"],
+    ["zh", new Date(2026, 0, 1), new Date(2025, 11, 31, 23, 59, 59), "8m · 2025-12-31 23:59:59"],
   ] as const)("renders the %s footer at %s for a turn ended at %s", async (language, now, ended, expected) => {
     const card = sample("sample-done");
     card.timing = { ...card.timing, updatedAt: now.toISOString(), lastTurnMs: 8 * 60_000, lastTurnEndedAt: ended.toISOString() };
@@ -1567,7 +1567,7 @@ describe("TaskCardView actions", () => {
     await act(async () =>
       tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false).props.onPress(),
     );
-    expect(texts(hostByTestId(tree.root, "subtask-time-sample-child-3"))).toEqual(["约 1m · 10-19 16:57"]);
+    expect(texts(hostByTestId(tree.root, "subtask-time-sample-child-3"))).toEqual(["1m · 10-19 16:57"]);
   });
 
   it("counts subtasks by status icon in the pill, without words", async () => {
@@ -2284,7 +2284,7 @@ describe("TaskDetailCards", () => {
       start(3 * 60_000),
       "3m",
       "Collect status colours",
-      "约 18m · 2 分钟前",
+      "18m · 2 分钟前",
     ]);
     // The running count is in the status colour, the rest muted.
     const summary = hostByTestId(running.root, "detail-subtasks").findAll((node) => (node.type as unknown) === "Text" && node.props.children === 2);
@@ -2868,9 +2868,9 @@ describe("formatters", () => {
     expect(formatClockTime(local(19, 23, 58), local(20, 0, 10))).toBe("10/19 23:58");
     expect(formatWait(4 * 60_000 + 20_000, "zh")).toBe("等待 4m");
     expect(formatWait(4 * 60_000, "en")).toBe("Waiting 4m");
-    expect(formatApprox(8 * 60_000, "zh")).toBe("约 8m");
+    expect(formatApprox(8 * 60_000, "zh")).toBe("8m");
     expect(formatApprox(20_000, "en")).toBe("~1m");
-    expect(formatApprox(90 * 60_000, "zh")).toBe("约 1h 30m");
+    expect(formatApprox(90 * 60_000, "zh")).toBe("1h 30m");
     expect(formatRelative(5 * 60_000, "zh")).toBe("5 分钟前");
     expect(formatRelative(5 * 60_000, "en")).toBe("5m ago");
     expect(formatRelative(10_000, "zh")).toBe("刚刚");
