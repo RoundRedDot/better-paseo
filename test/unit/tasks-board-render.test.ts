@@ -1007,6 +1007,75 @@ describe("Tasks board, desktop", () => {
     expect(readSidebarPreference().open).toBe(true);
   });
 
+  it.each([14, 21])("iPad floating sidebar uses smaller text at UI base %i and keeps other layouts unchanged", (base) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    const uiTheme = { ...(theme as object), typography: { fontSize: { ui: base } } };
+    act(() => { renderer = TestRenderer.create(screen(false, {}, uiTheme)); });
+    layOut(900);
+    act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+    expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width).toBe(340);
+    expect(StyleSheet.flatten(hostsById("sidebar-stat-label-running")[0]!.props.style).fontSize).toBe(Math.round(12 * base / 14 * 0.9));
+    expect(hostsById("floating-sidebar-grabber")).toHaveLength(1);
+    layOut(1600);
+    expect(hostsById("floating-sidebar-resize")).toHaveLength(0);
+    expect(StyleSheet.flatten(hostsById("sidebar-stat-label-running")[0]!.props.style).fontSize).toBe(Math.round(12 * base / 14));
+    expect(StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style).width).toBe(380);
+    layOut(600);
+    act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+    expect(hostsById("board-sheet")).toHaveLength(1);
+    expect(hostsById("floating-sidebar-resize")).toHaveLength(0);
+    expect(StyleSheet.flatten(hostsById("sidebar-stat-label-running")[0]!.props.style).fontSize).toBe(Math.round(12 * base / 14));
+  });
+
+  it("iPad drags the floating edge, clamps both ends, cancels and remembers a released width", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(900);
+    act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+    const handle = () => hostsById("floating-sidebar-resize")[0]!;
+    const width = () => StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width;
+    const event = (pageX: number) => ({ nativeEvent: { pageX } });
+    expect(handle().props.onMoveShouldSetPanResponder({}, { dx: 3, dy: 0 })).toBe(false);
+    expect(handle().props.onMoveShouldSetPanResponder({}, { dx: 8, dy: 20 })).toBe(false);
+    expect(handle().props.onMoveShouldSetPanResponder({}, { dx: 8, dy: 0 })).toBe(true);
+    act(() => {
+      handle().props.onStartShouldSetPanResponderCapture(event(500));
+      handle().props.onPanResponderGrant();
+    });
+    act(() => handle().props.onPanResponderMove(event(0)));
+    expect(width()).toBe(480);
+    act(() => handle().props.onPanResponderMove(event(800)));
+    expect(width()).toBe(320);
+    act(() => handle().props.onPanResponderRelease(event(450)));
+    expect(width()).toBe(390);
+    expect(readSidebarPreference()).toMatchObject({ width: 380, floatingWidth: 390 });
+    act(() => {
+      handle().props.onStartShouldSetPanResponderCapture(event(500));
+      handle().props.onPanResponderGrant();
+    });
+    act(() => handle().props.onPanResponderMove(event(400)));
+    expect(width()).toBe(480);
+    act(() => handle().props.onPanResponderTerminate());
+    expect(width()).toBe(390);
+    act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+    act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+    expect(width()).toBe(390);
+    act(() => handle().props.onAccessibilityAction({ nativeEvent: { actionName: "increment" } }));
+    expect(width()).toBe(410);
+    act(() => { renderer!.unmount(); renderer = TestRenderer.create(screen(false)); });
+    layOut(900);
+    act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+    expect(width()).toBe(410);
+  });
+
+  it("keeps the web floating sidebar at its original width without the tablet grabber", () => {
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(900);
+    act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+    expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width).toBe(380);
+    expect(hostsById("floating-sidebar-resize")).toHaveLength(0);
+  });
+
   it("wires the cards: open jumps to the agent, a hidden parent toasts", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false, { agent: "claude" }));

@@ -1,9 +1,9 @@
 import React, { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from "react";
-import { Animated, Platform, Pressable, ScrollView, View, type FlatList as NativeFlatList, type TextInput as NativeTextInput } from "react-native";
+import { Animated, PanResponder, Platform, Pressable, ScrollView, View, type GestureResponderEvent, type FlatList as NativeFlatList, type TextInput as NativeTextInput } from "react-native";
 import { FlatList, Icon, Modal } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { TaskText as Text, HOST_FONT as F, HOST_LINE, laneTitle, TasksTypography, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, laneTitle, TasksTypography, TasksTypographyScale, useTasksFontScale, taskControlHeight } from "../typography";
 import { StatusIcon, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, isHistoryLane, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -22,6 +22,8 @@ import { LaneSwap, useLaneWidth } from "./lane-resize";
 import {
   NO_SELECTION,
   SIDEBAR,
+  TABLET_SIDEBAR,
+  tabletSidebarWidth,
   clampWidth,
   escapeStep,
   readSidebarPreference,
@@ -191,6 +193,7 @@ export function DesktopBoard(props: {
   }, []);
   // The inline sidebar's width while its edge is dragged; the release keeps it as the preference.
   const [dragWidth, setDragWidth] = useState<number | null>(null);
+  const [floatingDragWidth, setFloatingDragWidth] = useState<number | null>(null);
   // Why a floating panel is up for the moment: a card's click or tap (it goes with its card) or the switch.
   const [shown, setShown] = useState<"card" | "switch" | null>(null);
   const [selection, dispatch] = useReducer(selectionReducer, NO_SELECTION);
@@ -206,8 +209,14 @@ export function DesktopBoard(props: {
   const inline = open && !floating;
   // Too narrow to float beside the lanes: the details rise from the bottom instead, and the lanes make room under them.
   const inSheet = floating && mode === "sheet";
+  const ipadFloating = Platform.OS === "ios" && floating && !inSheet;
+  useEffect(() => {
+    if (!ipadFloating) setFloatingDragWidth(null);
+  }, [ipadFloating]);
   const sheetRoom = inSheet ? sheetHeight(boardHeight, detent) : 0;
-  const panelWidth = sidebarWidth(boardWidth, dragWidth ?? preference.width, floating ? "floating" : "inline");
+  const panelWidth = ipadFloating
+    ? tabletSidebarWidth(boardWidth, floatingDragWidth ?? preference.floatingWidth)
+    : sidebarWidth(boardWidth, dragWidth ?? preference.width, floating ? "floating" : "inline");
   const lanesWidth = Math.max(0, boardWidth - (inline ? panelWidth + SIDEBAR.gap : 0));
   const layout = laneLayout(lanesWidth, laneOrder.length - collapsed.length, collapsed.length, board.laneWidth);
   // What the user sized the lanes with: a change to it eases the lanes to their new widths.
@@ -252,7 +261,7 @@ export function DesktopBoard(props: {
     if (selectedGone) dispatch({ type: "clear" });
   }, [selectedGone]);
 
-  const floatWidth = sidebarWidth(boardWidth, preference.width, "floating");
+  const floatWidth = Platform.OS === "ios" ? tabletSidebarWidth(boardWidth, preference.floatingWidth) : sidebarWidth(boardWidth, preference.width, "floating");
   const latest = useRef({ board, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, floatWidth, laneWidth: layout.laneWidth, collapsed });
   latest.current = { board, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, floatWidth, laneWidth: layout.laneWidth, collapsed };
   const sheetMode = mode === "sheet";
@@ -604,8 +613,17 @@ export function DesktopBoard(props: {
             {sidebar}
           </BoardSheet>
         ) : floating ? (
-          <FloatingSidebar width={panelWidth} theme={theme}>
-            {sidebar}
+          <FloatingSidebar
+            width={panelWidth}
+            theme={theme}
+            resize={ipadFloating ? {
+              label: strings.sidebar.resize,
+              max: tabletSidebarWidth(boardWidth, TABLET_SIDEBAR.max),
+              onDrag: setFloatingDragWidth,
+              onResize: (width) => setPreference((current) => ({ ...current, floatingWidth: width })),
+            } : undefined}
+          >
+            {ipadFloating ? <TasksTypographyScale factor={TABLET_SIDEBAR.fontScale}>{sidebar}</TasksTypographyScale> : sidebar}
           </FloatingSidebar>
         ) : null}
       </View>
@@ -702,11 +720,51 @@ function SidebarColumn(props: { width: number; theme: PluginTheme; onDrag(width:
 }
 
 /** A narrow board's sidebar: over the lanes' right side, on the board's surface with the menus' shadow. */
-function FloatingSidebar(props: { width: number; theme: PluginTheme; children: React.ReactNode }) {
+function FloatingSidebar(props: {
+  width: number;
+  theme: PluginTheme;
+  resize?: { label: string; max: number; onDrag(width: number | null): void; onResize(width: number): void };
+  children: React.ReactNode;
+}) {
   const chrome = menuChrome(props.theme);
   const reduced = useReducedMotion();
   const x = useRef(new Animated.Value(reduced ? 0 : 24)).current;
   const opacity = useRef(new Animated.Value(reduced ? 1 : 0)).current;
+  const latest = useRef(props);
+  latest.current = props;
+  const [dragging, setDragging] = useState(false);
+  const pan = useMemo(() => {
+    let touchX = 0;
+    let startWidth = 0;
+    const widthAt = (event: GestureResponderEvent) => {
+      const max = latest.current.resize?.max ?? TABLET_SIDEBAR.max;
+      return Math.round(Math.max(TABLET_SIDEBAR.min, Math.min(max, startWidth + touchX - event.nativeEvent.pageX)));
+    };
+    return PanResponder.create({
+      onStartShouldSetPanResponderCapture: (event) => {
+        touchX = event.nativeEvent.pageX;
+        return false;
+      },
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_event, gesture) => !!latest.current.resize && Math.abs(gesture.dx) > 4 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        startWidth = latest.current.width;
+        setDragging(true);
+      },
+      onPanResponderMove: (event) => latest.current.resize?.onDrag(widthAt(event)),
+      onPanResponderRelease: (event) => {
+        const resize = latest.current.resize;
+        resize?.onResize(widthAt(event));
+        resize?.onDrag(null);
+        setDragging(false);
+      },
+      onPanResponderTerminate: () => {
+        latest.current.resize?.onDrag(null);
+        setDragging(false);
+      },
+    });
+  }, []);
   useEffect(() => {
     if (reduced) return;
     const animation = Animated.parallel([
@@ -726,6 +784,7 @@ function FloatingSidebar(props: { width: number; theme: PluginTheme; children: R
         bottom: 12,
         width: props.width,
         padding: 8,
+        paddingLeft: props.resize ? 24 : 8,
         borderRadius: 16,
         borderWidth: HAIRLINE,
         borderColor: chrome.border,
@@ -736,6 +795,26 @@ function FloatingSidebar(props: { width: number; theme: PluginTheme; children: R
         transform: [{ translateX: x }],
       } as object}
     >
+      {props.resize ? (
+        <View
+          {...pan.panHandlers}
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel={props.resize.label}
+          accessibilityValue={{ min: TABLET_SIDEBAR.min, max: props.resize.max, now: props.width }}
+          accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+          onAccessibilityAction={(event) => {
+            const action = event.nativeEvent.actionName;
+            if (action !== "increment" && action !== "decrement") return;
+            const width = props.width + (action === "increment" ? 20 : -20);
+            props.resize?.onResize(Math.max(TABLET_SIDEBAR.min, Math.min(props.resize.max, width)));
+          }}
+          testID="floating-sidebar-resize"
+          style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 24, alignItems: "center", justifyContent: "center", zIndex: 5 }}
+        >
+          <View pointerEvents="none" testID="floating-sidebar-grabber" style={{ width: 4, height: 40, borderRadius: 2, backgroundColor: dragging ? props.theme.colors.accent : props.theme.colors.foregroundMuted, opacity: dragging ? 1 : 0.5 }} />
+        </View>
+      ) : null}
       {props.children}
     </Animated.View>
   );
