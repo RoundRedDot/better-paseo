@@ -256,7 +256,8 @@ Never truncate a label, wrap it, or reduce its font to squeeze it in. Restore co
 when the row has room again. A narrow default tablet lane is normally at least 260 pt; it may
 show part of the next lane rather than force two complete lanes into the viewport. On the same
 small tablet, Narrow adapts down to 240 pt, keeping its scroll width at least 20 pt below
-Default. Wide stays at 340 pt; wider boards retain the existing preset ranges.
+Default. Wide stays at 300 pt when the board is below 632 pt; wider boards retain the
+existing preset ranges.
 
 An icon-only button keeps its outline, colour, height, action and full accessibility label.
 Its width is its base target height (28/32 pt on cards, 48 pt in the sheet bar); its height
