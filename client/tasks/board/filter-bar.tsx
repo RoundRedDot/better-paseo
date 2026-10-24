@@ -20,6 +20,9 @@ export type FilterMenu = "project" | "workspace" | "agent" | "label" | "sort" | 
 
 /** Toolbar labels follow the host base size on every platform. */
 const toolbarFontSize = () => F.base;
+const MENU_PADDING = 10;
+const MENU_ICON = 13;
+const MENU_CHEVRON = 12;
 
 /** Round and menu buttons share the same height on each platform. */
 const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
@@ -522,6 +525,7 @@ type DroppedWord = string | { text: string; maxWidth?: number };
  * out unseen to know when they fit again.
  */
 function useLabelFit(dropped: readonly DroppedWord[], enabled = true) {
+  const scale = useTasksFontScale();
   const [compact, setCompact] = useState(false);
   // Each box notes the mode it was laid out in: a decision waits for the buttons and the end to lay out in the current one.
   const boxes = useRef<Partial<Record<keyof BarBoxes, Box & { compact: boolean }>>>({});
@@ -540,7 +544,8 @@ function useLabelFit(dropped: readonly DroppedWord[], enabled = true) {
         labels = null;
         break;
       }
-      labels += width + LABEL_GAP;
+      // Restoring a label also restores the chevron, two gaps and side padding.
+      labels += width + 2 * MENU_PADDING + MENU_ICON + MENU_CHEVRON + 2 * LABEL_GAP - toolbarButtonSize(scale);
     }
     const next = nextCompact(now, { filters, end, controls }, labels);
     if (next === now) return;
@@ -703,7 +708,8 @@ function Divider({ theme }: { theme: PluginTheme }) {
 function MenuButton(props: { icon: string; label: string; compact?: boolean; accessibilityLabel?: string; labelMaxWidth?: number; tip?: string; open: boolean; onPress(): void; theme: PluginTheme; children: ReactNode }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
-  const iconOnly = Platform.OS !== "web" && props.compact;
+  const iconOnly = !!props.compact;
+  const size = toolbarButtonSize(scale);
   return (
     <View style={{ zIndex: props.open ? 20 : 0, maxWidth: Platform.OS === "web" ? "100%" : undefined, flexShrink: Platform.OS === "web" ? 1 : 0 }}>
       <HoverPressable
@@ -714,25 +720,25 @@ function MenuButton(props: { icon: string; label: string; compact?: boolean; acc
         {...tipProps(props.open ? undefined : props.tip)}
         onPress={props.onPress}
         style={(hovered) => ({
-          height: toolbarButtonSize(scale),
+          height: size,
           maxWidth: Platform.OS === "web" ? "100%" : undefined,
-          width: iconOnly ? toolbarButtonSize(scale) : undefined,
-          paddingHorizontal: iconOnly ? 0 : 10,
+          width: iconOnly ? size : undefined,
+          paddingHorizontal: iconOnly ? 0 : MENU_PADDING,
           justifyContent: "center",
-          borderRadius: 6,
+          borderRadius: iconOnly ? size / 2 : 6,
           borderWidth: HAIRLINE,
           borderColor: colors.border,
           backgroundColor: hovered || props.open ? colors.surface1 : "transparent",
           flexDirection: "row",
           alignItems: "center",
-          gap: 5,
+          gap: LABEL_GAP,
         })}
       >
-        <Icon name={props.icon} size={13} color={colors.foregroundMuted} />
+        <Icon name={props.icon} size={iconOnly ? Math.round(size / 2) : MENU_ICON} color={iconOnly ? colors.foreground : colors.foregroundMuted} />
         {props.compact ? null : (
           <Text numberOfLines={1} style={{ flexShrink: Platform.OS === "web" ? 1 : 0, maxWidth: props.labelMaxWidth, fontSize: toolbarFontSize(), fontWeight: "500", color: colors.foreground }}>{props.label}</Text>
         )}
-        {iconOnly ? null : <Icon name="ChevronDown" size={12} color={colors.foregroundMuted} />}
+        {iconOnly ? null : <Icon name="ChevronDown" size={MENU_CHEVRON} color={colors.foregroundMuted} />}
       </HoverPressable>
       {props.open ? props.children : null}
     </View>

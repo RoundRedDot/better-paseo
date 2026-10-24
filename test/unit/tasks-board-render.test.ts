@@ -1126,7 +1126,7 @@ describe("Tasks board, desktop", () => {
 
   it("draws the filter bar's buttons as icons alone once their words would wrap them, and gives the words back once they fit", () => {
     act(() => {
-      renderer = TestRenderer.create(screen(false, {}));
+      renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: 14 } } }));
     });
     layOut(1440);
     const view = (testID: string) => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === testID);
@@ -1147,7 +1147,7 @@ describe("Tasks board, desktop", () => {
     expect(named(controls())).toEqual(["Project", "Workspace", "Agent", "Labels"]);
     expect(named(view("filter-bar-end"))).toContain("Sort");
 
-    // Unseen, the dropped words lay out to say when they fit again: six at 40, each with its gap, need 270.
+    // Restoring six labels also restores each chevron and rectangular padding: 6 * (40 + 27) = 402.
     const hidden = view("filter-bar-words");
     expect(hidden.props["aria-hidden"]).toBe(true);
     expect(StyleSheet.flatten(hidden.props.style)).toMatchObject({ position: "absolute", opacity: 0 });
@@ -1157,8 +1157,15 @@ describe("Tasks board, desktop", () => {
     lay(view("filter-bar-end"), { width: 300 });
     for (const text of dropped) act(() => text.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 40, height: 18 } } }));
     expect(words()).toEqual([]);
-    // 300 + 270 fits a group of 700 with room to spare: the words come back.
+    // Circular buttons retain their geometry while labels wait for enough room.
+    for (const button of controls().findAll((node) => (node.type as unknown) === "Pressable")) {
+      expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: 28, height: 28, borderRadius: 14 });
+      expect(button.findAll((node) => (node.type as unknown) === "Icon")).toHaveLength(1);
+    }
     lay(group(), { width: 700 });
+    expect(words()).toEqual([]);
+    // 300 + 402 fits a group of 750 with room to spare: the words come back.
+    lay(group(), { width: 750 });
     expect(words()).toEqual(expect.arrayContaining(["Project", "Labels"]));
     expect(renderer!.root.findAll((node) => node.props.testID === "filter-bar-words")).toHaveLength(0);
 
@@ -1627,7 +1634,7 @@ describe("Tasks board, tablet filters", () => {
     expect(buttons().map((node) => node.props.accessibilityLabel)).toEqual([strings.project, strings.workspace, strings.agent, strings.labels]);
     expect(buttons().map((node) => node.findAll((child) => (child.type as unknown) === "Icon").map((icon) => icon.props.name))).toEqual([["FolderKanban"], ["FolderGit2"], ["Bot"], ["Tag"]]);
     const height = Math.round(36 * Math.max(1, base / 14));
-    for (const button of buttons()) expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: height, height });
+    for (const button of buttons()) expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: height, height, borderRadius: height / 2, borderColor: "#e2e2e6" });
     expect(StyleSheet.flatten(end().props.style).height).toBe(height);
     expect(end().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch").map((node) => node.props.testID)).toEqual(["archived-lane-toggle"]);
     expect(renderer!.root.findAllByType(WindowSegments)).toHaveLength(0);
