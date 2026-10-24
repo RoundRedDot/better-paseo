@@ -412,8 +412,8 @@ export function DesktopBoard(props: {
   // while the board is on screen and focus is not somewhere else in the app.
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined" || !board.visible) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
+    const onKey = (event: KeyboardEvent, ownsActivation = false) => {
+      if (event.metaKey || event.ctrlKey || event.altKey || (event.defaultPrevented && !ownsActivation)) return;
       const root = rootRef.current as unknown as HTMLElement | null;
       const active = document.activeElement as HTMLElement | null;
       if (active && active !== document.body && root && !root.contains(active)) return;
@@ -480,14 +480,18 @@ export function DesktopBoard(props: {
         }
       }
     };
-    // Capture card activation before RNW's PressResponder turns it into a
-    // click. Esc also reaches us before TextInput stops it from bubbling.
+    // The host's global shortcuts run at window capture and may cancel Space
+    // before it reaches document. A card or the composite board owns its
+    // activation even then; nested controls keep their own key handling.
+    const onActivationKey = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const root = rootRef.current as unknown as HTMLElement | null;
+      if (!root || !(focusedTaskCardId(root) || (document.activeElement === root && (latest.current.focus || latest.current.selection.id)))) return;
+      onKey(event, true);
+      if (event.defaultPrevented) event.stopPropagation();
+    };
+    // Esc reaches us before TextInput stops it from bubbling.
     const onCaptureKey = (event: KeyboardEvent) => {
-      if ((event.key === "Enter" || event.key === " ") && focusedTaskCardId(rootRef.current)) {
-        onKey(event);
-        if (event.defaultPrevented) event.stopPropagation();
-        return;
-      }
       if (event.key !== "Escape" || event.metaKey || event.ctrlKey || event.altKey) return;
       const root = rootRef.current as unknown as HTMLElement | null;
       const active = document.activeElement as HTMLElement | null;
@@ -500,9 +504,11 @@ export function DesktopBoard(props: {
         event.preventDefault();
       }
     };
+    window.addEventListener("keydown", onActivationKey, true);
     document.addEventListener("keydown", onCaptureKey, true);
     document.addEventListener("keydown", onKey);
     return () => {
+      window.removeEventListener("keydown", onActivationKey, true);
       document.removeEventListener("keydown", onCaptureKey, true);
       document.removeEventListener("keydown", onKey);
     };
@@ -1221,7 +1227,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
           extraData={extraData}
           renderItem={renderItem}
           ItemSeparatorComponent={Separator}
-          contentContainerStyle={{ ...LANE_PAD, paddingTop: 2, paddingBottom: 8 + props.bottomRoom, ...(props.onBlank ? { flexGrow: 1 } : null) }}
+          contentContainerStyle={{ ...LANE_PAD, paddingTop: Platform.OS === "web" ? 4 : 2, paddingBottom: 8 + props.bottomRoom, ...(props.onBlank ? { flexGrow: 1 } : null) }}
           initialNumToRender={8}
           maxToRenderPerBatch={8}
           windowSize={7}

@@ -550,7 +550,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const dashed = !!card.subagent;
   const shadows = lit ? [look.shadowHover] : dashed ? [] : [look.shadow];
   // Focus is neutral and outside the card; selection owns the accent fill and hairline.
-  if (props.focused && !WEB) shadows.push(`0px 0px 0px 2px ${tokens.foregroundMuted}`);
+  if (props.focused && !WEB) shadows.push(`0px 0px 0px 1px ${tokens.foregroundMuted}`);
   const cardStyle = {
     paddingHorizontal: m.padH,
     paddingTop: m.padTop,
@@ -567,7 +567,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     zIndex: menuOpen ? 30 : hovered ? 2 : 1,
     // Both Tab and composite navigation use the same outline. Unlike the
     // hover shadow it changes at once, so a departing focus cannot linger.
-    ...(WEB ? { outlineStyle: props.focused ? "solid" : undefined, outlineWidth: 2, outlineColor: tokens.foregroundMuted, outlineOffset: 2 } : null),
+    ...(WEB ? { outlineStyle: props.focused ? "solid" : undefined, outlineWidth: 1, outlineColor: tokens.foregroundMuted, outlineOffset: 2 } : null),
     ...webTransition,
   } as ViewStyle;
 
