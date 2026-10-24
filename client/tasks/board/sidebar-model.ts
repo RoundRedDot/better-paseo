@@ -29,6 +29,13 @@ export const SIDEBAR = {
 
 export type SidebarMode = "inline" | "floating" | "sheet";
 
+/** The iPad floating panel has its own width, independent of the desktop column. */
+export const TABLET_SIDEBAR = { width: 340, min: 320, max: 480, fontScale: 0.9 } as const;
+
+export function tabletSidebarWidth(boardWidth: number, preferred: number = TABLET_SIDEBAR.width): number {
+  return Math.round(Math.max(TABLET_SIDEBAR.min, Math.min(TABLET_SIDEBAR.max, boardWidth - 2 * SIDEBAR.gap, preferred)));
+}
+
 /** Inline, floating or a bottom sheet for a board this wide, keeping the current mode inside each 24 px band. */
 export function sidebarMode(boardWidth: number, current: SidebarMode | null): SidebarMode {
   if (boardWidth >= SIDEBAR.inlineFrom) return "inline";
@@ -119,6 +126,7 @@ export function escapeStep(selection: SidebarSelection, floatingOpen: boolean): 
 export interface SidebarPreference {
   open: boolean;
   width: number;
+  floatingWidth?: number;
 }
 
 const STORAGE_KEY = "paseo/better-chat/tasks/sidebar/v1";
@@ -144,6 +152,9 @@ export function readSidebarPreference(): SidebarPreference {
       read = {
         open: typeof parsed.open === "boolean" ? parsed.open : DEFAULT_PREFERENCE.open,
         width: typeof parsed.width === "number" && Number.isFinite(parsed.width) ? clampWidth(parsed.width) : DEFAULT_PREFERENCE.width,
+        ...(typeof parsed.floatingWidth === "number" && Number.isFinite(parsed.floatingWidth)
+          ? { floatingWidth: tabletSidebarWidth(Number.POSITIVE_INFINITY, parsed.floatingWidth) }
+          : {}),
       };
     }
   } catch {

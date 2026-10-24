@@ -7,7 +7,7 @@ import { MarkdownView } from "../../components/markdown/markdown-view";
 import { variantMetrics } from "../../components/markdown/render/styles";
 import { useThemeTokens, withAlpha } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
-import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, useTasksFontAdjustment, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { useCopy } from "../../ui/use-copy";
 import type { TasksLanguage } from "../i18n";
@@ -1204,9 +1204,10 @@ function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt; load(): 
   const [open, setOpen] = useState(false);
   const { copied, copy } = useCopy();
   const prose = useThemeTokens(props.theme, useEnhancerPreferences());
+  const adjustment = useTasksFontAdjustment();
   const first = props.read;
   if (!first) return null;
-  const font = props.touch ? 15 : 13;
+  const font = Math.round((props.touch ? 15 : 13) * adjustment);
   const small = props.touch ? 14 : 12;
   const prompt = first.prompt;
   if (prompt.state !== "ready") {

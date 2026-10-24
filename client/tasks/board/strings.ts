@@ -142,6 +142,7 @@ const en = {
   answerFailed: (message: string) => `Could not answer: ${message}`,
   sidebar: {
     key: "Sidebar",
+    resize: "Adjust sidebar width",
     show: "Show sidebar",
     hide: "Hide sidebar",
     close: "Close",
@@ -283,6 +284,7 @@ const zh: typeof en = {
   answerFailed: (message) => `回答失败：${message}`,
   sidebar: {
     key: "侧边栏",
+    resize: "调整侧边栏宽度",
     show: "显示侧边栏",
     hide: "隐藏侧边栏",
     close: "关闭",

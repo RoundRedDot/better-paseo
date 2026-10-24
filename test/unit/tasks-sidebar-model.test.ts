@@ -5,6 +5,8 @@ vi.mock("react-native", () => import("./helpers/rn-mock"));
 import {
   NO_SELECTION,
   SIDEBAR,
+  TABLET_SIDEBAR,
+  tabletSidebarWidth,
   escapeStep,
   readSidebarPreference,
   resetSidebarPreference,
@@ -62,6 +64,13 @@ describe("bottom sheet", () => {
 });
 
 describe("sidebar width", () => {
+  it("uses a separate compact tablet floating width and clamps its drag range", () => {
+    expect(tabletSidebarWidth(900)).toBe(340);
+    expect(tabletSidebarWidth(900, 100)).toBe(TABLET_SIDEBAR.min);
+    expect(tabletSidebarWidth(900, 900)).toBe(TABLET_SIDEBAR.max);
+    expect(tabletSidebarWidth(900, 410)).toBe(410);
+    expect(tabletSidebarWidth(460, 480)).toBe(436);
+  });
   it("keeps the user's width while the lanes have room", () => {
     expect(sidebarWidth(2000, 380, "inline")).toBe(380);
     expect(sidebarWidth(2000, 900, "inline")).toBe(SIDEBAR.max);
@@ -125,5 +134,10 @@ describe("sidebar preference", () => {
     expect(readSidebarPreference()).toEqual({ open: true, width: SIDEBAR.width });
     writeSidebarPreference({ open: false, width: 420 });
     expect(readSidebarPreference()).toEqual({ open: false, width: 420 });
+  });
+
+  it("remembers the tablet floating width separately from the desktop width", () => {
+    writeSidebarPreference({ open: true, width: 420, floatingWidth: 350 });
+    expect(readSidebarPreference()).toEqual({ open: true, width: 420, floatingWidth: 350 });
   });
 });
