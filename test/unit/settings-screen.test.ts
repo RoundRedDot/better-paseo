@@ -38,12 +38,12 @@ describe("settings screen registration", () => {
     updateEnhancerPreferences({ language: "zh" });
     const plugin = client();
     const cleanup = contributeSettingsScreen(plugin.value as never);
-    expect(plugin.active.map((entry) => [entry.id, entry.title])).toEqual([[SETTINGS_SCREEN_ID, "聊天与任务设置"]]);
+    expect(plugin.active.map((entry) => [entry.id, entry.title])).toEqual([[SETTINGS_SCREEN_ID, "设置"]]);
     const component = plugin.active[0]!.Component;
     updateEnhancerPreferences({ language: "en" });
     resolveTasksLanguage();
     await flush();
-    expect(plugin.active.map((entry) => [entry.id, entry.title])).toEqual([[SETTINGS_SCREEN_ID, "Chat & Tasks settings"]]);
+    expect(plugin.active.map((entry) => [entry.id, entry.title])).toEqual([[SETTINGS_SCREEN_ID, "Settings"]]);
     // The same component: an open page keeps its state.
     expect(plugin.active[0]!.Component).toBe(component);
     cleanup();

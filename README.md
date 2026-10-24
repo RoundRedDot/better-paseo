@@ -64,7 +64,7 @@ paseo plugin install RoundRedDot/better-paseo
 
 Paseo `>=0.8.0` is required; the plugin is developed and measured against Paseo 0.12.0. On Paseo
 0.8–0.10 it works with some compatibility issues, listed under [Compatibility](#compatibility).
-Open **Settings → Plugins → Better Paseo** (the page is titled **Chat & Tasks settings**) to
+Open **Settings → Plugins → Better Paseo** (the page is titled **Settings**) to
 configure it. Paseo installs plugins from GitHub and builds the client on install, so pull a new
 version with:
 
@@ -703,7 +703,7 @@ instead of starting over.
 
 ## Settings
 
-**Settings → Plugins → Better Paseo**, page **Chat & Tasks settings**. The page has two tabs,
+**Settings → Plugins → Better Paseo**, page **Settings**. The page has two tabs,
 **Chat presentation** and **Tasks board**; the switch that turns the board on sits at the top of
 both. On the chat tab a sample turn drawn with the timeline's own components follows every change:
 beside the options on a wide window, above them elsewhere. The Read row's hover preview is drawn
