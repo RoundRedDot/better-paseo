@@ -85,6 +85,8 @@ const en = {
   /** The filter bar's lane width menu; the choice is the Tasks setting, so every client of the host follows it. */
   laneWidth: {
     title: "Lane width",
+    /** Short heading beside the toolbar's inline width choices. */
+    label: "Lane width",
     /** Read out for the filter-bar button, which shows only the width's name. */
     button: (name: string) => `Lanes · ${name}`,
     names: { narrow: "Narrow", default: "Default", wide: "Wide" } as Record<LaneWidth, string>,
@@ -233,6 +235,7 @@ const zh: typeof en = {
   sortDefault: "默认顺序",
   laneWidth: {
     title: "泳道宽度",
+    label: "列宽",
     button: (name: string) => `泳道 · ${name}`,
     names: { narrow: "紧凑", default: "默认", wide: "宽松" } as Record<LaneWidth, string>,
     saveFailed: "泳道宽度没有保存成功",

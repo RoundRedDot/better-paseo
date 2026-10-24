@@ -1646,7 +1646,8 @@ describe("Tasks board, lane widths", () => {
     layOut(1800);
     const strings = BOARD_STRINGS[language];
     const buttonSize = Math.round(28 * Math.max(1, base / 14));
-    const inlineWidth = 3 * (buttonSize + 2) + 6;
+    const segmentsWidth = 3 * (buttonSize + 2) + 6;
+    const inlineWidth = segmentsWidth + 10 + (language === "zh" ? 2 : 5) * base;
     const controls = () => hostsById("filter-bar-controls")[0]!;
     const group = () => hostParentOf(controls())!;
     const end = () => hostsById("filter-bar-end")[0]!;
@@ -1655,6 +1656,7 @@ describe("Tasks board, lane widths", () => {
     const button = () => pressable(strings.laneWidth.button(strings.laneWidth.names[deviceTasksStore().snapshot().values?.laneWidth ?? "default"]));
     const lay = (node: ReactTestInstance, width: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 28 } } }));
     expect(inline()).toHaveLength(0);
+    expect(hostsById("lane-width-label")).toHaveLength(0);
     expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end())[0]).toBe(laneControl());
     lay(controls(), 500);
     lay(group(), 1000);
@@ -1663,8 +1665,20 @@ describe("Tasks board, lane widths", () => {
     lay(hostsById("filter-bar")[0]!, 1800);
     const measure = hostsById("lane-width-measure")[0]!;
     expect(measure.props["aria-hidden"]).toBe(true);
+    expect(textOf(measure)).toBe(language === "zh" ? "列宽" : "Lane width");
+    // Enough room for the marks alone must not restore a heading that would overflow.
+    lay(group(), 500 + segmentsWidth - buttonSize + 12);
     lay(measure, inlineWidth);
+    expect(inline()).toHaveLength(0);
+    expect(hostsById("lane-width-label")).toHaveLength(0);
+    lay(group(), 1000);
     expect(inline()).toHaveLength(1);
+    const label = () => hostsById("lane-width-label")[0]!;
+    expect(textOf(label())).toBe(strings.laneWidth.label);
+    expect(StyleSheet.flatten(label().props.style)).toMatchObject({ fontSize: base, color: "#6b6b75" });
+    expect(hostParentOf(label())).toBe(laneControl());
+    const laneChildren = laneControl().findAll((node) => typeof node.type === "string" && hostParentOf(node) === laneControl());
+    expect(laneChildren.indexOf(label())).toBeLessThan(laneChildren.indexOf(inline()[0]!));
     const choices = () => inline()[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "radio");
     expect(choices().map(textOf)).toEqual(["", "", ""]);
     expect(choices().map((node) => node.props.accessibilityLabel)).toEqual([strings.laneWidth.names.narrow, strings.laneWidth.names.default, strings.laneWidth.names.wide]);
@@ -1682,6 +1696,7 @@ describe("Tasks board, lane widths", () => {
     // A direct window shrink can move the end to a new row without firing its onLayout.
     lay(hostsById("filter-bar")[0]!, 1000);
     expect(inline()).toHaveLength(0);
+    expect(hostsById("lane-width-label")).toHaveLength(0);
     lay(group(), 600);
     lay(hostsById("filter-bar")[0]!, 1200);
     lay(laneControl(), buttonSize);
@@ -1699,6 +1714,7 @@ describe("Tasks board, lane widths", () => {
     lay(hostsById("filter-bar")[0]!, 1800);
     lay(group(), 1000);
     expect(inline()).toHaveLength(1);
+    expect(textOf(label())).toBe(strings.laneWidth.label);
     expect(hostsById("lane-width-menu")).toHaveLength(0);
     expect(choices().map((node) => node.props.accessibilityState.selected)).toEqual([false, false, true]);
     failDeviceWrite();

@@ -320,7 +320,7 @@ export function DesktopFilterBar(props: {
     words.agent,
     words.label,
     { text: words.sort, maxWidth: SORT_LABEL_MAX_WIDTH },
-  ], !tablet);
+  ], !tablet, strings.laneWidth.label);
   const compact = tablet || fit.compact;
   useEffect(() => {
     if (fit.inlineLaneWidth && menu === "laneWidth") setMenu(null);
@@ -434,18 +434,21 @@ export function DesktopFilterBar(props: {
       <View testID="filter-bar-end" pointerEvents="box-none" onLayout={fit.box("end")} style={{ flexShrink: tablet ? 0 : 1, maxWidth: "100%", marginLeft: "auto", height: toolbarButtonSize(scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu === "sort" || menu === "laneWidth" ? 2 : 1 }}>
         {tablet ? null : (
           <>
-            <View testID="lane-width-control" pointerEvents="box-none" onLayout={fit.measureLaneControl} style={{ flexShrink: 0, zIndex: menu === "laneWidth" ? 1 : 0 }}>
+            <View testID="lane-width-control" pointerEvents="box-none" onLayout={fit.measureLaneControl} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu === "laneWidth" ? 1 : 0 }}>
               {fit.inlineLaneWidth ? (
-                <Segments
-                  items={LANE_WIDTHS}
-                  label={(width) => strings.laneWidth.names[width]}
-                  mark={(width, selected) => <LaneWidthMark laneWidth={width} size={laneWidthIconSize(scale)} color={selected ? colors.foreground : colors.foregroundMuted} />}
-                  value={board.laneWidth}
-                  onChange={board.setLaneWidth}
-                  theme={theme}
-                  tip={strings.laneWidth.title}
-                  testID="toolbar-lane-width"
-                />
+                <>
+                  <Text testID="lane-width-label" numberOfLines={1} style={{ fontSize: toolbarFontSize(), color: colors.foregroundMuted }}>{strings.laneWidth.label}</Text>
+                  <Segments
+                    items={LANE_WIDTHS}
+                    label={(width) => strings.laneWidth.names[width]}
+                    mark={(width, selected) => <LaneWidthMark laneWidth={width} size={laneWidthIconSize(scale)} color={selected ? colors.foreground : colors.foregroundMuted} />}
+                    value={board.laneWidth}
+                    onChange={board.setLaneWidth}
+                    theme={theme}
+                    tip={strings.laneWidth.title}
+                    testID="toolbar-lane-width"
+                  />
+                </>
               ) : (
                 <MenuButton
                   icon={<LaneWidthMark laneWidth={board.laneWidth} size={laneWidthIconSize(scale)} color={colors.foreground} />}
@@ -556,7 +559,7 @@ type DroppedWord = string | { text: string; maxWidth?: number };
  * Measures the bar before folding lane choices, then filter labels. Hidden
  * measurements let each return only once it fits with room to spare.
  */
-function useLabelFit(dropped: readonly DroppedWord[], enabled: boolean) {
+function useLabelFit(dropped: readonly DroppedWord[], enabled: boolean, laneWidthLabel: string) {
   const scale = useTasksFontScale();
   const [layout, setLayout] = useState<BarLayout>({ compact: false, inlineLaneWidth: false });
   const { compact, inlineLaneWidth } = layout;
@@ -565,7 +568,7 @@ function useLabelFit(dropped: readonly DroppedWord[], enabled: boolean) {
   const widths = useRef<number[]>([]);
   const laneControl = useRef<{ inlineLaneWidth: boolean; width: number } | null>(null);
   const laneMeasure = useRef<{ key: string; width: number } | null>(null);
-  const measureKey = String(scale);
+  const measureKey = `${scale}|${laneWidthLabel}`;
   const latest = useRef({ layout, count: dropped.length });
   latest.current = { layout, count: dropped.length };
   const decide = () => {
@@ -603,7 +606,7 @@ function useLabelFit(dropped: readonly DroppedWord[], enabled: boolean) {
     laneControl.current = { inlineLaneWidth, width: event.nativeEvent.layout.width };
     decide();
   };
-  // Match marked Segments' padding, outline and minimum item widths without mounting hidden radios.
+  // Measure the heading and marked Segments together without mounting hidden radios.
   const laneWidthMeasure = enabled ? (
     <View
       key={measureKey}
@@ -616,13 +619,16 @@ function useLabelFit(dropped: readonly DroppedWord[], enabled: boolean) {
         laneMeasure.current = { key: measureKey, width: event.nativeEvent.layout.width };
         decide();
       }}
-      style={{ position: "absolute", left: 0, top: 0, opacity: 0, flexDirection: "row", padding: 2, borderWidth: HAIRLINE, borderColor: "transparent" }}
+      style={{ position: "absolute", left: 0, top: 0, opacity: 0, flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP }}
     >
-      {LANE_WIDTHS.map((width) => (
-        <View key={width} style={{ minWidth: toolbarButtonSize(scale) + 2, paddingHorizontal: 6, alignItems: "center" }}>
-          <LaneWidthMark laneWidth={width} size={laneWidthIconSize(scale)} color="transparent" />
-        </View>
-      ))}
+      <Text numberOfLines={1} style={{ fontSize: toolbarFontSize() }}>{laneWidthLabel}</Text>
+      <View style={{ flexDirection: "row", padding: 2, borderWidth: HAIRLINE, borderColor: "transparent" }}>
+        {LANE_WIDTHS.map((width) => (
+          <View key={width} style={{ minWidth: toolbarButtonSize(scale) + 2, paddingHorizontal: 6, alignItems: "center" }}>
+            <LaneWidthMark laneWidth={width} size={laneWidthIconSize(scale)} color="transparent" />
+          </View>
+        ))}
+      </View>
     </View>
   ) : null;
   const layer = compact ? (
