@@ -1391,7 +1391,15 @@ describe("TaskCardView actions", () => {
       expect(title.props.numberOfLines).toBe(1);
       expect(title.props.ellipsizeMode).toBe("tail");
       expect(flat(hostByTestId(row, `subtask-status-${child.id}`).props.style).flexShrink).toBe(0);
-      expect(flat(byLabel(row, cardStrings("zh").openInWorkspace).props.style).flexShrink).toBe(0);
+      const open = byLabel(row, cardStrings("zh").openInWorkspace);
+      const openStyle = flat(open.props.style);
+      // The jump button occupies only the title line; metadata reaches the right edge.
+      expect(openStyle).toMatchObject({ position: "absolute", top: 0, right: 0, flexShrink: 0 });
+      expect(openStyle.height).toBe(flat(title.props.style).lineHeight);
+      expect(flat(title.props.style).marginRight).toBe(Number(openStyle.width) + 8);
+      expect(flat(content.props.style).paddingRight).toBeUndefined();
+      expect(flat(hostByTestId(content, `subtask-meta-${child.id}`).props.style).marginRight).toBeUndefined();
+      expect(content.findAll((node) => node === open)).toHaveLength(1);
       row.props.onPress();
       expect(onReveal).toHaveBeenLastCalledWith(child.id);
     }
@@ -2391,7 +2399,13 @@ describe("TaskDetailCards", () => {
     row.props.onPress();
     expect(onJump).toHaveBeenCalledWith(child.id);
     const button = hostByTestId(row, `detail-subtask-open-${child.id}`);
-    expect(flat(button.props.style).flexShrink).toBe(0);
+    const buttonStyle = flat(button.props.style);
+    expect(buttonStyle).toMatchObject({ position: "absolute", top: 0, right: 0, flexShrink: 0 });
+    expect(buttonStyle.height).toBe(flat(title.props.style).lineHeight);
+    expect(flat(title.props.style).marginRight).toBe(Number(buttonStyle.width) + 8);
+    expect(flat(content.props.style).paddingRight).toBeUndefined();
+    expect(flat(secondary.props.style).marginRight).toBeUndefined();
+    expect(content.findAll((node) => node === button)).toHaveLength(1);
     if (touch) {
       row.props.onLongPress();
     } else {

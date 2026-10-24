@@ -78,34 +78,37 @@ export function SubtaskRow(props: SubtaskRowProps) {
         <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={fill} animated={props.animated} />
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }} testID={`${prefix}-content-${child.id}`}>
-        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: F.sm, lineHeight: HOST_LINE.smRead, color: props.muted ? tokens.foregroundMuted : tokens.foreground }} testID={`${prefix}-title-${child.id}`}>
+        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: F.sm, lineHeight: HOST_LINE.smRead, color: props.muted ? tokens.foregroundMuted : tokens.foreground, marginRight: props.onOpen ? target + 8 : undefined }} testID={`${prefix}-title-${child.id}`}>
           {tag ? <Text style={{ color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`${tag} `}</Text> : null}
           {rest}
         </Text>
         <SubtaskMetadata child={child} tokens={tokens} language={props.language} now={props.now} clock={props.clock} testIDPrefix={prefix} />
+        {/* Only the title reserves space; the metadata uses the full content width. */}
+        {props.onOpen ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={props.openLabel}
+            disabled={!showOpen}
+            onPress={props.onOpen}
+            testID={child.kind === "provider" ? `${prefix}-parent-tab-${child.id}` : `${prefix}-open-${child.id}`}
+            {...hintProps(showOpen ? props.openHint : undefined)}
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              width: target,
+              height: line,
+              flexShrink: 0,
+              borderRadius: 5,
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: showOpen ? 1 : 0,
+            }}
+          >
+            <Icon name={child.kind === "provider" ? "CornerLeftUp" : "ArrowUpRight"} size={touch ? 16 : 14} color={tokens.foregroundMuted} />
+          </Pressable>
+        ) : null}
       </View>
-      {props.onOpen ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={props.openLabel}
-          disabled={!showOpen}
-          onPress={props.onOpen}
-          testID={child.kind === "provider" ? `${prefix}-parent-tab-${child.id}` : `${prefix}-open-${child.id}`}
-          {...hintProps(showOpen ? props.openHint : undefined)}
-          style={{
-            width: target,
-            height: target,
-            flexShrink: 0,
-            marginVertical: (line - target) / 2,
-            borderRadius: 5,
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: showOpen ? 1 : 0,
-          }}
-        >
-          <Icon name={child.kind === "provider" ? "CornerLeftUp" : "ArrowUpRight"} size={touch ? 16 : 14} color={tokens.foregroundMuted} />
-        </Pressable>
-      ) : null}
     </Pressable>
   );
 }
