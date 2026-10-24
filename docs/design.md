@@ -192,7 +192,10 @@ All heights grow with the host's interface text size through `taskControlHeight`
 ### Thinking level labels
 
 Use `formatThinkingLevel` in `client/tasks/cards/format.ts` only for visible
-structured thinking levels in shared subtask metadata. The card's combined model
+structured thinking levels in shared subtask metadata only when the measured full
+metadata row exceeds its available width. Show the supplied full level when it
+fits, and restore it after widening or reducing the interface font size. This
+uses actual content fit, not the `240 * scale` permission threshold. The card's combined model
 pill, standalone thinking pill and details chip keep the supplied full level.
 For subtask abbreviations, match case-insensitively after trimming:
 
@@ -208,8 +211,10 @@ For subtask abbreviations, match case-insensitively after trimming:
 
 Keep the `Brain` icon. Hover hints and accessibility labels retain the original
 full level; do not abbreviate stored data, model copy values or provider-written
-facts strings. Unknown/custom levels remain as supplied. These scope rules apply
-to both wide and compact layouts, independent of the permission-text folding.
+facts strings. Unknown/custom levels remain as supplied. Measure the original
+full thinking label even while its abbreviation is visible, including rows with
+no permission mode, so resizing cannot make the two representations oscillate.
+These scope rules apply to both wide and compact layouts.
 
 ## Labels
 
@@ -397,7 +402,7 @@ finished check, or archived box as its state changes.
 | --- | --- |
 | Provider subagent facts | `subagentFacts(...).text`; preserve the supplied facts, without repeating the leading type icon |
 | Model | Model label, including when siblings use the same model |
-| Thinking level | `Brain` followed by the lowercase [thinking level label](#thinking-level-labels); retain the supplied full accessibility label |
+| Thinking level | `Brain` followed by the supplied full level when it fits, otherwise the lowercase [thinking level label](#thinking-level-labels); retain the supplied full accessibility label |
 | Permission/mode | `modeIcon` followed by the mode label; `ShieldOff` uses the warning colour |
 | Attention status | Waiting-input or failed text, with the appropriate tone; unread uses only the identity mark's status dot at every width |
 | Context | `ContextRing`; amber from 75%, red from 90%; percentage in its accessibility label |
