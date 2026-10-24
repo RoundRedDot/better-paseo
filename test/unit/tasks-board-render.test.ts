@@ -111,7 +111,7 @@ import { LaneMotionLayer } from "../../client/tasks/board/lane-motion";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, rememberedCollapsed, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
-import { DesktopFilterBar } from "../../client/tasks/board/filter-bar";
+import { DesktopFilterBar, DesktopToolbar } from "../../client/tasks/board/filter-bar";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
@@ -1701,9 +1701,9 @@ describe("Tasks board, archived lane switch", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
   });
 
-  const toggle = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "archived-lane-toggle")[0]!;
+  const toggle = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived")[0]!;
 
-  it("shows the archived lane from the toolbar's switch beside the done window, and saves it", async () => {
+  it("shows the archived lane from the top toolbar's switch, and saves it", async () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
@@ -1711,19 +1711,20 @@ describe("Tasks board, archived lane switch", () => {
     // The phone's round Archive button: no word, struck through while the lane hides.
     const slashed = () => toggle().findAll((node) => (node.type as unknown) === "View" && node.props.testID === "slash-mark").length > 0;
     expect(textOf(toggle())).toBe("");
-    expect(toggle().props).toMatchObject({ accessibilityLabel: "Show the archived lane", accessibilityState: { checked: false } });
+    expect(toggle().props).toMatchObject({ accessibilityLabel: "Show the archived lane", accessibilityState: { selected: false } });
     expect(slashed()).toBe(true);
-    const outline = () => StyleSheet.flatten(toggle().props.style).borderColor;
+    const outline = () => toggle().find((node) => (node.type as unknown) === "View" && StyleSheet.flatten(node.props.style)?.borderWidth !== undefined).props.style.borderColor;
     const offOutline = outline();
     expect(hostsById("lane-archived")).toHaveLength(0);
-    // In the bar's end, after the done window and before the sort.
-    const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
-    const order = end.findAll((node) => (node.type as unknown) === "Pressable" && (node.props.testID === "archived-lane-toggle" || node.props.accessibilityLabel === "7 days" || textOf(node).includes("Sort")));
-    expect(order.map((node) => node.props.testID === "archived-lane-toggle" ? "archived" : textOf(node).includes("Sort") ? "sort" : "window")).toEqual(["window", "archived", "sort"]);
+    // Alongside the empty-lane and sidebar controls, as on iPad.
+    const toolbar = renderer!.root.findByType(DesktopToolbar);
+    const order = toolbar.findAll((node) => (node.type as unknown) === "Pressable");
+    expect(order.map((node) => node.props.testID)).toEqual(["toolbar-archived", "empty-lanes-toggle", "sidebar-switch"]);
+    expect(hostsById("archived-lane-toggle")).toHaveLength(0);
     await act(async () => toggle().props.onPress());
     layOut(2400);
     // Drawn at once, before the record catches up.
-    expect(toggle().props.accessibilityState).toEqual({ checked: true });
+    expect(toggle().props.accessibilityState).toEqual({ selected: true });
     expect(slashed()).toBe(false);
     // Only the icon changes: the outline stays.
     expect(outline()).toBe(offOutline);
@@ -1739,7 +1740,7 @@ describe("Tasks board, archived lane switch", () => {
     layOut(2400);
     failDeviceWrite();
     await act(async () => toggle().props.onPress());
-    expect(toggle().props.accessibilityState).toEqual({ checked: false });
+    expect(toggle().props.accessibilityState).toEqual({ selected: false });
     // The optimistic lane leaves through its normal collapse animation after rollback.
     act(() => { vi.advanceTimersByTime(300); });
     expect(hostsById("lane-archived")).toHaveLength(0);
@@ -1776,7 +1777,7 @@ describe("Tasks board, toolbar tips", () => {
         "Lane width",
       ]),
     );
-    const toggle = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "archived-lane-toggle")[0]!;
+    const toggle = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived")[0]!;
     await act(async () => toggle.props.onPress());
     expect(tips()).toContain("Hide the archived lane");
     expect(tips()).not.toContain("Show the archived lane");
@@ -2020,9 +2021,9 @@ describe("Tasks board, tablet filters", () => {
       const rows = () => groups().findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function").map((node) => node.props.accessibilityLabel);
       expect(toggle().props).toMatchObject({ accessibilityLabel: "Show groups with no active tasks", accessibilityState: { checked: true } });
       expect(icon()).toBe("List");
-      // After the subtasks' and the archived lane's switches, in the bar's end.
+      // After the subtasks switch, in the bar's end.
       const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
-      expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["subtasks-toggle", "archived-lane-toggle", "empty-groups-toggle"]);
+      expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["subtasks-toggle", "empty-groups-toggle"]);
       // Busy first, the empty ones after them.
       expect(rows().at(-1)).toBe("Pi 0");
       await act(async () => toggle().props.onPress());
@@ -2061,7 +2062,7 @@ describe("Tasks board, tablet filters", () => {
     expect(hostsById(target)[0]!.props.accessibilityState).toEqual({ checked: false });
   });
 
-  it.each([["web", 600], ["ios", 600], ["ios", 800], ["ios", 1200]] as const)("%s at %i pt keeps the archived lane's icon button in the toolbar", async (os, width) => {
+  it.each([["web", 600], ["web", 800], ["web", 1200], ["web", 2400], ["ios", 600], ["ios", 800], ["ios", 1200]] as const)("%s at %i pt keeps the archived lane's icon button in the toolbar", async (os, width) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => {
       renderer = TestRenderer.create(screen(false));
@@ -2089,12 +2090,16 @@ describe("Tasks board, tablet filters", () => {
     expect(hostsById("lane-archived")).toHaveLength(1);
     expect(host.save).not.toHaveBeenCalled();
     expect(deviceTasksStore().snapshot().values).toMatchObject({ showArchived: true });
-    act(() => hostsById(width === 600 ? "toolbar-filters" : "filter-bar-more")[0]!.props.onPress());
-    expect(hostsById("filter-sheet-lane-width")).toHaveLength(1);
-    if (os === "web") expect(renderer!.root.findAll((node) => node.props.testID === "filter-sheet-archived")).toHaveLength(0);
-    // iPad keeps the toolbar button when resized; web restores its filter-bar switch.
+    if (width === 600 || os === "ios") {
+      act(() => hostsById(width === 600 ? "toolbar-filters" : "filter-bar-more")[0]!.props.onPress());
+      expect(hostsById("filter-sheet-lane-width")).toHaveLength(1);
+      if (os === "web") expect(renderer!.root.findAll((node) => node.props.testID === "filter-sheet-archived")).toHaveLength(0);
+    }
+    // The toolbar button and its state survive a resize on both platforms.
     layOut(1600);
-    expect(hostsById("toolbar-archived")).toHaveLength(os === "ios" ? 1 : 0);
+    expect(hostsById("toolbar-archived")).toHaveLength(1);
+    expect(archived().props.accessibilityState).toEqual({ selected: true });
+    expect(hostsById("archived-lane-toggle")).toHaveLength(0);
   });
 
   it("web keeps the subtasks switch on the bar and strikes its icon through while off", () => {
@@ -2109,7 +2114,7 @@ describe("Tasks board, tablet filters", () => {
     expect(textOf(renderer!.root)).not.toContain("Open tabs only");
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-bar-more")).toHaveLength(0);
     // Every switch on the bar is a round one by the done window.
-    const barSwitches = new Set(["subtasks-toggle", "archived-lane-toggle", "empty-groups-toggle"]);
+    const barSwitches = new Set(["subtasks-toggle", "empty-groups-toggle"]);
     const switches = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch");
     expect(switches.filter((node) => !barSwitches.has(node.props.testID))).toHaveLength(0);
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
