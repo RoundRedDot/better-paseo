@@ -204,8 +204,8 @@ export const LANES = {
  * Each `board.laneWidth`'s scroll width and widest lane. Four lanes stop
  * scrolling on a board 1088 wide at narrow (4 x 260 + 48), 1248 at default
  * and 1408 at wide; the widest cards are 262, 322 and 382. On a narrower
- * board default lanes adapt down to 260 and narrow lanes down to 240, keeping
- * a 20 pt difference while scrolling. Wide lanes use 300 below a 632 pt board.
+ * board default lanes adapt down to 260 and narrow lanes down to 220, keeping
+ * a 40 pt difference while scrolling. Wide lanes use 300 below a 632 pt board.
  */
 export const LANE_SIZES: Readonly<Record<LaneWidth, { min: number; max: number }>> = {
   narrow: { min: 260, max: 280 },
@@ -238,7 +238,7 @@ export interface LaneLayout {
  * past it they keep that width and sit at the left, as Linear's do, leaving
  * the rest of a wide window empty. Default lanes adapt their scroll width
  * to fit up to two expanded lanes beside the collapsed strips, down to 260.
- * Narrow lanes adapt down to 240 to stay smaller than default lanes; wide
+ * Narrow lanes adapt down to 220 to stay smaller than default lanes; wide
  * lanes use 300 when two standard default lanes cannot fit in the board.
  * Any lanes that do not fit scroll sideways (a lane never exceeds the board
  * itself unless it is below 220).
@@ -253,7 +253,7 @@ export function laneLayout(viewport: number, expanded: number, collapsed: number
   const visible = Math.min(2, expanded);
   const visibleFixed = 2 * LANES.edge + (visible + collapsed - 1) * LANES.gap + collapsed * LANES.collapsed;
   const defaultMin = Math.max(260, Math.min(LANES.min, (viewport - visibleFixed) / visible));
-  const min = size === "default" ? defaultMin : size === "narrow" ? Math.min(preset.min, defaultMin - 20) : smallWide ? 300 : preset.min;
+  const min = size === "default" ? defaultMin : size === "narrow" ? Math.min(preset.min, defaultMin - 40) : smallWide ? 300 : preset.min;
   const share = (viewport - fixed) / expanded;
   if (share >= min) return { laneWidth: Math.min(share, max), contentWidth: viewport, scroll: false };
   const width = Math.max(LANES.narrow, Math.min(min, viewport - 2 * LANES.edge));
