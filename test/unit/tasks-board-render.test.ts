@@ -1327,25 +1327,28 @@ describe("Tasks board, lane widths", () => {
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 300 * 4 } });
   });
 
-  it("keeps the lanes at their width on a tablet's narrow board and scrolls them, never the phone tabs", () => {
+  it.each(["web", "ios", "android"])("%s: adapts default lanes on a small tablet and keeps the horizontal board", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const tabs = () => hostsById("phone-stat-running");
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
-    // A tablet with the sidebar open: lanes stay 300, the rest scrolled to.
+    // A small tablet with the host sidebar open: two lanes fit, the rest scroll.
+    layOut(540);
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 254 * 4 } });
     layOut(480);
     expect(tabs()).toHaveLength(0);
     // No room for the key hints beside the count and the search.
     expect(textOf(renderer!.root)).not.toContain("HLLane");
-    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 300 * 4 } });
-    // Narrower still (a foldable with the host's sidebar wide): still the desk lanes, still 300.
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 224 * 4 } });
+    // Below the two-lane threshold: keep the 220 pt floor and scroll.
     layOut(400);
     expect(tabs()).toHaveLength(0);
     expect(cards()[0]!.props.compact).toBe(false);
-    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 300 * 4 } });
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 220 * 4 } });
     layOut(1600);
     expect(tabs()).toHaveLength(0);
-    expect(textOf(renderer!.root)).toContain("HLLane");
+    expect(textOf(renderer!.root).includes("HLLane")).toBe(os === "web");
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: false, contentContainerStyle: { width: 1600 } });
   });
 
