@@ -20,6 +20,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { findHostHorizontalScroll } from "../../ui/host-horizontal-scroll";
 import { HAIRLINE, MOTION, boardPalette } from "./board-style";
+import { BoardEmptyState } from "./empty-state";
 import { CardCell, RollingCount, RoundButton, LaneFilterHint, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
 import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
 import { buildFilterOptions, clearedParams } from "./filter-options";
@@ -810,22 +811,13 @@ function PhoneLane(props: {
         if (props.active !== false && isHistoryLane(lane.id) && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
       }}
       ListEmptyComponent={
-        <View
-          style={{
-            marginTop: 36,
-            alignItems: "center",
-            gap: 8,
-            paddingVertical: 28,
-            paddingHorizontal: 20,
-            borderWidth: HAIRLINE,
-            borderStyle: "dashed",
-            borderColor: colors.border,
-            borderRadius: 8,
-          }}
+        <BoardEmptyState
+          theme={theme}
+          icon={LANE_EMPTY_ICON[lane.id]}
+          title={strings.laneEmpty[lane.id]}
+          hint={strings.laneEmptyHint[lane.id]}
+          style={{ marginTop: 36 }}
         >
-          <Icon name={LANE_EMPTY_ICON[lane.id]} size={20} color={colors.foregroundMuted} />
-          <Text style={{ fontSize: F.lg, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>{strings.laneEmpty[lane.id]}</Text>
-          <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: colors.foregroundMuted, textAlign: "center" }}>{strings.laneEmptyHint[lane.id]}</Text>
           {filtered ? (
             <Pressable
               accessibilityRole="button"
@@ -835,7 +827,7 @@ function PhoneLane(props: {
               <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{strings.clearFilters}</Text>
             </Pressable>
           ) : null}
-        </View>
+        </BoardEmptyState>
       }
       ListFooterComponent={
         <>

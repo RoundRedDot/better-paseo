@@ -8,6 +8,8 @@ import { StatusIcon, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, isHistoryLane, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
+import { BoardEmptyState } from "./empty-state";
+import { LANE_EMPTY_ICON } from "./strings";
 import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-scrollbar";
 import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
 import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, RollingCount, SkeletonCard, VerticalLabel, useBreathing, useFreshIds, useTap } from "./board-parts";
@@ -840,12 +842,14 @@ function FadeIn(props: { children: React.ReactNode }) {
 function BoardEmpty({ board, theme }: { board: BoardController; theme: PluginTheme }) {
   const colors = theme.colors;
   return (
-    <View pointerEvents="box-none" style={{ position: "absolute", top: 40, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center" }}>
-      <View style={{ alignItems: "center", gap: 8, paddingVertical: 20, paddingHorizontal: 28, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 8, backgroundColor: colors.surface0 }}>
-        <Icon name="SquareKanban" size={20} color={colors.foregroundMuted} />
-        <Text style={{ fontSize: F.base, fontWeight: "600", color: colors.foreground }}>{board.strings.boardEmpty}</Text>
-        <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{board.strings.boardEmptyHint}</Text>
-      </View>
+    <View pointerEvents="box-none" style={{ position: "absolute", top: 40, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <BoardEmptyState
+        theme={theme}
+        icon="SquareKanban"
+        title={board.strings.boardEmpty}
+        hint={board.strings.boardEmptyHint}
+        style={{ width: "100%", maxWidth: 480, backgroundColor: colors.surface0 }}
+      />
     </View>
   );
 }
@@ -1191,9 +1195,14 @@ function DesktopLaneView(props: DesktopLaneProps) {
             if (isHistoryLane(lane.id) && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
           }}
           ListEmptyComponent={
-            <View style={{ height: 64, borderWidth: HAIRLINE, borderStyle: "dashed", borderColor: colors.border, borderRadius: PANEL_RADIUS, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{strings.laneEmpty[lane.id]}</Text>
-            </View>
+            <BoardEmptyState
+              theme={theme}
+              icon={LANE_EMPTY_ICON[lane.id]}
+              title={strings.laneEmpty[lane.id]}
+              hint={strings.laneEmptyHint[lane.id]}
+              narrow
+              style={{ marginTop: 36 }}
+            />
           }
           ListFooterComponentStyle={props.onBlank ? { flexGrow: 1 } : undefined}
           ListFooterComponent={
