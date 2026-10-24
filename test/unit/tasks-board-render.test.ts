@@ -684,29 +684,36 @@ describe("Tasks board, desktop", () => {
     expect(textOf(stats.findByProps({ testID: "sidebar-stat-running" }))).toMatch(/Running\d/);
     // No card chosen: the groups.
     expect(hostsById("sidebar-groups").length).toBeGreaterThan(0);
-    const icon = () => hostsById("sidebar-switch")[0]!.find((node) => (node.type as unknown) === "Icon").props.name;
-    expect(icon()).toBe("PanelRightClose");
+    const mark = () => StyleSheet.flatten(hostsById("panel-mark-fill")[0]!.props.style);
+    expect(mark()).toMatchObject({ width: 3.5, height: 7 });
     // The switch hides it, and the lanes take the whole board.
     act(() => renderer!.root.findByProps({ testID: "sidebar-switch" }).props.onPress());
     expect(hostsById("sidebar-inline")).toHaveLength(0);
     expect(lanesScroll().props.contentContainerStyle).toMatchObject({ width: 2000 });
     expect(readSidebarPreference().open).toBe(false);
-    expect(icon()).toBe("PanelRightOpen");
+    expect(mark()).toMatchObject({ width: 1.5, height: 7 });
   });
 
-  it.each([2000, 600])("draws both panel actions with host icons at %i pt", (width) => {
+  it.each([2000, 600])("preserves the panel silhouette and selected styling at %i pt", (width) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(width);
     const button = () => hostsById("sidebar-switch")[0]!;
-    const icon = () => button().find((node) => (node.type as unknown) === "Icon").props.name;
-    const side = width === 2000 ? "Right" : "Bottom";
+    const frame = () => StyleSheet.flatten(hostsById("panel-mark")[0]!.props.style);
+    const fill = () => StyleSheet.flatten(hostsById("panel-mark-fill")[0]!.props.style);
+    const bottom = width === 600;
+    const check = (open: boolean) => {
+      expect(frame()).toMatchObject({ width: 16, height: 13, borderWidth: 1.5, borderRadius: 2.5, flexDirection: bottom ? "column" : "row", ...(bottom ? { paddingBottom: 1.5 } : { paddingRight: 1.5 }) });
+      expect(fill()).toMatchObject({ width: bottom ? 10 : open ? 3.5 : 1.5, height: bottom ? open ? 3 : 1.5 : 7, borderRadius: 0.75, backgroundColor: open ? "#1b1b1f" : "#6b6b75" });
+      expect(StyleSheet.flatten(button().props.style).backgroundColor).toBe(open ? "#e4e4e7" : "#ffffff");
+      expect(button().findAll((node) => (node.type as unknown) === "Icon")).toHaveLength(0);
+    };
     const initial = button().props.accessibilityState.selected;
-    expect(icon()).toBe(`Panel${side}${initial ? "Close" : "Open"}`);
+    check(initial);
     expect(textOf(button())).toBe("");
     act(() => button().props.onPress());
     expect(button().props.accessibilityState.selected).toBe(!initial);
-    expect(icon()).toBe(`Panel${side}${initial ? "Open" : "Close"}`);
+    check(!initial);
   });
 
   it.each([
