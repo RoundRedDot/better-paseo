@@ -929,9 +929,6 @@ describe("TaskCardView context ring", () => {
   });
   const ring = (tree: ReactTestRenderer) =>
     tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-context");
-  const rotation = (node: ReactTestInstance) =>
-    (flat((node.children[0] as ReactTestInstance).props.style).transform as Array<{ rotate: string }>)[0]!.rotate;
-
   it("uses the host's thresholds and number formats", () => {
     expect([0.69, 0.7, 0.9, 0.91].map(contextRingTone)).toEqual(["normal", "warning", "warning", "danger"]);
     expect([950, 1500, 647_000, 1_000_000, 1_499_999, 2_600_000].map(formatTokenCount)).toEqual(["950", "2k", "647k", "1m", "1m", "3m"]);
@@ -952,26 +949,39 @@ describe("TaskCardView context ring", () => {
       const row = hosts(meta);
       expect(row[row.length - 1]).toBe(meter);
       expect(hostByTestId(tree.root, "task-card-footer").findAll((node) => node.props.testID === "task-card-context")).toHaveLength(0);
-      const track = hostByTestId(meter, "context-ring").children[0] as ReactTestInstance;
-      expect(flat(track.props.style)).toMatchObject({ width: 14, height: 14, borderWidth: 2 });
-      const arc = hostByTestId(meter, "context-ring-right").children[0] as ReactTestInstance;
-      expect(flat(arc.props.style)).toMatchObject({ borderColor: "transparent", borderTopColor: color, borderRightColor: color });
+      const track = hostByTestId(meter, "context-ring-track");
+      expect(flat(track.props.style)).toMatchObject({ width: 14, height: 14 });
+      const arc = hostByTestId(meter, "context-ring-fill").find((node) => (node.type as unknown) === "Image");
+      expect((arc.type as unknown)).toBe("Image");
+      expect(flat(arc.props.style)).toMatchObject({ tintColor: color });
+      expect(arc.props.source.uri).toMatch(/^data:image\/png;base64,/);
       await act(async () => tree.unmount());
       renderer = null;
     }
   });
 
-  it("fills clockwise from twelve with two half rings and round caps", async () => {
-    let tree = await render(cardElement(withContext(25)));
-    const quarter = hostByTestId(tree.root, "context-ring");
-    expect(rotation(hostByTestId(quarter, "context-ring-right"))).toBe("-45deg");
-    expect(quarter.findAll((node) => typeof node.type === "string" && node.props.testID === "context-ring-left")).toHaveLength(0);
-    // Track, right clip, two caps.
-    expect((quarter.children as ReactTestInstance[]).length).toBe(4);
-    await act(async () => tree.update(cardElement(withContext(75))));
-    const three = hostByTestId(tree.root, "context-ring");
-    expect(rotation(hostByTestId(three, "context-ring-right"))).toBe("45deg");
-    expect(rotation(hostByTestId(three, "context-ring-left"))).toBe("135deg");
+  it.each([
+    [-0.2, 0], [0, 0], [0.254, 25], [0.756, 76], [1, 100], [1.2, 100],
+  ])("selects the nearest displayed percent from the padded PNG atlas (ratio %s)", async (ratio, percent) => {
+    const tree = await render(React.createElement(ContextRing, { ratio, color: "#123456", track: "#abcdef" }));
+    const ring = hostByTestId(tree.root, "context-ring");
+    const images = ring.findAll((node) => (node.type as unknown) === "Image");
+    expect(images).toHaveLength(percent > 0 ? 2 : 1);
+    expect(images[0]!.props).toMatchObject({ resizeMode: "stretch", fadeDuration: 0, accessible: false });
+    expect(flat(images[0]!.props.style)).toMatchObject({ tintColor: "#abcdef", left: -1601, top: -1, width: 1616, height: 16 });
+    if (percent > 0) {
+      expect(images[1]!.props.source.uri).toBe(images[0]!.props.source.uri);
+      expect(flat(images[1]!.props.style)).toMatchObject({ tintColor: "#123456", left: -percent * 16 - 1 });
+    }
+    expect(ring.findAll((node) => (node.type as unknown) === "View" && flat(node.props.style).transform !== undefined)).toHaveLength(0);
+  });
+
+  it("uses the thinner 12px bitmap for subtask rings", async () => {
+    const tree = await render(React.createElement(ContextRing, { ratio: 0.5, color: "#000", track: "#ccc", variant: "subtask" }));
+    const ring = hostByTestId(tree.root, "context-ring");
+    expect(flat(ring.props.style)).toMatchObject({ width: 12, height: 12 });
+    const image = hostByTestId(ring, "context-ring-fill").children[0] as ReactTestInstance;
+    expect(flat(image.props.style)).toMatchObject({ left: -701, width: 1414, height: 14 });
   });
 
   it("hides the ring from assistive tech with native props off the web and aria-hidden on it", async () => {

@@ -1,6 +1,6 @@
 /**
  * The settings page's preview of the Tasks board: the real cards over the
- * sample agents, four lanes when wide and one under tabs when narrow, the
+ * sample agents, sideways-scrolling lanes and phone-only tabs, the
  * density and field switches applied as they change, and nothing of the
  * board's data work: no data layer, no settings read, no RPC, no timer.
  */
@@ -54,7 +54,9 @@ import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } fro
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS, applyDensity, setCardSetting } from "../../shared/tasks-settings";
 // These tests start from the board and the archived lane both off; the stock settings turn both on.
 const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: false, board: { ...STOCK_SETTINGS.board, showArchived: false } };
-import { PREVIEW_LANES_MIN, TasksBoardPreview, previewLanes, previewLanesMin } from "../../client/tasks/settings/board-preview";
+import { TasksBoardPreview, previewLanes } from "../../client/tasks/settings/board-preview";
+import { StyleSheet } from "react-native";
+import { TasksTypography } from "../../client/tasks/typography";
 import { ACTIVE_LANE_ORDER as LANE_ORDER } from "../../client/tasks/model";
 
 const theme = {
@@ -112,7 +114,7 @@ describe("Tasks board preview", () => {
   });
 
   it("wide, draws the four lanes side by side in the board's order", () => {
-    const r = draw({}, PREVIEW_LANES_MIN + 100);
+    const r = draw({}, 1400);
     expect(byTestID(r.root, "tasks-preview-lanes")).toHaveLength(1);
     const lanes = LANE_ORDER.map((id) => byTestID(r.root, `tasks-preview-lane-${id}`)[0]!);
     expect(lanes.map((lane) => cardIds(lane))).toEqual(LANE_ORDER.map((id) => previewLanes(0, "en")[id].map((card) => card.id)));
@@ -122,24 +124,58 @@ describe("Tasks board preview", () => {
     expect(hosts(r.root, (node) => node.props.testID === "status-stopped").length).toBeGreaterThan(0);
   });
 
-  it("narrow or on a phone, draws one lane under tabs, and a tab switches it", () => {
-    for (const phone of [false, true]) {
-      if (renderer) act(() => renderer!.unmount());
-      renderer = null;
-      const r = draw({ phone }, phone ? 390 : PREVIEW_LANES_MIN - 1);
-      expect(byTestID(r.root, "tasks-preview-tabs")).toHaveLength(1);
-      expect(cardIds(r.root)).toEqual(["sample-input", "sample-question"]);
-      const tabs = hosts(r.root, (node) => node.props.accessibilityRole === "tab");
-      expect(tabs).toHaveLength(4);
-      act(() => tabs[3]!.props.onPress());
-      expect(cardIds(r.root)).toEqual(["sample-done", "sample-stopped"]);
-      expect(textOf(r.root)).toContain("Stopped manually");
+  it.each([
+    [600, "narrow", 244, 1024],
+    [600, "default", 284, 1184],
+    [600, "wide", 300, 1248],
+    [800, "narrow", 260, 1088],
+    [800, "default", 300, 1248],
+    [800, "wide", 340, 1408],
+  ] as const)("tablet preview at %i uses %s lanes (%i pt) and scrolls the whole row", (width, laneWidth, expectedWidth, contentWidth) => {
+    const r = draw({ values: { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, laneWidth } } }, width);
+    expect(byTestID(r.root, "tasks-preview-tabs")).toHaveLength(0);
+    const row = byTestID(r.root, "tasks-preview-lanes")[0]!;
+    expect(StyleSheet.flatten(row.props.style)).toMatchObject({ width: contentWidth, paddingHorizontal: 12, gap: 8 });
+    const scroll = byTestID(r.root, "tasks-preview-lanes-scroll")[0]!;
+    expect(scroll.props).toMatchObject({ horizontal: true, nestedScrollEnabled: true });
+    for (const id of LANE_ORDER) {
+      expect(StyleSheet.flatten(byTestID(r.root, `tasks-preview-lane-${id}`)[0]!.props.style).width).toBe(expectedWidth);
     }
+    // Resizing and editing a lane preset never change the chosen device mode.
+    draw({ values: DEFAULT_TASKS_SETTINGS }, 1600);
+    expect(byTestID(r.root, "tasks-preview-tabs")).toHaveLength(0);
+    expect(StyleSheet.flatten(byTestID(r.root, "tasks-preview-lane-running")[0]!.props.style).width).toBe(340);
+  });
+
+  it.each([14, 21])("scales the tablet lane headers and real cards at UI base %i", (base) => {
+    const sizedTheme = { ...(theme as object), typography: { fontSize: { ui: base } } } as never;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(TasksTypography, {
+        theme: sizedTheme,
+        children: React.createElement(TasksBoardPreview, { theme: sizedTheme, values: DEFAULT_TASKS_SETTINGS, language: "en", phone: false }),
+      }));
+    });
+    const lane = byTestID(renderer!.root, "tasks-preview-lane-needs_input")[0]!;
+    const heading = hosts(lane, (node) => (node.type as unknown) === "Text" && textOf(node) === "Needs input")[0]!;
+    expect(StyleSheet.flatten(heading.props.style).fontSize).toBe(Math.round(12 * base / 14));
+    const title = byTestID(lane, "task-card-title")[0]!;
+    expect(StyleSheet.flatten(title.props.style).fontSize).toBe(Math.round(12 * base / 14));
+  });
+
+  it("only the phone preview draws one lane under tabs, and a tab switches it", () => {
+    const r = draw({ phone: true }, 390);
+    expect(byTestID(r.root, "tasks-preview-tabs")).toHaveLength(1);
+    expect(cardIds(r.root)).toEqual(["sample-input", "sample-question"]);
+    const tabs = hosts(r.root, (node) => node.props.accessibilityRole === "tab");
+    expect(tabs).toHaveLength(4);
+    act(() => tabs[3]!.props.onPress());
+    expect(cardIds(r.root)).toEqual(["sample-done", "sample-stopped"]);
+    expect(textOf(r.root)).toContain("Stopped manually");
   });
 
   it("follows the density preset and each field switch as soon as they change", () => {
     const branchShown = () => textOf(renderer!.root).includes("feat/tasks-board");
-    draw({ values: applyDensity(DEFAULT_TASKS_SETTINGS, "full") }, PREVIEW_LANES_MIN + 100);
+    draw({ values: applyDensity(DEFAULT_TASKS_SETTINGS, "full") }, 1400);
     expect(branchShown()).toBe(true);
     draw({ values: setCardSetting(applyDensity(DEFAULT_TASKS_SETTINGS, "full"), "branch", false) });
     expect(branchShown()).toBe(false);
@@ -155,7 +191,7 @@ describe("Tasks board preview", () => {
     const on = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true, doneWindow: "7d" as const } };
     const lanes = previewLanes(0, "en");
     expect(lanes.archived.map((card) => card.archived)).toEqual(["agent", "workspace"]);
-    const r = draw({}, previewLanesMin(5));
+    const r = draw({}, 1700);
     expect(byTestID(r.root, "tasks-preview-lane-archived")).toHaveLength(0);
     draw({ values: on });
     const ids = hosts(r.root, (node) => typeof node.props.testID === "string" && /^tasks-preview-lane-/.test(node.props.testID)).map((node) => node.props.testID.slice(19));
@@ -165,14 +201,11 @@ describe("Tasks board preview", () => {
     expect(textOf(archived)).toContain("Archived");
     expect(textOf(archived)).toContain("7 days");
     expect(hosts(archived, (node) => node.props.testID === "status-archived").length).toBeGreaterThan(0);
-    // Five lanes need more room side by side than four: narrower, the tabs.
-    draw({ values: on }, previewLanesMin(5) - 1);
-    expect(byTestID(r.root, "tasks-preview-tabs")).toHaveLength(1);
+    // Narrow tablet previews keep all five lanes and scroll instead of switching to phone tabs.
+    draw({ values: on }, 800);
+    expect(byTestID(r.root, "tasks-preview-tabs")).toHaveLength(0);
+    expect(byTestID(r.root, "tasks-preview-lane-archived")).toHaveLength(1);
     const tabs = () => hosts(r.root, (node) => node.props.accessibilityRole === "tab");
-    expect(tabs()).toHaveLength(5);
-    act(() => tabs()[4]!.props.onPress());
-    expect(cardIds(r.root)).toEqual(["sample-archived", "sample-archived-workspace"]);
-    // Four lanes fit there side by side again once it is off.
     draw({ values: DEFAULT_TASKS_SETTINGS });
     expect(byTestID(r.root, "tasks-preview-lanes")).toHaveLength(1);
     expect(byTestID(r.root, "tasks-preview-lane-archived")).toHaveLength(0);
@@ -186,14 +219,14 @@ describe("Tasks board preview", () => {
   });
 
   it("shows the done lane's window from the board options", () => {
-    const r = draw({ values: { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, doneWindow: "7d" } } }, PREVIEW_LANES_MIN + 100);
+    const r = draw({ values: { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, doneWindow: "7d" } } }, 1400);
     expect(textOf(byTestID(r.root, "tasks-preview-lane-done")[0]!)).toContain("7 days");
   });
 
   it("never touches the board's data, the settings or the daemon, and starts no timer", () => {
     vi.useFakeTimers({ toFake: ["setInterval", "setTimeout"] });
     try {
-      const r = draw({ values: { ...DEFAULT_TASKS_SETTINGS, enabled: false } }, PREVIEW_LANES_MIN + 100);
+      const r = draw({ values: { ...DEFAULT_TASKS_SETTINGS, enabled: false } }, 1400);
       draw({ values: applyDensity(DEFAULT_TASKS_SETTINGS, "full") });
       const tabs = draw({ phone: true }, 390);
       act(() => hosts(tabs.root, (node) => node.props.accessibilityRole === "tab")[1]!.props.onPress());

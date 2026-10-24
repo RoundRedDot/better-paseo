@@ -224,6 +224,10 @@ function StatCell(props: {
 }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
+  const [headingWidth, setHeadingWidth] = useState<number | null>(null);
+  const [labelSize, setLabelSize] = useState<{ key: string; width: number } | null>(null);
+  const labelKey = `${props.label}|${scale}`;
+  const hideLabel = headingWidth !== null && labelSize?.key === labelKey && labelSize.width + 13 + 5 > headingWidth + 0.5;
   const { hovered, hoverProps } = useHover();
   const alert = props.lane === "needs_input" && (props.count ?? 0) > 0;
   const countStyle = { fontSize: F.xl, lineHeight: HOST_LINE.xl, fontWeight: "600" as const, color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums" as const] };
@@ -247,17 +251,44 @@ function StatCell(props: {
         gap: 2,
       })}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+      <View
+        testID={`sidebar-stat-heading-${props.lane}`}
+        onLayout={(event) => setHeadingWidth(event.nativeEvent.layout.width)}
+        style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
+      >
         <StatusIcon kind={LANE_STATUS[props.lane]} size={13} theme={props.theme} animated={props.animated} />
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted }}>
-          {props.label}
-        </Text>
+        {hideLabel ? null : (
+          <Text testID={`sidebar-stat-label-${props.lane}`} numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted }}>
+            {props.label}
+          </Text>
+        )}
       </View>
       {props.count === null ? (
         <Text style={countStyle}>–</Text>
       ) : (
         <RollingCount value={props.count} scope={props.scope} style={countStyle} />
       )}
+      {/* Keep the intrinsic label measurable while it is hidden, so resizing restores it. */}
+      <View
+        pointerEvents="none"
+        aria-hidden
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={{ position: "absolute", left: 0, top: 0, opacity: 0, flexDirection: "row" }}
+      >
+        <Text
+          key={labelKey}
+          testID={`sidebar-stat-measure-${props.lane}`}
+          numberOfLines={1}
+          onLayout={(event) => {
+            const width = event.nativeEvent.layout.width;
+            setLabelSize((previous) => previous?.key === labelKey && previous.width === width ? previous : { key: labelKey, width });
+          }}
+          style={{ flexShrink: 0, fontSize: F.sm, color: tokens.foregroundMuted }}
+        >
+          {props.label}
+        </Text>
+      </View>
     </Pressable>
   );
 }

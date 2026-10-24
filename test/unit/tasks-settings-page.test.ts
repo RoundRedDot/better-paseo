@@ -24,10 +24,11 @@ vi.mock("../../client/settings-preview", () => ({ SettingsPreview: () => null })
 vi.mock("../../client/components/embed-fonts", () => ({ ensureEmbeddedFonts() {} }));
 vi.mock("../../client/tasks/cards", async () => {
   const React = await import("react");
+  const { useTasksFontScale } = await import("../../client/tasks/typography");
   return {
     StatusIcon: (props: Record<string, unknown>) => React.createElement("StatusIcon", props),
     TaskCardView: (props: Record<string, unknown>) => {
-      state.previews.push(props);
+      state.previews.push({ ...props, fontScale: useTasksFontScale() });
       return React.createElement("TaskCardView", props);
     },
   };
@@ -235,6 +236,21 @@ describe("Tasks half of the settings page", () => {
     expect(state.previews.length).toBeGreaterThan(0);
     for (const shown of state.previews) expect(shown.fields).toEqual(effectiveCard(values, false));
     expect((state.previews.at(-1)!.fields as { branch: boolean }).branch).toBe(false);
+  });
+
+  it.each([14, 21])("provides the board's font scale to settings preview cards at UI base %i", (base) => {
+    makeSettings();
+    let r!: Renderer;
+    act(() => {
+      r = TestRenderer.create(React.createElement(TasksSettingsPanel, {
+        look: look(),
+        theme: { ...theme, typography: { fontSize: { ui: base } } } as never,
+        side: false,
+      }));
+    });
+    expect(state.previews.length).toBeGreaterThan(0);
+    expect(state.previews.every((card) => card.fontScale === base / 14)).toBe(true);
+    act(() => r.unmount());
   });
 
   it("uses the phone's minimal card on a phone when asked", () => {

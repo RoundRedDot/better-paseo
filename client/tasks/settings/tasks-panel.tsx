@@ -20,6 +20,7 @@ import {
 } from "../../../shared/tasks-settings";
 import { mix, radiusV2, space } from "../../components/theme-tokens";
 import { PHONE_PREVIEW_WIDTH, PlainButton, Section, Segmented, SettingRow, Toggle, controlStyles, type PageLook } from "../../settings-controls";
+import { TasksTypography } from "../typography";
 import { tasksBoardOpener } from "../board/enabled";
 import { useTasksLanguage } from "../i18n";
 import { PREVIEW_LANES_MAX_HEIGHT, TasksBoardPreview } from "./board-preview";
@@ -215,7 +216,7 @@ function PreviewCard(props: {
     return (
       <RowBlock look={look} testID="tasks-preview-card">
         {header}
-        {board}
+        <TasksTypography theme={props.theme}>{board}</TasksTypography>
       </RowBlock>
     );
   }
@@ -229,7 +230,7 @@ function PreviewCard(props: {
       ]}
     >
       {header}
-      {board}
+      <TasksTypography theme={props.theme}>{board}</TasksTypography>
     </View>
   );
 }
