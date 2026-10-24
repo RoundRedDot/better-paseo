@@ -537,6 +537,7 @@ export function RoundButton(props: {
   testID?: string;
   /** A toggle's state, read out as selected. */
   selected?: boolean;
+  disabled?: boolean;
   /** Struck through, as Lucide's "-off" icons: a toggle that is off. */
   slashed?: boolean;
   /** The circle's size, with no target padding around it. */
@@ -553,12 +554,13 @@ export function RoundButton(props: {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={props.label}
-      accessibilityState={props.selected === undefined ? undefined : { selected: props.selected }}
+      accessibilityState={props.selected === undefined ? undefined : { selected: props.selected, ...(props.disabled ? { disabled: true } : {}) }}
+      disabled={props.disabled}
       {...tipProps(props.tip)}
       onPress={props.onPress}
       hitSlop={pad || Platform.OS === "web" ? 0 : 4}
       testID={props.testID}
-      style={{ width: size + 2 * pad, height: size + 2 * pad, alignItems: "center", justifyContent: "center" }}
+      style={{ width: size + 2 * pad, height: size + 2 * pad, alignItems: "center", justifyContent: "center", opacity: props.disabled ? 0.4 : 1 }}
     >
       <View
         style={{
