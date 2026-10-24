@@ -100,6 +100,22 @@ beforeEach(() => {
 });
 
 describe("Tasks board preview", () => {
+  it.each(["narrow", "default", "wide"] as const)("keeps %s preview lane widths across archived switches", (laneWidth) => {
+    for (const width of [540, 1120, 1300, 1600, 2000]) {
+      const off = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, laneWidth } };
+      const on = { ...off, board: { ...off.board, showArchived: true } };
+      const r = draw({ values: off }, width);
+      const widths = () => LANE_ORDER.map((id) => StyleSheet.flatten(byTestID(r.root, `tasks-preview-lane-${id}`)[0]!.props.style).width);
+      const before = widths();
+      draw({ values: on });
+      expect(widths()).toEqual(before);
+      expect(StyleSheet.flatten(byTestID(r.root, "tasks-preview-lane-archived")[0]!.props.style).width).toBe(before[0]);
+      draw({ values: off });
+      expect(widths()).toEqual(before);
+      expect(byTestID(r.root, "tasks-preview-lane-archived")).toHaveLength(0);
+    }
+  });
+
   it("holds two realistic cards per lane: four brands, a permission, a question, a subtask, a failure, a stop", () => {
     const lanes = previewLanes(Date.now(), "en");
     for (const id of LANE_ORDER) expect(lanes[id]).toHaveLength(2);
