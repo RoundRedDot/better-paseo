@@ -398,12 +398,12 @@ function Segment(props: { icon: string; label: string; on: boolean; tokens: Task
   const scale = useTasksFontScale();
   const [width, setWidth] = useState<number | null>(null);
   const [labelSize, setLabelSize] = useState<{ key: string; width: number } | null>(null);
-  const labelKey = `${props.label}|${scale}|${props.on}`;
+  const labelKey = `${props.label}|${scale}`;
   const labelWidth = labelSize?.key === labelKey ? labelSize.width : null;
   const iconWidth = 14 + 12 + 2 * StyleSheet.hairlineWidth;
   const fullWidth = labelWidth === null ? null : labelWidth + iconWidth + 4;
   const hideLabel = width !== null && fullWidth !== null && fullWidth > width + 0.5;
-  const labelStyle = { fontSize: F.base, fontWeight: props.on ? "600" as const : "400" as const, color: props.on ? tokens.foreground : tokens.foregroundMuted };
+  const labelStyle = { fontSize: F.base, fontWeight: "500" as const, color: props.on ? tokens.foreground : tokens.foregroundMuted };
   const { hovered, hoverProps } = useHover();
   return (
     <Pressable
@@ -415,8 +415,8 @@ function Segment(props: { icon: string; label: string; on: boolean; tokens: Task
       testID={`sidebar-group-tab-${props.icon}`}
       onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
       style={{
-        // Keep the full-label basis while icon-only, so hiding text cannot change its own fit.
-        flexBasis: fullWidth ?? undefined,
+        // Share the row equally, regardless of label length or selection.
+        flexBasis: 0,
         flexGrow: 1,
         flexShrink: 1,
         minWidth: iconWidth,
