@@ -23,6 +23,7 @@ const toolbarFontSize = () => F.base;
 const MENU_PADDING = 10;
 const MENU_ICON = 13;
 const MENU_CHEVRON = 12;
+const TOOLBAR_GAP = 10;
 
 /** Round and menu buttons share the same height on each platform. */
 const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
@@ -58,7 +59,7 @@ export function DesktopToolbar(props: {
   const strings = board.strings;
   const [searchFocused, setSearchFocused] = useState(false);
   return (
-    <View style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
+    <View style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
       <RollingTotal board={board} style={{ flexShrink: 0, fontSize: F.base, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }} />
       <View style={{ flex: 1 }} />
       {Platform.OS === "web" && props.keyHints ? (
@@ -161,7 +162,6 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
       style={{
         width: size,
         height: size,
-        marginLeft: 2,
         borderRadius: size / 2,
         borderWidth: HAIRLINE,
         borderColor: colors.border,
@@ -325,7 +325,7 @@ export function DesktopFilterBar(props: {
         flexDirection: "row",
         flexWrap: "wrap",
         alignItems: "flex-start",
-        gap: 6,
+        gap: TOOLBAR_GAP,
         paddingHorizontal: 16,
         paddingVertical: 8,
         zIndex: 10,
@@ -335,9 +335,9 @@ export function DesktopFilterBar(props: {
           and the sort keep the first row's right end while the filters have
           FILTERS_MIN_WIDTH beside them, and wrap below them, still at the
           right, when they do not. */}
-      <View onLayout={fit.box("filters")} style={{ flex: 1, minWidth: tablet ? 4 * toolbarButtonSize(scale) + 18 : FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
+      <View onLayout={fit.box("filters")} style={{ flex: 1, minWidth: tablet ? 4 * toolbarButtonSize(scale) + 3 * TOOLBAR_GAP : FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
         {/* The buttons hold one line: once their words would wrap them, they draw their icons alone. */}
-        <View testID="filter-bar-controls" onLayout={fit.box("controls")} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 1 }}>
+        <View testID="filter-bar-controls" onLayout={fit.box("controls")} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: 1 }}>
           <MenuButton icon={FILTER_ICONS.project} label={words.project} compact={compact} tip={tip(words.project, strings.tips.project)} open={menu === "project"} onPress={() => toggle("project")} theme={theme}>
             <CascadeMenu
               sections={projectMenuSections(shown, strings, board.hostId, (project) => setParams((p) => toggleProject(p, project)))}
@@ -418,7 +418,7 @@ export function DesktopFilterBar(props: {
           </>
         ) : null}
       </View>
-      <View testID="filter-bar-end" onLayout={fit.box("end")} style={{ flexShrink: tablet ? 0 : 1, maxWidth: "100%", marginLeft: "auto", height: toolbarButtonSize(scale), flexDirection: "row", alignItems: "center", gap: 6, zIndex: menu === "sort" || menu === "laneWidth" ? 2 : 1 }}>
+      <View testID="filter-bar-end" onLayout={fit.box("end")} style={{ flexShrink: tablet ? 0 : 1, maxWidth: "100%", marginLeft: "auto", height: toolbarButtonSize(scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu === "sort" || menu === "laneWidth" ? 2 : 1 }}>
         {tablet ? null : (
           <>
             <Text numberOfLines={1} style={{ fontSize: toolbarFontSize(), color: colors.foregroundMuted }}>{strings.timeRange}</Text>
