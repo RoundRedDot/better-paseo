@@ -340,14 +340,16 @@ export function DesktopBoard(props: {
     },
   };
 
-  // Only a click or tap puts a card in the sidebar: no hover, no keyboard focus.
-  // A put-away sidebar comes up for it on a touch screen, and on a narrow
-  // board unless the user switched the sidebar off.
+  // A click, tap or explicit keyboard preview puts a card in the sidebar.
+  // Moving keyboard focus alone does not change the details.
+  // An explicit preview brings a put-away sidebar up for the moment. A
+  // click or tap does so on touch, or on a narrow board with the preference on.
   const showCard = useCallback(
-    (card: TaskCard) => {
+    (card: TaskCard, preview = false) => {
+      if (!preview) setFocus(null);
       dispatch({ type: "click", id: card.id });
       const now = latest.current;
-      const show = !now.open && (touch || (now.narrow && now.preferred));
+      const show = !now.open && (preview || touch || (now.narrow && now.preferred));
       if (show) setShown("card");
       if (!(now.open || show) || !(now.narrow || !now.preferred)) return;
       if (sheetModeRef.current) {
@@ -395,7 +397,7 @@ export function DesktopBoard(props: {
     },
   };
 
-  // Keys on web: J/K, H/L, arrows, Enter, Esc, "/", I (sidebar). Only
+  // Keys on web: J/K, H/L, arrows, Enter, Space (preview), Esc, "/", I (sidebar). Only
   // while the board is on screen and focus is not somewhere else in the app.
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined" || !board.visible) return;
@@ -429,6 +431,15 @@ export function DesktopBoard(props: {
       if (key === "i" && !event.shiftKey) {
         event.preventDefault();
         now.toggleSidebar();
+        return;
+      }
+      if (event.key === " " && !event.shiftKey && !event.isComposing && !now.menu) {
+        const card = now.focus
+          ? now.board.lanes[now.focus.lane].cards[now.focus.index]
+          : now.selection.id ? now.board.cardById(now.selection.id) : null;
+        if (!card) return;
+        event.preventDefault();
+        if (!event.repeat) showCard(card, true);
         return;
       }
       const result = boardKeyReducer(now.focus, event.key, now.shapes);
@@ -469,7 +480,7 @@ export function DesktopBoard(props: {
       document.removeEventListener("keydown", onEscape, true);
       document.removeEventListener("keydown", onKey);
     };
-  }, [board.visible, rootRef]);
+  }, [board.visible, rootRef, showCard]);
 
   const breathing = useBreathing(!tasks.ready && board.visible);
   const reduced = useReducedMotion();

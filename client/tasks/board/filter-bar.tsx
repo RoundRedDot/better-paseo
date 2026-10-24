@@ -33,7 +33,7 @@ const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "
 const laneWidthIconSize = (scale: number) => Math.round(16 * Math.max(1, scale));
 
 /** The narrowest board whose toolbar shows the key hints beside the count and the search. */
-export const KEY_HINTS_MIN_WIDTH = 760;
+export const KEY_HINTS_MIN_WIDTH = 900;
 
 /**
  * The desktop board's two bars (prototype 01): the count, key hints and
@@ -108,6 +108,8 @@ export function DesktopToolbar(props: {
           <KeyHint text={strings.keys.lane} theme={theme} />
           <KeyCap label="↵" theme={theme} />
           <KeyHint text={strings.keys.open} theme={theme} />
+          <KeyCap label="Space" theme={theme} />
+          <KeyHint text={strings.keys.preview} theme={theme} />
           <KeyCap label="/" theme={theme} />
           <KeyHint text={strings.keys.search} theme={theme} last={!props.sidebar} />
           {props.sidebar ? (
