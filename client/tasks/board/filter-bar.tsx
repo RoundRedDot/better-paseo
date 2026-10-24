@@ -111,6 +111,9 @@ export function DesktopToolbar(props: {
           accessibilityLabel={strings.search}
           style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }}
         />
+        {board.params.query.length > 0 ? (
+          <ClearButton label={strings.menuSearch.clear} onPress={() => board.setParams((params) => ({ ...params, query: "" }))} theme={theme} />
+        ) : null}
       </View>
       {props.filters || Platform.OS === "ios" || Platform.OS === "web" ? (
         <RoundButton

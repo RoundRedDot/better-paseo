@@ -246,6 +246,37 @@ describe("Tasks board, desktop", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
   });
 
+  it.each([
+    ["web", 1600, "en"],
+    ["web", 600, "zh"],
+    ["ios", 800, "zh"],
+    ["android", 800, "en"],
+  ] as const)("%s at %i pt clears the title search in %s without changing other filters", async (os, width, language) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    updateEnhancerPreferences({ language });
+    await act(async () => { renderer = TestRenderer.create(screen(false, { agent: "codex", ws: "wks_sample", win: "7d", sort: "title-asc" })); });
+    layOut(width);
+    const field = () => renderer!.root.find((node) => (node.type as unknown) === "TextInput");
+    const clear = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === BOARD_STRINGS[language].menuSearch.clear);
+    const before = lastBoardParams("host-1");
+    const frameStyle = StyleSheet.flatten(hostParentOf(field())!.props.style);
+    expect(clear()).toHaveLength(0);
+    for (const query of ["ping", "   "]) {
+      await act(async () => field().props.onChangeText(query));
+      expect(clear()).toHaveLength(1);
+      expect(clear()[0]!.props.accessibilityRole).toBe("button");
+      const frame = hostParentOf(field())!;
+      expect(hostParentOf(clear()[0]!)).toBe(frame);
+      expect(StyleSheet.flatten(frame.props.style)).toEqual(frameStyle);
+      expect(frame.findAll((node) => typeof node.type === "string" && hostParentOf(node) === frame).at(-1)).toBe(clear()[0]);
+      await act(async () => clear()[0]!.props.onPress());
+      expect(field().props.value).toBe("");
+      expect(clear()).toHaveLength(0);
+      expect(lastBoardParams("host-1")).toEqual(before);
+      expect(cards().map((card) => card.props.card.id)).toContain("sample-running");
+    }
+  });
+
   it("rolls the counts and moves the cards through a filter, a done window or the subtasks switch, never through a search or a sort", () => {
     const scopes = () => renderer!.root.findAll((node) => node.type === RollingCount).map((node) => node.props.scope as unknown);
     const pick = (window: "24h" | "7d" | "all") => act(() => renderer!.root.findAll((node) => node.type === WindowSegments)[0]!.props.onChange(window));
