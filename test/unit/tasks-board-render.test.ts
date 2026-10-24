@@ -1354,6 +1354,20 @@ describe("Tasks board, lane widths", () => {
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: false, contentContainerStyle: { width: 1600 } });
   });
 
+  it.each(["web", "ios", "android"])("%s: switches a small tablet between three distinct device-local lane widths", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(540);
+    act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+    const choices = () => hostsById("filter-sheet-lane-width")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "radio");
+    for (const [index, width, value] of [[0, 240, "narrow"], [1, 260, "default"], [2, 340, "wide"], [0, 240, "narrow"]] as const) {
+      await act(async () => choices()[index]!.props.onPress());
+      expect(lanesScroll().props.contentContainerStyle.width).toBe(48 + 4 * width);
+      expect(deviceTasksStore().snapshot().values?.laneWidth).toBe(value);
+      expect(host.save).not.toHaveBeenCalled();
+    }
+  });
+
   it("switches the lane width from the filter bar, draws it at once and saves it to the settings", async () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
@@ -1440,7 +1454,7 @@ describe("Tasks board, archived lane switch", () => {
     await act(async () => toggle().props.onPress());
     expect(toggle().props.accessibilityState).toEqual({ checked: false });
     // The optimistic lane leaves through its normal collapse animation after rollback.
-    act(() => vi.advanceTimersByTime(300));
+    act(() => { vi.advanceTimersByTime(300); });
     expect(hostsById("lane-archived")).toHaveLength(0);
     expect(host.reload).not.toHaveBeenCalled();
     expect(host.toast).toHaveBeenCalledWith("Couldn't save the archived lane setting");
