@@ -473,6 +473,7 @@ export function DesktopFilterBar(props: {
               )}
               {fit.laneWidthMeasure}
             </View>
+            <Divider theme={theme} testID="lane-width-divider" />
             <Text numberOfLines={1} style={{ fontSize: toolbarFontSize(), color: colors.foregroundMuted }}>{strings.timeRange}</Text>
             <WindowSegments
               value={resolved.doneWindow}
@@ -482,6 +483,7 @@ export function DesktopFilterBar(props: {
               tip={strings.tips.doneWindow}
               marks
             />
+            <Divider theme={theme} testID="done-window-divider" />
           </>
         )}
         <BarSwitch
@@ -768,8 +770,8 @@ function ClearButton(props: { label: string; onPress(): void; theme: PluginTheme
   );
 }
 
-function Divider({ theme }: { theme: PluginTheme }) {
-  return <View style={{ width: HAIRLINE, height: 16, marginHorizontal: 4, backgroundColor: theme.colors.border }} />;
+function Divider({ theme, testID }: { theme: PluginTheme; testID?: string }) {
+  return <View testID={testID} style={{ width: HAIRLINE, height: 16, marginHorizontal: 4, backgroundColor: theme.colors.border }} />;
 }
 
 
