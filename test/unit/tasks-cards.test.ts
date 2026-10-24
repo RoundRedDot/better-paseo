@@ -1381,6 +1381,37 @@ describe("TaskCardView actions", () => {
     }
   });
 
+  it("fills a phone subtask's second line with its model, effort, mode, context and live timing", async () => {
+    const base = sample("sample-running");
+    const child = base.children[0]!;
+    let now = NOW;
+    const clock = createTaskClock(() => now);
+    const tree = await render(cardElement(base, { compact: true, now: undefined, clock }));
+    await act(async () => hostByTestId(tree.root, "pill-subtasks").props.onPress());
+    const meta = () => hostByTestId(tree.root, `subtask-meta-${child.id}`);
+    expect(texts(meta())).toEqual(["Opus 4.7", "High", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
+    expect(flat(meta().props.style).flexWrap).toBe("wrap");
+    expect(icons(meta())).toEqual(["Brain", "ShieldOff", "Clock", "Hourglass"]);
+    expect(hostByTestId(meta(), "context-ring")).toBeDefined();
+    expect(meta().findByType(ContextRing).props.ratio).toBe(0.6);
+    now += 1000;
+    await act(async () => clock.tick());
+    expect(texts(meta())).toContain("3m 1s");
+    await act(async () => tree.update(cardElement({ ...base, children: [{ ...child, context: { usedTokens: 190_000, maxTokens: 200_000 }, status: "needs_input" }] }, { compact: true, now: NOW })));
+    expect(texts(meta())).toContain("等待输入");
+    expect(texts(meta()).some((text) => text.includes("上下文"))).toBe(false);
+    expect(meta().findByType(ContextRing).props).toMatchObject({ ratio: 0.95, color: taskTokens(LIGHT).danger });
+  });
+
+  it("omits absent phone subtask metadata and keeps a title-only child usable", async () => {
+    const base = sample("sample-running");
+    const child: TaskChild = { id: "sparse", title: "No metadata", status: "done" };
+    const tree = await render(cardElement({ ...base, children: [child] }, { compact: true }));
+    await act(async () => hostByTestId(tree.root, "pill-subtasks").props.onPress());
+    expect(texts(hostByTestId(tree.root, "subtask-content-sparse"))).toEqual(["No metadata"]);
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "subtask-meta-sparse")).toHaveLength(0);
+  });
+
   it("marks a subtask row's agent icon with its status in every state, archived as the muted box", async () => {
     const base = sample("sample-running");
     const kinds = ["running", "needs_input", "unread", "failed", "done", "archived"] as const;

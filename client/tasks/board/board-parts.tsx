@@ -376,6 +376,8 @@ export function CardCell(props: CardCellProps) {
             fields={board.fields}
             theme={props.theme}
             compact={props.compact}
+            subtasksExpanded={board.expandedSubtasks.has(card.id)}
+            onSubtasksExpandedChange={board.setSubtasksExpanded}
             permissionButtons={board.buttonsFor(card)}
             stopPhase={board.stop.phase(card.id)}
             readPending={board.read.pending(card.id)}
