@@ -684,15 +684,29 @@ describe("Tasks board, desktop", () => {
     expect(textOf(stats.findByProps({ testID: "sidebar-stat-running" }))).toMatch(/Running\d/);
     // No card chosen: the groups.
     expect(hostsById("sidebar-groups").length).toBeGreaterThan(0);
-    // The switch's mark: a solid block in the frame while the sidebar shows, a thin bar once it hides.
-    const bar = () => StyleSheet.flatten(renderer!.root.findByProps({ testID: "panel-mark" }).findAll((node) => (node.type as unknown) === "View")[1]!.props.style);
-    expect(bar()).toMatchObject({ width: 4, height: 6.5 });
+    const icon = () => hostsById("sidebar-switch")[0]!.find((node) => (node.type as unknown) === "Icon").props.name;
+    expect(icon()).toBe("PanelRightClose");
     // The switch hides it, and the lanes take the whole board.
     act(() => renderer!.root.findByProps({ testID: "sidebar-switch" }).props.onPress());
     expect(hostsById("sidebar-inline")).toHaveLength(0);
     expect(lanesScroll().props.contentContainerStyle).toMatchObject({ width: 2000 });
     expect(readSidebarPreference().open).toBe(false);
-    expect(bar()).toMatchObject({ width: 1.5, height: 5.5 });
+    expect(icon()).toBe("PanelRightOpen");
+  });
+
+  it.each([2000, 600])("draws both panel actions with host icons at %i pt", (width) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(width);
+    const button = () => hostsById("sidebar-switch")[0]!;
+    const icon = () => button().find((node) => (node.type as unknown) === "Icon").props.name;
+    const side = width === 2000 ? "Right" : "Bottom";
+    const initial = button().props.accessibilityState.selected;
+    expect(icon()).toBe(`Panel${side}${initial ? "Close" : "Open"}`);
+    expect(textOf(button())).toBe("");
+    act(() => button().props.onPress());
+    expect(button().props.accessibilityState.selected).toBe(!initial);
+    expect(icon()).toBe(`Panel${side}${initial ? "Open" : "Close"}`);
   });
 
   it.each([
@@ -1840,7 +1854,7 @@ describe("Tasks board, tablet filters", () => {
     const height = Math.round(36 * Math.max(1, base / 14));
     for (const button of buttons()) expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: height, height, borderRadius: height / 2, borderColor: "#e2e2e6" });
     expect(StyleSheet.flatten(end().props.style).height).toBe(height);
-    expect(end().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch").map((node) => node.props.testID)).toEqual(["archived-lane-toggle"]);
+    expect(end().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch").map((node) => node.props.testID)).toEqual(os === "ios" ? [] : ["archived-lane-toggle"]);
     expect(renderer!.root.findAllByType(WindowSegments)).toHaveLength(0);
     expect(hostsById("filter-bar-more")).toHaveLength(1);
     expect(end().findAll((node) => (node.type as unknown) === "Text").map(textOf)).not.toContain(strings.sort);
@@ -1894,11 +1908,11 @@ describe("Tasks board, tablet filters", () => {
     act(() => choice("frontend").props.onPress());
     expect(lastBoardParams("host-1")).toMatchObject({ providers: ["codex"], labels: ["frontend"] });
     await act(async () => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
-    expect(hostsById("archived-lane-toggle")[0]!.props.accessibilityState).toEqual({ checked: false });
-    await act(async () => hostsById("archived-lane-toggle")[0]!.props.onPress());
+    expect(hostsById("toolbar-archived")[0]!.props.accessibilityState).toEqual({ selected: false });
+    await act(async () => hostsById("toolbar-archived")[0]!.props.onPress());
     expect(hostsById("filter-sheet-archived")[0]!.props.accessibilityState).toEqual({ checked: true });
     await act(async () => hostsById("filter-sheet-archived")[0]!.props.onPress());
-    expect(hostsById("archived-lane-toggle")[0]!.props.accessibilityState).toEqual({ checked: false });
+    expect(hostsById("toolbar-archived")[0]!.props.accessibilityState).toEqual({ selected: false });
     await act(async () => hostsById("filter-sheet-archived")[0]!.props.onPress());
     expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true, showArchived: true });
     act(() => renderer!.root.findByType(WindowSegments).props.onChange("7d"));
@@ -2023,37 +2037,40 @@ describe("Tasks board, tablet filters", () => {
     expect(hostsById(target)[0]!.props.accessibilityState).toEqual({ checked: false });
   });
 
-  it("web keeps the archived lane's switch beside its narrow-board filters", async () => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+  it.each([["web", 600], ["ios", 600], ["ios", 800], ["ios", 1200]] as const)("%s at %i pt keeps the archived lane's icon button in the toolbar", async (os, width) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
-    layOut(600);
+    layOut(width);
     const archived = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived");
     const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && (node.props.testID === "toolbar-archived" || node.props.testID === "toolbar-filters"));
-    expect(buttons.map((node) => node.props.testID)).toEqual(["toolbar-archived", "toolbar-filters"]);
+    expect(buttons.map((node) => node.props.testID)).toEqual(width === 600 ? ["toolbar-archived", "toolbar-filters"] : ["toolbar-archived"]);
+    expect(textOf(archived())).toBe("");
+    expect(archived().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Archive");
+    expect(hostsById("archived-lane-toggle")).toHaveLength(0);
     // The same size as the sidebar switch they sit beside.
     const size = (testID: string) => StyleSheet.flatten(renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === testID).props.style).width;
     expect(size("toolbar-archived")).toBe(size("sidebar-switch"));
-    expect(size("toolbar-filters")).toBe(size("sidebar-switch"));
+    if (width === 600) expect(size("toolbar-filters")).toBe(size("sidebar-switch"));
     expect(archived().props).toMatchObject({ accessibilityLabel: "Show the archived lane", accessibilityState: { selected: false } });
     // Struck through while off.
     const slashed = () => archived().findAll((node) => (node.type as unknown) === "View" && node.props.testID === "slash-mark").length > 0;
     expect(slashed()).toBe(true);
     expect(hostsById("lane-archived")).toHaveLength(0);
     await act(async () => archived().props.onPress());
-    layOut(600);
+    layOut(width);
     expect(archived().props.accessibilityState).toEqual({ selected: true });
     expect(slashed()).toBe(false);
     expect(hostsById("lane-archived")).toHaveLength(1);
     expect(host.save).not.toHaveBeenCalled();
     expect(deviceTasksStore().snapshot().values).toMatchObject({ showArchived: true });
-    act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-filters").props.onPress());
+    act(() => hostsById(width === 600 ? "toolbar-filters" : "filter-bar-more")[0]!.props.onPress());
     expect(hostsById("filter-sheet-lane-width")).toHaveLength(1);
-    expect(renderer!.root.findAll((node) => node.props.testID === "filter-sheet-archived")).toHaveLength(0);
-    // A wide board keeps its switch in the filter bar.
+    if (os === "web") expect(renderer!.root.findAll((node) => node.props.testID === "filter-sheet-archived")).toHaveLength(0);
+    // iPad keeps the toolbar button when resized; web restores its filter-bar switch.
     layOut(1600);
-    expect(renderer!.root.findAll((node) => node.props.testID === "toolbar-archived")).toHaveLength(0);
+    expect(hostsById("toolbar-archived")).toHaveLength(os === "ios" ? 1 : 0);
   });
 
   it("web keeps the subtasks switch on the bar and strikes its icon through while off", () => {
