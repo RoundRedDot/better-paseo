@@ -10,6 +10,7 @@ import { openLink } from "../../open-link";
 import { space } from "../../theme-tokens";
 import type { RenderContext } from "./context";
 import { MARKER_GAP } from "./styles";
+import { BlockSelectionContext } from "./block-selection";
 import { renderInline } from "./inline";
 import { escapeProse, nativeBlockSource, nativeProseSource, type NativeProseSource } from "./native-prose-source";
 
@@ -75,6 +76,7 @@ function nativeStyle(style: TextProps["style"], context: RenderContext, gap = 0)
 }
 
 function IOSProse({ context, tokens, text, prefix, style, blockTokens, gap, ...rest }: Props) {
+  const selection = useContext(BlockSelectionContext);
   const source = useMemo<NativeProseSource>(() => blockTokens ? nativeBlockSource(blockTokens) : text === undefined
     ? nativeProseSource(tokens ?? []) : { markdown: escapeProse(text), links: [] }, [tokens, text, blockTokens]);
   const markdown = prefix ? escapeProse(prefix) + source.markdown : source.markdown;
@@ -82,7 +84,7 @@ function IOSProse({ context, tokens, text, prefix, style, blockTokens, gap, ...r
   // The host uses the GFM container for lists; its native block layout owns wrapping.
   const Component = blockTokens?.some((token) => token.type === "list") ? NativeListProse : NativeProse;
   const props = { ...rest, markdown, markdownStyle, style: [style, { backgroundColor: "transparent" }],
-    selectable: true, isGFM: true, allowFontScaling: rest.allowFontScaling ?? true, allowTrailingMargin: false,
+    selectable: !selection?.selected, isGFM: true, allowFontScaling: rest.allowFontScaling ?? true, allowTrailingMargin: false,
     enableLinkPreview: false, enableBlockContextMenu: false, streamingAnimation: false,
     md4cFlags: blockTokens ? GROUP_FLAGS : FLAGS,
     selectionMenuConfig: { copyAsMarkdown: false, copyImageUrl: false, copyLabel: "Copy" } };
@@ -90,6 +92,7 @@ function IOSProse({ context, tokens, text, prefix, style, blockTokens, gap, ...r
   return source.links.some((link) => link.kind === "path")
     ? <IOSProseWithPaths component={Component} nativeProps={props} source={source} context={context} />
     : <Component {...props} onLinkPress={({ nativeEvent }: LinkEvent) => {
+      selection?.cancel();
       const link = source.links[linkIndex(nativeEvent.url)];
       if (link?.kind === "url") openLink(link.target);
     }} />;
@@ -103,10 +106,12 @@ function linkIndex(url: string): number {
 function IOSProseWithPaths({ component: Component, nativeProps, source, context }: {
   component: ElementType; nativeProps: Record<string, unknown>; source: NativeProseSource; context: RenderContext;
 }) {
+  const selection = useContext(BlockSelectionContext);
   const paths = useContext(PathContext);
   const capabilities = useInputCapabilities();
   const { copy } = useCopy();
   return <Component {...nativeProps} onLinkPress={({ nativeEvent }: LinkEvent) => {
+    selection?.cancel();
     const link = source.links[linkIndex(nativeEvent.url)];
     if (!link) return;
     if (link.kind === "url") { openLink(link.target); return; }

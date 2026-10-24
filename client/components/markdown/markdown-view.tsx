@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useMemo, useRef } from "react";
-import { Platform, View } from "react-native";
+import { View } from "react-native";
 import type { ExtendedThemeTokens } from "../theme-tokens";
 import { selectionSurface } from "../selection-actions";
 import { codeSurface } from "../host-font-escape";
@@ -12,7 +12,7 @@ import type { RenderContext } from "./render/context";
 import { MdBlock } from "./render/md-block";
 import { buildStyles, variantMetrics, type MarkdownVariant } from "./render/styles";
 import { useZoomedTokens } from "../../ui/text-zoom";
-import { groupNativeParagraphs, nativeParagraphs } from "./render/native-prose-source";
+import { dismissBlockSelection } from "./render/block-selection";
 
 export { MARKDOWN_VARIANTS, type MarkdownVariant } from "./render/styles";
 
@@ -154,22 +154,10 @@ export function MarkdownView({
   // was: those keep the element drawn before, so a chunk costs the blocks it
   // changed, not one element and one memo check per block of the reply.
   const drawn = useRef<DrawnBlocks | null>(null);
-  // Keep only this message's current blocks: completed sources need no new
-  // classification, and streamed prefixes never accumulate in the lexer LRU.
-  const proseEligibility = useRef(new Map<string, boolean>());
-  const displayBlocks = useMemo(() => {
-    const raw = blocks.map((block, index) => index === blocks.length - 1 ? tail : block);
-    if (Platform.OS !== "ios") return raw;
-    const previous = proseEligibility.current;
-    const next = new Map<string, boolean>();
-    const grouped = groupNativeParagraphs(raw, (source) => {
-      const eligible = previous.get(source) ?? nativeParagraphs(lexBlock(source, true));
-      next.set(source, eligible);
-      return eligible;
-    });
-    proseEligibility.current = next;
-    return grouped;
-  }, [blocks, tail]);
+  // Keep logical block boundaries on iOS too: double tapping a paragraph
+  // must never select the neighbouring paragraphs of a native prose batch.
+  const displayBlocks = useMemo(() =>
+    blocks.map((block, index) => index === blocks.length - 1 ? tail : block), [blocks, tail]);
   const nodes = useMemo(() => {
     const before = drawn.current?.context === context && drawn.current.firstBlock === firstBlock ? drawn.current.blocks : null;
     const last = displayBlocks.length - 1;
@@ -193,6 +181,7 @@ export function MarkdownView({
     // The terminal variant sets the whole body in the mono face, so the whole
     // reply is a code surface the host's UI font rule must skip.
     <View
+      onTouchStart={dismissBlockSelection}
       {...(metrics.mono ? surfaceProps(selectionSurface, codeSurface) : selectionSurface)}
       style={[styles.root, !firstBlock && { paddingTop: listContinuation ? metrics.itemGap : metrics.blockGap }]}
     >
