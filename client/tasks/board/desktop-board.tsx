@@ -1118,7 +1118,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
     );
   }
 
-  const loadingFirst = !ready || !drawn || (isHistoryLane(lane.id) && lane.loading && count === 0);
+  const loadingFirst = !ready || !drawn || (lane.initialLoading && count === 0);
   return clip(
     <View style={{ width: props.width, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}>
       {/* Under the header and the cards: only the lane's own fill flashes. */}
@@ -1207,8 +1207,8 @@ function DesktopLaneView(props: DesktopLaneProps) {
           ListFooterComponentStyle={props.onBlank ? { flexGrow: 1 } : undefined}
           ListFooterComponent={
             <>
-              {/* The archived lane shares the done list's pages, so a page can bring it nothing: it offers more while empty too. */}
-              {isHistoryLane(lane.id) && (count > 0 || lane.id === "archived") && (lane.hasMore || lane.loading) ? (
+              {/* Both history lanes can have no visible matches while later pages still have some. */}
+              {isHistoryLane(lane.id) && (lane.hasMore || lane.loading) ? (
                 <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} />
               ) : null}
               <LaneFilterHint board={board} lane={lane.id} count={props.hidden} theme={theme} />

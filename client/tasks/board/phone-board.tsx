@@ -780,7 +780,7 @@ function PhoneLane(props: {
     ({ item }: { item: TaskCard }) => <CardCell board={board} card={item} theme={theme} compact callbacks={callbacks} fresh={fresh.has(item.id)} />,
     [board, theme, callbacks, fresh],
   );
-  if (!ready || (isHistoryLane(lane.id) && lane.loading && count === 0)) {
+  if (!ready || (lane.initialLoading && count === 0)) {
     return (
       <View style={{ padding: 12, gap: 12 }}>
         {[0, 1, 2].map((index) => (
@@ -831,7 +831,7 @@ function PhoneLane(props: {
       }
       ListFooterComponent={
         <>
-          {isHistoryLane(lane.id) && (count > 0 || lane.id === "archived") && (lane.hasMore || lane.loading) ? (
+          {isHistoryLane(lane.id) && (lane.hasMore || lane.loading) ? (
             <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} large />
           ) : null}
           <LaneFilterHint board={board} lane={lane.id} count={board.hidden[lane.id]} theme={theme} />

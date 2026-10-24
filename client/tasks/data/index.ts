@@ -837,6 +837,7 @@ function createStore(api: PaseoApi): TaskStore {
   let countsCache: SidebarCounts | null = null;
   let countsDirty = true;
   let loadingDone = false;
+  let doneReady = false;
   /**
    * The archived lane is asked for: the done list includes archived agents,
    * whose records stay. Kept while the board closes, so a warm hold reads
@@ -1252,7 +1253,10 @@ function createStore(api: PaseoApi): TaskStore {
         else update(event.value);
       }
     } catch (caught) {
-      if (isCurrent(run)) subscriptionError(caught);
+      if (isCurrent(run)) {
+        if (key === DONE_SUBSCRIPTION) doneListLanded();
+        subscriptionError(caught);
+      }
     }
   }
 
@@ -1852,6 +1856,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   /** The done list arrived, or could not: the archived lane follows what was asked. */
   function doneListLanded() {
+    doneReady = true;
     doneReloading = false;
     showArchivedLane(archivedAsked);
   }
@@ -1865,6 +1870,7 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function startDone() {
+    doneReady = false;
     sourceMembers.set(DONE_SUBSCRIPTION, new Set());
     openDoneList();
   }
@@ -1896,6 +1902,7 @@ function createStore(api: PaseoApi): TaskStore {
     doneTailAt = null;
     loadingDone = false;
     doneListLanded();
+    doneReady = false;
     notify();
   }
 
@@ -1991,6 +1998,7 @@ function createStore(api: PaseoApi): TaskStore {
     doneCursor = null;
     doneTailAt = null;
     loadingDone = false;
+    doneReady = false;
     doneReloading = false;
     archivedLane = archivedAsked;
     error = null;
@@ -2039,12 +2047,14 @@ function createStore(api: PaseoApi): TaskStore {
       laneCards.sort(laneCompare(lane));
       const tailOld = cutoff !== null && doneTailAt !== null && Number.isFinite(Date.parse(doneTailAt)) && now - Date.parse(doneTailAt) > cutoff;
       const paged = lane === "done" ? options.includeDone : lane === "archived" && showArchived;
+      const initialLoading = paged && (!doneReady || (lane === "archived" && doneReloading));
       lanes[lane] = {
         id: lane,
         cards: laneCards,
         hasMore: paged && Boolean(doneCursor) && !tailOld,
-        // The archived lane waits on its first list while the done lane keeps its cards.
-        loading: paged && (loadingDone || (lane === "archived" && doneReloading)),
+        // Search can hide every loaded card; paging must not replace that empty list with skeletons.
+        initialLoading,
+        loading: initialLoading || (paged && loadingDone),
       };
     }
     // Every enabled provider, then any other a card was run with (one disabled since).
