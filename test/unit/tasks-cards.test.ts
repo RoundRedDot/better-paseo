@@ -87,7 +87,10 @@ import {
 import { SpinnerRing, statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
-import { OVERLAY_ROW_Z, SubtaskMetadata } from "../../client/tasks/cards/task-card";
+import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
+import { SubtaskRow, SubtaskMetadata } from "../../client/tasks/cards/subtask-row";
+import { ChildMark } from "../../client/tasks/cards/child-mark";
+import { MARK_BITMAPS } from "../../server/mark-bitmaps";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
 import { TasksTypography } from "../../client/tasks/typography";
@@ -99,7 +102,7 @@ import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { PiMark, agentPillColors, contrastRatio, tintedPillColors } from "../../client/tasks/cards/brand-mark";
 import { permissionButtons } from "../../client/tasks/actions";
 import { providerBrand } from "../../client/components/provider-logo";
-import { MARK_IDS, seedMarkBitmaps } from "../../client/components/marks";
+import { seedMarkBitmaps } from "../../client/components/marks";
 import { mix } from "../../client/components/theme-tokens";
 import { identityColor, projectIconRadius, projectInitial, projectViewKey } from "../../client/tasks/cards/project-icon";
 
@@ -1337,7 +1340,7 @@ describe("TaskCardView actions", () => {
     // corner in every state; no state words.
     for (const child of sample("sample-running").children) {
       const slot = hostByTestId(list, `subtask-status-${child.id}`);
-      expect(slot.props.style).toMatchObject({ height: 16 });
+      expect(slot.props.style).toMatchObject({ height: 18 });
       expect(slot.findAll((node) => typeof node.type === "string" && node.props.testID === `status-${child.status}`)).toHaveLength(1);
     }
     // A running child's start and timer below the title; a finished one's last turn and when.
@@ -1359,7 +1362,7 @@ describe("TaskCardView actions", () => {
     const list = hostByTestId(tree.root, "task-card-subtasks");
     for (const child of base.children) {
       const row = byLabel(list, child.title);
-      const title = row.find((node) => (node.type as unknown) === "Text" && node.props.children === child.title);
+      const title = hostByTestId(row, `subtask-title-${child.id}`);
       const time = hostByTestId(row, `subtask-time-${child.id}`);
       const content = hostByTestId(row, `subtask-content-${child.id}`);
       expect(flat(content.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
@@ -1450,12 +1453,11 @@ describe("TaskCardView actions", () => {
     const list = hostByTestId(tree.root, "task-card-subtasks");
     // Drawn without a hover: the button is what tells it from a child with a tab of its own.
     expect(icons(hostByTestId(list, "subtask-parent-tab-sub-1"))).toEqual(["CornerLeftUp"]);
-    // Paseo's subagent track: the facts line under the title, in place of the times, its type as an icon.
-    const facts = hostByTestId(list, "subtask-facts-sub-1");
-    expect(texts(facts)).toEqual(["Opus 5.5 · High · 132.8k tokens"]);
-    expect(icons(facts)).toEqual(["Shapes"]);
-    expect(facts.props.accessibilityLabel).toBe("general-purpose · Opus 5.5 · High · 132.8k tokens");
-    expect(list.findAll((node) => typeof node.type === "string" && node.props.testID === "subtask-time-sub-1")).toHaveLength(0);
+    // Provider facts and timing use the same secondary component as ordinary subtasks.
+    const facts = hostByTestId(list, "subtask-meta-sub-1");
+    expect(texts(facts)[0]).toBe("Opus 5.5 · High · 132.8k tokens");
+    expect(icons(facts)).toEqual(["Shapes", "Clock", "Hourglass"]);
+    expect(texts(hostByTestId(list, "subtask-time-sub-1"))).toEqual([formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
     for (const child of base.children) expect(list.findAll((node) => node.props.testID === `subtask-parent-tab-${child.id}`)).toHaveLength(0);
     // The row reveals the subagent's card, naming the parent for the board's fallback; the button opens the parent's tab.
     byLabel(tree.root, "mac studio run check").props.onPress();
@@ -1652,6 +1654,48 @@ describe("TaskDetailCards", () => {
 
   const details = (card: TaskCard, more: Record<string, unknown> = {}, language: "zh" | "en" = "zh") =>
     React.createElement(TaskDetailCards, { card, theme: LIGHT, now: NOW, language, strings: BOARD_STRINGS[language].sidebar, ...more });
+
+  it("uses identical shared rows in expanded cards, the sidebar and the mobile sheet", async () => {
+    seedMarkBitmaps({ "lobe:codex": MARK_BITMAPS["lobe:codex"]!, "lobe:claude": MARK_BITMAPS["lobe:claude"]! });
+    const base = sample("sample-running");
+    const provider: TaskChild = { ...base.children[0]!, id: "provider", kind: "provider", subtitle: "general-purpose · High · 132.8k tokens", subagentType: "general-purpose", modelLabel: null, thinkingLabel: null, modeLabel: null, context: null };
+    const card = { ...base, children: [...base.children, provider] };
+    const onOpen = vi.fn();
+    const surfaces = [
+      cardElement(card, { subtasksExpanded: true, onOpen }),
+      details(card, { touch: false, scrollBody: true, onOpen, onJump: vi.fn() }),
+      details(card, { touch: true, onOpen, onJump: vi.fn() }),
+    ];
+    const layouts: unknown[] = [];
+    for (const surface of surfaces) {
+      const tree = await render(surface);
+      const rows = tree.root.findAllByType(SubtaskRow);
+      expect(rows.map((row) => row.props.child.id).sort()).toEqual(card.children.map((child) => child.id).sort());
+      // Native surfaces all use the same touch targets, even a wide tablet sidebar.
+      expect(rows.every((row) => row.props.touch)).toBe(true);
+      const byId = card.children.map((child) => {
+        const row = rows.find((candidate) => candidate.props.child.id === child.id)!;
+        expect(row.findAllByType(SubtaskMetadata)).toHaveLength(1);
+        const mark = row.findByType(ChildMark);
+        expect(mark.props.child.provider).toBe(child.provider);
+        const brand = mark.find((node) => (node.type as unknown) === "Image");
+        expect(brand.props.source.uri).toBe(MARK_BITMAPS[`lobe:${child.provider}`]);
+        expect(flat(brand.props.style)).toMatchObject({ width: 14, height: 14 });
+        // The status shares the brand's frame, overlapping its bottom-right corner.
+        expect(mark.findAll((node) => typeof node.type === "string" && flat(node.props.style).position === "absolute" && flat(node.props.style).right === -5 && flat(node.props.style).bottom === -5)).toHaveLength(1);
+        return row.findAll((node) => typeof node.type === "string").map((node) => ({
+          type: node.type,
+          style: flat(node.props.style),
+          lines: node.props.numberOfLines,
+          icon: node.props.name,
+        }));
+      });
+      layouts.push(byId);
+      await act(async () => tree.unmount());
+    }
+    expect(layouts[1]).toEqual(layouts[0]);
+    expect(layouts[2]).toEqual(layouts[0]);
+  });
 
   it("ticks the header's turn clock each second with the board's clock", async () => {
     let time = NOW;
@@ -2009,9 +2053,9 @@ describe("TaskDetailCards", () => {
     expect(onJump).toHaveBeenCalledWith("sample-child-1");
     // Hovering a row shows its open-tab button beside the title.
     const row = hostByTestId(section, "detail-subtask-sample-child-1");
-    expect(section.findAll((node) => node.props.testID === "detail-subtask-open")).toEqual([]);
+    expect(section.findAllByType(SubtaskRow)).toHaveLength(3);
     await act(async () => row.props.onHoverIn());
-    await act(async () => hostByTestId(running.root, "detail-subtask-open").props.onPress());
+    await act(async () => hostByTestId(running.root, "detail-subtask-open-sample-child-1").props.onPress());
     expect(onOpen).toHaveBeenCalledWith("sample-child-1");
 
     const allDone = sample("sample-running");
@@ -2054,12 +2098,11 @@ describe("TaskDetailCards", () => {
     expect(flat(content.props.style)).toEqual(before);
     row.props.onPress();
     expect(onJump).toHaveBeenCalledWith(child.id);
+    const button = hostByTestId(row, `detail-subtask-open-${child.id}`);
+    expect(flat(button.props.style).flexShrink).toBe(0);
     if (touch) {
-      expect(row.findAll((node) => node.props.testID === "detail-subtask-open")).toHaveLength(0);
       row.props.onLongPress();
     } else {
-      const button = hostByTestId(row, "detail-subtask-open");
-      expect(flat(button.props.style).flexShrink).toBe(0);
       button.props.onPress();
     }
     expect(onOpen).toHaveBeenCalledWith(child.id);
@@ -2093,7 +2136,8 @@ describe("TaskDetailCards", () => {
   it("merges a failed provider subagent's status into its agent's mark, off its own line", async () => {
     const base = sample("sample-done");
     const subagent: TaskChild = { id: "sub-1", title: "RRD-10161 desktop native fatal", status: "failed", kind: "provider", subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens", subagentType: "general-purpose", provider: "claude", lane: "review", timing: sample("sample-running").children[2]!.timing };
-    const tree = await render(details({ ...base, children: [subagent] }));
+    const onOpen = vi.fn();
+    const tree = await render(details({ ...base, children: [subagent] }, { onOpen }));
     const meta = hostByTestId(tree.root, "detail-subtask-meta-sub-1");
     expect(texts(meta)[0]).toBe("Opus 5.5 · High · 189.7k tokens");
     expect(icons(meta)).toEqual(["Shapes", "Hourglass"]);
@@ -2101,6 +2145,10 @@ describe("TaskDetailCards", () => {
     const mark = hostByTestId(tree.root, "detail-subtask-status-sub-1");
     expect(mark.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(1);
     expect(mark.findAll((node) => typeof node.type === "string" && node.props.testID === "status-failed")).toHaveLength(1);
+    const jump = hostByTestId(tree.root, "detail-subtask-parent-tab-sub-1");
+    expect(icons(jump)).toEqual(["CornerLeftUp"]);
+    jump.props.onPress();
+    expect(onOpen).toHaveBeenCalledWith(base.id);
   });
 
   it("keeps shared metadata and context icons in a narrow card while abbreviating its heading", async () => {

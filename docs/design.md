@@ -297,6 +297,42 @@ button goes back to "Stop" with a spinner.
 appended (`detail-stop-spinner`), and each button's test checks the label, the dimming, the busy
 state and the spinner.
 
+## Shared subtask lists
+
+`SubtaskRow` and `SubtaskMetadata` in `client/tasks/cards/subtask-row.tsx` are the
+single implementation for expanded board cards, the details sidebar and the mobile
+details sheet. Import them from that module or the cards barrel. These surfaces
+must not add another row renderer, override its styles or hide metadata by width.
+
+- The left column is an 18 pt slot containing `ChildMark`: provider mark with a
+  status corner, aligned with the title's first line.
+  The status overlaps the brand's bottom-right corner; do not replace this
+  combined mark with a standalone status icon. Offline previews must seed the
+  real `MARK_BITMAPS` through `seedMarkBitmaps` before rendering, and check that
+  both the decoded brand image and the status are visible.
+- The title uses `HOST_FONT.sm` / `HOST_LINE.smRead`, stays on one line and
+  truncates at the tail. A leading tag or issue ID is muted. The content column
+  takes the remaining width (`flex: 1`, `minWidth: 0`).
+- Below it, metadata wraps independently: model, `Brain` with thinking level,
+  permission/mode icon, attention status, `ContextRing`, `Clock` with start time,
+  and `Hourglass` with duration (a waiting task uses `Clock`). Missing data is
+  omitted. Equal models are still shown per row. Provider subagent facts retain
+  their type icon and supplied text. Context is amber from 75%, red from 90%.
+- The row uses an 8 pt column gap, 6 pt horizontal padding and radius 6. Touch
+  changes only targets and vertical spacing: 44 pt minimum with 10 pt padding,
+  versus 32 pt with 7 pt padding for a pointer. Both follow host font scaling.
+- The jump button reserves its width even when hidden: 32 pt on touch, 22 pt
+  with a pointer. Touch always shows it; a pointer shows it on hover. A provider
+  subagent always has `CornerLeftUp` to its parent's tab; an ordinary child has
+  `ArrowUpRight`. Hover never reflows the title or metadata.
+
+Containers own sorting, expansion, navigation callbacks and the completed-row
+muting rule. They supply data, theme, interaction capability and callbacks; the
+shared component owns all row geometry, icons, metadata and hover rendering.
+Web rows are groups with leaf buttons, avoiding nested button markup. Regression
+tests compare the rendered rows through all three entry points, including narrow
+widths, enlarged text, sparse data, provider children and live clocks.
+
 ## Device board preferences
 
 Show subtasks, Show archived lane, Show groups with no active tasks, and Lane width are
