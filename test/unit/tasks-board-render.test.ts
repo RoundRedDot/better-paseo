@@ -1276,6 +1276,116 @@ describe("Tasks board, desktop", () => {
     }
   });
 
+  it.each([[2000, true], [2000, false], [900, true], [900, false], [600, false]] as const)("previews the focused card with Space at %i pt (sidebar preference=%s)", (width, preferred) => {
+    writeSidebarPreference({ open: preferred, width: 380 });
+    const keys = new Set<(event: unknown) => void>();
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("document", {
+      activeElement: null, body: {}, visibilityState: "visible",
+      addEventListener: (type: string, listener: (event: unknown) => void, capture?: boolean) => type === "keydown" && !capture && keys.add(listener),
+      removeEventListener: (type: string, listener: (event: unknown) => void) => type === "keydown" && keys.delete(listener),
+    });
+    const key = (value: string) => {
+      const preventDefault = vi.fn();
+      act(() => { for (const listener of keys) listener({ key: value, preventDefault }); });
+      return preventDefault;
+    };
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(width);
+      expect(key(" ")).not.toHaveBeenCalled();
+      key("j");
+      const first = cards().find((card) => card.props.focused)!.props.card;
+      expect(hostsById("detail-title")).toHaveLength(0);
+      expect(key(" ")).toHaveBeenCalledTimes(1);
+      const title = () => textOf(hostsById("detail-title")[0]!);
+      expect(title()).toBe(first.title);
+      const panel = width < 760 ? "board-sheet" : width < 1020 || !preferred ? "sidebar-floating" : "sidebar-inline";
+      expect(hostsById(panel)).toHaveLength(1);
+      key(" ");
+      expect(title()).toBe(first.title);
+      key("l");
+      const next = cards().find((card) => card.props.focused)!.props.card;
+      expect(next.id).not.toBe(first.id);
+      expect(title()).toBe(first.title);
+      key(" ");
+      expect(title()).toBe(next.title);
+      expect(openAgent).not.toHaveBeenCalled();
+      key("Enter");
+      expect(openAgent).toHaveBeenCalledWith({ agentId: next.id });
+      key("Escape");
+      expect(hostsById("detail-title")).toHaveLength(0);
+      if (panel !== "sidebar-inline") expect(hostsById(panel)).toHaveLength(0);
+      // A later click takes over from an older keyboard focus.
+      act(() => cards().find((card) => card.props.card.id === first.id)!.props.onSelect(first));
+      expect(cards().some((card) => card.props.focused)).toBe(false);
+      key(" ");
+      expect(title()).toBe(first.title);
+      expect(readSidebarPreference().open).toBe(preferred);
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("previews a clicked card with Space while leaving text entry, other app focus and modified keys alone", () => {
+    writeSidebarPreference({ open: false, width: 380 });
+    const keys = new Set<(event: unknown) => void>();
+    vi.stubGlobal("window", {});
+    const doc = {
+      activeElement: null as unknown, body: {}, visibilityState: "visible",
+      addEventListener: (type: string, listener: (event: unknown) => void, capture?: boolean) => type === "keydown" && !capture && keys.add(listener),
+      removeEventListener: (type: string, listener: (event: unknown) => void) => type === "keydown" && keys.delete(listener),
+    };
+    vi.stubGlobal("document", doc);
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false), {
+        createNodeMock: (element: React.ReactElement) => (element.props as { collapsable?: boolean }).collapsable === false
+          ? { contains: (node: { inBoard?: boolean }) => node?.inBoard === true } : null,
+      }); });
+      layOut(1600);
+      const selected = cards().find((card) => card.props.card.id === "sample-running")!;
+      act(() => selected.props.onSelect(selected.props.card));
+      expect(hostsById("detail-title")).toHaveLength(0);
+      for (const active of [{ tagName: "INPUT", inBoard: true }, { tagName: "TEXTAREA", inBoard: true }, { isContentEditable: true, inBoard: true }, { inBoard: false }]) {
+        doc.activeElement = active;
+        const preventDefault = vi.fn();
+        act(() => { for (const listener of keys) listener({ key: " ", preventDefault }); });
+        expect(preventDefault).not.toHaveBeenCalled();
+        expect(hostsById("detail-title")).toHaveLength(0);
+      }
+      doc.activeElement = null;
+      for (const flags of [{ metaKey: true }, { ctrlKey: true }, { altKey: true }, { shiftKey: true }, { isComposing: true }, { defaultPrevented: true }]) {
+        const preventDefault = vi.fn();
+        act(() => { for (const listener of keys) listener({ key: " ", preventDefault, ...flags }); });
+        expect(preventDefault).not.toHaveBeenCalled();
+        expect(hostsById("detail-title")).toHaveLength(0);
+      }
+      const preventDefault = vi.fn();
+      act(() => { for (const listener of keys) listener({ key: " ", preventDefault }); });
+      expect(preventDefault).toHaveBeenCalledTimes(1);
+      expect(textOf(hostsById("detail-title")[0]!)).toBe(selected.props.card.title);
+      expect(hostsById("sidebar-floating")).toHaveLength(1);
+      expect(openAgent).not.toHaveBeenCalled();
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each(["en", "zh"] as const)("shows the Space preview hint after Open in %s, hiding the hints on narrow boards", (language) => {
+    updateEnhancerPreferences({ language });
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    const toolbar = () => textOf(renderer!.root.findByType(DesktopToolbar));
+    const strings = BOARD_STRINGS[language];
+    expect(toolbar()).toContain(`↵${strings.keys.open}Space${language === "zh" ? "预览" : "Preview"}/${strings.keys.search}`);
+    layOut(800);
+    expect(toolbar()).not.toContain("Space");
+  });
+
   it("disarms an armed stop on Esc, whatever has the keyboard focus", async () => {
     host.canStop = true;
     const keys: Array<(event: unknown) => void> = [];
