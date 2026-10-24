@@ -1,3 +1,4 @@
+import { actionIconOnly } from "../../client/tasks/cards/action-row";
 import { nativeProseText } from "./helpers/native-prose-text";
 /**
  * The Tasks board's cards: status icons, row collapse per density preset,
@@ -86,7 +87,7 @@ import {
 import { SpinnerRing, statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
-import { LARGE_FONT_SCALE, OVERLAY_ROW_Z, PHONE_BUTTON_MIN_WIDTH, phoneButtonSizing } from "../../client/tasks/cards/task-card";
+import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
 import { TasksTypography } from "../../client/tasks/typography";
@@ -818,7 +819,7 @@ describe("TaskCardView rows", () => {
       cardElement(card, { compact: true, language: "en", permissionButtons: buttons, onStop: () => {}, stopPhase });
     const tree = await render(element("idle"));
     const allow = flat(byLabel(tree.root, "Allow").props.style);
-    expect(allow).toMatchObject({ minHeight: 32, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: PHONE_BUTTON_MIN_WIDTH });
+    expect(allow).toMatchObject({ minHeight: 32, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: 32 });
     expect(allow.height).toBeUndefined();
     expect(allow.flex).toBeUndefined();
     const label = byLabel(tree.root, "Allow").find((node) => (node.type as unknown) === "Text");
@@ -827,26 +828,19 @@ describe("TaskCardView rows", () => {
     // No flexWrap: on Android it left a phantom second row's height under the buttons.
     expect(flat(hostByTestId(tree.root, "task-card-actions").props.style).flexWrap).toBeUndefined();
     const stop = () => flat(hostByTestId(tree.root, "task-card-stop").props.style);
-    // Only the stop pill gives width back, its label shrinking its font on one line.
-    expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 1, flexBasis: "auto" });
+    // The shared action row owns folding; no button shrinks its label independently.
+    expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 0, flexBasis: "auto" });
     // No `flex` beside `flexShrink`: React Native Web warns when they update together.
     expect(stop().flex).toBeUndefined();
     expect(icons(byLabel(tree.root, "Stop"))).toEqual(["Power"]);
     await act(async () => tree.update(element("confirming")));
-    expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 1, flexBasis: "auto" });
+    expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 0, flexBasis: "auto" });
     expect(stop().flex).toBeUndefined();
     const confirm = byLabel(tree.root, "Confirm stop");
     expect(flat(confirm.props.style)).toMatchObject({ minHeight: 32, paddingHorizontal: 10 });
-    expect(confirm.find((node) => (node.type as unknown) === "Text").props).toMatchObject({ numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.75 });
-    // Armed, the pill drops its square to fit "Confirm stop" at full size.
-    expect(icons(confirm)).toEqual([]);
-  });
-
-  it("lets a phone label wrap between words only with an enlarged system font", () => {
-    expect(phoneButtonSizing(1)).toMatchObject({ wraps: false, lines: 1, label: { flexShrink: 0 }, box: { flexShrink: 0 }, fit: {} });
-    expect(phoneButtonSizing(1, true)).toMatchObject({ wraps: false, lines: 1, box: { flexShrink: 1 }, fit: { adjustsFontSizeToFit: true } });
-    expect(phoneButtonSizing(1.1).wraps).toBe(false);
-    expect(phoneButtonSizing(LARGE_FONT_SCALE)).toMatchObject({ wraps: true, lines: 2, label: { flexShrink: 1 }, box: { flexShrink: 1 }, fit: {} });
+    expect(confirm.find((node) => (node.type as unknown) === "Text").props).toMatchObject({ numberOfLines: 1 });
+    // Confirmation keeps its distinct icon, including when its label folds.
+    expect(icons(confirm)).toEqual(["OctagonAlert"]);
   });
 
   it("draws the permission summary, its buttons and the remaining count", async () => {
@@ -1425,7 +1419,7 @@ describe("TaskCardView actions", () => {
     );
     const list = hostByTestId(tree.root, "task-card-subtasks");
     // Drawn without a hover: the button is what tells it from a child with a tab of its own.
-    expect(icons(hostByTestId(list, "subtask-parent-tab-sub-1"))).toEqual(["ArrowUpRight"]);
+    expect(icons(hostByTestId(list, "subtask-parent-tab-sub-1"))).toEqual(["CornerLeftUp"]);
     // Paseo's subagent track: the facts line under the title, in place of the times, its type as an icon.
     const facts = hostByTestId(list, "subtask-facts-sub-1");
     expect(texts(facts)).toEqual(["Opus 5.5 · High · 132.8k tokens"]);
@@ -1483,7 +1477,9 @@ describe("TaskCardView actions", () => {
     // Its id is a tool call's: the menu copies no session ID.
     const keys = cardMenuSections(card, cardStrings("en"), { copy: () => {}, open: () => {}, children: 0 }).flatMap((section) => section.items.map((item) => item.key));
     expect(keys).toEqual(["open", "copy-title", "copy-workspace", "copy-project"]);
-    const open = cardMenuSections(card, cardStrings("zh"), { copy: () => {}, open: () => {}, openParent: () => {}, children: 0 })[0]?.items.map((item) => item.label);
+    const items = cardMenuSections(card, cardStrings("zh"), { copy: () => {}, open: () => {}, openParent: () => {}, children: 0 })[0]!.items;
+    expect(items.map((item) => item.icon)).toEqual(["ArrowUpRight", "CornerLeftUp"]);
+    const open = items.map((item) => item.label);
     expect(open).toEqual(["打开", "打开父任务"]);
   });
 
@@ -2508,5 +2504,65 @@ describe("StatusIcon steps", () => {
     const easing = steppedEasing(STATUS_RING_STEPS);
     expect(STATUS_RING_STEPS).toBe(12);
     expect([0, 0.08, 1 / 12, 0.5, 0.999, 1].map((t) => Math.round(easing(t) * 360))).toEqual([0, 0, 30, 180, 330, 330]);
+  });
+});
+
+
+describe("responsive task actions", () => {
+  it("folds complete labels from the left, retaining the rightmost label longest", () => {
+    const sizes = [{ full: 80, icon: 32 }, { full: 140, icon: 32 }, { full: 80, icon: 32 }];
+    expect(actionIconOnly(316, sizes, 8)).toEqual([false, false, false]);
+    expect(actionIconOnly(280, sizes, 8)).toEqual([true, false, false]);
+    expect(actionIconOnly(220, sizes, 8)).toEqual([true, true, false]);
+    expect(actionIconOnly(120, sizes, 8)).toEqual([true, true, true]);
+    expect(actionIconOnly(316, sizes, 8)).toEqual([false, false, false]);
+  });
+
+  it.each([false, true])("folds a child card's actions and restores them after resizing (compact=%s)", async (compact) => {
+    const card = sample("sample-child-1");
+    const onOpen = vi.fn();
+    const tree = await render(cardElement(card, { compact, onOpen, onStop: () => {}, language: "zh" }));
+    const row = () => hostByTestId(tree.root, compact ? "task-card-actions" : "task-card-control-row")
+      .find((node) => typeof node.type === "string" && typeof node.props.onLayout === "function");
+    await act(async () => {
+      row().props.onLayout({ nativeEvent: { layout: { width: 240 } } });
+      for (const label of row().findAll((node) => (node.type as unknown) === "Text" && typeof node.props.onLayout === "function")) {
+        label.props.onLayout({ nativeEvent: { layout: { width: texts(label).join("").includes("父") ? 120 : 50 } } });
+      }
+    });
+    expect(icons(byLabel(tree.root, "打开父任务"))).toEqual(["CornerLeftUp"]);
+    expect(texts(byLabel(tree.root, "打开父任务"))).toEqual([]);
+    expect(texts(byLabel(tree.root, "停止"))).toEqual([]);
+    expect(texts(byLabel(tree.root, "打开"))).toEqual(["打开"]);
+    byLabel(tree.root, "打开父任务").props.onPress();
+    expect(onOpen).toHaveBeenLastCalledWith(card.parent!.id);
+    byLabel(tree.root, "打开").props.onPress();
+    expect(onOpen).toHaveBeenLastCalledWith(card.id);
+    await act(async () => row().props.onLayout({ nativeEvent: { layout: { width: 900 } } }));
+    expect(texts(byLabel(tree.root, "打开父任务"))).toEqual(["打开父任务"]);
+    expect(texts(byLabel(tree.root, "停止"))).toEqual(["停止"]);
+  });
+
+  it.each(["sidebar", "sheet"])("applies ordered folding and busy semantics in the %s", async (surface) => {
+    const card = sample("sample-running");
+    const props = { card, theme: LIGHT, language: "zh" as const, strings: BOARD_STRINGS.zh.sidebar, onOpen: () => {}, stop: { phase: "stopping" as const, onPress() {} } };
+    const element = surface === "sidebar" ? React.createElement(TaskDetailCards, { ...props, now: NOW, touch: true }) : React.createElement(DetailActionBar, props);
+    const tree = await render(element);
+    const rowId = surface === "sidebar" ? "detail-actions" : "detail-action-bar";
+    const stopId = surface === "sidebar" ? "detail-stop" : "detail-bar-stop";
+    const row = () => hostByTestId(tree.root, rowId);
+    await act(async () => {
+      row().props.onLayout({ nativeEvent: { layout: { width: 150 } } });
+      for (const label of row().findAll((node) => (node.type as unknown) === "Text" && typeof node.props.onLayout === "function")) {
+        label.props.onLayout({ nativeEvent: { layout: { width: 70 } } });
+      }
+    });
+    const stop = hostByTestId(tree.root, stopId);
+    expect(texts(stop)).toEqual([]);
+    expect(stop.props.accessibilityLabel).toBe("停止");
+    expect(stop.props.accessibilityState).toEqual({ disabled: true, busy: true });
+    expect(hostByTestId(stop, `${stopId}-spinner`)).toBeDefined();
+    await act(async () => row().props.onLayout({ nativeEvent: { layout: { width: 600 } } }));
+    expect(texts(hostByTestId(tree.root, stopId))).toEqual(["停止"]);
   });
 });

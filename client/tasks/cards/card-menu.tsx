@@ -53,7 +53,7 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
       key: "open",
       items: [
         ...(actions.open ? [{ key: "open", label: strings.openTab, icon: "ArrowUpRight", onSelect: actions.open }] : []),
-        ...(actions.openParent ? [{ key: "open-parent", label: strings.openParent, icon: "ArrowUpRight", onSelect: actions.openParent }] : []),
+        ...(actions.openParent ? [{ key: "open-parent", label: strings.openParent, icon: "CornerLeftUp", onSelect: actions.openParent }] : []),
       ],
     },
     {

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { openLink } from "../../components/open-link";
@@ -45,6 +45,7 @@ import {
   type SubtaskMetaPart,
   type SubtaskSummaryPart,
 } from "./details-format";
+import { ActionRow, useActionFit } from "./action-row";
 import { arrowInset, buttonHue, CardButton, CONFIRM_STOP_ICON, requestLook, type CardButtonLook } from "./task-card";
 import { buttonOutline } from "../board/board-style";
 import {
@@ -412,7 +413,7 @@ function DetailHeader(props: Inner) {
         </View>
       ) : null}
       {showActions ? (
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }} testID="detail-actions">
+        <ActionRow style={{ marginTop: 12 }} testID="detail-actions">
           {touch ? null : lead}
           {stop && props.stop ? (
             <OutlineButton
@@ -430,7 +431,7 @@ function DetailHeader(props: Inner) {
           {archiveButton}
           {openButton ? unarchiveButton : null}
           {touch ? lead : null}
-        </View>
+        </ActionRow>
       ) : null}
       <View style={{ marginTop: 12 }}>
         {hero === "turn" ? <RunningTurn {...props} /> : null}
@@ -523,10 +524,11 @@ function PermissionBlock(props: Inner) {
       ) : null}
       {buttons.length > 0 ? (
         <View testID="detail-permission-buttons" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 }}>
-          {buttons.map((button) => (
-            <RequestButton key={button.key} button={button} tokens={tokens} height={props.touch ? 36 : 28} onPress={() => props.onPermission?.(button)} />
-          ))}
-          <View style={{ flex: 1 }} />
+          <ActionRow style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0 }} testID="detail-permission-actions">
+            {buttons.map((button) => (
+              <RequestButton key={button.key} button={button} tokens={tokens} height={props.touch ? 36 : 28} onPress={() => props.onPermission?.(button)} />
+            ))}
+          </ActionRow>
           {waited !== null ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
               <Icon name="Hourglass" size={12} color={tokens.foregroundMuted} />
@@ -546,6 +548,10 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
   const { button, tokens } = props;
   const { hovered, hoverProps } = useHover();
   const hue = buttonHue(tokens, requestLook(button));
+  const scale = useTasksFontScale();
+  const height = taskControlHeight(props.height, scale);
+  const fit = useActionFit(button.label, `${scale}|${useWindowDimensions().fontScale}`, props.height, 28 + 13 + 6 + 1);
+  const icon = button.kind === "open" ? "ArrowUpRight" : button.action.behavior === "allow" ? "Check" : "X";
   return (
     <Pressable
       accessibilityRole="button"
@@ -553,18 +559,22 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
       onPress={props.onPress}
       {...hoverProps}
       style={{
-        height: props.height,
+        height,
+        flexDirection: "row",
+        gap: 6,
         paddingHorizontal: 14,
         borderRadius: 6,
         ...buttonOutline(hue.border),
         backgroundColor: hovered ? hue.hover : tokens.card.background,
         alignItems: "center",
         justifyContent: "center",
+        ...fit.style,
       }}
     >
-      <Text numberOfLines={1} style={{ fontSize: F.sm, fontWeight: "500", color: hue.color }}>
+      <Icon name={icon} size={13} color={hue.color} />
+      {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, fontSize: F.sm, fontWeight: "500", color: hue.color }}>
         {button.label}
-      </Text>
+      </Text>}
     </Pressable>
   );
 }
@@ -1506,6 +1516,13 @@ function OutlineButton(props: {
   const look = props.look ?? "plain";
   const hue = buttonHue(tokens, look);
   const iconColor = look === "plain" ? tokens.foregroundMuted : hue.color;
+  const [hintWidth, setHintWidth] = useState(0);
+  const gap = props.grow ? 8 : 6;
+  const leading = !!props.icon || props.busy;
+  // A trailing icon has a flexible spacer before it; both gaps count even at zero spacer width.
+  const pieces = 1 + Number(!!leading) + Number(!!props.hint) + 2 * Number(!!props.trailing);
+  const chrome = 2 * (props.grow ? 10 : 12) + (leading ? 15 : 0) + (props.hint ? hintWidth : 0) + (props.trailing ? 14 : 0) + (pieces - 1) * gap + 1;
+  const fit = useActionFit(props.label, `${scale}|${props.font}|${useWindowDimensions().fontScale}`, props.height, chrome);
   return (
     <Pressable
       accessibilityRole="button"
@@ -1526,8 +1543,10 @@ function OutlineButton(props: {
         backgroundColor: hovered ? hue.hover : tokens.card.background,
         flexDirection: "row",
         alignItems: "center",
-        gap: props.grow ? 8 : 6,
+        gap,
         opacity: props.busy ? 0.6 : 1,
+        justifyContent: "center",
+        ...fit.style,
       }}
     >
       {props.busy ? (
@@ -1536,13 +1555,13 @@ function OutlineButton(props: {
       ) : props.icon ? (
         <Icon name={props.icon} size={15} color={iconColor} />
       ) : null}
-      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: props.font, fontWeight: "500", color: hue.color }}>
+      {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, fontSize: props.font, fontWeight: "500", color: hue.color }}>
         {props.label}
-      </Text>
-      {props.hint}
-      {props.trailing ? (
+      </Text>}
+      {!fit.iconOnly && props.hint ? <View onLayout={(event) => setHintWidth(Math.ceil(event.nativeEvent.layout.width))} style={{ flexShrink: 0 }}>{props.hint}</View> : null}
+      {props.trailing && !(fit.iconOnly && props.busy) ? (
         <>
-          <View style={{ flex: 1 }} />
+          {fit.iconOnly ? null : <View style={{ flex: 1 }} />}
           <Icon name={props.trailing} size={14} color={tokens.foregroundMuted} />
         </>
       ) : null}
@@ -1585,7 +1604,7 @@ export function DetailActionBar(props: {
   // Deny first, allow last: the main button sits under the thumb.
   const ordered = [...respond].sort((a, b) => (a.action.behavior === "allow" ? 1 : 0) - (b.action.behavior === "allow" ? 1 : 0));
   return (
-    <View testID="detail-action-bar" style={{ flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.border }}>
+    <ActionRow testID="detail-action-bar" style={{ paddingHorizontal: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.border }}>
       {asking ? (
         <>
           {ordered.map((button) => (
@@ -1593,11 +1612,12 @@ export function DetailActionBar(props: {
               key={button.key}
               tokens={tokens}
               label={button.label}
+              icon={button.action.behavior === "allow" ? "Check" : "X"}
               look={requestLook(button)}
               onPress={() => props.onPermission?.(button)}
             />
           ))}
-          {answer ? <BarButton tokens={tokens} label={answer.label} look="answer" onPress={() => props.onPermission?.(answer)} /> : null}
+          {answer ? <BarButton tokens={tokens} label={answer.label} arrow look="answer" onPress={() => props.onPermission?.(answer)} /> : null}
           {onOpen ? <BarButton tokens={tokens} arrow label={openLabel(props as TaskDetailCardsProps)} square onPress={open} testID="detail-bar-open" /> : null}
         </>
       ) : (
@@ -1640,7 +1660,7 @@ export function DetailActionBar(props: {
           ) : null}
         </>
       )}
-    </View>
+    </ActionRow>
   );
 }
 
@@ -1659,6 +1679,8 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const hue = buttonHue(tokens, look);
   const text = hue.color;
   const iconColor = look === "plain" ? tokens.foregroundMuted : text;
+  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, 48, 32 + ((props.icon || props.busy) ? 26 : 0) + (props.arrow ? 26 : 0) + 1, props.square);
+  const square = fit.iconOnly;
   return (
     <Pressable
       accessibilityRole="button"
@@ -1669,10 +1691,10 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
       testID={props.testID}
       style={({ pressed }) => ({
         height,
-        width: props.square ? height : undefined,
-        flexGrow: props.square || props.grow === false ? 0 : 1,
-        flexShrink: props.square ? 0 : 1,
-        paddingHorizontal: props.square ? 0 : 16,
+        width: square ? height : undefined,
+        flexGrow: square || props.grow === false ? 0 : 1,
+        flexShrink: square ? 0 : 1,
+        paddingHorizontal: square ? 0 : 16,
         borderRadius: 12,
         ...buttonOutline(hue.border),
         backgroundColor: pressed && !props.busy ? hue.hover : tokens.card.background,
@@ -1681,6 +1703,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
+        ...fit.style,
       })}
     >
       {props.busy ? (
@@ -1689,13 +1712,13 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
       ) : props.icon ? (
         <Icon name={props.icon} size={18} color={iconColor} />
       ) : null}
-      {props.square ? null : (
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.base, fontWeight: "600", color: text }}>
+      {square ? null : (
+        <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, fontSize: F.base, fontWeight: "600", color: text }}>
           {props.label}
         </Text>
       )}
-      {props.arrow ? (
-        <View style={{ marginLeft: props.square ? 0 : -arrowInset(18) }}>
+      {props.arrow && !(square && props.busy) ? (
+        <View style={{ marginLeft: square ? 0 : -arrowInset(18) }}>
           <Icon name="ArrowUpRight" size={18} color={iconColor} />
         </View>
       ) : null}
