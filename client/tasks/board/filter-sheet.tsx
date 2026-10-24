@@ -31,6 +31,8 @@ export function FilterSheetBody(props: {
   onDone(): void;
   /** Phones and narrow tablet boards keep the empty-groups switch here instead of the toolbar. */
   showEmptyGroupsToggle?: boolean;
+  /** Tablet toolbars keep the archived-lane control in this panel. */
+  showArchivedToggle?: boolean;
   /** The lane width, on a tablet's narrow board (its lanes scroll); a phone shows one lane and has none. */
   laneWidth?: { value: LaneWidth; onChange(width: LaneWidth): void };
   /**
@@ -77,12 +79,24 @@ export function FilterSheetBody(props: {
           {sortFirst ? <View style={{ paddingBottom: 8 }}>{sort}</View> : null}
           <ToggleRow
             icon="ListTree"
+            testID="filter-sheet-subtasks"
             label={strings.showSubtasks}
             hint={strings.showSubtasksHint}
             on={!resolved.filters.hideSubtasks}
             theme={theme}
             onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
           />
+          {props.showArchivedToggle ? (
+            <ToggleRow
+              icon="Archive"
+              label={strings.archivedLane.row}
+              hint={strings.archivedLane.hint}
+              on={board.showArchived}
+              theme={theme}
+              onPress={() => board.setShowArchived(!board.showArchived)}
+              testID="filter-sheet-archived"
+            />
+          ) : null}
           {props.showEmptyGroupsToggle ? (
             <ToggleRow
               icon={emptyGroupsIcon(board.showEmptyGroups)}
@@ -298,6 +312,7 @@ function ToggleRow(props: { icon: string; label: string; hint?: string; on: bool
   return (
     <Pressable
       accessibilityRole="switch"
+      accessibilityLabel={props.label}
       aria-checked={props.on}
       accessibilityState={{ checked: props.on }}
       onPress={props.onPress}
