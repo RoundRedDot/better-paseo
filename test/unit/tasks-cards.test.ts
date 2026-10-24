@@ -93,7 +93,8 @@ import { ChildMark } from "../../client/tasks/cards/child-mark";
 import { MARK_BITMAPS } from "../../server/mark-bitmaps";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
-import { TasksTypography } from "../../client/tasks/typography";
+import { TasksTypography, TasksTypographyScale } from "../../client/tasks/typography";
+import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
 import { menuChrome } from "../../client/tasks/board/menu";
 import { cardMenuSections } from "../../client/tasks/cards/card-menu";
@@ -2311,6 +2312,15 @@ describe("TaskDetailCards", () => {
     // The settings preview passes no prompt: no section.
     await act(async () => tree.update(details(sample("sample-failed"), {}, "en")));
     expect(tree.root.findAll((node) => node.props.testID === "detail-prompt")).toHaveLength(0);
+  });
+
+  it("scales both prompt and reply prose within the compact floating sidebar scope", async () => {
+    const read = { prompt: { state: "ready", text: "A short message" } as const, load: vi.fn() };
+    const content = () => details(sample("sample-failed"), { touch: true, firstPrompt: read, lastMessage: read }, "en");
+    const tree = await render(content());
+    expect(tree.root.findAllByType(MarkdownView).map((node) => node.props.size)).toEqual([15, 15]);
+    await act(async () => tree.update(React.createElement(TasksTypographyScale, { factor: 0.9, children: content() })));
+    expect(tree.root.findAllByType(MarkdownView).map((node) => node.props.size)).toEqual([14, 14]);
   });
 
   it("shows the latest reply under the first prompt, copyable, with its own empty note", async () => {

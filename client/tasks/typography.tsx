@@ -1,4 +1,4 @@
-import React, { createContext, useContext, type ReactNode } from "react";
+import React, { createContext, useContext, useMemo, type ReactNode } from "react";
 import { Platform, StyleSheet, Text, type TextProps, type TextStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useHostAppearance } from "../ui/tokens/host-appearance-shim";
@@ -26,18 +26,31 @@ export function laneTitle(): { size: number; line: number } {
  */
 const HOST_DEFAULT_UI = Platform.OS === "web" ? 14 : 15;
 
-const TasksFontScale = createContext(1);
+const TasksFontScale = createContext({ scale: 1, adjustment: 1 });
 
 /** One appearance subscription for the whole board, including memoized cards. */
 export function TasksTypography({ theme, children }: { theme: PluginTheme; children: ReactNode }) {
   const ui = readHostTypography(theme)?.fontSize?.ui;
   const appearance = useHostAppearance(ui === undefined, theme);
   const scale = (ui ?? appearance?.uiBaseFontSize ?? HOST_DEFAULT_UI) / HOST_FONT.base;
-  return <TasksFontScale.Provider value={scale}>{children}</TasksFontScale.Provider>;
+  const value = useMemo(() => ({ scale, adjustment: 1 }), [scale]);
+  return <TasksFontScale.Provider value={value}>{children}</TasksFontScale.Provider>;
 }
 
 export function useTasksFontScale(): number {
-  return useContext(TasksFontScale);
+  return useContext(TasksFontScale).scale;
+}
+
+/** A local text adjustment, retaining the host's UI size and minimum touch targets. */
+export function TasksTypographyScale({ factor, children }: { factor: number; children: ReactNode }) {
+  const parent = useContext(TasksFontScale);
+  const value = useMemo(() => ({ scale: parent.scale * factor, adjustment: parent.adjustment * factor }), [parent, factor]);
+  return <TasksFontScale.Provider value={value}>{children}</TasksFontScale.Provider>;
+}
+
+/** For prose rendered outside TaskText, whose authored size already follows its own ramp. */
+export function useTasksFontAdjustment(): number {
+  return useContext(TasksFontScale).adjustment;
 }
 
 /** Match Paseo's rounded UI ramp; nested spans keep inheriting their parent. */
