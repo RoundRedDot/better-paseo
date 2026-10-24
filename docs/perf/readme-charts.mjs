@@ -1,12 +1,12 @@
 // Charts and table rows for README.md and README-zh.md, one English and one Chinese copy of each.
 //   node docs/perf/readme-charts.mjs
-// Reads the October 21 Paseo 0.12 raw runs under docs/bench/2026-10-21-paseo-012/raw (local, not in
-// git) and writes docs/perf/readme/*.svg:
+// Reads the October 23 (evening) Paseo 0.12 raw runs under docs/bench/2026-10-23-paseo-012-f2f64009/raw (local, not in
+// git; README_BENCH_RAW overrides the path, e.g. from a worktree) and writes docs/perf/readme/*.svg:
 //   web-cpu.<lang>.svg     Web main-thread task time, no plugin (Paseo 0.12.0) / Better Paseo
 //   ios-cpu.<lang>.svg     iOS Release: app-process CPU time per replay, native threads included
 //   web-memory.<lang>.svg  JS heap and DOM nodes after a forced GC, the scenarios that differ most
 // It also prints the README table rows (en, then zh) for every table in the performance section.
-// Every figure is the median of the three runs of one mode. Bars past the axis are clipped and
+// Every figure is the median of the five runs of one mode. Bars past the axis are clipped and
 // keep the real number as their label. The charts carry their own white card, so they stay
 // legible on GitHub's dark theme.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -14,9 +14,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const RAW = path.join(HERE, "../bench/2026-10-21-paseo-012/raw");
+const RAW = process.env.README_BENCH_RAW ?? path.join(HERE, "../bench/2026-10-23-paseo-012-f2f64009/raw");
 const OUT = path.join(HERE, "readme");
-const RUNS_PER_GROUP = 3;
+const RUNS_PER_GROUP = 5;
 
 const SCENARIOS = [
   ["codeblock-streaming", "Code block streaming", "代码块流式"],
@@ -39,21 +39,21 @@ const TEXT = {
   en: {
     font: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
     native: "No plugin (Paseo 0.12.0)",
-    fork: "Better Paseo 6a76c56",
+    fork: "Better Paseo f2f64009",
     vsNative: "vs no plugin",
     even: "even",
     cpuTitle: "Web: main-thread time for a whole replay (seconds, lower is better)",
     cpuNote: [
-      "Paseo 0.12.0 production profiling build, Chrome 155, 3 runs/mode, median, 2026-10-21.",
+      "Paseo 0.12.0 production profiling build, Chrome 155, 5 runs/mode, median, 2026-10-23.",
       `Bars past ${WEB_AXIS_S} s are clipped; the label is the real time. Green ⬆ better, red ⬇ worse.`,
     ],
     memTitle: "Web: memory after a forced GC (lower is better)",
-    memNote: "Same runs as the main-thread chart, 2026-10-21. DOM nodes on a log scale.",
+    memNote: "Same runs as the main-thread chart, 2026-10-23. DOM nodes on a log scale.",
     heap: "JS heap (MB)",
     dom: "DOM nodes",
     iosTitle: "iOS: app CPU time per replay (seconds, lower is better)",
     iosNote: [
-      "Paseo 0.12.0 Release simulator build, iOS 26.5, cold start, 3 runs/mode, median, 2026-10-21.",
+      "Paseo 0.12.0 Release simulator build, iOS 26.5, cold start, 5 runs/mode, median, 2026-10-23.",
       `Whole app process, native threads included. Bars past ${IOS_AXIS_S} s are clipped; the label is the real time.`,
       "Simulator on a shared, loaded machine; no physical iPhone performance claim. Green ⬆ better, red ⬇ worse.",
     ],
@@ -61,21 +61,21 @@ const TEXT = {
   zh: {
     font: "'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif",
     native: "不开插件（Paseo 0.12.0）",
-    fork: "Better Paseo 6a76c56",
+    fork: "Better Paseo f2f64009",
     vsNative: "对比不开插件",
     even: "持平",
     cpuTitle: "Web：整段回放的主线程时间（秒，越短越好）",
     cpuNote: [
-      "Paseo 0.12.0 生产 profiling 构建，Chrome 155，每模式 3 次中位数，2026-10-21。",
+      "Paseo 0.12.0 生产 profiling 构建，Chrome 155，每模式 5 次中位数，2026-10-23。",
       `超过 ${WEB_AXIS_S} 秒的条被截断，数字是真实时间。绿色 ⬆ 更好，红色 ⬇ 更差。`,
     ],
     memTitle: "Web：强制 GC 后的内存（越低越好）",
-    memNote: "与主线程时间同一批跑次，2026-10-21。DOM 节点为对数刻度。",
+    memNote: "与主线程时间同一批跑次，2026-10-23。DOM 节点为对数刻度。",
     heap: "JS 堆（MB）",
     dom: "DOM 节点",
     iosTitle: "iOS：每次回放的 App CPU 时间（秒，越短越好）",
     iosNote: [
-      "Paseo 0.12.0 Release 模拟器构建，iOS 26.5，每次冷启动，每模式 3 次中位数，2026-10-21。",
+      "Paseo 0.12.0 Release 模拟器构建，iOS 26.5，每次冷启动，每模式 5 次中位数，2026-10-23。",
       `整个 App 进程，含原生线程。超过 ${IOS_AXIS_S} 秒的条被截断，数字是真实时间。`,
       "共享且有负载的机器上的模拟器，不代表 iPhone 真机性能。绿色 ⬆ 更好，红色 ⬇ 更差。",
     ],
@@ -93,7 +93,8 @@ const BAD = "#b0392f";
 // same directory is not part of the README.
 function load(dir) {
   const runs = readdirSync(path.join(RAW, dir))
-    .filter((file) => file.endsWith(".json"))
+    // Runs a driver rejected and retried are kept as <label>.rejected.json; they are not samples.
+    .filter((file) => /^(web|ios)-[a-z]+-[a-z0-9-]+-r\d+\.json$/.test(file))
     .map((file) => {
       const [, mode, ...rest] = file.replace(/\.json$/, "").split("-");
       rest.pop();

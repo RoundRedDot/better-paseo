@@ -1,6 +1,6 @@
 {
-  "capturedAt": "2026-10-19",
-  "sourceSha": "323152f84ed9bb95b000c68d184cf87c11dcd944",
+  "capturedAt": "2026-10-23",
+  "sourceSha": "118f590384b80dd0c7cbb9a08c590684a2da45bd",
   "surface": "Offline React Native Web showcase with fixture data; not native device acceptance",
   "defaultTheme": "light",
   "darkMedia": "(prefers-color-scheme: dark)",
@@ -12,15 +12,15 @@
     "index.server.ts"
   ],
   "sourceTrackedChanges": [],
-  "showcaseDiff": "diff --git a/.showcase/showcase.tsx b/.showcase/showcase.tsx\nindex 0c4a9e2..1d982e4 100644\n--- a/.showcase/showcase.tsx\n+++ b/.showcase/showcase.tsx\n@@ -440,6 +440,7 @@ const paseoTool = {\n     title: \"Screenshot builder\",\n     provider: \"claude\",\n     model: \"claude-opus-5\",\n+    modeId: \"acceptEdits\",\n     initialPrompt: \"Capture every component of the Better Paseo plugin.\",\n     agentId: \"agent-8f21\",\n     status: \"running\" as const,",
+  "showcaseDiff": "",
   "captureSources": [
     {
       "path": ".showcase/showcase.tsx",
-      "sha256": "1bbbb0ae4a62a207b96f13083435b396a615f09776a213acd18c341f2ea225d2"
+      "sha256": "9ebebf5800c8c7e31f7352fed14ed8fedb1ef799e5ba78adcaa4ec0f27905db6"
     },
     {
       "path": ".showcase/tools/shots.mjs",
-      "sha256": "ea57b466cb4851ba27dbc8791847482997e3643ac25ba8ca3cf83f7e3b50af0b"
+      "sha256": "f8daedacfc22cbf7e4c8e60e18f70cb3324c0b0915e9db2a1168f9b62b802b38"
     }
   ],
   "assets": [
@@ -32,7 +32,7 @@
       "scale": 1,
       "width": 940,
       "height": 1683,
-      "sha256": "f2675a27ead6ba2872e82a88d13aa45392be197c5460432e31cb01263839b5f1"
+      "sha256": "d5168583f11fd16dc32aea07eb4e80313ce430972c72f2596731db10fa0b0f68"
     },
     {
       "path": "docs/images/questions-light.png",
@@ -42,7 +42,7 @@
       "scale": 1,
       "width": 1040,
       "height": 657,
-      "sha256": "03f46b97a98d5694724eec9a1de2f3d1f0a4913f266cd5a8b4a27b72db05ccce"
+      "sha256": "2408f70c1b444005ff65c1fadac8e8daceacbdd21f3bd0904473197ecdd34fd9"
     },
     {
       "path": "docs/images/tool-bash-light.png",
@@ -52,7 +52,7 @@
       "scale": 1,
       "width": 940,
       "height": 346,
-      "sha256": "490e88796b47bd0a40d2b2220f47afeac68f4e330e3e029f5c78c8335e688f1c"
+      "sha256": "2e207d4bd1e88453373822b24f1992bd4839fd291d8f8c41c6b4af5328a161f2"
     },
     {
       "path": "docs/images/tool-read-light.png",
@@ -62,7 +62,7 @@
       "scale": 1,
       "width": 940,
       "height": 276,
-      "sha256": "398c1103463d1a66e00f59dc38d609899de5c8366a7735c198834391ed694d24"
+      "sha256": "b465497ab9f126142b38c3939611a8636ccacb6dc7462dbcf086e07a4af4b7df"
     },
     {
       "path": "docs/images/tool-edit-light.png",
@@ -72,7 +72,7 @@
       "scale": 1,
       "width": 940,
       "height": 331,
-      "sha256": "80c98de49b8be8cf760c11c85538c47c580f6a6499f2ff95bad1dbb380ef3130"
+      "sha256": "f90db67f57657fd8065bb386eaefd37a14f031cff7e65a6c8169b0d3340741e6"
     },
     {
       "path": "docs/images/hub-light.png",
@@ -82,7 +82,7 @@
       "scale": 1,
       "width": 940,
       "height": 817,
-      "sha256": "29c6174da73a2fbd88d19c1309d2c7f658f31574ea44cad7f1f4bc675c6e19ed"
+      "sha256": "c0c30817147b2d3d75ddd84e644a60a73e58e88f4e8fb8486cea3d91a8cb0bf6"
     },
     {
       "path": "docs/images/tool-mcp-light.png",
@@ -92,7 +92,7 @@
       "scale": 1,
       "width": 940,
       "height": 360,
-      "sha256": "e76d4f4154c9c598555cb04a8f8dede7a39f722b4df10e71f97e6c9ae74e1f60"
+      "sha256": "ed87c1acf213072489c1c5e91720e28368074c7f190a44535adb0dc4dabae4fa"
     },
     {
       "path": "docs/images/paseo-light.png",
@@ -101,8 +101,8 @@
       "locale": "en-US",
       "scale": 1,
       "width": 940,
-      "height": 195,
-      "sha256": "bb13c62eaeac4d92514ba587d93106ff10c002546a6f0828135388b053e068b8"
+      "height": 178,
+      "sha256": "e34d70e620f134f48724713528968057b878ee40b08823f9cc932d7d5998a8f9"
     },
     {
       "path": "docs/images/tool-thinking-light.png",
@@ -112,7 +112,7 @@
       "scale": 1,
       "width": 940,
       "height": 137,
-      "sha256": "5ae971b309deaebed1f0ad9c7eb4c86d2822a1a6236e9459aa4e919513c0929b"
+      "sha256": "e00aa42b9d8759c178cd62700b118d8c8bfa00d7f2d3e6d756bd9b21b0d51da9"
     },
     {
       "path": "docs/images/tool-image-light.png",
@@ -122,7 +122,7 @@
       "scale": 1,
       "width": 940,
       "height": 624,
-      "sha256": "e24bbfe49d0657748f3fa1e72a86bbf8d2d0335c517ea6e4b14c739eb53275d8"
+      "sha256": "5810c1fb95cbd78903cb92ef79fbca298098ffa0a7ad9e83ada21d198d04144d"
     },
     {
       "path": "docs/images/syntax-light.png",
@@ -132,7 +132,7 @@
       "scale": 1,
       "width": 940,
       "height": 187,
-      "sha256": "6763f9313a6f9e113d631223ac39d06022f7993a3b5811a6ab6eca655a1f9cc4"
+      "sha256": "29aedebf9ca2667fb0e91abd90d139fdb8c9a6f6e64dd8bed651aaba28168e95"
     },
     {
       "path": "docs/images/reasoning-light.png",
@@ -142,7 +142,7 @@
       "scale": 1,
       "width": 940,
       "height": 281,
-      "sha256": "3e3116f8243cdd3e8884817a1a3c03b25fb4cb6c740718141c9318dec24b06a0"
+      "sha256": "6ea6cf24717f92a8312c19548c8a03fc8b75e268cbcb1df474fe4678bbde0f6c"
     },
     {
       "path": "docs/images/tasks-light.png",
@@ -152,7 +152,7 @@
       "scale": 1,
       "width": 940,
       "height": 171,
-      "sha256": "01e0c8a1d137bb2d5ed0de150cceff132addf871a6f7fb003147ff775db3446d"
+      "sha256": "1ec138f63d2f81759b1f32d492e463dfcc060b8ab66e977151576f4db2078a18"
     },
     {
       "path": "docs/images/checklist-window-light.png",
@@ -162,7 +162,7 @@
       "scale": 1,
       "width": 1112,
       "height": 247,
-      "sha256": "4fe7e9db599c98077e29a9f40a592bfa9f80c6e375f4a4138d1a093c3fe9c312"
+      "sha256": "1c9bfd87e4ba5ed0d7f46d01d632f351175ad228eafee56b88c89f74c47a9646"
     },
     {
       "path": "docs/images/table-copy-menu-light.png",
@@ -172,7 +172,7 @@
       "scale": 1,
       "width": 940,
       "height": 214,
-      "sha256": "e0968be48224963f1024981fba266829a043fedf1a5c4db16cd19b9c190f9ead"
+      "sha256": "3dfe253df148e9a89b2d593eefbe2fab05e1635363d8830e84e9761b2c48d313"
     },
     {
       "path": "docs/images/table-selection-light.png",
@@ -182,7 +182,7 @@
       "scale": 1,
       "width": 940,
       "height": 214,
-      "sha256": "a8cb24e8a4677d9d2dc3f73d619afa5c12edad8b055631cda3e16fac33bbcf5f"
+      "sha256": "13bc7bc2df4c190bc8c940117285c714998ebf7e6394d81d4b59bb7be7e19020"
     },
     {
       "path": "docs/images/markdown-styles-light.png",
@@ -192,7 +192,7 @@
       "scale": 1,
       "width": 2320,
       "height": 881,
-      "sha256": "2add3e50f6e1dbd4286005cad46728c3e150721bc74c6f3624cfd8427da13acf"
+      "sha256": "0857958053a9ca243b4ebde077e216ccb798d8b7267f29d3b167acb9fdabaa79"
     },
     {
       "path": "docs/images/markdown-preview-window-light.png",
@@ -202,7 +202,7 @@
       "scale": 1,
       "width": 1240,
       "height": 544,
-      "sha256": "1b7f1000c567e76a0403f3754f5f25a919643bdac80b2b372b70b1e19110c60a"
+      "sha256": "1bfb6fed29aaaaa24c8cc26387a6d862304d2b4c0e169744391b96f901e19111"
     },
     {
       "path": "docs/images/shared-image-cards-light.png",
@@ -212,7 +212,7 @@
       "scale": 1,
       "width": 940,
       "height": 1219,
-      "sha256": "67ae1bcc0103ccbc63b337d9b0f96f9526cd3bd8456bd89d538ff55cf5052479"
+      "sha256": "b35dc3da377ae92583bb6f2e87fad084aad457c2e1b38f4cd2d37d7864f48691"
     },
     {
       "path": "docs/images/selection-actions-light.png",
@@ -222,7 +222,7 @@
       "scale": 1,
       "width": 940,
       "height": 142,
-      "sha256": "47e329371ed12cd42a9a5912ed3905cdc0dadf35de01fdeb4f4737851921cc7a"
+      "sha256": "6134a605ebee65f96f3ffa100eea69632786af0984932d289db3c9e8f0ce8d00"
     },
     {
       "path": "docs/images/user-light.png",
@@ -232,7 +232,7 @@
       "scale": 1,
       "width": 940,
       "height": 122,
-      "sha256": "6d1eb10f68fe4cd67a126d2badda3cf00fcaccd0fe0fa6d5fe64751935d0cac3"
+      "sha256": "46e29ee93c2747b71ae159b3bf16124bd2f0d91521fa093ebf2ac703339f96d1"
     },
     {
       "path": "docs/images/settings-light.png",
@@ -242,7 +242,7 @@
       "scale": 1,
       "width": 1240,
       "height": 891,
-      "sha256": "e3b564249cf53a6dbf46662678f3d959cc9860531d3e1736ac2ffc61dadd82d1"
+      "sha256": "c66b4d4750b75b5f024ea385dc8708c47cb66eca5ead020afdbb364ddaefac56"
     },
     {
       "path": "docs/images/settings-tools-light.png",
@@ -252,7 +252,7 @@
       "scale": 1,
       "width": 1240,
       "height": 891,
-      "sha256": "bed550d225aceae0acd5fc564d82b70ebebd734a9da64748a19d0e8e960cfb1e"
+      "sha256": "01a68b6f1f52853baa9a98591f95310d5eb30855a46f5e43b37bd57439aa6ef5"
     },
     {
       "path": "docs/images/settings-zh-light.png",
@@ -262,7 +262,7 @@
       "scale": 1,
       "width": 1240,
       "height": 891,
-      "sha256": "46baaf0560319598cbe1725bdf61b832b74b426cf0127d600e2f92e318a33270"
+      "sha256": "e95c661ae28e4498761674f9e58b2510000fa29b4dc721c55446db888e406398"
     },
     {
       "path": "docs/images/settings-tools-zh-light.png",
@@ -272,7 +272,7 @@
       "scale": 1,
       "width": 1240,
       "height": 891,
-      "sha256": "1432fd04fa6613ab926e4ab3e7e4b3a3b0afc9144bad9baa909f4437214ae718"
+      "sha256": "ec84ed677fa336e50e4014b65844d9e0dd2663f4060f79755872403aeed91e48"
     },
     {
       "path": "images/thread-dark.png",
@@ -282,7 +282,7 @@
       "scale": 1,
       "width": 940,
       "height": 1683,
-      "sha256": "bea8e5fb270423fc25c0c92639a88cf17cb4e278593d37eea872b71a761c2346"
+      "sha256": "27ea3f964de9174dd1dedc1888d1907edd0f07af81c99732c6a2f88518c148f7"
     },
     {
       "path": "docs/images/questions-dark.png",
@@ -292,7 +292,7 @@
       "scale": 1,
       "width": 1040,
       "height": 657,
-      "sha256": "b193c647c22d419b603ec9ad30975d99c4f72a37ce9f0cbec5f915b35f6184b0"
+      "sha256": "a344b27bd99ef0fa24f56e3bdef74d4bff09dd990fa8f9d4c03ca9c0e3014005"
     },
     {
       "path": "docs/images/tool-bash-dark.png",
@@ -302,7 +302,7 @@
       "scale": 1,
       "width": 940,
       "height": 346,
-      "sha256": "8a0cc804f11b1a13f0d8f92d4e65e30b22c6175e3e2e28801ca7c1c8740507c5"
+      "sha256": "e3c2361095245ce59b21da5a3f0fe43979e6b589257e597c6a5fda241659b300"
     },
     {
       "path": "docs/images/tool-read-dark.png",
@@ -312,7 +312,7 @@
       "scale": 1,
       "width": 940,
       "height": 276,
-      "sha256": "74d3c09fc71a35372d2c196e792163f6f15b5a2c969e662562ab8b78307d0268"
+      "sha256": "d620876b4826f4e41768a6f720ac37a3e0d814b327a5a95d230eec93d43548d5"
     },
     {
       "path": "docs/images/tool-edit-dark.png",
@@ -322,7 +322,7 @@
       "scale": 1,
       "width": 940,
       "height": 331,
-      "sha256": "3091e9bd7926aba0eb3ee885cbaec4c769e4338d2571525653cb8c458cd68264"
+      "sha256": "cef0d6903336e161dfe4a62e0a90421026c2b1b45af21ccf5ed4fe158bc98737"
     },
     {
       "path": "docs/images/hub-dark.png",
@@ -332,7 +332,7 @@
       "scale": 1,
       "width": 940,
       "height": 817,
-      "sha256": "70b7ffc5be7a6d15cbb76af48090bfc48aae107641ebb0c39e543897a8b7d4b8"
+      "sha256": "93846126a5915edff7b949fb88058b604f1776a70e81628d842fda5046dc6b7a"
     },
     {
       "path": "docs/images/tool-mcp-dark.png",
@@ -342,7 +342,7 @@
       "scale": 1,
       "width": 940,
       "height": 360,
-      "sha256": "f1cdafa30fe7b71562036efb3d51e7746574e440a43febad6b910a53ed324456"
+      "sha256": "4d3c4cbc23bc42b1ad687a8fadb88b32d1d4752d1af58fa1c668bfdbf320bd24"
     },
     {
       "path": "docs/images/paseo-dark.png",
@@ -351,8 +351,8 @@
       "locale": "en-US",
       "scale": 1,
       "width": 940,
-      "height": 195,
-      "sha256": "f28b49122e7d92bf81b382099fc4ad8cdecc713430b98e91fdc8dea132fdcd08"
+      "height": 178,
+      "sha256": "0c4c78f23f68361b75962d9fc5c20b52a3bffb395a01ada70b93c26d1d334fe9"
     },
     {
       "path": "docs/images/tool-thinking-dark.png",
@@ -362,7 +362,7 @@
       "scale": 1,
       "width": 940,
       "height": 137,
-      "sha256": "377486c14ed4ce68d3960ecceb442e3867281d51bc03b78ac0458528a9bd8cc9"
+      "sha256": "3b18f8640092e5b48159f9cd264367c511830ec861f0b31f3983c01da595fd32"
     },
     {
       "path": "docs/images/tool-image-dark.png",
@@ -372,7 +372,7 @@
       "scale": 1,
       "width": 940,
       "height": 624,
-      "sha256": "b65f7f68ea75b48a836a6687bc42b155ba75dd488bc59df31589503c9df1419a"
+      "sha256": "643e089b9ffb03f5f0bdf215ed5aa4fddbe79b0d1572340354c424749ef9038b"
     },
     {
       "path": "docs/images/syntax-dark.png",
@@ -382,7 +382,7 @@
       "scale": 1,
       "width": 940,
       "height": 187,
-      "sha256": "6b40d2fa41a6ff9949c3bb164618dfbf9b9963480e2973ea99fad259eee93320"
+      "sha256": "74421052fc1496a77ffe4d2a390bd81a336e8993320d2a0b2b9cbb5a0b9b6f21"
     },
     {
       "path": "docs/images/reasoning-dark.png",
@@ -392,7 +392,7 @@
       "scale": 1,
       "width": 940,
       "height": 281,
-      "sha256": "253a05aaf0390086876f7ada1b1c5b08b8c4478ff91095cd4c0619c269a99cb5"
+      "sha256": "688c41cc793437d82833dd6327e0758d92b3eb0b92897a0d6d2e81355aad34ed"
     },
     {
       "path": "docs/images/tasks-dark.png",
@@ -402,7 +402,7 @@
       "scale": 1,
       "width": 940,
       "height": 171,
-      "sha256": "e6d4129ed77e4c2e4383ac0da666b713e18a02de8d6c8d1dc226649ec0f37e2d"
+      "sha256": "c9159a11e9a2b2595e531f7b6803ed6bec09471e74c8c4dfee5e85385066c718"
     },
     {
       "path": "docs/images/checklist-window-dark.png",
@@ -412,7 +412,7 @@
       "scale": 1,
       "width": 1112,
       "height": 247,
-      "sha256": "f5eb29d78b6119f3db55ecb0d0a81a3f768687c1ef6edae550fc4704a8c00ef4"
+      "sha256": "a1dcdb01046ffdbda2f2aaee6c87acbca9a7e53e60f8d252fa6e0cdeec08fd7b"
     },
     {
       "path": "docs/images/table-copy-menu-dark.png",
@@ -422,7 +422,7 @@
       "scale": 1,
       "width": 940,
       "height": 214,
-      "sha256": "5d3ea6c20931d4c842f47ebe1c27b3fba825602b0aefca9e3e2e84a1178a6207"
+      "sha256": "85d1f558b00e32754714d2affbec7dcae42da58cb338f0c5db4265ad5bac60e1"
     },
     {
       "path": "docs/images/table-selection-dark.png",
@@ -432,7 +432,7 @@
       "scale": 1,
       "width": 940,
       "height": 214,
-      "sha256": "db6f310a0cec98f87a9d04d5e14745ea4a09ffb1e26559b4947277e498fd8698"
+      "sha256": "e9980fda93b1e94c6e39ec1971e7a2718463b32bbbad52f47e00d7fb9a6781cc"
     },
     {
       "path": "docs/images/markdown-styles-dark.png",
@@ -442,7 +442,7 @@
       "scale": 1,
       "width": 2320,
       "height": 881,
-      "sha256": "07a301ab3a16a640134207e75ac6cbb5d74d52a72370d60272e1a2a9da99ce05"
+      "sha256": "d57f6c10c9a86b20830e622a014be4b75409f41acc19652ff7c96ce985d33cdc"
     },
     {
       "path": "docs/images/markdown-preview-window-dark.png",
@@ -452,7 +452,7 @@
       "scale": 1,
       "width": 1240,
       "height": 544,
-      "sha256": "8f6ce74a76a978e0993cc2a8f219188b7cff4947d6155122b0a08e5a6126e0cd"
+      "sha256": "a9a2f27c14c9a4aaf066364b8c5310a5c30750855f7dfd079d3866d153bd10e2"
     },
     {
       "path": "docs/images/shared-image-cards-dark.png",
@@ -462,7 +462,7 @@
       "scale": 1,
       "width": 940,
       "height": 1219,
-      "sha256": "769c73ef56c7e2ceda4a7aef15c5d0b9c50f5f0b85ecaf7527a6754158354ea5"
+      "sha256": "c7759dfb3b37a157c83c83dfdf42d397b80f519eca05c4a954c78c301c76ab18"
     },
     {
       "path": "docs/images/selection-actions-dark.png",
@@ -472,7 +472,7 @@
       "scale": 1,
       "width": 940,
       "height": 142,
-      "sha256": "19660fc5933da00f34ce0cae56078f8a2ad3651d8503f31a2552f4f8a4e331fd"
+      "sha256": "671812122e4c3ca60007fb3803f333ba09e6e221ca457623684d4a60f5fa248e"
     },
     {
       "path": "docs/images/user-dark.png",
@@ -482,7 +482,7 @@
       "scale": 1,
       "width": 940,
       "height": 122,
-      "sha256": "25eedc4a0b3a8e04c1596f5ed87d6982b9f128d9f98c1614d7508de6938ab64d"
+      "sha256": "ada89f2379931cf6205ed5314688137fa432cc9a888df5eea7c36ba2edaec6f4"
     },
     {
       "path": "docs/images/settings-dark.png",
@@ -492,7 +492,7 @@
       "scale": 1,
       "width": 1240,
       "height": 891,
-      "sha256": "8fbc765580fb54babdf116f7f165d6d5d6cbc7fe8de6e8a28a044c5d6b50e2eb"
+      "sha256": "a73e0c2586213172e8494fd69424ea14699badc28c0940948a3ad9d38d5d44a1"
     },
     {
       "path": "docs/images/settings-tools-dark.png",
@@ -502,7 +502,7 @@
       "scale": 1,
       "width": 1240,
       "height": 891,
-      "sha256": "c0d43666bbba451d449f7061c2044b01e16d288bfe9c9e9077943a5390adb6ac"
+      "sha256": "6cadf83a235d6d0c0924fc832f1358855bbc5f7e36b064faac4ce75c959188e0"
     },
     {
       "path": "docs/images/settings-zh-dark.png",
@@ -512,7 +512,7 @@
       "scale": 1,
       "width": 1240,
       "height": 891,
-      "sha256": "7ef9c0acb60a4fcfc723385abcfcd0b11feeecb7733deb5133bd27ed13ca3d90"
+      "sha256": "8b4b8d41a0b0851666c3b02dae54b07dcc0ef7914c8a21eee163edf158edcfbe"
     },
     {
       "path": "docs/images/settings-tools-zh-dark.png",
@@ -522,7 +522,338 @@
       "scale": 1,
       "width": 1240,
       "height": 891,
-      "sha256": "1470daf2086c9527fbf84437f3432db60873553603b7227b4f71193ca9504159"
+      "sha256": "133d31e9e928d893c61d5190a9f47959512c94babaf6bb989bda6811be3f6fc0"
+    },
+    {
+      "path": "images/ipad-details-floating-dark.png",
+      "scene": "ipad-details-floating",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1668,
+      "height": 2420,
+      "sha256": "c509f72611239b72f7e4ca449199360356f6e4710968f52100788646c93b5874",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-ipad (iPad Pro 11-inch M5), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/ipad-details-floating-light.png",
+      "scene": "ipad-details-floating",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1668,
+      "height": 2420,
+      "sha256": "5819e9d89d7550009722a97ca84a1b2eced86fb5b0d35901ed137c3df132b634",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-ipad (iPad Pro 11-inch M5), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/ipad-details-side-dark.png",
+      "scene": "ipad-details-side",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 2420,
+      "height": 1668,
+      "sha256": "2cb1b6ed958cbc6225096df319156a2d4adc4c135519f9ec0de73e5ea63e1fb2",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-ipad (iPad Pro 11-inch M5), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/ipad-details-side-light.png",
+      "scene": "ipad-details-side",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 2420,
+      "height": 1668,
+      "sha256": "dd312ef9eeec8ec941863e3584d7b8c6a3aaa80c5615d8e06c0a32049d64338f",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-ipad (iPad Pro 11-inch M5), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/ipad-tasks-dark.png",
+      "scene": "ipad-tasks",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 2752,
+      "height": 2064,
+      "sha256": "4be83620d31deb94ce269076a1f45c6f1cc3d06d0d74621736bf6f05b5db3ac0",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-ipad13 (iPad Pro 13-inch M5), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/ipad-tasks-filters-dark.png",
+      "scene": "ipad-tasks-filters",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1668,
+      "height": 2420,
+      "sha256": "51fce12a807b4fe0361e9d103d33d6f2d0b684302e3debda7c89a9d74e0dfd02",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-ipad (iPad Pro 11-inch M5), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/ipad-tasks-filters-light.png",
+      "scene": "ipad-tasks-filters",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1668,
+      "height": 2420,
+      "sha256": "08d69752f12314914414b6d7f688d8087626c6111960e8caa2ebd35f0d3fdcd8",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-ipad (iPad Pro 11-inch M5), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/ipad-tasks-light.png",
+      "scene": "ipad-tasks",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 2752,
+      "height": 2064,
+      "sha256": "6df2c62fa6db59ea62a8aa257e21c31f9fac71753d7422876e2fc0c4cdd9a4e5",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-ipad13 (iPad Pro 13-inch M5), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/ipad-tasks-sheet-dark.png",
+      "scene": "ipad-tasks-sheet",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 2064,
+      "height": 2752,
+      "sha256": "099c201558af76105f56e30e080916e5e431869d599fe696306544d22013773a",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-ipad13 (iPad Pro 13-inch M5), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/ipad-tasks-sheet-light.png",
+      "scene": "ipad-tasks-sheet",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 2064,
+      "height": 2752,
+      "sha256": "acdc1b1cb071cc85d01de209ae97de359aa7bf7851c7348297d90560d0bd84c9",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-ipad13 (iPad Pro 13-inch M5), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/mobile-details-drawer-dark.png",
+      "scene": "mobile-details-drawer",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1206,
+      "height": 2622,
+      "sha256": "c63e7fcbd5197f1d7763f34c3790ada81f697d4e07a8138e0fa5d5d4eef57a42",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-iphone (iPhone 17 Pro, portrait only), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/mobile-details-drawer-light.png",
+      "scene": "mobile-details-drawer",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1206,
+      "height": 2622,
+      "sha256": "36efd741b5ca22175f29fd99be83ec7243c00d5a915a935445c5102475926566",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-iphone (iPhone 17 Pro, portrait only), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/mobile-tasks-dark.png",
+      "scene": "mobile-tasks",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1206,
+      "height": 2622,
+      "sha256": "50d2e78f4300714f71494e3c8bfb05c828c8bbead18ecad5ba795f88872373ca",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-iphone (iPhone 17 Pro, portrait only), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/mobile-tasks-filters-dark.png",
+      "scene": "mobile-tasks-filters",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1206,
+      "height": 2622,
+      "sha256": "548bc4b60f97674823f4283a3b05712a819ff9d705d03ba85cda75e087f3b828",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-iphone (iPhone 17 Pro, portrait only), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/mobile-tasks-filters-light.png",
+      "scene": "mobile-tasks-filters",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1206,
+      "height": 2622,
+      "sha256": "e71e3a9f6e22f8c06e61dd83522017e8977795e080fcf7b4b98d8fec1af339ed",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-iphone (iPhone 17 Pro, portrait only), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/mobile-tasks-light.png",
+      "scene": "mobile-tasks",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1206,
+      "height": 2622,
+      "sha256": "3bcd337b9e30fa0569928a5fa3af1a8768c7968f21cae0010433d7e2b6412196",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-iphone (iPhone 17 Pro, portrait only), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/mobile-tasks-sheet-dark.png",
+      "scene": "mobile-tasks-sheet",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1206,
+      "height": 2622,
+      "sha256": "7547ecc6ace4f1defae42fa0dffe6192bc23e05b68ee6c2cc373c5b2394e38ba",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-iphone (iPhone 17 Pro, portrait only), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/mobile-tasks-sheet-input-dark.png",
+      "scene": "mobile-tasks-sheet-input",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1206,
+      "height": 2622,
+      "sha256": "a67ec14204e2fb45243946de2df8f6d50b14d1c6468ffcbba6a136809f7d1c98",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-iphone (iPhone 17 Pro, portrait only), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/mobile-tasks-sheet-input-light.png",
+      "scene": "mobile-tasks-sheet-input",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1206,
+      "height": 2622,
+      "sha256": "0d38688d6d60d6e3b471ffc0bc5e4f7e2f7273637d4b98e9c57936aa2d54e15e",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-iphone (iPhone 17 Pro, portrait only), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/mobile-tasks-sheet-light.png",
+      "scene": "mobile-tasks-sheet",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1206,
+      "height": 2622,
+      "sha256": "fc4eb48d8e72193cd688801b565a54bf234afff234f28ed7b75c06ab13dec101",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-iphone (iPhone 17 Pro, portrait only), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/mobile-timeline-dark.png",
+      "scene": "mobile-timeline",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1206,
+      "height": 2622,
+      "sha256": "46bf11218e87d52e0750c0f4bea953b5f79c4b165ca5748822f40e4c4af52f1f",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-iphone (iPhone 17 Pro, portrait only), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/mobile-timeline-light.png",
+      "scene": "mobile-timeline",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1206,
+      "height": 2622,
+      "sha256": "d6997cdb9a13c2b2360b1bb59ca69cd0064932b7c3df6f7f21b5cf930a7922d8",
+      "surface": "Paseo 0.12.0 Release build on iOS 26.5 simulator bc-shots-iphone (iPhone 17 Pro, portrait only), private daemon with demo providers and fixtures"
+    },
+    {
+      "path": "images/tasks-board-dark.png",
+      "scene": "tasks-board",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1920,
+      "height": 1080,
+      "sha256": "0fcf704703deb8e39b103c7c5eaf6199be7ec516a2c2c098b6a4b230aa9ca59b",
+      "surface": "Paseo 0.12.0 web app (static app-dist) at 1920x1080 against a private daemon with demo providers and fixtures; Better Paseo from the capture commit"
+    },
+    {
+      "path": "images/tasks-board-light.png",
+      "scene": "tasks-board",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1920,
+      "height": 1080,
+      "sha256": "34bbb44b5d87e31b46154a0b1d3e0204ab22c738b03976a189a232aa3e19e2bc",
+      "surface": "Paseo 0.12.0 web app (static app-dist) at 1920x1080 against a private daemon with demo providers and fixtures; Better Paseo from the capture commit"
+    },
+    {
+      "path": "images/tasks-board-zh-dark.png",
+      "scene": "tasks-board-zh",
+      "theme": "dark",
+      "locale": "zh-CN",
+      "scale": 1,
+      "width": 1920,
+      "height": 1080,
+      "sha256": "cd614d283509ea83e7061c15efe818cb40713c549050a2c444d93f4e28934960",
+      "surface": "Paseo 0.12.0 web app (static app-dist) at 1920x1080 against a private daemon with demo providers and fixtures; Better Paseo from the capture commit"
+    },
+    {
+      "path": "images/tasks-board-zh-light.png",
+      "scene": "tasks-board-zh",
+      "theme": "light",
+      "locale": "zh-CN",
+      "scale": 1,
+      "width": 1920,
+      "height": 1080,
+      "sha256": "8e8fca69001a531e773c63083b4099276d82772965992babeefead5f3811a4bc",
+      "surface": "Paseo 0.12.0 web app (static app-dist) at 1920x1080 against a private daemon with demo providers and fixtures; Better Paseo from the capture commit"
+    },
+    {
+      "path": "images/timeline-dark.png",
+      "scene": "timeline",
+      "theme": "dark",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1920,
+      "height": 1080,
+      "sha256": "6cdcbf75090e3e14342f91a3f43791639c78de701f0c490d5c198a3aac91a917",
+      "surface": "Paseo 0.12.0 web app (static app-dist) at 1920x1080 against a private daemon with demo providers and fixtures; Better Paseo from the capture commit"
+    },
+    {
+      "path": "images/timeline-light.png",
+      "scene": "timeline",
+      "theme": "light",
+      "locale": "en-US",
+      "scale": 1,
+      "width": 1920,
+      "height": 1080,
+      "sha256": "e38e150350044374d3e120896776db4c3d5d4506e814fa4860a757b4763198fd",
+      "surface": "Paseo 0.12.0 web app (static app-dist) at 1920x1080 against a private daemon with demo providers and fixtures; Better Paseo from the capture commit"
+    },
+    {
+      "path": "images/timeline-zh-dark.png",
+      "scene": "timeline-zh",
+      "theme": "dark",
+      "locale": "zh-CN",
+      "scale": 1,
+      "width": 1920,
+      "height": 1080,
+      "sha256": "b664bd63e10b8454031f7c76b78ec4bb5190567c1127ba3f20485ff697d1d38c",
+      "surface": "Paseo 0.12.0 web app (static app-dist) at 1920x1080 against a private daemon with demo providers and fixtures; Better Paseo from the capture commit"
+    },
+    {
+      "path": "images/timeline-zh-light.png",
+      "scene": "timeline-zh",
+      "theme": "light",
+      "locale": "zh-CN",
+      "scale": 1,
+      "width": 1920,
+      "height": 1080,
+      "sha256": "8611d68365cd339511e7586d7a5acd99ab6a636b206458a0269b0b0a21cbfe35",
+      "surface": "Paseo 0.12.0 web app (static app-dist) at 1920x1080 against a private daemon with demo providers and fixtures; Better Paseo from the capture commit"
     }
-  ]
+  ],
+  "surfaceNote": "Entries under docs/images and images/thread are the offline showcase (fixture data); images/tasks-board*, images/timeline*, images/mobile-* and images/ipad-* carry their own per-asset surface."
 }

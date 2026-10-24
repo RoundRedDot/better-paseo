@@ -14,17 +14,22 @@ const published = new Map(manifest.assets.map(asset => [asset.path, asset]));
 const readmes = ["README.md", "README-zh.md"].map(file => ({
   file, text: readFileSync(join(repo, file), "utf8"),
 }));
+const picturesIn = text => [...text.matchAll(/<picture>[\s\S]*?<\/picture>/g)].map(([html]) => html);
 
 test("every README screenshot has matching, verified light and dark assets", () => {
-  assert.equal(manifest.assets.length, 50);
-  assert.equal(published.size, 50);
+  // Counts come from the manifest and the READMEs, not constants: every
+  // manifest asset is referenced, and both READMEs draw the same number of
+  // light/dark pairs (the Chinese one swaps in its -zh captures).
+  assert.ok(manifest.assets.length > 0);
+  assert.equal(published.size, manifest.assets.length, "duplicate manifest paths");
   assert.equal(manifest.defaultTheme, "light");
+  const counts = readmes.map(({ text }) => picturesIn(text).length);
+  assert.ok(counts[0] > 0);
+  assert.deepEqual(counts, readmes.map(() => counts[0]), "both READMEs draw the same pictures");
   const referenced = new Set();
   for (const { file, text } of readmes) {
     assert.doesNotMatch(text, /!\[[^\]]*\]\([^)]*\.png\)/, file);
-    const pictures = [...text.matchAll(/<picture>[\s\S]*?<\/picture>/g)];
-    assert.equal(pictures.length, 23, file);
-    for (const [picture] of pictures) {
+    for (const picture of picturesIn(text)) {
       assert.match(picture, /media="\(prefers-color-scheme: dark\)"/);
       const dark = picture.match(/srcset="([^"]+)"/)?.[1];
       const light = picture.match(/\bsrc="([^"]+)"/)?.[1];
@@ -40,7 +45,7 @@ test("every README screenshot has matching, verified light and dark assets", () 
       assert.notEqual(a.sha256, b.sha256, light);
     }
   }
-  assert.equal(referenced.size, 50);
+  assert.deepEqual([...referenced].sort(), [...published.keys()].sort(), "README pictures and manifest assets differ");
   for (const asset of manifest.assets) {
     const bytes = readFileSync(join(repo, asset.path));
     assert.equal(createHash("sha256").update(bytes).digest("hex"), asset.sha256, asset.path);
@@ -63,14 +68,14 @@ test("both READMEs load light images and switch to dark without reloading", asyn
       process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" });
     const page = await browser.newPage({ colorScheme: "light" });
     for (const { file, text } of readmes) {
-      const pictures = [...text.matchAll(/<picture>[\s\S]*?<\/picture>/g)].map(([html]) => html);
+      const pictures = picturesIn(text);
       await page.emulateMedia({ colorScheme: "light" });
       await page.setContent(`<base href="http://127.0.0.1:${server.address().port}/">${pictures.join("\n")}`);
       for (const theme of ["light", "dark", "light"]) {
         await page.emulateMedia({ colorScheme: theme });
         await page.waitForFunction(theme => [...document.images].every(img =>
           img.complete && img.naturalWidth > 0 && img.currentSrc.endsWith(`-${theme}.png`)), theme);
-        assert.equal(await page.locator("picture img").count(), 23, `${file}: ${theme}`);
+        assert.equal(await page.locator("picture img").count(), pictures.length, `${file}: ${theme}`);
       }
     }
   } finally {

@@ -1,12 +1,12 @@
 // Publish matching light/dark captures without changing historical benchmark evidence.
-// node .showcase/tools/publish-readme-shots.mjs <captures1x> <hero2x>
+// node .showcase/tools/publish-readme-shots.mjs <captures1x>
 import { readFileSync, writeFileSync, copyFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 
-const [captures, hero] = process.argv.slice(2);
-if (!captures || !hero) throw new Error("capture and hero directories required");
+const [captures] = process.argv.slice(2);
+if (!captures) throw new Error("capture directory required");
 const repo = resolve(import.meta.dirname, "../..");
 const themes = ["light", "dark"];
 const scenes = ["thread", "questions", "tool-bash", "tool-read", "tool-edit", "hub",
@@ -14,8 +14,6 @@ const scenes = ["thread", "questions", "tool-bash", "tool-read", "tool-edit", "h
   "checklist-window", "table-copy-menu", "table-selection", "markdown-styles",
   "markdown-preview-window", "shared-image-cards", "selection-actions", "user"];
 const assets = themes.flatMap(theme => [
-  { input: join(hero, theme, "shot-hero-devices.png"), path: `images/hero-devices-${theme}.png`,
-    scene: "shot-hero-devices", theme, locale: "en-US", scale: 2 },
   ...scenes.map(name => ({ input: join(captures, theme, `shot-${name}.png`),
     path: `${name === "thread" ? "images" : "docs/images"}/${name}-${theme}.png`,
     scene: `shot-${name}`, theme, locale: "en-US", scale: 1 })),
