@@ -2128,42 +2128,23 @@ describe("TaskDetailCards", () => {
     expect(hostByTestId(location, "detail-place").props.onPress).toBeUndefined();
   });
 
-  it.each([false, true])("opens the task directory without copying it (touch=%s)", async (touch) => {
-    const card = sample("sample-running");
-    const tree = await render(details(card, { touch }));
-    const row = hostByTestId(tree.root, "detail-cwd");
-    if (!touch) {
-      expect(row.findAll((node) => node.props.accessibilityLabel === "打开文件夹")).toHaveLength(0);
-      await act(async () => row.props.onHoverIn());
+  it.each(["ios", "android"])("hides folder opening on %s while keeping directory copy", async (platform) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    try {
+      for (const touch of [false, true]) {
+        const card = sample("sample-running");
+        const tree = await render(details(card, { touch }));
+        const row = hostByTestId(tree.root, "detail-cwd");
+        await act(async () => row.props.onHoverIn());
+        expect(icons(row)).not.toContain("FolderOpen");
+        await act(async () => row.props.onPress());
+        expect(clipboard.copyText).toHaveBeenLastCalledWith(card.location.cwd);
+        expect(folder.reveal).not.toHaveBeenCalled();
+        await act(async () => tree.unmount());
+      }
+    } finally {
+      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
     }
-    const button = byLabel(row, "打开文件夹");
-    expect(icons(button)).toEqual(["FolderOpen"]);
-    const stopPropagation = vi.fn();
-    await act(async () => button.props.onPress({ stopPropagation }));
-    expect(stopPropagation).toHaveBeenCalledOnce();
-    expect(folder.reveal).toHaveBeenCalledExactlyOnceWith({ cwd: card.location.cwd, path: card.location.cwd });
-    expect(clipboard.copyText).not.toHaveBeenCalled();
-    expect(clipboard.error).not.toHaveBeenCalled();
-    if (!touch) {
-      expect(row.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel).slice(1)).toEqual(["打开文件夹", "复制路径"]);
-      await act(async () => byLabel(row, "复制路径").props.onPress({ stopPropagation }));
-    } else {
-      await act(async () => row.props.onPress());
-    }
-    expect(clipboard.copyText).toHaveBeenCalledExactlyOnceWith(card.location.cwd);
-    expect(folder.reveal).toHaveBeenCalledOnce();
-  });
-
-  it.each(["zh", "en"] as const)("reports folder-open failures in %s", async (language) => {
-    const tree = await render(details(sample("sample-running"), { touch: true }, language));
-    const words = cardStrings(language).details;
-    folder.reveal.mockResolvedValueOnce({ revealed: null, error: "Directory missing" });
-    const press = () => byLabel(tree.root, words.openFolder).props.onPress({ stopPropagation() {} });
-    await act(async () => press());
-    expect(clipboard.error).toHaveBeenLastCalledWith(words.openFolderError("Directory missing"));
-    folder.reveal.mockRejectedValueOnce(new Error("Host disconnected"));
-    await act(async () => press());
-    expect(clipboard.error).toHaveBeenLastCalledWith(words.openFolderError("Host disconnected"));
   });
 
   it("offers Unarchive for an archived parent where the host can, else says it cannot open", async () => {

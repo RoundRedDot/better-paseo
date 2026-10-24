@@ -11,6 +11,7 @@ import { useThemeTokens, withAlpha } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
 import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, useTasksFontAdjustment, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
+import { useInputCapabilities } from "../../ui/use-input-capabilities";
 import { useCopy } from "../../ui/use-copy";
 import type { TasksLanguage } from "../i18n";
 import type { SessionTokens } from "../../../shared/tasks-rpc";
@@ -757,6 +758,8 @@ function Properties(props: Inner) {
   const cardText = cardStrings(props.language);
   const details = cardText.details;
   const location = card.location;
+  const input = useInputCapabilities();
+  const canOpenFolder = Platform.OS === "web" && !props.touch && !input.touch;
   const revealPath = useRpc(revealPathRpc);
   const toast = useToast();
   const openFolder = async () => {
@@ -825,7 +828,7 @@ function Properties(props: Inner) {
       value={tildePath(location.cwd)}
       mono="path"
       lines={2}
-      action={{ icon: "FolderOpen", label: details.openFolder, onPress: () => void openFolder() }}
+      action={canOpenFolder ? { icon: "FolderOpen", label: details.openFolder, onPress: () => void openFolder() } : undefined}
       copy={{ text: location.cwd, toast: "Copy path", label: details.copyPath }}
       testID="detail-cwd"
     />,
