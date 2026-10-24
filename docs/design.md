@@ -419,11 +419,11 @@ excluded from assistive technology, and never duplicates live rings or controls.
 
 | Information | Normal column | Narrow column |
 | --- | --- | --- |
-| `Full Access`, `Default Permissions` | Mode icon and text when the unfolded row fits | Keep the mode icon and full accessibility label; hide only the text |
+| All permission/mode labels, including `Bypass`, `Full Access`, `Default Permissions`, `Allow All`, `Plan Mode` and custom modes | Mode icon and text when the unfolded row fits | Keep the mode icon and full accessibility label; hide only the text |
 | Unread / To review text | Omit; keep the identity mark's status dot and row's accessible status | Same |
 | Running child's start time and duration | Show when available | Hide |
 | Brand/type with status, model, thinking and context | Show when available | Keep |
-| Other modes, waiting-input and failed status, waiting and finished times | Show when available | Keep; long text may truncate within the single line |
+| Waiting-input and failed status, waiting and finished times | Show when available | Keep; long text may truncate within the single line |
 
 Restore permission text when the unfolded row fits and the column is no longer
 narrow; restore running times when the column is no longer narrow. Never restore
