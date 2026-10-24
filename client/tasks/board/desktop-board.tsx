@@ -485,17 +485,30 @@ export function DesktopBoard(props: {
         sidebar={sidebarToggle}
         filters={sheetMode ? { count: activeFilterCount(board.params, board.defaults), onPress: () => setFiltersOpen(true) } : undefined}
       />
-      {sheetMode ? null : <DesktopFilterBar board={board} theme={theme} options={options} menu={menu} setMenu={setMenu} />}
-      {/* A narrow board's filters, sort and lane width, behind the header's one button; the host draws the sheet in its own portal. */}
-      <Modal title={strings.filters} open={sheetMode && filtersOpen} onOpenChange={(open) => !open && setFiltersOpen(false)}>
+      {sheetMode ? null : (
+        <DesktopFilterBar
+          board={board}
+          theme={theme}
+          options={options}
+          menu={menu}
+          setMenu={setMenu}
+          onMore={() => {
+            setMenu(null);
+            setFiltersOpen(true);
+          }}
+        />
+      )}
+      {/* Narrow boards and tablet toolbars share the host's filter panel. */}
+      <Modal title={strings.filters} open={(touch || sheetMode) && filtersOpen} onOpenChange={(open) => !open && setFiltersOpen(false)}>
         <Modal.Content contentContainerStyle={FILTER_SHEET_BODY} scrollable={false}>
           <TasksTypography theme={theme}>
-            {sheetMode && filtersOpen ? (
+            {(touch || sheetMode) && filtersOpen ? (
               <FilterSheetBody
                 board={board}
                 theme={theme}
                 options={options}
                 showEmptyGroupsToggle
+                showArchivedToggle={touch}
                 laneWidth={{ value: board.laneWidth, onChange: board.setLaneWidth }}
                 onDone={() => setFiltersOpen(false)}
               />

@@ -112,6 +112,7 @@ import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
 import { DesktopFilterBar } from "../../client/tasks/board/filter-bar";
+import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
 import { ACTIVE_LANE_ORDER as LANE_ORDER } from "../../client/tasks/model";
@@ -124,7 +125,7 @@ import { APP_SETTINGS_KEY, resetHostAppearanceForTests, setNativeSettingsReaderF
 // These tests draw the board on and the archived lane off unless they turn it on
 // (tasks-board-enabled.test.ts covers the board off).
 const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: true, board: { ...STOCK_SETTINGS.board, showArchived: false } };
-import { resetEnhancerPreferences } from "../../client/preferences";
+import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -248,7 +249,7 @@ describe("Tasks board, desktop", () => {
   it("rolls the counts and moves the cards through a filter, a done window or the subtasks switch, never through a search or a sort", () => {
     const scopes = () => renderer!.root.findAll((node) => node.type === RollingCount).map((node) => node.props.scope as unknown);
     const pick = (window: "24h" | "7d" | "all") => act(() => renderer!.root.findAll((node) => node.type === WindowSegments)[0]!.props.onChange(window));
-    const subtasks = () => act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "subtasks-toggle").props.onPress());
+    const subtasks = () => act(() => pressable("Show subtasks").props.onPress());
     const filter = () => act(() => renderer!.root.findAll((node) => node.type === DesktopFilterBar)[0]!.props.board.setParams((params: BoardParams) => ({ ...params, providers: ["codex"] })));
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(1600);
@@ -266,6 +267,7 @@ describe("Tasks board, desktop", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(1600);
+    act(() => hostsById("filter-bar-more")[0]!.props.onPress());
     const tablet = scopes();
     // The total shows its number at once there; the lanes' counts roll as on web.
     const totals = renderer!.root.findAll((node) => node.type === RollingTotal);
@@ -1569,6 +1571,77 @@ describe("Tasks board, tablet filters", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
   });
 
+  it.each([
+    ["ios", 800, "en", 14],
+    ["ios", 1200, "zh", 21],
+    ["android", 800, "zh", 14],
+    ["android", 1200, "en", 21],
+  ] as const)("%s at %i pt uses small %s labels at UI base %i, and icons when they no longer fit", (os, width, language, base) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    updateEnhancerPreferences({ language });
+    act(() => {
+      renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } }));
+    });
+    layOut(width);
+    const strings = BOARD_STRINGS[language];
+    const controls = () => hostsById("filter-bar-controls")[0]!;
+    const end = () => hostsById("filter-bar-end")[0]!;
+    const labels = () => controls().findAll((node) => (node.type as unknown) === "Text");
+    expect(labels().map(textOf)).toEqual([strings.project, strings.workspace]);
+    for (const text of labels()) {
+      expect(StyleSheet.flatten(text.props.style)).toMatchObject({ fontSize: Math.round(12 * base / 14), flexShrink: 0 });
+    }
+    expect(StyleSheet.flatten(end().props.style).height).toBe(Math.round(36 * Math.max(1, base / 14)));
+    expect(end().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch")).toHaveLength(0);
+    expect(renderer!.root.findAllByType(WindowSegments)).toHaveLength(0);
+    expect(hostsById("filter-bar-more")).toHaveLength(1);
+
+    const lay = (node: ReactTestInstance, available: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: available, height: 36 } } }));
+    lay(hostParentOf(controls())!, 100);
+    lay(end(), 140);
+    lay(controls(), 220);
+    expect(labels()).toHaveLength(0);
+    expect(controls().findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel)).toEqual([strings.project, strings.workspace]);
+    expect(end().findAll((node) => (node.type as unknown) === "Text").map(textOf)).not.toContain(strings.sort);
+    expect(end().findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel)).toContain(strings.sort);
+    const hidden = hostsById("filter-bar-words")[0]!;
+    expect(hidden.findAll((node) => (node.type as unknown) === "Text").map(textOf)).toEqual([strings.project, strings.workspace, strings.sort]);
+    lay(controls(), 100);
+    lay(end(), 80);
+    for (const text of hidden.findAll((node) => (node.type as unknown) === "Text")) lay(text, 40);
+    lay(hostParentOf(controls())!, 500);
+    expect(labels().map(textOf)).toEqual([strings.project, strings.workspace]);
+  });
+
+  it.each([800, 1200])("iPad at %i pt keeps secondary choices in a working filter panel", async (width) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(width);
+    act(() => hostsById("filter-bar-more")[0]!.props.onPress());
+    expect(hostsById("filter-sheet-lane-width")).toHaveLength(1);
+    expect(hostsById("filter-sheet-empty-groups")).toHaveLength(1);
+    const sheet = hostsById("filter-sheet-scroll")[0]!;
+    const choice = (value: string) => sheet.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox" && textOf(node).startsWith(value));
+    act(() => choice("Codex").props.onPress());
+    act(() => choice("frontend").props.onPress());
+    expect(lastBoardParams("host-1")).toMatchObject({ providers: ["codex"], labels: ["frontend"] });
+    await act(async () => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
+    await act(async () => hostsById("filter-sheet-archived")[0]!.props.onPress());
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true, showArchived: true });
+    act(() => renderer!.root.findByType(WindowSegments).props.onChange("7d"));
+    expect(lastBoardParams("host-1").doneWindow).toBe("7d");
+    const widths = hostsById("filter-sheet-lane-width")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "radio");
+    await act(async () => widths[2]!.props.onPress());
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ laneWidth: "wide" });
+    // Changed panel filters stay visible on the toolbar and survive closing the panel.
+    expect(textOf(hostsById("filter-bar-more")[0]!)).toBe("4");
+    const done = hostsById("filter-sheet-footer")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && /^Show \d+ tasks?$/.test(textOf(node)))[0]!;
+    act(() => done.props.onPress());
+    expect(hostsById("filter-sheet-scroll")).toHaveLength(0);
+    expect(textOf(hostParentOf(hostsById("filter-bar-controls")[0]!)!)).toContain("frontend");
+    expect(lastBoardParams("host-1")).toMatchObject({ providers: ["codex"], labels: ["frontend"], doneWindow: "7d" });
+  });
+
   it("sets lane names and card titles a step under the desktop's, at the meta row's size", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
@@ -1660,7 +1733,7 @@ describe("Tasks board, tablet filters", () => {
     });
     layOut(width);
     const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && /^toolbar-/.test(node.props.testID ?? ""));
-    expect(buttons.map((node) => node.props.testID)).toEqual(["toolbar-archived", "toolbar-filters"]);
+    expect(buttons.map((node) => node.props.testID)).toEqual(os === "web" ? ["toolbar-archived", "toolbar-filters"] : ["toolbar-filters"]);
     expect(hostsById("toolbar-empty-groups")).toHaveLength(0);
     expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
@@ -1671,13 +1744,14 @@ describe("Tasks board, tablet filters", () => {
     expect(host.save).not.toHaveBeenCalled();
     expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: false });
     expect(hostsById("toolbar-empty-groups")).toHaveLength(0);
-    // Returning to a wide board keeps the chosen value on its original bar switch.
+    // Native keeps the open panel and its value while resizing; web restores the bar switch.
     layOut(1600);
-    expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
-    expect(hostsById("empty-groups-toggle")[0]!.props.accessibilityState).toEqual({ checked: false });
+    const target = os === "web" ? "empty-groups-toggle" : "filter-sheet-empty-groups";
+    expect(hostsById(target)[0]!.props.accessibilityState).toEqual({ checked: false });
   });
 
-  it("keeps the archived lane's switch out of a narrow board's sheet, as a round button left of the filters", async () => {
+  it("web keeps the archived lane's switch beside its narrow-board filters", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
@@ -1709,7 +1783,8 @@ describe("Tasks board, tablet filters", () => {
     expect(renderer!.root.findAll((node) => node.props.testID === "toolbar-archived")).toHaveLength(0);
   });
 
-  it("keeps only the subtasks switch, a bar switch like the archived lane's that strikes its icon through while off", () => {
+  it("web keeps the subtasks switch on the bar and strikes its icon through while off", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
