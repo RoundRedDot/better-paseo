@@ -111,6 +111,8 @@ function makeValue(initial: number) {
 
 const idleAnimation = { start() {}, stop() {}, reset() {} };
 
+export const LayoutAnimation = { configureNext(_config: unknown) {} };
+
 export const Animated = {
   View: host("Animated.View"),
   Text: host("Animated.Text"),
@@ -176,6 +178,7 @@ export default {
   Platform,
   PixelRatio,
   Animated,
+  LayoutAnimation,
   AccessibilityInfo,
   Dimensions,
   Linking,
