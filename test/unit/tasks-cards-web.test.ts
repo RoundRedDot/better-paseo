@@ -375,7 +375,7 @@ describe("TaskCardView on web", () => {
         .find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Measure the sidebar ring")
         .find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "在 workspace 中打开");
     expect(jump().props.disabled).toBe(true);
-    await act(async () => hovers.get("Measure the sidebar ring")!.enter());
+    await act(async () => hovers.get("subtask-sample-child-1")!.enter());
     expect(jump().props.disabled).toBe(false);
     expect(jump().props.style.opacity).toBe(1);
     jump().props.onPress();

@@ -18,11 +18,12 @@ import { CardHints, hintProps, type CardHintTexts } from "./card-hints";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
 import { agentPillColors, BrandMark, branchPillColors, neutralPillColors, type AgentPillColors } from "./brand-mark";
-import { modeIcon, THINKING_ICON } from "./mode-icons";
+import { THINKING_ICON } from "./mode-icons";
 import { subagentFacts } from "../subagent-type";
 import { ProjectIcon } from "./project-icon";
 import { SpinnerRing, StatusIcon } from "./status-icon";
-import { ChildMark } from "./child-mark";
+import { SubtaskRow } from "./subtask-row";
+import { subtaskFinished } from "./details-format";
 import { ActionRow, useActionFit } from "./action-row";
 import { CardContextMenu } from "./card-menu";
 import { bindContextMenu } from "../../web";
@@ -1146,6 +1147,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       </View>
     ) : null;
 
+  const mixedChildren = card.children.some((child) => !subtaskFinished(child));
   const subtaskList =
     layout.subtasks && expanded ? (
       <View style={[block, { paddingTop: m.rowGap - 4 }]} testID="task-card-subtasks">
@@ -1153,24 +1155,23 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           <SubtaskRow
             key={child.id}
             child={child}
-            parentId={card.id}
             theme={theme}
             tokens={tokens}
-            compact={compact}
-            openLabel={strings.openInWorkspace}
-            parentTabLabel={strings.openParentTab}
+            touch={compact || TOUCH}
+            muted={mixedChildren && child.status === "done"}
+            openLabel={child.kind === "provider" ? strings.openParentTab : strings.openInWorkspace}
+            accessibilityLabel={child.title}
             statusHint={hint(`child-${child.id}`, () =>
               lines(pair(strings.hint.status, strings.status[child.status]), child.kind === "provider" && strings.subagent),
             )}
-            openHint={hint("child-open", () => strings.openInWorkspace)}
-            parentTabHint={hint("child-parent-tab", () => lines(strings.openParentTab, strings.subagent))}
+            openHint={child.kind === "provider" ? hint("child-parent-tab", () => lines(strings.openParentTab, strings.subagent)) : hint("child-open", () => strings.openInWorkspace)}
             backdrop={background}
             animated={props.animated}
             language={language}
             now={props.now}
             clock={props.clock}
-            onReveal={props.onReveal}
-            onOpen={props.onOpen}
+            onPress={() => child.kind === "provider" ? props.onReveal(child.id, card.id) : props.onReveal(child.id)}
+            onOpen={props.onOpen ? () => props.onOpen?.(child.kind === "provider" ? card.id : child.id) : undefined}
           />
         ))}
       </View>
@@ -1986,146 +1987,6 @@ function StopTreeGlyph(props: { tokens: TaskTokens; color?: string }) {
 }
 
 /**
- * One expanded child: its agent's mark, the title, then its start and timer
- * below the title. Press reveals its card on the board; the jump button opens its
- * tab. A provider subagent reads as Paseo's subagent track: the title over
- * its facts line, in place of the times. It has no tab, so its jump button,
- * always drawn, opens the parent's, where that track lists it; a press opens
- * it too while the subagent's card is not on the board.
- */
-function SubtaskRow(props: TimeSource & {
-  child: TaskChild;
-  parentId: string;
-  theme: PluginTheme;
-  tokens: TaskTokens;
-  compact: boolean;
-  openLabel: string;
-  parentTabLabel: string;
-  /** Hover hint keys (`CardHints`) for the status mark, the jump button and a provider row's tab icon. */
-  statusHint: string;
-  openHint: string;
-  parentTabHint: string;
-  /** The card's fill, under the mark's status corner while the row is not hovered. */
-  backdrop: string;
-  animated?: boolean;
-  language: TasksLanguage;
-  onReveal(agentId: string, parentId?: string): void;
-  onOpen?(agentId: string): void;
-}) {
-  const { child, tokens, compact } = props;
-  const scale = useTasksFontScale();
-  const m = compact ? PHONE : DESKTOP;
-  // DOM hover on web, as the card: the row's own Pressable hover would end
-  // when the pointer reaches its jump button, and hide it.
-  const rowRef = useRef<View>(null);
-  const { hovered, hoverProps } = useHover(rowRef);
-  const provider = child.kind === "provider";
-  const subagent = provider ? subagentFacts(child.subtitle, child.subagentType) : null;
-  const facts = subagent?.full ?? null;
-  const showJump = !provider && !!props.onOpen && (compact || TOUCH || hovered);
-  const fill = hovered && !compact ? tokens.card.controlHover : props.backdrop;
-  const size = compact ? 32 : 22;
-  const title = (
-    <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
-      {child.title}
-    </Text>
-  );
-  return (
-    <Pressable
-      {...CONTAINER_ROLE}
-      accessibilityLabel={child.title}
-      onPress={() => (provider ? props.onReveal(child.id, props.parentId) : props.onReveal(child.id))}
-      ref={rowRef}
-      {...(WEB ? null : hoverProps)}
-      style={{
-        minHeight: compact ? 36 : 28,
-        flexDirection: "row",
-        alignItems: "flex-start",
-        gap: GAP,
-        paddingVertical: (compact ? 36 - m.blockLine : 28 - m.blockLine) / 2,
-        paddingLeft: 6,
-        paddingRight: 2,
-        marginHorizontal: -6,
-        borderRadius: 6,
-        backgroundColor: fill,
-        ...webTransition,
-      }}
-    >
-      {/* The agent's mark with its status on the corner, centred on the title's first line. */}
-      <View style={{ width: m.iconSlot, flexShrink: 0, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" }} testID={`subtask-status-${child.id}`} {...hintProps(props.statusHint)}>
-        <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={fill} animated={props.animated} />
-      </View>
-      {facts ? (
-        // As Paseo's subagent track: the title, and the provider's facts line under it.
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foreground }}>
-            {child.title}
-          </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, minHeight: HOST_LINE.sm }} accessibilityLabel={facts ?? undefined} testID={`subtask-facts-${child.id}`}>
-            {subagent?.icon ? <Icon name={subagent.icon} size={m.blockSize - 1} color={tokens.foregroundMuted} /> : null}
-            {subagent?.text ? (
-              <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: m.blockSize, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }}>
-                {subagent.text}
-              </Text>
-            ) : null}
-          </View>
-        </View>
-      ) : (
-        <View style={{ flex: 1, minWidth: 0, gap: 2 }} testID={`subtask-content-${child.id}`}>
-          {title}
-          <SubtaskMetadata child={child} tokens={tokens} language={props.language} now={props.now} clock={props.clock} />
-        </View>
-      )}
-      {props.onOpen && !provider ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={props.openLabel}
-          disabled={!showJump}
-          onPress={() => props.onOpen?.(child.id)}
-          {...hintProps(showJump ? props.openHint : undefined)}
-          style={{
-            width: size,
-            height: size,
-            flexShrink: 0,
-            marginVertical: (Math.round(m.blockLine * scale) - size) / 2,
-            marginRight: compact ? -8 : 0,
-            borderRadius: 5,
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: showJump ? 1 : 0,
-          }}
-        >
-          <Icon name="ArrowUpRight" size={compact ? 16 : 14} color={tokens.foregroundMuted} />
-        </Pressable>
-      ) : null}
-      {props.onOpen && provider ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={props.parentTabLabel}
-          onPress={() => props.onOpen?.(props.parentId)}
-          testID={`subtask-parent-tab-${child.id}`}
-          {...hintProps(props.parentTabHint)}
-          style={{
-            width: size,
-            height: size,
-            flexShrink: 0,
-            // Centred on the two lines, or on the title's one.
-            alignSelf: facts ? "center" : undefined,
-            marginVertical: facts ? 0 : (Math.round(m.blockLine * scale) - size) / 2,
-            marginRight: compact ? -8 : 0,
-            borderRadius: 5,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Icon name="CornerLeftUp" size={compact ? 16 : 14} color={tokens.foregroundMuted} />
-        </Pressable>
-      ) : null}
-    </Pressable>
-  );
-}
-
-/**
  * The footer's timer text: the one part of a card that follows the clock. It
  * re-renders when its text changes (a running timer every second, "5 min
  * ago" once a minute); the card around it does not.
@@ -2134,60 +1995,6 @@ function TimerText(props: TimeSource & { card: TaskCard; language: TasksLanguage
   const { card, language } = props;
   const value = useTime(props, (now) => cardTimer(card, now, language)?.text ?? "");
   return <Text style={props.style}>{value}</Text>;
-}
-
-/** Shared by expanded cards and details: icon-led facts wrap below the title and alone follow the clock. */
-export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: TaskTokens; language: TasksLanguage; testIDPrefix?: string }) {
-  const { child, tokens, language } = props;
-  const scale = useTasksFontScale();
-  const words = cardStrings(language).details;
-  const status = child.status === "needs_input" ? words.subtaskWaiting : child.status === "failed" ? words.subtaskFailed : child.status === "unread" ? words.subtaskUnread : null;
-  const ratio = contextRatio(child.context ?? null);
-  const timed = child.lane && child.timing ? { lane: child.lane, timing: child.timing, waitingOnSubtasks: child.waitingOnSubtasks } : null;
-  const start = useTime(props, (now) => timed ? cardStart(timed, now) ?? "" : "");
-  const timer = useTime(props, (now) => timed ? cardTimer(timed, now, language, true)?.text ?? "" : "");
-  const iconSize = PHONE.pillIcon;
-  const muted = tokens.foregroundMuted;
-  const prefix = props.testIDPrefix ?? "subtask";
-  const icon = (name: string, color = muted) => <Icon name={name} size={iconSize} color={color} />;
-  const part = (key: string, label: string, lead: ReactNode = null, color = muted) => (
-    <View key={key} style={{ flexDirection: "row", alignItems: "flex-start", gap: 4, minWidth: 0, flexShrink: 1 }}>
-      {lead ? <View style={{ height: Math.round(PHONE.blockLine * scale), justifyContent: "center" }}>{lead}</View> : null}
-      <Text style={[{ fontSize: PHONE.blockSize, lineHeight: PHONE.blockLine, color, flexShrink: 1 }, tabular]}>{label}</Text>
-    </View>
-  );
-  const parts: ReactNode[] = [];
-  // The provider and status are already combined in the row's ChildMark.
-  if (child.kind === "provider") {
-    const facts = subagentFacts(child.subtitle, child.subagentType);
-    if (facts.full) parts.push(part("facts", facts.text ?? "", facts.icon ? icon(facts.icon) : null));
-  }
-  if (child.modelLabel) parts.push(part("model", child.modelLabel));
-  if (child.thinkingLabel) parts.push(part("thinking", child.thinkingLabel, icon(THINKING_ICON)));
-  if (child.modeLabel) {
-    const mode = modeIcon(child.provider ?? "", child.modeLabel);
-    parts.push(part("mode", child.modeLabel, icon(mode, mode === "ShieldOff" ? tokens.warning : muted)));
-  }
-  if (status) parts.push(part("status", status, null, child.status === "failed" ? tokens.danger : child.status === "needs_input" ? tokens.warning : muted));
-  if (ratio !== null) {
-    const color = ratio >= 0.9 ? tokens.danger : ratio >= 0.75 ? tokens.warning : muted;
-    parts.push(
-      <View key="context" accessibilityLabel={words.subtaskContext(Math.round(ratio * 100))} style={{ height: Math.round(PHONE.blockLine * scale), justifyContent: "center" }}>
-        <ContextRing ratio={ratio} color={color} track={withAlpha(muted, 0.25)} size={iconSize} stroke={1.5} />
-      </View>,
-    );
-  }
-  if (start || timer) parts.push(
-    <View key="time" style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 2, minWidth: 0, flexShrink: 1 }} testID={`${prefix}-time-${child.id}`}>
-      {start ? part("start", start, icon("Clock")) : null}
-      {timer ? part("timer", timer, icon(child.lane === "needs_input" ? "Clock" : "Hourglass")) : null}
-    </View>,
-  );
-  return parts.length > 0 ? (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 2 }} testID={`${prefix}-meta-${child.id}`}>
-      {parts}
-    </View>
-  ) : null;
 }
 
 /** The running turn's start; it follows the clock only to add the date after midnight. */
