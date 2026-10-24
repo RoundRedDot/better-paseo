@@ -3,12 +3,14 @@ import { View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { TaskChild } from "../model";
+import { subagentTypeIcon } from "../subagent-type";
 import { BrandMark } from "./brand-mark";
 import { StatusIcon } from "./status-icon";
 import type { TaskTokens } from "./tokens";
 
 /**
- * Paseo 0.12's `WorkspaceTabIcon` at 14: the provider's mark, its status on
+ * Paseo 0.12's `WorkspaceTabIcon` at 14: the agent's brand (a provider
+ * subagent's type/tool icon instead), its status on
  * the bottom-right corner over a knockout of the row's fill. Running is the
  * 12 ring in a 14 frame, unread and failed an 8 dot (6 and a 1 px knockout),
  * needs input the board's hollow amber ring. One deviation, at the user's
@@ -46,8 +48,10 @@ export function ChildMark(props: { child: TaskChild; tokens: TaskTokens; theme: 
     );
   }
   return (
-    <View style={{ width: 14, height: 14, flexShrink: 0 }}>
-      {child.provider ? <BrandMark provider={child.provider} size={14} tokens={tokens} mono={tokens.foregroundMuted} /> : <Icon name="Bot" size={14} color={tokens.foregroundMuted} />}
+    <View style={{ width: 14, height: 14, flexShrink: 0 }} accessibilityLabel={child.kind === "provider" ? child.subagentType ?? undefined : undefined}>
+      {child.kind === "provider" ? (
+        <Icon name={subagentTypeIcon(child.subagentType)} size={14} color={tokens.foregroundMuted} />
+      ) : child.provider ? <BrandMark provider={child.provider} size={14} tokens={tokens} mono={tokens.foregroundMuted} /> : <Icon name="Bot" size={14} color={tokens.foregroundMuted} />}
       {corner}
     </View>
   );

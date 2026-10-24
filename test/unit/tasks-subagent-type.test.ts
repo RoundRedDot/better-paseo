@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { subagentFacts, subagentModel, subagentType } from "../../client/tasks/subagent-type";
+import { subagentFacts, subagentModel, subagentType, subagentTypeIcon } from "../../client/tasks/subagent-type";
+
+describe("subagentTypeIcon", () => {
+  it.each([
+    ["general-purpose", "Shapes"], ["Explore", "Search"], ["Plan", "ListChecks"],
+    ["Workflow", "Workflow"], ["fork", "Split"], ["claude", "Bot"],
+    [" explore ", "Search"], ["custom-agent", "Bot"], [null, "Bot"],
+  ])("maps %s without requiring a facts line", (type, icon) => {
+    expect(subagentTypeIcon(type)).toBe(icon);
+  });
+});
 
 describe("subagentFacts", () => {
   it("draws a type the timeline has an icon for as the icon alone", () => {

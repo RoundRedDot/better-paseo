@@ -128,23 +128,24 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
   const muted = tokens.foregroundMuted;
   const prefix = props.testIDPrefix ?? "subtask";
   const icon = (name: string, color = muted) => <Icon name={name} size={iconSize} color={color} />;
-  const part = (key: string, label: string, lead: ReactNode = null, color = muted) => (
-    <View key={key} style={{ flexDirection: "row", alignItems: "flex-start", gap: 4, minWidth: 0, flexShrink: 1 }}>
+  const part = (key: string, label: string, lead: ReactNode = null, color = muted, showLabel = true) => (
+    <View key={key} accessible={showLabel ? undefined : true} accessibilityLabel={showLabel ? undefined : label} style={{ flexDirection: "row", alignItems: "flex-start", gap: 4, minWidth: 0, flexShrink: 1 }}>
       {lead ? <View style={{ height: Math.round(HOST_LINE.smRead * scale), justifyContent: "center" }}>{lead}</View> : null}
-      <Text style={[{ fontSize: F.sm, lineHeight: HOST_LINE.smRead, color, flexShrink: 1 }, { fontVariant: ["tabular-nums"] }]}>{label}</Text>
+      {showLabel && label ? <Text style={[{ fontSize: F.sm, lineHeight: HOST_LINE.smRead, color, flexShrink: 1 }, { fontVariant: ["tabular-nums"] }]}>{label}</Text> : null}
     </View>
   );
   const parts: ReactNode[] = [];
   // The provider and status are already combined in the row's ChildMark.
   if (child.kind === "provider") {
     const facts = subagentFacts(child.subtitle, child.subagentType);
-    if (facts.full) parts.push(part("facts", facts.text ?? "", facts.icon ? icon(facts.icon) : null));
+    // ChildMark already carries the type icon; keep only the supplied facts here.
+    if (facts.text) parts.push(part("facts", facts.text));
   }
   if (child.modelLabel) parts.push(part("model", child.modelLabel));
   if (child.thinkingLabel) parts.push(part("thinking", child.thinkingLabel, icon(THINKING_ICON)));
-  if (child.modeLabel && !(narrow && child.modeLabel === "Full Access")) {
+  if (child.modeLabel) {
     const mode = modeIcon(child.provider ?? "", child.modeLabel);
-    parts.push(part("mode", child.modeLabel, icon(mode, mode === "ShieldOff" ? tokens.warning : muted)));
+    parts.push(part("mode", child.modeLabel, icon(mode, mode === "ShieldOff" ? tokens.warning : muted), muted, !(narrow && child.modeLabel === "Full Access")));
   }
   if (status) parts.push(part("status", status, null, child.status === "failed" ? tokens.danger : child.status === "needs_input" ? tokens.warning : muted));
   if (ratio !== null) {
@@ -162,7 +163,7 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
     </View>,
   );
   // Keep measuring when the optional fields are hidden, so widening restores them.
-  return parts.length > 0 || hideRunTime || (narrow && child.modeLabel === "Full Access") ? (
+  return parts.length > 0 || hideRunTime ? (
     <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 2 }} testID={`${prefix}-meta-${child.id}`}>
       {parts}
     </View>
