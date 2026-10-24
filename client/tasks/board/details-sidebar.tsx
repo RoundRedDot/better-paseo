@@ -396,6 +396,14 @@ function Initial(props: { name: string; tokens: TaskTokens }) {
 function Segment(props: { icon: string; label: string; on: boolean; tokens: TaskTokens; touch: boolean; onPress(): void }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
+  const [width, setWidth] = useState<number | null>(null);
+  const [labelSize, setLabelSize] = useState<{ key: string; width: number } | null>(null);
+  const labelKey = `${props.label}|${scale}|${props.on}`;
+  const labelWidth = labelSize?.key === labelKey ? labelSize.width : null;
+  const iconWidth = 14 + 12 + 2 * StyleSheet.hairlineWidth;
+  const fullWidth = labelWidth === null ? null : labelWidth + iconWidth + 4;
+  const hideLabel = width !== null && fullWidth !== null && fullWidth > width + 0.5;
+  const labelStyle = { fontSize: F.base, fontWeight: props.on ? "600" as const : "400" as const, color: props.on ? tokens.foreground : tokens.foregroundMuted };
   const { hovered, hoverProps } = useHover();
   return (
     <Pressable
@@ -404,10 +412,14 @@ function Segment(props: { icon: string; label: string; on: boolean; tokens: Task
       accessibilityLabel={props.label}
       onPress={props.onPress}
       {...hoverProps}
+      testID={`sidebar-group-tab-${props.icon}`}
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
       style={{
-        // Grown from each label's width, not split evenly: "Workspace" needs more room than "Agent" beside its icon.
+        // Keep the full-label basis while icon-only, so hiding text cannot change its own fit.
+        flexBasis: fullWidth ?? undefined,
         flexGrow: 1,
         flexShrink: 1,
+        minWidth: iconWidth,
         height: taskControlHeight(props.touch ? 36 : 28, scale),
         borderRadius: 999,
         borderWidth: StyleSheet.hairlineWidth,
@@ -421,9 +433,26 @@ function Segment(props: { icon: string; label: string; on: boolean; tokens: Task
       }}
     >
       <Icon name={props.icon} size={14} color={props.on ? tokens.foreground : tokens.foregroundMuted} />
-      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.base, fontWeight: props.on ? "600" : "400", color: props.on ? tokens.foreground : tokens.foregroundMuted }}>
+      {hideLabel ? null : <Text testID="sidebar-group-tab-label" numberOfLines={1} style={[labelStyle, { flexShrink: 0 }]}>
         {props.label}
-      </Text>
+      </Text>}
+      <View
+        pointerEvents="none"
+        aria-hidden
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={{ position: "absolute", left: 0, top: 0, opacity: 0, flexDirection: "row" }}
+      >
+        <Text
+          key={labelKey}
+          testID="sidebar-group-tab-measure"
+          style={[labelStyle, { flexShrink: 0 }]}
+          onLayout={(event) => {
+            const measured = Math.ceil(event.nativeEvent.layout.width);
+            setLabelSize((previous) => previous?.key === labelKey && previous.width === measured ? previous : { key: labelKey, width: measured });
+          }}
+        >{props.label}</Text>
+      </View>
     </Pressable>
   );
 }

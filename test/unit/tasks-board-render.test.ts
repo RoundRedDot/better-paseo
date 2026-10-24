@@ -731,6 +731,43 @@ describe("Tasks board, desktop", () => {
     expect(label()).toHaveLength(1);
   });
 
+  it.each([
+    ["ios", "en", 14], ["ios", "zh", 21], ["web", "en", 21],
+  ] as const)("%s group tabs hide overflowing %s labels at UI base %i and restore whole labels", (os, language, base) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    updateEnhancerPreferences({ language });
+    act(() => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
+    layOut(os === "ios" ? 900 : 1600);
+    if (os === "ios") act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+    const layout = (node: ReactTestInstance, width: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 36 } } }));
+    for (const kind of ["agent", "project", "workspace", "label"] as const) {
+      const word = BOARD_STRINGS[language].sidebar.groups[kind];
+      const tab = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "tab" && node.props.accessibilityLabel === word);
+      const measure = () => tab().find((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-measure");
+      const label = () => tab().findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-label");
+      layout(measure(), 60);
+      layout(tab(), 100);
+      expect(label()).toHaveLength(1);
+      const basis = StyleSheet.flatten(tab().props.style).flexBasis;
+      layout(tab(), 50);
+      expect(label()).toHaveLength(0);
+      expect(tab().findAll((node) => (node.type as unknown) === "Icon")).toHaveLength(1);
+      expect(StyleSheet.flatten(tab().props.style).flexBasis).toBe(basis);
+      expect(hostParentOf(measure())!.props.accessibilityElementsHidden).toBe(true);
+      // Icon-only tabs still switch the group, preserving the full accessible name.
+      act(() => tab().props.onPress());
+      layout(measure(), 65);
+      expect(tab().props.accessibilityState).toEqual({ selected: true });
+      expect(label()).toHaveLength(0);
+      layout(tab(), 120);
+      expect(label()).toHaveLength(1);
+      expect(textOf(label()[0]!)).toBe(word);
+      // An updated measurement (font or translation) can hide the label without a resize.
+      layout(measure(), 140);
+      expect(label()).toHaveLength(0);
+    }
+  });
+
   it("counts the active cards by workspace in the sidebar's groups, a row a workspace filter", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
