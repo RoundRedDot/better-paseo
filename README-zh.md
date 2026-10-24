@@ -6,7 +6,11 @@
 
 https://github.com/user-attachments/assets/2b16b0a5-8567-4f3e-8fbd-4a594c74d2da
 
+<sub>GitHub App 里看不到播放器？[打开时间线视频](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v13/better-paseo-promo-v13-timeline-web.mp4)。</sub>
+
 https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
+
+<sub>GitHub App 里看不到播放器？[打开Tasks视频](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v13/better-paseo-promo-v13-tasks-web.mp4)。</sub>
 
 <img alt="Better Paseo，一个 Paseo 插件：聊天时间线，清爽又飞快。桌面窗口和手机上的时间线" src="images/hero-cover-zh.png">
 
