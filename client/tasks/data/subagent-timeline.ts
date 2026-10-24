@@ -14,7 +14,7 @@ export type SubagentTimelineLoader = (input: {
   subagentId: string;
   direction: "after" | "tail";
   limit: number;
-}) => Promise<{ rows: Array<{ type: string; text?: string }>; error: string | null }>;
+}) => Promise<{ rows: Array<{ type: string; text?: string; timestamp?: string }>; error: string | null }>;
 
 let loader: SubagentTimelineLoader | null = null;
 
@@ -38,7 +38,7 @@ const api = {
           const load = loader;
           if (!load || !parentAgentId) return Promise.reject(new Error("No subagent timeline loader."));
           return load({ parentAgentId, subagentId, direction: options.direction === "tail" ? "tail" : "after", limit: options.limit ?? 40 }).then((page) => ({
-            entries: page.rows.map((item) => ({ item })),
+            entries: page.rows.map(({ timestamp, ...item }) => ({ timestamp, item })),
             error: page.error,
           }));
         },

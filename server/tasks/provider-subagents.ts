@@ -42,7 +42,7 @@ export interface HostDaemon extends SeedDaemon {
     parentAgentId: string,
     subagentId: string,
     options: { direction: "after" | "tail"; limit: number },
-  ): Promise<{ rows: Array<{ item: { type: string; text?: unknown } }> }>;
+  ): Promise<{ rows: Array<{ timestamp?: string; item: { type: string; text?: unknown } }> }>;
 }
 
 /** A failure stays on the board this long at most; a new prompt to the parent clears it sooner. */

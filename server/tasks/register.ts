@@ -171,11 +171,11 @@ async function readProjectIcons(host: HostDaemonAccess, projectIds: readonly str
   }
 }
 
-/** A provider subagent's timeline rows, kind and text only; the error says why there are none. */
+/** A provider subagent's timeline rows with their message times; the error says why there are none. */
 export async function readSubagentTimeline(
   host: HostDaemonAccess,
   input: { parentAgentId: string; subagentId: string; direction: "after" | "tail"; limit: number },
-): Promise<{ rows: Array<{ type: string; text?: string }>; error: string | null }> {
+): Promise<{ rows: Array<{ type: string; text?: string; timestamp?: string }>; error: string | null }> {
   const daemon = await host.connect();
   if (!daemon) return { rows: [], error: "Could not reach the Paseo daemon." };
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -187,7 +187,7 @@ export async function readSubagentTimeline(
     });
     const page = await Promise.race([fetchTimeline(input.parentAgentId, input.subagentId, { direction: input.direction, limit: input.limit }), timeout]);
     return {
-      rows: page.rows.map(({ item }) => (typeof item.text === "string" ? { type: item.type, text: item.text } : { type: item.type })),
+      rows: page.rows.map(({ item, timestamp }) => ({ type: item.type, timestamp, ...(typeof item.text === "string" ? { text: item.text } : {}) })),
       error: null,
     };
   } catch (error) {

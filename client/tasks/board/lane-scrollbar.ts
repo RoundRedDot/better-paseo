@@ -92,7 +92,7 @@ ${detailRules("column", theme)}
  * The details' scrollbars (`cards/detail-scrollbar.ts`): a classic one in a
  * stable gutter, so it never lies over the text and the text does not shift
  * when the details start to overflow. Like a lane's, the thumb takes the
- * host's colours and shows only while the details scroll or under the pointer.
+ * host's colours and shows only while the details scroll, fading after they stop.
  *
  * The thumb draws narrower than its gutter through transparent borders. A
  * border shrinks the inner radius by its width, so each side's outer radius
@@ -131,8 +131,8 @@ ${selector}::-webkit-scrollbar-thumb {
   background: var(${THUMB_VAR});
   background-clip: padding-box;
 }
-${selector}::-webkit-scrollbar-thumb:hover,
-${selector}::-webkit-scrollbar-thumb:active {
+${selector}[${SCROLLING_ATTR}]::-webkit-scrollbar-thumb:hover,
+${selector}[${SCROLLING_ATTR}]::-webkit-scrollbar-thumb:active {
   background: ${pressed};
   background-clip: padding-box;
 }`;

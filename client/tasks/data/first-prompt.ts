@@ -13,7 +13,7 @@ import type { PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 export type FirstPrompt =
   | { state: "idle" }
   | { state: "loading" }
-  | { state: "ready"; text: string }
+  | { state: "ready"; text: string; timestamp?: string }
   /** The timeline's head holds no prompt (or the daemon dropped it). */
   | { state: "none" }
   | { state: "error" };
@@ -51,8 +51,7 @@ export function createFirstPromptStore(api: Api): Store {
         .timeline.refetch({ direction: "after", projection: "projected", limit: HEAD_LIMIT })
         .then((page) => {
           if (page.error) return set(agentId, { state: "error" });
-          const text = firstPromptText(page.entries);
-          set(agentId, text === null ? { state: "none" } : { state: "ready", text });
+          set(agentId, firstPromptMessage(page.entries) ?? { state: "none" });
         })
         .catch(() => set(agentId, { state: "error" }));
     },
@@ -65,12 +64,12 @@ export function createFirstPromptStore(api: Api): Store {
   };
 }
 
-/** The first user message's text among a timeline's head rows; null when none says anything. */
-export function firstPromptText(entries: readonly { item: { type: string; text?: string } }[]): string | null {
+/** The first user message and its own timestamp among a timeline's head rows. */
+export function firstPromptMessage(entries: readonly { timestamp?: string; item: { type: string; text?: string } }[]): Extract<FirstPrompt, { state: "ready" }> | null {
   for (const entry of entries) {
     if (entry.item.type !== "user_message") continue;
     const text = entry.item.text?.trim();
-    return text ? text : null;
+    return text ? { state: "ready", text, timestamp: entry.timestamp } : null;
   }
   return null;
 }
