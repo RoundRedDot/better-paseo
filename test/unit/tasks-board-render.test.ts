@@ -1963,6 +1963,43 @@ describe("Tasks board, tablet filters", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
   });
 
+  it.each(["ios", "android"])("%s dismisses each filter through toolbar gaps, keeps multi-select open and toggles its trigger", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1000);
+    const buttons = () => hostsById("filter-bar-controls")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "button");
+    const panels = () => hostsById("menu-panel");
+    const backdrop = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Close menu");
+    for (let index = 0; index < 4; index++) {
+      act(() => buttons()[index]!.props.onPress());
+      expect(panels()).toHaveLength(1);
+      const bar = hostsById("filter-bar")[0]!;
+      const controls = hostsById("filter-bar-controls")[0]!;
+      const end = hostsById("filter-bar-end")[0]!;
+      // Native hit testing must pass empty space at every level to the
+      // board's lower backdrop, while still reaching the trigger and rows.
+      for (const gap of [bar, hostParentOf(controls)!, controls, end, hostParentOf(buttons()[index]!)!]) {
+        expect(gap.props.pointerEvents).toBe("box-none");
+      }
+      const option = panels()[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && !node.props.disabled)[0]!;
+      await act(async () => option.props.onPress());
+      expect(panels()).toHaveLength(1);
+      const selected = lastBoardParams("host-1");
+      act(() => backdrop()[0]!.props.onPress());
+      expect(panels()).toHaveLength(0);
+      expect(backdrop()).toHaveLength(0);
+      expect(lastBoardParams("host-1")).toEqual(selected);
+      act(() => buttons()[index]!.props.onPress());
+      expect(panels()).toHaveLength(1);
+      act(() => buttons()[index]!.props.onPress());
+      expect(panels()).toHaveLength(0);
+    }
+    act(() => buttons()[0]!.props.onPress());
+    act(() => buttons()[1]!.props.onPress());
+    expect(panels()).toHaveLength(1);
+    expect(buttons().map((button) => button.props.accessibilityState.expanded)).toEqual([false, true, false, false]);
+  });
+
   it.each([
     ["ios", 800, "en", 14],
     ["ios", 1200, "zh", 21],
