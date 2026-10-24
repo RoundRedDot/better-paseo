@@ -176,7 +176,7 @@ describe("TaskCardView on web", () => {
 
     const toggle = root.find((node) => typeof node.type === "string" && node.props.accessibilityState?.expanded === false);
     await act(async () => toggle.props.onPress());
-    const row = root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Measure the sidebar ring");
+    const row = root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Measure the sidebar ring 运行中");
     expect(row.props.role).toBe("group");
     row.props.onPress();
     expect(onReveal).toHaveBeenCalledWith("sample-child-1");
@@ -372,7 +372,7 @@ describe("TaskCardView on web", () => {
     );
     const jump = () =>
       root
-        .find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Measure the sidebar ring")
+        .find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Measure the sidebar ring 运行中")
         .find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "在 workspace 中打开");
     expect(jump().props.disabled).toBe(true);
     await act(async () => hovers.get("subtask-sample-child-1")!.enter());
@@ -722,6 +722,7 @@ describe("TaskCardView hover hints", () => {
       expect(texts(hint()[0]!).join("")).toBe("分支：feat/tasks-board\n有未提交改动\n领先 3 个提交\n点击复制");
 
       expect(await show("model", { left: 112, top: 140, width: 100, height: 20 })).toBe("模型：Codex GPT-5.5 Codex\n思考强度：Medium\n点击复制");
+      expect(texts(root.find((node) => typeof node.type === "string" && node.props.testID === "agent-pill-thinking"))).toEqual(["m"]);
       expect(await show("status", { left: 112, top: 80, width: 16, height: 20 })).toBe("状态：运行中");
       expect(await show("timer", { left: 180, top: 230, width: 60, height: 18 })).toBe("本轮已运行：12m 30s");
       expect(await show("subtasks", { left: 112, top: 166, width: 80, height: 20 })).toBe("3 个子任务：2 运行中 · 1 已完成");
@@ -732,6 +733,11 @@ describe("TaskCardView hover hints", () => {
       await act(async () => listeners.get("pointerover")!({ pointerType: "touch", target: mark("status", { left: 112, top: 80, width: 16, height: 20 }) }));
       await act(async () => { vi.advanceTimersByTime(400); });
       expect(hint()).toHaveLength(0);
+      const separate = props("sample-running");
+      separate.fields = { ...separate.fields, provider: false, model: false };
+      await act(async () => renderer.update(React.createElement(TaskCardView, separate)));
+      expect(texts(root.find((node) => typeof node.type === "string" && node.props.testID === "pill-thinking"))).toEqual(["m"]);
+      expect(await show("thinking", { left: 112, top: 140, width: 40, height: 20 })).toBe("思考强度：Medium");
       await act(async () => renderer.unmount());
       expect(listeners.size).toBe(0);
     } finally {
