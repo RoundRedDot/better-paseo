@@ -10,6 +10,8 @@ import { HAIRLINE } from "./board-style";
 import { SwitchTrack } from "../../ui/switch-track";
 import { clearedParams, emptyGroupsIcon, searchWorkspaceGroups, shownFilterOptions, type FilterOption, type FilterOptions } from "./filter-options";
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
+import { detailScrollProps } from "../cards/detail-scrollbar";
+import { useLaneScrollbar } from "./lane-scrollbar";
 import { resolveBoardParams, toggleItem } from "./params";
 import { SORT_GROUPS, SORT_ICONS, sortDirectionIcon, sortDirections } from "./board-menus";
 import { sameSort, type BoardSort, type SortKey } from "./sort";
@@ -43,6 +45,7 @@ export function FilterSheetBody(props: {
   focus?: "sort";
 }) {
   const { board, theme, options } = props;
+  useLaneScrollbar(theme);
   const sortFirst = props.focus === "sort";
   const colors = theme.colors;
   const strings = board.strings;
@@ -70,6 +73,7 @@ export function FilterSheetBody(props: {
     <View style={{ flex: 1, minHeight: 0 }}>
       <ScrollView
         ref={scrollRef}
+        {...detailScrollProps("inset")}
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
         onLayout={(event: LayoutChangeEvent) => setViewport(event.nativeEvent.layout.height)}
