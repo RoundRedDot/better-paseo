@@ -12,7 +12,11 @@ sidebar or sheet. The performance section compares the timeline with Paseo's own
 
 https://github.com/user-attachments/assets/2b16b0a5-8567-4f3e-8fbd-4a594c74d2da
 
+<sub>No player in the GitHub app? [Open the timeline video](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v13/better-paseo-promo-v13-timeline-web.mp4).</sub>
+
 https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
+
+<sub>No player in the GitHub app? [Open the tasks video](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v13/better-paseo-promo-v13-tasks-web.mp4).</sub>
 
 <img alt="Better Paseo, a Paseo plugin: a clear, fast chat timeline on a desktop window and a phone" src="images/hero-cover.png">
 
