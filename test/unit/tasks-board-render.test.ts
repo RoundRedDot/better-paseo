@@ -559,7 +559,7 @@ describe("Tasks board, desktop", () => {
     expect(clip("needs_input")).toEqual({ easing: 340 });
   });
 
-  it("grows the archived lane in and shrinks it out as it is switched, the other lanes easing with it", () => {
+  it("grows the archived lane in and shrinks it out without resizing the other lanes", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
@@ -568,12 +568,15 @@ describe("Tasks board, desktop", () => {
       const width = StyleSheet.flatten(hostsById(`lane-${lane}`)[0]!.props.style).width as number | { __value: number };
       return typeof width === "number" ? width : { easing: width.__value };
     };
-    // The four share the room left of the sidebar; five take less each.
+    // Archived uses the four active lanes' width, extending the scrollable row.
     const four = clip("done") as number;
+    expect(lanesScroll().props.scrollEnabled).toBe(false);
     act(() => { void deviceTasksStore().update({ showArchived: true }); renderer!.update(screen(false)); });
-    // In from nothing, while the four make room from where they were; the content inside has its width at once.
+    // Only archived grows in from nothing; the active lanes stay still.
     expect(clip("archived")).toEqual({ easing: 0 });
-    expect(clip("done")).toEqual({ easing: four });
+    expect(LANE_ORDER.map(clip)).toEqual([four, four, four, four]);
+    expect(lanesScroll().props.scrollEnabled).toBe(true);
+    expect(lanesScroll().props.contentContainerStyle.width).toBe(2 * 12 + 4 * 8 + 5 * four);
     const inside = (lane: string) => {
       const swap = hostsById(`lane-${lane}`)[0]!.findAll((node) => {
         const style = typeof node.type === "string" ? StyleSheet.flatten(node.props.style) : null;
@@ -581,9 +584,8 @@ describe("Tasks board, desktop", () => {
       })[0]!;
       return StyleSheet.flatten(swap.props.style).width as number;
     };
-    const five = inside("done");
-    expect(five).toBeLessThan(four);
-    expect(inside("archived")).toBe(five);
+    expect(inside("done")).toBe(four);
+    expect(inside("archived")).toBe(four);
     act(() => {
       vi.advanceTimersByTime(300);
     });
@@ -591,9 +593,10 @@ describe("Tasks board, desktop", () => {
     // Out to nothing, its content as it was and out of reach, then gone.
     expect(hostsById("lane-archived")).toHaveLength(1);
     expect(hostsById("lane-archived")[0]!.props.pointerEvents).toBe("none");
-    expect(inside("archived")).toBe(five);
+    expect(inside("archived")).toBe(four);
     expect(inside("done")).toBe(four);
-    expect(typeof clip("done")).toBe("object");
+    expect(LANE_ORDER.map(clip)).toEqual([four, four, four, four]);
+    expect(lanesScroll().props.scrollEnabled).toBe(false);
     act(() => {
       vi.advanceTimersByTime(300);
     });

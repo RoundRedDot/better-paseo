@@ -260,3 +260,17 @@ export function laneLayout(viewport: number, expanded: number, collapsed: number
   const contentWidth = Math.max(viewport, fixed + expanded * width);
   return { laneWidth: width, contentWidth, scroll: contentWidth > viewport };
 }
+
+/**
+ * Size lanes from the four active lanes; archived only adds to the row's
+ * extent. When all active lanes are folded, size the archived lane as the
+ * sole expanded lane beside their strips.
+ */
+export function boardLaneLayout(viewport: number, order: readonly LaneId[], collapsed: readonly LaneId[], size: LaneWidth = "default"): LaneLayout {
+  const activeCollapsed = ACTIVE_LANE_ORDER.filter((id) => collapsed.includes(id)).length;
+  const activeExpanded = ACTIVE_LANE_ORDER.length - activeCollapsed;
+  const { laneWidth } = laneLayout(viewport, Math.max(1, activeExpanded), activeCollapsed, size);
+  const lanesWidth = order.reduce((sum, id) => sum + (collapsed.includes(id) ? LANES.collapsed : laneWidth), 0);
+  const contentWidth = Math.max(viewport, 2 * LANES.edge + Math.max(0, order.length - 1) * LANES.gap + lanesWidth);
+  return { laneWidth, contentWidth, scroll: contentWidth > viewport };
+}

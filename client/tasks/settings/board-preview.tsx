@@ -4,7 +4,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { effectiveCard, type TasksSettings } from "../../../shared/tasks-settings";
 import { permissionButtons } from "../actions";
 import { HAIRLINE, PANEL_RADIUS, boardPalette } from "../board/board-style";
-import { LANES, laneLayout } from "../board/navigation";
+import { LANES, boardLaneLayout } from "../board/navigation";
 import { TaskText as Text, HOST_FONT as F, laneTitle, taskControlHeight, useTasksFontScale } from "../typography";
 import { BOARD_STRINGS } from "../board/strings";
 import { StatusIcon, TaskCardView } from "../cards";
@@ -61,7 +61,7 @@ export function TasksBoardPreview(props: {
   const order = boardLaneOrder(values.board.showArchived);
   const [picked, setSelected] = useState<LaneId>("needs_input");
   const selected = order.includes(picked) ? picked : "needs_input";
-  const layout = laneLayout(width, order.length, 0, values.board.laneWidth);
+  const layout = boardLaneLayout(width, order, [], values.board.laneWidth);
 
   const card = (item: TaskCard) => (
     <TaskCardView

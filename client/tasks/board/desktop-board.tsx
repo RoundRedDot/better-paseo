@@ -13,7 +13,7 @@ import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProp
 import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, RollingCount, SkeletonCard, VerticalLabel, useBreathing, useFreshIds, useTap } from "./board-parts";
 import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type FilterMenu } from "./filter-bar";
 import { buildFilterOptions } from "./filter-options";
-import { LANES, boardKeyReducer, clampFocus, laneLayout, type BoardFocus, type LaneShape } from "./navigation";
+import { LANES, boardKeyReducer, clampFocus, boardLaneLayout, type BoardFocus, type LaneShape } from "./navigation";
 import { menuChrome } from "./menu-model";
 import { DetailsSidebar } from "./details-sidebar";
 import { BoardTips } from "../cards/card-hints";
@@ -218,7 +218,7 @@ export function DesktopBoard(props: {
     ? tabletSidebarWidth(boardWidth, floatingDragWidth ?? preference.floatingWidth)
     : sidebarWidth(boardWidth, dragWidth ?? preference.width, floating ? "floating" : "inline");
   const lanesWidth = Math.max(0, boardWidth - (inline ? panelWidth + SIDEBAR.gap : 0));
-  const layout = laneLayout(lanesWidth, laneOrder.length - collapsed.length, collapsed.length, board.laneWidth);
+  const layout = boardLaneLayout(lanesWidth, laneOrder, collapsed, board.laneWidth);
   // What the user sized the lanes with: a change to it eases the lanes to their new widths.
   const sizing = `${collapsed.join()}|${board.laneWidth}|${laneOrder.length}`;
   const archivedSwitch = useArchivedSwitch(laneOrder, lanes.archived, layout.laneWidth, board.visible);
@@ -305,7 +305,7 @@ export function DesktopBoard(props: {
       const now = latest.current;
       const folded = now.collapsed.includes(lane);
       if (folded) setCollapsed((current) => current.filter((id) => id !== lane));
-      const laneWidth = folded ? laneLayout(lanesWidth, laneOrder.length - now.collapsed.length + 1, now.collapsed.length - 1, board.laneWidth).laneWidth : now.laneWidth;
+      const laneWidth = folded ? boardLaneLayout(lanesWidth, laneOrder, now.collapsed.filter((id) => id !== lane), board.laneWidth).laneWidth : now.laneWidth;
       const cover = inSheet ? LANES.edge : floating ? now.floatWidth + 2 * SIDEBAR.gap : now.boardWidth - lanesWidth;
       const scrolled = uncover(lane, cover, laneWidth);
       setFlash((was) => ({ lane, key: (was?.key ?? 0) + 1, delay: scrolled ? LANE_FLASH.afterScrollMs : 0 }));
@@ -852,8 +852,8 @@ function BoardEmpty({ board, theme }: { board: BoardController; theme: PluginThe
 
 /**
  * The archived lane as it is switched on and off: it grows in from nothing,
- * and shrinks to nothing before it goes, as the other lanes ease to their new
- * widths (`sizing` counts the lanes). `drawn` is the lanes to render: the
+ * and shrinks to nothing before it goes, keeping the other lanes' widths.
+ * `drawn` is the lanes to render: the
  * board's, and the archived lane while it leaves, drawn as it last showed
  * (`last`, at `width`). At once when the board is hidden or motion is reduced.
  */
