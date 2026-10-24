@@ -273,7 +273,7 @@ describe("Tasks board, desktop", () => {
     const totals = renderer!.root.findAll((node) => node.type === RollingTotal);
     expect(totals.length).toBeGreaterThan(0);
     for (const total of totals) expect(total.findAll((node) => node.type === RollingCount)).toHaveLength(0);
-    subtasks();
+    act(() => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
     pick("24h");
     expect(scopes()).toEqual(tablet);
     act(() => renderer!.root.findAll((node) => node.type === DesktopFilterBar)[0]!.props.board.setParams((params: BoardParams) => ({ ...params, sort: { key: "title", direction: "asc" } })));
@@ -1879,7 +1879,7 @@ describe("Tasks board, tablet filters", () => {
     const height = Math.round(36 * Math.max(1, base / 14));
     for (const button of buttons()) expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: height, height, borderRadius: height / 2, borderColor: "#e2e2e6" });
     expect(StyleSheet.flatten(end().props.style).height).toBe(height);
-    expect(end().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch").map((node) => node.props.testID)).toEqual(os === "ios" ? [] : ["archived-lane-toggle"]);
+    expect(end().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch").map((node) => node.props.testID)).toEqual(os === "ios" ? ["subtasks-toggle"] : ["subtasks-toggle", "archived-lane-toggle"]);
     expect(renderer!.root.findAllByType(WindowSegments)).toHaveLength(0);
     expect(hostsById("filter-bar-more")).toHaveLength(1);
     expect(end().findAll((node) => (node.type as unknown) === "Text").map(textOf)).not.toContain(strings.sort);
@@ -1888,6 +1888,33 @@ describe("Tasks board, tablet filters", () => {
     layOut(1600);
     expect(controls().findAll((node) => (node.type as unknown) === "Text")).toHaveLength(0);
     expect(hostsById("filter-bar-words")).toHaveLength(0);
+  });
+
+  it.each([["ios", 800], ["ios", 1200], ["android", 800], ["android", 1200]] as const)("%s at %i pt exposes the subtasks switch beside sort and filters", async (os, width) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(width);
+    const toggle = () => hostsById("subtasks-toggle")[0]!;
+    const end = hostsById("filter-bar-end")[0]!;
+    const controls = end.findAll((node) => (node.type as unknown) === "Pressable");
+    expect(controls.map((node) => node.props.accessibilityLabel)).toEqual(os === "ios"
+      ? ["Show subtasks", "Sort", "Filters"]
+      : ["Show subtasks", "Sort", "Show the archived lane", "Filters"]);
+    expect(textOf(toggle())).toBe("");
+    expect(StyleSheet.flatten(toggle().props.style).width).toBe(StyleSheet.flatten(hostsById("filter-bar-more")[0]!.props.style).width);
+    expect(toggle().props).toMatchObject({ accessibilityRole: "switch", accessibilityState: { checked: true } });
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("ListTree");
+    expect(toggle().findAll((node) => typeof node.type === "string" && node.props.testID === "slash-mark")).toHaveLength(0);
+    await act(async () => toggle().props.onPress());
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true });
+    expect(toggle().props.accessibilityState).toEqual({ checked: false });
+    expect(toggle().findAll((node) => typeof node.type === "string" && node.props.testID === "slash-mark")).toHaveLength(1);
+    act(() => hostsById("filter-bar-more")[0]!.props.onPress());
+    expect(hostsById("filter-sheet-subtasks")[0]!.props.accessibilityState).toEqual({ checked: false });
+    await act(async () => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: false });
+    expect(toggle().props.accessibilityState).toEqual({ checked: true });
+    expect(toggle().findAll((node) => typeof node.type === "string" && node.props.testID === "slash-mark")).toHaveLength(0);
   });
 
   it.each(["ios", "android"])("%s exposes working project, workspace, agent and label menus from the icon buttons", (os) => {
