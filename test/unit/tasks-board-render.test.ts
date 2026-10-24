@@ -238,6 +238,7 @@ function failDeviceWrite() {
 
 /** Browser focus and both key phases, without RNW swallowing a card's activation. */
 function renderFocusBoard() {
+  const windowCapture = new Set<(event: unknown) => void>();
   const capture = new Set<(event: unknown) => void>();
   const bubble = new Set<(event: unknown) => void>();
   const doc = {
@@ -249,7 +250,10 @@ function renderFocusBoard() {
       if (type === "keydown") (useCapture ? capture : bubble).delete(listener);
     },
   };
-  vi.stubGlobal("window", {});
+  vi.stubGlobal("window", {
+    addEventListener: (type: string, listener: (event: unknown) => void, useCapture?: boolean) => type === "keydown" && useCapture && windowCapture.add(listener),
+    removeEventListener: (type: string, listener: (event: unknown) => void) => type === "keydown" && windowCapture.delete(listener),
+  });
   vi.stubGlobal("document", doc);
   vi.stubGlobal("HTMLElement", class {});
   const board = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.tabIndex === -1 && node.props.role === "group");
@@ -276,15 +280,17 @@ function renderFocusBoard() {
       board().props.onFocus({ target: node });
     });
   };
-  const key = (value: string) => {
-    let stopped = false;
+  const key = (value: string, hostConsumes = false) => {
+    let stopped = hostConsumes;
     const event = {
-      key: value, defaultPrevented: false,
+      key: value, defaultPrevented: hostConsumes,
       preventDefault: vi.fn(() => { event.defaultPrevented = true; }),
       stopPropagation: vi.fn(() => { stopped = true; }),
     };
     act(() => {
-      for (const listener of capture) listener(event);
+      // stopPropagation at window leaves the other listeners on window running.
+      for (const listener of windowCapture) listener(event);
+      if (!stopped) for (const listener of capture) listener(event);
       if (!stopped) for (const listener of bubble) listener(event);
     });
     return event;
@@ -1413,7 +1419,7 @@ describe("Tasks board, desktop", () => {
   it.each([[2000, true], [2000, false], [900, true], [900, false], [600, false]] as const)("toggles the focused card preview with Space at %i pt (sidebar preference=%s)", (width, preferred) => {
     writeSidebarPreference({ open: preferred, width: 380 });
     const keys = new Set<(event: unknown) => void>();
-    vi.stubGlobal("window", {});
+    vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {} });
     vi.stubGlobal("document", {
       activeElement: null, body: {}, visibilityState: "visible",
       addEventListener: (type: string, listener: (event: unknown) => void, capture?: boolean) => type === "keydown" && !capture && keys.add(listener),
@@ -1544,10 +1550,55 @@ describe("Tasks board, desktop", () => {
     }
   });
 
+  it("handles preview and open when the host consumes activation at window capture", () => {
+    writeSidebarPreference({ open: false, width: 380 });
+    try {
+      const { doc, root, focus, key } = renderFocusBoard();
+      const selected = cards().find((card) => card.props.card.id === "sample-running")!;
+      focus(selected.props.card.id);
+      act(() => selected.props.onSelect(selected.props.card));
+      // The host's global shortcut can preventDefault and stopPropagation before document.
+      const clickedPreview = key(" ", true);
+      expect(clickedPreview.preventDefault).toHaveBeenCalledTimes(1);
+      expect(textOf(hostsById("detail-title")[0]!)).toBe(selected.props.card.title);
+      key(" ", true);
+      expect(hostsById("detail-title")).toHaveLength(0);
+      key("ArrowRight");
+      const focused = cards().find((card) => card.props.focused)!;
+      expect(doc.activeElement).toBe(root);
+      const preview = key(" ", true);
+      expect(preview.preventDefault).toHaveBeenCalledTimes(1);
+      expect(preview.stopPropagation).toHaveBeenCalledTimes(1);
+      expect(textOf(hostsById("detail-title")[0]!)).toBe(focused.props.card.title);
+      key(" ", true);
+      expect(hostsById("detail-title")).toHaveLength(0);
+      const open = key("Enter", true);
+      expect(open.stopPropagation).toHaveBeenCalledTimes(1);
+      expect(openAgent.mock.calls).toEqual([[{ agentId: focused.props.card.id }]]);
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("leaves room for the first card's complete focus outline inside every web lane", () => {
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    const lists = renderer!.root.findAll((node) => typeof node.props.renderItem === "function" && node.props.dataSet?.bclane === "");
+    expect(lists.length).toBeGreaterThan(0);
+    for (const list of lists) {
+      const padding = StyleSheet.flatten(list.props.contentContainerStyle);
+      expect(padding.paddingTop).toBeGreaterThanOrEqual(4);
+      expect(padding.paddingLeft ?? padding.paddingHorizontal).toBeGreaterThanOrEqual(4);
+      expect(padding.paddingRight ?? padding.paddingHorizontal).toBeGreaterThanOrEqual(4);
+    }
+  });
+
   it("previews a clicked card with Space while leaving text entry, other app focus and modified keys alone", () => {
     writeSidebarPreference({ open: false, width: 380 });
     const keys = new Set<(event: unknown) => void>();
-    vi.stubGlobal("window", {});
+    vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {} });
     const doc = {
       activeElement: null as unknown, body: {}, visibilityState: "visible",
       addEventListener: (type: string, listener: (event: unknown) => void, capture?: boolean) => type === "keydown" && !capture && keys.add(listener),
@@ -1609,6 +1660,7 @@ describe("Tasks board, desktop", () => {
   it("disarms an armed stop on Esc, whatever has the keyboard focus", async () => {
     host.canStop = true;
     const keys: Array<(event: unknown) => void> = [];
+    vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {} });
     vi.stubGlobal("document", {
       activeElement: null,
       body: {},
@@ -1642,6 +1694,7 @@ describe("Tasks board, desktop", () => {
   it("disarms on Esc in the capture phase from the search box and the sidebar, and blurs the search box", async () => {
     host.canStop = true;
     const capture: Array<(event: unknown) => void> = [];
+    vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {} });
     const doc = {
       activeElement: null as unknown,
       body: {},

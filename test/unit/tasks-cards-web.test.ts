@@ -161,12 +161,12 @@ describe("TaskCardView on web", () => {
     const tokens = taskTokens(theme);
     const renderer = await render(React.createElement(TaskCardView, props("sample-running", { theme, focused: true })));
     const style = () => renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-sample-running").props.style;
-    expect(style()).toMatchObject({ backgroundColor: tokens.card.background, borderColor: tokens.card.border, outlineStyle: "solid", outlineWidth: 2, outlineColor: tokens.foregroundMuted, outlineOffset: 2, boxShadow: tokens.card.shadow });
+    expect(style()).toMatchObject({ backgroundColor: tokens.card.background, borderColor: tokens.card.border, outlineStyle: "solid", outlineWidth: 1, outlineColor: tokens.foregroundMuted, outlineOffset: 2, boxShadow: tokens.card.shadow });
     await act(async () => renderer.update(React.createElement(TaskCardView, props("sample-running", { theme, current: true }))));
     expect(style()).toMatchObject({ backgroundColor: tokens.card.current, borderColor: tokens.card.currentBorder, boxShadow: tokens.card.shadow });
     expect(style().outlineStyle).toBeUndefined();
     await act(async () => renderer.update(React.createElement(TaskCardView, props("sample-running", { theme, current: true, focused: true }))));
-    expect(style()).toMatchObject({ backgroundColor: tokens.card.current, borderColor: tokens.card.currentBorder, outlineStyle: "solid", boxShadow: tokens.card.shadow });
+    expect(style()).toMatchObject({ backgroundColor: tokens.card.current, borderColor: tokens.card.currentBorder, outlineStyle: "solid", outlineWidth: 1, boxShadow: tokens.card.shadow });
     await act(async () => renderer.unmount());
   });
 
