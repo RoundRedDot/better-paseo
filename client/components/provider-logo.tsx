@@ -168,7 +168,7 @@ const PROVIDER_CONFIGS: Record<KnownProvider, ProviderMeta> = {
   omp: { displayName: "Oh My Pi", brandColor: "#818CF8" },
   pi: { displayName: "Pi", brandColor: "#818CF8" },
   gemini: { displayName: "Gemini", brandColor: "#4285F4" },
-  antigravity: { displayName: "Antigravity", brandColor: "#00B95C" },
+  antigravity: { displayName: "Antigravity", brandColor: "#3186FF" },
   copilot: { displayName: "Copilot", brandColor: "#58A6FF" },
   opencode: { displayName: "OpenCode", brandColor: "#38BDF8" },
   minimax: { displayName: "MiniMax", brandColor: "#E2167E" },
