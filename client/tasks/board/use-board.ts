@@ -9,6 +9,7 @@ import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, useTasks, withSubagentCards, type TasksHandle } from "../data";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { LANE_ORDER, boardLaneOrder, opensInPaseo, turnRunning, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
+import { useDeviceTasksPreferences } from "../device-preferences";
 import { MOTION } from "./board-style";
 import { carriedSettings, useCarriedTasks } from "./carry";
 import { lingerBoard } from "./prefetch";
@@ -33,17 +34,17 @@ export interface BoardController {
   language: TasksLanguage;
   strings: BoardStrings;
   settings: TasksSettings;
-  /** The lanes' width: the setting, or the one just picked on the board while it saves. */
+  /** The lanes' width: this device's preference. */
   laneWidth: LaneWidth;
-  /** Saves a lane width to the Tasks settings, so the settings page and every other client follow it. */
+  /** Saves the lane width on this device only; its settings page follows it. */
   setLaneWidth(width: LaneWidth): void;
-  /** The archived lane is shown: the setting, or the switch just pressed on the board while it saves. */
+  /** The archived lane is shown: this device's preference. */
   showArchived: boolean;
-  /** Saves `board.showArchived`, as `setLaneWidth` saves the width. */
+  /** Saves the archived-lane preference on this device only. */
   setShowArchived(on: boolean): void;
-  /** The filters and the sidebar's groups list those with no active task too: the setting, or the switch just pressed while it saves. */
+  /** The filters and the sidebar's groups list those with no active task too: this device's preference. */
   showEmptyGroups: boolean;
-  /** Saves `board.showEmptyGroups`, as `setShowArchived` saves its switch. */
+  /** Saves the empty-groups preference on this device only. */
   setShowEmptyGroups(on: boolean): void;
   params: BoardParams;
   /**
@@ -218,37 +219,37 @@ export function useBoard(
   }, [compact, hostToast]);
   const settingsState = useSettings(TASKS_SETTINGS);
   // Until the read lands, the settings this host carried across a reconnect.
-  const settings = settingsState.status === "ready" ? settingsState.values : (carriedSettings(hostId) ?? DEFAULT_TASKS_SETTINGS);
-
-  // A width picked on the board draws at once; the record catches up when the save lands.
-  const [pickedWidth, setPickedWidth] = useState<LaneWidth | null>(null);
-  const savedWidth = settings.board.laneWidth;
-  useEffect(() => setPickedWidth(null), [savedWidth]);
-  const laneWidth = pickedWidth ?? savedWidth;
-  const [pickedArchived, setPickedArchived] = useState<boolean | null>(null);
-  const savedArchived = settings.board.showArchived;
-  useEffect(() => setPickedArchived(null), [savedArchived]);
-  const showArchived = pickedArchived ?? savedArchived;
-  const [pickedEmpty, setPickedEmpty] = useState<boolean | null>(null);
-  const savedEmpty = settings.board.showEmptyGroups;
-  useEffect(() => setPickedEmpty(null), [savedEmpty]);
-  const showEmptyGroups = pickedEmpty ?? savedEmpty;
-  const settingsRef = useRef(settingsState);
-  settingsRef.current = settingsState;
+  const sharedSettings = settingsState.status === "ready" ? settingsState.values : (carriedSettings(hostId) ?? DEFAULT_TASKS_SETTINGS);
+  const device = useDeviceTasksPreferences(settingsState.status === "ready" ? settingsState.values : null);
+  const settings = device.settings ?? sharedSettings;
+  const { laneWidth, showArchived, showEmptyGroups } = settings.board;
+  const updateDevice = device.update;
 
   // Opened with params (a deep link, the sidebar, the Command Center): those;
   // else what this board showed last in this session.
-  const [params, setParamsState] = useState<BoardParams>(() =>
+  const [storedParams, setParamsState] = useState<BoardParams>(() =>
     isEmptyParams(props.params) ? lastBoardParams(hostId) : decodeBoardParams(props.params),
   );
   const routeKey = JSON.stringify(encodeBoardParams(decodeBoardParams(props.params)));
   useEffect(() => {
     if (routeKey === "{}") return;
     const next = decodeBoardParams(JSON.parse(routeKey) as Record<string, string>);
+    // An explicit legacy deep link is a local choice, never a daemon settings write.
+    if (next.hideSubtasks !== null && device.ready) void updateDevice({ hideSubtasks: next.hideSubtasks }).catch((error: unknown) => latest.current.toast.error(errorText(error)));
     setParamsState((current) => (JSON.stringify(encodeBoardParams(current)) === routeKey ? current : next));
-  }, [routeKey]);
-  useEffect(() => rememberBoardParams(hostId, params), [hostId, params]);
-  const setParams = useCallback((update: (params: BoardParams) => BoardParams) => setParamsState(update), []);
+  }, [routeKey, device.ready, updateDevice]);
+  useEffect(() => rememberBoardParams(hostId, { ...storedParams, hideSubtasks: null }), [hostId, storedParams]);
+  const params = useMemo(() => ({ ...storedParams, hideSubtasks: settings.board.hideSubtasks }), [storedParams, settings.board.hideSubtasks]);
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
+  const setParams = useCallback((update: (params: BoardParams) => BoardParams) => {
+    const next = update(paramsRef.current);
+    if (next.hideSubtasks !== null && next.hideSubtasks !== paramsRef.current.hideSubtasks) {
+      void updateDevice({ hideSubtasks: next.hideSubtasks }).catch((error: unknown) => latest.current.toast.error(errorText(error)));
+    }
+    paramsRef.current = { ...next, hideSubtasks: next.hideSubtasks ?? paramsRef.current.hideSubtasks };
+    setParamsState({ ...next, hideSubtasks: null });
+  }, [updateDevice]);
 
   const defaults = useMemo<BoardDefaults>(
     () => ({ hideSubtasks: settings.board.hideSubtasks, doneWindow: settings.board.doneWindow }),
@@ -347,42 +348,14 @@ export function useBoard(
   const latest = useRef({ props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes });
   latest.current = { props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes };
   const setLaneWidth = useCallback((width: LaneWidth) => {
-    const state = settingsRef.current;
-    if (state.status !== "ready") return;
-    setPickedWidth(width);
-    const next = { ...state.values, board: { ...state.values.board, laneWidth: width } };
-    void state.save(next, state.revision).then(async (saved) => {
-      if (saved) return;
-      // Most often a stale revision: show what the host has, and say this one did not take.
-      setPickedWidth(null);
-      await state.reload();
-      latest.current.toast.error(latest.current.strings.laneWidth.saveFailed);
-    });
-  }, []);
+    void updateDevice({ laneWidth: width }).catch(() => latest.current.toast.error(latest.current.strings.laneWidth.saveFailed));
+  }, [updateDevice]);
   const setShowArchived = useCallback((on: boolean) => {
-    const state = settingsRef.current;
-    if (state.status !== "ready") return;
-    setPickedArchived(on);
-    const next = { ...state.values, board: { ...state.values.board, showArchived: on } };
-    void state.save(next, state.revision).then(async (saved) => {
-      if (saved) return;
-      setPickedArchived(null);
-      await state.reload();
-      latest.current.toast.error(latest.current.strings.archivedLane.saveFailed);
-    });
-  }, []);
+    void updateDevice({ showArchived: on }).catch(() => latest.current.toast.error(latest.current.strings.archivedLane.saveFailed));
+  }, [updateDevice]);
   const setShowEmptyGroups = useCallback((on: boolean) => {
-    const state = settingsRef.current;
-    if (state.status !== "ready") return;
-    setPickedEmpty(on);
-    const next = { ...state.values, board: { ...state.values.board, showEmptyGroups: on } };
-    void state.save(next, state.revision).then(async (saved) => {
-      if (saved) return;
-      setPickedEmpty(null);
-      await state.reload();
-      latest.current.toast.error(latest.current.strings.emptyGroups.saveFailed);
-    });
-  }, []);
+    void updateDevice({ showEmptyGroups: on }).catch(() => latest.current.toast.error(latest.current.strings.emptyGroups.saveFailed));
+  }, [updateDevice]);
   // The subagents' cards by id, filtered out or not: the store's `byId` has only the agents'.
   const subagentCards = useMemo(() => {
     const out = new Map<string, TaskCard>();

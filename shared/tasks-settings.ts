@@ -4,9 +4,11 @@ import { z } from "zod";
 /**
  * Settings of the Tasks board (docs/tasks-board.md, "插件设置").
  *
- * Host-scoped like the presentation settings, so every client of one daemon
- * shares them; phones get their own switch (`mobileCompactCards`) instead of
- * their own record. Every field degrades to its default on its own (`catch`),
+ * Shared presentation and data options remain host-scoped. The four board
+ * layout fields (hideSubtasks, showArchived, showEmptyGroups, laneWidth) are
+ * retained only as one-time migration seeds for device-preferences.ts;
+ * their live values and subsequent edits stay on the client device.
+ * Every field degrades to its default on its own (`catch`),
  * so one unusable value never invalidates the whole record.
  *
  * A density preset writes every card switch at once; any hand edit afterwards
