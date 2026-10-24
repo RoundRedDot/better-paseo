@@ -1903,7 +1903,7 @@ describe("Tasks board, tablet filters", () => {
     expect(textOf(toggle())).toBe("");
     expect(StyleSheet.flatten(toggle().props.style).width).toBe(StyleSheet.flatten(hostsById("filter-bar-more")[0]!.props.style).width);
     expect(toggle().props).toMatchObject({ accessibilityRole: "switch", accessibilityState: { checked: true } });
-    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("ListTree");
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Network");
     expect(toggle().findAll((node) => typeof node.type === "string" && node.props.testID === "slash-mark")).toHaveLength(0);
     await act(async () => toggle().props.onPress());
     expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true });
@@ -1911,6 +1911,7 @@ describe("Tasks board, tablet filters", () => {
     expect(toggle().findAll((node) => typeof node.type === "string" && node.props.testID === "slash-mark")).toHaveLength(1);
     act(() => hostsById("filter-bar-more")[0]!.props.onPress());
     expect(hostsById("filter-sheet-subtasks")[0]!.props.accessibilityState).toEqual({ checked: false });
+    expect(hostsById("filter-sheet-subtasks")[0]!.find((node) => (node.type as unknown) === "Icon").props.name).toBe("Network");
     await act(async () => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
     expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: false });
     expect(toggle().props.accessibilityState).toEqual({ checked: true });

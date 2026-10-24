@@ -179,7 +179,7 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
  * A board-wide switch in the filter bar: the headers' round button at the
  * bar's size. Only the icon tells on from off, the outline stays the same:
  * the archived lane's Archive is struck through while the lane is hidden,
- * the subtasks' list tree while they are hidden,
+ * the subtasks' network while they are hidden,
  * the empty groups' trades its icon (`EMPTY_GROUPS_ICONS`).
  */
 function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: string; hint: string; tip: string; theme: PluginTheme; slashed?: boolean; testID: string }) {
@@ -433,7 +433,7 @@ export function DesktopFilterBar(props: {
           </>
         )}
         <BarSwitch
-          icon="ListTree"
+          icon="Network"
           on={!resolved.filters.hideSubtasks}
           slashed={resolved.filters.hideSubtasks}
           onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
