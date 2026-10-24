@@ -2,10 +2,11 @@ import React, { useEffect, useRef, useState, type ReactNode, type Ref } from "re
 import { Platform, Pressable, View, type LayoutChangeEvent, type TextInput as NativeTextInput } from "react-native";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
+import { LANE_WIDTHS } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { TagMark, taskTokens } from "../cards";
 import { tipProps } from "../cards/card-hints";
-import { HoverPressable, RollingTotal, WindowSegments, RoundButton, SlashMark } from "./board-parts";
+import { HoverPressable, RollingTotal, WindowSegments, RoundButton, Segments, SlashMark } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { FILTER_ICONS, activeChips, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, shownFilterOptions, toggleProject, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
@@ -13,8 +14,9 @@ import { activeFilterCount, resolveBoardParams, toggleItem } from "./params";
 import { sortLabel } from "./strings";
 import { PROJECT_MENU_WIDTH, agentMenuSections, chipGroupMenuSections, labelMenuSections, laneWidthMenuSections, projectMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
 import { CascadeMenu } from "./menu";
-import { LABEL_GAP, nextCompact, type BarBoxes, type Box } from "./label-fit";
+import { LABEL_GAP, nextBarLayout, type BarBoxes, type BarLayout, type Box } from "./label-fit";
 import type { BoardController } from "./use-board";
+import { LaneWidthMark } from "./lane-width-mark";
 
 export type FilterMenu = "project" | "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
 
@@ -27,6 +29,7 @@ const TOOLBAR_GAP = 10;
 
 /** Round and menu buttons share the same height on each platform. */
 const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
+const laneWidthIconSize = (scale: number) => Math.round(16 * Math.max(1, scale));
 
 /** The narrowest board whose toolbar shows the key hints beside the count and the search. */
 export const KEY_HINTS_MIN_WIDTH = 760;
@@ -270,6 +273,7 @@ function KeyHint({ text, theme, last }: { text: string; theme: PluginTheme; last
  * one column whose buttons overlap the window.
  */
 const FILTERS_MIN_WIDTH = 240;
+const FILTER_BAR_PADDING = 16;
 /** Applied filters whose own control on the bar already shows them on. */
 const BAR_OWN_CONTROLS = new Set(["sub", "win"]);
 /** A long sort ("Duration shortest first") ends in an ellipsis past this. */
@@ -316,20 +320,24 @@ export function DesktopFilterBar(props: {
     words.agent,
     words.label,
     { text: words.sort, maxWidth: SORT_LABEL_MAX_WIDTH },
-    words.laneWidth,
   ], !tablet);
   const compact = tablet || fit.compact;
+  useEffect(() => {
+    if (fit.inlineLaneWidth && menu === "laneWidth") setMenu(null);
+  }, [fit.inlineLaneWidth, menu, setMenu]);
   // An icon-only button's tip leads with the words it dropped: its picks, the sort, the width.
   const tip = (dropped: string, what: string) => (compact ? `${dropped}\n${what}` : what);
   return (
     <View
+      testID="filter-bar"
+      onLayout={tablet ? undefined : fit.box("bar")}
       style={{
         minHeight: 44,
         flexDirection: "row",
         flexWrap: "wrap",
         alignItems: "flex-start",
         gap: TOOLBAR_GAP,
-        paddingHorizontal: 16,
+        paddingHorizontal: FILTER_BAR_PADDING,
         paddingVertical: 8,
         zIndex: 10,
       }}
@@ -424,6 +432,42 @@ export function DesktopFilterBar(props: {
       <View testID="filter-bar-end" onLayout={fit.box("end")} style={{ flexShrink: tablet ? 0 : 1, maxWidth: "100%", marginLeft: "auto", height: toolbarButtonSize(scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu === "sort" || menu === "laneWidth" ? 2 : 1 }}>
         {tablet ? null : (
           <>
+            <View testID="lane-width-control" onLayout={fit.measureLaneControl} style={{ flexShrink: 0, zIndex: menu === "laneWidth" ? 1 : 0 }}>
+              {fit.inlineLaneWidth ? (
+                <Segments
+                  items={LANE_WIDTHS}
+                  label={(width) => strings.laneWidth.names[width]}
+                  mark={(width, selected) => <LaneWidthMark laneWidth={width} size={laneWidthIconSize(scale)} color={selected ? colors.foreground : colors.foregroundMuted} />}
+                  value={board.laneWidth}
+                  onChange={board.setLaneWidth}
+                  theme={theme}
+                  tip={strings.laneWidth.title}
+                  testID="toolbar-lane-width"
+                />
+              ) : (
+                <MenuButton
+                  icon={<LaneWidthMark laneWidth={board.laneWidth} size={laneWidthIconSize(scale)} color={colors.foreground} />}
+                  label={words.laneWidth}
+                  compact
+                  accessibilityLabel={strings.laneWidth.button(words.laneWidth)}
+                  tip={strings.laneWidth.button(words.laneWidth)}
+                  open={menu === "laneWidth"}
+                  onPress={() => toggle("laneWidth")}
+                  theme={theme}
+                >
+                  <CascadeMenu
+                    sections={laneWidthMenuSections(board.laneWidth, theme, strings, board.setLaneWidth)}
+                    theme={theme}
+                    width={180}
+                    top={toolbarButtonSize(scale) + 6}
+                    align="left"
+                    onClose={() => setMenu(null)}
+                    testID="lane-width-menu"
+                  />
+                </MenuButton>
+              )}
+              {fit.laneWidthMeasure}
+            </View>
             <Text numberOfLines={1} style={{ fontSize: toolbarFontSize(), color: colors.foregroundMuted }}>{strings.timeRange}</Text>
             <WindowSegments
               value={resolved.doneWindow}
@@ -496,28 +540,7 @@ export function DesktopFilterBar(props: {
             />}
             <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={activeFilterCount(params, defaults)} onPress={props.onMore} size={toolbarButtonSize(scale)} tip={strings.filters} testID="filter-bar-more" />
           </>
-        ) : (
-          <MenuButton
-            icon="Columns3"
-            label={words.laneWidth}
-            compact={compact}
-            accessibilityLabel={strings.laneWidth.button(strings.laneWidth.names[board.laneWidth])}
-            tip={compact ? strings.laneWidth.button(words.laneWidth) : strings.laneWidth.title}
-            open={menu === "laneWidth"}
-            onPress={() => toggle("laneWidth")}
-            theme={theme}
-          >
-            <CascadeMenu
-              sections={laneWidthMenuSections(board.laneWidth, strings, board.setLaneWidth)}
-              theme={theme}
-              width={180}
-              top={toolbarButtonSize(scale) + 6}
-              align="right"
-              onClose={() => setMenu(null)}
-              testID="lane-width-menu"
-            />
-          </MenuButton>
-        )}
+        ) : null}
       </View>
       {fit.layer}
     </View>
@@ -528,24 +551,26 @@ export function DesktopFilterBar(props: {
 type DroppedWord = string | { text: string; maxWidth?: number };
 
 /**
- * Whether the filter bar's buttons draw their icons alone (`nextCompact`
- * decides): `box` measures the filters' group, its buttons and the bar's
- * end, and while the buttons are icon-only, `layer` lays their dropped words
- * out unseen to know when they fit again.
+ * Measures the bar before folding lane choices, then filter labels. Hidden
+ * measurements let each return only once it fits with room to spare.
  */
-function useLabelFit(dropped: readonly DroppedWord[], enabled = true) {
+function useLabelFit(dropped: readonly DroppedWord[], enabled: boolean) {
   const scale = useTasksFontScale();
-  const [compact, setCompact] = useState(false);
+  const [layout, setLayout] = useState<BarLayout>({ compact: false, inlineLaneWidth: false });
+  const { compact, inlineLaneWidth } = layout;
   // Each box notes the mode it was laid out in: a decision waits for the buttons and the end to lay out in the current one.
-  const boxes = useRef<Partial<Record<keyof BarBoxes, Box & { compact: boolean }>>>({});
+  const boxes = useRef<Partial<Record<keyof BarBoxes, Box & BarLayout>>>({});
   const widths = useRef<number[]>([]);
-  const latest = useRef({ compact, count: dropped.length });
-  latest.current = { compact, count: dropped.length };
+  const laneControl = useRef<{ inlineLaneWidth: boolean; width: number } | null>(null);
+  const laneMeasure = useRef<{ key: string; width: number } | null>(null);
+  const measureKey = String(scale);
+  const latest = useRef({ layout, count: dropped.length });
+  latest.current = { layout, count: dropped.length };
   const decide = () => {
     if (!enabled) return;
-    const { filters, end, controls } = boxes.current;
-    const now = latest.current.compact;
-    if (!filters || !end || !controls || end.compact !== now || controls.compact !== now) return;
+    const { bar, filters, end, controls } = boxes.current;
+    const now = latest.current.layout;
+    if (!filters || !end || !controls || end.compact !== now.compact || controls.compact !== now.compact || end.inlineLaneWidth !== now.inlineLaneWidth) return;
     let labels: number | null = 0;
     for (let index = 0; index < latest.current.count; index++) {
       const width = widths.current[index];
@@ -556,18 +581,48 @@ function useLabelFit(dropped: readonly DroppedWord[], enabled = true) {
       // Restoring a label also restores the chevron, two gaps and side padding.
       labels += width + 2 * MENU_PADDING + MENU_ICON + MENU_CHEVRON + 2 * LABEL_GAP - toolbarButtonSize(scale);
     }
-    const next = nextCompact(now, { filters, end, controls }, labels);
-    if (next === now) return;
+    const control = laneControl.current;
+    const measured = laneMeasure.current;
+    const extra = measured?.key === measureKey && control?.inlineLaneWidth === now.inlineLaneWidth
+      ? measured.width - control.width : null;
+    const next = nextBarLayout(now, { bar, filters, end, controls }, labels, extra);
+    if (next.compact === now.compact && next.inlineLaneWidth === now.inlineLaneWidth) return;
     // The words measured last time may have changed since: the layer lays them out afresh.
-    widths.current = [];
-    latest.current.compact = next;
-    setCompact(next);
+    if (next.compact !== now.compact) widths.current = [];
+    latest.current.layout = next;
+    setLayout(next);
   };
   const box = (key: keyof BarBoxes) => (event: LayoutChangeEvent) => {
     const { x, y, width } = event.nativeEvent.layout;
-    boxes.current[key] = { x, y, width, compact };
+    boxes.current[key] = { x, y, width: key === "bar" ? width - 2 * FILTER_BAR_PADDING - TOOLBAR_GAP : width, ...layout };
     decide();
   };
+  const measureLaneControl = (event: LayoutChangeEvent) => {
+    laneControl.current = { inlineLaneWidth, width: event.nativeEvent.layout.width };
+    decide();
+  };
+  // Match marked Segments' padding, outline and minimum item widths without mounting hidden radios.
+  const laneWidthMeasure = enabled ? (
+    <View
+      key={measureKey}
+      testID="lane-width-measure"
+      pointerEvents="none"
+      aria-hidden
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      onLayout={(event) => {
+        laneMeasure.current = { key: measureKey, width: event.nativeEvent.layout.width };
+        decide();
+      }}
+      style={{ position: "absolute", left: 0, top: 0, opacity: 0, flexDirection: "row", padding: 2, borderWidth: HAIRLINE, borderColor: "transparent" }}
+    >
+      {LANE_WIDTHS.map((width) => (
+        <View key={width} style={{ minWidth: toolbarButtonSize(scale) + 2, paddingHorizontal: 6, alignItems: "center" }}>
+          <LaneWidthMark laneWidth={width} size={laneWidthIconSize(scale)} color="transparent" />
+        </View>
+      ))}
+    </View>
+  ) : null;
   const layer = compact ? (
     <View
       pointerEvents="none"
@@ -595,7 +650,7 @@ function useLabelFit(dropped: readonly DroppedWord[], enabled = true) {
       })}
     </View>
   ) : null;
-  return { compact, box, layer };
+  return { compact, inlineLaneWidth, box, layer, measureLaneControl, laneWidthMeasure };
 }
 
 
@@ -714,7 +769,7 @@ function Divider({ theme }: { theme: PluginTheme }) {
  * icons before native labels truncate; desktop sorts retain `labelMaxWidth`.
  * `compact` drops it for the icon alone, which reads it out.
  */
-function MenuButton(props: { icon: string; label: string; compact?: boolean; accessibilityLabel?: string; labelMaxWidth?: number; tip?: string; open: boolean; onPress(): void; theme: PluginTheme; children: ReactNode }) {
+function MenuButton(props: { icon: string | React.ReactElement; label: string; compact?: boolean; accessibilityLabel?: string; labelMaxWidth?: number; tip?: string; open: boolean; onPress(): void; theme: PluginTheme; children: ReactNode }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   const iconOnly = !!props.compact;
@@ -743,7 +798,7 @@ function MenuButton(props: { icon: string; label: string; compact?: boolean; acc
           gap: LABEL_GAP,
         })}
       >
-        <Icon name={props.icon} size={iconOnly ? Math.round(size / 2) : MENU_ICON} color={iconOnly ? colors.foreground : colors.foregroundMuted} />
+        {typeof props.icon === "string" ? <Icon name={props.icon} size={iconOnly ? Math.round(size / 2) : MENU_ICON} color={iconOnly ? colors.foreground : colors.foregroundMuted} /> : props.icon}
         {props.compact ? null : (
           <Text numberOfLines={1} style={{ flexShrink: Platform.OS === "web" ? 1 : 0, maxWidth: props.labelMaxWidth, fontSize: toolbarFontSize(), fontWeight: "500", color: colors.foreground }}>{props.label}</Text>
         )}
