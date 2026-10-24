@@ -1,28 +1,22 @@
 import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { effectiveCard, type TasksSettings } from "../../../shared/tasks-settings";
 import { permissionButtons } from "../actions";
 import { HAIRLINE, PANEL_RADIUS, boardPalette } from "../board/board-style";
+import { LANES, laneLayout } from "../board/navigation";
+import { TaskText as Text, HOST_FONT as F, laneTitle, taskControlHeight, useTasksFontScale } from "../typography";
 import { BOARD_STRINGS } from "../board/strings";
 import { StatusIcon, TaskCardView } from "../cards";
 import type { TasksLanguage } from "../i18n";
 import { LANE_STATUS, boardLaneOrder, isHistoryLane, type LaneId, type TaskCard } from "../model";
 import { previewSampleCards } from "../sample-cards";
 
-/** Four lanes side by side from this width on; narrower, one lane under tabs, as a phone draws the board. */
-export const PREVIEW_LANES_MIN = 840;
-
-/** The width the preview's lanes need side by side: 210 each, so five (with the archived lane) need 1050. */
-export function previewLanesMin(lanes: number): number {
-  return (PREVIEW_LANES_MIN / 4) * lanes;
-}
 /**
  * The lanes scroll inside this height, so the switches under the preview
  * share a screen with the cards they change.
  */
 export const PREVIEW_LANES_MAX_HEIGHT = 440;
-const GAP = 8;
 
 const noop = () => {};
 
@@ -39,9 +33,9 @@ export function previewLanes(now: number, language: TasksLanguage): Record<LaneI
  * from the made-up agents in `sample-cards.ts`, with the density and field
  * switches being edited. Static: it reads no agents, opens no subscription
  * and sends nothing (the data layer is never imported here), its times are
- * frozen at mount, and its buttons do nothing. Wide, it draws the four lanes
- * (five with `board.showArchived`) as the desktop board does; narrow or on a
- * phone, one lane under tabs.
+ * frozen at mount, and its buttons do nothing. Desktop and tablet previews
+ * keep the real board's lane widths and scroll sideways when needed; only
+ * the phone preview draws one lane under tabs.
  */
 export function TasksBoardPreview(props: {
   theme: PluginTheme;
@@ -55,6 +49,8 @@ export function TasksBoardPreview(props: {
 }) {
   const { theme, values, language, phone } = props;
   const colors = theme.colors;
+  const scale = useTasksFontScale();
+  const title = laneTitle();
   const palette = boardPalette(theme);
   const strings = BOARD_STRINGS[language];
   const [now] = useState(() => Date.now());
@@ -65,7 +61,7 @@ export function TasksBoardPreview(props: {
   const order = boardLaneOrder(values.board.showArchived);
   const [picked, setSelected] = useState<LaneId>("needs_input");
   const selected = order.includes(picked) ? picked : "needs_input";
-  const side = !phone && width >= previewLanesMin(order.length);
+  const layout = laneLayout(width, order.length, 0, values.board.laneWidth);
 
   const card = (item: TaskCard) => (
     <TaskCardView
@@ -88,15 +84,15 @@ export function TasksBoardPreview(props: {
   );
 
   const header = (id: LaneId) => (
-    <View style={{ height: 36, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12 }}>
+    <View style={{ height: taskControlHeight(36, scale), flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12 }}>
       <StatusIcon kind={LANE_STATUS[id]} size={14} theme={theme} animated={false} />
-      <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: "500", color: colors.foreground }}>
+      <Text numberOfLines={1} style={{ fontSize: title.size, fontWeight: "500", color: colors.foreground }}>
         {strings.lanes[id]}
       </Text>
-      <Text style={{ fontSize: 14, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{lanes[id].length}</Text>
+      <Text style={{ fontSize: title.size, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{lanes[id].length}</Text>
       <View style={{ flex: 1 }} />
       {isHistoryLane(id) ? (
-        <Text numberOfLines={1} style={{ fontSize: 12, color: colors.foregroundMuted }}>
+        <Text numberOfLines={1} style={{ fontSize: F.sm, color: colors.foregroundMuted }}>
           {strings.windows[values.board.doneWindow]}
         </Text>
       ) : null}
@@ -104,22 +100,23 @@ export function TasksBoardPreview(props: {
   );
 
   let body: React.ReactNode;
-  if (side) {
-    const laneWidth = Math.floor((width - GAP * (order.length - 1)) / order.length);
+  if (!phone) {
     body = (
       <ScrollView style={{ maxHeight: PREVIEW_LANES_MAX_HEIGHT }} nestedScrollEnabled>
-        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }} testID="tasks-preview-lanes">
-          {order.map((id) => (
-            <View
-              key={id}
-              testID={`tasks-preview-lane-${id}`}
-              style={{ width: laneWidth, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}
-            >
-              {header(id)}
-              <View style={{ paddingHorizontal: 8, paddingBottom: 8, gap: 8 }}>{lanes[id].map(card)}</View>
-            </View>
-          ))}
-        </View>
+        <ScrollView horizontal nestedScrollEnabled style={{ flexGrow: 0 }} testID="tasks-preview-lanes-scroll">
+          <View style={{ width: layout.contentWidth, paddingHorizontal: LANES.edge, flexDirection: "row", alignItems: "flex-start", gap: LANES.gap }} testID="tasks-preview-lanes">
+            {order.map((id) => (
+              <View
+                key={id}
+                testID={`tasks-preview-lane-${id}`}
+                style={{ width: layout.laneWidth, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}
+              >
+                {header(id)}
+                <View style={{ paddingHorizontal: 8, paddingBottom: 8, gap: 8 }}>{lanes[id].map(card)}</View>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       </ScrollView>
     );
   } else {
@@ -141,7 +138,7 @@ export function TasksBoardPreview(props: {
                 onPress={() => setSelected(id)}
                 style={{
                   flex: 1,
-                  minHeight: 40,
+                  minHeight: taskControlHeight(40, scale),
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "center",
@@ -151,10 +148,10 @@ export function TasksBoardPreview(props: {
                 }}
               >
                 <StatusIcon kind={LANE_STATUS[id]} size={13} theme={theme} animated={false} />
-                <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: on ? "600" : "500", color: on ? colors.foreground : colors.foregroundMuted }}>
+                <Text numberOfLines={1} style={{ fontSize: F.sm + 1, fontWeight: on ? "600" : "500", color: on ? colors.foreground : colors.foregroundMuted }}>
                   {strings.tabs[id]}
                 </Text>
-                <Text style={{ fontSize: 12, fontVariant: ["tabular-nums"], color: on ? colors.foreground : colors.foregroundMuted }}>
+                <Text style={{ fontSize: F.sm, fontVariant: ["tabular-nums"], color: on ? colors.foreground : colors.foregroundMuted }}>
                   {lanes[id].length}
                 </Text>
               </Pressable>

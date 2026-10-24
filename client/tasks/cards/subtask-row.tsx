@@ -152,7 +152,7 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
     const color = ratio >= 0.9 ? tokens.danger : ratio >= 0.75 ? tokens.warning : muted;
     parts.push(
       <View key="context" accessibilityLabel={words.subtaskContext(Math.round(ratio * 100))} style={{ height: Math.round(HOST_LINE.smRead * scale), justifyContent: "center" }}>
-        <ContextRing ratio={ratio} color={color} track={withAlpha(muted, 0.25)} size={iconSize} stroke={1.5} />
+        <ContextRing ratio={ratio} color={color} track={withAlpha(muted, 0.25)} variant="subtask" />
       </View>,
     );
   }

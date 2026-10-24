@@ -636,6 +636,42 @@ describe("Tasks board, desktop", () => {
     expect(bar()).toMatchObject({ width: 1.5, height: 5.5 });
   });
 
+  it.each([
+    ["ios", "en", 14], ["ios", "zh", 21], ["web", "en", 21],
+  ] as const)("%s stats hide overflowing %s labels at UI base %i and restore them when space returns", (os, language, base) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    updateEnhancerPreferences({ language });
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
+    act(() => {
+      renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } }));
+    });
+    layOut(1600);
+    const label = () => hostsById("sidebar-stat-label-running");
+    const heading = () => hostsById("sidebar-stat-heading-running")[0]!;
+    const measure = () => hostsById("sidebar-stat-measure-running")[0]!;
+    const stat = () => hostsById("sidebar-stat-running")[0]!;
+    const layout = (node: ReactTestInstance, width: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 20 } } }));
+    layout(heading(), 100);
+    layout(measure(), 60);
+    expect(label()).toHaveLength(1);
+    expect(stat().props.accessibilityLabel).toBe(`${BOARD_STRINGS[language].lanes.running} 2`);
+    layout(heading(), 77);
+    expect(label()).toHaveLength(0);
+    expect(stat().findAllByType(RollingCount).map((node) => node.props.value)).toEqual([2]);
+    expect(stat().findAll((node) => node.props.kind === "running").length).toBeGreaterThan(0);
+    expect(hostParentOf(measure())!.props["aria-hidden"]).toBe(true);
+    // The cell remains a lane navigation control while its label is hidden.
+    act(() => stat().props.onPress());
+    expect(label()).toHaveLength(0);
+    layout(heading(), 80);
+    expect(label()).toHaveLength(1);
+    // A longer translation or larger type can hide it again without resizing.
+    layout(measure(), 90);
+    expect(label()).toHaveLength(0);
+    layout(heading(), 120);
+    expect(label()).toHaveLength(1);
+  });
+
   it("counts the active cards by workspace in the sidebar's groups, a row a workspace filter", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
@@ -1576,7 +1612,7 @@ describe("Tasks board, tablet filters", () => {
     ["ios", 1200, "zh", 21],
     ["android", 800, "zh", 14],
     ["android", 1200, "en", 21],
-  ] as const)("%s at %i pt uses small %s labels at UI base %i, and icons when they no longer fit", (os, width, language, base) => {
+  ] as const)("%s at %i pt keeps four icon-only %s filters at UI base %i", (os, width, language, base) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     updateEnhancerPreferences({ language });
     act(() => {
@@ -1585,32 +1621,53 @@ describe("Tasks board, tablet filters", () => {
     layOut(width);
     const strings = BOARD_STRINGS[language];
     const controls = () => hostsById("filter-bar-controls")[0]!;
+    const buttons = () => controls().findAll((node) => (node.type as unknown) === "Pressable");
     const end = () => hostsById("filter-bar-end")[0]!;
-    const labels = () => controls().findAll((node) => (node.type as unknown) === "Text");
-    expect(labels().map(textOf)).toEqual([strings.project, strings.workspace]);
-    for (const text of labels()) {
-      expect(StyleSheet.flatten(text.props.style)).toMatchObject({ fontSize: Math.round(12 * base / 14), flexShrink: 0 });
-    }
-    expect(StyleSheet.flatten(end().props.style).height).toBe(Math.round(36 * Math.max(1, base / 14)));
-    expect(end().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch")).toHaveLength(0);
+    expect(controls().findAll((node) => (node.type as unknown) === "Text")).toHaveLength(0);
+    expect(buttons().map((node) => node.props.accessibilityLabel)).toEqual([strings.project, strings.workspace, strings.agent, strings.labels]);
+    expect(buttons().map((node) => node.findAll((child) => (child.type as unknown) === "Icon").map((icon) => icon.props.name))).toEqual([["FolderKanban"], ["FolderGit2"], ["Bot"], ["Tag"]]);
+    const height = Math.round(36 * Math.max(1, base / 14));
+    for (const button of buttons()) expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: height, height });
+    expect(StyleSheet.flatten(end().props.style).height).toBe(height);
+    expect(end().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch").map((node) => node.props.testID)).toEqual(["archived-lane-toggle"]);
     expect(renderer!.root.findAllByType(WindowSegments)).toHaveLength(0);
     expect(hostsById("filter-bar-more")).toHaveLength(1);
-
-    const lay = (node: ReactTestInstance, available: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: available, height: 36 } } }));
-    lay(hostParentOf(controls())!, 100);
-    lay(end(), 140);
-    lay(controls(), 220);
-    expect(labels()).toHaveLength(0);
-    expect(controls().findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel)).toEqual([strings.project, strings.workspace]);
     expect(end().findAll((node) => (node.type as unknown) === "Text").map(textOf)).not.toContain(strings.sort);
     expect(end().findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel)).toContain(strings.sort);
-    const hidden = hostsById("filter-bar-words")[0]!;
-    expect(hidden.findAll((node) => (node.type as unknown) === "Text").map(textOf)).toEqual([strings.project, strings.workspace, strings.sort]);
-    lay(controls(), 100);
-    lay(end(), 80);
-    for (const text of hidden.findAll((node) => (node.type as unknown) === "Text")) lay(text, 40);
-    lay(hostParentOf(controls())!, 500);
-    expect(labels().map(textOf)).toEqual([strings.project, strings.workspace]);
+    // Wider previews and large UI text never restore labels or chevrons to tablet buttons.
+    layOut(1600);
+    expect(controls().findAll((node) => (node.type as unknown) === "Text")).toHaveLength(0);
+    expect(hostsById("filter-bar-words")).toHaveLength(0);
+  });
+
+  it.each(["ios", "android"])("%s exposes working project, workspace, agent and label menus from the icon buttons", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1000);
+    const button = (index: number) => hostsById("filter-bar-controls")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "button")[index]!;
+    const option = (text: string) => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).includes(text));
+    act(() => button(0).props.onPress());
+    expect(hostsById("menu-search")).toHaveLength(1);
+    act(() => option("better-paseo").props.onPress());
+    expect(lastBoardParams("host-1").workspaceIds).toEqual(["wks_sample"]);
+    expect(button(0).props.accessibilityLabel).toBe("Project · 1");
+    act(() => button(1).props.onPress());
+    expect(hostsById("menu-search")).toHaveLength(1);
+    act(() => option("tasks-board").props.onPress());
+    expect(lastBoardParams("host-1").workspaceIds).toEqual([]);
+    act(() => button(2).props.onPress());
+    act(() => option("Codex").props.onPress());
+    expect(lastBoardParams("host-1").providers).toEqual(["codex"]);
+    expect(button(2).props.accessibilityLabel).toBe("Agent · 1");
+    act(() => button(3).props.onPress());
+    act(() => option("frontend").props.onPress());
+    expect(lastBoardParams("host-1").labels).toEqual(["frontend"]);
+    expect(button(3).props.accessibilityLabel).toBe("Labels · 1");
+    act(() => button(3).props.onPress());
+    const clear = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && textOf(node) === "Clear all");
+    expect(StyleSheet.flatten(clear.find((node) => (node.type as unknown) === "Text").props.style).fontSize).toBe(NATIVE(14));
+    act(() => clear.props.onPress());
+    expect(lastBoardParams("host-1")).toMatchObject({ providers: [], labels: [], workspaceIds: [] });
   });
 
   it.each([800, 1200])("iPad at %i pt keeps secondary choices in a working filter panel", async (width) => {
@@ -1626,6 +1683,11 @@ describe("Tasks board, tablet filters", () => {
     act(() => choice("frontend").props.onPress());
     expect(lastBoardParams("host-1")).toMatchObject({ providers: ["codex"], labels: ["frontend"] });
     await act(async () => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
+    expect(hostsById("archived-lane-toggle")[0]!.props.accessibilityState).toEqual({ checked: false });
+    await act(async () => hostsById("archived-lane-toggle")[0]!.props.onPress());
+    expect(hostsById("filter-sheet-archived")[0]!.props.accessibilityState).toEqual({ checked: true });
+    await act(async () => hostsById("filter-sheet-archived")[0]!.props.onPress());
+    expect(hostsById("archived-lane-toggle")[0]!.props.accessibilityState).toEqual({ checked: false });
     await act(async () => hostsById("filter-sheet-archived")[0]!.props.onPress());
     expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true, showArchived: true });
     act(() => renderer!.root.findByType(WindowSegments).props.onChange("7d"));
@@ -1733,7 +1795,7 @@ describe("Tasks board, tablet filters", () => {
     });
     layOut(width);
     const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && /^toolbar-/.test(node.props.testID ?? ""));
-    expect(buttons.map((node) => node.props.testID)).toEqual(os === "web" ? ["toolbar-archived", "toolbar-filters"] : ["toolbar-filters"]);
+    expect(buttons.map((node) => node.props.testID)).toEqual(["toolbar-archived", "toolbar-filters"]);
     expect(hostsById("toolbar-empty-groups")).toHaveLength(0);
     expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());

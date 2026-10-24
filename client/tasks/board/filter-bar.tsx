@@ -18,8 +18,8 @@ import type { BoardController } from "./use-board";
 
 export type FilterMenu = "project" | "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
 
-/** Tablet controls use the smaller host type step while keeping their touch targets. */
-const toolbarFontSize = () => Platform.OS === "web" ? F.base : F.sm;
+/** Toolbar labels follow the host base size on every platform. */
+const toolbarFontSize = () => F.base;
 
 /** Round and menu buttons share the same height on each platform. */
 const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
@@ -104,7 +104,7 @@ export function DesktopToolbar(props: {
           style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground }}
         />
       </View>
-      {props.filters && Platform.OS === "web" ? (
+      {props.filters ? (
         <RoundButton
           icon="Archive"
           label={strings.archivedLane.row}
@@ -290,15 +290,15 @@ export function DesktopFilterBar(props: {
     laneWidth: strings.laneWidth.names[board.laneWidth],
   };
   // Every word the buttons drop when icon-only: the toggles' only while they show.
-  const fit = useLabelFit(tablet ? [words.project, words.workspace, words.sort] : [
+  const fit = useLabelFit([
     words.project,
     words.workspace,
     words.agent,
     words.label,
     { text: words.sort, maxWidth: SORT_LABEL_MAX_WIDTH },
     words.laneWidth,
-  ]);
-  const compact = fit.compact;
+  ], !tablet);
+  const compact = tablet || fit.compact;
   // An icon-only button's tip leads with the words it dropped: its picks, the sort, the width.
   const tip = (dropped: string, what: string) => (compact ? `${dropped}\n${what}` : what);
   return (
@@ -318,7 +318,7 @@ export function DesktopFilterBar(props: {
           and the sort keep the first row's right end while the filters have
           FILTERS_MIN_WIDTH beside them, and wrap below them, still at the
           right, when they do not. */}
-      <View onLayout={fit.box("filters")} style={{ flex: 1, minWidth: tablet ? 100 : FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
+      <View onLayout={fit.box("filters")} style={{ flex: 1, minWidth: tablet ? 4 * toolbarButtonSize(scale) + 18 : FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
         {/* The buttons hold one line: once their words would wrap them, they draw their icons alone. */}
         <View testID="filter-bar-controls" onLayout={fit.box("controls")} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 1 }}>
           <MenuButton icon={FILTER_ICONS.project} label={words.project} compact={compact} tip={tip(words.project, strings.tips.project)} open={menu === "project"} onPress={() => toggle("project")} theme={theme}>
@@ -343,30 +343,26 @@ export function DesktopFilterBar(props: {
               onClose={() => setMenu(null)}
             />
           </MenuButton>
-          {tablet ? null : (
-            <>
-              <MenuButton icon={FILTER_ICONS.agent} label={words.agent} compact={compact} tip={tip(words.agent, strings.tips.agent)} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
-                <CascadeMenu
-                  sections={agentMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) })))}
-                  theme={theme}
-                  width={200}
-                  top={toolbarButtonSize(scale) + 6}
-                  align="left"
-                  onClose={() => setMenu(null)}
-                />
-              </MenuButton>
-              <MenuButton icon={FILTER_ICONS.label} label={words.label} compact={compact} tip={tip(words.label, strings.tips.labels)} open={menu === "label"} onPress={() => toggle("label")} theme={theme}>
-                <CascadeMenu
-                  sections={labelMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, labels: toggleItem(p.labels, id) })))}
-                  theme={theme}
-                  width={200}
-                  top={toolbarButtonSize(scale) + 6}
-                  align="left"
-                  onClose={() => setMenu(null)}
-                />
-              </MenuButton>
-            </>
-          )}
+          <MenuButton icon={FILTER_ICONS.agent} label={words.agent} compact={compact} tip={tip(words.agent, strings.tips.agent)} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
+            <CascadeMenu
+              sections={agentMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) })))}
+              theme={theme}
+              width={200}
+              top={toolbarButtonSize(scale) + 6}
+              align="left"
+              onClose={() => setMenu(null)}
+            />
+          </MenuButton>
+          <MenuButton icon={FILTER_ICONS.label} label={words.label} compact={compact} tip={tip(words.label, strings.tips.labels)} open={menu === "label"} onPress={() => toggle("label")} theme={theme}>
+            <CascadeMenu
+              sections={labelMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, labels: toggleItem(p.labels, id) })))}
+              theme={theme}
+              width={200}
+              top={toolbarButtonSize(scale) + 6}
+              align="left"
+              onClose={() => setMenu(null)}
+            />
+          </MenuButton>
         </View>
         {/* "Clear all" follows the chips: with only the switches or the done
             window set, it would stand alone beside controls that already
@@ -455,9 +451,9 @@ export function DesktopFilterBar(props: {
         <MenuButton
           icon="ArrowUpDown"
           label={words.sort}
-          compact={compact}
+          compact={tablet || compact}
           labelMaxWidth={tablet ? undefined : SORT_LABEL_MAX_WIDTH}
-          tip={tip(words.sort, strings.tips.sort)}
+          tip={tablet ? `${words.sort}\n${strings.tips.sort}` : tip(words.sort, strings.tips.sort)}
           open={menu === "sort"}
           onPress={() => toggle("sort")}
           theme={theme}
@@ -474,7 +470,20 @@ export function DesktopFilterBar(props: {
           />
         </MenuButton>
         {tablet ? (
-          <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={activeFilterCount(params, defaults)} onPress={props.onMore} size={toolbarButtonSize(scale)} tip={strings.filters} testID="filter-bar-more" />
+          <>
+            <BarSwitch
+              icon="Archive"
+              on={board.showArchived}
+              slashed={!board.showArchived}
+              onPress={() => board.setShowArchived(!board.showArchived)}
+              label={strings.archivedLane.row}
+              hint={strings.archivedLane.hint}
+              tip={board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row}
+              theme={theme}
+              testID="archived-lane-toggle"
+            />
+            <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={activeFilterCount(params, defaults)} onPress={props.onMore} size={toolbarButtonSize(scale)} tip={strings.filters} testID="filter-bar-more" />
+          </>
         ) : (
           <MenuButton
             icon="Columns3"
@@ -512,7 +521,7 @@ type DroppedWord = string | { text: string; maxWidth?: number };
  * end, and while the buttons are icon-only, `layer` lays their dropped words
  * out unseen to know when they fit again.
  */
-function useLabelFit(dropped: readonly DroppedWord[]) {
+function useLabelFit(dropped: readonly DroppedWord[], enabled = true) {
   const [compact, setCompact] = useState(false);
   // Each box notes the mode it was laid out in: a decision waits for the buttons and the end to lay out in the current one.
   const boxes = useRef<Partial<Record<keyof BarBoxes, Box & { compact: boolean }>>>({});
@@ -520,6 +529,7 @@ function useLabelFit(dropped: readonly DroppedWord[]) {
   const latest = useRef({ compact, count: dropped.length });
   latest.current = { compact, count: dropped.length };
   const decide = () => {
+    if (!enabled) return;
     const { filters, end, controls } = boxes.current;
     const now = latest.current.compact;
     if (!filters || !end || !controls || end.compact !== now || controls.compact !== now) return;
@@ -693,6 +703,7 @@ function Divider({ theme }: { theme: PluginTheme }) {
 function MenuButton(props: { icon: string; label: string; compact?: boolean; accessibilityLabel?: string; labelMaxWidth?: number; tip?: string; open: boolean; onPress(): void; theme: PluginTheme; children: ReactNode }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
+  const iconOnly = Platform.OS !== "web" && props.compact;
   return (
     <View style={{ zIndex: props.open ? 20 : 0, maxWidth: Platform.OS === "web" ? "100%" : undefined, flexShrink: Platform.OS === "web" ? 1 : 0 }}>
       <HoverPressable
@@ -705,7 +716,9 @@ function MenuButton(props: { icon: string; label: string; compact?: boolean; acc
         style={(hovered) => ({
           height: toolbarButtonSize(scale),
           maxWidth: Platform.OS === "web" ? "100%" : undefined,
-          paddingHorizontal: 10,
+          width: iconOnly ? toolbarButtonSize(scale) : undefined,
+          paddingHorizontal: iconOnly ? 0 : 10,
+          justifyContent: "center",
           borderRadius: 6,
           borderWidth: HAIRLINE,
           borderColor: colors.border,
@@ -719,7 +732,7 @@ function MenuButton(props: { icon: string; label: string; compact?: boolean; acc
         {props.compact ? null : (
           <Text numberOfLines={1} style={{ flexShrink: Platform.OS === "web" ? 1 : 0, maxWidth: props.labelMaxWidth, fontSize: toolbarFontSize(), fontWeight: "500", color: colors.foreground }}>{props.label}</Text>
         )}
-        <Icon name="ChevronDown" size={12} color={colors.foregroundMuted} />
+        {iconOnly ? null : <Icon name="ChevronDown" size={12} color={colors.foregroundMuted} />}
       </HoverPressable>
       {props.open ? props.children : null}
     </View>

@@ -1,5 +1,7 @@
 import React from "react";
-import { Platform, View, type ViewProps, type ViewStyle } from "react-native";
+import { Image, Platform, View, type ViewProps } from "react-native";
+
+import { CONTEXT_RING_BITMAPS } from "./context-ring-bitmaps";
 
 // Hidden from assistive tech: the ring is drawn, its value is read from the
 // card. React Native Web passes the native props to the DOM as unknown
@@ -8,11 +10,10 @@ const hidden = (): ViewProps =>
   Platform.OS === "web" ? { "aria-hidden": true } : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" };
 
 /**
- * Paseo's composer context meter (v0.12.0 `context-window-meter.tsx`): a
- * 14 px ring, stroke 2, filling clockwise from twelve o'clock with a round
- * cap. Native has no SVG, so the arc is two half rings, each a circle with
- * only its top and right borders coloured, clipped to one half of the box
- * and turned to the fill angle.
+ * The host's context meter: clockwise from twelve, with round caps. Each
+ * percent is rasterised at 4x and downsampled by Image, avoiding the jagged
+ * diagonal borders of clipped and rotated native Views. The masks share a
+ * padded sprite sheet and take their colour from the current theme.
  */
 
 export type ContextRingTone = "normal" | "warning" | "danger";
@@ -38,76 +39,26 @@ export function formatSessionCost(value: number | null | undefined): string | nu
   return value < 0.01 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`;
 }
 
-export function ContextRing(props: { ratio: number; color: string; track: string; size?: number; stroke?: number }) {
-  const size = props.size ?? 14;
-  const stroke = props.stroke ?? 2;
-  const half = size / 2;
-  const ratio = Math.max(0, Math.min(1, props.ratio));
-  const angle = ratio * 360;
-  const circle: ViewStyle = {
-    position: "absolute",
-    top: 0,
-    width: size,
-    height: size,
-    borderRadius: half,
-    borderWidth: stroke,
-  };
-  // Top and right borders cover -45..135 degrees; turned 45 more, 0..180,
-  // then back by (180 - end) so the half ring ends at `end`.
-  const halfRing = (end: number, left: number) => (
-    <View
-      style={[
-        circle,
-        {
-          left,
-          borderColor: "transparent",
-          borderTopColor: props.color,
-          borderRightColor: props.color,
-          transform: [{ rotate: `${45 + end - 180}deg` }],
-        },
-      ]}
-    />
-  );
-  const radius = (size - stroke) / 2;
-  const theta = (angle * Math.PI) / 180;
-  const cap = (x: number, y: number) => (
-    <View
-      style={{
-        position: "absolute",
-        left: x - stroke / 2,
-        top: y - stroke / 2,
-        width: stroke,
-        height: stroke,
-        borderRadius: stroke / 2,
-        backgroundColor: props.color,
-      }}
-    />
+export function ContextRing(props: { ratio: number; color: string; track: string; variant?: "card" | "subtask" }) {
+  const bitmap = CONTEXT_RING_BITMAPS[props.variant ?? "card"];
+  const { size, padding, frames } = bitmap;
+  const stride = size + 2 * padding;
+  const percent = Math.round(Math.max(0, Math.min(1, props.ratio)) * 100);
+  const layer = (frame: number, color: string, testID: string) => (
+    <View testID={testID} style={{ position: "absolute", width: size, height: size, overflow: "hidden" }}>
+      <Image
+        source={{ uri: bitmap.uri }}
+        accessible={false}
+        resizeMode="stretch"
+        fadeDuration={0}
+        style={{ position: "absolute", left: -frame * stride - padding, top: -padding, width: stride * frames, height: stride, tintColor: color }}
+      />
+    </View>
   );
   return (
     <View style={{ width: size, height: size }} testID="context-ring" {...hidden()}>
-      <View style={[circle, { left: 0, borderColor: props.track }]} />
-      {angle > 0 ? (
-        <View
-          style={{ position: "absolute", left: half, top: 0, width: half, height: size, overflow: "hidden" }}
-          testID="context-ring-right"
-        >
-          {halfRing(Math.min(angle, 180), -half)}
-        </View>
-      ) : null}
-      {angle > 180 ? (
-        <View
-          style={{ position: "absolute", left: 0, top: 0, width: half, height: size, overflow: "hidden" }}
-          testID="context-ring-left"
-        >
-          {halfRing(angle, 0)}
-        </View>
-      ) : null}
-      {angle > 0 && angle < 360 ? (
-        <>
-          {cap(half, half - radius)}
-          {cap(half + radius * Math.sin(theta), half - radius * Math.cos(theta))}
-        </>
-      ) : null}
+      {layer(100, props.track, "context-ring-track")}
+      {percent > 0 ? layer(percent, props.color, "context-ring-fill") : null}
     </View>
   );
 }
