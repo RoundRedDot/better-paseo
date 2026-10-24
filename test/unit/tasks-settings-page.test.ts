@@ -4,9 +4,8 @@ import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS, applyDensity, effectiveCard }
 // These tests start from the board and the archived lane both off; the stock settings turn both on.
 const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: false, board: { ...STOCK_SETTINGS.board, showArchived: false } };
 
-// The Tasks board on Better Paseo's settings page: the entry at the head of
-// the chat half (switch, preview while off, the way to the rest), and the
-// Tasks half (switch, notice, preview, options). Presets write the switches,
+// The Tasks tab on Better Paseo's settings page: switch, notice, preview,
+// and options. The chat tab has no board settings. Presets write the switches,
 // a hand edit makes the density custom, the preview follows the switches,
 // reset asks first, and an unusable record offers a reset.
 
@@ -37,7 +36,7 @@ vi.mock("../../client/tasks/cards", async () => {
 const React = await import("react");
 await import("./helpers/quiet-renderer");
 const { default: TestRenderer, act } = await import("react-test-renderer");
-const { TasksEntrySection, TasksSettingsPanel } = await import("../../client/tasks/settings/tasks-panel");
+const { TasksSettingsPanel } = await import("../../client/tasks/settings/tasks-panel");
 const { resetTasksEnabled, setTasksBoardOpener, tasksEnabled } = await import("../../client/tasks/board/enabled");
 const { SETTINGS_STRINGS } = await import("../../client/i18n/settings-strings");
 const { resetEnabledNotice } = await import("../../client/tasks/settings/use-tasks-form");
@@ -82,14 +81,6 @@ function panel(compact = false, side = false) {
   return renderer;
 }
 
-function entry(onShowTasks = vi.fn()) {
-  let renderer!: Renderer;
-  act(() => {
-    renderer = TestRenderer.create(React.createElement(TasksEntrySection, { look: look(), theme: theme as never, onShowTasks }));
-  });
-  return renderer;
-}
-
 const textOf = (node: Node | string): string =>
   typeof node === "string" ? node : node.children.map((child) => textOf(child as Node | string)).join("");
 const byTestID = (r: Renderer, id: string) => r.root.findAll((node) => typeof node.type === "string" && node.props.testID === id);
@@ -110,6 +101,44 @@ beforeEach(() => {
 afterEach(() => {
   resetEnhancerPreferences();
   setSettingsTab("display");
+});
+
+describe("Tasks settings entry", () => {
+  it.each([
+    ["en", true, 390], ["en", false, 720], ["en", false, 1280],
+    ["zh", true, 390], ["zh", false, 720], ["zh", false, 1280],
+  ] as const)("keeps board settings only in the Tasks tab (%s, compact=%s, width=%s)", (language, compact, width) => {
+    const api = makeSettings();
+    state.language = language;
+    updateEnhancerPreferences({ language });
+    const t = SETTINGS_STRINGS[language];
+    const strings = TASKS_SETTINGS_STRINGS[language];
+    let r!: Renderer;
+    act(() => {
+      r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, {
+        theme: theme as never,
+        layout: { platform: "web", compact } as never,
+        host: {} as never,
+      }));
+    });
+    try {
+      const root = r.root.find((node) => typeof node.type === "string" && typeof node.props.onLayout === "function");
+      act(() => root.props.onLayout({ nativeEvent: { layout: { width } } }));
+      const enableSwitches = () => r.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === strings.enabled);
+      expect(enableSwitches()).toHaveLength(0);
+      expect(byTestID(r, "tasks-preview-card")).toHaveLength(0);
+      expect(textOf(r.root)).not.toContain(language === "zh" ? "看板选项与预览" : "Board options and preview");
+
+      act(() => radio(r, t.tabsLabel, t.tabTasks).props.onPress());
+      expect(enableSwitches()).toHaveLength(1);
+      expect(enableSwitches()[0]!.props.accessibilityRole).toBe("switch");
+      expect(byTestID(r, "tasks-preview-card")).toHaveLength(1);
+      expect(api.save).not.toHaveBeenCalled();
+      expect(api.reset).not.toHaveBeenCalled();
+    } finally {
+      act(() => r.unmount());
+    }
+  });
 });
 
 describe("Tasks half of the settings page", () => {
@@ -166,7 +195,7 @@ describe("Tasks half of the settings page", () => {
     expect(textNodes.filter((node) => textOf(node).includes(intro))).toHaveLength(1);
     expect(textNodes.some((node) => textOf(node) === `${strings.enabledHint}\n${intro}`)).toBe(true);
     // The only remaining board title is the tab label.
-    expect(textNodes.filter((node) => textOf(node) === strings.enabledTitle)).toHaveLength(1);
+    expect(textNodes.filter((node) => textOf(node) === SETTINGS_STRINGS[language].tabTasks)).toHaveLength(1);
     expect(byLabel(r, strings.enabled).props.accessibilityRole).toBe("switch");
     expect(byTestID(r, "tasks-preview-card")).toHaveLength(1);
     act(() => r.unmount());
@@ -298,9 +327,9 @@ describe("Tasks half of the settings page", () => {
     expect(tasksEnabled()).toBe(true);
     const notice = byTestID(r, "tasks-enabled-notice")[0]!;
     expect(textOf(notice)).toContain("Tasks is now at the top of the sidebar.");
-    // The other half of the page mounts its own form: the notice holds.
+    // Reopening the Tasks tab mounts a fresh form: the notice holds.
     act(() => r.unmount());
-    const other = entry();
+    const other = panel();
     expect(byTestID(other, "tasks-enabled-notice")).toHaveLength(1);
     act(() => button(other, "Open board").props.onPress());
     expect(open).toHaveBeenCalledTimes(1);
@@ -367,52 +396,5 @@ describe("Tasks half of the settings page", () => {
     const host = r.root.find((node) => node.props.testID === "tasks-settings-panel");
     const columns = host.findAll((node) => (node.type as unknown) === "View" && node.props.style?.flexDirection === "row" && node.props.style?.gap === 24);
     expect(columns.length).toBeGreaterThan(0);
-  });
-});
-
-describe("Tasks entry at the head of the chat half", () => {
-  it("names the board, carries its switch and one line on what it adds", () => {
-    makeSettings();
-    const r = entry();
-    expect(textOf(r.root)).toContain("Tasks board");
-    expect(textOf(r.root)).toContain("Adds Tasks to the sidebar");
-    expect(byLabel(r, "Enable the Tasks board").props["aria-checked"]).toBe(false);
-  });
-
-  it("shows the board it would draw while off, and not once on", () => {
-    makeSettings();
-    const r = entry();
-    expect(byTestID(r, "tasks-board-preview")).toHaveLength(1);
-    expect(textOf(r.root)).toContain("What the board looks like once it is on");
-    act(() => r.unmount());
-    makeSettings({ values: { ...DEFAULT_TASKS_SETTINGS, enabled: true } });
-    const on = entry();
-    expect(byTestID(on, "tasks-board-preview")).toHaveLength(0);
-  });
-
-  it("turning it on here saves, lights the sidebar store and says where the entry is", async () => {
-    const api = makeSettings();
-    const r = entry();
-    await act(async () => byLabel(r, "Enable the Tasks board").props.onPress());
-    expect(lastSaved(api)).toEqual({ ...DEFAULT_TASKS_SETTINGS, enabled: true });
-    makeSettings({ values: { ...DEFAULT_TASKS_SETTINGS, enabled: true }, save: api.save });
-    act(() => r.update(React.createElement(TasksEntrySection, { look: look(), theme: theme as never, onShowTasks: vi.fn() })));
-    expect(tasksEnabled()).toBe(true);
-    expect(byTestID(r, "tasks-enabled-notice")).toHaveLength(1);
-  });
-
-  it("leads to the Tasks half", () => {
-    makeSettings();
-    const onShowTasks = vi.fn();
-    const r = entry(onShowTasks);
-    act(() => button(r, "Show").props.onPress());
-    expect(onShowTasks).toHaveBeenCalledTimes(1);
-  });
-
-  it("while the settings load, the switch waits", () => {
-    makeSettings({ status: "loading", values: undefined, revision: undefined });
-    const r = entry();
-    expect(textOf(r.root)).toContain("Loading the Tasks settings");
-    expect(byTestID(r, "tasks-board-preview")).toHaveLength(0);
   });
 });

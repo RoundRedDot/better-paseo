@@ -33,11 +33,6 @@ export function TasksSidebarEntry(props: PluginSidebarItemProps) {
   return chunk ? <chunk.TasksSidebarEntry {...props} /> : null;
 }
 
-export function TasksEntrySection(props: ComponentProps<TasksChunk["TasksEntrySection"]>) {
-  const chunk = useTasksChunk();
-  return chunk ? <chunk.TasksEntrySection {...props} /> : null;
-}
-
 export function TasksSettingsPanel(props: ComponentProps<TasksChunk["TasksSettingsPanel"]>) {
   const chunk = useTasksChunk();
   return chunk ? <chunk.TasksSettingsPanel {...props} /> : null;

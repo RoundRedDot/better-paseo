@@ -9,15 +9,9 @@ export interface TasksSettingsStrings {
   saving: string;
   saveError: (message: string) => string;
   conflict: string;
-  /** The section with the switch, at the top of both halves of the page. */
-  enabledTitle: string;
   enabled: string;
   /** One line: what turning it on adds. */
   enabledHint: string;
-  /** The chat half's link to the Tasks half. */
-  moreOptions: string;
-  moreOptionsHint: string;
-  moreOptionsAction: string;
   /** After the switch went on: where the entry appeared. */
   enabledConfirm: string;
   enabledConfirmHint: string;
@@ -77,12 +71,8 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     saving: "Saving…",
     saveError: (message) => `Could not save: ${message}`,
     conflict: "Settings changed elsewhere; reloaded the latest.",
-    enabledTitle: "Tasks board",
     enabled: "Enable the Tasks board",
     enabledHint: "Adds Tasks to the sidebar: every agent of this host, in lanes by status.",
-    moreOptions: "Board options and preview",
-    moreOptionsHint: "Card density and fields, the sidebar count and more, beside a preview of the board.",
-    moreOptionsAction: "Show",
     enabledConfirm: "Tasks is now at the top of the sidebar.",
     enabledConfirmHint: "Leave Settings to see it, or open the board from here.",
     openBoard: "Open board",
@@ -152,12 +142,8 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     saving: "正在保存…",
     saveError: (message) => `保存失败：${message}`,
     conflict: "设置已在别处更改，已重新载入最新内容。",
-    enabledTitle: "任务看板",
     enabled: "启用任务看板",
     enabledHint: "在侧边栏加入「任务」，把这台主机上的所有 agent 按状态分泳道排列。",
-    moreOptions: "看板选项与预览",
-    moreOptionsHint: "卡片密度与字段、侧边栏计数等选项，旁边是看板的实时预览。",
-    moreOptionsAction: "查看",
     enabledConfirm: "「任务」已加入侧边栏顶部。",
     enabledConfirmHint: "退出设置即可看到，也可以直接从这里打开看板。",
     openBoard: "打开看板",

@@ -28,11 +28,9 @@ import { TASKS_SETTINGS_STRINGS, type TasksSettingsStrings } from "./strings";
 import { dismissEnabledNotice, useTasksForm, type TasksForm } from "./use-tasks-form";
 
 /**
- * The Tasks board on Better Paseo's settings page. `TasksEntrySection` heads
- * the chat half: the switch, what the board looks like while it is off, and
- * the way to the rest. `TasksSettingsPanel` is the Tasks half: the switch,
- * the preview of the board, and every option of it. Both edit the host's
- * Tasks settings through `useTasksForm`: board layout preferences stay on
+ * The Tasks half of Better Paseo's settings page: the switch, the preview
+ * of the board, and every option of it. It edits the host's Tasks settings
+ * through `useTasksForm`: board layout preferences stay on
  * the device, while the shared enable switch updates the sidebar at once.
  */
 
@@ -115,8 +113,8 @@ function EnabledNotice({ strings, look }: { strings: TasksSettingsStrings; look:
   );
 }
 
-/** The switch row, the same on both halves. */
-function EnabledRow({ form, strings, look, intro = false }: { form: TasksForm; strings: TasksSettingsStrings; look: PageLook; intro?: boolean }) {
+/** The switch row and the host-scoped settings intro. */
+function EnabledRow({ form, strings, look }: { form: TasksForm; strings: TasksSettingsStrings; look: PageLook }) {
   const { settings } = form;
   const ready = settings.status === "ready";
   let description = strings.enabledHint;
@@ -126,7 +124,7 @@ function EnabledRow({ form, strings, look, intro = false }: { form: TasksForm; s
   return (
     <SettingRow
       title={strings.enabled}
-      description={intro ? `${description}\n${look.t.pageIntro}` : description}
+      description={`${description}\n${look.t.pageIntro}`}
       control={
         <Toggle
           value={ready ? settings.values.enabled : false}
@@ -156,8 +154,6 @@ function PreviewCard(props: {
   strings: TasksSettingsStrings;
   language: "en" | "zh";
   hostId?: string;
-  /** Inside a section's card rather than a frame of its own. */
-  inline?: boolean;
 }) {
   const { look, strings, values } = props;
   const { tokens, compact } = look;
@@ -212,14 +208,6 @@ function PreviewCard(props: {
         <TasksBoardPreview theme={props.theme} values={values} language={props.language} phone={phone} hostId={props.hostId} />
       </View>
     );
-  if (props.inline) {
-    return (
-      <RowBlock look={look} testID="tasks-preview-card">
-        {header}
-        <TasksTypography theme={props.theme}>{board}</TasksTypography>
-      </RowBlock>
-    );
-  }
   return (
     <View
       testID="tasks-preview-card"
@@ -231,34 +219,6 @@ function PreviewCard(props: {
     >
       {header}
       <TasksTypography theme={props.theme}>{board}</TasksTypography>
-    </View>
-  );
-}
-
-/**
- * The head of the chat half: the board's switch with one line on what it
- * adds; while the board is off, the board it would draw; the way to the rest
- * of its options.
- */
-export function TasksEntrySection({ look, theme, hostId, onShowTasks }: { look: PageLook; theme: PluginTheme; hostId?: string; onShowTasks(): void }) {
-  const { strings, language } = useStrings();
-  const form = useTasksForm();
-  const { settings } = form;
-  const off = settings.status === "ready" && !settings.values.enabled;
-  return (
-    <View style={styles.section}>
-      <Section title={strings.enabledTitle} look={look}>
-        <EnabledRow form={form} strings={strings} look={look} />
-        {off ? <PreviewCard look={look} theme={theme} values={settings.values} strings={strings} language={language} hostId={hostId} inline /> : null}
-        {form.turnedOn ? <EnabledNotice strings={strings} look={look} /> : null}
-        <SettingRow
-          title={strings.moreOptions}
-          description={strings.moreOptionsHint}
-          control={<PlainButton label={strings.moreOptionsAction} onPress={onShowTasks} look={look} />}
-          look={look}
-        />
-      </Section>
-      <FormNotes form={form} strings={strings} look={look} />
     </View>
   );
 }
@@ -337,7 +297,7 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
           look.compact ? null : [controlStyles.groupDesktop, { borderColor: look.tokens.v2.border }],
         ]}
       >
-        <EnabledRow form={form} strings={strings} look={look} intro />
+        <EnabledRow form={form} strings={strings} look={look} />
         {form.turnedOn ? <EnabledNotice strings={strings} look={look} /> : null}
       </View>
       {settings.status === "ready" ? (

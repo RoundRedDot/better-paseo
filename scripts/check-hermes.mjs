@@ -338,7 +338,7 @@ try {
     new Function("require", "module", "exports", CHUNK)(function (id) {
       return id.indexOf("bc-shared:") === 0 ? makeStub(id) : runtimeRequire(id);
     }, chunk, chunk.exports);
-    var names = ["TasksBoardScreen", "TasksSidebarEntry", "TasksEntrySection", "TasksSettingsPanel", "startTasksData", "prefetchBoardFromCommand", "releaseBoardPrefetch"];
+    var names = ["TasksBoardScreen", "TasksSidebarEntry", "TasksSettingsPanel", "startTasksData", "prefetchBoardFromCommand", "releaseBoardPrefetch"];
     for (var n = 0; n < names.length; n++) {
       if (typeof chunk.exports[names[n]] !== "function") problems.push("Tasks chunk exports no " + names[n]);
     }

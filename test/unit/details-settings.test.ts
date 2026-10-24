@@ -20,7 +20,7 @@ vi.mock("../../client/i18n/host-language", async (original) => ({
 }));
 vi.mock("../../client/ui/wide-host-column", () => ({ useWideHostColumn() {} }));
 vi.mock("../../client/settings-preview", () => ({ SettingsPreview: () => null }));
-vi.mock("../../client/tasks/settings/tasks-panel", () => ({ TasksEntrySection: () => null, TasksSettingsPanel: () => null }));
+vi.mock("../../client/tasks/settings/tasks-panel", () => ({ TasksSettingsPanel: () => null }));
 vi.mock("../../client/settings-tab", () => ({ useSettingsTab: () => "display", setSettingsTab() {} }));
 vi.mock("../../client/components/embed-fonts", () => ({ ensureEmbeddedFonts() {} }));
 

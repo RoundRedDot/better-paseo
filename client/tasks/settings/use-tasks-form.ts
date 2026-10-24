@@ -8,7 +8,7 @@ import { setTasksEnabled } from "../board/enabled";
 /**
  * The switch went on from this page and the board has not been opened since:
  * the page says where the entry appeared. Module state, so the notice
- * survives a switch between the page's halves (each mounts its own form).
+ * survives leaving and reopening the Tasks tab.
  */
 let turnedOnHere = false;
 const noticeListeners = new Set<() => void>();

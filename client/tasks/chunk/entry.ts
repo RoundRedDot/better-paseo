@@ -16,7 +16,7 @@ import { setSubagentTimelineLoader } from "../data/subagent-timeline";
 export { TasksBoardScreen } from "../board/board-screen";
 export { TasksSidebarEntry } from "../board/sidebar-entry";
 export { prefetchBoardFromCommand, releaseBoardPrefetch } from "../board/prefetch";
-export { TasksEntrySection, TasksSettingsPanel } from "../settings/tasks-panel";
+export { TasksSettingsPanel } from "../settings/tasks-panel";
 
 /** Points the data layer at this host's plugin server; returns the cleanup. */
 export function startTasksData(client: PluginClientContext): () => void {
