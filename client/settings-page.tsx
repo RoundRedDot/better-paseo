@@ -41,7 +41,7 @@ import { useWideHostColumn } from "./ui/wide-host-column";
 import { SettingsPreview } from "./settings-preview";
 import { PHONE_PREVIEW_WIDTH, PlainButton, Section, SectionNote, Segmented, SettingRow, Toggle, controlStyles, type PageLook } from "./settings-controls";
 import { setSettingsTab, useSettingsTab, type SettingsTab } from "./settings-tab";
-import { TasksEntrySection, TasksSettingsPanel } from "./tasks/chunk/load";
+import { TasksSettingsPanel } from "./tasks/chunk/load";
 import type { SyncStatus } from "./state/preference-sync";
 import {
   SETTINGS_STRINGS,
@@ -562,20 +562,6 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
     />
   );
 
-  // The link sits down the page; the Tasks half starts at its top. Web only:
-  // native has no way to scroll the host's settings column.
-  const showTasks = () => {
-    setSettingsTab("tasks");
-    const node = rootRef.current as unknown as { scrollIntoView?(options: { block: string }): void } | null;
-    if (platform === "web") node?.scrollIntoView?.({ block: "start" });
-  };
-
-  // The Tasks board heads the chat half too: it is off until turned on, and
-  // this page is where a reader looks for what the plugin can do.
-  const tasksEntry = (
-    <TasksEntrySection look={look} theme={theme} hostId={host?.id} onShowTasks={showTasks} />
-  );
-
   const options = (
     <View style={styles.options}>
       <Section title={t.sectionGeneral} look={look}>
@@ -997,14 +983,12 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
       ) : side ? (
         <View style={styles.columns}>
           <View style={styles.optionsColumn}>
-            {tasksEntry}
             {options}
           </View>
           <View style={[styles.previewColumn, pinned ? stickyColumn : null]}>{preview}</View>
         </View>
       ) : (
         <>
-          {tasksEntry}
           {preview}
           {options}
         </>
