@@ -1,3 +1,4 @@
+import { deviceTasksStore } from "../../client/tasks/device-preferences";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS, applyDensity, effectiveCard } from "../../shared/tasks-settings";
 // These tests start from the board and the archived lane both off; the stock settings turn both on.
@@ -121,7 +122,8 @@ describe("Tasks half of the settings page", () => {
     expect(content[1]!.findAll((node) => typeof node.type === "string" && node.props.testID === "tasks-preview-card")).toHaveLength(1);
     expect(byLabel(r, "Show the archived lane").props["aria-checked"]).toBe(false);
     await act(async () => byLabel(r, "Show the archived lane").props.onPress());
-    expect(lastSaved(api).board.showArchived).toBe(true);
+    expect(api.save).not.toHaveBeenCalled();
+    expect(deviceTasksStore().snapshot().values?.showArchived).toBe(true);
   });
 
   it("shows subtasks by default, and its switch saves hidden subtasks once turned off", async () => {
@@ -129,7 +131,8 @@ describe("Tasks half of the settings page", () => {
     const r = panel(false);
     expect(byLabel(r, "Show subtasks").props["aria-checked"]).toBe(true);
     await act(async () => byLabel(r, "Show subtasks").props.onPress());
-    expect(lastSaved(api).board.hideSubtasks).toBe(true);
+    expect(api.save).not.toHaveBeenCalled();
+    expect(deviceTasksStore().snapshot().values?.hideSubtasks).toBe(true);
   });
 
   it("turns off the groups with no active tasks from the board options, on by default", async () => {
@@ -137,7 +140,8 @@ describe("Tasks half of the settings page", () => {
     const r = panel(false);
     expect(byLabel(r, "Show groups with no active tasks").props["aria-checked"]).toBe(true);
     await act(async () => byLabel(r, "Show groups with no active tasks").props.onPress());
-    expect(lastSaved(api).board.showEmptyGroups).toBe(false);
+    expect(api.save).not.toHaveBeenCalled();
+    expect(deviceTasksStore().snapshot().values?.showEmptyGroups).toBe(false);
   });
 
   it.each([
@@ -191,7 +195,26 @@ describe("Tasks half of the settings page", () => {
     const r = panel();
     expect(textOf(r.root)).toContain("Phones show one lane at a time.");
     await act(async () => radio(r, "Lane width", "Wide").props.onPress());
-    expect(lastSaved(api).board).toEqual({ ...DEFAULT_TASKS_SETTINGS.board, laneWidth: "wide" });
+    expect(api.save).not.toHaveBeenCalled();
+    expect(deviceTasksStore().snapshot().values?.laneWidth).toBe("wide");
+  });
+
+  it("shows local changes from another surface and ignores later host layout values", async () => {
+    const api = makeSettings();
+    const r = panel();
+    await act(async () => deviceTasksStore().update({ showArchived: true, hideSubtasks: true, showEmptyGroups: false, laneWidth: "wide" }));
+    expect(byLabel(r, "Show the archived lane").props["aria-checked"]).toBe(true);
+    expect(byLabel(r, "Show subtasks").props["aria-checked"]).toBe(false);
+    expect(byLabel(r, "Show groups with no active tasks").props["aria-checked"]).toBe(false);
+    makeSettings({ values: { ...DEFAULT_TASKS_SETTINGS }, save: api.save });
+    act(() => r.update(React.createElement(TasksSettingsPanel, { look: look(), theme: theme as never, side: false })));
+    expect(byLabel(r, "Show the archived lane").props["aria-checked"]).toBe(true);
+    expect(byLabel(r, "Show subtasks").props["aria-checked"]).toBe(false);
+    expect(api.save).not.toHaveBeenCalled();
+    await act(async () => byLabel(r, "Git status").props.onPress());
+    expect(lastSaved(api).board).toEqual(DEFAULT_TASKS_SETTINGS.board);
+    expect(deviceTasksStore().snapshot().values?.laneWidth).toBe("wide");
+    act(() => r.unmount());
   });
 
   it("a field chip flips its field and makes the density custom", async () => {
@@ -291,7 +314,8 @@ describe("Tasks half of the settings page", () => {
     expect(textOf(r.root)).toContain("This replaces all Tasks options with the defaults.");
     await act(async () => button(r, "Restore now").props.onPress());
     expect(api.reset).not.toHaveBeenCalled();
-    expect(lastSaved(api)).toEqual({ ...STOCK_SETTINGS, enabled: true });
+    expect(lastSaved(api)).toEqual({ ...STOCK_SETTINGS, board: { ...STOCK_SETTINGS.board, showArchived: false }, enabled: true });
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ showArchived: true, hideSubtasks: false, laneWidth: "default", showEmptyGroups: true });
   });
 
   it("the armed reset can be cancelled", async () => {

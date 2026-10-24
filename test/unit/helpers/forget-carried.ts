@@ -5,5 +5,9 @@ import { beforeEach } from "vitest";
 // without them. The key is spelled out so no test file loads the client graph
 // before its own mocks.
 beforeEach(() => {
-  delete (globalThis as Record<string, unknown>).__betterPaseoTasksCarry;
+  const holder = globalThis as Record<string, unknown>;
+  delete holder.__betterPaseoTasksCarry;
+  delete holder.__betterPaseoDeviceTasksV1;
+  let stored: string | null = null;
+  holder.__betterPaseoDeviceTasksStorageForTests = { read: () => stored, write: (value: string) => { stored = value; } };
 });

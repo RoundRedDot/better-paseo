@@ -3,6 +3,7 @@ import { Pressable, Text, View } from "react-native";
 import { TasksTypography, HOST_FONT as F, HOST_LINE } from "../typography";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
+import { useDeviceTasksPreferences } from "../device-preferences";
 import { useTasksLanguage } from "../i18n";
 import { HAIRLINE } from "./board-style";
 import { DesktopBoard } from "./desktop-board";
@@ -44,6 +45,9 @@ export function TasksBoardScreen(props: PluginScreenProps) {
 /** The settings, read (or shared with the board's own read when on), and followed. */
 function BoardReader(props: PluginScreenProps) {
   const settings = useTasksSettings(props.host.id);
+  const device = useDeviceTasksPreferences(settings);
+  if (!device.ready && device.error) throw new Error(device.error);
+  if (!device.ready) return <BoardBlank {...props} />;
   if (!settings) return <BoardBlank {...props} />;
   if (!settings.enabled) return <BoardOff {...props} />;
   return <BoardContent {...props} />;

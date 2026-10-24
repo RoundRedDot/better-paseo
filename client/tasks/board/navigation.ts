@@ -204,7 +204,7 @@ export const LANES = {
  * Each `board.laneWidth`'s scroll width and widest lane. Four lanes stop
  * scrolling on a board 1088 wide at narrow (4 x 260 + 48), 1248 at default
  * and 1408 at wide; the widest cards are 262, 322 and 382. On a narrower
- * board explicit presets keep their width; default lanes adapt down to 280
+ * board explicit presets keep their width; default lanes adapt down to 260
  * to fit two expanded lanes beside any collapsed strips.
  */
 export const LANE_SIZES: Readonly<Record<LaneWidth, { min: number; max: number }>> = {
@@ -237,7 +237,7 @@ export interface LaneLayout {
  * Expanded lanes share the viewport equally up to the lane width's `max`;
  * past it they keep that width and sit at the left, as Linear's do, leaving
  * the rest of a wide window empty. Default lanes adapt their scroll width
- * to fit up to two expanded lanes beside the collapsed strips, down to 280.
+ * to fit up to two expanded lanes beside the collapsed strips, down to 260.
  * Explicit presets keep their scroll width. Any lanes that do not fit scroll
  * sideways (a lane never exceeds the board itself unless it is below 220).
  */
@@ -249,7 +249,7 @@ export function laneLayout(viewport: number, expanded: number, collapsed: number
   if (expanded === 0) return { laneWidth: 0, contentWidth: Math.max(viewport, fixed), scroll: fixed > viewport };
   const visible = Math.min(2, expanded);
   const visibleFixed = 2 * LANES.edge + (visible + collapsed - 1) * LANES.gap + collapsed * LANES.collapsed;
-  const min = size === "default" ? Math.max(280, Math.min(preset.min, (viewport - visibleFixed) / visible)) : preset.min;
+  const min = size === "default" ? Math.max(260, Math.min(preset.min, (viewport - visibleFixed) / visible)) : preset.min;
   const share = (viewport - fixed) / expanded;
   if (share >= min) return { laneWidth: Math.min(share, max), contentWidth: viewport, scroll: false };
   const width = Math.max(LANES.narrow, Math.min(min, viewport - 2 * LANES.edge));

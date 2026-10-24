@@ -11,6 +11,17 @@ import { PREVIEW_REVEAL } from "./ui/tokens/motion";
 import { radiusV2 } from "./components/theme-tokens";
 import { hasActiveDetailsKeyboard } from "./details/keyboard";
 
+/** Device-only plugin preferences; these never pass through the daemon's settings API. */
+export function readDevicePreference(key: string): string | null {
+  if (Platform.OS !== "web") throw new Error("Web device storage called on native");
+  return localStorage.getItem(key);
+}
+
+export function writeDevicePreference(key: string, value: string): void {
+  if (Platform.OS !== "web") throw new Error("Web device storage called on native");
+  localStorage.setItem(key, value);
+}
+
 export { PREVIEW_REVEAL } from "./ui/tokens/motion";
 
 /** The selection bar floats outside a preview but acts on its text, so it counts as part of it. */

@@ -31,8 +31,8 @@ import { dismissEnabledNotice, useTasksForm, type TasksForm } from "./use-tasks-
  * the chat half: the switch, what the board looks like while it is off, and
  * the way to the rest. `TasksSettingsPanel` is the Tasks half: the switch,
  * the preview of the board, and every option of it. Both edit the host's
- * Tasks settings record (`useTasksForm`), so the sidebar entry follows the
- * switch at once, whichever half flipped it.
+ * Tasks settings through `useTasksForm`: board layout preferences stay on
+ * the device, while the shared enable switch updates the sidebar at once.
  */
 
 const options = <Value extends string>(values: readonly Value[], labels: Record<Value, string>) =>
@@ -77,6 +77,7 @@ function Note({ text, look, danger = false }: { text: string; look: PageLook; da
 /** Saving, a refused save, a failed one: one line over the options. */
 function FormNotes({ form, strings, look }: { form: TasksForm; strings: TasksSettingsStrings; look: PageLook }) {
   const { settings } = form;
+  if (form.localError) return <Note text={strings.saveError(form.localError)} look={look} danger />;
   if (settings.saveError) return <Note text={strings.saveError(settings.saveError)} look={look} danger />;
   if (form.conflict) return <Note text={strings.conflict} look={look} />;
   return null;

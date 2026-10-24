@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useSettings } from "@getpaseo/plugin/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, type TasksSettings } from "../../../shared/tasks-settings";
+import { useDeviceTasksPreferences } from "../device-preferences";
+import { DEVICE_BOARD_FIELDS, deviceBoardPreferences, sharedTasksSettings } from "../device-store";
 import { setTasksEnabled } from "../board/enabled";
 
 /**
@@ -45,7 +47,10 @@ export function resetEnabledNotice(): void {
  * Command Center item come and go with the switch (`contribute.tsx`).
  */
 export function useTasksForm() {
-  const settings = useSettings(TASKS_SETTINGS);
+  const shared = useSettings(TASKS_SETTINGS);
+  const device = useDeviceTasksPreferences(shared.status === "ready" ? shared.values : null);
+  const settings = shared.status === "ready" && !device.ready && !device.error ? { ...shared, status: "loading" as const } : shared.status === "ready" && device.settings ? { ...shared, values: device.settings } : shared;
+  const [localError, setLocalError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const turnedOn = useSyncExternalStore(subscribeNotice, noticeSnapshot, noticeSnapshot);
 
@@ -55,14 +60,22 @@ export function useTasksForm() {
   const saving = settings.saving;
   const commit = useCallback(
     async (next: TasksSettings) => {
-      if (revision === null || saving) return;
+      if (shared.status !== "ready" || revision === null) return;
+      setLocalError(null);
       setConflict(false);
-      if (await save(next, revision)) return;
-      // A refused save is a stale revision more often than not: show the latest.
+      const current = device.settings ?? shared.values;
+      const patch = Object.fromEntries(DEVICE_BOARD_FIELDS.filter((key) => next.board[key] !== current.board[key]).map((key) => [key, next.board[key]]));
+      if (Object.keys(patch).length) {
+        try { await device.update(patch); }
+        catch (error) { setLocalError(error instanceof Error ? error.message : String(error)); return; }
+      }
+      const hostValues = sharedTasksSettings(next, shared.values);
+      if (JSON.stringify(hostValues) === JSON.stringify(shared.values) || saving) return;
+      if (await save(hostValues, revision)) return;
       await reload();
       setConflict(true);
     },
-    [save, reload, revision, saving],
+    [shared, device.settings, device.update, save, reload, revision, saving],
   );
   const enabled = settings.status === "ready" ? settings.values.enabled : null;
   const setEnabled = useCallback(
@@ -78,16 +91,19 @@ export function useTasksForm() {
   // schema rejects has no switch to keep, so it takes the host's reset.
   const restoreDefaults = useCallback(async () => {
     setConflict(false);
+    setLocalError(null);
+    try { await device.restore(deviceBoardPreferences(DEFAULT_TASKS_SETTINGS.board)); }
+    catch (error) { setLocalError(error instanceof Error ? error.message : String(error)); return; }
     if (enabled === null) await reset();
     else await commit({ ...DEFAULT_TASKS_SETTINGS, enabled });
-  }, [reset, commit, enabled]);
+  }, [reset, commit, enabled, device.restore]);
   useEffect(() => {
     if (enabled !== null) setTasksEnabled(enabled);
     // Turned off elsewhere: the hint about the entry no longer holds.
     if (enabled === false) setTurnedOnHere(false);
   }, [enabled]);
 
-  return { settings, conflict, commit, setEnabled, restoreDefaults, turnedOn: turnedOn && enabled === true };
+  return { settings, localError: localError ?? device.error, conflict, commit, setEnabled, restoreDefaults, turnedOn: turnedOn && enabled === true };
 }
 
 export type TasksForm = ReturnType<typeof useTasksForm>;

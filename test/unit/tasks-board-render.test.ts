@@ -116,6 +116,7 @@ import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
 import { ACTIVE_LANE_ORDER as LANE_ORDER } from "../../client/tasks/model";
 import { BrandMark, PiMark, TagMark, TaskCardView, TaskDetailCards, taskTokens } from "../../client/tasks/cards";
+import { deviceTasksStore } from "../../client/tasks/device-preferences";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled } from "../../client/tasks/board/enabled";
 import { APP_SETTINGS_KEY, resetHostAppearanceForTests, setNativeSettingsReaderForTests, triggerHostAppearanceCheck } from "../../client/ui/tokens/host-appearance-shim";
@@ -211,6 +212,11 @@ function laneCards(lane: string): string[] {
 
 function pressable(label: string): ReactTestInstance {
   return renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === label);
+}
+
+function failDeviceWrite() {
+  const storage = (globalThis as Record<string, unknown>).__betterPaseoDeviceTasksStorageForTests as { write(value: string): void };
+  vi.spyOn(storage, "write").mockImplementationOnce(() => { throw new Error("Disk full"); });
 }
 
 beforeEach(() => {
@@ -413,7 +419,8 @@ describe("Tasks board, desktop", () => {
     layOut(1600);
     // "ring" matches the parent and its running child; the parent's card shows the child as a row.
     expect(cards().map((card) => card.props.card.id)).toEqual(["sample-running"]);
-    expect(lastBoardParams("host-1")).toMatchObject({ query: "ring", hideSubtasks: true });
+    expect(lastBoardParams("host-1")).toMatchObject({ query: "ring", hideSubtasks: null });
+    expect(deviceTasksStore().snapshot().values?.hideSubtasks).toBe(true);
     expect(textOf(renderer!.root)).toContain("Clear all");
   });
 
@@ -449,8 +456,7 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("lane-done")).toHaveLength(1);
     expect(hostsById("lane-archived")).toHaveLength(0);
     expect(hostsById("sidebar-stat-archived")).toHaveLength(0);
-    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
-    act(() => renderer!.update(screen(false)));
+    act(() => { void deviceTasksStore().update({ showArchived: true }); renderer!.update(screen(false)); });
     layOut(2400);
     const order = renderer!.root
       .findAll((node) => typeof node.type === "string" && typeof node.props.testID === "string" && /^lane-header-/.test(node.props.testID))
@@ -503,8 +509,7 @@ describe("Tasks board, desktop", () => {
     };
     // The four share the room left of the sidebar; five take less each.
     const four = clip("done") as number;
-    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
-    act(() => renderer!.update(screen(false)));
+    act(() => { void deviceTasksStore().update({ showArchived: true }); renderer!.update(screen(false)); });
     // In from nothing, while the four make room from where they were; the content inside has its width at once.
     expect(clip("archived")).toEqual({ easing: 0 });
     expect(clip("done")).toEqual({ easing: four });
@@ -521,8 +526,7 @@ describe("Tasks board, desktop", () => {
     act(() => {
       vi.advanceTimersByTime(300);
     });
-    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: false } };
-    act(() => renderer!.update(screen(false)));
+    act(() => { void deviceTasksStore().update({ showArchived: false }); renderer!.update(screen(false)); });
     // Out to nothing, its content as it was and out of reach, then gone.
     expect(hostsById("lane-archived")).toHaveLength(1);
     expect(hostsById("lane-archived")[0]!.props.pointerEvents).toBe("none");
@@ -546,8 +550,7 @@ describe("Tasks board, desktop", () => {
     // The inline sidebar takes 380 and its 12 margin.
     act(() => lanesScroll().props.onScroll({ nativeEvent: { contentOffset: { x: content - (1100 - 392), y: 0 } } }));
     expect(list("done")).toBe(1);
-    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
-    act(() => renderer!.update(screen(false)));
+    act(() => { void deviceTasksStore().update({ showArchived: true }); renderer!.update(screen(false)); });
     // Past the row's right edge: no cards yet, only the lane's skeleton.
     expect(list("needs_input")).toBe(1);
     expect(list("archived")).toBe(0);
@@ -556,13 +559,11 @@ describe("Tasks board, desktop", () => {
     });
     expect(list("archived")).toBe(1);
     // Switched off and on again, it waits again; a scroll that brings it in draws it at once.
-    host.settings = { ...DEFAULT_TASKS_SETTINGS };
-    act(() => renderer!.update(screen(false)));
+    act(() => { void deviceTasksStore().update({ showArchived: false }); });
     act(() => {
       vi.advanceTimersByTime(300);
     });
-    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
-    act(() => renderer!.update(screen(false)));
+    act(() => { void deviceTasksStore().update({ showArchived: true }); renderer!.update(screen(false)); });
     expect(list("archived")).toBe(0);
     act(() => lanesScroll().props.onScroll({ nativeEvent: { contentOffset: { x: 900, y: 0 } } }));
     expect(list("archived")).toBe(1);
@@ -1170,7 +1171,7 @@ describe("Tasks board, desktop", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true, { agent: "codex" }));
     });
-    expect(textOf(hostsById("lane-filter-hint-needs_input")[0]!)).toBe(`${hiddenIn("needs_input")} hidden by filtersAgent: Codex`);
+    expect(textOf(hostsById("lane-filter-hint-needs_input")[0]!)).toBe(`${hiddenIn("needs_input")} hidden by filtersAgent: Codex · Hide subtasks`);
   });
 
   it("updates a lane's hidden count when only a filtered-out card changes, drawing no other lane", () => {
@@ -1334,19 +1335,19 @@ describe("Tasks board, lane widths", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
-    // A small tablet with the host sidebar open: lanes keep a readable 280 pt, the rest scroll.
+    // A small tablet with the host sidebar open: lanes keep a readable 260 pt, the rest scroll.
     layOut(540);
-    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 280 * 4 } });
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 260 * 4 } });
     layOut(480);
     expect(tabs()).toHaveLength(0);
     // No room for the key hints beside the count and the search.
     expect(textOf(renderer!.root)).not.toContain("HLLane");
-    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 280 * 4 } });
-    // Below the two-lane threshold: keep the 280 pt default and scroll.
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 260 * 4 } });
+    // Below the two-lane threshold: keep the 260 pt default and scroll.
     layOut(400);
     expect(tabs()).toHaveLength(0);
     expect(cards()[0]!.props.compact).toBe(false);
-    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 280 * 4 } });
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 260 * 4 } });
     layOut(1600);
     expect(tabs()).toHaveLength(0);
     expect(textOf(renderer!.root).includes("HLLane")).toBe(os === "web");
@@ -1372,11 +1373,11 @@ describe("Tasks board, lane widths", () => {
     expect(button().props.accessibilityLabel).toBe("Lanes · Wide");
     // 1300 fits four lanes at 300 but not at 340: the row scrolls at the wide width.
     expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 340 * 4 } });
-    expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, laneWidth: "wide" } }, "1");
+    expect(host.save).not.toHaveBeenCalled();
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ laneWidth: "wide" });
   });
 
   it("goes back to the saved lane width and says so when the save is refused", async () => {
-    host.save.mockResolvedValueOnce(false);
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
@@ -1386,9 +1387,10 @@ describe("Tasks board, lane widths", () => {
     const narrow = renderer!.root
       .find((node) => node.props.testID === "lane-width-menu")
       .findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem")[0]!;
+    failDeviceWrite();
     await act(async () => narrow.props.onPress());
     expect(textOf(button())).toBe("Default");
-    expect(host.reload).toHaveBeenCalled();
+    expect(host.reload).not.toHaveBeenCalled();
     expect(host.toast).toHaveBeenCalledWith("Couldn't save the lane width");
   });
 });
@@ -1425,19 +1427,22 @@ describe("Tasks board, archived lane switch", () => {
     // Only the icon changes: the outline stays.
     expect(outline()).toBe(offOutline);
     expect(hostsById("lane-archived")).toHaveLength(1);
-    expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } }, "1");
+    expect(host.save).not.toHaveBeenCalled();
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ showArchived: true });
   });
 
   it("goes back and says so when the save is refused", async () => {
-    host.save.mockResolvedValueOnce(false);
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
     layOut(2400);
+    failDeviceWrite();
     await act(async () => toggle().props.onPress());
     expect(toggle().props.accessibilityState).toEqual({ checked: false });
+    // The optimistic lane leaves through its normal collapse animation after rollback.
+    act(() => vi.advanceTimersByTime(300));
     expect(hostsById("lane-archived")).toHaveLength(0);
-    expect(host.reload).toHaveBeenCalled();
+    expect(host.reload).not.toHaveBeenCalled();
     expect(host.toast).toHaveBeenCalledWith("Couldn't save the archived lane setting");
   });
 });
@@ -1623,7 +1628,8 @@ describe("Tasks board, tablet filters", () => {
       // Busy first, the empty ones after them.
       expect(rows().at(-1)).toBe("Pi 0");
       await act(async () => toggle().props.onPress());
-      expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showEmptyGroups: false } }, "1");
+      expect(host.save).not.toHaveBeenCalled();
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: false });
       expect(toggle().props.accessibilityState).toEqual({ checked: false });
       expect(icon()).toBe("ListFilter");
       expect(rows()).not.toContain("Pi 0");
@@ -1648,7 +1654,8 @@ describe("Tasks board, tablet filters", () => {
     expect(button().props).toMatchObject({ accessibilityRole: "switch", accessibilityState: { checked: true } });
     await act(async () => button().props.onPress());
     expect(button().props.accessibilityState).toEqual({ checked: false });
-    expect(host.save).toHaveBeenLastCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showEmptyGroups: false } }, "1");
+    expect(host.save).not.toHaveBeenCalled();
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: false });
     expect(hostsById("toolbar-empty-groups")).toHaveLength(0);
     // Returning to a wide board keeps the chosen value on its original bar switch.
     layOut(1600);
@@ -1678,7 +1685,8 @@ describe("Tasks board, tablet filters", () => {
     expect(archived().props.accessibilityState).toEqual({ selected: true });
     expect(slashed()).toBe(false);
     expect(hostsById("lane-archived")).toHaveLength(1);
-    expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } }, "1");
+    expect(host.save).not.toHaveBeenCalled();
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ showArchived: true });
     act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-filters").props.onPress());
     expect(hostsById("filter-sheet-lane-width")).toHaveLength(1);
     expect(renderer!.root.findAll((node) => node.props.testID === "filter-sheet-archived")).toHaveLength(0);
@@ -1707,7 +1715,8 @@ describe("Tasks board, tablet filters", () => {
     expect(slashed()).toBe(false);
     const on = { ...look() };
     act(() => toggle().props.onPress());
-    expect(lastBoardParams("host-1")).toMatchObject({ hideSubtasks: true });
+    expect(lastBoardParams("host-1")).toMatchObject({ hideSubtasks: null });
+    expect(deviceTasksStore().snapshot().values?.hideSubtasks).toBe(true);
     expect(toggle().props.accessibilityState).toEqual({ checked: false });
     expect(slashed()).toBe(true);
     // Off only strikes the icon through: the outline and fill stay.
@@ -2110,7 +2119,8 @@ describe("Tasks board, phone", () => {
     act(() => pressable("Filters").props.onPress());
     expect(renderer!.root.findAll((node) => node.props.testID === "filter-sheet-archived")).toHaveLength(0);
     expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "phone-stat-archived")).toHaveLength(1);
-    expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } }, "1");
+    expect(host.save).not.toHaveBeenCalled();
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ showArchived: true });
   });
 
   it("opens the filter sheet with the sort first from the header's sort pill, and with the switches first from the filters button", () => {
@@ -2224,7 +2234,8 @@ describe("Tasks board, phone", () => {
       const chips = () => sheet().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox").map(textOf);
       expect(chips()).toEqual(expect.arrayContaining(["idle-branch0", "Pi", "unused0"]));
       await act(async () => button().props.onPress());
-      expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showEmptyGroups: false } }, "1");
+      expect(host.save).not.toHaveBeenCalled();
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: false });
       expect(button().props.accessibilityState).toEqual({ checked: false });
       expect(icon()).toBe("ListFilter");
       expect(chips().some((chip) => /^(idle-branch|Pi|unused)/.test(chip))).toBe(false);
