@@ -99,10 +99,11 @@ describe("detail message times", () => {
   it.each(["web", "ios", "android"])("shows each message's local time on the right, including when folded, on %s", async (os) => {
     vi.stubGlobal("__rnMockOS", os);
     const first = new Date(NOW);
-    first.setHours(8, 13, 0, 0);
+    first.setHours(8, 13, 7, 0);
     const last = new Date(first);
     last.setDate(last.getDate() - 1);
-    last.setHours(21, 47, 0, 0);
+    last.setHours(21, 47, 52, 0);
+    const day = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     for (const language of ["zh", "en"] as const) {
       for (const columns of [false, true]) {
         resetSectionChoices();
@@ -114,17 +115,23 @@ describe("detail message times", () => {
         await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...detailProps} />); });
         const root = renderer!.root;
         const words = cardStrings(language).details;
-        for (const [id, title, time] of [
-          ["detail-prompt", words.prompt, "08:13"],
-          ["detail-message", words.message, `${last.getMonth() + 1}/${last.getDate()} 21:47`],
+        for (const [id, title, time, fullTime] of [
+          ["detail-prompt", words.prompt, "08:13", `${day(first)} 08:13:07`],
+          ["detail-message", words.message, `${last.getMonth() + 1}/${last.getDate()} 21:47`, `${day(last)} 21:47:52`],
         ] as const) {
           expect(labels(heading(root, id))).toEqual([title, time]);
           const stamp = heading(root, id).findAll((node) => (node.type as unknown) === "Text")[1]!;
           expect(stamp.props.numberOfLines).toBe(1);
+          expect(stamp.props.dataSet?.bctip).toBe(os === "web" ? fullTime : undefined);
+          expect(stamp.props.onPress).toBeUndefined();
+          expect(heading(root, id).props.dataSet?.bctip).toBe(os === "web" ? words.collapse(title) : undefined);
           expect(StyleSheet.flatten(stamp.props.style)).toMatchObject({ flexShrink: 1, fontVariant: ["tabular-nums"] });
           await act(async () => heading(root, id).props.onPress());
           expect(heading(root, id).props.accessibilityState.expanded).toBe(false);
           expect(labels(heading(root, id))).toEqual([title, time]);
+          const foldedStamp = heading(root, id).findAll((node) => (node.type as unknown) === "Text")[1]!;
+          expect(foldedStamp.props.dataSet?.bctip).toBe(os === "web" ? fullTime : undefined);
+          expect(heading(root, id).props.dataSet?.bctip).toBe(os === "web" ? words.expand(title) : undefined);
         }
         await act(async () => renderer!.unmount());
         renderer = undefined;
