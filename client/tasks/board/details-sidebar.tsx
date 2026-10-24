@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
@@ -18,6 +18,7 @@ import type { SelectionAction, SidebarSelection } from "./sidebar-model";
 import { findCard, type BoardController } from "./use-board";
 
 type GroupKind = "agent" | "project" | "workspace" | "label";
+const GROUP_KINDS: readonly GroupKind[] = ["agent", "project", "workspace", "label"];
 
 export interface DetailsSidebarProps {
   board: BoardController;
@@ -314,6 +315,13 @@ interface GroupRow {
 function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: TaskTokens; touch: boolean }) {
   const { board, tokens } = props;
   const strings = board.strings.sidebar;
+  const scale = useTasksFontScale();
+  const [labelFits, setLabelFits] = useState<Partial<Record<GroupKind, { key: string; fits: boolean }>>>({});
+  const reportFit = useCallback((id: GroupKind, key: string, fits: boolean) => {
+    setLabelFits((previous) => previous[id]?.key === key && previous[id]?.fits === fits ? previous : { ...previous, [id]: { key, fits } });
+  }, []);
+  // All four labels appear together, only after every current measurement fits.
+  const showLabels = GROUP_KINDS.every((id) => labelFits[id]?.key === `${strings.groups[id]}|${scale}` && labelFits[id]?.fits);
   const [kind, setKind] = useState<GroupKind>("agent");
   const showEmpty = board.showEmptyGroups;
   const options = useMemo(() => shownFilterOptions(buildFilterOptions(board.tasks, board.params), showEmpty), [board.tasks, board.params, showEmpty]);
@@ -364,8 +372,8 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
   return (
     <DetailCard tokens={tokens} style={{ flexShrink: 1, minHeight: 0, paddingTop: 10, paddingBottom: 6 }} testID="sidebar-groups">
       <View style={{ flexDirection: "row", gap: 6, paddingHorizontal: 10, paddingBottom: 6 }}>
-        {(["agent", "project", "workspace", "label"] as const).map((id) => (
-          <Segment key={id} icon={FILTER_ICONS[id]} label={strings.groups[id]} on={kind === id} tokens={tokens} touch={props.touch} onPress={() => setKind(id)} />
+        {GROUP_KINDS.map((id) => (
+          <Segment key={id} id={id} icon={FILTER_ICONS[id]} label={strings.groups[id]} showLabel={showLabels} onFit={reportFit} on={kind === id} tokens={tokens} touch={props.touch} onPress={() => setKind(id)} />
         ))}
       </View>
       <ScrollView style={{ flexShrink: 1 }} {...detailScrollProps("inset")} testID="sidebar-groups-scroll">
@@ -393,7 +401,7 @@ function Initial(props: { name: string; tokens: TaskTokens }) {
 }
 
 /** Linear's segmented pills: outlined, grey when chosen. */
-function Segment(props: { icon: string; label: string; on: boolean; tokens: TaskTokens; touch: boolean; onPress(): void }) {
+function Segment(props: { id: GroupKind; icon: string; label: string; showLabel: boolean; onFit(id: GroupKind, key: string, fits: boolean): void; on: boolean; tokens: TaskTokens; touch: boolean; onPress(): void }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
   const [width, setWidth] = useState<number | null>(null);
@@ -402,7 +410,10 @@ function Segment(props: { icon: string; label: string; on: boolean; tokens: Task
   const labelWidth = labelSize?.key === labelKey ? labelSize.width : null;
   const iconWidth = 14 + 12 + 2 * StyleSheet.hairlineWidth;
   const fullWidth = labelWidth === null ? null : labelWidth + iconWidth + 4;
-  const hideLabel = width !== null && fullWidth !== null && fullWidth > width + 0.5;
+  const { id, onFit } = props;
+  useEffect(() => {
+    if (width !== null && fullWidth !== null) onFit(id, labelKey, fullWidth <= width + 0.5);
+  }, [id, onFit, labelKey, width, fullWidth]);
   const labelStyle = { fontSize: F.base, fontWeight: "500" as const, color: props.on ? tokens.foreground : tokens.foregroundMuted };
   const { hovered, hoverProps } = useHover();
   return (
@@ -433,9 +444,9 @@ function Segment(props: { icon: string; label: string; on: boolean; tokens: Task
       }}
     >
       <Icon name={props.icon} size={14} color={props.on ? tokens.foreground : tokens.foregroundMuted} />
-      {hideLabel ? null : <Text testID="sidebar-group-tab-label" numberOfLines={1} style={[labelStyle, { flexShrink: 0 }]}>
+      {props.showLabel ? <Text testID="sidebar-group-tab-label" numberOfLines={1} style={[labelStyle, { flexShrink: 0 }]}>
         {props.label}
-      </Text>}
+      </Text> : null}
       <View
         pointerEvents="none"
         aria-hidden
