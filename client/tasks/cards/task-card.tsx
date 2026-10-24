@@ -13,7 +13,7 @@ import type { PermissionButton, StopPhase } from "../actions";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { opensInPaseo, turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
 import { contextRatio, tildePath } from "./format";
-import { cardStart, cardTimer, startHint, timerHint, type Timed } from "./card-time";
+import { cardStart, cardTimer, startHint, timerHint } from "./card-time";
 import { CardHints, hintProps, type CardHintTexts } from "./card-hints";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
@@ -2030,16 +2030,6 @@ function SubtaskRow(props: TimeSource & {
       {child.title}
     </Text>
   );
-  const time = !facts && child.lane && child.timing ? (
-    <SubtaskTime
-      timed={{ lane: child.lane, timing: child.timing, waitingOnSubtasks: child.waitingOnSubtasks }}
-      language={props.language}
-      now={props.now}
-      clock={props.clock}
-      style={[{ fontSize: m.blockSize, lineHeight: m.blockLine, color: tokens.foregroundMuted, flexShrink: 1 }, tabular]}
-      testID={`subtask-time-${child.id}`}
-    />
-  ) : null;
   return (
     <Pressable
       {...CONTAINER_ROLE}
@@ -2083,7 +2073,7 @@ function SubtaskRow(props: TimeSource & {
       ) : (
         <View style={{ flex: 1, minWidth: 0, gap: 2 }} testID={`subtask-content-${child.id}`}>
           {title}
-          {compact ? <SubtaskMetadata child={child} tokens={tokens} language={props.language} now={props.now} clock={props.clock} /> : time}
+          <SubtaskMetadata child={child} tokens={tokens} language={props.language} now={props.now} clock={props.clock} />
         </View>
       )}
       {props.onOpen && !provider ? (
@@ -2146,13 +2136,8 @@ function TimerText(props: TimeSource & { card: TaskCard; language: TasksLanguage
   return <Text style={props.style}>{value}</Text>;
 }
 
-/** A subtask's "14:41 · 14m 14s" while it runs, else its timer as a card footer reads it. */
-function subtaskTimeText(timed: Timed, now: number, language: TasksLanguage): string {
-  return [cardStart(timed, now), cardTimer(timed, now, language, true)?.text].filter(Boolean).join(" · ");
-}
-
-/** A phone row's secondary information wraps independently of its title and alone follows the clock. */
-function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: TaskTokens; language: TasksLanguage }) {
+/** Shared by expanded cards and details: icon-led facts wrap below the title and alone follow the clock. */
+export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: TaskTokens; language: TasksLanguage; testIDPrefix?: string }) {
   const { child, tokens, language } = props;
   const scale = useTasksFontScale();
   const words = cardStrings(language).details;
@@ -2163,6 +2148,7 @@ function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: TaskTok
   const timer = useTime(props, (now) => timed ? cardTimer(timed, now, language, true)?.text ?? "" : "");
   const iconSize = PHONE.pillIcon;
   const muted = tokens.foregroundMuted;
+  const prefix = props.testIDPrefix ?? "subtask";
   const icon = (name: string, color = muted) => <Icon name={name} size={iconSize} color={color} />;
   const part = (key: string, label: string, lead: ReactNode = null, color = muted) => (
     <View key={key} style={{ flexDirection: "row", alignItems: "flex-start", gap: 4, minWidth: 0, flexShrink: 1 }}>
@@ -2172,6 +2158,10 @@ function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: TaskTok
   );
   const parts: ReactNode[] = [];
   // The provider and status are already combined in the row's ChildMark.
+  if (child.kind === "provider") {
+    const facts = subagentFacts(child.subtitle, child.subagentType);
+    if (facts.full) parts.push(part("facts", facts.text ?? "", facts.icon ? icon(facts.icon) : null));
+  }
   if (child.modelLabel) parts.push(part("model", child.modelLabel));
   if (child.thinkingLabel) parts.push(part("thinking", child.thinkingLabel, icon(THINKING_ICON)));
   if (child.modeLabel) {
@@ -2188,26 +2178,15 @@ function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: TaskTok
     );
   }
   if (start || timer) parts.push(
-    <View key="time" style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 2, minWidth: 0, flexShrink: 1 }} testID={`subtask-time-${child.id}`}>
+    <View key="time" style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 2, minWidth: 0, flexShrink: 1 }} testID={`${prefix}-time-${child.id}`}>
       {start ? part("start", start, icon("Clock")) : null}
       {timer ? part("timer", timer, icon(child.lane === "needs_input" ? "Clock" : "Hourglass")) : null}
     </View>,
   );
   return parts.length > 0 ? (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 2 }} testID={`subtask-meta-${child.id}`}>
+    <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 2 }} testID={`${prefix}-meta-${child.id}`}>
       {parts}
     </View>
-  ) : null;
-}
-
-function SubtaskTime(props: TimeSource & { timed: Timed; language: TasksLanguage; style: StyleProp<TextStyle>; testID?: string }) {
-  const { timed, language } = props;
-  // The short stamp: a full one ("2026-10-22 16:57:33") leaves the title a few characters a line.
-  const value = useTime(props, (now) => subtaskTimeText(timed, now, language));
-  return value ? (
-    <Text numberOfLines={1} style={props.style} testID={props.testID}>
-      {value}
-    </Text>
   ) : null;
 }
 

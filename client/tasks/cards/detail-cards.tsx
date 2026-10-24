@@ -38,15 +38,11 @@ import {
   SUBTASK_ROWS,
   subtaskFinished,
   subtaskHeading,
-  subtaskMeta,
-  subtaskModels,
-  subtaskTime,
   titlePrefix,
-  type SubtaskMetaPart,
   type SubtaskSummaryPart,
 } from "./details-format";
 import { ActionRow, useActionFit } from "./action-row";
-import { arrowInset, buttonHue, CardButton, CONFIRM_STOP_ICON, requestLook, type CardButtonLook } from "./task-card";
+import { arrowInset, buttonHue, CardButton, CONFIRM_STOP_ICON, requestLook, SubtaskMetadata, type CardButtonLook } from "./task-card";
 import { buttonOutline } from "../board/board-style";
 import {
   contextView,
@@ -642,7 +638,7 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
   const { card, m, tokens, section, gutter = 0 } = props;
   const words = cardStrings(props.language).details;
   const title = { prompt: words.prompt, message: words.message, properties: words.properties, subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
-  // A narrow card's subtasks drop the running count, the start times and the low context shares.
+  // A narrow card abbreviates the subtasks heading; its rows keep their shared metadata.
   const [narrow, setNarrow] = useState(false);
   const onLayout =
     section === "subtasks"
@@ -686,7 +682,7 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
         ) : section === "properties" ? (
           <Properties {...props} />
         ) : section === "subtasks" ? (
-          <Subtasks {...props} narrow={narrow} />
+          <Subtasks {...props} />
         ) : section === "usage" ? (
           <Usage {...props} />
         ) : (
@@ -1098,11 +1094,10 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
 /**
  * The children (`docs/prototypes/task-subtasks.md`), most urgent first: each
  * row's status icon beside its single-line title, the time and metadata
- * under it. A model the rows share is left out and, when
- * it is not the parent's, named once under them. The first ten show; the
- * rest open on demand, closed again on the next card.
+ * under it, using the same icon-led metadata as expanded board cards. The
+ * first ten show; the rest open on demand, closed again on the next card.
  */
-function Subtasks(props: Inner & { narrow: boolean }) {
+function Subtasks(props: Inner) {
   const { card, m, tokens } = props;
   const scale = useTasksFontScale();
   const cardText = cardStrings(props.language);
@@ -1112,7 +1107,6 @@ function Subtasks(props: Inner & { narrow: boolean }) {
   const sorted = sortSubtasks(card.children);
   const hidden = sorted.slice(SUBTASK_ROWS);
   const shown = open ? sorted : sorted.slice(0, SUBTASK_ROWS);
-  const { baseline, footnote } = subtaskModels(card, props.language);
   // Finished rows step back while others still need a look; all finished, none does.
   const mixed = card.children.some((child) => !subtaskFinished(child));
   const time = props.time;
@@ -1127,7 +1121,6 @@ function Subtasks(props: Inner & { narrow: boolean }) {
           theme={props.theme}
           language={props.language}
           child={child}
-          meta={subtaskMeta(child, baseline, props.now, props.language, props.narrow)}
           muted={mixed && child.status === "done"}
           time={time}
           word={cardText.status[child.status]}
@@ -1145,12 +1138,6 @@ function Subtasks(props: Inner & { narrow: boolean }) {
           onPress={() => setOpenFor(open ? null : card.id)}
           height={taskControlHeight(touch ? 44 : 32, scale)}
         />
-      ) : null}
-      {footnote ? (
-        <View style={{ marginHorizontal: -2, paddingTop: 6, paddingLeft: 34, paddingRight: 8, flexDirection: "row", alignItems: "center", gap: 4 }} testID="detail-subtasks-footnote">
-          {footnote.provider ? <BrandMark provider={footnote.provider} size={14} tokens={tokens} mono={tokens.foregroundMuted} /> : null}
-          <Text style={{ flexShrink: 1, fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }}>{footnote.text}</Text>
-        </View>
       ) : null}
     </View>
   );
@@ -1199,8 +1186,8 @@ function MoreRow(props: { tokens: TaskTokens; label: string; note: string | null
 
 /** A row's sizes: the details body's small step, the title on the reading line; touch only adds padding and a 44 floor. */
 const SUBTASK_TEXT = {
-  desktop: { title: F.sm, titleLine: HOST_LINE.smRead, meta: F.sm, metaLine: HOST_LINE.sm, padV: 7, minHeight: 0 },
-  touch: { title: F.sm, titleLine: HOST_LINE.smRead, meta: F.sm, metaLine: HOST_LINE.sm, padV: 10, minHeight: 44 },
+  desktop: { title: F.sm, titleLine: HOST_LINE.smRead, padV: 7, minHeight: 0 },
+  touch: { title: F.sm, titleLine: HOST_LINE.smRead, padV: 10, minHeight: 44 },
 } as const;
 
 /**
@@ -1216,7 +1203,6 @@ function SubtaskRow(props: {
   theme: PluginTheme;
   language: TasksLanguage;
   child: TaskChild;
-  meta: SubtaskMetaPart[];
   muted: boolean;
   time: TimeSource;
   word: string;
@@ -1237,8 +1223,6 @@ function SubtaskRow(props: {
   const showOpen = !touch && hovered && !!props.onOpen;
   const { prefix, rest } = titlePrefix(child.title);
   const line = Math.round(size.titleLine * scale);
-  const metaText: TextStyle = { fontSize: size.meta, lineHeight: size.metaLine, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] };
-  const toneColor = (part: SubtaskMetaPart) => (part.tone === "danger" ? tokens.danger : part.tone === "warning" ? tokens.warning : tokens.foregroundMuted);
   return (
     <Pressable
       {...(!touch && props.onOpen ? ROW_ROLE : { accessibilityRole: "button" as const })}
@@ -1270,22 +1254,7 @@ function SubtaskRow(props: {
           {prefix ? <Text style={{ color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`${prefix} `}</Text> : null}
           {rest}
         </Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 2 }} testID={`detail-subtask-secondary-${child.id}`}>
-          <SubtaskTime child={child} language={props.language} source={props.time} tokens={tokens} lineHeight={size.metaLine} />
-          {props.meta.length > 0 ? (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 4, minWidth: 0, flexShrink: 1 }} testID={`detail-subtask-meta-${child.id}`}>
-              {props.meta.map((part, index) => (
-                <View key={index} style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 }}>
-                  {part.icon ? <Icon name={part.icon} size={size.meta} color={toneColor(part)} /> : null}
-                  <Text numberOfLines={1} style={[metaText, { minWidth: 0, flexShrink: 1 }]}>
-                    <Text style={part.tone ? { color: toneColor(part) } : undefined}>{part.text}</Text>
-                    {index < props.meta.length - 1 ? (part.text ? " ·" : "·") : null}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-        </View>
+        <SubtaskMetadata child={child} tokens={tokens} language={props.language} {...props.time} testIDPrefix="detail-subtask" />
       </View>
       {!touch && props.onOpen ? (
         <View style={{ width: 20, height: line, flexShrink: 0, justifyContent: "center", marginRight: -3 }}>
@@ -1293,19 +1262,6 @@ function SubtaskRow(props: {
         </View>
       ) : null}
     </Pressable>
-  );
-}
-
-/** A row's time: a running child's timer in the foreground colour, each second; else when it ended, muted. */
-function SubtaskTime(props: { child: TaskChild; language: TasksLanguage; source: TimeSource; tokens: TaskTokens; lineHeight: number }) {
-  const { child, language } = props;
-  const value = useTime(props.source, (now) => subtaskTime(child, now, language)?.text ?? "");
-  if (!value) return null;
-  const live = child.status === "running";
-  return (
-    <Text numberOfLines={1} style={{ minWidth: 0, flexShrink: 1, fontSize: F.sm, lineHeight: props.lineHeight, color: live ? props.tokens.foreground : props.tokens.foregroundMuted, fontVariant: ["tabular-nums"] }} testID={`detail-subtask-time-${child.id}`}>
-      {value}
-    </Text>
   );
 }
 
