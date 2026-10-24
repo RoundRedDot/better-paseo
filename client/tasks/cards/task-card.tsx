@@ -12,7 +12,7 @@ import { duration, PREVIEW_REVEAL } from "../../ui/tokens/motion";
 import type { PermissionButton, StopPhase } from "../actions";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { opensInPaseo, turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
-import { contextRatio, formatThinkingLevel, tildePath } from "./format";
+import { contextRatio, tildePath } from "./format";
 import { cardStart, cardTimer, startHint, timerHint } from "./card-time";
 import { CardHints, hintProps, type CardHintTexts } from "./card-hints";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
@@ -761,7 +761,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
               style={{ fontSize: m.pillText, lineHeight: m.pillLine, color: agentColors.text, flexShrink: 0 }}
               testID="agent-pill-thinking"
             >
-              {formatThinkingLevel(thinking)}
+              {thinking}
             </Text>
           </>
         ) : null}
@@ -775,8 +775,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         testID="pill-thinking"
         solid={neutralPillColors(tokens, muted)}
         icon={THINKING_ICON}
-        label={formatThinkingLevel(thinking)}
-        accessibilityLabel={thinking}
+        label={thinking}
         hint={hint("thinking", () => pair(strings.hint.thinking, thinking))}
       />,
     );

@@ -511,14 +511,12 @@ export function SummaryTiles(props: { tiles: SummaryTile[]; tokens: TaskTokens; 
 }
 
 /** A hairline-outlined pill: a lead (dot, icon, mark) and its text. */
-export function Chip(props: { tokens: TaskTokens; lead?: React.ReactNode; text: string; accessibilityLabel?: string; muted?: boolean; height: number; font: number; testID?: string }) {
+export function Chip(props: { tokens: TaskTokens; lead?: React.ReactNode; text: string; muted?: boolean; height: number; font: number; testID?: string }) {
   // Grows with the text size like the card's other controls, so larger text stays inside the pill.
   const height = taskControlHeight(props.height, useTasksFontScale());
   return (
     <View
       testID={props.testID}
-      accessible={props.accessibilityLabel ? true : undefined}
-      accessibilityLabel={props.accessibilityLabel}
       style={{ height, paddingLeft: 6, paddingRight: 8, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.card.pillBorder, flexDirection: "row", alignItems: "center", gap: 5 }}
     >
       {props.lead}

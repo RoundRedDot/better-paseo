@@ -722,7 +722,7 @@ describe("TaskCardView hover hints", () => {
       expect(texts(hint()[0]!).join("")).toBe("分支：feat/tasks-board\n有未提交改动\n领先 3 个提交\n点击复制");
 
       expect(await show("model", { left: 112, top: 140, width: 100, height: 20 })).toBe("模型：Codex GPT-5.5 Codex\n思考强度：Medium\n点击复制");
-      expect(texts(root.find((node) => typeof node.type === "string" && node.props.testID === "agent-pill-thinking"))).toEqual(["m"]);
+      expect(texts(root.find((node) => typeof node.type === "string" && node.props.testID === "agent-pill-thinking"))).toEqual(["Medium"]);
       expect(await show("status", { left: 112, top: 80, width: 16, height: 20 })).toBe("状态：运行中");
       expect(await show("timer", { left: 180, top: 230, width: 60, height: 18 })).toBe("本轮已运行：12m 30s");
       expect(await show("subtasks", { left: 112, top: 166, width: 80, height: 20 })).toBe("3 个子任务：2 运行中 · 1 已完成");
@@ -736,7 +736,7 @@ describe("TaskCardView hover hints", () => {
       const separate = props("sample-running");
       separate.fields = { ...separate.fields, provider: false, model: false };
       await act(async () => renderer.update(React.createElement(TaskCardView, separate)));
-      expect(texts(root.find((node) => typeof node.type === "string" && node.props.testID === "pill-thinking"))).toEqual(["m"]);
+      expect(texts(root.find((node) => typeof node.type === "string" && node.props.testID === "pill-thinking"))).toEqual(["Medium"]);
       expect(await show("thinking", { left: 112, top: 140, width: 40, height: 20 })).toBe("思考强度：Medium");
       await act(async () => renderer.unmount());
       expect(listeners.size).toBe(0);

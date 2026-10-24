@@ -31,7 +31,7 @@
 - 卡片展开、侧栏和详情 sheet 继续共用 SubtaskRow / SubtaskMetadata；标题和元数据各占一行，元数据及内部时间组均不换行，剩余长文字尾部省略。
 - 保留内容列 `0 < width <= 240 * Tasks font scale` 窄列规则；另外测量未收起元数据的自然宽度，实际放不下时即收起权限文字。所有 permission/mode（包括 `Full Access`、`Default Permissions`、`Bypass`、`Allow All`、`Plan Mode` 及自定义模式）统一隐藏文字，保留模式图标和完整无障碍名称；加宽到足以容纳完整内容或减小字号后恢复。此条根据部署后的截图反馈修订，不再维护模式白名单。
 - `unread` 对应的“待查看”／`To review` 在所有宽度下省略，不随加宽恢复；状态仍由身份图标角标及行级无障碍名称表达。仅有 unread、没有其他元数据的子任务不挂载空元数据行。
-- 结构化思考等级通过 `cards/format.ts` 的 `formatThinkingLevel` 统一：`none → n`、`minimal → min`、`low → l`、`medium → m`、`high → h`、`xhigh / extra high → xh`、`max → max`，大小写不敏感。应用到子任务行、卡片合并模型胶囊、独立思考胶囊和详情 chip，保留 Brain 图标与完整无障碍名称，hover 提示仍用原始完整等级。未知自定义等级、provider 原始 facts、数据和复制内容保持原样。
+- 结构化思考等级通过 `cards/format.ts` 的 `formatThinkingLevel` 统一：`none → n`、`minimal → min`、`low → l`、`medium → m`、`high → h`、`xhigh / extra high → xh`、`max → max`，大小写不敏感。按最新反馈仅应用到子任务行；卡片合并模型胶囊、独立思考胶囊和详情 chip 恢复原始完整等级。保留 Brain 图标与完整无障碍名称，hover 提示仍用原始完整等级。未知自定义等级、provider 原始 facts、数据和复制内容保持原样。
 - 等待输入、失败提示、完成耗时与时间仍在元数据中；running 开始时间／时长仍只按原窄列条件隐藏。元数据的 240 阈值与详情分区标题的 `NARROW_SUBTASKS = 340` 独立。
 - 无障碍名称由调用方拥有：task-card.tsx 已与详情调用方一致，传入“标题 + 本地化状态”；共享行直接使用，不重复追加。未修改 ChildMark 或导航行为，也未新增可聚焦控件。
 - 图标、上下文环和缩写后的思考等级不被挤小；不可见测量行只包含文字与占位尺寸，排除辅助技术和触摸命中，不重复真实图标或计时订阅。字号／文案改变时旧测量失效；隐藏权限文字后仍保留完整文字测量，保证宽窄往返恢复。
@@ -220,7 +220,7 @@ token 以语义用途和表面变体记录。先集中现有值，再单独审�
 
 | 切片 | 新增／修改文件 | 依赖与行为边界 | 验收与回滚 |
 | --- | --- | --- | --- |
-| S0 窄列文字与已批准思考缩写 | 修改 `client/tasks/cards/subtask-row.tsx`、`task-card.tsx`、`format.ts`、`detail-cards.tsx`、`detail-charts.tsx`；`test/unit/tasks-cards.test.ts`、`tasks-cards-web.test.ts` | 隐藏规则、行级无障碍和完整缩写表闭环；Chip 只增加可选完整无障碍标签，不做 S4 提取；ChildMark、store/schema 不变 | 已实施：三入口、所有权限模式的文字收起与实际宽度测量、unread 全宽度省略、行状态名称恰好一次、小写思考缩写；独立撤回 |
+| S0 窄列文字与已批准思考缩写 | 修改 `client/tasks/cards/subtask-row.tsx`、`task-card.tsx`、`format.ts`、`detail-cards.tsx`、`detail-charts.tsx`；`test/unit/tasks-cards.test.ts`、`tasks-cards-web.test.ts` | 隐藏规则、行级无障碍和完整缩写表闭环；卡片／详情胶囊已恢复完整等级，Chip 不增加新参数，不做 S4 提取；ChildMark、store/schema 不变 | 已实施：三入口、所有权限模式的文字收起与实际宽度测量、unread 全宽度省略、行状态名称恰好一次、小写思考缩写；独立撤回 |
 | S1a 动作归属 | 新增 `client/tasks/cards/action-style.ts`、`action-buttons.tsx`；修改 `task-card.tsx`、`detail-cards.tsx`；在 `test/unit/tasks-cards-web.test.ts` 补迁移过渡等缺失断言 | 迁移第 4.3 节完整符号、28/32 度量与120ms过渡；无循环／反向导入，不改行为 | 卡片／详情／Stop 回归；确认公共 helper 不再来自 task-card；连同导入迁移撤回 |
 | S1b 动作机制（单独批准） | 修改上述动作文件、`task-card.tsx`、`detail-cards.tsx`、`test/unit/tasks-cards.test.ts`、`tasks-cards-web.test.ts`；Stop 专项测试仅有新增断言需求时修改 | 依赖 S1a 及第 4.3 节回归／视觉基线；仅提取已证明公共的内部内容／状态，外层 Pressable 保留 | 全矩阵对照；Request 无 busy、Bar 无 hover、Stop 双按钮／描边／菜单保持；在 S1a 上独立撤回 |
 | S2 手机搜索（可选后续） | 新增 `client/tasks/board/search-field.tsx`；修改 `phone-board.tsx`、`filter-sheet.tsx`、`test/unit/tasks-board-render.test.ts` | 按第 4.4 节，稳定输入身份；不动搜索算法／手势状态机 | 输入首字不重聚焦、中文组合、清除不 refocus、sheet 滚动／键盘；组件与迁移一起撤回 |
@@ -359,3 +359,7 @@ npm run check:hermes
 用户在 `54f5ac51` 部署后提供截图，要求 `Bypass` 等 permission 文字在放不下时同样隐藏。已将文字折叠从两种模式扩展到所有非空 modeLabel，继续保留模式图标、完整无障碍名称和加宽恢复；不修改主卡片权限请求操作。
 
 沿用第 11 节的 6 个测试文件，本次 **384 tests passed**；typecheck、client build、源码与产物 Hermes 检查通过，Tasks chunk 为 `b510cfdb795aa0d5`。回归补充自定义模式、Bypass／Plan Mode 等的窄宽切换、实际内容超宽、等待／失败与完成时间保留。使用同一离线预览环境对 Bypass 进行深浅色 20 组宽度／字号及加宽恢复检查，均保持单行、无横向溢出，已查看浅色截图；真实 iPad 仍待回归。临时结果位于 `/tmp/better-paseo-bypass-layout.json`。
+
+### 11.2 胶囊恢复完整思考等级
+
+用户随后要求卡片胶囊不再缩写。卡片合并模型胶囊、独立思考胶囊及详情 chip 恢复完整等级；子 Agent 元数据继续使用第 2.2 节的小写缩写，所有 permission 文本的宽度收起规则保持。hover 原文不变，Chip 恢复原有参数。6 个相关测试文件 **384 tests passed**，同时断言胶囊完整等级和子任务缩写；typecheck、client build、源码及产物 Hermes 检查通过，Tasks chunk 为 `2252e493e9f8e969`。本次未新增真机或原生视觉证据。
