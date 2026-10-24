@@ -110,7 +110,7 @@ import { CardCell, RollingCount, RollingTotal, WindowSegments } from "../../clie
 import { LaneMotionLayer } from "../../client/tasks/board/lane-motion";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
-import { lastBoardParams, rememberBoardParams, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
+import { lastBoardParams, rememberBoardParams, rememberedCollapsed, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
 import { DesktopFilterBar } from "../../client/tasks/board/filter-bar";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
@@ -448,6 +448,65 @@ describe("Tasks board, desktop", () => {
     expect(StyleSheet.flatten(pressable("Expand lane: Running").props.style)).toMatchObject({ width: 40, borderRadius: 5 });
     act(() => pressable("Expand lane: Running").props.onPress());
     expect(cards().map((card) => card.props.card.id)).toContain("sample-running");
+  });
+
+  it.each(["web", "ios"])("toggles only the displayed empty lanes on %s and remembers their state", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(screen(false, { q: "ring" })); });
+    layOut(1600);
+    const button = () => hostsById("empty-lanes-toggle")[0]!;
+    const icon = () => button().find((node) => (node.type as unknown) === "Icon").props.name;
+    expect(button().props.accessibilityState).toEqual({ selected: false });
+    expect(icon()).toBe("FoldHorizontal");
+    expect(StyleSheet.flatten(button().props.style).width).toBe(StyleSheet.flatten(hostsById("sidebar-switch")[0]!.props.style).width);
+    // Keep a manually folded nonempty lane folded through both bulk operations.
+    act(() => hostsById("lane-header-running")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Collapse lane")[0]!.props.onPress());
+    act(() => button().props.onPress());
+    expect(rememberedCollapsed("host-1")).toEqual(["running", "needs_input", "review", "done"]);
+    expect(button().props.accessibilityState).toEqual({ selected: true });
+    expect(button().props.accessibilityLabel).toBe("Expand empty lanes");
+    expect(icon()).toBe("UnfoldHorizontal");
+    // A manual expansion changes the bulk switch back to collapse.
+    act(() => pressable("Expand lane: Done").props.onPress());
+    expect(button().props.accessibilityState).toEqual({ selected: false });
+    act(() => button().props.onPress());
+    act(() => button().props.onPress());
+    expect(rememberedCollapsed("host-1")).toEqual(["running"]);
+    expect(hostsById("lane-archived")).toHaveLength(0);
+  });
+
+  it("disables the empty-lane switch when every displayed lane has cards", () => {
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    expect(hostsById("empty-lanes-toggle")[0]!.props.disabled).toBe(true);
+    act(() => hostsById("empty-lanes-toggle")[0]!.props.onPress());
+    expect(rememberedCollapsed("host-1")).toEqual([]);
+  });
+
+  it("includes the archived lane only while it is shown", async () => {
+    act(() => { renderer = TestRenderer.create(screen(false, { q: "ring" })); });
+    layOut(2400);
+    await act(async () => { await deviceTasksStore().update({ showArchived: true }); });
+    act(() => hostsById("empty-lanes-toggle")[0]!.props.onPress());
+    expect(rememberedCollapsed("host-1")).toEqual(["needs_input", "review", "done", "archived"]);
+    await act(async () => { await deviceTasksStore().update({ showArchived: false }); });
+    act(() => hostsById("empty-lanes-toggle")[0]!.props.onPress());
+    expect(rememberedCollapsed("host-1")).toEqual(["archived"]);
+  });
+
+  it("excludes loading empty lanes from the bulk operation", () => {
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { loading: boolean }> } }).__handle;
+    const done = handle.lanes.done!;
+    const loading = done.loading;
+    try {
+      done.loading = true;
+      act(() => { renderer = TestRenderer.create(screen(false, { q: "ring" })); });
+      layOut(1600);
+      act(() => hostsById("empty-lanes-toggle")[0]!.props.onPress());
+      expect(rememberedCollapsed("host-1")).toEqual(["needs_input", "review"]);
+    } finally {
+      done.loading = loading;
+    }
   });
 
   it("draws the archived lane after done only when the setting turns it on", () => {
