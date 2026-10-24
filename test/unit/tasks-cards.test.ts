@@ -2002,13 +2002,13 @@ describe("TaskDetailCards", () => {
     expect(icons(hostByTestId(section, "detail-subtask-status-sample-child-3"))).toContain("CircleCheck");
     expect(flat(hostByTestId(section, "detail-subtask-time-sample-child-2").props.style).color).toBe(tokens.foreground);
     expect(flat(hostByTestId(section, "detail-subtask-time-sample-child-3").props.style).color).toBe(tokens.foregroundMuted);
-    const doneTitle = hostByTestId(section, "detail-subtask-sample-child-3").find((node) => (node.type as unknown) === "Text" && node.props.numberOfLines === 2);
+    const doneTitle = hostByTestId(section, "detail-subtask-title-sample-child-3");
     expect(flat(doneTitle.props.style).color).toBe(tokens.foregroundMuted);
     // No progress ring any more: the counts say it.
     expect(byLabel(running.root, "收起子任务").findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "progressbar")).toEqual([]);
     byLabel(running.root, "Measure the sidebar ring 运行中").props.onPress();
     expect(onJump).toHaveBeenCalledWith("sample-child-1");
-    // Hovering a row shows its open-tab button after the time.
+    // Hovering a row shows its open-tab button beside the title.
     const row = hostByTestId(section, "detail-subtask-sample-child-1");
     expect(section.findAll((node) => node.props.testID === "detail-subtask-open")).toEqual([]);
     await act(async () => row.props.onHoverIn());
@@ -2021,8 +2021,50 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(finished.root, "detail-subtasks"))).toContain("3 个全部完成");
     expect(icons(byLabel(finished.root, "收起子任务"))).toContain("CircleCheck");
     // All finished: no title steps back.
-    const title = hostByTestId(finished.root, "detail-subtask-sample-child-3").find((node) => (node.type as unknown) === "Text" && node.props.numberOfLines === 2);
+    const title = hostByTestId(finished.root, "detail-subtask-title-sample-child-3");
     expect(flat(title.props.style).color).toBe(tokens.foreground);
+  });
+
+  it.each([true, false])("keeps a detail subtask title on one line above its timing and metadata (touch=%s)", async (touch) => {
+    const base = sample("sample-running");
+    const child = { ...base.children[0]!, title: "RRD-12345 笔记编辑器与侧栏设置排版验证" };
+    const sparse: TaskChild = { id: "sparse", title: "No metadata", status: "done" };
+    const onJump = vi.fn();
+    const onOpen = vi.fn();
+    let now = NOW;
+    const clock = createTaskClock(() => now);
+    const tree = await render(details({ ...base, children: [child, sparse] }, { touch, onJump, onOpen, now: undefined, clock }));
+    const row = hostByTestId(tree.root, `detail-subtask-${child.id}`);
+    const title = hostByTestId(row, `detail-subtask-title-${child.id}`);
+    const content = hostByTestId(row, `detail-subtask-content-${child.id}`);
+    const secondary = hostByTestId(content, `detail-subtask-secondary-${child.id}`);
+    expect(title.props).toMatchObject({ numberOfLines: 1, ellipsizeMode: "tail" });
+    expect(texts(title)).toEqual([child.title]);
+    expect(flat(content.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
+    expect(flat(content.props.style).flexDirection).toBeUndefined();
+    expect((content.children[0] as ReactTestInstance).props.testID).toBe(`detail-subtask-title-${child.id}`);
+    expect(flat(secondary.props.style)).toMatchObject({ flexDirection: "row", flexWrap: "wrap" });
+    expect(texts(hostByTestId(secondary, `detail-subtask-time-${child.id}`))).toEqual(["3m"]);
+    expect(texts(hostByTestId(secondary, `detail-subtask-meta-${child.id}`))).toContain("上下文 60%");
+    expect(flat(hostByTestId(row, `detail-subtask-status-${child.id}`).props.style).flexShrink).toBe(0);
+    const before = flat(content.props.style);
+    await act(async () => row.props.onHoverIn());
+    expect(flat(content.props.style)).toEqual(before);
+    row.props.onPress();
+    expect(onJump).toHaveBeenCalledWith(child.id);
+    if (touch) {
+      expect(row.findAll((node) => node.props.testID === "detail-subtask-open")).toHaveLength(0);
+      row.props.onLongPress();
+    } else {
+      const button = hostByTestId(row, "detail-subtask-open");
+      expect(flat(button.props.style).flexShrink).toBe(0);
+      button.props.onPress();
+    }
+    expect(onOpen).toHaveBeenCalledWith(child.id);
+    now += 1000;
+    await act(async () => clock.tick());
+    expect(texts(hostByTestId(secondary, `detail-subtask-time-${child.id}`))).toEqual(["3m 1s"]);
+    expect(texts(hostByTestId(tree.root, "detail-subtask-content-sparse"))).toEqual([sparse.title]);
   });
 
   it("lists the first ten subtasks after sorting and opens the rest on demand, closed again on the next card", async () => {
