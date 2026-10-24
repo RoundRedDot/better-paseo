@@ -1409,7 +1409,7 @@ describe("TaskCardView actions", () => {
     const tree = await render(cardElement(base, { compact, now: undefined, clock }));
     await act(async () => hostByTestId(tree.root, "pill-subtasks").props.onPress());
     const meta = () => hostByTestId(tree.root, `subtask-meta-${child.id}`);
-    expect(texts(meta())).toEqual(["Opus 4.7", "h", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
+    expect(texts(meta())).toEqual(["Opus 4.7", "High", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
     expect(flat(meta().props.style).flexWrap).toBe("nowrap");
     expect(icons(meta())).toEqual(["Brain", "ShieldOff", "Clock", "Hourglass"]);
     expect(hostByTestId(meta(), "context-ring")).toBeDefined();
@@ -1757,7 +1757,7 @@ describe("TaskDetailCards", () => {
     expect(texts(meta())).toContain("Full Access");
     expect(icons(meta())).toEqual(["Brain", "ShieldOff", "Clock", "Hourglass"]);
     await resize(240);
-    expect(texts(meta())).toEqual([child.modelLabel, "h"]);
+    expect(texts(meta())).toEqual([child.modelLabel, child.thinkingLabel]);
     expect(icons(meta())).toEqual(["Brain", "ShieldOff"]);
     expect(meta().findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Full Access" && node.props.accessible === true)).toHaveLength(1);
     expect(meta().findByType(ContextRing).props.ratio).toBe(0.6);
@@ -1793,13 +1793,18 @@ describe("TaskDetailCards", () => {
         ? cardElement(card, { subtasksExpanded: true })
         : details(card, { touch: surface === "sheet" }));
       const prefix = surface === "card" ? "subtask" : "detail-subtask";
-      const meta = hostByTestId(tree.root, `${prefix}-meta-${child.id}`);
-      expect(texts(meta)).toContain(expected);
-      expect(icons(meta)).toContain("Brain");
+      const meta = () => hostByTestId(tree.root, `${prefix}-meta-${child.id}`);
+      expect(texts(meta())).toContain(thinkingLabel);
+      await act(async () => meta().props.onLayout({ nativeEvent: { layout: { width: 300 } } }));
+      await act(async () => hostByTestId(tree.root, `${prefix}-meta-measure-${child.id}`).props.onLayout({ nativeEvent: { layout: { width: 390 } } }));
+      expect(texts(meta())).toContain(expected);
+      expect(icons(meta())).toContain("Brain");
       if (expected !== thinkingLabel) {
-        expect(texts(meta)).not.toContain(thinkingLabel);
-        expect(meta.findAll((node) => typeof node.type === "string" && node.props.accessible === true && node.props.accessibilityLabel === thinkingLabel)).toHaveLength(1);
+        expect(texts(meta())).not.toContain(thinkingLabel);
+        expect(meta().findAll((node) => typeof node.type === "string" && node.props.accessible === true && node.props.accessibilityLabel === thinkingLabel)).toHaveLength(1);
       }
+      await act(async () => meta().props.onLayout({ nativeEvent: { layout: { width: 400 } } }));
+      expect(texts(meta())).toContain(thinkingLabel);
       await act(async () => tree.unmount());
     }
     for (const compact of [false, true]) {
@@ -1905,6 +1910,37 @@ describe("TaskDetailCards", () => {
     await act(async () => tree.update(element("Short model")));
     await act(async () => probe().props.onLayout({ nativeEvent: { layout: { width: 280 } } }));
     expect(texts(meta())).toContain("Full Access");
+  });
+
+  it("measures full thinking labels without a mode and restores them across width and font changes", async () => {
+    const child: TaskChild = { id: "effort-only", title: "Effort", status: "done", thinkingLabel: "Medium" };
+    const card = { ...sample("sample-running"), children: [child] };
+    const element = (ui: number) => {
+      const theme = { ...LIGHT, typography: { fontSize: { ui } } };
+      return React.createElement(TasksTypography, { theme, children: details(card) });
+    };
+    const tree = await render(element(14));
+    const meta = () => hostByTestId(tree.root, "detail-subtask-meta-effort-only");
+    const probe = () => hostByTestId(tree.root, "detail-subtask-meta-measure-effort-only");
+    const resize = async (width: number) => act(async () => meta().props.onLayout({ nativeEvent: { layout: { width } } }));
+    const measure = async (width: number) => act(async () => probe().props.onLayout({ nativeEvent: { layout: { width } } }));
+    await measure(80);
+    await resize(0);
+    expect(texts(meta())).toEqual(["Medium"]);
+    await resize(80);
+    expect(texts(meta())).toEqual(["Medium"]);
+    await resize(79);
+    expect(texts(meta())).toEqual(["m"]);
+    // The probe keeps the full label while the visible row uses its abbreviation.
+    expect(probe().findAll((node) => (node.type as unknown) === "Text").map((node) => node.children.join(""))).toEqual(["Medium"]);
+    await resize(80);
+    expect(texts(meta())).toEqual(["Medium"]);
+    await act(async () => tree.update(element(21)));
+    await measure(120);
+    expect(texts(meta())).toEqual(["m"]);
+    await act(async () => tree.update(element(14)));
+    await measure(80);
+    expect(texts(meta())).toEqual(["Medium"]);
   });
 
   it.each(["failed", "done"] as const)("preserves attention and finished timing in a narrow single-line row (%s)", async (status) => {
@@ -2279,7 +2315,7 @@ describe("TaskDetailCards", () => {
       "5m 12s",
       "Measure the sidebar ring",
       "Opus 4.7",
-      "h",
+      "High",
       "Bypass",
       start(3 * 60_000),
       "3m",
@@ -2346,7 +2382,7 @@ describe("TaskDetailCards", () => {
     expect((content.children[0] as ReactTestInstance).props.testID).toBe(`detail-subtask-title-${child.id}`);
     expect(flat(secondary.props.style)).toMatchObject({ flexDirection: "row", flexWrap: "nowrap" });
     expect(texts(hostByTestId(secondary, `detail-subtask-time-${child.id}`))).toEqual([formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
-    expect(texts(secondary)).toEqual(["Opus 4.7", "h", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
+    expect(texts(secondary)).toEqual(["Opus 4.7", "High", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
     expect(row.findByType(SubtaskMetadata).props.child).toBe(child);
     expect(flat(hostByTestId(row, `detail-subtask-status-${child.id}`).props.style).flexShrink).toBe(0);
     const before = flat(content.props.style);
@@ -2415,7 +2451,7 @@ describe("TaskDetailCards", () => {
     const shown = texts(hostByTestId(tree.root, "detail-subtasks"));
     expect(shown[1]).toBe("1/3 完成");
     const meta = hostByTestId(section, "detail-subtask-meta-sample-child-1");
-    expect(texts(meta)).toEqual(["Opus 4.7", "h", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
+    expect(texts(meta)).toEqual(["Opus 4.7", "High", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
     expect(icons(meta)).toEqual(["Brain", "ShieldOff", "Clock", "Hourglass"]);
     expect(meta.findByType(ContextRing).props.ratio).toBe(0.6);
   });
@@ -2433,7 +2469,7 @@ describe("TaskDetailCards", () => {
     await act(async () => section.props.onLayout({ nativeEvent: { layout: { width: 280, height: 400 } } }));
     for (const id of [child.id, "same-model"]) {
       const meta = hostByTestId(section, `detail-subtask-meta-${id}`);
-      expect(texts(meta)).toEqual(expect.arrayContaining([child.modelLabel, "h", child.modeLabel]));
+      expect(texts(meta)).toEqual(expect.arrayContaining([child.modelLabel, child.thinkingLabel, child.modeLabel]));
       if (status === "unread") expect(texts(meta)).not.toContain(word);
       else expect(texts(meta)).toContain(word);
       expect(icons(meta)).toEqual(["Brain", "ShieldOff", timerIcon]);

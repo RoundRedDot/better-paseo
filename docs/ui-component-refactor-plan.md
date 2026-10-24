@@ -31,7 +31,7 @@
 - 卡片展开、侧栏和详情 sheet 继续共用 SubtaskRow / SubtaskMetadata；标题和元数据各占一行，元数据及内部时间组均不换行，剩余长文字尾部省略。
 - 保留内容列 `0 < width <= 240 * Tasks font scale` 窄列规则；另外测量未收起元数据的自然宽度，实际放不下时即收起权限文字。所有 permission/mode（包括 `Full Access`、`Default Permissions`、`Bypass`、`Allow All`、`Plan Mode` 及自定义模式）统一隐藏文字，保留模式图标和完整无障碍名称；加宽到足以容纳完整内容或减小字号后恢复。此条根据部署后的截图反馈修订，不再维护模式白名单。
 - `unread` 对应的“待查看”／`To review` 在所有宽度下省略，不随加宽恢复；状态仍由身份图标角标及行级无障碍名称表达。仅有 unread、没有其他元数据的子任务不挂载空元数据行。
-- 结构化思考等级通过 `cards/format.ts` 的 `formatThinkingLevel` 统一：`none → n`、`minimal → min`、`low → l`、`medium → m`、`high → h`、`xhigh / extra high → xh`、`max → max`，大小写不敏感。按最新反馈仅应用到子任务行；卡片合并模型胶囊、独立思考胶囊和详情 chip 恢复原始完整等级。保留 Brain 图标与完整无障碍名称，hover 提示仍用原始完整等级。未知自定义等级、provider 原始 facts、数据和复制内容保持原样。
+- 结构化思考等级通过 `cards/format.ts` 的 `formatThinkingLevel` 统一：`none → n`、`minimal → min`、`low → l`、`medium → m`、`high → h`、`xhigh / extra high → xh`、`max → max`，大小写不敏感。按最新反馈仅在子任务整行完整元数据的实测自然宽度超出内容列时缩写，宽度足够时显示并恢复原始完整等级；不能直接套用权限文案的 240 阈值。没有 modeLabel 的思考等级行也测量完整文本，缩写期间继续保留完整文本测量以避免往返振荡。卡片合并模型胶囊、独立思考胶囊和详情 chip 恢复原始完整等级。保留 Brain 图标与完整无障碍名称，hover 提示仍用原始完整等级。未知自定义等级、provider 原始 facts、数据和复制内容保持原样。
 - 等待输入、失败提示、完成耗时与时间仍在元数据中；running 开始时间／时长仍只按原窄列条件隐藏。元数据的 240 阈值与详情分区标题的 `NARROW_SUBTASKS = 340` 独立。
 - 无障碍名称由调用方拥有：task-card.tsx 已与详情调用方一致，传入“标题 + 本地化状态”；共享行直接使用，不重复追加。未修改 ChildMark 或导航行为，也未新增可聚焦控件。
 - 图标、上下文环和缩写后的思考等级不被挤小；不可见测量行只包含文字与占位尺寸，排除辅助技术和触摸命中，不重复真实图标或计时订阅。字号／文案改变时旧测量失效；隐藏权限文字后仍保留完整文字测量，保证宽窄往返恢复。
@@ -367,3 +367,9 @@ npm run check:hermes
 ### 11.3 中文时间标签去掉“约”
 
 用户要求时间标签不再显示“约”。共享 `formatApprox` 的中文输出改为 `8m`／`1h 30m`，覆盖卡片、子任务和时间提示；保留按分钟取整、至少一分钟以及英文既有 `~` 前缀。同步设计规范、Tasks 功能说明与源码示例。此前 6 个测试文件加 `tasks-card-hints.test.ts` 共 **392 tests passed**；typecheck、client build、源码及产物 Hermes 检查通过，Tasks chunk 为 `ca030eca4c7adb1f`。本次未新增真机或原生视觉证据。
+
+### 11.4 子 Agent 思考等级按实际宽度缩写
+
+用户要求子 Agent 行仅在文字放不下时缩写。共享 SubtaskMetadata 现在测量完整等级：整行超宽时使用既有小写缩写，空间足够时显示原始完整等级，加宽后恢复。测量不依赖 modeLabel，且始终测量完整思考文本；保留所有权限文案收起、unread 全宽省略、单行布局及卡片／详情完整等级。
+
+本轮基线 `3d279c41`，只修改 `subtask-row.tsx`、`tasks-cards.test.ts`、`docs/design.md` 及本文。7 个相关测试文件共 **393 tests passed**；新增覆盖三入口全等级的完整→缩写→完整切换、无 modeLabel、精确宽度边界、0 宽度、字号变更和完整测量文本保持。typecheck、client build 和源码／产物 Hermes 检查通过，Tasks chunk 为 `6b5cfb050f6d93bb`。原生 iPad 和辅助技术播报仍未验证。上述为提交部署前的验收结果；后续用户已明确授权提交、推送和按 SHA 部署。
