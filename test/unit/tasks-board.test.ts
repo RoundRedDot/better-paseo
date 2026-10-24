@@ -642,7 +642,14 @@ describe("lane widths", () => {
     expect(laneLayout(700, 4, 0, "default").laneWidth).toBe(LANES.min);
     expect(laneLayout(700, 4, 0, "narrow").laneWidth).toBe(260);
     // Narrow stays a step below the adaptive default on a smaller tablet.
-    expect((["narrow", "default", "wide"] as const).map((size) => laneLayout(540, 4, 0, size).laneWidth)).toEqual([240, 260, 340]);
+    expect((["narrow", "default", "wide"] as const).map((size) => laneLayout(540, 4, 0, size).laneWidth)).toEqual([240, 260, 300]);
+  });
+
+  it.each([400, 480, 540, 600, 631])("keeps wide lanes at 300 on a %i pt small tablet board", (viewport) => {
+    for (const [expanded, collapsed] of [[4, 0], [5, 0], [3, 1], [1, 0]] as const) {
+      expect(laneLayout(viewport, expanded, collapsed, "wide").laneWidth).toBe(300);
+    }
+    expect(laneLayout(632, 4, 0, "wide").laneWidth).toBe(340);
   });
 
   it.each([
