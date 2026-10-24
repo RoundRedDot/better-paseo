@@ -1679,6 +1679,13 @@ describe("Tasks board, lane widths", () => {
     expect(hostParentOf(label())).toBe(laneControl());
     const laneChildren = laneControl().findAll((node) => typeof node.type === "string" && hostParentOf(node) === laneControl());
     expect(laneChildren.indexOf(label())).toBeLessThan(laneChildren.indexOf(inline()[0]!));
+    const endGroups = () => end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end());
+    expect(endGroups().filter((node) => node.props.testID).map((node) => node.props.testID)).toEqual([
+      "lane-width-control", "lane-width-divider", "done-window", "done-window-divider", "subtasks-toggle", "empty-groups-toggle",
+    ]);
+    for (const id of ["lane-width-divider", "done-window-divider"]) {
+      expect(StyleSheet.flatten(hostsById(id)[0]!.props.style)).toMatchObject({ height: 16, marginHorizontal: 4, backgroundColor: "#e2e2e6" });
+    }
     const choices = () => inline()[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "radio");
     expect(choices().map(textOf)).toEqual(["", "", ""]);
     expect(choices().map((node) => node.props.accessibilityLabel)).toEqual([strings.laneWidth.names.narrow, strings.laneWidth.names.default, strings.laneWidth.names.wide]);
@@ -1703,6 +1710,8 @@ describe("Tasks board, lane widths", () => {
     lay(end(), 650);
     expect(textOf(controls())).toContain(strings.project);
     expect(textOf(button())).toBe("");
+    expect(hostsById("lane-width-divider")).toHaveLength(1);
+    expect(hostsById("done-window-divider")).toHaveLength(1);
     expect(button().findByType(LaneWidthMark).props.laneWidth).toBe("wide");
     await act(async () => button().props.onPress());
     expect(hostsById("lane-width-menu")).toHaveLength(1);
