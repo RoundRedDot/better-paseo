@@ -1333,19 +1333,19 @@ describe("Tasks board, lane widths", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
-    // A small tablet with the host sidebar open: two lanes fit, the rest scroll.
+    // A small tablet with the host sidebar open: lanes keep a readable 280 pt, the rest scroll.
     layOut(540);
-    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 254 * 4 } });
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 280 * 4 } });
     layOut(480);
     expect(tabs()).toHaveLength(0);
     // No room for the key hints beside the count and the search.
     expect(textOf(renderer!.root)).not.toContain("HLLane");
-    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 224 * 4 } });
-    // Below the two-lane threshold: keep the 220 pt floor and scroll.
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 280 * 4 } });
+    // Below the two-lane threshold: keep the 280 pt default and scroll.
     layOut(400);
     expect(tabs()).toHaveLength(0);
     expect(cards()[0]!.props.compact).toBe(false);
-    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 220 * 4 } });
+    expect(lanesScroll().props).toMatchObject({ scrollEnabled: true, contentContainerStyle: { width: 12 * 2 + 8 * 3 + 280 * 4 } });
     layOut(1600);
     expect(tabs()).toHaveLength(0);
     expect(textOf(renderer!.root).includes("HLLane")).toBe(os === "web");

@@ -23,6 +23,7 @@ import { subagentFacts } from "../subagent-type";
 import { ProjectIcon } from "./project-icon";
 import { SpinnerRing, StatusIcon } from "./status-icon";
 import { ChildMark } from "./child-mark";
+import { ActionRow, useActionFit } from "./action-row";
 import { CardContextMenu } from "./card-menu";
 import { bindContextMenu } from "../../web";
 import { ArchivedTag } from "./archived-tag";
@@ -979,7 +980,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     <CardButton
       label={strings.openParent}
       look="plain"
-      arrow
+      icon="CornerLeftUp"
       tokens={tokens}
       compact={onPhone}
       onPress={() => props.onOpen?.(card.parent!.id)}
@@ -988,7 +989,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   );
   // Stop, Mark read or Archive, then "Open parent" and "Open tab" in the corner, centred on the line they sit on.
   const footControls = (line: number) => (
-    <View style={{ flexDirection: "row", gap: GAP, marginVertical: (Math.round(line * scale) - taskControlHeight(m.buttonHeight, scale)) / 2 }}>
+    <ActionRow gap={GAP} style={{ justifyContent: "flex-end", marginVertical: (Math.round(line * scale) - taskControlHeight(m.buttonHeight, scale)) / 2 }}>
       {footStop ? <StopControl {...stop} compact={false} line={m.buttonHeight} menuLeft={canOpen} /> : canRead ? <ReadControl {...read} compact={false} line={m.buttonHeight} /> : null}
       {canArchive ? archiveButton(false) : null}
       {canOpen && parentOpens ? openParentButton(false) : null}
@@ -1004,7 +1005,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         />
       ) : null}
       {canUnarchive ? unarchiveButton(false) : null}
-    </View>
+    </ActionRow>
   );
   if (parentStop) hint("stop-options", () => strings.stopOptions);
   const footerContent =
@@ -1043,6 +1044,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             style={[
               {
                 position: "absolute",
+                left: 0,
                 right: 0,
                 top: (footHeight - taskControlHeight(m.buttonHeight, scale)) / 2,
                 paddingLeft: GAP,
@@ -1114,15 +1116,17 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         </View>
         {answerRow ? (
           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: GAP }} testID="task-card-answer-row">
-            {props.permissionButtons.map((button) => (
-              <ActionButton
-                key={button.key}
-                button={button}
-                tokens={tokens}
-                compact={false}
-                onPress={() => props.onPermission?.(card, button)}
-              />
-            ))}
+            <ActionRow gap={GAP} style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0 }} testID="task-card-answer-actions">
+              {props.permissionButtons.map((button) => (
+                <ActionButton
+                  key={button.key}
+                  button={button}
+                  tokens={tokens}
+                  compact={false}
+                  onPress={() => props.onPermission?.(card, button)}
+                />
+              ))}
+            </ActionRow>
             {footerContent ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: FOOT_GAP, minHeight: footHeight, marginLeft: "auto" }} testID="task-card-footer">
                 {footerContent}
@@ -1177,7 +1181,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     compact && (openTab || buttons.length > 0 || canStop || canRead || canUnarchive || canArchive) ? (
       // One row: no flexWrap, whose Yoga layout left a phantom second row's
       // height under the buttons on Android.
-      <View style={{ flexDirection: "row", gap: 8, marginTop: m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
+      <ActionRow style={{ marginTop: m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
         {buttons.map((button) => (
           <ActionButton
             key={button.key}
@@ -1205,7 +1209,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           />
         ) : null}
         {canUnarchive ? unarchiveButton(true) : null}
-      </View>
+      </ActionRow>
     ) : null;
 
   const pressBody = props.onSelect
@@ -1532,39 +1536,6 @@ function ContextMeter(props: {
 
 // --- Buttons ------------------------------------------------------------------
 
-/** A system font at least this much larger than normal lets a phone button's label wrap. */
-export const LARGE_FONT_SCALE = 1.15;
-/** A phone button is never narrower than this. */
-export const PHONE_BUTTON_MIN_WIDTH = 72;
-
-/**
- * A phone action button's share of the bar: as wide as its label on one
- * line, then an equal part of what is left. At a normal font size a
- * permission button never shrinks under its label, so no label breaks
- * inside a word ("Sto/p", "Allo/w"); only the stop pill gives width back
- * when the labels do not fit side by side (an armed "Confirm stop" beside
- * Allow and Deny on a narrow phone), shrinking its font to fit its one
- * line, never under 75%. With an enlarged system font any label may take a
- * second line, broken between words.
- */
-export function phoneButtonSizing(fontScale: number, yields = false): {
-  wraps: boolean;
-  box: ViewStyle;
-  label: TextStyle;
-  lines: number;
-  fit: { adjustsFontSizeToFit?: boolean; minimumFontScale?: number };
-} {
-  const wraps = fontScale >= LARGE_FONT_SCALE;
-  const shrinks = wraps || yields;
-  return {
-    wraps,
-    box: { flexGrow: 1, flexShrink: shrinks ? 1 : 0, flexBasis: "auto", minWidth: PHONE_BUTTON_MIN_WIDTH },
-    label: { flexShrink: shrinks ? 1 : 0 },
-    lines: wraps ? 2 : 1,
-    fit: !wraps && yields ? { adjustsFontSizeToFit: true, minimumFontScale: 0.75 } : {},
-  };
-}
-
 /** A permission answer or "go answer": 28 high, radius 6; 32 and evenly split on a phone. */
 export function ActionButton(props: {
   button: PermissionButton;
@@ -1654,7 +1625,7 @@ export function CardButton(props: {
   testID?: string;
 }) {
   const { tokens, compact, look: kind } = props;
-  const square = compact && props.square === true;
+  const forcedSquare = compact && props.square === true;
   const scale = useTasksFontScale();
   const { hovered: hover, hoverProps } = useHover();
   const hovered = hover && !props.busy;
@@ -1664,7 +1635,10 @@ export function CardButton(props: {
   const fill = hovered ? hue.hover : "transparent";
   const border = hue.border;
   const size = compact ? 14 : 13;
-  const sizing = phoneButtonSizing((useWindowDimensions().fontScale ?? 1) * scale);
+  const height = taskControlHeight(compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, scale);
+  const hasIcon = !!props.icon || props.busy || answer || props.arrow;
+  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, 2 * (compact ? 12 : 10) + (hasIcon ? size + 5 : 0) + 1, forcedSquare);
+  const square = fit.iconOnly;
   return (
     <Pressable
       accessibilityRole="button"
@@ -1676,7 +1650,7 @@ export function CardButton(props: {
       testID={props.testID}
       style={{
         // A phone's button grows with a large system font.
-        ...(compact ? { minHeight: PHONE.buttonHeight, paddingVertical: 4, ...sizing.box } : { height: taskControlHeight(DESKTOP.buttonHeight, scale) }),
+        ...(compact ? { minHeight: PHONE.buttonHeight, paddingVertical: 4, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height } : { height: taskControlHeight(DESKTOP.buttonHeight, scale) }),
         ...(compact && props.hug ? { flexGrow: 0 } : null),
         ...(square ? { width: taskControlHeight(PHONE.buttonHeight, scale), minWidth: 0, flexGrow: 0, flexShrink: 0 } : null),
         paddingHorizontal: square ? 0 : compact ? 12 : 10,
@@ -1689,6 +1663,7 @@ export function CardButton(props: {
         gap: 5,
         opacity: props.busy ? 0.6 : 1,
         ...webTransition,
+        ...fit.style,
       }}
     >
       {props.busy ? (
@@ -1698,12 +1673,12 @@ export function CardButton(props: {
         <Icon name={props.icon} size={size} color={color} />
       ) : null}
       {square ? null : (
-        <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
+        <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, ...fit.labelStyle, textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
           {props.label}
         </Text>
       )}
       {/* The one arrow: a label that still ends in its own is trimmed by the caller. */}
-      {answer || props.arrow ? (
+      {(answer || props.arrow) && !(square && props.busy) ? (
         <View style={{ marginLeft: square ? 0 : -arrowInset(size) }}>
           <Icon name="ArrowUpRight" size={size} color={color} />
         </View>
@@ -1737,10 +1712,10 @@ function ReadControl(props: {
   const { tokens, strings, pending, compact } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
-  const sizing = phoneButtonSizing((useWindowDimensions().fontScale ?? 1) * scale, true);
   const height = taskControlHeight(compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, scale);
   const label = strings.markRead;
   const iconSize = compact ? 14 : 13;
+  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, 2 * (compact ? 12 : 10) + iconSize + 6);
   const hover = hovered && !pending;
   const hue = buttonHue(tokens, props.unread ? "read" : "plain");
   const color = hue.color;
@@ -1755,7 +1730,7 @@ function ReadControl(props: {
       {...hoverProps}
       testID="task-card-read"
       style={{
-        ...(compact ? { ...sizing.box, ...(props.hug ? { flexGrow: 0 } : null), minHeight: height, paddingVertical: 4 } : { flexShrink: 0, height }),
+        ...(compact ? { flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height, ...(props.hug ? { flexGrow: 0 } : null), minHeight: height, paddingVertical: 4 } : { flexShrink: 0, height }),
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         paddingHorizontal: compact ? 12 : 10,
         borderRadius: compact ? 7 : 6,
@@ -1767,6 +1742,7 @@ function ReadControl(props: {
         gap: 5,
         opacity: pending ? 0.6 : 1,
         ...webTransition,
+        ...fit.style,
       }}
     >
       {pending ? (
@@ -1775,9 +1751,9 @@ function ReadControl(props: {
       ) : (
         <Icon name="CheckCheck" size={iconSize} color={color} />
       )}
-      <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
+      {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, ...fit.labelStyle, textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
         {label}
-      </Text>
+      </Text>}
     </Pressable>
   );
 }
@@ -1852,7 +1828,6 @@ function StopControl(props: StopControlProps) {
       ],
     },
   ];
-  const sizing = phoneButtonSizing((useWindowDimensions().fontScale ?? 1) * scale, true);
   const hue = buttonHue(tokens, "danger");
   const color = hue.color;
   const fill = (hovered: boolean) => (hovered ? hue.hover : "transparent");
@@ -1861,6 +1836,8 @@ function StopControl(props: StopControlProps) {
   const round = compact ? 7 : 6;
   const iconSize = compact ? 14 : 13;
   const label = confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
+  const chevronWidth = props.parent ? (compact ? 36 : 26) : 0;
+  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, (compact ? PHONE.buttonHeight : DESKTOP.buttonHeight) + chevronWidth, 2 * (compact ? (confirming ? 10 : 12) : 10) + iconSize + 6 + chevronWidth);
   const segment: ViewStyle = {
     ...(compact ? { minHeight: height, paddingVertical: 4 } : { height }),
     flexDirection: "row",
@@ -1875,9 +1852,10 @@ function StopControl(props: StopControlProps) {
         // On a phone the pill shares the action bar like the buttons, as wide
         // as its label: "Confirm stop" takes more than "Stop". Explicit grow
         // and basis, never the `flex` shorthand beside `flexShrink`.
-        ...(compact ? { ...sizing.box, ...(props.hug ? { flexGrow: 0 } : null) } : { flexShrink: 0 }),
+        ...(compact ? { flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height, ...(props.hug ? { flexGrow: 0 } : null) } : { flexShrink: 0 }),
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         zIndex: 40,
+        ...fit.style,
       }}
       testID="task-card-stop"
     >
@@ -1892,12 +1870,10 @@ function StopControl(props: StopControlProps) {
           segment,
           props.parent ? null : buttonOutline(tokens.danger),
           {
-            ...(compact ? { flexGrow: 1, flexShrink: 1, flexBasis: "auto" } : null),
+            flexGrow: 1, flexShrink: 0, flexBasis: "auto",
             gap: 5,
-            // Armed on a phone the pill says what it does in words; its icon
-            // goes and its padding narrows, so "Confirm stop" fits beside
-            // Allow and Deny at full size on a 360 pt phone.
-            paddingHorizontal: compact ? (confirming ? 10 : 12) : 10,
+            // The row drops the whole label when needed; keep the confirm icon and menu target.
+            paddingHorizontal: fit.iconOnly ? 0 : compact ? (confirming ? 10 : 12) : 10,
             backgroundColor: fill(stopHover.hovered && !stopping),
             borderTopLeftRadius: round,
             borderBottomLeftRadius: round,
@@ -1910,12 +1886,12 @@ function StopControl(props: StopControlProps) {
         {stopping ? (
           // The running ring without its dot, in the icon's box so the button keeps its width.
           <SpinnerRing size={iconSize} color={color} testID="task-card-stop-spinner" />
-        ) : compact && confirming ? null : (
+        ) : (
           <Icon name={confirming ? CONFIRM_STOP_ICON : "Power"} size={iconSize} color={color} />
         )}
-        <Text numberOfLines={compact ? sizing.lines : 1} {...(compact ? sizing.fit : null)} style={{ ...(compact ? sizing.label : null), textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
+        {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, ...fit.labelStyle, textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
           {label}
-        </Text>
+        </Text>}
       </Pressable>
       {props.parent ? (
         <Pressable
@@ -2147,7 +2123,7 @@ function SubtaskRow(props: TimeSource & {
             justifyContent: "center",
           }}
         >
-          <Icon name="ArrowUpRight" size={compact ? 16 : 14} color={tokens.foregroundMuted} />
+          <Icon name="CornerLeftUp" size={compact ? 16 : 14} color={tokens.foregroundMuted} />
         </Pressable>
       ) : null}
     </Pressable>

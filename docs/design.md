@@ -221,7 +221,7 @@ Unarchive, Open tab. None is ever filled with its hue.
   10% on a light theme and 16% on a dark one. The border and label stay.
 - **Armed**, "Confirm stop" keeps Stop's colours exactly; its words change and its icon turns from
   Lucide's `Power` to `OctagonAlert` (`CONFIRM_STOP_ICON`), the stop sign asking for the second
-  press. On a phone card it drops its icon so the longer label fits.
+  press. It keeps that icon when its label folds on a narrow row.
 - **The outline is 0.5 pt** everywhere. Chrome, and so Paseo's Electron, rounds any border under
   1 CSS px up to a whole one (2 device px at 2x), so on the web `buttonOutline()`
   (`client/tasks/board/board-style.ts`) draws the line as an inset `box-shadow`, 1 device px at
@@ -244,6 +244,30 @@ Unarchive, Open tab. None is ever filled with its hue.
 `CardButton`, `ReadControl`, `StopControl`, `OutlineButton`, `RequestButton` and `BarButton` all
 take them from it, and `requestLook(button)` picks a permission button's look in every place.
 A new action button takes a look from the table rather than its own colours.
+
+### Layout and narrow widths
+
+The same rule applies to card actions (desktop hover, tablet and phone), the details sidebar,
+and the mobile details sheet's action bar. Keep the existing action order and a single row.
+Measure the available content width and the complete label at the current language, host type
+size and system font scale. When the buttons do not fit, fold labels **from left to right**:
+each affected button becomes an icon-only control before the next button gives up its label.
+Never truncate a label, wrap it, or reduce its font to squeeze it in. Restore complete labels
+when the row has room again. A narrow default tablet lane is normally at least 280 pt; it may
+show part of the next lane rather than force two complete lanes into the viewport.
+
+An icon-only button keeps its outline, colour, height, action and full accessibility label.
+Its width is its base target height (28/32 pt on cards, 48 pt in the sheet bar); its height
+still grows with large type. A split Stop button additionally reserves its menu segment.
+Keep confirmation (`OctagonAlert`), working spinner and disabled semantics in icon-only mode.
+A spinner replaces the action icon, so a folded working button never draws a second arrow.
+Optional status hints such as “Already open” leave with the label. “Open parent” uses
+`CornerLeftUp`, including its context-menu entry and provider-subtask parent-tab shortcut;
+ordinary “Open” keeps `ArrowUpRight`.
+
+`ActionRow` and `useActionFit` (`client/tasks/cards/action-row.tsx`) own the measurement and
+ordered folding. All action-button variants participate in that row rather than independently
+shrinking their labels.
 
 ### Working state
 
