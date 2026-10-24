@@ -659,12 +659,15 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             accessibilityLabel={strings.revealParent}
             onPress={() => props.onReveal(card.parent!.id)}
             {...parentHover.hoverProps}
-            style={{ flexShrink: PARENT_SHRINK, minWidth: 0 }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: PARENT_SHRINK, minWidth: 0, overflow: "hidden" }}
             testID="task-card-meta-parent"
             {...hintProps(hint("parent", () => pair(strings.details.parent, parentLabel)))}
           >
-            <Text numberOfLines={1} style={[metaStyle, parentHover.hovered ? { color: tokens.foreground } : null]}>
-              {`↳${NBSP}${parentLabel}`}
+            <View style={{ flexShrink: 0 }}>
+              <Icon name="CornerLeftUp" size={Math.round(m.metaSize * scale)} color={parentHover.hovered ? tokens.foreground : muted} />
+            </View>
+            <Text numberOfLines={1} style={[metaStyle, { flexShrink: 1, minWidth: 0 }, parentHover.hovered ? { color: tokens.foreground } : null]}>
+              {parentLabel}
             </Text>
           </Pressable>
         ) : null}
