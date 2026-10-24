@@ -429,7 +429,7 @@ describe("filter options", () => {
       "[已选择 2 个标签]",
       "[已选择 2 个项目和 1 个工作区]",
       "Agent|Claude",
-      "标题包含|「ring」",
+      "包含|「ring」",
     ]);
     const workspaces = entries[1] as ChipGroup;
     expect(workspaces.clear(params)).toMatchObject({ workspaceIds: [], labels: ["docs", "api"] });
@@ -446,7 +446,7 @@ describe("filter options", () => {
       "标签|docs",
       "工作区|better-paseo / tasks-board",
       "|隐藏子任务",
-      "标题包含|「ring」",
+      "包含|「ring」",
       "已完成|全部",
     ]);
     expect(chips[0]!.clear(params).labels).toEqual([]);

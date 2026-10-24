@@ -105,7 +105,7 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
 import { StyleSheet, View } from "react-native";
 import { ProviderLogo } from "../../client/components/provider-logo";
 import * as data from "../../client/tasks/data";
-import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
+import { SearchCoverage, TasksBoardScreen } from "../../client/tasks/board/board-screen";
 import { CardCell, RollingCount, RollingTotal, WindowSegments } from "../../client/tasks/board/board-parts";
 import { LaneMotionLayer } from "../../client/tasks/board/lane-motion";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
@@ -313,6 +313,69 @@ afterEach(() => {
   resetTasksEnabled();
 });
 
+describe("Tasks search coverage and centred toolbar", () => {
+  it.each(["web", "ios"] as const)("%s keeps every action available when a narrow side slot needs the View menu", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(400);
+    const prefix = os === "web" ? "desktop" : "tablet";
+    act(() => hostsById(`${prefix}-toolbar-end`)[0]!.props.onLayout({ nativeEvent: { layout: { width: os === "web" ? 100 : 70 } } }));
+    const open = hostsById(os === "web" ? "desktop-toolbar-view" : "tablet-view")[0]!;
+    act(() => open.props.onPress());
+    expect(menuOption(BOARD_STRINGS.en.archivedLane.row)).toBeDefined();
+    expect(menuOption(BOARD_STRINGS.en.emptyLanes.collapse)).toBeDefined();
+    if (os === "ios") {
+      expect(hostsById("toolbar-filters")).toHaveLength(0);
+      act(() => menuOption(BOARD_STRINGS.en.filters).props.onPress());
+    } else {
+      expect(menuOption(BOARD_STRINGS.en.sidebar.show)).toBeDefined();
+      act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+    }
+    expect(hostsById("filter-sheet-scroll")).toHaveLength(1);
+  });
+
+  it.each(["en", "zh"] as const)("keeps search left, the complete %s count centred and actions right on web and Pad", (language) => {
+    updateEnhancerPreferences({ language });
+    for (const [os, width] of [["web", 1600], ["web", 600], ["ios", 1024], ["ios", 800], ["ios", 400]] as const) {
+      (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(width);
+      const prefix = os === "web" ? "desktop" : "tablet";
+      const bar = hostsById(`${prefix}-toolbar`)[0]!;
+      const start = hostsById(`${prefix}-toolbar-start`)[0]!;
+      const end = hostsById(`${prefix}-toolbar-end`)[0]!;
+      const total = hostsById(`${prefix}-toolbar-total`)[0]!;
+      expect(hostParentOf(start)).toBe(bar);
+      expect(hostParentOf(total)).toBe(bar);
+      expect(hostParentOf(end)).toBe(bar);
+      for (const side of [start, end]) expect(StyleSheet.flatten(side.props.style)).toMatchObject({ flex: 1, flexBasis: 0, minWidth: 0 });
+      expect(StyleSheet.flatten(end.props.style).justifyContent).toBe("flex-end");
+      expect(start.findAll((node) => (node.type as unknown) === "TextInput" || node.props.testID === "tablet-search-toggle").length).toBeGreaterThan(0);
+      expect(StyleSheet.flatten(total.props.style).flexShrink).toBe(0);
+      expect(textOf(total.findByType(RollingTotal))).toBe(BOARD_STRINGS[language].total(6));
+      const slots = bar.children.filter((node) => typeof node !== "string" && /toolbar-(start|total|end)$/.test(node.props.testID ?? ""));
+      expect(slots.map((node) => (node as ReactTestInstance).props.testID)).toEqual([`${prefix}-toolbar-start`, `${prefix}-toolbar-total`, `${prefix}-toolbar-end`]);
+      act(() => renderer!.unmount());
+    }
+    renderer = undefined;
+    expect(BOARD_STRINGS.zh.total(116)).toBe("116 个任务");
+    expect(BOARD_STRINGS.en.total(1)).toBe("1 task");
+    expect(BOARD_STRINGS.en.total(116)).toBe("116 tasks");
+  });
+
+  it.each(["en", "zh"] as const)("shows loading, uncovered and failed first messages in %s, only during search", (language) => {
+    const board = { params: { ...EMPTY_PARAMS, query: "apple" }, strings: BOARD_STRINGS[language], searchCoverage: { pending: 2, unavailable: 3, failed: 1 } };
+    act(() => { renderer = TestRenderer.create(React.createElement(SearchCoverage, { board, theme })); });
+    const status = hostsById("tasks-search-coverage")[0]!;
+    expect(textOf(status)).toBe([board.strings.searchLoading(2), board.strings.searchUnavailable(3), board.strings.searchFailed(1)].join(" · "));
+    expect(status.props.accessibilityLiveRegion).toBe("polite");
+    act(() => renderer!.update(React.createElement(SearchCoverage, { board: { ...board, params: { ...board.params, query: " " } }, theme })));
+    expect(hostsById("tasks-search-coverage")).toHaveLength(0);
+    act(() => renderer!.update(React.createElement(SearchCoverage, { board: { ...board, searchCoverage: { pending: 0, unavailable: 0, failed: 0 } }, theme })));
+    expect(hostsById("tasks-search-coverage")).toHaveLength(0);
+  });
+});
+
 describe("Tasks board, desktop", () => {
   beforeEach(() => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
@@ -389,7 +452,7 @@ describe("Tasks board, desktop", () => {
     });
     try {
       act(() => { renderer = TestRenderer.create(screen(false)); });
-      layOut(1600);
+      layOut(2400);
       const font = (node: ReactTestInstance) => StyleSheet.flatten(node.props.style).fontSize;
       const text = (value: string) => renderer!.root.find((node) => (node.type as unknown) === "Text" && textOf(node) === value);
       // Every size is a step of the host's ramp (sm 12, base 14), scaled as the host scales it.
@@ -2171,7 +2234,7 @@ describe("Tasks board, toolbar tips", () => {
     layOut(2400);
     expect(tips()).toEqual(
       expect.arrayContaining([
-        "Search titles (/)",
+        "Search tasks (/)",
         "Filter by project",
         "Filter by workspace",
         "Filter by agent",
@@ -2283,7 +2346,7 @@ describe("Tasks board, tablet filters", () => {
     }
     const filters = hostsById("toolbar-filters")[0]!;
     const view = hostsById("tablet-view")[0]!;
-    const labels = width >= 760 * Math.max(1, base / 14);
+    const labels = width >= 1000 * Math.max(1, base / 14);
     expect(textOf(filters).includes(BOARD_STRINGS[language].filters)).toBe(labels);
     expect(textOf(view).includes(BOARD_STRINGS[language].view)).toBe(labels);
     act(() => view.props.onPress());
@@ -2292,7 +2355,7 @@ describe("Tasks board, tablet filters", () => {
     expect(hostsById("tablet-view-menu")).toHaveLength(0);
   });
 
-  it.each(["en", "zh"] as const)("reserves three tabular digits before search across count changes in %s", (language) => {
+  it.each(["en", "zh"] as const)("reserves a complete centred count across count changes in %s", (language) => {
     updateEnhancerPreferences({ language });
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(1000);
@@ -2302,7 +2365,7 @@ describe("Tasks board, tablet filters", () => {
     for (const total of [0, 9, 10, 70, 99, 100, 999, 9]) {
       act(() => renderer!.update(React.createElement(TabletToolbar, { ...props, board: { ...props.board, total } })));
       const reserve = hostsById("tablet-total-reserve")[0]!;
-      expect(textOf(reserve)).toBe("888");
+      expect(textOf(reserve)).toBe(BOARD_STRINGS[language].total(888));
       expect(StyleSheet.flatten(reserve.props.style)).toMatchObject({ fontVariant: ["tabular-nums"], opacity: 0 });
       expect(hostsById("tablet-toolbar-total")[0]!.props.accessibilityLabel).toBe(BOARD_STRINGS[language].total(total));
       const slot = StyleSheet.flatten(hostsById("tablet-total-slot")[0]!.props.style);
@@ -2313,7 +2376,7 @@ describe("Tasks board, tablet filters", () => {
       expect(StyleSheet.flatten(hostParentOf(reserve)!.props.style).flexShrink).toBe(0);
     }
     act(() => renderer!.update(React.createElement(TabletToolbar, { ...props, board: { ...props.board, total: 1000 } })));
-    expect(textOf(hostsById("tablet-total-reserve")[0]!)).toBe("8888");
+    expect(textOf(hostsById("tablet-total-reserve")[0]!)).toBe(BOARD_STRINGS[language].total(8888));
   });
 
   it.each(["ios", "android"])("%s retains filtering, reset, device settings and subtask visibility", async (os) => {

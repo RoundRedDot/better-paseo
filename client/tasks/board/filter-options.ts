@@ -259,7 +259,7 @@ export function activeChips(params: BoardParams, defaults: BoardDefaults, option
     })),
   ];
   if (params.hideSubtasks ?? defaults.hideSubtasks) chips.push({ key: "sub", kind: "", value: strings.hideSubtasks, clear: (p) => ({ ...p, hideSubtasks: false }) });
-  if (params.query.trim()) chips.push({ key: "q", kind: strings.titleContains, value: `「${params.query.trim()}」`, clear: (p) => ({ ...p, query: "" }) });
+  if (params.query.trim()) chips.push({ key: "q", kind: strings.searchContains, value: `「${params.query.trim()}」`, clear: (p) => ({ ...p, query: "" }) });
   if (params.doneWindow !== null && params.doneWindow !== defaults.doneWindow) {
     chips.push({ key: "win", kind: strings.doneWindowLabel, value: strings.windows[params.doneWindow], clear: (p) => ({ ...p, doneWindow: null }) });
   }

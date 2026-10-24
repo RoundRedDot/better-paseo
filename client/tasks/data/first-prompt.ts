@@ -28,33 +28,57 @@ const LOADING: FirstPrompt = { state: "loading" };
 
 interface Store {
   read(agentId: string): FirstPrompt;
-  request(agentId: string): void;
+  request(agentId: string, canRead?: () => boolean): Promise<void>;
   subscribe(listener: () => void): () => void;
+  version(): number;
 }
 
 export function createFirstPromptStore(api: Api): Store {
   const prompts = new Map<string, FirstPrompt>();
   const listeners = new Set<() => void>();
+  const pending = new Map<string, Promise<void>>();
+  let revision = 0;
   const set = (agentId: string, value: FirstPrompt) => {
     prompts.set(agentId, value);
+    revision += 1;
     for (const listener of [...listeners]) listener();
+  };
+  const read = async (agentId: string, canRead?: () => boolean) => {
+    try {
+      let cursor: NonNullable<Parameters<PaseoAgentTimelineHandle["refetch"]>[0]>["cursor"];
+      for (;;) {
+        if (canRead && !canRead()) return set(agentId, { state: "error" });
+        const page = await api.agents.ref(agentId).timeline.refetch({
+          direction: "after", projection: "projected", limit: HEAD_LIMIT, ...(cursor ? { cursor } : {}),
+        });
+        if (page.error || page.reset && cursor) return set(agentId, { state: "error" });
+        // An empty first user message is still the first; never substitute a later prompt.
+        if (page.entries.some((entry) => entry.item.type === "user_message")) {
+          return set(agentId, firstPromptMessage(page.entries) ?? { state: "none" });
+        }
+        if (!page.hasNewer) return set(agentId, { state: "none" });
+        const next = page.endCursor;
+        if (!next || cursor && (next.epoch !== cursor.epoch || next.seq <= cursor.seq)) return set(agentId, { state: "error" });
+        cursor = next;
+      }
+    } catch {
+      set(agentId, { state: "error" });
+    }
   };
   return {
     read: (agentId) => prompts.get(agentId) ?? IDLE,
-    request(agentId) {
+    request(agentId, canRead) {
       const known = prompts.get(agentId)?.state;
       // Found once is found for good; a miss or a failure is asked again on the next open.
-      if (known === "ready" || known === "loading") return;
+      if (known === "ready") return Promise.resolve();
+      const inflight = pending.get(agentId);
+      if (inflight) return inflight;
       set(agentId, LOADING);
-      api.agents
-        .ref(agentId)
-        .timeline.refetch({ direction: "after", projection: "projected", limit: HEAD_LIMIT })
-        .then((page) => {
-          if (page.error) return set(agentId, { state: "error" });
-          set(agentId, firstPromptMessage(page.entries) ?? { state: "none" });
-        })
-        .catch(() => set(agentId, { state: "error" }));
+      const request = read(agentId, canRead).finally(() => pending.delete(agentId));
+      pending.set(agentId, request);
+      return request;
     },
+    version: () => revision,
     subscribe(listener) {
       listeners.add(listener);
       return () => {
@@ -76,7 +100,7 @@ export function firstPromptMessage(entries: readonly { timestamp?: string; item:
 
 const stores = new WeakMap<object, Store>();
 
-function storeFor(api: PaseoApi | Api): Store {
+export function firstPromptStoreFor(api: PaseoApi | Api): Store {
   let store = stores.get(api);
   if (!store) stores.set(api, (store = createFirstPromptStore(api as Api)));
   return store;
@@ -87,7 +111,7 @@ function storeFor(api: PaseoApi | Api): Store {
  * the daemon holds); otherwise it waits for `load()`.
  */
 export function useFirstPrompt(api: PaseoApi, agentId: string, auto: boolean): { prompt: FirstPrompt; load(): void } {
-  const store = storeFor(api);
+  const store = firstPromptStoreFor(api);
   const prompt = useSyncExternalStore(store.subscribe, () => store.read(agentId), () => store.read(agentId));
   useEffect(() => {
     if (auto) store.request(agentId);

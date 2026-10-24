@@ -511,11 +511,12 @@ const COUNT_SPILL = 40;
  */
 export function RollingTotal(props: { board: BoardController; style: StyleProp<TextStyle> }) {
   const { board } = props;
+  const scale = useTasksFontScale();
   if (Platform.OS !== "web") return <Text numberOfLines={1} style={props.style}>{board.strings.total(board.total)}</Text>;
   return (
-    <View style={{ flexDirection: "row", alignItems: "center" }}>
+    <View accessible accessibilityLabel={board.strings.total(board.total)} style={{ flexDirection: "row", alignItems: "center" }}>
       <RollingCount value={board.total} scope={board.tasks.ready ? board.scope : null} style={props.style} />
-      <Text numberOfLines={1} style={props.style}>
+      <Text numberOfLines={1} style={[props.style, { marginLeft: Math.round(4 * scale) }]}>
         {" " + board.strings.totalUnit(board.total)}
       </Text>
     </View>

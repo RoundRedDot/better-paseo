@@ -1052,7 +1052,7 @@ interface DesktopLaneProps {
  * of which a lane reads only `ready` and `loadMoreDone`. Any other field is
  * compared, so one added later makes the lane draw again rather than go stale.
  */
-const LANE_BLIND: ReadonlySet<string> = new Set(["lanes", "hidden", "total", "tasks"]);
+const LANE_BLIND: ReadonlySet<string> = new Set(["lanes", "hidden", "total", "tasks", "searchCoverage"]);
 
 function sameLaneBoard(last: BoardController, next: BoardController): boolean {
   if (last === next) return true;

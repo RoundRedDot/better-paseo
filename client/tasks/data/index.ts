@@ -21,6 +21,7 @@ import { classifyAgent } from "../agent-state-bucket";
 import { resolveTasksLanguage } from "../i18n";
 import { fallbackLabelColor } from "../label-colors";
 import { subagentModel, subagentType } from "../subagent-type";
+import { matchesTaskSearch } from "./search";
 import { LANE_ORDER, isHistoryLane, settledAt, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming, type TaskUsage } from "../model";
 
 export interface WorkspaceOption {
@@ -2428,12 +2429,10 @@ export function useTaskCounts(paseo: PaseoApi, review: boolean): SidebarCounts {
  * their parent's card; a running, waiting or failed one keeps its own card
  * unless its parent's card is in the same lane and already shows it.
  */
-export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilters): Record<LaneId, LaneModel> {
+export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilters, firstMessages?: ReadonlyMap<string, string>): Record<LaneId, LaneModel> {
   const query = filters.query.trim().toLowerCase();
   const matches = (card: TaskCard) => {
-    const searchable = [card.title, card.location.projectName, card.location.workspaceName, card.location.branch]
-      .filter((value): value is string => Boolean(value)).join(" ").toLowerCase();
-    return (!query || searchable.includes(query)) &&
+    return matchesTaskSearch(card, query, firstMessages?.get(card.id)) &&
       (filters.workspaceIds.length === 0 || (card.location.workspaceId !== null && filters.workspaceIds.includes(card.location.workspaceId))) &&
       (filters.providers.length === 0 || filters.providers.includes(card.provider)) &&
       (filters.labels.length === 0 || card.labels.some((label) => filters.labels.includes(label.name)));
