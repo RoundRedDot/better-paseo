@@ -114,18 +114,6 @@ export function DesktopToolbar(props: {
           testID="toolbar-archived"
         />
       ) : null}
-      {props.filters ? (
-        <RoundButton
-          icon={emptyGroupsIcon(board.showEmptyGroups)}
-          label={strings.emptyGroups.row}
-          selected={board.showEmptyGroups}
-          theme={theme}
-          onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
-          size={toolbarButtonSize(scale)}
-          tip={board.showEmptyGroups ? strings.tips.hideEmptyGroups : strings.emptyGroups.row}
-          testID="toolbar-empty-groups"
-        />
-      ) : null}
       {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={toolbarButtonSize(scale)} tip={strings.filters} testID="toolbar-filters" /> : null}
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
     </View>

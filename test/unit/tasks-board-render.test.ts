@@ -1632,18 +1632,27 @@ describe("Tasks board, tablet filters", () => {
     }
   });
 
-  it("saves the empty groups' switch from a narrow board's header, beside the archived lane's", async () => {
+  it.each([["ios", 480], ["ios", 600], ["android", 600], ["web", 600]] as const)("%s at %i pt keeps empty groups in the filter sheet and saves the switch", async (os, width) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
-    layOut(600);
+    layOut(width);
     const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && /^toolbar-/.test(node.props.testID ?? ""));
-    expect(buttons.map((node) => node.props.testID)).toEqual(["toolbar-archived", "toolbar-empty-groups", "toolbar-filters"]);
-    const button = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-empty-groups");
-    expect(button().props.accessibilityState).toEqual({ selected: true });
+    expect(buttons.map((node) => node.props.testID)).toEqual(["toolbar-archived", "toolbar-filters"]);
+    expect(hostsById("toolbar-empty-groups")).toHaveLength(0);
+    expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
+    act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+    const button = () => hostsById("filter-sheet-empty-groups")[0]!;
+    expect(button().props).toMatchObject({ accessibilityRole: "switch", accessibilityState: { checked: true } });
     await act(async () => button().props.onPress());
-    expect(button().props.accessibilityState).toEqual({ selected: false });
-    expect(host.save).toHaveBeenCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showEmptyGroups: false } }, "1");
+    expect(button().props.accessibilityState).toEqual({ checked: false });
+    expect(host.save).toHaveBeenLastCalledWith({ ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showEmptyGroups: false } }, "1");
+    expect(hostsById("toolbar-empty-groups")).toHaveLength(0);
+    // Returning to a wide board keeps the chosen value on its original bar switch.
+    layOut(1600);
+    expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
+    expect(hostsById("empty-groups-toggle")[0]!.props.accessibilityState).toEqual({ checked: false });
   });
 
   it("keeps the archived lane's switch out of a narrow board's sheet, as a round button left of the filters", async () => {
@@ -1658,7 +1667,6 @@ describe("Tasks board, tablet filters", () => {
     const size = (testID: string) => StyleSheet.flatten(renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === testID).props.style).width;
     expect(size("toolbar-archived")).toBe(size("sidebar-switch"));
     expect(size("toolbar-filters")).toBe(size("sidebar-switch"));
-    expect(size("toolbar-empty-groups")).toBe(size("sidebar-switch"));
     expect(archived().props).toMatchObject({ accessibilityLabel: "Show the archived lane", accessibilityState: { selected: false } });
     // Struck through while off.
     const slashed = () => archived().findAll((node) => (node.type as unknown) === "View" && node.props.testID === "slash-mark").length > 0;
