@@ -63,6 +63,7 @@ const en = {
   loading: "Loading",
   shown: (count: number) => `Showing ${count}`,
   filters: "Filters",
+  view: "View",
   reset: "Reset",
   /** The phone sheet folds the workspaces without an active task under this. */
   show: (count: number) => `Show ${count} ${count === 1 ? "task" : "tasks"}`,
@@ -218,6 +219,7 @@ const zh: typeof en = {
   loading: "加载中",
   shown: (count) => `已显示 ${count}`,
   filters: "筛选",
+  view: "视图",
   reset: "重置",
   show: (count) => `显示 ${count} 个任务`,
   timeRange: "范围",
