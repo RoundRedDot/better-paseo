@@ -1,3 +1,4 @@
+import { nativeProseText } from "./helpers/native-prose-text";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act } from "react-test-renderer";
@@ -62,6 +63,8 @@ function agentView(theme = tokens, title = "Review", settings?: Record<string, u
 }
 let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 function textOf(value: unknown): string {
+  const native = nativeProseText(value);
+  if (native !== undefined) return native;
   if (typeof value === "string") return value;
   if (Array.isArray(value)) return value.map(textOf).join("");
   if (value && typeof value === "object" && "children" in value) return textOf(value.children);

@@ -1,5 +1,5 @@
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const clipboard = vi.hoisted(() => vi.fn(async (_text: string) => {}));
 vi.mock("react-native", () => import("./helpers/rn-mock"));
@@ -19,6 +19,7 @@ const { MarkdownView } = await import("../../client/components/markdown/markdown
 const { StyleSheet } = await import("react-native");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+afterEach(() => { (globalThis as { __rnMockOS?: string }).__rnMockOS = undefined; });
 
 const header = "`★ Insight ─────────────────────────────────────`\n";
 const body = "- **集合不变**，`id` 可能变化。\n- 第二条内容。\n";
@@ -48,6 +49,7 @@ describe("Insight rendering", () => {
   for (const platform of ["web", "ios", "android"] as const) {
     for (const dark of [false, true]) {
       it(`${platform}, ${dark ? "dark" : "light"}: draws a flat card and copies its Markdown body`, async () => {
+        (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
         const colors = {
           surface0: dark ? "#18181b" : "#ffffff", surface1: dark ? "#27272a" : "#f6f6f7",
           surface2: dark ? "#303034" : "#ececee", border: dark ? "#444449" : "#e2e2e6",
@@ -91,8 +93,14 @@ describe("Insight rendering", () => {
             act(() => renderer.update(view(header + body + footer + "\n\nAfter", false)));
             expect(card()).toHaveLength(1);
             const texts = renderer.root.findAll((node) => (node.type as unknown) === "Text");
-            expect(texts.some((node) => node.props.children === "✦ Insight" && node.props.selectable)).toBe(true);
-            expect(texts.some((node) => node.props.children === "id")).toBe(true);
+            if (platform === "ios") {
+              const prose = renderer.root.findAll((node) => String(node.type) === "EnrichedMarkdownText" || String(node.type) === "EnrichedMarkdown");
+              expect(prose.some((node) => node.props.markdown === "✦ Insight" && node.props.selectable)).toBe(true);
+              expect(prose.some((node) => node.props.markdown.includes("`id`"))).toBe(true);
+            } else {
+              expect(texts.some((node) => node.props.children === "✦ Insight" && node.props.selectable)).toBe(true);
+              expect(texts.some((node) => node.props.children === "id")).toBe(true);
+            }
             expect(JSON.stringify(renderer.toJSON())).not.toContain("────");
             // The next paragraph stays outside the Insight container.
             expect(card()[0]!.findAll((node) => node.props.children === "After")).toHaveLength(0);

@@ -1,3 +1,4 @@
+import { nativeProseText } from "./helpers/native-prose-text";
 /**
  * The Tasks board's cards: status icons, row collapse per density preset,
  * phone tiers, the context thresholds, Stop's confirm state, and the
@@ -178,8 +179,8 @@ function texts(root: ReactTestInstance): string[] {
       ? node.replace(/\u00a0/g, " ").replace(/[\u200b\u2060]/g, "")
       : node.children.map((child) => join(child as ReactTestInstance | string)).join("");
   return root
-    .findAll((node) => (node.type as unknown) === "Text" && !hasTextAncestor(node))
-    .map((node) => join(node));
+    .findAll((node) => ["Text", "EnrichedMarkdownText", "EnrichedMarkdown"].includes(String(node.type)) && !hasTextAncestor(node))
+    .map((node) => nativeProseText(node) ?? join(node));
 }
 
 function hasTextAncestor(node: ReactTestInstance): boolean {
@@ -2049,7 +2050,7 @@ describe("TaskDetailCards", () => {
     expect(sections.map((node) => node.props.testID)).toEqual(["detail-prompt", "detail-location", "detail-activity", "detail-usage"]);
     const body = hostByTestId(tree.root, "detail-prompt-text");
     expect(body.props.style).toMatchObject({ maxHeight: 4 * 18, overflow: "hidden" });
-    expect(texts(hostByTestId(tree.root, "detail-prompt"))).toEqual(["First prompt", "Check whether this issue is handled:", "1.", "The board", "2.", "The sidebar", "3.", "The sheet", "4.", "The phone", "Show all · 6 lines"]);
+    expect(texts(hostByTestId(tree.root, "detail-prompt"))).toEqual(["First prompt", "Check whether this issue is handled:", "The board\nThe sidebar\nThe sheet\nThe phone", "Show all · 6 lines"]);
     await act(async () => hostByTestId(tree.root, "detail-prompt-more").props.onPress());
     expect(hostByTestId(tree.root, "detail-prompt-text").props.style).toBeNull();
     await act(async () => byLabel(tree.root, "Copy prompt").props.onPress());

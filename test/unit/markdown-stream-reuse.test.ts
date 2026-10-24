@@ -14,6 +14,8 @@ vi.mock("react-native", async () => {
   const Text = rn.Text as unknown as React.ComponentType<Record<string, unknown>>;
   return {
     ...rn,
+    // This suite counts the Text renderer; native prose reuse is covered separately.
+    Platform: { ...rn.Platform, OS: "web" },
     // Every render of a Text is one a native renderer would update.
     Text: function CountedText(props: Record<string, unknown>) {
       drawn.Text.push(textOf(props.children));

@@ -1,3 +1,4 @@
+import { nativeProseText } from "./helpers/native-prose-text";
 /**
  * Unpaced text is drawn in the commit that brings it.
  *
@@ -137,7 +138,9 @@ describe("reveal and the commit that brings the text", () => {
       const header = renderer.root.findAll((node) => node.props.accessibilityLabel === "Thinking: The newest sentence has arrived." && typeof node.props.onPress === "function")[0]!;
       await act(async () => { header.props.onPress(); });
       expect(revealCalls.some((call) => call.text === latest && call.phase === "streaming")).toBe(true);
-      expect(JSON.stringify(renderer.toJSON())).toContain("The first sentence is complete.");
+      expect(os === "ios"
+        ? renderer.root.findAll((node) => String(node.type) === "EnrichedMarkdownText").map(nativeProseText).join("")
+        : JSON.stringify(renderer.toJSON())).toContain("The first sentence is complete.");
       const copy = renderer.root.findAll((node) => node.props.label === "Copy thought" && typeof node.props.text === "function")[0]!;
       expect(copy.props.text()).toBe(latest);
     } finally {
