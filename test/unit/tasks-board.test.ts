@@ -31,6 +31,7 @@ import {
   LANES,
   LANE_SIZES,
   boardIsCompact,
+  boardLaneLayout,
   laneLayout,
   type LaneShape,
 } from "../../client/tasks/board/navigation";
@@ -41,7 +42,7 @@ import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { hostLanguage, resetTasksLanguage, resolveTasksLanguage } from "../../client/tasks/i18n";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { sampleCards } from "../../client/tasks/sample-cards";
-import { LANE_ORDER, type LaneId, type LaneModel } from "../../client/tasks/model";
+import { ACTIVE_LANE_ORDER, LANE_ORDER, type LaneId, type LaneModel } from "../../client/tasks/model";
 import type { TasksHandle } from "../../client/tasks/data";
 
 const defaults = { hideSubtasks: false, doneWindow: "24h" as const };
@@ -542,6 +543,31 @@ describe("stopped manually", () => {
 
 describe("lane widths", () => {
   const fixed = (lanes: number, collapsed: number) => 2 * LANES.edge + (lanes - 1) * LANES.gap + collapsed * LANES.collapsed;
+
+  it.each(["narrow", "default", "wide"] as const)("keeps %s lane widths when archived is shown, hidden or folded", (size) => {
+    for (const viewport of [200, 540, 600, 700, 1000, 1120, 1300, 1600, 2000]) {
+      for (let count = 0; count < ACTIVE_LANE_ORDER.length; count++) {
+        const collapsed = ACTIVE_LANE_ORDER.slice(0, count);
+        const hidden = boardLaneLayout(viewport, ACTIVE_LANE_ORDER, collapsed, size);
+        expect(hidden).toEqual(laneLayout(viewport, 4 - count, count, size));
+        for (const folded of [false, true]) {
+          const shown = boardLaneLayout(viewport, LANE_ORDER, folded ? [...collapsed, "archived"] : collapsed, size);
+          expect(shown.laneWidth).toBe(hidden.laneWidth);
+          const extent = fixed(5, count + Number(folded)) + (5 - count - Number(folded)) * hidden.laneWidth;
+          expect(shown.contentWidth).toBe(Math.max(viewport, extent));
+          expect(shown.scroll).toBe(extent > viewport);
+        }
+        expect(boardLaneLayout(viewport, ACTIVE_LANE_ORDER, [...collapsed, "archived"], size)).toEqual(hidden);
+      }
+    }
+  });
+
+  it("sizes archived beside four folded lanes and accounts for a row of only strips", () => {
+    const shown = boardLaneLayout(540, LANE_ORDER, ACTIVE_LANE_ORDER);
+    expect(shown).toEqual({ laneWidth: 324, contentWidth: 540, scroll: false });
+    expect(boardLaneLayout(200, LANE_ORDER, LANE_ORDER)).toMatchObject({ contentWidth: 256, scroll: true });
+    expect(boardLaneLayout(200, ACTIVE_LANE_ORDER, LANE_ORDER)).toMatchObject({ contentWidth: 208, scroll: true });
+  });
 
   it("shares a window among four lanes with no scrolling, up to the maximum", () => {
     const layout = laneLayout(1300, 4, 0);
