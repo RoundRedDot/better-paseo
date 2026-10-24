@@ -421,7 +421,7 @@ export function DesktopFilterBar(props: {
       <View testID="filter-bar-end" onLayout={fit.box("end")} style={{ flexShrink: tablet ? 0 : 1, maxWidth: "100%", marginLeft: "auto", height: toolbarButtonSize(scale), flexDirection: "row", alignItems: "center", gap: 6, zIndex: menu === "sort" || menu === "laneWidth" ? 2 : 1 }}>
         {tablet ? null : (
           <>
-            <Text numberOfLines={1} style={{ fontSize: toolbarFontSize(), color: colors.foregroundMuted }}>{strings.doneWindowLabel}</Text>
+            <Text numberOfLines={1} style={{ fontSize: toolbarFontSize(), color: colors.foregroundMuted }}>{strings.timeRange}</Text>
             <WindowSegments
               value={resolved.doneWindow}
               onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))}
