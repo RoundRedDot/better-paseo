@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { useRpc } from "@getpaseo/plugin/client";
+import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
+import { revealPathRpc } from "../../../shared/file-rpc";
 import { openLink } from "../../components/open-link";
 import { MarkdownView } from "../../components/markdown/markdown-view";
 import { variantMetrics } from "../../components/markdown/render/styles";
@@ -755,6 +757,16 @@ function Properties(props: Inner) {
   const cardText = cardStrings(props.language);
   const details = cardText.details;
   const location = card.location;
+  const revealPath = useRpc(revealPathRpc);
+  const toast = useToast();
+  const openFolder = async () => {
+    try {
+      const result = await revealPath({ cwd: location.cwd, path: location.cwd });
+      if (result.error) toast.error(details.openFolderError(result.error));
+    } catch (error) {
+      toast.error(details.openFolderError(error instanceof Error ? error.message : String(error)));
+    }
+  };
   const [wide, setWide] = useState(false);
   const onLayout = (event: LayoutChangeEvent) => {
     const width = event.nativeEvent.layout.width;
@@ -813,6 +825,7 @@ function Properties(props: Inner) {
       value={tildePath(location.cwd)}
       mono="path"
       lines={2}
+      action={{ icon: "FolderOpen", label: details.openFolder, onPress: () => void openFolder() }}
       copy={{ text: location.cwd, toast: "Copy path", label: details.copyPath }}
       testID="detail-cwd"
     />,
@@ -931,6 +944,7 @@ function PropertyRow(props: {
   tag?: string;
   /** A button at the row's end, in the card's style: an archived parent's Unarchive. */
   button?: React.ReactNode;
+  action?: { icon: string; label: string; onPress(): void };
   copy?: { text: string; toast: string; label: string };
   link?: string;
   onPress?(): void;
@@ -958,8 +972,8 @@ function PropertyRow(props: {
   const press = props.onPress ?? doOpen ?? doCopy;
   // With a pointer, the copy / open buttons take a slot of their own at the row's end, kept while
   // they are hidden, so they never cover the value's last word and the value does not reflow on hover.
-  const actionSlot = touch ? 0 : (props.copy ? 24 : 0) + (props.link ? 26 : 0);
-  const showActions = actionSlot > 0 && hovered;
+  const actionSlot = (props.action ? 26 : 0) + (touch ? 0 : (props.copy ? 24 : 0) + (props.link ? 26 : 0));
+  const showActions = actionSlot > 0 && (touch || hovered);
   let shown = props.value;
   if (props.mono === "branch" || props.hyphens) shown = breakable(props.value);
   // A path wraps as runs in a row, so its breaks are the layout's on every platform.
@@ -1033,14 +1047,15 @@ function PropertyRow(props: {
         )}
         {noteLine}
       </View>
-      {trailing ? <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }}>{trailing}</View> : null}
-      {props.button ? <View style={{ alignSelf: "center" }}>{props.button}</View> : null}
       {actionSlot > 0 ? (
         <View style={{ width: actionSlot, height: line, marginRight: -4, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
-          {showActions && props.copy ? <RowAction icon="Copy" label={props.copy.label} tokens={tokens} onPress={doCopy!} /> : null}
-          {showActions && props.link ? <RowAction icon="ExternalLink" label={words.openLink} tokens={tokens} onPress={doOpen!} /> : null}
+          {showActions && props.action ? <RowAction {...props.action} tokens={tokens} /> : null}
+          {showActions && !touch && props.copy ? <RowAction icon="Copy" label={props.copy.label} tokens={tokens} onPress={doCopy!} /> : null}
+          {showActions && !touch && props.link ? <RowAction icon="ExternalLink" label={words.openLink} tokens={tokens} onPress={doOpen!} /> : null}
         </View>
       ) : null}
+      {trailing ? <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }}>{trailing}</View> : null}
+      {props.button ? <View style={{ alignSelf: "center" }}>{props.button}</View> : null}
     </>
   );
   const style: ViewStyle = {
@@ -1081,7 +1096,10 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={props.label}
-      onPress={props.onPress}
+      onPress={(event) => {
+        event.stopPropagation();
+        props.onPress();
+      }}
       {...hoverProps}
       style={{ width: 24, height: 24, borderRadius: 5, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? detailColors(props.tokens).track : "transparent" }}
     >
