@@ -330,6 +330,8 @@ export function DesktopFilterBar(props: {
   return (
     <View
       testID="filter-bar"
+      // Empty toolbar space must reach the board's menu-dismiss backdrop on native.
+      pointerEvents="box-none"
       onLayout={tablet ? undefined : fit.box("bar")}
       style={{
         minHeight: 44,
@@ -346,9 +348,9 @@ export function DesktopFilterBar(props: {
           and the sort keep the first row's right end while the filters have
           FILTERS_MIN_WIDTH beside them, and wrap below them, still at the
           right, when they do not. */}
-      <View onLayout={fit.box("filters")} style={{ flex: 1, minWidth: tablet ? 4 * toolbarButtonSize(scale) + 3 * TOOLBAR_GAP : FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
+      <View pointerEvents="box-none" onLayout={fit.box("filters")} style={{ flex: 1, minWidth: tablet ? 4 * toolbarButtonSize(scale) + 3 * TOOLBAR_GAP : FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
         {/* The buttons hold one line: once their words would wrap them, they draw their icons alone. */}
-        <View testID="filter-bar-controls" onLayout={fit.box("controls")} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: 1 }}>
+        <View testID="filter-bar-controls" pointerEvents="box-none" onLayout={fit.box("controls")} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: 1 }}>
           <MenuButton icon={FILTER_ICONS.project} label={words.project} compact={compact} tip={tip(words.project, strings.tips.project)} open={menu === "project"} onPress={() => toggle("project")} theme={theme}>
             <CascadeMenu
               sections={projectMenuSections(shown, strings, board.hostId, (project) => setParams((p) => toggleProject(p, project)))}
@@ -429,10 +431,10 @@ export function DesktopFilterBar(props: {
           </>
         ) : null}
       </View>
-      <View testID="filter-bar-end" onLayout={fit.box("end")} style={{ flexShrink: tablet ? 0 : 1, maxWidth: "100%", marginLeft: "auto", height: toolbarButtonSize(scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu === "sort" || menu === "laneWidth" ? 2 : 1 }}>
+      <View testID="filter-bar-end" pointerEvents="box-none" onLayout={fit.box("end")} style={{ flexShrink: tablet ? 0 : 1, maxWidth: "100%", marginLeft: "auto", height: toolbarButtonSize(scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu === "sort" || menu === "laneWidth" ? 2 : 1 }}>
         {tablet ? null : (
           <>
-            <View testID="lane-width-control" onLayout={fit.measureLaneControl} style={{ flexShrink: 0, zIndex: menu === "laneWidth" ? 1 : 0 }}>
+            <View testID="lane-width-control" pointerEvents="box-none" onLayout={fit.measureLaneControl} style={{ flexShrink: 0, zIndex: menu === "laneWidth" ? 1 : 0 }}>
               {fit.inlineLaneWidth ? (
                 <Segments
                   items={LANE_WIDTHS}
@@ -695,8 +697,9 @@ function GroupChip(props: { group: ChipGroup; open: boolean; onPress(): void; on
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   return (
-    <View style={{ zIndex: props.open ? 20 : 0, maxWidth: "100%", flexShrink: 1 }}>
+    <View pointerEvents="box-none" style={{ zIndex: props.open ? 20 : 0, maxWidth: "100%", flexShrink: 1 }}>
       <View
+        pointerEvents="box-none"
         style={{
           height: toolbarButtonSize(scale),
           maxWidth: "100%",
@@ -775,7 +778,7 @@ function MenuButton(props: { icon: string | React.ReactElement; label: string; c
   const iconOnly = !!props.compact;
   const size = toolbarButtonSize(scale);
   return (
-    <View style={{ zIndex: props.open ? 20 : 0, maxWidth: Platform.OS === "web" ? "100%" : undefined, flexShrink: Platform.OS === "web" ? 1 : 0 }}>
+    <View pointerEvents="box-none" style={{ zIndex: props.open ? 20 : 0, maxWidth: Platform.OS === "web" ? "100%" : undefined, flexShrink: Platform.OS === "web" ? 1 : 0 }}>
       <HoverPressable
         accessibilityRole="button"
         accessibilityLabel={props.accessibilityLabel ?? (props.compact ? props.label : undefined)}
