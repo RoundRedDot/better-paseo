@@ -1,3 +1,4 @@
+import { nativeProseText } from "./helpers/native-prose-text";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
@@ -93,6 +94,8 @@ const panel = (renderer: ReturnType<typeof TestRenderer.create>) => {
 };
 
 function textOf(node: ReactTestInstance | string): string {
+  const native = nativeProseText(node);
+  if (native !== undefined) return native;
   if (typeof node === "string") return node;
   // A run of iOS prose carries its text as a prop.
   if ((node.type as unknown) === "RNUITextViewChild") return String(node.props.text);

@@ -69,6 +69,11 @@ export const StyleSheet = {
   absoluteFillObject: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
 };
 
+/** Native struct colors are processed before crossing the Fabric boundary. */
+export function processColor(color: unknown) {
+  return color;
+}
+
 function os(): string {
   return (globalThis as { __rnMockOS?: string }).__rnMockOS ?? "ios";
 }

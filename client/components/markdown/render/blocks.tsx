@@ -1,5 +1,5 @@
 import React from "react";
-import { Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import type { MarkedToken, Token, Tokens } from "../../../vendor/marked";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { MathToken } from "../lex";
@@ -8,9 +8,9 @@ import { CodeBlock } from "./code-block";
 import type { RenderContext } from "./context";
 import { codeSurface } from "../../host-font-escape";
 import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
-import { ProseSpan, ProseText } from "../../../ui/prose-text";
+import { MarkdownProse, NativeProseGroup } from "./prose";
+import { nativeList, nativeParagraphs } from "./native-prose-source";
 import { CopyButton } from "../../../ui/copy-button";
-import { renderInline } from "./inline";
 import { LocalImage } from "./local-image";
 import { splitLocalImages } from "./local-path";
 import {
@@ -48,6 +48,13 @@ export function renderBlocks(
   keyPrefix: string,
   options: BlockOptions,
 ): React.ReactNode[] {
+  if (Platform.OS === "ios") {
+    const list = tokens.find((token) => token.type !== "space");
+    if (nativeParagraphs(tokens) ||
+      (list && nativeList(list) && tokens.every((token) => token === list || token.type === "space"))) {
+      return [<NativeProseGroup key={keyPrefix} context={context} tokens={tokens} inQuote={options.inQuote} />];
+    }
+  }
   const out: React.ReactNode[] = [];
   let first = options.first;
   tokens.forEach((token, index) => {
@@ -85,7 +92,7 @@ function renderBlock(
     return (
       <View key={key} style={styles.insight}>
         <View style={styles.insightHeader}>
-          <ProseText style={styles.insightTitle}>✦ Insight</ProseText>
+          <MarkdownProse context={context} style={styles.insightTitle} text="✦ Insight" />
           <CopyButton text={insight.text.trim()} tokens={context.tokens} label="Copy section" />
         </View>
         {renderBlocks(insight.tokens, insightContext, `${key}i`, {
@@ -99,9 +106,7 @@ function renderBlock(
     // TeX source on the code face (plan D6): readable, and copyable as TeX.
     const math = generic as unknown as MathToken;
     return (
-      <ProseText key={key} {...(codeSurface as object)} style={styles.plain}>
-        {math.text}
-      </ProseText>
+      <MarkdownProse key={key} context={context} {...(codeSurface as object)} style={styles.plain} text={math.text} />
     );
   }
 
@@ -126,12 +131,8 @@ function renderBlock(
                 : styles.headingBlockMinor
           }
         >
-          <ProseText style={headingStyle}>
-            {metrics.headingHash ? (
-              <ProseSpan style={styles.headingHash}>{HASH_LABELS[level - 1] ?? "# "}</ProseSpan>
-            ) : null}
-            {renderInline(token.tokens, context, key, true)}
-          </ProseText>
+          <MarkdownProse context={context} style={headingStyle} tokens={token.tokens} bold
+            prefix={metrics.headingHash ? HASH_LABELS[level - 1] ?? "# " : undefined} />
         </View>
       );
     }
@@ -145,18 +146,16 @@ function renderBlock(
               part.kind === "image" ? (
                 <LocalImage key={index} path={part.path} context={context} />
               ) : (
-                <ProseText key={index} style={options.inQuote ? styles.quoteText : styles.paragraph}>
-                  {renderInline(part.tokens, context, `${key}p${index}`)}
-                </ProseText>
+                <MarkdownProse key={index} context={context} style={options.inQuote ? styles.quoteText : styles.paragraph}
+                  tokens={part.tokens} />
               ),
             )}
           </View>
         );
       }
       return (
-        <ProseText key={key} style={options.inQuote ? styles.quoteText : styles.paragraph}>
-          {renderInline(token.tokens, context, key)}
-        </ProseText>
+        <MarkdownProse key={key} context={context} style={options.inQuote ? styles.quoteText : styles.paragraph}
+          tokens={token.tokens} />
       );
     }
 
@@ -164,9 +163,8 @@ function renderBlock(
     // place anywhere else.
     case "text":
       return (
-        <ProseText key={key} style={options.inQuote ? styles.quoteText : styles.paragraph}>
-          {renderInline(token.tokens ?? [token], context, key)}
-        </ProseText>
+        <MarkdownProse key={key} context={context} style={options.inQuote ? styles.quoteText : styles.paragraph}
+          tokens={token.tokens ?? [token]} />
       );
 
     case "list":
@@ -195,17 +193,13 @@ function renderBlock(
       const source = token.raw.replace(/\n+$/, "");
       if (source.trim() === "") return null;
       return (
-        <ProseText key={key} {...(codeSurface as object)} style={styles.plain}>
-          {source}
-        </ProseText>
+        <MarkdownProse key={key} context={context} {...(codeSurface as object)} style={styles.plain} text={source} />
       );
     }
 
     default:
       return token.raw.trim() === "" ? null : (
-        <ProseText key={key} {...(codeSurface as object)} style={styles.plain}>
-          {token.raw}
-        </ProseText>
+        <MarkdownProse key={key} context={context} {...(codeSurface as object)} style={styles.plain} text={token.raw} />
       );
   }
 }
@@ -295,16 +289,13 @@ function renderRow(
   const only = body.length === 1 ? body[0] : undefined;
   const bodyNode =
     only !== undefined && (only.type === "text" || only.type === "paragraph") ? (
-      <ProseText style={textStyle}>
-        {renderInline((only as Tokens.Text).tokens ?? [only], context, key)}
-      </ProseText>
+      <MarkdownProse context={context} style={textStyle} tokens={(only as Tokens.Text).tokens ?? [only]} />
     ) : (
       <View style={[styles.listItemBody, { gap: metrics.itemGap }]}>
         {body.map((child, index) =>
           child.type === "text" || child.type === "paragraph" ? (
-            <ProseText key={`${key}b${index}`} style={[textStyle, styles.listItemText]}>
-              {renderInline((child as Tokens.Text).tokens ?? [child], context, `${key}b${index}`)}
-            </ProseText>
+            <MarkdownProse key={`${key}b${index}`} context={context} style={[textStyle, styles.listItemText]}
+              tokens={(child as Tokens.Text).tokens ?? [child]} />
           ) : (
             renderBlocks([child], context, `${key}b${index}`, { ...options, first: false })
           ),
