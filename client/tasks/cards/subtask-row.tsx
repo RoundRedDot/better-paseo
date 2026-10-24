@@ -127,7 +127,7 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
   const timer = useTime(props, (now) => !hideRunTime && timed ? cardTimer(timed, now, language, true)?.text ?? "" : "");
   // Timer ticks update the existing probe; remounting it would flash full labels every second.
   const measureKey = JSON.stringify([scale, language, child.kind, child.subtitle, child.subagentType, child.modelLabel, child.thinkingLabel, child.modeLabel, status, ratio !== null, !!start, !!timer]);
-  const canFoldMode = child.modeLabel === "Full Access" || child.modeLabel === "Default Permissions";
+  const canFoldMode = !!child.modeLabel;
   const compactLabels = narrow || (width !== null && width > 0 && measured?.key === measureKey && measured.width > width);
   const iconSize = 12;
   const muted = tokens.foregroundMuted;
