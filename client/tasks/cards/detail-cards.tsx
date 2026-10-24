@@ -16,7 +16,7 @@ import { opensInPaseo, turnRunning, type PermissionKind, type TaskCard, type Tas
 import type { PermissionButton, StopPhase } from "../actions";
 import type { FirstPrompt } from "../data/first-prompt";
 import type { LastMessage } from "../data/last-message";
-import { formatDuration, formatRelative, formatTokenTotal, since, tildePath } from "./format";
+import { formatDuration, formatRelative, formatThinkingLevel, formatTokenTotal, since, tildePath } from "./format";
 import { cardStrings } from "./strings";
 import { taskTokens, type TaskTokens } from "./tokens";
 import { TagMark } from "./tag-mark";
@@ -378,7 +378,7 @@ function DetailHeader(props: Inner) {
           testID="detail-model"
         />
         {card.thinkingLabel ? (
-          <Chip tokens={tokens} height={m.chip} font={chipFont} muted lead={<Icon name={THINKING_ICON} size={iconSize} color={tokens.foregroundMuted} />} text={card.thinkingLabel} testID="detail-thinking" />
+          <Chip tokens={tokens} height={m.chip} font={chipFont} muted lead={<Icon name={THINKING_ICON} size={iconSize} color={tokens.foregroundMuted} />} text={formatThinkingLevel(card.thinkingLabel)} accessibilityLabel={card.thinkingLabel} testID="detail-thinking" />
         ) : null}
         {card.modeLabel && mode ? (
           <Chip

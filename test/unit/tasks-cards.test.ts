@@ -184,8 +184,15 @@ function texts(root: ReactTestInstance): string[] {
       ? node.replace(/\u00a0/g, " ").replace(/[\u200b\u2060]/g, "")
       : node.children.map((child) => join(child as ReactTestInstance | string)).join("");
   return root
-    .findAll((node) => ["Text", "EnrichedMarkdownText", "EnrichedMarkdown"].includes(String(node.type)) && !hasTextAncestor(node))
+    .findAll((node) => ["Text", "EnrichedMarkdownText", "EnrichedMarkdown"].includes(String(node.type)) && !hasTextAncestor(node) && !hasHiddenAncestor(node))
     .map((node) => nativeProseText(node) ?? join(node));
+}
+
+function hasHiddenAncestor(node: ReactTestInstance): boolean {
+  for (let parent = node.parent; parent; parent = parent.parent) {
+    if (parent.props.accessibilityElementsHidden || parent.props["aria-hidden"]) return true;
+  }
+  return false;
 }
 
 function hasTextAncestor(node: ReactTestInstance): boolean {
@@ -449,7 +456,7 @@ describe("TaskCardView rows", () => {
     ]);
     // Model and thinking share one pill, each with its icon, joined by a middle dot.
     const agent = hostByTestId(tree.root, "pill-model");
-    expect(texts(agent)).toEqual(["GPT-5.5 Codex", "·", "Medium"]);
+    expect(texts(agent)).toEqual(["GPT-5.5 Codex", "·", "m"]);
     expect(icons(agent)).toEqual(["Brain"]);
     expect(flat(hostByTestId(agent, "agent-pill-dot").props.style).marginHorizontal).toBe(-3);
     expect(agent.props.accessibilityLabel).toBe("Codex GPT-5.5 Codex Medium");
@@ -509,7 +516,7 @@ describe("TaskCardView rows", () => {
     expect(pills(tree.root)).toEqual([
       ["pill-model", "GPT-5.5 Codex"],
     ]);
-    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex", "·", "Medium", RUNNING_START, "12m 30s", "打开"]);
+    expect(texts(tree.root)).toEqual(["Port the status ring to React Native", "GPT-5.5 Codex", "·", "m", RUNNING_START, "12m 30s", "打开"]);
     expect(hostByTestId(tree.root, "pill-model").findAll((node) => (node.type as unknown) === "Image")).toHaveLength(0);
     // No jump arrow on the title row: Open sits on the row under the footer.
     expect(icons(hostByTestId(tree.root, "task-card-title-row"))).not.toContain("ArrowUpRight");
@@ -535,7 +542,7 @@ describe("TaskCardView rows", () => {
   it("keeps the thinking level in a pill of its own when the model pill is off", async () => {
     const tree = await render(cardElement(sample("sample-running"), { fields: fields("standard", { provider: false, model: false }) }));
     expect(pills(tree.root).slice(0, 2)).toEqual([
-      ["pill-thinking", "Medium"],
+      ["pill-thinking", "m"],
       ["pill-branch", "feat/tasks-board"],
     ]);
     expect(icons(hostByTestId(tree.root, "pill-thinking"))).toEqual(["Brain"]);
@@ -1344,7 +1351,7 @@ describe("TaskCardView actions", () => {
     await act(async () =>
       tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false).props.onPress(),
     );
-    byLabel(tree.root, "Measure the sidebar ring").props.onPress();
+    byLabel(tree.root, "Measure the sidebar ring 运行中").props.onPress();
     expect(onReveal).toHaveBeenCalledWith("sample-child-1");
     const list = hostByTestId(tree.root, "task-card-subtasks");
     // Each row: the agent's mark on the left, aligned with the title's first line, its status on the
@@ -1372,7 +1379,7 @@ describe("TaskCardView actions", () => {
     );
     const list = hostByTestId(tree.root, "task-card-subtasks");
     for (const child of base.children) {
-      const row = byLabel(list, child.title);
+      const row = byLabel(list, `${child.title} ${cardStrings("zh").status[child.status]}`);
       const title = hostByTestId(row, `subtask-title-${child.id}`);
       const time = hostByTestId(row, `subtask-time-${child.id}`);
       const content = hostByTestId(row, `subtask-content-${child.id}`);
@@ -1389,7 +1396,7 @@ describe("TaskCardView actions", () => {
       expect(onReveal).toHaveBeenLastCalledWith(child.id);
     }
     if (compact) {
-      byLabel(byLabel(list, base.children[0]!.title), cardStrings("zh").openInWorkspace).props.onPress();
+      byLabel(byLabel(list, `${base.children[0]!.title} ${cardStrings("zh").status[base.children[0]!.status]}`), cardStrings("zh").openInWorkspace).props.onPress();
       expect(onOpen).toHaveBeenCalledWith(base.children[0]!.id);
     }
   });
@@ -1402,8 +1409,8 @@ describe("TaskCardView actions", () => {
     const tree = await render(cardElement(base, { compact, now: undefined, clock }));
     await act(async () => hostByTestId(tree.root, "pill-subtasks").props.onPress());
     const meta = () => hostByTestId(tree.root, `subtask-meta-${child.id}`);
-    expect(texts(meta())).toEqual(["Opus 4.7", "High", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
-    expect(flat(meta().props.style).flexWrap).toBe("wrap");
+    expect(texts(meta())).toEqual(["Opus 4.7", "h", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
+    expect(flat(meta().props.style).flexWrap).toBe("nowrap");
     expect(icons(meta())).toEqual(["Brain", "ShieldOff", "Clock", "Hourglass"]);
     expect(hostByTestId(meta(), "context-ring")).toBeDefined();
     expect(meta().findByType(ContextRing).props.ratio).toBe(0.6);
@@ -1472,7 +1479,7 @@ describe("TaskCardView actions", () => {
     expect(texts(hostByTestId(list, "subtask-time-sub-1"))).toEqual([formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
     for (const child of base.children) expect(list.findAll((node) => node.props.testID === `subtask-parent-tab-${child.id}`)).toHaveLength(0);
     // The row reveals the subagent's card, naming the parent for the board's fallback; the button opens the parent's tab.
-    byLabel(tree.root, "mac studio run check").props.onPress();
+    byLabel(tree.root, "mac studio run check 运行中").props.onPress();
     expect(onReveal).toHaveBeenCalledWith("sub-1", base.id);
     expect(onOpen).not.toHaveBeenCalled();
     byLabel(list, "在父任务的 tab 中打开").props.onPress();
@@ -1548,7 +1555,7 @@ describe("TaskCardView actions", () => {
     const pill = hostByTestId(tree.root, "pill-model");
     // The type's icon, the agent's name in the model's place, then the Brain-marked effort; no token count.
     expect(icons(pill)).toEqual(["Shapes", "Brain"]);
-    expect(texts(pill).join("")).toBe(`${base.providerLabel}·High`);
+    expect(texts(pill).join("")).toBe(`${base.providerLabel}·h`);
     expect(pill.props.accessibilityLabel).toBe(`${base.providerLabel} general-purpose · High · 518k tokens`);
   });
 
@@ -1750,7 +1757,7 @@ describe("TaskDetailCards", () => {
     expect(texts(meta())).toContain("Full Access");
     expect(icons(meta())).toEqual(["Brain", "ShieldOff", "Clock", "Hourglass"]);
     await resize(240);
-    expect(texts(meta())).toEqual([child.modelLabel, child.thinkingLabel]);
+    expect(texts(meta())).toEqual([child.modelLabel, "h"]);
     expect(icons(meta())).toEqual(["Brain", "ShieldOff"]);
     expect(meta().findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Full Access" && node.props.accessible === true)).toHaveLength(1);
     expect(meta().findByType(ContextRing).props.ratio).toBe(0.6);
@@ -1770,6 +1777,151 @@ describe("TaskDetailCards", () => {
     expect(texts(meta())).toEqual([]);
     await act(async () => meta().props.onLayout({ nativeEvent: { layout: { width: 400, height: 0 } } }));
     expect(texts(meta())).toEqual([formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
+  });
+
+  it.each([
+    ["medium", "m"], ["Medium", "m"], ["high", "h"], ["High", "h"],
+    ["Xhigh", "xh"], ["xhigh", "xh"], ["Extra High", "xh"], ["Low", "l"],
+    ["None", "n"], ["Minimal", "min"], ["Max", "max"], ["Custom effort", "Custom effort"],
+    [" MEDIUM ", "m"], ["constructor", "constructor"],
+  ])("abbreviates structured thinking labels without losing the full name (%s)", async (thinkingLabel, expected) => {
+    const base = sample("sample-running");
+    const child = { ...base.children[0]!, thinkingLabel };
+    const card = { ...base, children: [child] };
+    for (const surface of ["card", "sidebar", "sheet"]) {
+      const tree = await render(surface === "card"
+        ? cardElement(card, { subtasksExpanded: true })
+        : details(card, { touch: surface === "sheet" }));
+      const prefix = surface === "card" ? "subtask" : "detail-subtask";
+      const meta = hostByTestId(tree.root, `${prefix}-meta-${child.id}`);
+      expect(texts(meta)).toContain(expected);
+      expect(icons(meta)).toContain("Brain");
+      if (expected !== thinkingLabel) {
+        expect(texts(meta)).not.toContain(thinkingLabel);
+        expect(meta.findAll((node) => typeof node.type === "string" && node.props.accessible === true && node.props.accessibilityLabel === thinkingLabel)).toHaveLength(1);
+      }
+      await act(async () => tree.unmount());
+    }
+    for (const compact of [false, true]) {
+      const parent = { ...base, thinkingLabel, children: [] };
+      const combined = await render(cardElement(parent, { compact }));
+      expect(texts(hostByTestId(combined.root, "agent-pill-thinking"))).toEqual([expected]);
+      expect(hostByTestId(combined.root, "pill-model").props.accessibilityLabel).toContain(thinkingLabel);
+      await act(async () => combined.unmount());
+      if (!compact) {
+        const separate = await render(cardElement(parent, { fields: fields("standard", { provider: false, model: false }) }));
+        expect(texts(hostByTestId(separate.root, "pill-thinking"))).toEqual([expected]);
+        expect(hostByTestId(separate.root, "pill-thinking").props.accessibilityLabel).toBe(thinkingLabel);
+        await act(async () => separate.unmount());
+      }
+      const detail = await render(details(parent, { touch: compact }));
+      expect(texts(hostByTestId(detail.root, "detail-thinking"))).toEqual([expected]);
+      expect(hostByTestId(detail.root, "detail-thinking").props.accessibilityLabel).toBe(thinkingLabel);
+      await act(async () => detail.unmount());
+    }
+  });
+
+  it.each(["card", "sidebar", "sheet"] as const)("omits unread text at every width and folds permission text to keep one metadata line (%s)", async (surface) => {
+    for (const language of ["zh", "en"] as const) {
+      for (const modeLabel of ["Full Access", "Default Permissions", "Bypass", "Allow All", "Plan Mode"]) {
+        const base = sample("sample-running");
+        const child: TaskChild = { ...base.children[0]!, title: "Child layout", status: "unread", lane: "review", modeLabel };
+        const card = { ...base, children: [child] };
+        const tree = await render(surface === "card"
+          ? cardElement(card, { language, subtasksExpanded: true })
+          : details(card, { touch: surface === "sheet", scrollBody: surface === "sidebar" }, language));
+        const prefix = surface === "card" ? "subtask" : "detail-subtask";
+        const meta = () => hostByTestId(tree.root, `${prefix}-meta-${child.id}`);
+        const words = cardStrings(language);
+        const resize = async (width: number) => act(async () => meta().props.onLayout({ nativeEvent: { layout: { width } } }));
+        for (const width of [0, 241, 240, 180, 400]) {
+          await resize(width);
+          const narrow = width > 0 && width <= 240;
+          const folded = narrow && ["Full Access", "Default Permissions"].includes(modeLabel);
+          expect(texts(meta()).includes(modeLabel)).toBe(!folded);
+          expect(texts(meta())).not.toContain(words.details.subtaskUnread);
+          expect(hostByTestId(tree.root, `${prefix}-${child.id}`).props.accessibilityLabel).toBe(`Child layout ${words.status.unread}`);
+          expect(hostByTestId(tree.root, `${prefix}-status-${child.id}`).findAll((node) => typeof node.type === "string" && node.props.testID === "status-unread")).toHaveLength(1);
+          expect(icons(meta())).toContain(modeIcon(child.provider!, modeLabel));
+          expect(meta().findByType(ContextRing).props.ratio).toBe(0.6);
+          expect(hostByTestId(meta(), `${prefix}-time-${child.id}`)).toBeDefined();
+          expect(flat(meta().props.style).flexWrap).toBe("nowrap");
+          expect(flat(hostByTestId(meta(), `${prefix}-time-${child.id}`).props.style).flexWrap).toBe("nowrap");
+          expect(meta().findAll((node) => (node.type as unknown) === "Text").every((node) => node.props.numberOfLines === 1)).toBe(true);
+          if (folded) {
+            const mode = meta().find((node) => typeof node.type === "string" && node.props.accessibilityLabel === modeLabel && node.props.accessible === true);
+            expect(flat(mode.props.style)).toMatchObject({ minWidth: 12, flexShrink: 0, gap: 0 });
+          }
+        }
+        // A wide column can still overflow with long labels or timing.
+        if (["Full Access", "Default Permissions"].includes(modeLabel)) {
+          await resize(300);
+          const probe = () => hostByTestId(tree.root, `${prefix}-meta-measure-${child.id}`);
+          await act(async () => probe().props.onLayout({ nativeEvent: { layout: { width: 390 } } }));
+          expect(texts(meta())).not.toContain(words.details.subtaskUnread);
+          expect(texts(meta())).not.toContain(modeLabel);
+          await resize(400);
+          expect(texts(meta())).not.toContain(words.details.subtaskUnread);
+          expect(texts(meta())).toContain(modeLabel);
+        }
+        await act(async () => tree.unmount());
+      }
+    }
+  });
+
+  it.each(["zh", "en"] as const)("omits an unread-only metadata line while keeping its accessible status (%s)", async (language) => {
+    const child: TaskChild = { id: "unread-only", title: "Child layout", status: "unread" };
+    const card = { ...sample("sample-running"), children: [child] };
+    for (const surface of ["card", "sidebar", "sheet"]) {
+      for (const ui of [14, 21]) {
+        const theme = { ...LIGHT, typography: { fontSize: { ui } } };
+        const tree = await render(React.createElement(TasksTypography, {
+          theme,
+          children: surface === "card"
+            ? cardElement(card, { language, subtasksExpanded: true })
+            : details(card, { touch: surface === "sheet" }, language),
+        }));
+        const prefix = surface === "card" ? "subtask" : "detail-subtask";
+        expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === `${prefix}-meta-unread-only`)).toHaveLength(0);
+        expect(texts(hostByTestId(tree.root, `${prefix}-content-unread-only`))).toEqual([child.title]);
+        expect(hostByTestId(tree.root, `${prefix}-unread-only`).props.accessibilityLabel).toBe(`${child.title} ${cardStrings(language).status.unread}`);
+        await act(async () => tree.unmount());
+      }
+    }
+  });
+
+  it("keeps overflowing permission text folded across clock ticks and invalidates measurements when labels change", async () => {
+    let now = NOW;
+    const clock = createTaskClock(() => now);
+    const base = sample("sample-running");
+    const child = { ...base.children[0]!, modeLabel: "Full Access" };
+    const element = (modelLabel = child.modelLabel) => details({ ...base, children: [{ ...child, modelLabel }] }, { now: undefined, clock });
+    const tree = await render(element());
+    const meta = () => hostByTestId(tree.root, `detail-subtask-meta-${child.id}`);
+    const probe = () => hostByTestId(tree.root, `detail-subtask-meta-measure-${child.id}`);
+    await act(async () => meta().props.onLayout({ nativeEvent: { layout: { width: 300 } } }));
+    await act(async () => probe().props.onLayout({ nativeEvent: { layout: { width: 390 } } }));
+    expect(texts(meta())).not.toContain("Full Access");
+    now += 1000;
+    await act(async () => clock.tick());
+    expect(texts(meta())).not.toContain("Full Access");
+    expect(texts(meta())).toContain("3m 1s");
+    await act(async () => tree.update(element("Short model")));
+    await act(async () => probe().props.onLayout({ nativeEvent: { layout: { width: 280 } } }));
+    expect(texts(meta())).toContain("Full Access");
+  });
+
+  it.each(["failed", "done"] as const)("preserves attention and finished timing in a narrow single-line row (%s)", async (status) => {
+    const base = sample("sample-running");
+    const child: TaskChild = { ...base.children[2]!, status, lane: status === "failed" ? "review" : "done" };
+    const tree = await render(details({ ...base, children: [child] }));
+    const meta = () => hostByTestId(tree.root, `detail-subtask-meta-${child.id}`);
+    const timeId = `detail-subtask-time-${child.id}`;
+    const before = texts(hostByTestId(meta(), timeId));
+    await act(async () => meta().props.onLayout({ nativeEvent: { layout: { width: 180 } } }));
+    expect(texts(hostByTestId(meta(), timeId))).toEqual(before);
+    expect(before.length).toBeGreaterThan(0);
+    if (status === "failed") expect(texts(meta())).toContain(cardStrings("zh").details.subtaskFailed);
   });
 
   it.each(["Full Access", "Plan Mode"])("preserves waiting time and attention status in a narrow row (%s)", async (modeLabel) => {
@@ -1854,7 +2006,7 @@ describe("TaskDetailCards", () => {
     const onOpen = vi.fn();
     const tree = await render(details(sample("sample-running"), { onOpen, sessionTokens: { total: 15_322_587, cached: 14_943_278 } }));
     const header = hostByTestId(tree.root, "detail-header");
-    expect(texts(header).slice(0, 11)).toEqual(["运行中", "本轮 12:30", "Port the status ring to React Native", "GPT-5.5 Codex", "Medium", "Bypass", "frontend", "p1", "board", "切换到 tab", "已打开"]);
+    expect(texts(header).slice(0, 11)).toEqual(["运行中", "本轮 12:30", "Port the status ring to React Native", "GPT-5.5 Codex", "m", "Bypass", "frontend", "p1", "board", "切换到 tab", "已打开"]);
     // The turn's block: its clock, the session's tokens so far and the context ring (86% is past the warning line).
     const turn = hostByTestId(tree.root, "detail-turn");
     expect(texts(turn)).toEqual(["本轮计时", "12:30", "上一轮 18m", "累计 token", "15.3M", "缓存占 98%", "上下文", "86%", "172k / 200k"]);
@@ -2130,7 +2282,7 @@ describe("TaskDetailCards", () => {
       "5m 12s",
       "Measure the sidebar ring",
       "Opus 4.7",
-      "High",
+      "h",
       "Bypass",
       start(3 * 60_000),
       "3m",
@@ -2195,9 +2347,9 @@ describe("TaskDetailCards", () => {
     expect(flat(content.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
     expect(flat(content.props.style).flexDirection).toBeUndefined();
     expect((content.children[0] as ReactTestInstance).props.testID).toBe(`detail-subtask-title-${child.id}`);
-    expect(flat(secondary.props.style)).toMatchObject({ flexDirection: "row", flexWrap: "wrap" });
+    expect(flat(secondary.props.style)).toMatchObject({ flexDirection: "row", flexWrap: "nowrap" });
     expect(texts(hostByTestId(secondary, `detail-subtask-time-${child.id}`))).toEqual([formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
-    expect(texts(secondary)).toEqual(["Opus 4.7", "High", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
+    expect(texts(secondary)).toEqual(["Opus 4.7", "h", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
     expect(row.findByType(SubtaskMetadata).props.child).toBe(child);
     expect(flat(hostByTestId(row, `detail-subtask-status-${child.id}`).props.style).flexShrink).toBe(0);
     const before = flat(content.props.style);
@@ -2266,7 +2418,7 @@ describe("TaskDetailCards", () => {
     const shown = texts(hostByTestId(tree.root, "detail-subtasks"));
     expect(shown[1]).toBe("1/3 完成");
     const meta = hostByTestId(section, "detail-subtask-meta-sample-child-1");
-    expect(texts(meta)).toEqual(["Opus 4.7", "High", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
+    expect(texts(meta)).toEqual(["Opus 4.7", "h", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
     expect(icons(meta)).toEqual(["Brain", "ShieldOff", "Clock", "Hourglass"]);
     expect(meta.findByType(ContextRing).props.ratio).toBe(0.6);
   });
@@ -2284,7 +2436,9 @@ describe("TaskDetailCards", () => {
     await act(async () => section.props.onLayout({ nativeEvent: { layout: { width: 280, height: 400 } } }));
     for (const id of [child.id, "same-model"]) {
       const meta = hostByTestId(section, `detail-subtask-meta-${id}`);
-      expect(texts(meta)).toEqual(expect.arrayContaining([child.modelLabel, child.thinkingLabel, child.modeLabel, word]));
+      expect(texts(meta)).toEqual(expect.arrayContaining([child.modelLabel, "h", child.modeLabel]));
+      if (status === "unread") expect(texts(meta)).not.toContain(word);
+      else expect(texts(meta)).toContain(word);
       expect(icons(meta)).toEqual(["Brain", "ShieldOff", timerIcon]);
       expect(meta.findByType(ContextRing).props).toMatchObject({ ratio, color: taskTokens(LIGHT)[tone] });
     }
@@ -2514,7 +2668,7 @@ describe("TaskDetailCards", () => {
     const agent = hostByTestId(tree.root, "detail-agent");
     expect(texts(hostByTestId(agent, "detail-model"))).toEqual(["Opus 5.5"]);
     expect(hostByTestId(agent, "detail-model").findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(1);
-    expect(texts(hostByTestId(agent, "detail-thinking"))).toEqual(["High"]);
+    expect(texts(hostByTestId(agent, "detail-thinking"))).toEqual(["h"]);
     expect(icons(hostByTestId(agent, "detail-thinking"))).toEqual(["Brain"]);
     expect(texts(hostByTestId(agent, "detail-mode"))).toEqual(["Bypass"]);
     expect(icons(hostByTestId(agent, "detail-mode"))).toEqual(["ShieldOff"]);
@@ -2525,7 +2679,7 @@ describe("TaskDetailCards", () => {
     const card: TaskCard = { ...base, model: null, modelLabel: null, thinkingLabel: "High", modeLabel: null, subagent: { subtitle: "general-purpose · High · 518k tokens", type: "general-purpose" } };
     const agent = hostByTestId((await render(details(card))).root, "detail-agent");
     expect(texts(hostByTestId(agent, "detail-model"))).toEqual([base.providerLabel]);
-    expect(texts(hostByTestId(agent, "detail-thinking"))).toEqual(["High"]);
+    expect(texts(hostByTestId(agent, "detail-thinking"))).toEqual(["h"]);
   });
 
   it("leads the details' label chips with a solid tag in the label's colour, its hole the card's", async () => {
