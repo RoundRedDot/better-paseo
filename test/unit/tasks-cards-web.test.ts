@@ -13,9 +13,18 @@ vi.hoisted(() => {
 });
 
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
+const folder = vi.hoisted(() => ({
+  touch: false,
+  reveal: vi.fn<(_input: { cwd: string; path: string }) => Promise<{ revealed: string | null; error: string | null }>>(),
+  error: vi.fn(),
+}));
 vi.mock("@getpaseo/plugin/client", async (original) => ({
   ...await original<object>(),
-  useRpc: () => async () => ({ revealed: "/repo", error: null }),
+  useRpc: () => folder.reveal,
+}));
+vi.mock("../../client/ui/use-input-capabilities", async (original) => ({
+  ...await original<object>(),
+  useInputCapabilities: () => ({ hover: !folder.touch, touch: folder.touch, compact: false, native: false }),
 }));
 
 /** The DOM hover bindings the cards make, by the bound element's testID or label. */
@@ -48,7 +57,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     copyText: async (text: string) => {
       copies.push(text);
     },
-    useToast: () => ({ show() {}, error() {} }),
+    useToast: () => ({ show() {}, error: folder.error }),
   };
 });
 
@@ -206,7 +215,7 @@ describe("TaskCardView on web", () => {
     );
     const directory = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-cwd");
     await act(async () => hovers.get("detail-cwd")!.enter());
-    expect(directory.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "打开文件夹")).toHaveLength(1);
+    expect(directory.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "打开文件夹")).toHaveLength(touch ? 0 : 1);
     expect(nestedButtons(renderer.root)).toEqual([]);
     await act(async () => renderer.unmount());
   });
@@ -243,6 +252,52 @@ describe("TaskCardView on web", () => {
     expect(row.props.style.backgroundColor).toBe("transparent");
     await act(async () => renderer.unmount());
     expect(hovers.has("detail-cwd")).toBe(false);
+  });
+
+  it("hides folder opening in a touch browser even in a wide desktop layout", async () => {
+    folder.touch = true;
+    const card = sampleCards(NOW).find((card) => card.id === "sample-running")!;
+    const renderer = await render(React.createElement(TaskDetailCards, {
+      card, theme: THEME, now: NOW, language: "zh", strings: BOARD_STRINGS.zh.sidebar,
+    }));
+    try {
+      const row = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-cwd");
+      await act(async () => hovers.get("detail-cwd")!.enter());
+      expect(row.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "打开文件夹")).toHaveLength(0);
+      const before = copies.length;
+      await act(async () => row.props.onPress());
+      expect(copies.slice(before)).toEqual([card.location.cwd]);
+    } finally {
+      folder.touch = false;
+      await act(async () => renderer.unmount());
+    }
+  });
+
+  it.each(["zh", "en"] as const)("opens the desktop folder and reports failures in %s", async (language) => {
+    const card = sampleCards(NOW).find((card) => card.id === "sample-running")!;
+    const renderer = await render(React.createElement(TaskDetailCards, {
+      card, theme: THEME, now: NOW, language, strings: BOARD_STRINGS[language].sidebar,
+    }));
+    folder.reveal.mockReset();
+    folder.error.mockClear();
+    folder.reveal.mockResolvedValueOnce({ revealed: card.location.cwd, error: null });
+    await act(async () => hovers.get("detail-cwd")!.enter());
+    const label = language === "zh" ? "打开文件夹" : "Open folder";
+    const button = renderer.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === label);
+    const stopPropagation = vi.fn();
+    const before = copies.length;
+    await act(async () => button.props.onPress({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(folder.reveal).toHaveBeenCalledExactlyOnceWith({ cwd: card.location.cwd, path: card.location.cwd });
+    expect(copies.length).toBe(before);
+    expect(folder.error).not.toHaveBeenCalled();
+    folder.reveal.mockResolvedValueOnce({ revealed: null, error: "Directory missing" });
+    await act(async () => button.props.onPress({ stopPropagation }));
+    expect(folder.error).toHaveBeenLastCalledWith(language === "zh" ? "打开文件夹失败：Directory missing" : "Could not open folder: Directory missing");
+    folder.reveal.mockRejectedValueOnce(new Error("Host disconnected"));
+    await act(async () => button.props.onPress({ stopPropagation }));
+    expect(folder.error).toHaveBeenLastCalledWith(language === "zh" ? "打开文件夹失败：Host disconnected" : "Could not open folder: Host disconnected");
+    await act(async () => renderer.unmount());
   });
 
   it("keeps Stop while the pointer moves from the card onto it, and cancels on leaving the card", async () => {
