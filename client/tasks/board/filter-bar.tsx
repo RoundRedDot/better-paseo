@@ -138,7 +138,7 @@ export function DesktopToolbar(props: {
   );
 }
 
-/** The toolbar's round outline button, with a Lucide panel icon for each state. */
+/** A round outlined button, filled grey while the sidebar shows. */
 function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void; theme: PluginTheme; label: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
@@ -158,16 +158,16 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
       style={{
         width: size,
         height: size,
-        flexShrink: 0,
+        marginLeft: 2,
         borderRadius: size / 2,
         borderWidth: HAIRLINE,
         borderColor: colors.border,
-        backgroundColor: hovered ? colors.surface1 : colors.surface0,
+        backgroundColor: props.open ? colors.surface2 : hovered ? colors.surface1 : colors.surface0,
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      <PanelMark open={props.open} side={props.sheet ? "bottom" : "right"} size={Math.round(size / 2)} color={colors.foreground} />
+      <PanelMark open={props.open} side={props.sheet ? "bottom" : "right"} color={props.open ? colors.foreground : colors.foregroundMuted} />
     </Pressable>
   );
 }
@@ -218,14 +218,30 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
 }
 
 /**
- * Use the host's icon renderer so panel controls share the other toolbar
- * icons' stroke, corners and scaling. The arrow describes the next action.
+ * Keep the original panel silhouette: a rounded frame with a solid block
+ * while open and a thin bar while closed, on the edge the details come from.
+ * Tighter corners and even insets keep all four states balanced.
  */
-function PanelMark(props: { open: boolean; side: "right" | "bottom"; size: number; color: string }) {
-  const name = props.side === "bottom"
-    ? props.open ? "PanelBottomClose" : "PanelBottomOpen"
-    : props.open ? "PanelRightClose" : "PanelRightOpen";
-  return <Icon name={name} size={props.size} color={props.color} />;
+function PanelMark(props: { open: boolean; side: "right" | "bottom"; color: string }) {
+  const bottom = props.side === "bottom";
+  return (
+    <View
+      testID="panel-mark"
+      style={{
+        width: 16,
+        height: 13,
+        borderWidth: 1.5,
+        borderRadius: 2.5,
+        borderColor: props.color,
+        flexDirection: bottom ? "column" : "row",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        ...(bottom ? { paddingBottom: 1.5 } : { paddingRight: 1.5 }),
+      }}
+    >
+      <View testID="panel-mark-fill" style={{ width: bottom ? 10 : props.open ? 3.5 : 1.5, height: bottom ? props.open ? 3 : 1.5 : 7, borderRadius: 0.75, backgroundColor: props.color }} />
+    </View>
+  );
 }
 
 function KeyCap({ label, theme }: { label: string; theme: PluginTheme }) {
