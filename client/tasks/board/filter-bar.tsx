@@ -108,7 +108,7 @@ export function DesktopToolbar(props: {
           style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground }}
         />
       </View>
-      {props.filters ? (
+      {props.filters || Platform.OS === "ios" ? (
         <RoundButton
           icon="Archive"
           label={strings.archivedLane.row}
@@ -138,7 +138,7 @@ export function DesktopToolbar(props: {
   );
 }
 
-/** Linear's panel switch: a 28 round button, outlined, filled grey while the sidebar shows. */
+/** The toolbar's round outline button, with a Lucide panel icon for each state. */
 function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void; theme: PluginTheme; label: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
@@ -158,16 +158,16 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
       style={{
         width: size,
         height: size,
-        marginLeft: 2,
+        flexShrink: 0,
         borderRadius: size / 2,
         borderWidth: HAIRLINE,
         borderColor: colors.border,
-        backgroundColor: props.open ? colors.surface2 : hovered ? colors.surface1 : colors.surface0,
+        backgroundColor: hovered ? colors.surface1 : colors.surface0,
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      <PanelMark open={props.open} side={props.sheet ? "bottom" : "right"} color={props.open ? colors.foreground : colors.foregroundMuted} />
+      <PanelMark open={props.open} side={props.sheet ? "bottom" : "right"} size={Math.round(size / 2)} color={colors.foreground} />
     </Pressable>
   );
 }
@@ -218,31 +218,14 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
 }
 
 /**
- * Linear's panel mark at the host's 1.5 stroke: a rounded frame with a thin
- * bar on the side the details come from (right, or bottom when they rise as
- * a sheet) while the sidebar hides, a solid block while it shows.
+ * Use the host's icon renderer so panel controls share the other toolbar
+ * icons' stroke, corners and scaling. The arrow describes the next action.
  */
-function PanelMark(props: { open: boolean; side: "right" | "bottom"; color: string }) {
-  const bottom = props.side === "bottom";
-  const bar = props.open ? { long: 6.5, short: 4, radius: 1 } : { long: 5.5, short: 1.5, radius: 0.75 };
-  return (
-    <View
-      testID="panel-mark"
-      style={{
-        width: 15,
-        height: 12,
-        borderWidth: 1.5,
-        borderRadius: 3.5,
-        borderColor: props.color,
-        flexDirection: bottom ? "column" : "row",
-        alignItems: "center",
-        justifyContent: "flex-end",
-        ...(bottom ? { paddingBottom: 2 } : { paddingRight: 2.5 }),
-      }}
-    >
-      <View style={{ width: bottom ? bar.long + 1.5 : bar.short, height: bottom ? (props.open ? 3.5 : bar.short) : bar.long, borderRadius: bar.radius, backgroundColor: props.color }} />
-    </View>
-  );
+function PanelMark(props: { open: boolean; side: "right" | "bottom"; size: number; color: string }) {
+  const name = props.side === "bottom"
+    ? props.open ? "PanelBottomClose" : "PanelBottomOpen"
+    : props.open ? "PanelRightClose" : "PanelRightOpen";
+  return <Icon name={name} size={props.size} color={props.color} />;
 }
 
 function KeyCap({ label, theme }: { label: string; theme: PluginTheme }) {
@@ -486,7 +469,7 @@ export function DesktopFilterBar(props: {
         </MenuButton>
         {tablet ? (
           <>
-            <BarSwitch
+            {Platform.OS === "ios" ? null : <BarSwitch
               icon="Archive"
               on={board.showArchived}
               slashed={!board.showArchived}
@@ -496,7 +479,7 @@ export function DesktopFilterBar(props: {
               tip={board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row}
               theme={theme}
               testID="archived-lane-toggle"
-            />
+            />}
             <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={activeFilterCount(params, defaults)} onPress={props.onMore} size={toolbarButtonSize(scale)} tip={strings.filters} testID="filter-bar-more" />
           </>
         ) : (
