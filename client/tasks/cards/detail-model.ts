@@ -25,24 +25,23 @@ export function detailHero(card: TaskCard): DetailHero {
 
 /**
  * The sections after the hero, in order, and the ones closed unless the user
- * opened them. `prompt` leads them when the details can read the task's first
- * prompt: the title is only its first line, cut short. `message`, the agent's
- * latest reply, follows it.
+ * opened them. Properties lead, followed by the task's first prompt and the
+ * agent's latest reply when the details can read them.
  */
 export function detailSections(card: TaskCard, prompt = false, message = false): { order: DetailSection[]; closed: DetailSection[] } {
   const hero = detailHero(card);
   let order: DetailSection[];
-  if (hero === "turn") order = ["subtasks", "properties", "usage", "activity"];
-  else if (hero === "permission") order = ["properties", "subtasks", "usage", "activity"];
-  else if (hero === "error") order = ["properties", "activity", "usage", "subtasks"];
-  else order = ["subtasks", "properties", "usage", "activity"];
+  if (hero === "turn") order = ["subtasks", "usage", "activity"];
+  else if (hero === "permission") order = ["subtasks", "usage", "activity"];
+  else if (hero === "error") order = ["activity", "usage", "subtasks"];
+  else order = ["subtasks", "usage", "activity"];
   if (card.children.length === 0) order = order.filter((section) => section !== "subtasks");
   // A provider subagent's card carries no usage or activity of its own.
-  if (card.subagent) order = order.filter((section) => section === "properties");
+  if (card.subagent) order = [];
   if (message) order = ["message", ...order];
   if (prompt) order = ["prompt", ...order];
   const closed: DetailSection[] = hero === "permission" || hero === "error" ? ["usage"] : [];
-  return { order, closed };
+  return { order: ["properties", ...order], closed };
 }
 
 /** The colour each status draws with in the charts: the board's status band, done in grey. */
