@@ -236,6 +236,62 @@ function failDeviceWrite() {
   vi.spyOn(storage, "write").mockImplementationOnce(() => { throw new Error("Disk full"); });
 }
 
+/** Browser focus and both key phases, without RNW swallowing a card's activation. */
+function renderFocusBoard() {
+  const capture = new Set<(event: unknown) => void>();
+  const bubble = new Set<(event: unknown) => void>();
+  const doc = {
+    activeElement: null as unknown, body: {}, visibilityState: "visible",
+    addEventListener: (type: string, listener: (event: unknown) => void, useCapture?: boolean) => {
+      if (type === "keydown") (useCapture ? capture : bubble).add(listener);
+    },
+    removeEventListener: (type: string, listener: (event: unknown) => void, useCapture?: boolean) => {
+      if (type === "keydown") (useCapture ? capture : bubble).delete(listener);
+    },
+  };
+  vi.stubGlobal("window", {});
+  vi.stubGlobal("document", doc);
+  vi.stubGlobal("HTMLElement", class {});
+  const board = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.tabIndex === -1 && node.props.role === "group");
+  const root = {
+    contains: (node: unknown) => node === root || (node as { inBoard?: boolean })?.inBoard === true,
+    focus: vi.fn(() => {
+      board().props.onBlur();
+      doc.activeElement = root;
+      board().props.onFocus({ target: root });
+    }),
+  };
+  act(() => { renderer = TestRenderer.create(screen(false), {
+    createNodeMock: (element) => {
+      const props = element.props as Record<string, unknown>;
+      return props.tabIndex === -1 && props.role === "group" ? root : null;
+    },
+  }); });
+  layOut(2000);
+  const focus = (id?: string) => {
+    const node = { inBoard: true, getAttribute: (name: string) => name === "data-bctaskcard" ? id ?? null : null };
+    act(() => {
+      board().props.onBlur();
+      doc.activeElement = node;
+      board().props.onFocus({ target: node });
+    });
+  };
+  const key = (value: string) => {
+    let stopped = false;
+    const event = {
+      key: value, defaultPrevented: false,
+      preventDefault: vi.fn(() => { event.defaultPrevented = true; }),
+      stopPropagation: vi.fn(() => { stopped = true; }),
+    };
+    act(() => {
+      for (const listener of capture) listener(event);
+      if (!stopped) for (const listener of bubble) listener(event);
+    });
+    return event;
+  };
+  return { doc, root, board, focus, key };
+}
+
 beforeEach(() => {
   resetHostAppearanceForTests();
   host.settings = { ...DEFAULT_TASKS_SETTINGS };
@@ -1348,6 +1404,76 @@ describe("Tasks board, desktop", () => {
       key(" ");
       expect(title()).toBe(first.title);
       expect(readSidebarPreference().open).toBe(preferred);
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("hands DOM focus to the board during navigation, and releases virtual focus to Tab and inner controls", () => {
+    try {
+      const { doc, root, board, focus, key } = renderFocusBoard();
+      expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.dataSet?.bcroot === "")).toHaveLength(1);
+      const selected = cards().find((card) => card.props.card.id === "sample-running")!.props.card;
+      focus(selected.id);
+      act(() => cards().find((card) => card.props.card.id === selected.id)!.props.onSelect(selected));
+      key("ArrowDown");
+      const focused = cards().find((card) => card.props.focused)!;
+      expect(focused.props.card.id).not.toBe(selected.id);
+      expect(doc.activeElement).toBe(root);
+      expect(root.focus).toHaveBeenCalledWith({ preventScroll: true });
+      expect(cards().filter((card) => card.props.current).map((card) => card.props.card.id)).toEqual([selected.id]);
+      expect(board().props["aria-activedescendant"]).toBe(focused.props.focusId);
+      expect(hostsById(`task-card-${focused.props.card.id}`)[0]!.props.nativeID).toBe(focused.props.focusId);
+      // Tab hands focus to a card, clearing the old virtual ring.
+      focus("sample-done");
+      expect(cards().some((card) => card.props.focused)).toBe(false);
+      expect(board().props["aria-activedescendant"]).toBeUndefined();
+      key("ArrowLeft");
+      expect(doc.activeElement).toBe(root);
+      expect(cards().find((card) => card.props.focused)!.props.card.lane).toBe("review");
+      // An inner button or toolbar control keeps its own activation.
+      focus();
+      expect(cards().some((card) => card.props.focused)).toBe(false);
+      expect(key(" ").preventDefault).not.toHaveBeenCalled();
+      expect(key("Enter").preventDefault).not.toHaveBeenCalled();
+      expect(openAgent).not.toHaveBeenCalled();
+      // A blank press clears selection and browser focus together.
+      focus(selected.id);
+      let blank = lanesScroll().parent!;
+      while (!blank.props.onResponderGrant) blank = blank.parent!;
+      act(() => {
+        blank.props.onResponderGrant({ nativeEvent: { pageX: 10, pageY: 10 } });
+        blank.props.onResponderRelease({ nativeEvent: { pageX: 10, pageY: 10 } });
+      });
+      expect(doc.activeElement).toBe(root);
+      expect(cards().some((card) => card.props.focused || card.props.current)).toBe(false);
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("uses the Tab-focused card for Space and Enter before RNW synthesizes a click", () => {
+    try {
+      const { doc, root, board, focus, key } = renderFocusBoard();
+      const selected = cards().find((card) => card.props.card.id === "sample-running")!.props.card;
+      act(() => cards().find((card) => card.props.card.id === selected.id)!.props.onSelect(selected));
+      focus("sample-done");
+      const preview = key(" ");
+      expect(preview.preventDefault).toHaveBeenCalledTimes(1);
+      expect(preview.stopPropagation).toHaveBeenCalledTimes(1);
+      expect(cards().filter((card) => card.props.current).map((card) => card.props.card.id)).toEqual(["sample-done"]);
+      const open = key("Enter");
+      expect(open.stopPropagation).toHaveBeenCalledTimes(1);
+      expect(doc.activeElement).toBe(root);
+      expect(board().props["aria-activedescendant"]).toBe("task-card-sample-done");
+      expect(openAgent.mock.calls).toEqual([[{ agentId: "sample-done" }]]);
+      key(" ");
+      expect(cards().some((card) => card.props.current)).toBe(false);
+      expect(cards().filter((card) => card.props.focused).map((card) => card.props.card.id)).toEqual(["sample-done"]);
     } finally {
       act(() => renderer?.unmount());
       renderer = undefined;

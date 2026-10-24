@@ -154,6 +154,22 @@ async function render(element: React.ReactElement) {
 }
 
 describe("TaskCardView on web", () => {
+  it.each(["light", "dark"])("distinguishes keyboard focus from selection in the %s theme", async (appearance) => {
+    const theme = appearance === "light" ? THEME : {
+      colors: { ...THEME.colors, surface0: "#181b1a", surface1: "#1e2120", surface2: "#272a29", border: "#252b2a", foreground: "#fafafa", foregroundMuted: "#a1a5a4" },
+    };
+    const tokens = taskTokens(theme);
+    const renderer = await render(React.createElement(TaskCardView, props("sample-running", { theme, focused: true })));
+    const style = () => renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-sample-running").props.style;
+    expect(style()).toMatchObject({ backgroundColor: tokens.card.background, borderColor: tokens.card.border, outlineStyle: "solid", outlineWidth: 2, outlineColor: tokens.foregroundMuted, outlineOffset: 2, boxShadow: tokens.card.shadow });
+    await act(async () => renderer.update(React.createElement(TaskCardView, props("sample-running", { theme, current: true }))));
+    expect(style()).toMatchObject({ backgroundColor: tokens.card.current, borderColor: tokens.card.currentBorder, boxShadow: tokens.card.shadow });
+    expect(style().outlineStyle).toBeUndefined();
+    await act(async () => renderer.update(React.createElement(TaskCardView, props("sample-running", { theme, current: true, focused: true }))));
+    expect(style()).toMatchObject({ backgroundColor: tokens.card.current, borderColor: tokens.card.currentBorder, outlineStyle: "solid", boxShadow: tokens.card.shadow });
+    await act(async () => renderer.unmount());
+  });
+
   it("never nests a button inside another, on any card, desktop or phone", async () => {
     for (const compact of [false, true]) {
       for (const card of sampleCards(NOW)) {
