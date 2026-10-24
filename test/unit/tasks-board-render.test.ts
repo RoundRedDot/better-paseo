@@ -754,24 +754,31 @@ describe("Tasks board, desktop", () => {
 
   it.each([
     ["ios", "en", 14], ["ios", "zh", 21], ["web", "en", 21],
-  ] as const)("%s group tabs hide overflowing %s labels at UI base %i and restore whole labels", (os, language, base) => {
+  ] as const)("%s group tabs show all %s labels or none at UI base %i", (os, language, base) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     updateEnhancerPreferences({ language });
     act(() => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
     layOut(os === "ios" ? 900 : 1600);
     if (os === "ios") act(() => hostsById("sidebar-switch")[0]!.props.onPress());
     const layout = (node: ReactTestInstance, width: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 36 } } }));
+    const tabs = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "tab");
+    const labels = () => hostsById("sidebar-group-tab-label");
+    const measureTab = (tab: ReactTestInstance, width: number) => layout(tab.find((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-measure"), width);
+    expect(labels()).toHaveLength(0);
+    // Three short labels fit, but the longest still forces the entire row to icons.
+    tabs().forEach((tab, index) => { layout(tab, 100); measureTab(tab, index === 2 ? 90 : 40); });
+    expect(labels()).toHaveLength(0);
+    measureTab(tabs()[2]!, 60);
+    expect(labels()).toHaveLength(4);
     for (const kind of ["agent", "project", "workspace", "label"] as const) {
       const word = BOARD_STRINGS[language].sidebar.groups[kind];
       const tab = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "tab" && node.props.accessibilityLabel === word);
       const measure = () => tab().find((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-measure");
       const label = () => tab().findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-label");
-      layout(measure(), 60);
-      layout(tab(), 100);
       expect(label()).toHaveLength(1);
       const basis = StyleSheet.flatten(tab().props.style).flexBasis;
       layout(tab(), 50);
-      expect(label()).toHaveLength(0);
+      expect(labels()).toHaveLength(0);
       expect(tab().findAll((node) => (node.type as unknown) === "Icon")).toHaveLength(1);
       expect(StyleSheet.flatten(tab().props.style).flexBasis).toBe(basis);
       expect(hostParentOf(measure())!.props.accessibilityElementsHidden).toBe(true);
@@ -783,12 +790,19 @@ describe("Tasks board, desktop", () => {
       expect(measure()).toBe(measurement);
       expect(StyleSheet.flatten(measure().props.style).fontWeight).toBe("500");
       layout(tab(), 120);
-      expect(label()).toHaveLength(1);
+      expect(labels()).toHaveLength(4);
       expect(textOf(label()[0]!)).toBe(word);
       // An updated measurement (font or translation) can hide the label without a resize.
       layout(measure(), 140);
-      expect(label()).toHaveLength(0);
+      expect(labels()).toHaveLength(0);
+      layout(measure(), 60);
+      expect(labels()).toHaveLength(4);
     }
+    // A new language or font size invalidates the whole row until remeasured.
+    act(() => renderer!.update(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base + 2 } } })));
+    expect(labels()).toHaveLength(0);
+    tabs().forEach((tab) => measureTab(tab, 60));
+    expect(labels()).toHaveLength(4);
   });
 
   it("keeps all four icon-only group tabs equal and their labels stable through repeated clicks", () => {
