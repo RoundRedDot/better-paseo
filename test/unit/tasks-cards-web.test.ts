@@ -13,6 +13,10 @@ vi.hoisted(() => {
 });
 
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
+vi.mock("@getpaseo/plugin/client", async (original) => ({
+  ...await original<object>(),
+  useRpc: () => async () => ({ revealed: "/repo", error: null }),
+}));
 
 /** The DOM hover bindings the cards make, by the bound element's testID or label. */
 const hovers = vi.hoisted(() => new Map<string, { enter(): void; leave(): void }>());
@@ -184,7 +188,7 @@ describe("TaskCardView on web", () => {
     await act(async () => renderer.unmount());
   });
 
-  it("has no nested buttons in the details cards", async () => {
+  it.each([false, true])("has no nested buttons in the details cards (touch=%s)", async (touch) => {
     const card = sampleCards(NOW).find((candidate) => candidate.id === "sample-running")!;
     const renderer = await render(
       React.createElement(TaskDetailCards, {
@@ -193,12 +197,16 @@ describe("TaskCardView on web", () => {
         now: NOW,
         language: "zh",
         strings: BOARD_STRINGS.zh.sidebar,
+        touch,
         onOpen: () => {},
         onClose: () => {},
         onJump: () => {},
         stop: { phase: "idle", onPress: () => {} },
       }),
     );
+    const directory = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-cwd");
+    await act(async () => directory.props.onHoverIn());
+    expect(directory.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "打开文件夹")).toHaveLength(1);
     expect(nestedButtons(renderer.root)).toEqual([]);
     await act(async () => renderer.unmount());
   });
