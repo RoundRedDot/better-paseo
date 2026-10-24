@@ -381,7 +381,7 @@ describe("filter options", () => {
     };
     const params: BoardParams = { ...EMPTY_PARAMS, workspaceIds: ["wks_p1", "wks_o2", "wks_p2", "wks_s1", "wks_p3", "wks_o3", "wks_gone"] };
     const chips = activeChips(params, defaults, buildFilterOptions(tasks, params), BOARD_STRINGS.zh);
-    expect(chips.map((chip) => `${chip.kind}|${chip.value}`)).toEqual(["项目|payments-svc", "Workspace|web \u00b7 2", "Workspace|solo", "Workspace|wks_gone"]);
+    expect(chips.map((chip) => `${chip.kind}|${chip.value}`)).toEqual(["项目|payments-svc", "工作区|web \u00b7 2", "工作区|solo", "工作区|wks_gone"]);
     expect(chips[0]!.clear(params).workspaceIds).toEqual(["wks_o2", "wks_s1", "wks_o3", "wks_gone"]);
     expect(chips[1]!.clear(params).workspaceIds).toEqual(["wks_p1", "wks_p2", "wks_s1", "wks_p3", "wks_gone"]);
     const one = { ...EMPTY_PARAMS, workspaceIds: ["wks_o2"] };
@@ -406,7 +406,7 @@ describe("filter options", () => {
     expect(picked.workspaceIds).toEqual(["wks_p2", "wks_gone", "wks_p1"]);
     const again = projectOptions(buildFilterOptions(tasks, picked));
     expect(again[0]!.on).toBe(true);
-    expect(activeChips(picked, defaults, buildFilterOptions(tasks, picked), BOARD_STRINGS.zh).map((chip) => `${chip.kind}|${chip.value}`)).toEqual(["项目|payments-svc", "Workspace|wks_gone"]);
+    expect(activeChips(picked, defaults, buildFilterOptions(tasks, picked), BOARD_STRINGS.zh).map((chip) => `${chip.kind}|${chip.value}`)).toEqual(["项目|payments-svc", "工作区|wks_gone"]);
     // Picked whole, it drops all its workspaces.
     expect(toggleProject(picked, again[0]!).workspaceIds).toEqual(["wks_gone"]);
   });
@@ -427,7 +427,7 @@ describe("filter options", () => {
     const entries = groupChips(activeChips(params, defaults, buildFilterOptions(tasks, params), BOARD_STRINGS.zh), BOARD_STRINGS.zh);
     expect(entries.map((entry) => (isChipGroup(entry) ? `[${entry.label}]` : `${entry.kind}|${entry.value}`))).toEqual([
       "[已选择 2 个标签]",
-      "[已选择 2 个项目和 1 个 Workspace]",
+      "[已选择 2 个项目和 1 个工作区]",
       "Agent|Claude",
       "标题包含|「ring」",
     ]);
@@ -444,7 +444,7 @@ describe("filter options", () => {
     const chips = activeChips(params, defaults, options, BOARD_STRINGS.zh);
     expect(chips.map((chip) => `${chip.kind}|${chip.value}`)).toEqual([
       "标签|docs",
-      "Workspace|better-paseo / tasks-board",
+      "工作区|better-paseo / tasks-board",
       "|隐藏子任务",
       "标题包含|「ring」",
       "已完成|全部",

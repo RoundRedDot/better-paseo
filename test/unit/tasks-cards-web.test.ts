@@ -470,7 +470,7 @@ describe("TaskCardView on web", () => {
     const jump = () =>
       root
         .find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Measure the sidebar ring 运行中")
-        .find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "在 workspace 中打开");
+        .find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "在工作区中打开");
     expect(jump().props.disabled).toBe(true);
     await act(async () => hovers.get("subtask-sample-child-1")!.enter());
     expect(jump().props.disabled).toBe(false);
@@ -541,7 +541,7 @@ describe("TaskCardView right-click menu", () => {
     const root = renderer.root;
     expect(root.findAll((node) => node.props.testID === "task-card-menu")).toHaveLength(0);
     await act(async () => contextMenus.get("task-card-sample-running")!({ x: 40, y: 60 }, null));
-    expect(rows(root)).toEqual(["打开", "复制会话 ID", "复制标题", "复制 workspace 名称", "复制项目名称", "停止"]);
+    expect(rows(root)).toEqual(["打开", "复制会话 ID", "复制标题", "复制工作区名称", "复制项目名称", "停止"]);
 
     copies.length = 0;
     await choose(root, "复制会话 ID");
