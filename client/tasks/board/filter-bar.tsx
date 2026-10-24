@@ -26,6 +26,7 @@ const MENU_PADDING = 10;
 const MENU_ICON = 13;
 const MENU_CHEVRON = 12;
 const TOOLBAR_GAP = 10;
+const DIVIDER_MARGIN = 4;
 
 /** Round and menu buttons share the same height on each platform. */
 const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
@@ -473,7 +474,7 @@ export function DesktopFilterBar(props: {
               )}
               {fit.laneWidthMeasure}
             </View>
-            <Divider theme={theme} testID="lane-width-divider" />
+            {compact ? null : <Divider theme={theme} testID="lane-width-divider" />}
             <Text numberOfLines={1} style={{ fontSize: toolbarFontSize(), color: colors.foregroundMuted }}>{strings.timeRange}</Text>
             <WindowSegments
               value={resolved.doneWindow}
@@ -483,7 +484,7 @@ export function DesktopFilterBar(props: {
               tip={strings.tips.doneWindow}
               marks
             />
-            <Divider theme={theme} testID="done-window-divider" />
+            {compact ? null : <Divider theme={theme} testID="done-window-divider" />}
           </>
         )}
         <BarSwitch
@@ -508,7 +509,7 @@ export function DesktopFilterBar(props: {
               theme={theme}
               testID="empty-groups-toggle"
             />
-            <Divider theme={theme} />
+            {compact ? null : <Divider theme={theme} testID="filter-sort-divider" />}
           </>
         )}
         <MenuButton
@@ -578,7 +579,8 @@ function useLabelFit(dropped: readonly DroppedWord[], enabled: boolean, laneWidt
     const { bar, filters, end, controls } = boxes.current;
     const now = latest.current.layout;
     if (!filters || !end || !controls || end.compact !== now.compact || controls.compact !== now.compact || end.inlineLaneWidth !== now.inlineLaneWidth) return;
-    let labels: number | null = 0;
+    // Restoring the labels also restores the end group's three dividers and their gaps.
+    let labels: number | null = 3 * (HAIRLINE + 2 * DIVIDER_MARGIN + TOOLBAR_GAP);
     for (let index = 0; index < latest.current.count; index++) {
       const width = widths.current[index];
       if (width === undefined) {
@@ -771,7 +773,7 @@ function ClearButton(props: { label: string; onPress(): void; theme: PluginTheme
 }
 
 function Divider({ theme, testID }: { theme: PluginTheme; testID?: string }) {
-  return <View testID={testID} style={{ width: HAIRLINE, height: 16, marginHorizontal: 4, backgroundColor: theme.colors.border }} />;
+  return <View testID={testID} style={{ width: HAIRLINE, height: 16, marginHorizontal: DIVIDER_MARGIN, backgroundColor: theme.colors.border }} />;
 }
 
 

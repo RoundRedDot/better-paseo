@@ -1411,12 +1411,15 @@ describe("Tasks board, desktop", () => {
     const group = () => hostParentOf(controls())!;
     const words = () => controls().findAll((node) => (node.type as unknown) === "Text").map(textOf);
     expect(words()).toEqual(["Agent", "Project", "Workspace", "Labels"]);
+    const dividers = () => ["lane-width-divider", "done-window-divider", "filter-sort-divider"].flatMap(hostsById);
+    expect(dividers()).toHaveLength(3);
 
     // The buttons need 700 of the group's 500: they drop their words, and read them out.
     lay(group(), { width: 500 });
     lay(view("filter-bar-end"), { width: 420 });
     lay(controls(), { width: 700 });
     expect(words()).toEqual([]);
+    expect(dividers()).toHaveLength(0);
     expect(view("filter-bar-end").findAll((node) => (node.type as unknown) === "Text" && textOf(node) === "Sort")).toHaveLength(0);
     const named = (bar: ReactTestInstance) => bar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel);
     expect(named(controls())).toEqual(["Agent", "Project", "Workspace", "Labels"]);
@@ -1439,15 +1442,21 @@ describe("Tasks board, desktop", () => {
     }
     lay(group(), { width: 630 });
     expect(words()).toEqual([]);
-    // 300 + 335 fits a group of 675 with room to spare: the words come back.
+    // Words alone fit at 675, but restoring them must also leave room for all three dividers.
     lay(group(), { width: 675 });
+    expect(words()).toEqual([]);
+    expect(dividers()).toHaveLength(0);
+    // 300 + 335 + 3 * (1 + 8 + 10), plus the 12pt slack, fits at 704.
+    lay(group(), { width: 704 });
     expect(words()).toEqual(expect.arrayContaining(["Project", "Labels"]));
+    expect(dividers()).toHaveLength(3);
     expect(renderer!.root.findAll((node) => node.props.testID === "filter-bar-words")).toHaveLength(0);
 
     // The done window and the sort pushed to a row of their own drop the words too.
     lay(controls(), { width: 660 });
     lay(view("filter-bar-end"), { y: 44, width: 420 });
     expect(words()).toEqual([]);
+    expect(dividers()).toHaveLength(0);
   });
 
   it("hides the jump without navigation", () => {
@@ -1681,7 +1690,7 @@ describe("Tasks board, lane widths", () => {
     expect(laneChildren.indexOf(label())).toBeLessThan(laneChildren.indexOf(inline()[0]!));
     const endGroups = () => end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end());
     expect(endGroups().filter((node) => node.props.testID).map((node) => node.props.testID)).toEqual([
-      "lane-width-control", "lane-width-divider", "done-window", "done-window-divider", "subtasks-toggle", "empty-groups-toggle",
+      "lane-width-control", "lane-width-divider", "done-window", "done-window-divider", "subtasks-toggle", "empty-groups-toggle", "filter-sort-divider",
     ]);
     for (const id of ["lane-width-divider", "done-window-divider"]) {
       expect(StyleSheet.flatten(hostsById(id)[0]!.props.style)).toMatchObject({ height: 16, marginHorizontal: 4, backgroundColor: "#e2e2e6" });
@@ -2047,6 +2056,7 @@ describe("Tasks board, tablet filters", () => {
     const height = Math.round(36 * Math.max(1, base / 14));
     for (const button of buttons()) expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: height, height, borderRadius: height / 2, borderColor: "#e2e2e6" });
     expect(StyleSheet.flatten(end().props.style).height).toBe(height);
+    for (const id of ["lane-width-divider", "done-window-divider", "filter-sort-divider"]) expect(hostsById(id)).toHaveLength(0);
     expect(end().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch").map((node) => node.props.testID)).toEqual(os === "ios" ? ["subtasks-toggle"] : ["subtasks-toggle", "archived-lane-toggle"]);
     expect(renderer!.root.findAllByType(WindowSegments)).toHaveLength(0);
     expect(hostsById("filter-bar-more")).toHaveLength(1);
@@ -2056,6 +2066,7 @@ describe("Tasks board, tablet filters", () => {
     layOut(1600);
     expect(controls().findAll((node) => (node.type as unknown) === "Text")).toHaveLength(0);
     expect(hostsById("filter-bar-words")).toHaveLength(0);
+    for (const id of ["lane-width-divider", "done-window-divider", "filter-sort-divider"]) expect(hostsById(id)).toHaveLength(0);
   });
 
   it.each([["ios", 800], ["ios", 1200], ["android", 800], ["android", 1200]] as const)("%s at %i pt exposes the subtasks switch beside sort and filters", async (os, width) => {
