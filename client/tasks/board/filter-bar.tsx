@@ -65,27 +65,6 @@ export function DesktopToolbar(props: {
   return (
     <View style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
       <RollingTotal board={board} style={{ flexShrink: 0, fontSize: F.base, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }} />
-      <View style={{ flex: 1 }} />
-      {Platform.OS === "web" && props.keyHints ? (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <KeyCap label="J" theme={theme} />
-          <KeyCap label="K" theme={theme} />
-          <KeyHint text={strings.keys.move} theme={theme} />
-          <KeyCap label="H" theme={theme} />
-          <KeyCap label="L" theme={theme} />
-          <KeyHint text={strings.keys.lane} theme={theme} />
-          <KeyCap label="↵" theme={theme} />
-          <KeyHint text={strings.keys.open} theme={theme} />
-          <KeyCap label="/" theme={theme} />
-          <KeyHint text={strings.keys.search} theme={theme} last={!props.sidebar} />
-          {props.sidebar ? (
-            <>
-              <KeyCap label="I" theme={theme} />
-              <KeyHint text={strings.sidebar.key} theme={theme} last />
-            </>
-          ) : null}
-        </View>
-      ) : null}
       <View
         {...tipProps(`${strings.search} (/)`)}
         style={{
@@ -93,7 +72,6 @@ export function DesktopToolbar(props: {
           width: 220,
           flexShrink: 1,
           minWidth: 140,
-          marginLeft: 8,
           flexDirection: "row",
           alignItems: "center",
           gap: 6,
@@ -119,6 +97,27 @@ export function DesktopToolbar(props: {
           <ClearButton label={strings.menuSearch.clear} onPress={() => board.setParams((params) => ({ ...params, query: "" }))} theme={theme} />
         ) : null}
       </View>
+      <View style={{ flex: 1 }} />
+      {Platform.OS === "web" && props.keyHints ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <KeyCap label="J" theme={theme} />
+          <KeyCap label="K" theme={theme} />
+          <KeyHint text={strings.keys.move} theme={theme} />
+          <KeyCap label="H" theme={theme} />
+          <KeyCap label="L" theme={theme} />
+          <KeyHint text={strings.keys.lane} theme={theme} />
+          <KeyCap label="↵" theme={theme} />
+          <KeyHint text={strings.keys.open} theme={theme} />
+          <KeyCap label="/" theme={theme} />
+          <KeyHint text={strings.keys.search} theme={theme} last={!props.sidebar} />
+          {props.sidebar ? (
+            <>
+              <KeyCap label="I" theme={theme} />
+              <KeyHint text={strings.sidebar.key} theme={theme} last />
+            </>
+          ) : null}
+        </View>
+      ) : null}
       {props.filters || Platform.OS === "ios" || Platform.OS === "web" ? (
         <RoundButton
           icon="Archive"
