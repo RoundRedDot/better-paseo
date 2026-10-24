@@ -755,10 +755,12 @@ describe("Tasks board, desktop", () => {
       expect(StyleSheet.flatten(tab().props.style).flexBasis).toBe(basis);
       expect(hostParentOf(measure())!.props.accessibilityElementsHidden).toBe(true);
       // Icon-only tabs still switch the group, preserving the full accessible name.
+      const measurement = measure();
       act(() => tab().props.onPress());
-      layout(measure(), 65);
       expect(tab().props.accessibilityState).toEqual({ selected: true });
       expect(label()).toHaveLength(0);
+      expect(measure()).toBe(measurement);
+      expect(StyleSheet.flatten(measure().props.style).fontWeight).toBe("500");
       layout(tab(), 120);
       expect(label()).toHaveLength(1);
       expect(textOf(label()[0]!)).toBe(word);
@@ -766,6 +768,43 @@ describe("Tasks board, desktop", () => {
       layout(measure(), 140);
       expect(label()).toHaveLength(0);
     }
+  });
+
+  it("keeps all four icon-only group tabs equal and their labels stable through repeated clicks", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(900);
+    act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+    const tabs = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "tab");
+    const layout = (node: ReactTestInstance, width: number) => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 36 } } });
+    act(() => tabs().forEach((tab, index) => {
+      layout(tab.find((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-measure"), 60 + index * 20);
+      layout(tab, 50);
+    }));
+    const labels = () => hostsById("sidebar-group-tab-label");
+    const sizes = () => tabs().map((tab) => {
+      const { flexBasis, flexGrow, flexShrink, minWidth, height, paddingHorizontal } = StyleSheet.flatten(tab.props.style);
+      return { flexBasis, flexGrow, flexShrink, minWidth, height, paddingHorizontal };
+    });
+    expect(labels()).toHaveLength(0);
+    const original = sizes();
+    expect(original).toHaveLength(4);
+    expect(original.every((size) => size.flexBasis === 0 && size.flexGrow === 1)).toBe(true);
+    expect(original.every((size) => JSON.stringify(size) === JSON.stringify(original[0]))).toBe(true);
+    const measurements = hostsById("sidebar-group-tab-measure");
+    for (const index of [1, 2, 3, 0, 2, 0]) {
+      act(() => tabs()[index]!.props.onPress());
+      expect(labels()).toHaveLength(0);
+      expect(sizes()).toEqual(original);
+      expect(hostsById("sidebar-group-tab-measure")).toEqual(measurements);
+      expect(tabs()[index]!.props.accessibilityState).toEqual({ selected: true });
+    }
+    act(() => tabs().forEach((tab) => layout(tab, 180)));
+    expect(labels()).toHaveLength(4);
+    const textStyles = labels().map((node) => StyleSheet.flatten(node.props.style));
+    act(() => tabs()[1]!.props.onPress());
+    expect(labels()).toHaveLength(4);
+    expect(labels().map((node) => StyleSheet.flatten(node.props.style).fontWeight)).toEqual(textStyles.map((style) => style.fontWeight));
   });
 
   it("counts the active cards by workspace in the sidebar's groups, a row a workspace filter", () => {
