@@ -294,7 +294,9 @@ Keep confirmation (`OctagonAlert`), working spinner and disabled semantics in ic
 A spinner replaces the action icon, so a folded working button never draws a second arrow.
 Optional status hints such as “Already open” leave with the label. “Open parent” uses
 `CornerLeftUp`, including its context-menu entry and provider-subtask parent-tab shortcut;
-ordinary “Open” keeps `ArrowUpRight`.
+ordinary “Open” keeps `ArrowUpRight`. The same `CornerLeftUp` marks the parent everywhere it
+is named: the parent link in a subtask card's meta row (at the meta text size, muted,
+`foreground` while hovered) and the details' parent row.
 
 `ActionRow` and `useActionFit` (`client/tasks/cards/action-row.tsx`) own the measurement and
 ordered folding. All action-button variants participate in that row rather than independently
@@ -513,6 +515,36 @@ button, avoiding nested button markup.
   `test/unit/tasks-cards-web.test.ts` and `test/unit/tasks-subagent-type.test.ts`.
   Browser fixtures and static/native-mock tests do not establish real-device
   acceptance; report device verification separately.
+
+## Hover tips
+
+On a web pointer layout a control names its action in a tip: the board toolbar, the details
+sidebar's stat cells, group segments and group rows, and every button and row action in the
+details. Mark the control with `tipProps(text)` (`client/tasks/cards/card-hints.tsx`); the
+board's single `BoardTips` layer, drawn last in the board, reads it, so a sidebar scroller never
+clips a tip. A card's own pills and marks keep `hintProps` and the card's `CardHints` layer;
+the two never answer each other's marks.
+
+- A tip opens after the pointer rests 400 ms (`HINT_DELAY_MS`), in the card hints' chrome and
+  entrance (`panelChrome`, a 140 ms fade with a 4 pt drift, none under reduced motion).
+- It sits below the control, or above it when the board's bottom leaves no room for one line.
+  In the board's left half it starts at the control's left edge, otherwise it ends at its right.
+- A press, a wheel or any scroll inside the board closes it; the same control shows it again
+  only once the pointer has left it. A control whose menu is open shows no tip.
+- The tip text is the action, with the shortcut in brackets (`Search (/)`); a button folded to
+  its icon names what the label said. A text button may repeat its label.
+- Touch and native draw no tips and carry no tip markup. A tip never replaces the control's
+  accessibility label.
+
+## Switches
+
+A control with `accessibilityRole="switch"` (the settings `Toggle`, the filter bar's round
+switches, the filter sheet's rows) also toggles with Space on the web. React Native Web gives
+Space only to button roles, so every such control spreads `useSwitchSpace(onPress)`
+(`client/ui/use-switch-space.ts`): a plain Space prevents the page from scrolling on keydown
+and toggles once on keyup; repeats, modified or composing keys and a blur in between do
+nothing, and Enter stays with RNW's own press. `SwitchTrack` slides its knob in 140 ms and
+snaps when the system asks for reduced motion.
 
 ## Device board preferences
 
