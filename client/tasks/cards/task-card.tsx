@@ -30,6 +30,7 @@ import { CardContextMenu } from "./card-menu";
 import { bindContextMenu } from "../../web";
 import { ArchivedTag } from "./archived-tag";
 import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
+import type { CardFilterKind, CardFilterState } from "../board/filter-options";
 import { layoutMenu } from "../board/menu-model";
 import { BUTTON_LINE, buttonOutline } from "../board/board-style";
 import { panelChrome } from "./panel";
@@ -63,6 +64,10 @@ export interface CardCallbacks {
   onPermission?(card: TaskCard, button: PermissionButton): void;
   /** Request the details sheet or sidebar. */
   onDetails?(card: TaskCard): void;
+  /** The card menu's Filter: show only this card's agent, workspace or project; again, clear it. */
+  onFilter?(card: TaskCard, by: CardFilterKind): void;
+  /** Which of those filters apply to the card and are on, read as its menu opens. */
+  filterState?(card: TaskCard): CardFilterState;
   /** Claim the held touch before opening the menu; false suppresses a press after a swipe. */
   onLongPress?(): boolean | void;
   /**
@@ -1355,6 +1360,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             read: canRead && !readPending ? () => props.onRead?.(card) : undefined,
             unarchive: canUnarchive ? () => props.onUnarchive?.(card.id) : undefined,
             archive: canArchive && !archivePending ? () => props.onArchive?.(card.id) : undefined,
+            filters: props.onFilter && props.filterState ? { state: props.filterState(card), select: (by) => props.onFilter?.(card, by) } : undefined,
           }}
           onClose={() => setMenuAt(null)}
         />

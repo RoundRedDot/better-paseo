@@ -1,6 +1,6 @@
-import type { TasksHandle } from "../data";
+import type { TasksHandle, WorkspaceOption } from "../data";
 import { fallbackLabelColor } from "../label-colors";
-import { LANE_ORDER, isHistoryLane } from "../model";
+import { LANE_ORDER, isHistoryLane, type TaskCard } from "../model";
 import { toggleItem, type BoardDefaults, type BoardParams } from "./params";
 import { matchesSearch, searchWords } from "./search";
 import type { BoardStrings } from "./strings";
@@ -386,4 +386,45 @@ function groupLabel(kind: ChipGroupKind, chips: readonly ActiveChip[], strings: 
 /** "Clear all": no selections, switches and window back to the settings. */
 export function clearedParams(params: BoardParams): BoardParams {
   return { ...params, query: "", workspaceIds: [], providers: [], labels: [], hideSubtasks: null, doneWindow: null };
+}
+
+/** What a card's menu can filter the board to: its agent, its workspace or its project. */
+export type CardFilterKind = "agent" | "workspace" | "project";
+
+/** Per kind: null when the card lacks the value (no workspace, a project Paseo does not list), else whether the board shows only it now. */
+export type CardFilterState = Record<CardFilterKind, boolean | null>;
+
+/** The workspace ids "Only this project" picks: every workspace of the card's project, as a project filter does. */
+function projectWorkspaceIds(card: TaskCard, workspaces: readonly WorkspaceOption[]): string[] {
+  const projectId = card.location.projectId;
+  return projectId ? workspaces.filter((workspace) => workspace.projectId === projectId).map((workspace) => workspace.id) : [];
+}
+
+const sameSet = (list: readonly string[], ids: readonly string[]): boolean =>
+  ids.length > 0 && list.length === ids.length && ids.every((id) => list.includes(id));
+
+function cardFilterValue(card: TaskCard, workspaces: readonly WorkspaceOption[], by: CardFilterKind): { key: "providers" | "workspaceIds"; ids: string[] } {
+  if (by === "agent") return { key: "providers", ids: card.provider ? [card.provider] : [] };
+  if (by === "workspace") return { key: "workspaceIds", ids: card.location.workspaceId ? [card.location.workspaceId] : [] };
+  return { key: "workspaceIds", ids: projectWorkspaceIds(card, workspaces) };
+}
+
+export function cardFilterState(params: BoardParams, card: TaskCard, workspaces: readonly WorkspaceOption[]): CardFilterState {
+  const state = (by: CardFilterKind) => {
+    const { key, ids } = cardFilterValue(card, workspaces, by);
+    return ids.length ? sameSet(params[key], ids) : null;
+  };
+  return { agent: state("agent"), workspace: state("workspace"), project: state("project") };
+}
+
+/**
+ * The card menu's Filter: that one filter becomes the card's agent,
+ * workspace or project, and the others stay, so the card stays in view.
+ * Workspace and project share the workspace filter, so one replaces the
+ * other. Chosen again while it is on, it clears that filter.
+ */
+export function filterToCard(params: BoardParams, card: TaskCard, workspaces: readonly WorkspaceOption[], by: CardFilterKind): BoardParams {
+  const { key, ids } = cardFilterValue(card, workspaces, by);
+  if (!ids.length) return params;
+  return { ...params, [key]: sameSet(params[key], ids) ? [] : ids };
 }
