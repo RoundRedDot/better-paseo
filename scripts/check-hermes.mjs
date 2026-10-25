@@ -11,16 +11,18 @@
 // 1. bundles the entry with the host's client options (Paseo
 //    `packages/server/src/server/plugins/compiler.ts`, `compileTarget` and
 //    `wrapCommonJsBundle` / `makeHermesInteropEager`);
-// 2. compiles it with `hermesc` from this repo's `react-native` devDependency
-//    and fails with every error mapped back to its source file and line;
-// 3. unless `--no-run`, evaluates the bundle in the `hermes` VM next to it,
+// 2. compiles it with the Hermes V1 `hermesc` of this repo's `react-native`
+//    devDependency (Paseo 0.13) and with React Native 0.81.5's legacy one
+//    (Paseo 0.12), and fails with every error mapped back to its source file
+//    and line;
+// 3. unless `--no-run`, evaluates the bundle in the legacy `hermes` VM,
 //    the way `packages/app/src/plugins/evaluate.ts` does, with stub modules,
 //    calls `contribute`, and checks the host's registration rules (timeline
 //    renderers must be plain functions).
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -61,17 +63,62 @@ function loadEsbuild() {
 const PLATFORM_DIR = { darwin: "osx-bin", linux: "linux64-bin", win32: "win64-bin" }[process.platform];
 const EXE = process.platform === "win32" ? ".exe" : "";
 const rnRequire = createRequire(path.join(root, "package.json"));
-let hermesDir;
+let rnPackage;
 try {
-  hermesDir = path.join(path.dirname(rnRequire.resolve("react-native/package.json")), "sdks", "hermesc", PLATFORM_DIR ?? "");
+  rnPackage = rnRequire.resolve("react-native/package.json");
 } catch {
   console.error("check:hermes: react-native is not installed; run `npm ci`");
   process.exit(2);
 }
-const hermesc = path.join(hermesDir, `hermesc${EXE}`);
-if (!PLATFORM_DIR || !existsSync(hermesc)) {
-  console.error(`check:hermes: no hermesc for ${process.platform} at ${hermesc}`);
+if (!PLATFORM_DIR) {
+  console.error(`check:hermes: no hermesc for ${process.platform}`);
   process.exit(2);
+}
+
+// The devDependency's compiler: React Native 0.86 (Paseo 0.13) runs Hermes V1
+// and takes its hermesc from the `hermes-compiler` package; 0.81 and older
+// carried one in `sdks/hermesc`. V1 publishes no VM to run a bundle in.
+function currentHermesc() {
+  try {
+    const compiler = createRequire(rnPackage).resolve("hermes-compiler/package.json");
+    return path.join(path.dirname(compiler), "hermesc", PLATFORM_DIR, `hermesc${EXE}`);
+  } catch {
+    return path.join(path.dirname(rnPackage), "sdks", "hermesc", PLATFORM_DIR, `hermesc${EXE}`);
+  }
+}
+
+// Paseo 0.12, still supported (`requirements.paseo`), runs React Native
+// 0.81.5's legacy Hermes, whose package ships both hermesc and the `hermes`
+// VM. Fetched once with `npm pack` and kept outside the repo.
+const LEGACY_REACT_NATIVE = "0.81.5";
+function legacyHermesDir() {
+  const cache = path.join(homedir(), ".cache", "better-paseo", `hermes-rn-${LEGACY_REACT_NATIVE}`, PLATFORM_DIR);
+  if (existsSync(path.join(cache, `hermes${EXE}`))) return cache;
+  const work = mkdtempSync(path.join(tmpdir(), "bc-hermes-legacy-"));
+  try {
+    const packed = spawnSync("npm", ["pack", `react-native@${LEGACY_REACT_NATIVE}`, "--silent", "--pack-destination", work], { encoding: "utf8", shell: process.platform === "win32" });
+    const tarball = packed.status === 0 ? path.join(work, packed.stdout.trim().split("\n").pop()) : null;
+    if (!tarball || !existsSync(tarball)) return null;
+    const inner = `package/sdks/hermesc/${PLATFORM_DIR}`;
+    if (spawnSync("tar", ["-xzf", tarball, "-C", work, inner]).status !== 0) return null;
+    mkdirSync(path.dirname(cache), { recursive: true });
+    rmSync(cache, { recursive: true, force: true });
+    cpSync(path.join(work, inner), cache, { recursive: true });
+    return cache;
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+}
+
+const legacyDir = legacyHermesDir();
+const compilers = [{ label: "Hermes V1", hermesc: currentHermesc() }];
+if (legacyDir) compilers.push({ label: `legacy Hermes (RN ${LEGACY_REACT_NATIVE})`, hermesc: path.join(legacyDir, `hermesc${EXE}`) });
+else console.log(`check:hermes: could not fetch react-native@${LEGACY_REACT_NATIVE}; legacy Hermes compile and the VM run are skipped`);
+for (const { hermesc } of compilers) {
+  if (!existsSync(hermesc)) {
+    console.error(`check:hermes: no hermesc for ${process.platform} at ${hermesc}`);
+    process.exit(2);
+  }
 }
 
 // --- 1. Bundle like the host -----------------------------------------------
@@ -192,54 +239,59 @@ if (nonAscii.length > 0) {
   process.exit(1);
 }
 
-const compiled = spawnSync(hermesc, ["-emit-binary", "-out", path.join(dir, "client.hbc"), bundlePath], {
-  encoding: "utf8",
-});
-if (compiled.status !== 0) {
-  const pattern = /^(.*?):(\d+):(\d+): error: (.*)$/;
-  const errors = (compiled.stderr || "")
-    .split("\n")
-    .map((line) => pattern.exec(line))
-    .filter(Boolean);
-  console.error(`check:hermes: FAIL — Hermes cannot compile ${path.relative(root, entry)} (${errors.length} error(s))`);
-  for (const [, , lineText, colText, message] of errors.slice(0, 20)) {
-    const line = Number(lineText);
-    const column = Number(colText) - 1;
-    const original = line > PREFIX_LINES ? locate(line - PREFIX_LINES, column) : null;
-    console.error(`  ${original ?? "(bundle wrapper)"}  bundle:${line}:${column + 1}  ${message}`);
-    console.error(`    ${(bundleLines[line - 1] ?? "").trim().slice(0, 160)}`);
-  }
-  if (errors.length === 0) console.error(compiled.stderr || compiled.stdout);
-  console.error(`  bundle kept at ${bundlePath}`);
-  process.exit(1);
-}
-console.log(`check:hermes: compile OK (${bundle.length} bytes, ${path.relative(root, hermesc)})`);
-if (installBuild) {
-  for (const [name, code] of [["bundle", installBuild.main], ["Tasks chunk", installBuild.chunk]]) {
-    const file = path.join(dir, `${name.replace(/\W+/g, "-")}.js`);
-    writeFileSync(file, `(function (require, module, exports) {\n${code}\n})`);
-    // Minified lines are long, and hermesc echoes each line it warns about.
-    const result = spawnSync(hermesc, ["-emit-binary", "-out", `${file}.hbc`, file], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
-    if (result.status !== 0) {
-      console.error(`check:hermes: FAIL — Hermes cannot compile the built ${name} (minified; rebuild without minify to locate)`);
-      const errors = (result.stderr || result.stdout || String(result.error)).split("\n").filter((line) => line.includes(": error:"));
-      console.error(errors.slice(0, 20).map((line) => `  ${line.slice(0, 300)}`).join("\n"));
-      console.error(`  kept at ${file}`);
-      process.exit(1);
+/** A path under the repo relative to it; the legacy cache in full. */
+const shown = (file) => (path.relative(root, file).startsWith("..") ? file : path.relative(root, file));
+for (const [index, { label, hermesc }] of compilers.entries()) {
+  const compiled = spawnSync(hermesc, ["-emit-binary", "-out", path.join(dir, `client-${index}.hbc`), bundlePath], {
+    encoding: "utf8",
+  });
+  if (compiled.status !== 0) {
+    const pattern = /^(.*?):(\d+):(\d+): error: (.*)$/;
+    const errors = (compiled.stderr || "")
+      .split("\n")
+      .map((line) => pattern.exec(line))
+      .filter(Boolean);
+    console.error(`check:hermes: FAIL — ${label} cannot compile ${path.relative(root, entry)} (${errors.length} error(s))`);
+    for (const [, , lineText, colText, message] of errors.slice(0, 20)) {
+      const line = Number(lineText);
+      const column = Number(colText) - 1;
+      const original = line > PREFIX_LINES ? locate(line - PREFIX_LINES, column) : null;
+      console.error(`  ${original ?? "(bundle wrapper)"}  bundle:${line}:${column + 1}  ${message}`);
+      console.error(`    ${(bundleLines[line - 1] ?? "").trim().slice(0, 160)}`);
     }
+    if (errors.length === 0) console.error(compiled.stderr || compiled.stdout);
+    console.error(`  bundle kept at ${bundlePath}`);
+    process.exit(1);
   }
-  console.log(`check:hermes: built bundle and Tasks chunk compile OK (chunk ${installBuild.chunk.length} bytes, ${installBuild.shared.size} shared modules)`);
+  console.log(`check:hermes: ${label} compile OK (${bundle.length} bytes, ${shown(hermesc)})`);
+  if (installBuild) {
+    for (const [name, code] of [["bundle", installBuild.main], ["Tasks chunk", installBuild.chunk]]) {
+      const file = path.join(dir, `${name.replace(/\W+/g, "-")}.js`);
+      writeFileSync(file, `(function (require, module, exports) {\n${code}\n})`);
+      // Minified lines are long, and hermesc echoes each line it warns about.
+      const result = spawnSync(hermesc, ["-emit-binary", "-out", `${file}.${index}.hbc`, file], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+      if (result.status !== 0) {
+        console.error(`check:hermes: FAIL — ${label} cannot compile the built ${name} (minified; rebuild without minify to locate)`);
+        const errors = (result.stderr || result.stdout || String(result.error)).split("\n").filter((line) => line.includes(": error:"));
+        console.error(errors.slice(0, 20).map((line) => `  ${line.slice(0, 300)}`).join("\n"));
+        console.error(`  kept at ${file}`);
+        process.exit(1);
+      }
+    }
+    console.log(`check:hermes: ${label} built bundle and Tasks chunk compile OK (chunk ${installBuild.chunk.length} bytes, ${installBuild.shared.size} shared modules)`);
+  }
 }
 
 // --- 3. Evaluate in the Hermes VM (smoke) ------------------------------------
 
-const hermes = path.join(hermesDir, `hermes${EXE}`);
 if (!run) {
   if (!keep) rmSync(dir, { recursive: true, force: true });
   process.exit(0);
 }
-if (!existsSync(hermes)) {
-  console.log(`check:hermes: run skipped, no hermes VM at ${hermes}`);
+// The only VM there is: legacy Hermes, as Paseo 0.12 runs it.
+const hermes = legacyDir ? path.join(legacyDir, `hermes${EXE}`) : null;
+if (!hermes || !existsSync(hermes)) {
+  console.log(`check:hermes: run skipped, no hermes VM${hermes ? ` at ${hermes}` : ""}`);
   if (!keep) rmSync(dir, { recursive: true, force: true });
   process.exit(0);
 }

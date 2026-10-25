@@ -66,7 +66,8 @@ export const StyleSheet = {
   flatten,
   hairlineWidth: 1,
   absoluteFill: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
-  absoluteFillObject: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
+  // No `absoluteFillObject`: React Native 0.86 (Paseo 0.13) removed it, so a
+  // plugin that still reads it gets undefined and its overlay loses its fill.
 };
 
 /** Native struct colors are processed before crossing the Fabric boundary. */

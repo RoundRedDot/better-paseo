@@ -484,11 +484,11 @@ function ToolbarButton({ action, tokens }: { action: ToolbarAction; tokens: Exte
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0, 0, 0, 0.9)" },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0, 0, 0, 0.9)" },
   safe: { flex: 1 },
   stage: { flex: 1 },
   canvas: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
