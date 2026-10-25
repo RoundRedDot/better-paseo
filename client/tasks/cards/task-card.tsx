@@ -23,7 +23,7 @@ import { subagentFacts } from "../subagent-type";
 import { ProjectIcon } from "./project-icon";
 import { SpinnerRing, StatusIcon } from "./status-icon";
 import { SubtaskRow } from "./subtask-row";
-import { SubtaskPanel } from "./subtask-panel";
+import { prepareSubtaskToggle, SubtaskPanel } from "./subtask-panel";
 import { subtaskFinished } from "./details-format";
 import { ActionRow, useActionFit } from "./action-row";
 import { CardContextMenu } from "./card-menu";
@@ -929,8 +929,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         hint={hint("subtasks", () => subtaskSummary(card.children, language))}
         expanded={expanded}
         onPress={() => {
-          if (props.onSubtasksExpandedChange) props.onSubtasksExpandedChange(card.id, !expanded);
-          else setLocalExpanded(!expanded);
+          const next = !expanded;
+          if (!reducedMotion && props.animated !== false) prepareSubtaskToggle(next);
+          if (props.onSubtasksExpandedChange) props.onSubtasksExpandedChange(card.id, next);
+          else setLocalExpanded(next);
         }}
       >
         {SUBTASK_ORDER.filter((kind) => counts.has(kind)).map((kind) => (
