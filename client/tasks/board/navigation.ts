@@ -100,36 +100,16 @@ export function swipeStep(dx: number, dy: number): -1 | 0 | 1 {
   return dx < 0 ? 1 : -1;
 }
 
-/** A phone tab's layout: the tab in the bar, its content row in the tab, and the label (with its count) in the row. */
+/** A phone tab's layout: the tab in the bar and its content row in the tab. */
 export interface TabBox {
   tab?: { x: number; width: number };
   row?: { x: number; width: number };
-  label?: { x: number; width: number };
 }
 
 /** True when some tab's content is wider than its share of the bar (a quarter, a fifth with the archived lane): the tabs then size to content and scroll. */
 export function tabsOverflow(boxes: Partial<Record<LaneId, TabBox>>, barWidth: number, tabs = ACTIVE_LANE_ORDER.length): boolean {
   if (barWidth <= 0) return false;
   return Object.values(boxes).some((box) => (box?.row?.width ?? 0) > barWidth / tabs + 0.5);
-}
-
-/**
- * Where the lane underline sits, as a centre and a width in the bar's
- * content: under the active tab's label and count once laid out, else the
- * tab's share less 24 centred in it. Null before the bar is.
- */
-export function tabUnderline(
-  box: TabBox | undefined,
-  index: number,
-  barWidth: number,
-  tabs = ACTIVE_LANE_ORDER.length,
-): { center: number; width: number; measured: boolean } | null {
-  if (box?.tab && box.row && box.label && box.label.width > 0) {
-    return { center: box.tab.x + box.row.x + box.label.x + box.label.width / 2, width: box.label.width, measured: true };
-  }
-  if (barWidth <= 0) return null;
-  const share = barWidth / tabs;
-  return { center: index * share + share / 2, width: Math.max(0, share - 24), measured: false };
 }
 
 /** The lane a step lands on in the board's `order`; null past either end (no wrap). */

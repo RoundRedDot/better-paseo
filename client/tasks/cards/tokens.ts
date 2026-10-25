@@ -40,8 +40,6 @@ export interface TaskTokens {
   borderStrong: string;
   /** Switch-on fill, allow button hover. */
   accentSoft: string;
-  /** The 3px focus ring outside the accent border. */
-  accentRing: string;
   /** The 1 s background after a parent link scrolled here. */
   highlight: string;
   /** The confirm-stop button's fill. */
@@ -200,7 +198,6 @@ export function buildTaskTokens(colors: PluginTheme["colors"]): TaskTokens {
     dotGrid: mix(s0, colors.foregroundMuted, 0.22),
     borderStrong: mix(colors.border, colors.foregroundMuted, 0.35),
     accentSoft,
-    accentRing: mix(s0, colors.accent, 0.28),
     highlight: mix(s0, colors.accent, 0.08),
     dangerSoft: mix(s0, danger, 0.1),
     popoverShadow: isDark

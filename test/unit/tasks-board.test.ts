@@ -26,7 +26,6 @@ import {
   sidebarCountText,
   swallowsTap,
   swipeStep,
-  tabUnderline,
   tabsOverflow,
   LANES,
   LANE_SIZES,
@@ -190,14 +189,6 @@ describe("phone lanes", () => {
     expect(swipeStep(-60, 40)).toBe(1);
     expect(swipeStep(-60, 41)).toBe(0);
     expect(swipeStep(0, 200)).toBe(0);
-  });
-
-  it("puts the underline under the active tab's label and count, a quarter less 24 until laid out", () => {
-    expect(tabUnderline(undefined, 1, 0)).toBeNull();
-    expect(tabUnderline(undefined, 1, 400)).toEqual({ center: 150, width: 76, measured: false });
-    // The row is centred in the tab; the label sits after the 14 icon and a gap of 4.
-    const box = { tab: { x: 100, width: 100 }, row: { x: 10, width: 80 }, label: { x: 18, width: 62 } };
-    expect(tabUnderline(box, 1, 400)).toEqual({ center: 159, width: 62, measured: true });
   });
 
   it("lets the tabs size to content only when one outgrows its quarter", () => {
