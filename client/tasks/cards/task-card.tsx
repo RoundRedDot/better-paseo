@@ -61,8 +61,10 @@ export interface CardCallbacks {
   /** Archive a done task, as Paseo's own Archive does. */
   onArchive?(agentId: string): void;
   onPermission?(card: TaskCard, button: PermissionButton): void;
-  /** A long press on a phone or touch screen: the details sheet or sidebar. */
+  /** Request the details sheet or sidebar. */
   onDetails?(card: TaskCard): void;
+  /** Claim the held touch before opening the menu; false suppresses a press after a swipe. */
+  onLongPress?(): boolean | void;
   /**
    * A press on the body chooses the card for the details sidebar instead of
    * opening its tab; on desktop a second click right after opens the tab.
@@ -447,8 +449,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const [localExpanded, setLocalExpanded] = useState(false);
   const expanded = props.subtasksExpanded ?? localExpanded;
   const [ringOpen, setRingOpen] = useState(false);
-  // The right-click menu's window point (web). A right click inside the open menu leaves it be.
-  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
+  // Right click keeps its window point; long press uses the host's modal.
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | "touch" | null>(null);
   useLayoutEffect(
     () =>
       bindContextMenu(rootRef.current, (point, target) => {
@@ -720,7 +722,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
 
   // Pills ------------------------------------------------------------------
   // A pill that copies takes the touch, so it carries the card's long press too.
-  const longPress = props.onDetails && (compact || TOUCH) ? () => props.onDetails?.(card) : undefined;
+  const longPress = compact || TOUCH ? () => {
+    if (props.onLongPress?.() === false) return;
+    setMenuAt("touch");
+  } : undefined;
   const pill = { tokens, compact, language };
   // Model, branch and folder copy what they show; a pointer's hint says so.
   const copyOn = props.copyable !== false;
@@ -1248,32 +1253,34 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       : undefined;
 
   return (
-    <Pressable
-      {...CONTAINER_ROLE}
-      nativeID={props.focusId}
-      {...(WEB ? { dataSet: { bctaskcard: card.id } } : null)}
-      accessibilityLabel={card.title}
-      onPress={pressBody}
-      onLongPress={longPress}
-      delayLongPress={LONG_PRESS_MS}
-      ref={rootRef}
-      {...(WEB ? null : hoverProps)}
-      style={cardStyle}
-      testID={`task-card-${card.id}`}
-    >
-      {metaRow}
-      {titleRow}
-      {pillRow}
-      {footer}
-      {answerRow ? null : controlRow}
-      {permissionBlock}
-      {failure}
-      {subtaskList}
-      {actionBar}
-      {WEB ? <CardHints root={rootRef} texts={hintTexts} theme={theme} color={tokens.foreground} /> : null}
+    <>
+      <Pressable
+        {...CONTAINER_ROLE}
+        nativeID={props.focusId}
+        {...(WEB ? { dataSet: { bctaskcard: card.id } } : null)}
+        accessibilityLabel={card.title}
+        onPress={pressBody}
+        onLongPress={longPress}
+        delayLongPress={LONG_PRESS_MS}
+        ref={rootRef}
+        {...(WEB ? null : hoverProps)}
+        style={cardStyle}
+        testID={`task-card-${card.id}`}
+      >
+        {metaRow}
+        {titleRow}
+        {pillRow}
+        {footer}
+        {answerRow ? null : controlRow}
+        {permissionBlock}
+        {failure}
+        {subtaskList}
+        {actionBar}
+        {WEB ? <CardHints root={rootRef} texts={hintTexts} theme={theme} color={tokens.foreground} /> : null}
+      </Pressable>
       {menuAt ? (
         <CardContextMenu
-          point={menuAt}
+          point={menuAt === "touch" ? null : menuAt}
           card={card}
           strings={strings}
           theme={theme}
@@ -1296,7 +1303,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           onClose={() => setMenuAt(null)}
         />
       ) : null}
-    </Pressable>
+    </>
   );
 }
 

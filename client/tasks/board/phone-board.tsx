@@ -155,13 +155,13 @@ export function PhoneBoard(props: {
   // claim from JS could not (it lands a frame late on a fast swipe). The
   // vertical lists inside keep their own drags. On web a horizontal travel
   // of 56 that beats 1.5x the vertical switches the lane. Taps right after a
-  // swipe are swallowed. A long press that opens a card's details claims the
+  // swipe are swallowed. A long press that opens a card's menu claims the
   // touch from the host's pans and locks the pager: the drag that follows
-  // must not open the drawer, nor switch the lane under the sheet.
+  // must not open the drawer, nor switch the lane under the menu.
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const swipedAt = useRef<number | null>(null);
   const claimed = useRef<(() => void) | null>(null);
-  const heldForDetails = useRef(false);
+  const heldForMenu = useRef(false);
   const [pagerLocked, setPagerLocked] = useState(false);
   const gridRef = useRef<View>(null);
   const latest = useRef({ lane, select, laneOrder });
@@ -180,19 +180,19 @@ export function PhoneBoard(props: {
   useEffect(() => release, [release]);
   const onStart = useCallback((event: PointEvent) => {
     swipeStart.current = point(event);
-    heldForDetails.current = false;
+    heldForMenu.current = false;
   }, []);
   const onMove = useCallback((event: PointEvent) => {
     const start = swipeStart.current;
     if (!start) return;
     const at = point(event);
-    if (!heldForDetails.current && swipeStep(at.x - start.x, at.y - start.y) !== 0) swipedAt.current = Date.now();
+    if (!heldForMenu.current && swipeStep(at.x - start.x, at.y - start.y) !== 0) swipedAt.current = Date.now();
   }, []);
   const onEnd = useCallback((event: PointEvent) => {
     const start = swipeStart.current;
     swipeStart.current = null;
     release();
-    if (!start || heldForDetails.current || isNative()) return;
+    if (!start || heldForMenu.current || isNative()) return;
     const at = point(event);
     const step = swipeStep(at.x - start.x, at.y - start.y);
     if (step === 0) return;
@@ -250,14 +250,15 @@ export function PhoneBoard(props: {
       onPermission: guard(base.onPermission),
       // A tap shows the details sheet; the card's arrow still opens the tab.
       onSelect: guard((card: TaskCard) => setSheet({ kind: "details", id: card.id })),
-      onDetails: guard((card: TaskCard) => {
+      onLongPress: () => {
+        if (swallowsTap(swipedAt.current, Date.now())) return false;
         // A long press: the finger is still down.
         if (swipeStart.current) {
-          heldForDetails.current = true;
+          heldForMenu.current = true;
           claim();
         }
-        base.onDetails?.(card);
-      }),
+        return true;
+      },
     };
   }, [board.callbacks, claim]);
 

@@ -1,10 +1,10 @@
 import React, { useLayoutEffect, useRef, type ReactNode } from "react";
-import { StyleSheet, View, useWindowDimensions } from "react-native";
-import { copyText, useToast } from "@getpaseo/plugin/client/react-native";
+import { Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
+import { Icon, Modal, copyText, useToast } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { CascadeMenu, type MenuSection } from "../board/menu";
 import { layoutMenu, MENU_EDGE } from "../board/menu-model";
-import { useTasksFontScale } from "../typography";
+import { TaskText as Text, TasksTypography, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { openPointLayer } from "../../web";
 import { getEnhancerPreferences } from "../../preferences";
 import { copiedToast, toolbarLabel } from "../../i18n/toolbar-strings";
@@ -115,12 +115,12 @@ export function useMenuCopy(): (text: string, label: string) => void {
 }
 
 /**
- * The menu at the pointer, in the top layer (web only: native has no right
- * click). It opens down and to the right of the point, and flips to the
- * side that has room near the window's right or bottom edge.
+ * Right click opens at the pointer in the web top layer. A long press has
+ * no pointer anchor and uses the host's modal, with submenu actions inline
+ * so all choices fit a phone's width.
  */
 export function CardContextMenu(props: {
-  point: { x: number; y: number };
+  point: { x: number; y: number } | null;
   card: TaskCard;
   strings: ReturnType<typeof cardStrings>;
   actions: Omit<CardMenuActions, "copy">;
@@ -133,7 +133,43 @@ export function CardContextMenu(props: {
   const scale = useTasksFontScale();
   const window = useWindowDimensions();
   const anchorRef = useRef<View>(null);
-  useLayoutEffect(() => openPointLayer(anchorRef.current, point), [point.x, point.y]);
+  useLayoutEffect(() => point ? openPointLayer(anchorRef.current, point) : undefined, [point?.x, point?.y]);
+  if (!point) {
+    const colors = props.theme.colors;
+    return (
+      <Modal title={props.card.title} open onOpenChange={(open) => !open && props.onClose()}>
+        <Modal.Content contentContainerStyle={{ padding: 8, gap: 0 }}>
+          <TasksTypography theme={props.theme}>
+            <View testID="task-card-menu">
+              {sections.map((section, index) => (
+                <View key={section.key} style={index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, marginTop: 6, paddingTop: 6 } : undefined}>
+                  {section.items.flatMap((item) => item.submenu ? item.submenu.flatMap((group) => group.items) : [item]).map((item) => {
+                    const color = item.danger ? colors.statusDanger : colors.foreground;
+                    return (
+                      <Pressable
+                        key={item.key}
+                        accessibilityRole="menuitem"
+                        accessibilityLabel={item.label}
+                        onPress={() => {
+                          props.onClose();
+                          item.onSelect?.();
+                        }}
+                        style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12 }}
+                      >
+                        {(typeof item.leading === "function" ? item.leading(color) : item.leading) ?? (item.icon ? <Icon name={item.icon} size={18} color={color} /> : null)}
+                        <Text style={{ flex: 1, fontSize: F.base, lineHeight: HOST_LINE.base, color }}>{item.label}</Text>
+                        {item.hint ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{item.hint}</Text> : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          </TasksTypography>
+        </Modal.Content>
+      </Modal>
+    );
+  }
   const height = layoutMenu(sections, scale).height + 2 * StyleSheet.hairlineWidth;
   const right = point.x + CARD_MENU_WIDTH + MENU_EDGE > window.width && point.x - CARD_MENU_WIDTH >= MENU_EDGE;
   const up = point.y + height + MENU_EDGE > window.height && point.y - height >= MENU_EDGE;

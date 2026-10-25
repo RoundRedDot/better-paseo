@@ -53,6 +53,10 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return {
     Icon: (props: Record<string, unknown>) => react.createElement("Icon", props),
+    Modal: Object.assign(
+      (props: Record<string, unknown> & { children?: React.ReactNode }) => props.open ? react.createElement("Modal", props, props.children) : null,
+      { Content: (props: Record<string, unknown> & { children?: React.ReactNode }) => react.createElement("ModalContent", props, props.children) },
+    ),
     ScrollView: rn.ScrollView,
     copyText: async (text: string) => {
       copies.push(text);
@@ -550,6 +554,18 @@ describe("TaskCardView right-click menu", () => {
       root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem" && texts(node)[0] === label).props.onPress();
       await Promise.resolve();
     });
+
+  it("opens the actions on a compact long press while desktop keeps right click", async () => {
+    const renderer = await render(React.createElement(TaskCardView, props("sample-running", { compact: true })));
+    const surface = () => renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-sample-running");
+    await act(async () => surface().props.onLongPress());
+    expect(rows(renderer.root)).toContain("复制会话 ID");
+    expect(renderer.root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(1);
+    await act(async () => renderer.unmount());
+    const desktop = await render(React.createElement(TaskCardView, props("sample-running")));
+    expect(desktop.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-sample-running").props.onLongPress).toBeUndefined();
+    await act(async () => desktop.unmount());
+  });
 
   it("opens at the pointer with Open, the copies, then what the card can do", async () => {
     const onStop = vi.fn();
