@@ -450,7 +450,9 @@ describe("TaskCardView rows", () => {
       "task-card-pills",
       "task-card-footer",
       "task-card-control-row",
+      "task-card-subtasks-panel",
     ]);
+    expect(flat(hostByTestId(tree.root, "task-card-subtasks-panel").props.style).height).toBe(0);
     // The project's letter avatar (`projectIcon` is on at standard), then project › workspace.
     expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["B", "better-paseo › tasks-board"]);
     const title = hostByTestId(tree.root, "task-card-title");
