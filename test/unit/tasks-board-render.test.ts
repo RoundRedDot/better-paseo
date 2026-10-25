@@ -3252,11 +3252,11 @@ describe("Tasks board, phone", () => {
     }
   });
 
-  it("opens the details sheet on a card's tap or long press instead of its tab", () => {
+  it("opens the details sheet on a card's tap instead of its tab", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));
     });
-    act(() => cards()[0]!.props.onDetails(cards()[0]!.props.card));
+    act(() => cards()[0]!.props.onSelect(cards()[0]!.props.card));
     const sheet = () => renderer!.root.find((node) => (node.type as unknown) === "Modal");
     // The details draw the title themselves; the sheet's header says what it is.
     expect(sheet().props.title).toBe("Details");
@@ -3304,13 +3304,13 @@ describe("Tasks board, phone lane swipe and the host's pans", () => {
     });
     act(() => grid().props.onTouchStart(touch(100, 300)));
     const card = renderer!.root.findByProps({ testID: "phone-lane-needs_input" }).findAllByType(TaskCardView)[0]!;
-    act(() => card.props.onDetails(card.props.card));
+    act(() => card.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.props.card.id}`).props.onLongPress());
     expect(handleSetJSResponder).toHaveBeenCalledTimes(1);
     expect(flushOperations).toHaveBeenCalledTimes(1);
     expect(pager().props.scrollEnabled).toBe(false);
     act(() => grid().props.onTouchEnd(touch(220, 302)));
     expect(pager().props.scrollEnabled).toBe(true);
-    expect(renderer!.root.find((node) => (node.type as unknown) === "Modal").props.title).toBe("Details");
+    expect(renderer!.root.find((node) => (node.type as unknown) === "Modal").props.title).toBe(card.props.card.title);
   });
 
   it("Android: a long press makes the lane the Fabric JS responder, never calls Gesture Handler, and lets go on release", async () => {
@@ -3327,7 +3327,7 @@ describe("Tasks board, phone lane swipe and the host's pans", () => {
     act(() => grid().props.onTouchStart(touch(100, 300)));
     expect(setIsJSResponder).not.toHaveBeenCalled();
     const card = renderer!.root.findByProps({ testID: "phone-lane-running" }).findAllByType(TaskCardView)[0]!;
-    act(() => card.props.onDetails(card.props.card));
+    act(() => card.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.props.card.id}`).props.onLongPress());
     expect(setIsJSResponder).toHaveBeenCalledWith(shadow, true, true);
     expect(pager().props.scrollEnabled).toBe(false);
     act(() => grid().props.onTouchCancel());
@@ -3335,7 +3335,7 @@ describe("Tasks board, phone lane swipe and the host's pans", () => {
     expect(pager().props.scrollEnabled).toBe(true);
     expect(handleSetJSResponder).not.toHaveBeenCalled();
     expect(pressable("Running 2").props.accessibilityState).toEqual({ selected: true });
-    expect(renderer!.root.find((node) => (node.type as unknown) === "Modal").props.title).toBe("Details");
+    expect(renderer!.root.find((node) => (node.type as unknown) === "Modal").props.title).toBe(card.props.card.title);
   });
 
   it("Android: past the first lane tells the host the board is scrolled sideways, so its agent-list pan fails", () => {

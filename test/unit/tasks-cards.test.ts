@@ -51,6 +51,10 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return {
     Icon: (props: Record<string, unknown>) => react.createElement("Icon", props),
+    Modal: Object.assign(
+      (props: Record<string, unknown> & { children?: React.ReactNode }) => props.open ? react.createElement("Modal", props, props.children) : null,
+      { Content: (props: Record<string, unknown> & { children?: React.ReactNode }) => react.createElement("ModalContent", props, props.children) },
+    ),
     ScrollView: rn.ScrollView,
     copyText: clipboard.copyText,
     useToast: () => ({ show: clipboard.show, error: clipboard.error }),
@@ -625,10 +629,11 @@ describe("TaskCardView rows", () => {
       expect(clipboard.copyText).toHaveBeenLastCalledWith(text);
       expect(clipboard.show).toHaveBeenLastCalledWith(toast);
     }
-    // The press stays on the pill: the card is not chosen. A long press still opens its details.
+    // The press stays on the pill; long press opens the card's action menu.
     expect(selected).not.toHaveBeenCalled();
     await act(async () => hostByTestId(tree.root, "pill-branch").props.onLongPress());
-    expect(details).toHaveBeenCalledTimes(1);
+    expect(details).not.toHaveBeenCalled();
+    expect(hostByTestId(tree.root, "task-card-menu")).toBeDefined();
 
     const done = await render(cardElement(sample("sample-done")));
     await act(async () => hostByTestId(done.root, "pill-folder").props.onPress());
@@ -3080,5 +3085,83 @@ describe("responsive task actions", () => {
     expect(hostByTestId(stop, `${stopId}-spinner`)).toBeDefined();
     await act(async () => row().props.onLayout({ nativeEvent: { layout: { width: 600 } } }));
     expect(texts(hostByTestId(tree.root, stopId))).toEqual(["停止"]);
+  });
+});
+
+
+describe("TaskCardView long-press menu", () => {
+  const rows = (root: ReactTestInstance) => root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
+  const choose = async (root: ReactTestInstance, label: string) => {
+    await act(async () => rows(root).find((row) => row.props.accessibilityLabel === label)!.props.onPress());
+  };
+
+  it.each([false, true])("opens the shared actions on native and preserves tap selection (compact=%s)", async (compact) => {
+    const card = sample("sample-running");
+    const onSelect = vi.fn();
+    const onDetails = vi.fn();
+    const onLongPress = vi.fn();
+    const onStop = vi.fn();
+    const tree = await render(cardElement(card, { compact, onSelect, onDetails, onLongPress, onStop }));
+    const surface = () => hostByTestId(tree.root, `task-card-${card.id}`);
+    await act(async () => surface().props.onPress());
+    expect(onSelect).toHaveBeenCalledWith(card);
+    onSelect.mockClear();
+    expect(surface().props.delayLongPress).toBe(450);
+    await act(async () => surface().props.onLongPress());
+    expect(onLongPress).toHaveBeenCalledOnce();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onDetails).not.toHaveBeenCalled();
+    expect(rows(tree.root).map((row) => row.props.accessibilityLabel)).toEqual([
+      "打开", "复制会话 ID", "复制标题", "复制工作区名称", "复制项目名称", "仅停止此任务", "连同子任务一起停止",
+    ]);
+    expect(rows(tree.root).every((row) => Number(flat(row.props.style).minHeight) >= 44)).toBe(true);
+    await choose(tree.root, "连同子任务一起停止");
+    expect(onStop).toHaveBeenCalledWith(card, { withChildren: true, dialog: true });
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-menu")).toHaveLength(0);
+  });
+
+  it("copies from the menu and dismisses through the host", async () => {
+    clipboard.copyText.mockClear();
+    const tree = await render(cardElement(sample("sample-running")));
+    const open = () => hostByTestId(tree.root, "task-card-sample-running").props.onLongPress();
+    await act(async () => open());
+    await choose(tree.root, "复制会话 ID");
+    expect(clipboard.copyText).toHaveBeenCalledWith("sample-running");
+    await act(async () => open());
+    await act(async () => tree.root.find((node) => (node.type as unknown) === "Modal").props.onOpenChange(false));
+    expect(rows(tree.root)).toHaveLength(0);
+  });
+
+  it.each([
+    ["sample-done", "归档", "onArchive"],
+    ["sample-archived", "取消归档", "onUnarchive"],
+  ] as const)("runs %s's available action from the menu", async (id, label, callback) => {
+    const action = vi.fn();
+    const card = id === "sample-archived"
+      ? { ...sample("sample-done"), id, lane: "archived" as const, status: "archived" as const, archived: "agent" as const }
+      : sample(id);
+    const tree = await render(cardElement(card, { [callback]: action }));
+    await act(async () => hostByTestId(tree.root, `task-card-${id}`).props.onLongPress());
+    await choose(tree.root, label);
+    expect(action).toHaveBeenCalledWith(id);
+  });
+
+  it("marks a readable card read and removes the action while pending", async () => {
+    const card = { ...sample("sample-done"), readable: true };
+    const onRead = vi.fn();
+    const tree = await render(cardElement(card, { onRead }));
+    const open = () => hostByTestId(tree.root, `task-card-${card.id}`).props.onLongPress();
+    await act(async () => open());
+    await choose(tree.root, "标为已读");
+    expect(onRead).toHaveBeenCalledWith(card);
+    await act(async () => tree.update(cardElement(card, { onRead, readPending: true })));
+    await act(async () => open());
+    expect(rows(tree.root).map((row) => row.props.accessibilityLabel)).not.toContain("标为已读");
+  });
+
+  it("does not open the menu when the board rejects a press after a swipe", async () => {
+    const tree = await render(cardElement(sample("sample-running"), { onLongPress: () => false }));
+    await act(async () => hostByTestId(tree.root, "task-card-sample-running").props.onLongPress());
+    expect(rows(tree.root)).toHaveLength(0);
   });
 });
