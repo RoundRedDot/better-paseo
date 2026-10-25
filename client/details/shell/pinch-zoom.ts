@@ -20,12 +20,13 @@
  * (`holdHostGestures`): fingers resting mid-pinch otherwise started the
  * text's own long-press selection, and the scroller could still take them.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PixelRatio, Platform, type GestureResponderEvent, type View } from "react-native";
 import type { DetailsZoom } from "../contracts";
 import type { PreviewScroller } from "../../ui/preview-scroller";
 import { pinchZoom } from "../../ui/text-zoom";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
+import { clampDetailsTextZoom } from "../../../shared/preferences-settings";
 
 /** How long the size stays up after the fingers lift, with its reset. */
 export const ZOOM_BADGE_MS = 2000;
@@ -163,6 +164,7 @@ export function usePinchZoom(zoom: DetailsZoom | undefined, scroller: PreviewScr
   const body = useRef<View>(null);
   // The size on the badge; null hides it.
   const [badge, setBadge] = useState<number | null>(null);
+  const [cap, setCap] = useState(Infinity);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pinch = useMemo(() => createPinch({
     zoom: () => latest.current.zoom,
@@ -184,12 +186,35 @@ export function usePinchZoom(zoom: DetailsZoom | undefined, scroller: PreviewScr
     onTouchEnd: pinch.end,
     onTouchCancel: pinch.cancel,
   } : undefined), [pinch, zoom !== undefined]);
+  const contentSized = useCallback((height: number) => {
+    pinch.contentSized(height);
+    const current = latest.current.zoom;
+    if (current) setCap(zoomCap(Math.min(current.base, current.code), current.current(), height));
+  }, [pinch]);
+  const nextStep = (direction: -1 | 1) => {
+    const current = zoom?.current() ?? 0;
+    // A stale height may still describe the smaller size before its layout.
+    // Keep that cap until the new height arrives, but always allow shrinking.
+    return Math.min(Math.max(current, cap), clampDetailsTextZoom(current + direction));
+  };
+  const step = (direction: -1 | 1) => {
+    if (!zoom) return;
+    const next = nextStep(direction);
+    if (next === zoom.current()) return;
+    zoom.commit(next);
+    setBadge(next);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setBadge(null), ZOOM_BADGE_MS);
+  };
   const hide = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
     setBadge(null);
   };
-  return { handlers, badge, body, contentSized: pinch.contentSized, hide };
+  return { handlers, badge, body, contentSized, hide, step,
+    canDecrease: Boolean(zoom && nextStep(-1) < zoom.current()),
+    canIncrease: Boolean(zoom && nextStep(1) > zoom.current()),
+  };
 }
 
 function touchesOf(event: GestureResponderEvent): Point[] {

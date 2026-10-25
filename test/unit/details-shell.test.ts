@@ -1468,18 +1468,87 @@ describe("a pinch in the phone drawer", () => {
     expect(fake.api.close).not.toHaveBeenCalled();
   });
 
-  it("draws the saved size in the drawer, and none in the side panel or on web", () => {
+  it("draws the saved size in the drawer, and leaves web unchanged", () => {
     updateEnhancerPreferences({ detailsTextZoom: 3 });
     const { panel, shown } = drawer("pinch-saved");
     expect(shown()).toBe("3");
     expect(panel().onTouchStart).toBeDefined();
     act(() => mounted.splice(0).forEach((renderer) => renderer.unmount()));
-    screen.width = 1194;
-    screen.height = 834;
+    webDesktop();
     fake.box.blocks = [block("pinch-side", 1, { render: zoomed })];
     const side = render(slot());
     open("pinch-side");
     expect(byTestId(side, "zoom-probe")!.props.children).toBe("0");
     expect(byTestId(side, "details-body")!.props.onTouchStart).toBeUndefined();
+  });
+
+  it.each([
+    { os: "ios", width: 1194, height: 834, form: "side", hover: false },
+    { os: "ios", width: 834, height: 1194, form: "floating", hover: false },
+    { os: "ios", width: 1194, height: 834, form: "side", hover: true },
+    { os: "android", width: 1194, height: 834, form: "side", hover: false },
+    { os: "android", width: 834, height: 1194, form: "floating", hover: false },
+  ])("supports saved zoom, pinch and badge controls in $os $form (hover $hover)", ({ os, width, height, form, hover }) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    screen.width = width;
+    screen.height = height;
+    caps.hover = hover;
+    updateEnhancerPreferences({ detailsTextZoom: 3 });
+    const id = `tablet-pinch-${os}-${form}-${hover}`;
+    fake.box.blocks = [block(id, 1, { render: zoomed })];
+    const renderer = render(slot());
+    open(id);
+    expect(byTestId(renderer, `details-${form}`)).not.toBeNull();
+    const shown = () => byTestId(renderer, "zoom-probe")!.props.children;
+    const body = () => byTestId(renderer, "hover-preview-body")!.props;
+    const panel = () => byTestId(renderer, "details-body")!.props;
+    const press = (control: string) => act(() => byTestId(renderer, `details-zoom-${control}`)!.props.onPress());
+    expect(shown()).toBe("3");
+    act(() => {
+      body().onContentSizeChange(420, 900);
+      body().onScroll({ nativeEvent: { contentOffset: { y: 100 }, layoutMeasurement: { height: 300 }, contentSize: { height: 900 } } });
+      panel().onTouchStart(fingers(500, 600));
+    });
+    expect(body().scrollEnabled).toBe(false);
+    expect(byTestId(renderer, "details-zoom-badge")).not.toBeNull();
+    act(() => panel().onTouchMove(fingers(490, 610)));
+    expect(shown()).toBe("7");
+    expect(getEnhancerPreferences().detailsTextZoom).toBe(3);
+    act(() => panel().onTouchEnd(fingers()));
+    expect(body().scrollEnabled).toBe(true);
+    expect(getEnhancerPreferences().detailsTextZoom).toBe(7);
+    press("increase");
+    expect(shown()).toBe("8");
+    expect(getEnhancerPreferences().detailsTextZoom).toBe(8);
+    press("decrease");
+    expect(shown()).toBe("7");
+    expect(getEnhancerPreferences().detailsTextZoom).toBe(7);
+    press("reset");
+    expect(shown()).toBe("0");
+    expect(getEnhancerPreferences().detailsTextZoom).toBe(0);
+    expect(byTestId(renderer, "details-zoom-badge")).toBeNull();
+  });
+
+  it("keeps tablet zoom across a side-to-floating layout change", () => {
+    vi.useFakeTimers();
+    screen.width = 1194;
+    screen.height = 834;
+    fake.box.blocks = [block("tablet-rotate", 1, { render: zoomed })];
+    const renderer = render(slot());
+    open("tablet-rotate");
+    expect(byTestId(renderer, "details-side")).not.toBeNull();
+    act(() => {
+      byTestId(renderer, "details-body")!.props.onTouchStart(fingers(500, 600));
+      byTestId(renderer, "details-body")!.props.onTouchEnd(fingers());
+    });
+    act(() => byTestId(renderer, "details-zoom-increase")!.props.onPress());
+    screen.width = 834;
+    screen.height = 1194;
+    act(() => renderer.update(slot()));
+    act(() => { vi.advanceTimersByTime(150); });
+    expect(byTestId(renderer, "details-floating")).not.toBeNull();
+    expect(byTestId(renderer, "zoom-probe")!.props.children).toBe("1");
+    expect(byTestId(renderer, "details-body")!.props.onTouchStart).toBeDefined();
+    expect(getEnhancerPreferences().detailsTextZoom).toBe(1);
   });
 });
