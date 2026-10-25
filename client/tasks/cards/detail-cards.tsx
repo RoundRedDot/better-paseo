@@ -19,6 +19,7 @@ import type { SessionTokens } from "../../../shared/tasks-rpc";
 import { opensInPaseo, turnRunning, type PermissionKind, type TaskCard, type TaskChild } from "../model";
 import type { PermissionButton, StopPhase } from "../actions";
 import type { FirstPrompt } from "../data/first-prompt";
+import type { LastHumanMessage } from "../data/last-human-message";
 import type { LastMessage } from "../data/last-message";
 import { formatClockTime, formatDuration, formatRelative, formatTokenTotal, since, tildePath } from "./format";
 import { cardStrings } from "./strings";
@@ -70,7 +71,7 @@ import { tipProps } from "./card-hints";
  * (`docs/prototypes/task-details-rich.md`): the header (status, title, the
  * agent's chips and labels, the actions), then the block the card needs
  * first (the running turn, the permission request, the error, or a summary),
- * then collapsible sections: the first prompt, the latest reply, properties, subtasks, usage and activity, in an
+ * then collapsible sections: the first prompt, the last message a person sent, the latest reply, properties, subtasks, usage and activity, in an
  * order that follows the state. The desktop sidebar draws it at desktop
  * sizes; the phone's sheet and a tablet's touch sidebar at touch sizes.
  */
@@ -162,6 +163,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   onJump?(agentId: string): void;
   /** The task's first prompt, read from its timeline; absent leaves the section out (the settings preview). */
   firstPrompt?: { prompt: FirstPrompt; load(): void } | null;
+  /** The last message a person sent, read back from the timeline's tail; absent (or the first prompt again) leaves the section out. */
+  humanMessage?: { prompt: LastHumanMessage; load(): void } | null;
   /** The agent's latest reply, read from its timeline's tail; absent leaves the section out. */
   lastMessage?: { prompt: LastMessage; load(): void } | null;
   /** A running task's whole session's tokens, from the provider's session files; absent leaves them out of the running turn. */
@@ -189,7 +192,10 @@ const MINUTE = 60_000;
 /** The details card: the header and the lead block, then the sections. */
 export function TaskDetailCards(given: TaskDetailCardsProps) {
   // An archived task has no Open, here or on its subtasks: Paseo would show another tab.
-  const props = opensInPaseo(given.card) ? given : { ...given, onOpen: undefined };
+  const opened = opensInPaseo(given.card) ? given : { ...given, onOpen: undefined };
+  // A person's only message is the first prompt, which its own section shows.
+  const humanMessage = repeatsFirstPrompt(opened.humanMessage?.prompt, opened.firstPrompt?.prompt) ? null : opened.humanMessage;
+  const props = humanMessage === opened.humanMessage ? opened : { ...opened, humanMessage };
   const { card } = props;
   const tokens = taskTokens(props.theme);
   const m: Metrics = props.touch ? TOUCH_CARD : DETAIL_CARD;
@@ -198,7 +204,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   // The caller's source, for what ticks each second: `now` below is whole minutes.
   const time: TimeSource = { now: props.now, clock: props.clock };
   const choices = useSectionChoices();
-  const { order, closed } = detailSections(card, !!props.firstPrompt, !!props.lastMessage);
+  const { order, closed } = detailSections(card, !!props.firstPrompt, !!props.lastMessage, !!props.humanMessage);
   // Two columns: properties precede subtasks under the header; the other sections sit on the right.
   const leftSections: DetailSection[] = props.columns ? order.filter((section) => section === "properties" || section === "subtasks") : [];
   const rightOrder = order.filter((section) => !leftSections.includes(section));
@@ -641,7 +647,7 @@ function ErrorBlock(props: Inner) {
 function Section(props: Inner & { section: DetailSection; closed: boolean; divider: boolean }) {
   const { card, m, tokens, section, gutter = 0 } = props;
   const words = cardStrings(props.language).details;
-  const title = { prompt: words.prompt, message: words.message, properties: words.properties, subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
+  const title = { prompt: words.prompt, human: words.human, message: words.message, properties: words.properties, subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
   // A narrow card abbreviates the subtasks heading; its rows keep their shared metadata.
   const [narrow, setNarrow] = useState(false);
   const onLayout =
@@ -653,19 +659,20 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
       : undefined;
   const created = since(card.timing.createdAt, props.now);
   const heading = section === "subtasks" ? subtaskHeading(card.children, props.language, narrow) : null;
-  const read = section === "prompt" ? props.firstPrompt : section === "message" ? props.lastMessage : null;
+  const read = section === "prompt" ? props.firstPrompt : section === "human" ? props.humanMessage : section === "message" ? props.lastMessage : null;
   const timestamp = read?.prompt.state === "ready" ? read.prompt.timestamp : undefined;
   const at = timestamp ? Date.parse(timestamp) : NaN;
   const messageTime = Number.isFinite(at) ? formatClockTime(at, props.now) : "";
   const summary = {
     prompt: messageTime,
+    human: messageTime,
     message: messageTime,
     properties: card.location.branch ?? (card.location.git === null ? words.notGit : ""),
     subtasks: heading && heading.parts.length > 0 ? <SubtaskSummaryText parts={heading.parts} tokens={tokens} /> : "",
     usage: usageSummary(card, props.language),
     activity: created !== null ? words.createdAgo(formatRelative(created, props.language)) : "",
   }[section];
-  const testID = { prompt: "detail-prompt", message: "detail-message", properties: "detail-location", subtasks: "detail-subtasks", usage: "detail-usage", activity: "detail-activity" }[section];
+  const testID = { prompt: "detail-prompt", human: "detail-human", message: "detail-message", properties: "detail-location", subtasks: "detail-subtasks", usage: "detail-usage", activity: "detail-activity" }[section];
   // The last subtask row keeps 8 (touch 10) above the next hairline.
   const bottom = section === "subtasks" && m === TOUCH_CARD ? 10 : 8;
   return (
@@ -686,6 +693,8 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
         />
         {props.closed ? null : section === "prompt" ? (
           <TimelineTextBody {...props} read={props.firstPrompt} id="detail-prompt" none={words.promptNone} error={words.promptError} copyLabel={words.copyPrompt} copyToast="Copy prompt" />
+        ) : section === "human" ? (
+          <TimelineTextBody {...props} read={props.humanMessage} id="detail-human" none={words.humanNone} error={words.humanError} copyLabel={words.copyHuman} copyToast="Copy human message" />
         ) : section === "message" ? (
           <TimelineTextBody {...props} read={props.lastMessage} id="detail-message" none={words.messageNone} error={words.messageError} copyLabel={words.copyMessage} copyToast="Copy message" />
         ) : section === "properties" ? (
@@ -1218,6 +1227,12 @@ function MoreRow(props: { tokens: TaskTokens; label: string; note: string | null
   );
 }
 
+/** The last message a person sent is the first prompt: the timeline's first, or the same text sent at the same time. */
+function repeatsFirstPrompt(human: LastHumanMessage | undefined, first: FirstPrompt | undefined): boolean {
+  if (human?.state === "first") return true;
+  return human?.state === "ready" && first?.state === "ready" && human.text === first.text && human.timestamp === first.timestamp;
+}
+
 /** The lines a prompt or reply shows before "show all". */
 const PROMPT_LINES = 4;
 /** A prompt or reply is Markdown, set in the chat's tightest variant to fit the card. */
@@ -1230,7 +1245,7 @@ const FADE_STEPS = 6;
  * "show all"; drawn as Markdown, copyable as written. A closed agent waits for
  * "Load", since reading its timeline resumes it.
  */
-function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt; load(): void } | null | undefined; id: string; none: string; error: string; copyLabel: string; copyToast: string }) {
+function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt | LastHumanMessage; load(): void } | null | undefined; id: string; none: string; error: string; copyLabel: string; copyToast: string }) {
   const { tokens, id } = props;
   const words = cardStrings(props.language).details;
   const [open, setOpen] = useState(false);

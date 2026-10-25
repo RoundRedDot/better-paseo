@@ -2597,6 +2597,30 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(tree.root, "detail-message"))).toEqual(["最近一条消息", "agent 还没有回复"]);
   });
 
+  it("shows the last message a person sent between the first prompt and the latest reply", async () => {
+    const load = vi.fn();
+    const firstPrompt = { prompt: { state: "ready", text: "Fix the board", timestamp: "2026-10-25T08:00:00Z" } as const, load };
+    const lastMessage = { prompt: { state: "ready", text: "Four subagents failed." } as const, load };
+    const ids = ["detail-prompt", "detail-human", "detail-message"];
+    const shown = (tree: Awaited<ReturnType<typeof render>>) =>
+      tree.root.findAll((node) => typeof node.type === "string" && ids.includes(node.props.testID)).map((node) => node.props.testID);
+    const humanMessage = { prompt: { state: "ready", text: "Retry the failed ones", timestamp: "2026-10-25T09:00:00Z" } as const, load };
+    const tree = await render(details(sample("sample-failed"), { firstPrompt, humanMessage, lastMessage }, "en"));
+    expect(shown(tree)).toEqual(ids);
+    expect(texts(hostByTestId(tree.root, "detail-human"))).toEqual(expect.arrayContaining(["Latest human message", "Retry the failed ones"]));
+    await act(async () => byLabel(tree.root, "Copy human message").props.onPress());
+    expect(clipboard.copyText).toHaveBeenLastCalledWith("Retry the failed ones");
+
+    // The first prompt again (one turn so far): its own section shows it.
+    await act(async () => tree.update(details(sample("sample-failed"), { firstPrompt, humanMessage: { prompt: { state: "first" }, load }, lastMessage }, "en")));
+    expect(shown(tree)).toEqual(["detail-prompt", "detail-message"]);
+    await act(async () => tree.update(details(sample("sample-failed"), { firstPrompt, humanMessage: { prompt: firstPrompt.prompt, load }, lastMessage }, "en")));
+    expect(shown(tree)).toEqual(["detail-prompt", "detail-message"]);
+
+    await act(async () => tree.update(details(sample("sample-failed"), { firstPrompt, humanMessage: { prompt: { state: "none" }, load }, lastMessage }, "zh")));
+    expect(texts(hostByTestId(tree.root, "detail-human"))).toEqual(["最近一条人类消息", "对话记录里没有找到人类发送的消息"]);
+  });
+
   it("leads with the error when a card failed, and with a grey line after a manual stop", async () => {
     const failed = await render(details(sample("sample-failed"), {}, "en"));
     expect(texts(hostByTestId(failed.root, "detail-error"))).toEqual(["Run failed", "Provider exited with code 1: rate limit reached"]);

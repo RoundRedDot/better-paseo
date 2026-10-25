@@ -40,6 +40,8 @@ describe("details card model", () => {
     expect(detailSections(sample("sample-failed"), true).order).toEqual(["properties", "prompt", "activity", "usage"]);
     // The latest reply follows it.
     expect(detailSections(sample("sample-failed"), true, true).order).toEqual(["properties", "prompt", "message", "activity", "usage"]);
+    // The last message a person sent sits between them.
+    expect(detailSections(sample("sample-failed"), true, true, true).order).toEqual(["properties", "prompt", "human", "message", "activity", "usage"]);
     // A provider subagent's card has no usage or activity of its own.
     const subagent = { ...sample("sample-running"), children: [], subagent: { subtitle: null } };
     expect(detailSections(subagent, true, true).order).toEqual(["properties", "prompt", "message"]);

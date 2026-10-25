@@ -568,7 +568,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
   const { card, board, theme } = props;
   const colors = theme.colors;
   useParentTitle(board, card);
-  const { firstPrompt, lastMessage, sessionTokens } = useDetailReads(board, card);
+  const { firstPrompt, humanMessage, lastMessage, sessionTokens } = useDetailReads(board, card);
   const list = board.lanes[card.lane]?.cards ?? [];
   const index = list.findIndex((item) => item.id === card.id);
   const step = (delta: number) => {
@@ -605,6 +605,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           onPermission={onPermission}
           onJump={props.onShow}
           firstPrompt={firstPrompt}
+          humanMessage={humanMessage}
           lastMessage={lastMessage}
           sessionTokens={sessionTokens}
           unarchive={board.unarchive.available ? board.unarchive : null}

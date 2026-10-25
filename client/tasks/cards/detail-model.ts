@@ -14,7 +14,7 @@ const MINUTE = 60_000;
 /** The block under the header, by what the card needs first. */
 export type DetailHero = "turn" | "permission" | "error" | "summary";
 
-export type DetailSection = "prompt" | "message" | "properties" | "subtasks" | "usage" | "activity";
+export type DetailSection = "prompt" | "human" | "message" | "properties" | "subtasks" | "usage" | "activity";
 
 export function detailHero(card: TaskCard): DetailHero {
   if (card.lane === "needs_input" && card.permission) return "permission";
@@ -25,10 +25,11 @@ export function detailHero(card: TaskCard): DetailHero {
 
 /**
  * The sections after the hero, in order, and the ones closed unless the user
- * opened them. Properties lead, followed by the task's first prompt and the
- * agent's latest reply when the details can read them.
+ * opened them. Properties lead, followed by the task's first prompt, the
+ * last message a person sent and the agent's latest reply when the details
+ * can read them.
  */
-export function detailSections(card: TaskCard, prompt = false, message = false): { order: DetailSection[]; closed: DetailSection[] } {
+export function detailSections(card: TaskCard, prompt = false, message = false, human = false): { order: DetailSection[]; closed: DetailSection[] } {
   const hero = detailHero(card);
   let order: DetailSection[];
   if (hero === "turn") order = ["subtasks", "usage", "activity"];
@@ -39,6 +40,7 @@ export function detailSections(card: TaskCard, prompt = false, message = false):
   // A provider subagent's card carries no usage or activity of its own.
   if (card.subagent) order = [];
   if (message) order = ["message", ...order];
+  if (human) order = ["human", ...order];
   if (prompt) order = ["prompt", ...order];
   const closed: DetailSection[] = hero === "permission" || hero === "error" ? ["usage"] : [];
   return { order: ["properties", ...order], closed };
