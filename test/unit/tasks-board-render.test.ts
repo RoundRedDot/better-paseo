@@ -355,7 +355,10 @@ describe("Tasks search coverage and centred toolbar", () => {
       expect(hostParentOf(start)).toBe(bar);
       expect(hostParentOf(total)).toBe(bar);
       expect(hostParentOf(end)).toBe(bar);
-      for (const side of [start, end]) expect(StyleSheet.flatten(side.props.style)).toMatchObject({ flex: 1, flexBasis: 0, minWidth: 0 });
+      for (const side of [start, end]) expect(StyleSheet.flatten(side.props.style)).toMatchObject({ flex: 1, flexBasis: 0 });
+      expect(StyleSheet.flatten(start.props.style).minWidth).toBe(0);
+      if (os === "ios" && width === 400) expect(StyleSheet.flatten(end.props.style).minWidth).toBeGreaterThan(0);
+      else expect(StyleSheet.flatten(end.props.style).minWidth).toBe(0);
       expect(StyleSheet.flatten(end.props.style).justifyContent).toBe("flex-end");
       expect(start.findAll((node) => (node.type as unknown) === "TextInput" || node.props.testID === "tablet-search-toggle").length).toBeGreaterThan(0);
       expect(StyleSheet.flatten(total.props.style).flexShrink).toBe(0);
@@ -2618,6 +2621,36 @@ describe("Tasks board, tablet filters", () => {
     expect(hostsById("tablet-view-menu")).toHaveLength(0);
   });
 
+  it.each([
+    ["ios", 320, 14], ["ios", 480, 14], ["android", 480, 14], ["android", 600, 21],
+  ] as const)("%s at %i pt/UI%i keeps subtasks visible and archive before filtering and view", async (os, width, base) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    await act(async () => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
+    layOut(width);
+    const end = () => hostsById("tablet-toolbar-end")[0]!;
+    const order = () => end().findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID);
+    const expected = [
+      ...(width >= 440 * Math.max(1, base / 14) ? ["toolbar-archived"] : []),
+      "subtasks-toggle", "toolbar-filters", "tablet-view",
+    ];
+    expect(order()).toEqual(expected);
+    const subtasks = () => hostsById("subtasks-toggle")[0]!;
+    expect(subtasks().props.accessibilityState.selected).toBe(true);
+    await act(async () => subtasks().props.onPress());
+    expect(subtasks().props.accessibilityState.selected).toBe(false);
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true });
+    await act(async () => subtasks().props.onPress());
+    expect(subtasks().props.accessibilityState.selected).toBe(true);
+    act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    expect(order()).toEqual(expected);
+    expect(hostsById("tablet-toolbar-search")).toHaveLength(1);
+    // A narrow action slot keeps the two visibility controls; filtering stays in View.
+    act(() => end().props.onLayout({ nativeEvent: { layout: { x: 160, y: 6, width: StyleSheet.flatten(end().props.style).minWidth, height: 32 } } }));
+    expect(order()).toEqual(expected.filter((id) => id !== "toolbar-filters"));
+    act(() => hostsById("tablet-view")[0]!.props.onPress());
+    expect(menuOption("Filters")).toBeDefined();
+  });
+
   it.each(["en", "zh"] as const)("reserves a complete centred count across count changes in %s", (language) => {
     updateEnhancerPreferences({ language });
     act(() => { renderer = TestRenderer.create(screen(false)); });
@@ -2801,7 +2834,7 @@ describe("Tasks board, tablet filters", () => {
     });
     layOut(width);
     const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && /^toolbar-/.test(node.props.testID ?? ""));
-    expect(buttons.map((node) => node.props.testID)).toEqual(os === "web" ? ["toolbar-archived", "toolbar-filters"] : ["toolbar-filters", "toolbar-archived"]);
+    expect(buttons.map((node) => node.props.testID)).toEqual(["toolbar-archived", "toolbar-filters"]);
     expect(hostsById("toolbar-empty-groups")).toHaveLength(0);
     expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
@@ -2826,7 +2859,7 @@ describe("Tasks board, tablet filters", () => {
     layOut(width);
     const archived = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived");
     const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && (node.props.testID === "toolbar-archived" || node.props.testID === "toolbar-filters"));
-    expect(buttons.map((node) => node.props.testID)).toEqual(os !== "web" ? ["toolbar-filters", "toolbar-archived"] : width === 600 ? ["toolbar-archived", "toolbar-filters"] : ["toolbar-archived"]);
+    expect(buttons.map((node) => node.props.testID)).toEqual(os !== "web" ? ["toolbar-archived", "toolbar-filters"] : width === 600 ? ["toolbar-archived", "toolbar-filters"] : ["toolbar-archived"]);
     expect(textOf(archived())).toBe("");
     expect(archived().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Archive");
     expect(hostsById("archived-lane-toggle")).toHaveLength(0);
