@@ -102,7 +102,7 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
   };
 });
 
-import { StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 import { Modal } from "@getpaseo/plugin/client/react-native";
 import { ProviderLogo } from "../../client/components/provider-logo";
 import * as data from "../../client/tasks/data";
@@ -3136,6 +3136,7 @@ describe("Tasks board, phone", () => {
     const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: import("../../client/tasks/model").TaskCard[] }> } }).__handle;
     const original = handle.lanes;
     let copy: ReturnType<typeof TestRenderer.create> | undefined;
+    const timing = vi.spyOn(Animated, "timing");
     const card = () => hostsById("task-card-sample-running")[0]!;
     const toggle = () => card().find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "pill-subtasks");
     const refresh = () => {
@@ -3183,10 +3184,24 @@ describe("Tasks board, phone", () => {
       refresh();
       expect(toggle().props.accessibilityState.expanded).toBe(true);
       expect(textOf(card())).toContain("Updated child title");
+      // The shared native mock never completes animations; drive this exit with the fake clock.
+      if (compact) timing.mockImplementationOnce((_value, config) => {
+        let timer: ReturnType<typeof setTimeout>;
+        return {
+          start: (done) => { timer = setTimeout(() => done?.({ finished: true }), config.duration); },
+          stop: () => clearTimeout(timer),
+          reset: () => clearTimeout(timer),
+        };
+      });
       act(() => toggle().props.onPress());
       refresh();
+      const panel = card().find((node) => typeof node.type === "string" && node.props.testID === "task-card-subtasks-panel");
+      expect(panel.props.pointerEvents).toBe("none");
+      expect(card().findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtasks")).toHaveLength(1);
+      act(() => { vi.advanceTimersByTime(140); });
       expect(card().findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtasks")).toHaveLength(0);
     } finally {
+      timing.mockRestore();
       if (copy) act(() => copy!.unmount());
       handle.lanes = original;
     }
