@@ -23,6 +23,7 @@ export function ZoomBadge({ size, onReset, onStep, onInteraction, canDecrease, c
   tokens: ExtendedThemeTokens;
 }) {
   const { language } = useEnhancerPreferences();
+  const mobile = Platform.OS !== "web";
   const label = `${toolbarLabel("Text size", language)} ${size}`;
   const reset = toolbarLabel("Reset", language);
   return (
@@ -34,7 +35,7 @@ export function ZoomBadge({ size, onReset, onStep, onInteraction, canDecrease, c
           if (event.nativeEvent.touches.length === 0) onInteraction(false);
         }}
         onTouchCancel={(event) => { event.stopPropagation(); onInteraction(false); }}
-        style={[styles.pill, {
+        style={[styles.pill, mobile && styles.mobilePill, {
           backgroundColor: tokens.surface0,
           borderColor: tokens.v2.border,
           boxShadow: floatShadow(tokens),
@@ -42,25 +43,25 @@ export function ZoomBadge({ size, onReset, onStep, onInteraction, canDecrease, c
         <Pressable testID="details-zoom-decrease" accessibilityRole="button"
           accessibilityLabel={toolbarLabel("Decrease text size", language)}
           accessibilityState={{ disabled: !canDecrease }} disabled={!canDecrease} onPress={() => onStep(-1)}
-          style={({ pressed }) => [styles.step, Platform.OS === "web" && styles.pointer, (!canDecrease || pressed) && { opacity: 0.4 }]}>
-          <Glyph name="Minus" size={16} color={tokens.foreground} />
+          style={({ pressed }) => [styles.step, mobile && styles.mobileStep, Platform.OS === "web" && styles.pointer, (!canDecrease || pressed) && { opacity: 0.4 }]}>
+          <Glyph name="Minus" size={mobile ? 18 : 16} color={tokens.foreground} />
         </Pressable>
-        <View style={styles.label}>
+        <View style={[styles.label, mobile && styles.mobileControl]}>
           <Text selectable={false} numberOfLines={1} accessibilityLiveRegion="polite"
-            style={[styles.text, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+            style={[styles.text, mobile && styles.mobileText, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
             {label}
           </Text>
         </View>
         <Pressable testID="details-zoom-increase" accessibilityRole="button"
           accessibilityLabel={toolbarLabel("Increase text size", language)}
           accessibilityState={{ disabled: !canIncrease }} disabled={!canIncrease} onPress={() => onStep(1)}
-          style={({ pressed }) => [styles.step, Platform.OS === "web" && styles.pointer, (!canIncrease || pressed) && { opacity: 0.4 }]}>
-          <Glyph name="Plus" size={16} color={tokens.foreground} />
+          style={({ pressed }) => [styles.step, mobile && styles.mobileStep, Platform.OS === "web" && styles.pointer, (!canIncrease || pressed) && { opacity: 0.4 }]}>
+          <Glyph name="Plus" size={mobile ? 18 : 16} color={tokens.foreground} />
         </Pressable>
         <Pressable testID="details-zoom-reset" accessibilityRole="button" accessibilityLabel={reset}
           onPress={onReset}
-          style={({ pressed }) => [styles.reset, Platform.OS === "web" && styles.pointer, pressed && { opacity: 0.6 }]}>
-          <Text selectable={false} style={[styles.text, unselectable, { color: tokens.accent, fontFamily: tokens.fontUi }]}>
+          style={({ pressed }) => [styles.reset, mobile && styles.mobileControl, Platform.OS === "web" && styles.pointer, pressed && { opacity: 0.6 }]}>
+          <Text selectable={false} style={[styles.text, mobile && styles.mobileText, unselectable, { color: tokens.accent, fontFamily: tokens.fontUi }]}>
             {reset}
           </Text>
         </Pressable>
@@ -83,6 +84,10 @@ const styles = StyleSheet.create({
   label: { alignItems: "center", justifyContent: "center", height: 32 },
   reset: { alignItems: "center", justifyContent: "center", height: 32 },
   step: { alignItems: "center", justifyContent: "center", width: 32, height: 32 },
+  mobilePill: { minHeight: 40 },
+  mobileControl: { height: 38, minWidth: 32 },
+  mobileStep: { width: 38, height: 38 },
   pointer: { cursor: "pointer" } as object,
   text: { fontSize: 12, lineHeight: 18, includeFontPadding: false, textAlign: "center", fontVariant: ["tabular-nums"] },
+  mobileText: { fontSize: 13, lineHeight: 20 },
 });
