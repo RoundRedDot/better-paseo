@@ -1,16 +1,16 @@
 # UI 组件复用与设计统一优化方案
 
-日期：2026-10-25。原始盘点基线 `9707fc06`，平板适配检查点 `a8689afe`，S0 与首轮重构候选基线 `45064c6b`。本次全局复核固定截止 `08f2bbb3a248a3ab629218dace7a0ebf56c2b287`；`7113c24f` 为前次检查点。新增单行平板工具栏、居中计数、首条消息搜索、Space预览、详情分栏／消息时间与父任务标记均属已提交功能共同基线。并行提示层另列，旧盘点及候选01证明不自动覆盖新版本。
+日期：2026-10-25，2026-10-26 同步落地状态。原始盘点基线 `9707fc06`，平板适配检查点 `a8689afe`，S0 与首轮重构候选基线 `45064c6b`。本次全局复核固定截止 `08f2bbb3a248a3ab629218dace7a0ebf56c2b287`；`7113c24f` 为前次检查点。新增单行平板工具栏、居中计数、首条消息搜索、Space预览、详情分栏／消息时间与父任务标记均属已提交功能共同基线。并行提示层另列，旧盘点及候选01证明不自动覆盖新版本。第3–8.3节的复核内容仍以 08f2 为准；08f2 之后到 `9376c4da` 的已提交变更见第8.4节。
 
-**状态：S0 已提交；S1a、S3a/S3b/S3c 冻结为 candidate02（第7.1节），2026-10-25 Mac Studio 有限 A/B 验收完成，未发现 candidate 独有回归（第9.2节），尚未提交；S1b 本轮不实施，S2/S4 暂缓（第7.2节）。** 用户已授权推进重构，本轮只重新审视并更新本文，不重复请求已有实施授权。未提交的侧栏／提示层交互修改与重构候选分别管理；新增视觉或产品行为需单独说明，不能混入机械搬迁。
+**状态：S0、S1a、S3a/S3b/S3c 已合入 main（2026-10-25，`957e57e1`、`cb1764ad`、`181455fe`，随 `2e99a328` 推送）；同批合入提示层（`e501ea38`）、F1 开关 Space（`bd9eba9a`）与 F2 平板菜单浮层（`2120e323`）。合入前 Mac Studio candidate02／03 验收见第9.2–9.3节，推送前完整单测 4228/4228、typecheck 与 check:hermes 通过。S1b 不实施，S2/S4 暂缓（第7.2节）。** 新增视觉或产品行为需单独说明，不能混入机械搬迁。
 
 ## 1. 目标与当前推荐
 
 面向插件全部 UI 建立清晰的组件归属，复用重复机制，用少量明确变体统一设计。此次新增代码已完成有价值的领域收敛：`BoardEmptyState` 共享空态，`SubtaskPanel` 拥有卡片子任务展开，`SubtaskRow` 继续覆盖卡片／侧栏／sheet，`boardLaneLayout` 统一真实看板与预览几何。直接沿用这些 owner，不再创建同类组件。
 
-推荐顺序调整为：**整合 S1a＋S3 已写实现与最新交互 → 在 Mac Studio 验收新的冻结候选 → 按证据决定有限的 S1b → 可选 S4／S2 → 独立的 S5 产品设计项**。不因为新增功能而新增一批重构任务；当前最有价值的是解除大型文件反向依赖并保护共享行、提示和输入生命周期。S1b 不是自动执行的万能按钮工程，S2 搜索去重的收益尚不足以优先承担输入法与焦点风险。
+推荐顺序调整为：**S1a＋S3 已完成 → 仅在出现具体缺陷或设计统一需求时再评估有限的 S1b → 可选 S4／S2 → 独立的 S5 产品设计项**。不因为新增功能而新增一批重构任务；当前最有价值的是解除大型文件反向依赖并保护共享行、提示和输入生命周期。S1b 不是自动执行的万能按钮工程，S2 搜索去重的收益尚不足以优先承担输入法与焦点风险。
 
-[design.md](design.md) 是设计规范 owner；本文负责组件目录、切片、证据与验收边界。以下旧行号仅作历史定位，新增检查点以文件和符号定位为准。此次只写本文，保留所有并行改动。
+[design.md](design.md) 是设计规范 owner；本文负责组件目录、切片、证据与验收边界。以下旧行号仅作历史定位，新增检查点以文件和符号定位为准。2026-10-26 的同步同时更新了 design.md 与 [tasks-board.md](tasks-board.md)。
 
 ## 2. 已确认的子任务设计
 
@@ -256,7 +256,7 @@ token 以语义用途和表面变体记录。先集中现有值，再单独审�
 
 ## 6. 实施切片与文件所有权
 
-下表保留切片的文件边界；S0已提交，S1a与S3a/b/c已写待验收，S2/S4可选未实施，S1b/S5仍有门槛，不应把“新增”理解为要求重新创建已有文件。所有权指每片的修改边界。开始每片前检查最新工作区及直接依赖，保留他人修改；重叠文件顺序推进。
+下表保留切片的文件边界；S0、S1a与S3a/b/c已合入，S2/S4可选未实施，S1b/S5仍有门槛，不应把“新增”理解为要求重新创建已有文件。所有权指每片的修改边界。开始每片前检查最新工作区及直接依赖，保留他人修改；重叠文件顺序推进。
 
 | 切片 | 新增／修改文件 | 依赖与行为边界 | 验收与回滚 |
 | --- | --- | --- | --- |
@@ -276,7 +276,9 @@ S0、S1、S4 共享卡片源码／测试，应串行。S2、S3 的生产文件�
 
 ## 7. 当前整合顺序、所有权与回滚
 
-### 7.1 先完成已经写入的有限重构
+### 7.1 已完成的有限重构（2026-10-25 合入）
+
+落地结果：S1a、S3a、S3b、S3c 各为独立提交（`957e57e1`、`cb1764ad` 含 S3a＋S3b、`181455fe`），与提示层、F1、F2、手机车道 memo（`caabc085`）分开提交，rebase 到当时的 origin/main 后快进推送。主仓库工作区里旧版的 native 子任务面板常驻 shell 改动已被 `4d927db9`／`d77004df` 取代，没有再提交；`2e99a328` 只补上 origin 已有面板行为对应的看板测试。下文保留候选冻结过程，作为回滚边界与证据来源。
 
 当前候选01是 `45064c6b` 加以下15个文件，不是当前 HEAD：
 
@@ -295,7 +297,7 @@ S0、S1、S4 共享卡片源码／测试，应串行。S2、S3 的生产文件�
 
 | 顺序 | 建议与文件边界 | 启动条件／验收 |
 | --- | --- | --- |
-| 当前波次 | 第7.1节精确15文件及明确列出的整合差异；提示补丁单独归属 | 保持 S1a 模块单向依赖及全部现有行为；S3c 是已明确的 reduced-motion 修正 |
+| 已完成波次 | 第7.1节精确15文件及明确列出的整合差异；提示补丁单独提交 | 保持 S1a 模块单向依赖及全部现有行为；S3c 是已明确的 reduced-motion 修正 |
 | S1b 本轮不实施 | — | 2026-10-25 复核第4.3节矩阵：六个表面在底色、过渡、hover/pressed、busy、fit chrome 上几乎逐项不同，真正一致的只有 spinner 替换与 busy 的 .6／disabled，每处数行；提取必然引入多布尔参数，违背“不要过度设计”。仅当出现具体缺陷或设计统一需求时再立项 |
 | S4 暂缓 | `cards/metadata-chip.tsx`、`detail-charts.tsx`、`detail-cards.tsx` | 仅是把 Chip 移出图表文件，详情仍需导入图表，收益只是文件归属；本轮不做，无维护痛点不再立项 |
 | S2 暂缓 | 如仍有维护痛点，再限定 `board/search-field.tsx`、phone-board、filter-sheet 与相关测试 | 当前五种焦点契约不同；没有共同设计修改需求时不提取，不要求用户为内部优先级再次决策 |
@@ -314,7 +316,7 @@ S0、S1、S4 共享卡片源码／测试，应串行。S2、S3 的生产文件�
 | `6fd542a2`；[BoardEmptyState](../client/tasks/board/empty-state.tsx:9)，DesktopLane/BoardEmpty、PhoneLane | 同一虚线框、图标、标题与提示；narrow 有限尺寸变体，容器选择全板／车道文案与操作 children | 已经收敛，不再新建 EmptyState；`tasks-empty-state.test.tsx` |
 | `aa5ffb2c`；detail-cards PropertyRow/RowAction，ui/use-hover | Web 绑定父 DOM 的 hover，移动到子动作不清空；嵌套动作 stopPropagation，不触发行复制 | 沿用 useHover(ref)；cards-web 回归，键盘可达性另验 |
 | `a330ec22`＋`b76c9614`；detail-cards Properties，shared/file-rpc revealPathRpc | 仅 `Platform.OS === "web" && !props.touch && !input.touch` 展示打开文件夹；RPC发送cwd/path均为任务cwd，失败本地化toast，复制仍可用 | 保留 domain RPC／路径／导航边界，不将远端主机路径当客户端路径；cards-web与cards专项 |
-| 未提交交互；[card-hints](../client/tasks/cards/card-hints.tsx:133) HintLayer、BoardTips/CardHints；details-sidebar/detail-cards/subtask-row | 沿用同一400ms Web pointer 提示层；触摸忽略，滚动捕获关闭和底部向上放置属当前草稿；侧栏／行接入 tipProps | 与候选01分开验收；`tasks-card-hints.test.ts`、`tasks-sidebar-tips.test.tsx`；不新建全局Tooltip服务 |
+| `e501ea38`；[card-hints](../client/tasks/cards/card-hints.tsx:133) HintLayer、BoardTips/CardHints；details-sidebar/detail-cards/subtask-row | 沿用同一400ms Web pointer 提示层；触摸忽略，层内滚动关闭、底部空间不足时向上放置均已提交；侧栏／行接入 tipProps，规则见 design.md「Hover tips」 | 与候选01分开验收；`tasks-card-hints.test.ts`、`tasks-sidebar-tips.test.tsx`；不新建全局Tooltip服务 |
 | `b4f91dac/c1097e34`；filter-bar DesktopToolbar | Web输入自身outline:none；父框 focus用foregroundMuted，blur恢复border，尺寸不变 | S2不再只比较手机与sheet；保留键盘可见焦点，不能全局清除outline |
 | `56e9fd13`及先前平板提交；filter-bar DesktopToolbar/DesktopFilterBar | 历史DesktopToolbar guard为 `props.filters || OSios || OSweb`；当前仅Web调用，原生改由TabletToolbar快捷按钮／View菜单与sheet共享board.showArchived | 原生≠iPad设备检测；测试精确guards、selected/checked语义与sheet同步 |
 | `36d3b799/c12c3450`；desktop-board、sidebar-model、details-sidebar GroupCard/Segment | iOS floating非sheet宽340、320..480，与桌面380、340..520偏好分开；局部文字0.9；四tab等宽，任一标签不适合则全部隐藏 | 保留本地测量和生命周期，不提取万能ResponsiveLabel；sidebar-model/board-render |
@@ -370,6 +372,26 @@ CardHints/BoardTips 已共用 HintLayer；tipProps提供提示不等于AX名称�
 
 整合影响：下一manifest02应包含截止08f2的已提交Markdown交互与平台动画作为共同基线，并明确列入其三个测试文件；它们不属于S1a/S3的15文件。继续整合S1a/S3而不修改此提交，图片格式叶子只改文案，不能改变LocalImage手势边界；披露头提取不能更换Markdown块key、选区容器或复制卸载时序。并行tips及截止点外交互修改按作者归属另审，不自动打包成已接受变更。
 
+### 8.4 08f2 之后已提交的变更（2026-10-26 登记，截至 `9376c4da`）
+
+08f2 之后 main 又合入约 40 个提交，均为已实现功能契约或第7.1节的落地。它们沿用现有 owner，不新增重构切片；运行验收以各提交自己的测试和 QA 为准，本文不追加全局通过结论。
+
+| 提交 | owner 与契约 | 对本方案的影响 |
+| --- | --- | --- |
+| `957e57e1`、`cb1764ad`、`181455fe` | S1a：CardButton → `cards/action-buttons.tsx`，buttonHue／requestLook／arrowInset／CONFIRM_STOP_ICON／webTransition 与 28／32 → `cards/action-style.ts`；S3a `components/mark-icon.tsx`；S3b `components/image-format.ts`；S3c SwitchTrack reduced-motion | 第7.1节完成；之后的动作按钮颜色只从 action-style 取 |
+| `e501ea38`；card-hints BoardTips／placeTip、details-sidebar、detail-cards、subtask-row pressTip／openTip | 侧栏与详情动作接入看板提示层 | 第8.1节提示行已提交 |
+| `bd9eba9a`；`ui/use-switch-space.ts` | role=switch 的 Toggle、BarSwitch、ToggleRow 在 Web 上 Space 松开时切换一次 | 关闭第9.1节预存问题；新的 switch 必须接入（design.md「Switches」） |
+| `2120e323`、`9376c4da`；TabletToolbar 视图菜单 | 菜单挂在看板等高浮层，按测量锚点右对齐，宽 240–260 | F2 已提交 |
+| `08c29f56`、`4ddc7580`、`2ae1daa9`、`d939b9a7`；TabletToolbar | 宽度不足 680 时紧凑 28／36；不足 560 时搜索在栏内展开并让出计数、保留操作；子任务开关常驻 | 第3.3节单行工具栏的有限变体仍留在 TabletToolbar，不抽通用 Toolbar |
+| `e435e37d`、`34009c13`、`6d83785d`、`c0498f2d`；phone-board 头部、`board/phone-search.tsx` PhoneSearch、FilterSheetBody `hideSubtasksToggle` | 手机子任务开关移入头部；搜索框自管高度与退出动画，动画期间不重绘 pager | S2 仍暂缓：PhoneSearch 只拥有显隐动画，输入身份契约（第4.4节）不变 |
+| `4d927db9`、`d77004df`、`2e99a328`；SubtaskPanel、`prepareSubtaskToggle` | native 保留常驻 shell，只卸载行；按下时先配置 LayoutAnimation 再更新展开状态 | 第8.1节 `4a0201fe` 行的 native 描述以此为准；Web 不变 |
+| `e328881f`、`caabc085`；phone-board LanePager／PhoneLane memo、useDeferredValue、lane-motion ghost | 打开 sheet、切换子任务时不重绘车道页；ghost 走 native driver | 性能 owner 留在 phone-board；模块级 memo 用具名导入，否则 stock Hermes 加载失败 |
+| `04840ba2`、`5c0dfc3d`、`3d645d08`、`77994349`；cards/card-menu | 触屏长按打开与右键相同的菜单；筛选子菜单（Agent、项目、工作区）；显示父任务卡片 | 菜单项只在 card-menu 定义，手机与桌面不各自复制 |
+| `6d98f9cc`、`24a821da`、`3875f6cc`、`6f4cea68`；detail-model detailSections、data/last-human-message、board/breathing | 属性在前；首条消息、最后发送消息、最后回复消息；读取期间呼吸骨架 | detailSections 仍是唯一排序 owner |
+| `5fb9eef2`、`5270b25c`、`22abc602`、`afe3cd26`；task-card CornerMark／MARK_ARC、server/tasks/icon-color | 子任务角弧，激活时取项目图标主题色 | 规格在 design.md「Data colours」 |
+| `39b4759d`；task-card projectAvatar | 手机卡片也显示项目图标，仍受 `card.projectIcon` 控制 | — |
+| `bbc4dfa6`、`65ab252a`、`77c94f50`；details/chrome zoom-badge、details/shell pinch-zoom | 区块详情的文字大小按钮与平板双指缩放 | 属时间线详情 owner，不并入 Tasks |
+
 ## 9. 验收矩阵与证据分层
 
 **所有验证只在 Mac Studio 执行。** 重构验收的边界：candidate02 与同基线 baseline02 在受影响表面（卡片动作、标记、图片字节、SwitchTrack）的 A/B 行为／视觉等价，加上 candidate 上全部注册入口冒烟。08f2 已提交功能（搜索、工具栏、Space、滚动条、详情分栏等）两侧相同，属功能验收而非本次重构验收，只冒烟；A/B 出现差异才深验。下列矩阵中这些功能行据此解读。 源码断言存在、提交说明、单测mock不代表运行／视觉通过。
@@ -422,7 +444,7 @@ CardHints/BoardTips 已共用 HintLayer；tipProps提供提示不等于AX名称�
 | 冻结candidate01 | base `45064c6b551c21c89ce26d803f4eb27595d1bb1e`＋15文件，archive SHA256 `4b4b75b28bfa1eca19147b6321d0d06504dd624268cacce2e1ac7e5b1f9d97c5`；861源文件manifest |
 | Studio candidate01报告 | baseline205文件/3934tests、candidate208/3977，类型／client build／Hermes通过；27组离线真实组件浏览器配对像素一致，S3c reduced切换另有预期差异。以上为外部QA报告，本轮未重跑 |
 | candidate01 native | 报告包含自有实际宿主包的iPhone/iPad模拟器与Android phone条件验证、系统reduce切换及采样帧；不是物理真机全面验收。Android Codex比对已按相同行为／时序各采3次实际截图＋fresh AX（约640ms间隔），双方连续稳定，bounds均为[0,1885,1080,2022]，0 changed RGBA、无移位裁剪（`logs/android-codex-stability.json`）。Android tablet已有横屏UI14/21明暗cards/right details、14dark marks/images、21light filter证据；旋转、其余marks/images、settings preview、stop/busy、reduce OS仍未完整覆盖。iOS七工具交叉条件／thumbnail AX baseline／preview条件、全native A/B与VoiceOver/TalkBack仍缺；四个自有设备已关闭，源861项hash均匹配旧candidate01 |
-| 最新main与脏交互 | 截止08f2的新增提交及并行提示／后续交互修改不在candidate01内；不能宣称全局通过。预存Web Toggle Space不切换／页面滚动而Enter可用，在baseline和candidate均出现，单独跟踪，不能算本轮引入或键盘通过 |
+| 最新main与脏交互 | 截止08f2的新增提交及并行提示／后续交互修改不在candidate01内；不能宣称全局通过。预存Web Toggle Space不切换／页面滚动而Enter可用，在baseline和candidate均出现，单独跟踪，不能算本轮引入或键盘通过；已由 `bd9eba9a`（F1）修复 |
 
 实施报告与候选manifest位于 `/tmp/better-paseo-refactor-20261024-FPps3Q/`，QA细节在 `qa/report.md`；临时路径只是追溯索引，上表保留持久必要信息。后续新增证据必须附自己的版本，不覆盖旧结果。
 
@@ -464,11 +486,11 @@ CardHints/BoardTips 已共用 HintLayer；tipProps提供提示不等于AX名称�
 | 重构 A/B 抽查 | iPhone UI14 亮、iPad UI21 亮竖、Android phone UI21 亮、Android tablet UI21 暗竖各22区域，共88区域像素0；44对交互 AX 相同 |
 | 新共同基线 | 手机工具栏子任务开关与搜索展开／收起两侧冒烟通过 |
 
-边界：每台设备只抽一个条件，不声称完整笛卡尔积、整页像素或当前 main 之后的变更；iOS 模拟器无 VoiceOver，以 XCTest AX 替代，Studio 为共享机不开 macOS VoiceOver；Web 未跑屏幕阅读器全流程；本轮手机未重复 TalkBack 语音。过程中的光标闪烁、24小时完成窗口跨越截止、首次录音错过窗口、文件名标签错误及 iPad XCTest 收尾超时（守卫下终止自有进程）均如实保留，不计通过。提交方案见 `release-prep/`：8个补丁按序应用于 HEAD 的临时 index 后与 candidate03 逐字节一致；提交／推送／部署待用户确认。
+边界：每台设备只抽一个条件，不声称完整笛卡尔积、整页像素或当前 main 之后的变更；iOS 模拟器无 VoiceOver，以 XCTest AX 替代，Studio 为共享机不开 macOS VoiceOver；Web 未跑屏幕阅读器全流程；本轮手机未重复 TalkBack 语音。过程中的光标闪烁、24小时完成窗口跨越截止、首次录音错过窗口、文件名标签错误及 iPad XCTest 收尾超时（守卫下终止自有进程）均如实保留，不计通过。提交方案见 `release-prep/`：8个补丁按序应用于 HEAD 的临时 index 后与 candidate03 逐字节一致。2026-10-25 已按第7.1节拆分提交并推送 origin/main；部署不在本文记录。
 
 ## 10. 文档维护、剩余决策与范围
 
-[design.md](design.md) 保持canonical；本次不修改。它已经明确所有mode折叠、unread不显示、thinking按宽度和共享身份状态规则，不重复补写。后续规范同步应只修正缺口：原“固定第三跳转列”改为只占标题右端，并把约381行正方形jump目标改为width22/32、height=line；动作helper owner改为迁移后的叶子；补充4a平台分别拥有的SubtaskPanel卸载／动效契约、当前工具栏agent优先／分组divider／车道宽度有限变体、settings-only Tasks入口、左搜索／居中计数／右动作、单行TabletToolbar与Space焦点／预览分离、首条消息搜索范围和覆盖提示、真实消息时间、sheet滚动条及模型拥有的properties优先顺序与打开文件夹平台边界，以及工具栏／侧栏／预览的已提交有限变体。规范增补不得把草稿写成已验收标准，亦不覆盖别人的修改。
+[design.md](design.md) 保持canonical。原列出的规范缺口中，跳转列只占标题右端、jump 目标 width22/32 与 height=line、动作 helper owner 迁移已在 `6fde759d`／`957e57e1` 写入；2026-10-26 又补上 `CornerLeftUp` 父任务标记范围、Web 悬停提示与开关 Space 规则，并把单行平板工具栏、手机头部、长按菜单与卡片筛选、详情分节与消息时间、两栏 sheet、手机卡片项目图标、键盘焦点与 Space 预览写入 [tasks-board.md](tasks-board.md)。仍未写入规范的是 SubtaskPanel 按平台的卸载／动效契约、工具栏 agent 优先／分组 divider 与车道宽度的有限变体、settings-only Tasks 入口、首条消息搜索覆盖提示、sheet 滚动条及打开文件夹的平台边界；增补时只修正缺口，不把草稿写成已验收标准，也不覆盖别人的修改。
 
 剩余产品决策仅是尚未确定的设计变化：重置是否统一显式确认取消、permission.kind图标采用哪套、分段／复制／工具栏外观是否进一步统一。S0规则、已提交文件夹平台限制、内部文件组织与S2优先级不需再次征求产品选择。当前重构授权不等于提交／推送／部署授权；本轮仅文档更新。
 
@@ -476,6 +498,6 @@ CardHints/BoardTips 已共用 HintLayer；tipProps提供提示不等于AX名称�
 
 ### 10.1 截止点与并行修改
 
-固定共同基线 `08f2bbb3a248a3ab629218dace7a0ebf56c2b287`，本轮从7113检查点复核上述九次提交。只读HEAD记录同为08f2；以后变化不继续追查。S1a/S3的15文件仍属未验收候选；details-sidebar/card-hints/subtask-row及相关测试、detail-cards/task-card重叠提示修改须按作者区分。未跟踪output/不是本任务产物，不读取其无关内容、不清理。候选02仅将明确归属patch叠到新共同基线，不能覆盖最新整文件或默认吸收全部dirty改动。
+第3–8.3节的复核以 `08f2bbb3a248a3ab629218dace7a0ebf56c2b287` 为共同基线，从7113检查点复核其间九次提交；08f2 之后到 `9376c4da` 的提交只在第8.4节登记 owner 与契约，没有重新做全局交互复核。S1a/S3 的15文件与提示层均已提交，第7.1节的作者归属与排除规则仅作历史记录。
 
-本轮仅写本文；design.md、生产代码、测试、配置、所有暂存／未暂存／未跟踪文件与Git状态均由原作者保有。候选02已冻结（第7.1节），不继承候选01的通过结论。
+2026-10-26 同步只改文档（本文、design.md、tasks-board.md），未改生产代码、测试与配置。
