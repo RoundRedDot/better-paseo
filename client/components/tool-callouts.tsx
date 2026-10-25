@@ -13,6 +13,7 @@ import { permissionBorder } from "./agent-card-content";
 import { SyntaxHighlightBlock, renderTerminalOutput, terminalLines } from "./syntax-highlight";
 import { ToolOutput, DiffPreview } from "./tool-output";
 import { ImageMeta, ImagePreview } from "./image-preview";
+import { formatImageBytes } from "./image-format";
 import { ImageViewer } from "./image-viewer";
 import { GitHubBody } from "./github-body";
 import { MarkdownView } from "./markdown/markdown-view";
@@ -625,8 +626,7 @@ function imageMenuSubtitle(file: ImageFile | null | undefined, path: string | un
   if (file?.width && file.height) parts.push(`${file.width} × ${file.height}`);
   const format = path?.split(".").pop()?.toUpperCase();
   if (format) parts.push(format);
-  if (file?.bytes != null) parts.push(file.bytes < 1024 ? `${file.bytes} B` : file.bytes < 1024 * 1024
-    ? `${Math.round(file.bytes / 1024)} KB` : `${(file.bytes / (1024 * 1024)).toFixed(1)} MB`);
+  if (file?.bytes != null) parts.push(formatImageBytes(file.bytes));
   return parts;
 }
 
