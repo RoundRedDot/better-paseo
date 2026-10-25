@@ -667,7 +667,8 @@ export function LanePager(props: {
 }) {
   const { lane, board, theme, onSettle } = props;
   const window = useWindowDimensions();
-  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  // Only width affects paging; native layout follows height changes without redrawing every lane.
+  const [size, setSize] = useState<{ width: number } | null>(null);
   const width = size?.width || window.width;
   const order = board.laneOrder;
   const index = order.indexOf(lane);
@@ -707,7 +708,7 @@ export function LanePager(props: {
       contentOffset={{ x: index * width, y: 0 }}
       onLayout={(event: LayoutChangeEvent) => {
         const next = event.nativeEvent.layout;
-        setSize((was) => (was && was.width === next.width && was.height === next.height ? was : { width: next.width, height: next.height }));
+        setSize((was) => (was && was.width === next.width ? was : { width: next.width }));
       }}
       onScrollBeginDrag={props.onDrag}
       onScrollEndDrag={(event: { nativeEvent: { contentOffset: { x: number } } }) => {
@@ -717,10 +718,11 @@ export function LanePager(props: {
       }}
       onMomentumScrollEnd={(event: { nativeEvent: { contentOffset: { x: number } } }) => settleAt(event.nativeEvent.contentOffset.x)}
       style={{ flex: 1 }}
+      contentContainerStyle={{ height: "100%" }}
       testID="phone-lane-pager"
     >
       {order.map((id, at) => (
-        <View key={id} testID={`phone-lane-${id}`} style={{ width, height: size?.height }}>
+        <View key={id} testID={`phone-lane-${id}`} style={{ width, height: "100%" }}>
           {Math.abs(at - index) <= 1 ? (
             <PhoneLane
               lane={board.lanes[id]}
