@@ -427,12 +427,13 @@ export const OVERLAY_ROW_Z = 2;
 /** The card's corner radius (Linear's card). */
 const CARD_RADIUS = 8;
 /**
- * The subtask mark's side. The context ring keeps its place beside it: on a
- * desktop card (padding 10 x 12, a 14 pt ring) the triangle's edge clears the
- * ring by about 8 pt, and by more on a phone's wider padding.
+ * The subtask mark's side: small enough to stay a mark, large enough that the
+ * card's 8 pt corner leaves a triangle. The context ring keeps its place beside
+ * it: on a desktop card (padding 10 x 12, a 14 pt ring) the triangle's edge
+ * clears the ring by about 11 pt, and by more on a phone's wider padding.
  */
-export const CORNER_MARK = 16;
-/** The mark's hue reads at least this far from the card before it is faded (a black logo on a dark card). */
+export const CORNER_MARK = 12;
+/** The mark's hue reads at least this far from the card (a black logo on a dark card). */
 const MARK_CONTRAST = 3;
 
 /**
@@ -605,8 +606,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
 
   // A provider subagent's card is drawn dashed and flat at rest: it stands for work inside its parent's session.
   const dashed = !!card.subagent;
-  // A subtask's card (a Paseo agent with a parent) marks its top-right corner in its project's colour, faded.
-  const cornerMark = card.parent !== null && !card.subagent ? withAlpha(markHue(card.location, props.hostId, tokens), tokens.isDark ? 0.5 : 0.4) : null;
+  // A subtask's card (a Paseo agent with a parent) marks its top-right corner in its project's colour.
+  const cornerMark = card.parent !== null && !card.subagent ? markHue(card.location, props.hostId, tokens) : null;
   const shadows = lit ? [look.shadowHover] : dashed ? [] : [look.shadow];
   // Focus is neutral and outside the card; selection owns the accent fill and hairline.
   if (props.focused && !WEB) shadows.push(`0px 0px 0px 1px ${tokens.foregroundMuted}`);
