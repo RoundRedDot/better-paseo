@@ -1289,6 +1289,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           actions={{
             open: props.onOpen ? () => props.onOpen?.(card.id) : undefined,
             openParent: parentOpens ? () => props.onOpen?.(card.parent!.id) : undefined,
+            revealParent: card.parent ? () => props.onReveal(card.parent!.id) : undefined,
             // Stop asks in a dialog first (unless confirm before stopping is off): there is no button to arm.
             stop: canStop && props.stopPhase !== "stopping"
               ? (withChildren) => {
