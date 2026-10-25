@@ -288,7 +288,8 @@ describe("Tasks server project icons RPC", () => {
 
     await expect(invoke(handlers, "tasks.project-icons", { projectIds: ["app", "plain", "broken", "app"] })).resolves.toEqual({
       icons: [
-        { projectId: "app", icon: { data: "aW1n", mimeType: "image/png" } },
+        // "img" is no PNG: the icon passes through without a colour.
+        { projectId: "app", icon: { data: "aW1n", mimeType: "image/png", color: null } },
         { projectId: "plain", icon: null },
         { projectId: "broken", icon: null },
       ],

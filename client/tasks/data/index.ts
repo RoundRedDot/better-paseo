@@ -125,9 +125,12 @@ interface OptionalLabelsApi {
   }>;
 }
 
+/** A project's icon as read; `color` is its theme colour, which only the server's loader works out. */
+type ProjectIconData = { data: string; mimeType: string; color?: string | null };
+
 interface OptionalProjectIconsApi {
   icon?: (projectId: string) => Promise<{
-    icon: { data: string; mimeType: string } | null;
+    icon: ProjectIconData | null;
     error?: string | null;
   }>;
 }
@@ -150,6 +153,7 @@ interface StoreSubscription {
 interface ProjectIconValue {
   revision: string | null;
   uri: string | null;
+  color: string | null;
 }
 
 /**
@@ -337,7 +341,7 @@ export function setLabelDefinitionsLoader(next: LabelDefinitionsLoader | null): 
 }
 
 /** `tasks.project-icons`: the projects' icons, for a host whose API has no icon call; null when the server cannot read them. */
-export type ProjectIconsLoader = (projectIds: string[]) => Promise<Array<{ projectId: string; icon: { data: string; mimeType: string } | null }> | null>;
+export type ProjectIconsLoader = (projectIds: string[]) => Promise<Array<{ projectId: string; icon: ProjectIconData | null }> | null>;
 
 let projectIconsLoader: ProjectIconsLoader | null = null;
 
@@ -625,6 +629,7 @@ function buildBaseCard(
   const projectKey = placement?.projectKey || project?.projectKey || null;
   const revision = project?.projectIconRevision ?? null;
   const projectIcon = icon?.revision === revision ? icon.uri : null;
+  const projectIconColor = projectIcon ? icon?.color ?? null : null;
   const hasGitState = workspace ? workspace.gitRuntime != null : placement?.checkout.isGit === true;
   const pullRequest = workspace?.githubRuntime?.pullRequest;
   const permission = pendingPermissions[0];
@@ -646,6 +651,7 @@ function buildBaseCard(
       projectKey,
       projectName,
       projectIcon,
+      projectIconColor,
       workspaceId: agent.workspaceId ?? workspace?.id ?? null,
       workspaceName: workspaceTitle && workspaceTitle !== projectName && workspaceTitle !== agent.title &&
         workspaceTitle !== branch && workspaceTitle !== branchFolder ? workspaceTitle : null,
@@ -795,7 +801,7 @@ function createStore(api: PaseoApi): TaskStore {
   const projectIcons = new Map<string, ProjectIconValue>();
   const iconRequests = new Set<string>();
   /** Icons asked of the server's loader in this task, sent together as one `tasks.project-icons` call. */
-  let iconBatch: Map<string, Array<(icon: { data: string; mimeType: string } | null) => void>> | null = null;
+  let iconBatch: Map<string, Array<(icon: ProjectIconData | null) => void>> | null = null;
   const lastTurns = new Map<string, TurnSpan>();
   /** The plugin server's error for each agent's latest recorded turn, when it had one. */
   const turnErrors = new Map<string, TurnError>();
@@ -2210,16 +2216,16 @@ function createStore(api: PaseoApi): TaskStore {
    * the plugin server, batched with the other projects asked for in the same
    * task (opening a filter menu asks for every project at once).
    */
-  function fetchProjectIcon(projectId: string): Promise<{ data: string; mimeType: string } | null> {
+  function fetchProjectIcon(projectId: string): Promise<ProjectIconData | null> {
     const iconApi = api.projects as PaseoApi["projects"] & OptionalProjectIconsApi;
     if (typeof iconApi.icon === "function") return iconApi.icon(projectId).then((result) => result.icon);
     return new Promise((resolve) => {
       if (!iconBatch) {
-        const batch = new Map<string, Array<(icon: { data: string; mimeType: string } | null) => void>>();
+        const batch = new Map<string, Array<(icon: ProjectIconData | null) => void>>();
         iconBatch = batch;
         setTimeout(() => {
           if (iconBatch === batch) iconBatch = null;
-          const settle = (icons: Map<string, { data: string; mimeType: string } | null>) => {
+          const settle = (icons: Map<string, ProjectIconData | null>) => {
             for (const [id, waiting] of batch) for (const done of waiting) done(icons.get(id) ?? null);
           };
           const loader = projectIconsLoader;
@@ -2254,12 +2260,13 @@ function createStore(api: PaseoApi): TaskStore {
         return;
       }
       const uri = data ? `data:${data.mimeType};base64,${data.data}` : null;
-      projectIcons.set(projectId, { revision, uri });
+      const value: ProjectIconValue = { revision, uri, color: data?.color ?? null };
+      projectIcons.set(projectId, value);
       for (const [id, entry] of entries) {
         const workspace = entry.agent.workspaceId ? workspaces.get(entry.agent.workspaceId) : undefined;
         const entryProjectId = workspace?.projectId ?? projectFor(entry, workspace, projects)?.projectId ?? null;
         if (entryProjectId !== projectId) continue;
-        baseCards.set(id, buildBaseCard(entry, workspace, projects.get(projectId), colorNames, modelCatalogs.get(entry.agent.provider), { revision, uri }));
+        baseCards.set(id, buildBaseCard(entry, workspace, projects.get(projectId), colorNames, modelCatalogs.get(entry.agent.provider), value));
         refreshFinalCard(id);
       }
       notify();

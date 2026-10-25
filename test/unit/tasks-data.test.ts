@@ -834,7 +834,7 @@ describe("Tasks data store", () => {
       workspaces: [workspace()],
       projects: [PROJECT, { ...PROJECT, projectId: "other", projectKey: "other-key" }],
     });
-    const loader = vi.fn(async (projectIds: string[]) => projectIds.map((projectId) => ({ projectId, icon: projectId === "project-id" ? { data: "aW1hZ2U=", mimeType: "image/png" } : null })));
+    const loader = vi.fn(async (projectIds: string[]) => projectIds.map((projectId) => ({ projectId, icon: projectId === "project-id" ? { data: "aW1hZ2U=", mimeType: "image/png", color: "#ff4d23" } : null })));
     setProjectIconsLoader(loader);
     try {
       const mounted = await mountTasks(host, "24h", false);
@@ -847,6 +847,8 @@ describe("Tasks data store", () => {
         });
         expect(loader.mock.calls).toEqual([[["project-id", "other"]]]);
         expect(mounted.current.byId.get("a")?.location.projectIcon).toBe("data:image/png;base64,aW1hZ2U=");
+        // The server's theme colour for the icon rides along, for the subtask mark.
+        expect(mounted.current.byId.get("a")?.location.projectIconColor).toBe("#ff4d23");
         // A project without an icon is answered too, so it is not asked again.
         await act(async () => {
           mounted.current.requestProjectIcon("other");
