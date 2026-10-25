@@ -362,8 +362,10 @@ Do not add a surface-specific row renderer, style override or visibility rule.
 
 ### Row layout
 
-The row has three columns: a combined identity/status mark, a flexible content
-column, and a fixed jump target. Its title and metadata never compete for width.
+The row has two columns: a combined identity/status mark and a flexible content
+column. The jump target sits at the content column's top-right on the title's line;
+only the title reserves its width plus 8 pt, and the metadata uses the full content
+width. Do not give the jump target a full-height column of its own.
 
 | Element | Shared rule |
 | --- | --- |
@@ -379,7 +381,7 @@ Touch changes targets and vertical spacing, not the content or icon rules:
 | --- | --- | --- |
 | Minimum row height | 32 pt | 44 pt |
 | Vertical padding | 7 pt | 10 pt |
-| Jump target | 22 x 22 pt | 32 x 32 pt |
+| Jump target | 22 pt wide, one title line high | 32 pt wide, one title line high |
 | Jump glyph | 14 pt | 16 pt |
 
 Typography follows the host interface size. Minimum row heights grow through
@@ -485,7 +487,7 @@ accessibility label; `SubtaskRow` does not append it again.
 
 ### Interaction and navigation
 
-The jump button reserves its width while hidden; hover never reflows the title
+The jump button keeps the title's reserved width while hidden; hover never reflows the title
 or metadata. Touch and native clients show it continuously. Web pointer layouts
 show it on hover, except that a provider subagent's parent-tab shortcut stays visible.
 If navigation is unavailable, omit the button.
