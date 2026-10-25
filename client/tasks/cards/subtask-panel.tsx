@@ -13,6 +13,12 @@ type PanelProps = SubtaskPanelProps & { still: boolean };
 const OPEN_MS = 180;
 const CLOSE_MS = 140;
 
+/** Configure the native transaction before the press updates board-owned state. */
+export function prepareSubtaskToggle(expanded: boolean): void {
+  if (Platform.OS === "web") return;
+  LayoutAnimation.configureNext({ duration: expanded ? OPEN_MS : CLOSE_MS, update: { type: "easeOut" } });
+}
+
 /** Keeps the rows mounted through collapse, then releases their subscriptions. */
 export function SubtaskPanel(props: SubtaskPanelProps) {
   const reduced = useReducedMotion();
@@ -23,7 +29,6 @@ export function SubtaskPanel(props: SubtaskPanelProps) {
 /** Fabric animates the layout transaction; JS never writes a height per frame. */
 function NativeSubtaskPanel({ expanded, still, children }: PanelProps) {
   const [present, setPresent] = useState(expanded);
-  const [open, setOpen] = useState(expanded);
   const target = useRef(expanded);
   const opacity = useRef(new Animated.Value(expanded ? 1 : 0)).current;
 
@@ -31,7 +36,6 @@ function NativeSubtaskPanel({ expanded, still, children }: PanelProps) {
     if (still) {
       target.current = expanded;
       opacity.setValue(expanded ? 1 : 0);
-      setOpen(expanded);
       setPresent(expanded);
       return;
     }
@@ -40,8 +44,6 @@ function NativeSubtaskPanel({ expanded, still, children }: PanelProps) {
     target.current = expanded;
     let live = true;
     const ms = expanded ? OPEN_MS : CLOSE_MS;
-    LayoutAnimation.configureNext({ duration: ms, update: { type: "easeOut" } });
-    setOpen(expanded);
     if (expanded) setPresent(true);
     const animation = Animated.timing(opacity, {
       toValue: expanded ? 1 : 0,
@@ -68,7 +70,7 @@ function NativeSubtaskPanel({ expanded, still, children }: PanelProps) {
       pointerEvents={expanded ? "auto" : "none"}
       accessibilityElementsHidden={!expanded}
       importantForAccessibility={expanded ? "auto" : "no-hide-descendants"}
-      style={{ flexShrink: 0, overflow: "hidden", height: open ? undefined : 0, opacity }}
+      style={{ flexShrink: 0, overflow: "hidden", height: expanded ? undefined : 0, opacity }}
     >
       {expanded || present ? (
         <View style={{ flexShrink: 0 }}>{children}</View>

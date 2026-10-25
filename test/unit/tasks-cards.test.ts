@@ -12,6 +12,8 @@ import React from "react";
 
 const motion = vi.hoisted(() => ({
   reduced: false,
+  layouts: vi.fn(),
+  reduceListeners: new Set<(value: boolean) => void>(),
   loops: [] as Array<{ start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> }>,
 }));
 
@@ -19,6 +21,7 @@ vi.mock("react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return {
     ...rn,
+    LayoutAnimation: { configureNext: motion.layouts },
     Animated: {
       ...rn.Animated,
       loop: () => {
@@ -29,7 +32,10 @@ vi.mock("react-native", async () => {
     },
     AccessibilityInfo: {
       isReduceMotionEnabled: () => Promise.resolve(motion.reduced),
-      addEventListener: () => ({ remove() {} }),
+      addEventListener: (_event: string, listener: (value: boolean) => void) => {
+        motion.reduceListeners.add(listener);
+        return { remove: () => motion.reduceListeners.delete(listener) };
+      },
     },
   };
 });
@@ -250,6 +256,7 @@ function byLabel(root: ReactTestInstance, label: string): ReactTestInstance {
 
 beforeEach(() => {
   motion.reduced = false;
+  motion.layouts.mockClear();
   motion.loops.length = 0;
 });
 
@@ -1615,6 +1622,38 @@ describe("TaskCardView actions", () => {
       tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false).props.onPress(),
     );
     expect(texts(hostByTestId(tree.root, "subtask-time-sample-child-3"))).toEqual(["1m · 10-19 16:57"]);
+  });
+
+  it.each([false, true])("prepares native subtask layout before updating board expansion (expanded=%s)", async (expanded) => {
+    const card = sample("sample-running");
+    const onSubtasksExpandedChange = vi.fn((id: string, next: boolean) => {
+      expect(id).toBe(card.id);
+      expect(next).toBe(!expanded);
+      expect(motion.layouts).toHaveBeenCalledExactlyOnceWith({
+        duration: expanded ? 140 : 180,
+        update: { type: "easeOut" },
+      });
+    });
+    const tree = await render(cardElement(card, { compact: true, animated: true, subtasksExpanded: expanded, onSubtasksExpandedChange }));
+    expect(motion.layouts).not.toHaveBeenCalled();
+    await act(async () => hostByTestId(tree.root, "pill-subtasks").props.onPress());
+    expect(onSubtasksExpandedChange).toHaveBeenCalledOnce();
+  });
+
+  it.each(["reduced", "static"])("does not prepare a native subtask transition for %s motion", async (mode) => {
+    motion.reduced = mode === "reduced";
+    const onSubtasksExpandedChange = vi.fn();
+    const tree = await render(cardElement(sample("sample-running"), {
+      animated: mode !== "static", subtasksExpanded: false, onSubtasksExpandedChange,
+    }));
+    try {
+      if (mode === "reduced") await act(async () => motion.reduceListeners.forEach((listener) => listener(true)));
+      await act(async () => hostByTestId(tree.root, "pill-subtasks").props.onPress());
+      expect(onSubtasksExpandedChange).toHaveBeenCalledOnce();
+      expect(motion.layouts).not.toHaveBeenCalled();
+    } finally {
+      await act(async () => motion.reduceListeners.forEach((listener) => listener(false)));
+    }
   });
 
   it("counts subtasks by status icon in the pill, without words", async () => {

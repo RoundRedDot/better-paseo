@@ -40,7 +40,7 @@ vi.mock("react-native", async () => {
 });
 
 import { View } from "react-native";
-import { SubtaskPanel } from "../../client/tasks/cards/subtask-panel";
+import { prepareSubtaskToggle, SubtaskPanel } from "../../client/tasks/cards/subtask-panel";
 
 let renderer: TestRenderer.ReactTestRenderer | undefined;
 const element = (expanded: boolean, animated = true) => (
@@ -81,20 +81,24 @@ describe.each(["ios", "android"])("native subtask panel motion (%s)", (os) => {
     expect(shell.props.collapsable).toBe(false);
     expect(shell.props.style.height).toBe(0);
     expect(nodes("rows")).toHaveLength(0);
+    prepareSubtaskToggle(true);
+    expect(motion.layouts).toHaveBeenLastCalledWith({ duration: 180, update: { type: "easeOut" } });
     await update(true);
     expect(panel()).toBe(shell);
     expect(panel().props.style.height).toBeUndefined();
     expect(panel().props.style.opacity.__value).toBe(0);
     expect(nodes("task-card-subtasks-measure")).toHaveLength(0);
     expect(last()).toMatchObject({ to: 1, ms: 180, native: true, interaction: false });
-    expect(motion.layouts).toHaveBeenLastCalledWith({ duration: 180, update: { type: "easeOut" } });
+    expect(motion.layouts).toHaveBeenCalledOnce();
     await act(async () => last().finish());
     expect(panel().props.style.opacity.__value).toBe(1);
 
+    prepareSubtaskToggle(false);
     await update(false);
     expect(last()).toMatchObject({ to: 0, ms: 140 });
     expect(panel().props.style.height).toBe(0);
     expect(motion.layouts).toHaveBeenLastCalledWith({ duration: 140, update: { type: "easeOut" } });
+    expect(motion.layouts).toHaveBeenCalledTimes(2);
     expect(nodes("rows")).toHaveLength(1);
     expect(panel().props).toMatchObject({ pointerEvents: "none", accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" });
     await act(async () => last().finish(false));
@@ -192,6 +196,7 @@ describe("web subtask panel motion", () => {
 
   it("uses CSS transitions after measurement and releases rows after the exit boundary", async () => {
     await render();
+    prepareSubtaskToggle(true);
     expect(nodes("rows")).toHaveLength(0);
     expect(panel().props.style).toMatchObject({ height: 0, opacity: 0 });
     await update(true);
