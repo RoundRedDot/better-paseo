@@ -138,7 +138,7 @@ export function TabletToolbar(props: {
       {page && menuAnchor ? (
         // Keep Android AX bounds inside a board-height parent instead of the short toolbar.
         <View pointerEvents="box-none" testID="tablet-view-overlay" style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: menuAnchor.right, zIndex: 30 }}>
-          <CascadeMenu key={`${page}:${trail.join("/")}`} sections={touchSections(visibleSections)} theme={theme} width={Math.min(260, Math.max(240, props.width - 24))} top={menuAnchor.top} align="right" onClose={() => openPage(null)} testID="tablet-view-menu" />
+          <CascadeMenu key={`${page}:${trail.join("/")}`} sections={touchSections(visibleSections)} theme={theme} width={Math.min(230, props.width - 24)} top={menuAnchor.top} align="right" onClose={() => openPage(null)} testID="tablet-view-menu" />
         </View>
       ) : null}
     </>
