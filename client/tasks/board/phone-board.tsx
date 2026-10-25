@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   Animated,
-  LayoutAnimation,
   Platform,
   Pressable,
   View,
@@ -10,10 +9,10 @@ import {
   type LayoutChangeEvent,
   useWindowDimensions,
 } from "react-native";
-import { FlatList, Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
+import { FlatList, Icon, Modal, ScrollView } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { TaskText as Text, HOST_FONT as F, HOST_LINE, TasksTypography, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, TasksTypography, taskControlHeight } from "../typography";
 import { DetailActionBar, StatusIcon, TaskDetailCards, taskTokens, type CardCallbacks } from "../cards";
 import { panelChrome } from "../cards/panel";
 import { LANE_STATUS, isHistoryLane, turnRunning, type LaneId, type LaneModel, type TaskCard } from "../model";
@@ -26,6 +25,7 @@ import { CardCell, RollingCount, RoundButton, LaneFilterHint, LoadMoreRow, Skele
 import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
 import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
+import { PhoneSearch } from "./phone-search";
 import { defaultLane, laneAfter, swallowsTap, swipeStep, tabUnderline, tabsOverflow, type TabBox } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
 import { useDetailReads, useParentTitle } from "./details-sidebar";
@@ -59,7 +59,6 @@ export function PhoneBoard(props: {
   handlers: RefObject<BoardLayoutHandlers | null>;
 }) {
   const { screen, board, rootRef } = props;
-  const scale = useTasksFontScale();
   const theme = screen.theme;
   const colors = theme.colors;
   const hostId = screen.host.id;
@@ -344,18 +343,7 @@ export function PhoneBoard(props: {
           label={strings.searchButton}
           active={searchOpen || board.params.query !== ""}
           theme={theme}
-          onPress={() => {
-            // A query keeps the field visible; animate only an actual visibility change.
-            if (!reduced && !board.params.query) {
-              LayoutAnimation.configureNext({
-                duration: 180,
-                create: { type: "easeOut", property: "opacity" },
-                update: { type: "easeInEaseOut" },
-                delete: { type: "easeOut", property: "opacity" },
-              });
-            }
-            setSearchOpen((open) => !open);
-          }}
+          onPress={() => setSearchOpen((open) => !open)}
         />
         <RoundButton
           icon={filters.hideSubtasks ? "List" : "Network"}
@@ -376,23 +364,14 @@ export function PhoneBoard(props: {
         />
         <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} />
       </View>
-      {searchOpen || board.params.query ? (
-        <View style={{ paddingHorizontal: 16, paddingBottom: 10 }}>
-          <View style={{ minHeight: 36, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 18 }}>
-            <Icon name="Search" size={15} color={colors.foregroundMuted} />
-            <TextInput
-              autoFocus={searchOpen && !board.params.query}
-              value={board.params.query}
-              onChangeText={(query) => board.setParams((params) => ({ ...params, query }))}
-              placeholder={strings.search}
-              placeholderTextColor={colors.foregroundMuted}
-              accessibilityLabel={strings.search}
-              returnKeyType="search"
-              style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground }}
-            />
-          </View>
-        </View>
-      ) : null}
+      <PhoneSearch
+        visible={searchOpen || board.params.query !== ""}
+        autoFocus={searchOpen && !board.params.query}
+        query={board.params.query}
+        onChange={(query) => board.setParams((params) => ({ ...params, query }))}
+        placeholder={strings.search}
+        theme={theme}
+      />
       <View
         onLayout={(event: LayoutChangeEvent) => setBarWidth(event.nativeEvent.layout.width)}
         style={{ borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 5, backgroundColor: palette.panel }}
