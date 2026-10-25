@@ -963,23 +963,31 @@ describe("ProjectIcon", () => {
     expect(projectViewKey(keyless)).toBe("prj_sample");
   });
 
-  it("draws the generated square on the card, or the uploaded image unrounded", async () => {
+  it.each([false, true])("draws the generated square on the card, or the uploaded image unrounded (compact=%s)", async (compact) => {
     // The sample's projectKey wins over the host pair.
-    const tree = await render(cardElement(sample("sample-running"), { hostId: "host-1" }));
+    const tree = await render(cardElement(sample("sample-running"), { compact, hostId: "host-1" }));
     const square = hostByTestId(tree.root, "project-icon-generated");
     expect(flat(square.props.style)).toMatchObject({ width: 12, height: 12, borderRadius: 3, backgroundColor: "#3d7ea6" });
     const keyless = { ...sample("sample-running"), location: { ...sample("sample-running").location, projectKey: null } };
-    await act(async () => tree.update(cardElement(keyless, { hostId: "host-1" })));
+    await act(async () => tree.update(cardElement(keyless, { compact, hostId: "host-1" })));
     expect(flat(hostByTestId(tree.root, "project-icon-generated").props.style).backgroundColor).toBe("#5179b0");
     const initial = square.find((node) => (node.type as unknown) === "Text");
     expect(initial.props.children).toBe("B");
     expect(flat(initial.props.style).color).toBe("#ffffff");
 
     const withImage = { ...sample("sample-running"), location: { ...sample("sample-running").location, projectIcon: "data:image/png;base64,AAAA" } };
-    await act(async () => tree.update(cardElement(withImage)));
+    await act(async () => tree.update(cardElement(withImage, { compact })));
     const image = hostByTestId(tree.root, "project-icon-image");
     expect(image.props.source).toEqual({ uri: "data:image/png;base64,AAAA" });
     expect(flat(image.props.style).borderRadius).toBeUndefined();
+  });
+
+  it.each([
+    { projectIcon: false },
+    { project: false },
+  ])("hides the phone's project icon when its fields are disabled: %j", async (disabled) => {
+    const tree = await render(cardElement(sample("sample-running"), { compact: true, fields: fields("standard", disabled) }));
+    expect(tree.root.findAll((node) => typeof node.type === "string" && String(node.props.testID).startsWith("project-icon-"))).toHaveLength(0);
   });
 
   it("marks a subtask's top-right corner in its project's colour, and no other card", async () => {
@@ -1166,7 +1174,7 @@ describe("TaskCardView compact tiers", () => {
     expect(all.some((text) => text.includes("#42"))).toBe(false);
     expect(all.some((text) => text.includes("未提交"))).toBe(false);
     expect(all).not.toContain("board");
-    expect(tree.root.findAll((node) => (node.type as unknown) === "Image" && node.props.source?.uri === card.location.projectIcon)).toHaveLength(0);
+    expect(hostByTestId(tree.root, "project-icon-image").props.source).toEqual({ uri: card.location.projectIcon });
     expect(icons(tree.root)).not.toContain("GitPullRequest");
   });
 
