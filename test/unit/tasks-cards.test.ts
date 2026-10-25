@@ -111,7 +111,6 @@ import { ChildMark } from "../../client/tasks/cards/child-mark";
 import { MARK_BITMAPS } from "../../server/mark-bitmaps";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
-import { withAlpha } from "../../client/components/theme-tokens";
 import { TasksTypography, TasksTypographyScale } from "../../client/tasks/typography";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
@@ -983,7 +982,7 @@ describe("ProjectIcon", () => {
     expect(flat(image.props.style).borderRadius).toBeUndefined();
   });
 
-  it("marks a subtask's top-right corner in its project's colour, faded, and no other card", async () => {
+  it("marks a subtask's top-right corner in its project's colour, and no other card", async () => {
     const child = sample("sample-child-1");
     expect(child.parent).not.toBeNull();
     const marks = (tree: ReactTestRenderer) => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtask-mark");
@@ -997,18 +996,20 @@ describe("ProjectIcon", () => {
     // Over the corner and out of the way: no layout, no touch, no screen reader.
     expect(flat(mark.props.style)).toMatchObject({ position: "absolute", top: 0, right: 0, width: CORNER_MARK, height: CORNER_MARK, overflow: "hidden" });
     expect(mark.props.pointerEvents).toBe("none");
+    // 12 pt: inside the 8 pt corner it still reads as a triangle.
+    expect(CORNER_MARK).toBe(12);
     expect(mark.props.importantForAccessibility).toBe("no-hide-descendants");
     // A right triangle: the top border coloured, the left one clear.
-    expect(flat(fill(tree).props.style)).toMatchObject({ width: 0, height: 0, borderTopWidth: CORNER_MARK, borderLeftWidth: CORNER_MARK, borderTopColor: withAlpha(hue, 0.4), borderLeftColor: "transparent" });
+    expect(flat(fill(tree).props.style)).toMatchObject({ width: 0, height: 0, borderTopWidth: CORNER_MARK, borderLeftWidth: CORNER_MARK, borderTopColor: hue, borderLeftColor: "transparent" });
     await act(async () => tree.update(cardElement(child, { hostId: "host-1", theme: DARK })));
-    expect(flat(fill(tree).props.style).borderTopColor).toBe(withAlpha(markHue(child.location, "host-1", taskTokens(DARK)), 0.5));
+    expect(flat(fill(tree).props.style).borderTopColor).toBe(markHue(child.location, "host-1", taskTokens(DARK)));
     // An uploaded icon: the theme colour the server read from it, not the hashed one.
     const withIcon = { ...child, location: { ...child.location, projectIcon: "data:image/png;base64,AAAA", projectIconColor: "#ff4d23" } };
     await act(async () => tree.update(cardElement(withIcon, { hostId: "host-1" })));
-    expect(flat(fill(tree).props.style).borderTopColor).toBe(withAlpha("#ff4d23", 0.4));
+    expect(flat(fill(tree).props.style).borderTopColor).toBe("#ff4d23");
     // Grey until the colour is known, or when it cannot be read.
     expect(markHue({ ...withIcon.location, projectIconColor: null }, "host-1", taskTokens(LIGHT))).toBe(LIGHT.colors.foregroundMuted);
-    // A black logo stays black on a light card and is lifted off a dark one before it is faded.
+    // A black logo stays black on a light card and is lifted off a dark one.
     const black = { ...withIcon.location, projectIconColor: "#000000" };
     expect(markHue(black, "host-1", taskTokens(LIGHT))).toBe("#000000");
     const dark = taskTokens(DARK);
