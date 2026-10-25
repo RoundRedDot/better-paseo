@@ -31,6 +31,8 @@ export function FilterSheetBody(props: {
   theme: PluginTheme;
   options: FilterOptions;
   onDone(): void;
+  /** Phones keep the subtasks switch in their toolbar. */
+  hideSubtasksToggle?: boolean;
   /** Phones and narrow tablet boards keep the empty-groups switch here instead of the toolbar. */
   showEmptyGroupsToggle?: boolean;
   /** Tablet toolbars keep the archived-lane control in this panel. */
@@ -81,15 +83,17 @@ export function FilterSheetBody(props: {
       >
         <View style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4, paddingBottom: 8 }}>
           {sortFirst ? <View style={{ paddingBottom: 8 }}>{sort}</View> : null}
-          <ToggleRow
-            icon={resolved.filters.hideSubtasks ? "List" : "Network"}
-            testID="filter-sheet-subtasks"
-            label={strings.showSubtasks}
-            hint={strings.showSubtasksHint}
-            on={!resolved.filters.hideSubtasks}
-            theme={theme}
-            onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
-          />
+          {props.hideSubtasksToggle ? null : (
+            <ToggleRow
+              icon={resolved.filters.hideSubtasks ? "List" : "Network"}
+              testID="filter-sheet-subtasks"
+              label={strings.showSubtasks}
+              hint={strings.showSubtasksHint}
+              on={!resolved.filters.hideSubtasks}
+              theme={theme}
+              onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
+            />
+          )}
           {props.showArchivedToggle ? (
             <ToggleRow
               icon="Archive"
