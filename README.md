@@ -39,6 +39,9 @@ https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
 
 - **One row per tool call.** Calls start collapsed to a 26pt row with a typed summary and stay
   open or closed across completion, history and remounts.
+- **An icon for every tool.** Shell rows draw the program they run (101 icons for 209 programs,
+  from `python` to `kubectl`), MCP rows the service they call (75 services, from Linear to Feishu)
+  and other calls their kind. See [Tool icons](#tool-icons).
 - **Block details.** Read any tool, thought, checklist or code block in a panel, step through the
   turn's blocks from its header, and follow a streaming block's tail. See
   [Block details](#block-details).
@@ -387,6 +390,257 @@ plugins as plain text and `task` arrives as a sub-agent item. If `ask` also carr
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/tool-thinking-dark.png"><img alt="Thinking tool call" src="docs/images/tool-thinking-light.png"></picture>
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/tool-image-dark.png"><img alt="Image read" src="docs/images/tool-image-light.png"></picture>
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/syntax-dark.png"><img alt="Syntax block" src="docs/images/syntax-light.png"></picture>
+
+</details>
+
+### Tool icons
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/tool-icons-dark.png"><img alt="Every icon a tool row can draw: four real shell rows and four MCP and agent rows on top, then 16 tool kinds, 101 shell program icons and 75 MCP services, grouped by what they are for" src="docs/images/tool-icons-light.png"></picture>
+
+<sub>Captured on 2026-10-25 from `2490d376` in the offline Web showcase, at 2x. Every icon in it comes
+from the plugin's own lookups, so a name the plugin does not know would fail the capture.</sub>
+
+The icon at the start of a tool row says what the call works on, not only which tool made it:
+
+- **Shell commands draw the program they run**: 101 icons for 209 programs, from `python` and
+  `cargo` to `kubectl`, `xcrun simctl` and `ffmpeg`. The plugin reads past shell setup and wrappers
+  (`cd app &&`, `sudo`, `env`, `FOO=1`), drops version suffixes and `.exe` (`python3.12` is
+  `python`, `pip3` is `pip`), and a runner draws the program it fetches when that one has an icon
+  (`npx playwright test` draws Playwright). Coding agents started from the shell (`claude`,
+  `codex`, `gemini` and the rest) draw the same provider mark as their agent rows. A program it
+  does not know keeps the terminal icon.
+- **MCP calls draw the service they call**: 75 services, matched by the server's name with case and
+  separators dropped, so Claude's connectors (`claude_ai_Google_Calendar`), local servers
+  (`linear-server`, `mcp-server-git`) and the Codex and Oh My Pi forms all match. Atlassian's
+  server draws Confluence for its `confluence_*` tools and Jira for the rest. An unknown server
+  keeps the plug.
+- **Everything else draws its kind**: shell, read, edit and write, search, fetch, Git, GitHub,
+  sub-agent, MCP, plan, thinking, question, Oh My Pi's hub, Paseo, plain text and a wrench for the
+  rest.
+- Brand marks are line drawings in the row's icon colour, matched to the 1.5 stroke of Paseo's own Lucide
+  icons, so a turn that mixes tools still reads as one icon set. The daemon serves each mark the
+  first time a row needs it, so their image data stays out of the client bundle Paseo resends on
+  every reconnect.
+- **Row icons and labels** in settings shows the icon, the tool's label or both.
+
+<details>
+<summary>All 209 shell programs and their icons</summary>
+
+| Group | Icon | Programs |
+| --- | --- | --- |
+| Languages and runtimes | Python mark | `python` `pip` `uv` `uvx` `poetry` `pytest` `ipython` `conda` `pipx` `ruff` `mypy` |
+|  | Node.js mark | `node` |
+|  | Deno mark | `deno` |
+|  | Bun mark | `bun` `bunx` |
+|  | TypeScript mark | `tsc` `tsx` `ts-node` |
+|  | Lucide `Coffee` | `java` `javac` `jar` `mvn` `mvnw` `gradle` `gradlew` |
+|  | Kotlin mark | `kotlin` `kotlinc` |
+|  | Go mark | `go` `gofmt` |
+|  | Rust mark | `cargo` `rustc` `rustup` |
+|  | Lucide `Gem` | `ruby` `gem` `bundle` `bundler` `rake` `rails` `irb` |
+|  | PHP mark | `php` `composer` |
+|  | Swift mark | `swift` `swiftc` |
+|  | C++ mark | `gcc` `g++` `clang` `clang++` `cmake` |
+|  | C# mark | `dotnet` |
+|  | Flutter mark | `flutter` `dart` |
+|  | PowerShell mark | `pwsh` `powershell` |
+| Packages and build | npm mark | `npm` `npx` |
+|  | pnpm mark | `pnpm` `pnpx` |
+|  | Yarn mark | `yarn` |
+|  | Lucide `Beer` | `brew` |
+|  | Lucide `Hammer` | `make` |
+|  | Vite mark | `vite` |
+|  | webpack mark | `webpack` `webpack-cli` |
+|  | Turborepo mark | `turbo` |
+| Front end and frameworks | ESLint mark | `eslint` |
+|  | Prettier mark | `prettier` |
+|  | Next.js mark | `next` |
+|  | Nuxt mark | `nuxt` `nuxi` |
+|  | Angular mark | `ng` |
+|  | Astro mark | `astro` |
+|  | Svelte mark | `sv` `svelte-kit` |
+|  | Vue mark | `vue` |
+|  | Tailwind CSS mark | `tailwindcss` |
+|  | React Native mark | `react-native` |
+|  | Expo mark | `expo` `eas` |
+|  | Lucide `Atom` | `electron` `electron-builder` `electron-forge` |
+|  | Django mark | `django-admin` |
+|  | Laravel mark | `laravel` |
+|  | Jupyter mark | `jupyter` `jupyter-lab` `jupyter-notebook` |
+| Tests and browsers | Vitest mark | `vitest` |
+|  | Lucide `FlaskConical` | `jest` `mocha` |
+|  | Playwright mark | `playwright` |
+|  | Puppeteer mark | `puppeteer` |
+|  | Cypress mark | `cypress` |
+|  | Storybook mark | `storybook` |
+|  | Chrome mark | `google-chrome` `google-chrome-stable` `chrome` `chromium` `chromium-browser` |
+|  | Postman mark | `postman` `newman` |
+| Apple and Android | Apple mark | `xcodebuild` `xcrun` `pod` |
+|  | Lucide `Smartphone` | `simctl` `serve-sim` `ios-deploy` |
+|  | Android mark | `adb` `emulator` `avdmanager` `sdkmanager` |
+| Cloud and deploy | AWS mark | `aws` |
+|  | Google Cloud mark | `gcloud` `gsutil` |
+|  | Azure mark | `az` |
+|  | Vercel mark | `vercel` |
+|  | Cloudflare mark | `wrangler` |
+|  | Supabase mark | `supabase` |
+|  | Firebase mark | `firebase` |
+|  | Netlify mark | `netlify` `ntl` |
+|  | Heroku mark | `heroku` |
+|  | Stripe mark | `stripe` |
+| Containers and infrastructure | Docker mark | `docker` `docker-compose` |
+|  | Lucide `Container` | `podman` `podman-compose` |
+|  | Lucide `ShipWheel` | `kubectl` `helm` `minikube` `kind` `k9s` |
+|  | Terraform mark | `terraform` |
+|  | Ansible mark | `ansible` `ansible-playbook` `ansible-galaxy` `ansible-vault` `ansible-inventory` |
+|  | Nginx mark | `nginx` |
+|  | Lucide `Server` | `ssh` `scp` `sftp` `rsync` `mosh` |
+| Data | PostgreSQL mark | `psql` `pg_dump` `pg_restore` |
+|  | MySQL mark | `mysql` `mysqldump` |
+|  | MongoDB mark | `mongosh` `mongo` |
+|  | Lucide `Feather` | `sqlite` |
+|  | Redis mark | `redis-cli` `redis-server` |
+|  | Kafka mark | `kcat` `kafkacat` `kafka-topics.sh` `kafka-console-consumer.sh` `kafka-console-producer.sh` |
+|  | Prisma mark | `prisma` |
+| CI and monitoring | Jenkins mark | `jenkins` `jenkins-cli` |
+|  | CircleCI mark | `circleci` |
+|  | SonarQube mark | `sonar-scanner` |
+|  | Grafana mark | `grafana` `grafana-cli` |
+|  | Prometheus mark | `prometheus` `promtool` |
+|  | Lucide `Dog` | `datadog-ci` |
+|  | Jira mark | `jira` |
+| Code hosting, agents and editors | GitHub mark | `gh` |
+|  | GitLab mark | `glab` |
+|  | Paseo mark | `paseo` |
+|  | Claude provider mark | `claude` |
+|  | Codex provider mark | `codex` |
+|  | Gemini provider mark | `gemini` |
+|  | OpenCode provider mark | `opencode` |
+|  | Cursor provider mark | `cursor-agent` |
+|  | Copilot provider mark | `copilot` |
+|  | Ollama provider mark | `ollama` |
+|  | Oh My Pi provider mark | `omp` |
+|  | VS Code mark | `code` |
+|  | Vim mark | `vim` `vi` `gvim` |
+| Utilities | Lucide `Globe` | `curl` `wget` `http` `xh` |
+|  | Lucide `Search` | `rg` `grep` `find` `fd` `ag` |
+|  | Lucide `Braces` | `jq` `yq` |
+|  | Lucide `FileDiff` | `diff` `colordiff` `difft` |
+|  | Lucide `Archive` | `tar` `zip` `unzip` `gzip` `gunzip` `7z` `xz` |
+|  | Lucide `Clapperboard` | `ffmpeg` `ffprobe` |
+|  | Lucide `ExternalLink` | `open` `xdg-open` |
+
+</details>
+
+<details>
+<summary>All 75 MCP services and their icons</summary>
+
+The name is lower-cased and stripped of everything but letters and digits before it is matched,
+so `Google_Calendar`, `google-calendar` and `googlecalendar` are the same name. A name matches
+when it contains the listed word; a word with `*` only matches at the start, and Git and Time match
+only their whole names, so `github` and `timeline` stay out.
+
+| Group | Service | Icon | Server names it matches |
+| --- | --- | --- | --- |
+| Code and CI | GitHub | GitHub mark | `github` |
+|  | GitLab | GitLab mark | `gitlab` |
+|  | Git | Lucide `GitBranch` | `git`, `mcp-server-git`, `git-mcp` |
+|  | Gitee | Gitee mark | `gitee` |
+|  | Bitbucket | Bitbucket mark | `bitbucket` |
+|  | Jenkins | Jenkins mark | `jenkins` |
+|  | CircleCI | CircleCI mark | `circleci` |
+|  | SonarQube | SonarQube mark | `sonar` |
+|  | Ansible | Ansible mark | `ansible` |
+| Work and docs | Linear | Linear mark | `linear` |
+|  | Jira | Jira mark | `jira`, `atlassian` |
+|  | Confluence | Confluence mark | `confluence`; Atlassian tools named `confluence_*` |
+|  | Notion | Notion mark | `notion` |
+|  | Trello | Trello mark | `trello` |
+|  | Asana | Asana mark | `asana` |
+|  | Airtable | Airtable mark | `airtable` |
+|  | Figma | Figma mark | `figma` |
+|  | Sentry | Sentry mark | `sentry` |
+| Chat and mail | Slack | Slack mark | `slack` |
+|  | Feishu / Lark | Feishu mark | `feishu`, `lark` |
+|  | DingTalk | DingTalk mark | `dingtalk`, `dingding` |
+|  | WeCom | WeCom mark | `wecom`, `wework`, `wechatwork`, `qywx` |
+|  | Microsoft Teams | Teams mark | `teams` |
+|  | Discord | Discord mark | `discord` |
+|  | Telegram | Telegram mark | `telegram` |
+|  | Gmail | Gmail mark | `gmail` |
+|  | Zapier | Zapier mark | `zapier` |
+| Google | Google Calendar | Google Calendar mark | `googlecalendar`, `gcal` |
+|  | Google Drive | Google Drive mark | `googledrive`, `gdrive` |
+|  | Google Maps | Google Maps mark | `googlemaps`, `gmaps` |
+|  | YouTube | YouTube mark | `youtube` |
+| Browsers and devices | Chrome | Chrome mark | `chrome` |
+|  | Playwright | Playwright mark | `playwright` |
+|  | Puppeteer | Puppeteer mark | `puppeteer` |
+|  | Browserbase, browser-use | Lucide `AppWindow` | `browserbase`, `browseruse`, `browsermcp`, `browsertools` |
+|  | iOS Simulator | Lucide `Smartphone` | `iossimulator`, `simulator`, `simctl`, `servesim`, `mobile*` |
+|  | Xcode | Apple mark | `xcode` |
+|  | Android | Android mark | `android`, `adb` |
+|  | Computer use | Lucide `MousePointer2` | `computeruse`, `cuadriver` |
+|  | Desktop Commander | Lucide `SquareTerminal` | `desktopcommander` |
+| Cloud and data | AWS | AWS mark | `aws`, `bedrock` |
+|  | Docker | Docker mark | `docker` |
+|  | Kubernetes | Lucide `ShipWheel` | `kubernetes`, `k8s`, `kubectl` |
+|  | Terraform | Terraform mark | `terraform` |
+|  | Vercel | Vercel mark | `vercel` |
+|  | Cloudflare | Cloudflare mark | `cloudflare` |
+|  | Supabase | Supabase mark | `supabase` |
+|  | Firebase | Firebase mark | `firebase` |
+|  | Netlify | Netlify mark | `netlify` |
+|  | Heroku | Heroku mark | `heroku` |
+|  | Stripe | Stripe mark | `stripe` |
+|  | PostgreSQL | PostgreSQL mark | `postgres` |
+|  | MySQL | MySQL mark | `mysql` |
+|  | MongoDB | MongoDB mark | `mongo` |
+|  | SQLite | Lucide `Feather` | `sqlite` |
+|  | Redis | Redis mark | `redis` |
+|  | Kafka | Kafka mark | `kafka` |
+|  | Elastic | Elastic mark | `elastic`, `kibana` |
+| Monitoring | Grafana | Grafana mark | `grafana` |
+|  | Prometheus | Prometheus mark | `prometheus` |
+|  | Datadog | Lucide `Dog` | `datadog` |
+|  | Postman | Postman mark | `postman` |
+| Search and utilities | Brave Search | Brave mark | `brave` |
+|  | Perplexity | Perplexity mark | `perplexity` |
+|  | Tavily, Serper, SearXNG, Kagi, Exa | Lucide `Search` | `tavily`, `serper`, `searxng`, `kagi`, `exa*` |
+|  | Fetch, Firecrawl | Lucide `Globe` | `fetch`, `firecrawl` |
+|  | Context7 | Lucide `LibraryBig` | `context7` |
+|  | Memory | Lucide `BrainCircuit` | `memory` |
+|  | Sequential Thinking | Lucide `Lightbulb` | `sequentialthinking` |
+|  | Time | Lucide `Clock` | `time`, `mcp-server-time`, `time-mcp` |
+|  | Filesystem | Lucide `FolderOpen` | `filesystem` |
+|  | EverArt | Lucide `Palette` | `everart` |
+|  | Everything | Lucide `Blocks` | `everything` |
+|  | OpenAI | OpenAI mark | `openai` |
+|  | Paseo | Paseo mark | `paseo*` |
+
+</details>
+
+<details>
+<summary>The 16 tool kinds</summary>
+
+| Kind | Icon |
+| --- | --- |
+| Shell (`bash`, `shell`) | Lucide `SquareTerminal`, or the program's icon |
+| Read | Lucide `FileText` |
+| Edit, Write | Lucide `Pencil` |
+| Search | Lucide `Search` |
+| Fetch | Lucide `Globe` |
+| Git, worktree setup | Lucide `GitBranch` |
+| GitHub | GitHub mark |
+| Sub-agent | Lucide `Bot`, or the agent's provider mark on agent rows |
+| MCP | Lucide `Plug`, or the service's icon |
+| Plan | Lucide `ListChecks` |
+| Thinking | Lucide `Lightbulb` |
+| Question | Lucide `MessageCircleQuestion` |
+| Hub (Oh My Pi) | Lucide `Radio` |
+| Paseo | Paseo mark |
+| Plain text | Lucide `MessageSquare` |
+| Anything else | Lucide `Wrench` |
 
 </details>
 
