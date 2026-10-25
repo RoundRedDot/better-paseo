@@ -1,7 +1,7 @@
 /**
  * The drawer's text size while a pinch sets it (`pinch-zoom.ts`), over the
  * top of the body: "Text size 18", and "Reset" once it is off the timeline's
- * size. It stays a moment after the fingers lift, so the reset can be tapped.
+ * size. Step buttons also set the size; each press keeps the badge up a moment.
  */
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
@@ -11,12 +11,15 @@ import { floatShadow } from "../../ui/tokens/float";
 import { useEnhancerPreferences } from "../../preferences";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
 
-export function ZoomBadge({ size, zoom, onReset, tokens }: {
+export function ZoomBadge({ size, zoom, onReset, onStep, canDecrease, canIncrease, tokens }: {
   /** The body size drawn now. */
   size: number;
   /** Points off the timeline's size. */
   zoom: number;
   onReset(): void;
+  onStep(direction: -1 | 1): void;
+  canDecrease: boolean;
+  canIncrease: boolean;
   tokens: ExtendedThemeTokens;
 }) {
   const { language } = useEnhancerPreferences();
@@ -29,10 +32,22 @@ export function ZoomBadge({ size, zoom, onReset, tokens }: {
         borderColor: tokens.v2.border,
         boxShadow: floatShadow(tokens),
       }]}>
+        <Pressable testID="details-zoom-decrease" accessibilityRole="button"
+          accessibilityLabel={toolbarLabel("Decrease text size", language)}
+          accessibilityState={{ disabled: !canDecrease }} disabled={!canDecrease} onPress={() => onStep(-1)}
+          style={({ pressed }) => [styles.step, Platform.OS === "web" && styles.pointer, (!canDecrease || pressed) && { opacity: 0.4 }]}>
+          <Text selectable={false} style={[styles.symbol, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>−</Text>
+        </Pressable>
         <Text selectable={false} numberOfLines={1} accessibilityLiveRegion="polite"
           style={[styles.text, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
           {label}
         </Text>
+        <Pressable testID="details-zoom-increase" accessibilityRole="button"
+          accessibilityLabel={toolbarLabel("Increase text size", language)}
+          accessibilityState={{ disabled: !canIncrease }} disabled={!canIncrease} onPress={() => onStep(1)}
+          style={({ pressed }) => [styles.step, Platform.OS === "web" && styles.pointer, (!canIncrease || pressed) && { opacity: 0.4 }]}>
+          <Text selectable={false} style={[styles.symbol, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>+</Text>
+        </Pressable>
         {zoom !== 0 ? (
           <Pressable testID="details-zoom-reset" accessibilityRole="button" accessibilityLabel={reset}
             onPress={onReset} hitSlop={8}
@@ -59,6 +74,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   reset: { justifyContent: "center", height: 32 },
+  step: { alignItems: "center", justifyContent: "center", width: 32, height: 32 },
+  symbol: { fontSize: 20 },
   pointer: { cursor: "pointer" } as object,
   text: { fontSize: 12, fontVariant: ["tabular-nums"] },
 });

@@ -115,7 +115,7 @@ export interface BlockPlacement {
 }
 export const BlockPlacementContext = createContext<BlockPlacement | null>(null);
 
-/** The drawer's text zoom, in points over the timeline's body size (`detailsTextZoom`). */
+/** Native details text zoom, in points over the timeline's body size (`detailsTextZoom`). */
 export interface DetailsZoom {
   /** The timeline's body size, which the zoom adds to. */
   base: number;
@@ -152,7 +152,7 @@ export interface DetailsShellValue {
   toggleFullscreen?(): void;
   /** Spread on the header: vertical drag moves the drawer, horizontal swipe steps (touch only). */
   headerHandlers?: Record<string, unknown>;
-  /** The phone drawer's text zoom, which a pinch on its body sets; absent elsewhere. */
+  /** Native details text zoom, set by a body pinch or the badge's buttons; absent on web. */
   zoom?: DetailsZoom;
 }
 export const DetailsShellContext = createContext<DetailsShellValue | null>(null);

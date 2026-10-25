@@ -72,6 +72,8 @@ const ZH: Readonly<Record<string, string>> = {
   More: "更多",
   "Back to latest": "回到最新",
   "Text size": "字号",
+  "Decrease text size": "减小字号",
+  "Increase text size": "增大字号",
   Reset: "复原",
   Streaming: "输出中",
   "Copy model name": "复制模型名称",

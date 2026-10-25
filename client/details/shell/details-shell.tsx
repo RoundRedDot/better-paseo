@@ -307,10 +307,10 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
 
   const bodyScroll = useMemo(() => createBodyScroll(), []);
 
-  // The phone drawer's text zoom: drawn live while a pinch moves, saved as it ends.
+  // Native details text zoom in every form: live while pinching, saved as it ends.
   const { detailsTextZoom } = useEnhancerPreferences();
   const [liveZoom, setLiveZoom] = useState<number | null>(null);
-  const zooms = form === "drawer" && Platform.OS !== "web";
+  const zooms = Platform.OS !== "web";
   const textZoom = zooms ? liveZoom ?? detailsTextZoom : 0;
   const zoomRef = useRef(textZoom);
   zoomRef.current = textZoom;

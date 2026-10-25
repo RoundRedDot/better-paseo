@@ -193,3 +193,87 @@ describe("createPinch", () => {
     expect(calls).toEqual(["hold", "release"]);
   });
 });
+
+describe("text size step buttons", () => {
+  it("steps and commits by one, respects limits, resets, and renews the badge timer", async () => {
+    const { usePinchZoom, ZOOM_BADGE_MS } = await import("../../client/details/shell/pinch-zoom");
+    const { ZoomBadge } = await import("../../client/details/chrome/zoom-badge");
+    const commit = vi.fn();
+    let controls!: ReturnType<typeof usePinchZoom>;
+    let current = 0;
+    function Harness() {
+      const [value, setValue] = React.useState(0);
+      current = value;
+      controls = usePinchZoom({ base: 16, code: 12, current: () => value, preview: setValue,
+        commit(next) { commit(next); setValue(next); } }, null);
+      return controls.badge === null ? null : React.createElement(ZoomBadge, {
+        size: 16 + controls.badge, zoom: controls.badge, tokens,
+        onStep: controls.step, canDecrease: controls.canDecrease, canIncrease: controls.canIncrease,
+        onReset() { commit(0); setValue(0); controls.hide(); },
+      });
+    }
+    vi.useFakeTimers();
+    let node!: ReturnType<typeof TestRenderer.create>;
+    try {
+      act(() => { node = TestRenderer.create(React.createElement(Harness)); });
+      const button = (id: string) => node.root.findAll((entry) => typeof entry.type === "string" && entry.props.testID === id)[0]!;
+      const press = (id: string) => act(() => button(id).props.onPress());
+      act(() => {
+        const touches = [{ pageX: 100, pageY: 500 }, { pageX: 100, pageY: 600 }];
+        controls.handlers!.onTouchStart({ nativeEvent: { touches } } as never);
+        controls.handlers!.onTouchEnd({ nativeEvent: { touches: [] } } as never);
+      });
+      expect(button("details-zoom-decrease").props.disabled).toBe(false);
+      expect(button("details-zoom-increase").props.disabled).toBe(false);
+      act(() => { vi.advanceTimersByTime(ZOOM_BADGE_MS - 100); });
+      press("details-zoom-increase");
+      expect(current).toBe(1);
+      expect(commit).toHaveBeenLastCalledWith(1);
+      act(() => { vi.advanceTimersByTime(100); });
+      expect(button("details-zoom-increase")).toBeDefined();
+      for (let index = 0; index < 9; index++) press("details-zoom-increase");
+      expect(current).toBe(10);
+      expect(button("details-zoom-increase").props.disabled).toBe(true);
+      for (let index = 0; index < 14; index++) press("details-zoom-decrease");
+      expect(current).toBe(-4);
+      expect(button("details-zoom-decrease").props.disabled).toBe(true);
+      press("details-zoom-reset");
+      expect(current).toBe(0);
+      expect(commit).toHaveBeenLastCalledWith(0);
+      expect(node.toJSON()).toBeNull();
+      act(() => controls.step(1));
+      act(() => { vi.advanceTimersByTime(ZOOM_BADGE_MS); });
+      expect(node.toJSON()).toBeNull();
+    } finally {
+      if (node) act(() => node.unmount());
+      vi.useRealTimers();
+    }
+  });
+
+  it("disables growth for tall iOS text while still allowing a smaller size", async () => {
+    const { usePinchZoom } = await import("../../client/details/shell/pinch-zoom");
+    const globals = globalThis as { __rnMockOS?: string };
+    const previousOS = globals.__rnMockOS;
+    globals.__rnMockOS = "ios";
+    let controls!: ReturnType<typeof usePinchZoom>;
+    const commit = vi.fn();
+    function Harness() {
+      controls = usePinchZoom({ base: 16, code: 12, current: () => 0, preview() {}, commit }, null);
+      return null;
+    }
+    let node!: ReturnType<typeof TestRenderer.create>;
+    try {
+      act(() => { node = TestRenderer.create(React.createElement(Harness)); });
+      act(() => controls.contentSized(2 ** 18));
+      expect(controls.canIncrease).toBe(false);
+      expect(controls.canDecrease).toBe(true);
+      act(() => controls.step(1));
+      expect(commit).not.toHaveBeenCalled();
+      act(() => controls.step(-1));
+      expect(commit).toHaveBeenLastCalledWith(-1);
+    } finally {
+      if (node) act(() => node.unmount());
+      globals.__rnMockOS = previousOS;
+    }
+  });
+});
