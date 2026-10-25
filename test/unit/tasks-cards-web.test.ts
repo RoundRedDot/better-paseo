@@ -6,6 +6,7 @@
  */
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import React from "react";
+import { readFileSync } from "node:fs";
 
 vi.hoisted(() => {
   (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
@@ -73,6 +74,9 @@ import type { PermissionButton } from "../../client/tasks/actions";
 import type { TaskCard } from "../../client/tasks/model";
 import { TaskCardView, TaskDetailCards, taskTokens, type TaskCardViewProps } from "../../client/tasks/cards";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
+import { CardButton } from "../../client/tasks/cards/action-buttons";
+import { ActionRow } from "../../client/tasks/cards/action-row";
+import { TasksTypographyScale } from "../../client/tasks/typography";
 import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
 
 afterAll(() => {
@@ -872,5 +876,103 @@ describe("TaskCardView hover hints", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("card action leaf migration", () => {
+  const host = (root: ReactTestInstance, testID: string) =>
+    root.find((node) => typeof node.type === "string" && node.props.testID === testID);
+  const flat = (node: ReactTestInstance) => Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean));
+  const transition = {
+    transitionProperty: "background-color, border-color, box-shadow, color, opacity",
+    transitionDuration: "120ms",
+    transitionTimingFunction: "ease-out",
+  };
+
+  it.each([1, 1.5])("preserves card targets and web transitions at font scale %s", async (factor) => {
+    for (const compact of [false, true]) {
+      const renderer = await render(React.createElement(TasksTypographyScale, {
+        factor,
+        children: React.createElement(React.Fragment, null,
+          React.createElement(TaskCardView, props("sample-running", { compact })),
+          React.createElement(CardButton, {
+            tokens: taskTokens(THEME), compact, label: "Archive", icon: "Archive", look: "archive", onPress() {}, testID: "standalone-action",
+          }),
+        ),
+      }));
+      if (!compact) await act(async () => hovers.get("task-card-sample-running")!.enter());
+      const open = host(renderer.root, "task-card-open-tab");
+      const stop = renderer.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "停止");
+      expect(flat(open)).toMatchObject(compact
+        ? { minHeight: 32, minWidth: 32, borderRadius: 7 }
+        : { height: Math.round(28 * factor), borderRadius: 6 });
+      // Outside ActionRow, the compact minimum width grows with type; inside,
+      // useActionFit retains its authored target until the full label is measured.
+      expect(flat(host(renderer.root, "standalone-action"))).toMatchObject(compact
+        ? { minHeight: 32, minWidth: Math.round(32 * factor), borderRadius: 7 }
+        : { height: Math.round(28 * factor), borderRadius: 6 });
+      expect(flat(stop)).toMatchObject(compact
+        ? { minHeight: Math.round(32 * factor), borderTopLeftRadius: 7 }
+        : { height: Math.round(28 * factor), borderTopLeftRadius: 6 });
+      for (const node of [open, stop, host(renderer.root, "task-card-sample-running"), host(renderer.root, "pill-subtasks")]) {
+        expect(flat(node)).toMatchObject(transition);
+      }
+      await act(async () => renderer.unmount());
+
+      const unread = props("sample-unread", { compact, onRead() {} });
+      const readRenderer = await render(React.createElement(TasksTypographyScale, {
+        factor,
+        children: React.createElement(TaskCardView, { ...unread, card: { ...unread.card, readable: true } }),
+      }));
+      if (!compact) await act(async () => hovers.get("task-card-sample-unread")!.enter());
+      const read = host(readRenderer.root, "task-card-read");
+      expect(flat(read)).toMatchObject(compact
+        ? { minHeight: Math.round(32 * factor), borderRadius: 7 }
+        : { height: Math.round(28 * factor), borderRadius: 6 });
+      expect(flat(read)).toMatchObject(transition);
+      await act(async () => readRenderer.unmount());
+    }
+  });
+
+  it.each([
+    { compact: false, fullWidth: 139, foldedWidth: 28 },
+    { compact: true, fullWidth: 144, foldedWidth: 32 },
+  ])("keeps authored fit chrome and restores labels for compact=$compact", async ({ compact, fullWidth, foldedWidth }) => {
+    const renderer = await render(React.createElement(TasksTypographyScale, {
+      factor: 1.5,
+      children: React.createElement(ActionRow, {
+        testID: "migration-actions",
+        children: React.createElement(CardButton, {
+          tokens: taskTokens(THEME), compact, label: "Archive", icon: "Archive", look: "archive", onPress() {}, testID: "migration-archive",
+        }),
+      }),
+    }));
+    const row = host(renderer.root, "migration-actions");
+    const button = () => host(renderer.root, "migration-archive");
+    const label = button().find((node) => (node.type as unknown) === "Text");
+    await act(async () => label.props.onLayout({ nativeEvent: { layout: { width: 100 } } }));
+    await act(async () => row.props.onLayout({ nativeEvent: { layout: { width: fullWidth } } }));
+    expect(texts(button())).toEqual(["Archive"]);
+    expect(flat(button()).minWidth).toBe(fullWidth);
+    await act(async () => row.props.onLayout({ nativeEvent: { layout: { width: fullWidth - 1 } } }));
+    expect(texts(button())).toEqual([]);
+    expect(flat(button())).toMatchObject({ width: foldedWidth, minWidth: foldedWidth });
+    expect(button().props.accessibilityLabel).toBe("Archive");
+    await act(async () => row.props.onLayout({ nativeEvent: { layout: { width: fullWidth } } }));
+    expect(texts(button())).toEqual(["Archive"]);
+    await act(async () => renderer.unmount());
+  });
+
+  it("keeps action dependencies below the card containers and callers on direct leaf imports", () => {
+    const source = (name: string) => readFileSync(new URL(`../../client/tasks/cards/${name}`, import.meta.url), "utf8");
+    const imports = (name: string) => [...source(name).matchAll(/(?:import|export)\s[\s\S]*?from\s+["']([^"']+)["']/g)].map((match) => match[1]);
+    for (const name of ["action-style.ts", "action-buttons.tsx"]) {
+      expect(imports(name).filter((path) => /^(?:\.\/(?:task-card|detail-cards|index)|\.\.\/cards)(?:\.[jt]sx?)?$/.test(path!))).toEqual([]);
+    }
+    for (const name of ["task-card.tsx", "detail-cards.tsx"]) {
+      expect(imports(name)).toEqual(expect.arrayContaining(["./action-style", "./action-buttons"]));
+    }
+    expect(imports("detail-cards.tsx")).not.toContain("./task-card");
+    expect(source("task-card.tsx")).not.toMatch(/export (?:function|const|type) (?:CardButton|buttonHue|requestLook|arrowInset|CONFIRM_STOP_ICON|CardButtonLook)\b/);
   });
 });

@@ -186,7 +186,7 @@ control row is rounded at 6. An icon in a pill or row is the size of the Lucide 
 | Phone filter sheet chip | `filter-sheet.tsx` | 32 | 4 | none; `accentSoft` when on | 14 | `base` |
 | Menu row | `menu.tsx`, `MENU` | 32 | 6 | none; `chrome.hover` hovered | 16 | `base` |
 | Sidebar group row | `details-sidebar.tsx` | 36 (44 touch) | 6 | none; `surface2` on, `controlHover` hovered | 16 in a 20 slot | `base`, count `sm` |
-| Card button | `CardButton` in `task-card.tsx` | 28 (at least 32 phone) | 6 (7 phone) | none; per [Buttons](#look) hovered | 13 (14 phone) | `sm`, weight 500 |
+| Card button | `CardButton` in `action-buttons.tsx` | 28 (at least 32 phone) | 6 (7 phone) | none; per [Buttons](#look) hovered | 13 (14 phone) | `sm`, weight 500 |
 
 All heights grow with the host's interface text size through `taskControlHeight`.
 
@@ -268,7 +268,7 @@ Unarchive, Open tab. None is ever filled with its hue.
 | `archive` | Archive | Archive's yellow | the yellow at 4.5:1 | yellow tint |
 | `read` | Mark read on an unread card (a failed card's stays `plain`) | unread green 40% (45% dark) | green at 4.5:1 | green tint |
 
-`buttonHue(tokens, look)` (`client/tasks/cards/task-card.tsx`) returns these three colours;
+`buttonHue(tokens, look)` (`client/tasks/cards/action-style.ts`) returns these three colours;
 `CardButton`, `ReadControl`, `StopControl`, `OutlineButton`, `RequestButton` and `BarButton` all
 take them from it, and `requestLook(button)` picks a permission button's look in every place.
 A new action button takes a look from the table rather than its own colours.
@@ -319,7 +319,7 @@ No "…ing" labels ("Stopping…", "Unarchiving…"). A confirm step is not a wo
 "Confirm stop" asks for a second press and may say so in words; once confirmed and working, the
 button goes back to "Stop" with a spinner.
 
-`CardButton`, `ReadControl` and `StopControl` (`client/tasks/cards/task-card.tsx`) and
+`CardButton` (`client/tasks/cards/action-buttons.tsx`), `ReadControl` and `StopControl` (`client/tasks/cards/task-card.tsx`) and
 `OutlineButton` and `BarButton` (`client/tasks/cards/detail-cards.tsx`) draw this state; pass
 `busy` rather than a different label. The spinner's `testID` is the button's with `-spinner`
 appended (`detail-stop-spinner`), and each button's test checks the label, the dimming, the busy
