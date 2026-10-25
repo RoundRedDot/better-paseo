@@ -2969,6 +2969,21 @@ describe("Tasks board, phone", () => {
     expect(pressable("Running 2").props.accessibilityState).toEqual({ selected: true });
   });
 
+  it.each(["ios", "android"])("%s does not redraw lane rows for height-only layouts, but still resizes pages with the viewport width", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(screen(true)); });
+    const pager = () => hostsById("phone-lane-pager")[0]!;
+    const layout = (width: number, height: number) => act(() => pager().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height } } }));
+    layout(390, 600);
+    const before = host.rowRenders;
+    for (const height of [599, 590, 575, 554, 600]) layout(390, height);
+    expect(host.rowRenders).toBe(before);
+    layout(844, 390);
+    expect(StyleSheet.flatten(hostsById("phone-lane-needs_input")[0]!.props.style).width).toBe(844);
+    act(() => pager().props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x: 844, y: 0 } } }));
+    expect(pressable("Running 2").props.accessibilityState).toEqual({ selected: true });
+  });
+
   it("swallows a card tap right after the pager moved", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));
