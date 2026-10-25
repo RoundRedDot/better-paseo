@@ -163,25 +163,7 @@ export function Segments<T extends string>(props: {
   );
 }
 
-/** The skeletons' shared breathing, 1 → 0.5 → 1 over 1200 ms; still under reduced motion or while hidden. */
-export function useBreathing(active: boolean): Animated.Value {
-  const reduced = useReducedMotion();
-  const value = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    value.setValue(1);
-    if (!active || reduced) return;
-    const half = MOTION.skeletonMs / 2;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(value, { toValue: 0.5, duration: half, useNativeDriver: nativeDriver }),
-        Animated.timing(value, { toValue: 1, duration: half, useNativeDriver: nativeDriver }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [active, reduced, value]);
-  return value;
-}
+export { useBreathing } from "./breathing";
 
 const SKELETON_WIDTHS = ["78%", "62%", "70%"] as const;
 
