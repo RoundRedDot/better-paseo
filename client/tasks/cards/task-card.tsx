@@ -26,6 +26,8 @@ import { SubtaskRow } from "./subtask-row";
 import { prepareSubtaskToggle, SubtaskPanel } from "./subtask-panel";
 import { subtaskFinished } from "./details-format";
 import { ActionRow, useActionFit } from "./action-row";
+import { CardButton } from "./action-buttons";
+import { buttonHue, CARD_BUTTON_HEIGHT, COMPACT_CARD_BUTTON_HEIGHT, CONFIRM_STOP_ICON, requestLook, webTransition } from "./action-style";
 import { CardContextMenu } from "./card-menu";
 import { bindContextMenu } from "../../web";
 import { ArchivedTag } from "./archived-tag";
@@ -203,7 +205,6 @@ interface Metrics {
   /** Lane block text. */
   blockSize: number;
   blockLine: number;
-  buttonHeight: number;
 }
 
 /**
@@ -249,7 +250,6 @@ const DESKTOP: Metrics = {
   footLine: HOST_LINE.sm,
   blockSize: F.sm,
   blockLine: HOST_LINE.sm,
-  buttonHeight: 28,
 };
 
 const PHONE: Metrics = {
@@ -274,14 +274,10 @@ const PHONE: Metrics = {
   footLine: HOST_LINE.sm,
   blockSize: F.sm,
   blockLine: HOST_LINE.smRead,
-  buttonHeight: 32,
 };
 
 const GAP = 6;
 const tabular: TextStyle = { fontVariant: ["tabular-nums"] };
-const webTransition = (WEB
-  ? { transitionProperty: "background-color, border-color, box-shadow, color, opacity", transitionDuration: "120ms", transitionTimingFunction: "ease-out" }
-  : {}) as ViewStyle;
 
 /**
  * Stop's hover entrance on web: a fade with the preview's 4px drift in from
@@ -492,6 +488,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const language = props.language ?? preferred;
   const strings = cardStrings(language);
   const m = compact ? PHONE : DESKTOP;
+  const buttonHeight = compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT;
   const layout = cardLayout(card, fields, compact);
   // On web the hover is the DOM's, child controls included (`bindRowHover`):
   // RNW's Pressable ends an ancestor's hover as soon as the pointer enters an
@@ -1030,7 +1027,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // show them, hovered or not, so the button sits inside it with the card's
   // own gaps above and below instead of overhanging the pills, and hovering
   // still moves nothing.
-  const footHeight = stopSlot && !TOUCH ? taskControlHeight(m.buttonHeight, scale) : Math.round(m.footLine * scale);
+  const footHeight = stopSlot && !TOUCH ? taskControlHeight(buttonHeight, scale) : Math.round(m.footLine * scale);
   // A desktop request's buttons take the footer in on their row: the wait sits
   // beside the answer it waits for, as the details sidebar shows it, rather
   // than above the divider with the buttons alone on a row of their own.
@@ -1073,8 +1070,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   );
   // Stop, Mark read or Archive, then "Open parent" and "Open tab" in the corner, centred on the line they sit on.
   const footControls = (line: number) => (
-    <ActionRow gap={GAP} style={{ justifyContent: "flex-end", marginVertical: (Math.round(line * scale) - taskControlHeight(m.buttonHeight, scale)) / 2 }}>
-      {footStop ? <StopControl {...stop} compact={false} line={m.buttonHeight} menuLeft={canOpen} /> : canRead ? <ReadControl {...read} compact={false} line={m.buttonHeight} /> : null}
+    <ActionRow gap={GAP} style={{ justifyContent: "flex-end", marginVertical: (Math.round(line * scale) - taskControlHeight(buttonHeight, scale)) / 2 }}>
+      {footStop ? <StopControl {...stop} compact={false} line={buttonHeight} menuLeft={canOpen} /> : canRead ? <ReadControl {...read} compact={false} line={buttonHeight} /> : null}
       {canArchive ? archiveButton(false) : null}
       {canOpen && parentOpens ? openParentButton(false) : null}
       {canOpen ? (
@@ -1130,7 +1127,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                 position: "absolute",
                 left: 0,
                 right: 0,
-                top: (footHeight - taskControlHeight(m.buttonHeight, scale)) / 2,
+                top: (footHeight - taskControlHeight(buttonHeight, scale)) / 2,
                 paddingLeft: GAP,
                 // Follows the card's fill as it eases back from the hover grey.
                 backgroundColor: background,
@@ -1140,7 +1137,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             ]}
             testID={footStop ? "task-card-stop-overlay" : canRead ? "task-card-read-overlay" : canUnarchive ? "task-card-unarchive-overlay" : canArchive ? "task-card-archive-overlay" : "task-card-open-overlay"}
           >
-            {footControls(m.buttonHeight)}
+            {footControls(buttonHeight)}
           </View>
         ) : null}
       </>
@@ -1158,7 +1155,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const controlRow =
     showControl && TOUCH ? (
       <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: answerRow ? 0 : m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-control-row">
-        {footControls(m.buttonHeight)}
+        {footControls(buttonHeight)}
       </View>
     ) : null;
 
@@ -1277,8 +1274,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             onPress={() => props.onPermission?.(card, button)}
           />
         ))}
-        {canStop ? <StopControl {...stop} compact hug={stopHugs} line={m.buttonHeight} menuLeft={openTab && buttons.length === 0} /> : null}
-        {canRead ? <ReadControl {...read} compact hug={openTab} line={m.buttonHeight} /> : null}
+        {canStop ? <StopControl {...stop} compact hug={stopHugs} line={buttonHeight} menuLeft={openTab && buttons.length === 0} /> : null}
+        {canRead ? <ReadControl {...read} compact hug={openTab} line={buttonHeight} /> : null}
         {canArchive ? archiveButton(true, openTab) : null}
         {/* Beside Allow and Deny, where Open tab is a square, there is no room for it. */}
         {openTab && !openSquare && parentOpens ? openParentButton(true) : null}
@@ -1653,134 +1650,6 @@ export function ActionButton(props: {
 }
 
 /**
- * A permission button's look, wherever it is drawn: "Answer" in the
- * needs-input amber, Allow in the accent, and Deny, which pairs with Allow, in
- * the Stop button's danger; any other answer plain.
- */
-export function requestLook(button: PermissionButton): CardButtonLook {
-  if (button.kind === "open") return "answer";
-  if (button.variant === "primary") return "primary";
-  if (button.variant === "danger" || button.action.behavior === "deny") return "danger";
-  return "plain";
-}
-
-export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "archive" | "read";
-
-/**
- * Every Tasks action button's colours, on the card, in the details sidebar
- * and in the phone sheet's bar: an outline whose border, label and icon carry
- * its hue, with no fill at rest and the hue tinted over the card when hovered
- * or pressed. Plain grey (Open tab), Allow's accent, Stop and Deny's danger,
- * "Answer"'s needs-input amber, Archive's yellow, Mark read's unread green.
- * Nothing is ever solid: an armed "Confirm stop" says so in words only.
- */
-export function buttonHue(tokens: TaskTokens, look: CardButtonLook): { color: string; border: string; hover: string } {
-  const card = tokens.card;
-  switch (look) {
-    case "primary":
-      return { color: card.primaryText, border: card.primaryBorder, hover: card.primaryHover };
-    case "danger":
-      return { color: tokens.danger, border: tokens.danger, hover: card.dangerHover };
-    case "answer":
-      return { color: card.answerText, border: card.answerBorder, hover: card.answerHover };
-    case "archive":
-      return { color: card.archiveText, border: card.archiveBorder, hover: card.archiveHover };
-    case "read":
-      return { color: card.readText, border: card.readBorder, hover: card.readHover };
-    default:
-      return { color: tokens.foreground, border: card.buttonBorder, hover: card.controlHover };
-  }
-}
-
-/**
- * The card's button, always an outline: plain grey, Allow's accent, Archive's
- * yellow, the Stop button's danger, or "Answer" in the needs-input amber with its arrow. A busy
- * one keeps its look and label, dimmed, and swaps its icon for the hollow
- * spinner ring (`SpinnerRing`).
- */
-export function CardButton(props: {
-  label: string;
-  /** The label read out, when it differs from the one drawn. */
-  accessibilityLabel?: string;
-  look: CardButtonLook;
-  icon?: string | null;
-  tokens: TaskTokens;
-  compact: boolean;
-  /** Working: dimmed, a spinner in place of the icon, and no second press. */
-  busy?: boolean;
-  /** A phone's icon-only button, as wide as it is high; the label is read out. */
-  square?: boolean;
-  /** On a phone, as wide as its label: "Open tab" beside it takes the rest. */
-  hug?: boolean;
-  /** Ends in the ↗ after its label, as "Open tab" does; a square shows only the arrow. */
-  arrow?: boolean;
-  onPress(): void;
-  testID?: string;
-}) {
-  const { tokens, compact, look: kind } = props;
-  const forcedSquare = compact && props.square === true;
-  const scale = useTasksFontScale();
-  const { hovered: hover, hoverProps } = useHover();
-  const hovered = hover && !props.busy;
-  const answer = kind === "answer";
-  const hue = buttonHue(tokens, kind);
-  const color = hue.color;
-  const fill = hovered ? hue.hover : "transparent";
-  const border = hue.border;
-  const size = compact ? 14 : 13;
-  const height = taskControlHeight(compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, scale);
-  const hasIcon = !!props.icon || props.busy || answer || props.arrow;
-  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, 2 * (compact ? 12 : 10) + (hasIcon ? size + 5 : 0) + 1, forcedSquare);
-  const square = fit.iconOnly;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={props.accessibilityLabel ?? props.label}
-      accessibilityState={props.busy ? { disabled: true, busy: true } : undefined}
-      disabled={props.busy}
-      onPress={props.onPress}
-      {...hoverProps}
-      testID={props.testID}
-      style={{
-        // A phone's button grows with a large system font.
-        ...(compact ? { minHeight: PHONE.buttonHeight, paddingVertical: 4, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height } : { height: taskControlHeight(DESKTOP.buttonHeight, scale) }),
-        ...(compact && props.hug ? { flexGrow: 0 } : null),
-        ...(square ? { width: taskControlHeight(PHONE.buttonHeight, scale), minWidth: 0, flexGrow: 0, flexShrink: 0 } : null),
-        paddingHorizontal: square ? 0 : compact ? 12 : 10,
-        borderRadius: compact ? 7 : 6,
-        ...buttonOutline(border),
-        backgroundColor: fill,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 5,
-        opacity: props.busy ? 0.6 : 1,
-        ...webTransition,
-        ...fit.style,
-      }}
-    >
-      {props.busy ? (
-        // The running ring without its dot, in the icon's box so the button keeps its width.
-        <SpinnerRing size={size} color={color} testID={props.testID ? `${props.testID}-spinner` : undefined} />
-      ) : props.icon ? (
-        <Icon name={props.icon} size={size} color={color} />
-      ) : null}
-      {square ? null : (
-        <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, ...fit.labelStyle, textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
-          {props.label}
-        </Text>
-      )}
-      {/* The one arrow: a label that still ends in its own is trimmed by the caller. */}
-      {(answer || props.arrow) && !(square && props.busy) ? (
-        <View style={{ marginLeft: square ? 0 : -arrowInset(size) }}>
-          <Icon name="ArrowUpRight" size={size} color={color} />
-        </View>
-      ) : null}
-    </Pressable>
-  );
-}
-
-/**
  * Mark read: a card button's size, as Stop and "Answer" are, led by
  * Lucide's CheckCheck (a read receipt). On an unread card it wears the unread
  * dot's green as an outline: a 0.5 px border of that hue and no fill at rest,
@@ -1805,10 +1674,10 @@ function ReadControl(props: {
   const { tokens, strings, pending, compact } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
-  const height = taskControlHeight(compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, scale);
+  const height = taskControlHeight(compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, scale);
   const label = strings.markRead;
   const iconSize = compact ? 14 : 13;
-  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, 2 * (compact ? 12 : 10) + iconSize + 6);
+  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, 2 * (compact ? 12 : 10) + iconSize + 6);
   const hover = hovered && !pending;
   const hue = buttonHue(tokens, props.unread ? "read" : "plain");
   const color = hue.color;
@@ -1874,18 +1743,6 @@ interface StopControlProps {
   theme: PluginTheme;
 }
 
-/** Armed Stop's icon: Lucide's stop sign with an exclamation mark, asking for the second press. */
-export const CONFIRM_STOP_ICON = "OctagonAlert";
-
-/**
- * Lucide's ArrowUpRight draws in columns 7–17 of its 24, where a box icon such
- * as Archive fills 2–22: after a label the arrow sits that 5/24 further off.
- * A trailing arrow is pulled in by it, so its gap reads as a leading icon's.
- */
-export function arrowInset(size: number): number {
-  return (size * 5) / 24;
-}
-
 /**
  * Stop, its confirm state, and a parent's "only this / with subtasks" menu:
  * the details sidebar's stop button at a card button's size ("Answer"'s 28,
@@ -1924,13 +1781,13 @@ function StopControl(props: StopControlProps) {
   const hue = buttonHue(tokens, "danger");
   const color = hue.color;
   const fill = (hovered: boolean) => (hovered ? hue.hover : "transparent");
-  const height = taskControlHeight(compact ? PHONE.buttonHeight : DESKTOP.buttonHeight, scale);
+  const height = taskControlHeight(compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, scale);
   // A card button's: 7 at a phone's 32, 6 at the desktop's 28, as "Answer" is.
   const round = compact ? 7 : 6;
   const iconSize = compact ? 14 : 13;
   const label = confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
   const chevronWidth = props.parent ? (compact ? 36 : 26) : 0;
-  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, (compact ? PHONE.buttonHeight : DESKTOP.buttonHeight) + chevronWidth, 2 * (compact ? (confirming ? 10 : 12) : 10) + iconSize + 6 + chevronWidth);
+  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, (compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT) + chevronWidth, 2 * (compact ? (confirming ? 10 : 12) : 10) + iconSize + 6 + chevronWidth);
   const segment: ViewStyle = {
     ...(compact ? { minHeight: height, paddingVertical: 4 } : { height }),
     flexDirection: "row",

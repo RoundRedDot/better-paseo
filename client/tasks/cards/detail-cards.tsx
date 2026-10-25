@@ -46,7 +46,8 @@ import {
   type SubtaskSummaryPart,
 } from "./details-format";
 import { ActionRow, useActionFit } from "./action-row";
-import { arrowInset, buttonHue, CardButton, CONFIRM_STOP_ICON, requestLook, type CardButtonLook } from "./task-card";
+import { CardButton } from "./action-buttons";
+import { arrowInset, buttonHue, CONFIRM_STOP_ICON, requestLook, type CardButtonLook } from "./action-style";
 import { buttonOutline } from "../board/board-style";
 import { useBreathing } from "../board/breathing";
 import {
