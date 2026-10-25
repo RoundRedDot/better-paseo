@@ -1,12 +1,13 @@
 /**
  * Motion tokens (plan §3.7, BC-09).
  *
- * Three kinds of motion remain in the plugin: the running indicator, the
- * fade-in of an expanded body, and the floating controls (a table's copy
- * menu, the selection bar), whose CSS transitions live with their family in
- * `float.ts`. The first two read their timing from here. There is no
- * spring and no scale on purpose: the requirement rules out bounce and
- * noticeable zoom.
+ * The chat timeline and its details share these: the running indicator, the
+ * fade-in of an expanded body, the preview entrance, and the floating controls
+ * (a table's copy menu, the selection bar), whose CSS transitions live with
+ * their family in `float.ts`. The Tasks board keeps its own choreography (lane
+ * motion, rolling counts, lane flashes) in `MOTION` in
+ * `client/tasks/board/board-style.ts`. There is no spring and no scale on
+ * purpose: the requirement rules out bounce and noticeable zoom.
  *
  * Pure (no `react-native` import) so it can be unit tested; React Native's
  * `Animated.timing` accepts any `(t) => number` as its easing.

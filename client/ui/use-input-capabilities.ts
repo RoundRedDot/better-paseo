@@ -13,7 +13,7 @@ import { Platform } from "react-native";
 export interface InputCapabilities {
   /** A fine pointer that can hover: show hover-revealed actions. */
   hover: boolean;
-  /** Touch input: long-press entries and 32px targets. */
+  /** Touch input: long-press entries. Each surface sets its own touch target sizes (docs/design.md). */
   touch: boolean;
   /** `layout.compact`: header heights and truncation budgets. */
   compact: boolean;
