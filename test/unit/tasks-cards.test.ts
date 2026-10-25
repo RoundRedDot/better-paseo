@@ -680,6 +680,14 @@ describe("TaskCardView rows", () => {
     expect(String(separator.props.children)).toBe("\u00a0\u203a\u00a0");
     byLabel(tree.root, "定位到父任务").props.onPress();
     expect(onReveal).toHaveBeenCalledWith("sample-running");
+    // The card's long-press menu shows the parent's card too.
+    onReveal.mockClear();
+    await act(async () => hostByTestId(tree.root, "task-card-sample-child-1").props.onLongPress());
+    const reveal = hostByTestId(tree.root, "task-card-menu").find(
+      (node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "显示父任务卡片",
+    );
+    await act(async () => reveal.props.onPress());
+    expect(onReveal).toHaveBeenCalledWith("sample-running");
 
     const orphan = { ...sample("sample-child-1"), parent: { id: "gone", title: null, missing: true, archived: true } };
     await act(async () => tree.update(cardElement(orphan, { onReveal, fields: fields("minimal") })));
@@ -1582,10 +1590,10 @@ describe("TaskCardView actions", () => {
     // Its id is a tool call's: the menu copies no session ID.
     const keys = cardMenuSections(card, cardStrings("en"), { copy: () => {}, open: () => {}, children: 0 }).flatMap((section) => section.items.map((item) => item.key));
     expect(keys).toEqual(["open", "copy-title", "copy-workspace", "copy-project"]);
-    const items = cardMenuSections(card, cardStrings("zh"), { copy: () => {}, open: () => {}, openParent: () => {}, children: 0 })[0]!.items;
-    expect(items.map((item) => item.icon)).toEqual(["ArrowUpRight", "CornerLeftUp"]);
+    const items = cardMenuSections(card, cardStrings("zh"), { copy: () => {}, open: () => {}, openParent: () => {}, revealParent: () => {}, children: 0 })[0]!.items;
+    expect(items.map((item) => item.icon)).toEqual(["ArrowUpRight", "CornerLeftUp", "LocateFixed"]);
     const open = items.map((item) => item.label);
-    expect(open).toEqual(["打开", "打开父任务"]);
+    expect(open).toEqual(["打开", "打开父任务", "显示父任务卡片"]);
   });
 
   it("draws a provider subagent's pill as an agent's when its line names an effort but no model", async () => {

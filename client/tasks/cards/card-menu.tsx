@@ -18,6 +18,8 @@ export interface CardMenuActions {
   open?(): void;
   /** A subtask's card: its parent task's tab, unless the parent is archived. */
   openParent?(): void;
+  /** A subtask's card: scrolls the board to its parent's card, as the parent link does. */
+  revealParent?(): void;
   /** Copies `text`; `label` is the row's English name, which the toast echoes. */
   copy(text: string, label: string): void;
   /** Present only while the card can be stopped. */
@@ -33,7 +35,8 @@ export interface CardMenuActions {
 }
 
 /**
- * A card's right-click menu: open its tab; copy its session ID, title,
+ * A card's right-click menu: open its tab (a subtask's also opens its
+ * parent's, or shows the parent's card); copy its session ID, title,
  * workspace and project; then whatever the card can do right now (Stop,
  * Mark read, Unarchive, Archive). A copy whose value the card lacks is left out, and
  * so is an empty group.
@@ -54,6 +57,7 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
       items: [
         ...(actions.open ? [{ key: "open", label: strings.openTab, icon: "ArrowUpRight", onSelect: actions.open }] : []),
         ...(actions.openParent ? [{ key: "open-parent", label: strings.openParent, icon: "CornerLeftUp", onSelect: actions.openParent }] : []),
+        ...(actions.revealParent ? [{ key: "reveal-parent", label: strings.revealParentCard, icon: "LocateFixed", onSelect: actions.revealParent }] : []),
       ],
     },
     {
