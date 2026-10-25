@@ -423,50 +423,90 @@ export const OVERLAY_ROW_Z = 2;
 /** The card's corner radius (Linear's card). */
 const CARD_RADIUS = 8;
 /**
- * The subtask mark's side: small enough to stay a mark, large enough that the
- * card's 8 pt corner leaves a triangle. The context ring keeps its place beside
- * it: on a desktop card (padding 10 x 12, a 14 pt ring) the triangle's edge
- * clears the ring by about 11 pt, and by more on a phone's wider padding.
+ * The subtask mark: a short arc around the top-right corner, like the resize
+ * grip on an iPad window: its centre line has this radius, this stroke, and
+ * sits this far in from both edges. The context ring keeps its place beside
+ * it: on a desktop card (padding 10 x 12, a 14 pt ring) the arc runs from
+ * straight up to straight right of its centre, away from the ring, and its
+ * nearer end clears it by about 7 pt.
  */
-export const CORNER_MARK = 12;
+export const MARK_ARC = { radius: 10, stroke: 2.5, inset: 3.5 } as const;
 /** The mark's hue reads at least this far from the card (a black logo on a dark card). */
 const MARK_CONTRAST = 3;
+/** The mark at rest: this much of the muted foreground, mixed into the card. */
+const MARK_REST_ALPHA = 0.5;
+/** A grey hue (a black logo) reads at least this far from the resting grey, so turning active shows. */
+const MARK_REST_CONTRAST = 3.5;
+/** A hue whose channels spread less than this (0-255) is grey: only those are lifted off the resting grey. */
+const MARK_GREY_CHROMA = 24;
+
+function chroma(hex: string): number {
+  const value = mix(hex, hex, 0);
+  if (!/^#[0-9a-f]{6}$/i.test(value)) return 255;
+  const channels = [1, 3, 5].map((at) => parseInt(value.slice(at, at + 2), 16));
+  return Math.max(...channels) - Math.min(...channels);
+}
 
 /**
- * The subtask mark's hue: an uploaded icon's theme colour (worked out by the
- * server; grey until then, or when it cannot be read), or the generated
- * square's identity colour, so it matches the avatar beside it. Pulled toward
- * the foreground until it stands off the card.
+ * The subtask mark's hue while the card is hovered, chosen or focused: an
+ * uploaded icon's theme colour (worked out by the server; grey until then, or
+ * when it cannot be read), or the generated square's identity colour, so it
+ * matches the avatar beside it. Pulled toward the foreground until it stands
+ * off the card, and a grey one until it stands off the resting grey too. At
+ * rest the mark is grey (`markRest`).
  */
 export function markHue(location: TaskCard["location"], hostId: string | null | undefined, tokens: TaskTokens): string {
   const hue = location.projectIcon ? location.projectIconColor ?? tokens.foregroundMuted : identityColor(projectViewKey(location, hostId));
-  return readableOn(hue, [tokens.card.background], tokens.foreground, MARK_CONTRAST);
+  const visible = readableOn(hue, [tokens.card.background], tokens.foreground, MARK_CONTRAST);
+  // A grey hue (black on a dark card ends up grey) goes on toward the foreground, off the resting grey.
+  return chroma(visible) < MARK_GREY_CHROMA ? readableOn(visible, [markRest(tokens, tokens.card.background)], tokens.foreground, MARK_REST_CONTRAST) : visible;
 }
+
+/**
+ * The subtask mark's grey while the card is at rest: the muted foreground
+ * mixed into the card's fill, opaque, because the arc's round ends overlap it
+ * and a translucent grey would show brighter there.
+ */
+export function markRest(tokens: TaskTokens, fill: string): string {
+  return mix(fill, tokens.foregroundMuted, MARK_REST_ALPHA);
+}
+
 const ariaHidden = (): ViewProps =>
   Platform.OS === "web" ? ({ "aria-hidden": true } as ViewProps) : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" };
 
 /**
- * A subtask card's mark: a right triangle over the top-right corner, clipped
- * to the card's rounded corner inside its hairline. Borders draw it, so it
- * needs no SVG; it is decoration, so neither touch nor a screen reader finds it.
+ * A subtask card's mark (`MARK_ARC`). A box's rounded top-right border is a
+ * quarter circle when the radius is the whole box, so borders draw the arc
+ * with no SVG; two dots round its ends. It is decoration, so neither touch
+ * nor a screen reader finds it.
  */
 function CornerMark(props: { color: string }) {
+  const { radius, stroke, inset } = MARK_ARC;
+  const side = radius + stroke / 2;
+  const end = (left: number, top: number) => (
+    <View style={{ position: "absolute", left, top, width: stroke, height: stroke, borderRadius: stroke / 2, backgroundColor: props.color, ...webTransition }} />
+  );
   return (
     <View
       pointerEvents="none"
-      style={{
-        position: "absolute",
-        top: 0,
-        right: 0,
-        width: CORNER_MARK,
-        height: CORNER_MARK,
-        borderTopRightRadius: CARD_RADIUS - StyleSheet.hairlineWidth,
-        overflow: "hidden",
-      }}
+      style={{ position: "absolute", top: inset - stroke / 2, right: inset - stroke / 2, width: side, height: side }}
       testID="task-card-subtask-mark"
       {...ariaHidden()}
     >
-      <View style={{ width: 0, height: 0, borderTopWidth: CORNER_MARK, borderLeftWidth: CORNER_MARK, borderTopColor: props.color, borderLeftColor: "transparent" }} />
+      <View
+        style={{
+          width: side,
+          height: side,
+          borderTopWidth: stroke,
+          borderRightWidth: stroke,
+          borderTopRightRadius: side,
+          borderColor: props.color,
+          ...webTransition,
+        }}
+        testID="task-card-subtask-mark-arc"
+      />
+      {end(-stroke / 2, 0)}
+      {end(side - stroke, side - stroke / 2)}
     </View>
   );
 }
@@ -604,7 +644,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A provider subagent's card is drawn dashed and flat at rest: it stands for work inside its parent's session.
   const dashed = !!card.subagent;
   // A subtask's card (a Paseo agent with a parent) marks its top-right corner in its project's colour.
-  const cornerMark = card.parent !== null && !card.subagent ? markHue(card.location, props.hostId, tokens) : null;
+  // Grey at rest; the project's colour while the card is hovered, chosen in the sidebar or focused.
+  const cornerMark = card.parent !== null && !card.subagent
+    ? lit || props.current || props.focused ? markHue(card.location, props.hostId, tokens) : markRest(tokens, background)
+    : null;
   const shadows = lit ? [look.shadowHover] : dashed ? [] : [look.shadow];
   // Focus is neutral and outside the card; selection owns the accent fill and hairline.
   if (props.focused && !WEB) shadows.push(`0px 0px 0px 1px ${tokens.foregroundMuted}`);

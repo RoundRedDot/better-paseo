@@ -105,7 +105,7 @@ import {
 import { SpinnerRing, statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
-import { CORNER_MARK, markHue, OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
+import { MARK_ARC, markHue, markRest, OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
 import { SubtaskRow, SubtaskMetadata } from "../../client/tasks/cards/subtask-row";
 import { ChildMark } from "../../client/tasks/cards/child-mark";
 import { MARK_BITMAPS } from "../../server/mark-bitmaps";
@@ -990,38 +990,65 @@ describe("ProjectIcon", () => {
     expect(tree.root.findAll((node) => typeof node.type === "string" && String(node.props.testID).startsWith("project-icon-"))).toHaveLength(0);
   });
 
-  it("marks a subtask's top-right corner in its project's colour, and no other card", async () => {
+  it("marks a subtask's top-right corner with an arc, grey at rest and in its project's colour when active", async () => {
     const child = sample("sample-child-1");
     expect(child.parent).not.toBeNull();
     const marks = (tree: ReactTestRenderer) => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtask-mark");
-    const fill = (tree: ReactTestRenderer) =>
-      marks(tree)[0]!.findAll((node) => typeof node.type === "string" && flat(node.props.style).borderTopColor !== undefined)[0]!;
-    // A generated square: its identity colour, so the mark matches the avatar beside it.
-    const hue = identityColor(projectViewKey(child.location, "host-1"));
-    expect(markHue(child.location, "host-1", taskTokens(LIGHT))).toBe(hue);
+    const arc = (tree: ReactTestRenderer) => hostByTestId(marks(tree)[0]!, "task-card-subtask-mark-arc");
+    const color = (tree: ReactTestRenderer) => flat(arc(tree).props.style).borderColor;
+    const ends = (tree: ReactTestRenderer) =>
+      marks(tree)[0]!.findAll((node) => typeof node.type === "string" && flat(node.props.style).borderRadius === MARK_ARC.stroke / 2);
+    const light = taskTokens(LIGHT);
     const tree = await render(cardElement(child, { hostId: "host-1" }));
     const mark = marks(tree)[0]!;
     // Over the corner and out of the way: no layout, no touch, no screen reader.
-    expect(flat(mark.props.style)).toMatchObject({ position: "absolute", top: 0, right: 0, width: CORNER_MARK, height: CORNER_MARK, overflow: "hidden" });
+    const { radius, stroke, inset } = MARK_ARC;
+    const side = radius + stroke / 2;
+    expect(MARK_ARC).toEqual({ radius: 10, stroke: 2.5, inset: 3.5 });
+    expect(flat(mark.props.style)).toMatchObject({ position: "absolute", top: inset - stroke / 2, right: inset - stroke / 2, width: side, height: side });
     expect(mark.props.pointerEvents).toBe("none");
-    // 12 pt: inside the 8 pt corner it still reads as a triangle.
-    expect(CORNER_MARK).toBe(12);
     expect(mark.props.importantForAccessibility).toBe("no-hide-descendants");
-    // A right triangle: the top border coloured, the left one clear.
-    expect(flat(fill(tree).props.style)).toMatchObject({ width: 0, height: 0, borderTopWidth: CORNER_MARK, borderLeftWidth: CORNER_MARK, borderTopColor: hue, borderLeftColor: "transparent" });
-    await act(async () => tree.update(cardElement(child, { hostId: "host-1", theme: DARK })));
-    expect(flat(fill(tree).props.style).borderTopColor).toBe(markHue(child.location, "host-1", taskTokens(DARK)));
+    // A quarter circle: the box's top and right borders, rounded by the whole box, with a dot on each end.
+    expect(flat(arc(tree).props.style)).toMatchObject({ width: side, height: side, borderTopWidth: stroke, borderRightWidth: stroke, borderTopRightRadius: side });
+    expect(ends(tree)).toHaveLength(2);
+    // At rest: grey, arc and ends alike, and opaque: the ends overlap the arc, where a translucent grey would add up.
+    expect(markRest(light, light.card.background)).toMatch(/^#[0-9a-f]{6}$/);
+    expect(color(tree)).toBe(markRest(light, light.card.background));
+    expect(ends(tree).map((end) => flat(end.props.style).backgroundColor)).toEqual([markRest(light, light.card.background), markRest(light, light.card.background)]);
+    // Hovered: a generated square's identity colour, so the mark matches the avatar beside it.
+    const hue = identityColor(projectViewKey(child.location, "host-1"));
+    expect(markHue(child.location, "host-1", light)).toBe(hue);
+    await act(async () => hostByTestId(tree.root, "task-card-sample-child-1").props.onHoverIn());
+    expect(color(tree)).toBe(hue);
+    await act(async () => hostByTestId(tree.root, "task-card-sample-child-1").props.onHoverOut());
+    expect(color(tree)).toBe(markRest(light, light.card.background));
+    // Chosen in the sidebar, or focused: the colour too.
+    await act(async () => tree.update(cardElement(child, { hostId: "host-1", current: true })));
+    expect(color(tree)).toBe(hue);
+    await act(async () => tree.update(cardElement(child, { hostId: "host-1", focused: true })));
+    expect(color(tree)).toBe(hue);
+    await act(async () => tree.update(cardElement(child, { hostId: "host-1", theme: DARK, current: true })));
+    expect(color(tree)).toBe(markHue(child.location, "host-1", taskTokens(DARK)));
     // An uploaded icon: the theme colour the server read from it, not the hashed one.
     const withIcon = { ...child, location: { ...child.location, projectIcon: "data:image/png;base64,AAAA", projectIconColor: "#ff4d23" } };
-    await act(async () => tree.update(cardElement(withIcon, { hostId: "host-1" })));
-    expect(flat(fill(tree).props.style).borderTopColor).toBe("#ff4d23");
-    // Grey until the colour is known, or when it cannot be read.
-    expect(markHue({ ...withIcon.location, projectIconColor: null }, "host-1", taskTokens(LIGHT))).toBe(LIGHT.colors.foregroundMuted);
+    await act(async () => tree.update(cardElement(withIcon, { hostId: "host-1", current: true })));
+    expect(color(tree)).toBe("#ff4d23");
+    // Grey until the colour is known, or when it cannot be read: darker than the resting grey, so turning active still shows.
+    const unknown = markHue({ ...withIcon.location, projectIconColor: null }, "host-1", light);
+    expect(contrastRatio(unknown, mix(light.card.background, light.foregroundMuted, 0.5))).toBeGreaterThanOrEqual(3.5);
+    expect(contrastRatio(unknown, light.card.background)).toBeGreaterThan(contrastRatio(LIGHT.colors.foregroundMuted, light.card.background));
     // A black logo stays black on a light card and is lifted off a dark one.
     const black = { ...withIcon.location, projectIconColor: "#000000" };
-    expect(markHue(black, "host-1", taskTokens(LIGHT))).toBe("#000000");
+    expect(markHue(black, "host-1", light)).toBe("#000000");
     const dark = taskTokens(DARK);
-    expect(contrastRatio(markHue(black, "host-1", dark), dark.card.background)).toBeGreaterThanOrEqual(3);
+    const lifted = markHue(black, "host-1", dark);
+    expect(contrastRatio(lifted, dark.card.background)).toBeGreaterThanOrEqual(3);
+    // ...and on toward white, so turning active shows against the resting grey (as laid over the card).
+    const restOnCard = mix(dark.card.background, dark.foregroundMuted, 0.5);
+    expect(contrastRatio(lifted, restOnCard)).toBeGreaterThanOrEqual(3.5);
+    expect(contrastRatio(lifted, dark.card.background)).toBeGreaterThan(contrastRatio(restOnCard, dark.card.background) * 2);
+    // A lively colour is left as it is on a dark card.
+    expect(markHue(withIcon.location, "host-1", dark)).toBe("#ff4d23");
     // A top-level card has none, and a provider subagent keeps its dashed border alone.
     await act(async () => tree.update(cardElement(sample("sample-running"))));
     expect(marks(tree)).toHaveLength(0);
@@ -1029,6 +1056,7 @@ describe("ProjectIcon", () => {
     await act(async () => tree.update(cardElement(subagent)));
     expect(marks(tree)).toHaveLength(0);
   });
+
 });
 
 describe("TaskCardView context ring", () => {
