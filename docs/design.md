@@ -490,8 +490,8 @@ Unarchive, Open tab. None is ever filled with its hue.
 
 | Look | Used by | Border | Label and icon | Hover |
 | --- | --- | --- | --- | --- |
-| `plain` | Open tab on the card and in the sidebar, the tab square in the bar, a permission answer that is neither | `buttonBorder`: the theme border 5% toward `foreground` (20% dark, where the border all but matches the card and a half-pixel line in it vanishes) | `foreground` | `controlHover`, `foreground` 7% (10% dark) |
-| `primary` | Allow, Unarchive, the bar's Open tab | accent 50% (55% dark) | accent at 4.5:1 | accent tint |
+| `plain` | Open tab and Open parent everywhere (card, sidebar, bar), Unarchive, a permission answer that is neither | `buttonBorder`: the theme border 5% toward `foreground` (20% dark, where the border all but matches the card and a half-pixel line in it vanishes) | `foreground` | `controlHover`, `foreground` 7% (10% dark) |
+| `primary` | Allow | accent 50% (55% dark) | accent at 4.5:1 | accent tint |
 | `danger` | Stop, Confirm stop, Deny | the theme's `statusDanger` | the same | danger tint |
 | `answer` | "Answer", which opens the tab for a question | needs-input amber 40% (45% dark) | amber at 4.5:1 | amber tint |
 | `archive` | Archive | Archive's yellow | the yellow at 4.5:1 | yellow tint |
@@ -501,6 +501,14 @@ Unarchive, Open tab. None is ever filled with its hue.
 `CardButton`, `ReadControl`, `StopControl`, `OutlineButton`, `RequestButton` and `BarButton` all
 take them from it, and `requestLook(button)` picks a permission button's look in every place.
 A new action button takes a look from the table rather than its own colours.
+
+### Same buttons on the card and in its details
+
+The details sidebar's header and the phone sheet's bar offer the card's buttons, with its labels
+and looks. A subtask whose parent's tab opens (`parentOpensInPaseo`) has "Open parent" right
+before Open tab, and Open tab reads "Open" on every card, a provider subagent's included (its
+tab is the parent's). "Answer" stands in for Open tab, which then is not drawn beside it.
+The details may add only status hints such as "Already open".
 
 ### Layout and narrow widths
 

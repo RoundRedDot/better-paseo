@@ -11,7 +11,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { duration, PREVIEW_REVEAL } from "../../ui/tokens/motion";
 import type { PermissionButton, StopPhase } from "../actions";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
-import { opensInPaseo, turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
+import { opensInPaseo, parentOpensInPaseo, turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
 import { contextRatio, tildePath } from "./format";
 import { cardStart, cardTimer, startHint, timerHint } from "./card-time";
 import { CardHints, hintProps, type CardHintTexts } from "./card-hints";
@@ -608,7 +608,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const canOpen = !compact && !!props.onOpen && !(layout.permission && props.permissionButtons.some((button) => button.kind === "open"));
   const showOpen = canOpen && (TOUCH || hovered || showStop || showRead);
   // A subtask's card adds "Open parent" before it, unless the parent is archived (Paseo would show another tab).
-  const parentOpens = !!props.onOpen && card.parent !== null && !card.parent.archivedAs && card.parent.archived !== true;
+  const parentOpens = !!props.onOpen && parentOpensInPaseo(card);
   // An archived task has Unarchive where Open tab was: Paseo opens it only once it is back.
   const canUnarchive = card.archived === "agent" && !!props.onUnarchive;
   const unarchivePending = props.unarchivePending === true;

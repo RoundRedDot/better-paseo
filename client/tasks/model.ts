@@ -263,6 +263,11 @@ export function opensInPaseo(card: { archived?: "agent" | "workspace" }): boolea
   return card.archived !== "agent";
 }
 
+/** Its parent's tab opens in Paseo: an archived parent's would not, for the same reason. */
+export function parentOpensInPaseo(card: { parent: TaskParentRef | null }): boolean {
+  return card.parent !== null && !card.parent.archivedAs && card.parent.archived !== true;
+}
+
 /** The agent's own turn runs: in the running lane, and not only for its subtasks. */
 export function turnRunning(card: { lane?: LaneId; waitingOnSubtasks?: boolean }): boolean {
   return card.lane === "running" && card.waitingOnSubtasks !== true;

@@ -2238,7 +2238,7 @@ describe("TaskDetailCards", () => {
     const onOpen = vi.fn();
     const tree = await render(details(sample("sample-running"), { onOpen, sessionTokens: { total: 15_322_587, cached: 14_943_278 } }));
     const header = hostByTestId(tree.root, "detail-header");
-    expect(texts(header).slice(0, 11)).toEqual(["运行中", "本轮 12:30", "Port the status ring to React Native", "GPT-5.5 Codex", "Medium", "Bypass", "frontend", "p1", "board", "切换到 tab", "已打开"]);
+    expect(texts(header).slice(0, 11)).toEqual(["运行中", "本轮 12:30", "Port the status ring to React Native", "GPT-5.5 Codex", "Medium", "Bypass", "frontend", "p1", "board", "打开", "已打开"]);
     // The turn's block: its clock, the session's tokens so far and the context ring (86% is past the warning line).
     const turn = hostByTestId(tree.root, "detail-turn");
     expect(texts(turn)).toEqual(["本轮计时", "12:30", "上一轮 18m", "累计 token", "15.3M", "缓存占 98%", "上下文", "86%", "172k / 200k"]);
@@ -2248,8 +2248,8 @@ describe("TaskDetailCards", () => {
     expect(ring.props).toMatchObject({ size: 14, stroke: 2 });
     expect(flat(hostByTestId(tree.root, "detail-context").props.style)).toMatchObject({ flex: 1, borderLeftWidth: 1 });
     expect(flat(hostByTestId(tree.root, "detail-context").props.style).flexDirection).toBeUndefined();
-    // Its tab is open somewhere: the button switches to it.
-    byLabel(tree.root, "切换到 tab").props.onPress();
+    // Its tab is open somewhere: the card's Open, with a hint that it is.
+    hostByTestId(tree.root, "detail-open").props.onPress();
     expect(onOpen).toHaveBeenCalledWith("sample-running");
     // One raised card holds the header and the sections: radius 12, a hairline, the card's shadow.
     expect(flat(hostByTestId(tree.root, "detail-cards").props.style)).toMatchObject({ borderRadius: 12, borderWidth: 1, boxShadow: taskTokens(LIGHT).card.shadow });
@@ -2825,17 +2825,17 @@ describe("TaskDetailCards", () => {
     const bar = (card: TaskCard, more: Record<string, unknown> = {}) =>
       React.createElement(DetailActionBar, { card, theme: LIGHT, language: "zh", strings, onOpen: vi.fn(), ...more });
     const running = await render(bar(sample("sample-running"), { stop: { phase: "idle", onPress: vi.fn() } }));
-    expect(texts(hostByTestId(running.root, "detail-action-bar"))).toEqual(["停止", "切换到 tab"]);
-    // The main button is an accent outline, not a solid fill.
+    expect(texts(hostByTestId(running.root, "detail-action-bar"))).toEqual(["停止", "打开"]);
+    // Open is the card's plain outline, not an accent.
     const look = taskTokens(LIGHT).card;
-    expect(flat(hostByTestId(running.root, "detail-bar-open").props.style)).toMatchObject({ backgroundColor: look.background, borderColor: look.primaryBorder, borderWidth: 0.5 });
+    expect(flat(hostByTestId(running.root, "detail-bar-open").props.style)).toMatchObject({ backgroundColor: look.background, borderColor: look.buttonBorder, borderWidth: 0.5 });
     await act(async () => running.unmount());
     renderer = null;
     const card = sample("sample-input");
     const asking = await render(bar(card, { onPermission: vi.fn(), permissionButtons: permissionButtons(card.permission!, "zh") }));
     const labels = asking.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel);
     // Deny, then allow, then the tab shrunk to a square at the right.
-    expect(labels).toEqual(["拒绝", "允许", "打开处理"]);
+    expect(labels).toEqual(["拒绝", "允许", "打开"]);
     expect(flat(byLabel(asking.root, "允许").props.style)).toMatchObject({ backgroundColor: look.background, borderColor: look.primaryBorder });
     expect(flat(byLabel(asking.root, "拒绝").props.style)).toMatchObject({ backgroundColor: look.background, borderColor: taskTokens(LIGHT).danger });
     await act(async () => asking.unmount());
@@ -2845,6 +2845,7 @@ describe("TaskDetailCards", () => {
     const unarchive = { pending: vi.fn(() => false), press: vi.fn() };
     const archived = await render(bar(archivedCard, { unarchive }));
     expect(texts(hostByTestId(archived.root, "detail-action-bar"))).toEqual(["取消归档"]);
+    expect(flat(hostByTestId(archived.root, "detail-bar-unarchive").props.style)).toMatchObject({ borderColor: look.buttonBorder });
     await act(async () => hostByTestId(archived.root, "detail-bar-unarchive").props.onPress());
     expect(unarchive.press).toHaveBeenCalledWith(archivedCard.id);
     // Working: the same label, dimmed, a spinner where the icon was, no second press.
@@ -2863,7 +2864,7 @@ describe("TaskDetailCards", () => {
     // A done task: Archive as wide as its label, then Open taking the rest.
     const archive = { pending: vi.fn(() => false), press: vi.fn() };
     const done = await render(bar(sample("sample-done"), { archive }));
-    expect(texts(hostByTestId(done.root, "detail-action-bar"))).toEqual(["归档", "切换到 tab"]);
+    expect(texts(hostByTestId(done.root, "detail-action-bar"))).toEqual(["归档", "打开"]);
     expect(flat(hostByTestId(done.root, "detail-bar-archive").props.style)).toMatchObject({ flexGrow: 0, backgroundColor: taskTokens(LIGHT).card.background, borderColor: taskTokens(LIGHT).card.archiveBorder });
     await act(async () => hostByTestId(done.root, "detail-bar-archive").props.onPress());
     expect(archive.press).toHaveBeenCalledWith("sample-done");
@@ -2890,9 +2891,37 @@ describe("TaskDetailCards", () => {
   it("leads the desktop header's actions with Open and ends the touch header's with it", async () => {
     const more = { onOpen: vi.fn(), stop: { phase: "idle", onPress: vi.fn() } };
     const desk = await render(details(sample("sample-running"), more));
-    expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["切换到 tab", "已打开", "停止"]);
+    expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["打开", "已打开", "停止"]);
     await act(async () => desk.update(details(sample("sample-running"), { ...more, touch: true })));
-    expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["停止", "切换到 tab", "已打开"]);
+    expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["停止", "打开", "已打开"]);
+  });
+
+  it("gives a subtask's details the card's Open parent before Open, in the header and the phone's bar", async () => {
+    const onOpen = vi.fn();
+    const child: TaskCard = { ...sample("sample-child-1"), openTab: false };
+    const parentId = child.parent!.id;
+    const desk = await render(details(child, { onOpen }));
+    expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["打开父任务", "打开"]);
+    expect(icons(hostByTestId(desk.root, "detail-open-parent"))).toEqual(["CornerLeftUp"]);
+    await act(async () => hostByTestId(desk.root, "detail-open-parent").props.onPress());
+    expect(onOpen).toHaveBeenLastCalledWith(parentId);
+    await act(async () => desk.update(details(child, { onOpen, touch: true, stop: { phase: "idle", onPress: vi.fn() } })));
+    expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["停止", "打开父任务", "打开"]);
+    // A provider subagent says "Open" too, as its card does: its tab is the parent's.
+    const subagent: TaskCard = { ...child, subagent: { subtitle: "Explore" } };
+    await act(async () => desk.update(details(subagent, { onOpen })));
+    expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["打开父任务", "打开"]);
+    // An archived parent's tab would not stay: no Open parent, as on the card.
+    const archivedParent: TaskCard = { ...child, parent: { ...child.parent!, archived: true } };
+    await act(async () => desk.update(details(archivedParent, { onOpen })));
+    expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["打开"]);
+    await act(async () => desk.unmount());
+    renderer = null;
+    const bar = await render(React.createElement(DetailActionBar, { card: subagent, theme: LIGHT, language: "zh", strings: BOARD_STRINGS.zh.sidebar, onOpen }));
+    expect(texts(hostByTestId(bar.root, "detail-action-bar"))).toEqual(["打开父任务", "打开"]);
+    expect(flat(hostByTestId(bar.root, "detail-bar-open-parent").props.style)).toMatchObject({ borderColor: taskTokens(LIGHT).card.buttonBorder });
+    await act(async () => hostByTestId(bar.root, "detail-bar-open-parent").props.onPress());
+    expect(onOpen).toHaveBeenLastCalledWith(parentId);
   });
 
   it("paints the stop button as a danger outline, armed or not", async () => {
