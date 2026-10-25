@@ -657,7 +657,8 @@ function SheetStep(props: { icon: string; label: string; disabled: boolean; onPr
  * not to intercept, which cancels Gesture Handler's pans). Only the lane
  * shown and its neighbours mount; a tab more than one lane away jumps.
  */
-export function LanePager(props: {
+// Sheet state belongs to PhoneBoard; opening it must not redraw the pages behind it.
+export const LanePager = memo(function LanePager(props: {
   lane: LaneId;
   board: BoardController;
   theme: PluginTheme;
@@ -748,9 +749,10 @@ export function LanePager(props: {
       ))}
     </ScrollView>
   );
-}
+});
 
 // Memoized so a page beside the shown one, given the board it already had, skips the render.
+// Also covers the web's single lane and pager layout changes with unchanged lane props.
 const PhoneLane = memo(function PhoneLane(props: {
   lane: LaneModel;
   board: BoardController;
