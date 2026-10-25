@@ -90,7 +90,7 @@ export interface BoardController {
   archive: ArchiveControl;
   callbacks: CardCallbacks;
   buttonsFor(card: TaskCard): PermissionButton[];
-  /** Fetch a rendered card's project icon; undefined when cards draw no project image (phone, or the field is off). */
+  /** Fetch a rendered card's project icon; undefined when the field is off. */
   requestIcon: ((projectId: string) => void) | undefined;
   highlighted: string | null;
   highlight(agentId: string): void;
@@ -457,7 +457,7 @@ export function useBoard(
     archive,
     callbacks,
     buttonsFor,
-    requestIcon: fields.projectIcon && !compact ? requestProjectIcon : undefined,
+    requestIcon: fields.projectIcon ? requestProjectIcon : undefined,
     highlighted,
     highlight,
     toastMessage,

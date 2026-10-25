@@ -349,15 +349,15 @@ export interface CardLayout {
  * Desktop follows the switches. Compact keeps the must tier whatever the
  * switches say (status, title, agent, model, thinking, timer, actions,
  * permission, failure), lets the default tier follow them (project,
- * workspace, branch, first label, subtasks) and never draws the
- * details-only tier (folder, path, git status, PR, project icon).
+ * project icon, workspace, branch, first label, subtasks) and never draws the
+ * details-only tier (folder, path, git status, PR).
  */
 export function cardLayout(card: TaskCard, fields: CardSettings, compact: boolean): CardLayout {
   const location = card.location;
   const project = fields.project && !!location.projectName;
   const ratio = contextRatio(card.context);
   const path = !compact && fields.path && !!location.cwd;
-  const projectAvatar = project && !compact && fields.projectIcon;
+  const projectAvatar = project && fields.projectIcon;
   return {
     modelPill: compact || fields.provider || fields.model,
     brand: card.providerMark !== null && (compact || fields.provider),

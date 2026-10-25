@@ -2967,18 +2967,32 @@ describe("Tasks board, project icons", () => {
     expect(cards()[0]!.props).toMatchObject({ language: "en", animated: true, hostId: "host-1" });
   });
 
-  it("never asks on a phone or with the field off", () => {
+  it.each(["ios", "android"])("asks for rendered cards' icons on %s when the field is on", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => {
       renderer = TestRenderer.create(screen(true));
     });
-    act(() => renderer!.unmount());
+    expect(requestProjectIcon()).toHaveBeenCalledWith("prj_sample");
+    expect(hostsById("project-icon-generated").length).toBeGreaterThan(0);
+  });
+
+  it.each([false, true])("never asks with the icon field off (compact=%s)", (compact) => {
     host.settings = { ...DEFAULT_TASKS_SETTINGS, card: { ...DEFAULT_TASKS_SETTINGS.card, projectIcon: false } };
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = compact ? "ios" : "web";
     act(() => {
-      renderer = TestRenderer.create(screen(false));
+      renderer = TestRenderer.create(screen(compact));
     });
-    layOut(1600);
+    if (!compact) layOut(1600);
     expect(requestProjectIcon()).not.toHaveBeenCalled();
+  });
+
+  it("keeps project icons off with minimal mobile cards", () => {
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, mobile: { compactCards: true } };
+    act(() => {
+      renderer = TestRenderer.create(screen(true));
+    });
+    expect(requestProjectIcon()).not.toHaveBeenCalled();
+    expect(hostsById("project-icon-generated")).toHaveLength(0);
   });
 
   it("asks for the icons of the projects the project and workspace menus list", () => {
