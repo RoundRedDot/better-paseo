@@ -2514,7 +2514,7 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
       const oldTop = endY + viewY + target + 6;
       const menuStyle = style(menu);
       expect(toolbarWidth - (style(overlay).right as number)).toBe(oldRightEdge);
-      expect(menuStyle).toMatchObject({ position: "absolute", top: oldTop, right: 0, width: Math.min(300, Math.max(240, width - 24)), zIndex: 30 });
+      expect(menuStyle).toMatchObject({ position: "absolute", top: oldTop, right: 0, width: 260, zIndex: 30 });
     };
     act(() => hostsById("tablet-view")[0]!.props.onPress());
     compare(width, width / 2, 6, 80, 2, target);
@@ -2716,7 +2716,7 @@ describe("Tasks board, tablet filters", () => {
     await act(async () => menuOption("Wide").props.onPress());
     expect(deviceTasksStore().snapshot().values).toMatchObject({ laneWidth: "wide" });
     act(() => hostsById("tablet-view")[0]!.props.onPress());
-    act(() => menuOption("Done time range").props.onPress());
+    act(() => menuOption("Time range").props.onPress());
     act(() => menuOption("7 days").props.onPress());
     expect(lastBoardParams("host-1").doneWindow).toBe("7d");
   });
