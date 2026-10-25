@@ -47,7 +47,7 @@ https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
 - **Tasks board.** Every agent on the host by state (needs input, running, to review, done and
   archived), with Paseo's label colours and project icons, Stop, Mark as read, Archive and
   permission buttons on the card, and a details view with the running turn's clock and tokens, the
-  first prompt, the latest message, subtasks and usage. See [Tasks board](#tasks-board).
+  first prompt, the last reply, subtasks and usage. See [Tasks board](#tasks-board).
 - **Follows Paseo.** Fonts, sizes, colours and language follow the host by default; settings are
   stored on the daemon and shared by desktop, web, iOS and Android.
 - **Light on reconnect.** The client ships minified and the Tasks board loads only when it is on,
@@ -666,7 +666,7 @@ the cached share for Claude Code and Codex, and the context), the pending permis
 a failed run, or a summary of the last turn's time, cost and tokens. Then, with a waiting or failed
 card putting Properties first:
 
-- **First prompt** and the agent's **Latest message**, drawn as Markdown, each with Copy; a long
+- **First prompt** and the agent's **Last reply**, drawn as Markdown, each with Copy; a long
   one folds to four lines until you open it.
 - **Subtasks**, drawn like Paseo 0.12's subagent rows: the agent's mark with the status on its
   corner (a green check for a finished child, an archive mark for an archived one), the title over
